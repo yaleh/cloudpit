@@ -34,3 +34,11 @@ extra:
 - server/modules/architecture/refresh-publish.ts (new)
 - server/modules/architecture/tests/refreshJob.test.ts
 - tasks/gap-architecture-refresh-job-split.md
+
+## Blocker
+
+**2026-10-25T17:25:13.938Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/4，剩余未勾 4）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：bd4b3b4c-7829-497c-a0c6-d93ac789d73f
