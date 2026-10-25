@@ -360,9 +360,11 @@ describe('inline chip button', () => {
     .digest('hex');
   // Digests taken from the locale files AFTER the suggestion strip retired the
   // second-line preview and the keyboard hint: the inline chip reuses the
-  // existing `quoteChip` key and must not add one to any locale.
-  const EN_KEY_SET_DIGEST = '6322ac76d8b216e9f833b1d0a93916acb97cd84f979eac4117cbca18dbd4fcf0';
-  const ZH_KEY_SET_DIGEST = '2bf40ffe33de095726e3c650f1089b57cd13335fad2f5a0b11cedf91bfe398e6';
+  // existing `quoteChip` key and must not add one to any locale. Refreshed when
+  // the selection-aware suggest highlight added `input.suggestions.suggestForSelection`
+  // to every locale; this pin still catches the inline chip growing a key of its own.
+  const EN_KEY_SET_DIGEST = '74b1d5b0f88d59c4b82e9edfdc18527bea06f768963a86418b167308393d2333';
+  const ZH_KEY_SET_DIGEST = 'efaf4779ab829a00412a51cb966a7036a767f8eeaed82219ecc838b799041626';
 
   it('(f) has a readable name from the existing key and the complete text in title', () => {
     const { view } = showInlineChip('前面后面', 2);
