@@ -736,7 +736,7 @@ describe('composer state chip acceptance', () => {
     assert.equal(requests[0].seed, '模型一');
   });
 
-  it('(quoted) inserts the selected passage at the caret and focuses, without sending', () => {
+  it('(quoted) inserts a one-line selection at the caret and focuses, without sending', () => {
     const { view, sendMessage, frames } = setupComposer('选中的原文');
     const textarea = attachTextarea(view);
 
@@ -750,11 +750,36 @@ describe('composer state chip acceptance', () => {
 
     assert.equal(
       view.result.current.input,
-      '选中的原文\n\n',
-      'the passage lands on the empty line, then opens the next paragraph',
+      '选中的原文',
+      'a one-line passage lands on the empty line and stays there — no paragraph break',
     );
     assert.equal(document.activeElement, textarea, 'the composer takes focus');
-    assert.equal(textarea.selectionStart, '选中的原文\n\n'.length);
+    assert.equal(textarea.selectionStart, '选中的原文'.length);
+    assert.equal(sendMessage.mock.calls.length, 0, 'quoting is not sending');
+
+    textarea.remove();
+  });
+
+  it('(quoted, multi-line) opens the next paragraph under a passage that spans lines', () => {
+    const quoted = '选中的原文\n第二段';
+    const { view, sendMessage, frames } = setupComposer(quoted);
+    const textarea = attachTextarea(view);
+
+    act(() => {
+      acceptQuotedChip(view);
+    });
+    textarea.value = view.result.current.input;
+    act(() => {
+      frames.forEach((callback) => callback(0));
+    });
+
+    assert.equal(
+      view.result.current.input,
+      '选中的原文\n第二段\n\n',
+      'the passage keeps its own line break and two more open the next paragraph',
+    );
+    assert.equal(document.activeElement, textarea, 'the composer takes focus');
+    assert.equal(textarea.selectionStart, `${quoted}\n\n`.length);
     assert.equal(sendMessage.mock.calls.length, 0, 'quoting is not sending');
 
     textarea.remove();
