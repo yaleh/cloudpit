@@ -2,7 +2,7 @@
 id: gap-test-runner-unsets-host-live-voice-and-s2-env
 title: test-runner unsets host live voice/S2 env before running tests
   (RESIDENT_RUN_IS_TURN / VOICE_REALTIME_* / VOICE_CAPTURE / SENSEVOICE_*)
-status: todo
+status: ready
 labels:
   - gap
 parent: null
