@@ -66,8 +66,8 @@ DoD（真实页面，Playwright 一次性 spec：真实后端 + Vite + Chromium�
 
 ## Blocker
 
-**2026-10-25T17:15:22.806Z — worker 未落地（exited-not-landed）**
+**2026-10-25T17:29:03.957Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- 未落地原因：step=suite: # fail 1
 - run_id：wk-prod-anchor
-- session_id：3835e64e-54fd-4f17-8900-618655b2669a
+- session_id：bc90e9c1-f787-47b2-9c89-c2a6f6e9e7e9

@@ -96,3 +96,11 @@ test exit=0
 - server/index.ts
 - server/shared/tests/server-import-cycle-budget.test.ts
 - tasks/gap-quay-fleet-locator-barrel-export.md
+
+## Blocker
+
+**2026-10-25T17:28:29.059Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：439a4746-ebe1-4a45-aa08-f80c4576dc92
