@@ -1,7 +1,7 @@
 ---
 id: gap-quay-entrypoint-resolver-via-claude-plugin-scopes
 title: Quay 适配器：按 Claude Code 插件 scope 解析 quay CLI 入口，不再依赖项目的 .quay/plugin 符号链接
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -75,3 +75,14 @@ extra:
 - 未落地原因：step=suite: # fail 1
 - run_id：wk-prod-anchor
 - session_id：410c396f-7d78-4002-9b09-bd30793f8592
+
+## Needs-Human
+
+**执行 2026-10-25T22:48:17.740Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 3 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 1
+- run_id：wk-prod-anchor
+- session_id：410c396f-7d78-4002-9b09-bd30793f8592
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-entrypoint-resolver-via-claude-plugin-scopes~wk-prod-anchor~1792967394667-18164c.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-entrypoint-resolver-via-claude-plugin-scopes-wk-prod-anchor.log
