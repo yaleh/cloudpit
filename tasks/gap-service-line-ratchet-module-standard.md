@@ -96,8 +96,8 @@ diff --git a/.agents/skills/frontend-module-standards/SKILL.md b/.agents/skills/
 
 ## Blocker
 
-**2026-10-25T17:15:23.355Z — worker 未落地（exited-not-landed）**
+**2026-10-25T17:29:04.522Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- 未落地原因：step=suite: # fail 1
 - run_id：wk-prod-anchor
-- session_id：871b8d4d-e737-4be1-96e4-b63a3a01af0c
+- session_id：aab3d539-cce7-48b1-ba80-e7932c8967d9

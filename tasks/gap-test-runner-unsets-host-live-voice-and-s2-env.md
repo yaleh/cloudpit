@@ -22,8 +22,8 @@ extra:
 
 - [ ] `grep -nE 'RESIDENT_RUN_IS_TURN|VOICE_REALTIME|VOICE_CAPTURE|SENSEVOICE' scripts/test.sh` 的输出里，出现把这些变量从环境里清除的语句（`unset` 或 `env -u`，写在测试执行之前，不是注释里）。
 - [ ] 取假钉（证明不清理就红）：在显式带上 live env 的 shell 里 `env RESIDENT_RUN_IS_TURN=1 VOICE_REALTIME_SETTINGS_PATH=/data/home/yale/.config/claudecodeui/voice-realtime.settings.json bash scripts/test.sh --root <worktree> server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` exit 0（该文件 15/15 pass）——若 test.sh 没有清 env，这条会确定性红。
-- [ ] 同上带 voice env 跑 `server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts`，`bash scripts/test.sh --root <worktree> server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` exit 0（28/28 pass）。
-- [ ] 不带这些 env 时也仍然绿：`bash scripts/test.sh --root <worktree> server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` exit 0。
+- [ ] 同上带 voice env 跑 `env RESIDENT_RUN_IS_TURN=1 VOICE_REALTIME_UPLINK_VAD=silero VOICE_REALTIME_SETTINGS_PATH=/data/home/yale/.config/claudecodeui/voice-realtime.settings.json bash scripts/test.sh --root <worktree> server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` exit 0（28/28 pass）。
+- [ ] 不带这些 env 时也仍然绿：`env -u RESIDENT_RUN_IS_TURN -u VOICE_REALTIME_SETTINGS_PATH -u VOICE_REALTIME_UPLINK_VAD -u VOICE_CAPTURE bash scripts/test.sh --root <worktree> server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` exit 0。
 - [ ] 最小改动：`git diff --stat` 只动 `scripts/test.sh` 与本任务文件，不含任何 `server/**`、`src/**`、测试文件的改动；`bash -n scripts/test.sh` exit 0。
 
 ## DoD
