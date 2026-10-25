@@ -51,6 +51,7 @@ AC 复核：
 - `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` → tests 43 / pass 42 / fail 0 / skip 1（skip 为既有的「无已安装 quay 插件」用例），exit 0；loop.kernel/pointer/drain/orphan/零额外 spawn/TTL 五组新用例全绿。
 - AC5 兄弟测试 7 文件 → tests 57 / pass 57 / fail 0，exit 0；`server-import-cycle-budget` → 11 pass，exit 0；`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay server/shared` exit 0（仅一条既有的 server/shared/tests/message-unification.test.ts warning）。
 - 形状：`git diff -U0 develop...HEAD -- server/shared/types.ts` 对 `QuayDriverSummary`/`QuayDriverState` 零改动；`loop` 是 `QuaySnapshot` 上的可选字段。
+- 上轮整轮 suite 红的抽查（单文件、本 worktree）：`mcp-session-lifecycle`（37.8s）、`claude-resident-reconcile`、`voice-realtime-uplink-vad-hold-open`、`chat-control-busy` 全部 `passed=true`，重新单独跑 exit 0 —— 上轮 16 个红是并发 16、load≈90 下的整轮 watchdog 超时/负载抖动，不是本任务 delta（这些文件均不在 Touches，且与本 delta 无导入关系）。
 
 DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，residentRestore disabled，`resident-restore started=0`；`GET /api/quay/<projectId>/snapshot?refresh=1`）：
 

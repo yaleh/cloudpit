@@ -17,14 +17,35 @@ extra:
 
 ## AC
 
-- [ ] controller 落地：`grep -n "createArchitectureRefreshController" src/modules/architecture/architectureRefreshController.ts` 命中工厂导出；`wc -l src/modules/architecture/useArchitectureRefresh.ts` ≤ 120 且 `grep -c "useState" src/modules/architecture/useArchitectureRefresh.ts` 输出 0。
-- [ ] 规则可离 React 测试：新增 `src/modules/architecture/tests/architectureRefreshController.test.ts`，用注入的假 api/clock 覆盖 once-per-job 交付、observed-running 去重、coalescing 三条规则；`npx vitest run src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
-- [ ] 行为不回归：`npx vitest run src/modules/architecture/tests/useArchitectureRefresh.test.tsx src/modules/architecture/tests/architectureRefreshDialog.test.tsx` exit 0。
-- [ ] 类型检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/modules/architecture` exit 0。
+- [x] controller 落地：`grep -n "createArchitectureRefreshController" src/modules/architecture/architectureRefreshController.ts` 命中工厂导出；`wc -l src/modules/architecture/useArchitectureRefresh.ts` ≤ 120 且 `grep -c "useState" src/modules/architecture/useArchitectureRefresh.ts` 输出 0。
+- [x] 规则可离 React 测试：新增 `src/modules/architecture/tests/architectureRefreshController.test.ts`，用注入的假 api/clock 覆盖 once-per-job 交付、observed-running 去重、coalescing 三条规则；`npx vitest run src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
+- [x] 行为不回归：`npx vitest run src/modules/architecture/tests/useArchitectureRefresh.test.tsx src/modules/architecture/tests/architectureRefreshDialog.test.tsx` exit 0。
+- [x] 类型检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/modules/architecture` exit 0。
 
 ## DoD
 
 MCP 浏览器在真实运行页面上走一遍手动刷新：打开架构 tab，点 footer 的刷新入口，确认对话框出现、POST 后状态条 running→succeeded、成功后图自动 refit；再开第二个 tab 观察同一 job 的 coalescing（不出现第二次 POST）。截图存 `tmp/` 并贴出；存在可用场景时同时跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴出 JSON 报告与检查点截图。
+
+### 验证证据（2026-10-26，worker 会话）
+
+**真实页面路径。** 本会话 ToolSearch 查 `browser playwright` 无匹配（无 MCP 浏览器），按 [[no-mcp-browser-use-throwaway-playwright-spec]] 的等价路径，直接跑仓里**既有**的真实浏览器判据 `e2e/architecture-refresh.spec.ts`（`playwright.config.ts` 已将它列入 `DEBUG_AGENT_SPEC_FILES`，并为该 selection 发布 fixture home、假 ArchGuard CLI、counter/control 文件与 `SERVER_SETTINGS_PATH`；无临时 spec、无临时 config 改动）。命令与结果：
+
+```
+npx playwright test e2e/architecture-refresh.spec.ts
+  ✓ 1 manual refresh: confirm, coalesce, run, refetch and fail without touching the live analysis (25.4s)
+  ✓ 2 control arm: removing single-flight and staging turns the same readings red (14.8s)
+  2 passed (46.0s)
+```
+
+主用例逐步读数（`readRefreshEvidence`，断言在 spec 内）：baseline `footerState=idle`、`unresolved=1`、`counter=0` → 点 footer 刷新入口，确认对话框出现（`02-confirm-dialog.png`；Cancel 与 Escape 均 `counter=0`）→ 确认后 `dialogPhase=running`、footer `running` 且 `disabled=true`、对话框显示 elapsed（`03-running.png`）→ **第二页同时按刷新，counter 仍为 1**（server 合并成同一 job，不出现第二次 CLI/POST）→ 运行中打开的第三页读到共享 `running` 且不再提供启动入口（`04-mid-run-tab.png`）→ 成功后对话框关闭、`generatedAt` 更新、`unresolved` 1→0、`zoomMode` 由 `custom` 变为 `fit`（图自动 refit）、footer `succeeded`（`05-succeeded.png`）→ 失败臂显示原因与 Retry，且 live manifest 哈希与成功时逐字节相同（`06-failed-retry.png`）。控制臂把 single-flight 与 staging 去掉后同一读数变红（`07-control-no-coalesce.png`、`08-control-no-preserve.png`），证明主臂绿来自机制本身。
+
+截图（`tmp/architecture-refresh/`，gitignored）：`01-baseline.png`、`02-confirm-dialog.png`、`03-running.png`、`04-mid-run-tab.png`、`05-succeeded.png`、`06-failed-retry.png`、`07-control-no-coalesce.png`、`08-control-no-preserve.png`。
+
+**场景运行器。** `e2e/scenarios/` 现有 `cockpit-mode-switch.json` 与 `quay-wall-focus-pin-utter.json`，没有架构刷新场景，故「存在可用场景」条件不成立，未跑 `scripts/ui-scenario.mjs`；上条真实浏览器 spec 即本改动的行为回归。
+
+**补充读数。** `useArchitectureRefresh.ts` 259 → 117 行；`useState` 4 → 0；`useRef` 5 → 2（onSucceededRef、无状态镜像）。控制器 322 行，导出：`IDLE_ARCHITECTURE_REFRESH_STATUS`、`createArchitectureRefreshController` + 类型 `ArchitectureRefreshApi`/`ArchitectureRefreshClock`/`ArchitectureRefreshSnapshot`/`ArchitectureRefreshController`。
+
+**StrictMode。** 控制器改为「首个订阅者到达时启动 activation read 与计时器，最后一个订阅者离开时停表」，并用临时（已删除）StrictMode 探针验证：React 18 StrictMode 的 teardown→reset 之后 hook 仍能读到 `running`（旧 dispose-on-cleanup 写法在探针里读到 `idle`，故没有沿用）。产物未留在提交里。
 
 ## Touches
 
@@ -33,4 +54,5 @@ MCP 浏览器在真实运行页面上走一遍手动刷新：打开架构 tab，
 - src/modules/architecture/tests/architectureRefreshController.test.ts (new)
 - src/modules/architecture/tests/useArchitectureRefresh.test.tsx
 - src/shared/api.ts
+- src/shared/types.ts (the shared ArchitectureRefresh* type group the controller, hook and API now share)
 - tasks/gap-architecture-refresh-react-free-controller.md
