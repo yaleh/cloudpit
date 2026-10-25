@@ -33,6 +33,7 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { expect, request, test } from '@playwright/test';
@@ -84,6 +85,40 @@ const USERNAME = 'e2euser';
 const PASSWORD = 'e2epassword';
 
 /**
+ * The quay plugin directory to mirror into the fixture, or `null` when none is discoverable.
+ *
+ * The server resolves the project's CLI through the Claude Code plugin scopes (see
+ * `quay-entrypoint-resolver.ts`), so the fixture does NOT require a `.quay/plugin` link and this
+ * file no longer calls `realpathSync` on the checkout's link (which does not exist in a task
+ * worktree). The link is written opportunistically for quay's own config loader; when no plugin
+ * can be discovered the fixture simply proceeds without it.
+ */
+const resolveQuayPlugin = (): string | null => {
+  try {
+    const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
+    if (fs.existsSync(repoPlugin)) {
+      return fs.realpathSync(repoPlugin);
+    }
+  } catch {
+    // A dangling checkout link is the retired mechanism; fall through to the cache.
+  }
+  const cache = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'quay', 'quay');
+  let versions: string[] = [];
+  try {
+    versions = fs.existsSync(cache)
+      ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
+      : [];
+  } catch {
+    return null;
+  }
+  if (versions.length === 0) {
+    return null;
+  }
+  versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return path.join(cache, versions[versions.length - 1] as string);
+};
+
+/**
  * Writes the fixture project, its quay config and the transcript that makes the app discover it.
  *
  * Called before the first navigation. `GET /api/projects` runs the session synchronizer, and the
@@ -100,20 +135,19 @@ const seedFixtureProject = (): void => {
   }
 
   // The repository's own `.quay/config.yml` carries no literal `mcp_entry` any more — the
-  // native provider now derives it from the `.quay/plugin` symlink (quay >= 0.17.0: an entry
-  // missing `mcp_entry` resolves it from that symlink's `dist/quay-native.js`, rather than
-  // requiring a project to restate the vendored runtime path). This file previously copied an
-  // `mcp_entry:` line out of the repo's config with a regex, which the schema change left
-  // matching nothing (`REPO_QUAY_CONFIG` has no such line to find — read-fix, not a change in
-  // what the fixture needs). The fixture now mirrors the repo's own, currently-working wiring
-  // instead: point `.quay/plugin` at the same installed plugin the repo checkout points to, and
-  // omit `mcp_entry` so the native provider derives it the same way the real project does.
-  const repoPluginTarget = fs.realpathSync(path.join(REPO_ROOT, '.quay', 'plugin'));
+  // native provider now derives it from the plugin root (quay >= 0.17.0). The fixture mirrors
+  // the repo's own wiring when discoverable, but a `.quay/plugin` link is NOT required: the
+  // server resolves the CLI through the Claude Code plugin scopes, and quay's own config loader
+  // derives the native runtime from the plugin it runs from. This is what makes the spec work in
+  // a task worktree, where `.quay/` is operator state and does not exist.
+  const quayPlugin = resolveQuayPlugin();
   const pluginLink = path.join(WORKSPACE, '.quay', 'plugin');
   // Idempotent: this file seeds the same fixture once per case, so the second case finds the
   // link the first one made (and `symlinkSync` would otherwise fail with EEXIST).
   fs.rmSync(pluginLink, { recursive: true, force: true });
-  fs.symlinkSync(repoPluginTarget, pluginLink);
+  if (quayPlugin !== null) {
+    fs.symlinkSync(quayPlugin, pluginLink);
+  }
 
   fs.writeFileSync(
     path.join(WORKSPACE, '.quay', 'config.yml'),

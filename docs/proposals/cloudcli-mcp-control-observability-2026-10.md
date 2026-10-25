@@ -371,7 +371,7 @@ ChatGPT 侧只显示 21 个工具：DCR 客户端 `f5464e2b` 注册于 10-07 18:
 
 **写副作用检查**：以 marker 文件配合 `find -newer` 检查，命令执行前后只有 `.quay/anchor.json` 变化。空闲 40s、不调用 CLI 的对照中，它也会自行刷新（driver anchor 心跳），因此不归因于 CLI。`claudecodeui` 与 `quay` 两个项目在调用前后没有任何文件变化。
 
-**执行环境**：沿用现有 runner，即项目内 `.quay/plugin/bin/quay`；无 bin 的项目走 bare-PATH 回退并打出 warn。只读白名单是逐字精确匹配（`quay.service.ts:486,499-505`），本次只新增 `['task','list','--json','--no-body']` 这一条。
+**执行环境**：当时沿用现有 runner，即项目内 `.quay/plugin/bin/quay`；无 bin 的项目走 bare-PATH 回退并打出 warn。该依赖已由 `gap-quay-entrypoint-resolver-via-claude-plugin-scopes` 取代：runner 每次 spawn 前经 `server/modules/quay/quay-entrypoint-resolver.ts` 解析入口（SERVER 设置 `quay.entrypoints` 覆盖 → Claude Code 插件 scope local > project > user → 非缓存的旧 `.quay/plugin` 钉版 → bare `quay` on PATH），解析结果带 `{ path, version, source }` 进 snapshot 诊断。只读白名单是逐字精确匹配（`quay.service.ts:486,499-505`），本次只新增 `['task','list','--json','--no-body']` 这一条。
 
 **注意**：quay 仓库 2729 个任务、1.36MB，是索引内存与解析成本的上界参考。
 

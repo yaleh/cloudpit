@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
+import {
+  createQuayEntrypointResolver,
+  type QuayEntrypointFileSystem,
+  type QuayEntrypointResolution,
+  type QuayEntrypointResolver,
+} from './quay-entrypoint-resolver.js';
 import type {
   QuayCommandFailureKind,
   QuayCommandResult,
@@ -30,17 +37,79 @@ export const QUAY_COMMAND_TIMEOUT_MS = 8_000;
 export const QUAY_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 /**
- * Path, relative to a target project's root, of the stable project-scoped quay
- * entrypoint that `/quay:init` installs. The adapter resolves this under the
- * `projectRoot` it is handed, so a project pinned to a particular quay version
- * is always driven by that project's own CLI — never by whichever `quay` happens
- * to be first on the CloudCLI server process's `PATH`, which is a property of how
- * the server was launched rather than of the project it is inspecting.
+ * The binary is resolved per invocation by `quay-entrypoint-resolver.ts`, in priority order:
+ * the SERVER settings override, Claude Code plugin scopes (local > project > user), the legacy
+ * project pin `<projectRoot>/.quay/plugin/bin/quay` (only when it points outside the plugin
+ * cache), then the bare PATH command. The resolver result is read before every spawn, so a
+ * project's CLI can change without restarting the server.
  */
-const QUAY_ENTRYPOINT_RELATIVE_PATH = path.join('.quay', 'plugin', 'bin', 'quay');
 
-/** The bare command the migration-period fallback falls back to when a project has no entrypoint. */
+/** The bare command the resolver's last resort names. */
 const QUAY_BARE_COMMAND = 'quay';
+
+/**
+ * The production filesystem seam for the entrypoint resolver. Kept here — beside the process
+ * adapter that already owns the child-process boundary — so the resolver module itself performs
+ * no direct reads and every branch is driven through injection in a criterion.
+ */
+function createNodeEntrypointFileSystem(): QuayEntrypointFileSystem {
+  return {
+    readText(filePath) {
+      try {
+        return fs.readFileSync(filePath, 'utf8');
+      } catch {
+        return null;
+      }
+    },
+    stat(filePath) {
+      try {
+        const stats = fs.statSync(filePath);
+        return {
+          isFile: stats.isFile(),
+          isDirectory: stats.isDirectory(),
+          mtimeMs: stats.mtimeMs,
+          size: stats.size,
+        };
+      } catch {
+        return null;
+      }
+    },
+    realpath(filePath) {
+      try {
+        return fs.realpathSync(filePath);
+      } catch {
+        return null;
+      }
+    },
+    readlink(filePath) {
+      try {
+        return fs.readlinkSync(filePath);
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/**
+ * Builds the production resolver: the real filesystem, the process home, and the SERVER settings
+ * file (`SERVER_SETTINGS_PATH`, else the shipped user copy). Consumers: `quay.module.ts` (the
+ * spawn boundary, the capability identity read and the snapshot diagnostic) and this module's
+ * own default when a caller does not inject a resolver.
+ */
+export function createSystemQuayEntrypointResolver(
+  options: { homeDir?: string; settingsPath?: string } = {},
+): QuayEntrypointResolver {
+  const homeDir = options.homeDir ?? os.homedir();
+  const settingsPath = options.settingsPath
+    ?? process.env.SERVER_SETTINGS_PATH?.trim()
+    ?? path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json');
+  return createQuayEntrypointResolver({
+    fileSystem: createNodeEntrypointFileSystem(),
+    homeDir,
+    settingsPath,
+  });
+}
 
 /** Minimal shape of the `execFile` error fields the failure classifier reads. */
 type QuayExecFileError = Error & {
@@ -116,11 +185,17 @@ function entrypointIsExecutable(filePath: string): boolean {
 export type QuayProcessDependencies = {
   /** Spawns the resolved binary. Inject to record the command path or simulate errnos/timeouts. */
   execFile?: QuayExecFile;
-  /** Entrypoint existence probe. Inject to drive the resolution branches without touching disk. */
+  /**
+   * Resolves the CLI for a project root. Inject with a deterministic resolution so the adapter
+   * tests never depend on this machine's installed plugins. Defaults to the production
+   * resolver (Claude plugin scopes, SERVER override, legacy pin, PATH).
+   */
+  resolveEntrypoint?: (projectRoot: string) => QuayEntrypointResolution;
+  /** Entrypoint existence probe. Inject to drive the failure branches without touching disk. */
   fileExists?: (filePath: string) => boolean;
-  /** Entrypoint execute-permission probe. Inject alongside `fileExists` in resolution tests. */
+  /** Entrypoint execute-permission probe. Inject alongside `fileExists` in failure tests. */
   isExecutable?: (filePath: string) => boolean;
-  /** Sink for the migration-period warning raised when a project has no entrypoint. Defaults to `console.warn`. */
+  /** Sink for the resolver's warning (skipped record / bare-PATH fallback). Defaults to `console.warn`. */
   warn?: (message: string) => void;
 };
 
@@ -181,10 +256,10 @@ function describeSpawnError(
  *
  * The binary is resolved per invocation from the target project's root rather
  * than from the server process's `PATH`: for `cwd` (which the service always
- * sets to the project's `projectPath`) the adapter prefers the project-scoped
- * entrypoint `<cwd>/.quay/plugin/bin/quay` and spawns that absolute path. Only
- * while a project has not yet run `/quay:init` does it fall back to a bare
- * `quay` on `PATH`, and that fallback emits an explicit warning.
+ * sets to the project's `projectPath`) the adapter asks the injected resolver
+ * which CLI that project is driven with and spawns the returned absolute path.
+ * Only the resolver's last resort returns the bare `quay` on `PATH`, and it
+ * carries a warning that this adapter emits.
  *
  * The injected `execFile` seam lets `server/modules/quay/tests/quay-process.test.ts`
  * assert the resolved command path and the buffer policy against a stub payload.
@@ -197,40 +272,37 @@ export function createQuayProcessRunner(
   const isExecutable = dependencies.isExecutable ?? entrypointIsExecutable;
   const warn = dependencies.warn ?? ((message: string) => console.warn(message));
 
+  // Built lazily so importing this module never reads the machine's home directory.
+  let systemResolver: QuayEntrypointResolver | null = null;
+  const resolveEntrypoint = dependencies.resolveEntrypoint ?? ((projectRoot: string) => {
+    systemResolver ??= createSystemQuayEntrypointResolver();
+    return systemResolver.resolve(projectRoot);
+  });
+
   return (cwd, args, { timeoutMs }) =>
     new Promise<QuayCommandResult>((resolve) => {
       // `cwd` is always the target project's root (the service passes the
-      // project's `projectPath`): it is both the child's working directory and
-      // the base the project-scoped entrypoint is resolved under.
-      const entrypoint = path.join(cwd, QUAY_ENTRYPOINT_RELATIVE_PATH);
+      // project's `projectPath`), which is what the resolver scopes its answer to.
+      const resolution = resolveEntrypoint(cwd);
+      const entrypoint = resolution.path;
+      const usedBareFallback = resolution.source === 'path';
 
-      let command: string;
-      let usedBareFallback = false;
+      // A skipped higher-priority record (a cleaned-up plugin version) is worth surfacing even
+      // when a lower rule then answers — it is how every project used to read `entrypoint-missing`.
+      if (resolution.warning !== null) {
+        warn(resolution.warning);
+      }
 
-      if (fileExists(entrypoint)) {
-        if (!isExecutable(entrypoint)) {
-          resolve(localFailure(
-            'entrypoint-not-executable',
-            `quay entrypoint ${entrypoint} cannot be executed (missing execute permission).`,
-          ));
-          return;
-        }
-        command = entrypoint;
-      } else {
-        // TODO(migration): remove the bare-PATH fallback once every target project is
-        // guaranteed to carry <projectRoot>/.quay/plugin/bin/quay (installed and refreshed by
-        // `/quay:init`). It is a stop-gap so projects mid-migration keep working; it warns on
-        // every use so a lingering fallback is observable rather than silent.
-        usedBareFallback = true;
-        command = QUAY_BARE_COMMAND;
-        warn(
-          `quay entrypoint ${entrypoint} not found for project ${cwd}; falling back to the bare `
-          + `"${QUAY_BARE_COMMAND}" on PATH. Run /quay:init in this project to pin a project-scoped CLI.`,
-        );
+      if (!usedBareFallback && fileExists(entrypoint) && !isExecutable(entrypoint)) {
+        resolve(localFailure(
+          'entrypoint-not-executable',
+          `quay entrypoint ${entrypoint} cannot be executed (missing execute permission).`,
+        ));
+        return;
       }
 
       spawn(
-        command,
+        entrypoint,
         args,
         {
           cwd,

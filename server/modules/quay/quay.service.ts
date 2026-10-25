@@ -25,6 +25,7 @@ import type {
 } from '@/shared/types.js';
 
 import { summarizeBlockers } from './quay-blockers-summary.js';
+import type { QuayEntrypointResolution } from './quay-entrypoint-resolver.js';
 import {
   createQuayFleetCliWallReader,
   createQuayUriResolver,
@@ -63,9 +64,10 @@ export type {
  * installed for this project" apart from "the process timed out" instead of
  * showing one generic "quay did not answer":
  *
- * - `entrypoint-missing` — no executable at `<projectRoot>/.quay/plugin/bin/quay`
- *   and no bare `quay` on `PATH`; the remedy is running `/quay:init` in the project.
- * - `entrypoint-not-executable` — the project entrypoint exists but lacks the
+ * - `entrypoint-missing` — no quay CLI could be resolved for the project (no SERVER override,
+ *   no usable Claude Code plugin-scope record, no non-cache legacy pin) and the bare `quay`
+ *   is not on `PATH`; the remedy is installing the quay plugin or running `/quay:init`.
+ * - `entrypoint-not-executable` — the resolved entrypoint exists but lacks the
  *   execute permission bit, so it cannot be spawned.
  * - `timeout` — the child exceeded the per-command wall-clock bound and was killed.
  * - `nonzero-exit` — the child ran and exited non-zero (or wrote to stderr).
@@ -105,9 +107,10 @@ export type QuayCommandResult = {
  * matched against the read-only whitelist.
  *
  * `cwd` is always the target project's root (the service passes the project's
- * `projectPath`). It is both the child's working directory and the base under
- * which the adapter resolves the project-scoped quay entrypoint, so a project
- * pinned to a particular quay version is driven by that project's own CLI.
+ * `projectPath`). It is both the child's working directory and the key the
+ * adapter passes to the entrypoint resolver, so a project pinned to a particular
+ * quay version (by plugin scope, SERVER override or a legacy pin) is driven by
+ * the CLI that pin resolves to.
  */
 export type QuayCommandRunner = (
   cwd: string,
@@ -1006,6 +1009,13 @@ type QuayServiceDependencies = {
    */
   listProjects?(): readonly { projectId: string; projectPath: string }[];
   runCommand: QuayCommandRunner;
+  /**
+   * Resolves the CLI the project's reads will spawn, for the snapshot's optional `entrypoint`
+   * diagnostic (which binary, which version, which rule selected it). OPTIONAL so every
+   * criterion composing this service is untouched: absent means the snapshot reports no
+   * entrypoint instead of inventing one.
+   */
+  resolveEntrypoint?(projectPath: string): QuayEntrypointResolution;
   /** Read-only filesystem boundary for the `.quay/` carrier files behind the Tests and Fan-in cards. */
   readFile: QuayFileReader;
   /**
@@ -2131,6 +2141,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   ): Promise<QuaySnapshot> => {
     const warnings: string[] = [];
     const quayDir = path.join(projectPath, '.quay');
+    // Which CLI this snapshot's reads go through. Resolved once, from the same cached resolver
+    // the spawn boundary uses, so the diagnostic and the child process cannot disagree.
+    const entrypointResolution = dependencies.resolveEntrypoint?.(projectPath) ?? null;
 
     /**
      * Runs one command and reads its JSON body. A non-zero exit is not on its
@@ -2217,6 +2230,11 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
         warnings.push(read.warning);
       }
     }
+    // A skipped higher-priority plugin record (a cleaned-up version) or the bare-PATH fallback
+    // is a real diagnostic the operator should see, not a silent internal decision.
+    if (entrypointResolution?.warning) {
+      warnings.push(entrypointResolution.warning);
+    }
 
     // The fan-in attempts feed the Fan-in card. (The in-flight tasks' `phase` no longer
     // derives from them: it is read off the same `lanes` document as the Loop pulse gantt,
@@ -2233,6 +2251,14 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     return {
       projectId,
       projectPath,
+      // Optional increment: `{ path, version, source }` only — never widening the driver summary.
+      entrypoint: entrypointResolution === null
+        ? null
+        : {
+            path: entrypointResolution.path,
+            version: entrypointResolution.version,
+            source: entrypointResolution.source,
+          },
       generatedAt: new Date(dependencies.now()).toISOString(),
       cached: false,
       driver: summarizeDriver(driverRead.value),

@@ -4314,6 +4314,33 @@ export type QuayFleetCliReading = {
 };
 
 /**
+ * Where the resolved quay CLI came from, in resolution-priority order.
+ *
+ * - `override` — the SERVER settings file's `quay.entrypoints` entry for this project root.
+ * - `local` / `project` / `user` — a Claude Code plugin install record at that scope.
+ * - `legacy-pin` — `<projectRoot>/.quay/plugin`, accepted only when it does not point into the
+ *   Claude plugin cache (a developer's own pinned checkout).
+ * - `path` — the bare `quay` on the server process's `PATH` (the warned last resort).
+ */
+export type QuayEntrypointSource = 'override' | 'local' | 'project' | 'user' | 'legacy-pin' | 'path';
+
+/**
+ * Which quay binary this panel's reads actually went through.
+ *
+ * Diagnostic only: it answers "which CLI produced this snapshot?" without the panel having to
+ * infer it from a project-level symlink. Carried as an OPTIONAL snapshot field so an older
+ * backend or a cached snapshot reads as "not reported" rather than as "no entrypoint".
+ */
+export type QuayEntrypointDiagnostic = {
+  /** Absolute path of the spawned binary, or the bare `quay` for the PATH fallback. */
+  path: string;
+  /** The install's version carrier (`VERSION`/plugin manifest/record), or `''` when unknown. */
+  version: string;
+  /** The rule that selected it. */
+  source: QuayEntrypointSource;
+};
+
+/**
  * Everything the Tier-2 panel renders, assembled from whitelisted read-only
  * commands. A section is `null` when its command failed or returned unparseable
  * output; the failure is recorded in `warnings` rather than thrown, so one
@@ -4322,6 +4349,12 @@ export type QuayFleetCliReading = {
 export type QuaySnapshot = {
   projectId: string;
   projectPath: string;
+  /**
+   * The CLI this snapshot's reads went through, when the backend reports it. OPTIONAL so a
+   * cached snapshot written before this field existed reads as "not reported", never as
+   * "no CLI"; `null` is a deliberately reported "could not resolve".
+   */
+  entrypoint?: QuayEntrypointDiagnostic | null;
   /**
    * The host-level fleet CLI reading for this snapshot, from the shared locator.
    *
