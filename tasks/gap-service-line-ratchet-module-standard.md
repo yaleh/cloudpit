@@ -1,7 +1,7 @@
 ---
 id: gap-service-line-ratchet-module-standard
 title: 把 reply-suggestions 的 260 行 ratchet 与 React-free controller 纪律写进前后端模块标准
-status: needs-human
+status: todo
 labels:
   - gap
 parent: null
