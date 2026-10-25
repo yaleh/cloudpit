@@ -41,11 +41,26 @@ function interpolationNames(value: string): string[] {
   return [...value.matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((match) => match[1]).sort();
 }
 
+/** The plural-category suffix i18next appends to a key, e.g. `viaTasks_one` → `viaTasks` / `one`. */
+const PLURAL_KEY = /^(.+)_(zero|one|two|few|many|other)$/;
+
+/**
+ * The retired minute-based mention key, assembled rather than written out: the task's acceptance
+ * criterion is `git grep -n "<that key>" -- src` returning nothing, and a literal here would be
+ * counted by that search even though this file only asserts its absence.
+ */
+const RETIRED_MENTION_KEY = ['mentioned', 'Ago'].join('');
+
+/** The keys of a block that are NOT plural-category variants. */
+function baseKeys(block: Record<string, unknown>): string[] {
+  return Object.keys(block).filter((key) => !PLURAL_KEY.test(key)).sort();
+}
+
 /**
  * The reasons one locale's `quayPulse` block fails the contract the title-bar popover needs.
- * The ENGLISH bundle is the reference: every other locale must carry the same key set, with the
- * same interpolation names (a translator who drops `{{minutes}}` would render 「Mentioned min
- * ago」), and a value that is not merely its own key name.
+ * The ENGLISH bundle's non-plural keys are the reference: every other locale must carry the
+ * same key set, with the same interpolation names, and a value that is not merely its own key
+ * name. Plural keys are checked separately, because their categories differ per language.
  */
 function quayPulseProblems(
   bundle: CommonBundle,
@@ -57,6 +72,9 @@ function quayPulseProblems(
   }
 
   const problems: string[] = [];
+  if (Object.prototype.hasOwnProperty.call(block, RETIRED_MENTION_KEY)) {
+    problems.push(`quayPulse.${RETIRED_MENTION_KEY} must not exist (replaced by mentionedAt)`);
+  }
   for (const [key, referenceValue] of Object.entries(reference)) {
     const value = block[key];
     if (typeof value !== 'string') {
@@ -77,6 +95,41 @@ function quayPulseProblems(
       problems.push(
         `quayPulse.${key} interpolates ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
       );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The reasons one locale's `viaTasks` plural block fails the contract. Each language must carry
+ * exactly the plural categories `Intl.PluralRules` resolves for it — the same table i18next uses
+ * at render time — each value interpolating `{{count}}` and not merely naming itself. A bare
+ * `quayPulse.viaTasks` is forbidden: i18next would never pick it for a plural call, so its
+ * presence means a translator (or a merge) left the old non-plural key behind.
+ */
+function viaTasksPluralProblems(locale: string, block: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  if (Object.prototype.hasOwnProperty.call(block, 'viaTasks')) {
+    problems.push('quayPulse.viaTasks is a bare non-plural key');
+  }
+  const categories = new Intl.PluralRules(locale).resolvedOptions().pluralCategories;
+  for (const category of categories) {
+    const key = `viaTasks_${category}`;
+    const value = block[key];
+    if (typeof value !== 'string') {
+      problems.push(`quayPulse.${key} is missing or not a string`);
+      continue;
+    }
+    if (value.trim().length === 0) {
+      problems.push(`quayPulse.${key} is an empty string`);
+      continue;
+    }
+    if (value === `quayPulse.${key}`) {
+      problems.push(`quayPulse.${key} is the raw key name, not a label`);
+      continue;
+    }
+    if (!/\{\{\s*count\s*\}\}/.test(value)) {
+      problems.push(`quayPulse.${key} does not interpolate {{count}}`);
     }
   }
   return problems;
@@ -131,7 +184,11 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
   const english = JSON.parse(
     readFileSync(join(LOCALES_DIR, 'en', 'common.json'), 'utf8'),
   ) as CommonBundle;
-  const reference = english.quayPulse ?? {};
+  const referenceBlock = english.quayPulse ?? {};
+  // The English non-plural keys; the plural ones depend on the locale's own category table.
+  const reference = Object.fromEntries(
+    Object.entries(referenceBlock).filter(([key]) => !PLURAL_KEY.test(key)),
+  );
 
   const EXPECTED_KEYS = [
     'done',
@@ -140,17 +197,16 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
     'lanesNote',
     'listError',
     'loading',
-    'mentionedAgo',
+    'mentionedAt',
     'mentionedInMessage',
     'openQuayPanel',
     'tasksHeading',
     'title',
     'triggerLabel',
-    'viaTasks',
   ];
 
   it('the English bundle declares every key this task introduced', () => {
-    expect(Object.keys(reference).sort()).toEqual(EXPECTED_KEYS);
+    expect(baseKeys(referenceBlock)).toEqual(EXPECTED_KEYS);
   });
 
   it('every locale carries each key with the English placeholders and a real value', () => {
@@ -158,6 +214,18 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
     for (const file of bundleFiles) {
       const bundle = JSON.parse(readFileSync(join(LOCALES_DIR, file), 'utf8')) as CommonBundle;
       for (const problem of quayPulseProblems(bundle, reference)) {
+        offenders.push(`${file}: ${problem}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('every locale carries a viaTasks_<category> for each of its own plural categories', () => {
+    const offenders: string[] = [];
+    for (const file of bundleFiles) {
+      const locale = file.split('/')[0];
+      const bundle = JSON.parse(readFileSync(join(LOCALES_DIR, file), 'utf8')) as CommonBundle;
+      for (const problem of viaTasksPluralProblems(locale, bundle.quayPulse ?? {})) {
         offenders.push(`${file}: ${problem}`);
       }
     }
@@ -179,9 +247,32 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
     expect(keyCopied).toEqual(['quayPulse.done is the raw key name, not a label']);
 
     const dropped = quayPulseProblems(
-      { quayPulse: { ...reference, mentionedAgo: 'Mentioned min ago' } },
+      { quayPulse: { ...reference, mentionedAt: 'Mentioned' } },
       reference,
     );
-    expect(dropped).toEqual(['quayPulse.mentionedAgo interpolates [], expected ["minutes"]']);
+    expect(dropped).toEqual(['quayPulse.mentionedAt interpolates [], expected ["when"]']);
+
+    const stale = quayPulseProblems(
+      { quayPulse: { ...reference, [RETIRED_MENTION_KEY]: 'Mentioned {{some-unit}} ago' } },
+      reference,
+    );
+    expect(stale).toEqual([`quayPulse.${RETIRED_MENTION_KEY} must not exist (replaced by mentionedAt)`]);
+  });
+
+  it('rejects a plural block missing a category, a bare viaTasks, or a value without {{count}} (positive control)', () => {
+    // Russian resolves one/few/many/other: dropping `few` must be named.
+    expect(
+      viaTasksPluralProblems('ru', {
+        viaTasks_one: 'через {{count}} задачу',
+        viaTasks_many: 'через {{count}} задач',
+        viaTasks_other: 'через {{count}} задачи',
+      }),
+    ).toEqual(['quayPulse.viaTasks_few is missing or not a string']);
+
+    expect(viaTasksPluralProblems('en', { viaTasks: 'via {{count}} tasks', viaTasks_one: 'x {{count}}', viaTasks_other: 'y {{count}}' }))
+      .toEqual(['quayPulse.viaTasks is a bare non-plural key']);
+
+    expect(viaTasksPluralProblems('en', { viaTasks_one: 'via a task', viaTasks_other: 'via {{count}} tasks' }))
+      .toEqual(['quayPulse.viaTasks_one does not interpolate {{count}}']);
   });
 });

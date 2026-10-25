@@ -991,9 +991,9 @@
     "loading": "正在加载提及的任务…",
     "listError": "无法读取本会话提及的任务。",
     "lanesNote": "泳道读数不可用——任务仅显示存储状态，不显示阶段。",
-    "viaTasks": "经由 {{count}} 个任务",
+    "viaTasks_other": "经由 {{count}} 个任务",
     "mentionedInMessage": "在消息中提及",
-    "mentionedAgo": "{{minutes}} 分钟前提及",
+    "mentionedAt": "{{when}}提及",
     "openQuayPanel": "打开 Quay 面板"
   }
 }

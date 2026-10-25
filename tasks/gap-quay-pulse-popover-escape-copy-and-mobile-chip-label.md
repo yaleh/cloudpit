@@ -2,7 +2,7 @@
 id: gap-quay-pulse-popover-escape-copy-and-mobile-chip-label
 title: 标题栏脉冲 popover 三处缺陷：Escape 被 composer 先吞、「via 1 tasks」与只按分钟计的相对时间、非 quay
   项目的移动端 tab 下拉被去掉文字
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -53,11 +53,3 @@ extra:
 - src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts
 - src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx
 - tasks/gap-quay-pulse-popover-escape-copy-and-mobile-chip-label.md
-
-## Blocker
-
-**2026-10-25T17:15:22.223Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
-- run_id：wk-prod-anchor
-- session_id：788e5fd3-ac31-4174-9d5f-070099d70865
