@@ -104,3 +104,14 @@ test exit=0
 - 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
 - session_id：439a4746-ebe1-4a45-aa08-f80c4576dc92
+
+## Needs-Human
+
+**执行 2026-10-25T19:28:54.903Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：b97c8547-38e1-475a-89fe-43edf816cf8b
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-fleet-locator-barrel-export~wk-prod-anchor~1792954794354-f9ac61.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-fleet-locator-barrel-export-wk-prod-anchor.log

@@ -54,6 +54,35 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR" || exit 2
 
+# ── host-env isolation: the suite runs at FACTORY defaults, not the live server's ─────────────
+# (gap-test-runner-unsets-host-live-voice-and-s2-env)
+#
+# WHY. The quay anchor inherits the environment of the shell (or systemd service) that started it.
+# On this host that is claudecodeui-server.service, whose drop-ins export the LIVE server's own
+# switches into the anchor — and the anchor hands them to the worker-driver and on to this runner:
+#   RESIDENT_RUN_IS_TURN=1   (40-resident-run-is-turn.conf)
+#   VOICE_REALTIME_*         (30-uplink-vad.conf, 50-tts-local.conf, 60-voice-realtime-settings.conf)
+#   VOICE_CAPTURE            (voice capture mode)
+#   SENSEVOICE_*             (20-sensevoice.conf)
+# Most of the suite is written against the FACTORY defaults, so when those leak in, 15 files red
+# deterministically for reasons that are NOT code regressions: 10 flag-off semantics
+# (mcp-gateway ×3, debug-agent ×1, claude-resident ×5, websocket ×1) and 5 voice files whose
+# silence_duration_ms assertion expects the default 800 while it reads the live settings file's
+# 1500. Proof (2026-10-26): the same two files run with `env -u RESIDENT_RUN_IS_TURN -u
+# VOICE_REALTIME_* …` pass 15/15 and 28/28.
+#
+# WHAT. Drop those names here, once, before any stage, test collection, or child process: every
+# node:test/vitest/playwright child inherits this cleaned environment, so the suite is independent
+# of whatever shell started the anchor. The families are enumerated from the environment itself
+# (compgen -e) rather than hard-coding today's members, so a new drop-in cannot silently leak in.
+#
+# ⛔ The live server's drop-ins are CORRECT for the server — this isolates only the test runner, it
+# does not change them. A test that exercises a flag sets it itself in-process, so no coverage is
+# lost; a test that needs the live value must set it explicitly like any other input.
+unset RESIDENT_RUN_IS_TURN VOICE_CAPTURE
+for _host_env_name in $(compgen -e | grep -E '^(VOICE_REALTIME_|SENSEVOICE_)'); do unset "$_host_env_name"; done
+unset _host_env_name
+
 CONCURRENCY=4
 # ── 服务端阶段的并发【上限夹取】(gap-server-phase-concurrency-clamp；
 #    上限按 effective CPU 自适应：gap-test-sh-concurrency-ceiling-adapts-to-effective-cpu) ─────
@@ -101,10 +130,15 @@ CONCURRENCY_CEILING="${QUAY_TEST_CONCURRENCY_CEILING:-$(adaptive_ceiling)}"
 case "$CONCURRENCY_CEILING" in ''|*[!0-9]*|0) CONCURRENCY_CEILING="$CEILING_CAP" ;; esac
 FILES=()
 FOR_TASK=""
+LIST_FILES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --for-task) FOR_TASK="${2:-}"; shift 2 ;;
     --static-checks-doc) echo "no doc checks in this repo"; exit 0 ;;
+    # quay's full-suite-runner (suite_runner: quay-buckets) probes the planned file set with
+    # `bash scripts/test.sh --list-files` before the suite. Print the dispatch list and exit —
+    # never run the full suite here (the probe has a hard time budget and would be killed).
+    --list-files) LIST_FILES=1; shift ;;
     --allow-thin) shift ;;
     --run-id) RUN_ID_ARG="${2:-}"; shift 2 ;;
     --keep-logs)
@@ -933,7 +967,7 @@ fi
 # Test seam (QUAY_TEST_STOP_AFTER=order): print the effective dispatch order, one path per line,
 # and nothing else on stdout — so the file SET can be diffed byte-for-byte against `find … | sort`
 # (AC4) and the first lines checked for longest-first (AC2). Reached on both paths.
-if [ "${QUAY_TEST_STOP_AFTER:-}" = "order" ]; then
+if [ "${QUAY_TEST_STOP_AFTER:-}" = "order" ] || [ "${LIST_FILES:-0}" = "1" ]; then
   for f in "${DISPATCH_FILES[@]+"${DISPATCH_FILES[@]}"}"; do printf '%s\n' "$f"; done
   exit 0
 fi
