@@ -33,17 +33,17 @@ AC-379 的任务正文也逐字记着「场景里唯一的 Bash 是 `sleep 2; ec
 
 ## Plan
 
-1. 复现：在隔离 worktree 里单跑 `bash scripts/test.sh server/modules/providers/tests/claude-resident-cli-contract.test.ts`，跑之前记录该调用的 pgid，跑之后按 pgid 枚举成员，贴出 `sleep 2` 的 `pid/ppid/pgid/cwd`。
+1. 复现：在隔离 worktree 里跑 `bash scripts/test.sh --for-task gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep`（Touches 只有一个测试文件，故它只解析到 `server/modules/providers/tests/claude-resident-cli-contract.test.ts`），跑之前记录该调用的 pgid，跑之后按 pgid 枚举成员，贴出 `sleep 2` 的 `pid/ppid/pgid/cwd`。
 2. 修在测试侧（两选一，按实测选择）：(a) 把 `IN_FLIGHT_BASH` 换成一个不 fork 子进程、又能把 turn 挂住的 shell 内建（例如 `read`），保持四个场景的帧序不变；或 (b) 保留 `sleep 2`，在每个场景 teardown 里等到工具子进程退出（有界等待）再结束测试。
 3. 不放宽检测：不改 `reapLeakedSuiteProcesses` / `listProcessGroupMembers`，不加容忍阈值、不跳过、不把 `leakedProcesses` 降级成告警。
 4. 两个对照：修复前同一采样点残留 1 个 `sleep 2`，修复后为 0；另用一个真正的遗留进程（自己 detach 的 `sleep 30`）证明 `reapLeakedSuiteProcesses` 仍会报 `leaked>=1`，检测面没有变窄。
 
 ## AC
 
-- [ ] AC1 复现读数：`bash scripts/test.sh server/modules/providers/tests/claude-resident-cli-contract.test.ts` 退出码 0；在跑之前记录该调用的 pgid，跑之后 `ps -eo pid,ppid,pgid,cmd | awk -v g=<pgid> '$3==g'` 的输出里贴出 `sleep 2` 那一行（含 pid/ppid/pgid），并贴出该行的 cwd。
+- [ ] AC1 复现读数：`bash scripts/test.sh --for-task gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep` 退出码 0；在跑之前记录该调用的 pgid，跑之后 `ps -eo pid,ppid,pgid,cmd | awk -v g=<pgid> '$3==g'` 的输出里贴出 `sleep 2` 那一行（含 pid/ppid/pgid），并贴出该行的 cwd。
 - [ ] AC2 修复读数：同一命令、同一采样点，`sleep 2` 残留行数从 1 变为 0；`git diff` 只改 `server/modules/providers/tests/claude-resident-cli-contract.test.ts`；`grep -c "^test(" server/modules/providers/tests/claude-resident-cli-contract.test.ts` 与改动前相同（不删场景用例），断言不放宽。
 - [ ] AC3 正控：临时探针里 spawn 一个 `sleep 30` 并让它留在探针自己的进程组，`reapLeakedSuiteProcesses` 报 `leaked.length >= 1` 且 `reaped=true`；同一探针对一个干净进程组报 `leaked.length === 0`。两个读数都贴出，证明泄漏检测没有被削弱。
-- [ ] AC4 局部回归：`bash scripts/test.sh server/modules/providers/tests/claude-resident-cli-contract.test.ts` 退出码 0，四个场景的 `contract.<scenario>=ok` 仍全部打印；`npm run typecheck` 退出码 0；`npm run lint` 退出码 0（仅既有 warning）。
+- [ ] AC4 局部回归：`bash scripts/test.sh --for-task gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep` 退出码 0，四个场景的 `contract.<scenario>=ok` 仍全部打印；`npm run typecheck` 退出码 0；`npm run lint` 退出码 0（仅既有 warning）。
 - [ ] AC5 改动边界：`bash scripts/test.sh --for-task gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep` 退出码 0；`node .quay/plugin/scripts/dist/anti-drift-touches-check.js --task gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep --worktree <wt> --merge-target develop` 输出 `ANTI-DRIFT OK`。
 
 ## DoD
