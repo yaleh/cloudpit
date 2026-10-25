@@ -50,6 +50,7 @@ extra:
 - server/modules/quay/tests/quay-process.test.ts
 - server/modules/quay/tests/quay.service.test.ts
 - server/shared/types.ts
+- server/shared/tests/quay-test-script.test.ts
 - config/server.settings.example.json
 - e2e/ui-scenario-runner.spec.ts
 - e2e/zz-quay-panel-mobile-grid.spec.ts
