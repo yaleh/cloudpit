@@ -1,7 +1,7 @@
 ---
 id: gap-quay-fleet-locator-barrel-export
 title: Quay：locateQuayFleetCli 经 barrel 导出，删除 server/index.ts 的组合根深导入
-status: todo
+status: ready
 labels:
   - gap
 parent: null
