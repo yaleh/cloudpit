@@ -51,6 +51,15 @@ const settle = () => act(() => {
 
 const renderSelection = () => renderHook(() => useTranscriptSelection({ settleMs: SETTLE_MS }));
 
+/**
+ * Dispatch a pointer event. The hook only reads `target` (to decide whether a press
+ * started inside the transcript), so a plain bubbling `Event` reaches the same
+ * capture-phase listener a real `PointerEvent` would. jsdom ships no `PointerEvent`.
+ */
+const pointer = (target: EventTarget, type: string) => {
+  target.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -165,5 +174,109 @@ describe('useTranscriptSelection', () => {
     selectRange(textNode, 0, 10);
     settle();
     assert.equal(renders, afterFirstSettle, 'an unchanged selection must not update state again');
+  });
+
+  it('holds a non-empty selection back while the pointer gesture is still down', () => {
+    const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const { result } = renderSelection();
+
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 0, 8);
+    });
+    // Many settle windows later the button is still down: nothing may be committed,
+    // because a chip now would reflow the transcript under the stationary cursor.
+    act(() => {
+      vi.advanceTimersByTime(SETTLE_MS * 5);
+    });
+    assert.equal(result.current.selectionText, null, 'no chip appears mid-gesture');
+
+    // The release is the settle: the selection is read at once, with no further clock.
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, '这是一段足够长的');
+  });
+
+  it('clears a collapsed selection at once mid-gesture, and never flushes it on release', () => {
+    const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const { result } = renderSelection();
+
+    // A recorded passage first, so "cleared" is a transition rather than the initial null.
+    selectRange(textNode, 0, 8);
+    settle();
+    assert.equal(result.current.selectionText, '这是一段足够长的');
+
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 2, 10);
+    });
+    act(() => {
+      vi.advanceTimersByTime(SETTLE_MS * 5);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'the mid-gesture selection is not committed');
+
+    // Collapsing the selection clears the old chip immediately — pointer still down.
+    act(() => selectRange(textNode, 3, 3));
+    assert.equal(result.current.selectionText, null, 'a collapsed selection clears without waiting for release');
+
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, null, 'releasing a collapsed selection stays null');
+  });
+
+  it('ends the gesture and flushes the selection on pointercancel and on window blur', () => {
+    const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const { result } = renderSelection();
+
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 0, 8);
+    });
+    act(() => {
+      vi.advanceTimersByTime(SETTLE_MS * 5);
+    });
+    assert.equal(result.current.selectionText, null);
+
+    act(() => pointer(window, 'pointercancel'));
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'cancel ends the gesture and flushes');
+
+    // A second gesture, then the window loses focus with no pointerup at all.
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 2, 10);
+    });
+    act(() => {
+      vi.advanceTimersByTime(SETTLE_MS * 5);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'still the previous passage mid-gesture');
+
+    act(() => pointer(window, 'blur'));
+    assert.equal(result.current.selectionText, '一段足够长的助手', 'blur ends the gesture and flushes');
+  });
+
+  it('keeps the ordinary settle window on the keyboard path (no pointerdown)', () => {
+    const { textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const { result } = renderSelection();
+
+    act(() => selectRange(textNode, 0, 8));
+    assert.equal(result.current.selectionText, null, 'not recorded before the settle window elapses');
+
+    settle();
+    assert.equal(result.current.selectionText, '这是一段足够长的');
+  });
+
+  it('does not enter the gesture when the pointerdown lands outside the transcript', () => {
+    const transcript = makeRegion('这是一段足够长的助手回答文字');
+    const composer = makeRegion('输入框里的字', false);
+    const { result } = renderSelection();
+
+    act(() => {
+      pointer(composer.region, 'pointerdown');
+      selectRange(transcript.textNode, 0, 8);
+    });
+    settle();
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'a press outside the transcript leaves the debounce alone');
+
+    // The release for that outside press must not clear or change anything.
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, '这是一段足够长的');
   });
 });
