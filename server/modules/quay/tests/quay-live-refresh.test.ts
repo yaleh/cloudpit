@@ -22,12 +22,8 @@ import {
   type QuayEntrypointIdentity,
 } from '../quay-capabilities.js';
 import { createQuayDispatchCarrier } from '../quay-dispatch-carrier.js';
-import {
-  createQuayTaskEvents,
-  readTaskLogPage,
-  type QuayTaskEventsService,
-  type QuayTaskEventsTimers,
-} from '../quay-task-events.service.js';
+import { createQuayTaskEvents, type QuayTaskEventsService } from '../quay-task-events.service.js';
+import { readTaskLogPage, type QuayTaskEventsTimers } from '../quay-task-log-parse.js';
 import {
   QUAY_TASK_INDEX_MAX_CONCURRENT_LOADS,
   QUAY_TASK_INDEX_MIN_INTERVAL_MS,
