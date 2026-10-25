@@ -37,8 +37,8 @@ extra:
 
 ## Blocker
 
-**2026-10-25T17:25:13.938Z — worker 未落地（exited-not-landed）**
+**2026-10-25T18:50:13.340Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：AC 未全勾（checked 0/4，剩余未勾 4）——续做只需验证并勾选 AC
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：bd4b3b4c-7829-497c-a0c6-d93ac789d73f
+- session_id：d7f03c32-455d-419b-a386-ea9ddc81ce1e
