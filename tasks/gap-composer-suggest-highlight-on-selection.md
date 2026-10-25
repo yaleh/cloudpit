@@ -1,7 +1,7 @@
 ---
 id: gap-composer-suggest-highlight-on-selection
 title: 输入框 Suggest 按钮在选中 transcript 文字后高亮：宽屏文案+ring、紧凑 ring+圆点
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -78,3 +78,14 @@ extra:
 - 未落地原因：step=suite: # fail 1
 - run_id：wk-prod-anchor
 - session_id：526d0c43-ee74-4da6-afc7-738a81222dea
+
+## Needs-Human
+
+**执行 2026-10-25T22:48:16.898Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 3 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 1
+- run_id：wk-prod-anchor
+- session_id：526d0c43-ee74-4da6-afc7-738a81222dea
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-composer-suggest-highlight-on-selection~wk-prod-anchor~1792967680662-117d55.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-composer-suggest-highlight-on-selection-wk-prod-anchor.log
