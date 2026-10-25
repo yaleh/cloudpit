@@ -2,7 +2,7 @@
 id: gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep
 title: 真 claude 契约哨兵的 in-flight Bash（sleep 2）在测试结束后留在套件进程组：761/761 全绿的轮被
   leaked-processes 判 aborted，12 个任务的 fan-in 轮反复打回
-status: ready
+status: done
 labels:
   - gap
   - defect
