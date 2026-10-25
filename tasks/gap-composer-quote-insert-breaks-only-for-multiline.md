@@ -143,6 +143,18 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 本轮复核读数：AC-1 `quoteInsertion.test.ts` → exit 0，18 passed；AC-3 `suggestionChipAcceptContract.test.tsx` + `chatComposerReplyChips.test.tsx` → exit 0，50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → exit 0，49 passed；AC-5 `npm run typecheck` exit 0、`npm run lint` exit 0（仅既有 warning）。`git merge develop` 干净（只带进两份 task 文件的 blocker 记录），worktree clean。
 
 
+## Notes
+
+**第 3 轮复核（2026-10-26T01:55Z）：被点名的红用驱动自己的 rerun 形式复跑全绿；红在 develop 侧，且驱动的 rerun / baseline-red 300s 窗口装不下 15 个红文件。**
+
+- 本轮 `git merge develop` 干净；`anti-drift-touches-check` exit 0（4 个实际文件全在 Touches）；`task_check` AC 5/5、DoD 5/5。分支交付物完整，**无需重实现**。
+- 上一条 Blocker 点名的 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts`，在本 worktree 用**驱动 rerun 的同一形式**（`bash scripts/test.sh <file>`）复跑：`__PERFILE__ … passed=true`、`# tests 1 / pass 1 / fail 0`、exit 0（40.2s）。
+- 同轮另抽 3 个被点名文件，同形式同结果全绿：`claude-resident-addressable`（14.4s）、`voice-realtime-uplink-vad-hold-open`（4.4s）、`debug-agent-control-queue`（42.6s）；`claude-resident-busy-input` 用 `node --import tsx --import ./scripts/undici-blocked-ports-preload.mjs --test` 单跑 1/1 绿（8.3s）。
+- 驱动自己的 develop 基线跑 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~baseline-1792946844495-f58569.log`（纯 develop 检出 `.baseline-red-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor/`）逐字红同一批文件、同一批断言文本（`the returned runId must be the registry current run verbatim`、`the leg-2 frame must be readable with its own uuid`、`probe child (queue) exited non-zero` 等）⇒ 红在 develop 侧，与只改 `src/modules/chat/**` 4 个前端文件的本 delta 无关。
+- **结构性问题：驱动的 `rerun` 与 `baseline-red` 两步各有 300s 上限**（`.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log`：`state=rerun-not-evaluated` / `reason:"rerun-aborted"` / `verdict=not-evaluated` / `reason:"baseline rerun aborted"`）。该轮 15 个红文件 × 实测 ~27s/个 ≈ 400s，**即使全部复跑绿也装不进 300s** ⇒ 只要 suite 一次点出 ≥12 个无关红，本任务每轮都必然 `exited-not-landed`，与分支内容无关。需驱动侧提高 rerun / baseline-red 时限（或并行复跑）。
+- 负载读数：本轮宿主 load average 84/128、`pgrep -c node` = 52；同一批测试在 suite 的 16 路并发下红、单跑绿 ⇒ lane-load 敏感（与 `.quay/baseline-red-rounds.jsonl` 中 `cockpit-grid-pos-and-remote-focus-label` 复现的同一 `claude-resident-addressable` / `unattended-turn` 签名同族）。
+- 本任务落地状态：develop 修绿（或驱动窗口放宽、suite 红降到 <12 个）后，`git merge develop` 即可直接 ff；否则按 needs-human 手工落地配方快进即可。
+
 ## Touches
 
 - `src/modules/chat/utils/inputSuggestions.ts`
