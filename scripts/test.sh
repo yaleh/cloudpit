@@ -130,10 +130,15 @@ CONCURRENCY_CEILING="${QUAY_TEST_CONCURRENCY_CEILING:-$(adaptive_ceiling)}"
 case "$CONCURRENCY_CEILING" in ''|*[!0-9]*|0) CONCURRENCY_CEILING="$CEILING_CAP" ;; esac
 FILES=()
 FOR_TASK=""
+LIST_FILES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --for-task) FOR_TASK="${2:-}"; shift 2 ;;
     --static-checks-doc) echo "no doc checks in this repo"; exit 0 ;;
+    # quay's full-suite-runner (suite_runner: quay-buckets) probes the planned file set with
+    # `bash scripts/test.sh --list-files` before the suite. Print the dispatch list and exit —
+    # never run the full suite here (the probe has a hard time budget and would be killed).
+    --list-files) LIST_FILES=1; shift ;;
     --allow-thin) shift ;;
     --run-id) RUN_ID_ARG="${2:-}"; shift 2 ;;
     --keep-logs)
@@ -962,7 +967,7 @@ fi
 # Test seam (QUAY_TEST_STOP_AFTER=order): print the effective dispatch order, one path per line,
 # and nothing else on stdout — so the file SET can be diffed byte-for-byte against `find … | sort`
 # (AC4) and the first lines checked for longest-first (AC2). Reached on both paths.
-if [ "${QUAY_TEST_STOP_AFTER:-}" = "order" ]; then
+if [ "${QUAY_TEST_STOP_AFTER:-}" = "order" ] || [ "${LIST_FILES:-0}" = "1" ]; then
   for f in "${DISPATCH_FILES[@]+"${DISPATCH_FILES[@]}"}"; do printf '%s\n' "$f"; done
   exit 0
 fi
