@@ -9,17 +9,6 @@ children: []
 extra:
   schema: execution
 ---
----
-id: gap-composer-quote-insert-breaks-only-for-multiline
-title: 引用插入：末尾空行加 2 个回车的规则收缩为仅当插入文本含换行符时才触发
-status: ready
-labels:
-  - gap
-parent: null
-children: []
-extra:
-  schema: execution
----
 ## Proposal
 
 2026-10-25 yale 对引用 chip 的插入规则做一处收缩（其余规则一概不动）。
