@@ -481,9 +481,31 @@ watchdog_loop() {
 WATCHDOG_PID="${!:-}"
 [ -n "$WATCHDOG_PID" ] && { disown "$WATCHDOG_PID" 2>/dev/null || true; }
 
+# watchdog_stop — end the guard AND take its in-flight `sleep "$WATCHDOG_POLL_SECS"` with it.
+#
+# Signalling the loop shell alone is not enough: the poll sleep is an EXTERNAL child, so a
+# TERM to its parent orphans it in this script's own process group. That is not a cosmetic
+# leak — full-suite-runner enumerates the suite's pgid after the suite exits and reports any
+# survivor as `leaked-processes (n)`, which voids an otherwise green round (`# fail 0` with
+# no failing line for the driver to attribute). Measured 2026-10-26: the default 2s poll
+# leaves a `sleep 2` alive in the pgid at exit (cmdline `sleep 2`, cwd = the worktree root),
+# and `QUAY_SUITE_WATCHDOG_POLL_SECS=7` moves the same survivor to `sleep 7` — the poll, not
+# any test's own bash, is the producer.
+#
+# Ordering: kill the child first, then the loop. The loop wakes from the killed sleep, sees
+# $WATCHDOG_STOP (touched above) and exits on its own; `wait` reaps it before this script's
+# process group is swept. A guard that FIRED is different: it has already left its sleep and
+# is escalating against us, and blocking the abort report behind that escalation would trade
+# a leak for a lost report (the ordering watchdog_fire documents). So that path never waits.
 watchdog_stop() {
   : > "$WATCHDOG_STOP" 2>/dev/null || true
-  [ -n "${WATCHDOG_PID:-}" ] && kill -s TERM "$WATCHDOG_PID" 2>/dev/null
+  if [ -n "${WATCHDOG_PID:-}" ]; then
+    kill_tree "$WATCHDOG_PID" TERM
+    kill -s TERM "$WATCHDOG_PID" 2>/dev/null || true
+    if [ ! -e "$WATCHDOG_VERDICT" ]; then
+      wait "$WATCHDOG_PID" 2>/dev/null || true
+    fi
+  fi
   return 0
 }
 
