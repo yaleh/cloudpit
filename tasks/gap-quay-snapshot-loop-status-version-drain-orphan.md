@@ -42,6 +42,42 @@ extra:
 
 真实读数（后端任务，不需要浏览器）：在隔离实例（`scripts/isolated-instance.sh`；起之前按记忆关掉 residentRestore）里请求本项目与 cantus 项目的 `GET /api/quay/<projectId>/snapshot?refresh=1`，贴出两份 `loop` 字段：两者的 `kernel.relation` 应为 `current`、`loaded` 与 `installed` 均为 0.22.0（loop 已于 2026-10-25 迁到 user scope 的 0.22.0），`pointer.state` 与 `quay driver status` 的 `pointer.state` 一致，`orphan.state` 为 `none`。再用生产读取适配器直接读一个真实的孤儿目录：对 `~/.claude/plugins/cache/quay/quay/0.10.0/scripts/dist/driver-anchor.js` 这个路径求 orphan 读数，贴出 `marked`、`markedAt` 与 `removeAfter`（该目录的 `.orphaned_at` 记录的是 2026-10-25 21:24，预计清理时间 2026-11-08），与 `cat` 出的标记内容对照；对一个 scratch 构建路径（例如 `/data/home/yale/work/quay-scratch/official-dist-020-dev-r6-restart/scripts/dist/driver-anchor.js`）贴出 `not-applicable`。最后对本项目执行一次 `quay driver drain --kind worker` 再 `resume`，各贴一次 snapshot 的 `loop.drain.worker`（true 再 false），并确认整个过程中 `quay` 子进程里 `driver status` 只出现一次。
 
+## Evidence
+
+复测于 2026-10-26（worktree `gap-quay-snapshot-loop-status-version-drain-orphan`，已 merge develop，anti-drift OK）。
+
+AC 复核：
+
+- `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` → tests 43 / pass 42 / fail 0 / skip 1（skip 为既有的「无已安装 quay 插件」用例），exit 0；loop.kernel/pointer/drain/orphan/零额外 spawn/TTL 五组新用例全绿。
+- AC5 兄弟测试 7 文件 → tests 57 / pass 57 / fail 0，exit 0；`server-import-cycle-budget` → 11 pass，exit 0；`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay server/shared` exit 0（仅一条既有的 server/shared/tests/message-unification.test.ts warning）。
+- 形状：`git diff -U0 develop...HEAD -- server/shared/types.ts` 对 `QuayDriverSummary`/`QuayDriverState` 零改动；`loop` 是 `QuaySnapshot` 上的可选字段。
+- 上轮整轮 suite 红的抽查（单文件、本 worktree）：`mcp-session-lifecycle`（37.8s）、`claude-resident-reconcile`、`voice-realtime-uplink-vad-hold-open`、`chat-control-busy` 全部 `passed=true`，重新单独跑 exit 0 —— 上轮 16 个红是并发 16、load≈90 下的整轮 watchdog 超时/负载抖动，不是本任务 delta（这些文件均不在 Touches，且与本 delta 无导入关系）。
+
+DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，residentRestore disabled，`resident-restore started=0`；`GET /api/quay/<projectId>/snapshot?refresh=1`）：
+
+- claudecodeui `b0a96771-c926-468a-bf18-09a5b3708039`：
+
+```json
+{"anchorPid":4142898,"kernel":{"loaded":"0.22.0","installed":"0.22.0","relation":"current","reason":null},"pointer":{"state":"current","linkVersion":"0.22.0","coreVersion":"0.22.0"},"drain":{"worker":false,"promotion":false,"quality":false},"orphan":{"state":"none","markedAt":null,"removeAfter":null},"observedAt":"2026-10-25T17:33:57.859Z"}
+```
+
+- cantus `432a253c-54d2-4e8d-be90-87ad839cd7ef`：
+
+```json
+{"anchorPid":428890,"kernel":{"loaded":"0.22.0","installed":"0.22.0","relation":"current","reason":null},"pointer":{"state":"current","linkVersion":"0.22.0","coreVersion":"0.22.0"},"drain":{"worker":false,"promotion":false,"quality":false},"orphan":{"state":"none","markedAt":null,"removeAfter":null},"observedAt":"2026-10-25T17:33:58.839Z"}
+```
+
+- `quay driver status --kind worker --json`（0.22.0）实测 `pointer.state = "current"`、`loaded_version = "current"`、`loaded = installed = "0.22.0"`、`anchor_pid = 4142898`、`loaded_kernel = /data/home/yale/.claude/plugins/cache/quay/quay/0.22.0/scripts/dist/driver-anchor.js` — 与 snapshot 的 `loop.pointer.state` / `loop.anchorPid` 一致。
+- 真实孤儿目录（生产读取适配器，`tmp/loop-probe.mjs`，读 `~/.claude/plugins/cache/quay/quay/0.10.0/scripts/dist/driver-anchor.js`）。该目录的 `.orphaned_at` 实测内容为 `1792934659273`（本地 2026-10-25 21:24:19，UTC 13:24:19）；读数：
+
+```json
+{"state":"marked","markedAt":"2026-10-25T13:24:19.273Z","removeAfter":"2026-11-08T13:24:19.273Z"}
+```
+
+- scratch 构建 `/data/home/yale/work/quay-scratch/official-dist-020-dev-r6-restart/scripts/dist/driver-anchor.js` → `{"state":"not-applicable","markedAt":null,"removeAfter":null}`。
+- drain 实测：`quay driver drain --kind worker` 后 snapshot `loop.drain.worker = true`（promotion/quality 仍 false），`quay driver resume --kind worker` 后 `loop.drain.worker = false`。
+- spawn 计数：一次真实 CLI snapshot 的命令序列为 `task list --json`、`goal list --json`、`adr list --json`、`driver status --kind worker --json`、`config validate --json`、`lanes --json --window-hours 3`，`driver status` 恰一次；TTL 内第二次读取零 spawn。
+
 ## Touches
 
 - server/modules/quay/quay.service.ts
@@ -54,34 +90,19 @@ extra:
 
 ## Blocker
 
-**2026-10-25T16:05:29.778Z — worker 未落地（exited-not-landed）**
+**2026-10-25T18:03:31.451Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: __PERFILE__ duration_ms=37696 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792943088997
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：17ff5171-d9a1-46eb-b9e2-30f15570237f
+- session_id：b4765286-0f49-4f0a-8841-75684e22fed5
 
-**2026-10-26T00:08Z — 主动 park（needs-human）：baseline A/B 永远 not-evaluated，纯 exit 会无限重派**
+## Needs-Human
 
-实现已完成（分支 `task/gap-quay-snapshot-loop-status-version-drain-orphan`，6+1 提交），7/7 AC 已勾选；本轮的 suite 红全部在 develop 基线侧，执行侧（本任务 Touches）不可满足。
+**执行 2026-10-25T18:42:43.091Z — 停派终止（失败无法归因，⛔ 不再重派）**
 
-三条判定指纹（全部命中 `shared-lessons/fan-in-rerun-timeout-makes-baseline-a-b-unevaluable`）：
-
-1. `.quay/worker-outcome.jsonl` 中本任务最近三条记录（14:30 / 15:18 / 16:05）均为 `mechanical_fan_in.rerun.state="rerun-not-evaluated"`（reason `rerun-aborted`）+ `baselineEquivalence.verdict.kind="not-evaluated"`（reason `baseline rerun aborted`）。
-2. 本任务 suite 点名 15 个失败文件，与 `gap-composer-quote-insert-breaks-only-for-multiline` 最近两轮的 `failedTestFiles.files` **逐字相同（15/15）** ⇒ 跨任务 fileRecurrence，红在 develop 全局，不在本任务 delta。
-3. 驱动自己的 develop 基线日志 `.quay/fan-in-suite-gap-quay-snapshot-loop-status-version-drain-orphan~wk-prod-anchor~baseline-1792944003198-2f886d.log` 只写出 5 个 `__PERFILE__` 便于 00:05:03 断掉（撞 `RERUN_TIMEOUT_MS=300000`）；同轮 rerun 日志 `~rerun-1792943702529-48abc4.log` 在 6 个文件后 00:00:02 断掉。15 个文件 × 单文件 20–60s ⇒ 两侧都 >300s，A/B 无读数。
-
-红在 develop 侧的证据（读驱动自己的 baseline 日志，比复跑省）：`mcp-session-lifecycle`（TARGET_AMBIGUOUS）、`mcp-session-send`（SESSION_BUSY）、`mcp-cancel-queued`（Missing scope）、`debug-agent-control-queue`（probe child exited non-zero）、`claude-resident-busy-input`（leg-2 frame）在纯 merge-target 检出上以**相同断言**红；本任务 delta 仅 `server/modules/quay/*` + `server/shared/types.ts` 的纯增量字段，与这些文件无导入关系。
-
-本任务实现与 AC 复核（2026-10-26 本轮，已 merge develop、anti-drift OK）：
-
-- AC 测试 `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` → 42 pass / 0 fail / 1 skip（需已装 quay 插件），exit 0；loop.kernel/pointer/drain/orphan/零额外 spawn/TTL 五组用例全绿。
-- AC5 兄弟测试（quay-uri-resolve、mcp-overview、mcp-read-tools、mcp-english-only、mcp-error-envelope、mcp-error-vocabulary、mcp-not-found-semantics）与 `server-import-cycle-budget` 在 suite 日志中全部 passed=true；typecheck / lint 均 passed=true。
-- `git merge develop` 干净（develop 已是 HEAD 祖先）；`anti-drift-touches-check` → `ANTI-DRIFT OK: 6 actual file(s), all within declared Touches (7 glob(s))`。
-
-为什么执行侧不可满足：15 个红文件都不在 `## Touches`，直接修它们会 red 掉 anti-drift；本任务 delta 与它们无导入关系，且它们在纯 develop 检出上同样红。
-
-收口路径（需基础设施 owner，不在 worker 权限内，任选其一）：
-
-- 抬高 fan-in 的 `RERUN_TIMEOUT_MS`（当前 300000），或让 `scripts/quay-rerun-failed.sh` 并行重跑；
-- 超时时改用「与驱动 baseline 日志逐文件比对」而不是重跑来判 A/B；
-- 先落地一个修掉这 15 个 develop 全局红（或把它们登记为 baseline-red 豁免）的独立分支，再重派本任务。
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：7ce1176b-00cd-46c2-b624-9098d00bf2c2
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-snapshot-loop-status-version-drain-orphan~wk-prod-anchor~1792952258863-7d35a6.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-snapshot-loop-status-version-drain-orphan-wk-prod-anchor.log

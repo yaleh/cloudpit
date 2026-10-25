@@ -17,10 +17,10 @@ extra:
 
 ## AC
 
-- [ ] 切分落地：`ls server/modules/quay/quay-task-log-parse.ts server/modules/quay/quay-task-log-cursor-store.ts` 两个文件都存在；`wc -l server/modules/quay/quay-task-events.service.ts server/modules/quay/quay-task-log-parse.ts server/modules/quay/quay-task-log-cursor-store.ts` 中 service ≤ 460 且其余两个各 ≤ 260。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-live-refresh.test.ts` exit 0。
-- [ ] 消费方不动：`git diff -U0 -- server/modules/quay/quay.module.ts server/modules/quay/index.ts` 无输出。
-- [ ] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay` exit 0。
+- [x] 切分落地：`ls server/modules/quay/quay-task-log-parse.ts server/modules/quay/quay-task-log-cursor-store.ts` 两个文件都存在；`wc -l server/modules/quay/quay-task-events.service.ts server/modules/quay/quay-task-log-parse.ts server/modules/quay/quay-task-log-cursor-store.ts` 中 service ≤ 460 且其余两个各 ≤ 260。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-live-refresh.test.ts` exit 0。
+- [x] 消费方不动：`git diff -U0 -- server/modules/quay/quay.module.ts server/modules/quay/index.ts` 无输出。
+- [x] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay` exit 0。
 
 ## DoD
 
@@ -33,3 +33,11 @@ extra:
 - server/modules/quay/quay-task-log-cursor-store.ts (new)
 - server/modules/quay/tests/quay-live-refresh.test.ts
 - tasks/gap-quay-task-events-service-split.md
+
+## Blocker
+
+**2026-10-25T19:21:06.730Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：8856f478-6a6c-43bc-b69a-95045b78eb47

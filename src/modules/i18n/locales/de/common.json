@@ -965,9 +965,10 @@
     "loading": "Erwähnte Aufgaben werden geladen…",
     "listError": "Die erwähnten Aufgaben dieser Sitzung konnten nicht gelesen werden.",
     "lanesNote": "Lane-Lesung nicht verfügbar – Aufgaben zeigen ihren gespeicherten Status ohne Phase.",
-    "viaTasks": "über {{count}} Aufgaben",
+    "viaTasks_one": "über {{count}} Aufgabe",
+    "viaTasks_other": "über {{count}} Aufgaben",
     "mentionedInMessage": "in einer Nachricht erwähnt",
-    "mentionedAgo": "Vor {{minutes}} Min. erwähnt",
+    "mentionedAt": "Erwähnt {{when}}",
     "openQuayPanel": "Quay-Panel öffnen"
   }
 }

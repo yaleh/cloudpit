@@ -54,6 +54,35 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR" || exit 2
 
+# ── host-env isolation: the suite runs at FACTORY defaults, not the live server's ─────────────
+# (gap-test-runner-unsets-host-live-voice-and-s2-env)
+#
+# WHY. The quay anchor inherits the environment of the shell (or systemd service) that started it.
+# On this host that is claudecodeui-server.service, whose drop-ins export the LIVE server's own
+# switches into the anchor — and the anchor hands them to the worker-driver and on to this runner:
+#   RESIDENT_RUN_IS_TURN=1   (40-resident-run-is-turn.conf)
+#   VOICE_REALTIME_*         (30-uplink-vad.conf, 50-tts-local.conf, 60-voice-realtime-settings.conf)
+#   VOICE_CAPTURE            (voice capture mode)
+#   SENSEVOICE_*             (20-sensevoice.conf)
+# Most of the suite is written against the FACTORY defaults, so when those leak in, 15 files red
+# deterministically for reasons that are NOT code regressions: 10 flag-off semantics
+# (mcp-gateway ×3, debug-agent ×1, claude-resident ×5, websocket ×1) and 5 voice files whose
+# silence_duration_ms assertion expects the default 800 while it reads the live settings file's
+# 1500. Proof (2026-10-26): the same two files run with `env -u RESIDENT_RUN_IS_TURN -u
+# VOICE_REALTIME_* …` pass 15/15 and 28/28.
+#
+# WHAT. Drop those names here, once, before any stage, test collection, or child process: every
+# node:test/vitest/playwright child inherits this cleaned environment, so the suite is independent
+# of whatever shell started the anchor. The families are enumerated from the environment itself
+# (compgen -e) rather than hard-coding today's members, so a new drop-in cannot silently leak in.
+#
+# ⛔ The live server's drop-ins are CORRECT for the server — this isolates only the test runner, it
+# does not change them. A test that exercises a flag sets it itself in-process, so no coverage is
+# lost; a test that needs the live value must set it explicitly like any other input.
+unset RESIDENT_RUN_IS_TURN VOICE_CAPTURE
+for _host_env_name in $(compgen -e | grep -E '^(VOICE_REALTIME_|SENSEVOICE_)'); do unset "$_host_env_name"; done
+unset _host_env_name
+
 CONCURRENCY=4
 # ── 服务端阶段的并发【上限夹取】(gap-server-phase-concurrency-clamp；
 #    上限按 effective CPU 自适应：gap-test-sh-concurrency-ceiling-adapts-to-effective-cpu) ─────

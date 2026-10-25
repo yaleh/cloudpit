@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
@@ -8,8 +8,19 @@ import { cn } from '@/shared/utils';
 import { SessionPulse } from '@/modules/quay';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
 import WorkspaceTabs, { CollapsedWorkspaceSelector } from '@/modules/project-workspace/WorkspaceTabs';
+import type { WorkspaceTabLabelMode } from '@/modules/project-workspace/WorkspaceTabs';
 import WorkspaceMenu from '@/modules/project-workspace/WorkspaceMenu';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
+
+/**
+ * Room the scroll container's own horizontal padding takes out of the measured flex item.
+ *
+ * The strip's resting padding is `md:pl-3` (12 px on the left, none on the right), so 12 px is
+ * the exact reservation and this adds a small rounding allowance. Overflow padding
+ * (`md:px-9`) is deliberately not reserved: the strip is already icon-only by the time it can
+ * overflow, and reserving it would push the full mode out of headers that only just fit.
+ */
+const TAB_STRIP_INLINE_PADDING_PX = 16;
 
 type WorkspaceHeaderProps = {
   activeTab: AppTab;
@@ -60,6 +71,50 @@ export default function WorkspaceHeader({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const hasOverflow = canScrollLeft || canScrollRight;
+  const [labelMode, setLabelMode] = useState<WorkspaceTabLabelMode>('full');
+
+  /**
+   * Picks the strip's label mode from two measurements that do not depend on each other.
+   *
+   * `room` is the flex item that holds the strip: `flex-1` with `min-w-0`, so its width is the
+   * space the header gave the strip, not the width the strip's own content happens to take.
+   * Measuring the strip itself here would feed the decision back into its input — icon mode
+   * makes the strip narrow, which would keep choosing icon mode at every viewport.
+   *
+   * `natural` is the off-screen full-label copy's width, which `WorkspaceTabs` draws at every
+   * label mode. Its width therefore changes only with the tab set and the language, never with
+   * the mode on screen; a switch cannot shrink it and flip itself back.
+   */
+  const measureLabelMode = useCallback(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
+    const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
+    const available = room?.clientWidth ?? 0;
+    const natural = measure?.scrollWidth ?? 0;
+    // 0 is "not measured yet" (jsdom, or before layout), never "no room": treating it as no
+    // room would open the header icon-only and flash to full labels once layout landed.
+    const next: WorkspaceTabLabelMode =
+      available <= 0 || natural <= 0 || available - TAB_STRIP_INLINE_PADDING_PX >= natural ? 'full' : 'icon';
+    setLabelMode((previous) => (previous === next ? previous : next));
+  }, []);
+
+  // `useLayoutEffect` rather than `useEffect`: the mode has to be settled before the browser
+  // paints, or the header draws full labels and then snaps to icons.
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    measureLabelMode();
+
+    const observer = new ResizeObserver(measureLabelMode);
+    observer.observe(scroll);
+    const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
+    if (room) observer.observe(room);
+    const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
+    if (measure) observer.observe(measure);
+
+    return () => observer.disconnect();
+  }, [measureLabelMode]);
 
   const updateScrollState = useCallback(() => {
     const el = scrollRef.current;
@@ -140,7 +195,7 @@ export default function WorkspaceHeader({
         isShortTouchViewport ? 'px-2 py-1' : 'px-3 py-1.5 md:gap-3 md:px-4 md:py-2',
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2 md:max-w-[min(34%,24rem)] md:flex-[1_1_18rem]">
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:max-w-[min(34%,16rem)] md:flex-[1_1_16rem]">
         {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
         <WorkspaceTitle
           activeTab={activeTab}
@@ -172,7 +227,7 @@ export default function WorkspaceHeader({
             it inside the tab container would leave that container's `max-w-full` no room to
             give. */}
         {sessionPulse}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" data-workspace-tabs-room="">
           <div className="relative ml-auto w-fit max-w-full">
             {canScrollLeft && (
               <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background via-background/90 to-transparent" />
@@ -188,6 +243,7 @@ export default function WorkspaceHeader({
               <WorkspaceTabs
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
+                labelMode={labelMode}
                 shouldShowTasksTab={shouldShowTasksTab}
                 shouldShowQuayTab={shouldShowQuayTab}
                 shouldShowArchitectureTab={shouldShowArchitectureTab}

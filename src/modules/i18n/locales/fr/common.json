@@ -995,9 +995,11 @@
     "loading": "Chargement des tâches mentionnées…",
     "listError": "Impossible de lire les tâches mentionnées dans cette session.",
     "lanesNote": "Lecture des voies indisponible — les tâches affichent leur statut enregistré sans phase.",
-    "viaTasks": "via {{count}} tâches",
+    "viaTasks_one": "via {{count}} tâche",
+    "viaTasks_many": "via {{count}} tâches",
+    "viaTasks_other": "via {{count}} tâches",
     "mentionedInMessage": "mentionnée dans un message",
-    "mentionedAgo": "Mentionnée il y a {{minutes}} min",
+    "mentionedAt": "Mentionnée {{when}}",
     "openQuayPanel": "Ouvrir le panneau Quay"
   }
 }

@@ -1,5 +1,5 @@
 import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Activity, Network, MonitorPlay, ChevronDown, type LucideIcon } from 'lucide-react';
-import { Fragment, useEffect, useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -7,9 +7,25 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger, Tooltip, PillBar, Pi
 import type { AppTab } from '@/shared/types';
 import { usePlugins,PluginIcon } from '@/modules/plugins';
 
+/**
+ * How much of each tab's text the desktop pill bar draws.
+ *
+ * `full` spells every tab's name; `icon` keeps the name only on the active tab and leaves the
+ * rest as icons. `WorkspaceHeader` picks between them from the measured room it has, so the
+ * strip stops depending on a viewport breakpoint that knows nothing about how wide the title,
+ * the pulse strip and the plugins make this particular header.
+ */
+export type WorkspaceTabLabelMode = 'full' | 'icon';
+
 type WorkspaceTabsProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
+  /**
+   * Which label mode the desktop strip draws in. Optional with `full` as the meaning of
+   * absent, so a caller that renders the strip on its own (a layout test, an isolated shell)
+   * keeps the historical full-label shape.
+   */
+  labelMode?: WorkspaceTabLabelMode;
   shouldShowTasksTab: boolean;
   /** Optional so a caller that only knows about Tasks/Browser keeps compiling; absent means "no Quay tab". */
   shouldShowQuayTab?: boolean;
@@ -101,12 +117,29 @@ type PluginTab = {
 
 type WorkspaceTabDefinition = BuiltInTab | PluginTab;
 
+/**
+ * The unconditionally offered tabs AFTER the session's project-level views (Quay,
+ * Architecture). Shell is not here either: it stays inside the built-in group but at its END,
+ * right before the plugin divider, so the terminal never splits the session's views. See
+ * {@link useWorkspaceTabDefinitions}.
+ */
 const BASE_TABS: BuiltInTabSource[] = [
-  { id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
-  { id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { id: 'files', labelKey: 'tabs.files', icon: Folder },
   { id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
 ];
+
+/** The always-first tab: the session's conversation. */
+const CHAT_TAB: BuiltInTabSource = {
+  id: 'chat',
+  labelKey: 'tabs.chat',
+  icon: MessageSquare,
+};
+
+const SHELL_TAB: BuiltInTabSource = {
+  id: 'shell',
+  labelKey: 'tabs.shell',
+  icon: Terminal,
+};
 
 const BROWSER_TAB: BuiltInTabSource = {
   id: 'browser',
@@ -148,14 +181,21 @@ function useWorkspaceTabDefinitions({ shouldShowTasksTab, shouldShowQuayTab, sho
   const { t } = useTranslation();
   const { plugins } = usePlugins();
 
+  // One list for every surface. Chat first, then the session's project-level views
+  // (Quay, Architecture), then the file/history views, then the optional extras, and Shell
+  // last so it sits against the plugin divider instead of splitting the session's views.
+  // A tab whose `shouldShow…` switch is off simply does not occupy a slot; the relative order
+  // of the remaining tabs is unchanged.
   const builtInSources = [
-    ...BASE_TABS,
-    ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
-    ...(shouldShowTasksTab ? [TASKS_TAB] : []),
+    CHAT_TAB,
     ...(shouldShowQuayTab ? [QUAY_TAB] : []),
     // Right of Quay, as ADR-005 asks: the architecture view is about the
     // session's own files, so it sits after the project-level Quay dashboard.
     ...(shouldShowArchitectureTab ? [ARCHITECTURE_TAB] : []),
+    ...BASE_TABS,
+    ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
+    ...(shouldShowTasksTab ? [TASKS_TAB] : []),
+    SHELL_TAB,
   ];
 
   const builtInTabs: BuiltInTab[] = builtInSources.map((tab) => ({
@@ -180,41 +220,6 @@ function useWorkspaceTabDefinitions({ shouldShowTasksTab, shouldShowQuayTab, sho
   return { tabs: [...builtInTabs, ...pluginTabs], builtInCount: builtInTabs.length };
 }
 
-/**
- * Whether a desktop tab draws its text label beside the icon.
- *
- * The pill's label span is `hidden … lg:inline` (the ACTIVE tab keeps `inline`
- * at every width). Below `lg` only the icon is drawn, and that is the one case
- * a hover tooltip earns its place: above it the bubble repeated a word already
- * on screen, and a click left it floating over the neighbouring tab.
- */
-const TAB_LABEL_VISIBLE_QUERY = '(min-width: 1024px)';
-
-/** Reads {@link TAB_LABEL_VISIBLE_QUERY} and follows later resizes. */
-function useTabLabelsVisible(): boolean {
-  const [visible, setVisible] = useState(() => (
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia(TAB_LABEL_VISIBLE_QUERY).matches
-      : false
-  ));
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia(TAB_LABEL_VISIBLE_QUERY);
-    const update = (): void => setVisible(query.matches);
-    update();
-    if (typeof query.addEventListener === 'function') {
-      query.addEventListener('change', update);
-      return () => query.removeEventListener('change', update);
-    }
-    // Safari < 14 only ships the deprecated aliases.
-    query.addListener(update);
-    return () => query.removeListener(update);
-  }, []);
-
-  return visible;
-}
-
 /** Renders a workspace view's icon, built-in or plugin-supplied; used by both workspace view lists. */
 function WorkspaceTabIcon({ tab, strokeWidth }: { tab: WorkspaceTabDefinition; strokeWidth?: number }) {
   if (tab.kind === 'plugin') {
@@ -228,6 +233,7 @@ function WorkspaceTabIcon({ tab, strokeWidth }: { tab: WorkspaceTabDefinition; s
 export default function WorkspaceTabs({
   activeTab,
   setActiveTab,
+  labelMode = 'full',
   shouldShowTasksTab,
   shouldShowQuayTab = false,
   shouldShowArchitectureTab = false,
@@ -236,10 +242,6 @@ export default function WorkspaceTabs({
 }: WorkspaceTabsProps) {
   const { t } = useTranslation();
   const { tabs, builtInCount } = useWorkspaceTabDefinitions({ shouldShowTasksTab, shouldShowQuayTab, shouldShowArchitectureTab, shouldShowBrowserTab });
-  // Read once for the whole strip: `lg` and up draws every label, and the
-  // active tab draws its own label at any width, so the tooltip is only for the
-  // icon-only case those two rules leave.
-  const labelsVisible = useTabLabelsVisible();
   // The sentence the disabled Shell tab points at. Read here so the `title` and the
   // notice element WorkspaceMain renders cannot disagree: both are this key.
   const residentShellNotice = t('tabs.shellResidentDisabled');
@@ -264,62 +266,99 @@ export default function WorkspaceTabs({
   };
 
   return (
-    <PillBar
-      role="tablist"
-      aria-label={t('tabs.views', { defaultValue: 'Workspace views' })}
-      className="min-w-max border border-border/40 bg-muted/50 shadow-inner shadow-black/[0.025] dark:shadow-black/10"
-    >
-      {tabs.map((tab, index) => {
-        const isActive = tab.id === activeTab;
-        // The exact rule the label span applies: the active tab always spells
-        // its name, and every tab does at `lg` and up. Whenever the word is on
-        // screen the bubble is pure duplication (and the one that lingered over
-        // the next door after a click).
-        const labelVisible = isActive || labelsVisible;
-        const pill = (
-          <Pill
-            role="tab"
-            aria-label={tab.label}
-            aria-selected={isActive}
-            tabIndex={isActive ? 0 : -1}
-            isActive={isActive}
-            // The shell cell's stable contract, on the desktop surface too: the same
-            // hook the mobile selector carries, so a reading of "which view is this"
-            // and of "why is it closed" does not have to go through translated text.
-            data-workspace-tab={tab.id}
-            // `aria-selected` is the tablist's own marker; `aria-current` is the
-            // one every workspace surface shares, mobile rows included, so a
-            // reader that is not a screen reader — `ui_visible_context` — can
-            // ask "which view is this tab showing" with one selector on either
-            // layout instead of knowing a different convention per layout.
-            aria-current={isActive ? 'true' : undefined}
-            onClick={() => setActiveTab(tab.id)}
-            onKeyDown={handleTabKeyDown}
-            {...shellTabState(isResidentSession, tab.id, residentShellNotice)}
-          >
-            <WorkspaceTabIcon tab={tab} strokeWidth={isActive ? 2.2 : 1.8} />
-            <span className={`${isActive ? 'inline max-w-28' : 'hidden'} truncate md:max-w-36 lg:inline`}>
-              {tab.label}
-            </span>
-          </Pill>
-        );
+    <>
+      <PillBar
+        role="tablist"
+        aria-label={t('tabs.views', { defaultValue: 'Workspace views' })}
+        data-workspace-tabs-mode={labelMode}
+        className="min-w-max border border-border/40 bg-muted/50 shadow-inner shadow-black/[0.025] dark:shadow-black/10"
+      >
+        {tabs.map((tab, index) => {
+          const isActive = tab.id === activeTab;
+          // The active tab always spells its name, in either mode; every other tab spells it
+          // only in the full mode. The same fact decides the tooltip: the bubble is for a tab
+          // whose word is NOT on screen, so full mode renders none and the active tab never
+          // has one.
+          const labelVisible = isActive || labelMode === 'full';
 
-        return (
-          <Fragment key={`${tab.id}-${index}`}>
+          return (
+            <Fragment key={`${tab.id}-${index}`}>
+              {index === builtInCount && tabs.length > builtInCount && (
+                <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
+              )}
+              <Tooltip content={labelVisible ? undefined : tab.label} position="bottom">
+                <Pill
+                  role="tab"
+                  aria-label={tab.label}
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  isActive={isActive}
+                  // The shell cell's stable contract, on the desktop surface too: the same
+                  // hook the mobile selector carries, so a reading of "which view is this"
+                  // and of "why is it closed" does not have to go through translated text.
+                  data-workspace-tab={tab.id}
+                  // `aria-selected` is the tablist's own marker; `aria-current` is the
+                  // one every workspace surface shares, mobile rows included, so a
+                  // reader that is not a screen reader — `ui_visible_context` — can
+                  // ask "which view is this tab showing" with one selector on either
+                  // layout instead of knowing a different convention per layout.
+                  aria-current={isActive ? 'true' : undefined}
+                  onClick={() => setActiveTab(tab.id)}
+                  onKeyDown={handleTabKeyDown}
+                  {...shellTabState(isResidentSession, tab.id, residentShellNotice)}
+                >
+                  <WorkspaceTabIcon tab={tab} strokeWidth={isActive ? 2.2 : 1.8} />
+                  <span
+                    data-workspace-tab-label={tab.id}
+                    className={`${labelVisible ? 'inline' : 'hidden'} ${isActive ? 'max-w-28' : ''} truncate md:max-w-36`}
+                  >
+                    {tab.label}
+                  </span>
+                </Pill>
+              </Tooltip>
+            </Fragment>
+          );
+        })}
+      </PillBar>
+
+      {/*
+        The full-label copy WorkspaceHeader measures. It is OUT of the tab semantics (no
+        role, no tabIndex, aria-hidden) so it can never be read as a tab, and it always draws
+        every label regardless of the mode on screen: that is what makes its width a property
+        of the tab set and the language alone, not of the mode. Measuring a strip that shrinks
+        with the mode would make "switch to icon → width shrinks → switch back" a stable
+        oscillation; measuring this copy removes the feedback path entirely.
+
+        Absolutely positioned far to the left so it takes no room in the strip and adds no
+        right-side scrollable overflow, and `visibility: hidden` so it is unseeable while still
+        laid out (a `display: none` copy would measure 0).
+      */}
+      <div
+        aria-hidden="true"
+        data-workspace-tabs-measure=""
+        className="pointer-events-none invisible absolute left-[-10000px] top-0 inline-flex w-max items-center gap-[2px] rounded-lg border border-border/40 bg-muted/60 p-[3px]"
+      >
+        {tabs.map((tab, index) => (
+          <Fragment key={`measure-${tab.id}-${index}`}>
             {index === builtInCount && tabs.length > builtInCount && (
               <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
             )}
-            {/* Always through the Tooltip, disabled while the label is on
-                screen: rendering a bare pill for the active tab and a wrapped
-                one for the others swapped the button's DOM node on every
-                selection, which dropped keyboard focus out of the tab strip. */}
-            <Tooltip content={tab.label} position="bottom" disabled={labelVisible}>
-              {pill}
-            </Tooltip>
+            <Pill
+              aria-hidden="true"
+              tabIndex={-1}
+              disabled
+              isActive={false}
+              onClick={() => {}}
+              data-workspace-tab-measure={tab.id}
+              className={shellTabState(isResidentSession, tab.id, residentShellNotice).className}
+            >
+              <WorkspaceTabIcon tab={tab} />
+              <span className="truncate md:max-w-36">{tab.label}</span>
+            </Pill>
           </Fragment>
-        );
-      })}
-    </PillBar>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -370,17 +409,21 @@ export function CollapsedWorkspaceSelector({
         dialog that is not open.
       */}
       <DialogTrigger
-        // The trigger's visible text is gone (the pulse strip beside it needs the room), so the
-        // accessible name has to carry the active view: without it the control would announce
-        // only as "button".
+        // In a quay project the pulse strip beside this control needs the room, so the visible
+        // text is dropped there and the accessible name carries the active view. A project
+        // without the pulse strip has nothing to make room for, so it keeps naming the view on
+        // screen. Both shapes keep `aria-label` as their accessible name.
         aria-label={activeTabDefinition.label}
         aria-haspopup="dialog"
         aria-expanded={isPickerOpen}
         data-workspace-tab={activeTabDefinition.id}
         aria-current="true"
-        className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        className={`flex h-8 min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
+          shouldShowQuayTab ? '' : 'max-w-[8rem]'
+        }`}
       >
         <WorkspaceTabIcon tab={activeTabDefinition} strokeWidth={2} />
+        {!shouldShowQuayTab && <span className="min-w-0 truncate">{activeTabDefinition.label}</span>}
         <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       </DialogTrigger>
 

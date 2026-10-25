@@ -17,10 +17,10 @@ extra:
 
 ## AC
 
-- [ ] 切分落地：`ls server/modules/architecture/refresh-settings.ts server/modules/architecture/refresh-spawn.ts server/modules/architecture/refresh-publish.ts` 三个文件都存在；`wc -l server/modules/architecture/refreshJob.ts server/modules/architecture/refresh-settings.ts server/modules/architecture/refresh-spawn.ts server/modules/architecture/refresh-publish.ts` 中 refreshJob.ts ≤ 420 且其余三个各 ≤ 300。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refreshJob.test.ts server/modules/architecture/tests/refreshRoutes.test.ts` exit 0。
-- [ ] 消费方不动：`git diff -U0 -- server/modules/architecture/routes.ts server/modules/architecture/module.ts` 无输出。
-- [ ] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/architecture` exit 0。
+- [x] 切分落地：`ls server/modules/architecture/refresh-settings.ts server/modules/architecture/refresh-spawn.ts server/modules/architecture/refresh-publish.ts` 三个文件都存在；`wc -l server/modules/architecture/refreshJob.ts server/modules/architecture/refresh-settings.ts server/modules/architecture/refresh-spawn.ts server/modules/architecture/refresh-publish.ts` 中 refreshJob.ts ≤ 420 且其余三个各 ≤ 300。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refreshJob.test.ts server/modules/architecture/tests/refreshRoutes.test.ts` exit 0。
+- [x] 消费方不动：`git diff -U0 -- server/modules/architecture/routes.ts server/modules/architecture/module.ts` 无输出。
+- [x] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/architecture` exit 0。
 
 ## DoD
 
@@ -34,3 +34,11 @@ extra:
 - server/modules/architecture/refresh-publish.ts (new)
 - server/modules/architecture/tests/refreshJob.test.ts
 - tasks/gap-architecture-refresh-job-split.md
+
+## Blocker
+
+**2026-10-25T18:50:13.340Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：d7f03c32-455d-419b-a386-ea9ddc81ce1e

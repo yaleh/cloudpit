@@ -143,6 +143,18 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 本轮复核读数：AC-1 `quoteInsertion.test.ts` → exit 0，18 passed；AC-3 `suggestionChipAcceptContract.test.tsx` + `chatComposerReplyChips.test.tsx` → exit 0，50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → exit 0，49 passed；AC-5 `npm run typecheck` exit 0、`npm run lint` exit 0（仅既有 warning）。`git merge develop` 干净（只带进两份 task 文件的 blocker 记录），worktree clean。
 
 
+## Notes
+
+**第 3 轮复核（2026-10-26T01:55Z）：被点名的红用驱动自己的 rerun 形式复跑全绿；红在 develop 侧，且驱动的 rerun / baseline-red 300s 窗口装不下 15 个红文件。**
+
+- 本轮 `git merge develop` 干净；`anti-drift-touches-check` exit 0（4 个实际文件全在 Touches）；`task_check` AC 5/5、DoD 5/5。分支交付物完整，**无需重实现**。
+- 上一条 Blocker 点名的 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts`，在本 worktree 用**驱动 rerun 的同一形式**（`bash scripts/test.sh <file>`）复跑：`__PERFILE__ … passed=true`、`# tests 1 / pass 1 / fail 0`、exit 0（40.2s）。
+- 同轮另抽 3 个被点名文件，同形式同结果全绿：`claude-resident-addressable`（14.4s）、`voice-realtime-uplink-vad-hold-open`（4.4s）、`debug-agent-control-queue`（42.6s）；`claude-resident-busy-input` 用 `node --import tsx --import ./scripts/undici-blocked-ports-preload.mjs --test` 单跑 1/1 绿（8.3s）。
+- 驱动自己的 develop 基线跑 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~baseline-1792946844495-f58569.log`（纯 develop 检出 `.baseline-red-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor/`）逐字红同一批文件、同一批断言文本（`the returned runId must be the registry current run verbatim`、`the leg-2 frame must be readable with its own uuid`、`probe child (queue) exited non-zero` 等）⇒ 红在 develop 侧，与只改 `src/modules/chat/**` 4 个前端文件的本 delta 无关。
+- **结构性问题：驱动的 `rerun` 与 `baseline-red` 两步各有 300s 上限**（`.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log`：`state=rerun-not-evaluated` / `reason:"rerun-aborted"` / `verdict=not-evaluated` / `reason:"baseline rerun aborted"`）。该轮 15 个红文件 × 实测 ~27s/个 ≈ 400s，**即使全部复跑绿也装不进 300s** ⇒ 只要 suite 一次点出 ≥12 个无关红，本任务每轮都必然 `exited-not-landed`，与分支内容无关。需驱动侧提高 rerun / baseline-red 时限（或并行复跑）。
+- 负载读数：本轮宿主 load average 84/128、`pgrep -c node` = 52；同一批测试在 suite 的 16 路并发下红、单跑绿 ⇒ lane-load 敏感（与 `.quay/baseline-red-rounds.jsonl` 中 `cockpit-grid-pos-and-remote-focus-label` 复现的同一 `claude-resident-addressable` / `unattended-turn` 签名同族）。
+- 本任务落地状态：develop 修绿（或驱动窗口放宽、suite 红降到 <12 个）后，`git merge develop` 即可直接 ff；否则按 needs-human 手工落地配方快进即可。
+
 ## Touches
 
 - `src/modules/chat/utils/inputSuggestions.ts`
@@ -154,17 +166,8 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 
 ## Blocker
 
-**2026-10-25T15:41:43.082Z — worker 未落地（exited-not-landed）**
+**2026-10-25T18:27:25.865Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: __PERFILE__ duration_ms=44667 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792941699690
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：3f3df845-7004-4624-9d09-d7aa4a640b5c
-
-**2026-10-25T15:49:40Z — worker 主动 park（needs-human）：suite 红在 develop 侧，且驱动的 baseline A/B 结构性无法完成**
-
-- 本轮（第 3 次）复核，先 `git merge develop`（develop tip 4423e67e7）后单跑 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 仍 exit 1（隔离重跑同样 rc=1）：`AssertionError: the returned runId must be the registry current run verbatim`（actual `'null'`）与 `the run registry must record the aborted terminal state`（actual `'unknown'`）。
-- 直接证据（红在 develop，不是本任务 delta）：驱动在本轮派发前跑在**纯 develop 检出**（`.baseline-red-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor/`）的基线日志 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~baseline-1792942589661-b6f21c.log` 逐字同样 `passed=false`：mcp-session-lifecycle、mcp-session-send、mcp-cancel-queued、debug-agent-control-queue、claude-resident-busy-input（该基线跑到 300s 被 SIGKILL，其余 10 个未跑到）。
-- 机械 fan-in 无法落地的机制：`loop.rerun_command` = `scripts/quay-rerun-failed.sh` 逐文件跑，本轮 suite 点名 15 个失败文件、单文件 20–60s ⇒ 任务侧 rerun 与 baseline rerun 都在 worker-driver 的 `RERUN_TIMEOUT_MS=300000` 被 SIGKILL ⇒ `rerun-not-evaluated` + `baseline rerun aborted` ⇒ `baselineEquivalence.kind=not-evaluated` ⇒ exited-not-landed。只要失败文件数 ≳5，两个方向都会超时，baseline A/B 永远判不出来（本轮与上一轮的 `worker-outcome.jsonl` 都记着 `rerun-not-evaluated` / `be=not-evaluated`）。
-- 为什么主动 park 而不是纯 exit：兄弟任务 `gap-quay-snapshot-loop-status-version-drain-orphan` 上一轮的 `mechanical_fan_in.failedTestFiles.files` 与本轮**逐字同一批文件** ⇒ `judgeRetryExemption` 走 `fileRecurrence` ⇒ `unrelated-flaky-exempt` ⇒ `advanceRetryCap` 被跳过、不计数也不 park ⇒ 纯 exit 会被无限重派。故本轮把诊断写进 store 并 park。
-- 本轮交付物复核（merge develop 后，全部 exit 0，无需重实现）：AC-1 `quoteInsertion.test.ts` 18 passed；AC-3 `suggestionChipAcceptContract.test.tsx` + `chatComposerReplyChips.test.tsx` 50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` 49 passed；AC-2 grep 读数 `235:  const trailingBreaks = endsOnEmptyLine && /[\r\n]/.test(quoted) ? '\n\n' : '';`；AC-5 `npm run typecheck` 0、`npm run lint` 0（仅既有 warning）。anti-drift `OK`（4 actual files，全在 Touches 内），`git diff --name-only develop...HEAD` 只有 4 个 `src/modules/chat/**` 前端文件。
-- 收口路径：develop 侧这些红需要另立一个 server 侧任务修（本任务 Touches 不含 `server/**`，改它们会 red 掉 anti-drift）；修好合并进 develop 后，本任务只需 `git merge develop` 后 ff 即可落地，交付物已完整。
+- session_id：1d59a6a0-67cb-4c63-b4f2-273d8ff20f20

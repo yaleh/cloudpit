@@ -995,9 +995,10 @@
     "loading": "Anılan görevler yükleniyor…",
     "listError": "Bu oturumda anılan görevler okunamadı.",
     "lanesNote": "Şerit okuması kullanılamıyor — görevler kayıtlı durumlarını aşama olmadan gösterir.",
-    "viaTasks": "{{count}} görev aracılığıyla",
+    "viaTasks_one": "{{count}} görev aracılığıyla",
+    "viaTasks_other": "{{count}} görev aracılığıyla",
     "mentionedInMessage": "bir mesajda anıldı",
-    "mentionedAgo": "{{minutes}} dk önce anıldı",
+    "mentionedAt": "{{when}} anıldı",
     "openQuayPanel": "Quay panelini aç"
   }
 }

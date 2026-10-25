@@ -995,9 +995,9 @@
     "loading": "언급된 작업을 불러오는 중…",
     "listError": "이 세션에서 언급된 작업을 읽을 수 없습니다.",
     "lanesNote": "레인 읽기를 사용할 수 없음 — 작업은 단계 없이 저장된 상태를 표시합니다.",
-    "viaTasks": "{{count}}개 작업을 통해",
+    "viaTasks_other": "{{count}}개 작업을 통해",
     "mentionedInMessage": "메시지에서 언급됨",
-    "mentionedAgo": "{{minutes}}분 전에 언급됨",
+    "mentionedAt": "{{when}}에 언급됨",
     "openQuayPanel": "Quay 패널 열기"
   }
 }

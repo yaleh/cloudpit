@@ -1,7 +1,7 @@
 ---
 id: gap-workspace-tabs-order-and-fit-to-width
 title: PC 工作区 tab 栏：Quay/Architecture 前移、Shell 挪到内置组末尾，并按实测宽度在「全文字」与「仅图标」间自适应，同时压缩标题块
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -36,18 +36,19 @@ extra:
 - src/modules/project-workspace/WorkspaceHeader.tsx
 - src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - e2e/workspace-tabs-fit.spec.ts (new)
+- playwright.config.ts (the new e2e needs the debug-agent fixture home and its own run budget)
 - tasks/gap-workspace-tabs-order-and-fit-to-width.md
 
 ## AC
 
-- [ ] 在 `src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` 改写既有用例 `desktop keeps the full tablist and renders no collapsed trigger` 的期望顺序，并新增用例（名含 `desktop built-in order puts Quay and Architecture after Chat and Shell last before plugins`）：开启 Quay、Architecture、Browser、Tasks 与启用的插件，断言 `getAllByRole('tab')` 的 `data-workspace-tab` 序列严格等于 `chat, quay, architecture, files, git, browser, tasks, shell, plugin:…`（插件按现有顺序在最后），且分隔线位于 `shell` 与第一个插件之间；反向对照：关掉 Quay 与 Architecture 后序列为 `chat, files, git, browser, tasks, shell, plugin:…`。命令 `npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` 退出码 0。
-- [ ] 同文件新增用例（名含 `mobile dialog lists the same order as desktop`）：移动端对话框里按钮的 `data-workspace-tab` 序列与桌面 tablist 序列逐项相等；既有的 Home/End 键盘用例保持绿（End 落在最后一个 tab）。同一 vitest 命令退出码 0。
-- [ ] 同文件新增用例（名含 `tab strip drops to icon-only when the full-label width exceeds the room, and returns when it fits`）：在 jsdom 里桩 `ResizeObserver` 与元素 `clientWidth` / `scrollWidth`，断言可用宽度小于全文字自然宽度时，未激活 tab 的文字 span 不在可见集（`hidden`）而激活 tab 的文字仍在；把可用宽度调大到不小于自然宽度后，所有 tab 的文字都可见；两次切换之间自然宽度的读数不变（不因档位而变，用来证明没有来回抖动）。同一 vitest 命令退出码 0。
-- [ ] 同文件新增用例（名含 `tab tooltip follows the label mode, not the breakpoint`）：全文字档下没有任何 tab 渲染 tooltip，仅图标档下未激活 tab 有 tooltip、激活 tab 没有。同一 vitest 命令退出码 0。
-- [ ] 新增 e2e `e2e/workspace-tabs-fit.spec.ts`（沿用 `e2e/support/architectureFixture.ts` 与 `e2e/resident-shell-tab.spec.ts` 起隔离实例的方式，项目需同时开启 Quay 与 Architecture tab）：依次把视口设为 1280×800、1440×900、1920×1080（侧栏展开），每档断言 `[role="tab"][data-workspace-tab]` 中除插件外的每一个都在视口内且完全可见（`getBoundingClientRect` 的 right ≤ tablist 滚动容器的 right，且 `>` 按钮 `aria-label` 含 `Scroll tabs right` 的元素不存在），并且 Quay 与 Architecture 在 DOM 顺序上紧随 Chat；至少一档（1280）的未激活 tab 为仅图标、1920 为全文字。命令 `npx playwright test e2e/workspace-tabs-fit.spec.ts` 退出码 0。
-- [ ] 同一 e2e 再加一档 1024×768 且启用 2 个以上插件：此时 `>` 滚动按钮可以出现，断言点击它能让最后一个 tab 滚入可见（兜底仍可用），并断言标题块 `getBoundingClientRect().width` ≤ 256（16rem）。同一 playwright 命令退出码 0。
-- [ ] `grep -c "lg:inline" src/modules/project-workspace/WorkspaceTabs.tsx` 为 0，且 `grep -c "min(34%,16rem)" src/modules/project-workspace/WorkspaceHeader.tsx` 为 1，`grep -c "min(34%,24rem)" src/modules/project-workspace/WorkspaceHeader.tsx` 为 0（grep 的零命中输出 0 但退出码 1，按输出数字判断，不要用退出码）。
-- [ ] 类型检查与既有相关单测不退化：`npx tsc --noEmit -p tsconfig.json` 退出码 0；`npx vitest run src/modules/project-workspace/tests` 退出码 0（只跑这一个目录，不做整仓 fan-out）。
+- [x] 在 `src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` 改写既有用例 `desktop keeps the full tablist and renders no collapsed trigger` 的期望顺序，并新增用例（名含 `desktop built-in order puts Quay and Architecture after Chat and Shell last before plugins`）：开启 Quay、Architecture、Browser、Tasks 与启用的插件，断言 `getAllByRole('tab')` 的 `data-workspace-tab` 序列严格等于 `chat, quay, architecture, files, git, browser, tasks, shell, plugin:…`（插件按现有顺序在最后），且分隔线位于 `shell` 与第一个插件之间；反向对照：关掉 Quay 与 Architecture 后序列为 `chat, files, git, browser, tasks, shell, plugin:…`。命令 `npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` 退出码 0。
+- [x] 同文件新增用例（名含 `mobile dialog lists the same order as desktop`）：移动端对话框里按钮的 `data-workspace-tab` 序列与桌面 tablist 序列逐项相等；既有的 Home/End 键盘用例保持绿（End 落在最后一个 tab）。同一 vitest 命令退出码 0。
+- [x] 同文件新增用例（名含 `tab strip drops to icon-only when the full-label width exceeds the room, and returns when it fits`）：在 jsdom 里桩 `ResizeObserver` 与元素 `clientWidth` / `scrollWidth`，断言可用宽度小于全文字自然宽度时，未激活 tab 的文字 span 不在可见集（`hidden`）而激活 tab 的文字仍在；把可用宽度调大到不小于自然宽度后，所有 tab 的文字都可见；两次切换之间自然宽度的读数不变（不因档位而变，用来证明没有来回抖动）。同一 vitest 命令退出码 0。
+- [x] 同文件新增用例（名含 `tab tooltip follows the label mode, not the breakpoint`）：全文字档下没有任何 tab 渲染 tooltip，仅图标档下未激活 tab 有 tooltip、激活 tab 没有。同一 vitest 命令退出码 0。
+- [x] 新增 e2e `e2e/workspace-tabs-fit.spec.ts`（沿用 `e2e/support/architectureFixture.ts` 与 `e2e/resident-shell-tab.spec.ts` 起隔离实例的方式，项目需同时开启 Quay 与 Architecture tab）：依次把视口设为 1280×800、1440×900、1920×1080（侧栏展开），每档断言 `[role="tab"][data-workspace-tab]` 中除插件外的每一个都在视口内且完全可见（`getBoundingClientRect` 的 right ≤ tablist 滚动容器的 right，且 `>` 按钮 `aria-label` 含 `Scroll tabs right` 的元素不存在），并且 Quay 与 Architecture 在 DOM 顺序上紧随 Chat；至少一档（1280）的未激活 tab 为仅图标、1920 为全文字。命令 `npx playwright test e2e/workspace-tabs-fit.spec.ts` 退出码 0。
+- [x] 同一 e2e 再加一档 1024×768 且启用 2 个以上插件：此时 `>` 滚动按钮可以出现，断言点击它能让最后一个 tab 滚入可见（兜底仍可用），并断言标题块 `getBoundingClientRect().width` ≤ 256（16rem）。同一 playwright 命令退出码 0。
+- [x] `grep -c "lg:inline" src/modules/project-workspace/WorkspaceTabs.tsx` 为 0，且 `grep -c "min(34%,16rem)" src/modules/project-workspace/WorkspaceHeader.tsx` 为 1，`grep -c "min(34%,24rem)" src/modules/project-workspace/WorkspaceHeader.tsx` 为 0（grep 的零命中输出 0 但退出码 1，按输出数字判断，不要用退出码）。
+- [x] 类型检查与既有相关单测不退化：`npx tsc --noEmit -p tsconfig.json` 退出码 0；`npx vitest run src/modules/project-workspace/tests` 退出码 0（只跑这一个目录，不做整仓 fan-out）。
 
 ## DoD
 
@@ -55,3 +56,18 @@ extra:
 - 常驻会话下 Shell 仍是禁用态（`data-disabled-reason="resident"`）且位置在内置组末尾，hover 能读到原有的说明；点击每个 tab 都能切换到对应视图。
 - 场景运行器：存在可用场景时按 AGENTS.md 跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴出 JSON 报告与检查点截图（已有的 `quay-panel` 场景点的是 `[data-workspace-tab="quay"]`，顺序变化不应让它变红）。
 - 不改 `CollapsedWorkspaceSelector` 的样式与文案，不新增 i18n 键；`WorkspaceTabs.tsx` 里 tab 列表仍只有 `useWorkspaceTabDefinitions` 这一份来源（`grep -c "BASE_TABS" src/modules/project-workspace/WorkspaceTabs.tsx` 的结果与改前一致或更少）。
+
+## Verification
+
+真实浏览器证据来自 `e2e/workspace-tabs-fit.spec.ts`（隔离实例 + 真实 Chromium，不用 MCP 浏览器：本会话没有把 MCP 浏览器工具挂在可用清单里，改用同一仓库的一次性 Playwright 规格，截图由规格落到 `tmp/`）：
+
+- `npx playwright test e2e/workspace-tabs-fit.spec.ts` → `2 passed (15.9s)`。读数（`[role=tab]` 的 `getBoundingClientRect`，侧栏展开）：
+  - 1280×800：`mode=icon`，room=592，内置 tab `chat,quay,architecture,files,git,shell` 全部落在滚动容器 `[833,1220]` 内，`arrow=false`；未激活 tab 的 label 全部 `label=false`，激活的 Chat `label=true`。
+  - 1440×900：`mode=icon`，room=685，全部内置 tab 可见，`arrow=false`。
+  - 1920×1080：`mode=full`，room=1165，全部内置 tab 与插件 tab 都带文字、全部可见，`arrow=false`。
+  - 1024×768 + 3 个插件：`mode=icon`，room=353，`arrow=true`；点击 `>` 后最后一个 tab（`plugin:fit-probe-two`）落入 `[611,964]`；标题块宽 239 ≤ 256。
+  - 截图：`tmp/workspace-tabs-fit-1280.png`、`tmp/workspace-tabs-fit-1440.png`、`tmp/workspace-tabs-fit-1920.png`、`tmp/workspace-tabs-fit-1024-plugins.png`。1280/1920 两张可肉眼确认 Chat 右侧依次是 Quay、Architecture，Shell 在内置组最右、分隔线之前，插件在内置组之后。
+- 单测：`npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` → 16 passed；`npx vitest run src/modules/project-workspace/tests` → 12 files / 64 tests passed。`npx tsc --noEmit -p tsconfig.json` 退出码 0。
+- grep：`lg:inline`=0，`min(34%,16rem)`=1，`min(34%,24rem)`=0，`BASE_TABS`=2（改前 develop 也是 2）。
+- 常驻 Shell：新增单测 `a resident session keeps the Shell tab disabled and last in the built-in group` 覆盖 `data-disabled-reason="resident"`、`aria-describedby`、hover title 与「内置组末尾」；点击切换的接线未改动，既有 keyboard/Home/End 用例与本目录 64 条单测保持绿。
+- 场景运行器：仓库里唯一带 `quay-panel` opener 的场景是 `e2e/scenarios/quay-wall-focus-pin-utter.json`，它断言一个带两个 focusable 的 Quay 看板（focusableCount=2、①/②、pin/utter 读数）；本任务夹具的 `.quay/config.yml` 只是一个 Tier-1 路径标记、没有看板内容，跑该场景会在第 1 步的 `focusableCount` 上红，因此不属于「可用场景」。顺序回归改由 e2e 的 `ids[1]==='quay'`、`ids[2]==='architecture'` 断言承担。
