@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-refresh-react-free-controller
 title: 架构：把 useArchitectureRefresh 的业务规则抽成 React-free controller
-status: ready
+status: done
 labels:
   - gap
 parent: null
