@@ -10,7 +10,7 @@ import { beforeEach, test, vi } from 'vitest';
 import type { AppTab, Project } from '@/shared/types';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
-import WorkspaceTabs from '@/modules/project-workspace/WorkspaceTabs';
+import WorkspaceTabs, { RESIDENT_SHELL_NOTICE_ID } from '@/modules/project-workspace/WorkspaceTabs';
 
 /**
  * The mobile header used to stack "menu + title" over a horizontally scrolling
@@ -117,10 +117,18 @@ if (typeof globalThis.ResizeObserver !== 'function') {
 // requestAnimationFrame — which lands after the awaited assertions in the gate case.
 Element.prototype.scrollIntoView = () => {};
 
-const BUILT_IN_NAMES = ['Chat', 'Shell', 'Files', 'Source Control'];
-const CONDITIONAL_NAMES = ['Browser', 'Tasks'];
+/**
+ * The desktop order with neither Quay nor Architecture offered. Shell is the LAST built-in
+ * tab, right before the plugin divider: the terminal never sits between the session's views.
+ */
+const BUILT_IN_NAMES = ['Chat', 'Files', 'Source Control', 'Browser', 'Tasks', 'Shell'];
 const ENABLED_PLUGIN_NAMES = Array.from({ length: ENABLED_PLUGIN_COUNT }, (_, i) => `Probe Workspace ${i + 1}`);
 const DISABLED_PLUGIN_NAMES = ['Probe Workspace 13', 'Probe Workspace 14'];
+
+/** The tab ids the mocks produce, in their built-in group, for the two switch states. */
+const BUILT_IN_IDS = ['chat', 'files', 'git', 'browser', 'tasks', 'shell'];
+const BUILT_IN_IDS_WITH_QUAY_AND_ARCHITECTURE = ['chat', 'quay', 'architecture', 'files', 'git', 'browser', 'tasks', 'shell'];
+const PLUGIN_IDS = Array.from({ length: ENABLED_PLUGIN_COUNT }, (_, i) => `plugin:probe-${i + 1}`);
 
 const PROJECT: Project = {
   projectId: 'mobile-layout-probe',
@@ -132,7 +140,9 @@ type HarnessProps = {
   isMobile: boolean;
   shouldShowTasksTab?: boolean;
   shouldShowQuayTab?: boolean;
+  shouldShowArchitectureTab?: boolean;
   shouldShowBrowserTab?: boolean;
+  isResidentSession?: boolean;
   onSetActiveTab?: (update: SetStateAction<AppTab>) => void;
 };
 
@@ -145,7 +155,9 @@ function HeaderHarness({
   isMobile,
   shouldShowTasksTab = false,
   shouldShowQuayTab = false,
+  shouldShowArchitectureTab = false,
   shouldShowBrowserTab = false,
+  isResidentSession = false,
   onSetActiveTab,
 }: HarnessProps) {
   const [activeTab, setActiveTab] = useState<AppTab>('chat');
@@ -163,7 +175,9 @@ function HeaderHarness({
       selectedSession={null}
       shouldShowTasksTab={shouldShowTasksTab}
       shouldShowQuayTab={shouldShowQuayTab}
+      shouldShowArchitectureTab={shouldShowArchitectureTab}
       shouldShowBrowserTab={shouldShowBrowserTab}
+      isResidentSession={isResidentSession}
       isMobile={isMobile}
       onMenuClick={() => {}}
     />
@@ -206,18 +220,96 @@ const dialogOverlay = (panel: HTMLElement): HTMLElement => {
   return overlay as HTMLElement;
 };
 
+/** The `data-workspace-tab` sequence the tablist renders, in document order. */
+const tabIds = (root: ParentNode = document): (string | null)[] =>
+  Array.from(root.querySelectorAll('[role="tab"]')).map((element) => element.getAttribute('data-workspace-tab'));
+
+/**
+ * The tablist's direct children as a readable sequence: a tab id, or `divider` for the
+ * plugin separator. A tab may sit behind a tooltip wrapper, so each child is reduced to the
+ * tab it contains.
+ */
+const tablistParts = (): string[] => {
+  const tablist = document.querySelector('[role="tablist"]');
+  assert.ok(tablist, 'the desktop header must render a tablist');
+  return Array.from(tablist.children).map((child) => {
+    if (child.tagName === 'SPAN' && child.getAttribute('aria-hidden') === 'true') return 'divider';
+    const tab = child.matches('[role="tab"]') ? child : child.querySelector('[role="tab"]');
+    return tab?.getAttribute('data-workspace-tab') ?? child.tagName.toLowerCase();
+  });
+};
+
+/**
+ * Installs the two readings the label-mode decision takes, and lets a case move them.
+ *
+ * `room` is the flex item (`data-workspace-tabs-room`) and `natural` the off-screen full-label
+ * copy (`data-workspace-tabs-measure`); every other element reads 0, so the two numbers cannot
+ * be confused with each other. `triggerResize` replays the ResizeObserver notification the
+ * browser would send; `restore` puts the jsdom prototypes and the global observer back.
+ */
+function installStripWidthStubs(widths: { room: number; natural: number }): {
+  triggerResize: () => void;
+  restore: () => void;
+} {
+  const callbacks: (() => void)[] = [];
+  const OriginalResizeObserver = globalThis.ResizeObserver;
+
+  globalThis.ResizeObserver = class {
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+      callbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hasAttribute('data-workspace-tabs-room') ? widths.room : 0;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hasAttribute('data-workspace-tabs-measure') ? widths.natural : 0;
+    },
+  });
+
+  return {
+    triggerResize: () => {
+      for (const trigger of callbacks) trigger();
+    },
+    restore: () => {
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollWidth');
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    },
+  };
+}
+
+/** The strip's current mode as the header reports it. */
+const stripMode = (): string | null =>
+  document.querySelector('[role="tablist"]')?.getAttribute('data-workspace-tabs-mode') ?? null;
+
+/** One tab's label span, by its stable id hook. */
+const tabLabel = (id: string): HTMLElement | null =>
+  document.querySelector(`[data-workspace-tab-label="${id}"]`);
+
 test('desktop keeps the full tablist and renders no collapsed trigger', () => {
   const { getAllByRole } = render(
     <HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />,
   );
 
   const tabNames = getAllByRole('tab').map(accessibleName);
-  const expectedNames = [...BUILT_IN_NAMES, ...CONDITIONAL_NAMES, ...ENABLED_PLUGIN_NAMES];
+  const expectedNames = [...BUILT_IN_NAMES, ...ENABLED_PLUGIN_NAMES];
 
   assert.deepEqual(
     tabNames,
     expectedNames,
-    `desktop must list every built-in, conditional and enabled plugin tab; got ${JSON.stringify(tabNames)}`,
+    `desktop must list every built-in and enabled plugin tab; got ${JSON.stringify(tabNames)}`,
   );
   assert.equal(
     collapsedTrigger(),
@@ -231,6 +323,203 @@ test('desktop keeps the full tablist and renders no collapsed trigger', () => {
       !tabNames.includes(name),
       `a disabled plugin must not get a tab: "${name}" appeared among ${JSON.stringify(tabNames)}`,
     );
+  }
+});
+
+// The built-in order is one list for every surface. Chat first, the session's project-level
+// views (Quay, Architecture) next, the file/history views after them, the optional extras,
+// and Shell last — against the plugin divider rather than in the middle of the session's
+// views. The reverse control turns the two project-level views off and shows that the rest of
+// the sequence is unchanged.
+test('desktop built-in order puts Quay and Architecture after Chat and Shell last before plugins', () => {
+  const all = render(
+    <HeaderHarness
+      isMobile={false}
+      shouldShowTasksTab
+      shouldShowQuayTab
+      shouldShowArchitectureTab
+      shouldShowBrowserTab
+    />,
+  );
+
+  assert.deepEqual(
+    tabIds(),
+    [...BUILT_IN_IDS_WITH_QUAY_AND_ARCHITECTURE, ...PLUGIN_IDS],
+    `the full built-in order must be Chat, Quay, Architecture, Files, Git, Browser, Tasks, Shell, then plugins; got ${JSON.stringify(tabIds())}`,
+  );
+  assert.deepEqual(
+    tablistParts(),
+    [...BUILT_IN_IDS_WITH_QUAY_AND_ARCHITECTURE, 'divider', ...PLUGIN_IDS],
+    `the plugin divider must sit between Shell and the first plugin; got ${JSON.stringify(tablistParts())}`,
+  );
+
+  all.unmount();
+
+  // Reverse control: turning Quay and Architecture off removes only their slots.
+  render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+  assert.deepEqual(
+    tabIds(),
+    [...BUILT_IN_IDS, ...PLUGIN_IDS],
+    `without Quay and Architecture the order must be Chat, Files, Git, Browser, Tasks, Shell, then plugins; got ${JSON.stringify(tabIds())}`,
+  );
+  assert.deepEqual(tablistParts(), [...BUILT_IN_IDS, 'divider', ...PLUGIN_IDS]);
+});
+
+// The reordering is only about position: a resident session's Shell tab keeps the closure
+// contract it already had (disabled, the notice id, the hover title) and now sits at the end
+// of the built-in group, where the order asks for it.
+test('a resident session keeps the Shell tab disabled and last in the built-in group', () => {
+  render(<HeaderHarness isMobile={false} isResidentSession shouldShowTasksTab shouldShowBrowserTab />);
+
+  const shell = document.querySelector<HTMLElement>('[role="tab"][data-workspace-tab="shell"]');
+  assert.ok(shell, 'the Shell tab must render for a resident session (disabled, not removed)');
+  assert.equal(shell.getAttribute('data-disabled-reason'), 'resident');
+  assert.equal(shell.getAttribute('aria-disabled'), 'true');
+  assert.equal(shell.getAttribute('aria-describedby'), RESIDENT_SHELL_NOTICE_ID);
+  assert.equal(
+    shell.getAttribute('title'),
+    enCommon.tabs.shellResidentDisabled,
+    'the hover text must still be the resident notice sentence',
+  );
+
+  const parts = tablistParts();
+  const divider = parts.indexOf('divider');
+  assert.ok(divider > 0, `the plugin divider must render; got ${JSON.stringify(parts)}`);
+  assert.equal(parts[divider - 1], 'shell', `Shell must be the last built-in tab; got ${JSON.stringify(parts)}`);
+});
+
+// The order comes from the ONE `useWorkspaceTabDefinitions` list, so the mobile picker cannot
+// drift from the desktop pills. This reads the ids from both surfaces and compares them
+// item-for-item; the ids are locale-independent, so the case does not depend on the labels.
+test('mobile dialog lists the same order as desktop', () => {
+  const desktop = render(
+    <HeaderHarness
+      isMobile={false}
+      shouldShowTasksTab
+      shouldShowQuayTab
+      shouldShowArchitectureTab
+      shouldShowBrowserTab
+    />,
+  );
+  const desktopIds = tabIds();
+  desktop.unmount();
+
+  render(
+    <HeaderHarness
+      isMobile
+      shouldShowTasksTab
+      shouldShowQuayTab
+      shouldShowArchitectureTab
+      shouldShowBrowserTab
+    />,
+  );
+  const { panel } = openWorkspaceDialog();
+  const mobileIds = Array.from(panel.querySelectorAll('button[data-workspace-tab]'))
+    .map((element) => element.getAttribute('data-workspace-tab'));
+
+  assert.deepEqual(
+    mobileIds,
+    desktopIds,
+    `the mobile dialog must list the same views in the same order as the desktop strip; desktop ${JSON.stringify(desktopIds)} vs mobile ${JSON.stringify(mobileIds)}`,
+  );
+});
+
+// B2: the strip has two label modes and picks between them from the measured room. The
+// off-screen full-label copy is what makes the decision stable, so this case also reads that
+// copy across the two switches: its width and its labels must not change with the mode.
+test('tab strip drops to icon-only when the full-label width exceeds the room, and returns when it fits', () => {
+  const widths = { room: 500, natural: 900 };
+  const stubs = installStripWidthStubs(widths);
+
+  try {
+    render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+
+    assert.equal(stripMode(), 'icon', 'a 500px room for a 900px full strip must choose icon-only');
+    // Inactive tabs drop their word; the active tab keeps its own.
+    assert.ok(tabLabel('files')?.classList.contains('hidden'), 'an inactive tab must hide its label in icon mode');
+    assert.ok(!tabLabel('files')?.classList.contains('inline'), 'the inactive label must not stay inline');
+    assert.ok(tabLabel('chat')?.classList.contains('inline'), 'the active tab must keep its label in icon mode');
+
+    const measure = document.querySelector('[data-workspace-tabs-measure]');
+    assert.ok(measure, 'the header must render the off-screen full-label measuring copy');
+    const naturalInIconMode = (measure as HTMLElement).scrollWidth;
+    const labelsInIconMode = measure.textContent;
+
+    // The room grows past the natural width: the strip returns to full labels.
+    widths.room = 1000;
+    act(() => {
+      stubs.triggerResize();
+    });
+
+    assert.equal(stripMode(), 'full', 'a room wider than the full strip must return to full labels');
+    for (const id of ['chat', 'files', 'git', 'browser', 'tasks', 'shell']) {
+      assert.ok(
+        tabLabel(id)?.classList.contains('inline'),
+        `every tab must show its label in full mode; "${id}" did not`,
+      );
+    }
+
+    // No oscillation: the natural reading is a property of the tab set and the language, not
+    // of the mode. A measure that shrank with the mode would flip back and forth.
+    assert.equal(
+      (measure as HTMLElement).scrollWidth,
+      naturalInIconMode,
+      'the natural full width must read the same in both modes',
+    );
+    assert.equal(
+      measure.textContent,
+      labelsInIconMode,
+      'the off-screen copy must keep every label in both modes',
+    );
+  } finally {
+    stubs.restore();
+  }
+});
+
+// The tooltip rule from `gap-architecture-compact-chrome-and-tab-tooltip` — a bubble only for
+// a tab whose word is hidden — now follows the label MODE rather than a viewport breakpoint.
+// A tab is tooltipped when its Pill sits inside Tooltip's wrapper element.
+test('tab tooltip follows the label mode, not the breakpoint', () => {
+  const tooltipWrapped = (tab: Element): boolean =>
+    tab.parentElement?.matches('div.relative.inline-block') ?? false;
+
+  const full = render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+  assert.equal(stripMode(), 'full', 'the unmeasured jsdom header must default to full labels');
+  const fullTabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  assert.ok(fullTabs.length > 0, 'the desktop strip must render tabs');
+  for (const tab of fullTabs) {
+    assert.equal(
+      tooltipWrapped(tab),
+      false,
+      `a visible label must not render a tooltip; "${tab.getAttribute('data-workspace-tab')}" did`,
+    );
+  }
+  full.unmount();
+
+  const widths = { room: 400, natural: 900 };
+  const stubs = installStripWidthStubs(widths);
+  try {
+    render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+    assert.equal(stripMode(), 'icon', 'the narrow room must choose icon-only');
+
+    for (const tab of Array.from(document.querySelectorAll('[role="tab"]'))) {
+      const id = tab.getAttribute('data-workspace-tab');
+      if (id === 'chat') {
+        assert.equal(
+          tooltipWrapped(tab),
+          false,
+          'the active tab keeps its label in icon mode, so it must not render a tooltip',
+        );
+      } else {
+        assert.equal(
+          tooltipWrapped(tab),
+          true,
+          `an icon-only inactive tab must render a tooltip; "${id}" did not`,
+        );
+      }
+    }
+  } finally {
+    stubs.restore();
   }
 });
 
@@ -298,7 +587,7 @@ test('the mobile dialog lists every built-in, conditional and enabled plugin wor
   );
 
   const entryNames = Array.from(panel.querySelectorAll('button')).map(accessibleName);
-  const expectedNames = [...BUILT_IN_NAMES, ...CONDITIONAL_NAMES, ...ENABLED_PLUGIN_NAMES];
+  const expectedNames = [...BUILT_IN_NAMES, ...ENABLED_PLUGIN_NAMES];
 
   assert.deepEqual(
     entryNames,
