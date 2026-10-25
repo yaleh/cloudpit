@@ -42,6 +42,42 @@ extra:
 
 真实读数（后端任务，不需要浏览器）：在隔离实例（`scripts/isolated-instance.sh`；起之前按记忆关掉 residentRestore）里请求本项目与 cantus 项目的 `GET /api/quay/<projectId>/snapshot?refresh=1`，贴出两份 `loop` 字段：两者的 `kernel.relation` 应为 `current`、`loaded` 与 `installed` 均为 0.22.0（loop 已于 2026-10-25 迁到 user scope 的 0.22.0），`pointer.state` 与 `quay driver status` 的 `pointer.state` 一致，`orphan.state` 为 `none`。再用生产读取适配器直接读一个真实的孤儿目录：对 `~/.claude/plugins/cache/quay/quay/0.10.0/scripts/dist/driver-anchor.js` 这个路径求 orphan 读数，贴出 `marked`、`markedAt` 与 `removeAfter`（该目录的 `.orphaned_at` 记录的是 2026-10-25 21:24，预计清理时间 2026-11-08），与 `cat` 出的标记内容对照；对一个 scratch 构建路径（例如 `/data/home/yale/work/quay-scratch/official-dist-020-dev-r6-restart/scripts/dist/driver-anchor.js`）贴出 `not-applicable`。最后对本项目执行一次 `quay driver drain --kind worker` 再 `resume`，各贴一次 snapshot 的 `loop.drain.worker`（true 再 false），并确认整个过程中 `quay` 子进程里 `driver status` 只出现一次。
 
+## Evidence
+
+复测于 2026-10-26（worktree `gap-quay-snapshot-loop-status-version-drain-orphan`，已 merge develop，anti-drift OK）。
+
+AC 复核：
+
+- `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` → tests 43 / pass 42 / fail 0 / skip 1（skip 为既有的「无已安装 quay 插件」用例），exit 0；loop.kernel/pointer/drain/orphan/零额外 spawn/TTL 五组新用例全绿。
+- AC5 兄弟测试 7 文件 → tests 57 / pass 57 / fail 0，exit 0；`server-import-cycle-budget` → 11 pass，exit 0；`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay server/shared` exit 0（仅一条既有的 server/shared/tests/message-unification.test.ts warning）。
+- 形状：`git diff -U0 develop...HEAD -- server/shared/types.ts` 对 `QuayDriverSummary`/`QuayDriverState` 零改动；`loop` 是 `QuaySnapshot` 上的可选字段。
+- 上轮整轮 suite 红的抽查（单文件、本 worktree）：`mcp-session-lifecycle`（37.8s）、`claude-resident-reconcile`、`voice-realtime-uplink-vad-hold-open`、`chat-control-busy` 全部 `passed=true`，重新单独跑 exit 0 —— 上轮 16 个红是并发 16、load≈90 下的整轮 watchdog 超时/负载抖动，不是本任务 delta（这些文件均不在 Touches，且与本 delta 无导入关系）。
+
+DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，residentRestore disabled，`resident-restore started=0`；`GET /api/quay/<projectId>/snapshot?refresh=1`）：
+
+- claudecodeui `b0a96771-c926-468a-bf18-09a5b3708039`：
+
+```json
+{"anchorPid":4142898,"kernel":{"loaded":"0.22.0","installed":"0.22.0","relation":"current","reason":null},"pointer":{"state":"current","linkVersion":"0.22.0","coreVersion":"0.22.0"},"drain":{"worker":false,"promotion":false,"quality":false},"orphan":{"state":"none","markedAt":null,"removeAfter":null},"observedAt":"2026-10-25T17:33:57.859Z"}
+```
+
+- cantus `432a253c-54d2-4e8d-be90-87ad839cd7ef`：
+
+```json
+{"anchorPid":428890,"kernel":{"loaded":"0.22.0","installed":"0.22.0","relation":"current","reason":null},"pointer":{"state":"current","linkVersion":"0.22.0","coreVersion":"0.22.0"},"drain":{"worker":false,"promotion":false,"quality":false},"orphan":{"state":"none","markedAt":null,"removeAfter":null},"observedAt":"2026-10-25T17:33:58.839Z"}
+```
+
+- `quay driver status --kind worker --json`（0.22.0）实测 `pointer.state = "current"`、`loaded_version = "current"`、`loaded = installed = "0.22.0"`、`anchor_pid = 4142898`、`loaded_kernel = /data/home/yale/.claude/plugins/cache/quay/quay/0.22.0/scripts/dist/driver-anchor.js` — 与 snapshot 的 `loop.pointer.state` / `loop.anchorPid` 一致。
+- 真实孤儿目录（生产读取适配器，`tmp/loop-probe.mjs`，读 `~/.claude/plugins/cache/quay/quay/0.10.0/scripts/dist/driver-anchor.js`）。该目录的 `.orphaned_at` 实测内容为 `1792934659273`（本地 2026-10-25 21:24:19，UTC 13:24:19）；读数：
+
+```json
+{"state":"marked","markedAt":"2026-10-25T13:24:19.273Z","removeAfter":"2026-11-08T13:24:19.273Z"}
+```
+
+- scratch 构建 `/data/home/yale/work/quay-scratch/official-dist-020-dev-r6-restart/scripts/dist/driver-anchor.js` → `{"state":"not-applicable","markedAt":null,"removeAfter":null}`。
+- drain 实测：`quay driver drain --kind worker` 后 snapshot `loop.drain.worker = true`（promotion/quality 仍 false），`quay driver resume --kind worker` 后 `loop.drain.worker = false`。
+- spawn 计数：一次真实 CLI snapshot 的命令序列为 `task list --json`、`goal list --json`、`adr list --json`、`driver status --kind worker --json`、`config validate --json`、`lanes --json --window-hours 3`，`driver status` 恰一次；TTL 内第二次读取零 spawn。
+
 ## Touches
 
 - server/modules/quay/quay.service.ts
