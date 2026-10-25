@@ -60,14 +60,6 @@ extra:
 - src/modules/i18n/locales/*/chat.json
 - tasks/gap-composer-suggest-highlight-on-selection.md
 
-## Blocker
-
-**2026-10-25T20:20:55.197Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：00ea9a5d-d585-42ad-97a6-b7f56df8807b
-
 ## Needs-Human
 
 **执行 2026-10-25T20:45:04.362Z — 停派终止（失败无法归因，⛔ 不再重派）**
@@ -78,3 +70,11 @@ extra:
 - session_id：2d7397b8-d72e-40d0-be0b-2f62dce8562b
 - suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-composer-suggest-highlight-on-selection~wk-prod-anchor~1792960093954-18ebd5.log
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-composer-suggest-highlight-on-selection-wk-prod-anchor.log
+
+## Blocker
+
+**2026-10-25T22:48:16.276Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 1
+- run_id：wk-prod-anchor
+- session_id：526d0c43-ee74-4da6-afc7-738a81222dea
