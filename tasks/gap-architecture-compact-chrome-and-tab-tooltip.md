@@ -92,14 +92,6 @@ extra:
 - e2e/architecture-overlay-layout.spec.ts
 - tasks/gap-architecture-compact-chrome-and-tab-tooltip.md
 
-## Blocker
-
-**2026-10-25T20:14:03.421Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：8a30c52c-9ba0-4af9-9ceb-2623fa3dc60a
-
 ## Needs-Human
 
 **执行 2026-10-25T20:37:25.913Z — 停派终止（失败无法归因，⛔ 不再重派）**
