@@ -1,7 +1,7 @@
 ---
 id: gap-quay-tab-status-band-charts-session-first-layout
 title: Quay tab 优先级重排：整体状态横带 + 三张时间图 + 本会话在前，其余详情降级；窗口设置改为按项目独立存储、取代 URL 参数
-status: todo
+status: ready
 labels:
   - gap
 parent: null
