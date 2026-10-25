@@ -56,7 +56,11 @@ import {
     validateApiKey,
 } from './modules/auth/index.js';
 import { taskmasterRoutes } from './modules/taskmaster/index.js';
-import { quayFleetRegistry, quayRoutes, quayService } from './modules/quay/index.js';
+// The ONE quay-fleet binary locator (QUAY_FLEET_BIN → PATH → ~/.quay-fleet/bin). The liaison
+// module must not grow a second lookup order, so the composition root injects this one.
+// Reached through the module's barrel, never one of its internal files — that deep path is
+// how the module's own consumers reach it, and it is not part of the public API.
+import { locateQuayFleetCli, quayFleetRegistry, quayRoutes, quayService } from './modules/quay/index.js';
 // The cockpit hub's composition entry. Built below, after the chat control service it sends
 // through exists, and handed to the websocket gateway. The module itself is a leaf (it imports
 // no sibling module), which is why the two seams it needs are bound here.
@@ -100,9 +104,6 @@ import { assetsRoutes } from './modules/assets/index.js';
 import { createArchitectureModule } from './modules/architecture/index.js';
 import { createObservationModule } from './modules/observation/index.js';
 import { createLiaisonModule, createFileLiaisonStore, createQuayFleetRunner } from './modules/liaison/index.js';
-// The ONE quay-fleet binary locator (QUAY_FLEET_BIN → PATH → ~/.quay-fleet/bin). The liaison
-// module must not grow a second lookup order, so the composition root injects this one.
-import { locateQuayFleetCli } from './modules/quay/quay-fleet-locator.js';
 import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from './modules/reply-suggestions/index.js';
 // The host-level context event stream (context-event-stream-and-shadow-predictor).
 // ONE process instance: the chat control plane records utterances through it, the
