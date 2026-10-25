@@ -96,8 +96,8 @@ diff --git a/.agents/skills/frontend-module-standards/SKILL.md b/.agents/skills/
 
 ## Blocker
 
-**2026-10-25T17:29:04.522Z — worker 未落地（exited-not-landed）**
+**2026-10-25T19:06:00.404Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: # fail 1
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：aab3d539-cce7-48b1-ba80-e7932c8967d9
+- session_id：0ddc93ed-093c-415f-a6b8-c76b13acfb1d
