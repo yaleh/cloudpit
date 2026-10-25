@@ -57,14 +57,6 @@ npx playwright test e2e/architecture-refresh.spec.ts
 - src/shared/types.ts (the shared ArchitectureRefresh* type group the controller, hook and API now share)
 - tasks/gap-architecture-refresh-react-free-controller.md
 
-## Blocker
-
-**2026-10-25T18:11:56.261Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：675990b3-abca-4768-8a29-2039ad1d7323
-
 ## Needs-Human
 
 **执行 2026-10-25T19:36:58.233Z — 停派终止（失败无法归因，⛔ 不再重派）**
