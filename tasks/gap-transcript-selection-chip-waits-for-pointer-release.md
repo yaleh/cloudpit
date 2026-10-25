@@ -63,3 +63,11 @@ DoD（真实页面，Playwright 一次性 spec：真实后端 + Vite + Chromium�
 - 截图：`tmp/transcript-selection-chip-dod/{after,before}-{held,released}.png`；读数：`tmp/transcript-selection-chip-dod/{after,before}.json`（工作树 tmp/，gitignored）。
 - (e) 场景运行器：仓内 `e2e/scenarios/` 只有 cockpit 两个场景，与本任务无关，故无可用场景可跑。
 - 已知限制：触屏长按拖选手柄不产生页面 pointer 事件，本任务不处理（见提交说明）。
+
+## Blocker
+
+**2026-10-25T17:15:22.806Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- run_id：wk-prod-anchor
+- session_id：3835e64e-54fd-4f17-8900-618655b2669a
