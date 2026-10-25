@@ -56,6 +56,7 @@ extra:
 - src/modules/chat/hooks/useSuggestionChips.ts
 - src/shared/types.ts
 - src/modules/chat/tests/chatComposerSuggestHighlight.test.tsx
+- src/modules/chat/tests/inlineQuoteChip.test.tsx
 - src/modules/i18n/locales/*/chat.json
 - tasks/gap-composer-suggest-highlight-on-selection.md
 
