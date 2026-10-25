@@ -58,8 +58,8 @@ extra:
 
 ## Blocker
 
-**2026-10-25T17:29:20.871Z — worker 未落地（exited-not-landed）**
+**2026-10-25T19:58:12.495Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: # fail 1
+- 未落地原因：step=suite: __PERFILE__ duration_ms=103081 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1792957843796
 - run_id：wk-prod-anchor
-- session_id：a8ee2345-44e5-4fe9-9ad2-60155ae6a97b
+- session_id：845ed583-b954-4965-bd41-b4ede939b794
