@@ -1,5 +1,5 @@
 import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Activity, Network, MonitorPlay, ChevronDown, type LucideIcon } from 'lucide-react';
-import { Fragment, useId, useState } from 'react';
+import { Fragment, useEffect, useId, useState } from 'react';
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -180,6 +180,41 @@ function useWorkspaceTabDefinitions({ shouldShowTasksTab, shouldShowQuayTab, sho
   return { tabs: [...builtInTabs, ...pluginTabs], builtInCount: builtInTabs.length };
 }
 
+/**
+ * Whether a desktop tab draws its text label beside the icon.
+ *
+ * The pill's label span is `hidden … lg:inline` (the ACTIVE tab keeps `inline`
+ * at every width). Below `lg` only the icon is drawn, and that is the one case
+ * a hover tooltip earns its place: above it the bubble repeated a word already
+ * on screen, and a click left it floating over the neighbouring tab.
+ */
+const TAB_LABEL_VISIBLE_QUERY = '(min-width: 1024px)';
+
+/** Reads {@link TAB_LABEL_VISIBLE_QUERY} and follows later resizes. */
+function useTabLabelsVisible(): boolean {
+  const [visible, setVisible] = useState(() => (
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(TAB_LABEL_VISIBLE_QUERY).matches
+      : false
+  ));
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia(TAB_LABEL_VISIBLE_QUERY);
+    const update = (): void => setVisible(query.matches);
+    update();
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', update);
+      return () => query.removeEventListener('change', update);
+    }
+    // Safari < 14 only ships the deprecated aliases.
+    query.addListener(update);
+    return () => query.removeListener(update);
+  }, []);
+
+  return visible;
+}
+
 /** Renders a workspace view's icon, built-in or plugin-supplied; used by both workspace view lists. */
 function WorkspaceTabIcon({ tab, strokeWidth }: { tab: WorkspaceTabDefinition; strokeWidth?: number }) {
   if (tab.kind === 'plugin') {
@@ -201,6 +236,10 @@ export default function WorkspaceTabs({
 }: WorkspaceTabsProps) {
   const { t } = useTranslation();
   const { tabs, builtInCount } = useWorkspaceTabDefinitions({ shouldShowTasksTab, shouldShowQuayTab, shouldShowArchitectureTab, shouldShowBrowserTab });
+  // Read once for the whole strip: `lg` and up draws every label, and the
+  // active tab draws its own label at any width, so the tooltip is only for the
+  // icon-only case those two rules leave.
+  const labelsVisible = useTabLabelsVisible();
   // The sentence the disabled Shell tab points at. Read here so the `title` and the
   // notice element WorkspaceMain renders cannot disagree: both are this key.
   const residentShellNotice = t('tabs.shellResidentDisabled');
@@ -232,38 +271,50 @@ export default function WorkspaceTabs({
     >
       {tabs.map((tab, index) => {
         const isActive = tab.id === activeTab;
+        // The exact rule the label span applies: the active tab always spells
+        // its name, and every tab does at `lg` and up. Whenever the word is on
+        // screen the bubble is pure duplication (and the one that lingered over
+        // the next door after a click).
+        const labelVisible = isActive || labelsVisible;
+        const pill = (
+          <Pill
+            role="tab"
+            aria-label={tab.label}
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            isActive={isActive}
+            // The shell cell's stable contract, on the desktop surface too: the same
+            // hook the mobile selector carries, so a reading of "which view is this"
+            // and of "why is it closed" does not have to go through translated text.
+            data-workspace-tab={tab.id}
+            // `aria-selected` is the tablist's own marker; `aria-current` is the
+            // one every workspace surface shares, mobile rows included, so a
+            // reader that is not a screen reader — `ui_visible_context` — can
+            // ask "which view is this tab showing" with one selector on either
+            // layout instead of knowing a different convention per layout.
+            aria-current={isActive ? 'true' : undefined}
+            onClick={() => setActiveTab(tab.id)}
+            onKeyDown={handleTabKeyDown}
+            {...shellTabState(isResidentSession, tab.id, residentShellNotice)}
+          >
+            <WorkspaceTabIcon tab={tab} strokeWidth={isActive ? 2.2 : 1.8} />
+            <span className={`${isActive ? 'inline max-w-28' : 'hidden'} truncate md:max-w-36 lg:inline`}>
+              {tab.label}
+            </span>
+          </Pill>
+        );
 
         return (
           <Fragment key={`${tab.id}-${index}`}>
             {index === builtInCount && tabs.length > builtInCount && (
               <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
             )}
-            <Tooltip content={tab.label} position="bottom">
-              <Pill
-                role="tab"
-                aria-label={tab.label}
-                aria-selected={isActive}
-                tabIndex={isActive ? 0 : -1}
-                isActive={isActive}
-                // The shell cell's stable contract, on the desktop surface too: the same
-                // hook the mobile selector carries, so a reading of "which view is this"
-                // and of "why is it closed" does not have to go through translated text.
-                data-workspace-tab={tab.id}
-                // `aria-selected` is the tablist's own marker; `aria-current` is the
-                // one every workspace surface shares, mobile rows included, so a
-                // reader that is not a screen reader — `ui_visible_context` — can
-                // ask "which view is this tab showing" with one selector on either
-                // layout instead of knowing a different convention per layout.
-                aria-current={isActive ? 'true' : undefined}
-                onClick={() => setActiveTab(tab.id)}
-                onKeyDown={handleTabKeyDown}
-                {...shellTabState(isResidentSession, tab.id, residentShellNotice)}
-              >
-                <WorkspaceTabIcon tab={tab} strokeWidth={isActive ? 2.2 : 1.8} />
-                <span className={`${isActive ? 'inline max-w-28' : 'hidden'} truncate md:max-w-36 lg:inline`}>
-                  {tab.label}
-                </span>
-              </Pill>
+            {/* Always through the Tooltip, disabled while the label is on
+                screen: rendering a bare pill for the active tab and a wrapped
+                one for the others swapped the button's DOM node on every
+                selection, which dropped keyboard focus out of the tab strip. */}
+            <Tooltip content={tab.label} position="bottom" disabled={labelVisible}>
+              {pill}
             </Tooltip>
           </Fragment>
         );

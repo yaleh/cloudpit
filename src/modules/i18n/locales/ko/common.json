@@ -228,6 +228,9 @@
       "pngScaled": "PNG가 가장 긴 변이 {{edge}} px가 되도록 축소되었습니다.",
       "pngFailed": "PNG를 만들 수 없습니다."
     },
+    "overflow": {
+      "menu": "추가 작업"
+    },
     "search": {
       "label": "엔티티 또는 파일 검색",
       "placeholder": "엔티티 또는 파일 검색…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "이 세션에서 언급됨, 종류가 숨겨져 있어도 계속 표시",
       "mentionedInKind": "이 세션에서 {{count}}개 언급됨",
       "showMentioned": "▸ 언급된 항목 표시",
+      "showMentionedCount": "▸ 언급된 항목 표시 ({{count}})",
       "reset": "↺ 필터 초기화"
     },
     "scopeHygiene": {

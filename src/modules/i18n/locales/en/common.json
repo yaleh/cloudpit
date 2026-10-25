@@ -236,6 +236,9 @@
       "pngScaled": "The PNG was scaled down so its longest side is {{edge}} px.",
       "pngFailed": "The PNG could not be created."
     },
+    "overflow": {
+      "menu": "More actions"
+    },
     "search": {
       "label": "Search entities or files",
       "placeholder": "Search entities or files…",
@@ -303,6 +306,7 @@
       "mentionedToggleAria": "mentioned in this session, kept visible even when the kind is hidden",
       "mentionedInKind": "{{count}} mentioned in this session",
       "showMentioned": "▸ Show mentioned",
+      "showMentionedCount": "▸ Show mentioned ({{count}})",
       "reset": "↺ Reset filters"
     },
     "scopeHygiene": {

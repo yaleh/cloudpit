@@ -228,6 +228,9 @@
       "pngScaled": "PNG diperkecil agar sisi terpanjangnya {{edge}} px.",
       "pngFailed": "PNG tidak dapat dibuat."
     },
+    "overflow": {
+      "menu": "Tindakan lainnya"
+    },
     "search": {
       "label": "Cari entitas atau file",
       "placeholder": "Cari entitas atau file…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "disebut dalam sesi ini, tetap tampil meskipun jenisnya disembunyikan",
       "mentionedInKind": "{{count}} disebut dalam sesi ini",
       "showMentioned": "▸ Tampilkan yang disebut",
+      "showMentionedCount": "▸ Tampilkan yang disebut ({{count}})",
       "reset": "↺ Atur ulang filter"
     },
     "scopeHygiene": {
