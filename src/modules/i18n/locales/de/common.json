@@ -228,6 +228,9 @@
       "pngScaled": "Das PNG wurde verkleinert, damit die längste Seite {{edge}} px beträgt.",
       "pngFailed": "Das PNG konnte nicht erstellt werden."
     },
+    "overflow": {
+      "menu": "Weitere Aktionen"
+    },
     "search": {
       "label": "Entitäten oder Dateien suchen",
       "placeholder": "Entitäten oder Dateien suchen…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "in dieser Sitzung erwähnt, auch sichtbar, wenn ihre Art ausgeblendet ist",
       "mentionedInKind": "{{count}} in dieser Sitzung erwähnt",
       "showMentioned": "▸ Erwähnte anzeigen",
+      "showMentionedCount": "▸ Erwähnte anzeigen ({{count}})",
       "reset": "↺ Filter zurücksetzen"
     },
     "scopeHygiene": {

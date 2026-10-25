@@ -11,6 +11,15 @@ type TooltipProps = {
   position?: TooltipPosition;
   className?: string;
   delay?: number;
+  /**
+   * Keep the wrapper element but install no bubble and no listeners.
+   *
+   * A caller whose trigger changes identity as the content becomes available
+   * (the workspace tab that shows its own label once active) uses this so the
+   * trigger's DOM node survives the switch — swapping a wrapped node for an
+   * unwrapped one remounts the button and drops keyboard focus.
+   */
+  disabled?: boolean;
 };
 
 function getArrowClasses(position: TooltipPosition): string {
@@ -35,11 +44,19 @@ export function Tooltip({
   position = 'top',
   className = '',
   delay = 350,
+  disabled = false,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   // Store the timer id without forcing re-renders while hovering.
   const timeoutRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
+  // A press on the trigger (the element the tooltip describes) closes the
+  // bubble and keeps it closed for the rest of this pointer visit. Without it a
+  // click left the bubble floating over the control it had just described (and
+  // over the neighbour beside it) until the pointer happened to leave, because
+  // the pointer is over the trigger and therefore never produces a mouseleave.
+  // A ref, not state: the suppression is read by event handlers only.
+  const suppressedUntilLeaveRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
@@ -92,6 +109,9 @@ export function Tooltip({
 
   const handleMouseEnter = () => {
     clearTooltipTimer();
+    // The pointer never left after the press that dismissed the bubble, so
+    // re-entering the same visit must not bring it back.
+    if (suppressedUntilLeaveRef.current) return;
     timeoutRef.current = window.setTimeout(() => {
       setIsVisible(true);
     }, delay);
@@ -99,6 +119,19 @@ export function Tooltip({
 
   const handleMouseLeave = () => {
     clearTooltipTimer();
+    suppressedUntilLeaveRef.current = false;
+    setIsVisible(false);
+  };
+
+  /**
+   * The trigger was pressed: hide the bubble now and keep it hidden until the
+   * pointer leaves and comes back. Touch long-press keeps working because the
+   * press that follows a long press must not undo the bubble it produced.
+   */
+  const handlePress = () => {
+    if (longPressTriggeredRef.current) return;
+    clearTooltipTimer();
+    suppressedUntilLeaveRef.current = true;
     setIsVisible(false);
   };
 
@@ -163,6 +196,13 @@ export function Tooltip({
     };
   }, [isVisible, updateTooltipPosition]);
 
+  // A disabled tooltip keeps the wrapper's place in the tree (so the trigger
+  // element is not remounted) but never arms a bubble. It deliberately carries
+  // no `data-tooltip-container` marker: nothing here can produce a tooltip.
+  if (disabled) {
+    return <div className="relative inline-block">{children}</div>;
+  }
+
   if (!content) {
     return <>{children}</>;
   }
@@ -170,17 +210,26 @@ export function Tooltip({
   return (
     <div
       ref={containerRef}
+      data-tooltip-container="true"
       className="relative inline-block"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
+      // Both events: a real press fires pointerdown first (a mouse click also
+      // fires click), and a test or a keyboard activation may deliver only one.
+      onPointerDown={handlePress}
+      onClick={handlePress}
     >
       {children}
       {isVisible && typeof document !== 'undefined' && createPortal(
         <div
           ref={tooltipRef}
+          // Stable marker for the bubble itself (a test or a DOM reading can tell
+          // the bubble apart from the label it repeats, which stays in the DOM
+          // even while CSS hides it).
+          data-tooltip-bubble="true"
           style={tooltipStyle || { position: 'fixed', top: '-9999px', left: '-9999px', opacity: 0 }}
           className={cn(
             'px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 rounded shadow-lg whitespace-nowrap pointer-events-none',

@@ -560,6 +560,15 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // keeps ~6.7x over the full-file reading, the same load-slowed fan-in
   // headroom the sibling architecture entries declare.
   'architecture-overlay-layout.spec.ts': 480_000,
+  // The compact-chrome criterion: ONE case that opens the 55-entity drawing at
+  // 1440×900 with the sidebar expanded, reads the toolbar and readout geometry,
+  // walks the `⋯` menu (five formats plus the legend door), opens the legend and
+  // expands the readout. MEASURED on this worktree 2026-10-25: `1 passed (25.6s)`
+  // for the whole invocation (config evaluation, both webServers' boot, the
+  // browser launch, the fixture and the scenario included). 240_000 is the
+  // sibling architecture entries' value and clears that reading ~9x, leaving
+  // room for a load-slowed fan-in run without changing what is measured.
+  'architecture-compact-chrome.spec.ts': 240_000,
   // This file holds three describes and five cases, each driving a real browser
   // against a real debug-agent turn and running serially in one worker. The 55s
   // single-file default is sized for one such case; applied to this whole file it
@@ -2880,6 +2889,11 @@ const DEBUG_AGENT_SPEC_FILES: readonly string[] = [
   // reasons (a transcript naming the seeds, and a project that offers the
   // Architecture tab). It writes its own 55-entity `.archguard` tree.
   'architecture-overlay-layout.spec.ts',
+  // The compact-chrome criterion: the same fixture home for the same two
+  // reasons (a transcript naming the seeds, and a project that offers the
+  // Architecture tab). It writes its own 55-entity `.archguard` tree and reads
+  // the toolbar and readout geometry at 1440×900 with the sidebar expanded.
+  'architecture-compact-chrome.spec.ts',
   // The fullscreen Fit criterion: the same fixture home (a transcript naming
   // the seeds, and a project that offers the Architecture tab). It writes its
   // own 55-entity `.archguard` tree and measures the overlay's chrome.

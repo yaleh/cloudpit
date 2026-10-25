@@ -228,6 +228,9 @@
       "pngScaled": "PNG 已等比缩小，最长边为 {{edge}} px。",
       "pngFailed": "无法生成 PNG。"
     },
+    "overflow": {
+      "menu": "更多操作"
+    },
     "search": {
       "label": "搜索实体或文件",
       "placeholder": "搜索实体或文件…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "会话里提到的，即使该种类被隐藏也保持显示",
       "mentionedInKind": "其中 {{count}} 个在会话里提到过",
       "showMentioned": "▸ 显示提到的",
+      "showMentionedCount": "▸ 显示提到的 ({{count}})",
       "reset": "↺ 重置筛选"
     },
     "scopeHygiene": {

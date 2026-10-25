@@ -228,6 +228,9 @@
       "pngScaled": "Il PNG è stato ridotto in modo che il lato più lungo sia {{edge}} px.",
       "pngFailed": "Impossibile creare il PNG."
     },
+    "overflow": {
+      "menu": "Altre azioni"
+    },
     "search": {
       "label": "Cerca entità o file",
       "placeholder": "Cerca entità o file…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "menzionate in questa sessione, visibili anche quando il tipo è nascosto",
       "mentionedInKind": "{{count}} menzionate in questa sessione",
       "showMentioned": "▸ Mostra le menzionate",
+      "showMentionedCount": "▸ Mostra le menzionate ({{count}})",
       "reset": "↺ Reimposta filtri"
     },
     "scopeHygiene": {

@@ -228,6 +228,9 @@
       "pngScaled": "PNG 已等比縮小，最長邊為 {{edge}} px。",
       "pngFailed": "無法建立 PNG。"
     },
+    "overflow": {
+      "menu": "更多操作"
+    },
     "search": {
       "label": "搜尋實體或檔案",
       "placeholder": "搜尋實體或檔案…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "工作階段中提及的，即使該種類被隱藏也保持顯示",
       "mentionedInKind": "其中 {{count}} 個在工作階段中提及過",
       "showMentioned": "▸ 顯示提及的",
+      "showMentionedCount": "▸ 顯示提及的 ({{count}})",
       "reset": "↺ 重設篩選"
     },
     "scopeHygiene": {

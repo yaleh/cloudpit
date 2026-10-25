@@ -483,8 +483,8 @@ test('the desktop tier keeps its header and renders no sheet', async () => {
   assert.ok(header.querySelector('[data-architecture-scope-control]'), 'desktop keeps the scope stepper in the header');
   assert.ok(header.querySelector('[data-architecture-detail-control]'), 'desktop keeps the detail presets');
   assert.ok(header.querySelector('[data-architecture-filter-toggle]'), 'desktop keeps the Filter ▾ disclosure');
-  assert.ok(header.querySelector('[data-architecture-export]'), 'desktop keeps export');
-  assert.ok(header.querySelector('[data-architecture-legend-toggle]'), 'desktop keeps the legend button');
+  assert.ok(header.querySelector('[data-architecture-overflow-toggle]'), 'desktop keeps Export and Legend behind one overflow');
+  assert.equal(header.querySelector('[data-architecture-legend-toggle]'), null, 'the legend is no longer a top-level button');
   assert.ok(document.querySelector('[data-architecture-canvas-header]'), 'desktop keeps the in-flow readout row');
   assert.ok(document.querySelector('[data-architecture-readout]'), 'desktop still shows the one-line readout');
 });
