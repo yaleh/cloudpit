@@ -1,7 +1,7 @@
 ---
 id: gap-composer-suggest-highlight-on-selection
 title: 输入框 Suggest 按钮在选中 transcript 文字后高亮：宽屏文案+ring、紧凑 ring+圆点
-status: needs-human
+status: todo
 labels:
   - gap
 parent: null
