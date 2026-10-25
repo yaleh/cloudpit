@@ -35,14 +35,20 @@ type UseQuayStatusResult = {
 const WINDOW_HOURS = [1, 3, 6, 12] as const;
 const DEFAULT_WINDOW_HOURS = 3;
 
-/** The URL query key the selected window is persisted under, so a reload restores it. */
-const WINDOW_QUERY_KEY = 'quayWindow';
+/**
+ * localStorage key prefix for `quay-tab-window:<projectId>` (one value per project).
+ *
+ * This is deliberately a DIFFERENT key from the title-bar popover's
+ * `quay-pulse-window:<projectId>`: the two surfaces are separate settings, and changing one
+ * must not move the other.
+ */
+const TAB_WINDOW_STORAGE_PREFIX = 'quay-tab-window:';
 
 /**
- * Coerces a requested window to one the card offers, falling back to the default. The set is
- * closed for the same reason the backend closes it: the window drives how far back the read
- * goes, and the card has a button for exactly these four values — anything else (a `5` in a
- * hand-edited URL, a stray query param) reads as "not a window I offer".
+ * Coerces a persisted/requested window to one the card offers, falling back to the default.
+ * The set is closed for the same reason the backend closes it: the window drives how far back
+ * the read goes, and the card has a button for exactly these four values — anything else (a
+ * `5` written into localStorage, an old URL param) reads as "not a window I offer".
  */
 function normalizeWindowHours(value: unknown): number {
   const parsed = typeof value === 'string' ? Number(value) : value;
@@ -52,30 +58,36 @@ function normalizeWindowHours(value: unknown): number {
   return (WINDOW_HOURS as readonly number[]).includes(parsed) ? parsed : DEFAULT_WINDOW_HOURS;
 }
 
-/** Reads the persisted window from the URL, falling back to the default when absent/invalid. */
-function readPersistedWindowHours(): number {
-  if (typeof window === 'undefined') {
+/** Reads one project's persisted window; an absent, unreadable or illegal value reads as 3. */
+function readWindowHours(projectId: string | null): number {
+  if (projectId === null || typeof window === 'undefined') {
     return DEFAULT_WINDOW_HOURS;
   }
-  return normalizeWindowHours(new URLSearchParams(window.location.search).get(WINDOW_QUERY_KEY));
+  try {
+    return normalizeWindowHours(
+      window.localStorage.getItem(`${TAB_WINDOW_STORAGE_PREFIX}${projectId}`),
+    );
+  } catch {
+    // A browser that denies localStorage must not take the panel down: the window simply does
+    // not persist, and the default is still a valid reading.
+    return DEFAULT_WINDOW_HOURS;
+  }
 }
 
 /**
- * Writes the selected window to the URL so a page reload restores it (before this the window
- * lived only in component state and every reload snapped back to 3h). `replaceState` rather
- * than a push, so switching windows does not flood the history stack with filter states.
+ * Persists one project's selected window. localStorage only — the Quay tab no longer reads or
+ * writes a `quayWindow` URL parameter, so an old `?quayWindow=6` link is ignored and choosing a
+ * window leaves the address bar unchanged.
  */
-function persistWindowHours(hours: number): void {
-  if (typeof window === 'undefined') {
+function persistWindowHours(projectId: string | null, hours: number): void {
+  if (projectId === null || typeof window === 'undefined') {
     return;
   }
-  const url = new URL(window.location.href);
-  if (hours === DEFAULT_WINDOW_HOURS) {
-    url.searchParams.delete(WINDOW_QUERY_KEY);
-  } else {
-    url.searchParams.set(WINDOW_QUERY_KEY, String(hours));
+  try {
+    window.localStorage.setItem(`${TAB_WINDOW_STORAGE_PREFIX}${projectId}`, String(hours));
+  } catch {
+    // Same as the read path: persistence is a convenience, not a premise.
   }
-  window.history.replaceState(window.history.state, '', url.toString());
 }
 
 /**
@@ -93,14 +105,30 @@ export function useQuayStatus(
   isActive: boolean,
 ): UseQuayStatusResult {
   const [fetchedView, setFetchedView] = useState<QuayPanelView>({ status: 'loading' });
-  const [windowHours, setWindowHoursState] = useState<number>(readPersistedWindowHours);
+  // The selected window is per-project: the initial read uses the project this hook mounted
+  // with, and the effect below re-reads each newly selected project's OWN value rather than
+  // carrying the previous project's window across.
+  const [windowHours, setWindowHoursState] = useState<number>(() => readWindowHours(projectId));
   // The window lives in a ref as well as state so the mount effect can read the persisted
   // value WITHOUT taking `windowHours` as a dependency: a dependency there would re-enter the
   // loading path on every window change, which is exactly the unmounting this hook fixes.
   const [ganttRefreshing, setGanttRefreshing] = useState(false);
   const windowHoursRef = useRef(windowHours);
   windowHoursRef.current = windowHours;
+  const projectIdRef = useRef(projectId);
   const requestIdRef = useRef(0);
+
+  // Re-read the window when the project changes. Declared BEFORE the load effect so the ref it
+  // writes is already the new project's value when that effect runs in the same commit.
+  useEffect(() => {
+    if (projectIdRef.current === projectId) {
+      return;
+    }
+    projectIdRef.current = projectId;
+    const next = readWindowHours(projectId);
+    windowHoursRef.current = next;
+    setWindowHoursState(next);
+  }, [projectId]);
 
   /**
    * Loads the snapshot at `hours`. `keepLoaded` is the whole distinction between the two
@@ -167,9 +195,9 @@ export function useQuayStatus(
     const normalized = normalizeWindowHours(hours);
     setWindowHoursState(normalized);
     windowHoursRef.current = normalized;
-    persistWindowHours(normalized);
+    persistWindowHours(projectId, normalized);
     void load(false, normalized, true);
-  }, [load]);
+  }, [load, projectId]);
 
   // The not-configured reading is derived during render rather than pushed into
   // state, so a project without quay never even transiently shows a stale snapshot.
