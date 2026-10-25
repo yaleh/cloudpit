@@ -93,3 +93,11 @@ diff --git a/.agents/skills/frontend-module-standards/SKILL.md b/.agents/skills/
 - .agents/skills/backend-module-standards/SKILL.md
 - .agents/skills/frontend-module-standards/SKILL.md
 - tasks/gap-service-line-ratchet-module-standard.md
+
+## Blocker
+
+**2026-10-25T17:29:04.522Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 1
+- run_id：wk-prod-anchor
+- session_id：aab3d539-cce7-48b1-ba80-e7932c8967d9

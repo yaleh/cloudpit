@@ -17,7 +17,7 @@ import {
   QUAY_TASK_BADGE_BASE_CLASS,
   QUAY_TASK_STATUS_BADGE_CLASSES,
 } from '@/shared/constants';
-import { cn } from '@/shared/utils';
+import { cn, formatRelativeTime } from '@/shared/utils';
 import LoopPulseGantt from '@/modules/quay/LoopPulseGantt';
 import { useSessionMentions } from '@/modules/quay/hooks/useSessionPulse';
 
@@ -93,8 +93,13 @@ function isFoldedStatus(status: string): boolean {
   return status === 'done' || status === 'superseded';
 }
 
-/** "Mentioned N min ago", or `null` when the reading carries no mention instant. */
-function mentionedMinutesAgo(iso: string | null): number | null {
+/**
+ * The mention's relative reading ("5 minutes ago"), or `null` when the reading carries no
+ * instant. The shared formatter converts between seconds/minutes/hours/days/months/years; a
+ * mention stamped slightly in the future (clock skew) is clamped to now, so the row can never
+ * read "in 5 minutes" for something that has already happened.
+ */
+function mentionRelativeText(iso: string | null, locale: string): string | null {
   if (iso === null) {
     return null;
   }
@@ -102,7 +107,7 @@ function mentionedMinutesAgo(iso: string | null): number | null {
   if (Number.isNaN(at)) {
     return null;
   }
-  return Math.max(1, Math.floor((Date.now() - at) / 60_000));
+  return formatRelativeTime(new Date(Math.min(at, Date.now())).toISOString(), locale);
 }
 
 type SessionPulsePopoverProps = {
@@ -138,7 +143,7 @@ function TaskRow({
   lanesUnavailable: boolean;
   onOpen: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // The lane reading is authoritative for "in flight"; when it is unreadable the row falls back
   // to the task store's own status and claims no phase (a stale phase would be a guess).
   const phaseMeta = !lanesUnavailable && task.phase !== null
@@ -153,7 +158,7 @@ function TaskRow({
       ?? QUAY_TASK_STATUS_BADGE_CLASSES[task.status]
       ?? QUAY_DEFAULT_TASK_STATUS_BADGE_CLASS,
   );
-  const minutes = mentionedMinutesAgo(task.lastMentionAt);
+  const mentionWhen = mentionRelativeText(task.lastMentionAt, i18n.language);
 
   return (
     <button
@@ -173,12 +178,12 @@ function TaskRow({
         </span>
       </span>
       <span className="line-clamp-2 text-[11px] text-muted-foreground">{task.title}</span>
-      {(task.goalId !== null || minutes !== null) && (
+      {(task.goalId !== null || mentionWhen !== null) && (
         <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
           {task.goalId !== null && <span className="font-mono">{task.goalId}</span>}
-          {minutes !== null && (
+          {mentionWhen !== null && (
             <span data-testid="quay-pulse-mentioned-ago">
-              {t('quayPulse.mentionedAgo', { minutes })}
+              {t('quayPulse.mentionedAt', { when: mentionWhen })}
             </span>
           )}
         </span>
@@ -260,13 +265,25 @@ export default function SessionPulsePopover({
     setPanelHeight((previous) => (previous === next ? previous : next));
   }, [geometry.maxHeight, mentions, doneExpanded]);
 
-  // Escape closes the popover. The chat's global abort guard runs on the document's capture
-  // phase and declines the key while a `[role="dialog"]` is open, so this handler owns it.
+  /*
+   * Escape closes the popover. This is the topmost layer, so it claims the key on `window`'s
+   * capture phase — ahead of the composer's React handlers, which preventDefault/stopPropagation
+   * an Escape they think hides their suggestion chips, and ahead of the chat page's
+   * document-capture abort guard. A bubbling document listener used to lose the key to the
+   * composer. When another floating layer is open (a menu or a listbox), that layer owns Escape
+   * and this one stays out of the way.
+   */
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
-        onClose();
+      if (event.key !== 'Escape' || event.defaultPrevented) {
+        return;
       }
+      if (document.querySelector('[role="menu"], [role="listbox"]') !== null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -279,10 +296,10 @@ export default function SessionPulsePopover({
       onClose();
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     document.addEventListener('mousedown', handlePointerDown);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       document.removeEventListener('mousedown', handlePointerDown);
     };
   }, [anchorRef, onClose]);

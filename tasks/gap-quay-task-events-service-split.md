@@ -33,3 +33,11 @@ extra:
 - server/modules/quay/quay-task-log-cursor-store.ts (new)
 - server/modules/quay/tests/quay-live-refresh.test.ts
 - tasks/gap-quay-task-events-service-split.md
+
+## Blocker
+
+**2026-10-25T17:15:23.891Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- run_id：wk-prod-anchor
+- session_id：a16e15c2-cd46-44af-a70e-844ac0e21520

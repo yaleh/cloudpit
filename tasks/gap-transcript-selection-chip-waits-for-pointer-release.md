@@ -1,7 +1,7 @@
 ---
 id: gap-transcript-selection-chip-waits-for-pointer-release
 title: Transcript 拖选：指针按住期间不记录选区，松手后再出 quoted chip（避免 chip 撑高输入框把文字顶走）
-status: ready
+status: done
 labels:
   - gap
   - defect

@@ -1074,9 +1074,9 @@
     "loading": "Memuat tugas yang disebut…",
     "listError": "Tidak dapat membaca tugas yang disebut dalam sesi ini.",
     "lanesNote": "Pembacaan lajur tidak tersedia — tugas menampilkan status tersimpan tanpa fase.",
-    "viaTasks": "melalui {{count}} tugas",
+    "viaTasks_other": "melalui {{count}} tugas",
     "mentionedInMessage": "disebut dalam sebuah pesan",
-    "mentionedAgo": "Disebut {{minutes}} menit lalu",
+    "mentionedAt": "Disebut {{when}}",
     "openQuayPanel": "Buka panel Quay"
   }
 }
