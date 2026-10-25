@@ -142,7 +142,6 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 
 本轮复核读数：AC-1 `quoteInsertion.test.ts` → exit 0，18 passed；AC-3 `suggestionChipAcceptContract.test.tsx` + `chatComposerReplyChips.test.tsx` → exit 0，50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → exit 0，49 passed；AC-5 `npm run typecheck` exit 0、`npm run lint` exit 0（仅既有 warning）。`git merge develop` 干净（只带进两份 task 文件的 blocker 记录），worktree clean。
 
-
 ## Notes
 
 **第 3 轮复核（2026-10-26T01:55Z）：被点名的红用驱动自己的 rerun 形式复跑全绿；红在 develop 侧，且驱动的 rerun / baseline-red 300s 窗口装不下 15 个红文件。**
@@ -154,6 +153,14 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - **结构性问题：驱动的 `rerun` 与 `baseline-red` 两步各有 300s 上限**（`.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log`：`state=rerun-not-evaluated` / `reason:"rerun-aborted"` / `verdict=not-evaluated` / `reason:"baseline rerun aborted"`）。该轮 15 个红文件 × 实测 ~27s/个 ≈ 400s，**即使全部复跑绿也装不进 300s** ⇒ 只要 suite 一次点出 ≥12 个无关红，本任务每轮都必然 `exited-not-landed`，与分支内容无关。需驱动侧提高 rerun / baseline-red 时限（或并行复跑）。
 - 负载读数：本轮宿主 load average 84/128、`pgrep -c node` = 52；同一批测试在 suite 的 16 路并发下红、单跑绿 ⇒ lane-load 敏感（与 `.quay/baseline-red-rounds.jsonl` 中 `cockpit-grid-pos-and-remote-focus-label` 复现的同一 `claude-resident-addressable` / `unattended-turn` 签名同族）。
 - 本任务落地状态：develop 修绿（或驱动窗口放宽、suite 红降到 <12 个）后，`git merge develop` 即可直接 ff；否则按 needs-human 手工落地配方快进即可。
+
+**第 4 轮复核（2026-10-26T06:25Z）：suite 红的真因是分支滞后丢了 `scripts/test.sh --list-files`；已由 `git merge develop` 修复，本任务 delta 未变。**
+
+- 上一轮 suite 日志 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~1792951012388-4d3fbf.log`：761 个用例 **761 pass / 0 fail**；红因是 `[full-suite-runner]` 的 plan probe 超时：`plan probe failed (.../scripts/test.sh --list-files): spawnSync bash ETIMEDOUT`（`source=probe-failed`、`completeness=not-evaluated`）。**不是测试失败。**
+- 根因：本 worktree 的 `scripts/test.sh` 当时落后 develop 72 个提交，缺 develop 的两处内容——`--list-files` 分支（`b36150f7f feat(test-sh): implement --list-files for the full-suite-runner plan probe`）与 host-env 隔离块。runner 用 `--list-files` 探测计划文件集时脚本不认识该 flag，于是真的把整个 suite 跑起来，超过 probe 的 120s 预算 ⇒ `ETIMEDOUT` ⇒ suite 判红（即使 761 个用例全绿）。
+- 修复（本轮）：`git merge --no-edit develop` 干净无冲突；`git diff develop -- scripts/test.sh` 现为空；`bash scripts/test.sh --list-files` 现在 **4.3s 返回 441 行、rc=0**，probe 不再超时。
+- 合并后复跑本任务判据：AC-1 `quoteInsertion.test.ts` → 18 passed；AC-3 `suggestionChipAcceptContract` + `chatComposerReplyChips` → 50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → 49 passed；AC-5 `npm run typecheck` rc=0、`npm run lint` rc=0（仅既有 warning）；AC-2 grep 读数不变（`235: const trailingBreaks = endsOnEmptyLine && /[\r\n]/.test(quoted) ? '\n\n' : '';`）。
+- `anti-drift-touches-check` exit 0（4 个实际文件全在 Touches）；`task_check` AC 5/5、DoD 5/5；worktree clean。分支交付物完整，**无需重实现**。
 
 ## Touches
 
