@@ -34,14 +34,6 @@ extra:
 - server/modules/quay/tests/quay-live-refresh.test.ts
 - tasks/gap-quay-task-events-service-split.md
 
-## Blocker
-
-**2026-10-25T19:21:06.730Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：8856f478-6a6c-43bc-b69a-95045b78eb47
-
 ## Needs-Human
 
 **执行 2026-10-25T20:06:32.419Z — 停派终止（失败无法归因，⛔ 不再重派）**
