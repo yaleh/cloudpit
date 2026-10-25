@@ -90,8 +90,8 @@ DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，re
 
 ## Blocker
 
-**2026-10-25T17:15:20.048Z — worker 未落地（exited-not-landed）**
+**2026-10-25T18:03:31.451Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：bce5d350-98b1-4e88-a624-a898a37de425
+- session_id：b4765286-0f49-4f0a-8841-75684e22fed5
