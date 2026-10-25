@@ -1,7 +1,7 @@
 ---
 id: gap-service-line-ratchet-module-standard
 title: 把 reply-suggestions 的 260 行 ratchet 与 React-free controller 纪律写进前后端模块标准
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -95,14 +95,6 @@ diff --git a/.agents/skills/frontend-module-standards/SKILL.md b/.agents/skills/
 - .agents/skills/backend-module-standards/SKILL.md
 - .agents/skills/frontend-module-standards/SKILL.md
 - tasks/gap-service-line-ratchet-module-standard.md
-
-## Blocker
-
-**2026-10-25T19:06:00.404Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：0ddc93ed-093c-415f-a6b8-c76b13acfb1d
 
 ## Needs-Human
 
