@@ -55,3 +55,11 @@ extra:
 - e2e/zz-quay-panel-mobile-grid.spec.ts
 - docs/proposals/cloudcli-mcp-control-observability-2026-10.md
 - tasks/gap-quay-entrypoint-resolver-via-claude-plugin-scopes.md
+
+## Blocker
+
+**2026-10-25T17:29:20.871Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 1
+- run_id：wk-prod-anchor
+- session_id：a8ee2345-44e5-4fe9-9ad2-60155ae6a97b
