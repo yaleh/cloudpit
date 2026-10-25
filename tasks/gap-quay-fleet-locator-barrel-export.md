@@ -17,10 +17,10 @@ extra:
 
 ## AC
 
-- [ ] barrel 导出：`grep -n "locateQuayFleetCli" server/modules/quay/index.ts` 命中一条 `export { locateQuayFleetCli } from './quay-fleet-locator.js';`，且该行上方有 consumer 注释。
-- [ ] 深导入移除：`grep -n "modules/quay/quay-fleet-locator" server/index.ts` 无输出；`grep -n "locateQuayFleetCli" server/index.ts` 命中的导入来自 `./modules/quay/index.js`。
-- [ ] 无其它跨模块深导入：`grep -rn "modules/quay/quay-fleet-locator" server/ --include='*.ts' | grep -v 'server/modules/quay/'` 无输出。
-- [ ] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0。
+- [x] barrel 导出：`grep -n "locateQuayFleetCli" server/modules/quay/index.ts` 命中一条 `export { locateQuayFleetCli } from './quay-fleet-locator.js';`，且该行上方有 consumer 注释。
+- [x] 深导入移除：`grep -n "modules/quay/quay-fleet-locator" server/index.ts` 无输出；`grep -n "locateQuayFleetCli" server/index.ts` 命中的导入来自 `./modules/quay/index.js`。
+- [x] 无其它跨模块深导入：`grep -rn "modules/quay/quay-fleet-locator" server/ --include='*.ts' | grep -v 'server/modules/quay/'` 无输出。
+- [x] 类型检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0。
 
 ## DoD
 
