@@ -22,6 +22,12 @@ export {
   quayService,
   quayTaskEvents,
 } from './quay.module.js';
+// The fleet binary locator: the composition root (`server/index.ts`) injects this ONE lookup
+// (QUAY_FLEET_BIN → PATH → ~/.quay-fleet/bin) into the liaison module rather than letting it
+// grow a second order; the five in-module consumers (registry, project-id, initiatives,
+// uri-resolve, service) keep reaching the deep path, which stays module-private. Exported here
+// because cross-module access goes through the module's index, never an internal file.
+export { locateQuayFleetCli } from './quay-fleet-locator.js';
 // createQuayInitiatives: the composition seam the initiative/decision-queue criterion drives
 // with an injected exec, and the factory a test uses to read a temp fleet home without a CLI.
 export {
