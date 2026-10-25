@@ -116,6 +116,13 @@ Within `src/shared/types.ts`, `src/shared/utils.ts`, and `src/shared/constants.t
 - Do not move a module-private hook into shared code merely because multiple components within the same module use it.
 - Search for an existing equivalent hook before adding a new one.
 
+## Keep business rules out of hooks
+
+- A hook must not hold business rules. Request gating, caching and cache invalidation, ordering, stale-answer guards, retry/depth limits, sequencing and reporting belong to a React-free controller, not to React state, refs, or effects.
+- A hook is the React binding only: create the controller once (for example with `useMemo`), subscribe to its snapshot with `useSyncExternalStore`, hand changed inputs to it in an effect, and dispose it on unmount. Translate the snapshot into props and callbacks; do not re-implement its decisions.
+- Put the controller in `src/modules/<feature>/utils/` with a descriptive name. Export a factory (`create<Feature>Controller(deps)`) that returns one typed object exposing commands plus a stable `getSnapshot`, and take the API client, cache, timers, and other collaborators through an injected dependency seam so the rules are testable without React.
+- The exemplar is `useReplySuggestions` (`src/modules/chat/hooks/useReplySuggestions.ts`): the hook is a thin `useSyncExternalStore` binding over the React-free controller in `src/modules/chat/utils/replySuggestionsController.ts`, which owns every draw rule and its injected API and cache. Copy that split whenever a hook starts deciding something.
+
 ## Place contexts by ownership
 
 - Put a context primarily owned by one feature in `src/modules/<feature>/context/`. For example, the auth module owns `AuthContext`.
@@ -171,4 +178,5 @@ Before finishing:
 5. Confirm types, utilities, constants, hooks, contexts, UI components, modals, and tests follow their ownership and usage rules.
 6. Confirm shared types, utilities, and constants use the required comments and grouping separators.
 7. Confirm every newly introduced state declaration explains why it exists or is marked as possibly unnecessary.
-8. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+8. Confirm no hook holds business rules that belong in a React-free controller, and that any new controller is a factory over an injected dependency seam.
+9. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
