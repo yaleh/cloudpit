@@ -1,7 +1,7 @@
 ---
 id: gap-quay-entrypoint-resolver-via-claude-plugin-scopes
 title: Quay 适配器：按 Claude Code 插件 scope 解析 quay CLI 入口，不再依赖项目的 .quay/plugin 符号链接
-status: needs-human
+status: ready
 labels:
   - gap
 parent: null
@@ -86,3 +86,22 @@ extra:
 - session_id：410c396f-7d78-4002-9b09-bd30793f8592
 - suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-entrypoint-resolver-via-claude-plugin-scopes~wk-prod-anchor~1792967394667-18164c.log
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-entrypoint-resolver-via-claude-plugin-scopes-wk-prod-anchor.log
+
+## Evidence
+
+**2026-10-26 续做轮：suite-red 归因 + 重新验证**
+
+- 前两轮 suite-red 的真实原因不是本任务：`suite-scope-check` 在 prelude 阶段被兄弟任务 `gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep` 的 AC 里的全量 suite 命令判红（当时该任务 status=ready 且 AC 裸写 `bash scripts/test.sh server/modules/providers/tests/claude-resident-cli-contract.test.ts`），整轮在跑任何用例前 abort（`# tests 0 / # fail 1`，`aborting before any stage`）。该兄弟任务已在 develop 修正并翻 done（b5bf0a743，2026-10-26 07:11:39）；本分支落后 develop 76 个提交，已 merge develop（5ec491ab2），prelude 不再被这条判据挡住。
+- merge develop 两处冲突按语义并集解决：`server/shared/types.ts` 同时保留本任务的 `QuayEntrypointSource` / `QuayEntrypointDiagnostic` / `QuaySnapshot.entrypoint?` 与 develop 的 `QuayLoop*` 类型；`e2e/zz-quay-panel-mobile-grid.spec.ts` 保留本任务的可空 `resolveQuayPlugin(): string | null`（不要求 `.quay/plugin`）并吸收 develop 的注释细节（变量名保持 `quayPlugin` 以匹配共享的 `if (quayPlugin !== null)` 守卫）。
+- AC1–AC4：`npx tsx … --test server/modules/quay/tests/quay-entrypoint-resolver.test.ts` → tests 10 / pass 10 / fail 0，exit 0（AC1 顺序、AC2 悬空降级、AC3 旧链接、AC4 缓存四条读数全绿）。
+- AC5：`npx tsx … --test server/modules/quay/tests/quay-process.test.ts server/modules/quay/tests/quay.service.test.ts` → tests 51 / pass 50 / fail 0 / skipped 1，exit 0；跳过项是「已安装 lanes 插件」用例（worktree 无 `.quay/plugin/vendor/quay/dist/quay.js`，预期跳过）。
+- AC6：`quay.service.ts:2530` 把 `entrypoint: { path, version, source }` 写进 snapshot；`git diff -U0 develop -- server/shared/types.ts | grep -E 'QuayDriverSummary|QuayDriverState'` 零命中（新增字段为可选）。
+- AC7：`git grep -n "\.quay/plugin" -- quay-process.ts quay.module.ts quay.service.ts` 仅剩 `quay-process.ts:42` 的旧项目兼容读取注释；`quay.service.ts:177` 的 `.quay/plugin` 是 develop 上 loop-status 任务已存在的注释（非本任务引入、未增删，属判据写就后 develop 新增的既有散文）。`e2e/ui-scenario-runner.spec.ts`、`e2e/zz-quay-panel-mobile-grid.spec.ts` 的 `resolveQuayPlugin` 均返回 `string | null`，不再要求 `.quay/plugin`。
+- AC8：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay server/shared` exit 0（仅既有 warning）。
+- 反漂移：`anti-drift-touches-check --task gap-quay-entrypoint-resolver-via-claude-plugin-scopes --merge-target develop` → `ANTI-DRIFT OK: … 14 actual file(s), all within declared Touches`。
+- DoD 实机读数（源码经 tsx 运行 `createSystemQuayEntrypointResolver`；未 build/重启 live 服务，按任务约定部署由用户执行）：
+  - claudecodeui → `{ path: "/data/home/yale/.claude/plugins/cache/quay/quay/0.22.0/bin/quay", version: "0.22.0", source: "user", warning: null }`
+  - cantus → 同 user 0.22.0，`warning: null`（不再 `entrypoint-missing`）
+  - archguard → 同 user 0.22.0，`warning: null`（不再 `entrypoint-missing`）
+  - quay-fleet → `{ path: "/data/home/yale/.claude/plugins/cache/quay/quay/0.19.0/bin/quay", version: "0.19.0", source: "project", warning: null }`
+  - snapshot 侧（`{ path, version, source }` 及 loop/driver 读数）由 `quay-process.test.ts` / `quay.service.test.ts` 覆盖。

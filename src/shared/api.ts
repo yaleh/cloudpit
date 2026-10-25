@@ -442,6 +442,17 @@ export const api = {
       `/api/quay/${encodeURIComponent(projectId)}/session-mentions${query({ sessionId })}`,
     ),
   /**
+   * The tasks this session created or edited, with the stage each one has reached.
+   *
+   * Returned as the raw `Response` (like `quaySessionMentions`) because the caller must tell a
+   * `503`/`404` — the endpoint or the project/session is not available — apart from any other
+   * failure, and hide only that block instead of blanking the rest of the session panel.
+   */
+  quaySessionTaskChain: (projectId: string, sessionId: string) =>
+    get(
+      `/api/quay/${encodeURIComponent(projectId)}/session-task-chain${query({ sessionId })}`,
+    ),
+  /**
    * The project's pinned 「对人接口会话」, read from the fleet registry (`projects[].interfaceSessionId`).
    *
    * The cockpit's push-to-talk routes an unmatched phrase to this conversation. The answer is the

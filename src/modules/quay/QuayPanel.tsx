@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, ExternalLink, Info, Loader2, RefreshCw } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type {
@@ -16,8 +16,11 @@ import {
   QUAY_TASK_BADGE_BASE_CLASS,
 } from '@/shared/constants';
 import { cn } from '@/shared/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui';
 import type { QuayPanelView } from '@/modules/quay/hooks/useQuayStatus';
 import LoopPulseGantt from '@/modules/quay/LoopPulseGantt';
+import { QuaySessionPanel } from '@/modules/quay/QuaySessionPanel';
+import { QuayStatusBand } from '@/modules/quay/QuayStatusBand';
 import { formatQuayUri } from '@/modules/quay/quayUri';
 import TimelineBar from '@/modules/quay/TimelineBar';
 import { fanInTimelineRanges, resolveTimelineWindow, testsTimelineRanges } from '@/modules/quay/timelineMapping';
@@ -55,6 +58,19 @@ type QuayPanelProps = {
    * their own copy and their own handler).
    */
   onFocusTask?: (uri: string) => void;
+  /**
+   * The selected conversation, whose mentioned and started tasks the session column reads.
+   *
+   * `undefined` means "this host has no session column" (the cockpit's board mounts the same
+   * panel without one); `null` means the workspace has no conversation selected and the column
+   * says so. Keeping the two apart is what lets the cockpit keep its existing surface.
+   */
+  sessionId?: string | null;
+  /**
+   * Wraps each layer-3 card in a `Collapsible` (default collapsed). Passed by `WorkspaceMain`
+   * from its own `isMobile` reading — the panel itself never decides what device it is on.
+   */
+  collapsibleDetails?: boolean;
 };
 
 const DRIVER_LABELS: Record<QuayDriverState, string> = {
@@ -675,6 +691,51 @@ function InFlightCard({
 }
 
 /**
+ * One layer-3 detail card. On desktop the card renders unchanged (always expanded). On mobile
+ * the panel passes `collapsible`, and the card is wrapped in the shared `Collapsible`: collapsed
+ * by default, toggled by a real `<button>` (so it carries `aria-expanded` and works with the
+ * keyboard), with the card's count on the title row. The card's own content and testids are
+ * untouched either way — folding only hides them.
+ */
+function DetailsCard({
+  id,
+  title,
+  count,
+  collapsible,
+  children,
+}: {
+  id: string;
+  title: string;
+  count: number | null;
+  collapsible: boolean;
+  children: ReactNode;
+}) {
+  if (!collapsible) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Collapsible
+      data-testid={`quay-detail-${id}`}
+      data-collapsible="true"
+      defaultOpen={false}
+      className="rounded-lg border border-border/40"
+    >
+      <CollapsibleTrigger
+        data-testid={`quay-detail-toggle-${id}`}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
+      >
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+        {count !== null && <span className="text-[10px] text-muted-foreground" data-testid={`quay-detail-count-${id}`}>{count}</span>}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-3 pb-2">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/**
  * Loop pulse card: quay's own packed gantt lanes for this project's recent worker runs.
  *
  * The lanes are computed upstream (by quay's `lanes` verb, over its `dashboard-kernel`), not
@@ -737,6 +798,8 @@ export default function QuayPanel({
   windowHours,
   onWindowChange,
   ganttRefreshing = false,
+  sessionId,
+  collapsibleDetails = false,
 }: QuayPanelProps) {
   if (view.status === 'not-configured') {
     return (
@@ -787,6 +850,8 @@ export default function QuayPanel({
       windowHours={windowHours}
       onWindowChange={onWindowChange}
       ganttRefreshing={ganttRefreshing}
+      sessionId={sessionId}
+      collapsibleDetails={collapsibleDetails}
     />
   );
 }
@@ -800,6 +865,8 @@ function LoadedQuayPanel({
   windowHours,
   onWindowChange,
   ganttRefreshing,
+  sessionId,
+  collapsibleDetails,
 }: {
   projectId: string;
   snapshot: QuaySnapshot;
@@ -808,7 +875,12 @@ function LoadedQuayPanel({
   windowHours?: number;
   onWindowChange?: (hours: number) => void;
   ganttRefreshing: boolean;
+  sessionId?: string | null;
+  collapsibleDetails: boolean;
 }) {
+  // The session column's reads are separate from the snapshot's; the panel's Refresh button
+  // bumps this counter so both re-read together, in place.
+  const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
   // This panel only renders for a project that has a `.quay/config.yml`, so a null
   // driver means `driver status --json` did not answer — never "not configured",
   // which would contradict the very tab the badge sits in.
@@ -863,7 +935,11 @@ function LoadedQuayPanel({
           </span>
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={() => {
+              // One control re-reads the whole tab: the snapshot AND the session column.
+              onRefresh();
+              setSessionRefreshSignal((signal) => signal + 1);
+            }}
             data-testid="quay-panel-refresh"
             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent md:min-h-0 md:min-w-0"
           >
@@ -882,6 +958,11 @@ function LoadedQuayPanel({
             </a>
           )}
         </div>
+      </div>
+
+      {/* Layer 1 (upper half): the loop's overall running status, always above the content. */}
+      <div className="mb-3">
+        <QuayStatusBand snapshot={snapshot} staleAfterMs={IN_FLIGHT_STALE_AFTER_MS} />
       </div>
 
       {/*
@@ -904,55 +985,116 @@ function LoadedQuayPanel({
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <TaskLedger tasks={snapshot.tasks} />
-        <StageGoals goals={snapshot.goals} />
-        <LoopPulseCard
-          gantt={snapshot.gantt ?? null}
-          ganttUnavailable={snapshot.ganttUnavailable ?? null}
-          windowHours={windowHours}
-          onWindowChange={onWindowChange}
-          refreshing={ganttRefreshing}
-        />
-        <TestsCard tests={snapshot.tests} window={timelineWindow} />
-        <InFlightCard
-          fleetProjectId={snapshot.fleetProjectId ?? null}
-          fleetState={fleetState}
-          inFlight={snapshot.inFlight}
-          generatedAt={snapshot.generatedAt}
-        />
-        <FanInCard fanIn={snapshot.fanIn} window={timelineWindow} />
+      {/*
+        Layer 1 (lower half) + Layer 2: the three time charts on the left and the current
+        session's panel on the right. On desktop they sit side by side (charts ~3/5, session
+        ~2/5); below `lg` they stack with the charts first. The charts share one container and
+        one window, so their time axes line up — they used to live in separate cells of a
+        two-column grid.
+      */}
+      <div
+        data-testid="quay-tab-layers"
+        className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]"
+      >
+        <div data-testid="quay-tab-charts" className="grid min-w-0 grid-cols-1 gap-4">
+          <LoopPulseCard
+            gantt={snapshot.gantt ?? null}
+            ganttUnavailable={snapshot.ganttUnavailable ?? null}
+            windowHours={windowHours}
+            onWindowChange={onWindowChange}
+            refreshing={ganttRefreshing}
+          />
+          <TestsCard tests={snapshot.tests} window={timelineWindow} />
+          <FanInCard fanIn={snapshot.fanIn} window={timelineWindow} />
+        </div>
 
-        <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Driver</h3>
-          <dl className="space-y-1 text-xs">
-            <div className="flex justify-between rounded border border-border/40 px-2 py-1">
-              <dt className="text-muted-foreground">State</dt>
-              <dd className="text-foreground">{DRIVER_LABELS[driverState]}</dd>
-            </div>
-            <div className="flex justify-between rounded border border-border/40 px-2 py-1">
-              <dt className="text-muted-foreground">Last record</dt>
-              <dd className="text-foreground" data-testid="quay-panel-driver-last-record">
-                {/* `never` is a real reading (the driver has no record yet); a failed
-                    read is not, and saying `never` for it invents one. */}
-                {snapshot.driver === null ? 'unavailable' : formatTimestamp(snapshot.driver.lastRecordAt)}
-              </dd>
-            </div>
-            <div className="flex justify-between rounded border border-border/40 px-2 py-1">
-              <dt className="text-muted-foreground">Config issues</dt>
-              <dd className="text-foreground" data-testid="quay-panel-config-issues">
-                {snapshot.configIssues === null ? 'unavailable' : snapshot.configIssues.total}
-              </dd>
-            </div>
-          </dl>
-        </section>
+        {sessionId !== undefined && (
+          <QuaySessionPanel
+            projectId={projectId}
+            sessionId={sessionId}
+            refreshSignal={sessionRefreshSignal}
+          />
+        )}
+      </div>
 
-        <DetailList
-          title={snapshot.adrs === null ? 'ADRs' : `ADRs (${snapshot.adrs.total})`}
-          items={snapshot.adrs === null ? null : snapshot.adrs.recent}
-          emptyText="No ADRs reported."
-          testId="quay-panel-recent-adrs"
-        />
+      {/* Layer 3: everything else, still the panel's two-column detail grid. */}
+      <div data-testid="quay-tab-details" className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DetailsCard
+          id="task-ledger"
+          title="Task ledger"
+          count={snapshot.tasks?.total ?? null}
+          collapsible={collapsibleDetails}
+        >
+          <TaskLedger tasks={snapshot.tasks} />
+        </DetailsCard>
+
+        <DetailsCard
+          id="stage-goals"
+          title="Stage goals"
+          count={snapshot.goals?.total ?? null}
+          collapsible={collapsibleDetails}
+        >
+          <StageGoals goals={snapshot.goals} />
+        </DetailsCard>
+
+        <DetailsCard
+          id="inflight"
+          title="In flight"
+          count={snapshot.inFlight?.length ?? null}
+          collapsible={collapsibleDetails}
+        >
+          <InFlightCard
+            fleetProjectId={snapshot.fleetProjectId ?? null}
+            fleetState={fleetState}
+            inFlight={snapshot.inFlight}
+            generatedAt={snapshot.generatedAt}
+          />
+        </DetailsCard>
+
+        <DetailsCard
+          id="driver"
+          title="Driver"
+          count={snapshot.configIssues?.total ?? null}
+          collapsible={collapsibleDetails}
+        >
+          <section>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Driver</h3>
+            <dl className="space-y-1 text-xs">
+              <div className="flex justify-between rounded border border-border/40 px-2 py-1">
+                <dt className="text-muted-foreground">State</dt>
+                <dd className="text-foreground">{DRIVER_LABELS[driverState]}</dd>
+              </div>
+              <div className="flex justify-between rounded border border-border/40 px-2 py-1">
+                <dt className="text-muted-foreground">Last record</dt>
+                <dd className="text-foreground" data-testid="quay-panel-driver-last-record">
+                  {/* `never` is a real reading (the driver has no record yet); a failed
+                      read is not, and saying `never` for it invents one. */}
+                  {snapshot.driver === null ? 'unavailable' : formatTimestamp(snapshot.driver.lastRecordAt)}
+                </dd>
+              </div>
+              <div className="flex justify-between rounded border border-border/40 px-2 py-1">
+                <dt className="text-muted-foreground">Config issues</dt>
+                <dd className="text-foreground" data-testid="quay-panel-config-issues">
+                  {snapshot.configIssues === null ? 'unavailable' : snapshot.configIssues.total}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </DetailsCard>
+
+        <DetailsCard
+          id="adrs"
+          title="ADRs"
+          count={snapshot.adrs?.total ?? null}
+          collapsible={collapsibleDetails}
+        >
+          <DetailList
+            title={snapshot.adrs === null ? 'ADRs' : `ADRs (${snapshot.adrs.total})`}
+            items={snapshot.adrs === null ? null : snapshot.adrs.recent}
+            emptyText="No ADRs reported."
+            testId="quay-panel-recent-adrs"
+          />
+        </DetailsCard>
       </div>
 
       {snapshot.warnings.length > 0 && (

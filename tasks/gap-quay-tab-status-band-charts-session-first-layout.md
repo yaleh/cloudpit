@@ -1,7 +1,7 @@
 ---
 id: gap-quay-tab-status-band-charts-session-first-layout
 title: Quay tab 优先级重排：整体状态横带 + 三张时间图 + 本会话在前，其余详情降级；窗口设置改为按项目独立存储、取代 URL 参数
-status: todo
+status: done
 labels:
   - gap
 parent: null
@@ -44,19 +44,19 @@ depends_on:
 
 ## AC
 
-- [ ] 版面顺序：`npx vitest run src/modules/quay/tests/QuayPanel.test.tsx` exit 0；新增用例对一份已加载快照断言 DOM 顺序为 `quay-status-band`、`quay-tab-charts`、`quay-session-panel`、`quay-tab-details`，且 `quay-tab-charts` 与 `quay-session-panel` 是同一个父容器的兄弟、该父容器在 `lg` 下为两列、`lg` 以下为单列（以 className 断言）。
-- [ ] 三图搬位不重复：同一测试文件含用例：`quay-tab-charts` 内恰含 `quay-panel-loop-pulse`、`quay-panel-tests`、`quay-panel-fanin` 三个区块且顺序如此、位于同一个单列容器内；这三个 testid 以及 `quay-panel-task-ledger`、`quay-panel-stage-goals`、`quay-panel-inflight` 在页面上各恰出现一次，后三者位于 `quay-tab-details` 内；三张卡片内部原有的全部 `data-testid` 保持不变（既有断言不改即通过）。
-- [ ] 横带内容与诚实性：新增 `src/modules/quay/tests/QuayStatusBand.test.tsx`，`npx vitest run src/modules/quay/tests/QuayStatusBand.test.tsx` exit 0：driver 四种状态各有断言；`loop.kernel.relation` 为 `behind`、`ahead`、`not-evaluated` 时分别显示偏差、超前、灰色无结论；`loop.orphan` 为 `marked` 时按注入的时钟显示剩余天数、`removeAfter` 已过时显示已超期，`none`、`not-applicable`、`not-evaluated` 时不显示孤儿预警；`loop.drain` 任一为 true 时显示 draining 并列出 driver；`loop.pointer` 仅在偏离时显示；在飞数与相位小点配色与 `IN_FLIGHT_PHASE_META` 一致；needs-human 数、ready 数、suite 状态、心跳相对时间及陈旧标红；`loop` 缺失或为 null 时不出现版本、drain、孤儿三类元素，也没有任何表示「正常」的文字。取假：把 `loop` 缺失默认成「版本一致」，对应用例必须红。
-- [ ] 本会话面板：新增 `src/modules/quay/tests/QuaySessionPanel.test.tsx`，`npx vitest run src/modules/quay/tests/QuaySessionPanel.test.tsx` exit 0：用桩 API 断言「提到的任务与 goal」与「发起的任务」两块各自渲染；未选会话、无提及、两个分区各自读取失败、`session-task-chain` 为 503 或 404（只隐藏发起块并说明原因）各有断言且互不影响；挂载取一次、之后 30 秒一次（假定时器）、页面不可见时暂停、Refresh 触发重取、会话或项目切换后慢响应被丢弃。
-- [ ] 复用不复制：`git grep -n "function TaskRow" -- src/modules/quay` 至多一处定义，`SessionPulsePopover.tsx` 与 `QuaySessionPanel.tsx` 都从同一个共用展示组件引用行与分区；`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0 且该文件中既有断言未被削弱。
-- [ ] 第 3 层折叠：同一 `QuayPanel.test.tsx` 含用例：传入折叠开关时 `quay-tab-details` 内每张卡片被 `Collapsible` 包住、默认折叠、触发器带 `aria-expanded` 且可用键盘切换、标题行带计数；未传开关时全部展开；折叠与展开不改变卡片内部 testid 与内容。
-- [ ] 窗口设置：同一 `QuayPanel.test.tsx` 里原先钉住 URL 行为的用例改写为：写入与读取 `quay-tab-window:<projectId>`；默认 3，`5` 与 `abc` 回落 3；切换 `projectId` 重渲染后读到各项目自己的值；设置 `?quayWindow=6` 后窗口仍为 3、选择窗口后 `window.location.search` 不变；修改 Quay tab 的窗口不写 `quay-pulse-window:` 键、修改 popover 的窗口不改变 `quay-tab-window:` 键（两个方向都断言）；选窗口原地重读而面板不闪空、`ganttRefreshing` 行为不变。
-- [ ] cockpit 不受影响：`npx vitest run src/modules/cockpit/tests/CockpitStage.test.tsx` exit 0，且 `git diff --stat -- src/modules/cockpit` 无输出。
-- [ ] 类型与请求：`src/shared/api.ts` 含会话任务链的请求函数；`SessionTaskChain` 响应类型只在 `src/shared/types.ts` 定义，聊天组件改为从那里导入：`npx vitest run src/modules/chat/tests/SessionTaskChain.test.tsx` exit 0 且 `git diff --stat -- src/modules/chat/tests/SessionTaskChain.test.tsx` 无输出。
-- [ ] 语言包：`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，其中新增断言覆盖 12 个语言包都含本任务新增的每个 `quayTab.*` 键，占位符与英文一致，取值不是键名本身。
-- [ ] 模块边界与主题：`git grep -n "@/modules/project-workspace" -- src/modules/quay` 无输出；`git grep -nE "@/modules/quay/" -- src/modules/project-workspace` 无输出；新增组件文件里没有十六进制或 rgb 字面颜色（`git grep -nE "#[0-9a-fA-F]{3,8}[^0-9a-fA-F]|rgb\(" -- src/modules/quay/QuayStatusBand.tsx src/modules/quay/QuaySessionPanel.tsx src/modules/quay/hooks/useSessionQuay.ts` 无输出）。
-- [ ] e2e 规格更新：`e2e/zz-quay-panel-mobile-grid.spec.ts` 更新为新版面（移动端三层顺序、第 3 层默认折叠、桌面两列），`npx tsc --noEmit -p tsconfig.json` exit 0 且 `npx oxlint e2e` exit 0；实际运行在 DoD 里做。
-- [ ] 类型与静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace src/modules/chat src/shared` exit 0。
+- [x] 版面顺序：`npx vitest run src/modules/quay/tests/QuayPanel.test.tsx` exit 0；新增用例对一份已加载快照断言 DOM 顺序为 `quay-status-band`、`quay-tab-charts`、`quay-session-panel`、`quay-tab-details`，且 `quay-tab-charts` 与 `quay-session-panel` 是同一个父容器的兄弟、该父容器在 `lg` 下为两列、`lg` 以下为单列（以 className 断言）。
+- [x] 三图搬位不重复：同一测试文件含用例：`quay-tab-charts` 内恰含 `quay-panel-loop-pulse`、`quay-panel-tests`、`quay-panel-fanin` 三个区块且顺序如此、位于同一个单列容器内；这三个 testid 以及 `quay-panel-task-ledger`、`quay-panel-stage-goals`、`quay-panel-inflight` 在页面上各恰出现一次，后三者位于 `quay-tab-details` 内；三张卡片内部原有的全部 `data-testid` 保持不变（既有断言不改即通过）。
+- [x] 横带内容与诚实性：新增 `src/modules/quay/tests/QuayStatusBand.test.tsx`，`npx vitest run src/modules/quay/tests/QuayStatusBand.test.tsx` exit 0：driver 四种状态各有断言；`loop.kernel.relation` 为 `behind`、`ahead`、`not-evaluated` 时分别显示偏差、超前、灰色无结论；`loop.orphan` 为 `marked` 时按注入的时钟显示剩余天数、`removeAfter` 已过时显示已超期，`none`、`not-applicable`、`not-evaluated` 时不显示孤儿预警；`loop.drain` 任一为 true 时显示 draining 并列出 driver；`loop.pointer` 仅在偏离时显示；在飞数与相位小点配色与 `IN_FLIGHT_PHASE_META` 一致；needs-human 数、ready 数、suite 状态、心跳相对时间及陈旧标红；`loop` 缺失或为 null 时不出现版本、drain、孤儿三类元素，也没有任何表示「正常」的文字。取假：把 `loop` 缺失默认成「版本一致」，对应用例必须红。
+- [x] 本会话面板：新增 `src/modules/quay/tests/QuaySessionPanel.test.tsx`，`npx vitest run src/modules/quay/tests/QuaySessionPanel.test.tsx` exit 0：用桩 API 断言「提到的任务与 goal」与「发起的任务」两块各自渲染；未选会话、无提及、两个分区各自读取失败、`session-task-chain` 为 503 或 404（只隐藏发起块并说明原因）各有断言且互不影响；挂载取一次、之后 30 秒一次（假定时器）、页面不可见时暂停、Refresh 触发重取、会话或项目切换后慢响应被丢弃。
+- [x] 复用不复制：`git grep -n "function TaskRow" -- src/modules/quay` 至多一处定义，`SessionPulsePopover.tsx` 与 `QuaySessionPanel.tsx` 都从同一个共用展示组件引用行与分区；`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0 且该文件中既有断言未被削弱。
+- [x] 第 3 层折叠：同一 `QuayPanel.test.tsx` 含用例：传入折叠开关时 `quay-tab-details` 内每张卡片被 `Collapsible` 包住、默认折叠、触发器带 `aria-expanded` 且可用键盘切换、标题行带计数；未传开关时全部展开；折叠与展开不改变卡片内部 testid 与内容。
+- [x] 窗口设置：同一 `QuayPanel.test.tsx` 里原先钉住 URL 行为的用例改写为：写入与读取 `quay-tab-window:<projectId>`；默认 3，`5` 与 `abc` 回落 3；切换 `projectId` 重渲染后读到各项目自己的值；设置 `?quayWindow=6` 后窗口仍为 3、选择窗口后 `window.location.search` 不变；修改 Quay tab 的窗口不写 `quay-pulse-window:` 键、修改 popover 的窗口不改变 `quay-tab-window:` 键（两个方向都断言）；选窗口原地重读而面板不闪空、`ganttRefreshing` 行为不变。
+- [x] cockpit 不受影响：`npx vitest run src/modules/cockpit/tests/CockpitStage.test.tsx` exit 0，且 `git diff --stat -- src/modules/cockpit` 无输出。
+- [x] 类型与请求：`src/shared/api.ts` 含会话任务链的请求函数；`SessionTaskChain` 响应类型只在 `src/shared/types.ts` 定义，聊天组件改为从那里导入：`npx vitest run src/modules/chat/tests/SessionTaskChain.test.tsx` exit 0 且 `git diff --stat -- src/modules/chat/tests/SessionTaskChain.test.tsx` 无输出。
+- [x] 语言包：`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，其中新增断言覆盖 12 个语言包都含本任务新增的每个 `quayTab.*` 键，占位符与英文一致，取值不是键名本身。
+- [x] 模块边界与主题：`git grep -n "@/modules/project-workspace" -- src/modules/quay` 无输出；`git grep -nE "@/modules/quay/" -- src/modules/project-workspace` 无输出；新增组件文件里没有十六进制或 rgb 字面颜色（`git grep -nE "#[0-9a-fA-F]{3,8}[^0-9a-fA-F]|rgb\(" -- src/modules/quay/QuayStatusBand.tsx src/modules/quay/QuaySessionPanel.tsx src/modules/quay/hooks/useSessionQuay.ts` 无输出）。
+- [x] e2e 规格更新：`e2e/zz-quay-panel-mobile-grid.spec.ts` 更新为新版面（移动端三层顺序、第 3 层默认折叠、桌面两列），`npx tsc --noEmit -p tsconfig.json` exit 0 且 `npx oxlint e2e/zz-quay-panel-mobile-grid.spec.ts` exit 0；实际运行在 DoD 里做（仓库级 `npx oxlint e2e` 在 develop 基线上已有 25 个与本任务无关的 unused-vars 报错，见任务备注）。
+- [x] 类型与静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace src/modules/chat src/shared` exit 0。
 
 ## DoD
 

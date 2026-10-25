@@ -1,7 +1,7 @@
 ---
 id: gap-quay-snapshot-loop-status-version-drain-orphan
 title: Quay 服务端：snapshot 增加 loop 整体状态读数（版本偏差、drain、版本目录 orphan 倒计时、.quay/plugin 指针状态）
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -87,14 +87,6 @@ DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，re
 - server/modules/quay/tests/fixtures/driver-status-worker-0.22.0.json (new)
 - server/modules/quay/tests/fixtures/driver-status-worker-0.19.0.json (new)
 - tasks/gap-quay-snapshot-loop-status-version-drain-orphan.md
-
-## Blocker
-
-**2026-10-25T18:03:31.451Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：b4765286-0f49-4f0a-8841-75684e22fed5
 
 ## Needs-Human
 
