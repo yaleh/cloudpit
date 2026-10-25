@@ -751,6 +751,12 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // a bare `min-height` cannot shrink a stretched flex item, which made the first control
   // reading vacuous — the same invocation measured the 36.7s above.)
   'cockpit-phone-narrow.spec.ts': 240_000,
+  // The workspace tab-strip fit criterion: one real page driven across four widths (three
+  // fit arm at 1280/1440/1920, then a fresh page at 1024 after plugin manifests are written),
+  // plus the boot, the fixture workspace and its armed scenario. The 55 s single-file default
+  // leaves no room for the boot+launch+two pages, so this declares the sibling interaction
+  // entries' budget.
+  'workspace-tabs-fit.spec.ts': 180_000,
 };
 
 /**
@@ -2995,6 +3001,12 @@ const DEBUG_AGENT_SPEC_FILES: readonly string[] = [
   // read-aloud leg needs an assistant row the fixture wrote. The same fixture home and the same
   // resident scenario shape; the walk parks immediately so no held turn lease diverts deliveries.
   'voice-output-e2e-harness.spec.ts',
+  // The workspace tab-strip fit criterion (gap-workspace-tabs-order-and-fit-to-width): it needs the
+  // fixture home for the same two reasons the architecture entries above do — a session whose project
+  // is a real workspace the run can write, and a project listing that carries the Tier-1 carriers.
+  // The spec writes `.quay/config.yml` and the `.archguard` cache itself, so this entry is the only
+  // fixture channel it uses.
+  'workspace-tabs-fit.spec.ts',
 ];
 const debugAgentFixtureHome = selectedSpecFiles().some((file) => DEBUG_AGENT_SPEC_FILES.includes(file))
   ? path.join(dataDir, 'debug-agent-home')
