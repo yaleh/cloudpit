@@ -1,13 +1,18 @@
 ---
 id: gap-architecture-compact-chrome-and-tab-tooltip
 title: Architecture 顶部压成一行：Export+Legend 收进溢出菜单、读数行折叠为一行摘要，并修复 tab tooltip 点击后不消失
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
 children: []
 extra:
   schema: execution
+  needs_human_cause: human-adjudication
+  park_reason: develop-wide 15-file baseline red
+    (mcp-gateway/resident/voice-realtime) plus the 300s sequential rerun cap
+    make the fan-in gate unevaluable; this task delta is frontend-only and
+    outside the red files
 ---
 ## Proposal
 
@@ -86,3 +91,22 @@ extra:
 - e2e/architecture-fullscreen.spec.ts
 - e2e/architecture-overlay-layout.spec.ts
 - tasks/gap-architecture-compact-chrome-and-tab-tooltip.md
+
+## Blocker
+
+**2026-10-25T16:28:48.353Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=46144 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792944531344
+- run_id：wk-prod-anchor
+- session_id：51bd2f1e-ed7d-4862-bf4d-8dc1323300ed
+
+### 2026-10-25T16:29Z — 恢复会话复核：实现完整且已验证，落地被 develop 侧红集 + 300s rerun 上限挡住（执行侧不可满足）
+
+- 本任务 delta 纯前端（`ArchitecturePanel/ArchitectureExportMenu/ArchitectureSheet`、`shared/ui/Tooltip`、`WorkspaceTabs`、12 个 locale、e2e/playwright 配置），**没有触碰 `server/**`**。suite 点名的 15 个失败文件全部落在 `server/modules/{mcp-gateway,providers,voice-realtime,debug-agent,websocket,voice}`，与本任务 `## Touches` 不相交。
+- 红在 develop 侧的直接读数：驱动自己的 baseline 检出（`worktree add --detach develop`，纯 develop）上同一批文件同样 `passed=false`；`.quay/fan-in-suite-gap-architecture-compact-chrome-and-tab-tooltip~wk-prod-anchor~baseline-1792945428142-02ccfc.log` 只有 5 条 `__PERFILE__`（全部红）即在 300s 被 SIGKILL ⇒ `baseline rerun aborted` ⇒ `baselineEquivalence.verdict.kind="not-evaluated"`。
+- 任务侧 rerun 同样 `rerun-not-evaluated`（`rerun-aborted`）：15 个文件经 `scripts/quay-rerun-failed.sh` **串行**重跑，> `RERUN_TIMEOUT_MS = 300000`。
+- 失败文件集与 `gap-quay-snapshot-loop-status-version-drain-orphan` 的 latest outcome **逐字相同（15/15）** ⇒ `judgeRetryExemption` 的 fileRecurrence 会判 `unrelated-flaky-exempt` 并跳过 `advanceRetryCap` ⇒ 纯 exit 只会被无限重派。指纹与收口方式见 shared lesson `fan-in-rerun-timeout-makes-baseline-a-b-unevaluable`。
+- 本会话已在本分支 worktree 上逐项重跑 AC（均 exit 0）：`Tooltip.test.tsx` 2、`exportMenu` 14、`architectureTab` 129、`mobileCompactToolbar` 15、`fullscreen` 7、`architectureDiffHighlight` 4、`workspaceTabsResponsive` 11、`i18nArchitectureTabCompleteness` 8；`npx tsc --noEmit -p tsconfig.json` 0；`e2e/architecture-compact-chrome.spec.ts` 1 passed（toolbar 41px 一行、readout 35.5px、canvas top/height 133.5/731）；`e2e/architecture-fullscreen.spec.ts` + `e2e/architecture-overlay-layout.spec.ts` 6 passed；本分支改过的 3 条 `architecture-canvas-layout` 用例 3 passed；`anti-drift-touches-check` = `28 actual file(s), all within declared Touches`。
+- 机械 fan-in 的其余步骤均绿：`merge-develop`、`anti-drift`、`delta`、`typecheck`、`ac-precheck`；只有 suite/baseline 两腿卡在上述上限。
+- 分支：`task/gap-architecture-compact-chrome-and-tab-tooltip` = 实现 `a29d34e53`（merge develop `8a12496ab`），worktree 干净。
+- 收口路径（不在执行侧权限内，任选其一）：① 修好或归属 develop 上这 15 个红，再对本任务重跑 fan-in；② 抬高 `RERUN_TIMEOUT_MS` 或让 `scripts/quay-rerun-failed.sh` 并行（≥15 文件时串行必然 >300s）；③ 人裁定 out-of-band complete（AC/DoD 证据见上）。
