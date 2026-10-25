@@ -25,11 +25,11 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/chat/tests/useTranscriptSelection.test.tsx` exit 0，且新增一例：在 transcript 内派发 `pointerdown`，随后设置非空 transcript 选区并派发 `selectionchange`，快进超过 `SELECTION_SETTLE_MS` 的若干倍，`selectionText` 仍为 `null`；再派发 `pointerup`，`selectionText` 立即变为该选区文本（不需再快进）。取假：删掉「手势中」判断，该例必须红。
-- [ ] 同一文件新增一例：`pointerdown` 之后选区被清空（折叠）时 `selectionText` 立即回到 `null`，不等松手；以及 `pointercancel` 与 `window` 的 `blur` 都能结束「手势中」并 flush 当前选区。
-- [ ] 同一文件新增一例：不先派发 `pointerdown`（键盘路径）时，行为与现有一致——`SELECTION_SETTLE_MS` 之后才记录；`pointerdown` 落在 transcript 之外（textarea、侧栏）不进入「手势中」。
-- [ ] 该文件里已有的 `expect` 没有被删减或放宽（`git diff -- src/modules/chat/tests/useTranscriptSelection.test.tsx` 只允许新增）。
-- [ ] `git diff --stat` 显示本任务没有改动 `useInlineQuoteChip.ts`、`ChatComposer.tsx`、`ChatInterface.tsx` 与任何滚动/贴底逻辑；`npx tsc --noEmit -p tsconfig.json` exit 0。
+- [x] `npx vitest run src/modules/chat/tests/useTranscriptSelection.test.tsx` exit 0，且新增一例：在 transcript 内派发 `pointerdown`，随后设置非空 transcript 选区并派发 `selectionchange`，快进超过 `SELECTION_SETTLE_MS` 的若干倍，`selectionText` 仍为 `null`；再派发 `pointerup`，`selectionText` 立即变为该选区文本（不需再快进）。取假：删掉「手势中」判断，该例必须红。
+- [x] 同一文件新增一例：`pointerdown` 之后选区被清空（折叠）时 `selectionText` 立即回到 `null`，不等松手；以及 `pointercancel` 与 `window` 的 `blur` 都能结束「手势中」并 flush 当前选区。
+- [x] 同一文件新增一例：不先派发 `pointerdown`（键盘路径）时，行为与现有一致——`SELECTION_SETTLE_MS` 之后才记录；`pointerdown` 落在 transcript 之外（textarea、侧栏）不进入「手势中」。
+- [x] 该文件里已有的 `expect` 没有被删减或放宽（`git diff -- src/modules/chat/tests/useTranscriptSelection.test.tsx` 只允许新增）。
+- [x] `git diff --stat` 显示本任务没有改动 `useInlineQuoteChip.ts`、`ChatComposer.tsx`、`ChatInterface.tsx` 与任何滚动/贴底逻辑；`npx tsc --noEmit -p tsconfig.json` exit 0。
 
 ## DoD
 
@@ -46,3 +46,20 @@ extra:
 - src/modules/chat/hooks/useTranscriptSelection.ts
 - src/modules/chat/tests/useTranscriptSelection.test.tsx
 - tasks/gap-transcript-selection-chip-waits-for-pointer-release.md
+
+## Verification
+
+AC1–AC5：
+- `npx vitest run src/modules/chat/tests/useTranscriptSelection.test.tsx` → exit 0，12 passed（7 旧 + 5 新）。取假：把手势判断临时置为 `false`，新增的「按住期间不 commit」例红（3 failed / 9 passed），恢复后绿。
+- `npx tsc --noEmit -p tsconfig.json` → exit 0。
+- `git diff --stat develop` → 仅 `useTranscriptSelection.ts` 与 its test；测试文件 0 行删除（只新增）；`useInlineQuoteChip.ts` / `ChatComposer.tsx` / `ChatInterface.tsx` 未改。
+- anti-drift（develop merge 后）：`ANTI-DRIFT OK … 2 actual file(s), all within declared Touches`，exit 0。
+
+DoD（真实页面，Playwright 一次性 spec：真实后端 + Vite + Chromium，`e2e-transcript-follow` 种子会话；修复前/后各跑一次同一脚本）：
+- 草稿用 CJK 标定填满 textarea 两行默认高度（177 字），使内联 chip 必须换到第三行；真实鼠标 `mouse.down` → `mouse.move(24 steps)` → 按住 1.2s 采样 12 次 → `mouse.up`。
+- 修复后（after）held：chip 0/12；composerH `[191]`；textareaH `[88]`；scrollTop `[4000]`；`selection.toString()` 采样序列唯一（734 字符，12 次全同）。release 后：chip 出现，selection 734 字符（与按住期间一致），composer 长高一行（215/112）——松手后的一次性变化。
+- 修复前（before）held：chip 10/12（第 3 个采样≈200ms 起出现）；composerH `[191, 215]`、textareaH `[88, 112]`（长高一行）；scrollTop `[3933, 3957]`（贴底内容上移）；`selection.toString()` 有 2 种（734 → 745 字符）——选区文本漂移，缺陷复现。
+- (d) 键盘路径两臂均：立即无 chip，~400ms 后有 chip（headless Chromium 无法用真实 shift+方向键扩展静态文本选区，探针在本机确认；改用浏览器自身的 `Selection.modify('extend', …)`，同样是「无 pointerdown 的 selectionchange」路径）。双击选词、三击选段：两臂 released 后均有 chip。
+- 截图：`tmp/transcript-selection-chip-dod/{after,before}-{held,released}.png`；读数：`tmp/transcript-selection-chip-dod/{after,before}.json`（工作树 tmp/，gitignored）。
+- (e) 场景运行器：仓内 `e2e/scenarios/` 只有 cockpit 两个场景，与本任务无关，故无可用场景可跑。
+- 已知限制：触屏长按拖选手柄不产生页面 pointer 事件，本任务不处理（见提交说明）。
