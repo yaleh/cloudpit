@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '@/shared/api';
+import type {
+  SessionTaskChainEntry,
+  SessionTaskChainReading,
+  SessionTaskChainStage,
+} from '@/shared/types';
 
 /**
  * 「本会话发起的事，现在走到哪一步了」 — the compact chain over the transcript.
@@ -18,55 +23,14 @@ import { authenticatedFetch } from '@/shared/api';
  * remain, so the reading stays testable.
  */
 
-/** Mirrors the server's stage vocabulary; the UI never invents a stage the server cannot send. */
-export type SessionTaskChainStage =
-  | 'filed'
-  | 'ready'
-  | 'in-progress'
-  | 'landed'
-  | 'built'
-  | 'running'
-  | 'blocked'
-  | 'needs-human'
-  | 'superseded'
-  | 'unknown';
-
-/** One task in the chain, as the server reports it. */
-export type SessionTaskChainEntry = {
-  taskId: string;
-  title: string;
-  status: string;
-  stage: SessionTaskChainStage;
-  origin: 'created' | 'edited';
-  landCommit: string | null;
-  blockedReason: string | null;
-};
-
-/** The server's counts; the compact sentence renders four of them. */
-export type SessionTaskChainCounts = {
-  total: number;
-  filed: number;
-  ready: number;
-  inProgress: number;
-  landed: number;
-  built: number;
-  running: number;
-  blocked: number;
-  needsHuman: number;
-  superseded: number;
-  unknown: number;
-};
-
-/** One session's whole chain reading. */
-export type SessionTaskChainReading = {
-  sessionId: string;
-  projectId: string;
-  created: string[];
-  edited: string[];
-  counts: SessionTaskChainCounts;
-  tasks: SessionTaskChainEntry[];
-  checkedAt: string;
-};
+// The response types live in `src/shared/types.ts` because the Quay tab's session panel reads
+// the same endpoint. The component re-exports them so its existing consumers keep one import.
+export type {
+  SessionTaskChainCounts,
+  SessionTaskChainEntry,
+  SessionTaskChainReading,
+  SessionTaskChainStage,
+} from '@/shared/types';
 
 /** The injection seam a criterion uses; the default talks to the quay API. */
 export type SessionTaskChainPort = (input: {

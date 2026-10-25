@@ -228,6 +228,9 @@
       "pngScaled": "PNG, en uzun kenarı {{edge}} px olacak şekilde küçültüldü.",
       "pngFailed": "PNG oluşturulamadı."
     },
+    "overflow": {
+      "menu": "Diğer işlemler"
+    },
     "search": {
       "label": "Varlık veya dosya ara",
       "placeholder": "Varlık veya dosya ara…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "bu oturumda anıldı, türü gizli olsa bile görünür tutulur",
       "mentionedInKind": "Bu oturumda {{count}} kez anıldı",
       "showMentioned": "▸ Anılanları göster",
+      "showMentionedCount": "▸ Anılanları göster ({{count}})",
       "reset": "↺ Filtreleri sıfırla"
     },
     "scopeHygiene": {
@@ -996,5 +1000,42 @@
     "mentionedInMessage": "bir mesajda anıldı",
     "mentionedAt": "{{when}} anıldı",
     "openQuayPanel": "Quay panelini aç"
+  },
+  "quayTab": {
+    "driverRunning": "Sürücü çalışıyor",
+    "driverIdle": "Sürücü boşta",
+    "driverStale": "Sürücü bayat",
+    "driverNotConfigured": "Yapılandırılmadı",
+    "driverUnavailable": "Sürücü durumu kullanılamıyor",
+    "kernelBehind": "Çekirdek {{loaded}} → kurulu {{installed}}",
+    "kernelAhead": "Çekirdek {{loaded}} kurulu {{installed}} sürümünden ileride",
+    "kernelCurrent": "Çekirdek {{loaded}} güncel (kurulu {{installed}})",
+    "kernelNotEvaluated": "Çekirdek sürümü değerlendirilmedi",
+    "orphanMarked": "Eklenti sürümü {{days}} gün içinde kaldırılacak",
+    "orphanExpired": "Eklenti sürümü kaldırma süresi geçti",
+    "orphanMarkedUnknown": "Eklenti sürümü kaldırılmak üzere işaretlendi",
+    "draining": "Boşaltılıyor: {{drivers}}",
+    "pointerDeviation": "Eklenti işaretçisi {{state}} (bağlantı {{link}}, çekirdek {{core}})",
+    "inFlightCount": "{{count}} uçuşta",
+    "needsHumanCount": "{{count}} insan gerekiyor",
+    "readyCount": "{{count}} hazır",
+    "suiteState": "Paket {{state}}",
+    "sessionPanelTitle": "Bu oturum",
+    "noSession": "Oturum seçilmedi",
+    "loadingMentions": "Bahsedilen görevler yükleniyor…",
+    "mentionsError": "Bu oturumda bahsedilen görevler okunamadı.",
+    "noMentions": "Bu oturumda henüz quay görevi bahsedilmedi.",
+    "loadingChain": "Bu oturumda başlatılan görevler yükleniyor…",
+    "chainUnavailable": "Bu oturumda başlatılan görevler kullanılamıyor ({{reason}}).",
+    "chainError": "Bu oturumda başlatılan görevler okunamadı.",
+    "createdEmpty": "Bu oturumda hiç görev başlatılmadı.",
+    "createdHeading": "Bu oturumda başlatılan görevler · {{count}}",
+    "blockedReason": "Engellendi: {{reason}}",
+    "goalsHeading": "Hedefler · {{count}}",
+    "tasksHeading": "Görevler · {{count}}",
+    "done": "Bitti · {{count}}",
+    "viaTasks": "{{count}} görev aracılığıyla",
+    "mentionedInMessage": "bir mesajda bahsedildi",
+    "mentionedAt": "{{when}} bahsedildi"
   }
 }

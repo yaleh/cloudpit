@@ -163,6 +163,91 @@ export type QuayDriverSummary = {
   lastRecordAt: string | null;
 };
 
+/**
+ * How the quay kernel the loop is RUNNING compares with the quay version installed on this
+ * host — the client mirror of the server's `QuayLoopVersionRelation`.
+ *
+ * The four states are mutually exclusive readings, not a numeric scale: `current` means the
+ * running kernel's version equals the installed one, `behind` means it is older, `ahead` means
+ * it is newer, and `not-evaluated` means quay could not take the reading at all. `not-evaluated`
+ * must never be rendered as `current`: "could not tell" is not "up to date".
+ */
+export type QuayLoopVersionRelation = 'current' | 'behind' | 'ahead' | 'not-evaluated';
+
+/** The running kernel vs. installed version reading for the loop's anchor. */
+export type QuayLoopKernel = {
+  /** The version the running kernel reports it loaded, or `null` when unread. */
+  loaded: string | null;
+  /** The version installed on this host, or `null` when unread. */
+  installed: string | null;
+  /** The four-state comparison; `not-evaluated` is never collapsed into `current`. */
+  relation: QuayLoopVersionRelation;
+  /** Why `relation` is `not-evaluated`; `null` when the relation is determinate. */
+  reason: string | null;
+};
+
+/**
+ * quay's own reading of `<project>/.quay/plugin` against the core plugin root the running
+ * kernel belongs to. `state` follows the same four-state vocabulary as the kernel relation;
+ * the whole object is `null` when the driver status carried no pointer segment at all.
+ */
+export type QuayLoopPointer = {
+  /** Four-state link-vs-core reading, never defaulting an unknown value to `current`. */
+  state: QuayLoopVersionRelation;
+  /** Version of the plugin pinned by `<project>/.quay/plugin`, or `null` when unread. */
+  linkVersion: string | null;
+  /** Version of the core plugin root the running kernel belongs to, or `null` when unread. */
+  coreVersion: string | null;
+};
+
+/**
+ * Whether Claude Code has marked the running kernel's version directory for deletion.
+ * `not-evaluated` and `not-applicable` are never folded into `none`.
+ */
+export type QuayLoopOrphanState = 'none' | 'marked' | 'not-evaluated' | 'not-applicable';
+
+/** The orphan-marker reading for the kernel directory the loop is running from. */
+export type QuayLoopOrphan = {
+  /** Whether the running kernel's version directory is orphan-marked. */
+  state: QuayLoopOrphanState;
+  /** Marker timestamp as ISO-8601, or `null` unless `state` is `marked`. */
+  markedAt: string | null;
+  /** `markedAt` + 14 days, or `null` unless `state` is `marked`. */
+  removeAfter: string | null;
+};
+
+/**
+ * Whether each quay driver kind is drained (halted) in this project. `null` means the control
+ * file exists but its flag could not be read; `null` is never folded into `false`.
+ */
+export type QuayLoopDrain = {
+  worker: boolean | null;
+  promotion: boolean | null;
+  quality: boolean | null;
+};
+
+/**
+ * The loop's overall running-status reading, mirroring the server's `QuayLoopStatus`.
+ *
+ * A missing or `null` reading on `QuaySnapshot.loop` means "the loop status was not read",
+ * which must never be rendered as "everything is normal": every field here has an explicit
+ * unknown state (`not-evaluated` / `null`) for exactly that reason.
+ */
+export type QuayLoopStatus = {
+  /** PID of the anchor process the loop runs under, or `null` when not reported. */
+  anchorPid: number | null;
+  /** Running-kernel vs. installed-version reading. */
+  kernel: QuayLoopKernel;
+  /** The `.quay/plugin` pointer reading, or `null` when the CLI carried no pointer segment. */
+  pointer: QuayLoopPointer | null;
+  /** Per-kind drain (halt) flags. */
+  drain: QuayLoopDrain;
+  /** Whether the running kernel's version directory is orphan-marked for deletion. */
+  orphan: QuayLoopOrphan;
+  /** When this reading was taken, ISO-8601. */
+  observedAt: string;
+};
+
 /** One row of the panel's per-entity detail list; only the fields the panel renders. */
 export type QuayListItem = {
   id: string;
@@ -457,6 +542,59 @@ export type QuaySessionMentionsReading = {
 };
 
 /**
+ * The stage one task sits at in its session's task chain — the server's own stage vocabulary
+ * (`session-task-chain.service.ts`), mirrored here so the UI never invents a stage.
+ */
+export type SessionTaskChainStage =
+  | 'filed'
+  | 'ready'
+  | 'in-progress'
+  | 'landed'
+  | 'built'
+  | 'running'
+  | 'blocked'
+  | 'needs-human'
+  | 'superseded'
+  | 'unknown';
+
+/** One task this session created or edited, as `GET /session-task-chain` reports it. */
+export type SessionTaskChainEntry = {
+  taskId: string;
+  title: string;
+  status: string;
+  stage: SessionTaskChainStage;
+  origin: 'created' | 'edited';
+  landCommit: string | null;
+  blockedReason: string | null;
+};
+
+/** Every stage's count, plus the total; the compact chat bar renders a subset. */
+export type SessionTaskChainCounts = {
+  total: number;
+  filed: number;
+  ready: number;
+  inProgress: number;
+  landed: number;
+  built: number;
+  running: number;
+  blocked: number;
+  needsHuman: number;
+  superseded: number;
+  unknown: number;
+};
+
+/** One session's whole task-chain reading. */
+export type SessionTaskChainReading = {
+  sessionId: string;
+  projectId: string;
+  created: string[];
+  edited: string[];
+  counts: SessionTaskChainCounts;
+  tasks: SessionTaskChainEntry[];
+  checkedAt: string;
+};
+
+/**
  * The one time window the Quay tab's three charts share, in Unix epoch milliseconds.
  *
  * Derived once by `QuayPanel` from the Loop pulse reading (`QuayGanttLanes.windowHours` and
@@ -490,6 +628,13 @@ export type QuaySnapshot = {
   /** True when the snapshot was served from the backend's TTL cache rather than a fresh CLI pass. */
   cached: boolean;
   driver: QuayDriverSummary | null;
+  /**
+   * The loop's overall running-status reading (kernel version, `.quay/plugin` pointer, drain
+   * flags, orphan countdown). OPTIONAL and nullable so a snapshot cached before this field
+   * existed — or a request whose `driver status` read failed — reads as "not reported", never
+   * as "the loop is healthy". Absent and `null` are equivalent.
+   */
+  loop?: QuayLoopStatus | null;
   tasks: QuayTaskCounts | null;
   goals: QuayGoalCounts | null;
   adrs: QuayAdrCounts | null;
@@ -3891,6 +4036,68 @@ export type ReplySuggestionsRequest = {
   focus?: string;
   seed?: string;
   expand?: boolean;
+};
+
+// ---------------------------
+
+//----------------- ARCHITECTURE REFRESH ------------
+
+/**
+ * The lifecycle state of one project's manual ArchGuard re-analysis, as the
+ * architecture tab reads it.
+ *
+ * The client's copy of the server's declaration: `idle` means no refresh has
+ * been started in this server process, `running` is the single in-flight job,
+ * and `succeeded`/`failed` stay readable until the next start.
+ */
+export type ArchitectureRefreshState = 'idle' | 'running' | 'succeeded' | 'failed';
+
+/**
+ * Where a running refresh is inside its lifetime.
+ *
+ * `preparing` resolves the CLI and reads the scopes, `analyzing` is the child's
+ * lifetime, and `installing` is the atomic swap of the staged directory. The
+ * two terminal stages mirror {@link ArchitectureRefreshState}.
+ */
+export type ArchitectureRefreshStage =
+  | 'idle'
+  | 'preparing'
+  | 'analyzing'
+  | 'installing'
+  | 'succeeded'
+  | 'failed';
+
+/**
+ * The status document `GET /api/architecture/refresh/status` answers and
+ * `POST /api/architecture/refresh` carries inside its 202 body.
+ *
+ * `jobId` is null only in the `idle` reading; `elapsedMs` is the server's own
+ * duration so a client with a skewed clock still shows the honest reading;
+ * `stderrTail` is bounded server-side and `error` is non-null exactly on failure.
+ */
+export type ArchitectureRefreshStatus = {
+  state: ArchitectureRefreshState;
+  jobId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  stage: ArchitectureRefreshStage;
+  elapsedMs: number;
+  exitCode: number | null;
+  stderrTail: readonly string[];
+  error: string | null;
+};
+
+/**
+ * The `POST /api/architecture/refresh` answer: the job this caller now owns or
+ * joined.
+ *
+ * `coalesced` is true when a running job for the same project root was returned
+ * instead of a second analysis being spawned; `status` is its current reading.
+ */
+export type ArchitectureRefreshStartResult = {
+  jobId: string;
+  coalesced: boolean;
+  status: ArchitectureRefreshStatus;
 };
 
 // ---------------------------

@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 
-import { createQuayProcessRunner, type QuayExecFile } from '../quay-process.js';
+import { createQuayProcessRunner, createSystemQuayEntrypointResolver, type QuayExecFile } from '../quay-process.js';
+import type { QuayEntrypointResolution } from '../quay-entrypoint-resolver.js';
 
 /**
  * The failure this guards, measured against the real Quay panel (2026-10-04):
@@ -65,6 +66,31 @@ function spawnError(fields: { code?: number | string; killed?: boolean; message?
   return error;
 }
 
+/**
+ * A resolver bound to an EMPTY home directory, so the fixture's own `.quay/plugin` is what these
+ * tests exercise. Without this the production resolver would find this machine's real user-scope
+ * quay install first — plugin scopes outrank the legacy pin by design — making the fixture (and
+ * therefore the reading) depend on the host.
+ */
+function createFixtureResolver(): (projectRoot: string) => QuayEntrypointResolution {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'quay-process-home-'));
+  TEMP_ROOTS.push(home);
+  const resolver = createSystemQuayEntrypointResolver({
+    homeDir: home,
+    settingsPath: path.join(home, 'server.settings.json'),
+  });
+  return (projectRoot: string) => resolver.resolve(projectRoot);
+}
+
+/** A deterministic resolution for tests that only care what the adapter does with it. */
+function resolved(
+  entrypointPath: string,
+  source: 'override' | 'local' | 'project' | 'user' | 'legacy-pin' | 'path',
+  warning: string | null = null,
+): QuayEntrypointResolution {
+  return { path: entrypointPath, version: 'test-version', source, warning };
+}
+
 /** A fake spawn boundary recording the exact `(file, args)` the adapter resolved. */
 function createRecordingExecFile(): {
   calls: Array<{ file: string; args: readonly string[] }>;
@@ -90,7 +116,7 @@ test('the quay process adapter captures a payload larger than the old 8 MiB cap 
   );
   fs.chmodSync(path.join(root, '.quay', 'plugin', 'bin', 'quay'), 0o755);
 
-  const runner = createQuayProcessRunner();
+  const runner = createQuayProcessRunner({ resolveEntrypoint: createFixtureResolver() });
   const result = await runner(root, ['task', 'list', '--json'], { timeoutMs: 30_000 });
 
   assert.equal(result.error, undefined, `expected a clean run, got: ${result.error ?? ''}`);
@@ -102,16 +128,15 @@ test('the quay process adapter captures a payload larger than the old 8 MiB cap 
   assert.equal(parsed.pad.length, OVER_OLD_CAP_BYTES);
 });
 
-test('AC1: the adapter spawns the absolute <projectRoot>/.quay/plugin/bin/quay path, never the literal "quay"', async () => {
+test('AC1: the adapter spawns the absolute path the resolver returns, never the literal "quay"', async () => {
   const { calls, execFile } = createRecordingExecFile();
-  const runner = createQuayProcessRunner({
-    execFile,
-    fileExists: () => true,
-    isExecutable: () => true,
-  });
-
   const projectRoot = path.join(path.sep, 'workspace', 'project-scoped');
   const expectedEntrypoint = path.join(projectRoot, '.quay', 'plugin', 'bin', 'quay');
+  const runner = createQuayProcessRunner({
+    execFile,
+    resolveEntrypoint: () => resolved(expectedEntrypoint, 'user'),
+    isExecutable: () => true,
+  });
 
   const result = await runner(projectRoot, ['task', 'list', '--json'], { timeoutMs: 8_000 });
 
@@ -127,7 +152,9 @@ test('AC2: resolution is project-scoped — two roots resolve under their own di
   const { calls, execFile } = createRecordingExecFile();
   const runner = createQuayProcessRunner({
     execFile,
-    fileExists: () => true,
+    // The resolver's answer is keyed by the root the adapter hands it (`cwd`), which is what
+    // makes two projects independent even though one adapter instance serves both.
+    resolveEntrypoint: (cwd) => resolved(path.join(cwd, '.quay', 'plugin', 'bin', 'quay'), 'user'),
     isExecutable: () => true,
   });
 
@@ -157,12 +184,16 @@ test('AC2: resolution is project-scoped — two roots resolve under their own di
   assert.notEqual(calls[0]?.file, calls[1]?.file);
 });
 
-test('AC3: a missing entrypoint falls back to the bare PATH "quay" with exactly one explicit warning', async () => {
+test('AC3: the resolver\'s bare-PATH fallback spawns "quay" with exactly one explicit warning', async () => {
   const { calls, execFile } = createRecordingExecFile();
   const warnings: string[] = [];
   const runner = createQuayProcessRunner({
     execFile,
-    fileExists: () => false,
+    resolveEntrypoint: () => resolved(
+      'quay',
+      'path',
+      'no quay CLI resolved for this project; falling back to the bare "quay" on PATH. Run /quay:init in this project to pin a project-scoped CLI.',
+    ),
     warn: (message) => {
       warnings.push(message);
     },
@@ -183,23 +214,24 @@ test('AC4: failures are classified into four distinct kinds, and the missing-ent
   const projectRoot = path.join(path.sep, 'workspace', 'project-scoped');
   const entrypoint = path.join(projectRoot, '.quay', 'plugin', 'bin', 'quay');
 
-  // (1) No project entrypoint and no bare `quay` on PATH.
+  // (1) The resolver's answer does not exist when spawned.
   const missing = createQuayProcessRunner({
     execFile: (_file, _args, _options, done) => {
       done(spawnError({ code: 'ENOENT' }), '', '');
     },
-    fileExists: () => false,
+    resolveEntrypoint: () => resolved(entrypoint, 'user'),
     warn: () => {},
   });
   const missingResult = await missing(projectRoot, ['task', 'list', '--json'], { timeoutMs: 8_000 });
 
-  // (2) Entrypoint exists but lacks the execute permission → refused before spawning.
+  // (2) The resolved entrypoint exists but lacks the execute permission → refused before spawning.
   let spawnCountForNotExecutable = 0;
   const notExecutable = createQuayProcessRunner({
     execFile: (_file, _args, _options, done) => {
       spawnCountForNotExecutable += 1;
       done(null, '', '');
     },
+    resolveEntrypoint: () => resolved(entrypoint, 'user'),
     fileExists: () => true,
     isExecutable: () => false,
   });
@@ -210,7 +242,7 @@ test('AC4: failures are classified into four distinct kinds, and the missing-ent
     execFile: (_file, _args, _options, done) => {
       done(spawnError({ killed: true, message: 'Command timed out' }), '', '');
     },
-    fileExists: () => true,
+    resolveEntrypoint: () => resolved(entrypoint, 'user'),
     isExecutable: () => true,
   });
   const timeoutResult = await timedOut(projectRoot, ['task', 'list', '--json'], { timeoutMs: 8_000 });
@@ -220,7 +252,7 @@ test('AC4: failures are classified into four distinct kinds, and the missing-ent
     execFile: (_file, _args, _options, done) => {
       done(spawnError({ code: 2, message: 'Command failed' }), '', 'boom');
     },
-    fileExists: () => true,
+    resolveEntrypoint: () => resolved(entrypoint, 'user'),
     isExecutable: () => true,
   });
   const exitResult = await exited(projectRoot, ['task', 'list', '--json'], { timeoutMs: 8_000 });
@@ -249,12 +281,12 @@ test('AC4: failures are classified into four distinct kinds, and the missing-ent
   assert.match(exitResult.error ?? '', /non-zero/);
 });
 
-test('AC4 (real filesystem): an entrypoint without the execute bit is reported, never spawned', async () => {
+test('AC4 (real filesystem): a resolved entrypoint without the execute bit is reported, never spawned', async () => {
   const { root } = createProjectRoot('not-executable');
   const entrypoint = path.join(root, '.quay', 'plugin', 'bin', 'quay');
   fs.chmodSync(entrypoint, 0o644);
 
-  const runner = createQuayProcessRunner();
+  const runner = createQuayProcessRunner({ resolveEntrypoint: createFixtureResolver() });
   const result = await runner(root, ['task', 'list', '--json'], { timeoutMs: 8_000 });
 
   assert.equal(result.ok, false);
@@ -265,7 +297,7 @@ test("AC5: two projects with independent entrypoint fixtures never cross-use eac
   const projectA = createProjectRoot('MARKER-A');
   const projectB = createProjectRoot('MARKER-B');
 
-  const runner = createQuayProcessRunner();
+  const runner = createQuayProcessRunner({ resolveEntrypoint: createFixtureResolver() });
 
   const resultA = await runner(projectA.root, ['task', 'list', '--json'], { timeoutMs: 30_000 });
   const resultB = await runner(projectB.root, ['task', 'list', '--json'], { timeoutMs: 30_000 });

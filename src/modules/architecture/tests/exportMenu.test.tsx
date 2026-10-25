@@ -214,7 +214,9 @@ function installDownloadCapture(): void {
 }
 
 function openExportMenu(): HTMLElement {
-  fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }));
+  // The desktop row keeps the formats behind its single `⋯`; Export ▾ itself is
+  // no longer a top-level button there.
+  fireEvent.click(document.querySelector('[data-architecture-overflow-toggle]') as Element);
   const menu = document.querySelector('[data-architecture-export-menu]');
   assert.ok(menu instanceof HTMLElement, 'the disclosure must expand into a menu');
   return menu;
@@ -322,7 +324,7 @@ test('the menu offers five formats, PlantUML first and Mermaid (.mmd) marked leg
   await waitForDiagram();
 
   const menu = openExportMenu();
-  const items = [...menu.querySelectorAll('[role="menuitem"]')];
+  const items = [...menu.querySelectorAll('[data-architecture-export-item]')];
   assert.equal(items.length, 5, 'the menu must offer exactly the five formats');
   assert.deepEqual(
     items.map((item) => item.getAttribute('data-architecture-export-item')),
@@ -336,9 +338,47 @@ test('the menu offers five formats, PlantUML first and Mermaid (.mmd) marked leg
   assert.match(items[4].textContent ?? '', /legacy/i, 'the Mermaid entry must be marked as the old format');
   assert.equal(items[4].getAttribute('data-architecture-export-legacy'), 'true');
 
-  const trigger = screen.getByRole('button', { name: 'Export ▾' });
+  const trigger = screen.getByRole('button', { name: 'More actions' });
   assert.equal(trigger.getAttribute('aria-haspopup'), 'menu');
   assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+});
+
+test('desktop toolbar keeps Export and Legend in the overflow menu', async () => {
+  render(<ArchitecturePanel projectId="project-1" sessionId="session-1" initialGranularity="file" />);
+  await waitForDiagram();
+  const toolbar = document.querySelector('[data-architecture-toolbar]');
+  assert.ok(toolbar instanceof HTMLElement);
+
+  // Neither disclosure is a top-level button any more, and the old `?` legend
+  // toggle is gone with it.
+  assert.equal(toolbar.querySelector('[data-architecture-export="true"]'), null, 'Export ▾ is not a top-level button');
+  assert.equal(toolbar.querySelector('[data-architecture-legend-toggle]'), null, 'the standalone legend toggle is gone');
+  const buttons = [...toolbar.querySelectorAll('button')];
+  assert.ok(!buttons.some((button) => (button.textContent ?? '').trim() === 'Export ▾'));
+  assert.ok(!buttons.some((button) => (button.getAttribute('aria-label') ?? (button.textContent ?? '').trim()) === 'Legend'));
+
+  const overflow = toolbar.querySelector('[data-architecture-overflow-toggle]');
+  assert.ok(overflow instanceof HTMLButtonElement, 'the row needs its ⋯ overflow trigger');
+  assert.equal(overflow.getAttribute('aria-label'), 'More actions', 'the ⋯ trigger must carry an accessible name');
+  assert.equal(overflow.getAttribute('aria-haspopup'), 'menu');
+
+  // The three controls that stay on the row each still carry an accessible name.
+  assert.ok(toolbar.querySelector('[data-architecture-open-in-new-tab]')?.getAttribute('aria-label'));
+  assert.ok(toolbar.querySelector('[data-architecture-text-toggle]')?.getAttribute('aria-label'));
+  assert.ok(toolbar.querySelector('[data-architecture-fullscreen-toggle]')?.getAttribute('aria-label'));
+
+  // Opening the overflow exposes the full export list plus the legend door.
+  fireEvent.click(overflow);
+  const menu = document.querySelector('[data-architecture-export-menu]');
+  assert.ok(menu instanceof HTMLElement, 'the overflow must expand into a menu');
+  assert.equal(menu.querySelectorAll('[data-architecture-export-item]').length, 5);
+  const legendEntry = menu.querySelector('[data-architecture-legend-entry]');
+  assert.ok(legendEntry instanceof HTMLElement, 'the menu must carry the legend entry');
+  assert.equal(legendEntry.textContent, 'Legend');
+
+  // Choosing it opens the same legend popover the old `?` button did.
+  fireEvent.click(legendEntry);
+  assert.ok(document.querySelector('[data-architecture-legend]'), 'the legend entry opens the legend popover');
 });
 
 test('the file graph export is the bridge document for the overview on screen, and checkSyntax accepts it', async () => {

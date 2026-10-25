@@ -831,3 +831,56 @@ test('a quay project adds the pulse trigger beside a text-free workspace picker 
   fireEvent.click(within(workspaceDialog() as HTMLElement).getByRole('button', { name: 'Files' }));
   assert.equal(document.querySelector('[aria-current="true"]')?.getAttribute('data-workspace-tab'), 'files');
 });
+
+// The label mode is now chosen from the measured room (see `installStripWidthStubs`), not
+// from a `matchMedia` breakpoint: the full-label copy is what the header measures, so these
+// cases drive the same two readings the component reads.
+test('tab tooltip only when the label is hidden', async () => {
+  // Full mode: every tab spells its name, so no tab gets a bubble.
+  const wide = render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+  assert.equal(stripMode(), 'full', 'the unmeasured jsdom header must default to full labels');
+  assert.equal(
+    document.querySelectorAll('[data-tooltip-container]').length,
+    0,
+    `a visible label makes the bubble pure duplication; got ${JSON.stringify(buttonNames())}`,
+  );
+  wide.unmount();
+
+  // Icon mode: only the icon is drawn, so an inactive tab earns a bubble.
+  // The ACTIVE tab still spells its own name and must not get one.
+  const stubs = installStripWidthStubs({ room: 400, natural: 900 });
+  try {
+    render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+    assert.equal(stripMode(), 'icon', 'the narrow room must choose icon-only');
+    assert.equal(
+      document.querySelector('[data-tooltip-container] [data-workspace-tab="chat"]'),
+      null,
+      'the active tab shows its label and needs no bubble',
+    );
+    const shellTab = document.querySelector('[data-tooltip-container] [data-workspace-tab="shell"]');
+    assert.ok(shellTab instanceof HTMLElement, 'an icon-only tab carries the bubble');
+    const bubbleHost = shellTab.closest('[data-tooltip-container]');
+    assert.ok(bubbleHost instanceof HTMLElement);
+    assert.equal(document.querySelector('[data-tooltip-bubble]'), null, 'nothing is shown before a hover');
+
+    fireEvent.mouseEnter(bubbleHost);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    assert.equal(document.querySelector('[data-tooltip-bubble]')?.textContent, 'Shell', 'hovering the icon names it');
+
+    fireEvent.click(shellTab);
+    assert.equal(document.querySelector('[data-tooltip-bubble]'), null, 'the click that selects the tab closes the bubble');
+    assert.equal(
+      document.querySelector('[data-tooltip-container] [data-workspace-tab="shell"]'),
+      null,
+      'the now-active tab draws its own label instead of a bubble',
+    );
+    assert.ok(
+      document.querySelector('[data-tooltip-container] [data-workspace-tab="chat"]'),
+      'the tab it replaced is icon-only now and carries the bubble instead',
+    );
+  } finally {
+    stubs.restore();
+  }
+});

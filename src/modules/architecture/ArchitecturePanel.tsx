@@ -124,6 +124,7 @@ import { readDraftText, writeDraftText } from '@/shared/chatDrafts';
 import { formatAbsoluteTime, formatRelativeTime } from '@/shared/utils';
 import { ArchitectureEmptyState } from '@/modules/architecture/ArchitectureEmptyState';
 import { ArchitectureExportMenu } from '@/modules/architecture/ArchitectureExportMenu';
+import { Tooltip } from '@/shared/ui';
 import { CurationToast } from '@/modules/architecture/CurationToast';
 import { LegendSwatch } from '@/modules/architecture/LegendSwatch';
 import { useDismissiblePopover } from '@/modules/architecture/useDismissiblePopover';
@@ -2220,6 +2221,36 @@ export default function ArchitecturePanel({
   );
 
   /**
+   * The desktop row's single `⋯`: the five export formats and the legend door.
+   *
+   * `Export ▾` and `Legend` used to take two slots of their own on the right of
+   * this row; at 1440px with the sidebar open their labels pushed the row into a
+   * second line, which cost the drawing ~28px of height. The menu keeps every
+   * entry — the legend popover's body is untouched — and the trigger carries the
+   * `legendButtonRef` so the legend's Escape dismissal returns focus to the
+   * control that opened it.
+   */
+  const overflowMenu = (
+    <ArchitectureExportMenu
+      variant="overflow"
+      onExportPlantUml={exportPlantUml}
+      onCopyPlantUml={() => {
+        void copyPlantUml();
+      }}
+      onExportSvg={exportSvg}
+      onExportPng={() => {
+        void exportPng();
+      }}
+      onExportMermaid={exportMermaid}
+      onShowLegend={() => setLegendOpen(true)}
+      // Opening the overflow is a different disclosure: a legend left open
+      // behind it would sit over the menu.
+      onOpen={closeLegend}
+      triggerRef={legendButtonRef}
+    />
+  );
+
+  /**
    * The text page's header facts, stated once here so the dock page and the
    * copy header cannot disagree: the view axis is the granularity switch, and
    * the filter axis is the same reading the filter popover prints (how many
@@ -2244,6 +2275,10 @@ export default function ArchitecturePanel({
     <button
       type="button"
       aria-expanded={dockOpen && dockTab === 'text'}
+      // The visible word is the name; the explicit label keeps the control
+      // readable to an assistive reader that only gets the accessible name
+      // (and to the toolbar criterion that requires one on every action).
+      aria-label={t('architecture.text.open', { defaultValue: 'Text' })}
       onClick={() => {
         if (dockOpen && dockTab === 'text') {
           closeDock();
@@ -2266,35 +2301,74 @@ export default function ArchitecturePanel({
   /**
    * The overlay's one control. It carries an icon AND the visible word (the
    * icon alone is not a label), flips to "Exit fullscreen" while the overlay is
-   * up, and lives on both toolbar tiers: on the compact row it sits OUTSIDE the
-   * Adjust sheet, so entering the overlay never asks the reader to open a
-   * sheet first.
+   * up, and lives on both toolbar tiers: the landscape-phone row draws it in
+   * the Adjust sheet because the row has no width for a fifth target, and the
+   * portrait row draws it there too — while the overlay is up each tier draws
+   * it in the one-row overlay toolbar, so leaving never needs the sheet.
+   *
+   * The desktop row draws it WITHOUT the word (the icon plus a tooltip), because
+   * that row has to stay one line at 1440px with the sidebar open; the compact
+   * tiers keep the word, where the row has the width for it.
    */
+  const fullscreenLabel = fullscreen.active
+    ? t('architecture.fullscreen.exit', { defaultValue: 'Exit fullscreen' })
+    : t('architecture.fullscreen.enter', { defaultValue: 'Fullscreen' });
+  const fullscreenButtonContents = (
+    <>
+      {fullscreen.active
+        ? <Minimize2 className="h-4 w-4" aria-hidden="true" />
+        : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+      <span>
+        {fullscreenLabel}
+      </span>
+    </>
+  );
   const fullscreenButton = (
     <button
       ref={fullscreenButtonRef}
       type="button"
       aria-pressed={fullscreen.active}
-      aria-label={
-        fullscreen.active
-          ? t('architecture.fullscreen.exit', { defaultValue: 'Exit fullscreen' })
-          : t('architecture.fullscreen.enter', { defaultValue: 'Fullscreen' })
-      }
-      onClick={fullscreen.toggle}
+      aria-label={fullscreenLabel}
+      // The phone tiers put this control INSIDE the Adjust sheet. Pressing it
+      // must dismiss that modal in the same gesture: the sheet is chrome for
+      // the inline layout (its entries are even hidden while the overlay is
+      // up), and leaving it on screen would hide the drawing the press just
+      // asked for. Same commit as the toggle, so the panel's focus-into-the-
+      // canvas effect still runs after the sheet's focus restore.
+      onClick={() => {
+        if (sheetOpen) setSheetOpen(false);
+        fullscreen.toggle();
+      }}
       data-architecture-fullscreen-toggle="true"
       data-architecture-fullscreen-active={fullscreen.active ? 'true' : undefined}
       style={compactTargetStyle}
       className={`${headerButtonClass} inline-flex items-center gap-1 border border-border outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60`}
     >
-      {fullscreen.active
-        ? <Minimize2 className="h-4 w-4" aria-hidden="true" />
-        : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
-      <span>
-        {fullscreen.active
-          ? t('architecture.fullscreen.exit', { defaultValue: 'Exit fullscreen' })
-          : t('architecture.fullscreen.enter', { defaultValue: 'Fullscreen' })}
-      </span>
+      {fullscreenButtonContents}
     </button>
+  );
+  const fullscreenToolbarButton = (
+    <Tooltip content={fullscreenLabel} position="bottom">
+      <button
+        ref={fullscreenButtonRef}
+        type="button"
+        aria-pressed={fullscreen.active}
+        aria-label={fullscreenLabel}
+        onClick={fullscreen.toggle}
+        data-architecture-fullscreen-toggle="true"
+        data-architecture-fullscreen-active={fullscreen.active ? 'true' : undefined}
+        style={compactTargetStyle}
+        // Block-level (not `inline-flex`) so the Tooltip's wrapper is exactly
+        // this button's box: an inline-level child grows the wrapper's line box
+        // by its descent, and the four row actions then sit a pixel apart even
+        // though they share one flex row.
+        className={`${headerButtonClass} flex items-center justify-center border border-border outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60`}
+      >
+        {fullscreen.active
+          ? <Minimize2 className="h-4 w-4" aria-hidden="true" />
+          : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+      </button>
+    </Tooltip>
   );
 
   /**
@@ -2376,6 +2450,34 @@ export default function ArchitecturePanel({
         <span>{t('architecture.standalone.openInNewTab', { defaultValue: 'Open in new tab' })}</span>
       )}
     </button>
+  );
+
+  /**
+   * The desktop row's form of the same door: the external-link glyph alone,
+   * named by `aria-label` and a hover tooltip. The word is what pushed the row
+   * into a second line at 1440px; the compact tiers keep the labelled form
+   * above because their sheets stack full-width rows.
+   */
+  const openInNewTabToolbarButton = (
+    <Tooltip
+      content={t('architecture.standalone.openInNewTab', { defaultValue: 'Open in new tab' })}
+      position="bottom"
+    >
+      <button
+        type="button"
+        onClick={openInNewTab}
+        disabled={sessionId === null}
+        aria-label={t('architecture.standalone.openInNewTab', { defaultValue: 'Open in new tab' })}
+        data-architecture-open-in-new-tab="true"
+        style={compactTargetStyle}
+        // Block-level for the same reason as the Fullscreen control above: the
+        // Tooltip wrapper must equal the button's box so all four row actions
+        // share one top.
+        className={`${headerButtonClass} flex items-center justify-center border border-border outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-40`}
+      >
+        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </Tooltip>
   );
 
   /**
@@ -3290,26 +3392,11 @@ export default function ArchitecturePanel({
     </button>
   );
 
-  // `?` opens the legend: the place the two duplicated hover instructions and
-  // the meaning of every line, arrow, stereotype, seed marker and folded badge
-  // now live.
-  const legendButton = (
-    <button
-      ref={legendButtonRef}
-      type="button"
-      aria-haspopup="true"
-      aria-expanded={legendOpen}
-      aria-label={t('architecture.legend.title', { defaultValue: 'Legend' })}
-      onClick={() => setLegendOpen((open) => !open)}
-      data-architecture-legend-toggle="true"
-      style={compactTargetStyle}
-      className={`rounded-lg border border-border font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60 ${
-        coarsePointer ? 'px-3 text-sm' : 'px-2 py-0.5 text-xs'
-      }`}
-    >
-      ?
-    </button>
-  );
+  // `?` used to open the legend: the place the two duplicated hover
+  // instructions and the meaning of every line, arrow, stereotype, seed marker
+  // and folded badge now live. On the desktop row it is now an entry in the
+  // `⋯` overflow (see `overflowMenu`) rather than a top-level button; the
+  // popover below is unchanged.
 
   // The drawing's own seed reading, so the legend states the light marker
   // exactly when the drawing uses it (seeds at half the drawn entities or
@@ -3458,6 +3545,13 @@ export default function ArchitecturePanel({
     });
   const hiddenMentionedKinds = ARCHITECTURE_ELEMENT_KINDS.filter(
     (kind) => (hiddenMentionedByKind[kind] ?? 0) > 0,
+  );
+  // How many hidden entities this session names. The collapsed readout states
+  // this as one inline action, so the one-click recovery never depends on the
+  // expanded area being open.
+  const hiddenMentionedTotal = hiddenMentionedKinds.reduce(
+    (total, kind) => total + (hiddenMentionedByKind[kind] ?? 0),
+    0,
   );
   const hiddenRelationParts = Object.entries(hiddenReading.byRelation)
     .filter(([, count]) => count > 0)
@@ -3712,16 +3806,24 @@ export default function ArchitecturePanel({
     <div
       data-architecture-readout="true"
       aria-live="polite"
-      // On the compact tier the collapsed card is ONE line in a 44px box: a
-      // phone spends its scarce height on the drawing, and the second/third
-      // lines (plus the "show mentioned" actions) live in the expanded area
-      // below the toggle, which stays in document flow. The desktop card keeps
-      // its bordered, two-line form.
+      // The collapsed card is ONE line on every tier: a desktop row that spends
+      // two lines on readings costs the drawing height just like the phone's
+      // 44px box does. The second/third lines (diff, scope-hidden, the filter
+      // reading and its actions, curation) plus the budget detail live behind
+      // the toggle in document flow.
       style={compactToolbar && !readoutOpen ? { height: '44px' } : undefined}
       className={compactToolbar
         ? 'pointer-events-auto max-w-full overflow-hidden rounded-md bg-background/90 px-2 text-[11px] text-muted-foreground'
         : 'pointer-events-auto max-w-full rounded-md border border-border/60 bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm'}
     >
+      {/* The toggle and the collapsed "Show mentioned (N)" action are SIBLINGS:
+          a button inside a button is invalid HTML, and the action must be
+          reachable without expanding the card. */}
+      <div
+        className={compactToolbar
+          ? 'flex h-full w-full flex-nowrap items-center gap-2 overflow-hidden'
+          : 'flex w-full flex-nowrap items-center gap-2 overflow-hidden'}
+      >
       <button
         type="button"
         aria-expanded={readoutOpen}
@@ -3729,13 +3831,13 @@ export default function ArchitecturePanel({
         data-architecture-readout-toggle="true"
         style={compactTargetStyle}
         className={compactToolbar
-          ? 'flex h-full w-full flex-nowrap items-center gap-x-2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/60'
-          : 'flex flex-wrap items-center gap-x-2 gap-y-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/60'}
+          ? 'flex h-full min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/60'
+          : 'flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/60'}
       >
         <span
           data-architecture-readout-summary={readout.shown}
           data-architecture-readout-total={readout.related}
-          className={compactToolbar ? 'min-w-0 truncate whitespace-nowrap' : undefined}
+          className="min-w-0 truncate whitespace-nowrap"
         >
           {readoutSummary}
         </span>
@@ -3776,16 +3878,36 @@ export default function ArchitecturePanel({
                   'data-architecture-truncated-omitted': budgetOmitted,
                 }
               : {})}
-            className="text-amber-600 dark:text-amber-400"
+            className="whitespace-nowrap text-amber-600 dark:text-amber-400"
           >
             {t('architecture.readout.budgetLimited', { defaultValue: 'Budget-limited' })}
           </span>
         )}
         <span aria-hidden="true">{readoutOpen ? '▾' : '▸'}</span>
       </button>
-      {/* The wall's structural diff: one line stating how many targets are marked. On the
-          compact tier it lives in the expanded area, like every other second line. */}
-      {diffCounts !== null && (!compactToolbar || readoutOpen) && (
+      {/* The one-click recovery for entities the session named but the default
+          filter hides. It stays on the COLLAPSED line: burying it in the
+          expanded area would make the reader open a disclosure to undo a
+          default. The expanded filter row below carries the same action with
+          the full reading, and the two never render at once. */}
+      {!compactToolbar && !readoutOpen && hiddenMentionedTotal > 0 && (
+        <button
+          type="button"
+          data-architecture-filter-show-mentioned="true"
+          onClick={showHiddenMentioned}
+          style={compactTargetStyle}
+          className="shrink-0 whitespace-nowrap font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-primary/60"
+        >
+          {t('architecture.filter.showMentionedCount', {
+            defaultValue: '▸ Show mentioned ({{count}})',
+            count: hiddenMentionedTotal,
+          })}
+        </button>
+      )}
+      </div>
+      {/* The wall's structural diff: one line stating how many targets are marked. It is
+          part of the expanded area on every tier. */}
+      {readoutOpen && diffCounts !== null && (
         <div
           data-testid="architecture-diff-highlight"
           data-architecture-diff-nodes={diffCounts.nodes}
@@ -3800,10 +3922,9 @@ export default function ArchitecturePanel({
         </div>
       )}
       {/* A scope step that found entities and then hid all of them: state the
-          delta and offer the one click that brings them back. On the compact
-          tier this is part of the EXPANDED area — the collapsed card is one
-          line by contract (see the card's style above). */}
-      {scopeHiddenDelta !== null && (!compactToolbar || readoutOpen) && (
+          delta and offer the one click that brings them back. Part of the
+          EXPANDED area — the collapsed card is one line by contract. */}
+      {readoutOpen && scopeHiddenDelta !== null && (
         <div
           data-architecture-scope-hidden={scopeHiddenDelta.found}
           data-architecture-scope-hidden-scope={scopeHiddenDelta.scope}
@@ -3838,9 +3959,9 @@ export default function ArchitecturePanel({
       )}
       {/* The filter's second line: what the element/relation selection is
           hiding, and the one-click reset. Deliberately separate from the
-          detail sentence above — the two knobs must not share a number. On the
-          compact tier it lives in the expanded area, never in the one line. */}
-      {hiddenCount > 0 && (!compactToolbar || readoutOpen) && (
+          detail sentence above — the two knobs must not share a number. It is
+          part of the expanded area on every tier, never in the one line. */}
+      {readoutOpen && hiddenCount > 0 && (
         <div
           data-architecture-filter-hidden={hiddenCount}
           data-architecture-filter-hidden-kinds={JSON.stringify(hiddenReading.byKind)}
@@ -3895,7 +4016,9 @@ export default function ArchitecturePanel({
           </button>
         </div>
       )}
-      {(curationState.excluded.length > 0 || curationState.pins.length > 0) && (
+      {/* The curation reading joins the other second lines in the expanded
+          area: the collapsed card states the drawing's numbers only. */}
+      {readoutOpen && (curationState.excluded.length > 0 || curationState.pins.length > 0) && (
         <p
           data-architecture-curation-readout="true"
           data-architecture-curation-pinned={curationState.pins.length}
@@ -4178,11 +4301,10 @@ export default function ArchitecturePanel({
             {searchBox}
             {curationManagerButton}
             <span className="flex-1" />
-            {openInNewTabButton}
+            {openInNewTabToolbarButton}
             {textToggle}
-            {fullscreenButton}
-            {exportMenu}
-            {legendButton}
+            {fullscreenToolbarButton}
+            {overflowMenu}
           </>
         )}
         {/* The landscape-phone summary's expansion. It is an overlay anchored
@@ -4409,15 +4531,15 @@ export default function ArchitecturePanel({
                 data-architecture-canvas-header="true"
                 // Floats above the overlay's viewport-sized drawing instead of
                 // taking a band from it (see the graph region below).
-                className={`flex shrink-0 items-start gap-2 border-b border-border/60 px-3 py-1 ${
+                className={`flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1 ${
                   fillsViewport ? 'relative z-30 bg-background' : ''
                 }`}
               >
-                <div className="flex min-w-0 flex-1 flex-wrap items-start gap-1">{readoutPanel}</div>
+                <div className="flex min-w-0 flex-1 items-center gap-1">{readoutPanel}</div>
                 <div
                   ref={setCanvasHeaderHost}
                   data-architecture-canvas-header-actions="true"
-                  className="flex min-w-0 max-w-[65%] shrink-0 flex-wrap items-center justify-end gap-1"
+                  className="flex min-w-0 max-w-[65%] shrink-0 flex-nowrap items-center justify-end gap-1"
                 />
               </div>
             )}

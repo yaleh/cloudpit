@@ -1,156 +1,14 @@
 import path from 'node:path';
 
-import type { QuayCapabilityReader } from './quay-capabilities.js';
 import type {
-  QuayCommandRunner,
-  QuayTaskIndexReading,
-  QuayTaskStatusRow,
-} from './quay.service.js';
-
-/**
- * The opaque resume cursor printed by `quay task log --json` and accepted back verbatim as
- * `--since`. Delivery is AT-LEAST-ONCE (the resume is inclusive of the boundary event), so a
- * consumer MUST dedupe by `eventId` and MUST NOT re-serialise the cursor into a different key
- * order — the object is passed through exactly as the CLI printed it.
- */
-export type QuayTaskLogCursor = {
-  v: number;
-  carrierEpoch: string;
-  seq: number;
-};
-
-/**
- * One transition as `task log` prints it, narrowed to what the task index consumes. The
- * remaining v1 fields (`actor`, `cause`, `evidence`, `coverage`, …) are deliberately dropped:
- * this server's index stores status and time, nothing else.
- */
-export type QuayTaskStatusTransition = {
-  /** Carrier position (0-based line index); the fallback ordering key when `seq` is absent. */
-  order: number | null;
-  /** The v1 sequence number, or `null` on a legacy v0 record. */
-  seq: number | null;
-  /** The documented dedupe key; `null` on a legacy v0 record. */
-  eventId: string | null;
-  carrierEpoch: string | null;
-  taskId: string;
-  from: string | null;
-  to: string | null;
-  /** `create` for a creation event; otherwise the lifecycle edge name (`promote`, `retreat`, …). */
-  kind: string | null;
-  /** When the transition happened (ISO-8601). */
-  at: string | null;
-  /** When the carrier recorded it (ISO-8601); may lag `at`. */
-  recordedAt: string | null;
-};
-
-/** One parsed page of the transition carrier. */
-export type QuayTaskLogPage = {
-  transitions: QuayTaskStatusTransition[];
-  nextCursor: QuayTaskLogCursor | null;
-  /** The (future) current-tail cursor; when present it is the authoritative seed. */
-  tailCursor: QuayTaskLogCursor | null;
-  rebase: boolean;
-};
-
-/** The timer boundary, injected so a criterion can advance a fake clock deterministically. */
-export type QuayTaskEventsTimers = {
-  setTimeout(handler: () => void, delayMs: number): unknown;
-  clearTimeout(handle: unknown): void;
-};
-
-/** The directory-watch boundary. `watchPath` returns `null` when the directory is not watchable. */
-export type QuayDirWatcher = {
-  close(): void;
-  onError(handler: (error: Error) => void): void;
-};
-
-/** The persisted cursor state of one active monitor. `unseeded` means "recompute on next poll". */
-type CursorSeed =
-  | { kind: 'unseeded' }
-  | { kind: 'iso'; value: string }
-  | { kind: 'cursor'; value: QuayTaskLogCursor };
-
-/** One project's live monitor. */
-type Monitor = {
-  projectId: string;
-  projectPath: string;
-  quayDir: string;
-  watcher: QuayDirWatcher;
-  /** `degraded` while a `task log` retry is pending; the watcher stays open. */
-  state: 'active' | 'degraded';
-  degradedReason: string | null;
-  seed: CursorSeed;
-  lastActivityAtMs: number;
-  debounceHandle: unknown;
-  retryHandle: unknown;
-  idleHandle: unknown;
-  running: boolean;
-  /** A change arrived while a poll was in flight: run exactly one more afterwards. */
-  pending: boolean;
-  backoffMs: number;
-  seenEventIds: Set<string>;
-};
-
-/** The read-only monitor state behind the capability/degration log and its criteria. */
-export type QuayTaskEventsMonitorState = {
-  state: 'off' | 'active' | 'degraded';
-  reason: string | null;
-  seedKind: 'unseeded' | 'iso' | 'cursor';
-};
-
-/** The injectable boundaries of the event-driven task-index refresh. */
-export type QuayTaskEventsDependencies = {
-  now(): number;
-  resolveProjectPathById(projectId: string): string | null;
-  /** The index as the service holds it (rows + the load instant the baseline check uses). */
-  readTaskIndex(projectId: string): QuayTaskIndexReading;
-  /** The START instant of the last successful full load, or `null` when none has landed. */
-  taskIndexLoadStartedAtMs(projectId: string): number | null;
-  /**
-   * Requests a background full load. The event path passes its own 5 s minimum interval so a
-   * burst of creation events cannot turn into a `task list` storm, while the TTL path keeps the
-   * service's 60 s interval.
-   */
-  requestTaskIndexLoad(projectId: string, options?: { minIntervalMs?: number }): void;
-  /** Applies one already-vetted status to one known row; answers `false` when the row is gone. */
-  updateTaskIndexRow(
-    projectId: string,
-    taskId: string,
-    row: Pick<QuayTaskStatusRow, 'status' | 'updatedAt'>,
-  ): boolean;
-  capabilities: QuayCapabilityReader;
-  /** Runs the whitelisted `task log` argv through the project-scoped adapter. */
-  runCommand: QuayCommandRunner;
-  /** Watches one directory; the callback's `filename` is `null` when the platform omits it. */
-  watchPath(
-    dirPath: string,
-    onChange: (eventType: string, filename: string | null) => void,
-  ): QuayDirWatcher | null;
-  /**
-   * Whether the watched directory is still at its path. Injected (default: assume present) so
-   * the service stays filesystem-free; production binds `fs.existsSync`. It answers the one
-   * event `fs.watch` cannot express: the watched directory ITSELF was renamed away, which
-   * arrives as a `rename` of the directory's own basename while the watcher keeps following
-   * the moved inode.
-   */
-  directoryExists?(dirPath: string): boolean;
-  /** The lanes-cache invalidation seam, called when `worker-dispatch.json` changes. */
-  onDispatchFileChanged(projectId: string): void;
-  log?(message: string): void;
-  timers?: QuayTaskEventsTimers;
-  /** Registers the process-exit teardown. Defaults to `process.once('exit', …)`. */
-  registerExitHook?(handler: () => void): void;
-  debounceMs?: number;
-  idleTimeoutMs?: number;
-  maxActiveMonitors?: number;
-  taskLogLimit?: number;
-  maxPages?: number;
-  eventLoadMinIntervalMs?: number;
-  retryBaseMs?: number;
-  retryCapMs?: number;
-  commandTimeoutMs?: number;
-  seedLookbackMs?: number;
-};
+  QuayTaskEventsDependencies,
+  QuayTaskEventsTimers,
+} from './quay-task-log-parse.js';
+import {
+  createTaskLogCursorStore,
+  type QuayTaskEventsMonitor,
+  type QuayTaskEventsMonitorState,
+} from './quay-task-log-cursor-store.js';
 
 /** The service surface the composition root wires into the quay service's read hook. */
 export type QuayTaskEventsService = {
@@ -179,8 +37,6 @@ const DEFAULT_RETRY_BASE_MS = 5_000;
 const DEFAULT_RETRY_CAP_MS = 60_000;
 const DEFAULT_COMMAND_TIMEOUT_MS = 8_000;
 const DEFAULT_SEED_LOOKBACK_MS = 2_000;
-/** Upper bound on the per-project eventId dedupe ledger (the at-least-once window is one event). */
-const SEEN_EVENT_ID_CAP = 5_000;
 
 const defaultTimers: QuayTaskEventsTimers = {
   setTimeout: (handler, delayMs) => setTimeout(handler, delayMs),
@@ -190,134 +46,6 @@ const defaultTimers: QuayTaskEventsTimers = {
     }
   },
 };
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/**
- * A response cursor, normalised to exactly the three documented keys in their documented
- * order. Rebuilding (rather than passing the parsed object through) is what guarantees the
- * next `--since` is the three-key shape the whitelist accepts, while preserving the cursor's
- * VALUES verbatim (`v`, `carrierEpoch`, `seq`).
- */
-export function readTaskLogCursor(value: unknown): QuayTaskLogCursor | null {
-  const record = asRecord(value);
-  if (record === null) {
-    return null;
-  }
-  const keys = Object.keys(record);
-  if (keys.length !== 3 || !keys.includes('v') || !keys.includes('carrierEpoch') || !keys.includes('seq')) {
-    return null;
-  }
-  if (record.v !== 1) {
-    return null;
-  }
-  if (typeof record.carrierEpoch !== 'string' || record.carrierEpoch.length === 0) {
-    return null;
-  }
-  if (typeof record.seq !== 'number' || !Number.isInteger(record.seq) || record.seq < 0) {
-    return null;
-  }
-  // The key order is fixed here, so the serialised cursor is stable across resumes.
-  return { v: 1, carrierEpoch: record.carrierEpoch, seq: record.seq };
-}
-
-/** One transition object, or `null` when it is missing a field the index cannot work without. */
-function readTransition(value: unknown): QuayTaskStatusTransition | null {
-  const record = asRecord(value);
-  if (record === null || typeof record.taskId !== 'string' || record.taskId === '') {
-    return null;
-  }
-  const readStringOrNull = (key: string): string | null => {
-    const raw = record[key];
-    if (raw === undefined || raw === null) {
-      return null;
-    }
-    return typeof raw === 'string' ? raw : null;
-  };
-  return {
-    order: asNumber(record.order),
-    seq: asNumber(record.seq),
-    eventId: asString(record.eventId),
-    carrierEpoch: asString(record.carrierEpoch),
-    taskId: record.taskId,
-    from: readStringOrNull('from'),
-    to: readStringOrNull('to'),
-    kind: readStringOrNull('kind'),
-    at: readStringOrNull('at'),
-    recordedAt: readStringOrNull('recordedAt'),
-  };
-}
-
-/**
- * Parses one `task log --json` page. `null` means the document is not the contract (invalid
- * JSON, a missing `transitions` array, a malformed cursor, or a transition missing its task
- * id) — the caller treats that as a full-resync, never as an empty page.
- */
-export function readTaskLogPage(stdout: string): QuayTaskLogPage | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stdout) as unknown;
-  } catch {
-    return null;
-  }
-  const document = asRecord(parsed);
-  if (document === null) {
-    return null;
-  }
-  if (!Array.isArray(document.transitions)) {
-    return null;
-  }
-  if (!Object.prototype.hasOwnProperty.call(document, 'nextCursor')) {
-    return null;
-  }
-  const nextCursor = document.nextCursor === null ? null : readTaskLogCursor(document.nextCursor);
-  if (document.nextCursor !== null && nextCursor === null) {
-    return null;
-  }
-
-  let tailCursor: QuayTaskLogCursor | null = null;
-  if (Object.prototype.hasOwnProperty.call(document, 'tailCursor') && document.tailCursor !== null) {
-    tailCursor = readTaskLogCursor(document.tailCursor);
-    if (tailCursor === null) {
-      return null;
-    }
-  }
-
-  const transitions: QuayTaskStatusTransition[] = [];
-  for (const item of document.transitions) {
-    const transition = readTransition(item);
-    if (transition === null) {
-      return null;
-    }
-    transitions.push(transition);
-  }
-
-  return {
-    transitions,
-    nextCursor,
-    tailCursor,
-    // `complete` is always false on this host's quay (no reconcile scheduler) and is ignored;
-    // `rebase` is the only response flag that changes the cursor's meaning.
-    rebase: document.rebase === true,
-  };
-}
-
-/** The ordering key of one transition: the v1 seq, else the carrier position. */
-function transitionOrder(transition: QuayTaskStatusTransition): number {
-  return transition.seq ?? transition.order ?? 0;
-}
 
 /**
  * Creates the event-driven task-index refresh.
@@ -329,6 +57,10 @@ function transitionOrder(transition: QuayTaskStatusTransition): number {
  * The full `task list --json --no-body` TTL path is NOT touched or shortened here: events
  * accelerate a status change, they never replace the periodic full read (the carrier has no
  * reconcile scheduler on this host and manual edits emit no event).
+ *
+ * Cursor state, the eventId dedupe ledger, carrier paging and page application live in
+ * `quay-task-log-cursor-store.ts`; the pure page readers live in `quay-task-log-parse.ts`.
+ * This file owns the `fs.watch` loop, the timers, and the monitor registry.
  */
 export function createQuayTaskEvents(
   dependencies: QuayTaskEventsDependencies,
@@ -348,13 +80,13 @@ export function createQuayTaskEvents(
   const seedLookbackMs = dependencies.seedLookbackMs ?? DEFAULT_SEED_LOOKBACK_MS;
   const directoryExists = dependencies.directoryExists ?? (() => true);
 
-  const monitors = new Map<string, Monitor>();
+  const monitors = new Map<string, QuayTaskEventsMonitor>();
   /** Projects whose WATCHER failed: they fall back to the TTL path permanently for the process. */
   const degradedProjects = new Map<string, string>();
   /** Projects whose activation is in flight, so a read burst cannot start two probes. */
   const activating = new Set<string>();
 
-  const disposeMonitor = (monitor: Monitor): void => {
+  const disposeMonitor = (monitor: QuayTaskEventsMonitor): void => {
     if (monitor.debounceHandle !== null) {
       timers.clearTimeout(monitor.debounceHandle);
       monitor.debounceHandle = null;
@@ -375,12 +107,12 @@ export function createQuayTaskEvents(
     monitors.delete(monitor.projectId);
   };
 
-  const touch = (monitor: Monitor): void => {
+  const touch = (monitor: QuayTaskEventsMonitor): void => {
     monitor.lastActivityAtMs = dependencies.now();
     scheduleIdle(monitor);
   };
 
-  function scheduleIdle(monitor: Monitor): void {
+  function scheduleIdle(monitor: QuayTaskEventsMonitor): void {
     if (monitor.idleHandle !== null) {
       timers.clearTimeout(monitor.idleHandle);
     }
@@ -399,7 +131,7 @@ export function createQuayTaskEvents(
   }
 
   const evictLeastRecentlyUsed = (): void => {
-    let oldest: Monitor | null = null;
+    let oldest: QuayTaskEventsMonitor | null = null;
     for (const monitor of monitors.values()) {
       if (oldest === null || monitor.lastActivityAtMs < oldest.lastActivityAtMs) {
         oldest = monitor;
@@ -414,7 +146,7 @@ export function createQuayTaskEvents(
     }
   };
 
-  const scheduleDebouncedPoll = (monitor: Monitor): void => {
+  const scheduleDebouncedPoll = (monitor: QuayTaskEventsMonitor): void => {
     if (monitor.debounceHandle !== null) {
       timers.clearTimeout(monitor.debounceHandle);
     }
@@ -425,7 +157,7 @@ export function createQuayTaskEvents(
   };
 
   const onDirEvent = (
-    monitor: Monitor,
+    monitor: QuayTaskEventsMonitor,
     _eventType: string,
     filename: string | null,
   ): void => {
@@ -471,7 +203,7 @@ export function createQuayTaskEvents(
     // Every other filename (e.g. `gate-events.jsonl`) is ignored: no spawn, no invalidation.
   };
 
-  const onWatcherError = (monitor: Monitor, error: Error): void => {
+  const onWatcherError = (monitor: QuayTaskEventsMonitor, error: Error): void => {
     const reason = error.message === '' ? 'watcher error' : error.message;
     log(
       `quay task events: watcher for ${monitor.quayDir} failed (${reason}); `
@@ -481,86 +213,7 @@ export function createQuayTaskEvents(
     degradedProjects.set(monitor.projectId, reason);
   };
 
-  const resolveSeedArg = (monitor: Monitor): string | null => {
-    if (monitor.seed.kind === 'cursor') {
-      return JSON.stringify(monitor.seed.value);
-    }
-    if (monitor.seed.kind === 'iso') {
-      return monitor.seed.value;
-    }
-    const loadStartedAtMs = dependencies.taskIndexLoadStartedAtMs(monitor.projectId);
-    if (loadStartedAtMs === null) {
-      return null;
-    }
-    const iso = new Date(loadStartedAtMs - seedLookbackMs).toISOString();
-    monitor.seed = { kind: 'iso', value: iso };
-    return iso;
-  };
-
-  const resetSeed = (monitor: Monitor): void => {
-    monitor.seed = { kind: 'unseeded' };
-  };
-
-  const markSeen = (monitor: Monitor, eventId: string): boolean => {
-    if (monitor.seenEventIds.has(eventId)) {
-      return false;
-    }
-    monitor.seenEventIds.add(eventId);
-    if (monitor.seenEventIds.size > SEEN_EVENT_ID_CAP) {
-      // The at-least-once window is one event, so the oldest entries can be dropped.
-      const oldest = monitor.seenEventIds.values().next().value;
-      if (oldest !== undefined) {
-        monitor.seenEventIds.delete(oldest);
-      }
-    }
-    return true;
-  };
-
-  /**
-   * Applies one page's transitions to the index. Ordering is by `seq` (the v1 sequence) so a
-   * page that arrived out of order still lands the LAST transition on each task. Returns
-   * whether an event requires a full load (a creation, or a task the index does not know).
-   */
-  const applyTransitions = (
-    monitor: Monitor,
-    transitions: readonly QuayTaskStatusTransition[],
-  ): { needsFullLoad: boolean } => {
-    let needsFullLoad = false;
-    const baselineStartedAtMs = dependencies.taskIndexLoadStartedAtMs(monitor.projectId);
-    const baselineMs = baselineStartedAtMs ?? dependencies.readTaskIndex(monitor.projectId).observedAtMs;
-
-    const ordered = [...transitions].sort((left, right) => transitionOrder(left) - transitionOrder(right));
-    for (const transition of ordered) {
-      if (transition.eventId !== null && !markSeen(monitor, transition.eventId)) {
-        continue;
-      }
-      if (transition.kind === 'create') {
-        needsFullLoad = true;
-        continue;
-      }
-      if (!dependencies.readTaskIndex(monitor.projectId).tasks.has(transition.taskId)) {
-        needsFullLoad = true;
-        continue;
-      }
-      if (transition.to === null) {
-        needsFullLoad = true;
-        continue;
-      }
-      const atMs = transition.at === null ? null : Date.parse(transition.at);
-      // A transition older than the row's baseline load cannot roll back a manual edit the
-      // full read already saw; the row keeps the read state and the event is consumed.
-      if (baselineMs !== null && atMs !== null && Number.isFinite(atMs) && atMs < baselineMs) {
-        continue;
-      }
-      dependencies.updateTaskIndexRow(monitor.projectId, transition.taskId, {
-        status: transition.to,
-        updatedAt: transition.at,
-      });
-    }
-    return { needsFullLoad };
-  };
-
-  const degradeTaskLog = (monitor: Monitor, reason: string): void => {
+  const degradeTaskLog = (monitor: QuayTaskEventsMonitor, reason: string): void => {
     monitor.state = 'degraded';
     monitor.degradedReason = reason;
     const delayMs = monitor.backoffMs;
@@ -583,7 +236,7 @@ export function createQuayTaskEvents(
   };
 
   /** One poll: pages the transition carrier and applies it. Never throws. */
-  const pollOnce = async (monitor: Monitor): Promise<void> => {
+  const pollOnce = async (monitor: QuayTaskEventsMonitor): Promise<void> => {
     touch(monitor);
 
     const capabilities = dependencies.capabilities.read(monitor.projectPath);
@@ -598,74 +251,18 @@ export function createQuayTaskEvents(
       return;
     }
 
-    let needsFullLoad = false;
-    let pages = 0;
-    let sinceArg = resolveSeedArg(monitor);
-    if (sinceArg === null) {
-      // Nothing has been fully loaded yet: the caller's condition is "index loaded once".
+    const outcome = await monitor.cursors.poll();
+    if (outcome.status !== 'done') {
+      // `skipped`: nothing has been fully loaded yet, so activation's condition ("the index
+      // loaded once") is not met. `failed`: the store reported the reason and the retry timer
+      // is armed; leave the degraded state exactly as it was.
       return;
-    }
-
-    while (pages < maxPages) {
-      pages += 1;
-      const sentCursor = monitor.seed.kind === 'cursor' ? monitor.seed.value : null;
-      const result = await dependencies.runCommand(
-        monitor.projectPath,
-        ['task', 'log', '--json', '--since', sinceArg, '--limit', String(taskLogLimit)],
-        { timeoutMs: commandTimeoutMs },
-      );
-      if (!result.ok) {
-        degradeTaskLog(
-          monitor,
-          result.error ?? `task log exited ${result.code === null ? 'abnormally' : result.code}`,
-        );
-        return;
-      }
-
-      const page = readTaskLogPage(result.stdout);
-      if (page === null) {
-        needsFullLoad = true;
-        resetSeed(monitor);
-        break;
-      }
-
-      const responseEpoch =
-        page.tailCursor?.carrierEpoch ?? page.nextCursor?.carrierEpoch ?? null;
-      const carrierRotated =
-        page.rebase
-        || (sentCursor !== null && responseEpoch !== null && responseEpoch !== sentCursor.carrierEpoch);
-      if (carrierRotated) {
-        needsFullLoad = true;
-        resetSeed(monitor);
-        break;
-      }
-
-      const applied = applyTransitions(monitor, page.transitions);
-      if (applied.needsFullLoad) {
-        needsFullLoad = true;
-      }
-
-      const pageIsFull = page.transitions.length >= taskLogLimit;
-      if (pageIsFull && page.nextCursor !== null) {
-        // A truncated page: follow it immediately (bounded by `maxPages`).
-        monitor.seed = { kind: 'cursor', value: page.nextCursor };
-        sinceArg = JSON.stringify(page.nextCursor);
-        continue;
-      }
-      if (page.tailCursor !== null) {
-        // The published tail is the authoritative resume point, ahead of any page cursor.
-        monitor.seed = { kind: 'cursor', value: page.tailCursor };
-      } else if (page.nextCursor !== null) {
-        monitor.seed = { kind: 'cursor', value: page.nextCursor };
-      }
-      // A null `nextCursor` and no tail keep the ISO seed for the next poll.
-      break;
     }
 
     monitor.state = 'active';
     monitor.degradedReason = null;
     monitor.backoffMs = retryBaseMs;
-    if (needsFullLoad) {
+    if (outcome.needsFullLoad) {
       dependencies.requestTaskIndexLoad(monitor.projectId, {
         minIntervalMs: eventLoadMinIntervalMs,
       });
@@ -673,7 +270,7 @@ export function createQuayTaskEvents(
   };
 
   /** Single-flight: a change during a poll schedules exactly ONE trailing poll. */
-  const runPoll = async (monitor: Monitor): Promise<void> => {
+  const runPoll = async (monitor: QuayTaskEventsMonitor): Promise<void> => {
     if (monitor.running) {
       monitor.pending = true;
       return;
@@ -746,14 +343,31 @@ export function createQuayTaskEvents(
         evictLeastRecentlyUsed();
       }
 
-      const monitor: Monitor = {
+      const monitor: QuayTaskEventsMonitor = {
         projectId,
         projectPath,
         quayDir,
         watcher,
         state: 'active',
         degradedReason: null,
-        seed: { kind: 'unseeded' },
+        cursors: createTaskLogCursorStore({
+          projectPath,
+          taskIndexLoadStartedAtMs: () => dependencies.taskIndexLoadStartedAtMs(projectId),
+          readTaskIndex: () => dependencies.readTaskIndex(projectId),
+          updateTaskIndexRow: (taskId, row) =>
+            dependencies.updateTaskIndexRow(projectId, taskId, row),
+          runCommand: dependencies.runCommand,
+          onCommandFailure: (reason) => {
+            const current = monitors.get(projectId);
+            if (current !== undefined) {
+              degradeTaskLog(current, reason);
+            }
+          },
+          taskLogLimit,
+          maxPages,
+          commandTimeoutMs,
+          seedLookbackMs,
+        }),
         lastActivityAtMs: dependencies.now(),
         debounceHandle: null,
         retryHandle: null,
@@ -761,7 +375,6 @@ export function createQuayTaskEvents(
         running: false,
         pending: false,
         backoffMs: retryBaseMs,
-        seenEventIds: new Set(),
       };
       monitors.set(projectId, monitor);
       watcher.onError((error) => onWatcherError(monitor, error));
@@ -822,7 +435,7 @@ export function createQuayTaskEvents(
       return {
         state: monitor.state,
         reason: monitor.degradedReason,
-        seedKind: monitor.seed.kind,
+        seedKind: monitor.cursors.kind,
       };
     },
   };

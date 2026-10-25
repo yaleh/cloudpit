@@ -219,8 +219,11 @@ function isCaretOnEmptyLine(input: string, caret: number): boolean {
  * `selectionEnd`; a selection is appended to rather than replaced. A padding
  * space is added before and/or after only when the adjacent character is text:
  * a space or a line break is not, so a quotation on a fresh line starts flush.
- * At the end of an empty line the passage opens a new paragraph with two line
- * breaks under it. The returned caret is the end of everything that was added.
+ * At the end of an empty line, a passage that itself contains a line break opens
+ * a new paragraph with two line breaks under it; a one-line passage stays on the
+ * line it was inserted on. "One line" is decided by line-break characters, not by
+ * how the text happens to wrap on screen — wrapping depends on the window width.
+ * The returned caret is the end of everything that was added.
  */
 export function insertQuotedText(selection: SuggestionFillSelection, quoted: string): SuggestionFill {
   const { input } = selection;
@@ -229,7 +232,7 @@ export function insertQuotedText(selection: SuggestionFillSelection, quoted: str
   const leadingSpace = isTextCharacter(input[insertAt - 1]) ? ' ' : '';
   const trailingSpace = isTextCharacter(input[insertAt]) ? ' ' : '';
   const endsOnEmptyLine = insertAt === input.length && isCaretOnEmptyLine(input, insertAt);
-  const trailingBreaks = endsOnEmptyLine ? '\n\n' : '';
+  const trailingBreaks = endsOnEmptyLine && /[\r\n]/.test(quoted) ? '\n\n' : '';
   const inserted = `${leadingSpace}${quoted}${trailingSpace}${trailingBreaks}`;
   return {
     text: `${input.slice(0, insertAt)}${inserted}${input.slice(insertAt)}`,

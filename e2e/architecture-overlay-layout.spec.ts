@@ -50,8 +50,13 @@ import {
 
 const RUN_STARTED_AT = Number(process.env.QUAY_E2E_RUN_STARTED_AT) || Date.now();
 
-const USERNAME = 'architecture-overlay-layout-e2e';
-const PASSWORD = 'architecture-overlay-layout-e2e-pass';
+// The server is SINGLE-USER (the first account owns the only slot; every later
+// `register` answers 403 AUTH_USER_ALREADY_CONFIGURED). This file's acceptance
+// criterion runs TOGETHER with `architecture-fullscreen.spec.ts` in one
+// invocation, and one invocation is one server, so both sign in as this shared
+// account: whichever file boots second takes `createAccount`'s login branch.
+const USERNAME = 'e2euser';
+const PASSWORD = 'e2epassword';
 const WORKSPACE_DIR = 'architecture-overlay-layout-workspace-l';
 
 const SHOTS_DIR = path.resolve(process.cwd(), 'tmp', 'architecture-overlay-layout');

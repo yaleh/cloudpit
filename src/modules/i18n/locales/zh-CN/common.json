@@ -228,6 +228,9 @@
       "pngScaled": "PNG 已等比缩小，最长边为 {{edge}} px。",
       "pngFailed": "无法生成 PNG。"
     },
+    "overflow": {
+      "menu": "更多操作"
+    },
     "search": {
       "label": "搜索实体或文件",
       "placeholder": "搜索实体或文件…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "会话里提到的，即使该种类被隐藏也保持显示",
       "mentionedInKind": "其中 {{count}} 个在会话里提到过",
       "showMentioned": "▸ 显示提到的",
+      "showMentionedCount": "▸ 显示提到的 ({{count}})",
       "reset": "↺ 重置筛选"
     },
     "scopeHygiene": {
@@ -995,5 +999,42 @@
     "mentionedInMessage": "在消息中提及",
     "mentionedAt": "{{when}}提及",
     "openQuayPanel": "打开 Quay 面板"
+  },
+  "quayTab": {
+    "driverRunning": "驱动运行中",
+    "driverIdle": "驱动空闲",
+    "driverStale": "驱动停滞",
+    "driverNotConfigured": "未配置",
+    "driverUnavailable": "驱动状态不可用",
+    "kernelBehind": "内核 {{loaded}} → 已安装 {{installed}}",
+    "kernelAhead": "内核 {{loaded}} 领先于已安装的 {{installed}}",
+    "kernelCurrent": "内核 {{loaded}} 一致（已安装 {{installed}}）",
+    "kernelNotEvaluated": "内核版本未评估",
+    "orphanMarked": "插件版本将在 {{days}} 天后被删除",
+    "orphanExpired": "插件版本的删除期限已过",
+    "orphanMarkedUnknown": "插件版本已标记待删除",
+    "draining": "正在排空：{{drivers}}",
+    "pointerDeviation": "插件指针 {{state}}（链接 {{link}}，核心 {{core}}）",
+    "inFlightCount": "{{count}} 个执行中",
+    "needsHumanCount": "{{count}} 个需人工",
+    "readyCount": "{{count}} 个就绪",
+    "suiteState": "套件 {{state}}",
+    "sessionPanelTitle": "本会话",
+    "noSession": "未选择会话",
+    "loadingMentions": "正在加载提及的任务…",
+    "mentionsError": "无法读取本会话提及的任务。",
+    "noMentions": "本会话尚未提及任何 quay 任务。",
+    "loadingChain": "正在加载本会话发起的任务…",
+    "chainUnavailable": "本会话发起的任务不可用（{{reason}}）。",
+    "chainError": "无法读取本会话发起的任务。",
+    "createdEmpty": "本会话未发起任务。",
+    "createdHeading": "本会话发起的任务 · {{count}}",
+    "blockedReason": "已阻塞：{{reason}}",
+    "goalsHeading": "目标 · {{count}}",
+    "tasksHeading": "任务 · {{count}}",
+    "done": "已完成 · {{count}}",
+    "viaTasks": "经由 {{count}} 个任务",
+    "mentionedInMessage": "在消息中提及",
+    "mentionedAt": "{{when}}提及"
   }
 }

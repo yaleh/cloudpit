@@ -228,6 +228,9 @@
       "pngScaled": "Das PNG wurde verkleinert, damit die längste Seite {{edge}} px beträgt.",
       "pngFailed": "Das PNG konnte nicht erstellt werden."
     },
+    "overflow": {
+      "menu": "Weitere Aktionen"
+    },
     "search": {
       "label": "Entitäten oder Dateien suchen",
       "placeholder": "Entitäten oder Dateien suchen…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "in dieser Sitzung erwähnt, auch sichtbar, wenn ihre Art ausgeblendet ist",
       "mentionedInKind": "{{count}} in dieser Sitzung erwähnt",
       "showMentioned": "▸ Erwähnte anzeigen",
+      "showMentionedCount": "▸ Erwähnte anzeigen ({{count}})",
       "reset": "↺ Filter zurücksetzen"
     },
     "scopeHygiene": {
@@ -966,5 +970,42 @@
     "mentionedInMessage": "in einer Nachricht erwähnt",
     "mentionedAt": "Erwähnt {{when}}",
     "openQuayPanel": "Quay-Panel öffnen"
+  },
+  "quayTab": {
+    "driverRunning": "Treiber läuft",
+    "driverIdle": "Treiber untätig",
+    "driverStale": "Treiber veraltet",
+    "driverNotConfigured": "Nicht konfiguriert",
+    "driverUnavailable": "Treiberstatus nicht verfügbar",
+    "kernelBehind": "Kernel {{loaded}} → installiert {{installed}}",
+    "kernelAhead": "Kernel {{loaded}} neuer als installiert {{installed}}",
+    "kernelCurrent": "Kernel {{loaded}} aktuell (installiert {{installed}})",
+    "kernelNotEvaluated": "Kernel-Version nicht bewertet",
+    "orphanMarked": "Plugin-Version wird in {{days}} Tagen entfernt",
+    "orphanExpired": "Die Entfernungsfrist der Plugin-Version ist abgelaufen",
+    "orphanMarkedUnknown": "Plugin-Version zur Entfernung markiert",
+    "draining": "Wird geleert: {{drivers}}",
+    "pointerDeviation": "Plugin-Zeiger {{state}} (Link {{link}}, Kern {{core}})",
+    "inFlightCount": "{{count}} in Ausführung",
+    "needsHumanCount": "{{count}} braucht einen Menschen",
+    "readyCount": "{{count}} bereit",
+    "suiteState": "Suite {{state}}",
+    "sessionPanelTitle": "Diese Sitzung",
+    "noSession": "Keine Sitzung ausgewählt",
+    "loadingMentions": "Erwähnte Aufgaben werden geladen…",
+    "mentionsError": "Die erwähnten Aufgaben dieser Sitzung konnten nicht gelesen werden.",
+    "noMentions": "In dieser Sitzung wurden noch keine Quay-Aufgaben erwähnt.",
+    "loadingChain": "In dieser Sitzung gestartete Aufgaben werden geladen…",
+    "chainUnavailable": "Die in dieser Sitzung gestarteten Aufgaben sind nicht verfügbar ({{reason}}).",
+    "chainError": "Die in dieser Sitzung gestarteten Aufgaben konnten nicht gelesen werden.",
+    "createdEmpty": "In dieser Sitzung wurden keine Aufgaben gestartet.",
+    "createdHeading": "In dieser Sitzung gestartete Aufgaben · {{count}}",
+    "blockedReason": "Blockiert: {{reason}}",
+    "goalsHeading": "Ziele · {{count}}",
+    "tasksHeading": "Aufgaben · {{count}}",
+    "done": "Erledigt · {{count}}",
+    "viaTasks": "über {{count}} Aufgabe(n)",
+    "mentionedInMessage": "in einer Nachricht erwähnt",
+    "mentionedAt": "{{when}} erwähnt"
   }
 }

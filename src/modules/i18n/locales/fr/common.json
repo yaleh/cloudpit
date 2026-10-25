@@ -228,6 +228,9 @@
       "pngScaled": "Le PNG a été réduit pour que son côté le plus long fasse {{edge}} px.",
       "pngFailed": "Le PNG n'a pas pu être créé."
     },
+    "overflow": {
+      "menu": "Plus d’actions"
+    },
     "search": {
       "label": "Rechercher des entités ou des fichiers",
       "placeholder": "Rechercher des entités ou des fichiers…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "mentionnées dans cette session, visibles même si leur type est masqué",
       "mentionedInKind": "{{count}} mentionnées dans cette session",
       "showMentioned": "▸ Afficher les mentionnées",
+      "showMentionedCount": "▸ Afficher les mentionnées ({{count}})",
       "reset": "↺ Réinitialiser les filtres"
     },
     "scopeHygiene": {
@@ -997,5 +1001,42 @@
     "mentionedInMessage": "mentionnée dans un message",
     "mentionedAt": "Mentionnée {{when}}",
     "openQuayPanel": "Ouvrir le panneau Quay"
+  },
+  "quayTab": {
+    "driverRunning": "Pilote en cours",
+    "driverIdle": "Pilote inactif",
+    "driverStale": "Pilote obsolète",
+    "driverNotConfigured": "Non configuré",
+    "driverUnavailable": "État du pilote indisponible",
+    "kernelBehind": "Noyau {{loaded}} → installé {{installed}}",
+    "kernelAhead": "Noyau {{loaded}} en avance sur l'installé {{installed}}",
+    "kernelCurrent": "Noyau {{loaded}} à jour (installé {{installed}})",
+    "kernelNotEvaluated": "Version du noyau non évaluée",
+    "orphanMarked": "La version du plugin sera supprimée dans {{days}} jours",
+    "orphanExpired": "Le délai de suppression de la version du plugin est dépassé",
+    "orphanMarkedUnknown": "Version du plugin marquée pour suppression",
+    "draining": "Vidage : {{drivers}}",
+    "pointerDeviation": "Pointeur du plugin {{state}} (lien {{link}}, noyau {{core}})",
+    "inFlightCount": "{{count}} en cours",
+    "needsHumanCount": "{{count}} nécessite une personne",
+    "readyCount": "{{count}} prêtes",
+    "suiteState": "Suite {{state}}",
+    "sessionPanelTitle": "Cette session",
+    "noSession": "Aucune session sélectionnée",
+    "loadingMentions": "Chargement des tâches mentionnées…",
+    "mentionsError": "Impossible de lire les tâches mentionnées dans cette session.",
+    "noMentions": "Aucune tâche quay n'a encore été mentionnée dans cette session.",
+    "loadingChain": "Chargement des tâches démarrées dans cette session…",
+    "chainUnavailable": "Les tâches démarrées dans cette session sont indisponibles ({{reason}}).",
+    "chainError": "Impossible de lire les tâches démarrées dans cette session.",
+    "createdEmpty": "Aucune tâche n'a été démarrée dans cette session.",
+    "createdHeading": "Tâches démarrées dans cette session · {{count}}",
+    "blockedReason": "Bloquée : {{reason}}",
+    "goalsHeading": "Objectifs · {{count}}",
+    "tasksHeading": "Tâches · {{count}}",
+    "done": "Terminées · {{count}}",
+    "viaTasks": "via {{count}} tâche(s)",
+    "mentionedInMessage": "mentionnée dans un message",
+    "mentionedAt": "Mentionnée {{when}}"
   }
 }

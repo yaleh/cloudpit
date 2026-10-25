@@ -101,36 +101,44 @@ type RunnerReport = {
 /**
  * Writes the fixture project.
  *
- * The plugin link mirrors the repository's own `.quay/plugin` target rather than restating a
- * vendored path, so the fixture keeps working when the installed plugin version moves. The round
- * carrier is what makes the wall's In-flight tile declare focusables: quay's `readLive` merges
+ * The fixture does NOT need a `.quay/plugin` link: the server now resolves each project's CLI
+ * through the Claude Code plugin scopes (`quay-entrypoint-resolver`), so a project with an
+ * arbitrary temp path is driven by the user-scope install. The link is still written opportunistically
+ * when a plugin can be discovered, because quay's own config loader reads the project pin for the
+ * native provider's runtime — but its absence is no longer a fixture error. The round carrier is
+ * what makes the wall's In-flight tile declare focusables: quay's `readLive` merges
  * `.quay/worker-round.jsonl`'s `in_flight_tasks` into its in-flight set, and the panel's focusable
  * contract is built from that same `lanes` reading.
  */
 /**
- * The quay plugin directory the fixture's `.quay/plugin` link points at.
+ * The quay plugin directory to mirror into the fixture, or `null` when none is discoverable.
  *
  * A TASK WORKTREE HAS NO LOCAL `.quay/`: that tree is operator state, not checked in, so
- * `dispatch-worktree-setup.sh` does not copy it and the mobile-grid spec's `REPO_ROOT/.quay/plugin`
- * reading (which only ever runs from the main checkout) does not resolve here. The server spawns
- * `<projectRoot>/.quay/plugin/bin/quay`, so the fixture needs SOME real plugin; when the checkout
- * has one it is used verbatim (the same wiring the repo runs on), and otherwise the installed
- * plugin cache — the one the drivers themselves run from — supplies the newest version. The
- * version is never restated: a path is discovered, not pinned.
+ * `dispatch-worktree-setup.sh` does not copy it. This helper therefore never requires the link:
+ * it uses the checkout's own link when present, otherwise the newest installed plugin cache
+ * version, and otherwise answers `null` (the resolver drives the child from the plugin scope).
+ * The version is never restated: a path is discovered, not pinned.
  */
-const resolveQuayPlugin = (): string => {
-  const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
-  if (fs.existsSync(repoPlugin)) {
-    return fs.realpathSync(repoPlugin);
+const resolveQuayPlugin = (): string | null => {
+  try {
+    const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
+    if (fs.existsSync(repoPlugin)) {
+      return fs.realpathSync(repoPlugin);
+    }
+  } catch {
+    // A dangling checkout link is the retired mechanism; fall through to the cache.
   }
   const cache = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'quay', 'quay');
-  const versions = fs.existsSync(cache)
-    ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
-    : [];
+  let versions: string[] = [];
+  try {
+    versions = fs.existsSync(cache)
+      ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
+      : [];
+  } catch {
+    return null;
+  }
   if (versions.length === 0) {
-    throw new Error(
-      `no quay plugin to wire into the fixture: neither ${repoPlugin} nor an install under ${cache}`,
-    );
+    return null;
   }
   versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   return path.join(cache, versions[versions.length - 1] as string);
@@ -146,9 +154,13 @@ const seedFixtureProject = (): void => {
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  // Optional compatibility link only — the fixture never requires it (see `resolveQuayPlugin`).
   const pluginLink = path.join(quayDir, 'plugin');
   fs.rmSync(pluginLink, { recursive: true, force: true });
-  fs.symlinkSync(resolveQuayPlugin(), pluginLink);
+  const quayPlugin = resolveQuayPlugin();
+  if (quayPlugin !== null) {
+    fs.symlinkSync(quayPlugin, pluginLink);
+  }
 
   fs.writeFileSync(
     path.join(quayDir, 'config.yml'),

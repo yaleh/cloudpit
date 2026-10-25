@@ -228,6 +228,9 @@
       "pngScaled": "PNG 已等比縮小，最長邊為 {{edge}} px。",
       "pngFailed": "無法建立 PNG。"
     },
+    "overflow": {
+      "menu": "更多操作"
+    },
     "search": {
       "label": "搜尋實體或檔案",
       "placeholder": "搜尋實體或檔案…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "工作階段中提及的，即使該種類被隱藏也保持顯示",
       "mentionedInKind": "其中 {{count}} 個在工作階段中提及過",
       "showMentioned": "▸ 顯示提及的",
+      "showMentionedCount": "▸ 顯示提及的 ({{count}})",
       "reset": "↺ 重設篩選"
     },
     "scopeHygiene": {
@@ -995,5 +999,42 @@
     "mentionedInMessage": "在訊息中提及",
     "mentionedAt": "{{when}}提及",
     "openQuayPanel": "開啟 Quay 面板"
+  },
+  "quayTab": {
+    "driverRunning": "驅動執行中",
+    "driverIdle": "驅動閒置",
+    "driverStale": "驅動停滯",
+    "driverNotConfigured": "未設定",
+    "driverUnavailable": "驅動狀態不可用",
+    "kernelBehind": "核心 {{loaded}} → 已安裝 {{installed}}",
+    "kernelAhead": "核心 {{loaded}} 領先於已安裝的 {{installed}}",
+    "kernelCurrent": "核心 {{loaded}} 一致（已安裝 {{installed}}）",
+    "kernelNotEvaluated": "核心版本未評估",
+    "orphanMarked": "外掛版本將在 {{days}} 天後被刪除",
+    "orphanExpired": "外掛版本的刪除期限已過",
+    "orphanMarkedUnknown": "外掛版本已標記待刪除",
+    "draining": "正在排空：{{drivers}}",
+    "pointerDeviation": "外掛指標 {{state}}（連結 {{link}}，核心 {{core}}）",
+    "inFlightCount": "{{count}} 個執行中",
+    "needsHumanCount": "{{count}} 個需人工",
+    "readyCount": "{{count}} 個就緒",
+    "suiteState": "套件 {{state}}",
+    "sessionPanelTitle": "本工作階段",
+    "noSession": "未選擇工作階段",
+    "loadingMentions": "正在載入提及的任務…",
+    "mentionsError": "無法讀取本工作階段提及的任務。",
+    "noMentions": "本工作階段尚未提及任何 quay 任務。",
+    "loadingChain": "正在載入本工作階段發起的任務…",
+    "chainUnavailable": "本工作階段發起的任務不可用（{{reason}}）。",
+    "chainError": "無法讀取本工作階段發起的任務。",
+    "createdEmpty": "本工作階段未發起任務。",
+    "createdHeading": "本工作階段發起的任務 · {{count}}",
+    "blockedReason": "已阻塞：{{reason}}",
+    "goalsHeading": "目標 · {{count}}",
+    "tasksHeading": "任務 · {{count}}",
+    "done": "已完成 · {{count}}",
+    "viaTasks": "經由 {{count}} 個任務",
+    "mentionedInMessage": "在訊息中提及",
+    "mentionedAt": "{{when}}提及"
   }
 }
