@@ -217,6 +217,14 @@ const suggestButton = (container: HTMLElement): HTMLButtonElement | null => (
 );
 
 /**
+ * The button's class list as tokens. A substring check is vacuous here: the resting
+ * classes already carry `focus-visible:ring-2` and `hover:border-primary/60`, so
+ * `includes('ring-2')`/`includes('border-primary')` would pass with no highlight at
+ * all. The highlight's classes are unvariant tokens.
+ */
+const classTokens = (button: HTMLButtonElement): string[] => button.className.split(/\s+/).filter(Boolean);
+
+/**
  * The compact tier is taken from the window below `md`. jsdom implements no media
  * queries, so the double answers "no" to every query; the width alone is enough for
  * `isMobile`, which is the same pattern `composerCompactTier.test.tsx` uses.
@@ -246,8 +254,8 @@ describe('the Suggest control advertises a transcript selection', () => {
     assert.equal(button.getAttribute('data-reply-suggest-highlighted'), 'true');
     assert.equal(button.textContent, SELECTION_LABEL, 'the wide tier says what the press will use');
     assert.equal(button.getAttribute('aria-label'), SELECTION_LABEL);
-    assert.ok(button.className.includes('ring-2'), 'the highlight is visible, not only an attribute');
-    assert.ok(button.className.includes('border-primary'));
+    assert.ok(classTokens(button).includes('ring-2'), 'the highlight is visible, not only an attribute');
+    assert.ok(classTokens(button).includes('border-primary'));
 
     fireEvent.click(button);
     assert.equal(
@@ -265,7 +273,7 @@ describe('the Suggest control advertises a transcript selection', () => {
     assert.equal(button.hasAttribute('data-reply-suggest-highlighted'), false);
     assert.equal(button.textContent, enChat.input.suggestions.suggest);
     assert.equal(button.getAttribute('aria-label'), enChat.input.suggestions.suggest);
-    assert.equal(button.className.includes('ring-2'), false);
+    assert.equal(classTokens(button).includes('ring-2'), false);
   });
 
   it('(c) draws no highlight while the draft is not empty', () => {
@@ -278,7 +286,7 @@ describe('the Suggest control advertises a transcript selection', () => {
 
     assert.equal(button.hasAttribute('data-reply-suggest-highlighted'), false);
     assert.equal(button.textContent, enChat.input.suggestions.suggest);
-    assert.equal(button.className.includes('ring-2'), false);
+    assert.equal(classTokens(button).includes('ring-2'), false);
   });
 
   it('(d) keeps the loading spinner and the failure reading ahead of the highlight', async () => {
@@ -340,7 +348,7 @@ describe('the Suggest control advertises a transcript selection', () => {
 
     assert.equal(button.getAttribute('data-reply-suggest-highlighted'), 'true');
     assert.equal(button.getAttribute('aria-label'), SELECTION_LABEL);
-    assert.ok(button.className.includes('ring-2'));
+    assert.ok(classTokens(button).includes('ring-2'));
     const dot = button.querySelector('[data-slot="reply-suggest-dot"]');
     assert.ok(dot, 'the compact tier publishes the dot for tests and scenarios');
     assert.equal(dot.getAttribute('aria-hidden'), 'true');
