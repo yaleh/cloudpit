@@ -13,7 +13,7 @@ import { createQuayFleetRegistry } from './quay-fleet-registry.js';
 import { DEFAULT_INITIATIVE_AUDIT_RATIO, createQuayInitiatives } from './quay-initiatives.js';
 import { createQuayCapabilities, type QuayEntrypointIdentity } from './quay-capabilities.js';
 import { createQuayDispatchCarrier } from './quay-dispatch-carrier.js';
-import { QUAY_COMMAND_TIMEOUT_MS, createQuayProcessRunner } from './quay-process.js';
+import { QUAY_COMMAND_TIMEOUT_MS, createQuayProcessRunner, createSystemQuayEntrypointResolver } from './quay-process.js';
 import { createQuayTaskEvents } from './quay-task-events.service.js';
 import { createQuayRouter } from './quay.routes.js';
 import { createQuayService, type QuayFileReader } from './quay.service.js';
@@ -110,6 +110,15 @@ export const quayFleetProjectIds = createQuayFleetProjectIdResolver({
 /** The single quay display service instance; also used by the projects module for Tier-1 detection. */
 
 /**
+ * The one per-process entrypoint resolver. Zero-argument construction binds the real filesystem,
+ * the process home and the SERVER settings file; the reading is cached by the mtime+size of
+ * `installed_plugins.json` and the settings files, so it is cheap to consult per spawn and per
+ * snapshot. Consumers: the process adapter below, the capability probe's identity read, and the
+ * snapshot's `entrypoint` diagnostic.
+ */
+const quayEntrypointResolver = createSystemQuayEntrypointResolver();
+
+/**
  * The event-driven refresh's read hook, installed on the service just below. The service is
  * created first (it owns the task index), and the events service is created after it (it
  * consumes the index primitives); this holder lets the service's read path reach the events
@@ -129,11 +138,17 @@ export const quayService = createQuayService({
       projectId: project.project_id,
       projectPath: project.project_path,
     })),
-  // Binary resolution is project-scoped inside the adapter: the service passes each
-  // project's `projectPath` as the runner's `cwd`, and the adapter resolves
-  // `<cwd>/.quay/plugin/bin/quay` from it. The explicit `warn` binding routes the
-  // migration-period bare-PATH fallback into the server log instead of leaving it silent.
-  runCommand: createQuayProcessRunner({ warn: (message) => console.warn(message) }),
+  // Binary resolution is project-scoped: the service passes each project's `projectPath` as the
+  // runner's `cwd`, and the adapter asks the resolver which CLI drives it (SERVER override →
+  // Claude plugin scopes → legacy pin → PATH). The explicit `warn` binding routes a skipped
+  // record or the bare-PATH fallback into the server log instead of leaving it silent.
+  runCommand: createQuayProcessRunner({
+    resolveEntrypoint: (projectRoot) => quayEntrypointResolver.resolve(projectRoot),
+    warn: (message) => console.warn(message),
+  }),
+  // The snapshot's optional diagnostic: which binary produced this reading. Rides the same
+  // cached resolution as the spawn boundary, so the panel and the child can never disagree.
+  resolveEntrypoint: (projectPath) => quayEntrypointResolver.resolve(projectPath),
   readFile: quayFileReader,
   // The dashboard link's liveness reading: an in-process HTTP probe, so it costs no child
   // process (the gap this task closes) while still refusing to link to a dead server.
@@ -151,15 +166,15 @@ export const quayService = createQuayService({
 });
 
 /**
- * The path the project-scoped adapter will spawn: `<projectRoot>/.quay/plugin/bin/quay` when
- * present, else the first `quay` on this process's PATH (the adapter's own migration-period
- * fallback). Resolving it here — rather than duplicating the spawn logic — is what lets the
- * capability cache key on the binary that will actually run.
+ * The path the process adapter will spawn for one project, or `null` when the only answer is
+ * the bare `quay` and nothing by that name is on this process's PATH. It asks the same cached
+ * resolver the adapter uses, which is what lets the capability cache key on the binary that
+ * will actually run rather than on a path it guessed separately.
  */
 function resolveQuayEntrypointPath(projectPath: string): string | null {
-  const scoped = path.join(projectPath, '.quay', 'plugin', 'bin', 'quay');
-  if (fs.existsSync(scoped)) {
-    return scoped;
+  const resolution = quayEntrypointResolver.resolve(projectPath);
+  if (resolution.source !== 'path') {
+    return resolution.path;
   }
   const pathValue = process.env.PATH ?? '';
   for (const dir of pathValue.split(path.delimiter)) {

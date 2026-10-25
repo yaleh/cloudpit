@@ -34,6 +34,10 @@
       "apiKeyFile": ""
     }
   },
+  "quay": {
+    "entrypoints": {}
+  },
+  "_quay": "Per-project override of the quay CLI entrypoint: a map from an ABSOLUTE project root to the ABSOLUTE path of that project's `<plugin>/bin/quay`. It is consulted first, before Claude Code plugin scopes (local > project > user), the legacy non-cache `.quay/plugin` pin and the bare `quay` on PATH. Empty (the shipped value) means every project resolves from a plugin scope; an entry whose value is not an absolute path is ignored and reported in the server log. Read at boot like the rest of this file.",
   "architecture": {
     "refresh": {
       "cliPath": "",

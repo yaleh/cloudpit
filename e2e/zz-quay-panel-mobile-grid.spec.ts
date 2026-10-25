@@ -85,27 +85,34 @@ const USERNAME = 'e2euser';
 const PASSWORD = 'e2epassword';
 
 /**
- * The quay plugin directory the fixture's `.quay/plugin` link points at.
+ * The quay plugin directory to mirror into the fixture, or `null` when none is discoverable.
  *
- * A TASK WORKTREE HAS NO LOCAL `.quay/`: that tree is operator state, not checked in, so this
- * spec used to die on `fs.realpathSync(REPO_ROOT/.quay/plugin)` when run from a worktree. The
- * server spawns `<projectRoot>/.quay/plugin/bin/quay`, so the fixture needs SOME real plugin:
- * the checkout's own when present (the wiring the repo runs on), otherwise the installed plugin
- * cache the drivers themselves run from. The version is discovered, never pinned.
+ * The server resolves the project's CLI through the Claude Code plugin scopes (see
+ * `quay-entrypoint-resolver.ts`), so the fixture does NOT require a `.quay/plugin` link and this
+ * file no longer calls `realpathSync` on the checkout's link (which does not exist in a task
+ * worktree). The link is written opportunistically for quay's own config loader; when no plugin
+ * can be discovered the fixture simply proceeds without it.
  */
-const resolveQuayPlugin = (): string => {
-  const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
-  if (fs.existsSync(repoPlugin)) {
-    return fs.realpathSync(repoPlugin);
+const resolveQuayPlugin = (): string | null => {
+  try {
+    const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
+    if (fs.existsSync(repoPlugin)) {
+      return fs.realpathSync(repoPlugin);
+    }
+  } catch {
+    // A dangling checkout link is the retired mechanism; fall through to the cache.
   }
   const cache = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'quay', 'quay');
-  const versions = fs.existsSync(cache)
-    ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
-    : [];
+  let versions: string[] = [];
+  try {
+    versions = fs.existsSync(cache)
+      ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
+      : [];
+  } catch {
+    return null;
+  }
   if (versions.length === 0) {
-    throw new Error(
-      `no quay plugin to wire into the fixture: neither ${repoPlugin} nor an install under ${cache}`,
-    );
+    return null;
   }
   versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   return path.join(cache, versions[versions.length - 1] as string);
@@ -128,20 +135,24 @@ const seedFixtureProject = (): void => {
   }
 
   // The repository's own `.quay/config.yml` carries no literal `mcp_entry` any more — the
-  // native provider now derives it from the `.quay/plugin` symlink (quay >= 0.17.0: an entry
-  // missing `mcp_entry` resolves it from that symlink's `dist/quay-native.js`, rather than
-  // requiring a project to restate the vendored runtime path). This file previously copied an
-  // `mcp_entry:` line out of the repo's config with a regex, which the schema change left
-  // matching nothing (`REPO_QUAY_CONFIG` has no such line to find — read-fix, not a change in
-  // what the fixture needs). The fixture now mirrors the repo's own, currently-working wiring
-  // instead: point `.quay/plugin` at the same installed plugin the repo checkout points to, and
-  // omit `mcp_entry` so the native provider derives it the same way the real project does.
-  const repoPluginTarget = resolveQuayPlugin();
+  // native provider derives it from the plugin it runs from (quay >= 0.17.0: an entry missing
+  // `mcp_entry` resolves it from the plugin's `dist/quay-native.js`, rather than requiring a
+  // project to restate the vendored runtime path). This file previously copied an `mcp_entry:`
+  // line out of the repo's config with a regex, which the schema change left matching nothing
+  // (`REPO_QUAY_CONFIG` has no such line to find — read-fix, not a change in what the fixture
+  // needs). A `.quay/plugin` link is NOT required: the server resolves the CLI through the
+  // Claude Code plugin scopes, and this fixture writes the link only when a real plugin is
+  // discoverable so quay's own config loader derives the native runtime the same way the real
+  // project does. This is what makes the spec work in a task worktree, where `.quay/` is
+  // operator state and does not exist.
+  const quayPlugin = resolveQuayPlugin();
   const pluginLink = path.join(WORKSPACE, '.quay', 'plugin');
   // Idempotent: this file seeds the same fixture once per case, so the second case finds the
   // link the first one made (and `symlinkSync` would otherwise fail with EEXIST).
   fs.rmSync(pluginLink, { recursive: true, force: true });
-  fs.symlinkSync(repoPluginTarget, pluginLink);
+  if (quayPlugin !== null) {
+    fs.symlinkSync(quayPlugin, pluginLink);
+  }
 
   fs.writeFileSync(
     path.join(WORKSPACE, '.quay', 'config.yml'),

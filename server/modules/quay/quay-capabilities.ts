@@ -24,7 +24,7 @@ export type QuayCapabilities = {
  * replacing/updating the binary invalidates the probe without anyone remembering to.
  */
 export type QuayEntrypointIdentity = {
-  /** The resolved target of `<projectRoot>/.quay/plugin/bin/quay` (or the bare `quay` on PATH). */
+  /** The resolved target of the project's quay CLI (from the entrypoint resolver, or bare `quay`). */
   realpath: string;
   /** The target file's modification time, epoch milliseconds. */
   mtimeMs: number;
