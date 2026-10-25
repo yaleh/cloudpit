@@ -1,7 +1,7 @@
 ---
 id: gap-composer-quote-insert-breaks-only-for-multiline
 title: 引用插入：末尾空行加 2 个回车的规则收缩为仅当插入文本含换行符时才触发
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -171,3 +171,12 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - 未落地原因：step=suite: __PERFILE__ duration_ms=43799 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792945946340
 - run_id：wk-prod-anchor
 - session_id：ac47eb6a-4b35-4fa6-aa29-a44caacb598f
+
+**2026-10-26T02:00Z — worker 主动 park（needs-human）：fan-in 的 rerun / baseline 300s 超时 ⇒ 永远 not-evaluated；红在 develop 侧、执行侧不可满足**
+
+- 指纹 1（本轮驱动日志 `footer` 见 `.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log`）：`rerun` → `state="rerun-not-evaluated"` / `reason="rerun-aborted"`；`baseline-red` → `verdict="not-evaluated"` / `reason="baseline rerun aborted"`。
+- 指纹 2（fileRecurrence ⇒ `unrelated-flaky-exempt` ⇒ 跳过 `advanceRetryCap`）：本轮 `failedTestFiles.files` 15 个；同一批文件在兄弟任务 `cockpit-grid-pos-and-remote-focus-label`（`.quay/baseline-red-rounds.jsonl`，`claude-resident-addressable` / `unattended-turn`）与 `gap-quay-snapshot-loop-status-version-drain-orphan` 的 Blocker（`claude-resident-busy-input`）复现 ⇒ 纯 exit 不会停，只会再派一轮。
+- 指纹 3：驱动基线日志 `~baseline-1792946844495-f58569.log` 只写了 5 条 `__PERFILE__` 就断（300s SIGKILL），而任务侧 suite 点名 15 个失败文件。
+- 红在 develop：基线（纯 develop 检出 `.baseline-red-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor/`）逐字同一批 `passed=false` 与同一批断言文本；本 delta 只有 `src/modules/chat/**` 的 4 个前端文件，与它们无导入交集，改它们会 red 掉 anti-drift ⇒ 执行侧不可满足。
+- 本轮 AC 复核：`task_check` AC 5/5、DoD 5/5；`anti-drift-touches-check` exit 0；5 个被点名文件用驱动 rerun 同形式（`bash scripts/test.sh <file>`）复跑全绿（读数见上面 `## Notes`）；`git merge develop` 干净、worktree clean。分支交付物完整，**无需重实现**。
+- 收口路径（二选一）：(a) 基础设施 owner 抬高 `RERUN_TIMEOUT_MS` / 让 rerun 并行 / 超时改用「与驱动基线日志逐文件比对」；(b) 人或 owner 任务把 develop 那批红修绿后，把本任务重置回 `ready`，driver 的 fan-in 即可直接 ff。
