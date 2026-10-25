@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { act, render, renderHook, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, test, vi } from 'vitest';
 
@@ -13,6 +13,7 @@ import QuayPanel, {
   IN_FLIGHT_STALE_AFTER_MS,
 } from '@/modules/quay/QuayPanel';
 import { type QuayPanelView, useQuayStatus } from '@/modules/quay/hooks/useQuayStatus';
+import { useSessionPulseWindow } from '@/modules/quay/hooks/useSessionPulse';
 
 // The panel's in-flight reading travels hook → route → carrier. Only the network
 // hop is stubbed; the test below drives the real `useQuayStatus` so the reading
@@ -24,6 +25,9 @@ vi.mock('@/shared/api', () => ({ api: { quaySnapshot: apiMock.quaySnapshot } }))
 // leak into the next hook mount (jsdom reuses one `window` across a file).
 beforeEach(() => {
   window.history.replaceState({}, '', '/');
+  // The window is persisted per project in localStorage now; jsdom reuses one storage area
+  // across a file, so one case's selection must not leak into the next hook mount.
+  window.localStorage.clear();
 });
 
 const DASHBOARD_URL = 'http://172.28.0.1:3651/';
@@ -829,27 +833,78 @@ test('QuayPanel states the snapshot’s own unavailable reason, and the two reas
   assert.notEqual(upgrade, retry, 'an un-upgraded plugin and a failed read must not share one sentence');
 });
 
-test('the Loop pulse window is persisted to the URL, restored on mount, and a non-offered value falls back', async () => {
+test('the Loop pulse window is stored per project in localStorage — never in the URL — and illegal values fall back', async () => {
   apiMock.quaySnapshot.mockResolvedValue({ ok: true, json: async () => SNAPSHOT });
+  // An OLD link carrying the retired URL parameter must be ignored entirely.
+  window.history.replaceState({}, '', '/?quayWindow=6');
 
   const first = renderHook(() => useQuayStatus(CLOUD_PROJECT_ID, true, true));
   await waitFor(() => assert.equal(first.result.current.view.status, 'loaded'));
   assert.equal(first.result.current.windowHours, 3, 'the default window is the starting point');
+  assert.equal(
+    new URLSearchParams(window.location.search).get('quayWindow'),
+    '6',
+    'the URL parameter is not even read',
+  );
 
   await act(async () => first.result.current.setWindowHours(12));
-  assert.equal(new URLSearchParams(window.location.search).get('quayWindow'), '12', 'the choice is written to the URL');
+  assert.equal(
+    window.localStorage.getItem(`quay-tab-window:${CLOUD_PROJECT_ID}`),
+    '12',
+    'the choice is written to the Quay tab\'s own per-project key',
+  );
+  assert.equal(
+    new URLSearchParams(window.location.search).get('quayWindow'),
+    '6',
+    'selecting a window must leave the address bar unchanged',
+  );
+  assert.equal(
+    window.localStorage.getItem(`quay-pulse-window:${CLOUD_PROJECT_ID}`),
+    null,
+    'the Quay tab must not write the popover\'s window key',
+  );
   first.unmount();
 
-  // A fresh mount is what a page reload does: it reads the window back from the URL.
+  // A fresh mount is what a page reload does: it reads the window back from localStorage.
   const second = renderHook(() => useQuayStatus(CLOUD_PROJECT_ID, true, true));
   assert.equal(second.result.current.windowHours, 12, 'a reload must restore the selected window');
   second.unmount();
 
   // A value outside the offered set is not honoured — it falls back to the default rather than
   // driving a read the card has no button for.
-  window.history.replaceState({}, '', '/?quayWindow=5');
+  window.localStorage.setItem(`quay-tab-window:${CLOUD_PROJECT_ID}`, '5');
   const third = renderHook(() => useQuayStatus(CLOUD_PROJECT_ID, true, true));
   assert.equal(third.result.current.windowHours, 3);
+  third.unmount();
+
+  window.localStorage.setItem(`quay-tab-window:${CLOUD_PROJECT_ID}`, 'abc');
+  const fourth = renderHook(() => useQuayStatus(CLOUD_PROJECT_ID, true, true));
+  assert.equal(fourth.result.current.windowHours, 3);
+  fourth.unmount();
+});
+
+test('switching projects re-reads each project\'s own window instead of carrying the previous one across', async () => {
+  apiMock.quaySnapshot.mockResolvedValue({ ok: true, json: async () => SNAPSHOT });
+  const OTHER_PROJECT_ID = 'other-project-id';
+
+  window.localStorage.setItem(`quay-tab-window:${CLOUD_PROJECT_ID}`, '12');
+  window.localStorage.setItem(`quay-tab-window:${OTHER_PROJECT_ID}`, '6');
+
+  const { result, rerender } = renderHook(
+    ({ projectId }: { projectId: string }) => useQuayStatus(projectId, true, true),
+    { initialProps: { projectId: CLOUD_PROJECT_ID } },
+  );
+  assert.equal(result.current.windowHours, 12, 'the first project\'s own value is read');
+
+  rerender({ projectId: OTHER_PROJECT_ID });
+  assert.equal(result.current.windowHours, 6, 'the second project\'s own value replaces it');
+
+  // The reverse direction: a selection in the title-bar popover must not move the Quay tab's
+  // key, and the Quay tab's selection above must not have written the popover's key.
+  const popover = renderHook(() => useSessionPulseWindow(OTHER_PROJECT_ID));
+  await act(async () => popover.result.current.setWindowHours(1));
+  assert.equal(window.localStorage.getItem(`quay-pulse-window:${OTHER_PROJECT_ID}`), '1');
+  assert.equal(window.localStorage.getItem(`quay-tab-window:${OTHER_PROJECT_ID}`), '6');
 });
 
 /* ── the three charts share one time axis (gap-quay-tab-three-timelines-share-no-time-axis) ─────
@@ -1244,4 +1299,155 @@ test('the loaded panel draws its three charts with no pulse strip above them', (
   getByTestId('quay-gantt');
   getByTestId('quay-panel-tests-timeline');
   getByTestId('quay-panel-fanin-timeline');
+});
+
+/* ── the three-layer Quay tab layout (gap-quay-tab-status-band-charts-session-first-layout) ──
+ *
+ * The user's stated priority: the loop's overall status and the three time charts first, the
+ * current session's tasks/goals next, everything else last. Before this the panel was a single
+ * two-column grid where the charts sat in separate cells (so their timelines did not align) and
+ * nothing on it was session-specific. These cases pin the new order and the movement.
+ */
+
+/** Render the loaded panel with a session column (the workspace always passes an id or null). */
+const renderLoadedWithSession = (snapshot: QuaySnapshot = SNAPSHOT, collapsibleDetails = false) =>
+  render(
+    <QuayPanel
+      projectId={CLOUD_PROJECT_ID}
+      view={{ status: 'loaded', snapshot }}
+      onRefresh={() => {}}
+      dashboardUrl={null}
+      sessionId={null}
+      collapsibleDetails={collapsibleDetails}
+    />,
+  );
+
+test('the loaded panel orders status band → charts → session panel → details', () => {
+  const { getByTestId } = renderLoadedWithSession();
+
+  const band = getByTestId('quay-status-band');
+  const charts = getByTestId('quay-tab-charts');
+  const session = getByTestId('quay-session-panel');
+  const details = getByTestId('quay-tab-details');
+
+  const ordered: Array<[string, Element, Element]> = [
+    ['status band before charts', band, charts],
+    ['charts before session panel', charts, session],
+    ['session panel before details', session, details],
+  ];
+  for (const [label, before, after] of ordered) {
+    assert.ok(
+      (before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      label,
+    );
+  }
+
+  // The charts and the session panel are SIBLINGS inside one container: on `lg` that container
+  // is two columns (charts ~3/5, session ~2/5); below `lg` it is one column.
+  assert.equal(charts.parentElement, session.parentElement, 'charts and session panel must be siblings');
+  const parentTokens = (charts.parentElement?.className ?? '').split(/\s+/);
+  assert.ok(parentTokens.includes('grid-cols-1'), `the two-layer container needs a single-column base: ${parentTokens.join(' ')}`);
+  assert.ok(
+    parentTokens.some((token) => token.startsWith('lg:grid-cols-')),
+    `the two-layer container must declare its desktop columns: ${parentTokens.join(' ')}`,
+  );
+  assert.equal(details.parentElement, charts.parentElement?.parentElement, 'details must sit below the two-layer container');
+});
+
+test('the three charts move into one single-column container and each card appears exactly once', () => {
+  const { getByTestId, container } = renderLoadedWithSession();
+
+  const charts = getByTestId('quay-tab-charts');
+  assert.ok(
+    charts.className.split(/\s+/).includes('grid-cols-1'),
+    `the chart container must be a single column: ${charts.className}`,
+  );
+
+  // ORDER inside the container: Loop pulse, Tests, Fan-in.
+  const chartIds = Array.from(
+    charts.querySelectorAll('[data-testid="quay-panel-loop-pulse"], [data-testid="quay-panel-tests"], [data-testid="quay-panel-fanin"]'),
+  ).map((element) => element.getAttribute('data-testid'));
+  assert.deepEqual(chartIds, ['quay-panel-loop-pulse', 'quay-panel-tests', 'quay-panel-fanin']);
+
+  // Exactly once on the page — the move must not leave a copy behind in the detail grid.
+  for (const testId of [
+    'quay-panel-loop-pulse',
+    'quay-panel-tests',
+    'quay-panel-fanin',
+    'quay-panel-task-ledger',
+    'quay-panel-stage-goals',
+    'quay-panel-inflight',
+  ]) {
+    assert.equal(
+      container.querySelectorAll(`[data-testid="${testId}"]`).length,
+      1,
+      `${testId} must appear exactly once`,
+    );
+  }
+
+  // The other three cards now live only inside layer 3.
+  const details = getByTestId('quay-tab-details');
+  for (const testId of ['quay-panel-task-ledger', 'quay-panel-stage-goals', 'quay-panel-inflight']) {
+    assert.ok(details.querySelector(`[data-testid="${testId}"]`), `${testId} must be inside quay-tab-details`);
+  }
+});
+
+test('mobile folds every layer-3 card into a collapsed, keyboard-operable Collapsible with a count', () => {
+  const collapsed = renderLoadedWithSession(SNAPSHOT, true);
+  const collapsedView = within(collapsed.container);
+  const details = collapsedView.getByTestId('quay-tab-details');
+
+  const wrappers = Array.from(details.querySelectorAll('[data-collapsible="true"]'));
+  assert.equal(wrappers.length, 5, 'every layer-3 card (task ledger, goals, in flight, driver, ADRs) is wrapped');
+  assert.deepEqual(
+    wrappers.map((wrapper) => wrapper.getAttribute('data-testid')),
+    [
+      'quay-detail-task-ledger',
+      'quay-detail-stage-goals',
+      'quay-detail-inflight',
+      'quay-detail-driver',
+      'quay-detail-adrs',
+    ],
+  );
+
+  for (const wrapper of wrappers) {
+    assert.equal(wrapper.getAttribute('data-state'), 'closed', 'every card defaults to collapsed');
+    const trigger = wrapper.querySelector('button');
+    assert.ok(trigger, 'each card has a trigger');
+    assert.equal(trigger.tagName, 'BUTTON', 'a native button is keyboard-operable');
+    assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+  }
+
+  // The title row carries the card's count.
+  assert.equal(collapsedView.getByTestId('quay-detail-count-task-ledger').textContent, String(SNAPSHOT.tasks?.total));
+  assert.equal(collapsedView.getByTestId('quay-detail-count-stage-goals').textContent, String(SNAPSHOT.goals?.total));
+  assert.equal(collapsedView.getByTestId('quay-detail-count-adrs').textContent, String(SNAPSHOT.adrs?.total));
+
+  // Expanding reveals the same card: its testid and content did not change.
+  const taskLedger = collapsedView.getByTestId('quay-panel-task-ledger');
+  const contentBefore = taskLedger.textContent;
+  fireEvent.click(collapsedView.getByTestId('quay-detail-toggle-task-ledger'));
+  const expandedWrapper = collapsedView.getByTestId('quay-detail-task-ledger');
+  assert.equal(expandedWrapper.getAttribute('data-state'), 'open');
+  assert.equal(
+    collapsedView.getByTestId('quay-detail-toggle-task-ledger').getAttribute('aria-expanded'),
+    'true',
+  );
+  assert.equal(collapsedView.getByTestId('quay-panel-task-ledger'), taskLedger);
+  assert.equal(taskLedger.textContent, contentBefore);
+
+  // Without the switch (desktop), nothing is wrapped and every card is simply present.
+  const expanded = renderLoadedWithSession(SNAPSHOT, false);
+  const expandedView = within(expanded.container);
+  assert.equal(expanded.container.querySelectorAll('[data-collapsible="true"]').length, 0);
+  assert.equal(expanded.container.querySelector('[data-testid="quay-detail-toggle-task-ledger"]'), null);
+  for (const testId of [
+    'quay-panel-task-ledger',
+    'quay-panel-stage-goals',
+    'quay-panel-inflight',
+    'quay-panel-driver-last-record',
+    'quay-panel-recent-adrs',
+  ]) {
+    expandedView.getByTestId(testId);
+  }
 });

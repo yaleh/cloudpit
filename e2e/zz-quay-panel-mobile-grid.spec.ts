@@ -135,11 +135,16 @@ const seedFixtureProject = (): void => {
   }
 
   // The repository's own `.quay/config.yml` carries no literal `mcp_entry` any more — the
-  // native provider now derives it from the plugin root (quay >= 0.17.0). The fixture mirrors
-  // the repo's own wiring when discoverable, but a `.quay/plugin` link is NOT required: the
-  // server resolves the CLI through the Claude Code plugin scopes, and quay's own config loader
-  // derives the native runtime from the plugin it runs from. This is what makes the spec work in
-  // a task worktree, where `.quay/` is operator state and does not exist.
+  // native provider derives it from the plugin it runs from (quay >= 0.17.0: an entry missing
+  // `mcp_entry` resolves it from the plugin's `dist/quay-native.js`, rather than requiring a
+  // project to restate the vendored runtime path). This file previously copied an `mcp_entry:`
+  // line out of the repo's config with a regex, which the schema change left matching nothing
+  // (`REPO_QUAY_CONFIG` has no such line to find — read-fix, not a change in what the fixture
+  // needs). A `.quay/plugin` link is NOT required: the server resolves the CLI through the
+  // Claude Code plugin scopes, and this fixture writes the link only when a real plugin is
+  // discoverable so quay's own config loader derives the native runtime the same way the real
+  // project does. This is what makes the spec work in a task worktree, where `.quay/` is
+  // operator state and does not exist.
   const quayPlugin = resolveQuayPlugin();
   const pluginLink = path.join(WORKSPACE, '.quay', 'plugin');
   // Idempotent: this file seeds the same fixture once per case, so the second case finds the
@@ -436,6 +441,98 @@ const readGanttGeometry = (page: Page): Promise<{ svgWidth: number; aspectRatio:
     };
   });
 
+/**
+ * The three-layer layout reading (gap-quay-tab-status-band-charts-session-first-layout).
+ *
+ * `order` is the DOM order of the four layer marks — status band, charts, session panel,
+ * details — sorted by document position. `layersTracks` is the computed column count of the
+ * container the charts and session panel share: two at `lg`, one below it. `detailsCollapsed`
+ * reads every layer-3 card's wrapping `Collapsible`: on mobile all five are closed by default,
+ * on desktop there is no wrapper at all.
+ */
+type LayersReading = {
+  order: string[];
+  layersTemplate: string;
+  layersTracks: number;
+  detailsCollapsed: Array<{ id: string; state: string; expanded: string | null }>;
+};
+
+const readLayers = (page: Page): Promise<LayersReading> =>
+  page.evaluate(() => {
+    const layerIds = ['quay-status-band', 'quay-tab-charts', 'quay-session-panel', 'quay-tab-details'];
+    const nodes = layerIds
+      .map((id) => document.querySelector(`[data-testid="${id}"]`))
+      .filter((node): node is Element => node !== null);
+    const ordered = [...nodes].sort((left, right) =>
+      (left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 ? -1 : 1,
+    );
+    const layers = document.querySelector('[data-testid="quay-tab-layers"]');
+    const template = layers ? getComputedStyle(layers).gridTemplateColumns : '';
+    return {
+      order: ordered.map((node) => node.getAttribute('data-testid') ?? ''),
+      layersTemplate: template,
+      layersTracks: template.split(/\s+/).filter(Boolean).length,
+      detailsCollapsed: [...document.querySelectorAll('[data-testid="quay-tab-details"] [data-collapsible="true"]')]
+        .map((wrapper) => ({
+          id: wrapper.getAttribute('data-testid') ?? '',
+          state: wrapper.getAttribute('data-state') ?? '',
+          expanded: wrapper.querySelector('button')?.getAttribute('aria-expanded') ?? null,
+        })),
+    };
+  });
+
+/**
+ * Geometry of the four layer marks plus the three charts' plot boxes.
+ *
+ * The DoD asks for (a) each layer's `getBoundingClientRect` and (b) the three charts' plotting
+ * areas to start and end at the same x — the previous layout put them in two grid cells, so their
+ * time axes did not line up. Both are read in one evaluate so the numbers describe one instant.
+ */
+type SectionGeometry = {
+  sections: Record<string, { left: number; top: number; width: number; height: number } | null>;
+  charts: Array<{ id: string; left: number; right: number; width: number }>;
+};
+
+const readSectionGeometry = (page: Page): Promise<SectionGeometry> =>
+  page.evaluate(() => {
+    const box = (element: Element | null) => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    };
+    const sectionIds = ['quay-status-band', 'quay-tab-charts', 'quay-session-panel', 'quay-tab-details'];
+    const sections: SectionGeometry['sections'] = {};
+    for (const id of sectionIds) {
+      sections[id] = box(document.querySelector(`[data-testid="${id}"]`));
+    }
+    const chartIds = ['quay-gantt-svg', 'quay-panel-tests-timeline', 'quay-panel-fanin-timeline'];
+    const charts = chartIds.flatMap((id) => {
+      const rect = document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect();
+      return rect ? [{ id, left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) }] : [];
+    });
+    return { sections, charts };
+  });
+
+/**
+ * Writes a DoD screenshot when `QUAY_E2E_SCREENSHOT_DIR` names a directory.
+ *
+ * The UI-verification DoD wants the real page captured at several viewports, light and dark; this
+ * is the mechanism for that. It is OFF by default so a normal e2e run does not litter the tree.
+ */
+const capture = async (page: Page, name: string): Promise<void> => {
+  const dir = process.env.QUAY_E2E_SCREENSHOT_DIR;
+  if (!dir) return;
+  fs.mkdirSync(dir, { recursive: true });
+  const target = path.join(dir, name);
+  await page.screenshot({ path: target, fullPage: true });
+  console.log(`[quay-grid] screenshot ${target}`);
+};
+
 /* ── the case ────────────────────────────────────────────────────────────────── */
 
 test.describe('the Quay panel on a 390px phone', () => {
@@ -468,6 +565,59 @@ test.describe('the Quay panel on a 390px phone', () => {
     );
     const page = await context.newPage();
 
+    // A real lane reading, injected into the real snapshot response: the fixture project has no
+    // live worker, and the DoD's chart-alignment reading needs the gantt to actually draw. Auth,
+    // project resolution and the rest of the snapshot stay the server's own.
+    const injectedNowMs = Date.now();
+    await page.route('**/api/quay/**', async (route) => {
+      if (!route.request().url().includes('/snapshot')) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const snapshot = await response.json();
+      snapshot.gantt = {
+        windowHours: 3,
+        nowMs: injectedNowMs,
+        overflow: 0,
+        lanes: [[
+          {
+            taskId: 'e2e-layout-gantt',
+            runId: 'worker-e2e-layout-gantt',
+            startMs: injectedNowMs - 3_600_000,
+            endMs: injectedNowMs,
+            phase: 'implementing',
+            finalState: null,
+            fanInOutcome: null,
+          },
+        ]],
+      };
+      // One in-window record for BOTH bars, so the Tests and Fan-in charts draw their SVG (an
+      // empty reading renders an empty-state line, not a plot) and the alignment reading has
+      // three real plot boxes to compare.
+      snapshot.tests = {
+        ...snapshot.tests,
+        recentRounds: [{
+          round: 1,
+          startedAt: new Date(injectedNowMs - 2 * 3_600_000).toISOString(),
+          durationMs: 60_000,
+          pass: 1,
+          fail: 0,
+          tests: 1,
+          state: 'green',
+        }],
+      };
+      snapshot.fanIn = {
+        recent: [{
+          task: 'e2e-layout-fanin',
+          outcome: 'landed',
+          lockAcquireEpoch: Math.floor((injectedNowMs - 2 * 3_600_000) / 1000),
+          lockReleaseEpoch: Math.floor((injectedNowMs - 2 * 3_600_000 + 60_000) / 1000),
+        }],
+      };
+      await route.fulfill({ response, json: snapshot });
+    });
+
     try {
       await waitForFixtureProject(api);
 
@@ -490,7 +640,9 @@ test.describe('the Quay panel on a 390px phone', () => {
 
       // The mobile workspace header replaces the tablist with a selector dialog, which is how a
       // phone reaches the Quay view at all.
-      const selector = page.locator('header [aria-haspopup="dialog"]');
+      // The quay pulse trigger in the header is ALSO an `aria-haspopup="dialog"` control;
+      // scope the workspace selector to the tab button itself rather than relying on order.
+      const selector = page.locator('header [data-workspace-tab][aria-haspopup="dialog"]');
       await expect(selector, 'the workspace selector must render once the fixture project is selected').toBeVisible({
         timeout: 20_000,
       });
@@ -504,8 +656,75 @@ test.describe('the Quay panel on a 390px phone', () => {
       await quayTab.click();
 
       await expect(page.locator('[data-testid="quay-panel-loaded"]')).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('[data-testid="quay-panel-recent-tasks"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-testid="quay-panel-recent-tasks"]')).toBeAttached({ timeout: 20_000 });
+
+      // The session column: this fixture transcript mentions no quay task, so the honest
+      // empty state is what must render (the populated state is covered by the unit criterion).
+      await expect(page.getByTestId('quay-session-mentions-empty')).toBeVisible({ timeout: 20_000 });
       await page.waitForTimeout(300);
+
+      // The Quay tab's window is persisted per project in localStorage, not in the URL, and it
+      // must not touch the title-bar popover's key. The injected lane reading enables the
+      // selector even though the fixture project has no live worker.
+      const windowSelector = page.getByTestId('quay-gantt-window-6');
+      await expect(windowSelector).toBeEnabled({ timeout: 10_000 });
+      await windowSelector.click();
+      await page.waitForTimeout(200);
+      const windowReading = await page.evaluate(() => {
+        const tabKeys = Object.keys(window.localStorage).filter((key) => key.startsWith('quay-tab-window:'));
+        return {
+          search: window.location.search,
+          tabKeys,
+          tabValue: tabKeys.length === 1 ? window.localStorage.getItem(tabKeys[0] as string) : null,
+          pulseKeys: Object.keys(window.localStorage).filter((key) => key.startsWith('quay-pulse-window:')),
+        };
+      });
+      console.log(`[quay-grid] window ${JSON.stringify(windowReading)}`);
+      expect(windowReading.tabKeys).toHaveLength(1);
+      expect(windowReading.tabValue).toBe('6');
+      expect(windowReading.search).not.toContain('quayWindow');
+      expect(windowReading.pulseKeys).toHaveLength(0);
+      await page.getByTestId('quay-gantt-window-3').click();
+      await page.waitForTimeout(200);
+
+      // THREE LAYERS, in order: status band → charts → session panel → details. Below `lg` the
+      // charts/session container is one column, and every layer-3 card is collapsed by default.
+      const mobileLayers = await readLayers(page);
+      console.log(`[quay-grid] mobile layers ${JSON.stringify(mobileLayers)}`);
+      expect(mobileLayers.order).toEqual([
+        'quay-status-band',
+        'quay-tab-charts',
+        'quay-session-panel',
+        'quay-tab-details',
+      ]);
+      expect(mobileLayers.layersTracks, `the two-layer container must be one column on a phone: ${mobileLayers.layersTemplate}`).toBe(1);
+      expect(mobileLayers.detailsCollapsed).toHaveLength(5);
+      for (const card of mobileLayers.detailsCollapsed) {
+        expect(card.state, `${card.id} must default to collapsed`).toBe('closed');
+        expect(card.expanded, `${card.id}'s trigger must report aria-expanded=false`).toBe('false');
+      }
+
+      await capture(page, 'quay-tab-mobile-390-collapsed.png');
+
+      // Expand the Task ledger card, which owns the recent-tasks rows the geometry cases read.
+      await page.getByTestId('quay-detail-toggle-task-ledger').click();
+      await expect(page.getByTestId('quay-detail-task-ledger')).toHaveAttribute('data-state', 'open');
+      await page.waitForTimeout(300);
+      await capture(page, 'quay-tab-mobile-390-expanded.png');
+
+      // Layer geometry (DoD): the four marks stack in order below `lg`, and the three charts'
+      // plotting boxes share the same left/right x — they are cut to one window in one column.
+      const mobileGeometry = await readSectionGeometry(page);
+      console.log(`[quay-grid] mobile geometry ${JSON.stringify(mobileGeometry)}`);
+      expect(mobileGeometry.sections['quay-status-band']?.top).toBeLessThan(mobileGeometry.sections['quay-tab-charts']?.top ?? -1);
+      expect(mobileGeometry.sections['quay-tab-charts']?.top).toBeLessThan(mobileGeometry.sections['quay-session-panel']?.top ?? -1);
+      expect(mobileGeometry.sections['quay-session-panel']?.top).toBeLessThan(mobileGeometry.sections['quay-tab-details']?.top ?? -1);
+      expect(mobileGeometry.charts).toHaveLength(3);
+      const [firstChart, ...restCharts] = mobileGeometry.charts;
+      for (const chart of restCharts) {
+        expect(chart.left, `${chart.id} must share the gantt's left edge`).toBe(firstChart.left);
+        expect(chart.right, `${chart.id} must share the gantt's right edge`).toBe(firstChart.right);
+      }
 
       const reading = await readPanel(page);
       console.log(`[quay-grid] ${describeReading(reading)}`);
@@ -588,6 +807,34 @@ test.describe('the Quay panel on a 390px phone', () => {
       // layout, and this is the reading that says so.
       await page.setViewportSize({ width: DESKTOP_VIEWPORT.width, height: DESKTOP_VIEWPORT.height });
       await page.waitForTimeout(300);
+      const desktopLayers = await readLayers(page);
+      console.log(`[quay-grid] desktop layers ${JSON.stringify(desktopLayers)}`);
+      expect(desktopLayers.order).toEqual([
+        'quay-status-band',
+        'quay-tab-charts',
+        'quay-session-panel',
+        'quay-tab-details',
+      ]);
+      // At `lg` the charts and the session panel sit side by side (two tracks) and the detail
+      // cards are rendered unwrapped (always expanded).
+      expect(desktopLayers.layersTracks, `the two-layer container must be two columns on desktop: ${desktopLayers.layersTemplate}`).toBe(2);
+      expect(desktopLayers.detailsCollapsed, 'desktop must not fold the detail cards').toHaveLength(0);
+
+      const desktopGeometry = await readSectionGeometry(page);
+      console.log(`[quay-grid] desktop geometry ${JSON.stringify(desktopGeometry)}`);
+      // Side by side at `lg`: the charts and the session panel share a top, and the details sit
+      // below both. The three charts still share one x-range.
+      expect(desktopGeometry.sections['quay-tab-charts']?.top).toBe(desktopGeometry.sections['quay-session-panel']?.top);
+      expect(desktopGeometry.sections['quay-status-band']?.top).toBeLessThan(desktopGeometry.sections['quay-tab-charts']?.top ?? -1);
+      expect(desktopGeometry.sections['quay-session-panel']?.top).toBeLessThan(desktopGeometry.sections['quay-tab-details']?.top ?? -1);
+      expect(desktopGeometry.charts).toHaveLength(3);
+      const [firstDesktopChart, ...restDesktopCharts] = desktopGeometry.charts;
+      for (const chart of restDesktopCharts) {
+        expect(chart.left, `${chart.id} must share the gantt's left edge`).toBe(firstDesktopChart.left);
+        expect(chart.right, `${chart.id} must share the gantt's right edge`).toBe(firstDesktopChart.right);
+      }
+      await capture(page, 'quay-tab-desktop-1280.png');
+
       const desktop = await readPanel(page);
       console.log(`[quay-grid] desktop ${describeReading(desktop)}`);
       expect(desktop.innerWidth, `the regression reading declares ${DESKTOP_VIEWPORT.width}px`).toBe(DESKTOP_VIEWPORT.width);
@@ -615,6 +862,21 @@ test.describe('the Quay panel on a 390px phone', () => {
           desktop,
         );
       }
+
+      // DoD viewport grid: 1440×900 (light and dark) and 1100×900 with the sidebar resident.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(300);
+      expect(await readLayers(page).then((layers) => layers.layersTracks)).toBe(2);
+      await capture(page, 'quay-tab-desktop-1440.png');
+      await page.evaluate(() => document.documentElement.classList.add('dark'));
+      await page.waitForTimeout(200);
+      await capture(page, 'quay-tab-desktop-1440-dark.png');
+      await page.evaluate(() => document.documentElement.classList.remove('dark'));
+
+      await page.setViewportSize({ width: 1100, height: 900 });
+      await page.waitForTimeout(300);
+      expect(await readLayers(page).then((layers) => layers.layersTracks)).toBe(2);
+      await capture(page, 'quay-tab-desktop-1100.png');
     } finally {
       await context.close();
       await api.dispose();
@@ -694,7 +956,9 @@ test.describe('the Quay panel on a 390px phone', () => {
       });
       await sessionRow.click();
 
-      const selector = page.locator('header [aria-haspopup="dialog"]');
+      // The quay pulse trigger in the header is ALSO an `aria-haspopup="dialog"` control;
+      // scope the workspace selector to the tab button itself rather than relying on order.
+      const selector = page.locator('header [data-workspace-tab][aria-haspopup="dialog"]');
       await expect(selector, 'the workspace selector must render once the fixture project is selected').toBeVisible({
         timeout: 20_000,
       });

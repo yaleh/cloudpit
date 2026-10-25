@@ -4341,6 +4341,134 @@ export type QuayEntrypointDiagnostic = {
 };
 
 /**
+ * How the quay kernel the loop is RUNNING compares with the quay version installed for
+ * this host, as `quay driver status --kind worker --json` reports it in `loaded_version`.
+ *
+ * The four states are mutually exclusive readings, not a numeric scale: `current` means
+ * the running kernel's version equals the installed one, `behind` means it is older,
+ * `ahead` means it is newer (a source checkout running ahead of the registry), and
+ * `not-evaluated` means quay could not take the reading at all (dead host, unreadable
+ * run record). `not-evaluated` is deliberately NOT an alias for `current`: a reader must
+ * never render "could not tell" as "up to date".
+ */
+export type QuayLoopVersionRelation = 'current' | 'behind' | 'ahead' | 'not-evaluated';
+
+/**
+ * The running kernel vs. installed version reading for the loop's anchor.
+ *
+ * `loaded` and `installed` are the raw version strings the CLI printed (`null` when the
+ * field was absent or not a string — an absent version is unknown, never `0.0.0`).
+ * `relation` is the four-state {@link QuayLoopVersionRelation}; an unknown or missing
+ * `loaded_version` reads `not-evaluated`, never `current`. `reason` explains why the
+ * relation could not be evaluated and is `null` only when the CLI gave a determinate
+ * relation.
+ */
+export type QuayLoopKernel = {
+  /** The version the running kernel reports it loaded (e.g. `0.22.0`), or `null` when unread. */
+  loaded: string | null;
+  /** The version installed on this host (e.g. `0.22.0`), or `null` when unread. */
+  installed: string | null;
+  /** The four-state comparison; `not-evaluated` is never collapsed into `current`. */
+  relation: QuayLoopVersionRelation;
+  /** Why `relation` is `not-evaluated`; `null` when the relation is determinate. */
+  reason: string | null;
+};
+
+/**
+ * quay's own reading of `<project>/.quay/plugin` — the symlink the project's commands and
+ * drivers resolve through — against the core plugin root the running kernel belongs to.
+ *
+ * `state` follows the same four-state vocabulary as {@link QuayLoopVersionRelation}:
+ * `current` when the link points at the kernel's own version, `behind`/`ahead` when it
+ * points at an older/newer one, and `not-evaluated` when quay could not read the link or
+ * a version (or reported a value this reader does not recognise). `linkVersion` is the
+ * version of the plugin the link pins, `coreVersion` the version of the kernel's root;
+ * either is `null` when unread. The whole object is `null` when the driver status carried
+ * no `pointer` segment at all (an older CLI), which reads as "not reported", never as
+ * "current".
+ */
+export type QuayLoopPointer = {
+  /** Four-state link-vs-core reading, never defaulting an unknown value to `current`. */
+  state: QuayLoopVersionRelation;
+  /** Version of the plugin pinned by `<project>/.quay/plugin`, or `null` when unread. */
+  linkVersion: string | null;
+  /** Version of the core plugin root the running kernel belongs to, or `null` when unread. */
+  coreVersion: string | null;
+};
+
+/**
+ * Whether Claude Code has marked the running kernel's version directory for deletion.
+ *
+ * `marked` means the version directory carries `.orphaned_at` and Claude Code's background
+ * cleanup will delete it once the retention window passes — the loop's scripts disappear
+ * with it. `none` means the directory carries no marker. `not-evaluated` means the marker
+ * exists but could not be read or held no millisecond timestamp. `not-applicable` means
+ * `loaded_kernel` does not live under the plugin cache (e.g. a scratch build), so orphan
+ * marking cannot apply. `not-evaluated` and `not-applicable` are never `none`.
+ */
+export type QuayLoopOrphanState = 'none' | 'marked' | 'not-evaluated' | 'not-applicable';
+
+/**
+ * The orphan-marker reading for the kernel directory the loop is running from.
+ *
+ * `markedAt` is when Claude Code recorded the marker, as ISO-8601, and `removeAfter` is
+ * the documented retention deadline (`markedAt` + 14 days) after which the directory may
+ * be deleted. Both are `null` unless `state` is `marked`.
+ */
+export type QuayLoopOrphan = {
+  /** Whether the running kernel's version directory is orphan-marked (see above). */
+  state: QuayLoopOrphanState;
+  /** Marker timestamp as ISO-8601, or `null` unless `state` is `marked`. */
+  markedAt: string | null;
+  /** `markedAt` + 14 days (Claude Code's documented retention), or `null` unless `marked`. */
+  removeAfter: string | null;
+};
+
+/**
+ * Whether each quay driver kind is drained (halted) in this project.
+ *
+ * `true` means the control file's `halted` flag is set — the driver accepts no new work;
+ * `false` means the file says it is running, or the file does not exist (never drained);
+ * `null` means the file exists but its JSON is unreadable or `halted` is not a boolean.
+ * `null` is never folded into `false`: "cannot tell" and "running" are different facts.
+ */
+export type QuayLoopDrain = {
+  /** Worker-dispatch halt flag (`.quay/worker-control.json`). */
+  worker: boolean | null;
+  /** Promotion-dispatch halt flag (`.quay/promotion-control.json`). */
+  promotion: boolean | null;
+  /** Quality-dispatch halt flag (`.quay/quality-control.json`). */
+  quality: boolean | null;
+};
+
+/**
+ * The loop's OVERALL running-status reading: what version the kernel the loop is running
+ * from actually is, whether the project's `.quay/plugin` pointer agrees, whether the
+ * drivers are drained, and whether Claude Code is about to delete the very directory the
+ * loop runs from.
+ *
+ * This is a separate, purely additive projection of the SAME `driver status --kind worker
+ * --json` document plus two small file reads — it costs no extra subprocess. A missing or
+ * `null` reading on {@link QuaySnapshot.loop} means "the loop status was not read", which
+ * must never be rendered as "everything is normal": every field here has an explicit
+ * unknown state (`not-evaluated` / `null`) for exactly that reason.
+ */
+export type QuayLoopStatus = {
+  /** PID of the anchor process the loop runs under, or `null` when the CLI did not report it. */
+  anchorPid: number | null;
+  /** Running-kernel vs. installed-version reading. */
+  kernel: QuayLoopKernel;
+  /** The project's `.quay/plugin` pointer reading, or `null` when the CLI carried no pointer segment. */
+  pointer: QuayLoopPointer | null;
+  /** Per-kind drain (halt) flags; a `null` member means that kind's flag could not be read. */
+  drain: QuayLoopDrain;
+  /** Whether the running kernel's version directory is orphan-marked for deletion. */
+  orphan: QuayLoopOrphan;
+  /** When this reading was taken, as ISO-8601 from the service clock. */
+  observedAt: string;
+};
+
+/**
  * Everything the Tier-2 panel renders, assembled from whitelisted read-only
  * commands. A section is `null` when its command failed or returned unparseable
  * output; the failure is recorded in `warnings` rather than thrown, so one
@@ -4374,6 +4502,16 @@ export type QuaySnapshot = {
   generatedAt: string;
   cached: boolean;
   driver: QuayDriverSummary | null;
+  /**
+   * The loop's overall running-status reading (kernel version, `.quay/plugin` pointer,
+   * drain flags, orphan countdown), projected from the SAME `driver status` document the
+   * `driver` field comes from plus two file reads.
+   *
+   * OPTIONAL and nullable so a snapshot cached before this field existed — or a request
+   * whose `driver status` read failed — reads as "not reported", never as "the loop is
+   * healthy". Absent and `null` are equivalent.
+   */
+  loop?: QuayLoopStatus | null;
   tasks: QuayTaskCounts | null;
   goals: QuayGoalCounts | null;
   adrs: QuayAdrCounts | null;
