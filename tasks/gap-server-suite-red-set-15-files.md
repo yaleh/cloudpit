@@ -1,7 +1,7 @@
 ---
 id: gap-server-suite-red-set-15-files
 title: develop 的 server 测试红集（15 文件）归因并修复：让 fan-in 的 suite 不再被这组无关红挡住
-status: ready
+status: done
 labels:
   - gap
   - defect

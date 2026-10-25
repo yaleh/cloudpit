@@ -1,7 +1,7 @@
 ---
 id: gap-quay-task-events-service-split
 title: Quay：把 quay-task-events.service.ts（829 行）拆成 parse/cursor-store/service 三个文件
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -33,14 +33,6 @@ extra:
 - server/modules/quay/quay-task-log-cursor-store.ts (new)
 - server/modules/quay/tests/quay-live-refresh.test.ts
 - tasks/gap-quay-task-events-service-split.md
-
-## Blocker
-
-**2026-10-25T19:21:06.730Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：8856f478-6a6c-43bc-b69a-95045b78eb47
 
 ## Needs-Human
 

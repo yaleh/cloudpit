@@ -810,9 +810,38 @@ async function waitForDiagram(): Promise<HTMLElement> {
   return host;
 }
 
+/**
+ * Opens the desktop row's single `⋯`.
+ *
+ * `Export ▾` and `Legend` are no longer top-level buttons: the formats and the
+ * legend door live in this one menu, which is what keeps the row one line.
+ */
+function openOverflowMenu(): HTMLElement {
+  const trigger = document.querySelector('[data-architecture-overflow-toggle]');
+  assert.ok(trigger instanceof HTMLElement, 'the desktop row must carry its ⋯ overflow trigger');
+  fireEvent.click(trigger);
+  const menu = document.querySelector('[data-architecture-export-menu]');
+  assert.ok(menu instanceof HTMLElement, 'the overflow must expand into a menu');
+  return menu;
+}
+
+/** Opens the legend through the overflow entry that replaced the `?` button. */
+function openLegend(): void {
+  openOverflowMenu();
+  const entry = document.querySelector('[data-architecture-legend-entry]');
+  assert.ok(entry instanceof HTMLElement, 'the overflow menu must carry the legend entry');
+  fireEvent.click(entry);
+}
+
+/** Expands the desktop readout; its second/third lines are folded by default. */
+function expandReadout(): void {
+  const toggle = document.querySelector('[data-architecture-readout-toggle]');
+  assert.ok(toggle instanceof HTMLElement, 'the readout must carry its expand toggle');
+  fireEvent.click(toggle);
+}
+
 /** The graph root — the element carrying the zoom readout and mode. */
-function graphRoot(): HTMLElement {
-  const root = document.querySelector('[data-architecture-plantuml-graph]');
+function graphRoot(): HTMLElement {  const root = document.querySelector('[data-architecture-plantuml-graph]');
   assert.ok(root instanceof HTMLElement);
   return root;
 }
@@ -3273,7 +3302,7 @@ test('seeds at half the drawn entities or more draw the light marker, and the le
   assert.equal(follower.classList.contains('arch-seed-light'), false);
 
   // The legend states the light form, so the symbol on the drawing is explained.
-  fireEvent.click(document.querySelector('[data-architecture-legend-toggle]') as Element);
+  openLegend();
   await waitFor(() => {
     const legend = document.querySelector('[data-architecture-legend-content]');
     assert.ok(legend !== null);
@@ -3297,7 +3326,7 @@ test('seeds in the minority keep the heavy marker and the plain legend', async (
   assert.equal(seed.classList.contains('arch-seed-light'), false);
   assert.equal(seed.querySelector('[data-architecture-seed-dot]'), null, 'the minority form has no dot');
 
-  fireEvent.click(document.querySelector('[data-architecture-legend-toggle]') as Element);
+  openLegend();
   await waitFor(() => assert.ok(document.querySelector('[data-architecture-legend-content]')));
   assert.doesNotMatch(
     document.querySelector('[data-architecture-legend-content]')?.textContent ?? '',
@@ -3900,7 +3929,7 @@ test('the export menu writes the server-returned .mmd document; there is no stan
   assert.equal(screen.queryByRole('button', { name: 'Export .mmd' }), null);
   assert.equal(document.querySelector('[data-architecture-overflow-export]'), null);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }));
+  openOverflowMenu();
   fireEvent.click(document.querySelector('[data-architecture-export-item="mmd"]') as Element);
 
   assert.deepEqual(downloads, ['architecture-file.mmd'], 'the file-granularity document must be exported');
@@ -3922,7 +3951,7 @@ test('Escape closes only the export menu and does not reach the page abort handl
     render(<ArchitecturePanel projectId="project-1" sessionId="session-1" initialGranularity="file" />);
     await waitForDiagram();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     const menu = document.querySelector('[data-architecture-export-menu]');
     assert.ok(menu instanceof HTMLElement, 'the menu must be open before Escape');
 
@@ -4131,8 +4160,12 @@ test('the toolbar wraps instead of scrolling, the class diagram is the default, 
   assert.ok(toolbar.querySelector('[data-architecture-scope-control]'));
   assert.ok(toolbar.querySelector('[data-architecture-detail-control]'));
   assert.ok(toolbar.querySelector('[data-architecture-search]'));
-  assert.ok(toolbar.querySelector('[data-architecture-export]'));
-  assert.ok(toolbar.querySelector('[data-architecture-legend-toggle]'));
+  assert.ok(toolbar.querySelector('[data-architecture-overflow-toggle]'), 'the row keeps Export and Legend behind one overflow');
+  const overflowMenu = openOverflowMenu();
+  assert.equal(overflowMenu.querySelectorAll('[data-architecture-export-item]').length, 5);
+  assert.ok(overflowMenu.querySelector('[data-architecture-legend-entry]'), 'the overflow carries the legend door');
+  // Close it again so the rest of the case reads the row as drawn.
+  fireEvent.keyDown(overflowMenu, { key: 'Escape' });
 
   // The class diagram is the shipped default.
   assert.equal(
@@ -4768,17 +4801,21 @@ test('the filter, legend and Adjusted popovers close on an outside press and on 
     assert.equal(document.querySelector('[data-architecture-filter-menu]'), null, 'Escape closes the filter menu');
     assert.equal(document.activeElement, filter, 'focus returns to the filter disclosure');
 
-    const legend = document.querySelector('[data-architecture-legend-toggle]') as HTMLElement;
-    assert.ok(legend instanceof HTMLElement);
-    fireEvent.click(legend);
+    // The legend's door is the overflow menu's last entry; its dismissal still
+    // returns focus to the disclosure that opened it (now the ⋯ trigger).
+    openLegend();
     assert.ok(document.querySelector('[data-architecture-legend]'), 'the legend opens');
     fireEvent.mouseDown(document.body);
     assert.equal(document.querySelector('[data-architecture-legend]'), null, 'an outside press closes the legend');
-    fireEvent.click(legend);
+    openLegend();
     assert.ok(document.querySelector('[data-architecture-legend]'));
     fireEvent.keyDown(document, { key: 'Escape' });
     assert.equal(document.querySelector('[data-architecture-legend]'), null, 'Escape closes the legend');
-    assert.equal(document.activeElement, legend, 'focus returns to the legend disclosure');
+    assert.equal(
+      document.activeElement,
+      document.querySelector('[data-architecture-overflow-toggle]'),
+      'focus returns to the overflow trigger that opened the legend',
+    );
 
     const adjusted = document.querySelector('[data-architecture-curation-manager-toggle]') as HTMLElement;
     assert.ok(adjusted instanceof HTMLElement);
@@ -5070,7 +5107,9 @@ test('a mentioned function is hidden by default; the popover and the readout off
   );
 
   // ② The readout's second line names the hidden mentioned count and offers the
-  //    one-click action.
+  //    one-click action. It lives in the expanded area; the collapsed line only
+  //    carries the count-bearing action.
+  expandReadout();
   const hidden = document.querySelector('[data-architecture-filter-hidden]');
   assert.ok(hidden instanceof HTMLElement, 'the readout must carry the hidden reading');
   assert.match(hidden.textContent ?? '', /1 functions \(1 mentioned in this session\)/);
@@ -5184,6 +5223,65 @@ test('the readout’s "show mentioned" opens exactly the kinds the reading hides
   );
 });
 
+test('collapsed readout keeps Show mentioned reachable', async () => {
+  apiMock.architectureGraph.mockResolvedValueOnce(jsonResponse(HIDDEN_MENTION_RESULT));
+  apiMock.architectureGraph.mockResolvedValueOnce(jsonResponse(KEPT_MENTION_RESULT));
+  const seen: ArchitectureRendererProps[] = [];
+  function StandInRenderer(props: ArchitectureRendererProps) {
+    seen.push(props);
+    return <div data-stand-in-renderer="true" />;
+  }
+  render(<ArchitecturePanel projectId="project-1" sessionId="session-1" renderer={StandInRenderer} />);
+  await waitFor(() => assert.ok(seen.length > 0));
+  const latest = (): ArchitectureRendererProps => {
+    const props = seen.at(-1);
+    if (props === undefined) throw new Error('the stand-in renderer was never rendered');
+    return props;
+  };
+
+  // The card is collapsed, so the filter line itself is absent — but the
+  // recovery for the session's named entity is on the line, with its count.
+  assert.equal(document.querySelector('[data-architecture-readout-toggle]')?.getAttribute('aria-expanded'), 'false');
+  assert.equal(document.querySelector('[data-architecture-filter-hidden]'), null);
+  const showMentioned = document.querySelector('[data-architecture-filter-show-mentioned]');
+  assert.ok(showMentioned instanceof HTMLElement, 'the collapsed line must still offer the one-click recovery');
+  assert.match(showMentioned.textContent ?? '', /Show mentioned \(1\)/, 'the action states how many entities it brings back');
+  assert.ok(!latest().graph.nodes.some((node) => node.id === MENTION_IDS.fn), 'the named function is still hidden');
+
+  fireEvent.click(showMentioned);
+  await waitFor(() => assert.ok(latest().graph.nodes.some((node) => node.id === MENTION_IDS.fn)));
+  assert.deepEqual(
+    ((apiMock.architectureGraph.mock.calls[1] as unknown[])[3] as { keepMentionedKinds?: string[] })
+      .keepMentionedKinds,
+    ['function'],
+    'the collapsed action is the same widening the expanded line offers',
+  );
+  assert.equal(
+    document.querySelector('[data-architecture-filter-show-mentioned]'),
+    null,
+    'with nothing mentioned left hidden the action is gone',
+  );
+});
+
+test('desktop readout defaults to one line', async () => {
+  apiMock.architectureGraph.mockResolvedValue(jsonResponse(FILTER_RESULT));
+  render(<ArchitecturePanel projectId="project-1" sessionId="session-1" initialGranularity="file" />);
+  await waitForDiagram();
+
+  const toggle = document.querySelector('[data-architecture-readout-toggle]');
+  assert.ok(toggle instanceof HTMLElement, 'the desktop readout must carry its expand toggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false', 'the desktop readout starts collapsed');
+  assert.equal(document.querySelector('[data-architecture-filter-hidden]'), null, 'the hidden line starts folded');
+  assert.equal(document.querySelector('[data-architecture-filter-show-all]'), null, 'Show all starts folded');
+  assert.equal(document.querySelector('[data-architecture-filter-reset]'), null, 'Reset filters starts folded');
+
+  fireEvent.click(toggle);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true', 'the toggle expands the readout');
+  assert.ok(document.querySelector('[data-architecture-filter-hidden]'), 'expanding states what is hidden');
+  assert.ok(document.querySelector('[data-architecture-filter-show-all]'), 'expanding offers Show all');
+  assert.ok(document.querySelector('[data-architecture-filter-reset]'), 'expanding offers Reset filters');
+});
+
 test('closing a mention switch narrows at once and asks the server for the settled reading', async () => {
   rememberFilter('project-1', {
     kinds: ['class', 'interface', 'enum', 'abstract'],
@@ -5288,7 +5386,9 @@ test('the default filter draws no function box and no call edge, and the readout
   );
 
   // ② The readout's SECOND line states what was hidden (the payload carried no
-  //    server counts, so the reading is the client's own cut).
+  //    server counts, so the reading is the client's own cut). It is part of the
+  //    expanded area; the collapsed line states the drawing's numbers only.
+  expandReadout();
   const hidden = document.querySelector('[data-architecture-filter-hidden]');
   assert.ok(hidden instanceof HTMLElement, 'the readout must carry the hidden reading');
   assert.equal(hidden.getAttribute('data-architecture-filter-hidden'), '2', 'one function + one call edge');
@@ -5406,6 +5506,9 @@ test('a narrowing draws from the payload at once and is then settled by the serv
   apiMock.architectureGraph.mockImplementationOnce(() => new Promise<Response>((resolve) => {
     setTimeout(() => resolve(jsonResponse(FILTER_RESULT)), 1200);
   }));
+  // "Show all" lives in the expanded readout; the collapsed line states the
+  // drawing's numbers and the one mentioned-entity recovery only.
+  expandReadout();
   fireEvent.click(document.querySelector('[data-architecture-filter-show-all]') as Element);
 
   // A sleep, not `waitFor`: the in-flight window is exactly the state a polling
@@ -6026,6 +6129,9 @@ test('a scope step whose new entities are all filtered away says so and offers t
   assert.equal(document.querySelector('[data-architecture-scope-hidden]'), null, 'nothing hidden yet');
 
   fireEvent.click(document.querySelector('[data-architecture-scope-increase]') as Element);
+  // The scope-hidden explanation is a second readout line: expand the card so
+  // the reading (and its one-click fix) is on screen.
+  expandReadout();
 
   const notice = await waitFor(() => {
     const element = document.querySelector('[data-architecture-scope-hidden]');
@@ -6484,8 +6590,9 @@ test('Show all widens the element axis only, and Reset filters restores the ship
     menu.querySelector(selector)?.getAttribute('aria-checked') ?? null;
   assert.equal(checked('[data-architecture-filter-relation="dependency"]'), 'true');
 
-  // The one-click "Show all" lives in the readout row under the drawing, not in
-  // the popover: it is offered exactly when the readout has something hidden.
+  // The one-click "Show all" lives in the readout row under the drawing, in its
+  // expanded area (the collapsed line is the drawing's numbers only).
+  expandReadout();
   fireEvent.click(document.querySelector('[data-architecture-filter-show-all]') as Element);
 
   // ① The relation preset is UNTOUCHED. The reported defect was that Show all
@@ -6813,6 +6920,9 @@ test('a preset change settles on the numbers a reload prints, even when the supe
   }
   const first = render(<ArchitecturePanel projectId="project-1" sessionId="session-1" renderer={StandInRenderer} />);
   await waitFor(() => assert.ok(seen.length > 0));
+  // The hidden numbers live in the expanded readout; the collapsed line states
+  // the drawing's numbers only.
+  expandReadout();
 
   /** The three numbers the AC names, read off the DOM the reader reads. */
   const reading = (): Record<string, string | null | undefined> => {
@@ -6857,6 +6967,9 @@ test('a preset change settles on the numbers a reload prints, even when the supe
   apiMock.architectureGraph.mockResolvedValue(jsonResponse(FILTER_RESULT));
   render(<ArchitecturePanel projectId="project-1" sessionId="session-1" renderer={StandInRenderer} />);
   await waitFor(() => assert.ok(document.querySelector('[data-architecture-readout-summary]') !== null));
+  // Same disclosure as the first reading: the reload reference must be read
+  // from the same expanded state.
+  expandReadout();
   assert.deepEqual(reading(), afterLate, 'the settled numbers equal a reload of the same state');
 });
 

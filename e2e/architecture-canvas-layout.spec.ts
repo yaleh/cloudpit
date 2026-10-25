@@ -127,6 +127,10 @@ const SEL = {
   readout: '[data-architecture-readout]',
   readoutSummary: '[data-architecture-readout-summary]',
   readoutTotal: '[data-architecture-readout-total]',
+  // The one-line summary's disclosure: the filter actions (Show all / Reset)
+  // are rendered only while this reads `aria-expanded="true"`.
+  readoutToggle: '[data-architecture-readout-toggle]',
+  readoutDetail: '[data-architecture-readout-detail]',
   // The phone tier puts the view controls in a bottom sheet opened by this
   // header button; the desktop tier has neither element.
   sheetToggle: '[data-architecture-sheet-toggle]',
@@ -2443,6 +2447,23 @@ async function closeControlSheet(page: Page): Promise<void> {
   if ((await close.count()) === 0) return;
   await close.first().click();
   await expect(page.locator(SEL.sheet)).toHaveCount(0, { timeout: 10_000 });
+}
+
+/**
+ * Expand the in-flow readout row so its detail — where `Show all`, `Reset
+ * filters` and the hidden-kind reading live — is on screen.
+ *
+ * The desktop row ships COLLAPSED to one summary line (the second line was
+ * 20px of the drawing's height at 1440×765). Any gesture that needs a filter
+ * action must open it first; already-expanded (and the phone tiers, whose
+ * summary has its own toggle) is a no-op.
+ */
+async function expandReadoutRow(page: Page): Promise<void> {
+  const toggle = page.locator(SEL.readoutToggle).first();
+  if ((await toggle.count()) === 0) return;
+  if ((await toggle.getAttribute('aria-expanded')) === 'true') return;
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 });
 }
 
 /**
@@ -4864,8 +4885,10 @@ test('main arm — the Text page and the Export menu carry the same complete Pla
     await page.screenshot({ path: test.info().outputPath('lossless-text-panel.png') });
 
     // The Export menu's own .puml download, from the same settled drawing.
+    // Export now sits behind the toolbar's one `⋯` overflow trigger: the
+    // desktop row keeps Open in new tab / Text / Fullscreen beside it.
     const exportPuml = await downloadText(page, async () => {
-      await page.locator('[data-architecture-export="true"]').first().click();
+      await page.locator('[data-architecture-overflow-toggle]').first().click();
       await expect(page.locator('[data-architecture-export-menu="true"]')).toBeVisible({ timeout: 10_000 });
       await page.locator('[role="menuitem"][data-architecture-export-item="puml"]').first().click();
     });
@@ -5234,6 +5257,10 @@ test('main arm — Show all keeps the relation preset, and Fit holds the whole f
       throw error;
     }
     await settle(page, 800);
+    // The hidden-kind reading and the "Show all" action both live in the
+    // readout's expanded detail (the desktop row ships folded to one line), so
+    // open it before reading them — and before the layout stopwatch below.
+    await expandReadoutRow(page);
     const entityState = await page.evaluate(() => ({
       checked: [...document.querySelectorAll('[data-architecture-view-option]')]
         .map((element) => `${element.getAttribute('data-architecture-view-option')}=${element.getAttribute('aria-checked')}`),
@@ -6774,6 +6801,8 @@ test('main arm — the orientation holds on a wider viewport and large graphs ke
   try {
     await openArchitectureTab(large.page, functionsSessionId);
     await openEntityDrawing(large.page);
+    // The action lives in the readout's expanded detail (the row ships folded).
+    await expandReadoutRow(large.page);
     await large.page.locator(SEL.filterShowAll).first().click();
     await large.page.waitForFunction(
       (sel) => Number(document.querySelector(sel.graphRoot)?.getAttribute('data-architecture-visible-nodes') ?? '0') > 150,

@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-compact-chrome-and-tab-tooltip
 title: Architecture 顶部压成一行：Export+Legend 收进溢出菜单、读数行折叠为一行摘要，并修复 tab tooltip 点击后不消失
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -91,14 +91,6 @@ extra:
 - e2e/architecture-fullscreen.spec.ts
 - e2e/architecture-overlay-layout.spec.ts
 - tasks/gap-architecture-compact-chrome-and-tab-tooltip.md
-
-## Blocker
-
-**2026-10-25T20:14:03.421Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：8a30c52c-9ba0-4af9-9ceb-2623fa3dc60a
 
 ## Needs-Human
 

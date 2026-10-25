@@ -328,6 +328,36 @@ test('getQuaySnapshot keeps the findings of a command that signals via its exit 
   assert.deepEqual(snapshot?.warnings, []);
 });
 
+test('getQuaySnapshot reports the resolved entrypoint diagnostic without widening the driver summary', async () => {
+  const counter = { calls: 0 };
+  const resolvedPath = path.join(
+    path.sep, 'home', 'tester', '.claude', 'plugins', 'cache', 'quay', 'quay', '0.22.0', 'bin', 'quay',
+  );
+  const service = createQuayService(createDependencies({
+    runCommand: createFixtureRunner(counter),
+    resolveEntrypoint: () => ({
+      path: resolvedPath,
+      version: '0.22.0',
+      source: 'user',
+      warning: 'a higher-priority project record no longer exists; using the user record.',
+    }),
+  }));
+
+  const snapshot = await service.getQuaySnapshot('project-1');
+
+  assert.deepEqual(snapshot?.entrypoint, {
+    path: resolvedPath,
+    version: '0.22.0',
+    source: 'user',
+  });
+  // The resolver's warning is a real diagnostic and travels in the snapshot's warning banner.
+  assert.deepEqual(snapshot?.warnings, [
+    'a higher-priority project record no longer exists; using the user record.',
+  ]);
+  // The increment must not widen the driver summary/state — the panel's existing contract.
+  assert.deepEqual(Object.keys(snapshot?.driver ?? {}).sort(), ['alive', 'lastRecordAt', 'running', 'state']);
+});
+
 test('getQuaySnapshot returns null for an unknown project', async () => {
   const service = createQuayService(createDependencies());
   assert.equal(await service.getQuaySnapshot('missing'), null);

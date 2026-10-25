@@ -43,8 +43,14 @@ const VIEWPORT_PC = { width: 1440, height: 765 };
 const VIEWPORT_PHONE_PORTRAIT = { width: 390, height: 844 };
 const VIEWPORT_PHONE_LANDSCAPE = { width: 844, height: 390 };
 
-const USERNAME = 'architecture-fullscreen-e2e';
-const PASSWORD = 'architecture-fullscreen-e2e-pass';
+// The server is SINGLE-USER: the first account to register owns the only slot
+// and every later `register` answers 403 AUTH_USER_ALREADY_CONFIGURED. The
+// compact-chrome criterion's AC runs this file TOGETHER with
+// `architecture-overlay-layout.spec.ts` in one invocation, and one invocation
+// is one server, so both files sign in as this shared account — the second
+// file's `createAccount` then takes its login branch instead of failing.
+const USERNAME = 'e2euser';
+const PASSWORD = 'e2epassword';
 const WORKSPACE_DIR = 'architecture-fullscreen-workspace';
 
 /** Where the DoD's screenshots land (git-ignored). */
@@ -59,6 +65,10 @@ const SEL = {
   graphRoot: '[data-architecture-plantuml-graph]',
   node: '.uml-node[data-entity-id]',
   zoomIn: '[data-architecture-zoom-in]',
+  /** The coarse-pointer tiers keep Fullscreen inside this sheet, not the row. */
+  sheetToggle: '[data-architecture-sheet-toggle]',
+  sheet: '[data-architecture-sheet]',
+  sheetClose: '[data-architecture-sheet-close]',
   trayPill: '[data-architecture-tray-pill]',
   inspector: '[role="complementary"]',
   header: '[data-app-header]',
@@ -330,6 +340,15 @@ async function showEntityBoxes(page: Page): Promise<void> {
  * cluster, and a click on the zoom button would then be intercepted.
  */
 async function customZoom(page: Page): Promise<void> {
+  // The portrait tier's corner cluster ships COLLAPSED: one 44px button that
+  // states the scale, and the `+`/`−`/Fit buttons appear only after it is
+  // pressed. Expanding first is what keeps this same gesture working on all
+  // three viewports (the landscape and desktop tiers start expanded).
+  const expandCluster = page.locator('[data-architecture-zoom-cluster-toggle]');
+  if ((await expandCluster.count()) > 0) {
+    await expandCluster.first().click();
+    await settle(page, 200);
+  }
   await page.locator(SEL.zoomIn).first().click();
   await settle(page, 300);
 }
@@ -420,12 +439,39 @@ function expectSameBox(actual: Box | null, expected: Box | null, label: string):
   expect(Math.abs(actual.height - expected.height), `${label}: height must be restored (${formatBox(actual)} vs ${formatBox(expected)})`).toBeLessThanOrEqual(1);
 }
 
-/** Enter the overlay with the toolbar control and read it back. */
+/**
+ * Enter the overlay and read it back.
+ *
+ * WHERE THE BUTTON IS. The desktop toolbar draws Fullscreen as its own entry.
+ * The portrait and landscape phone tiers deliberately do NOT: that row keeps
+ * only Text and Adjust (a second entry is what used to wrap it), and Fullscreen
+ * travels inside the Adjust sheet. This helper opens that sheet when the
+ * toolbar has no toggle, clicks the entry there, then closes the sheet — which
+ * is also what makes the following Escape reach the OVERLAY rather than an
+ * open dialog.
+ */
 async function enterOverlay(page: Page, label: string): Promise<FullscreenReading> {
-  await page.locator(SEL.toggle).first().click();
+  let toggle = page.locator(SEL.toggle).first();
+  if ((await page.locator(SEL.toggle).count()) === 0) {
+    const sheetToggle = page.locator(SEL.sheetToggle);
+    await expect(sheetToggle, `${label}: the Adjust sheet must be reachable`).toBeVisible({ timeout: 10_000 });
+    await sheetToggle.first().click();
+    const sheet = page.locator(SEL.sheet);
+    await expect(sheet, `${label}: the Adjust sheet must open`).toBeVisible({ timeout: 10_000 });
+    toggle = page.locator(`${SEL.sheet} ${SEL.toggle}`).first();
+    await expect(toggle, `${label}: the Adjust sheet must carry the fullscreen entry`).toBeVisible({ timeout: 10_000 });
+  }
+  await toggle.click();
   await expect(page.locator(SEL.overlay), `${label}: the toolbar button must open the overlay`).toBeVisible({
     timeout: 10_000,
   });
+  // A sheet still on screen would take the next Escape for its own dismissal.
+  const openSheet = page.locator(SEL.sheet);
+  if ((await openSheet.count()) > 0) {
+    const closeSheet = page.locator(SEL.sheetClose).first();
+    if ((await closeSheet.count()) > 0) await closeSheet.click();
+    await expect(openSheet, `${label}: the Adjust sheet must not sit over the overlay`).toHaveCount(0, { timeout: 10_000 });
+  }
   await settle(page, 600);
   const reading = await readFullscreen(page);
   console.log(`[architecture-fullscreen] ${label}.enter=${JSON.stringify({ ...reading, panel: formatBox(reading.panel), canvas: formatBox(reading.canvas), host: formatBox(reading.host) })}`);

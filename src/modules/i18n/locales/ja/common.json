@@ -228,6 +228,9 @@
       "pngScaled": "PNG は長辺が {{edge}} px になるよう縮小されました。",
       "pngFailed": "PNG を作成できませんでした。"
     },
+    "overflow": {
+      "menu": "その他の操作"
+    },
     "search": {
       "label": "エンティティまたはファイルを検索",
       "placeholder": "エンティティまたはファイルを検索…",
@@ -295,6 +298,7 @@
       "mentionedToggleAria": "このセッションで言及、種類が非表示でも表示したまま",
       "mentionedInKind": "このセッションで {{count}} 件言及",
       "showMentioned": "▸ 言及されたものを表示",
+      "showMentionedCount": "▸ 言及されたものを表示 ({{count}})",
       "reset": "↺ フィルターをリセット"
     },
     "scopeHygiene": {

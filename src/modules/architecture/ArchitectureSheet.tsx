@@ -143,7 +143,13 @@ export function ArchitectureSheet({
   };
 
   return (
-    <div data-architecture-sheet-root="true" className="absolute inset-0 z-40">
+    // `z-[45]`, not the dock's own `z-40`: this is a MODAL (`aria-modal`, an
+    // inert-making backdrop). The entity dock is the last `z-40` sibling in
+    // the panel's DOM, so at equal z it paints OVER the sheet — and on the
+    // portrait tier the sheet is where Fullscreen and Open in new tab live,
+    // which made them unreachable as soon as a node was selected. The panel's
+    // own `z-50` overlays (refresh dialog, export menu) still win over it.
+    <div data-architecture-sheet-root="true" className="absolute inset-0 z-[45]">
       <div
         data-architecture-sheet-backdrop="true"
         aria-hidden="true"

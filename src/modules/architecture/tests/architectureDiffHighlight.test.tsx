@@ -17,7 +17,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
@@ -201,6 +201,9 @@ test('AC2: exact node ids and edge pairs are marked, and the readout counts them
   });
   assert.ok(edge(host, BETA, ALPHA).classList.contains('arch-diff-edge'));
 
+  // The diff chip is a second readout line; the collapsed card states the
+  // drawing's numbers only, so expand it before reading the counts.
+  fireEvent.click(document.querySelector('[data-architecture-readout-toggle]') as Element);
   const chip = document.querySelector('[data-testid="architecture-diff-highlight"]');
   assert.ok(chip !== null, 'the readout must state how many targets are highlighted');
   assert.equal(chip.getAttribute('data-architecture-diff-nodes'), '1');
