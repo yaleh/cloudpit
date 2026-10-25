@@ -180,13 +180,6 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - `src/modules/chat/tests/inputSuggestionsComposer.test.tsx`
 - `tasks/gap-composer-quote-insert-breaks-only-for-multiline.md`
 
-## Blocker
-
-**2026-10-25T18:27:25.865Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：1d59a6a0-67cb-4c63-b4f2-273d8ff20f20
 ## Needs-Human
 
 **执行 2026-10-25T22:36:58.029Z — 停派终止（失败无法归因，⛔ 不再重派）**
