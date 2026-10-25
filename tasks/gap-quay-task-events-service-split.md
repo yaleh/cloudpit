@@ -1,7 +1,7 @@
 ---
 id: gap-quay-task-events-service-split
 title: Quay：把 quay-task-events.service.ts（829 行）拆成 parse/cursor-store/service 三个文件
-status: needs-human
+status: ready
 labels:
   - gap
 parent: null
