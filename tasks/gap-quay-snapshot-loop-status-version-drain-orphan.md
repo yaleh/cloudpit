@@ -54,8 +54,8 @@ extra:
 
 ## Blocker
 
-**2026-10-25T15:18:22.211Z — worker 未落地（exited-not-landed）**
+**2026-10-25T16:05:29.778Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: __PERFILE__ duration_ms=45174 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792940273723
+- 未落地原因：step=suite: __PERFILE__ duration_ms=37696 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792943088997
 - run_id：wk-prod-anchor
-- session_id：690cdea0-0d24-49b3-b602-674f57a8583f
+- session_id：17ff5171-d9a1-46eb-b9e2-30f15570237f
