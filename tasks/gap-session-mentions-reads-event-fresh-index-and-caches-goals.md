@@ -1,7 +1,7 @@
 ---
 id: gap-session-mentions-reads-event-fresh-index-and-caches-goals
 title: 会话提及读数改读事件保鲜的任务索引、goal 读数加单飞缓存：popover 打开不再每次拉两个 CLI（约 1.1s 降到毫秒级）
-status: todo
+status: ready
 labels:
   - gap
 parent: null

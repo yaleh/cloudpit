@@ -68,14 +68,6 @@ extra:
 - suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-entrypoint-resolver-via-claude-plugin-scopes~wk-prod-anchor~1792958560401-0fbc42.log
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-entrypoint-resolver-via-claude-plugin-scopes-wk-prod-anchor.log
 
-## Blocker
-
-**2026-10-25T22:48:17.085Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 1
-- run_id：wk-prod-anchor
-- session_id：410c396f-7d78-4002-9b09-bd30793f8592
-
 ## Needs-Human
 
 **执行 2026-10-25T22:48:17.740Z — 停派终止（失败无法归因，⛔ 不再重派）**
