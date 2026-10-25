@@ -1,7 +1,7 @@
 ---
 id: gap-quay-snapshot-loop-status-version-drain-orphan
 title: Quay 服务端：snapshot 增加 loop 整体状态读数（版本偏差、drain、版本目录 orphan 倒计时、.quay/plugin 指针状态）
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -95,3 +95,14 @@ DoD 真实读数（隔离实例 `scripts/isolated-instance.sh`，port 17205，re
 - 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
 - session_id：b4765286-0f49-4f0a-8841-75684e22fed5
+
+## Needs-Human
+
+**执行 2026-10-25T18:42:43.091Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：7ce1176b-00cd-46c2-b624-9098d00bf2c2
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-snapshot-loop-status-version-drain-orphan~wk-prod-anchor~1792952258863-7d35a6.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-snapshot-loop-status-version-drain-orphan-wk-prod-anchor.log
