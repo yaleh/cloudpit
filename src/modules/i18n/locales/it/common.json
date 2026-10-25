@@ -991,9 +991,11 @@
     "loading": "Caricamento delle attività menzionate…",
     "listError": "Impossibile leggere le attività menzionate in questa sessione.",
     "lanesNote": "Lettura delle corsie non disponibile — le attività mostrano lo stato salvato senza fase.",
-    "viaTasks": "tramite {{count}} attività",
+    "viaTasks_one": "tramite {{count}} attività",
+    "viaTasks_many": "tramite {{count}} attività",
+    "viaTasks_other": "tramite {{count}} attività",
     "mentionedInMessage": "menzionata in un messaggio",
-    "mentionedAgo": "Menzionata {{minutes}} min fa",
+    "mentionedAt": "Menzionata {{when}}",
     "openQuayPanel": "Apri il pannello Quay"
   }
 }

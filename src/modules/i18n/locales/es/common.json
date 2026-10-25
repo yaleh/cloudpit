@@ -991,9 +991,11 @@
     "loading": "Cargando las tareas mencionadas…",
     "listError": "No se pudieron leer las tareas mencionadas en esta sesión.",
     "lanesNote": "Lectura de carriles no disponible: las tareas muestran su estado guardado sin fase.",
-    "viaTasks": "vía {{count}} tareas",
+    "viaTasks_one": "vía {{count}} tarea",
+    "viaTasks_many": "vía {{count}} tareas",
+    "viaTasks_other": "vía {{count}} tareas",
     "mentionedInMessage": "mencionada en un mensaje",
-    "mentionedAgo": "Mencionada hace {{minutes}} min",
+    "mentionedAt": "Mencionada {{when}}",
     "openQuayPanel": "Abrir el panel de Quay"
   }
 }
