@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-refresh-react-free-controller
 title: 架构：把 useArchitectureRefresh 的业务规则抽成 React-free controller
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -74,4 +74,15 @@ npx playwright test e2e/architecture-refresh.spec.ts
 - run_id：wk-prod-anchor
 - session_id：60945e7a-7dea-40bc-9d75-2dc02b8f202a
 - suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-architecture-refresh-react-free-controller~wk-prod-anchor~1792955356141-172d72.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-architecture-refresh-react-free-controller-wk-prod-anchor.log
+
+## Needs-Human
+
+**执行 2026-10-25T22:56:27.654Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 3 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：30344956-78da-4c78-abfd-7816b90dd198
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-architecture-refresh-react-free-controller~wk-prod-anchor~1792968653361-11d471.log
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-architecture-refresh-react-free-controller-wk-prod-anchor.log
