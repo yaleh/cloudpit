@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-compact-chrome-and-tab-tooltip
 title: Architecture 顶部压成一行：Export+Legend 收进溢出菜单、读数行折叠为一行摘要，并修复 tab tooltip 点击后不消失
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -110,3 +110,11 @@ extra:
 - 机械 fan-in 的其余步骤均绿：`merge-develop`、`anti-drift`、`delta`、`typecheck`、`ac-precheck`；只有 suite/baseline 两腿卡在上述上限。
 - 分支：`task/gap-architecture-compact-chrome-and-tab-tooltip` = 实现 `a29d34e53`（merge develop `8a12496ab`），worktree 干净。
 - 收口路径（不在执行侧权限内，任选其一）：① 修好或归属 develop 上这 15 个红，再对本任务重跑 fan-in；② 抬高 `RERUN_TIMEOUT_MS` 或让 `scripts/quay-rerun-failed.sh` 并行（≥15 文件时串行必然 >300s）；③ 人裁定 out-of-band complete（AC/DoD 证据见上）。
+
+### 2026-10-25T19:38Z — 第 3 轮复核：develop 已并入，实现与 AC 全绿；落地仍被同一套「15 文件并发负载红 + 300s rerun 上限」挡住（执行侧不可满足），按 lesson 主动 park
+
+- **合并**：worktree 已 `git merge develop`（merge commit `39e59c4a1`，develop `5f56f3a16`）。唯一冲突 `src/modules/project-workspace/WorkspaceTabs.tsx`：develop 的测量式 `labelMode` 已自带本任务「标签可见时不渲染 tooltip」语义（`content={undefined}` ⇒ Tooltip 返回裸 children），故整文件取 develop 版；本任务回归用例 `tab tooltip only when the label is hidden` 改为用 `installStripWidthStubs` 驱动 label mode（`matchMedia` stub 已随 develop 的机制退役），并通过。
+- **合并后逐项复核**（均 exit 0）：`workspaceTabsResponsive` 17；`Tooltip`+`exportMenu`+`architectureTab` 145；`mobileCompactToolbar`+`fullscreen`+`architectureDiffHighlight`+`i18nArchitectureTabCompleteness` 34；`npx tsc --noEmit -p tsconfig.json` 0；`e2e/architecture-compact-chrome.spec.ts` 1 passed（toolbar 41px / readout 35.5px / canvas top 133.5、height 731）；`e2e/architecture-fullscreen.spec.ts` + `e2e/architecture-overlay-layout.spec.ts` 6 passed；`anti-drift-touches-check` = 27 actual file(s), all within declared Touches。
+- **红是负载 flake 的直接读数**：宿主 `load average` 83，上轮 15 个点名文件抽 3 个单独重跑 —— `claude-resident-reconcile` 21/21、`mcp-session-lifecycle` 15/15、`voice-realtime-uplink-vad-hold-open` 9/9 全绿；本任务 `server/**` 与 develop 逐字相同（`git diff develop..HEAD -- server/` 为空）。
+- **三条指纹**（与 shared lesson `fan-in-rerun-timeout-makes-baseline-a-b-unevaluable` 逐条一致）：① `.quay/worker-outcome.jsonl` 上轮记录 `mechanical_fan_in.rerun.state="rerun-not-evaluated"` 且 `baselineEquivalence.verdict.kind="not-evaluated"`；② `failedTestFiles.files`（15 个）与 `gap-quay-snapshot-loop-status-version-drain-orphan`（16:05Z）、`gap-composer-quote-insert-breaks-only-for-multiline`（16:52Z）**逐字相同** ⇒ `judgeRetryExemption` 的 fileRecurrence 会判 `unrelated-flaky-exempt` 并跳过 `advanceRetryCap`；③ `~baseline-1792945428142-02ccfc.log` 只有 5 条 `__PERFILE__` 就被 300s 杀掉（任务侧点名 15 个文件）⇒ baseline A/B 永远 `not-evaluated`。
+- **收口**：本任务 `## Touches` 不含任何 `server/**` 文件，修这些红会 red 掉 anti-drift ⇒ 执行侧不可满足；纯 exit 会被无限重派（不计重试上限）。故本轮 `task_write` 主动 park `needs-human`（`extra.needs_human_cause: human-adjudication` 本就在 store 里）。人的收口路径同上一节 ①②③（修/归属 develop 侧红后重跑 fan-in；抬高或并行 `RERUN_TIMEOUT_MS`；或 out-of-band complete —— AC/DoD 证据见上）。
