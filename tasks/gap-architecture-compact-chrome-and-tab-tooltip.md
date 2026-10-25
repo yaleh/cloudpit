@@ -86,3 +86,11 @@ extra:
 - e2e/architecture-fullscreen.spec.ts
 - e2e/architecture-overlay-layout.spec.ts
 - tasks/gap-architecture-compact-chrome-and-tab-tooltip.md
+
+## Blocker
+
+**2026-10-25T16:28:48.353Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=46144 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792944531344
+- run_id：wk-prod-anchor
+- session_id：51bd2f1e-ed7d-4862-bf4d-8dc1323300ed
