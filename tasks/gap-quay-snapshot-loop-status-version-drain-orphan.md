@@ -51,3 +51,11 @@ extra:
 - server/modules/quay/tests/fixtures/driver-status-worker-0.22.0.json (new)
 - server/modules/quay/tests/fixtures/driver-status-worker-0.19.0.json (new)
 - tasks/gap-quay-snapshot-loop-status-version-drain-orphan.md
+
+## Blocker
+
+**2026-10-25T15:18:22.211Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=45174 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792940273723
+- run_id：wk-prod-anchor
+- session_id：690cdea0-0d24-49b3-b602-674f57a8583f
