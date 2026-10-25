@@ -75,7 +75,7 @@ function mentionRelativeText(iso: string | null, locale: string): string | null 
  * difference between them is which list they sit in. Used by `SessionPulsePopover` and
  * `QuaySessionPanel` through `SessionMentionsSections`.
  */
-export function SessionTaskRow({
+export function TaskRow({
   task,
   lanesUnavailable,
   onOpen,
@@ -251,7 +251,7 @@ export function SessionMentionsSections({
           <ul className="space-y-1.5">
             {activeTasks.map((task) => (
               <li key={task.taskId}>
-                <SessionTaskRow
+                <TaskRow
                   task={task}
                   lanesUnavailable={lanesUnavailable}
                   onOpen={onOpen}
@@ -277,7 +277,7 @@ export function SessionMentionsSections({
                 <ul className="space-y-1.5">
                   {foldedTasks.map((task) => (
                     <li key={task.taskId}>
-                      <SessionTaskRow
+                      <TaskRow
                         task={task}
                         lanesUnavailable={lanesUnavailable}
                         onOpen={onOpen}
