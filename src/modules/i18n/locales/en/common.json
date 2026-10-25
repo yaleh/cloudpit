@@ -1082,9 +1082,10 @@
     "loading": "Loading mentioned tasks…",
     "listError": "Could not read this session's mentioned tasks.",
     "lanesNote": "Lane reading unavailable — tasks show their stored status without a phase.",
-    "viaTasks": "via {{count}} tasks",
+    "viaTasks_one": "via {{count}} task",
+    "viaTasks_other": "via {{count}} tasks",
     "mentionedInMessage": "mentioned in a message",
-    "mentionedAgo": "Mentioned {{minutes}} min ago",
+    "mentionedAt": "Mentioned {{when}}",
     "openQuayPanel": "Open Quay panel"
   }
 }

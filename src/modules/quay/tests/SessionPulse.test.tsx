@@ -17,7 +17,7 @@ import type {
   QuaySessionMentionTask,
   QuaySnapshot,
 } from '@/shared/types';
-import { cn } from '@/shared/utils';
+import { cn, formatRelativeTime } from '@/shared/utils';
 import { QUAY_IN_FLIGHT_PHASE_META, QUAY_TASK_BADGE_BASE_CLASS } from '@/shared/constants';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import LoopPulseGantt from '@/modules/quay/LoopPulseGantt';
@@ -211,6 +211,26 @@ const popover = (): HTMLElement | null =>
 async function openPopover(): Promise<void> {
   fireEvent.click(trigger());
   await flush();
+}
+
+/**
+ * A textarea shaped like the composer's suggestion-chip handler: on Escape it calls
+ * `preventDefault()` and `stopPropagation()` and counts the call. The popover must claim the
+ * key before this ever runs; when it is the one that runs, the popover lost.
+ */
+function EscapeSwallowingTextarea({ onEscape }: { onEscape: () => void }) {
+  return (
+    <textarea
+      data-testid="escape-swallowing-textarea"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onEscape();
+        }
+      }}
+    />
+  );
 }
 
 /** A header wrapper for the trigger; the popover measures its closest `header[data-app-header]`. */
@@ -761,4 +781,133 @@ test('clicking outside closes the popover and returns focus to the trigger', asy
   });
   assert.equal(popover(), null, 'an outside click closes the popover');
   assert.equal(document.activeElement, trigger(), 'focus returns to the trigger');
+});
+
+/* ── Escape 优先级 ────────────────────────────────────────────────────── */
+
+test('Escape reaches the popover before a composer handler that swallows it', async () => {
+  const composerEscape = vi.fn();
+  render(
+    <>
+      <PulseHarness />
+      <EscapeSwallowingTextarea onEscape={composerEscape} />
+    </>,
+  );
+  await flush();
+  await openPopover();
+
+  const textarea = document.querySelector('[data-testid="escape-swallowing-textarea"]') as HTMLTextAreaElement | null;
+  assert.ok(textarea, 'premise: the fixture textarea must render');
+  textarea.focus();
+  assert.equal(document.activeElement, textarea, 'premise: focus is in the fixture textarea');
+
+  // ONE key. The old document-bubble listener never saw it: the React handler below called
+  // preventDefault + stopPropagation first, which is exactly the reported bug.
+  await act(async () => {
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+  });
+  // Boolean forms here: a failing `assert.equal(popover(), null)` serialises the whole DOM node
+  // into its message and OOM-kills the worker, hiding which assertion actually failed.
+  assert.ok(popover() === null, 'a single Escape closes the popover');
+  assert.equal(composerEscape.mock.calls.length, 0, 'the composer handler must not receive the key');
+  // Cast because `assert.ok(active === textarea)` above narrowed `document.activeElement` to
+  // HTMLTextAreaElement for the rest of the block; focus has moved by now.
+  assert.ok((document.activeElement as HTMLElement | null) === trigger(), 'focus returns to the trigger');
+
+  // Control 1: with the popover closed, the same key still reaches the fixture handler once.
+  await act(async () => {
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+  });
+  assert.equal(composerEscape.mock.calls.length, 1, 'without a layer the key reaches the handler exactly once');
+});
+
+test('an open listbox keeps Escape for itself; the popover does not steal it', async () => {
+  const composerEscape = vi.fn();
+  render(
+    <>
+      <PulseHarness />
+      <EscapeSwallowingTextarea onEscape={composerEscape} />
+      <div role="listbox" aria-label="suggestions" />
+    </>,
+  );
+  await flush();
+  await openPopover();
+
+  const textarea = document.querySelector('[data-testid="escape-swallowing-textarea"]') as HTMLTextAreaElement | null;
+  assert.ok(textarea);
+  textarea.focus();
+
+  await act(async () => {
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+  });
+  assert.ok(popover() !== null, 'the popover must stay open while another floating layer owns Escape');
+  assert.equal(composerEscape.mock.calls.length, 1, 'the key reaches the layer that owns it');
+});
+
+/* ── 文案：复数与相对时间 ─────────────────────────────────────────────── */
+
+test('viaTasks follows the plural category: one task, two tasks', async () => {
+  apiMock.quaySessionMentions.mockResolvedValue(jsonResponse(mentionsReading([], [
+    { goalId: 'GOAL-ONE', title: 'One task', status: 'active', viaTaskCount: 1, mentionedDirectly: false },
+    { goalId: 'GOAL-TWO', title: 'Two tasks', status: 'active', viaTaskCount: 2, mentionedDirectly: false },
+  ])));
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  const rowText = (goalId: string) =>
+    document.querySelector(`[data-testid="quay-pulse-goal-row"][data-goal-id="${goalId}"]`)?.textContent ?? '';
+
+  assert.ok(rowText('GOAL-ONE').includes('via 1 task'), `a single task reads "via 1 task", got "${rowText('GOAL-ONE')}"`);
+  assert.ok(!rowText('GOAL-ONE').includes('via 1 tasks'), 'a single task must not read "via 1 tasks"');
+  assert.ok(rowText('GOAL-TWO').includes('via 2 tasks'), `two tasks read "via 2 tasks", got "${rowText('GOAL-TWO')}"`);
+});
+
+test('a mention reads the shared relative time at every distance, clamped against clock skew', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
+
+  const at = (millisecondsAgo: number) => new Date(NOW - millisecondsAgo).toISOString();
+  const ages: Array<[string, number]> = [
+    ['t-30s', 30_000],
+    ['t-5min', 5 * 60_000],
+    ['t-3h', 3 * HOUR],
+    ['t-29h', 29 * HOUR],
+    ['t-3d', 3 * 24 * HOUR],
+    // A stamp slightly in the future: clock skew must read as "now", never "in 5 minutes".
+    ['t-skew', -5 * 60_000],
+  ];
+  const tasks: QuaySessionMentionTask[] = ages.map(([taskId, millisecondsAgo]) => ({
+    taskId,
+    title: taskId,
+    status: 'ready',
+    phase: null,
+    goalId: null,
+    mentionCount: 1,
+    lastMentionAt: at(millisecondsAgo),
+  }));
+  apiMock.quaySessionMentions.mockResolvedValue(jsonResponse(mentionsReading(tasks, [])));
+
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  const readout = (taskId: string) =>
+    document.querySelector(
+      `[data-testid="quay-pulse-task-row"][data-task-id="${taskId}"] [data-testid="quay-pulse-mentioned-ago"]`,
+    )?.textContent?.trim() ?? '';
+
+  for (const [taskId, millisecondsAgo] of ages) {
+    if (taskId === 't-skew') {
+      continue;
+    }
+    const iso = at(millisecondsAgo);
+    const expected = formatRelativeTime(iso, 'en');
+    assert.equal(readout(taskId), `Mentioned ${expected}`, `${taskId} must use the shared formatter`);
+  }
+
+  assert.ok(!readout('t-29h').includes('min'), `29 hours must not read in minutes: "${readout('t-29h')}"`);
+  // The clamp is the point of this arm: the shared formatter alone would say "in 5 minutes".
+  assert.equal(formatRelativeTime(at(-5 * 60_000), 'en'), 'in 5 minutes', 'premise: an unclamped future stamp reads "in …"');
+  assert.ok(!readout('t-skew').includes('in '), `a future stamp must not read "in …": "${readout('t-skew')}"`);
 });
