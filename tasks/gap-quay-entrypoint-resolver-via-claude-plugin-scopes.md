@@ -1,7 +1,7 @@
 ---
 id: gap-quay-entrypoint-resolver-via-claude-plugin-scopes
 title: Quay 适配器：按 Claude Code 插件 scope 解析 quay CLI 入口，不再依赖项目的 .quay/plugin 符号链接
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -59,8 +59,19 @@ extra:
 
 ## Blocker
 
-**2026-10-25T19:58:12.495Z — worker 未落地（exited-not-landed）**
+**2026-10-25T20:29:30.850Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: __PERFILE__ duration_ms=103081 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1792957843796
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：845ed583-b954-4965-bd41-b4ede939b794
+- session_id：61bf6067-9362-420d-bb9a-93f21c97d624
+
+## Needs-Human
+
+**执行 2026-10-25T20:29:32.038Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：61bf6067-9362-420d-bb9a-93f21c97d624
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-entrypoint-resolver-via-claude-plugin-scopes~wk-prod-anchor~1792958560401-0fbc42.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-entrypoint-resolver-via-claude-plugin-scopes-wk-prod-anchor.log
