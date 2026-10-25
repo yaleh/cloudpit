@@ -106,11 +106,3 @@ $ git diff --stat develop
 `git diff -- scripts/test.sh`（相对 develop）就是 `scripts/test.sh:54` 之后新增的 29 行：一段 WHY/WHAT 注释 + `unset RESIDENT_RUN_IS_TURN VOICE_CAPTURE` + 按环境实际键名（`compgen -e`）枚举 `VOICE_REALTIME_*` / `SENSEVOICE_*` 的 `unset` 循环。放在 `ROOT_DIR`/`cd` 之后、任何 stage、文件收集与子进程之前，因此 node:test / vitest / playwright 三条 lane 都继承清理后的环境。改动面只有 `scripts/test.sh` 与任务文件。
 
 **AC 命令措辞的一处订正（保留原意）**：AC3/AC4 原来的命令 span 以 `bash scripts/test.sh` 开头，而仓内 `scripts/suite-scope-check.sh` 前置守卫会把「活跃任务 `## AC` 里不带 `--for-task` 的 `bash scripts/test.sh` span」判成违规（本任务 Touches 无 `*.test.*` ⇒ VIOLATION(b)），导致**任何** worktree 的全量 suite 在 prelude 直接 abort——实测 `suite-scope-check: FAIL — 2 violation(s)`。两条 AC 因此改写为以 `env …` 开头的同一条命令（AC2 原本就是这种形态），动作与读数完全不变；改写后守卫 `PASS`。
-
-## Blocker
-
-**2026-10-25T17:56:09.287Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：db187ea6-2213-4dd6-b31e-79ac0bdf4581
