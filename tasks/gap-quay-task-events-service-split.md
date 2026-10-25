@@ -1,7 +1,7 @@
 ---
 id: gap-quay-task-events-service-split
 title: Quay：把 quay-task-events.service.ts（829 行）拆成 parse/cursor-store/service 三个文件
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -41,3 +41,25 @@ extra:
 - 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
 - session_id：8856f478-6a6c-43bc-b69a-95045b78eb47
+
+## Needs-Human
+
+**执行 2026-10-25T20:06:32.419Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：4cf4f4d5-7f18-4b00-9030-4b18cef238fb
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-task-events-service-split~wk-prod-anchor~1792956251806-f38c72.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-task-events-service-split-wk-prod-anchor.log
+
+## Needs-Human
+
+**执行 2026-10-25T22:47:27.398Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 3 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：e48cbb89-7c1b-4bba-890c-7cf18c445f81
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-quay-task-events-service-split~wk-prod-anchor~1792967286788-e9f8a0.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-quay-task-events-service-split-wk-prod-anchor.log

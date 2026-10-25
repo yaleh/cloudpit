@@ -142,7 +142,6 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 
 本轮复核读数：AC-1 `quoteInsertion.test.ts` → exit 0，18 passed；AC-3 `suggestionChipAcceptContract.test.tsx` + `chatComposerReplyChips.test.tsx` → exit 0，50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → exit 0，49 passed；AC-5 `npm run typecheck` exit 0、`npm run lint` exit 0（仅既有 warning）。`git merge develop` 干净（只带进两份 task 文件的 blocker 记录），worktree clean。
 
-
 ## Notes
 
 **第 3 轮复核（2026-10-26T01:55Z）：被点名的红用驱动自己的 rerun 形式复跑全绿；红在 develop 侧，且驱动的 rerun / baseline-red 300s 窗口装不下 15 个红文件。**
@@ -154,6 +153,23 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - **结构性问题：驱动的 `rerun` 与 `baseline-red` 两步各有 300s 上限**（`.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log`：`state=rerun-not-evaluated` / `reason:"rerun-aborted"` / `verdict=not-evaluated` / `reason:"baseline rerun aborted"`）。该轮 15 个红文件 × 实测 ~27s/个 ≈ 400s，**即使全部复跑绿也装不进 300s** ⇒ 只要 suite 一次点出 ≥12 个无关红，本任务每轮都必然 `exited-not-landed`，与分支内容无关。需驱动侧提高 rerun / baseline-red 时限（或并行复跑）。
 - 负载读数：本轮宿主 load average 84/128、`pgrep -c node` = 52；同一批测试在 suite 的 16 路并发下红、单跑绿 ⇒ lane-load 敏感（与 `.quay/baseline-red-rounds.jsonl` 中 `cockpit-grid-pos-and-remote-focus-label` 复现的同一 `claude-resident-addressable` / `unattended-turn` 签名同族）。
 - 本任务落地状态：develop 修绿（或驱动窗口放宽、suite 红降到 <12 个）后，`git merge develop` 即可直接 ff；否则按 needs-human 手工落地配方快进即可。
+
+**第 4 轮复核（2026-10-26T06:25Z）：suite 红的真因是分支滞后丢了 `scripts/test.sh --list-files`；已由 `git merge develop` 修复，本任务 delta 未变。**
+
+- 上一轮 suite 日志 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~1792951012388-4d3fbf.log`：761 个用例 **761 pass / 0 fail**；红因是 `[full-suite-runner]` 的 plan probe 超时：`plan probe failed (.../scripts/test.sh --list-files): spawnSync bash ETIMEDOUT`（`source=probe-failed`、`completeness=not-evaluated`）。**不是测试失败。**
+- 根因：本 worktree 的 `scripts/test.sh` 当时落后 develop 72 个提交，缺 develop 的两处内容——`--list-files` 分支（`b36150f7f feat(test-sh): implement --list-files for the full-suite-runner plan probe`）与 host-env 隔离块。runner 用 `--list-files` 探测计划文件集时脚本不认识该 flag，于是真的把整个 suite 跑起来，超过 probe 的 120s 预算 ⇒ `ETIMEDOUT` ⇒ suite 判红（即使 761 个用例全绿）。
+- 修复（本轮）：`git merge --no-edit develop` 干净无冲突；`git diff develop -- scripts/test.sh` 现为空；`bash scripts/test.sh --list-files` 现在 **4.3s 返回 441 行、rc=0**，probe 不再超时。
+- 合并后复跑本任务判据：AC-1 `quoteInsertion.test.ts` → 18 passed；AC-3 `suggestionChipAcceptContract` + `chatComposerReplyChips` → 50 passed（12 + 38）；AC-4 `inputSuggestionsComposer.test.tsx` → 49 passed；AC-5 `npm run typecheck` rc=0、`npm run lint` rc=0（仅既有 warning）；AC-2 grep 读数不变（`235: const trailingBreaks = endsOnEmptyLine && /[\r\n]/.test(quoted) ? '\n\n' : '';`）。
+- `anti-drift-touches-check` exit 0（4 个实际文件全在 Touches）；`task_check` AC 5/5、DoD 5/5；worktree clean。分支交付物完整，**无需重实现**。
+
+**第 5 轮复核（Fleet 案卷 case_8cd07849c98e 的短期 dev 会话，2026-10-25T22:41Z）：suite 全绿却在套件末尾被判 aborted；判红的唯一读数是 develop 侧残留的一个 `sleep 2`，不是本任务 delta。**
+
+- 本轮 fan-in（run_id `wk-prod-anchor`，worker session `cad08ca7-2155-4adf-905a-cfc0989dfaa2`）的 suite 日志 `.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~1792967222276-86e8fd.log`：`# tests 761` / `# pass 761` / `# fail 0`，末行 `[full-suite-runner] SUITE-PLAN planned=441 terminal=761 missing=0 source=probe:test.sh --list-files plan_error=null completeness=not-evaluated oomKill=0 telemetry=ok laneCount=127`；驱动随后写 `# suite red aborted`。
+- 同一轮在 `.quay/verification-round.jsonl`（round 1570）的读数：`state:"red"`、`reason:"aborted"`、`notEvaluated:"leaked-processes (1)"`、`leakedProcesses:[{"pid":704526,"ppid":319121,"startedAt":"2026-10-25T22:36:52.140Z","cmdline":"sleep 2","cwd":"/data/home/yale/work/claudecodeui-worktrees/gap-composer-quote-insert-breaks-only-for-multiline"}]` ⇒ 判红不是任何断言失败，而是套件进程组里残留了一个 `sleep 2`。
+- 该签名在 develop 侧跨任务复现：同一本台账里 `notEvaluated:"leaked-processes (1)"` 共 20 轮、12 个不同任务（2026-10-25T17:28Z–22:36Z），每一条的 `cmdline` 都逐字是 `sleep 2`，cwd 都是当轮任务的 worktree。
+- 产生者读数：全库唯一的字面 `sleep 2` 命令在 `server/modules/providers/tests/claude-resident-cli-contract.test.ts:608`（`const IN_FLIGHT_BASH = 'sleep 2; echo CLI_CONTRACT_IN_FLIGHT_DONE';`），AC-379 的任务正文也逐字记着「场景里唯一的 Bash 是 `sleep 2; echo CLI_CONTRACT_IN_FLIGHT_DONE`」。该真 claude 哨兵结束后，工具派生的 `sleep 2` 子进程留在套件自己的进程组里；`full-suite-runner` 的 leak 扫描在 suite 子进程退出后按 pgid 枚举成员，扫到它就整轮标 `not-evaluated`。
+- 因此本任务 Needs-Human 段里的判词（suite red 归因不出）是**后果**：`fail 0` 时归因器读到 `0 of 0 failing lines` 是正确行为，没有可归因的文件；不是本任务 delta 的缺陷。本任务 4 个实际文件全在 Touches 内、worktree clean、分支内容与第 4 轮一致。
+- 处置：本任务维持 needs-human，不重派；这个遗留进程缺陷已另立任务记录（主检出 `tasks/gap-cli-contract-sentinel-sleep2-bash-child-leaks-into-suite-leak-sweep.md`）。该缺陷修好后本分支可直接 `git merge develop` 再 ff。
 
 ## Touches
 
@@ -171,3 +187,13 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
 - session_id：1d59a6a0-67cb-4c63-b4f2-273d8ff20f20
+## Needs-Human
+
+**执行 2026-10-25T22:36:58.029Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：cad08ca7-2155-4adf-905a-cfc0989dfaa2
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~1792967222276-86e8fd.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log
