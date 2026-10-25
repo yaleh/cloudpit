@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-refresh-job-split
 title: 架构：把 refreshJob.ts（931 行）按关注点切成 settings/spawn/publish/状态机四个文件
-status: todo
+status: ready
 labels:
   - gap
 parent: null
