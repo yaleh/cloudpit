@@ -36,8 +36,8 @@ extra:
 
 ## Blocker
 
-**2026-10-25T17:15:23.891Z — worker 未落地（exited-not-landed）**
+**2026-10-25T19:21:06.730Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：a16e15c2-cd46-44af-a70e-844ac0e21520
+- session_id：8856f478-6a6c-43bc-b69a-95045b78eb47
