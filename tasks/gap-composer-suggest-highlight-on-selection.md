@@ -56,5 +56,14 @@ extra:
 - src/modules/chat/hooks/useSuggestionChips.ts
 - src/shared/types.ts
 - src/modules/chat/tests/chatComposerSuggestHighlight.test.tsx
+- src/modules/chat/tests/inlineQuoteChip.test.tsx
 - src/modules/i18n/locales/*/chat.json
 - tasks/gap-composer-suggest-highlight-on-selection.md
+
+## Blocker
+
+**2026-10-25T18:57:27.464Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/chat/tests/inlineQuoteChip.test.tsx: AssertionError [ERR_ASSERTION]: en key set unchanged
+- run_id：wk-prod-anchor
+- session_id：2858da21-e123-4c5d-82d5-65827cd67260
