@@ -1,7 +1,7 @@
 ---
 id: gap-quay-fleet-locator-barrel-export
 title: Quay：locateQuayFleetCli 经 barrel 导出，删除 server/index.ts 的组合根深导入
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -96,14 +96,6 @@ test exit=0
 - server/index.ts
 - server/shared/tests/server-import-cycle-budget.test.ts
 - tasks/gap-quay-fleet-locator-barrel-export.md
-
-## Blocker
-
-**2026-10-25T17:28:29.059Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：439a4746-ebe1-4a45-aa08-f80c4576dc92
 
 ## Needs-Human
 
