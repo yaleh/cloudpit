@@ -608,6 +608,15 @@ function bashToolStream(command: string): string {
 const IN_FLIGHT_BASH = 'sleep 2; echo CLI_CONTRACT_IN_FLIGHT_DONE';
 
 /**
+ * How long to wait for the in-flight `Bash` (a `sleep 2`) to exit after the cold
+ * turn's first answer. The CLI detaches its foreground tool into its own process
+ * group, so retiring the host below does NOT kill that `sleep 2`; it would
+ * outlive this test and trip the full-suite-runner's leak sweep. Two seconds of
+ * sleep plus the CLI's spawn/echo margin.
+ */
+const IN_FLIGHT_BASH_SETTLE_MS = 3000;
+
+/**
  * An Anthropic-compatible endpoint that answers this criterion's conversation.
  *
  * A request is an *agent* request when its body declares tool schemas — the
@@ -867,12 +876,17 @@ async function driveScenario(
 
   sendChat(socket, sessionId, `${arm.marker} cold turn`, configRoot, null);
 
+  let bashStartedAt = 0;
   if (arm.busyCount > 0) {
     await waitFor(
       () => mock.agentRequests() >= agentBefore + 1,
       COLD_TURN_TIMEOUT_MS,
       `${scenario}: the cold turn's first model answer`,
     );
+    // The mock's answer above is what makes the CLI spawn the in-flight `Bash`;
+    // stamp the start so the end of this scenario can wait out the detached
+    // `sleep 2` (see IN_FLIGHT_BASH_SETTLE_MS).
+    bashStartedAt = Date.now();
     for (let index = 0; index < arm.busyCount; index += 1) {
       const before = countLifecycle(framesOf(sessionId), 'queued');
       sendChat(socket, sessionId, `${arm.marker} queued ${index}`, configRoot, arm.priority);
@@ -895,6 +909,18 @@ async function driveScenario(
   );
   if (terminalReached) {
     await settleFrames(sessionId, FRAME_QUIET_MS, FRAME_SETTLE_CAP_MS);
+  }
+
+  // The in-flight `Bash` is detached from the CLI (its own process group), so
+  // retiring the host after this scenario does not kill it. Wait out the
+  // `sleep 2` here so the bash exits before the host is retired and the next
+  // scenario starts — otherwise it outlives the test and trips the suite's
+  // leak sweep.
+  if (arm.holdsTurn) {
+    const remaining = IN_FLIGHT_BASH_SETTLE_MS - (Date.now() - bashStartedAt);
+    if (remaining > 0) {
+      await new Promise((resolve) => { setTimeout(resolve, remaining); });
+    }
   }
   mock.disarm();
 

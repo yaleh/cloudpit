@@ -117,6 +117,8 @@ export type {
   QuayFleetTaskCounts,
   /** Consumed by the MCP gateway's `quay_snapshot` tool: one task the worker driver reports in flight. */
   QuayInFlightTask,
+  /** Consumed by the Quay tab's overall running-status band: kernel/pointer/drain/orphan readings. */
+  QuayLoopStatus,
   QuayProjectStatus,
   QuaySnapshot,
   /** Consumed by the title bar's always-on mini gantt: the lanes-only reading. */
