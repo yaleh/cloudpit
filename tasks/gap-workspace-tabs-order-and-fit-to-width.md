@@ -1,7 +1,7 @@
 ---
 id: gap-workspace-tabs-order-and-fit-to-width
 title: PC 工作区 tab 栏：Quay/Architecture 前移、Shell 挪到内置组末尾，并按实测宽度在「全文字」与「仅图标」间自适应，同时压缩标题块
-status: todo
+status: ready
 labels:
   - gap
 parent: null
