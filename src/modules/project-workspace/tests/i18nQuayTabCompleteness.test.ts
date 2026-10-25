@@ -21,6 +21,7 @@ const LOCALES_DIR = resolve(process.cwd(), 'src', 'modules', 'i18n', 'locales');
 type CommonBundle = {
   tabs?: Record<string, unknown>;
   quayPulse?: Record<string, unknown>;
+  quayTab?: Record<string, unknown>;
 };
 
 /**
@@ -94,6 +95,46 @@ function quayPulseProblems(
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       problems.push(
         `quayPulse.${key} interpolates ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The reasons one locale's `quayTab` block fails the contract the Quay tab's new surfaces
+ * (status band + session panel) need. The ENGLISH block is the reference: every locale must
+ * carry the same keys, the same interpolation names, and a value that is not merely its key.
+ */
+function quayTabKeysProblems(
+  bundle: CommonBundle,
+  reference: Record<string, unknown>,
+): string[] {
+  const block = bundle.quayTab;
+  if (typeof block !== 'object' || block === null) {
+    return ['quayTab is missing'];
+  }
+
+  const problems: string[] = [];
+  for (const [key, referenceValue] of Object.entries(reference)) {
+    const value = block[key];
+    if (typeof value !== 'string') {
+      problems.push(`quayTab.${key} is missing or not a string`);
+      continue;
+    }
+    if (value.trim().length === 0) {
+      problems.push(`quayTab.${key} is an empty string`);
+      continue;
+    }
+    if (value === `quayTab.${key}`) {
+      problems.push(`quayTab.${key} is the raw key name, not a label`);
+      continue;
+    }
+    const expected = interpolationNames(String(referenceValue));
+    const actual = interpolationNames(value);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      problems.push(
+        `quayTab.${key} interpolates ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
       );
     }
   }
@@ -274,5 +315,93 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
 
     expect(viaTasksPluralProblems('en', { viaTasks_one: 'via a task', viaTasks_other: 'via {{count}} tasks' }))
       .toEqual(['quayPulse.viaTasks_one does not interpolate {{count}}']);
+  });
+});
+
+/**
+ * The Quay tab's new status band and session column render every `quayTab.*` label below. A
+ * missed key shows the raw dotted key on screen, and a dropped interpolation shows a sentence
+ * with the value missing — both invisible to an English-only read. This walks the same
+ * 12-locale glob the title-bar keys do.
+ */
+describe('every locale carries the Quay tab status-band and session keys', () => {
+  const bundleFiles = globSync('*/common.json', { cwd: LOCALES_DIR }).sort();
+  const english = JSON.parse(
+    readFileSync(join(LOCALES_DIR, 'en', 'common.json'), 'utf8'),
+  ) as CommonBundle;
+  const reference = english.quayTab ?? {};
+
+  const EXPECTED_KEYS = [
+    'blockedReason',
+    'chainError',
+    'chainUnavailable',
+    'createdEmpty',
+    'createdHeading',
+    'done',
+    'draining',
+    'driverIdle',
+    'driverNotConfigured',
+    'driverRunning',
+    'driverStale',
+    'driverUnavailable',
+    'goalsHeading',
+    'inFlightCount',
+    'kernelAhead',
+    'kernelBehind',
+    'kernelCurrent',
+    'kernelNotEvaluated',
+    'loadingChain',
+    'loadingMentions',
+    'mentionedAt',
+    'mentionedInMessage',
+    'mentionsError',
+    'needsHumanCount',
+    'noMentions',
+    'noSession',
+    'orphanExpired',
+    'orphanMarked',
+    'orphanMarkedUnknown',
+    'pointerDeviation',
+    'readyCount',
+    'sessionPanelTitle',
+    'suiteState',
+    'tasksHeading',
+    'viaTasks',
+  ];
+
+  it('the English bundle declares every quayTab key this task introduced', () => {
+    expect(baseKeys(reference)).toEqual(EXPECTED_KEYS);
+  });
+
+  it('every locale carries each quayTab key with the English placeholders and a real value', () => {
+    const offenders: string[] = [];
+    for (const file of bundleFiles) {
+      const bundle = JSON.parse(readFileSync(join(LOCALES_DIR, file), 'utf8')) as CommonBundle;
+      for (const problem of quayTabKeysProblems(bundle, reference)) {
+        offenders.push(`${file}: ${problem}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('rejects a missing, blank, key-copied or placeholder-dropping quayTab block (positive control)', () => {
+    expect(quayTabKeysProblems({}, reference)).toEqual(['quayTab is missing']);
+
+    const { orphanMarked: _omitted, ...withoutOrphan } = reference;
+    expect(quayTabKeysProblems({ quayTab: withoutOrphan }, reference)).toEqual([
+      'quayTab.orphanMarked is missing or not a string',
+    ]);
+
+    expect(quayTabKeysProblems({ quayTab: { ...reference, noSession: '  ' } }, reference)).toEqual([
+      'quayTab.noSession is an empty string',
+    ]);
+
+    expect(quayTabKeysProblems({ quayTab: { ...reference, noMentions: 'quayTab.noMentions' } }, reference)).toEqual([
+      'quayTab.noMentions is the raw key name, not a label',
+    ]);
+
+    expect(
+      quayTabKeysProblems({ quayTab: { ...reference, orphanMarked: 'Plugin version removed soon' } }, reference),
+    ).toEqual(['quayTab.orphanMarked interpolates [], expected ["days"]']);
   });
 });
