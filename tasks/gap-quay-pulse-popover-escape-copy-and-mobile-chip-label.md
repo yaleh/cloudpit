@@ -53,3 +53,11 @@ extra:
 - src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts
 - src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx
 - tasks/gap-quay-pulse-popover-escape-copy-and-mobile-chip-label.md
+
+## Blocker
+
+**2026-10-25T17:15:22.223Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- run_id：wk-prod-anchor
+- session_id：788e5fd3-ac31-4174-9d5f-070099d70865
