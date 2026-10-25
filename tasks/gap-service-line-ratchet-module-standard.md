@@ -1,7 +1,7 @@
 ---
 id: gap-service-line-ratchet-module-standard
 title: 把 reply-suggestions 的 260 行 ratchet 与 React-free controller 纪律写进前后端模块标准
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -96,8 +96,19 @@ diff --git a/.agents/skills/frontend-module-standards/SKILL.md b/.agents/skills/
 
 ## Blocker
 
-**2026-10-25T17:15:23.355Z — worker 未落地（exited-not-landed）**
+**2026-10-25T19:06:00.404Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=spawn-mechanical-fan-in: fresh mechanical fan-in process failed: no output
+- 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
-- session_id：871b8d4d-e737-4be1-96e4-b63a3a01af0c
+- session_id：0ddc93ed-093c-415f-a6b8-c76b13acfb1d
+
+## Needs-Human
+
+**执行 2026-10-25T19:06:01.600Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：0ddc93ed-093c-415f-a6b8-c76b13acfb1d
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-service-line-ratchet-module-standard~wk-prod-anchor~1792953436561-74f8ee.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-service-line-ratchet-module-standard-wk-prod-anchor.log

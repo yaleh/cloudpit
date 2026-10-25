@@ -961,9 +961,12 @@
     "loading": "Загрузка упомянутых задач…",
     "listError": "Не удалось прочитать упомянутые в этом сеансе задачи.",
     "lanesNote": "Чтение дорожек недоступно — задачи показывают сохранённый статус без фазы.",
-    "viaTasks": "через {{count}} задач",
+    "viaTasks_one": "через {{count}} задачу",
+    "viaTasks_few": "через {{count}} задачи",
+    "viaTasks_many": "через {{count}} задач",
+    "viaTasks_other": "через {{count}} задачи",
     "mentionedInMessage": "упомянута в сообщении",
-    "mentionedAgo": "Упомянута {{minutes}} мин назад",
+    "mentionedAt": "Упомянута {{when}}",
     "openQuayPanel": "Открыть панель Quay"
   }
 }
