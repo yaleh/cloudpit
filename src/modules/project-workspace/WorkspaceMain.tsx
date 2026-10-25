@@ -425,6 +425,12 @@ function WorkspaceMain({
                 // the card for the length of the re-read.
                 windowHours={quayWindowHours}
                 ganttRefreshing={quayGanttRefreshing}
+                // The session column: `null` (no conversation selected) is a reading the panel
+                // states; the column reads that conversation's mentions and started tasks.
+                sessionId={selectedSession?.id ?? null}
+                // The panel does not decide what device it is on — WorkspaceMain owns that
+                // reading, and only mobile folds the detail cards.
+                collapsibleDetails={isMobile}
               />
             </div>
           )}

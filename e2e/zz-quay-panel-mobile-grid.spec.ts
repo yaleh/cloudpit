@@ -33,6 +33,7 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { expect, request, test } from '@playwright/test';
@@ -84,6 +85,33 @@ const USERNAME = 'e2euser';
 const PASSWORD = 'e2epassword';
 
 /**
+ * The quay plugin directory the fixture's `.quay/plugin` link points at.
+ *
+ * A TASK WORKTREE HAS NO LOCAL `.quay/`: that tree is operator state, not checked in, so this
+ * spec used to die on `fs.realpathSync(REPO_ROOT/.quay/plugin)` when run from a worktree. The
+ * server spawns `<projectRoot>/.quay/plugin/bin/quay`, so the fixture needs SOME real plugin:
+ * the checkout's own when present (the wiring the repo runs on), otherwise the installed plugin
+ * cache the drivers themselves run from. The version is discovered, never pinned.
+ */
+const resolveQuayPlugin = (): string => {
+  const repoPlugin = path.join(REPO_ROOT, '.quay', 'plugin');
+  if (fs.existsSync(repoPlugin)) {
+    return fs.realpathSync(repoPlugin);
+  }
+  const cache = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'quay', 'quay');
+  const versions = fs.existsSync(cache)
+    ? fs.readdirSync(cache).filter((version) => fs.existsSync(path.join(cache, version, 'bin', 'quay')))
+    : [];
+  if (versions.length === 0) {
+    throw new Error(
+      `no quay plugin to wire into the fixture: neither ${repoPlugin} nor an install under ${cache}`,
+    );
+  }
+  versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return path.join(cache, versions[versions.length - 1] as string);
+};
+
+/**
  * Writes the fixture project, its quay config and the transcript that makes the app discover it.
  *
  * Called before the first navigation. `GET /api/projects` runs the session synchronizer, and the
@@ -108,7 +136,7 @@ const seedFixtureProject = (): void => {
   // what the fixture needs). The fixture now mirrors the repo's own, currently-working wiring
   // instead: point `.quay/plugin` at the same installed plugin the repo checkout points to, and
   // omit `mcp_entry` so the native provider derives it the same way the real project does.
-  const repoPluginTarget = fs.realpathSync(path.join(REPO_ROOT, '.quay', 'plugin'));
+  const repoPluginTarget = resolveQuayPlugin();
   const pluginLink = path.join(WORKSPACE, '.quay', 'plugin');
   // Idempotent: this file seeds the same fixture once per case, so the second case finds the
   // link the first one made (and `symlinkSync` would otherwise fail with EEXIST).
@@ -402,6 +430,46 @@ const readGanttGeometry = (page: Page): Promise<{ svgWidth: number; aspectRatio:
     };
   });
 
+/**
+ * The three-layer layout reading (gap-quay-tab-status-band-charts-session-first-layout).
+ *
+ * `order` is the DOM order of the four layer marks — status band, charts, session panel,
+ * details — sorted by document position. `layersTracks` is the computed column count of the
+ * container the charts and session panel share: two at `lg`, one below it. `detailsCollapsed`
+ * reads every layer-3 card's wrapping `Collapsible`: on mobile all five are closed by default,
+ * on desktop there is no wrapper at all.
+ */
+type LayersReading = {
+  order: string[];
+  layersTemplate: string;
+  layersTracks: number;
+  detailsCollapsed: Array<{ id: string; state: string; expanded: string | null }>;
+};
+
+const readLayers = (page: Page): Promise<LayersReading> =>
+  page.evaluate(() => {
+    const layerIds = ['quay-status-band', 'quay-tab-charts', 'quay-session-panel', 'quay-tab-details'];
+    const nodes = layerIds
+      .map((id) => document.querySelector(`[data-testid="${id}"]`))
+      .filter((node): node is Element => node !== null);
+    const ordered = [...nodes].sort((left, right) =>
+      (left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 ? -1 : 1,
+    );
+    const layers = document.querySelector('[data-testid="quay-tab-layers"]');
+    const template = layers ? getComputedStyle(layers).gridTemplateColumns : '';
+    return {
+      order: ordered.map((node) => node.getAttribute('data-testid') ?? ''),
+      layersTemplate: template,
+      layersTracks: template.split(/\s+/).filter(Boolean).length,
+      detailsCollapsed: [...document.querySelectorAll('[data-testid="quay-tab-details"] [data-collapsible="true"]')]
+        .map((wrapper) => ({
+          id: wrapper.getAttribute('data-testid') ?? '',
+          state: wrapper.getAttribute('data-state') ?? '',
+          expanded: wrapper.querySelector('button')?.getAttribute('aria-expanded') ?? null,
+        })),
+    };
+  });
+
 /* ── the case ────────────────────────────────────────────────────────────────── */
 
 test.describe('the Quay panel on a 390px phone', () => {
@@ -470,7 +538,29 @@ test.describe('the Quay panel on a 390px phone', () => {
       await quayTab.click();
 
       await expect(page.locator('[data-testid="quay-panel-loaded"]')).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('[data-testid="quay-panel-recent-tasks"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-testid="quay-panel-recent-tasks"]')).toBeAttached({ timeout: 20_000 });
+      await page.waitForTimeout(300);
+
+      // THREE LAYERS, in order: status band → charts → session panel → details. Below `lg` the
+      // charts/session container is one column, and every layer-3 card is collapsed by default.
+      const mobileLayers = await readLayers(page);
+      console.log(`[quay-grid] mobile layers ${JSON.stringify(mobileLayers)}`);
+      expect(mobileLayers.order).toEqual([
+        'quay-status-band',
+        'quay-tab-charts',
+        'quay-session-panel',
+        'quay-tab-details',
+      ]);
+      expect(mobileLayers.layersTracks, `the two-layer container must be one column on a phone: ${mobileLayers.layersTemplate}`).toBe(1);
+      expect(mobileLayers.detailsCollapsed).toHaveLength(5);
+      for (const card of mobileLayers.detailsCollapsed) {
+        expect(card.state, `${card.id} must default to collapsed`).toBe('closed');
+        expect(card.expanded, `${card.id}'s trigger must report aria-expanded=false`).toBe('false');
+      }
+
+      // Expand the Task ledger card, which owns the recent-tasks rows the geometry cases read.
+      await page.getByTestId('quay-detail-toggle-task-ledger').click();
+      await expect(page.getByTestId('quay-detail-task-ledger')).toHaveAttribute('data-state', 'open');
       await page.waitForTimeout(300);
 
       const reading = await readPanel(page);
@@ -554,6 +644,19 @@ test.describe('the Quay panel on a 390px phone', () => {
       // layout, and this is the reading that says so.
       await page.setViewportSize({ width: DESKTOP_VIEWPORT.width, height: DESKTOP_VIEWPORT.height });
       await page.waitForTimeout(300);
+      const desktopLayers = await readLayers(page);
+      console.log(`[quay-grid] desktop layers ${JSON.stringify(desktopLayers)}`);
+      expect(desktopLayers.order).toEqual([
+        'quay-status-band',
+        'quay-tab-charts',
+        'quay-session-panel',
+        'quay-tab-details',
+      ]);
+      // At `lg` the charts and the session panel sit side by side (two tracks) and the detail
+      // cards are rendered unwrapped (always expanded).
+      expect(desktopLayers.layersTracks, `the two-layer container must be two columns on desktop: ${desktopLayers.layersTemplate}`).toBe(2);
+      expect(desktopLayers.detailsCollapsed, 'desktop must not fold the detail cards').toHaveLength(0);
+
       const desktop = await readPanel(page);
       console.log(`[quay-grid] desktop ${describeReading(desktop)}`);
       expect(desktop.innerWidth, `the regression reading declares ${DESKTOP_VIEWPORT.width}px`).toBe(DESKTOP_VIEWPORT.width);
