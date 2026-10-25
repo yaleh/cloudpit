@@ -1,7 +1,7 @@
 ---
 id: gap-quay-snapshot-loop-status-version-drain-orphan
 title: Quay 服务端：snapshot 增加 loop 整体状态读数（版本偏差、drain、版本目录 orphan 倒计时、.quay/plugin 指针状态）
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -59,3 +59,29 @@ extra:
 - 未落地原因：step=suite: __PERFILE__ duration_ms=37696 server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts passed=false end_ms=1792943088997
 - run_id：wk-prod-anchor
 - session_id：17ff5171-d9a1-46eb-b9e2-30f15570237f
+
+**2026-10-26T00:08Z — 主动 park（needs-human）：baseline A/B 永远 not-evaluated，纯 exit 会无限重派**
+
+实现已完成（分支 `task/gap-quay-snapshot-loop-status-version-drain-orphan`，6+1 提交），7/7 AC 已勾选；本轮的 suite 红全部在 develop 基线侧，执行侧（本任务 Touches）不可满足。
+
+三条判定指纹（全部命中 `shared-lessons/fan-in-rerun-timeout-makes-baseline-a-b-unevaluable`）：
+
+1. `.quay/worker-outcome.jsonl` 中本任务最近三条记录（14:30 / 15:18 / 16:05）均为 `mechanical_fan_in.rerun.state="rerun-not-evaluated"`（reason `rerun-aborted`）+ `baselineEquivalence.verdict.kind="not-evaluated"`（reason `baseline rerun aborted`）。
+2. 本任务 suite 点名 15 个失败文件，与 `gap-composer-quote-insert-breaks-only-for-multiline` 最近两轮的 `failedTestFiles.files` **逐字相同（15/15）** ⇒ 跨任务 fileRecurrence，红在 develop 全局，不在本任务 delta。
+3. 驱动自己的 develop 基线日志 `.quay/fan-in-suite-gap-quay-snapshot-loop-status-version-drain-orphan~wk-prod-anchor~baseline-1792944003198-2f886d.log` 只写出 5 个 `__PERFILE__` 便于 00:05:03 断掉（撞 `RERUN_TIMEOUT_MS=300000`）；同轮 rerun 日志 `~rerun-1792943702529-48abc4.log` 在 6 个文件后 00:00:02 断掉。15 个文件 × 单文件 20–60s ⇒ 两侧都 >300s，A/B 无读数。
+
+红在 develop 侧的证据（读驱动自己的 baseline 日志，比复跑省）：`mcp-session-lifecycle`（TARGET_AMBIGUOUS）、`mcp-session-send`（SESSION_BUSY）、`mcp-cancel-queued`（Missing scope）、`debug-agent-control-queue`（probe child exited non-zero）、`claude-resident-busy-input`（leg-2 frame）在纯 merge-target 检出上以**相同断言**红；本任务 delta 仅 `server/modules/quay/*` + `server/shared/types.ts` 的纯增量字段，与这些文件无导入关系。
+
+本任务实现与 AC 复核（2026-10-26 本轮，已 merge develop、anti-drift OK）：
+
+- AC 测试 `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` → 42 pass / 0 fail / 1 skip（需已装 quay 插件），exit 0；loop.kernel/pointer/drain/orphan/零额外 spawn/TTL 五组用例全绿。
+- AC5 兄弟测试（quay-uri-resolve、mcp-overview、mcp-read-tools、mcp-english-only、mcp-error-envelope、mcp-error-vocabulary、mcp-not-found-semantics）与 `server-import-cycle-budget` 在 suite 日志中全部 passed=true；typecheck / lint 均 passed=true。
+- `git merge develop` 干净（develop 已是 HEAD 祖先）；`anti-drift-touches-check` → `ANTI-DRIFT OK: 6 actual file(s), all within declared Touches (7 glob(s))`。
+
+为什么执行侧不可满足：15 个红文件都不在 `## Touches`，直接修它们会 red 掉 anti-drift；本任务 delta 与它们无导入关系，且它们在纯 develop 检出上同样红。
+
+收口路径（需基础设施 owner，不在 worker 权限内，任选其一）：
+
+- 抬高 fan-in 的 `RERUN_TIMEOUT_MS`（当前 300000），或让 `scripts/quay-rerun-failed.sh` 并行重跑；
+- 超时时改用「与驱动 baseline 日志逐文件比对」而不是重跑来判 A/B；
+- 先落地一个修掉这 15 个 develop 全局红（或把它们登记为 baseline-red 豁免）的独立分支，再重派本任务。
