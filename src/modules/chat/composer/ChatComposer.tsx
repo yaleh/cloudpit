@@ -537,6 +537,25 @@ export default function ChatComposer({
   const expansionChips = chipStrip?.expansionChips ?? [];
   const acceptExpansionChip = chipStrip?.onAcceptExpansionChip;
 
+  // The Suggest control advertises a selected transcript passage: with the box
+  // empty, a press will re-draw the chips around exactly that passage. This is an
+  // affordance only — the press path and the request body are unchanged. A draw in
+  // flight and a failure keep their own readings: the spinner and the destructive
+  // colour are more urgent than the highlight.
+  const showSuggestHighlight =
+    suggestionChipsEnabled
+    && chipStrip?.hasTranscriptSelection === true
+    && input === ''
+    && !suggestionChipsLoading
+    && !replySuggestFailed;
+  // One label for the accessible name, the tooltip and the wide tier's visible text,
+  // so the three cannot drift apart.
+  const suggestButtonLabel = replySuggestFailed
+    ? t('input.suggestions.suggestFailed', { defaultValue: 'Suggest failed' })
+    : showSuggestHighlight
+      ? t('input.suggestions.suggestForSelection', { defaultValue: 'Suggest from selection' })
+      : t('input.suggestions.suggest', { defaultValue: 'Suggest' });
+
   const requestReplySuggestions = useCallback(async () => {
     if (!requestSuggestionBatch) {
       return;
@@ -1305,50 +1324,57 @@ export default function ChatComposer({
               <PromptInputButton
                 data-slot="reply-suggest-button"
                 data-reply-suggest-state={replySuggestFailed ? 'failed' : suggestionChipsLoading ? 'loading' : 'idle'}
-                tooltip={{
-                  content: replySuggestFailed
-                    ? t('input.suggestions.suggestFailed', { defaultValue: 'Suggest failed' })
-                    : t('input.suggestions.suggest', { defaultValue: 'Suggest' }),
-                }}
+                data-reply-suggest-highlighted={showSuggestHighlight ? 'true' : undefined}
+                tooltip={{ content: suggestButtonLabel }}
                 onClick={requestReplySuggestions}
                 disabled={suggestionChipsLoading}
-                aria-label={replySuggestFailed
-                  ? t('input.suggestions.suggestFailed', { defaultValue: 'Suggest failed' })
-                  : t('input.suggestions.suggest', { defaultValue: 'Suggest' })}
+                aria-label={suggestButtonLabel}
                 aria-busy={suggestionChipsLoading || undefined}
                 // The <360px band shrinks every PromptInputButton to 28px to fit the long model
                 // name; the icon control keeps its 32px hit target there and the right cluster
                 // gives up 2px per gap instead (below), so the row still does not overflow.
+                // `relative` exists for the highlight's dot; it changes no layout on its own.
                 className={cn(
-                  'shrink-0 rounded-full border border-dashed border-border/70 text-muted-foreground hover:border-primary/60 hover:text-foreground focus-visible:ring-2 max-[359px]:!w-8',
+                  'relative shrink-0 rounded-full border border-dashed border-border/70 text-muted-foreground hover:border-primary/60 hover:text-foreground focus-visible:ring-2 max-[359px]:!w-8',
                   replySuggestFailed && 'border-destructive/60 text-destructive',
+                  showSuggestHighlight && 'ring-2 ring-primary/60 border-primary text-foreground',
                 )}
               >
                 {suggestionChipsLoading
                   ? <Loader2 className="animate-spin" />
                   : replySuggestFailed ? <CircleAlert /> : <Sparkles />}
+                {/*
+                  The compact tier has no room for the label, so the "a selection will be
+                  used" reading is a decorative dot — the accessible name above carries
+                  the same fact for assistive technology.
+                */}
+                {showSuggestHighlight && (
+                  <span
+                    data-slot="reply-suggest-dot"
+                    aria-hidden="true"
+                    className="absolute -right-0.5 -top-0.5 block h-2 w-2 rounded-full bg-primary"
+                  />
+                )}
               </PromptInputButton>
             ) : (
               <button
                 type="button"
                 data-slot="reply-suggest-button"
                 data-reply-suggest-state={replySuggestFailed ? 'failed' : suggestionChipsLoading ? 'loading' : 'idle'}
+                data-reply-suggest-highlighted={showSuggestHighlight ? 'true' : undefined}
                 onClick={requestReplySuggestions}
                 disabled={suggestionChipsLoading}
-                aria-label={replySuggestFailed
-                  ? t('input.suggestions.suggestFailed', { defaultValue: 'Suggest failed' })
-                  : t('input.suggestions.suggest', { defaultValue: 'Suggest' })}
+                aria-label={suggestButtonLabel}
                 aria-busy={suggestionChipsLoading || undefined}
                 className={cn(
                   'h-8 shrink-0 whitespace-nowrap rounded-full border border-dashed border-border/70 px-2 text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50',
                   replySuggestFailed && 'border-destructive/60 text-destructive',
+                  showSuggestHighlight && 'ring-2 ring-primary/60 border-primary text-foreground',
                 )}
               >
                 {suggestionChipsLoading
                   ? t('input.suggestions.suggesting', { defaultValue: 'Suggesting…' })
-                  : replySuggestFailed
-                    ? t('input.suggestions.suggestFailed', { defaultValue: 'Suggest failed' })
-                    : t('input.suggestions.suggest', { defaultValue: 'Suggest' })}
+                  : suggestButtonLabel}
               </button>
             ))}
 

@@ -3793,6 +3793,13 @@ export type ComposerChipStrip = {
   onAccept: (chip: SuggestionChip) => void;
   /** Whether the reply-suggestions feature is on and has a message to draw from. */
   suggestionsEnabled: boolean;
+  /**
+   * Whether a live transcript selection exists — the same reading that draws the
+   * quoted chip. `ChatComposer` marks the Suggest control with it while the draft is
+   * empty, so a press visibly means "draw around the selected passage". Optional so a
+   * hand-built strip stub reads as "no selection" rather than needing a new field.
+   */
+  hasTranscriptSelection?: boolean;
   /** A Suggest draw is in flight. */
   suggestionsLoading: boolean;
   /** Asks for a whole new batch; resolves false when the draw failed. */

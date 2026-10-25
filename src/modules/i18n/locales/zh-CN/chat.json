@@ -169,6 +169,7 @@
       "suggest": "建议",
       "suggesting": "生成中…",
       "suggestHint": "根据上下文建议回复",
+      "suggestForSelection": "用选段生成建议",
       "quoteChip": "引用：{{text}}"
     },
     "showAllCommands": "显示所有命令",
