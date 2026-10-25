@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-refresh-job-split
 title: 架构：把 refreshJob.ts（931 行）按关注点切成 settings/spawn/publish/状态机四个文件
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -34,11 +34,3 @@ extra:
 - server/modules/architecture/refresh-publish.ts (new)
 - server/modules/architecture/tests/refreshJob.test.ts
 - tasks/gap-architecture-refresh-job-split.md
-
-## Blocker
-
-**2026-10-25T18:50:13.340Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 0
-- run_id：wk-prod-anchor
-- session_id：d7f03c32-455d-419b-a386-ea9ddc81ce1e
