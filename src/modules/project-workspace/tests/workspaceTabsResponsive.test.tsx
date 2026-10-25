@@ -253,12 +253,12 @@ test('mobile drops the tablist for a single trigger that reports the active work
   );
 
   const trigger = triggers[0] as HTMLElement;
-  // The label is now carried entirely by `aria-label`: the pulse strip beside the trigger needs
-  // the room the visible text used to take, so the button renders icon + chevron only.
+  // A project without the quay pulse strip has nothing to make room for, so the trigger names
+  // the active view on screen as well as through `aria-label`.
   assert.equal(
     (trigger.textContent ?? '').trim(),
-    '',
-    `the collapsed trigger must show no visible text; it still rendered "${trigger.textContent}"`,
+    'Chat',
+    `the collapsed trigger must show the active view name; it rendered "${trigger.textContent}"`,
   );
   assert.ok(
     accessibleName(trigger).includes('Chat'),
@@ -473,6 +473,47 @@ test('shouldShowQuayTab gates the pulse trigger and its lanes read', async () =>
     await Promise.resolve();
   });
   assert.ok(mobile.container.querySelector('[data-testid="quay-pulse-trigger"]'), 'mobile quay trigger');
+});
+
+// The visible label is a space trade with the pulse strip, so it exists exactly where there is no
+// pulse strip: dropping it for a non-quay project took away the only on-screen name of the view
+// for no benefit. Both shapes keep the same accessibility and tab contract.
+test('the mobile trigger shows the view name unless the quay pulse strip needs the room', () => {
+  const withoutQuay = render(<HeaderHarness isMobile />);
+  const trigger = collapsedTrigger();
+  assert.ok(trigger, `a non-quay project must render the workspace picker; button names were ${JSON.stringify(buttonNames())}`);
+  assert.equal(
+    (trigger.textContent ?? '').trim(),
+    'Chat',
+    `a non-quay project must show the active view name; it rendered "${trigger.textContent}"`,
+  );
+  const label = trigger.querySelector('span.truncate');
+  assert.ok(label, `the visible label must be a truncating span; markup was ${trigger.innerHTML.slice(0, 300)}`);
+  assert.equal((label.textContent ?? '').trim(), 'Chat');
+  assert.ok(
+    trigger.className.includes('max-w-[8rem]'),
+    `the labelled trigger must cap its width; class was "${trigger.className}"`,
+  );
+  assert.ok(accessibleName(trigger).includes('Chat'), `the trigger must name the active view; name was "${accessibleName(trigger)}"`);
+  assert.equal(trigger.getAttribute('data-workspace-tab'), 'chat');
+  assert.equal(trigger.getAttribute('aria-current'), 'true');
+  withoutQuay.unmount();
+
+  render(<HeaderHarness isMobile shouldShowQuayTab />);
+  const withQuay = collapsedTrigger();
+  assert.ok(withQuay, `a quay project must render the workspace picker; button names were ${JSON.stringify(buttonNames())}`);
+  assert.equal(
+    (withQuay.textContent ?? '').trim(),
+    '',
+    `a quay project must drop the visible text for the pulse strip; it rendered "${withQuay.textContent}"`,
+  );
+  assert.ok(accessibleName(withQuay).includes('Chat'), `the text-free picker must still name the view; name was "${accessibleName(withQuay)}"`);
+  assert.equal(withQuay.getAttribute('data-workspace-tab'), 'chat');
+  assert.equal(withQuay.getAttribute('aria-current'), 'true');
+  assert.ok(
+    !withQuay.className.includes('max-w-[8rem]'),
+    `the text-free trigger takes its own width; class was "${withQuay.className}"`,
+  );
 });
 
 // With a quay project the mobile row carries TWO dialog-opening controls: the pulse trigger and
