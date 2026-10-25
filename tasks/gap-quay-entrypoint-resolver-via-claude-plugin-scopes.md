@@ -26,14 +26,14 @@ extra:
 
 ## AC
 
-- [ ] 顺序：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-entrypoint-resolver.test.ts` exit 0；用注入的假文件系统覆盖：覆盖项优先于一切；local 记录胜过 project 胜过 user；`projectPath` 不等于项目根的 project/local 记录被忽略；`enabledPlugins` 里 `quay@quay` 为 false 的 scope 被跳过。
-- [ ] 悬空降级：同一测试文件含用例：user 记录的 `installPath` 指向存在的目录而更高优先级记录指向不存在的目录，得到 user 记录的入口并附 warning，而不是 `entrypoint-missing`。
-- [ ] 旧链接：同一测试文件含用例：`.quay/plugin` 是指向 Claude 缓存的符号链接（含悬空）时被忽略并落到 scope 解析；指向缓存之外的目录时 `source` 为 `legacy-pin` 并被采用。
-- [ ] 缓存：同一测试文件含用例：连续两次解析只读一次 `installed_plugins.json`；改 mtime 后重新读取。
-- [ ] 接入：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-process.test.ts server/modules/quay/tests/quay.service.test.ts` exit 0；`quay-process.ts` 不再以 `.quay/plugin` 作为默认入口，原有的 `entrypoint-not-executable` 失败分类对解析出的路径仍然成立。
-- [ ] 诊断：snapshot 的诊断里读得到 `{ path, version, source }`；`git diff -U0 -- server/shared/types.ts` 不含对 `QuayDriverSummary`、`QuayDriverState` 的改动，新增字段是可选的。
-- [ ] 扫描清理：`git grep -n "\.quay/plugin" -- server/modules/quay/quay-process.ts server/modules/quay/quay.module.ts server/modules/quay/quay.service.ts` 只剩第 3 条兼容旧项目的那一处读取与它的注释；e2e 夹具 `e2e/ui-scenario-runner.spec.ts`、`e2e/zz-quay-panel-mobile-grid.spec.ts` 不再要求项目里存在 `.quay/plugin`，且 `docs/proposals/` 中相关描述同步更新。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0，`npx oxlint server/modules/quay server/shared` exit 0。
+- [x] 顺序：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-entrypoint-resolver.test.ts` exit 0；用注入的假文件系统覆盖：覆盖项优先于一切；local 记录胜过 project 胜过 user；`projectPath` 不等于项目根的 project/local 记录被忽略；`enabledPlugins` 里 `quay@quay` 为 false 的 scope 被跳过。
+- [x] 悬空降级：同一测试文件含用例：user 记录的 `installPath` 指向存在的目录而更高优先级记录指向不存在的目录，得到 user 记录的入口并附 warning，而不是 `entrypoint-missing`。
+- [x] 旧链接：同一测试文件含用例：`.quay/plugin` 是指向 Claude 缓存的符号链接（含悬空）时被忽略并落到 scope 解析；指向缓存之外的目录时 `source` 为 `legacy-pin` 并被采用。
+- [x] 缓存：同一测试文件含用例：连续两次解析只读一次 `installed_plugins.json`；改 mtime 后重新读取。
+- [x] 接入：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-process.test.ts server/modules/quay/tests/quay.service.test.ts` exit 0；`quay-process.ts` 不再以 `.quay/plugin` 作为默认入口，原有的 `entrypoint-not-executable` 失败分类对解析出的路径仍然成立。
+- [x] 诊断：snapshot 的诊断里读得到 `{ path, version, source }`；`git diff -U0 -- server/shared/types.ts` 不含对 `QuayDriverSummary`、`QuayDriverState` 的改动，新增字段是可选的。
+- [x] 扫描清理：`git grep -n "\.quay/plugin" -- server/modules/quay/quay-process.ts server/modules/quay/quay.module.ts server/modules/quay/quay.service.ts` 只剩第 3 条兼容旧项目的那一处读取与它的注释；e2e 夹具 `e2e/ui-scenario-runner.spec.ts`、`e2e/zz-quay-panel-mobile-grid.spec.ts` 不再要求项目里存在 `.quay/plugin`，且 `docs/proposals/` 中相关描述同步更新。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0，`npx oxlint server/modules/quay server/shared` exit 0。
 
 ## DoD
 
