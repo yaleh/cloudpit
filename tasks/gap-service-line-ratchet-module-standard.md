@@ -23,15 +23,17 @@ reply-suggestions 重构把 `reply-suggestions.service.ts` 压到 258 行，但�
 
 ## DoD
 
-用新规则逐条自检两个真实文件并贴出对照：`server/modules/quay/quay-task-events.service.ts`（829 行）与 `server/modules/architecture/refreshJob.ts`（931 行）被新规则判为「违反」，`reply-suggestions.service.ts`（258 行）被判为「符合」。贴出两条 SKILL.md 的 diff 与三份对照结论。
+用新规则逐条自检两个真实文件并贴出对照：`server/modules/quay/quay-task-events.service.ts`（829 行）与 `server/modules/architecture/refreshJob.ts`（416 行）被新规则判为「违反」，`reply-suggestions.service.ts`（258 行）被判为「符合」。贴出两条 SKILL.md 的 diff 与三份对照结论。
 
-### 三份对照结论（`wc -l` 实测于 task worktree）
+### 三份对照结论（`wc -l` 于 2026-10-26 合并 develop 后的 task worktree 复测）
 
 | 文件 | 行数 | 新规则判定 | 依据 |
 | --- | --- | --- | --- |
 | `server/modules/quay/quay-task-events.service.ts` | 829 | **违反** | 829 > 约 260 行；单文件承载多关注点，未按「工厂 + 类型化对象 + 注入 seam」再切兄弟文件 |
-| `server/modules/architecture/refreshJob.ts` | 931 | **违反** | 931 > 约 260 行；单文件承载多关注点，未按「工厂 + 类型化对象 + 注入 seam」再切兄弟文件 |
+| `server/modules/architecture/refreshJob.ts` | 416 | **违反** | 416 > 约 260 行；develop 后续已拆出 `refresh-publish.ts`/`refresh-settings.ts`/`refresh-spawn.ts` 三个兄弟文件，主文件仍超 ratchet，需继续按关注点再切 |
 | `server/modules/reply-suggestions/reply-suggestions.service.ts` | 258 | **符合** | 258 ≤ 约 260 行；`createReplySuggestionsService(deps)`（:131）工厂返回 typed `ReplySuggestionsService`，依赖经 `ReplySuggestionsServiceDeps` 注入；gateway/draw-store/prompts/chips/usage-log 已拆到兄弟文件 |
+
+（初版 DoD 记的是 931 行；合并 develop 后 develop 已把 `refreshJob.ts` 拆到 416 行，判定不变：仍超约 260 行 ratchet。）
 
 ### 两条 SKILL.md 的 diff
 
