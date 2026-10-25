@@ -286,19 +286,41 @@ describe('every source fills, focuses and never sends', () => {
     );
   });
 
-  it('(c) quoted chip with an empty box: inserts the passage verbatim and opens a new paragraph', () => {
+  it('(c) quoted chip with an empty box, one-line passage: the passage alone, no paragraph break', () => {
     const { textarea, state, chipFor, submit } = renderHarness({ quotedSelection: '选中的原文' });
     act(() => {
       state().chipStrip.onAccept(chipFor('quoted'));
     });
     flushFrames();
 
-    // The caret starts on the box's only (empty) line, at its end: the passage
-    // lands there, followed by the two line breaks that open the next paragraph.
+    // The caret starts on the box's only (empty) line, at its end. A one-line
+    // passage stays on that line: no line breaks are added under it.
     assertAccepted({
       textarea,
-      expectedDraft: '选中的原文\n\n',
-      expectedCaret: '选中的原文\n\n'.length,
+      expectedDraft: '选中的原文',
+      expectedCaret: '选中的原文'.length,
+      submit,
+      before: '',
+      beforeCaret: 0,
+      state,
+    });
+  });
+
+  it('(c2) quoted chip with an empty box, multi-line passage: the passage then the paragraph break', () => {
+    const { textarea, state, chipFor, submit } = renderHarness({
+      quotedSelection: '选中的原文\n第二段',
+    });
+    act(() => {
+      state().chipStrip.onAccept(chipFor('quoted'));
+    });
+    flushFrames();
+
+    // The passage itself spans lines, so at the end of the empty line it opens
+    // a new paragraph with two line breaks — the pre-change behaviour.
+    assertAccepted({
+      textarea,
+      expectedDraft: '选中的原文\n第二段\n\n',
+      expectedCaret: '选中的原文\n第二段\n\n'.length,
       submit,
       before: '',
       beforeCaret: 0,
@@ -356,7 +378,7 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(d3) quoted chip after the caret left a line break: no padding space before it', () => {
+  it('(d3) quoted chip after the caret left a line break, one-line passage: flush, no paragraph break', () => {
     const { textarea, state, chipFor, submit } = renderHarness({
       quotedSelection: '选中的原文',
       initialInput: '第一段\n',
@@ -369,12 +391,36 @@ describe('every source fills, focuses and never sends', () => {
     });
     flushFrames();
 
-    // The caret is at the end of an empty line, so the passage starts flush and
-    // is followed by the paragraph break.
+    // The caret is at the end of an empty line, so the passage starts flush; it
+    // is one line, so no paragraph break follows it.
     assertAccepted({
       textarea,
-      expectedDraft: '第一段\n选中的原文\n\n',
-      expectedCaret: '第一段\n选中的原文\n\n'.length,
+      expectedDraft: '第一段\n选中的原文',
+      expectedCaret: '第一段\n选中的原文'.length,
+      submit,
+      before: '第一段\n',
+      beforeCaret: '第一段\n'.length,
+      state,
+    });
+  });
+
+  it('(d4) quoted chip after the caret left a line break, multi-line passage: flush, then the paragraph break', () => {
+    const { textarea, state, chipFor, submit } = renderHarness({
+      quotedSelection: '选中的原文\n第二段',
+      initialInput: '第一段\n',
+    });
+    textarea.focus();
+    textarea.setSelectionRange('第一段\n'.length, '第一段\n'.length);
+
+    act(() => {
+      state().chipStrip.onAccept(chipFor('quoted'));
+    });
+    flushFrames();
+
+    assertAccepted({
+      textarea,
+      expectedDraft: '第一段\n选中的原文\n第二段\n\n',
+      expectedCaret: '第一段\n选中的原文\n第二段\n\n'.length,
       submit,
       before: '第一段\n',
       beforeCaret: '第一段\n'.length,
