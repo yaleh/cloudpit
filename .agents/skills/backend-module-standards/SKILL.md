@@ -24,6 +24,13 @@ Apply these rules after the repository's basic scaffolding is in place. Limit th
 - Do not create module-local `types.ts`, `interfaces.ts`, or `utils.ts` files.
 - Keep module-private implementation details unexported.
 
+## Split files by concern at the line ratchet
+
+- Treat roughly 260 lines (约 260 行) as the ceiling for one backend service or implementation file. A file that reaches about 260 lines is due for a split: do not keep growing it, and do not split it by arbitrary line ranges.
+- Split by concern, not by count. The orchestration service keeps the request shape, the state it owns, and the composition; each distinct concern moves to its own descriptively named sibling file (for example `-draw.ts`, `-draw-store.ts`, `-prompts.ts`, `-chips.ts`, `-usage-log.ts`).
+- Compose the parts with a factory (`create<Feature>Service(deps)`) that returns a typed object, and pass collaborators through an injected dependency seam instead of importing concretes ad hoc. The factory keeps the public surface stable while the concerns live in separate files with their own tests.
+- The exemplar is `server/modules/reply-suggestions/reply-suggestions.service.ts` (258 lines): it keeps the route input type, per-session draw state and ledger rows, is built by `createReplySuggestionsService(deps)`, and delegates the gateway call, draw store, prompts, chip parsing and typed ledger rows to sibling files. Use it as the shape to copy when a file crosses the ratchet.
+
 ## Place types, interfaces, and utilities
 
 - Use `type` by default. Use `interface` only for a contract that a class is intended to implement.
@@ -60,5 +67,6 @@ Before finishing:
 
 1. Confirm all cross-module imports use `index.ts` barrels and all public exports are necessary and documented.
 2. Confirm shared definitions follow the one-use versus multiple-use placement rule and grouping-comment format.
-3. Confirm routes only parse, call services, and format responses.
-4. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+3. Confirm no backend service or implementation file has crossed the roughly 260-line ratchet without being split by concern through a factory and injected seam.
+4. Confirm routes only parse, call services, and format responses.
+5. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
