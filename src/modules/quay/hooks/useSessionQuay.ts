@@ -30,7 +30,7 @@ export type SessionMentionsReadingState =
  * endpoint or the project/session is not available, and the panel hides only this block and
  * states why — it is not the same as a transient read error.
  */
-export type SessionTaskChainReadingState =
+export type SessionTaskChainState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'unavailable'; reason: string }
@@ -39,7 +39,7 @@ export type SessionTaskChainReadingState =
 
 type UseSessionQuayResult = {
   mentions: SessionMentionsReadingState;
-  taskChain: SessionTaskChainReadingState;
+  taskChain: SessionTaskChainState;
 };
 
 /**
@@ -57,7 +57,7 @@ export function useSessionQuay(
   refreshSignal = 0,
 ): UseSessionQuayResult {
   const [mentions, setMentions] = useState<SessionMentionsReadingState>({ status: 'idle' });
-  const [taskChain, setTaskChain] = useState<SessionTaskChainReadingState>({ status: 'idle' });
+  const [taskChain, setTaskChain] = useState<SessionTaskChainState>({ status: 'idle' });
   // Monotonic across effect runs; a reply tagged with a stale id is dropped.
   const runIdRef = useRef(0);
 
