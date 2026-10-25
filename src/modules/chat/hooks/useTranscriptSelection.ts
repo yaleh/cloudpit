@@ -16,6 +16,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * cost to reacting to it, and a stale chip must disappear the moment the highlight
  * does. Repeated events that produce the same text do not update state at all.
  *
+ * A pointer gesture that starts in the transcript holds the chip back until it ends.
+ * The quoted chip can make the composer one line taller, which shrinks the
+ * transcript and moves the text under a cursor that has not moved: the browser then
+ * recomputes the selection endpoints and the passage the user dragged out changes.
+ * So while the button is still down (`pointerdown` inside the transcript, until
+ * `pointerup` / `pointercancel` / `blur`) a live selection is neither settled nor
+ * committed; the release itself is the settle, so it is read at once. Empty,
+ * collapsed and out-of-transcript selections still clear immediately, and the
+ * keyboard path (no `pointerdown`) keeps the ordinary debounce.
+ *
  * Consumers: `ChatInterface` (which owns the transcript) hands the text to the
  * composer as the quoted chip's source.
  */
@@ -72,6 +82,9 @@ export function useTranscriptSelection({
   // events can be dropped before React is asked to re-render.
   const committedRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True between a `pointerdown` inside the transcript and the end of that pointer
+  // gesture. A live selection is not settled while it is true.
+  const pointerGestureRef = useRef(false);
 
   const commit = useCallback((next: string | null) => {
     if (committedRef.current === next) {
@@ -93,6 +106,13 @@ export function useTranscriptSelection({
     if (typeof document === 'undefined') {
       return undefined;
     }
+
+    const cancelTimer = () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
 
     const readSelection = () => {
       const selection = window.getSelection?.();
@@ -128,29 +148,59 @@ export function useTranscriptSelection({
         && selection.toString().trim().length >= MIN_SELECTION_CHARS,
       );
       if (!hasLiveTranscriptSelection) {
-        if (timerRef.current !== null) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
+        cancelTimer();
         readSelection();
         return;
       }
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
+      // The pointer is still down inside the transcript: do not settle yet. The chip
+      // would resize the composer and the browser would recompute the selection
+      // under the stationary cursor. The release below reads it instead.
+      if (pointerGestureRef.current) {
+        cancelTimer();
+        return;
       }
+      cancelTimer();
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         readSelection();
       }, settleMs);
     };
 
+    // Capture phase: the transcript's own handlers must not be able to swallow the
+    // press that starts a gesture.
+    const onPointerDown = (event: PointerEvent) => {
+      if (!owningElement(event.target as Node | null)?.closest(rootSelector)) {
+        return;
+      }
+      pointerGestureRef.current = true;
+      // A settle scheduled before the press must not fire mid-gesture.
+      cancelTimer();
+    };
+
+    // The gesture ending IS the settle: read the selection at once, without waiting
+    // out SELECTION_SETTLE_MS. `blur` covers the lost-`pointerup` case so the state
+    // can never stay stuck in "gesture in progress".
+    const endPointerGesture = () => {
+      if (!pointerGestureRef.current) {
+        return;
+      }
+      pointerGestureRef.current = false;
+      cancelTimer();
+      readSelection();
+    };
+
     document.addEventListener('selectionchange', onSelectionChange);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointerup', endPointerGesture);
+    window.addEventListener('pointercancel', endPointerGesture);
+    window.addEventListener('blur', endPointerGesture);
     return () => {
       document.removeEventListener('selectionchange', onSelectionChange);
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointerup', endPointerGesture);
+      window.removeEventListener('pointercancel', endPointerGesture);
+      window.removeEventListener('blur', endPointerGesture);
+      cancelTimer();
     };
   }, [commit, rootSelector, settleMs]);
 

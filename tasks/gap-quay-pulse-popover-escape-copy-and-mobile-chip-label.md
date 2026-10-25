@@ -31,13 +31,13 @@ extra:
 
 ## AC
 
-- [ ] Escape 先于 composer：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；含用例，夹具是一个在 React `onKeyDown` 里对 Escape 调 `preventDefault()` 加 `stopPropagation()` 并计数的 textarea（与 `useInputSuggestions` 的做法同形）：popover 打开、焦点在该 textarea 时，只发一次 Escape，popover 关闭、夹具的处理器零次被调用、焦点回到触发器；对照一：popover 未打开时同一次 Escape 仍到达夹具处理器恰好一次；对照二：页面里有一个 `[role="listbox"]` 浮层时，Escape 不被 popover 抢走，popover 仍开着。取假：把监听改回 `document` 的冒泡段，第一例必须红。
-- [ ] 聊天页守卫不退化：`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0，原有用例全部保留且通过；新增用例：popover 打开、焦点在 composer 的真实 textarea 上按一次 Escape，popover 关闭且不触发 abort。
-- [ ] 复数：`SessionPulse.test.tsx` 含用例：英语下 `viaTasks` 数量为 1 渲染「via 1 task」、为 2 渲染「via 2 tasks」；`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，其中新增断言：对每个语言包，`Intl.PluralRules(该语言).resolvedOptions().pluralCategories` 里的每个类别都有对应的 `quayPulse.viaTasks_<类别>` 键，且取值含 `{{count}}`、不是键名本身；不得再保留不带类别后缀的 `quayPulse.viaTasks`。
-- [ ] 相对时间：`SessionPulse.test.tsx` 含用例（用假时钟）：提及于 30 秒前、5 分钟前、3 小时前、29 小时前、3 天前，渲染文本都与 `formatRelativeTime` 对同一时刻给出的结果一致，其中 29 小时前的那一例文本不含 `min`；提及时刻比当前晚 5 分钟（时钟偏差）时文本不含 `in `；`quayPulse.mentionedAgo` 在 12 个语言包里都已不存在而 `quayPulse.mentionedAt` 都存在且含 `{{when}}`（同一个 i18n 完整性测试里断言）；`git grep -n "mentionedAgo" -- src` 无输出。
-- [ ] 移动端 tab 下拉：`npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` exit 0；含用例：移动端、`shouldShowQuayTab` 为假时触发器的可见文字（`textContent` 去空白）等于当前视图名、带 `truncate` 的 span、按钮 className 含 `max-w-[8rem]`；`shouldShowQuayTab` 为真时可见文字为空；两种情形 `aria-label` 都含当前视图名，`data-workspace-tab` 与 `aria-current` 不变；原有的选中视图、Escape、点击遮罩、焦点回到触发器的用例保持通过。
-- [ ] 其余不变：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx src/modules/quay/tests/QuayPanel.test.tsx src/modules/quay/tests/LoopPulseGantt.test.tsx src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` exit 0。
-- [ ] 类型与静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace src/modules/i18n` exit 0。
+- [x] Escape 先于 composer：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；含用例，夹具是一个在 React `onKeyDown` 里对 Escape 调 `preventDefault()` 加 `stopPropagation()` 并计数的 textarea（与 `useInputSuggestions` 的做法同形）：popover 打开、焦点在该 textarea 时，只发一次 Escape，popover 关闭、夹具的处理器零次被调用、焦点回到触发器；对照一：popover 未打开时同一次 Escape 仍到达夹具处理器恰好一次；对照二：页面里有一个 `[role="listbox"]` 浮层时，Escape 不被 popover 抢走，popover 仍开着。取假：把监听改回 `document` 的冒泡段，第一例必须红。
+- [x] 聊天页守卫不退化：`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0，原有用例全部保留且通过；新增用例：popover 打开、焦点在 composer 的真实 textarea 上按一次 Escape，popover 关闭且不触发 abort。
+- [x] 复数：`SessionPulse.test.tsx` 含用例：英语下 `viaTasks` 数量为 1 渲染「via 1 task」、为 2 渲染「via 2 tasks」；`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，其中新增断言：对每个语言包，`Intl.PluralRules(该语言).resolvedOptions().pluralCategories` 里的每个类别都有对应的 `quayPulse.viaTasks_<类别>` 键，且取值含 `{{count}}`、不是键名本身；不得再保留不带类别后缀的 `quayPulse.viaTasks`。
+- [x] 相对时间：`SessionPulse.test.tsx` 含用例（用假时钟）：提及于 30 秒前、5 分钟前、3 小时前、29 小时前、3 天前，渲染文本都与 `formatRelativeTime` 对同一时刻给出的结果一致，其中 29 小时前的那一例文本不含 `min`；提及时刻比当前晚 5 分钟（时钟偏差）时文本不含 `in `；`quayPulse.mentionedAgo` 在 12 个语言包里都已不存在而 `quayPulse.mentionedAt` 都存在且含 `{{when}}`（同一个 i18n 完整性测试里断言）；`git grep -n "mentionedAgo" -- src` 无输出。
+- [x] 移动端 tab 下拉：`npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` exit 0；含用例：移动端、`shouldShowQuayTab` 为假时触发器的可见文字（`textContent` 去空白）等于当前视图名、带 `truncate` 的 span、按钮 className 含 `max-w-[8rem]`；`shouldShowQuayTab` 为真时可见文字为空；两种情形 `aria-label` 都含当前视图名，`data-workspace-tab` 与 `aria-current` 不变；原有的选中视图、Escape、点击遮罩、焦点回到触发器的用例保持通过。
+- [x] 其余不变：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx src/modules/quay/tests/QuayPanel.test.tsx src/modules/quay/tests/LoopPulseGantt.test.tsx src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` exit 0。
+- [x] 类型与静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace src/modules/i18n` exit 0。
 
 ## DoD
 
@@ -53,3 +53,11 @@ extra:
 - src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts
 - src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx
 - tasks/gap-quay-pulse-popover-escape-copy-and-mobile-chip-label.md
+
+## Blocker
+
+**2026-10-25T17:40:21.453Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：99c4c96d-5e0e-47ab-ba76-4d59240f05e9
