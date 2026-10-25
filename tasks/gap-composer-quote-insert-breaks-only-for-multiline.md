@@ -1,7 +1,7 @@
 ---
 id: gap-composer-quote-insert-breaks-only-for-multiline
 title: 引用插入：末尾空行加 2 个回车的规则收缩为仅当插入文本含换行符时才触发
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -178,3 +178,13 @@ numstat：chatComposerReplyChips `+29/−4`；suggestionChipAcceptContract `+56/
 - 未落地原因：step=suite: # fail 0
 - run_id：wk-prod-anchor
 - session_id：1d59a6a0-67cb-4c63-b4f2-273d8ff20f20
+## Needs-Human
+
+**执行 2026-10-25T22:36:58.029Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：exited-not-landed 失败无法归因（基建/契约疑似，非实现缺陷）——停止重派，⛔ 不再拿新会话撞同一堵墙：suite red could not be attributed to any failing test file in 2 consecutive rounds (bounded to at most one retry) — infra/contract suspected, not an implementable defect (parser extracted 0 of 0 failing lines and attributed none to a file); stopping instead of spending another worker session
+- 失败步/判词：step=suite: # fail 0
+- run_id：wk-prod-anchor
+- session_id：cad08ca7-2155-4adf-905a-cfc0989dfaa2
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-composer-quote-insert-breaks-only-for-multiline~wk-prod-anchor~1792967222276-86e8fd.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-composer-quote-insert-breaks-only-for-multiline-wk-prod-anchor.log
