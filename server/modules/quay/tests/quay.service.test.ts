@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import test from 'node:test';
@@ -84,7 +85,10 @@ const EXPECTED_SNAPSHOT_COMMANDS = [
 ];
 
 /** A runner that answers each whitelisted read-only command with a fixture JSON document. */
-function createFixtureRunner(counter: { calls: number }): QuayCommandRunner {
+function createFixtureRunner(
+  counter: { calls: number; commands?: string[] },
+  overrides: Record<string, unknown> = {},
+): QuayCommandRunner {
   const responses: Record<string, unknown> = {
     'task list --json': [
       { id: 'a', title: 'Task A', status: 'ready', updatedAt: 300 },
@@ -99,11 +103,13 @@ function createFixtureRunner(counter: { calls: number }): QuayCommandRunner {
       last_record_ts: '2026-01-01T00:00:00.000Z',
     },
     'config validate --json': [{ severity: 'error', field: 'loop.board', message: 'missing' }],
+    ...overrides,
   };
 
   return async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
     counter.calls += 1;
     const key = args.join(' ');
+    counter.commands?.push(key);
     return { ok: true, code: 0, stdout: JSON.stringify(responses[key] ?? null), stderr: '' };
   };
 }
@@ -1749,4 +1755,374 @@ test('the lanes-only reading classifies an un-upgraded verb and an unreadable do
   const broken = await unreadable.getQuayLanes('project-1');
   assert.equal(broken?.gantt, null);
   assert.equal(broken?.ganttUnavailable, 'lanes-read-failed');
+});
+
+//----------------- LOOP OVERALL STATUS (QuaySnapshot.loop) ------------
+
+const FIXTURES_DIR = path.join(import.meta.dirname, 'fixtures');
+const WORKER_CONTROL_PATH = path.join(PROJECT_PATH, '.quay', 'worker-control.json');
+const PROMOTION_CONTROL_PATH = path.join(PROJECT_PATH, '.quay', 'promotion-control.json');
+const QUALITY_CONTROL_PATH = path.join(PROJECT_PATH, '.quay', 'quality-control.json');
+const ORPHAN_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** The REAL `driver status --kind worker --json` documents captured from 0.22.0 / 0.19.0. */
+function loadDriverStatusFixture(name: string): Record<string, unknown> {
+  return JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), 'utf8')) as Record<string, unknown>;
+}
+
+/**
+ * A file reader over an in-memory corpus that records every path it was asked about — so a
+ * drain test can assert the reads stayed under `<project>/.quay/`, and an orphan test can
+ * assert an escaping path never reached the read seam at all.
+ */
+function createRecordingReader(files: Record<string, string>, seen: string[]): QuayFileReader {
+  const has = (filePath: string) => Object.prototype.hasOwnProperty.call(files, filePath);
+  return createFileReader({
+    size: async (filePath) => {
+      seen.push(filePath);
+      return has(filePath) ? files[filePath].length : null;
+    },
+    readText: async (filePath) => {
+      seen.push(filePath);
+      if (!has(filePath)) {
+        throw new Error('ENOENT');
+      }
+      return files[filePath];
+    },
+  });
+}
+
+/** Runs `body` with `CLAUDE_CODE_PLUGIN_CACHE_DIR` set to `pluginsRoot`, restoring it afterwards. */
+async function withPluginCacheRoot<T>(pluginsRoot: string, body: () => Promise<T>): Promise<T> {
+  const previous = process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR;
+  process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR = pluginsRoot;
+  try {
+    return await body();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR;
+    } else {
+      process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR = previous;
+    }
+  }
+}
+
+/** One snapshot of project-1 whose `driver status` answers with `driverStatus`. */
+async function snapshotWithDriver(
+  driverStatus: Record<string, unknown> | null,
+  options: { files?: Record<string, string>; seen?: string[]; nowMs?: number; snapshotTtlMs?: number } = {},
+): Promise<Awaited<ReturnType<ReturnType<typeof createQuayService>['getQuaySnapshot']>>> {
+  const counter = { calls: 0 };
+  const service = createQuayService(createDependencies({
+    runCommand: createFixtureRunner(
+      counter,
+      driverStatus === null ? {} : { 'driver status --kind worker --json': driverStatus },
+    ),
+    readFile: createRecordingReader(options.files ?? {}, options.seen ?? []),
+    now: () => options.nowMs ?? 0,
+    snapshotTtlMs: options.snapshotTtlMs ?? 30_000,
+  }));
+  return service.getQuaySnapshot('project-1');
+}
+
+test('loop.kernel and loop.pointer map the real 0.22.0 and 0.19.0 driver-status fixtures', async () => {
+  const fixture22 = loadDriverStatusFixture('driver-status-worker-0.22.0.json');
+  const fixture19 = loadDriverStatusFixture('driver-status-worker-0.19.0.json');
+
+  const current22 = await snapshotWithDriver(fixture22);
+  assert.ok(current22?.loop, 'a readable driver status must produce a loop reading');
+  assert.deepEqual(current22.loop.kernel, {
+    loaded: '0.22.0',
+    installed: '0.22.0',
+    relation: 'current',
+    reason: null,
+  });
+  assert.equal(current22.loop.anchorPid, 2877551);
+  assert.deepEqual(current22.loop.pointer, {
+    state: 'current',
+    linkVersion: '0.22.0',
+    coreVersion: '0.22.0',
+  });
+
+  // The 0.19.0 binary still READ the running (0.22.0) kernel, but its own core is 0.19.0, so
+  // its pointer is ahead of the core it belongs to — a different pointer reading, same kernel.
+  const current19 = await snapshotWithDriver(fixture19);
+  assert.deepEqual(current19?.loop?.kernel, {
+    loaded: '0.22.0',
+    installed: '0.22.0',
+    relation: 'current',
+    reason: null,
+  });
+  assert.deepEqual(current19?.loop?.pointer, {
+    state: 'ahead',
+    linkVersion: '0.22.0',
+    coreVersion: '0.19.0',
+  });
+
+  // The remaining determinate states map one-to-one; none of them is folded into `current`.
+  for (const relation of ['behind', 'ahead'] as const) {
+    const snapshot = await snapshotWithDriver({ ...fixture22, loaded_version: relation });
+    assert.equal(snapshot?.loop?.kernel.relation, relation);
+    assert.equal(snapshot?.loop?.kernel.reason, null);
+  }
+
+  const failing = await snapshotWithDriver({
+    ...fixture22,
+    loaded_version: 'not-evaluated',
+    loaded_version_reason: 'the anchor process is not alive',
+  });
+  assert.deepEqual(failing?.loop?.kernel, {
+    loaded: '0.22.0',
+    installed: '0.22.0',
+    relation: 'not-evaluated',
+    reason: 'the anchor process is not alive',
+  });
+
+  // An unknown value or a missing field must read `not-evaluated` WITH a reason. Defaulting
+  // either to `current` would make these two assertions fail.
+  const unknown = await snapshotWithDriver({ ...fixture22, loaded_version: 'sideways' });
+  assert.equal(unknown?.loop?.kernel.relation, 'not-evaluated');
+  assert.match(unknown?.loop?.kernel.reason ?? '', /sideways/);
+
+  const { loaded_version: _omitVersion, loaded: _omitLoaded, installed: _omitInstalled, pointer: _omitPointer, ...noVersionReading } = fixture22;
+  const missing = await snapshotWithDriver(noVersionReading);
+  assert.deepEqual(missing?.loop?.kernel, {
+    loaded: null,
+    installed: null,
+    relation: 'not-evaluated',
+    reason: 'driver status carried no loaded_version reading',
+  });
+  assert.equal(missing?.loop?.pointer, null, 'an absent pointer segment is "not reported", never "current"');
+
+  // An unrecognised pointer state is also not passed through as a healthy reading.
+  const oddPointer = await snapshotWithDriver({ ...fixture22, pointer: { state: 'sideways', link_version: '1', core_version: '2' } });
+  assert.deepEqual(oddPointer?.loop?.pointer, { state: 'not-evaluated', linkVersion: '1', coreVersion: '2' });
+});
+
+test('loop.drain reads each control file independently, distinguishing absent from unreadable', async () => {
+  const driverStatus = { alive: 1, running: 1 };
+  const seen: string[] = [];
+
+  const running = await snapshotWithDriver(driverStatus, {
+    seen,
+    files: {
+      [WORKER_CONTROL_PATH]: JSON.stringify({ halted: true }),
+      [PROMOTION_CONTROL_PATH]: JSON.stringify({ halted: false }),
+      // quality-control.json absent: never drained reads `false`, not `null`.
+    },
+  });
+  assert.deepEqual(running?.loop?.drain, { worker: true, promotion: false, quality: false });
+  assert.deepEqual(
+    [...new Set(seen.filter((filePath) => filePath.endsWith('-control.json')))].sort(),
+    [WORKER_CONTROL_PATH, PROMOTION_CONTROL_PATH, QUALITY_CONTROL_PATH].sort(),
+    'the drain reading touches exactly the three control files, all under <project>/.quay/',
+  );
+  assert.ok(
+    seen.filter((filePath) => filePath.endsWith('-control.json'))
+      .every((filePath) => filePath.startsWith(path.join(PROJECT_PATH, '.quay') + path.sep)),
+    'every control-file read stays under <project>/.quay/',
+  );
+
+  const unreadableSeen: string[] = [];
+  const unreadable = await snapshotWithDriver(driverStatus, {
+    seen: unreadableSeen,
+    files: {
+      // invalid JSON, a non-boolean `halted`, and an absent worker file, each on its own kind.
+      [WORKER_CONTROL_PATH]: '{not json',
+      [PROMOTION_CONTROL_PATH]: JSON.stringify({ halted: 'yes' }),
+      [QUALITY_CONTROL_PATH]: JSON.stringify({ halted: true }),
+    },
+  });
+  assert.deepEqual(unreadable?.loop?.drain, { worker: null, promotion: null, quality: true });
+  assert.ok(
+    unreadableSeen.filter((filePath) => filePath.endsWith('-control.json'))
+      .every((filePath) => filePath.startsWith(path.join(PROJECT_PATH, '.quay') + path.sep)),
+    'a corrupt drain file must not make the reader look anywhere but the three control paths',
+  );
+});
+
+test('loop.orphan marks a cache version directory, and removeAfter is exactly 14 days after markedAt', async () => {
+  const pluginsRoot = path.join(os.tmpdir(), `quay-loop-cache-${process.pid}-${Date.now()}`);
+  const cacheRoot = path.join(pluginsRoot, 'cache');
+  const versionDir = path.join(cacheRoot, 'marketplace', 'quay', '1.2.3');
+  const marker = path.join(versionDir, '.orphaned_at');
+  const kernel = path.join(versionDir, 'scripts', 'dist', 'driver-anchor.js');
+  const markedAtMs = Date.parse('2026-10-25T13:24:39.273Z');
+
+  await withPluginCacheRoot(pluginsRoot, async () => {
+    const fixture = loadDriverStatusFixture('driver-status-worker-0.22.0.json');
+    const marked = await snapshotWithDriver({ ...fixture, loaded_kernel: kernel }, {
+      files: { [marker]: `${markedAtMs}\n` },
+    });
+    assert.deepEqual(marked?.loop?.orphan, {
+      state: 'marked',
+      markedAt: new Date(markedAtMs).toISOString(),
+      removeAfter: new Date(markedAtMs + ORPHAN_RETENTION_MS).toISOString(),
+    });
+
+    const none = await snapshotWithDriver({ ...fixture, loaded_kernel: kernel });
+    assert.deepEqual(none?.loop?.orphan, { state: 'none', markedAt: null, removeAfter: null });
+
+    for (const [markerText, label] of [['', 'empty'], ['not-a-number', 'non-numeric']] as const) {
+      const invalid = await snapshotWithDriver({ ...fixture, loaded_kernel: kernel }, {
+        files: { [marker]: markerText },
+      });
+      assert.equal(invalid?.loop?.orphan.state, 'not-evaluated', `${label} marker content must read not-evaluated`);
+      assert.equal(invalid?.loop?.orphan.markedAt, null);
+      assert.equal(invalid?.loop?.orphan.removeAfter, null);
+    }
+  });
+
+  const seen: string[] = [];
+  const unreadableReaderService = createQuayService(createDependencies({
+    now: () => 0,
+    runCommand: createFixtureRunner(
+      { calls: 0 },
+      { 'driver status --kind worker --json': { ...loadDriverStatusFixture('driver-status-worker-0.22.0.json'), loaded_kernel: kernel } },
+    ),
+    readFile: createFileReader({
+      size: async (filePath) => (filePath === marker ? 13 : null),
+      readText: async (filePath) => {
+        seen.push(filePath);
+        throw new Error('EACCES');
+      },
+    }),
+  }));
+  const readFailed = await withPluginCacheRoot(pluginsRoot, () => unreadableReaderService.getQuaySnapshot('project-1'));
+  assert.deepEqual(readFailed?.loop?.orphan, { state: 'not-evaluated', markedAt: null, removeAfter: null });
+  assert.ok(seen.includes(marker), 'the read failure arm must have attempted the marker read');
+});
+
+test('loop.orphan keeps scratch kernels and escaped paths out of the cache', async () => {
+  const pluginsRoot = path.join(os.tmpdir(), `quay-loop-escape-${process.pid}-${Date.now()}`);
+  const cacheRoot = path.join(pluginsRoot, 'cache');
+  const fixture = loadDriverStatusFixture('driver-status-worker-0.22.0.json');
+  const versionDir = path.join(cacheRoot, 'marketplace', 'quay', '1.2.3');
+  const marker = path.join(versionDir, '.orphaned_at');
+
+  await withPluginCacheRoot(pluginsRoot, async () => {
+    const seen: string[] = [];
+    const scratch = await snapshotWithDriver(
+      { ...fixture, loaded_kernel: '/data/home/yale/work/quay-scratch/official-dist-020-dev-r6-restart/scripts/dist/driver-anchor.js' },
+      { seen },
+    );
+    assert.deepEqual(scratch?.loop?.orphan, { state: 'not-applicable', markedAt: null, removeAfter: null });
+    assert.ok(!seen.some((filePath) => filePath.includes('quay-scratch')), 'a scratch kernel must not be read');
+
+    // The cache-root override is honoured: a kernel under the DEFAULT plugins root is outside
+    // the overridden cache and therefore not applicable.
+    const defaultRootKernel = path.join(
+      os.homedir(), '.claude', 'plugins', 'cache', 'marketplace', 'quay', '9.9.9', 'scripts', 'dist', 'driver-anchor.js',
+    );
+    const defaultRootSeen: string[] = [];
+    const defaultRoot = await snapshotWithDriver({ ...fixture, loaded_kernel: defaultRootKernel }, { seen: defaultRootSeen });
+    assert.equal(defaultRoot?.loop?.orphan.state, 'not-applicable');
+    assert.ok(!defaultRootSeen.some((filePath) => filePath.includes('.orphaned_at')));
+
+    // A kernel under the OVERRIDDEN root is evaluated normally.
+    const underOverride = await snapshotWithDriver(
+      { ...fixture, loaded_kernel: path.join(versionDir, 'scripts', 'dist', 'driver-anchor.js') },
+      { files: { [marker]: '1792934659273' } },
+    );
+    assert.equal(underOverride?.loop?.orphan.state, 'marked');
+
+    for (const [kernel, label] of [
+      // Built by string concatenation on purpose: `path.join` would fold the `..` segments
+      // away and the case would silently test "outside the cache" instead of the escape.
+      [`${cacheRoot}/marketplace/quay/1.2.3/../../../../outside/driver-anchor.js`, 'dotdot'],
+      ['cache/marketplace/quay/1.2.3/scripts/dist/driver-anchor.js', 'relative'],
+    ] as const) {
+      const escapeSeen: string[] = [];
+      const escaped = await snapshotWithDriver({ ...fixture, loaded_kernel: kernel }, { seen: escapeSeen });
+      assert.equal(escaped?.loop?.orphan.state, 'not-evaluated', `${label} path must read not-evaluated`);
+      assert.ok(!escapeSeen.some((filePath) => filePath.includes('.orphaned_at')), `${label} path must never reach the marker read`);
+    }
+
+    // A version directory that is a SYMLINK out of the cache is refused too — lexically it
+    // looks contained, so only resolving it catches the escape.
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'quay-loop-symlink-'));
+    try {
+      const realPluginsRoot = path.join(tmpRoot, 'plugins');
+      const realCacheRoot = path.join(realPluginsRoot, 'cache');
+      const outside = path.join(tmpRoot, 'outside');
+      const linkedVersionDir = path.join(realCacheRoot, 'marketplace', 'quay', '1.2.3');
+      fs.mkdirSync(path.join(realCacheRoot, 'marketplace', 'quay'), { recursive: true });
+      fs.mkdirSync(outside, { recursive: true });
+      fs.writeFileSync(path.join(outside, '.orphaned_at'), '1792934659273');
+      fs.symlinkSync(outside, linkedVersionDir);
+
+      const symlinkSeen: string[] = [];
+      const symlinked = await withPluginCacheRoot(realPluginsRoot, () => snapshotWithDriver(
+        { ...fixture, loaded_kernel: path.join(linkedVersionDir, 'scripts', 'dist', 'driver-anchor.js') },
+        { seen: symlinkSeen },
+      ));
+      assert.equal(symlinked?.loop?.orphan.state, 'not-evaluated');
+      assert.ok(!symlinkSeen.some((filePath) => filePath.includes('.orphaned_at')), 'an escaping version dir must never reach the marker read');
+
+      // A legitimately contained version directory whose MARKER file is the escaping symlink
+      // is refused as well.
+      const containerDir = path.join(realCacheRoot, 'marketplace', 'quay', '2.0.0');
+      fs.mkdirSync(containerDir, { recursive: true });
+      fs.symlinkSync(path.join(outside, '.orphaned_at'), path.join(containerDir, '.orphaned_at'));
+      const markerSeen: string[] = [];
+      const markerEscape = await withPluginCacheRoot(realPluginsRoot, () => snapshotWithDriver(
+        { ...fixture, loaded_kernel: path.join(containerDir, 'scripts', 'dist', 'driver-anchor.js') },
+        { seen: markerSeen },
+      ));
+      assert.equal(markerEscape?.loop?.orphan.state, 'not-evaluated');
+      assert.ok(!markerSeen.some((filePath) => filePath.includes('.orphaned_at')), 'an escaping marker symlink must never be read');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('loop costs no extra driver-status spawn, is null on failure, and rides the snapshot TTL', async () => {
+  const pluginsRoot = path.join(os.tmpdir(), `quay-loop-ttl-${process.pid}-${Date.now()}`);
+  const versionDir = path.join(pluginsRoot, 'cache', 'marketplace', 'quay', '1.2.3');
+  const marker = path.join(versionDir, '.orphaned_at');
+  const fixture = loadDriverStatusFixture('driver-status-worker-0.22.0.json');
+  const driverStatus = { ...fixture, loaded_kernel: path.join(versionDir, 'scripts', 'dist', 'driver-anchor.js') };
+
+  await withPluginCacheRoot(pluginsRoot, async () => {
+    const counter = { calls: 0, commands: [] as string[] };
+    const seen: string[] = [];
+    let nowMs = 0;
+    const service = createQuayService(createDependencies({
+      now: () => nowMs,
+      snapshotTtlMs: 30_000,
+      runCommand: createFixtureRunner(counter, { 'driver status --kind worker --json': driverStatus }),
+      readFile: createRecordingReader({ [marker]: '1792934659273' }, seen),
+    }));
+
+    const cold = await service.getQuaySnapshot('project-1');
+    assert.ok(cold?.loop, 'the loop reading must be present when driver status is readable');
+    assert.equal(
+      counter.commands.filter((command) => command === 'driver status --kind worker --json').length,
+      1,
+      'the loop projection must reuse the ONE driver-status spawn, never add a second',
+    );
+    assert.equal(counter.calls, EXPECTED_SNAPSHOT_COMMANDS.length, 'loop adds no CLI read at all');
+    assert.ok(seen.includes(marker), 'the first reading evaluated the orphan marker');
+    const readsAfterCold = seen.length;
+
+    nowMs += 10_000;
+    const warm = await service.getQuaySnapshot('project-1');
+    assert.equal(warm?.cached, true);
+    assert.equal(warm?.loop?.orphan.state, 'marked');
+    assert.equal(counter.calls, EXPECTED_SNAPSHOT_COMMANDS.length, 'a TTL hit spawns no CLI');
+    assert.equal(seen.length, readsAfterCold, 'a TTL hit must not re-read the control files or .orphaned_at');
+
+    const base = createFixtureRunner({ calls: 0 });
+    const failing = createQuayService(createDependencies({
+      runCommand: async (cwd, args, options) => args.join(' ') === 'driver status --kind worker --json'
+        ? { ok: false, code: 1, stdout: '', stderr: 'driver status exploded', failureKind: 'nonzero-exit' }
+        : base(cwd, args, options),
+    }));
+    const failedSnapshot = await failing.getQuaySnapshot('project-1');
+    assert.equal(failedSnapshot?.loop, null, 'an unread driver status is "not reported", never a made-up healthy loop');
+    assert.equal(failedSnapshot?.driver, null);
+    assert.equal(failedSnapshot?.tasks?.total, 3, 'the rest of the snapshot is unaffected');
+    assert.ok(failedSnapshot?.warnings.some((warning) => warning.includes('driver status')));
+  });
 });
