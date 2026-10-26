@@ -69,7 +69,7 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 ## 完成记录
 
 实现提交：`aee950674`（分支 `task/gap-ac163-busy-input-criterion-hermetic`，起点 `develop` `d7228f9db`）。
-退出前 `git merge --no-edit develop` ⇒ `Already up to date.`。
+退出前 `git merge --no-edit develop`：首次（task_write 前）develop `d7228f9db` ⇒ `Already up to date.`；task_write 提交 `3638140fa` 落到 develop 后 develop 前进到 `6cd30d935`，再 merge ⇒ 合并提交 `57129a236`（带 `tasks/gap-ac163-…md` 的勾选）。
 
 ### AC1 — 宿主带 `RESIDENT_RUN_IS_TURN=1`
 
@@ -79,7 +79,7 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-busy-input.test.ts
 ```
 
-读数：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 16039.091267`。
+读数：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 16039.091267`。合入 develop `6cd30d935` 后的最终树复跑：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 17431.148046`。
 
 ### AC2 — 开关未设
 
@@ -89,7 +89,7 @@ RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/mod
 env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-busy-input.test.ts
 ```
 
-读数：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 15528.42116`。
+读数：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 15528.42116`。合入 develop `6cd30d935` 后的最终树复跑：`EXIT=0`；`ℹ tests 1` / `ℹ pass 1` / `ℹ fail 0`；`ℹ duration_ms 21848.752083`。
 
 ### AC3 — 钉子承重（负向控制）
 
@@ -245,7 +245,7 @@ RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json tmp/ac5-wrapper.m
 env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-control-queue.test.ts
 ```
 
-读数：`EXIT=0`；`ℹ tests 2` / `ℹ pass 2` / `ℹ fail 0`。
+读数：`EXIT=0`；`ℹ tests 2` / `ℹ pass 2` / `ℹ fail 0`。合入 develop `6cd30d935` 后的最终树复跑：`EXIT=0`；`ℹ tests 2` / `ℹ pass 2` / `ℹ fail 0`。
 
 ### AC7 — 对齐与仓库门
 
@@ -258,8 +258,8 @@ env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test serve
 
 `## Touches` 两条：判据文件（对应上表唯一改动，逐条一致）；`tasks/gap-ac163-busy-input-criterion-hermetic.md`（self-touch，由 `task_write` 在 store 检出上自行提交，不经过本 worktree 的 diff，故不在此 stat 中）。
 
-`npm run typecheck` ⇒ `EXIT=0`（三段 tsc 全过）。
-`npm run lint` ⇒ `EXIT=0`；`: error ` 计数 `0`（只有 warning）。
+`npm run typecheck` ⇒ `EXIT=0`（三段 tsc 全过）；合入 develop `6cd30d935` 后的最终树复跑 ⇒ `EXIT=0`。
+`npm run lint` ⇒ `EXIT=0`；`: error ` 计数 `0`（只有 warning）；最终树复跑 ⇒ `EXIT=0`、`: error ` 计数 `0`。
 
 ### 后端标准自查（$backend-module-standards）
 
