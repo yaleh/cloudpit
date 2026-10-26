@@ -89,6 +89,12 @@ depends_on:
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-shared-utils-small-helpers-dedup.md
 
+## Evidence
+
+- 2026-10-26 第二轮（续做上轮 exited-not-landed）：上轮 suite 红在 `server/modules/voice-realtime/tests/voice-realtime-uplink-vad.test.ts`（`staticImports` 期望 `['node:fs']`，实得 `['node:fs','@/shared/utils.js']`）。真因是本任务给该模块加了共享导入，而该模块的既有判据刻意钉死「relay 帧路径只有一个静态导入、无加载期依赖」。处置：不回退兄弟判据，改为在 6 个 catch 块内联同一行渲染，并在文件头写明「不要折回 import」；AC2 的副本 grep 仍零输出。
+- 七条 AC 于 2026-10-26 在本 worktree 逐条复跑：共享导出 grep 4 命中；后端/前端副本 grep 零输出；server 新判据 3 passed、前端新判据 3 passed；行为不回归 server 42 passed、前端 16 passed；导入环预算 11 passed 且基线文件对 merge-base diff 为空；`npm run typecheck` exit 0、oxlint exit 0。
+- 与 develop 的合并冲突按语义并集解决：`scripts/suite-duration-baseline.tsv` 保留双方新行；`refresh-publish.ts` 保留 develop 新增的 `readScopeKeys`/`carryDuplicates`，但不恢复其本地 `isRecord`/`errorMessage`（改用共享导入）；`quay-test-script.test.ts` 的 collected 计数按合并后实测 450 文件更新为 `unknown=447` / `unknown=449`（对应 refreshJob/refresh-duplicates 13 passed、quay-test-script 14 passed）。
+
 ## Blocker
 
 **2026-10-26T05:03:00.054Z — worker 未落地（exited-not-landed）**
