@@ -86,11 +86,17 @@ export function useProjectSearch(
             ...(stableKinds === undefined ? {} : { kinds: stableKinds }),
           });
           const body = await readApiJson<{
-            results: readonly ProjectSearchHit[];
-            truncated: boolean;
+            results?: readonly ProjectSearchHit[];
+            truncated?: boolean;
           }>(response);
           if (requestIdRef.current !== requestId) return;
-          setState({ status: 'ready', results: body.results, truncated: body.truncated });
+          // A reply without a result list (a legacy or otherwise-shaped body)
+          // is a search that matched nothing, not a panel-render crash.
+          setState({
+            status: 'ready',
+            results: Array.isArray(body.results) ? body.results : [],
+            truncated: body.truncated === true,
+          });
         } catch (error) {
           if (requestIdRef.current !== requestId) return;
           setState({
