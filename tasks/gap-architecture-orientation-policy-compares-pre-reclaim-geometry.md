@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-orientation-policy-compares-pre-reclaim-geometry
 title: 架构图方向策略按回收空白之前的几何比较 DOWN/RIGHT，会选出更小的那个方向
-status: ready
+status: done
 labels:
   - gap
 parent: null

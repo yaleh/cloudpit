@@ -13,9 +13,7 @@ import {
 import {
   archguardToPlantUml,
   DEFAULT_NEIGHBORHOOD_HOPS,
-  MEMBER_MAX_ROWS,
   memberDisplayLimits,
-  memberOverflowLabel,
   parserSafePlantUml,
   type ArchitectureDiagramView,
 } from '@/modules/architecture/archguardToPlantUml';
@@ -52,6 +50,7 @@ import {
   type SemanticTier,
   type SemanticZoomLayout,
 } from '@/modules/architecture/semanticZoomLayout';
+import { capDrawnMemberRows, drawnFitScaleOf } from '@/modules/architecture/drawnFit';
 import {
   SEMANTIC_MIN_FONT_MOBILE_PX,
   SEMANTIC_MIN_FONT_PX,
@@ -186,20 +185,24 @@ function drawnMemberLimits(): { memberMaxChars?: number } {
 }
 
 /**
- * The DEV-only lever the orientation criterion's control arm pulls: forcing the
- * DOWNWARD layout is the only way to measure what the canvas looks like WITHOUT
- * the direction choice, in the same page and through the same reading.
+ * The DEV-only lever the orientation criterion's control arms pull: forcing a
+ * direction is the only way to measure what the canvas looks like for the
+ * direction the policy did NOT choose — laid out for real, through the same
+ * reading. `down` is the pre-feature state; `right` is the losing candidate
+ * once the fit comparison is post-reclaim.
  *
  * DEV-gated exactly like the member-limit lever above — a production build does
  * not contain this branch, so no reader can turn the feature off.
  */
 const LAYOUT_ORIENTATION_STORAGE_KEY = 'architecture-layout-orientation';
 
-/** Whether this build's control arm asked for the downward-only layout. */
+/** Whether this build's control arm asked for one fixed direction. */
 function forcedLayoutOrientation(): LayoutOrientation | null {
   if (import.meta.env.DEV) {
     try {
-      if (window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY) === 'down') return 'DOWN';
+      const forced = window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY);
+      if (forced === 'down') return 'DOWN';
+      if (forced === 'right') return 'RIGHT';
     } catch {
       // Private mode: the store is unreadable, so the shipped policy applies.
     }
@@ -218,38 +221,11 @@ function layoutSizeOf(detailed: { readonly layout: unknown }): OrientationSize |
 }
 
 /**
- * Cap the member ROWS the drawing shows, after layout and before the drawing is
- * captured for semantic zoom.
- *
- * This is the drawing layer's rule, not the renderer's: `memberMaxRows` would
- * write the fold row into `model.entities[].members` as a synthetic member, and
- * the Text page / a copied document must never state a member the source did
- * not declare. The renderer is asked only to shorten LINES (`memberMaxChars`);
- * here the surplus rows are removed from the DOM and replaced by the same
- * `… +N more (M members)` row the renderer would emit — which the read layer
- * already parses back into `memberTotal`, so the count survives the fold.
- *
- * Rows the entity does not exceed are left untouched, and a box keeps the
- * rect the layout gave it: the drawing is not re-laid out for a display rule.
- *
- * The label is the LONG form on purpose, and only here: the read layer parses
- * `… +N more (M members)` as the total source, so the marker survives the
- * semantic pass as a count. The semantic pass's own `… +N more` stays short —
- * if IT painted the long form, a re-read drawing would count the app's own row
- * as an upstream overflow and trip the "one marker only" guard.
+ * The row-cap and drawn-fit readings live in `drawnFit.ts` (this panel is
+ * size-ratcheted); `capDrawnMemberRows` stays re-exported here because the
+ * renderer is where its consumers expect to find it.
  */
-export function capDrawnMemberRows(host: HTMLElement): void {
-  for (const group of host.querySelectorAll('.uml-node[data-entity-id]')) {
-    const rows = [...group.querySelectorAll<SVGTextElement>('text.uml-attr, text.uml-op')];
-    if (rows.length <= MEMBER_MAX_ROWS) continue;
-    const hidden = rows.slice(MEMBER_MAX_ROWS);
-    // The marker inherits the first hidden row's position and font attributes.
-    const marker = hidden[0].cloneNode(false) as SVGTextElement;
-    for (const row of hidden) row.remove();
-    marker.textContent = memberOverflowLabel(hidden.length, rows.length);
-    group.appendChild(marker);
-  }
-}
+export { capDrawnMemberRows };
 
 /**
  * The member detail every drawing is rendered with.
@@ -2226,15 +2202,18 @@ export function PlantUmlGraph({
           orientation = cached;
         } else if (forced !== null) {
           const forcedStartedAt = performance.now();
-          detailed = await renderOnce(undefined);
+          detailed = await renderOnce(forced === 'DOWN' ? undefined : 'RIGHT');
           elapsedMs = Math.round(performance.now() - forcedStartedAt);
+          // A forced arm measures ONE direction, so its fit is the raw geometry
+          // of that drawing: there is no second candidate to compare against.
           orientation = chooseLayoutOrientation({
             canvas: canvasBox ?? { width: 0, height: 0 },
             down: layoutSizeOf(detailed) ?? { width: 0, height: 0 },
             right: null,
             entities: layoutNodes,
             firstLayoutMs: elapsedMs,
-            forceDown: true,
+            forceDown: forced === 'DOWN',
+            forceRight: forced === 'RIGHT',
           });
         } else {
           const firstStartedAt = performance.now();
@@ -2254,10 +2233,18 @@ export function PlantUmlGraph({
             const right = await renderOnce('RIGHT');
             const secondLayoutMs = Math.round(performance.now() - secondStartedAt);
             if (cancelled) return;
+            // Compare the DRAWN fit, not the renderer's pre-reclaim size: the
+            // semantic pass reclaims the blank body of frames whose member rows
+            // are not drawn, and that is the size the reader sees. Both
+            // candidates are solved against the SAME box — the one eligibility
+            // just judged — so the comparison is like-for-like.
+            const fontPx = coarsePointerRef.current ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
             orientation = chooseLayoutOrientation({
               canvas: canvasBox,
               down: downSize,
               right: layoutSizeOf(right),
+              downDrawnFitScale: drawnFitScaleOf(down, graph, canvasBox, fontPx) ?? undefined,
+              rightDrawnFitScale: drawnFitScaleOf(right, graph, canvasBox, fontPx) ?? undefined,
               entities: layoutNodes,
               firstLayoutMs,
             });
