@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-graph-layout-pipeline-owner
 title: PlantUmlGraph 切片 4：语义层级与布局方向流水线收进 React-free 属主
-status: ready
+status: done
 labels:
   - gap
 parent: null
