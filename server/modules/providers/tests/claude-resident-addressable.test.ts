@@ -887,12 +887,24 @@ async function withAddressableHarness(run: (context: Harness) => Promise<void>):
       ws: desktopSocket as never,
     });
 
-    // The composition root's one line, reproduced here for the same reason the
+    // The composition root's two lines, reproduced here for the same reason the
     // routers above are mounted here: this criterion runs the harness, not the
-    // process entry point, and without the seam a resident process's own turn has
-    // nowhere to open a run — the frames stay with the last writer, and the
+    // process entry point, and without the seams a resident process's own turn
+    // has nowhere to open a run — the frames stay with the last writer, and the
     // cross-session arrival would be the one case the app could not report.
+    //
+    // Both are installed because they mirror `server/index.ts:1621` and
+    // `server/index.ts:1630` — not a second implementation. Which one the driver
+    // calls is decided per process by the run=turn flag
+    // (`server/modules/providers/list/claude/claude-host-driver.provider.ts:5018`
+    // takes `openTurn` when `RESIDENT_RUN_IS_TURN` is set and
+    // `openUnattendedRun` otherwise). Installing only the older seam left this
+    // criterion green under `scripts/test.sh` (which unsets the flag) and red
+    // against the anchor/live environment, where the flag is on: there `openTurn`
+    // had no opener and the arriving turn never opened a run. Both worlds have to
+    // be able to open it, so both seams are installed.
     sessionHostManager.setUnattendedRunOpener((input) => chatRunRegistry.openUnattendedRun(input));
+    sessionHostManager.setTurnOpener((input) => chatRunRegistry.openTurn(input));
 
     const socket = createFakeSocket();
     const runtime = createProviderRuntimeService();
@@ -913,6 +925,7 @@ async function withAddressableHarness(run: (context: Harness) => Promise<void>):
     });
   } finally {
     sessionHostManager.setUnattendedRunOpener(null);
+    sessionHostManager.setTurnOpener(null);
     unregisterDesktopNotificationClient(desktopSocket as never);
     for (const host of sessionHostManager.snapshot()) {
       if (host.state !== 'closed') {
@@ -1053,6 +1066,40 @@ test('a resident session publishes the address it answers to, and a peer reaches
 
   await withAddressableHarness(async (context) => {
     const { socket, desktopSocket, cwd, apiBaseUrl, configDir, mock } = context;
+
+    // ---------------------------------------------------------------------
+    // The guard behind the harness: both seams the fixture installs above are
+    // also installed by the composition root, read out of `server/index.ts`
+    // rather than assumed from the harness.
+    //
+    // The fixture has to reproduce the root because it runs the dispatch path
+    // without the process entry point, and that reproduction is only faithful
+    // while the root keeps installing both seams. Which one the driver takes is
+    // decided per process by the run=turn flag, so a root that dropped either
+    // one would leave that world unable to open the arriving turn — silently,
+    // because the harness would still be green. Read first and fail before any
+    // process is spawned: a missing seam is a fact about the source, not
+    // something a 15s turn timeout should have to report.
+    // ---------------------------------------------------------------------
+    const rootLines = readFileSync(path.join(REPO_ROOT, 'server/index.ts'), 'utf8').split('\n');
+    const rootUnattendedWiring = rootLines.find((line) => line.includes('setUnattendedRunOpener'));
+    const rootTurnWiring = rootLines.find((line) => line.includes('setTurnOpener'));
+    console.log(
+      `[readings] compositionRootWire server/index.ts: ${rootUnattendedWiring?.trim() ?? 'the composition root does not install it'}`,
+    );
+    console.log(
+      `[readings] compositionRootTurnWire server/index.ts: ${rootTurnWiring?.trim() ?? 'the composition root does not install it'}`,
+    );
+    assert.ok(
+      rootUnattendedWiring?.includes('chatRunRegistry.openUnattendedRun'),
+      `the composition root must install the unattended-run seam this fixture mirrors ` +
+        `(server/index.ts: ${rootUnattendedWiring?.trim() ?? 'setUnattendedRunOpener not found'})`,
+    );
+    assert.ok(
+      rootTurnWiring?.includes('chatRunRegistry.openTurn'),
+      `the composition root must install the turn-run seam the driver uses under run=turn ` +
+        `(server/index.ts: ${rootTurnWiring?.trim() ?? 'setTurnOpener not found'})`,
+    );
 
     // ---------------------------------------------------------------------
     // Leg 1 — three resident processes: two named, one the no-title control.
