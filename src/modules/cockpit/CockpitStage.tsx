@@ -10,6 +10,7 @@ import type {
   ObservationWallEntry,
   ObservationWallView,
 } from '@/modules/cockpit/hooks/useObservationWall';
+import CockpitCardList from '@/modules/cockpit/CockpitCardList';
 import ObservationPreview from '@/modules/cockpit/ObservationPreview';
 import ObservationWall from '@/modules/cockpit/ObservationWall';
 
@@ -156,6 +157,8 @@ export default function CockpitStage({
           focusUri={focusUri}
           onFocusObject={onFocusObject}
         />
+      ) : view.type === 'cards' ? (
+        <CockpitCardList />
       ) : (
         <BoardView
           focusables={focusables}

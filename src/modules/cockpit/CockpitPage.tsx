@@ -1382,7 +1382,9 @@ export default function CockpitPage() {
                 ? t('cockpit.fleetView')
                 : view.type === 'initiatives'
                   ? t('cockpit.initiativesView')
-                  : `${t('cockpit.boardView')} · ${viewProject?.name ?? view.project}`}
+                  : view.type === 'cards'
+                    ? t('cockpit.cardsView')
+                    : `${t('cockpit.boardView')} · ${viewProject?.name ?? view.project}`}
           </span>
           {/*
             When every producer is healthy the wall's own tile is absent — the layer has nothing

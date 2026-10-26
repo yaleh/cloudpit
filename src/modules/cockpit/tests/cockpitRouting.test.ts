@@ -15,6 +15,7 @@ import type {
   CockpitSendPreview,
 } from '@/modules/cockpit/cockpitRouting';
 import type { CockpitProject } from '@/modules/cockpit/cockpitView';
+import { formatCockpitView, parseCockpitView } from '@/modules/cockpit/cockpitView';
 
 /**
  * The cockpit's SECOND destination: an unmatched phrase routed to the focused project's target
@@ -225,5 +226,21 @@ describe('AC2: nothing is sent before confirmation', () => {
 
     expect(body.startsWith('把这个改短')).toBe(true);
     expect(body.split('\n')).toContain('- quay://claudecodeui/task/x');
+  });
+});
+
+describe('the cards view address', () => {
+  it('round-trips `?view=cards` and leaves the other views unchanged', () => {
+    // The cards view is additive: its address round-trips, and every pre-existing address
+    // still parses to exactly the same description.
+    expect(parseCockpitView('?view=cards')).toEqual({ type: 'cards' });
+    expect(formatCockpitView({ type: 'cards' })).toBe('?view=cards');
+
+    expect(parseCockpitView('?view=wall')).toEqual({ type: 'wall' });
+    expect(parseCockpitView('?view=fleet')).toEqual({ type: 'fleet' });
+    expect(parseCockpitView('?view=initiatives')).toEqual({ type: 'initiatives' });
+    expect(parseCockpitView('?view=board&project=p1')).toEqual({ type: 'board', project: 'p1' });
+    // An unknown value still lands on the wall (the URL is user-editable).
+    expect(parseCockpitView('?view=cards-nope')).toEqual({ type: 'wall' });
   });
 });
