@@ -13,18 +13,23 @@
  */
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { ChildProcess } from 'node:child_process';
 
-import { createArchguardRefreshJob, type RefreshSpawn } from '../refreshJob.js';
+import { createArchguardRefreshJob, type RefreshDuplicates, type RefreshSpawn } from '../refreshJob.js';
 
 const SCOPE_KEY = 'aaaaaaaa';
 const LEGACY_SCOPE_KEY = 'bbbbbbbb';
 const OLD_GENERATED_AT = '2026-10-01T00:00:00.000Z';
 const NEW_GENERATED_AT = '2026-10-24T12:00:00.000Z';
+
+/** The post-publish duplicate step has its own criterion; the job legs stub it. */
+const STUB_DUPLICATES: RefreshDuplicates = {
+  refresh: async () => ({ ok: true, index: { version: '1.0', generatedAt: '', entries: [] } }),
+};
 
 type SpawnCall = {
   readonly command: string;
@@ -166,6 +171,7 @@ test('two concurrent starts spawn once and answer the same job; a finished job c
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   const first = job.start('project-1');
@@ -198,6 +204,7 @@ test('a successful run swaps the staged query in, drops the retired scope and ke
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   job.start('project-1');
@@ -249,6 +256,7 @@ test('a non-zero exit leaves the live analysis byte-for-byte untouched and repor
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   job.start('project-1');
@@ -279,6 +287,7 @@ test('a timeout kills the child and reports failed', async (t) => {
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   job.start('project-1');
@@ -299,6 +308,7 @@ test('shutdown kills a running child and marks the job failed', async (t) => {
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   job.start('project-1');
@@ -323,6 +333,7 @@ test('an unresolvable CLI fails with a readable reason and never spawns', (t) =>
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   const start = job.start('project-1');
@@ -342,6 +353,7 @@ test('the spawn is an argv array with no shell, and the project root is the cwd'
     settingsPath,
     spawnImpl: fake.spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   job.start('project-1');
@@ -365,6 +377,36 @@ test('the spawn is an argv array with no shell, and the project root is the cwd'
   );
 });
 
+test('the analysis argv appends the repository-root shared/ tree without reordering the manifest scopes', async (t) => {
+  const { projectPath, settingsPath } = createProject(t);
+  const sharedDir = path.join(projectPath, 'shared');
+  mkdirSync(sharedDir, { recursive: true });
+  const fake = makeSpawn((call, child) => {
+    writeStagedArtifacts(projectPath, call.args);
+    setImmediate(() => child.emit('close', 0));
+  });
+  const job = createArchguardRefreshJob({
+    resolveProjectPath: () => projectPath,
+    settingsPath,
+    spawnImpl: fake.spawn,
+    hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
+  });
+
+  job.start('project-1');
+  await waitFor(() => job.status('project-1').state === 'succeeded');
+
+  const call = fake.calls[0];
+  assert.ok(call !== undefined);
+  const sourceIndex = call.args.indexOf('-s');
+  const sources = call.args.slice(sourceIndex + 1, call.args.indexOf('--lang'));
+  assert.deepEqual(
+    sources,
+    [path.join(projectPath, 'src'), realpathSync(sharedDir)],
+    'the existing scope keeps its source set and order, and the uncovered root shared/ is appended',
+  );
+});
+
 test('an unknown project id is a PROJECT_NOT_FOUND error, not an idle reading', (t) => {
   const { projectPath, settingsPath } = createProject(t);
   const job = createArchguardRefreshJob({
@@ -372,6 +414,7 @@ test('an unknown project id is a PROJECT_NOT_FOUND error, not an idle reading', 
     settingsPath,
     spawnImpl: makeSpawn(() => {}).spawn,
     hasSystemdRun: () => false,
+    duplicatesRefresh: STUB_DUPLICATES,
   });
 
   for (const call of [() => job.start('nope'), () => job.status('nope')]) {

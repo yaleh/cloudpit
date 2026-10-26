@@ -9,10 +9,12 @@
  * rename fails). A failed or timed-out run therefore leaves the live
  * `.archguard/query` byte-for-byte untouched.
  *
- * Auxiliary query products (`duplicates`, `git-history`, `shape-smells`, …) are
- * carried from the old directory into the new one so the swap does not delete
- * artifacts this refresh does not own. Scope directories the new analysis did not
- * write (the retired `chat` scope) are deliberately NOT carried over.
+ * Auxiliary query products (`git-history`, `shape-smells`, …) are carried from the
+ * old directory into the new one so the swap does not delete artifacts this refresh
+ * does not own. Scope directories the new analysis did not write (the retired `chat`
+ * scope) are deliberately NOT carried over. The duplicate report is carried only as
+ * keep-alive per-scope directories whose scope still exists: the legacy flat pair
+ * has no scope information and `index.json` is rebuilt by `refresh-duplicates.ts`.
  *
  * Consumers: `refreshJob.ts` (the success path of `runJob`);
  * `tests/refreshJob.test.ts` exercises the swap through it.
@@ -52,25 +54,66 @@ function errorMessage(failure: unknown): string {
   return failure instanceof Error ? failure.message : String(failure);
 }
 
+/** The scope keys a query directory's manifest declares. */
+async function readScopeKeys(fsImpl: RefreshPublishFs, queryDir: string): Promise<Set<string>> {
+  const keys = new Set<string>();
+  try {
+    const parsed: unknown = JSON.parse(
+      await fsImpl.readFile(path.join(queryDir, 'manifest.json'), 'utf8'),
+    );
+    if (isRecord(parsed) && Array.isArray(parsed.scopes)) {
+      for (const scope of parsed.scopes) {
+        if (isRecord(scope) && typeof scope.key === 'string') keys.add(scope.key);
+      }
+    }
+  } catch {
+    // An unreadable manifest has no keys to protect; only the heuristic applies.
+  }
+  return keys;
+}
+
+/**
+ * Carries only the duplicate reports whose scope still exists in the new manifest.
+ *
+ * The flat `duplicates/{manifest,groups}.json` pair predates per-scope reports and
+ * carries no scope information, so it is never carried; `index.json` is rebuilt by
+ * the duplicate refresh step. A scope directory the refresh no longer knows is
+ * dropped, exactly like a retired analysis scope.
+ */
+async function carryDuplicates(
+  fsImpl: RefreshPublishFs,
+  previousDuplicates: string,
+  liveDuplicates: string,
+  newScopeKeys: ReadonlySet<string>,
+): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await fsImpl.readdir(previousDuplicates, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !newScopeKeys.has(entry.name)) continue;
+    try {
+      await fsImpl.mkdir(liveDuplicates, { recursive: true });
+      await fsImpl.rename(
+        path.join(previousDuplicates, entry.name),
+        path.join(liveDuplicates, entry.name),
+      );
+    } catch {
+      // A carrier that already exists on both sides keeps the new one.
+    }
+  }
+}
+
 /** Moves the old query directory's non-analysis entries into the new one. */
 async function carryAuxiliaryQueryEntries(
   fsImpl: RefreshPublishFs,
   previousQuery: string,
   liveQuery: string,
 ): Promise<void> {
-  const scopeKeys = new Set<string>();
-  try {
-    const parsed: unknown = JSON.parse(
-      await fsImpl.readFile(path.join(previousQuery, 'manifest.json'), 'utf8'),
-    );
-    if (isRecord(parsed) && Array.isArray(parsed.scopes)) {
-      for (const scope of parsed.scopes) {
-        if (isRecord(scope) && typeof scope.key === 'string') scopeKeys.add(scope.key);
-      }
-    }
-  } catch {
-    // An unreadable old manifest has no keys to protect; only the heuristic applies.
-  }
+  const scopeKeys = await readScopeKeys(fsImpl, previousQuery);
+  const newScopeKeys = await readScopeKeys(fsImpl, liveQuery);
 
   let entries: Dirent[];
   try {
@@ -80,6 +123,15 @@ async function carryAuxiliaryQueryEntries(
   }
   for (const entry of entries) {
     if (entry.name === 'manifest.json') continue;
+    if (entry.name === 'duplicates') {
+      await carryDuplicates(
+        fsImpl,
+        path.join(previousQuery, entry.name),
+        path.join(liveQuery, entry.name),
+        newScopeKeys,
+      );
+      continue;
+    }
     if (scopeKeys.has(entry.name)) continue;
     // `hashSources` keys are eight lowercase hex characters; an orphaned scope
     // directory without a manifest entry is still an analysis artifact.
