@@ -41,8 +41,9 @@
  */
 import os from 'node:os';
 import path from 'node:path';
-import { inspect } from 'node:util';
 
+import { ApiCredential } from '@/modules/llm-gateway/index.js';
+import type { LlmAuthScheme, LlmProtocolName } from '@/modules/llm-gateway/index.js';
 import {
   createSettingsBlockSource,
   readBoolean,
@@ -63,66 +64,36 @@ import {
 export const REPLY_SUGGESTIONS_SETTINGS_PATH_ENV = 'REPLY_SUGGESTIONS_SETTINGS_PATH';
 
 /**
- * The two upstream wire dialects the client supports.
+ * The two upstream wire dialects the client supports. The vocabulary lives on the
+ * gateway leaf now; this alias keeps the feature's settings type readable.
  *
- * Consumers: `reply-suggestions-client.ts`, `reply-suggestions-usage-log.ts`
- * (the shown row's `protocol`) and `server/modules/observation/session-digest-llm-settings.ts`
- * (through the barrel).
+ * Consumers: `reply-suggestions-usage-log.ts` (the shown row's `protocol`) and
+ * `reply-suggestions-client.ts` (through the gateway's `LlmClientConfig`).
  */
-export type ReplySuggestionsProtocol = 'anthropic' | 'openai';
+export type ReplySuggestionsProtocol = LlmProtocolName;
 
 /**
  * How the API key travels. The empty string means "the protocol's default":
  * `x-api-key` for anthropic, `bearer` for openai.
  *
- * Consumers: `reply-suggestions-client.ts` (the header it builds) and
- * `server/modules/observation/session-digest-llm-settings.ts` (through the barrel).
+ * Consumers: `reply-suggestions-client.ts`'s request type (through the gateway's
+ * `LlmClientConfig`).
  */
-export type ReplySuggestionsAuthScheme = '' | 'x-api-key' | 'bearer';
+export type ReplySuggestionsAuthScheme = LlmAuthScheme;
 
 /** The experimental expansion switch; `vary` is parsed and surfaced, not implemented here. */
 type ReplySuggestionsExpansion = 'off' | 'vary';
 
-/** What every redaction path answers instead of the secret. */
-const REDACTED = '[redacted]';
-
 /**
- * An API key that cannot be printed, serialised or inspected by accident.
+ * The opaque key value object, re-exported under its historical path so the rest of
+ * this module and its criterion keep importing it from here. Its implementation —
+ * `reveal()` as the only accessor, `[redacted]` for `toString`/`toJSON`/`inspect` —
+ * lives on the gateway leaf.
  *
- * `reveal()` is the only way to the value, and it is called at exactly one
- * production site: the client's authentication-header builder. `toString`,
- * `toJSON` and `util.inspect` return `[redacted]`, so interpolating, serialising
- * or logging an object that holds a credential is safe by construction.
- *
- * Consumers: `reply-suggestions-client.ts` (reveal, for the auth header),
- * `server/modules/observation/session-digest-llm.ts` (wraps its own resolved
- * gateway key), `server/modules/observation/session-digest-llm-settings.ts`
- * (reveals the shared key into its own flat reading) and the settings criterion.
+ * Consumers: the settings criterion (`new ApiCredential('sk-standalone')`) and
+ * `reply-suggestions-client.ts`'s config type.
  */
-export class ApiCredential {
-  readonly #value: string;
-
-  constructor(value: string) {
-    this.#value = value;
-  }
-
-  /** The only accessor for the secret. */
-  reveal(): string {
-    return this.#value;
-  }
-
-  toString(): string {
-    return REDACTED;
-  }
-
-  toJSON(): string {
-    return REDACTED;
-  }
-
-  [inspect.custom](): string {
-    return REDACTED;
-  }
-}
+export { ApiCredential };
 
 /** Everything a client needs to reach the gateway; the client receives exactly this group.
  *

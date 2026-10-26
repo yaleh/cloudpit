@@ -28,6 +28,8 @@
  * "there is nothing to say" is the correct and unremarkable answer.
  */
 
+import { completeLlm, credentialFromKey, openaiProtocol } from '@/modules/llm-gateway/index.js';
+
 // The service's address has ONE shipping source: the endpoint rule module. AC-140's
 // `endpoint-rule.single-implementation` reading scans `src/`, `shared/` and `server/` for a second
 // copy of the host, so this leaf composes its endpoint from that export instead of spelling it.
@@ -51,12 +53,11 @@ export const DEFAULT_VOICE_REALTIME_SUMMARY_MODEL = 'qwen-flash';
 /**
  * The DashScope compatible-mode endpoint that serves the side text model.
  *
- * Composed from the endpoint rule module's `PUBLIC_HOSTNAME` rather than spelling the host again:
- * AC-140's `endpoint-rule.single-implementation` reading holds that the addresses this service is
- * reached at live in exactly one shipping file (the rule module), and this leaf used to be a second
- * one. The composed value is byte-for-byte the endpoint this leaf shipped with.
+ * Composed from the endpoint rule module's `PUBLIC_HOSTNAME` rather than spelling the host again
+ * (AC-140), and through the gateway leaf's OpenAI strategy rather than spelling the dialect's path
+ * again. The composed value is byte-for-byte the endpoint this leaf shipped with.
  */
-const DEFAULT_BASE_URL = `https://${DASHSCOPE_PUBLIC_HOSTNAME}/compatible-mode/v1/chat/completions`;
+const DEFAULT_BASE_URL = openaiProtocol.endpoint(`https://${DASHSCOPE_PUBLIC_HOSTNAME}/compatible-mode`);
 
 /**
  * The summary prompt. The old "不超过 40 字" bound was dropped with the gate it mirrored: the model
@@ -93,11 +94,6 @@ export type VoiceRealtimeRunEndSummarizer = {
   summarize(input: VoiceRealtimeRunEndSummarizerInput): Promise<string | null>;
 };
 
-/** The slice of the compatible-mode response this leaf reads. */
-type ChatCompletionResponse = {
-  choices?: Array<{ message?: { content?: unknown } }>;
-};
-
 /**
  * Builds the run-end summary producer backed by the side text model.
  *
@@ -117,39 +113,40 @@ export function createVoiceRealtimeRunEndSummarizer(
       const apiKey = options.apiKey.trim();
       // An empty key is a NAMED refusal to dial: no request, no timeout, no log noise.
       if (apiKey === '') return null;
-      const body = {
-        model,
-        modalities: ['text'],
-        stream: false,
-        // A runaway guard only — the prompt sets no hard length and the gate no longer counts.
-        max_tokens: 200,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `${RUN_END_SUMMARY_PROMPT}\n\n<输出>\n${input.output}\n</输出>`,
-              },
-            ],
-          },
-        ],
-      };
       try {
-        const response = await doFetch(baseUrl, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        if (!response.ok) return null;
-        const parsed = (await response.json().catch(() => null)) as ChatCompletionResponse | null;
-        const content = parsed?.choices?.[0]?.message?.content;
-        if (typeof content !== 'string') return null;
-        const text = content.trim();
+        // The ONE direct-HTTP path, with this leaf's wire shape on the request: a single user
+        // turn in the rich text-content form, no system role, and the compatible-mode extras
+        // (`modalities`, `stream`) the plain chat-completions shape does not carry.
+        const completion = await completeLlm(
+          {
+            config: {
+              protocol: 'openai',
+              baseUrl,
+              model,
+              authScheme: 'bearer',
+              credential: credentialFromKey(apiKey),
+              disableThinking: false,
+              timeoutMs,
+            },
+            system: '',
+            user: `${RUN_END_SUMMARY_PROMPT}\n\n<输出>\n${input.output}\n</输出>`,
+            // A stable, repeatable one-sentence summary is the goal, so the leaf asks for the
+            // least sampling: the same run should not summarize differently on a re-ask.
+            temperature: 0,
+            // A runaway guard only — the prompt sets no hard length and the gate no longer counts.
+            maxOutputTokens: 200,
+            wire: {
+              userContentAsTextBlock: true,
+              extraBodyFields: { modalities: ['text'], stream: false },
+            },
+          },
+          { fetchImpl: doFetch },
+        );
+        const text = completion.text.trim();
         return text === '' ? null : text;
       } catch {
-        // Network error, timeout, unreadable body: nothing to say for this run.
+        // Network error, timeout, non-2xx, unreadable or empty answer: nothing to say for
+        // this run. The narrator simply stays quiet.
         return null;
       }
     },

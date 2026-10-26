@@ -14,20 +14,20 @@ export { createReplySuggestionsModule } from './reply-suggestions.module.js';
 export type { ReplySuggestionsModuleDeps } from './reply-suggestions.module.js';
 // consumer: server/index.ts (types the injected reader's return value)
 export type { LastAssistantMessage } from './reply-suggestions.service.js';
-// consumer: server/modules/observation/session-digest-llm.ts (the completion call and its
-// request/answer types; the client keeps the key out of every error it throws)
+// consumer: tests and features that borrow the completion vocabulary — the
+// direct-HTTP client itself now lives on the `modules/llm-gateway` leaf, so these
+// names are re-exported from there (through the feature's compatibility shim) and
+// this barrel no longer owns an HTTP client of its own.
 export { completeReplySuggestions } from './reply-suggestions-client.js';
 export type { ReplySuggestionsCompletion, ReplySuggestionsCompletionRequest } from './reply-suggestions-client.js';
-// consumer: server/modules/observation/session-digest-llm-settings.ts (the gateway reading it
-// merges under its own `observation.sessionDigest` block)
+// consumer: server/modules/observation/session-digest-llm-settings.ts and
+// server/modules/quay/counter-voice-settings.ts (the shared gateway reading they
+// merge under their own blocks). The protocol/auth-scheme names now come from the
+// gateway leaf, not this barrel.
 export { createReplySuggestionsSettingsSource } from './reply-suggestions-settings.js';
-export type {
-  ReplySuggestionsAuthScheme,
-  ReplySuggestionsProtocol,
-  ReplySuggestionsSettingsSource,
-} from './reply-suggestions-settings.js';
-// consumer: server/modules/observation/session-digest-llm.ts (wraps its own resolved gateway
-// key for the shared completion client, which reveals it only when building auth headers)
+export type { ReplySuggestionsSettingsSource } from './reply-suggestions-settings.js';
+// consumer: the settings criterion and the observation tier criterion; the class
+// itself is the gateway leaf's opaque credential, re-exported from the settings file.
 export { ApiCredential } from './reply-suggestions-settings.js';
 // consumer: server/index.ts (installs the context-event tap on the usage ledger); the
 // observation digest tier and the context-events wiring criterion share the same ledger.

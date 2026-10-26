@@ -222,6 +222,12 @@ const CYCLE_GROUPS: readonly string[][] = [
  * from importing `modules/system` (N8). The one inbound edge is `modules/system` importing the
  * notices TYPES, and it is acyclic because notices points back at nothing. Registering the
  * directory is the sanctioned shape, not a new cycle member.
+ * A TENTH ENTRY WAS ADDED, by `gap-llm-gateway-leaf-module` (2026-10-26), under the same escape
+ * hatch: `modules/llm-gateway` is the direct-HTTP LLM client extracted from
+ * `modules/reply-suggestions`. It imports only `node:*` builtins and itself, sits in no SCC, and
+ * its inbound edges from `modules/reply-suggestions`, `modules/quay`, `modules/observation` and
+ * `modules/voice-realtime` are the leaf rule's sanctioned shape — exactly why the client was
+ * extracted instead of left inside a feature module.
  */
 const MANIFEST_PIN: readonly string[] = [
   '.',
@@ -240,6 +246,7 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/file-tree',
   'modules/git',
   'modules/liaison',
+  'modules/llm-gateway',
   'modules/logging',
   'modules/mcp-gateway',
   'modules/notices',

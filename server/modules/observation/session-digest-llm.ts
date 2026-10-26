@@ -31,12 +31,12 @@
  */
 import { observationDb } from '@/modules/database/index.js';
 import {
-  ApiCredential,
-  completeReplySuggestions,
-  createReplySuggestionsUsageLog,
-  type ReplySuggestionsCompletion,
-  type ReplySuggestionsCompletionRequest,
-} from '@/modules/reply-suggestions/index.js';
+  completeLlm,
+  credentialFromKey,
+  type LlmCompletion,
+  type LlmCompletionRequest,
+} from '@/modules/llm-gateway/index.js';
+import { createReplySuggestionsUsageLog } from '@/modules/reply-suggestions/index.js';
 
 import type { ObservedObject, ObservationStore } from './observation-store.js';
 import { createObservationStore } from './observation-store.js';
@@ -94,8 +94,8 @@ export type SessionDigestLlmTierDeps = {
   store: ObservationStore;
   /** The tier settings, re-read per turn so an edit reaches the next turn. */
   readSettings?: () => SessionDigestLlmSettings;
-  /** The completion seam. Defaults to the reply-suggestions client. */
-  complete?: (request: ReplySuggestionsCompletionRequest) => Promise<ReplySuggestionsCompletion>;
+  /** The completion seam. Defaults to the gateway leaf client. */
+  complete?: (request: LlmCompletionRequest) => Promise<LlmCompletion>;
   /** Whether anyone pinned the object. Defaults to the observation watch entries. */
   isObserved?: (uri: string) => boolean;
   /** The usage ledger. Defaults to the reply-suggestions JSONL ledger. */
@@ -204,7 +204,7 @@ function withAdvisory(driftNote: string | null): string | null {
 }
 
 /** Reads the token counts the upstream reported, as flat ledger fields. */
-function tokenFields(completion: ReplySuggestionsCompletion): { inputTokens: number | null; outputTokens: number | null } {
+function tokenFields(completion: LlmCompletion): { inputTokens: number | null; outputTokens: number | null } {
   return { inputTokens: completion.inputTokens, outputTokens: completion.outputTokens };
 }
 
@@ -218,7 +218,7 @@ function tokenFields(completion: ReplySuggestionsCompletion): { inputTokens: num
 export function createSessionDigestLlmTier(deps: SessionDigestLlmTierDeps): SessionDigestLlmTier {
   const store = deps.store;
   const readSettings = deps.readSettings ?? defaultSettingsSource().read;
-  const complete = deps.complete ?? completeReplySuggestions;
+  const complete = deps.complete ?? completeLlm;
   const isObserved = deps.isObserved ?? ((uri: string) => observationDb.listWatchUserIds(uri).length > 0);
   const usageLog: SessionDigestUsageLog = deps.usageLog ?? createReplySuggestionsUsageLog();
   const now = deps.now ?? (() => Date.now());
@@ -281,13 +281,13 @@ export function createSessionDigestLlmTier(deps: SessionDigestLlmTierDeps): Sess
       }
       callTimes.push(at);
 
-      const request: ReplySuggestionsCompletionRequest = {
+      const request: LlmCompletionRequest = {
         config: {
           protocol: settings.protocol,
           baseUrl: settings.baseUrl,
           model: settings.model,
           authScheme: settings.authScheme,
-          credential: new ApiCredential(settings.apiKey),
+          credential: credentialFromKey(settings.apiKey),
           disableThinking: settings.disableThinking,
           timeoutMs: settings.timeoutMs,
         },
@@ -298,7 +298,7 @@ export function createSessionDigestLlmTier(deps: SessionDigestLlmTierDeps): Sess
       };
 
       const startedAt = now();
-      let completion: ReplySuggestionsCompletion;
+      let completion: LlmCompletion;
       try {
         completion = await complete(request);
       } catch (failure) {
