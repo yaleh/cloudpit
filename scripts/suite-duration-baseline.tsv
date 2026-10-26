@@ -695,3 +695,11 @@
 #   yet — the row also keeps the 90% coverage floor green now that the tree collects 446 server
 #   test files).
 5433	server/shared/tests/architecture-ratchet.test.ts
+#   and the migrations-ensure-columns row by gap-database-migration-column-and-flag-helpers,
+#   measured once on 2026-10-26 with
+#   `env TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --import
+#   ./scripts/undici-blocked-ports-preload.mjs --test server/modules/database/tests/migrations-ensure-columns.test.ts`
+#   (dur=3606ms, the shape scripts/test.sh runs; its own new criterion; no green round contains it
+#   yet — the row also keeps the 90% coverage floor green now that the tree collects 447 server
+#   test files).
+3606	server/modules/database/tests/migrations-ensure-columns.test.ts

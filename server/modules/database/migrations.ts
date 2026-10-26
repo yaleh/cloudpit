@@ -45,19 +45,6 @@ type TableInfoRow = {
   pk: number;
 };
 
-const addColumnToTableIfNotExists = (
-  db: Database,
-  tableName: string,
-  columnNames: string[],
-  columnName: string,
-  columnType: string
-) => {
-  if (!columnNames.includes(columnName)) {
-    console.log(`Running migration: Adding ${columnName} column to ${tableName} table`);
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`);
-  }
-};
-
 const tableExists = (db: Database, tableName: string): boolean =>
   Boolean(
     db
@@ -67,6 +54,44 @@ const tableExists = (db: Database, tableName: string): boolean =>
 
 const getTableInfo = (db: Database, tableName: string): TableInfoRow[] =>
   db.prepare(`PRAGMA table_info(${tableName})`).all() as TableInfoRow[];
+
+const getTableColumnNames = (db: Database, tableName: string): string[] =>
+  getTableInfo(db, tableName).map((column) => column.name);
+
+/**
+ * Adds each `[columnName, ddl]` pair the table does not already carry.
+ *
+ * This is the one write path for a widening migration: `CREATE TABLE IF NOT
+ * EXISTS` shapes a fresh table only and leaves an existing one alone, so an
+ * install created before a column existed needs `ALTER TABLE` — and every
+ * `ALTER` has to be guarded by the live `PRAGMA table_info` to make a second
+ * `runMigrations` a no-op rather than a duplicate-column error. Reading the
+ * table structure once per call and iterating the pairs keeps a migration
+ * down to the columns it adds, with no per-migration copy of the guard.
+ *
+ * Returns the names actually added, so a migration that pairs an ALTER with a
+ * one-time backfill can tell whether this run is the upgrade that introduced
+ * the column.
+ */
+const ensureColumns = (
+  db: Database,
+  tableName: string,
+  columns: ReadonlyArray<readonly [name: string, ddl: string]>
+): string[] => {
+  const existing = new Set(getTableColumnNames(db, tableName));
+  const added: string[] = [];
+
+  for (const [columnName, ddl] of columns) {
+    if (existing.has(columnName)) {
+      continue;
+    }
+    console.log(`Running migration: Adding ${columnName} column to ${tableName} table`);
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${ddl}`);
+    added.push(columnName);
+  }
+
+  return added;
+};
 
 /**
  * Widens a pre-stage-5 `access_tokens` table with its OAuth columns
@@ -83,16 +108,11 @@ const getTableInfo = (db: Database, tableName: string): TableInfoRow[] =>
  * addable with a foreign key (SQLite refuses a non-NULL default here).
  */
 const addAccessTokenOAuthColumns = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'access_tokens').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'access_tokens', columnNames, 'kind', "TEXT NOT NULL DEFAULT 'pat'");
-  addColumnToTableIfNotExists(db, 'access_tokens', columnNames, 'resource', "TEXT NOT NULL DEFAULT ''");
-  addColumnToTableIfNotExists(
-    db,
-    'access_tokens',
-    columnNames,
-    'grant_id',
-    'INTEGER REFERENCES oauth_grants(id) ON DELETE CASCADE'
-  );
+  ensureColumns(db, 'access_tokens', [
+    ['kind', "TEXT NOT NULL DEFAULT 'pat'"],
+    ['resource', "TEXT NOT NULL DEFAULT ''"],
+    ['grant_id', 'INTEGER REFERENCES oauth_grants(id) ON DELETE CASCADE'],
+  ]);
 };
 
 /**
@@ -107,8 +127,7 @@ const addAccessTokenOAuthColumns = (db: Database): void => {
  * reading, which is the honest state for a row written before the column existed.
  */
 const addMcpAuditLogDeniedScopesColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'mcp_audit_log').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'mcp_audit_log', columnNames, 'denied_scopes', 'TEXT');
+  ensureColumns(db, 'mcp_audit_log', [['denied_scopes', 'TEXT']]);
 };
 
 /**
@@ -126,10 +145,11 @@ const addMcpAuditLogDeniedScopesColumn = (db: Database): void => {
  * reading, which is its honest state.
  */
 const addMcpAuditLogTelemetryColumns = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'mcp_audit_log').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'mcp_audit_log', columnNames, 'error_code', 'TEXT');
-  addColumnToTableIfNotExists(db, 'mcp_audit_log', columnNames, 'response_bytes', 'INTEGER');
-  addColumnToTableIfNotExists(db, 'mcp_audit_log', columnNames, 'correlation_id', 'TEXT');
+  ensureColumns(db, 'mcp_audit_log', [
+    ['error_code', 'TEXT'],
+    ['response_bytes', 'INTEGER'],
+    ['correlation_id', 'TEXT'],
+  ]);
 };
 
 /**
@@ -265,16 +285,18 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     return;
   }
 
-  const projectsTableInfo = getTableInfo(db, 'projects');
-  const columnNames = projectsTableInfo.map((column) => column.name);
-  const hasProjectIdPrimaryKey = projectsTableInfo.some(
+  const projectsColumns = getTableInfo(db, 'projects');
+  const columnNames = projectsColumns.map((column) => column.name);
+  const hasProjectIdPrimaryKey = projectsColumns.some(
     (column) => column.name === 'project_id' && column.pk === 1,
   );
 
   if (hasProjectIdPrimaryKey) {
-    addColumnToTableIfNotExists(db, 'projects', columnNames, 'custom_project_name', 'TEXT DEFAULT NULL');
-    addColumnToTableIfNotExists(db, 'projects', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
-    addColumnToTableIfNotExists(db, 'projects', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
+    ensureColumns(db, 'projects', [
+      ['custom_project_name', 'TEXT DEFAULT NULL'],
+      ['isStarred', 'BOOLEAN DEFAULT 0'],
+      ['isArchived', 'BOOLEAN DEFAULT 0'],
+    ]);
     db.exec(`
       UPDATE projects
       SET project_id = ${SQLITE_UUID_SQL}
@@ -392,9 +414,9 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
     return;
   }
 
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-  const primaryKeyColumns = sessionsTableInfo
+  const sessionsColumns = getTableInfo(db, 'sessions');
+  const columnNames = sessionsColumns.map((column) => column.name);
+  const primaryKeyColumns = sessionsColumns
     .filter((column) => column.pk > 0)
     .sort((a, b) => a.pk - b.pk)
     .map((column) => column.name);
@@ -406,10 +428,12 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
     !columnNames.includes('provider');
 
   if (!shouldRebuild) {
-    addColumnToTableIfNotExists(db, 'sessions', columnNames, 'jsonl_path', 'TEXT');
-    addColumnToTableIfNotExists(db, 'sessions', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
-    addColumnToTableIfNotExists(db, 'sessions', columnNames, 'created_at', 'DATETIME');
-    addColumnToTableIfNotExists(db, 'sessions', columnNames, 'updated_at', 'DATETIME');
+    ensureColumns(db, 'sessions', [
+      ['jsonl_path', 'TEXT'],
+      ['isArchived', 'BOOLEAN DEFAULT 0'],
+      ['created_at', 'DATETIME'],
+      ['updated_at', 'DATETIME'],
+    ]);
     db.exec('UPDATE sessions SET isArchived = COALESCE(isArchived, 0)');
     db.exec('UPDATE sessions SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP)');
     db.exec('UPDATE sessions SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)');
@@ -540,10 +564,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
  * `session_id` keeps every legacy row resolvable through the new mapping.
  */
 const addProviderSessionIdMapping = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'provider_session_id', 'TEXT');
+  ensureColumns(db, 'sessions', [['provider_session_id', 'TEXT']]);
   db.exec(`
     UPDATE sessions
     SET provider_session_id = session_id
@@ -565,19 +586,16 @@ const addProviderSessionIdMapping = (db: Database): void => {
  * was created — so they keep a NULL and the delete path skips them.
  */
 const addSupersededTranscriptPathColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'superseded_provider_sessions').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'superseded_provider_sessions', columnNames, 'jsonl_path', 'TEXT');
+  ensureColumns(db, 'superseded_provider_sessions', [['jsonl_path', 'TEXT']]);
 };
 
 /** Adds `session_filter`, the per-project JSON `{"hide": string[]}` of hidden session-name regexes (NULL = none). */
 const addProjectSessionFilterColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'projects').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'projects', columnNames, 'session_filter', 'TEXT DEFAULT NULL');
+  ensureColumns(db, 'projects', [['session_filter', 'TEXT DEFAULT NULL']]);
 };
 
 const addForkedFromSessionIdColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'forked_from_session_id', 'TEXT');
+  ensureColumns(db, 'sessions', [['forked_from_session_id', 'TEXT']]);
 };
 
 /**
@@ -597,12 +615,11 @@ const addForkedFromSessionIdColumn = (db: Database): void => {
  * tied to the ALTER, not repeated on every startup.
  */
 const addSessionNameSourceColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
-  if (columnNames.includes('name_source')) {
+  const added = ensureColumns(db, 'sessions', [['name_source', "TEXT DEFAULT 'derived'"]]);
+  if (!added.includes('name_source')) {
     return;
   }
 
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'name_source', "TEXT DEFAULT 'derived'");
   db.exec(`UPDATE sessions SET name_source = 'manual' WHERE custom_name IS NOT NULL`);
 };
 
@@ -633,14 +650,15 @@ const addSessionNameSourceColumn = (db: Database): void => {
  * would be written into a table that no longer exists.
  */
 const splitSessionTranscriptNameColumns = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
-  if (columnNames.includes('transcript_name')) {
+  if (getTableColumnNames(db, 'sessions').includes('transcript_name')) {
     return;
   }
 
   console.log('Running migration: Splitting session names into override and transcript reading');
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'transcript_name', 'TEXT');
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'transcript_name_source', 'TEXT');
+  ensureColumns(db, 'sessions', [
+    ['transcript_name', 'TEXT'],
+    ['transcript_name_source', 'TEXT'],
+  ]);
 
   db.exec(`
     UPDATE sessions
@@ -781,10 +799,7 @@ const reclassifySelfAssignedSessionNames = (db: Database): void => {
  * backfilled guess would only mask the real value.
  */
 const addSessionModelColumn = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'model', 'TEXT');
+  ensureColumns(db, 'sessions', [['model', 'TEXT']]);
 };
 
 /**
@@ -794,10 +809,7 @@ const addSessionModelColumn = (db: Database): void => {
  * per-provider preference until the user selects an effort or sends a turn.
  */
 const addSessionEffortColumn = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort', 'TEXT');
+  ensureColumns(db, 'sessions', [['effort', 'TEXT']]);
 };
 
 /**
@@ -810,10 +822,7 @@ const addSessionEffortColumn = (db: Database): void => {
  * user never sent with.
  */
 const addSessionPermissionModeColumn = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'permission_mode', 'TEXT');
+  ensureColumns(db, 'sessions', [['permission_mode', 'TEXT']]);
 };
 
 /**
@@ -832,10 +841,7 @@ const addSessionPermissionModeColumn = (db: Database): void => {
  * old table.
  */
 const addSessionLifecycleModeColumn = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-
-  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'lifecycle_mode', "TEXT DEFAULT 'per-run'");
+  ensureColumns(db, 'sessions', [['lifecycle_mode', "TEXT DEFAULT 'per-run'"]]);
 };
 
 /**
@@ -860,8 +866,7 @@ const dropLaunchProfileStructures = (db: Database): void => {
     db.exec('DROP TABLE launch_profiles');
   }
 
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
+  const columnNames = getTableColumnNames(db, 'sessions');
 
   if (!columnNames.includes('launch_profile_id')) {
     return;
@@ -944,8 +949,7 @@ const dropLaunchProfileStructures = (db: Database): void => {
  * the column existed get it here, new databases get it from the table schema.
  */
 const addProviderModelConfigColumn = (db: Database): void => {
-  const columnNames = getTableInfo(db, 'provider_models').map((column) => column.name);
-  addColumnToTableIfNotExists(db, 'provider_models', columnNames, 'config_json', 'TEXT');
+  ensureColumns(db, 'provider_models', [['config_json', 'TEXT']]);
 };
 
 const ensureProjectsForSessionPaths = (db: Database): void => {
@@ -1009,18 +1013,11 @@ const dropLegacyApiKeysStructures = (db: Database): void => {
 
 export const runMigrations = (db: Database) => {
   try {
-    const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
-    const userColumnNames = usersTableInfo.map((column) => column.name);
-
-    addColumnToTableIfNotExists(db, 'users', userColumnNames, 'git_name', 'TEXT');
-    addColumnToTableIfNotExists(db, 'users', userColumnNames, 'git_email', 'TEXT');
-    addColumnToTableIfNotExists(
-      db,
-      'users',
-      userColumnNames,
-      'has_completed_onboarding',
-      'BOOLEAN DEFAULT 0'
-    );
+    ensureColumns(db, 'users', [
+      ['git_name', 'TEXT'],
+      ['git_email', 'TEXT'],
+      ['has_completed_onboarding', 'BOOLEAN DEFAULT 0'],
+    ]);
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
     db.exec(USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL);
