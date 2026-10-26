@@ -11,7 +11,7 @@ extra:
 ---
 ## Proposal
 
-<!-- dedup-ref --> 同批 6 条重构的第 3 条（2026-10-26 架构复查）。与同批其它任务无共享文件。
+<!-- dedup-ref --> 同批 6 条重构的第 3 条（2026-10-26 架构复查）。与同批其它任务只共享测试计数钉子 `server/shared/tests/quay-test-script.test.ts` 与 `scripts/suite-duration-baseline.tsv`（新增判据文件必改），调度器按 Touches 串行，无需 depends_on。
 
 ### 现状（2026-10-26 实测）
 
@@ -42,7 +42,7 @@ extra:
 - [ ] 服务端分支清零：`grep -nE "=== '(claude|codex|cursor|opencode)'" server/modules/websocket/services/shell-websocket.service.ts server/modules/providers/services/sessions.service.ts server/modules/providers/services/provider-token-usage.service.ts` 无输出。
 - [ ] 能力面落地：`grep -nE "export interface (IProviderShell|IProviderTokenUsage)" server/shared/interfaces.ts` 两个都命中；`grep -n "transcriptFileBacked" server/shared/interfaces.ts` 命中；`grep -lE "implements IProviderShell" server/modules/providers/list/*/*.ts | wc -l` 输出 4。
 - [ ] 前端分支清零：`grep -nE "=== '(claude|codex|cursor|opencode)'" src/modules/provider-auth/ProviderLoginModal.tsx src/shared/ui/LLMProviderLogo.tsx src/modules/chat/transcript/MessageComponent.tsx` 无输出；`grep -n "export const PROVIDER_DESCRIPTORS" src/shared/constants.ts` 命中。
-- [ ] 行为不回归（服务端）：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/websocket/services/tests/shell-websocket.service.test.ts server/modules/websocket/services/tests/shell-resume-launch-spec.test.ts server/modules/providers/tests/provider-token-usage.service.test.ts server/modules/providers/tests/sessions.service.test.ts` exit 0。
+- [ ] 行为不回归（服务端）：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/websocket/tests/shell-websocket.service.test.ts server/modules/websocket/tests/shell-resume-launch-spec.test.ts server/modules/providers/tests/provider-token-usage.service.test.ts server/modules/providers/tests/sessions.service.test.ts` exit 0。
 - [ ] 新判据：同一命令追加的 `server/modules/providers/tests/provider-shell-facet.test.ts` exit 0，逐个 provider 断言 `launchCommand` 在有/无 resumeSessionId、win32/linux 下的输出与迁移前 `shell-websocket.service.ts` 的字面量一致。
 - [ ] 行为不回归（前端）：`npx vitest run src/modules/chat/tests/debug-agent-message-header-identity.test.tsx src/modules/sidebar/tests/debugAgentIdentity.test.tsx` exit 0。
 - [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet HEAD -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
