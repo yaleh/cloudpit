@@ -363,6 +363,8 @@ describe('inline chip button', () => {
   // existing `quoteChip` key and must not add one to any locale. Refreshed when
   // the selection-aware suggest highlight added `input.suggestions.suggestForSelection`
   // to every locale; this pin still catches the inline chip growing a key of its own.
+  // (The cockpit's cards view added its copy to `common.json`, not this `chat`
+  // namespace, so this pin is deliberately unchanged and still reads as it did.)
   const EN_KEY_SET_DIGEST = '74b1d5b0f88d59c4b82e9edfdc18527bea06f768963a86418b167308393d2333';
   const ZH_KEY_SET_DIGEST = 'efaf4779ab829a00412a51cb966a7036a767f8eeaed82219ecc838b799041626';
 

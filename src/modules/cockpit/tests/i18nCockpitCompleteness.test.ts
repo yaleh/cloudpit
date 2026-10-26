@@ -447,6 +447,74 @@ describe('every locale carries the cockpit copy', () => {
     expect(offenders).toEqual([]);
   });
 
+  // The cards view's copy: the kind badges, the option dropdown and its own-reply editor, the
+  // single confirm bar and its confirm card, and the Details drawer's conversation section.
+  // Naming them here keeps a rename from being "covered" by the generic loop while every locale
+  // silently falls back to English — and the count/naming sentences keep their placeholders.
+  it('covers the cards view, its confirm card and its Details drawer', () => {
+    const required = [
+      'cardsView',
+      'cardKindAsk',
+      'cardKindMulti',
+      'cardKindNeed',
+      'cardKindStuck',
+      'cardKindFix',
+      'cardKindDecision',
+      'cardKindOther',
+      'cardSourceAssistant',
+      'cardSourceJudge',
+      'cardSourceProvider',
+      'cardOptionPosition',
+      'cardSuggested',
+      'cardChooseOption',
+      'cardWriteOwn',
+      'cardOwnReplyPlaceholder',
+      'cardConfirm',
+      'cardConfirmOwnReply',
+      'cardConfirmNoOption',
+      'cardIrreversible',
+      'cardWaitingFor',
+      'cardFilterType',
+      'cardFilterAll',
+      'cardFilterProject',
+      'cardFilterAllProjects',
+      'cardDensityCards',
+      'cardDensityCompact',
+      'cardEmpty',
+      'cardError',
+      'cardConfirmTitle',
+      'cardConfirmBody',
+      'cardConfirmIrreversible',
+      'cardConfirmSend',
+      'cardConfirmCancel',
+      'cardConfirmDone',
+      'cardConfirmFailed',
+      'cardStartConversationEcho',
+      'cardDetailsTitle',
+      'cardDetailsClose',
+      'cardDetailsSituation',
+      'cardDetailsFacts',
+      'cardDetailsOptions',
+      'cardDetailsConversation',
+      'cardDetailsOpenConversation',
+      'cardDetailsStartConversation',
+      'cardDetailsNoConversation',
+    ];
+    for (const key of required) {
+      expect(typeof reference[key], `cockpit.${key}`).toBe('string');
+      expect(reference[key].trim().length, `cockpit.${key}`).toBeGreaterThan(0);
+    }
+    expect(placeholders(reference.cardOptionPosition)).toEqual(['k', 'n']);
+    expect(placeholders(reference.cardConfirm)).toEqual(['label']);
+    expect(placeholders(reference.cardWaitingFor)).toEqual(['duration']);
+    expect(placeholders(reference.cardError)).toEqual(['reason']);
+    expect(placeholders(reference.cardConfirmBody)).toEqual(['label']);
+    expect(placeholders(reference.cardConfirmDone)).toEqual(['executor']);
+    expect(placeholders(reference.cardConfirmFailed)).toEqual(['reason']);
+    expect(placeholders(reference.cardStartConversationEcho)).toEqual(['project']);
+    expect(placeholders(reference.cardDetailsOpenConversation)).toEqual(['sessionId']);
+  });
+
   // Positive control: the same checker must reject a missing block, a blank value, a key-copied
   // value and a dropped placeholder. Without this the green above could not go red.
   it('rejects a missing, blank, key-copied or placeholder-dropping block (positive control)', () => {

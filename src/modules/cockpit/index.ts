@@ -103,3 +103,43 @@ export type {
   ObservedObject,
   ObservationProducerReading,
 } from '@/modules/cockpit/hooks/useObservationWall';
+// The cards view: one list over every provider's open cards, backed by a React-free controller.
+// The reading type and `cockpitCardsReading` are exported for the scenario-runner task that
+// consumes the list's `data-cockpit-cards` attribute; the controller factory is exported so a
+// sibling criterion can drive the same rules without a browser.
+export { default as CockpitCardList } from '@/modules/cockpit/CockpitCardList';
+export { default as CockpitCard } from '@/modules/cockpit/CockpitCard';
+export { default as CockpitCardDetails } from '@/modules/cockpit/CockpitCardDetails';
+export {
+  cockpitCardDescriptor,
+  DEFAULT_COCKPIT_CARD_DESCRIPTOR,
+} from '@/modules/cockpit/cockpitCardDescriptors';
+export type {
+  CockpitCardDescriptor,
+  CockpitCardVizKind,
+} from '@/modules/cockpit/cockpitCardDescriptors';
+export {
+  cockpitCardsReading,
+  confirmTargetOf,
+  createCockpitCardController,
+  defaultShownOption,
+  isIrreversibleOption,
+  shownOptionOf,
+} from '@/modules/cockpit/cockpitCardController';
+export type {
+  CockpitCardConfirmOutcome,
+  CockpitCardConfirmRequest,
+  CockpitCardConfirmTarget,
+  CockpitCardController,
+  CockpitCardControllerDeps,
+  CockpitCardControllerSnapshot,
+  CockpitCardDensity,
+  CockpitCardReading,
+  CockpitCardShown,
+  CockpitCardTypeFilter,
+} from '@/modules/cockpit/cockpitCardController';
+export { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
+export type {
+  CockpitCardsBinding,
+  CockpitCardsDepsOverride,
+} from '@/modules/cockpit/hooks/useCockpitCards';

@@ -414,6 +414,23 @@ export const api = {
    */
   quayInitiativeCounterVoice: (attentionId: string) =>
     get(`/api/quay/initiatives/${encodeURIComponent(attentionId)}/counter-voice`),
+  /**
+   * The cockpit's card projection: one entry per OPEN card, in the providers' order, grouped
+   * and ranked by them. The projection filters ended cards; the cockpit never re-orders and
+   * never infers a default option.
+   */
+  cockpitCards: () => get('/api/cockpit/cards'),
+  /**
+   * One confirmation: exactly one of `optionId` / `replyText`, and the revision the card was
+   * read at. A stale revision is a `REVISION_CONFLICT` (409), and the ledger makes a repeat of
+   * an accepted `(card, revision)` `ALREADY_CONFIRMED` rather than a second execution.
+   */
+  cockpitConfirmCard: (request: {
+    cardId: string;
+    revision: number;
+    optionId?: string;
+    replyText?: string;
+  }) => post('/api/cockpit/cards/confirm', request),
   quaySnapshot: (
     projectId: string,
     { refresh = false, hours }: { refresh?: boolean; hours?: number } = {},

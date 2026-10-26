@@ -50,14 +50,20 @@ export type CockpitProject = {
 };
 
 /**
- * What the cockpit stage currently shows. Three views ship:
+ * What the cockpit stage currently shows. Four views ship:
  *
  *   { type: 'wall' }                     — the observation wall: session/project/architecture tiles
  *   { type: 'fleet' }                    — every quay project as a tile (the 「全部项目」 view)
  *   { type: 'board', project: <id> }     — one project's board / in-flight tasks
+ *   { type: 'initiatives' }              — the initiative view and its decision queue
+ *   { type: 'cards' }                    — every provider's open cards, one list, one confirm path
  *
  * THE WALL IS THE HOME. The project grid is kept as one reachable view rather than the landing
  * page, because the cockpit's first job is "what needs me now", not "list everything".
+ *
+ * The cards view is ADDITIVE: it mounts the card list beside the existing views and changes none
+ * of their addresses, so `/cockpit?view=wall|fleet|board|initiatives` keeps rendering exactly what
+ * it rendered before.
  *
  * The description is deliberately serializable: the URL carries exactly these fields, so a
  * view can be linked, reloaded and restored without any client-side registry.
@@ -66,7 +72,8 @@ export type CockpitView =
   | { type: 'wall' }
   | { type: 'fleet' }
   | { type: 'board'; project: string }
-  | { type: 'initiatives' };
+  | { type: 'initiatives' }
+  | { type: 'cards' };
 
 /**
  * One measured intent → first-frame latency. `source` names what caused the view change so the
@@ -476,6 +483,7 @@ export function parseCockpitView(search: string): CockpitView {
   }
   if (viewType === 'fleet') return { type: 'fleet' };
   if (viewType === 'initiatives') return { type: 'initiatives' };
+  if (viewType === 'cards') return { type: 'cards' };
   return { type: 'wall' };
 }
 
