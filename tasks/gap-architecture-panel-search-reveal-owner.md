@@ -21,11 +21,13 @@ depends_on:
 
 ## AC
 
-- [ ] 属主文件存在且不依赖 React：`grep -nE "export function createArchitectureSearchController" src/modules/architecture/architectureSearchController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/architectureSearchController.ts` 无输出。
-- [ ] 下列声明已从面板中清零：`grep -cE "const \[?(searchQuery|searchOpen|activeSearchIndex|searchRootRef|searchInputRef|hovered|hoverHintRef|hoverHintPosition|graphAreaRef|deepLinkEntityAppliedRef|revealNodeRef|reconciledAnalysisRef)\b" src/modules/architecture/ArchitecturePanel.tsx` 输出 0。
-- [ ] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/architectureSearchController.test.ts`，用假时钟覆盖：输入去抖与候选排序、方向键移动与越界回绕、Enter 定位并清空、悬停停留阈值与离开消失、深链实体只应用一次、同一 analysis 只对齐一次、dispose 清定时器；`npx vitest run src/modules/architecture/tests/architectureSearchController.test.ts` 退出码 0。
-- [ ] 行数只降不升：`wc -l src/modules/architecture/ArchitecturePanel.tsx` 小于本任务开始时的行数（以 `server/shared/tests/architecture-ratchet.baseline.json` 当前值为准），且该基线同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
-- [ ] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
+- [x] 属主文件存在且不依赖 React：`grep -nE "export function createArchitectureSearchController" src/modules/architecture/architectureSearchController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/architectureSearchController.ts` 无输出。
+- [x] 下列声明已从面板中清零：`grep -cE "const \[?(searchQuery|searchOpen|activeSearchIndex|searchRootRef|searchInputRef|hovered|hoverHintRef|hoverHintPosition|graphAreaRef|deepLinkEntityAppliedRef|revealNodeRef|reconciledAnalysisRef)\b" src/modules/architecture/ArchitecturePanel.tsx` 输出 0。
+- [x] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/architectureSearchController.test.ts`，用假时钟覆盖：输入去抖与候选排序、方向键移动与越界回绕、Enter 定位并清空、悬停停留阈值与离开消失、深链实体只应用一次、同一 analysis 只对齐一次、dispose 清定时器；`npx vitest run src/modules/architecture/tests/architectureSearchController.test.ts` 退出码 0。
+- [x] 行数只降不升：`wc -l src/modules/architecture/ArchitecturePanel.tsx` 小于本任务开始时的行数（以 `server/shared/tests/architecture-ratchet.baseline.json` 当前值为准），且该基线同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
+- [x] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
+
+L_D 该轴仍暗，理由：本任务只把面板里的搜索、悬停与深链定位规则收进属主，并修正语义重排后丢失的焦点标记，不新增领域数据轴读数，故 L_D/L_G 无可测读数。
 
 ## DoD
 
@@ -35,6 +37,7 @@ depends_on:
 
 - src/modules/architecture/ArchitecturePanel.tsx
 - src/modules/architecture/architectureSearchController.ts
+- src/modules/architecture/PlantUmlGraph.tsx
 - src/modules/architecture/detailRanking.ts
 - src/modules/architecture/hoverHintPlacement.ts
 - src/modules/architecture/tests/architectureSearchController.test.ts
