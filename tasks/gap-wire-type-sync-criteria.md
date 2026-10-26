@@ -57,3 +57,11 @@ server 与浏览器包不共享类型，wire 形状由人手抄两份，代码�
 
 - src/shared/tests/wireContractTypeSync.test.ts (new)
 - tasks/gap-wire-type-sync-criteria.md
+
+## Blocker
+
+**2026-10-26T04:07:50.328Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/6，剩余未勾 6）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：69008c35-0c77-42e5-9ff6-e4f1ca65a961
