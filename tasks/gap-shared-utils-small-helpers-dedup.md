@@ -97,8 +97,7 @@ depends_on:
 
 ## Blocker
 
-**2026-10-26T05:03:00.054Z — worker 未落地（exited-not-landed）**
+**2026-10-26T08:47:15.473Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/modules/voice-realtime/tests/voice-realtime-uplink-vad.test.ts:   AssertionError [ERR_ASSERTION]: the module’s only static import must be the filesystem
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/voice-realtime/voice-realtime-uplink-vad.ts 1041→1043 — 基线内读数不得上调（此基线只允许下降）
 - run_id：wk-prod-anchor
-- session_id：938f29e6-cc03-4cb2-b026-c38ffc815927
