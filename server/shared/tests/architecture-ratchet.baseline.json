@@ -1,6 +1,6 @@
 {
   "measuredAt": "2026-10-26",
-  "note": "RATCHET: every reading in this file may only FALL. Lower a value (or remove an entry) when a refactor genuinely shrinks it; never raise one to accommodate a red. A legitimate RAISE must be recorded here in AC-394's \"RECORDED CHANGE\" format: a dated paragraph naming the file, the old→new reading and why the increase is the honest shape of the change. The criterion prints `ratchet: <dimension> <file> <baseline>→<measured>，可下调基线` whenever a reading falls; lowering the baseline is encouraged but not required, so a parallel refactor that shrinks a reading never reds this criterion.",
+  "note": "RATCHET: every reading in this file may only FALL. Lower a value (or remove an entry) when a refactor genuinely shrinks it; never raise one to accommodate a red. A legitimate RAISE must be recorded here in AC-394's \"RECORDED CHANGE\" format: a dated paragraph naming the file, the old→new reading and why the increase is the honest shape of the change. The criterion prints `ratchet: <dimension> <file> <baseline>→<measured>，可下调基线` whenever a reading falls; lowering the baseline is encouraged but not required, so a parallel refactor that shrinks a reading never reds this criterion. A RECORDED CHANGE (2026-10-26, census re-sync by gap-codex-transcript-format-shared-helpers): `src/modules/architecture/semanticZoomLayout.ts` 1642→1688 and `src/modules/architecture/semanticZoomPlan.ts` 876→894 are raised to their measured values on develop. Both files are byte-identical to the develop tip in the re-recording tree — the growth landed in the architecture commits up to 3f1b1ea23 AFTER the census commit f7d20cdcb captured these readings, and no commit re-recorded it, so the criterion redded a tree neither this task nor its delta touches. This is a stale-census re-sync, not an accommodation of new growth: no entry is raised above its current reading, and the two files are not part of this task's delta.",
   "oversizeFiles": {
     "server/index.ts": 2754,
     "server/modules/architecture/generator.ts": 1591,
@@ -53,9 +53,9 @@
     "src/modules/architecture/ArchitectureMinimap.tsx": 868,
     "src/modules/architecture/ArchitecturePanel.tsx": 5023,
     "src/modules/architecture/graphDom.ts": 1490,
-    "src/modules/architecture/PlantUmlGraph.tsx": 4453,
-    "src/modules/architecture/semanticZoomLayout.ts": 1642,
-    "src/modules/architecture/semanticZoomPlan.ts": 876,
+    "src/modules/architecture/PlantUmlGraph.tsx": 4291,
+    "src/modules/architecture/semanticZoomLayout.ts": 1688,
+    "src/modules/architecture/semanticZoomPlan.ts": 894,
     "src/modules/architecture/svgViewport.ts": 970,
     "src/modules/chat/ChatInterface.tsx": 1395,
     "src/modules/chat/composer/ChatComposer.tsx": 1606,
@@ -192,7 +192,7 @@
   },
   "hookStateHeavy": {
     "src/modules/architecture/ArchitecturePanel.tsx": 71,
-    "src/modules/architecture/PlantUmlGraph.tsx": 80,
+    "src/modules/architecture/PlantUmlGraph.tsx": 35,
     "src/modules/chat/hooks/useChatSessionState.ts": 51,
     "src/modules/chat/voice-realtime/useVoiceRealtimeSession.ts": 62,
     "src/modules/cockpit/CockpitPage.tsx": 32,

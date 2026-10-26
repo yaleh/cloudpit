@@ -1,8 +1,13 @@
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  createQuayFleetRunner,
+  parseFleetJsonObject,
+  type QuayFleetCommandResult,
+  type QuayFleetExec,
+} from './quay-fleet-cli.js';
 import { locateQuayFleetCli } from './quay-fleet-locator.js';
 
 /**
@@ -45,49 +50,6 @@ const AUDIT_DECISION_KINDS = new Set(['inference', 'llm']);
 
 /** The fleet's slug grammar: an address, never a path. */
 const INITIATIVE_SLUG = /^[a-z0-9][a-z0-9-]*$/;
-
-const QUAY_FLEET_TIMEOUT_MS = 10_000;
-const QUAY_FLEET_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
-
-/** The answer to one fleet CLI invocation, in the same shape the registry reader uses. */
-export type QuayFleetCommandResult = {
-  ok: boolean;
-  code: number | null;
-  stdout: string;
-  stderr: string;
-  error?: string;
-};
-
-/** The child-process seam; production binds {@link defaultExecFile}, a test may bind a stub. */
-export type QuayFleetExec = (
-  file: string,
-  args: readonly string[],
-  options: { timeout: number; maxBuffer: number; encoding: 'utf8'; windowsHide: boolean },
-) => Promise<QuayFleetCommandResult>;
-
-type QuayFleetExecError = Error & { code?: number | string | null; killed?: boolean };
-
-const defaultExecFile: QuayFleetExec = (file, args, options) =>
-  new Promise((resolve) => {
-    execFile(file, [...args], options, (error: QuayFleetExecError | null, stdout, stderr) => {
-      if (!error) {
-        resolve({ ok: true, code: 0, stdout: stdout ?? '', stderr: stderr ?? '' });
-        return;
-      }
-      const reason = error.killed === true
-        ? `quay-fleet timed out: ${error.message}`
-        : error.code === 'ENOENT'
-          ? `quay-fleet was not found: ${file}`
-          : `quay-fleet failed: ${error.message}`;
-      resolve({
-        ok: false,
-        code: typeof error.code === 'number' ? error.code : null,
-        stdout: stdout ?? '',
-        stderr: stderr ?? '',
-        error: reason,
-      });
-    });
-  });
 
 /** One typed option a person chooses between; `id` is what `decide` records as `chosen`. */
 export type InitiativeDecisionOption = {
@@ -248,18 +210,6 @@ export type QuayInitiativesDependencies = {
    */
   resolveAuditRatio?: () => number;
 };
-
-/** Parses a JSON object, or `null` when the child printed something else. */
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 /** A non-empty trimmed string, or `null`. */
 function asString(value: unknown): string | null {
@@ -449,7 +399,7 @@ function readAttentionEntries(home: string): Record<string, unknown>[] {
   } catch {
     return [];
   }
-  const document = parseJsonObject(raw);
+  const document = parseFleetJsonObject(raw);
   const entries = document?.entries;
   if (entries === null || typeof entries !== 'object' || Array.isArray(entries)) return [];
   return Object.values(entries as Record<string, unknown>).filter(
@@ -467,7 +417,6 @@ function readAttentionEntries(home: string): Record<string, unknown>[] {
 export function createQuayInitiatives(
   dependencies: QuayInitiativesDependencies = {},
 ): QuayInitiativesService {
-  const exec = dependencies.exec ?? defaultExecFile;
   // Resolved once, on demand: a provider exists because this module is composed during an
   // import cycle with the settings module (its exported constants are not initialised yet
   // while the composition root runs), while a test supplies the number directly.
@@ -484,24 +433,13 @@ export function createQuayInitiatives(
     ?? locateQuayFleetCli().binPath
     ?? (dependencies.exec === undefined ? null : 'quay-fleet');
 
-  const run = async (args: readonly string[]): Promise<QuayFleetCommandResult> => {
-    const binPath = resolveBinPath();
-    if (binPath === null) {
-      return {
-        ok: false,
-        code: null,
-        stdout: '',
-        stderr: '',
-        error: 'quay-fleet was not found (checked QUAY_FLEET_BIN, PATH and ~/.quay-fleet/bin/quay-fleet)',
-      };
-    }
-    return exec(binPath, args, {
-      timeout: QUAY_FLEET_TIMEOUT_MS,
-      maxBuffer: QUAY_FLEET_MAX_OUTPUT_BYTES,
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-  };
+  // 2 MiB: an initiative list carries every member, edge and charter, so it is larger than the
+  // registry document the other readers cap at the shared 1 MiB default.
+  const run = createQuayFleetRunner({
+    resolveBinPath,
+    exec: dependencies.exec,
+    maxOutputBytes: 2 * 1024 * 1024,
+  });
 
   const unavailable = (
     reason: string,
@@ -520,7 +458,7 @@ export function createQuayInitiatives(
   const readDecisions = async (slug: string): Promise<InitiativeAuditDecision[]> => {
     const result = await run(['initiative', 'show', slug, '--json']);
     if (!result.ok) return [];
-    const document = parseJsonObject(result.stdout);
+    const document = parseFleetJsonObject(result.stdout);
     if (document === null || !Array.isArray(document.decisions)) return [];
     return document.decisions
       .map((row) => readAuditDecision(row))
@@ -566,7 +504,7 @@ export function createQuayInitiatives(
           queue,
         );
       }
-      const document = parseJsonObject(listed.stdout);
+      const document = parseFleetJsonObject(listed.stdout);
       if (document === null || !Array.isArray(document.initiatives)) {
         return unavailable('quay-fleet initiative list did not carry an initiatives array', queue);
       }
@@ -643,7 +581,7 @@ export function createQuayInitiatives(
       ];
       for (const ref of input.refs) args.push('--refs', ref);
       const result = await run(args);
-      const document = parseJsonObject(result.stdout);
+      const document = parseFleetJsonObject(result.stdout);
       if (document === null) {
         return {
           ok: false,

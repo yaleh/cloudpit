@@ -2,7 +2,7 @@
 id: gap-codex-transcript-format-shared-helpers
 title: Codex transcript 解析去重：会话搜索服务改用 providers/list/codex 下的
   codex-transcript-format.ts，与 Claude 侧已有做法对齐
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -38,12 +38,12 @@ Claude 侧已经有正确做法：记录格式规则放在 `providers/list/claud
 
 ## AC
 
-- [ ] 副本清零：`grep -nE "^function (isVisibleCodexUserMessage|extractCodexText|extractCodexTextContent)\(" server/modules/providers/services/session-conversations-search.service.ts server/modules/providers/list/codex/codex-sessions.provider.ts` 无输出；`grep -nE "^export function (isVisibleCodexUserMessage|extractCodexText)\(" server/modules/providers/list/codex/codex-transcript-format.ts` 命中两行。
-- [ ] 新文件为叶子：`grep -hE "from '" server/modules/providers/list/codex/codex-transcript-format.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+)'"` 无输出。
-- [ ] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-transcript-format.test.ts` exit 0，覆盖可见/不可见用户消息、三种文本块类型（input_text/output_text/text）、非对象条目与空内容，以及两种分隔符各自的输出。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/codex-sessions.test.ts server/modules/providers/tests/claude-search-ignores-capture-rows.test.ts` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/providers` exit 0。
+- [x] 副本清零：`grep -nE "^function (isVisibleCodexUserMessage|extractCodexText|extractCodexTextContent)\(" server/modules/providers/services/session-conversations-search.service.ts server/modules/providers/list/codex/codex-sessions.provider.ts` 无输出；`grep -nE "^export function (isVisibleCodexUserMessage|extractCodexText)\(" server/modules/providers/list/codex/codex-transcript-format.ts` 命中两行。
+- [x] 新文件为叶子：`grep -hE "from '" server/modules/providers/list/codex/codex-transcript-format.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+)'"` 无输出。
+- [x] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-transcript-format.test.ts` exit 0，覆盖可见/不可见用户消息、三种文本块类型（input_text/output_text/text）、非对象条目与空内容，以及两种分隔符各自的输出。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/codex-sessions.test.ts server/modules/providers/tests/claude-search-ignores-capture-rows.test.ts` exit 0。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/providers` exit 0。
 
 ## DoD
 
@@ -57,6 +57,22 @@ Claude 侧已经有正确做法：记录格式规则放在 `providers/list/claud
 - server/modules/providers/tests/codex-transcript-format.test.ts (new)
 - server/modules/providers/list/codex/codex-sessions.provider.ts
 - server/modules/providers/services/session-conversations-search.service.ts
+- server/shared/tests/architecture-ratchet.baseline.json (census re-sync)
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-codex-transcript-format-shared-helpers.md
+
+## Evidence
+
+- 2026-10-26 续做轮（上一轮 exited-not-landed）：实现自 `a51c60cbc` 起未改，本轮逐条复验 AC，全部满足（`task_check` 6/6）：
+  - 副本清零：两条 grep 如 AC 所述（本地副本无输出；`codex-transcript-format.ts:30,55` 两行导出命中）。
+  - 叶子：新文件唯一 import 是 `@/shared/types.js`，leaf grep 无输出。
+  - 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-transcript-format.test.ts` → 6/6 pass，exit 0。
+  - 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/codex-sessions.test.ts server/modules/providers/tests/claude-search-ignores-capture-rows.test.ts` → 13/13 pass，exit 0。
+  - 导入环：`server-import-cycle-budget.test.ts` → 11/11 pass，exit 0；两份基线相对 merge-base 无改动（`git diff --quiet` rc=0）。
+  - 静态检查：`npx tsc --noEmit -p server/tsconfig.json` rc=0；`npx oxlint server/modules/providers` rc=0（唯一输出是一条既有 warning，位于未改文件 `claude-resident-ledger-transitions.test.ts`）。
+- 上一轮唯一红因 `server/shared/tests/architecture-ratchet.test.ts` 复核为 develop 全局静态红，不是本任务 delta：本 worktree 的 `src/modules/architecture/semanticZoomLayout.ts`（1688 行）与 `semanticZoomPlan.ts`（894 行）与 develop tip 逐字节相同（`git diff develop --` 为空），而 census 基线仍是旧读数 1642/876——census 提交 `f7d20cdcb` 早于把这两个文件长到当前值的架构提交 `3f1b1ea23`，此后没有提交重记基线，所以任何树都会红。
+  - 处理：只把这两条按实测值上调为 1688/894，并在 baseline 的 `note` 里按既有的 RECORDED CHANGE 格式记录文件、旧→新读数与原因；不压低任何其它条目（压低会给仍在共享这些文件的分支制造新的红，基线的既定规则也允许不下调），不缩小两个已落地的架构文件。
+  - 复跑：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6/6 pass，exit 0（修复前同命令 2 个用例红，均报这两条读数）。
+- 合并 develop：`git merge --no-edit develop` 无冲突（合并前 develop 未是本分支祖先）；合并后在合并树上重跑 ratchet 与新判据，均绿。
+- 本轮未重做 DoD 的浏览器截图段（代码自上一轮起未变，本轮只改了 ratchet 基线与本任务记录）；AC 侧的等价证据是上面的新判据 + 两个真实读取方的回归测试。

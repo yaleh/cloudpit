@@ -1,14 +1,17 @@
-import { execFile } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-
+import {
+  canonicalFleetPath,
+  createQuayFleetRunner,
+  parseFleetJsonObject,
+  QUAY_FLEET_TIMEOUT_MS,
+  type QuayFleetCommandResult,
+  type QuayFleetExec,
+} from './quay-fleet-cli.js';
 import {
   createQuayFleetCliReader,
   locateQuayFleetCli,
   type QuayFleetCliReading,
   type QuayFleetCliState,
 } from './quay-fleet-locator.js';
-import type { QuayFleetExec } from './quay-fleet-registry.js';
 
 /**
  * The CloudCLI project id → quay-fleet registry id mapping.
@@ -40,12 +43,6 @@ import type { QuayFleetExec } from './quay-fleet-registry.js';
  * computed per call from that one small reading, so a summary over N projects costs at most
  * one `quay-fleet` invocation per TTL window.
  */
-
-/** Subprocess bound. The fleet answers this join from one small JSON document. */
-const QUAY_FLEET_TIMEOUT_MS = 10_000;
-
-/** Cap on captured stdout — the registry document is small; this only bounds a runaway child. */
-const QUAY_FLEET_MAX_OUTPUT_BYTES = 1024 * 1024;
 
 /**
  * How long one `quay-fleet registry list --json` reading is reused. Short because the registry
@@ -132,8 +129,6 @@ export type QuayFleetProjectIdDependencies = {
   ttlMs?: number;
 };
 
-type QuayFleetExecError = Error & { code?: number | string | null; killed?: boolean };
-
 /**
  * One registry read: the registered rows plus whether the fleet could be asked at all.
  * `entries: null` always carries `availability.available === false`; both are cached together
@@ -143,53 +138,6 @@ type QuayFleetRegistryReading = {
   entries: readonly QuayFleetRegisteredProject[] | null;
   availability: QuayFleetAvailability;
 };
-
-/** Production child-process binding; every failure is a value, so the caller never sees a throw. */
-const defaultExecFile: QuayFleetExec = (file, args, options) =>
-  new Promise((resolve) => {
-    execFile(file, [...args], options, (error: QuayFleetExecError | null, stdout, stderr) => {
-      if (!error) {
-        resolve({ ok: true, code: 0, stdout: stdout ?? '', stderr: stderr ?? '' });
-        return;
-      }
-      const reason = error.killed === true
-        ? `quay-fleet timed out: ${error.message}`
-        : error.code === 'ENOENT'
-          ? `quay-fleet was not found: ${file}`
-          : `quay-fleet failed: ${error.message}`;
-      resolve({
-        ok: false,
-        code: typeof error.code === 'number' ? error.code : null,
-        stdout: stdout ?? '',
-        stderr: stderr ?? '',
-        error: reason,
-      });
-    });
-  });
-
-/** A path canonicalized for root comparison: symlinks resolved, trailing separators dropped. */
-function canonicalPath(filePath: string): string {
-  let resolved = filePath;
-  try {
-    resolved = fs.realpathSync.native(filePath);
-  } catch {
-    resolved = path.resolve(filePath);
-  }
-  const trimmed = resolved.replace(/[\\/]+$/, '');
-  return trimmed === '' ? resolved : trimmed;
-}
-
-/** Parses a JSON document, or `null` when the child printed something else. */
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Narrows one registry row to a usable `{id, root}` pair; `enabled` deliberately does not matter. */
 function readProjectRow(value: unknown): { id: string; root: string } | null {
@@ -210,8 +158,7 @@ function readProjectRow(value: unknown): { id: string; root: string } | null {
 export function createQuayFleetProjectIdResolver(
   dependencies: QuayFleetProjectIdDependencies,
 ): QuayFleetProjectIdResolver {
-  const exec = dependencies.exec ?? defaultExecFile;
-  const normalize = dependencies.normalizePath ?? canonicalPath;
+  const normalize = dependencies.normalizePath ?? canonicalFleetPath;
   const now = dependencies.now ?? Date.now;
   const ttlMs = dependencies.ttlMs ?? QUAY_FLEET_PROJECT_ID_TTL_MS;
 
@@ -226,6 +173,9 @@ export function createQuayFleetProjectIdResolver(
     dependencies.binPath
     ?? locateQuayFleetCli().binPath
     ?? (dependencies.exec === undefined ? null : 'quay-fleet');
+
+  /** The shared "resolve → fixed miss → execute" runner, over the same seam. */
+  const run = createQuayFleetRunner({ resolveBinPath, exec: dependencies.exec });
 
   /**
    * The handshake over the same seam. Its TTL is this resolver's TTL: one child per window
@@ -266,21 +216,9 @@ export function createQuayFleetProjectIdResolver(
       },
     });
 
-    const binPath = resolveBinPath();
-    if (binPath === null) {
-      return unavailable(
-        'quay-fleet was not found (checked QUAY_FLEET_BIN, PATH and ~/.quay-fleet/bin/quay-fleet)',
-      );
-    }
-
-    let result;
+    let result: QuayFleetCommandResult;
     try {
-      result = await exec(binPath, ['registry', 'list', '--json'], {
-        timeout: QUAY_FLEET_TIMEOUT_MS,
-        maxBuffer: QUAY_FLEET_MAX_OUTPUT_BYTES,
-        encoding: 'utf8',
-        windowsHide: true,
-      });
+      result = await run(['registry', 'list', '--json']);
     } catch (error) {
       // A seam that throws is still "the fleet did not answer"; the caller maps it to null.
       return unavailable(
@@ -295,7 +233,7 @@ export function createQuayFleetProjectIdResolver(
       );
     }
 
-    const document = parseJsonObject(result.stdout);
+    const document = parseFleetJsonObject(result.stdout);
     const rows = document?.projects;
     if (!Array.isArray(rows)) {
       return unavailable('quay-fleet returned no registry document');

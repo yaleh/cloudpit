@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -13,9 +13,7 @@ import {
 import {
   archguardToPlantUml,
   DEFAULT_NEIGHBORHOOD_HOPS,
-  MEMBER_MAX_ROWS,
   memberDisplayLimits,
-  memberOverflowLabel,
   parserSafePlantUml,
   type ArchitectureDiagramView,
 } from '@/modules/architecture/archguardToPlantUml';
@@ -52,6 +50,7 @@ import {
   type SemanticTier,
   type SemanticZoomLayout,
 } from '@/modules/architecture/semanticZoomLayout';
+import { capDrawnMemberRows, drawnFitScaleOf } from '@/modules/architecture/drawnFit';
 import {
   SEMANTIC_MIN_FONT_MOBILE_PX,
   SEMANTIC_MIN_FONT_PX,
@@ -78,10 +77,15 @@ import {
   type EntityNavigationDirection,
   type EntityNavigationItem,
 } from '@/modules/architecture/entityNavigation';
+import { createGraphGestureController } from '@/modules/architecture/graphGestureController';
+import { createGraphSelectionController } from '@/modules/architecture/graphSelectionController';
+import {
+  createGraphViewportController,
+  type GraphZoom,
+} from '@/modules/architecture/graphViewportController';
 import {
   selectionsIntersectingBox,
   type ArchitectureSelection,
-  type ArchitectureSelectionRect,
 } from '@/modules/architecture/selectionModel';
 import {
   centerElementInContainer,
@@ -100,13 +104,10 @@ import {
   readSvgNaturalSize,
   ZOOM_STEP,
   type SvgCornerRect,
-  type SvgFitAreaInsets,
   type SvgFitPlacement,
-  type SvgViewportController,
   type SvgViewportSize,
 } from '@/modules/architecture/svgViewport';
 import {
-  DOUBLE_TAP_MS,
   ENTITY_HIGHLIGHT_EVENT,
   GROUP_PREFIX,
   KEYBOARD_PAN_STEP,
@@ -186,20 +187,24 @@ function drawnMemberLimits(): { memberMaxChars?: number } {
 }
 
 /**
- * The DEV-only lever the orientation criterion's control arm pulls: forcing the
- * DOWNWARD layout is the only way to measure what the canvas looks like WITHOUT
- * the direction choice, in the same page and through the same reading.
+ * The DEV-only lever the orientation criterion's control arms pull: forcing a
+ * direction is the only way to measure what the canvas looks like for the
+ * direction the policy did NOT choose — laid out for real, through the same
+ * reading. `down` is the pre-feature state; `right` is the losing candidate
+ * once the fit comparison is post-reclaim.
  *
  * DEV-gated exactly like the member-limit lever above — a production build does
  * not contain this branch, so no reader can turn the feature off.
  */
 const LAYOUT_ORIENTATION_STORAGE_KEY = 'architecture-layout-orientation';
 
-/** Whether this build's control arm asked for the downward-only layout. */
+/** Whether this build's control arm asked for one fixed direction. */
 function forcedLayoutOrientation(): LayoutOrientation | null {
   if (import.meta.env.DEV) {
     try {
-      if (window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY) === 'down') return 'DOWN';
+      const forced = window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY);
+      if (forced === 'down') return 'DOWN';
+      if (forced === 'right') return 'RIGHT';
     } catch {
       // Private mode: the store is unreadable, so the shipped policy applies.
     }
@@ -218,38 +223,11 @@ function layoutSizeOf(detailed: { readonly layout: unknown }): OrientationSize |
 }
 
 /**
- * Cap the member ROWS the drawing shows, after layout and before the drawing is
- * captured for semantic zoom.
- *
- * This is the drawing layer's rule, not the renderer's: `memberMaxRows` would
- * write the fold row into `model.entities[].members` as a synthetic member, and
- * the Text page / a copied document must never state a member the source did
- * not declare. The renderer is asked only to shorten LINES (`memberMaxChars`);
- * here the surplus rows are removed from the DOM and replaced by the same
- * `… +N more (M members)` row the renderer would emit — which the read layer
- * already parses back into `memberTotal`, so the count survives the fold.
- *
- * Rows the entity does not exceed are left untouched, and a box keeps the
- * rect the layout gave it: the drawing is not re-laid out for a display rule.
- *
- * The label is the LONG form on purpose, and only here: the read layer parses
- * `… +N more (M members)` as the total source, so the marker survives the
- * semantic pass as a count. The semantic pass's own `… +N more` stays short —
- * if IT painted the long form, a re-read drawing would count the app's own row
- * as an upstream overflow and trip the "one marker only" guard.
+ * The row-cap and drawn-fit readings live in `drawnFit.ts` (this panel is
+ * size-ratcheted); `capDrawnMemberRows` stays re-exported here because the
+ * renderer is where its consumers expect to find it.
  */
-export function capDrawnMemberRows(host: HTMLElement): void {
-  for (const group of host.querySelectorAll('.uml-node[data-entity-id]')) {
-    const rows = [...group.querySelectorAll<SVGTextElement>('text.uml-attr, text.uml-op')];
-    if (rows.length <= MEMBER_MAX_ROWS) continue;
-    const hidden = rows.slice(MEMBER_MAX_ROWS);
-    // The marker inherits the first hidden row's position and font attributes.
-    const marker = hidden[0].cloneNode(false) as SVGTextElement;
-    for (const row of hidden) row.remove();
-    marker.textContent = memberOverflowLabel(hidden.length, rows.length);
-    group.appendChild(marker);
-  }
-}
+export { capDrawnMemberRows };
 
 /**
  * The member detail every drawing is rendered with.
@@ -836,24 +814,6 @@ type PlantUmlGraphProps = ArchitectureRendererProps & {
 };
 
 /**
- * The diagram's presentation scale and whether it follows the canvas.
- *
- * `auto` is the sticky fit state: every canvas size change (window resize,
- * fullscreen, the inspector/drawer/tray opening, phone rotation, a re-layout)
- * re-solves the scale after a short debounce. Any EXPLICIT zoom — a button, the
- * wheel, a pinch, the keyboard, a package click — flips the state to `manual`,
- * which keeps the reader's `scale` and only clamps the scroll. Pressing Fit
- * returns to `auto`.
- */
-type DiagramZoom = {
-  readonly scale: number;
-  readonly fit: 'auto' | 'manual';
-};
-
-/** How long a canvas size change must settle before an `auto` fit re-solves. */
-const AUTO_FIT_DEBOUNCE_MS = 150;
-
-/**
  * The pixel the overlay's Fit leaves for the semantic writer's `Math.ceil`.
  * See `fullscreenFitBox` — it is rounding allowance, not a reserved margin.
  */
@@ -1014,10 +974,9 @@ export function PlantUmlGraph({
     portraitPhone,
     shortTouch,
   } = useTouchLayout();
-  // The semantic layout runs from imperative callbacks, so the pointer tier
-  // that picks the minimum font size is mirrored into a ref.
-  const coarsePointerRef = useRef(coarsePointer);
-  coarsePointerRef.current = coarsePointer;
+  // The semantic layout runs from imperative callbacks; the pointer tier that
+  // picks the minimum font size is read from the gesture owner at call time
+  // (`isCoarsePointer()`), which is what the mirrored ref used to provide.
   // On the compact tier the panel owns the single toolbar row and lends its
   // overflow menu as the slot these controls are drawn into; `null` (menu shut)
   // means this renderer has no chrome on screen at all.
@@ -1043,128 +1002,72 @@ export function PlantUmlGraph({
   // parent re-renders (hover key, graph swap).
   const viewRef = useRef(view);
   const graphRef = useRef(graph);
-  const hoverCallbackRef = useRef(onNodeHover);
-  const clickCallbackRef = useRef(onNodeClick);
-  const edgeClickCallbackRef = useRef(onEdgeClick);
-  const selectionClearCallbackRef = useRef(onSelectionClear);
-  const escapeSelectionCallbackRef = useRef(onEscapeSelection);
-  // Multi-select callbacks, in refs for the same reason as the click callbacks:
-  // the delegated listeners are registered once per mount.
-  const toggleNodeCallbackRef = useRef(onToggleNodeClick);
-  const toggleEdgeCallbackRef = useRef(onToggleEdgeClick);
-  const multiSelectStartCallbackRef = useRef(onMultiSelectStart);
-  const boxSelectCallbackRef = useRef(onBoxSelect);
-  const multiSelectModeRef = useRef(multiSelectMode);
-  // A click the browser fires AFTER a gesture that already acted (a long-press
-  // entering multi-select, or a marquee release) must not toggle/clear again.
-  const suppressClickRef = useRef(false);
-  // Whether Shift is held, read by the drag-pan predicate. Updated from a
-  // window CAPTURE listener so it is fresh before the canvas's bubble listeners.
-  const shiftHeldRef = useRef(false);
-  // The marquee rectangle in the canvas's coordinates (null when not dragging).
-  // State, not a ref: the overlay must follow the finger/pointer.
-  const [marquee, setMarquee] = useState<
-    { readonly left: number; readonly top: number; readonly width: number; readonly height: number } | null
-  >(null);
-  // The same rectangle in client pixels, for the hit test on release.
-  const marqueeClientRef = useRef<ArchitectureSelectionRect | null>(null);
-  // The drawn-model consumer. A ref, like the other callbacks: reporting the
-  // model must not make the draw effect depend on the parent's render identity.
-  const drawnCallbackRef = useRef(onDrawnPlantUmlChange);
-  // The geometry of the current drawing, kept beside the model it belongs to.
-  const drawnLayoutRef = useRef<unknown>(null);
-  // The panel's selection, readable from the delegated listeners and the async
-  // draw without re-registering either. It is also what the draw re-applies
-  // after replacing the SVG.
-  const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
-  const selectedRelationRef = useRef<PlantUmlGraphProps['selectedRelation']>(selectedRelation);
-  // The whole set, readable from the async draw that replaces the SVG.
-  const selectedNodeIdsRef = useRef<readonly string[]>(selectedNodeIds ?? []);
-  const selectedRelationsRef = useRef<NonNullable<PlantUmlGraphProps['selectedRelations']>>(
-    selectedRelations ?? [],
+  // Gestures are ONE owned slice. The ten callback slots this component used to
+  // mirror into refs are now a single `setHandlers` write path, and the marquee
+  // rectangle, the Shift reading, the touch multi-select mode and the one-click
+  // suppression live in the controller (see `graphGestureController.ts`). Its
+  // DOM measurements are injected so the rules are testable without React.
+  const gestureController = useMemo(() => createGraphGestureController({
+    canvasOrigin: () => {
+      const rect = hostRef.current?.parentElement?.getBoundingClientRect();
+      return { left: rect?.left ?? 0, top: rect?.top ?? 0 };
+    },
+    boxHitTest: (box) => {
+      const host = hostRef.current;
+      return host === null ? [] : selectionsIntersectingBox(boxCandidates(host), box);
+    },
+    nodeHitTest: (clientX, clientY) => {
+      const host = hostRef.current;
+      return host === null ? null : nearestNodeHitId(host, clientX, clientY);
+    },
+  }), []);
+  const gestureSnapshot = useSyncExternalStore(
+    gestureController.subscribe,
+    gestureController.getSnapshot,
+    gestureController.getSnapshot,
   );
-  // The last entity the keyboard cursor stood on. A ref (not state): the
-  // cursor's own move only edits SVG classes/ids, and this reading exists so
-  // re-entering the navigation state lands where the reader left off rather
-  // than at the top-left entity.
-  const keyboardFocusRef = useRef<string | null>(null);
-  // Whether the canvas is in its entity-navigation state: Enter puts it there,
-  // Escape leaves it. State, not a ref, because the host's role and
-  // `aria-activedescendant` are render output that must follow it.
-  const [navigationActive, setNavigationActive] = useState(false);
-  // The item the keyboard cursor stands on (an entity id, or
-  // `package::<path>`). Also state: it is the `aria-activedescendant` value.
-  const [navigationCursorId, setNavigationCursorId] = useState<string | null>(null);
-  // The polite live-region sentence for the current entity / last selection.
-  const [navigationAnnouncement, setNavigationAnnouncement] = useState('');
-  // The same two readings as refs: the redraw callback (async, outside the
-  // render that created it) re-paints the ring from the settled values.
-  const navigationActiveRef = useRef(false);
-  const navigationCursorRef = useRef<string | null>(null);
-  // What produced the focus the canvas is about to receive. `keyboard` is the
-  // only modality that enters entity navigation: a pointer press focuses the
-  // host too (so click-then-arrow panning keeps working), and a ring appearing
-  // under a mouse click would be noise. A window CAPTURE listener keeps this
-  // fresh before the press that focuses the host commits.
-  const focusModalityRef = useRef<'keyboard' | 'pointer'>('keyboard');
+  // Selection and keyboard navigation are ONE owned slice. Every reading the
+  // delegated listeners, the async draw and the render need lives in the
+  // controller (see `graphSelectionController.ts`); this component renders its
+  // snapshot and forwards events. The controller is created once per mount:
+  // listeners read `getSnapshot()` at fire time, which is what the mirrored
+  // refs used to provide.
+  const selectionController = useMemo(() => createGraphSelectionController(), []);
+  const selectionSnapshot = useSyncExternalStore(
+    selectionController.subscribe,
+    selectionController.getSnapshot,
+    selectionController.getSnapshot,
+  );
   /** Leave the navigation state; the selection and the drawing stay unchanged. */
   const exitEntityNavigation = (host: HTMLElement): void => {
-    navigationActiveRef.current = false;
-    navigationCursorRef.current = null;
-    setNavigationActive(false);
-    setNavigationCursorId(null);
-    setNavigationAnnouncement('');
+    selectionController.exitNavigation();
     clearNavigationFocus(host);
   };
-  // The entity the user clicked (or a sibling panel asked for). Unlike the
-  // hover reading it survives leaving the node and being re-rendered, so the
-  // dependency/reverse-dependency highlight stays pinned until the selection is
-  // replaced or cleared.
-  const selectedRef = useRef<string | null>(null);
-  // A state copy of the selection, used only to render the explicit "Drill in"
-  // action. It deliberately does not feed the drawing effect: selecting must
-  // never re-lay the diagram out.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Whether the selection came from a touch tap. A desktop click already
-  // navigated, so only a touch selection needs a separate drill command.
-  const [selectedByTouch, setSelectedByTouch] = useState(false);
-  // The pointer type of the last press on the graph. A click that follows a
-  // touch press keeps the touch semantics (select only); a mouse click keeps
-  // the original click-to-drill behaviour.
-  const lastPointerTypeRef = useRef<string | null>(null);
-  // The previous tap, for the touch double-tap drill gesture.
-  const lastTapRef = useRef<{ id: string; at: number } | null>(null);
-  // The pin menu: right-click (desktop) or long-press (touch) on a node or a
-  // relation opens the same adjustment actions the inspector offers. Null keeps
-  // it shut; the position is in the canvas's own coordinate space.
-  const [contextMenu, setContextMenu] = useState<
-    | { readonly x: number; readonly y: number; readonly nodeId: string }
-    | { readonly x: number; readonly y: number; readonly edge: ArchitectureRendererEdge }
-    | null
-  >(null);
   const pinnedSet = useMemo(() => new Set(pinnedNodeIds), [pinnedNodeIds]);
   useEffect(() => {
     viewRef.current = view;
     graphRef.current = graph;
-    hoverCallbackRef.current = onNodeHover;
-    clickCallbackRef.current = onNodeClick;
-    edgeClickCallbackRef.current = onEdgeClick;
-    selectionClearCallbackRef.current = onSelectionClear;
-    escapeSelectionCallbackRef.current = onEscapeSelection;
-    toggleNodeCallbackRef.current = onToggleNodeClick;
-    toggleEdgeCallbackRef.current = onToggleEdgeClick;
-    multiSelectStartCallbackRef.current = onMultiSelectStart;
-    boxSelectCallbackRef.current = onBoxSelect;
-    multiSelectModeRef.current = multiSelectMode;
-    drawnCallbackRef.current = onDrawnPlantUmlChange;
-    selectedNodeIdRef.current = selectedNodeId;
-    selectedRelationRef.current = selectedRelation;
-    selectedNodeIdsRef.current = selectedNodeIds
-      ?? (selectedNodeId === null ? [] : [selectedNodeId]);
-    selectedRelationsRef.current = selectedRelations
-      ?? (selectedRelation === null ? [] : [selectedRelation]);
     diffHighlightRef.current = diffHighlight;
-  }, [view, graph, onNodeHover, onNodeClick, onEdgeClick, onSelectionClear, onEscapeSelection, onDrawnPlantUmlChange, selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations, onToggleNodeClick, onToggleEdgeClick, onMultiSelectStart, onBoxSelect, multiSelectMode, diffHighlight]);
+  }, [view, graph, selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations, diffHighlight]);
+  // The one write path that hands the gesture owner the current props: its
+  // callbacks, the touch multi-select mode and the pointer tier. Listeners read
+  // `getHandlers()` at fire time instead of each mirroring a ref.
+  useEffect(() => {
+    gestureController.setHandlers({
+      onNodeHover,
+      onNodeClick,
+      onEdgeClick,
+      onSelectionClear,
+      onEscapeSelection,
+      onToggleNodeClick,
+      onToggleEdgeClick,
+      onMultiSelectStart,
+      onBoxSelect,
+      onDrawnChange: onDrawnPlantUmlChange,
+    });
+    gestureController.setMultiSelectMode(multiSelectMode);
+    gestureController.setCoarsePointer(coarsePointer);
+  }, [gestureController, coarsePointer, multiSelectMode, onNodeHover, onNodeClick, onEdgeClick, onSelectionClear, onEscapeSelection, onDrawnPlantUmlChange, onToggleNodeClick, onToggleEdgeClick, onMultiSelectStart, onBoxSelect]);
 
   /**
    * Paint the panel's selection AND publish it as a `data-*` state. The class
@@ -1195,11 +1098,16 @@ export function PlantUmlGraph({
     if (host === null) return;
     const nodeIds = selectedNodeIds ?? (selectedNodeId === null ? [] : [selectedNodeId]);
     const relationList = selectedRelations ?? (selectedRelation === null ? [] : [selectedRelation]);
+    selectionController.syncPanelSelection({
+      nodeId: selectedNodeId,
+      relation: selectedRelation,
+      nodeIds,
+      relations: relationList,
+    });
     paintSelectionStyles(host, nodeIds, relationList);
-    selectedRef.current = selectedNodeId;
     if (selectedNodeId !== null) highlightSelection(host, selectedNodeId);
     else if (relationList.length === 0) clearHighlight(host);
-  }, [selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations]);
+  }, [selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations, selectionController]);
 
   // Tell the panel which slice is on screen. The export menu rebuilds exactly
   // this view; a remount (session/scope change resets `view`) reports the
@@ -1208,15 +1116,24 @@ export function PlantUmlGraph({
     onViewChange?.(view);
   }, [onViewChange, view]);
 
-  // The viewed scale and whether it follows the canvas (see DiagramZoom).
-  // Rendering reads it for the toolbar readout; the semantic path rewrites the
-  // geometry at this scale and the ordinary path resizes the SVG imperatively,
-  // so neither re-enters the drawing path.
-  const [zoom, setZoom] = useState<DiagramZoom>({ scale: 1, fit: 'auto' });
-  // Mirror of `zoom` for the async render / wheel / resize handlers, which run
-  // outside the render that last committed the state.
-  const zoomRef = useRef(zoom);
-  const viewportRef = useRef<SvgViewportController | null>(null);
+  // Zoom, the SVG viewport and the auto-fit rules are ONE owned slice (see
+  // `graphViewportController.ts`). This component renders the snapshot and
+  // forwards the host's measurements; the owner decides when a resize re-fits,
+  // which scale survives a manual zoom, and how a Fit token is answered.
+  const viewportController = useMemo(() => createGraphViewportController({
+    autoFitDisabled,
+  }), []);
+  const viewportSnapshot = useSyncExternalStore(
+    viewportController.subscribe,
+    viewportController.getSnapshot,
+    viewportController.getSnapshot,
+  );
+  const {
+    zoom,
+    packageFocus,
+    fullscreenInsets,
+    fitViewport: fitViewportReading,
+  } = viewportSnapshot;
   /**
    * The drawing's ORIGINAL size for every fit computation.
    *
@@ -1236,23 +1153,22 @@ export function PlantUmlGraph({
     if (folded !== null && folded.foldDepth !== null) {
       return { width: Math.max(1, folded.content.width), height: Math.max(1, folded.content.height) };
     }
-    const semanticBase = viewportRef.current?.semanticBaseSize() ?? null;
+    const semanticBase = viewportController.viewport()?.semanticBaseSize() ?? null;
     if (semanticBase !== null) return semanticBase;
     return drawing === null ? null : readSvgNaturalSize(drawing);
-  }, []);
-  const applyZoom = useCallback((next: DiagramZoom): void => {
-    // A settle that re-derives the same state must not re-render (the semantic
-    // pass writes the solved scale back after every application).
-    if (next.scale === zoomRef.current.scale && next.fit === zoomRef.current.fit) return;
-    zoomRef.current = next;
-    setZoom(next);
-  }, []);
+  }, [viewportController]);
+  /** The one write path for a scale solved by Fit, the semantic engine or a gesture. */
+  const applyZoom = useCallback((next: GraphZoom): boolean => viewportController.setZoom(next), [viewportController]);
+  /** The owner's reading at call time; async handlers run outside the last render. */
+  const controllerZoom = useCallback(
+    (): GraphZoom => viewportController.getSnapshot().zoom,
+    [viewportController],
+  );
 
-  // The package the reader zoomed into from the too-small overview hint (the  // "tap a package" gesture), or `null` while the whole graph is on screen. It
-  // is what keeps the hint row visible after the zoom and gives that row its
-  // "back to whole graph" action; a fit or an explicit readable-mode switch
-  // clears it.
-  const [packageFocus, setPackageFocus] = useState<string | null>(null);
+  // The package the reader zoomed into from the too-small overview hint (the
+  // "tap a package" gesture) lives in the viewport owner's snapshot with the
+  // zoom; it keeps the hint row visible and gives that row its action.
+
 
   /** The viewBox origin of the drawing on screen, in user units (usually 0,0). */
   const drawingOrigin = useCallback((): { x: number; y: number } => {    const parts = (hostRef.current?.querySelector('svg')?.getAttribute('viewBox') ?? '')
@@ -1266,26 +1182,9 @@ export function PlantUmlGraph({
   // when the renderer is not inside a panel (see `CanvasHeaderSlotContext`).
   const canvasHeaderSlot = useCanvasHeaderSlot();
 
-  /**
-   * The overlay's Fit area, and the host padding that realises it.
-   *
-   * State, not a ref: the host's padding is render output, so the measured
-   * insets have to reach the next render. `null` means "not the overlay" (or
-   * not measured yet), and the non-fullscreen padding formula applies.
-   */
-  const [fullscreenInsets, setFullscreenInsets] = useState<SvgFitAreaInsets | null>(null);
-  /**
-   * The box the last Fit solved against, published as
-   * `data-architecture-fit-viewport` so a unit test and the e2e reading can
-   * state which area the drawing was fitted to instead of re-deriving it.
-   */
-  const [fitViewportReading, setFitViewportReading] = useState<SvgViewportSize | null>(null);
-  /**
-   * The last canvas box measured while NOT fullscreen. The control arm uses it
-   * to restore the retired "keep the non-fullscreen canvas" defect; the
-   * shipped path never reads it.
-   */
-  const lastFlowViewportRef = useRef<SvgViewportSize | null>(null);
+  // The overlay's measured insets and the box the last Fit solved against are
+  // part of the viewport owner's snapshot: the host padding is render output,
+  // and `data-architecture-fit-viewport` must state the area the solve used.
 
   /**
    * The chrome rectangles the overlay paints OVER its viewport-sized host, in
@@ -1391,14 +1290,14 @@ export function PlantUmlGraph({
   const fullscreenFitBox = useCallback((): SvgViewportSize | null => {
     const host = hostRef.current;
     if (host === null) return null;
-    if (forcedFullscreenReservedMargins()) return lastFlowViewportRef.current ?? measureHostSize(host);
+    if (forcedFullscreenReservedMargins()) return viewportController.lastFlowViewport() ?? measureHostSize(host);
     const area = fullscreenFitArea();
     if (area === null) return null;
     return {
       width: Math.max(1, area.width - FULLSCREEN_FIT_ROUNDING_ALLOWANCE_PX),
       height: Math.max(1, area.height - FULLSCREEN_FIT_ROUNDING_ALLOWANCE_PX),
     };
-  }, [fullscreenFitArea]);
+  }, [fullscreenFitArea, viewportController]);
 
   /** The reading every Fit/fold/sticky solve measures against. */
   const currentFitViewport = useCallback((host: HTMLElement): SvgViewportSize | null => {
@@ -1409,15 +1308,10 @@ export function PlantUmlGraph({
     return measureViewportSize(host);
   }, [fullscreen, fullscreenFitBox]);
 
-  /** Publish the box the solve used, without re-rendering for an unchanged box. */
+  /** Publish the box the solve used; the owner ignores an unchanged reading. */
   const recordFitViewport = useCallback((box: SvgViewportSize | null): void => {
-    if (box === null || !(box.width > 0) || !(box.height > 0)) return;
-    setFitViewportReading((previous) => previous !== null
-      && Math.abs(previous.width - box.width) < 0.5
-      && Math.abs(previous.height - box.height) < 0.5
-      ? previous
-      : { width: box.width, height: box.height });
-  }, []);
+    viewportController.reportFitViewport(box);
+  }, [viewportController]);
 
   /**
    * The floating corner chrome rectangles — the minimap and the zoom cluster —
@@ -1496,7 +1390,7 @@ export function PlantUmlGraph({
    */
   const zoomToPackage = useCallback((packageId: string): void => {
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) return;
     const frame = drawnPackageFrame(host, packageId);
     const box = measureViewportSize(host);
@@ -1510,12 +1404,12 @@ export function PlantUmlGraph({
       // so the multiplier is relative to the scale on screen. The new scale is
       // solved by the same engine as Fit (its floor-font rule keeps every label
       // readable), and the geometry is rewritten now rather than 200 ms later.
-      const current = appliedLayoutRef.current?.scale ?? zoomRef.current.scale;
+      const current = appliedLayoutRef.current?.scale ?? controllerZoom().scale;
       const solved = clampZoomScale(Math.max(current * multiplier, MIN_ZOOM_SCALE));
       applyZoom({ scale: solved, fit: 'manual' });
       centerPackageOnApplyRef.current = packageId;
       applySemanticRef.current?.({ fit: false, scale: solved });
-      setPackageFocus(packageId);
+      viewportController.setPackageFocus(packageId);
       return;
     }
     const scale = clampZoomScale(Math.max(multiplier, MIN_READABLE_ZOOM_SCALE));
@@ -1533,8 +1427,8 @@ export function PlantUmlGraph({
     }, applied);
     host.scrollLeft = offsets.left;
     host.scrollTop = offsets.top;
-    setPackageFocus(packageId);
-  }, [applyPlacement, applyZoom, drawingOrigin]);
+    viewportController.setPackageFocus(packageId);
+  }, [applyPlacement, applyZoom, controllerZoom, drawingOrigin, viewportController]);
 
   // Set when a drawing was too wide for its container and was collapsed to the
   // directory overview; the notice stays until the user asks for the explosion
@@ -1560,7 +1454,7 @@ export function PlantUmlGraph({
   }, []);
 
   const drillSelected = useCallback((): void => {
-    const id = selectedRef.current;
+    const id = selectionController.getSnapshot().primaryNodeId;
     if (id !== null) drillInto(id);
   }, [drillInto]);
 
@@ -1574,11 +1468,9 @@ export function PlantUmlGraph({
    */
   useEffect(() => {
     if (focusNodeId === null) return;
-    selectedRef.current = focusNodeId;
-    setSelectedId(focusNodeId);
-    setSelectedByTouch(false);
+    selectionController.focusNode(focusNodeId);
     if (focusDrill) setView({ kind: 'neighborhood', entityId: focusNodeId, hops: DEFAULT_NEIGHBORHOOD_HOPS });
-  }, [focusNodeId, focusToken, focusDrill]);
+  }, [focusNodeId, focusToken, focusDrill, selectionController]);
 
   // Switching the class/file subgraph is a new drawing, so a drill-down state
   // from the previous one must not be carried over: a neighbourhood opened in
@@ -1679,7 +1571,7 @@ export function PlantUmlGraph({
     // coarse-pointer hit rectangles are laid down again on the geometry that is
     // actually on screen (they are not part of `capture.inner`, which stays the
     // undecorated snapshot).
-    addNodeHitTargets(host, coarsePointerRef.current);
+    addNodeHitTargets(host, gestureController.isCoarsePointer());
     // The renderer's own `.uml-canvas` rectangle is a paper-coloured fill sized
     // to the mapped CONTENT. Once the geometry pass reshapes the drawing, that
     // leaves a white rectangle around the content with the panel's own
@@ -1707,7 +1599,7 @@ export function PlantUmlGraph({
     // the arm can prove its min-font reading lands on the failing side.
     const controlFactor = forcedFitCssFactor();
     if (controlFactor !== null) applyZoomScale(capture.svg, controlFactor);
-  }, []);
+  }, [gestureController]);
 
   // Apply a semantic solve: `fit` asks the engine for the largest scale whose
   // mapped content fits the canvas; otherwise the reader's explicit scale is
@@ -1720,7 +1612,7 @@ export function PlantUmlGraph({
     // the whole screen instead of inheriting the non-fullscreen margin.
     const box = currentFitViewport(host);
     recordFitViewport(box);
-    const fontPx = coarsePointerRef.current ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
+    const fontPx = gestureController.isCoarsePointer() ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
     let layout: SemanticZoomLayout;
     let solvedScale: number;
     if (options.fit) {
@@ -1757,8 +1649,9 @@ export function PlantUmlGraph({
     applyZoom({ scale: solvedScale, fit: options.fit ? 'auto' : 'manual' });
     // A rewritten SVG is a fresh set of elements: re-pin the selection and the
     // unselectable declaration, exactly as the render effect does.
-    paintSelectionStyles(host, selectedNodeIdsRef.current, selectedRelationsRef.current);
-    highlightSelection(host, selectedRef.current);
+    const selection = selectionController.getSnapshot();
+    paintSelectionStyles(host, selection.panel.nodeIds, selection.panel.relations);
+    highlightSelection(host, selection.primaryNodeId);
     markDrawingUnselectable(host);
     applyDiffStyles(host, diffHighlightRef.current);
     if (neighborCenterRef.current !== null) {
@@ -1793,18 +1686,20 @@ export function PlantUmlGraph({
     // behind (the defect this task fixes).
     drawStickyLabels(host, layout, appliedFontRef.current);
     positionOverviewHint(host);
-  }, [applySemanticLayout, applyZoom, currentFitViewport, recordFitViewport]);
+  }, [gestureController, applySemanticLayout, applyZoom, currentFitViewport, recordFitViewport]);
   applySemanticRef.current = applySemantic;
-  // One controller per mount: it survives the renderer replacing the SVG (each
-  // render re-attaches), so the mode and scale outlive a single drawing.
+  // The viewport controller lives in the owner: it survives the renderer
+  // replacing the SVG (each render re-attaches), so the mode and scale outlive
+  // a single drawing, while the owner clears its debounce timer on unmount.
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
-    viewportRef.current = createSvgViewport(host);
+    viewportController.attachViewport(createSvgViewport(host));
     return () => {
-      viewportRef.current = null;
+      viewportController.attachViewport(null);
     };
-  }, []);
+  }, [viewportController]);
+  useEffect(() => () => viewportController.dispose(), [viewportController]);
 
   // A sticky package name belongs to the VIEWPORT, not to the drawing: panning
   // must move the ghost labels with the reader, and must never leave one over a
@@ -1842,13 +1737,13 @@ export function PlantUmlGraph({
   // also why the single-finger drag has to pan the container here.
   useEffect(() => {
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) return;
     const gestures = createSvgTouchGestures(host, viewport, {
       onZoom: (scale) => applyZoom({ scale, fit: 'manual' }),
     });
     return () => gestures.destroy();
-  }, [applyZoom]);
+  }, [applyZoom, viewportController]);
 
   // Mouse/pen panning rides on the same scroll container the touch gestures
   // pan: left-drag from the blank canvas and middle-drag from anywhere scroll
@@ -1861,11 +1756,11 @@ export function PlantUmlGraph({
     const host = hostRef.current;
     if (host === null) return;
     const pan = createSvgDragPan(host, {
-      canPanFrom: (target) => !shiftHeldRef.current
+      canPanFrom: (target) => !gestureController.isShiftHeld()
         && !(target instanceof Element && target.closest('[data-entity-id]') !== null),
     });
     return () => pan.destroy();
-  }, []);
+  }, [gestureController]);
 
   // A press inside the drawing never starts the browser's own text selection.
   // The `user-select` rules already refuse it, but a drag can begin on a label
@@ -1900,7 +1795,7 @@ export function PlantUmlGraph({
       // A pointer press is not the keyboard: leaving the navigation state
       // clears the ring and the active descendant. The modality gate above
       // keeps the focus this press just gave the host from re-entering it.
-      if (navigationActiveRef.current) exitEntityNavigation(host);
+      if (selectionController.getSnapshot().navigationActive) exitEntityNavigation(host);
     };
     host.addEventListener('mousedown', onMouseDown);
     return () => host.removeEventListener('mousedown', onMouseDown);
@@ -1912,7 +1807,7 @@ export function PlantUmlGraph({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const record = (event: KeyboardEvent | PointerEvent): void => {
-      shiftHeldRef.current = event.shiftKey;
+      gestureController.recordModifier(event.shiftKey);
     };
     window.addEventListener('keydown', record, true);
     window.addEventListener('keyup', record, true);
@@ -1922,15 +1817,15 @@ export function PlantUmlGraph({
       window.removeEventListener('keyup', record, true);
       window.removeEventListener('pointerdown', record, true);
     };
-  }, []);
+  }, [gestureController]);
 
   // Which input modality is about to move focus. Read by the host's focus
   // handler: Tab (a keydown) is the only way into entity navigation; a press
   // focuses the host for click-then-arrow panning and must not paint a ring.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const fromPointer = (): void => { focusModalityRef.current = 'pointer'; };
-    const fromKeyboard = (): void => { focusModalityRef.current = 'keyboard'; };
+    const fromPointer = (): void => selectionController.setFocusModality('pointer');
+    const fromKeyboard = (): void => selectionController.setFocusModality('keyboard');
     window.addEventListener('pointerdown', fromPointer, true);
     window.addEventListener('keydown', fromKeyboard, true);
     return () => {
@@ -1939,73 +1834,39 @@ export function PlantUmlGraph({
     };
   }, []);
 
-  // Shift+drag marquee: a rectangle in client pixels whose release selects every
-  // drawn entity and relation it intersects. A plain drag never starts one (it
-  // stays the pan above). The overlay is drawn in the canvas's coordinates so it
-  // follows the pointer exactly.
+  // Shift+drag marquee: the gesture owner keeps the rectangle (in canvas
+  // coordinates, so the overlay follows the pointer exactly), decides whether a
+  // release travelled far enough to be a marquee, and reports the hit set. This
+  // effect only binds the pointer family and forwards it.
   useEffect(() => {
     const host = hostRef.current;
     if (host === null || typeof window === 'undefined') return;
-    const canvas = host.parentElement;
-    let drag: { readonly pointerId: number; readonly startX: number; readonly startY: number } | null = null;
-
-    const canvasOffset = (): { left: number; top: number } => {
-      const rect = canvas?.getBoundingClientRect();
-      return { left: rect?.left ?? 0, top: rect?.top ?? 0 };
-    };
-    const updateMarquee = (clientX: number, clientY: number): void => {
-      if (drag === null) return;
-      const box: ArchitectureSelectionRect = {
-        left: Math.min(drag.startX, clientX),
-        top: Math.min(drag.startY, clientY),
-        right: Math.max(drag.startX, clientX),
-        bottom: Math.max(drag.startY, clientY),
-      };
-      marqueeClientRef.current = box;
-      const offset = canvasOffset();
-      setMarquee({
-        left: box.left - offset.left,
-        top: box.top - offset.top,
-        width: box.right - box.left,
-        height: box.bottom - box.top,
-      });
-    };
-
     const onDown = (event: PointerEvent): void => {
-      if (event.pointerType === 'touch' || event.button !== 0 || !event.shiftKey) return;
-      drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY };
-      marqueeClientRef.current = {
-        left: event.clientX,
-        top: event.clientY,
-        right: event.clientX,
-        bottom: event.clientY,
-      };
-      event.preventDefault();
-      updateMarquee(event.clientX, event.clientY);
+      if (gestureController.pointerDown({
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        button: event.button,
+        shiftKey: event.shiftKey,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      })) event.preventDefault();
     };
     const onMove = (event: PointerEvent): void => {
-      if (drag === null || event.pointerId !== drag.pointerId) return;
-      event.preventDefault();
-      updateMarquee(event.clientX, event.clientY);
+      if (gestureController.pointerMove({
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      })) event.preventDefault();
     };
     const onUp = (event: PointerEvent): void => {
-      if (drag === null || event.pointerId !== drag.pointerId) return;
-      const box = marqueeClientRef.current;
-      drag = null;
-      marqueeClientRef.current = null;
-      setMarquee(null);
-      if (box === null) return;
-      // A shift+CLICK that never travelled is not a marquee; let the click
-      // listener handle it as an ordinary additive click.
-      if (box.right - box.left < 2 && box.bottom - box.top < 2) return;
-      suppressClickRef.current = true;
-      boxSelectCallbackRef.current?.(selectionsIntersectingBox(boxCandidates(host), box));
+      gestureController.pointerUp({
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
     };
     const onCancel = (event: PointerEvent): void => {
-      if (drag === null || event.pointerId !== drag.pointerId) return;
-      drag = null;
-      marqueeClientRef.current = null;
-      setMarquee(null);
+      gestureController.pointerCancel(event.pointerId);
     };
 
     host.addEventListener('pointerdown', onDown);
@@ -2018,7 +1879,7 @@ export function PlantUmlGraph({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
     };
-  }, []);
+  }, [gestureController]);
 
   // The LOD debouncer lives for the mount; a drawing change cancels its pending
   // application through the render effect below.
@@ -2100,12 +1961,11 @@ export function PlantUmlGraph({
     // is applied synchronously below.
     lodSchedulerRef.current?.cancel();
     setFailure(null);
-    hoverCallbackRef.current?.(null);
+    gestureController.getHandlers().onNodeHover?.(null);
     // A reloaded graph may not contain the previously selected entity.
-    if (selectedRef.current !== null && !graph.nodes.some((node) => node.id === selectedRef.current)) {
-      selectedRef.current = null;
-      setSelectedId(null);
-      setSelectedByTouch(false);
+    const previousSelection = selectionController.getSnapshot().primaryNodeId;
+    if (previousSelection !== null && !graph.nodes.some((node) => node.id === previousSelection)) {
+      selectionController.clearSelection();
     }
 
     void (async () => {
@@ -2226,15 +2086,18 @@ export function PlantUmlGraph({
           orientation = cached;
         } else if (forced !== null) {
           const forcedStartedAt = performance.now();
-          detailed = await renderOnce(undefined);
+          detailed = await renderOnce(forced === 'DOWN' ? undefined : 'RIGHT');
           elapsedMs = Math.round(performance.now() - forcedStartedAt);
+          // A forced arm measures ONE direction, so its fit is the raw geometry
+          // of that drawing: there is no second candidate to compare against.
           orientation = chooseLayoutOrientation({
             canvas: canvasBox ?? { width: 0, height: 0 },
             down: layoutSizeOf(detailed) ?? { width: 0, height: 0 },
             right: null,
             entities: layoutNodes,
             firstLayoutMs: elapsedMs,
-            forceDown: true,
+            forceDown: forced === 'DOWN',
+            forceRight: forced === 'RIGHT',
           });
         } else {
           const firstStartedAt = performance.now();
@@ -2254,10 +2117,18 @@ export function PlantUmlGraph({
             const right = await renderOnce('RIGHT');
             const secondLayoutMs = Math.round(performance.now() - secondStartedAt);
             if (cancelled) return;
+            // Compare the DRAWN fit, not the renderer's pre-reclaim size: the
+            // semantic pass reclaims the blank body of frames whose member rows
+            // are not drawn, and that is the size the reader sees. Both
+            // candidates are solved against the SAME box — the one eligibility
+            // just judged — so the comparison is like-for-like.
+            const fontPx = gestureController.isCoarsePointer() ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
             orientation = chooseLayoutOrientation({
               canvas: canvasBox,
               down: downSize,
               right: layoutSizeOf(right),
+              downDrawnFitScale: drawnFitScaleOf(down, graph, canvasBox, fontPx) ?? undefined,
+              rightDrawnFitScale: drawnFitScaleOf(right, graph, canvasBox, fontPx) ?? undefined,
               entities: layoutNodes,
               firstLayoutMs,
             });
@@ -2289,9 +2160,6 @@ export function PlantUmlGraph({
         setLayoutDirectionReason(orientation.reason);
 
         const { svg, model } = detailed;
-        // The geometry the renderer used, kept for consumers that would rather
-        // read rectangles than reverse-engineer the SVG (not yet wired).
-        drawnLayoutRef.current = detailed.layout;
         host.innerHTML = svg;
         // The row cap is a DRAWING rule (`MEMBER_MAX_ROWS`): it removes the
         // surplus rows from the DOM and paints the app's own fold label, so the
@@ -2316,7 +2184,7 @@ export function PlantUmlGraph({
         // The text page reads this: the model just drawn, plus the upstream
         // functions that serialize and scope it. `diagram.aliasOf` is the
         // graph-id (and overview `grp::` group) → drawn entity id map.
-        drawnCallbackRef.current?.({
+        gestureController.getHandlers().onDrawnChange?.({
           model,
           entityIdOf: diagram.aliasOf,
           // The drawn model names each function `<<function>> Name` (the
@@ -2342,14 +2210,18 @@ export function PlantUmlGraph({
         const capture = semanticEligible ? captureSemanticDrawing(host, graph) : null;
         semanticCaptureRef.current = capture;
         semanticTierRef.current = null;
-        const viewportForMode = viewportRef.current;
+        const viewportForMode = viewportController.viewport();
         // The semantic base size is the SAME boundary the canvas will draw
         // (`semanticContentBounds`), not the renderer's pre-semantic viewBox:
         // the fit reading and the minimap must measure what is on screen.
         viewportForMode?.setSemanticMode(
           capture === null ? null : semanticContentBounds(capture.geometry),
         );
-        paintSelectionStyles(host, selectedNodeIdsRef.current, selectedRelationsRef.current);
+        paintSelectionStyles(
+          host,
+          selectionController.getSnapshot().panel.nodeIds,
+          selectionController.getSnapshot().panel.relations,
+        );
         applyDiffStyles(host, diffHighlightRef.current);
         // Every view has its own natural size, so the scale is re-derived here
         // rather than carried over; the fit/custom MODE survives so the resize
@@ -2370,7 +2242,7 @@ export function PlantUmlGraph({
           drawing.style.marginBottom = 'auto';
           drawing.style.flex = 'none';
         }
-        const viewport = viewportRef.current;
+        const viewport = viewportController.viewport();
         if (drawing !== null && viewport !== null) {
           viewport.attach(drawing);
           const natural = naturalOfDrawing(drawing);
@@ -2393,18 +2265,18 @@ export function PlantUmlGraph({
             // fits the whole drawing down to the manual floor; `manual` keeps
             // the reader's own scale. Either way the placement re-centres it.
             const placement = natural === null ? null : fitPlacementFor(natural, box ?? { width: 0, height: 0 });
-            const drawnScale = zoomRef.current.fit === 'auto'
-              ? viewport.zoomTo(placement?.scale ?? zoomRef.current.scale)
-              : viewport.zoomTo(zoomRef.current.scale);
+            const drawnScale = controllerZoom().fit === 'auto'
+              ? viewport.zoomTo(placement?.scale ?? controllerZoom().scale)
+              : viewport.zoomTo(controllerZoom().scale);
             applyPlacement(drawing, placement);
-            applyZoom({ scale: drawnScale, fit: zoomRef.current.fit });
+            applyZoom({ scale: drawnScale, fit: controllerZoom().fit });
             // A fresh drawing is a new whole-graph view; a package zoom from
             // the previous one no longer names a frame on screen.
-            setPackageFocus(null);
+            viewportController.setPackageFocus(null);
           }
         }
         // A fresh SVG has no highlight classes; re-pin the current selection.
-        highlightSelection(host, selectedRef.current);
+        highlightSelection(host, selectionController.getSnapshot().primaryNodeId);
         neighborCenterRef.current = null;
         if (view.kind === 'neighborhood') {
           const center = diagram.rendererEntity;
@@ -2437,7 +2309,7 @@ export function PlantUmlGraph({
           // The new drawing is applied through ONE path, so the draw and the
           // settled-zoom/resize paths can never disagree about which scale is
           // on screen.
-          applySemantic({ fit: zoomRef.current.fit === 'auto', scale: zoomRef.current.scale });
+          applySemantic({ fit: controllerZoom().fit === 'auto', scale: controllerZoom().scale });
         }
         // A focus request (search hit) is centred LAST: the reader asked for
         // THIS node, so it wins.
@@ -2478,8 +2350,7 @@ export function PlantUmlGraph({
         setLayoutStatusNodes(null);
         setFoldDepth(null);
         // The previous drawing is gone; the text page must not keep describing it.
-        drawnLayoutRef.current = null;
-        drawnCallbackRef.current?.(null);
+        gestureController.getHandlers().onDrawnChange?.(null);
         setFailure(error instanceof Error ? error.message : 'unknown render error');
       }
     })();
@@ -2489,13 +2360,12 @@ export function PlantUmlGraph({
       // A superseded/unmounted drawing no longer describes the page's canvas.
       // The text page debounces its rebuild, so a redraw settling quickly never
       // flashes the bridge fallback.
-      drawnLayoutRef.current = null;
-      drawnCallbackRef.current?.(null);
+      gestureController.getHandlers().onDrawnChange?.(null);
       // A status belongs to the layout that set it; the run replacing this one
       // decides again whether to announce (and clears it again when it ends).
       setLayoutStatusNodes(null);
     };
-  }, [applyPlacement, applySemantic, applySemanticLayout, applyZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, graph, idShape, layoutAspect, naturalOfDrawing, view]);
+  }, [applyPlacement, applySemantic, applySemanticLayout, applyZoom, controllerZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, gestureController, graph, idShape, layoutAspect, naturalOfDrawing, view, viewportController]);
 
   /**
    * Keep the SELECTED box inside the visible canvas.
@@ -2571,7 +2441,7 @@ export function PlantUmlGraph({
       // report no hover (their highlight still works).
       const hoveredNode = graphRef.current.nodes.find((candidate) => candidate.id === id);
       if (hoveredNode !== undefined) {
-        hoverCallbackRef.current?.({ node: hoveredNode, relations: relationsOf(host, id) });
+        gestureController.getHandlers().onNodeHover?.({ node: hoveredNode, relations: relationsOf(host, id) });
       }
     };
 
@@ -2581,8 +2451,8 @@ export function PlantUmlGraph({
       const next = event.relatedTarget;
       if (next instanceof Node && node.contains(next)) return;
       // Hover is transient; a pinned selection is restored when the pointer leaves.
-      highlightSelection(host, selectedRef.current);
-      hoverCallbackRef.current?.(null);
+      highlightSelection(host, selectionController.getSnapshot().primaryNodeId);
+      gestureController.getHandlers().onNodeHover?.(null);
     };
 
     // The pin/remove menu: right click on a fine pointer, a 500ms press on a
@@ -2608,13 +2478,13 @@ export function PlantUmlGraph({
         const to = edgeHit.getAttribute('data-architecture-edge-target');
         const relationType = edgeHit.getAttribute('data-architecture-edge-type') ?? '';
         if (from === null || to === null) return false;
-        setContextMenu({ x, y, edge: { from, to, relationType } });
+        selectionController.openContextMenu({ x, y, edge: { from, to, relationType } });
         return true;
       }
       const id = nodeFrom(target)?.getAttribute('data-entity-id') ?? null;
       if (id === null || id.startsWith(GROUP_PREFIX) || id.startsWith(STUB_PREFIX)) return false;
       if (!graphRef.current.nodes.some((candidate) => candidate.id === id)) return false;
-      setContextMenu({ x, y, nodeId: id });
+      selectionController.openContextMenu({ x, y, nodeId: id });
       return true;
     };
 
@@ -2626,7 +2496,7 @@ export function PlantUmlGraph({
     // blank canvas keeps opening the curation menu. `navigator.vibrate` is the
     // optional acknowledgement — guarded because jsdom and some browsers lack it.
     const onPointerDown = (event: PointerEvent): void => {
-      lastPointerTypeRef.current = event.pointerType ?? null;
+      selectionController.recordPointerType(event.pointerType ?? null);
       cancelLongPress();
       if (event.pointerType !== 'touch') return;
       const target = event.target;
@@ -2640,15 +2510,17 @@ export function PlantUmlGraph({
           node !== null
           && !id?.startsWith(GROUP_PREFIX)
           && !id?.startsWith(STUB_PREFIX)
-          && multiSelectStartCallbackRef.current !== undefined
         ) {
-          // The click the browser sends on release must not undo the toggle the
-          // long press just performed.
-          suppressClickRef.current = true;
+          // The owner suppresses the click the browser sends on release, so it
+          // cannot undo the toggle the long press just performed. False means
+          // no multi-select handler is installed: keep the curation menu path.
+          if (!gestureController.startMultiSelect(node)) {
+            if (canCurate) openMenuAt(event.clientX, event.clientY, target);
+            return;
+          }
           if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
             navigator.vibrate(10);
           }
-          multiSelectStartCallbackRef.current(node);
           return;
         }
         if (canCurate) openMenuAt(event.clientX, event.clientY, target);
@@ -2659,36 +2531,32 @@ export function PlantUmlGraph({
     const onContextMenu = (event: MouseEvent): void => {
       if (!canCurate) return;
       if (openMenuAt(event.clientX, event.clientY, event.target)) event.preventDefault();
-      else setContextMenu(null);
+      else selectionController.closeContextMenu();
     };
 
     /** Pin an entity's highlight and announce it to sibling panels. */
-    const selectEntity = (id: string): void => {
-      selectedRef.current = id;
+    const selectEntity = (id: string, isTouchTap: boolean): void => {
+      selectionController.selectNode(id, isTouchTap);
       highlightRelations(host, id);
       const clickedNode = graphRef.current.nodes.find((candidate) => candidate.id === id);
       if (clickedNode === undefined) return;
       // The JSON lookup is what sibling panels receive, independent of the
       // hops the drill gesture expands.
       announceSelection(graphRef.current, id);
-      clickCallbackRef.current?.(clickedNode);
+      gestureController.getHandlers().onNodeClick?.(clickedNode);
     };
 
     const onClick = (event: MouseEvent): void => {
-      const isTouchTap = lastPointerTypeRef.current === 'touch';
-      lastPointerTypeRef.current = null;
+      const isTouchTap = selectionController.consumePointerType() === 'touch';
       // A gesture already acted on release (long-press multi-select, marquee):
       // the browser's trailing click is not a second command.
-      if (suppressClickRef.current) {
-        suppressClickRef.current = false;
-        return;
-      }
+      if (gestureController.consumeSuppressedClick()) return;
       // Additive = the platform's add-to-selection modifier, or any tap while
       // the touch multi-select mode is on.
-      const additive = event.shiftKey || event.ctrlKey || event.metaKey || multiSelectModeRef.current;
+      const additive = gestureController.isAdditiveClick(event);
       // Any ordinary click on the drawing closes the pin menu. A click on the
       // menu itself never reaches this listener (the menu is a sibling).
-      setContextMenu(null);
+      selectionController.closeContextMenu();
 
       // At the package-only levels (`C`, and the folded `D` it deepens into)
       // the drawing is a map of frames, not selectable entities: a click on one
@@ -2714,9 +2582,9 @@ export function PlantUmlGraph({
       // hand the tap to a neighbour). The package-only tiers draw no entities,
       // so they keep their frame-zoom path untouched.
       const packageOnly = semanticTierRef.current === 'C' || semanticTierRef.current === 'D';
-      const coarseNodeId = coarsePointerRef.current && !packageOnly
-        ? nearestNodeHitId(host, event.clientX, event.clientY)
-        : null;
+      const coarseNodeId = packageOnly
+        ? null
+        : gestureController.resolveCoarseNodeHit(event.clientX, event.clientY);
 
       // A relation's enlarged hit band sits ON TOP of the drawing, so it is
       // checked before the ordinary node lookup: clicking a line selects the
@@ -2734,28 +2602,24 @@ export function PlantUmlGraph({
           const relationType = edgeHit.getAttribute('data-architecture-edge-type') ?? '';
           if (from === null || to === null) return;
           const edge = { from, to, relationType };
-          if (additive && toggleEdgeCallbackRef.current !== undefined) {
-            toggleEdgeCallbackRef.current(edge);
+          const toggleEdge = gestureController.getHandlers().onToggleEdgeClick;
+          if (additive && toggleEdge !== undefined) {
+            toggleEdge(edge);
             return;
           }
-          selectedRelationRef.current = edge;
-          selectedRef.current = null;
-          setSelectedId(null);
-          setSelectedByTouch(false);
+          selectionController.selectRelation(edge);
           highlightEdge(host, edgeElement(host, from, to));
-          edgeClickCallbackRef.current?.(edge);
+          gestureController.getHandlers().onEdgeClick?.(edge);
           return;
         }
         id = nodeFrom(event.target)?.getAttribute('data-entity-id') ?? null;
       }
       if (id === null) {
         // Clicking the background is the "clear the pinned selection" gesture.
-        selectedRef.current = null;
-        setSelectedId(null);
-        setSelectedByTouch(false);
+        selectionController.clearSelection();
         clearHighlight(host);
-        hoverCallbackRef.current?.(null);
-        selectionClearCallbackRef.current?.();
+        gestureController.getHandlers().onNodeHover?.(null);
+        gestureController.getHandlers().onSelectionClear?.();
         return;
       }
       if (id.startsWith(STUB_PREFIX)) return;
@@ -2763,24 +2627,23 @@ export function PlantUmlGraph({
       if (id.startsWith(GROUP_PREFIX)) {
         // A group is view scaffolding: selecting it marks the node but does not
         // announce an entity to sibling panels.
-        selectedRef.current = id;
+        selectionController.selectNode(id, isTouchTap);
         highlightRelations(host, id);
       } else {
         const node = graphRef.current.nodes.find((candidate) => candidate.id === id);
         if (node === undefined) return;
         // Additive clicks toggle the member without touching the drill machinery
         // (a multi-select gesture is not a request to open the neighbourhood).
-        if (additive && toggleNodeCallbackRef.current !== undefined) {
-          selectedRef.current = id;
+        const toggleNode = gestureController.getHandlers().onToggleNodeClick;
+        if (additive && toggleNode !== undefined) {
+          selectionController.addToSelection(id);
           highlightRelations(host, id);
           announceSelection(graphRef.current, id);
-          toggleNodeCallbackRef.current(node);
+          toggleNode(node);
           return;
         }
-        selectEntity(id);
+        selectEntity(id, isTouchTap);
       }
-      setSelectedId(id);
-      setSelectedByTouch(isTouchTap);
 
       if (!isTouchTap) {
         // Desktop: a single click only SELECTS and opens the inspector. Drilling
@@ -2790,12 +2653,7 @@ export function PlantUmlGraph({
       // Touch: the first tap only selects — the drawing must not re-lay out
       // under the finger. A second tap on the same node inside the double-tap
       // window is the explicit drill command.
-      const last = lastTapRef.current;
-      lastTapRef.current = { id, at: event.timeStamp };
-      if (last !== null && last.id === id && event.timeStamp - last.at <= DOUBLE_TAP_MS) {
-        lastTapRef.current = null;
-        drillInto(id);
-      }
+      if (selectionController.registerTap(id)) drillInto(id);
     };
 
     // Desktop drill-down: two clicks on the same node. The click handler above
@@ -2827,7 +2685,7 @@ export function PlantUmlGraph({
       host.removeEventListener('dblclick', onDoubleClick);
       host.removeEventListener('contextmenu', onContextMenu);
     };
-  }, [canCurate, drillInto, zoomToPackage]);
+  }, [canCurate, drillInto, gestureController, zoomToPackage]);
 
   // The other direction of the cross-panel linkage: a sibling panel selects an
   // entity by its stable id (e.g. a file referenced in chat). The graph pins the
@@ -2841,9 +2699,7 @@ export function PlantUmlGraph({
       if (typeof id !== 'string' || id.length === 0) return;
       const node = graphRef.current.nodes.find((candidate) => candidate.id === id);
       if (node === undefined) return;
-      selectedRef.current = id;
-      setSelectedId(id);
-      setSelectedByTouch(false);
+      selectionController.focusNode(id);
       const host = hostRef.current;
       if (host !== null) highlightSelection(host, id);
       const current = viewRef.current;
@@ -2867,8 +2723,7 @@ export function PlantUmlGraph({
     if (host === null) return;
 
     const onWheel = (event: WheelEvent): void => {
-      const viewport = viewportRef.current;
-      if (viewport === null) return;
+      if (viewportController.viewport() === null) return;
       // The drawing never scrolls under the wheel any more; the zoom below is
       // the whole response, so the browser's own scroll/page zoom must not run.
       event.preventDefault();
@@ -2876,51 +2731,36 @@ export function PlantUmlGraph({
       // trackpad zoom at comparable rates.
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
       const factor = Math.exp(-event.deltaY * unit * 0.0015);
-      applyZoom({
-        scale: viewport.zoomBy(factor, { clientX: event.clientX, clientY: event.clientY }),
-        fit: 'manual',
-      });
+      viewportController.zoomBy(factor, { clientX: event.clientX, clientY: event.clientY });
     };
 
     // `passive: false` is needed because a passive wheel listener may not call
     // preventDefault — without it the browser's own page zoom would also fire.
     host.addEventListener('wheel', onWheel, { passive: false });
     return () => host.removeEventListener('wheel', onWheel);
-  }, [applyZoom]);
+  }, [viewportController]);
 
-  // The auto-fit debounce: a canvas size change settles for 150ms before the
-  // scale is re-solved. One timer per mount; the latest reading wins.
-  const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (autoFitTimerRef.current !== null) clearTimeout(autoFitTimerRef.current);
-    autoFitTimerRef.current = null;
-  }, []);
-  const scheduleAutoFit = useCallback((): void => {
-    if (zoomRef.current.fit !== 'auto') return;
-    if (autoFitTimerRef.current !== null) clearTimeout(autoFitTimerRef.current);
-    autoFitTimerRef.current = setTimeout(() => {
-      autoFitTimerRef.current = null;
-      // Read the state at FIRE time: an explicit zoom in the meantime cancels
-      // the pending refit even if the timer already fired its scheduling.
-      if (zoomRef.current.fit !== 'auto' || autoFitDisabled()) return;
-      if (semanticCaptureRef.current !== null) {
-        applySemanticRef.current?.({ fit: true, scale: zoomRef.current.scale });
-        return;
-      }
-      const host = hostRef.current;
-      const viewport = viewportRef.current;
-      if (host === null || viewport === null) return;
-      const drawing = host.querySelector('svg');
-      const natural = naturalOfDrawing(drawing);
-      const box = currentFitViewport(host);
-      recordFitViewport(box);
-      if (natural === null || box === null) return;
-      const placement = fitPlacementFor(natural, box);
-      const scale = viewport.zoomTo(placement.scale);
-      applyPlacement(drawing, placement);
-      applyZoom({ scale, fit: 'auto' });
-    }, AUTO_FIT_DEBOUNCE_MS);
-  }, [applyPlacement, applyZoom, currentFitViewport, fitPlacementFor, naturalOfDrawing, recordFitViewport]);
+  // The auto-fit re-solve. The debounce, the `auto`-mode gate and the control
+  // arm's "refit off" reading live in the viewport owner; this is only the
+  // drawing-bound half (semantic rewrite vs. CSS resize + placement).
+  const runAutoFit = useCallback((): void => {
+    if (semanticCaptureRef.current !== null) {
+      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
+      return;
+    }
+    const host = hostRef.current;
+    const viewport = viewportController.viewport();
+    if (host === null || viewport === null) return;
+    const drawing = host.querySelector('svg');
+    const natural = naturalOfDrawing(drawing);
+    const box = currentFitViewport(host);
+    recordFitViewport(box);
+    if (natural === null || box === null) return;
+    const placement = fitPlacementFor(natural, box);
+    const scale = viewport.zoomTo(placement.scale);
+    applyPlacement(drawing, placement);
+    applyZoom({ scale, fit: 'auto' });
+  }, [applyPlacement, applyZoom, controllerZoom, currentFitViewport, fitPlacementFor, naturalOfDrawing, recordFitViewport, viewportController]);
 
   // Every canvas size change — window resize, fullscreen, the inspector/drawer/
   // tray opening, a phone rotation, a re-layout — reaches this observer. Under
@@ -2940,7 +2780,7 @@ export function PlantUmlGraph({
         scheduleAspectRelayout(measured);
       }
       revealSelectedRef.current?.();
-      scheduleAutoFit();
+      viewportController.scheduleAutoFit();
     });
     observer.observe(host);
     // The corner chrome decides the CSS-scaled fit, and the minimap mounts a
@@ -2949,7 +2789,7 @@ export function PlantUmlGraph({
     const overlays = host.parentElement?.querySelector<HTMLElement>('[data-architecture-canvas-overlays]');
     if (overlays !== undefined && overlays !== null) observer.observe(overlays);
     return () => observer.disconnect();
-  }, [scheduleAspectRelayout, scheduleAutoFit]);
+  }, [scheduleAspectRelayout, viewportController]);
 
   // Remember the box the ordinary (non-fullscreen) layout fits against. The
   // control arm's lever reads it to restore the retired defect; the shipped
@@ -2959,7 +2799,7 @@ export function PlantUmlGraph({
     if (fullscreen) return;
     const host = hostRef.current;
     if (host === null) return;
-    lastFlowViewportRef.current = measureViewportSize(host);
+    viewportController.reportFlowViewport(measureViewportSize(host));
   });
 
   // The overlay's Fit area: the viewport-sized host less the chrome actually
@@ -2973,7 +2813,7 @@ export function PlantUmlGraph({
   // resize uses, which is what makes opening/closing an overlay re-fit.
   useEffect(() => {
     if (!fullscreen) {
-      setFullscreenInsets(null);
+      viewportController.setFullscreenInsets(null);
       return;
     }
     const host = hostRef.current;
@@ -2984,18 +2824,13 @@ export function PlantUmlGraph({
       if (forcedFullscreenReservedMargins()) {
         // The control arm keeps the retired rule: no chrome is deducted, so no
         // inset is written and the drawing is centred in the whole overlay.
-        setFullscreenInsets({ top: 0, right: 0, bottom: 0, left: 0 });
+        viewportController.setFullscreenInsets({ top: 0, right: 0, bottom: 0, left: 0 });
         return;
       }
       const area = solveFitArea(hostSize, fullscreenOverlays());
-      const next = fitAreaInsets(hostSize, area);
-      setFullscreenInsets((previous) => previous !== null
-        && Math.abs(previous.top - next.top) < 0.5
-        && Math.abs(previous.right - next.right) < 0.5
-        && Math.abs(previous.bottom - next.bottom) < 0.5
-        && Math.abs(previous.left - next.left) < 0.5
-        ? previous
-        : next);
+      // The owner ignores a sub-half-pixel-unchanged reading, so a re-measure
+      // that found the same chrome is not a second re-fit.
+      viewportController.setFullscreenInsets(fitAreaInsets(hostSize, area));
     };
     measure();
     // One frame after the overlay mounts, its chrome rows are laid out.
@@ -3003,7 +2838,7 @@ export function PlantUmlGraph({
     const observer = typeof ResizeObserver === 'function'
       ? new ResizeObserver(() => {
           measure();
-          scheduleAutoFit();
+          viewportController.scheduleAutoFit();
         })
       : null;
     if (observer !== null) {
@@ -3026,18 +2861,18 @@ export function PlantUmlGraph({
       if (frame !== null) cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [fullscreen, fullscreenOverlays, scheduleAutoFit]);
+  }, [fullscreen, fullscreenOverlays, viewportController]);
 
-  // The zoom is read through `zoomRef` when the debounced application runs, so
-  // a burst of wheel updates coalesces into one rewrite rather than walking
-  // every intermediate level. Auto-fit re-solves are driven by the resize path
-  // above; this effect only answers explicit (manual) scales.
+  // The scale is read from the owner at FIRE time, so a burst of wheel updates
+  // coalesces into one rewrite rather than walking every intermediate level.
+  // Auto-fit re-solves are driven by the resize path above; this effect only
+  // answers explicit (manual) scales.
   useEffect(() => {
     if (zoom.fit !== 'manual') return;
     const scheduler = lodSchedulerRef.current;
     if (scheduler === null) return;
-    scheduler.request(() => applySemanticRef.current?.({ fit: false, scale: zoomRef.current.scale }));
-  }, [zoom.fit, zoom.scale]);
+    scheduler.request(() => applySemanticRef.current?.({ fit: false, scale: controllerZoom().scale }));
+  }, [controllerZoom, zoom.fit, zoom.scale]);
 
   const zoomToScale = (scale: number): void => {
     if (semanticCaptureRef.current !== null) {
@@ -3046,19 +2881,18 @@ export function PlantUmlGraph({
       applySemanticRef.current?.({ fit: false, scale: applied });
       return;
     }
-    const viewport = viewportRef.current;
-    applyZoom({ scale: viewport?.zoomTo(scale) ?? scale, fit: 'manual' });
+    // The owner applies the CSS scale through the viewport and clamps it.
+    viewportController.zoomTo(scale);
   };
 
   const zoomByStep = (factor: number): void => {
     if (semanticCaptureRef.current !== null) {
-      const applied = clampZoomScale(zoomRef.current.scale * factor);
+      const applied = clampZoomScale(controllerZoom().scale * factor);
       applyZoom({ scale: applied, fit: 'manual' });
       applySemanticRef.current?.({ fit: false, scale: applied });
       return;
     }
-    const viewport = viewportRef.current;
-    applyZoom({ scale: viewport?.zoomBy(factor) ?? 1, fit: 'manual' });
+    viewportController.zoomBy(factor);
   };
 
   /**
@@ -3069,14 +2903,14 @@ export function PlantUmlGraph({
   const fitDiagram = (): void => {
     // A fit is the whole-graph reading: the package zoom the hint offered is
     // over, and its row must not keep asking the reader to go back.
-    setPackageFocus(null);
+    viewportController.setPackageFocus(null);
     if (semanticCaptureRef.current !== null) {
-      applyZoom({ scale: zoomRef.current.scale, fit: 'auto' });
-      applySemanticRef.current?.({ fit: true, scale: zoomRef.current.scale });
+      applyZoom({ scale: controllerZoom().scale, fit: 'auto' });
+      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
       return;
     }
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) {
       applyZoom({ scale: 1, fit: 'auto' });
       return;
@@ -3095,32 +2929,26 @@ export function PlantUmlGraph({
     applyZoom({ scale, fit: 'auto' });
   };
 
-  // The panel is told whether the drawing follows the container, because that
-  // is the condition under which a fullscreen toggle may re-fit it: a scale the
-  // reader chose must survive the overlay. The callback rides in a ref so a new
-  // parent render identity never re-registers the effect.
-  const onZoomModeChangeRef = useRef(onZoomModeChange);
-  onZoomModeChangeRef.current = onZoomModeChange;
+  // The owner publishes the mode the panel needs (the condition under which a
+  // fullscreen toggle may re-fit): a new parent render identity is just a new
+  // callback slot, never a second write path. The two drawing-bound actions are
+  // re-bound every render so they close over the latest props and refs.
   useEffect(() => {
-    onZoomModeChangeRef.current?.(zoom.fit === 'auto' ? 'fit' : 'custom');
-  }, [zoom.fit]);
+    viewportController.setActions({
+      fit: fitDiagram,
+      autoFit: runAutoFit,
+      onZoomModeChange,
+    });
+  });
 
   // A fit request comes from the PANEL's own size change (the fullscreen
-  // overlay swaps the region's `flex-1` for `fixed; inset: 0`). The renderer
+  // overlay swaps the region's `flex-1` for `fixed; inset: 0`). The owner
   // answers each token once, and only while it is in Fit mode: the overlay must
-  // not undo a manual zoom. The token is remembered synchronously so a re-render
-  // carrying the same request cannot fit twice. `force` is the fresh-analysis
-  // case: the content the reader had zoomed is gone, so the panel asks for a fit.
-  const fitDiagramRef = useRef(fitDiagram);
-  fitDiagramRef.current = fitDiagram;
-  const answeredFitTokenRef = useRef<number | null>(null);
+  // not undo a manual zoom. `force` is the fresh-analysis case: the content the
+  // reader had zoomed is gone, so the panel asks for a fit.
   useEffect(() => {
-    if (fitRequest === null) return;
-    if (answeredFitTokenRef.current === fitRequest.token) return;
-    answeredFitTokenRef.current = fitRequest.token;
-    if (zoomRef.current.fit !== 'auto' && fitRequest.force !== true) return;
-    fitDiagramRef.current();
-  }, [fitRequest]);
+    viewportController.requestFit(fitRequest);
+  }, [fitRequest, viewportController]);
 
   /**
    * The node a cursor id names, when it names an entity that is in the payload.
@@ -3220,16 +3048,9 @@ export function PlantUmlGraph({
     });
   };
 
-  /** Write the cursor into both the refs the async redraw reads and the render state. */
-  const applyNavigationCursor = (cursorId: string | null, announcement: string): void => {
-    navigationCursorRef.current = cursorId;
-    setNavigationCursorId(cursorId);
-    setNavigationAnnouncement(announcement);
-  };
-
   /** Repaint the ring and scroll the current box into the viewport. */
   const paintCurrentNavigationItem = (host: HTMLElement): void => {
-    const cursorId = navigationCursorRef.current;
+    const cursorId = selectionController.getSnapshot().navigationCursorId;
     paintNavigationFocus(host, cursorId);
     if (cursorId === null) return;
     const element = navigationElementOf(host, cursorId);
@@ -3269,17 +3090,15 @@ export function PlantUmlGraph({
    */
   const enterEntityNavigation = (host: HTMLElement): boolean => {
     const items = collectNavigationItems(host);
-    const preferred = selectedRef.current ?? keyboardFocusRef.current;
+    const snapshot = selectionController.getSnapshot();
+    const preferred = snapshot.primaryNodeId ?? snapshot.keyboardFocusId;
     const centre = navigationViewportCentre(host);
     const clientItems = navigationClientItems(host, items);
     const startId = keyboardA11yDefect() === 'farthest-start'
       ? farthestNavigationStart(clientItems, centre)
       : pickNavigationStart(clientItems, preferred, centre);
     if (startId === null) return false;
-    navigationActiveRef.current = true;
-    setNavigationActive(true);
-    keyboardFocusRef.current = startId;
-    applyNavigationCursor(startId, navigationAnnouncementFor(host, startId));
+    selectionController.enterNavigation(startId, navigationAnnouncementFor(host, startId));
     paintCurrentNavigationItem(host);
     return true;
   };
@@ -3291,8 +3110,9 @@ export function PlantUmlGraph({
    */
   const onCanvasFocus = (): void => {
     const host = hostRef.current;
-    if (host === null || navigationActiveRef.current) return;
-    if (focusModalityRef.current === 'pointer') return;
+    const snapshot = selectionController.getSnapshot();
+    if (host === null || snapshot.navigationActive) return;
+    if (snapshot.focusModality === 'pointer') return;
     enterEntityNavigation(host);
   };
 
@@ -3302,22 +3122,25 @@ export function PlantUmlGraph({
     if (host === null) return;
     // Control arm: keep the ring painted after focus leaves.
     if (keyboardA11yDefect() === 'keep-ring-on-blur') return;
-    if (navigationActiveRef.current) exitEntityNavigation(host);
+    if (selectionController.getSnapshot().navigationActive) exitEntityNavigation(host);
   };
 
   /** Move the cursor one step and announce the landing (or "nothing there"). */
   const moveNavigationCursor = (host: HTMLElement, direction: EntityNavigationDirection): void => {
-    const currentId = navigationCursorRef.current;
+    const currentId = selectionController.getSnapshot().navigationCursorId;
     const next = moveEntityFocus(collectNavigationItems(host), currentId, direction);
     if (next === null) return;
     if (next === currentId) {
-      applyNavigationCursor(currentId, t('architecture.nav.noNeighbour', {
+      selectionController.moveNavigationCursor(currentId, t('architecture.nav.noNeighbour', {
         defaultValue: 'No entity in that direction',
-      }));
+      }), false);
       return;
     }
-    if (!next.startsWith(PACKAGE_NAV_PREFIX)) keyboardFocusRef.current = next;
-    applyNavigationCursor(next, navigationAnnouncementFor(host, next));
+    selectionController.moveNavigationCursor(
+      next,
+      navigationAnnouncementFor(host, next),
+      !next.startsWith(PACKAGE_NAV_PREFIX),
+    );
     paintCurrentNavigationItem(host);
   };
 
@@ -3354,24 +3177,25 @@ export function PlantUmlGraph({
     if (event.ctrlKey || event.metaKey) return;
 
     if (event.key === 'Escape') {
-      if (contextMenu !== null) {
+      const snapshot = selectionController.getSnapshot();
+      if (snapshot.contextMenu !== null) {
         event.preventDefault();
         event.stopPropagation();
-        setContextMenu(null);
+        selectionController.closeContextMenu();
         return;
       }
       // In the entity-navigation state Escape leaves that state and nothing
       // else: `stopPropagation` keeps the chat page's global abort out of it.
-      if (navigationActiveRef.current) {
+      if (snapshot.navigationActive) {
         event.preventDefault();
         event.stopPropagation();
         exitEntityNavigation(host);
         return;
       }
-      if (selectedRef.current === null && selectedRelationRef.current === null) return;
+      if (snapshot.primaryNodeId === null && snapshot.panel.relation === null) return;
       event.preventDefault();
       event.stopPropagation();
-      escapeSelectionCallbackRef.current?.();
+      gestureController.getHandlers().onEscapeSelection?.();
       return;
     }
 
@@ -3380,8 +3204,9 @@ export function PlantUmlGraph({
     // key away from the chat page's global abort — the drawing owns it only
     // while a selection exists AND a curation callback can act on it.
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      const edge = selectedRelationRef.current ?? null;
-      const nodeId = selectedRef.current;
+      const snapshot = selectionController.getSnapshot();
+      const edge = snapshot.panel.relation;
+      const nodeId = snapshot.primaryNodeId;
       if (edge === null && nodeId === null) return;
       if (edge !== null) {
         if (onHideRelation === undefined) return;
@@ -3400,16 +3225,17 @@ export function PlantUmlGraph({
     }
 
     /** The entity the cursor stands on, or null on a frame / nowhere. */
-    const cursorNode = (): ArchitectureRendererNode | null => navigationNodeOf(navigationCursorRef.current);
+    const cursorNode = (): ArchitectureRendererNode | null =>
+      navigationNodeOf(selectionController.getSnapshot().navigationCursorId);
 
     /** Enter's selection: an entity opens the inspector, a frame zooms into it. */
     const selectCursorItem = (): boolean => {
-      const cursorId = navigationCursorRef.current;
+      const cursorId = selectionController.getSnapshot().navigationCursorId;
       if (cursorId === null) return false;
       if (cursorId.startsWith(PACKAGE_NAV_PREFIX)) {
         // A frame is a place, not an entity: the same gesture a tap gives it.
         zoomToPackage(cursorId.slice(PACKAGE_NAV_PREFIX.length));
-        setNavigationAnnouncement(t('architecture.nav.enteredPackage', {
+        selectionController.announce(t('architecture.nav.enteredPackage', {
           defaultValue: 'Entered package {{package}}',
           package: cursorId.slice(PACKAGE_NAV_PREFIX.length),
         }));
@@ -3417,11 +3243,11 @@ export function PlantUmlGraph({
       }
       const node = cursorNode();
       if (node === null) return false;
-      selectedRef.current = cursorId;
+      selectionController.addToSelection(cursorId);
       highlightRelations(host, cursorId);
       announceSelection(graphRef.current, cursorId);
-      clickCallbackRef.current?.(node);
-      setNavigationAnnouncement(t('architecture.nav.selected', {
+      gestureController.getHandlers().onNodeClick?.(node);
+      selectionController.announce(t('architecture.nav.selected', {
         defaultValue: '{{label}} selected',
         label: navigationLabelOf(host, cursorId),
       }));
@@ -3431,15 +3257,17 @@ export function PlantUmlGraph({
     /** Shift+Enter / Space: toggle the cursor's entity in the multi-select set. */
     const toggleCursorSelection = (): boolean => {
       const node = cursorNode();
-      const cursorId = navigationCursorRef.current;
+      const snapshot = selectionController.getSnapshot();
+      const cursorId = snapshot.navigationCursorId;
       if (node === null || cursorId === null) return false;
-      const wasSelected = selectedNodeIdsRef.current.includes(cursorId) || selectedRef.current === cursorId;
-      selectedRef.current = cursorId;
+      const wasSelected = snapshot.panel.nodeIds.includes(cursorId) || snapshot.primaryNodeId === cursorId;
+      selectionController.addToSelection(cursorId);
       highlightRelations(host, cursorId);
       announceSelection(graphRef.current, cursorId);
-      if (toggleNodeCallbackRef.current !== undefined) toggleNodeCallbackRef.current(node);
-      else clickCallbackRef.current?.(node);
-      setNavigationAnnouncement(wasSelected
+      const toggleNode = gestureController.getHandlers().onToggleNodeClick;
+      if (toggleNode !== undefined) toggleNode(node);
+      else gestureController.getHandlers().onNodeClick?.(node);
+      selectionController.announce(wasSelected
         ? t('architecture.nav.deselected', {
             defaultValue: '{{label}} removed from the selection',
             label: node.label,
@@ -3451,7 +3279,7 @@ export function PlantUmlGraph({
       return true;
     };
 
-    if (navigationActiveRef.current) {
+    if (selectionController.getSnapshot().navigationActive) {
       switch (event.key) {
         case 'ArrowUp':
           event.preventDefault();
@@ -3511,7 +3339,7 @@ export function PlantUmlGraph({
             return;
           }
           if (event.altKey) {
-            const drillId = navigationCursorRef.current;
+            const drillId = selectionController.getSnapshot().navigationCursorId;
             if (drillId === null || drillId.startsWith(PACKAGE_NAV_PREFIX)) return;
             event.preventDefault();
             drillInto(drillId);
@@ -3569,19 +3397,19 @@ export function PlantUmlGraph({
     if (event.altKey) return;
     switch (event.key) {
       case 'ArrowLeft':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollLeft -= KEYBOARD_PAN_STEP;
         break;
       case 'ArrowRight':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollLeft += KEYBOARD_PAN_STEP;
         break;
       case 'ArrowUp':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollTop -= KEYBOARD_PAN_STEP;
         break;
       case 'ArrowDown':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollTop += KEYBOARD_PAN_STEP;
         break;
       case '+':
@@ -3612,12 +3440,12 @@ export function PlantUmlGraph({
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
-    if (!navigationActive) {
+    if (!selectionSnapshot.navigationActive) {
       clearNavigationFocus(host);
       return;
     }
     paintCurrentNavigationItem(host);
-  }, [drawn, drawnRevision, navigationActive, navigationCursorId]);
+  }, [drawn, drawnRevision, selectionSnapshot.navigationActive, selectionSnapshot.navigationCursorId]);
 
   const viewLabel = view.kind === 'overview'
     ? t('architecture.plantuml.overview', { defaultValue: 'Overview' })
@@ -3658,14 +3486,15 @@ export function PlantUmlGraph({
   // The explicit drill command is offered only for a touch selection that has
   // not already opened its own view: a desktop click navigated on its own, and
   // a selection whose neighbourhood is on screen has nothing left to drill.
-  const selectedPrefix = selectedId !== null && selectedId.startsWith(GROUP_PREFIX)
-    ? selectedId.slice(GROUP_PREFIX.length)
+  const drillNodeId = selectionSnapshot.drillNodeId;
+  const selectedPrefix = drillNodeId !== null && drillNodeId.startsWith(GROUP_PREFIX)
+    ? drillNodeId.slice(GROUP_PREFIX.length)
     : null;
-  const selectionAlreadyOpen = selectedId === null
+  const selectionAlreadyOpen = drillNodeId === null
     || (selectedPrefix !== null
       ? view.kind === 'group' && view.prefix === selectedPrefix
-      : view.kind === 'neighborhood' && view.entityId === selectedId);
-  const canDrill = selectedByTouch && selectedId !== null && !selectionAlreadyOpen;
+      : view.kind === 'neighborhood' && view.entityId === drillNodeId);
+  const canDrill = selectionSnapshot.selectedByTouch && drillNodeId !== null && !selectionAlreadyOpen;
 
   const zoomGroupLabel = t('architecture.plantuml.zoomGroup', { defaultValue: 'Diagram zoom' });
   /**
@@ -3945,6 +3774,10 @@ export function PlantUmlGraph({
     </span>
   );
 
+  // The marquee overlay's rectangle, read from the gesture owner's snapshot
+  // (canvas coordinates, so it follows the pointer exactly).
+  const marqueeRect = gestureSnapshot.marquee;
+
   return (
     <div
       className="flex h-full min-h-0 flex-col"
@@ -4028,11 +3861,11 @@ export function PlantUmlGraph({
           // The canvas is an image until the reader enters entity navigation;
           // then it is an application whose active descendant is the entity the
           // keyboard cursor stands on (the ring is drawn inside the drawing).
-          role={navigationActive ? 'application' : 'img'}
+          role={selectionSnapshot.navigationActive ? 'application' : 'img'}
           aria-label={t('architecture.graphAria', { defaultValue: 'Architecture neighbourhood graph' })}
           aria-activedescendant={
-            navigationActive && navigationCursorId !== null
-              ? navigationDomId(navigationCursorId)
+            selectionSnapshot.navigationActive && selectionSnapshot.navigationCursorId !== null
+              ? navigationDomId(selectionSnapshot.navigationCursorId)
               : undefined
           }
           // The canvas is its own keyboard target: Tab starts entity navigation
@@ -4126,7 +3959,7 @@ export function PlantUmlGraph({
           data-architecture-nav-announcer="true"
           className="sr-only"
         >
-          {navigationAnnouncement}
+          {selectionSnapshot.navigationAnnouncement}
         </span>
         {layoutStatusNodes !== null && (
           // An overlay, deliberately: a status drawn in flow would change the
@@ -4193,16 +4026,16 @@ export function PlantUmlGraph({
             )}
           </div>
         )}
-        {marquee !== null && (
+        {marqueeRect !== null && (
           <div
             data-architecture-marquee="true"
             aria-hidden="true"
             style={{
               position: 'absolute',
-              left: marquee.left,
-              top: marquee.top,
-              width: marquee.width,
-              height: marquee.height,
+              left: marqueeRect.left,
+              top: marqueeRect.top,
+              width: marqueeRect.width,
+              height: marqueeRect.height,
               zIndex: 35,
               pointerEvents: 'none',
               border: '1px dashed #1d4ed8',
@@ -4210,11 +4043,12 @@ export function PlantUmlGraph({
             }}
           />
         )}
-        {contextMenu !== null && (() => {
-          const menuNode = 'nodeId' in contextMenu
-            ? graph.nodes.find((candidate) => candidate.id === contextMenu.nodeId) ?? null
+        {selectionSnapshot.contextMenu !== null && (() => {
+          const menu = selectionSnapshot.contextMenu;
+          const menuNode = 'nodeId' in menu
+            ? graph.nodes.find((candidate) => candidate.id === menu.nodeId) ?? null
             : null;
-          const menuEdge = 'edge' in contextMenu ? contextMenu.edge : null;
+          const menuEdge = 'edge' in menu ? menu.edge : null;
           const isPinned = menuNode !== null && pinnedSet.has(menuNode.id);
           if (menuNode === null && menuEdge === null) return null;
           return (
@@ -4222,7 +4056,7 @@ export function PlantUmlGraph({
               data-architecture-context-menu="true"
               role="menu"
               aria-label={t('architecture.curation.heading', { defaultValue: 'Adjust' })}
-              style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, zIndex: 40 }}
+              style={{ position: 'absolute', left: menu.x, top: menu.y, zIndex: 40 }}
               className="flex min-w-40 flex-col rounded-lg border border-border bg-popover p-1 shadow-lg"
             >
               {menuNode !== null && (
@@ -4233,7 +4067,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-unpin={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onUnpinNode?.(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4246,7 +4080,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-pin={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onPinNode?.(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4259,7 +4093,7 @@ export function PlantUmlGraph({
                     role="menuitem"
                     data-architecture-context-remove={menuNode.id}
                     onClick={() => {
-                      setContextMenu(null);
+                      selectionController.closeContextMenu();
                       onRemoveNode?.(menuNode);
                     }}
                     className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4272,7 +4106,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-put-in-chat={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onPutNodeInChat(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4286,7 +4120,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-solo={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onSoloNode(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4302,7 +4136,7 @@ export function PlantUmlGraph({
                   role="menuitem"
                   data-architecture-context-hide={menuEdge.from}
                   onClick={() => {
-                    setContextMenu(null);
+                    selectionController.closeContextMenu();
                     onHideRelation?.(menuEdge);
                   }}
                   className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4390,6 +4224,10 @@ export function PlantUmlGraph({
                 })}
                 onClick={() => setClusterExpanded(true)}
                 data-architecture-zoom-cluster-toggle="true"
+                // The collapsed form IS the cluster's percentage reading on the
+                // portrait tier; state it under the same attribute the expanded
+                // span uses so a reading never depends on which form is shown.
+                data-architecture-zoom-cluster-level="true"
                 style={TOUCH_TARGET_STYLE}
                 className={TOOLBAR_BUTTON_CLASS}
               >

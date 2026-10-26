@@ -370,6 +370,23 @@ export const defaultClock: Clock = {
 
 // ---------------------------
 
+//----------------- TYPE GUARD / ERROR RENDERING UTILITIES ------------
+
+/** Narrows an unknown value to a plain object record; `null`, arrays and non-objects are not records. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Renders a thrown value as a sentence; `fallback` covers an empty `Error.message` and non-`Error` values. */
+export function errorMessage(failure: unknown, fallback?: string): string {
+  if (failure instanceof Error) {
+    return failure.message.trim() !== '' ? failure.message : fallback ?? failure.message;
+  }
+  return fallback ?? String(failure);
+}
+
+// ---------------------------
+
 //----------------- EXTERNAL STORES ------------
 
 /**

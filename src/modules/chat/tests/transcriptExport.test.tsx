@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@/shared/types';
-import { buildTranscriptExport, toExportFileStem } from '@/modules/chat/utils/transcript/chatExport';
+import { buildTranscriptExport, toExportFileStem } from '@/modules/chat/export/chatExport';
 import { createCachedDiffCalculator } from '@/modules/chat/utils/transcript/messageTransforms';
 
 const createDiff = createCachedDiffCalculator();

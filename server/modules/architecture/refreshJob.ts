@@ -17,6 +17,9 @@
  *   - `refresh-publish.ts` owns the staging directory and the staged rename that
  *     publishes a successful run; a failed or timed-out run leaves the live
  *     `.archguard/query` byte-for-byte untouched.
+ *   - `refresh-duplicates.ts` recomputes the per-scope duplicate report after the
+ *     publish, through the ArchGuard MCP stdio server; its failure is recorded in
+ *     the stderr tail but does not fail the refresh.
  * This file owns only the job records: single-flight/coalescing, the stage machine,
  * the stderr tail, the timeout/kill path, and the shutdown hook. Splitting the other
  * three concerns out is what keeps each of them independently testable and this file
@@ -34,9 +37,10 @@ import type {
   ArchitectureRefreshStartResult,
   ArchitectureRefreshStatus,
 } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, errorMessage } from '@/shared/utils.js';
 
 import { createRefreshPublisher } from './refresh-publish.js';
+import { createRefreshDuplicates, type RefreshDuplicates } from './refresh-duplicates.js';
 import {
   createRefreshSettingsSource,
   SERVER_SETTINGS_PATH_ENV,
@@ -48,7 +52,7 @@ import { createRefreshSpawner, type RefreshSpawn } from './refresh-spawn.js';
 // The module's public surface stays on this file so consumers never import the
 // concern files directly (AC-415/AC-418). Consumers: `tests/refreshJob.test.ts`
 // (`RefreshSpawn`), `routes.ts` (`ArchguardRefreshJob`).
-export type { ArchitectureRefreshDefect, RefreshSettings, RefreshSpawn };
+export type { ArchitectureRefreshDefect, RefreshDuplicates, RefreshSettings, RefreshSpawn };
 export { SERVER_SETTINGS_PATH_ENV };
 
 /** How many trailing stderr lines a status reading carries. */
@@ -98,10 +102,6 @@ type JobRecord = {
   resolveClosed: () => void;
 };
 
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
 /** The key a record is stored under: one job per real path, never per symlink alias. */
 function realpathOrSelf(filePath: string): string {
   try {
@@ -132,6 +132,8 @@ export function createArchguardRefreshJob(options: {
   readonly now?: () => number;
   readonly createJobId?: () => string;
   readonly nodePath?: string;
+  /** The post-publish duplicate step; injectable so criteria can fake the MCP child. */
+  readonly duplicatesRefresh?: RefreshDuplicates;
 }): ArchguardRefreshJob {
   const now = options.now ?? Date.now;
   const homeDir = options.homeDir ?? os.homedir();
@@ -148,6 +150,10 @@ export function createArchguardRefreshJob(options: {
     homeDir,
   });
   const publisher = createRefreshPublisher();
+  const duplicatesRefresh = options.duplicatesRefresh ?? createRefreshDuplicates({
+    ...(options.spawnImpl === undefined ? {} : { spawnImpl: options.spawnImpl }),
+    ...(options.nodePath === undefined ? {} : { nodePath: options.nodePath }),
+  });
 
   /** One record per resolved project root; terminal records stay readable. */
   const jobs = new Map<string, JobRecord>();
@@ -313,10 +319,27 @@ export function createArchguardRefreshJob(options: {
             if (defect !== 'no-preserve') {
               await publisher.installStagedQuery(projectPath, workDir, record.jobId);
             }
-            finish(record, 'succeeded', null);
           } catch (failure) {
             finish(record, 'failed', errorMessage(failure));
+            await discardStaging();
+            return;
           }
+
+          // The published analysis is now the live one; recompute the per-scope
+          // duplicate report. A failure here is recorded, never promoted to a
+          // failed refresh: the analysis itself succeeded.
+          let duplicatesError: string | null = null;
+          try {
+            const duplicates = await duplicatesRefresh.refresh(projectPath, cliPath);
+            if (!duplicates.ok) duplicatesError = duplicates.error;
+          } catch (failure) {
+            duplicatesError = errorMessage(failure);
+          }
+          if (duplicatesError !== null) {
+            appendStderr(record, `duplicates refresh failed: ${duplicatesError}`);
+            console.warn(`[architecture] duplicate detection failed for ${projectPath}: ${duplicatesError}`);
+          }
+          finish(record, 'succeeded', null);
           await discardStaging();
         })();
       });

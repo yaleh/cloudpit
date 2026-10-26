@@ -93,6 +93,9 @@ const SEL = {
   host: '[data-architecture-plantuml]',
   zoomFit: '[data-architecture-zoom-fit]',
   zoomIn: '[data-architecture-zoom-in]',
+  // The portrait tier starts the zoom cluster collapsed to one 44 px target;
+  // the same In/Out/Fit controls live behind it.
+  zoomClusterToggle: '[data-architecture-zoom-cluster-toggle]',
   zoomLevel: '[data-architecture-zoom-level]',
   zoomClusterLevel: '[data-architecture-zoom-cluster-level]',
   fullscreenToggle: '[data-architecture-fullscreen-toggle]',
@@ -431,6 +434,22 @@ async function enterArchitecture(page: Page): Promise<void> {
   await settle(page, 600);
 }
 
+/**
+ * Open the portrait tier's collapsed zoom cluster.
+ *
+ * The compact portrait chrome ships ONE 44 px target that states the scale and
+ * expands to the In/Out/Fit row. The desktop and short-landscape tiers show
+ * that row directly, so this is a no-op there. It changes no reading: the
+ * expanded form states the same percentage the collapsed target did.
+ */
+async function revealZoomControls(page: Page): Promise<void> {
+  const toggle = page.locator(`${SEL.zoomClusterToggle}:visible`).first();
+  if (await toggle.count() === 0) return;
+  await toggle.click({ timeout: 5_000 });
+  await expect(page.locator(`${SEL.zoomIn}:visible`).first()).toBeVisible({ timeout: 5_000 });
+  await settle(page, 300);
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(SHOTS_DIR, { recursive: true });
   await page.screenshot({ path: path.join(SHOTS_DIR, `${name}.png`) });
@@ -451,6 +470,7 @@ for (const viewport of VIEWPORTS) {
           await shot(page, `${label}-01-load`);
 
           // Fit re-solves explicitly.
+          await revealZoomControls(page);
           await page.locator(`${SEL.zoomFit}:visible`).first().click({ timeout: 15_000 });
           await settle(page, 350);
           expectFitted(`${label}.fit`, await readFitState(page));
@@ -482,8 +502,9 @@ for (const viewport of VIEWPORTS) {
 
           console.log(`[architecture-fit] ${label} entering fullscreen`);
           // Fullscreen: entering and leaving the overlay are canvas changes.
-          // On the short landscape phone the control lives in the Adjust sheet.
-          if (viewport.touch && viewport.height <= 400) {
+          // Every compact (touch) tier keeps the Fullscreen door inside the
+          // Adjust sheet; the desktop row carries it directly.
+          if (viewport.touch) {
             await page.locator(SEL.sheetToggle).first().click({ timeout: 10_000 });
             await expect(page.locator(SEL.sheet)).toBeVisible({ timeout: 10_000 });
           }

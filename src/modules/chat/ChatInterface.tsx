@@ -58,7 +58,7 @@ import {
   warmMicrophoneSource,
 } from '@/modules/chat/voice-realtime';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
-import { downloadTranscriptExport } from '@/modules/chat/utils/transcript/chatExport';
+import { downloadTranscriptExport } from '@/modules/chat/export/chatExport';
 import {
   findLatestReplyItems,
   resolveReplyReference,

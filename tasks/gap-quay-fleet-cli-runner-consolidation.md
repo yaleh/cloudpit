@@ -2,7 +2,7 @@
 id: gap-quay-fleet-cli-runner-consolidation
 title: quay fleet CLI 管道收敛：4 份 defaultExecFile、4 份 parseJsonObject、2 份
   canonicalPath/run 与重复导出的类型收进 quay-fleet-cli.ts
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -43,13 +43,13 @@ extra:
 
 ## AC
 
-- [ ] 副本清零：`grep -nE "^(const defaultExecFile|function parseJsonObject|function canonicalPath)\b" server/modules/quay/quay-fleet-locator.ts server/modules/quay/quay-fleet-project-id.ts server/modules/quay/quay-fleet-registry.ts server/modules/quay/quay-initiatives.ts` 无输出。
-- [ ] 类型唯一：`grep -rnE "^export type (QuayFleetCommandResult|QuayFleetExec) " server/modules/quay --include='*.ts' | grep -v '/tests/'` 只命中 `quay-fleet-cli.ts` 的两行；`grep -cE "^(export )?type QuayFleetExecError" server/modules/quay/*.ts | awk -F: '{s+=$2} END{print s}'` 输出 ≤ 1。
-- [ ] 常量唯一：`grep -nE "^(export )?const QUAY_FLEET_(TIMEOUT_MS|MAX_OUTPUT_BYTES)" server/modules/quay/*.ts` 只命中 `quay-fleet-cli.ts`；initiatives 的 2 MiB 上限以调用参数传入，`grep -n "2 \* 1024 \* 1024" server/modules/quay/quay-initiatives.ts` 命中。
-- [ ] 新判据：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-fleet-cli.test.ts` exit 0，覆盖 exec 成功、超时（`killed`）、ENOENT、非零退出四种分类的错误文案逐字与迁移前一致，以及 runner 在 bin 找不到时的固定错误文案。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-fleet-locator.test.ts server/modules/quay/tests/quay-fleet-project-id.test.ts server/modules/quay/tests/quay-fleet-summary.test.ts server/modules/quay/tests/quay-initiatives.test.ts server/modules/quay/tests/quay-uri-resolve.test.ts` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay` exit 0。
+- [x] 副本清零：`grep -nE "^(const defaultExecFile|function parseJsonObject|function canonicalPath)\b" server/modules/quay/quay-fleet-locator.ts server/modules/quay/quay-fleet-project-id.ts server/modules/quay/quay-fleet-registry.ts server/modules/quay/quay-initiatives.ts` 无输出。
+- [x] 类型唯一：`grep -rnE "^export type (QuayFleetCommandResult|QuayFleetExec) " server/modules/quay --include='*.ts' | grep -v '/tests/'` 只命中 `quay-fleet-cli.ts` 的两行；`grep -cE "^(export )?type QuayFleetExecError" server/modules/quay/*.ts | awk -F: '{s+=$2} END{print s}'` 输出 ≤ 1。
+- [x] 常量唯一：`grep -nE "^(export )?const QUAY_FLEET_(TIMEOUT_MS|MAX_OUTPUT_BYTES)" server/modules/quay/*.ts` 只命中 `quay-fleet-cli.ts`；initiatives 的 2 MiB 上限以调用参数传入，`grep -n "2 \* 1024 \* 1024" server/modules/quay/quay-initiatives.ts` 命中。
+- [x] 新判据：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-fleet-cli.test.ts` exit 0，覆盖 exec 成功、超时（`killed`）、ENOENT、非零退出四种分类的错误文案逐字与迁移前一致，以及 runner 在 bin 找不到时的固定错误文案。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-fleet-locator.test.ts server/modules/quay/tests/quay-fleet-project-id.test.ts server/modules/quay/tests/quay-fleet-summary.test.ts server/modules/quay/tests/quay-initiatives.test.ts server/modules/quay/tests/quay-uri-resolve.test.ts` exit 0。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/quay` exit 0。
 
 ## DoD
 

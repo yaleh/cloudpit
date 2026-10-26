@@ -28,10 +28,23 @@ import fs, { promises as fsPromises } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { isRecord } from '@/shared/utils.js';
+
 import { resolveArchguardCli } from './refresh-settings.js';
 
 /** The spawn signature this module uses; injectable so a criterion can count calls. */
 export type RefreshSpawn = typeof spawn;
+
+/**
+ * The process-spawn primitive, re-exported unchanged.
+ *
+ * `refresh-duplicates.ts` starts the ArchGuard MCP child and must stay a leaf whose
+ * imports are only `node:*`, `@/shared/**` and this directory; going through this
+ * sibling keeps `node:child_process` out of that file. Consumers:
+ * `refresh-duplicates.ts` only.
+ */
+export { spawn as spawnChildProcess };
+export type { ChildProcess };
 
 /** The filesystem operations this module needs; injectable so a criterion can fake them. */
 export type RefreshSpawnFs = Pick<typeof fs, 'existsSync' | 'statSync' | 'realpathSync'> & {
@@ -71,10 +84,6 @@ export type RefreshSpawner = {
   killGroup(child: ChildProcess, signal: NodeJS.Signals): void;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function realpathOrSelf(filePath: string): string {
   try {
     return fs.realpathSync(filePath);
@@ -89,6 +98,34 @@ function isWithin(parent: string, child: string): boolean {
 }
 
 /**
+ * Appends the repository-root `shared/` tree when it is not already indexed by a
+ * kept scope.
+ *
+ * ArchGuard's automatic scope discovery only recognises `src`/`lib`/`app`/`source`
+ * roots, so this repository's frontend/backend `shared/` tree is in no manifest
+ * scope and would never be analysed. Adding it as its own `-s` entry leaves every
+ * existing scope's source list (and therefore its key) untouched: the manifest is
+ * written for the scopes ArchGuard discovers, and the extra source is analysed in
+ * the same run. When the bootstrap fallback already fell back to the project root,
+ * `shared/` is inside that source and must not be added twice.
+ */
+function withSharedSource(
+  projectPath: string,
+  sources: readonly string[],
+  fsImpl: RefreshSpawnFs,
+): string[] {
+  const sharedDir = realpathOrSelf(path.join(projectPath, 'shared'));
+  try {
+    if (!fsImpl.statSync(sharedDir).isDirectory()) return [...sources];
+  } catch {
+    return [...sources];
+  }
+  if (sources.some((kept) => isWithin(kept, sharedDir))) return [...sources];
+  if (sources.includes(sharedDir)) return [...sources];
+  return [...sources, sharedDir];
+}
+
+/**
  * The source directories one whole-project refresh re-analyses.
  *
  * The current manifest is the authority: each scope's existing sources are reused,
@@ -98,6 +135,8 @@ function isWithin(parent: string, child: string): boolean {
  * `src/modules/chat` scope, whose artifacts the server's own merge already subsumes
  * into `src`. With no manifest at all (the tab would not be reachable), the project's
  * two source trees are used as a bootstrap; failing both, the project root itself.
+ * In both arms the repository-root `shared/` tree is appended when it is not already
+ * covered (`withSharedSource`).
  */
 async function resolveRefreshSources(
   projectPath: string,
@@ -142,7 +181,9 @@ async function resolveRefreshSources(
     outermost.push(candidate);
   }
 
-  if (outermost.length > 0) return { sources: outermost, language };
+  if (outermost.length > 0) {
+    return { sources: withSharedSource(projectPath, outermost, fsImpl), language };
+  }
 
   for (const relative of ['src', 'server']) {
     const absolute = path.join(projectPath, relative);
@@ -152,7 +193,8 @@ async function resolveRefreshSources(
       // Not every project has both trees.
     }
   }
-  return { sources: outermost.length === 0 ? [projectPath] : outermost, language };
+  const bootstrap = outermost.length === 0 ? [projectPath] : outermost;
+  return { sources: withSharedSource(projectPath, bootstrap, fsImpl), language };
 }
 
 /**

@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-semantic-zoom-shared-y-axis-neighbour-stretch
 title: 架构图语义缩放：并排类共享 y 轴时相邻类 minHeight 撑高格子，33% 档 package 底部残留空白
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -31,6 +31,7 @@ extra:
 ## Touches
 
 - src/modules/architecture/semanticZoomLayout.ts
+- src/modules/architecture/semanticZoomPackageBounds.ts
 - src/modules/architecture/semanticZoomPlan.ts
 - src/modules/architecture/tests/semanticZoomLayout.test.ts
 - e2e/architecture-canvas-layout.spec.ts

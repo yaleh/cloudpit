@@ -310,7 +310,10 @@ test('① the pack READS the two predicates rather than restating them', () => {
   // drift the first time either side changed. Pinned at the source, because an import that was
   // quietly inlined would leave every reading above green.
   const source = readFileSync(MODULE_PATH, 'utf8');
-  assert.match(source, /import \{ shouldHideToolResult \} from '@\/modules\/chat\/tools';/);
+  // Read from the predicate's DEFINING module, not the `tools` barrel: the barrel drags the
+  // whole tools package (and its transcript imports) under `utils/voice`, closing a package
+  // cycle. `toolGrouping`/`workSegmentTitle` already read the same leaf this way.
+  assert.match(source, /import \{ shouldHideToolResult \} from '@\/modules\/chat\/tools\/configs\/toolConfigs';/);
   assert.match(source, /import \{ isWorkSegmentMember \} from '@\/modules\/chat\/utils\/transcript\/workSegments';/);
   assert.match(source, /isWorkSegmentMember\(message\)/);
 });
