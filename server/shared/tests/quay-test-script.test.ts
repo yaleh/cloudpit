@@ -345,9 +345,10 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/modules/llm-gateway/tests/llm-client.test.ts (443 + 1 = 444 collected
     // server test files). Then gap-provider-capability-facets-replace-name-branches
     // added its shell-facet criterion server/modules/providers/tests/provider-shell-facet.test.ts
-    // (444 + 1 = 445 collected server test files). This fixture names 3 known files,
-    // so 445 - 3 = 442.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=442$/);
+    // (444 + 1 = 445 collected server test files). Then gap-architecture-ratchet-census added
+    // server/shared/tests/architecture-ratchet.test.ts (445 + 1 = 446 collected server test
+    // files). This fixture names 3 known files, so 446 - 3 = 443.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=443$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -396,13 +397,15 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 445 files on this tree (gap-settings-file-shared-reader
+    // Same collection as AC2 — 446 files on this tree (gap-settings-file-shared-reader
     // added server/shared/tests/settings-file.test.ts, then gap-llm-gateway-leaf-module
     // added server/modules/llm-gateway/tests/llm-client.test.ts, then
     // gap-provider-capability-facets-replace-name-branches added
-    // server/modules/providers/tests/provider-shell-facet.test.ts) — but this fixture
-    // names ONE known file, so 445 - 1 = 444 (AC2 reads 442 because its fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=444$/);
+    // server/modules/providers/tests/provider-shell-facet.test.ts, then
+    // gap-architecture-ratchet-census added
+    // server/shared/tests/architecture-ratchet.test.ts) — but this fixture
+    // names ONE known file, so 446 - 1 = 445 (AC2 reads 443 because its fixture names 3).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=445$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

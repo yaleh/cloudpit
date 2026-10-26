@@ -687,3 +687,11 @@
 #   criterion; no green round contains it yet — the row also keeps the 90% coverage floor green now
 #   that the tree collects 445 server test files).
 4721	server/modules/providers/tests/provider-shell-facet.test.ts
+#   and the architecture-ratchet row by gap-architecture-ratchet-census, measured once on
+#   2026-10-26 with
+#   `env TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --import
+#   ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/architecture-ratchet.test.ts`
+#   (dur=5433ms, the shape scripts/test.sh runs; its own new criterion; no green round contains it
+#   yet — the row also keeps the 90% coverage floor green now that the tree collects 446 server
+#   test files).
+5433	server/shared/tests/architecture-ratchet.test.ts
