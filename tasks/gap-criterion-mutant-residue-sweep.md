@@ -59,6 +59,29 @@ extra:
 - scripts/test.sh
 - tasks/gap-criterion-mutant-residue-sweep.md
 
+## Evidence
+
+续做轮（2026-10-26，worktree `gap-criterion-mutant-residue-sweep`）逐条复验 5 条 AC，并在该 worktree 内实跑 DoD：
+
+- AC1 `node --test scripts/sweep-criterion-residue.test.mjs`：3 tests, 3 pass, 0 fail, exit 0（四夹具 + 不加 `--apply` 全保留 + 边界用例）。
+- AC2 `node_modules/`、`dist/`、无前缀名的边界用例同在上述文件中通过。
+- AC3 `grep -n "sweep-criterion-residue.mjs --apply" scripts/test.sh` → 875 行；`run_stage_bg typecheck` → 884 行（875 < 884）。
+- AC4 `QUAY_TEST_DRY=1 bash scripts/test.sh --buckets server --run-id probe` exit 0（`dry run: args consumed (concurrency=4, files=0)`）。
+- AC5 `node scripts/list-script-tests.mjs | grep -c "sweep-criterion-residue.test.mjs"` → 1。
+
+DoD 真实残留复现与清扫（同一 worktree）：
+
+1. 启动 `npx tsx --tsconfig server/tsconfig.json --test server/modules/voice/tests/voice-capture-audio.false-forms.test.ts`，副本出现后立即对其进程组发 SIGKILL。
+2. `git status --porcelain server/`：
+   `?? server/modules/voice/__criterion-falsify-write-in-text-too-base-1259374.ts`
+3. 干跑 `node scripts/sweep-criterion-residue.mjs`：
+   `residue: server/modules/voice/__criterion-falsify-write-in-text-too-base-1259374.ts pid=1259374 state=dead action=kept`
+   `node scripts/sweep-criterion-residue.mjs --apply`：
+   `residue: server/modules/voice/__criterion-falsify-write-in-text-too-base-1259374.ts pid=1259374 state=dead action=removed`
+4. 再次 `git status --porcelain server/`：空。
+
+develop 已合并（`c10cea1fa`）；anti-drift Touches 检查 OK（3 actual files，全部在声明的 4 个 glob 内，exit 0）。
+
 ## Blocker
 
 **2026-10-26T05:33:24.251Z — worker 未落地（exited-not-landed）**
