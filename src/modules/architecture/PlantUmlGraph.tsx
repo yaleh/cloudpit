@@ -540,6 +540,14 @@ function clearNavigationFocus(host: HTMLElement): void {
   paintNavigationFocus(host, null);
 }
 
+/** Re-pin the focus marker after a rewrite dropped its element; returns the node for centring. */
+function pinFocusMarker(host: HTMLElement, focusNodeId: string | null): Element | null {
+  const node = focusNodeId === null ? null : nodeElement(host, focusNodeId);
+  node?.classList.add('arch-focus');
+  node?.setAttribute('data-architecture-focus-target', focusNodeId ?? '');
+  return node;
+}
+
 /**
  * The DEV-only lever the keyboard/a11y criterion's control arm pulls. Each
  * value restores one defect the shipped path removes, so the criterion's own
@@ -1539,6 +1547,7 @@ export function PlantUmlGraph({
     applyDiffStyles(host, diffHighlightRef.current);
     const center = layoutPipeline.getSnapshot().neighborCenter;
     if (center !== null) nodeElement(host, center)?.classList.add('arch-center');
+    pinFocusMarker(host, focusNodeId);
     // The zoom anchor is the densest window of the mapped layout, not the
     // bounding-box centre: on a sparse drawing the centre is blank space. A
     // "tap a package" request overrides it with that package's frame.
@@ -1558,13 +1567,11 @@ export function PlantUmlGraph({
         host.scrollTop = Math.max(0, centreY - height / 2);
       }
     }
-    // The sticky labels and the hint are POSITIONED FROM the applied scroll
-    // offset, so they are drawn after it is written. Drawing them inside the
-    // layout pass measured the previous offset and left the ghosts one zoom
-    // behind (the defect this task fixes).
+    // The sticky labels and the hint are positioned FROM the applied scroll
+    // offset, so they are drawn after it (inside the pass reads the old one).
     drawStickyLabels(host, layout, fontPx);
     positionOverviewHint(host);
-  }, [applySemanticLayout, applyZoom, layoutPipeline, selectionController]);
+  }, [applySemanticLayout, applyZoom, focusNodeId, layoutPipeline, selectionController]);
 
   // The pipeline owns WHICH layout is drawn and WHEN; these actions are the
   // DOM-bound half it cannot do itself. Re-registered per render so a callback
@@ -2067,17 +2074,10 @@ export function PlantUmlGraph({
           layoutPipeline.applySemantic({ fit: controllerZoom().fit === 'auto', scale: controllerZoom().scale });
         }
         // A focus request (search hit) is centred LAST: the reader asked for
-        // THIS node, so it wins.
-        // The marker is what tests and sibling panels read; the scroll is the
-        // actual "jump to it".
-        if (focusNodeId !== null) {
-          const focused = nodeElement(host, focusNodeId);
-          if (focused !== null) {
-            focused.classList.add('arch-focus');
-            focused.setAttribute('data-architecture-focus-target', focusNodeId);
-            centerElementInContainer(host, focused);
-          }
-        }
+        // THIS node, so it wins. The marker is what tests and sibling panels
+        // read; the scroll is the actual "jump to it".
+        const focused = pinFocusMarker(host, focusNodeId);
+        if (focused !== null) centerElementInContainer(host, focused);
         // Every scroll above has landed: place the sticky package names and the
         // overview hint against the viewport the reader will actually see.
         const applied = layoutPipeline.getSnapshot();

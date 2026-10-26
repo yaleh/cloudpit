@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-panel-search-reveal-owner
 title: ArchitecturePanel 切片 3：搜索、悬停提示与深链定位状态收进属主
-status: ready
+status: done
 labels:
   - gap
 parent: null

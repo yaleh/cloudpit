@@ -25,6 +25,10 @@ import {
 } from '@/modules/architecture/curationStore';
 import { createArchitectureCurationController } from '@/modules/architecture/architectureCurationController';
 import { createArchitectureFilterController } from '@/modules/architecture/architectureFilterController';
+import {
+  createArchitectureSearchController,
+  type ArchitectureSearchCommit,
+} from '@/modules/architecture/architectureSearchController';
 import { resolveCurationItems, useProjectSearch } from '@/modules/architecture/hooks/useProjectSearch';
 import { ArchitectureSheet } from '@/modules/architecture/ArchitectureSheet';
 import {
@@ -80,7 +84,6 @@ import { fitToLayoutBudget, LAYOUT_NODE_BUDGET } from '@/modules/architecture/la
 import { buildReadout, drawnKindCounts } from '@/modules/architecture/readoutNumbers';
 import {
   HOVER_HINT_MARGIN_PX,
-  placeHoverHint,
   type ArchitectureHintRect,
 } from '@/modules/architecture/hoverHintPlacement';
 import type {
@@ -596,6 +599,33 @@ export default function ArchitecturePanel({
     canUndo: curationCanUndo,
   } = curationSnapshot;
   useEffect(() => () => curation.dispose(), [curation]);
+
+  // ---- Search, hover hint and deep-link (owner) ----------------------------
+  // The owner holds the query and its ranked matches, the transient active
+  // option, the hover dwell and the MEASURED hint position, and the two "only
+  // once" rules (the `?entity=` link and the per-analysis re-alignment). The
+  // panel subscribes and renders; every decision lives in
+  // `architectureSearchController`.
+  const search = useMemo(() => createArchitectureSearchController(), []);
+  const searchSnapshot = useSyncExternalStore(
+    search.subscribe,
+    search.getSnapshot,
+    search.getSnapshot,
+  );
+  const {
+    query: searchQuery,
+    pending: searchPending,
+    open: searchOpen,
+    activeIndex: activeSearchIndex,
+    candidates: searchMatches,
+    hover,
+    hoverVisible,
+    hoverSignature,
+    hoverHintPosition,
+  } = searchSnapshot;
+  // The owner releases its timers on unmount (StrictMode re-uses the instance).
+  useEffect(() => () => search.dispose(), [search]);
+
   // Pins and removals are ENTITY operations: the request takes entity ids,
   // while a file node's id is a path. The file view can still manage/restore
   // the lists, but it is not where an entity gets pinned.
@@ -653,45 +683,30 @@ export default function ArchitecturePanel({
   // used to close only by pressing its own trigger again.
   useDismissiblePopover(filterMenuOpen, closeFilterMenu, filterButtonRef, '[data-architecture-filter-menu]');
   // The node under the pointer and its visible relation kinds, as reported by
-  // the mounted renderer. Kept here so the readout is renderer-neutral; the key
-  // names the graph the reading came from (session + granularity + scope), so
-  // changing any of them discards the reading during render instead of via a
-  // reset effect.
-  const [hovered, setHovered] = useState<{ key: string; hover: ArchitectureRendererHover | null } | null>(null);
+  // the mounted renderer. Kept renderer-neutral; the key names the graph the
+  // reading came from (session + granularity + scope), and the owner discards a
+  // hover reported for another graph. The dwell threshold and the measured hint
+  // position are owner state too, so a pointer crossing the drawing never
+  // flashes a reading.
   const hoverKey = `${sessionId ?? ''}:${granularity}:${scope}`;
   // Stable while the same graph is on screen, so hovering never tears down the
   // renderer's effect; it only changes when the graph itself changes.
   const handleNodeHover = useCallback(
-    (hover: ArchitectureRendererHover | null) => setHovered({ key: hoverKey, hover }),
-    [hoverKey],
+    (reading: ArchitectureRendererHover | null) => search.setHover(hoverKey, reading),
+    [hoverKey, search],
   );
-  // The hint element whose size the placement measures, and the position it
-  // settled on (`null` until measured). Essential state: the position is a
-  // MEASURED relation between the hint and the drawing's package tabs, so it
-  // cannot be derived from props during render.
-  const hoverHintRef = useRef<HTMLSpanElement | null>(null);
-  // The canvas region that holds the drawing. Declared here (not with the other
-  // refs below) because the hover-hint effect reads it from this render on.
-  const graphAreaRef = useRef<HTMLDivElement | null>(null);
-  const [hoverHintPosition, setHoverHintPosition] = useState<{ left: number; top: number } | null>(null);
-  // What the measured position belongs to. The hint's own text (and therefore
-  // its width) changes with the hovered entity and its relation kinds, so the
-  // placement is recomputed whenever any of those move.
-  const hoverHintSignature = hovered !== null && hovered.key === hoverKey && hovered.hover !== null
-    ? `${hoverKey}\u0000${hovered.hover.node.id}\u0000${hovered.hover.relations.join(',')}`
-    : null;
   // The hint may not cover the drawing's own labels: package tabs are painted
   // along the top edge of every frame, and class names sit inside them. The
-  // candidate walk and the avoidance live in `placeHoverHint`; this effect only
-  // turns the live DOM into the rectangles it reads. It runs before paint, so
-  // the hint never flashes at the pinned corner first.
+  // candidate walk and the avoidance live in `placeHoverHint` (behind the
+  // owner); this effect only turns the live DOM into the rectangles it reads.
+  // It runs before paint, so the hint never flashes at the pinned corner first.
   useLayoutEffect(() => {
-    if (hoverHintSignature === null) {
-      setHoverHintPosition(null);
+    if (hoverSignature === null) {
+      search.clearHoverHint();
       return;
     }
-    const container = graphAreaRef.current;
-    const hint = hoverHintRef.current;
+    const container = search.canvasRegionRef.current;
+    const hint = search.hoverHintRef.current;
     if (container === null || hint === null) return;
     const containerBox = container.getBoundingClientRect();
     const hintBox = hint.getBoundingClientRect();
@@ -699,7 +714,7 @@ export default function ArchitecturePanel({
       .map((element) => element.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => ({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }));
-    const placement = placeHoverHint({
+    search.layoutHoverHint({
       container: {
         left: containerBox.left,
         top: containerBox.top,
@@ -734,8 +749,7 @@ export default function ArchitecturePanel({
       // The INFO slot's inset, stated once in `bottomSlotLayout`.
       margin: BOTTOM_SLOT_INFO_INSET_PX,
     });
-    setHoverHintPosition({ left: placement.left, top: placement.top });
-  }, [hoverHintSignature]);
+  }, [hoverSignature, search]);
   // The request the server is asked for. `kinds` rides only on the entity view
   // (a file has no element kind); `relations` rides on both views. The
   // "keep mentioned" switches are part of `kinds`' own axis, so they ride only
@@ -912,36 +926,21 @@ export default function ArchitecturePanel({
   const legendButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeLegend = useCallback((): void => chrome.closeLegend(), [chrome]);
   useDismissiblePopover(legendOpen, closeLegend, legendButtonRef, '[data-architecture-legend]');
-  // The search box's text. It is local because it only filters the payload in
-  // hand; selecting a result is what changes the graph.
-  const [searchQuery, setSearchQuery] = useState('');
-  // Whether the match list is open. Escape, choosing a result, or a press
-  // outside the combobox closes it; a press on a result is inside the widget,
-  // so it does not count as "outside".
-  const [searchOpen, setSearchOpen] = useState(false);
-  // The option the combobox's arrow keys moved onto, as an index into the
-  // flattened option list (in-graph matches first, then project hits). -1 means
-  // no active option, so Enter keeps its historical "first match" behaviour.
-  // Essential (not derivable): it is the transient focus of a keyboard user.
-  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
-  // The combobox's DOM root and input. The outside-press listener needs the
-  // root, and returning focus after Escape needs the input.
-  const searchRootRef = useRef<HTMLDivElement | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-  // A press outside the combobox closes it WITHOUT swallowing the press (the
-  // listener observes `mousedown`; the click still reaches its target). The
-  // earlier contract required a second press on the box itself to close it.
+  // The search box's readings (text, open, active option, ranked matches) are
+  // the search owner's, destructured above. A press outside the combobox closes
+  // it WITHOUT swallowing the press (the listener observes `mousedown`; the
+  // click still reaches its target). The earlier contract required a second
+  // press on the box itself to close it.
   useEffect(() => {
     if (!searchOpen) return;
     const onPointerDown = (event: MouseEvent): void => {
       // A press inside the widget (input or an option) is not "outside".
-      if (searchRootRef.current?.contains(event.target as Node) === true) return;
-      setSearchOpen(false);
-      setActiveSearchIndex(-1);
+      if (search.isInsideSearchWidget(event.target as Node)) return;
+      search.closeList();
     };
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [searchOpen]);
+  }, [searchOpen, search]);
   // The slice the mounted renderer is drawing. The renderer owns its view, so
   // it reports every navigation here; the export menu rebuilds exactly this
   // view instead of guessing from the last click.
@@ -1005,7 +1004,7 @@ export default function ArchitecturePanel({
   useEffect(() => {
     if (fullscreenActive) {
       wasFullscreenRef.current = true;
-      (graphAreaRef.current ?? panelRootRef.current)?.focus();
+      (search.canvasRegionRef.current ?? panelRootRef.current)?.focus();
       return;
     }
     if (!wasFullscreenRef.current) return;
@@ -1056,7 +1055,7 @@ export default function ArchitecturePanel({
         fitTokenRef.current += 1;
         setFitRequest({
           token: fitTokenRef.current,
-          viewportHeight: graphAreaRef.current?.getBoundingClientRect().height ?? 0,
+          viewportHeight: search.canvasRegionRef.current?.getBoundingClientRect().height ?? 0,
         });
       });
       return () => cancelAnimationFrame(frame);
@@ -1098,28 +1097,23 @@ export default function ArchitecturePanel({
   // folded away is still findable and can be reported as out of range. The
   // search reads the payload BEFORE the element/relation filter: a node the
   // filter removed must still be listed (with the reason and a "Show it"
-  // action) instead of the search silently returning nothing.
+  // action) instead of the search silently returning nothing. The owner ranks
+  // the matches; this effect is the only place the reading is reported.
   const activeNodeIds = useMemo(
     () => new Set((activeNeighbourhood?.nodes ?? []).map((node) => node.id)),
     [activeNeighbourhood],
   );
-  const searchMatches = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (query.length === 0 || rawNeighbourhood === null) return [];
-    return rawNeighbourhood.nodes
-      .filter((node) => node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query))
-      .slice(0, 8)
-      .map((node) => {
-        const inGraph = activeNodeIds.has(node.id);
-        return {
-          node,
-          inGraph,
-          // A node the detail tier folded away is "out of range"; a node the
-          // filter removed is not even in the drawing (`inGraph` false).
-          inRange: inGraph && (detailRanking?.retainedNodeIds.has(node.id) ?? false),
-        };
+  useEffect(() => {
+    search.setReading(rawNeighbourhood === null
+      ? null
+      : {
+        key: hoverKey,
+        nodes: rawNeighbourhood.nodes,
+        edges: rawNeighbourhood.edges,
+        activeNodeIds,
+        retainedNodeIds: detailRanking?.retainedNodeIds ?? null,
       });
-  }, [rawNeighbourhood, activeNodeIds, detailRanking, searchQuery]);
+  }, [search, hoverKey, rawNeighbourhood, activeNodeIds, detailRanking]);
 
   /**
    * Reveal a node the filter hid: release the element switch that removed its
@@ -1153,33 +1147,47 @@ export default function ArchitecturePanel({
     // `drill` is the ONLY thing that replaces the drawing with the entity's
     // neighbourhood; a plain reveal centres it in the drawing on screen.
     chrome.focusNode(nodeId, drill);
-    setSearchOpen(false);
+    search.closeList();
   };
 
+  // Identifies the analysis for the owner's two "only once" rules. Computed
+  // during render (not stored) so the effects below can stay dependency-free:
+  // the owner deduplicates, this component does not mirror its flags.
+  const deepLinkAnalysisKey = view.status === 'loaded'
+    ? `${projectId}\u0000${sessionId ?? ''}\u0000${view.result.provenance.generatedAt ?? ''}\u0000${
+      JSON.stringify(view.result.provenance.fingerprints)
+    }`
+    : '';
   // The standalone link's `entity`/`mode`: select and centre that node once the
   // reading that contains it has arrived, and drill only when the link says
-  // `neighbourhood`. The ref makes this a FIRST-OPEN instruction — a reader who
-  // later selects another node must not be dragged back by the URL.
-  const deepLinkEntityAppliedRef = useRef<string | null>(null);
-  // `revealNode` closes over state that changes every render; a ref keeps the
-  // link's one-shot effect from re-running (and re-focusing) on every render.
-  const revealNodeRef = useRef(revealNode);
+  // `neighbourhood`. The OWNER holds the "applied once" flag, so this effect may
+  // run on every render and still be a FIRST-OPEN instruction — a reader who
+  // later selects another node is never dragged back by the URL.
   useEffect(() => {
-    revealNodeRef.current = revealNode;
-  });
-  useEffect(() => {
-    const entity = initialDeepLink.entity;
-    if (entity === null || deepLinkEntityAppliedRef.current === entity) return;
     if (view.status !== 'loaded') return;
-    // An id the current subgraph does not carry is ignored rather than focused
-    // blindly: the renderer can only centre a node it draws.
-    if (!view.result.graph[granularity].nodes.some((candidate) => candidate.id === entity)) return;
-    deepLinkEntityAppliedRef.current = entity;
-    // A folded node would be "selected" without being on screen; the link asked
-    // for it, so the identity detail tier is the reading that honours the link.
-    const folded = detailRanking !== null && !detailRanking.retainedNodeIds.has(entity);
-    revealNodeRef.current(entity, folded, initialDeepLink.mode === 'neighbourhood');
-  }, [initialDeepLink, view, granularity, detailRanking]);
+    const applied = search.applyDeepLink({
+      entity: initialDeepLink.entity,
+      mode: initialDeepLink.mode,
+      loaded: true,
+      analysisKey: deepLinkAnalysisKey,
+      nodeIds: view.result.graph[granularity].nodes.map((candidate) => candidate.id),
+      retainedNodeIds: detailRanking?.retainedNodeIds ?? null,
+    });
+    if (applied !== null) revealNode(applied.nodeId, applied.outOfRange, applied.drill);
+  });
+  // A manual re-analysis can move the graph under the reader. The owner
+  // re-aligns the deep-linked entity at most once per analysis (the first apply
+  // above already counts as that analysis's alignment), so a refresh keeps the
+  // entity selected without every re-render re-centring the drawing.
+  useEffect(() => {
+    if (view.status !== 'loaded') return;
+    const aligned = search.reconcileAnalysis({
+      analysisKey: deepLinkAnalysisKey,
+      nodeIds: view.result.graph[granularity].nodes.map((candidate) => candidate.id),
+      retainedNodeIds: detailRanking?.retainedNodeIds ?? null,
+    });
+    if (aligned !== null) revealNode(aligned.nodeId, aligned.outOfRange, aligned.drill);
+  });
 
   // ---- Curation actions ----------------------------------------------------
   /** The store shape of a drawn node: `(file, name)` beside the id. */
@@ -1213,13 +1221,12 @@ export default function ArchitecturePanel({
 
   const pinItem = useCallback((item: ArchitectureCurationItem, label?: string): void => {
     if (reportCurationRefusal(curation.pin(item))) return;
-    setSearchOpen(false);
-    setSearchQuery('');
+    search.clear();
     showCurationToast(t('architecture.curation.toastPinned', {
       defaultValue: 'Pinned {{name}}',
       name: label ?? item.name,
     }));
-  }, [curation, reportCurationRefusal, showCurationToast, t]);
+  }, [curation, reportCurationRefusal, search, showCurationToast, t]);
 
   const pinNode = useCallback((node: ArchitectureRendererNode): void => {
     pinItem(curationItemOf(node));
@@ -1359,7 +1366,7 @@ export default function ArchitecturePanel({
     fitTokenRef.current += 1;
     setFitRequest({
       token: fitTokenRef.current,
-      viewportHeight: graphAreaRef.current?.getBoundingClientRect().height ?? 0,
+      viewportHeight: search.canvasRegionRef.current?.getBoundingClientRect().height ?? 0,
       force: true,
     });
   }, [view, refreshing]);
@@ -1639,7 +1646,7 @@ export default function ArchitecturePanel({
   const hasSeeds = stats.seedFiles > 0 || stats.seedIdentifiers > 0 || pinnedIds.length > 0;
   const neighbourhood = result.graph[granularity];
   // A reading from the previous graph is not shown against this one.
-  const visibleHover = hovered !== null && hovered.key === hoverKey ? hovered.hover : null;
+  const visibleHover = hover;
 
   // The graph the renderer was last handed: the detail tier's cut, then the
   // layout budget's. The export rebuilds from the SAME graph, so the file is
@@ -1897,7 +1904,7 @@ export default function ArchitecturePanel({
 
   /** The live drawing, read from the panel's own subtree at export time. */
   const renderedSvg = (): SVGSVGElement | null =>
-    graphAreaRef.current?.querySelector<SVGSVGElement>('[data-architecture-plantuml] svg') ?? null;
+    search.canvasRegionRef.current?.querySelector<SVGSVGElement>('[data-architecture-plantuml] svg') ?? null;
 
   const artifactFilename = (extension: string): string =>
     architectureExportFilename(granularity, projectId, new Date(), extension);
@@ -2810,36 +2817,29 @@ export default function ArchitecturePanel({
   const searchOptionCount = searchMatches.length + projectHits.length;
   const searchListId = 'architecture-search-listbox';
   const searchOptionId = (index: number): string => `architecture-search-option-${index}`;
-  const moveSearchActive = (delta: number): void => {
-    if (searchOptionCount === 0) return;
-    setActiveSearchIndex((current) => {
-      if (current < 0) return delta > 0 ? 0 : searchOptionCount - 1;
-      return (current + delta + searchOptionCount) % searchOptionCount;
-    });
-  };
-  const chooseSearchOption = (index: number, drill: boolean): void => {
-    if (index < searchMatches.length) {
-      const match = searchMatches[index];
-      // A match the filter removed is not drawn yet: "Show it" first, then
-      // centre/select it. A drawn match is centred in place; only `drill` (the
-      // explicit "view neighbourhood" command) replaces the drawing.
-      if (!match.inGraph) showHiddenSearchMatch(match);
-      else revealNode(match.node.id, !match.inRange, drill);
-    } else {
-      const hit = projectHits[index - searchMatches.length];
+  // The controller decided what Enter chose; the panel performs the drawing
+  // command (it owns the reveal/selection effects, not the choice rule).
+  const applySearchChoice = (choice: ArchitectureSearchCommit | null): void => {
+    if (choice === null) return;
+    if (choice.kind === 'project') {
+      const hit = projectHits[choice.projectIndex];
       if (hit !== undefined) pinItem(hit);
+      return;
     }
-    setSearchOpen(false);
-    setActiveSearchIndex(-1);
+    const { candidate, drill } = choice;
+    // A match the filter removed is not drawn yet: "Show it" first, then
+    // centre/select it. A drawn match is centred in place; only `drill` (the
+    // explicit "view neighbourhood" command) replaces the drawing.
+    if (!candidate.inGraph) showHiddenSearchMatch(candidate);
+    else revealNode(candidate.node.id, !candidate.inRange, drill);
   };
   const searchBox = (
-    <div ref={searchRootRef} className="relative" data-architecture-search-root="true">
+    <div ref={search.searchWidgetRef} className="relative" data-architecture-search-root="true">
       <input
-        ref={searchInputRef}
         type="search"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={searchOpen && searchQuery.trim().length > 0}
+        aria-expanded={searchOpen && !searchPending && searchQuery.trim().length > 0}
         aria-controls={searchListId}
         aria-activedescendant={activeSearchIndex >= 0 && searchOpen ? searchOptionId(activeSearchIndex) : undefined}
         value={searchQuery}
@@ -2848,50 +2848,40 @@ export default function ArchitecturePanel({
         data-architecture-search="true"
         style={compactToolbar ? TOUCH_TARGET_STYLE : undefined}
         onChange={(event) => {
-          setSearchQuery(event.target.value);
-          setSearchOpen(true);
-          setActiveSearchIndex(-1);
+          search.setQuery(event.target.value);
         }}
         onFocus={() => {
-          setSearchOpen(true);
-          setActiveSearchIndex(-1);
+          search.openList();
         }}
         onBlur={(event) => {
           // Focus moving INTO the listbox (a result press) keeps it open; any
           // other focus loss closes it.
-          if (searchRootRef.current?.contains(event.relatedTarget as Node | null) === true) return;
-          setSearchOpen(false);
+          if (search.isInsideSearchWidget(event.relatedTarget as Node | null)) return;
+          search.closeList();
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
-            setSearchOpen(false);
-            setActiveSearchIndex(-1);
+            search.closeList();
             return;
           }
           if (event.key === 'ArrowDown') {
             event.preventDefault();
-            moveSearchActive(1);
+            search.moveActive(1, searchOptionCount);
             return;
           }
           if (event.key === 'ArrowUp') {
             event.preventDefault();
-            moveSearchActive(-1);
+            search.moveActive(-1, searchOptionCount);
             return;
           }
           if (event.key !== 'Enter') return;
           // Enter centres and selects the match IN the drawing on screen;
           // Shift+Enter is the explicit "open its neighbourhood" command.
-          if (activeSearchIndex >= 0) {
-            event.preventDefault();
-            chooseSearchOption(activeSearchIndex, event.shiftKey);
-            return;
-          }
-          if (searchMatches.length > 0) {
-            event.preventDefault();
-            chooseSearchOption(0, event.shiftKey);
-          }
+          const choice = search.commit({ optionCount: searchOptionCount, drill: event.shiftKey });
+          if (choice !== null) event.preventDefault();
+          applySearchChoice(choice);
         }}
         className={`rounded-md border border-border bg-background px-2 py-0.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
           compactToolbar ? 'w-full text-sm' : 'w-40'
@@ -2904,7 +2894,10 @@ export default function ArchitecturePanel({
           className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
         />
       )}
-      {searchOpen && searchQuery.trim().length > 0 && (
+      {/* While the query debounce is armed the matches for the NEW text are not
+          ranked yet; drawing the listbox then would show an empty list a frame
+          before its rows exist. The list is held back until the query settles. */}
+      {searchOpen && !searchPending && searchQuery.trim().length > 0 && (
         <div
           id={searchListId}
           role="listbox"
@@ -4319,7 +4312,7 @@ export default function ArchitecturePanel({
               </div>
             )}
             <div
-              ref={graphAreaRef}
+              ref={search.canvasRegionRef}
               // Focus returns here when the dock closes (see ArchitectureDock's
               // focus management); a programmatic focus target needs a tabindex.
               tabIndex={-1}
@@ -4491,6 +4484,7 @@ export default function ArchitecturePanel({
               {hoverReading !== null && (
                 <div
                   data-architecture-hover-hint="true"
+                  data-architecture-hover-visible={hoverVisible ? 'true' : 'false'}
                   style={{
                     left: hoverHintPosition?.left ?? HOVER_HINT_MARGIN_PX,
                     top: hoverHintPosition?.top ?? HOVER_HINT_MARGIN_PX,
@@ -4498,11 +4492,15 @@ export default function ArchitecturePanel({
                     // a phone it would reach into the corner slot, and the
                     // measured placement has nothing left to choose from.
                     maxWidth: 'min(85%, 720px)',
+                    // The dwell only gates what is PAINTED: the element stays
+                    // mounted so the measured placement (and the reading the
+                    // tests read synchronously) never waits on a timer.
+                    opacity: hoverVisible ? 1 : 0,
                   }}
                   className="pointer-events-none absolute z-20 flex flex-col items-start gap-1"
                 >
                   <span
-                    ref={hoverHintRef}
+                    ref={search.hoverHintRef}
                     data-architecture-hover={hoverReading.id}
                     data-architecture-hover-name={hoverReading.label}
                     data-architecture-hover-relations={visibleHover?.relations.join(',') ?? ''}
@@ -4600,7 +4598,7 @@ export default function ArchitecturePanel({
           panelHeader={shortTouchPanelTray}
           title={t('architecture.dock.title', { defaultValue: 'Inspector' })}
           closeLabel={t('architecture.dock.close', { defaultValue: 'Close inspector' })}
-          returnFocusRef={graphAreaRef}
+          returnFocusRef={search.canvasRegionRef}
           tabs={[
             {
               id: 'inspector',
@@ -4690,7 +4688,7 @@ export default function ArchitecturePanel({
                   analyzedAt={provenance.generatedAt}
                   viewLabel={textViewLabel}
                   filterSummary={textFilterSummary}
-                  canvasRef={graphAreaRef}
+                  canvasRef={search.canvasRegionRef}
                   // The text scope's own body, appended by the same compose
                   // handler the selection tray uses.
                   {...(canComposeSelection ? { onPutInChat: composeSelectionText } : {})}
