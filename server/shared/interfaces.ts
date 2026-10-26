@@ -1,3 +1,5 @@
+import type { Dirent } from 'node:fs';
+
 import type {
   AnyRecord,
   FetchHistoryOptions,
@@ -84,6 +86,133 @@ export interface IProvider {
    * the whole of the provider's lifecycle.
    */
   readonly hostDriver?: IProviderHostDriver;
+  /**
+   * Plain-shell launch and welcome-text contract.
+   *
+   * The terminal asks the provider how its CLI is started instead of naming the
+   * providers it knows: a fifth provider that mounts this facet is launchable
+   * from the Shell tab with no change to the websocket service. Optional only
+   * for runtime-registered ids that never reach the Shell tab (the debug agent);
+   * every provider in `LLMProvider` mounts it.
+   */
+  readonly shell?: IProviderShell;
+  /**
+   * Token/context-usage reader.
+   *
+   * Same shape of seam as `shell`: the usage service dispatches through this
+   * facet, so a provider that reports usage differently (or not at all) states
+   * that in its own directory instead of adding a name branch to the service.
+   * Absent means the Claude transcript reader is used, which is what a
+   * runtime-registered id without a facet has always done.
+   */
+  readonly tokenUsage?: IProviderTokenUsage;
+}
+
+// ---------------------------
+//----------------- PROVIDER SHELL INTERFACE ------------
+/**
+ * How one provider's CLI is launched in the terminal, and what that provider is
+ * called in the words a user reads.
+ *
+ * The returned string is a whole shell command line: it may contain `||`
+ * fallbacks and platform-specific syntax, because "resume, and start fresh when
+ * that fails" is a launch decision only the provider's CLI can state.
+ */
+export interface IProviderShell {
+  /** The name shown in the welcome notice ("Starting new Codex session in: …"). */
+  readonly displayName: string;
+
+  /**
+   * Builds the command line for a new or resumed CLI process.
+   *
+   * `resumeSessionId` absent/empty means a fresh launch. `platform` is resolved
+   * by the caller (rather than read here) so a criterion can exercise both
+   * platforms in one process.
+   */
+  launchCommand(options: ProviderShellLaunchOptions): string;
+}
+
+export type ProviderShellLaunchOptions = {
+  /** Provider-native session id to resume; absent/empty launches a new session. */
+  resumeSessionId?: string | null;
+  /** A command the caller supplied for a plain-shell-like launch. */
+  initialCommand?: string;
+  /** `os.platform()` at launch time. */
+  platform?: NodeJS.Platform;
+  /** Claude's `--dangerously-skip-permissions` carry-over. */
+  bypassPermissions?: boolean;
+  /** Compiled model argv (already split), appended to every Claude launch attempt. */
+  modelArgv?: readonly string[];
+};
+
+// ---------------------------
+//----------------- PROVIDER TOKEN USAGE INTERFACE ------------
+/**
+ * The session fields a usage reader needs, structurally.
+ *
+ * Declared here rather than as the database row so a provider directory reads
+ * usage without importing the database repository, which would drag
+ * `modules/database` into the provider cycle budget's picture.
+ */
+export type ProviderTokenUsageSession = {
+  session_id: string;
+  provider: string;
+  provider_session_id: string | null;
+  project_path: string | null;
+  jsonl_path: string | null;
+  model: string | null;
+};
+
+/** A transcript tail: `content` plus whether it is the whole file. */
+export type ProviderTokenUsageFileTail = {
+  content: string;
+  isComplete: boolean;
+};
+
+/**
+ * I/O the reader may use, injected so the service's tests keep their isolated
+ * filesystem and home directory.
+ */
+export type ProviderTokenUsageDependencies = {
+  getHomeDirectory(): string;
+  getOpenCodeDatabasePath(): string;
+  fileExists(filePath: string): boolean;
+  readDirectory(directoryPath: string): Promise<Dirent[]>;
+  readTextFile(filePath: string): Promise<string>;
+  readTextFileTail(filePath: string, maxBytes: number): Promise<ProviderTokenUsageFileTail>;
+  getClaudeContextWindow(): string | undefined;
+  getClaudeModelContextWindow?(modelId: string): string | undefined;
+};
+
+/** The usage reading every provider facet answers with. */
+export type ProviderTokenUsageReading = {
+  used: number;
+  total?: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  cacheTokens?: number;
+  breakdown: {
+    input: number;
+    output: number;
+  };
+  unsupported?: boolean;
+  message?: string;
+};
+
+/**
+ * One provider's usage reader.
+ *
+ * Implementations own where the numbers live (a transcript, a SQLite row, or
+ * nowhere at all) and throw only for genuinely missing storage; "this provider
+ * has no usage" is an `unsupported` reading, not an error.
+ */
+export interface IProviderTokenUsage {
+  readSessionUsage(
+    session: ProviderTokenUsageSession,
+    dependencies: ProviderTokenUsageDependencies,
+  ): Promise<ProviderTokenUsageReading> | ProviderTokenUsageReading;
 }
 
 // ---------------------------
@@ -390,6 +519,19 @@ export interface IProviderMcp {
  * shared transport shapes consumed by API routes and realtime streams.
  */
 export interface IProviderSessions {
+  /**
+   * Whether this provider's `fetchHistory` parses the session row's `jsonl_path`
+   * itself.
+   *
+   * The history cache keys on that file's stat, so the cache may only serve
+   * providers whose reader really reads it. Claude and Codex parse the JSONL
+   * transcript; Cursor and OpenCode read messages from their own stores, where
+   * that file's stat says nothing about the history. This used to be a
+   * `provider === 'claude' || provider === 'codex'` branch at every cache call
+   * site; the statement belongs to the reader that knows.
+   */
+  readonly transcriptFileBacked: boolean;
+
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[];
   fetchHistory(sessionId: string, options?: FetchHistoryOptions): Promise<FetchHistoryResult>;
 
