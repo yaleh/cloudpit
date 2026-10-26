@@ -584,11 +584,9 @@ export default function ChatComposer({
   }, [requestSuggestionBatch]);
   const dismissVoiceFailure = useCallback(() => setVoiceFailure(null), []);
   const noopTranscript = useCallback(() => {}, []);
-  // The names the transcript is repaired against. Fetched once per project (the file-tree
-  // module memoises the request) and held as state so the repair sees the list on the next
-  // dictation rather than on the next render. The index reader is wired in here because
-  // `src/shared` sits below the feature modules and must not import one. A project whose
-  // tree cannot be listed resolves to `[]`, which the hook treats as "repair nothing".
+  // The names the transcript is repaired against — fetched once per project (the file-tree
+  // module memoises the request) and held as state so the repair sees them next dictation.
+  // The reader is injected here because `src/shared` must not import a feature module.
   const [identifierCandidates, setIdentifierCandidates] = useState<readonly string[]>([]);
   useEffect(() => {
     let current = true;
