@@ -13,14 +13,17 @@ import WorkspaceMenu from '@/modules/project-workspace/WorkspaceMenu';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
 
 /**
- * Room the scroll container's own horizontal padding takes out of the measured flex item.
+ * Slack kept between the header's leftover width and the full-label strip's measured width.
  *
- * The strip's resting padding is `md:pl-3` (12 px on the left, none on the right), so 12 px is
- * the exact reservation and this adds a small rounding allowance. Overflow padding
- * (`md:px-9`) is deliberately not reserved: the strip is already icon-only by the time it can
- * overflow, and reserving it would push the full mode out of headers that only just fit.
+ * Before the spacer, this was 16: 12 px for the scroll container's resting `md:pl-3` padding plus
+ * 4 px of rounding. The spacer is an extra flex CHILD, so the header now spends one more `gap`
+ * (12 px at desktop) on it and the leftover the decision reads is 12 px smaller at every viewport.
+ * Folding that 12 px into the reservation keeps the icon/full switch at exactly the viewport
+ * widths it had before (`available - 4` now equals the old `available - 16`); the responsive unit
+ * cases (1280 icon / 1920 full) and the e2e switch-point scan pin those widths, so this number is
+ * arithmetic, not a re-tune.
  */
-const TAB_STRIP_INLINE_PADDING_PX = 16;
+const TAB_STRIP_INLINE_PADDING_PX = 4;
 
 type WorkspaceHeaderProps = {
   activeTab: AppTab;
@@ -76,10 +79,13 @@ export default function WorkspaceHeader({
   /**
    * Picks the strip's label mode from two measurements that do not depend on each other.
    *
-   * `room` is the flex item that holds the strip: `flex-1` with `min-w-0`, so its width is the
-   * space the header gave the strip, not the width the strip's own content happens to take.
-   * Measuring the strip itself here would feed the decision back into its input — icon mode
-   * makes the strip narrow, which would keep choosing icon mode at every viewport.
+   * The strip's room is now split in two flex children: an empty grow cell
+   * (`data-workspace-tabs-spacer`) that takes every pixel the header is not using, and the
+   * content-sized tab container (`data-workspace-tabs-room`) next to the pulse trigger. Their
+   * SUM is the same leftover the old `flex-1` container measured: when icon mode narrows the
+   * container, the spacer grows by exactly that amount, so the reading cannot feed the decision
+   * back into its input. Measuring the container alone would lock icon mode in place; measuring
+   * the strip itself would do the same and then shrink with every mode switch.
    *
    * `natural` is the off-screen full-label copy's width, which `WorkspaceTabs` draws at every
    * label mode. Its width therefore changes only with the tab set and the language, never with
@@ -89,8 +95,9 @@ export default function WorkspaceHeader({
     const scroll = scrollRef.current;
     if (!scroll) return;
     const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
+    const spacer = room?.parentElement?.querySelector<HTMLElement>('[data-workspace-tabs-spacer]') ?? null;
     const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
-    const available = room?.clientWidth ?? 0;
+    const available = (room?.clientWidth ?? 0) + (spacer?.clientWidth ?? 0);
     const natural = measure?.scrollWidth ?? 0;
     // 0 is "not measured yet" (jsdom, or before layout), never "no room": treating it as no
     // room would open the header icon-only and flash to full labels once layout landed.
@@ -110,6 +117,10 @@ export default function WorkspaceHeader({
     observer.observe(scroll);
     const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
     if (room) observer.observe(room);
+    // Both halves of the room reading are observed: the spacer is what grows when the container
+    // shrinks, so a viewport resize that only moves pixels between the two still re-decides.
+    const spacer = room?.parentElement?.querySelector<HTMLElement>('[data-workspace-tabs-spacer]');
+    if (spacer) observer.observe(spacer);
     const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
     if (measure) observer.observe(measure);
 
@@ -223,11 +234,18 @@ export default function WorkspaceHeader({
         </div>
       ) : (
         <>
-        {/* Between the title block and the tab strip, as the header's own flex child: putting
-            it inside the tab container would leave that container's `max-w-full` no room to
-            give. */}
+        {/* The header's own grow cell. It takes the slack the old `flex-1` tab container used to
+            take, so the container can shrink to the strip's own width and the Loop Pulse trigger
+            ends up immediately before the tabs. Empty and `aria-hidden`: it carries no content
+            and no meaning, only the leftover width the measurement below adds to the container's
+            own width. */}
+        <div className="min-w-0 flex-1" data-workspace-tabs-spacer="" aria-hidden="true" />
         {sessionPulse}
-        <div className="min-w-0 flex-1" data-workspace-tabs-room="">
+        {/* Shrink-to-content, not `flex-1`: when the full strip fits, this box is exactly as wide
+            as the tab strip (the scroll container has no resting padding), so the header gap is
+            the whole distance from the pulse trigger to the tabs. When it does not fit, `flex-shrink`
+            gives it the available width and the existing scroll/arrow behaviour takes over. */}
+        <div className="min-w-0 shrink" data-workspace-tabs-room="">
           <div className="relative ml-auto w-fit max-w-full">
             {canScrollLeft && (
               <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background via-background/90 to-transparent" />
@@ -236,8 +254,11 @@ export default function WorkspaceHeader({
               ref={scrollRef}
               onScroll={updateScrollState}
               className={cn(
+                // No resting horizontal padding at desktop: the room is content-sized, so any
+                // padding here would be dead space between the pulse trigger and the tab strip.
+                // The overflow padding (`md:px-9`) is still reserved for the arrows.
                 'scrollbar-hide max-w-full scroll-smooth overflow-x-auto overscroll-x-contain px-3 [-webkit-overflow-scrolling:touch]',
-                hasOverflow ? 'md:px-9' : 'md:pl-3 md:pr-0',
+                hasOverflow ? 'md:px-9' : 'md:px-0',
               )}
             >
               <WorkspaceTabs
