@@ -2,7 +2,7 @@
 id: cockpit-card-provider-contract-and-registry
 title: 驾驶舱卡片契约 v0 与提供方注册表：ICockpitCardProvider + 卡片投影 + 执行通道 + 夹具提供方（经
   server.settings.json 开关）
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
