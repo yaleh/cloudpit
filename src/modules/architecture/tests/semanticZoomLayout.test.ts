@@ -1025,17 +1025,20 @@ describe('the member-hidden vertical compaction (axis solver × planMemberRows)'
     }
   });
 
-  test('a class that DOES render its rows keeps the full mapped height', () => {
-    // A tall box at 90 % leaves room for many rows at the floor font, so the
-    // member text is drawn and the compaction must not touch the frame.
+  test('a class that DOES render its rows is only as tall as those rows need', () => {
+    // A tall box at 90 % leaves far more room than 6 rows use. The drawn rows
+    // keep their frame, but the blank body under them is reclaimed.
     const tall = compactNode('tall', { x: 0, y: 0, width: 220, height: 240 }, 6);
     const drawing: SemanticDrawingGeometry = { width: 300, height: 300, nodes: [tall], packages: [], edges: [] };
     const layout = solveSemanticZoom(drawing, { scale: 0.9, forceTier: 'A', viewport: null });
     const node = layout.nodes[0];
     assert.equal(node.showMembers, true, 'the fixture must genuinely draw member rows');
-    assert.ok(node.memberRows !== null && node.memberRows.rows.length >= 2);
-    assert.ok(Math.abs(node.cell.height - 240 * 0.9) < 1e-6, `full height kept: ${node.cell.height}`);
-    assert.ok(Math.abs(node.sourceCell.height - node.cell.height) < 1e-6, 'nothing was compacted');
+    const rows = node.memberRows;
+    assert.ok(rows !== null && rows.rows.length >= 2);
+    const need = node.plan.titleHeight + (rows.rows.length + (rows.moreLabel === null ? 0 : 1)) * rows.lineHeight;
+    assert.ok(node.cell.height < 240 * 0.9 - 1, `blank body reclaimed: ${node.cell.height}`);
+    assert.ok(node.cell.height >= need, `rows still fit: ${node.cell.height} < ${need}`);
+    assert.ok(Math.abs(node.sourceCell.height - 240 * 0.9) < 1e-6, 'the source rect is unchanged');
     assert.ok(Math.abs(node.drawn.height - node.cell.height) < 1e-6);
   });
 

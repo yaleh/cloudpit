@@ -418,12 +418,30 @@ export function planMemberFrameHeight(args: {
   readonly rows: Pick<PlannedMemberRows, 'visible'>;
   /** {@link semanticMemberCompaction} at the current scale (0..1). */
   readonly compaction: number;
+  /**
+   * The height the drawn rows (title band, row pitch, "… +N more", padding)
+   * actually need, in the renderer's own units. When the frame shows rows but
+   * the renderer sized it for more of them than are drawn, the surplus is a
+   * blank body and is reclaimed down to this.
+   */
+  readonly contentHeight?: number;
 }): number {
-  if (args.rows.visible) return args.fullHeight;
+  if (args.rows.visible) {
+    if (args.contentHeight === undefined) return args.fullHeight;
+    return Math.min(args.fullHeight, Math.max(args.compactHeight, args.contentHeight));
+  }
   const compact = Math.min(args.fullHeight, args.compactHeight);
   const compaction = Math.min(1, Math.max(0, args.compaction));
   return args.fullHeight - compaction * (args.fullHeight - compact);
 }
+
+/** Lines the planned rows occupy: every row plus the "… +N more" hint. */
+export function plannedMemberLineCount(rows: Pick<PlannedMemberRows, 'rows' | 'moreLabel'>): number {
+  return rows.rows.length + (rows.moreLabel === null ? 0 : 1);
+}
+
+/** Bottom padding under the last member line: the 10px margin `planMemberRows` reserves plus 1px so float rounding in the solved cell cannot drop a planned row. */
+export const MEMBER_FRAME_BOTTOM_PADDING_PX = 11;
 
 /** Padding the member-based compartment rule keeps from the last member line. */
 export const MEMBER_COMPARTMENT_PADDING_PX = 2;
