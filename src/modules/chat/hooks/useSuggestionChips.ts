@@ -394,6 +394,10 @@ export function useSuggestionChips({
     chips,
     onAccept: acceptChip,
     suggestionsEnabled,
+    // The live selection alone, not the `quoteAnchor` fallback: the highlight is
+    // about a passage that is selected right now, which is what the request will
+    // be built around.
+    hasTranscriptSelection: trimmedQuotedSelection !== null,
     suggestionsLoading,
     onRequestSuggestions: requestSuggestions,
     expansionChips: replyExpansionChips,

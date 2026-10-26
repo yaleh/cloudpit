@@ -143,6 +143,7 @@
       "suggest": "Vorschlagen",
       "suggesting": "Wird vorgeschlagen…",
       "suggestHint": "Antworten aus dem bisherigen Gespräch vorschlagen",
+      "suggestForSelection": "Aus Auswahl vorschlagen",
       "quoteChip": "Zitat: {{text}}"
     },
     "placeholder": "/ für Befehle, @ für Dateien eingeben oder {{provider}} etwas fragen...",

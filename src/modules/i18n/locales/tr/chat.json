@@ -143,6 +143,7 @@
       "suggest": "Öner",
       "suggesting": "Öneriliyor…",
       "suggestHint": "Konuşmaya göre yanıt öner",
+      "suggestForSelection": "Seçimden öner",
       "quoteChip": "Alıntı: {{text}}"
     },
     "placeholder": "Komutlar için /, dosyalar için @ yaz ya da {{provider}}'a her şeyi sor...",
