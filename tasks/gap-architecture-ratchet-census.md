@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-ratchet-census
 title: 架构 ratchet 判据组：超大文件 / 模块级可变状态 / hook 状态数 / provider 名字分支 / 小工具副本，提交基线只降不升
-status: ready
+status: done
 labels:
   - gap
 parent: null
