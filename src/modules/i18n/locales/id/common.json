@@ -1081,7 +1081,17 @@
     "viaTasks_other": "melalui {{count}} tugas",
     "mentionedInMessage": "disebut dalam sebuah pesan",
     "mentionedAt": "Disebut {{when}}",
-    "openQuayPanel": "Buka panel Quay"
+    "openQuayPanel": "Buka panel Quay",
+    "projectCounts": "Proyek",
+    "tasksCountLabel": "Tugas",
+    "goalsCountLabel": "Tujuan",
+    "notRead": "belum dibaca",
+    "sessionCounts": "Sesi ini · {{tasks}} tugas · {{goals}} tujuan",
+    "inFlightHeading": "Sedang berjalan",
+    "inFlightEmpty": "Tidak ada tugas yang sedang berjalan saat ini",
+    "inFlightMentioned": "disebut di sini",
+    "snapshotLoading": "Memuat snapshot quay…",
+    "snapshotError": "Tidak dapat membaca snapshot quay."
   },
   "quayTab": {
     "driverRunning": "Driver berjalan",

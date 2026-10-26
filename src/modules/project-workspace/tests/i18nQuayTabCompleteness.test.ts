@@ -215,7 +215,8 @@ describe('every locale carries the tabs.quay label', () => {
 });
 
 /**
- * The title bar's Loop pulse popover renders thirteen `quayPulse.*` labels. A missed key shows
+ * The title bar's Loop pulse popover derives its labels from `quayPulse.*` (the chart, the
+ * project counts band, the in-flight rows and the session's mention list). A missed key shows
  * as the raw dotted key on screen (react-i18next renders a missing key verbatim), and a dropped
  * interpolation shows as 「Mentioned min ago」. Both are invisible to an English-only test, so
  * this walks the same 12-locale glob the tab label does.
@@ -234,13 +235,23 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
   const EXPECTED_KEYS = [
     'done',
     'empty',
+    'goalsCountLabel',
     'goalsHeading',
+    'inFlightEmpty',
+    'inFlightHeading',
+    'inFlightMentioned',
     'lanesNote',
     'listError',
     'loading',
     'mentionedAt',
     'mentionedInMessage',
+    'notRead',
     'openQuayPanel',
+    'projectCounts',
+    'sessionCounts',
+    'snapshotError',
+    'snapshotLoading',
+    'tasksCountLabel',
     'tasksHeading',
     'title',
     'triggerLabel',

@@ -998,7 +998,17 @@
     "viaTasks_other": "{{count}}件のタスク経由",
     "mentionedInMessage": "メッセージで言及",
     "mentionedAt": "{{when}}に言及",
-    "openQuayPanel": "Quayパネルを開く"
+    "openQuayPanel": "Quayパネルを開く",
+    "projectCounts": "プロジェクト",
+    "tasksCountLabel": "タスク",
+    "goalsCountLabel": "ゴール",
+    "notRead": "未取得",
+    "sessionCounts": "このセッション · タスク {{tasks}} 件 · ゴール {{goals}} 件",
+    "inFlightHeading": "実行中",
+    "inFlightEmpty": "現在実行中のタスクはありません",
+    "inFlightMentioned": "ここで言及済み",
+    "snapshotLoading": "quay スナップショットを読み込み中…",
+    "snapshotError": "quay スナップショットを読み取れませんでした。"
   },
   "quayTab": {
     "driverRunning": "ドライバー実行中",

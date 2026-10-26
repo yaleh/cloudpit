@@ -1000,7 +1000,17 @@
     "viaTasks_other": "vía {{count}} tareas",
     "mentionedInMessage": "mencionada en un mensaje",
     "mentionedAt": "Mencionada {{when}}",
-    "openQuayPanel": "Abrir el panel de Quay"
+    "openQuayPanel": "Abrir el panel de Quay",
+    "projectCounts": "Proyecto",
+    "tasksCountLabel": "Tareas",
+    "goalsCountLabel": "Objetivos",
+    "notRead": "no leído",
+    "sessionCounts": "Esta sesión · {{tasks}} tareas · {{goals}} objetivos",
+    "inFlightHeading": "En ejecución",
+    "inFlightEmpty": "Ahora mismo no hay tareas en ejecución",
+    "inFlightMentioned": "mencionada aquí",
+    "snapshotLoading": "Cargando la instantánea de quay…",
+    "snapshotError": "No se pudo leer la instantánea de quay."
   },
   "quayTab": {
     "driverRunning": "Controlador en ejecución",
