@@ -1718,14 +1718,29 @@ export function handleVoiceRealtimeConnection(
       statusCapReached = false;
       statusMarker = null;
     }
-    // THE NARRATOR'S TRIGGER: exactly the transition the task names. Initial `idle` never matches,
-    // and a change that stays within a phase never matches — only `running → idle` does. The stop
-    // path and the host watcher both fold their end through this one comparison.
-    if (beforePhase === 'running' && execStatus.reading().phase === 'idle') {
-      // The ack goes FIRST — at the transition, before the settle timer — and is independent of the
-      // summary (see `VoiceRealtimeRunEndAckSeam`). The summary then follows through the same queue.
-      speakRunEndAck();
-      scheduleRunEndSummary();
+    // THE NARRATOR'S TRIGGER: ANY non-idle → idle transition. Initial `idle` never matches, a change
+    // that stays within a phase never matches, and `running → queued` (a follow-up superseding the
+    // run) is not an end. The stop path and the host watcher both fold their end through this one
+    // comparison.
+    //
+    // `queued → idle` is a real end too (2026-10-26): a burst of short messages leaves the status at
+    // `queued`, and a queued message can be drained straight to `idle` with no `running` observation
+    // in between — the old `running`-only trigger dropped the ack AND the summary for that whole
+    // burst. But a queued delivery is not itself proof of work: the host may have coalesced it away
+    // without ever producing a turn, and acking that would be a false confirmation. So on that arm
+    // the ack is DEFERRED to the settle wait's `run_output` answer, and only a non-empty answer —
+    // the same "real work" reading the summary uses — lets it speak (see `summarizeRunOutput`).
+    if (beforePhase !== 'idle' && execStatus.reading().phase === 'idle') {
+      if (beforePhase === 'queued') {
+        // The ack and the summary share the output gate: no output ⇒ neither speaks.
+        scheduleRunEndSummary({ deferAck: true });
+      } else {
+        // The ack goes FIRST — at the transition, before the settle timer — and is independent of
+        // the summary (see `VoiceRealtimeRunEndAckSeam`). The summary then follows through the same
+        // queue. `running` is itself evidence of work, so this arm needs no output gate.
+        speakRunEndAck();
+        scheduleRunEndSummary();
+      }
     }
     // The host watcher exists exactly while a run is believed live; `pollRunEnd` folds its end back
     // through this same function, so arming it is part of every observation rather than a caller's
@@ -3082,6 +3097,14 @@ export function handleVoiceRealtimeConnection(
    * "exactly once per transition" across the one await this machinery has.
    */
   let runEndGeneration = 0;
+  /**
+   * The generation whose ack is waiting on the `run_output` gate, or `null`.
+   *
+   * Set only by a `queued → idle` transition (the queued delivery is not yet evidence of work).
+   * {@link summarizeRunOutput} clears and speaks it when the answer is non-empty; a generation
+   * comparison keeps a later run's answer from releasing an earlier arm.
+   */
+  let runEndAckDeferredGeneration: number | null = null;
 
   /** Drops the settle wait. Idempotent; the summarizer's own generation guard is the other half. */
   const clearRunEndSettle = (): void => {
@@ -3094,15 +3117,19 @@ export function handleVoiceRealtimeConnection(
   /**
    * Speaks the fixed run-end confirmation, if this deployment wired one.
    *
-   * Called at the `running → idle` transition, BEFORE the settle timer is armed. Deliberately reads
-   * nothing but the run id: no context pack, no summarizer, no quality gate — the ack must arrive
-   * even when the summary has nothing to say. Absence of the seam is the pre-ack wire.
+   * For `running → idle` it is called at the transition, BEFORE the settle timer is armed. For
+   * `queued → idle` it is called later, from {@link summarizeRunOutput}, once the page's non-empty
+   * `run_output` answer has confirmed the queued message really produced work — hence the optional
+   * `runId`: the deferred call would otherwise re-read a reading the settle wait has since moved on
+   * from. Deliberately reads nothing but the run id: no context pack, no summarizer, no quality
+   * gate — the ack must arrive even when the summary has nothing to say. Absence of the seam is the
+   * pre-ack wire.
    */
-  const speakRunEndAck = (): void => {
+  const speakRunEndAck = (runId?: string | null): void => {
     if (runEndAck === undefined || closed) return;
-    const runId = execStatus.reading().runId;
-    runEndAck.speak({ runId });
-    seams.log?.(`run-end ack run=${runId ?? '-'}`);
+    const id = runId === undefined ? execStatus.reading().runId : runId;
+    runEndAck.speak({ runId: id });
+    seams.log?.(`run-end ack run=${id ?? '-'}`);
   };
 
   /** Drops an outstanding output request and its wait. Idempotent. */
@@ -3131,6 +3158,8 @@ export function handleVoiceRealtimeConnection(
       runOutputTimer = null;
       if (runOutputPending?.requestId !== requestId) return;
       runOutputPending = null;
+      // No answer is no evidence of work: a deferred (queued → idle) ack stays unspoken too.
+      runEndAckDeferredGeneration = null;
       seams.log?.(`run-end summary skipped: the page did not answer ${requestId}`);
     }, runEndOutputWaitMs);
     runOutputTimer.unref?.();
@@ -3138,6 +3167,11 @@ export function handleVoiceRealtimeConnection(
 
   /**
    * Summarizes exactly the text the page returned for one run, judges the answer, and injects it.
+   *
+   * THE ACK GATE LIVES HERE for the `queued → idle` arm: a non-empty answer is the "real work"
+   * reading, so it releases the deferred ack (before the summary, through the same queue) and an
+   * empty one releases nothing. For `running → idle` the ack already spoke at the transition and
+   * {@link runEndAckDeferredGeneration} does not name this generation, so this is a no-op there.
    *
    * A summary that breaks the narrator's readings (Markdown glyphs, or the output's own tail read
    * back) is NOT injected — a violation is logged rather than voiced. LENGTH is a reading, not a
@@ -3152,7 +3186,14 @@ export function handleVoiceRealtimeConnection(
     const source = output.trim();
     if (source === '') {
       seams.log?.('run-end summary skipped: the run produced no visible output');
+      // A queued delivery that produced nothing is exactly the false confirmation the gate exists
+      // to suppress: no ack either.
+      runEndAckDeferredGeneration = null;
       return;
+    }
+    if (runEndAckDeferredGeneration === generation) {
+      runEndAckDeferredGeneration = null;
+      speakRunEndAck(runId);
     }
     let raw: string | null;
     try {
@@ -3187,15 +3228,24 @@ export function handleVoiceRealtimeConnection(
   };
 
   /**
-   * Arms the settle wait for one `running → idle` transition.
+   * Arms the settle wait for one `non-idle → idle` transition.
    *
+   * `deferAck` is set by the `queued → idle` arm: the queued delivery is not yet proof of work, so
+   * the ack waits for the page's non-empty `run_output` answer (see {@link summarizeRunOutput}).
    * A pending wait is DROPPED and its generation invalidated: two transitions inside one settle
    * window describe two runs, and only the later one is still what the person is looking at.
    */
-  const scheduleRunEndSummary = (): void => {
-    if (runEndSummary === undefined || closed) return;
+  const scheduleRunEndSummary = ({ deferAck = false }: { deferAck?: boolean } = {}): void => {
+    if (runEndSummary === undefined) {
+      // No summary machinery ⇒ no `run_output` round trip ⇒ no way to prove a queued delivery did
+      // real work. A deferred ack therefore stays silent rather than guess; the `running` arm has
+      // already spoken at the transition and never reaches here dependent on this seam.
+      return;
+    }
+    if (closed) return;
     const generation = (runEndGeneration += 1);
     const runId = execStatus.reading().runId;
+    runEndAckDeferredGeneration = deferAck ? generation : null;
     clearRunEndSettle();
     runEndSettleTimer = setTimeout(() => {
       runEndSettleTimer = null;
@@ -3207,8 +3257,8 @@ export function handleVoiceRealtimeConnection(
   /**
    * Samples the host's activity while a run is believed live; `busy: false` settles the status.
    *
-   * The relay is never told a run ended, so this bounded poll is how `running → idle` is observed at
-   * all. Only an EXPLICIT `false` ends the run — an absent seam, a throw, a `null` reading or a
+   * The relay is never told a run ended, so this bounded poll is how `running → idle` (and the
+   * `queued → idle` edge a drained queue leaves) is observed at all. Only an EXPLICIT `false` ends the run — an absent seam, a throw, a `null` reading or a
    * reading without `busy` all mean "cannot say" and leave the watcher waiting (the same three-way
    * reading the busy hold uses, see `readRunBusy`).
    */
@@ -3221,8 +3271,9 @@ export function handleVoiceRealtimeConnection(
       armRunEndWatch();
       return;
     }
-    // The transition itself: `noteStatus` detects `running → idle` and arms the settle wait, so the
-    // stop path and this natural end share one trigger rather than two.
+    // The transition itself: `noteStatus` detects the non-idle → idle edge and arms the settle
+    // wait (an ack deferred or spoken by which phase it came from), so the stop path and this
+    // natural end share one trigger rather than two.
     noteStatus({
       phase: 'idle',
       runId: current.runId,

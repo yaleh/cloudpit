@@ -267,6 +267,12 @@ function wireNarrated(options: {
   outputWaitMs?: number;
   pollMs?: number;
   runIds?: readonly string[];
+  /**
+   * Answer `session_send` with `queued: true` and no run id — the busy-hold/coalescing shape a
+   * burst of short messages produces. The status then sits at `queued`, and only the host poll's
+   * `busy: false` can fold the end (the `queued → idle` arm this file now pins).
+   */
+  queued?: boolean;
 }): NarratedHarness {
   const socket = new FakeBrowserSocket();
   const transport = createFakeTransport();
@@ -277,7 +283,11 @@ function wireNarrated(options: {
   const logs: string[] = [];
   const ttsCalls: string[] = [];
   const executor: RealtimeToolExecutor = {
-    session_send: async () => ({ runId: options.runIds?.[sends++] ?? 'run-1', queued: false }),
+    session_send: async () =>
+      options.queued === true
+        ? // A queued delivery starts no run: no run id, just the queue acknowledgement.
+          { queued: true }
+        : { runId: options.runIds?.[sends++] ?? 'run-1', queued: false },
   };
   const wiring = buildVoiceRealtimeNarratorWiring({
     closingTurn: 'silent',
@@ -1008,6 +1018,136 @@ test('per-run output (d): a page that never answers is skipped after the wait, a
   assert.ok(
     h.spoken().some((entry) => entry.utteranceId === 'run-end-ack-0'),
     'the ack is independent of the answer',
+  );
+  h.socket.close();
+});
+
+// ── queued → idle: an end the `running`-only trigger missed, and why the ack needs a gate ───────
+//
+// gap-voice-run-end-queued-idle-trigger (observed 2026-10-26). A burst of short messages leaves the
+// status at `queued` (the host held/coalesced the deliveries), and the queued message can then be
+// drained straight to `idle` with NO `running` observation in between. The trigger used to be
+// `running → idle` only, so the whole burst ended in silence. The trigger is now any non-idle →
+// idle, but a queued delivery is not itself proof of work — the host may coalesce it away without
+// ever producing a turn — so its ack is released only by a non-empty `run_output` answer.
+
+/** Drives one queued delivery and folds the poll-observed `queued → idle` end. */
+async function driveQueuedToIdle(h: NarratedHarness, timers: Timers): Promise<void> {
+  await flush();
+  deliverSessionSend(h.transport, 'call-1');
+  await flush();
+  // No `busy: true` phase to miss: the delivery itself already reads `queued`, and the host poll is
+  // the only observer that can say the queue has drained (the original defect's exact shape).
+  h.setBusy(false);
+  timers.tick(50); // the host poll folds queued → idle
+  await flush();
+}
+
+test('queued → idle with a non-empty run_output speaks the ack then the summary', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.mock.timers.setTime(B);
+
+  const h = wireNarrated({
+    ack: ACK_CANDIDATES,
+    random: () => 0,
+    settleMs: 100,
+    pollMs: 50,
+    queued: true,
+  });
+  await driveQueuedToIdle(h, t.mock.timers);
+
+  assert.deepEqual(h.spoken(), [], 'a queued delivery is not proof of work: no ack at the transition');
+  assert.ok(!h.logs.some((line) => line.startsWith('run-end ack ')), 'nothing claims the ack yet');
+
+  // The settle wait elapses and the page answers in the same tick (its reply is a 0 ms timer), so
+  // what is read here is the gated outcome rather than the instant in between.
+  t.mock.timers.tick(100);
+  await flush();
+  t.mock.timers.tick(10);
+  await flush();
+
+  assert.equal(h.asked.length, 1, 'the non-empty answer is summarized exactly once');
+  assert.equal(h.asked[0]?.output, CONTEXT_AFTER_RUN, "the ask carries the page's own answer");
+  assert.deepEqual(
+    h.spoken().map((frame) => frame.utteranceId),
+    ['run-end-ack-0'],
+    'the non-empty output releases the ack, which queues ahead of the summary',
+  );
+  assert.ok(h.logs.some((line) => line.startsWith('run-end ack ')), 'the journal names the ack');
+
+  h.socket.receive({ type: 'narrator_done', utteranceId: 'run-end-ack-0' });
+  await flush();
+  assert.deepEqual(
+    h.spoken().map((frame) => frame.utteranceId),
+    ['run-end-ack-0', 'run-end-summary-0'],
+    'ack before summary, both on the wire',
+  );
+  assert.equal(h.spoken()[1]?.text, SUMMARY);
+  h.socket.close();
+});
+
+test('queued → idle with an empty run_output speaks nothing', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.mock.timers.setTime(B);
+
+  const h = wireNarrated({
+    ack: ACK_CANDIDATES,
+    random: () => 0,
+    settleMs: 100,
+    pollMs: 50,
+    queued: true,
+    runOutput: '',
+  });
+  await driveQueuedToIdle(h, t.mock.timers);
+  t.mock.timers.tick(100); // the settle wait: the request goes out
+  await flush();
+  t.mock.timers.tick(10); // the page answers with nothing
+  await flush();
+  t.mock.timers.tick(100);
+  await flush();
+
+  assert.equal(h.asked.length, 0, 'an empty answer is never summarized');
+  assert.deepEqual(h.spoken(), [], 'and no ack claims work that did not happen');
+  assert.ok(
+    !h.logs.some((line) => line.startsWith('run-end ack ')),
+    `the gate leaves no ack in the journal: ${h.logs.join(' | ')}`,
+  );
+  assert.ok(
+    h.logs.some((line) => line.startsWith('run-end summary skipped: the run produced no visible output')),
+    'the skip is attributable',
+  );
+  h.socket.close();
+});
+
+test('queued → idle with a page that never answers speaks nothing', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.mock.timers.setTime(B);
+
+  const h = wireNarrated({
+    ack: ACK_CANDIDATES,
+    random: () => 0,
+    settleMs: 100,
+    pollMs: 50,
+    queued: true,
+    runOutput: null,
+    outputWaitMs: 500,
+  });
+  await driveQueuedToIdle(h, t.mock.timers);
+  t.mock.timers.tick(100); // the settle wait: the request goes out
+  await flush();
+  assert.equal(h.asked.length, 0, 'nothing is asked before the page answers');
+  t.mock.timers.tick(500); // the wait expires
+  await flush();
+
+  assert.equal(h.asked.length, 0, 'a silent page produces no summary');
+  assert.deepEqual(h.spoken(), [], 'and no ack — silence is not evidence of work');
+  assert.ok(
+    !h.logs.some((line) => line.startsWith('run-end ack ')),
+    `the gate leaves no ack in the journal: ${h.logs.join(' | ')}`,
+  );
+  assert.ok(
+    h.logs.some((line) => line.startsWith('run-end summary skipped: the page did not answer')),
+    'the unanswered request is attributable',
   );
   h.socket.close();
 });
