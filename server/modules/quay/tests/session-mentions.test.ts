@@ -6,13 +6,17 @@ import test from 'node:test';
 import express from 'express';
 
 import { createQuayRouter } from '../quay.routes.js';
-import { createQuayService, type QuayCommandRunner } from '../quay.service.js';
+import { createQuayService, type QuayCommandRunner, type QuayTaskStatusRow } from '../quay.service.js';
+import { createQuayTaskEvents } from '../quay-task-events.service.js';
+import type { QuayTaskEventsTimers } from '../quay-task-log-parse.js';
 import {
   createSessionMentionsService,
   type SessionMentionsDependencies,
   type SessionMentionsGoalRow,
+  type SessionMentionsIndexState,
   type SessionMentionsReading,
   type SessionMentionsService,
+  type SessionMentionsTaskIndexRow,
   type SessionMentionsTaskRow,
 } from '../session-mentions.service.js';
 
@@ -38,6 +42,14 @@ import {
  *   AC5 — the routes: 400 `session-id-required`, 503 `session-mentions-unavailable`, 404
  *         `project-or-session-not-found`, 200 with the documented body; plus the lanes route's
  *         200 shape and its illegal-window fallback.
+ *
+ * The event-fresh index arm and the 60 s single-flight goal cache
+ * (gap-session-mentions-reads-event-fresh-index-and-caches-goals) are the sections below:
+ * a ready index under an active monitor answers with zero `task list` spawns, every non-fresh
+ * combination falls back to exactly one direct read, the REAL `createQuayTaskEvents` delivers a
+ * transition the very next reading reports, and a failed goal read is retried rather than cached.
+ * Each fallback fixture is built so dropping the monitor check or the index-state check would red
+ * (a `degraded` monitor and a `stale` index both come with index rows that would otherwise answer).
  *
  * The service is driven through its factory with every side effect injected, so no subprocess,
  * filesystem or lane state is touched. It is a server test: `tsx --test` drives it.
@@ -193,13 +205,21 @@ type Harness = {
   /** The mutable vocabulary the deps read on every request (so a test can grow it). */
   taskRows: SessionMentionsTaskRow[];
   goalRows: SessionMentionsGoalRow[];
+  /** How many direct `task list --json --no-body` reads the CLI arm performed. */
+  taskRowReads: number;
+  /** How many `goal list --json` spawns the underlying reader performed. */
+  goalRowReads: number;
+  /** How many background index loads the reading asked for. */
+  indexLoadRequests: number;
 };
 
 /**
  * A service over one transcript stub and the injected index/goal/lane readings.
  *
  * The dependency closures answer from the harness arrays, so pushing a row between two requests
- * is exactly the "a task was filed mid-conversation" case the cache must not hide.
+ * is exactly the "a task was filed mid-conversation" case the cache must not hide. The task
+ * vocabulary is served the way production does: the event-fresh INDEX arm when
+ * `monitorState === 'active'` and `indexState === 'ready'`, the direct CLI arm otherwise.
  */
 function createHarness(options: {
   rows?: readonly unknown[];
@@ -209,10 +229,29 @@ function createHarness(options: {
   lanes?: ReturnType<typeof lanesOf> | null;
   unknownProject?: boolean;
   missingTranscript?: boolean;
+  /** The monitor state the reading consults; default `off` (the direct CLI arm). */
+  monitorState?: 'off' | 'active' | 'degraded';
+  /** The index state; default `cold`, i.e. nothing ever loaded. */
+  indexState?: SessionMentionsIndexState;
+  /** Rows the index holds. Only `indexState: 'ready'` serves them without a CLI read. */
+  indexRows?: SessionMentionsTaskIndexRow[];
+  /** Overrides applied last, for the cases that need their own reader/clock. */
+  dependencies?: Partial<SessionMentionsDependencies>;
 }): Harness {
   const file = options.file ?? transcriptFile(options.rows ?? []);
   const taskRows = options.taskRows ?? [];
   const goalRows = options.goalRows ?? [];
+
+  const harness: Harness = {
+    // Assigned below; `Harness` exposes the counters the closures mutate.
+    service: undefined as unknown as SessionMentionsService,
+    file,
+    taskRows,
+    goalRows,
+    taskRowReads: 0,
+    goalRowReads: 0,
+    indexLoadRequests: 0,
+  };
 
   const dependencies: SessionMentionsDependencies = {
     resolveProjectPath(projectId) {
@@ -223,18 +262,29 @@ function createHarness(options: {
     },
     transcriptSize: () => file.size(),
     readTranscriptRange: (_path, start) => file.read(start),
-    readTaskRows: async () => taskRows,
-    readGoalRows: async () => goalRows,
+    readTaskRows: async () => {
+      harness.taskRowReads += 1;
+      return taskRows;
+    },
+    readGoalRows: async () => {
+      harness.goalRowReads += 1;
+      return goalRows;
+    },
+    readTaskIndex: () => ({
+      state: options.indexState ?? 'cold',
+      tasks: new Map((options.indexRows ?? []).map((row) => [row.taskId, row])),
+    }),
+    readMonitorState: () => ({ state: options.monitorState ?? 'off' }),
+    requestTaskIndexLoad: () => {
+      harness.indexLoadRequests += 1;
+    },
     readLanes: async () => options.lanes ?? null,
     now: () => Date.parse('2026-10-25T12:00:00.000Z'),
+    ...options.dependencies,
   };
 
-  return {
-    service: createSessionMentionsService(dependencies),
-    file,
-    taskRows,
-    goalRows,
-  };
+  harness.service = createSessionMentionsService(dependencies);
+  return harness;
 }
 
 /** Reads the one session the harness stubs, asserting it is not the `null` (unknown) arm. */
@@ -517,6 +567,424 @@ test('AC4 — task order is lastMentionAt descending, ties by id; a task with no
   ]);
 });
 
+// --------------------------- EVENT-FRESH INDEX + GOAL CACHE ------------
+
+/**
+ * The event-fresh index arm (gap-session-mentions-reads-event-fresh-index-and-caches-goals).
+ *
+ * The popover used to spawn `task list` (≈254 ms, 565 KB) and `goal list` (≈790 ms, 1.28 MB) on
+ * every open, about 1.1 s per open. These cases pin the two ways that cost went away, and — just
+ * as important — every case in which the reading must fall back to today's direct read.
+ */
+
+test('index arm — a ready index under an active monitor answers status/title/goalId with zero task list spawns', async () => {
+  const harness = createHarness({
+    rows: [assistantText('the conversation names gap-indexed')],
+    monitorState: 'active',
+    indexState: 'ready',
+    indexRows: [
+      {
+        taskId: 'gap-indexed',
+        title: 'the index title',
+        status: 'done',
+        goalAc: 'AC-500',
+      },
+    ],
+    taskRows: [taskRow('gap-indexed', { title: 'the CLI title', status: 'todo' })],
+    goalRows: [
+      { id: 'GOAL-500', title: 'goal five hundred', status: 'active', kind: 'goal', goal: null },
+      { id: 'AC-500', title: 'criterion', status: 'achieved', kind: 'criterion', goal: 'GOAL-500' },
+    ],
+  });
+
+  const reading = await read(harness);
+
+  assert.equal(harness.taskRowReads, 0, 'the index arm must spawn no `task list` child');
+  assert.equal(reading.sources.tasks, 'index');
+  assert.deepEqual(
+    reading.tasks.map((entry) => [entry.taskId, entry.title, entry.status, entry.goalId]),
+    [['gap-indexed', 'the index title', 'done', 'GOAL-500']],
+    'title, status and the goalAc → criterion → goal join all come from the index rows',
+  );
+  assert.deepEqual(
+    reading.goals.map((goal) => [goal.goalId, goal.viaTaskCount]),
+    [['GOAL-500', 1]],
+    'the goal join is unchanged: it reads the same criterion rows',
+  );
+});
+
+test('index arm — every non-fresh combination falls back to exactly one direct read', async () => {
+  // Each case is designed so the WRONG implementation reds:
+  //   · `degraded`+ready and `off`+ready already hold index rows, so dropping the monitor check
+  //     would serve them and make the "exactly one spawn" assertion fail;
+  //   · `stale`+active already holds index rows under an active monitor, so dropping the
+  //     index-state check would serve them and make this case red;
+  //   · `cold`/`stale` must also ask for a reload, the others must not.
+  const cases: Array<{
+    monitorState: 'off' | 'active' | 'degraded';
+    indexState: SessionMentionsIndexState;
+    expectLoadRequest: boolean;
+  }> = [
+    { monitorState: 'off', indexState: 'ready', expectLoadRequest: false },
+    { monitorState: 'degraded', indexState: 'ready', expectLoadRequest: false },
+    { monitorState: 'active', indexState: 'cold', expectLoadRequest: true },
+    { monitorState: 'active', indexState: 'warming', expectLoadRequest: false },
+    { monitorState: 'active', indexState: 'stale', expectLoadRequest: true },
+    { monitorState: 'active', indexState: 'error', expectLoadRequest: false },
+  ];
+
+  for (const testCase of cases) {
+    const label = `monitor=${testCase.monitorState} index=${testCase.indexState}`;
+    const harness = createHarness({
+      rows: [assistantText('the conversation names gap-fallback')],
+      monitorState: testCase.monitorState,
+      indexState: testCase.indexState,
+      indexRows: [
+        { taskId: 'gap-fallback', title: 'the index title', status: 'done', goalAc: null },
+      ],
+      taskRows: [taskRow('gap-fallback', { title: 'the CLI title', status: 'todo' })],
+    });
+
+    const reading = await read(harness);
+
+    assert.equal(harness.taskRowReads, 1, `${label}: exactly one direct \`task list\` read`);
+    assert.equal(reading.sources.tasks, 'cli', `${label}: the CLI arm is reported`);
+    assert.equal(
+      reading.tasks[0]?.title,
+      'the CLI title',
+      `${label}: the direct read's row answered, never the index row`,
+    );
+    assert.equal(reading.tasks[0]?.status, 'todo', `${label}: the direct read's status answered`);
+    assert.equal(
+      harness.indexLoadRequests,
+      testCase.expectLoadRequest ? 1 : 0,
+      `${label}: a cold/stale index is asked to reload, and nothing else is`,
+    );
+  }
+});
+
+// --------------------------- EVENT CHAIN END TO END ------------
+
+type TestClock = {
+  now(): number;
+  timers: QuayTaskEventsTimers;
+  advance(ms: number): Promise<void>;
+};
+
+/** A fake clock driving BOTH the events service's timers and the mention reading's `now`. */
+function createTestClock(startMs: number): TestClock {
+  let now = startMs;
+  let nextId = 1;
+  const timers = new Map<number, { at: number; run: () => void }>();
+
+  const api: QuayTaskEventsTimers = {
+    setTimeout: (handler, delayMs) => {
+      const id = nextId;
+      nextId += 1;
+      timers.set(id, { at: now + delayMs, run: handler });
+      return id;
+    },
+    clearTimeout: (handle) => {
+      if (typeof handle === 'number') timers.delete(handle);
+    },
+  };
+
+  /** Lets every pending promise callback run; the fake timers only control TIME, not microtasks. */
+  const settle = async (): Promise<void> => {
+    for (let index = 0; index < 6; index += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  };
+
+  const advance = async (ms: number): Promise<void> => {
+    const target = now + ms;
+    for (;;) {
+      await settle();
+      const due = [...timers.entries()]
+        .filter(([, timer]) => timer.at <= target)
+        .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])[0];
+      if (due === undefined) break;
+      timers.delete(due[0]);
+      now = due[1].at;
+      due[1].run();
+    }
+    now = target;
+    await settle();
+  };
+
+  return { now: () => now, timers: api, advance };
+}
+
+/** A fake directory watcher that records what the service asked for and lets a test emit. */
+function createWatchStub(): {
+  watchPath: (dirPath: string, onChange: (eventType: string, filename: string | null) => void) =>
+    { close(): void; onError(handler: (error: Error) => void): void } | null;
+  emit(filename: string): void;
+} {
+  const watchers: Array<{
+    dirPath: string;
+    onChange: (eventType: string, filename: string | null) => void;
+    closed: boolean;
+  }> = [];
+  return {
+    watchPath: (dirPath, onChange) => {
+      const record = { dirPath, onChange, closed: false };
+      watchers.push(record);
+      return {
+        close: () => {
+          record.closed = true;
+        },
+        onError: () => undefined,
+      };
+    },
+    emit: (filename) => {
+      for (const watcher of watchers) {
+        if (!watcher.closed) watcher.onChange('change', filename);
+      }
+    },
+  };
+}
+
+test('event chain — a delivered ready→done transition changes the mention reading with zero task list spawns', async () => {
+  const clock = createTestClock(1_000_700);
+  const watch = createWatchStub();
+  // The index the events service mutates and the mention reading joins — one shared map, exactly
+  // as `quay.module.ts` shares the one service-owned index between the two readers.
+  const indexTasks = new Map<string, QuayTaskStatusRow>([
+    ['task-a', { taskId: 'task-a', title: 'task a', status: 'todo', updatedAt: null, goalAc: null }],
+  ]);
+  let taskListSpawns = 0;
+  let indexLoadRequests = 0;
+  const commandCalls: string[][] = [];
+
+  const events = createQuayTaskEvents({
+    now: clock.now,
+    resolveProjectPathById: (projectId) => (projectId === 'project-1' ? '/repo' : null),
+    readTaskIndex: (projectId) => ({
+      state: 'ready',
+      coverage: 'full',
+      taskCount: indexTasks.size,
+      observedAtMs: projectId === 'project-1' ? 1_000_500 : null,
+      tasks: indexTasks,
+    }),
+    taskIndexLoadStartedAtMs: () => 1_000_000,
+    requestTaskIndexLoad: () => {
+      indexLoadRequests += 1;
+    },
+    updateTaskIndexRow: (_projectId, taskId, row) => {
+      const existing = indexTasks.get(taskId);
+      if (existing === undefined) return false;
+      indexTasks.set(taskId, { ...existing, status: row.status, updatedAt: row.updatedAt });
+      return true;
+    },
+    capabilities: {
+      read: () => ({ taskLog: 'available', lanes: 'available' }),
+      probe: async () => ({ taskLog: 'available', lanes: 'available' }),
+    },
+    runCommand: async (_cwd, args) => {
+      commandCalls.push([...args]);
+      return {
+        ok: true,
+        code: 0,
+        stdout: JSON.stringify({
+          transitions: [
+            {
+              order: 0,
+              schema: 'task-status-event/v1',
+              seq: 1,
+              eventId: 'evt-ready-to-done',
+              carrierEpoch: 'epoch-1',
+              taskId: 'task-a',
+              from: 'ready',
+              to: 'done',
+              kind: 'fan-in',
+              at: new Date(1_000_600).toISOString(),
+              recordedAt: new Date(1_000_600).toISOString(),
+              source: 'task-status-events',
+              inferred: false,
+            },
+          ],
+          complete: false,
+          coverage: { reasons: ['test'] },
+          generatedAt: new Date(1_000_200).toISOString(),
+          rebase: false,
+          rebaseReason: null,
+          nextCursor: { v: 1, carrierEpoch: 'epoch-1', seq: 1 },
+        }),
+        stderr: '',
+      };
+    },
+    watchPath: watch.watchPath,
+    directoryExists: () => true,
+    onDispatchFileChanged: () => undefined,
+    log: () => undefined,
+    timers: clock.timers,
+    registerExitHook: () => undefined,
+  });
+
+  const file = transcriptFile([assistantText('the conversation names task-a')]);
+  const service = createSessionMentionsService({
+    resolveProjectPath: () => '/repo',
+    resolveTranscriptPath: () => '/transcripts/session-1.jsonl',
+    transcriptSize: () => file.size(),
+    readTranscriptRange: (_path, start) => file.read(start),
+    readTaskRows: async () => {
+      taskListSpawns += 1;
+      return [taskRow('task-a', { title: 'cli title', status: 'ready' })];
+    },
+    readGoalRows: async () => [],
+    readTaskIndex: () => ({ state: 'ready', tasks: indexTasks }),
+    readMonitorState: (projectId) => events.readMonitorState(projectId),
+    requestTaskIndexLoad: () => {
+      indexLoadRequests += 1;
+    },
+    readLanes: async () => null,
+    now: clock.now,
+  });
+
+  // Activation is the real thing: `noteProjectRead` → `ensureMonitored` → capability probe →
+  // watcher. Until it lands the monitor is `off`, so the reading would take the CLI arm.
+  await events.ensureMonitored('project-1');
+  assert.equal(events.readMonitorState('project-1').state, 'active');
+
+  const before = await service.readSessionMentions({ projectId: 'project-1', sessionId: 'session-1' });
+  assert.equal(before?.tasks[0]?.status, 'todo', 'the index row answered before any event');
+  assert.equal(before?.sources.tasks, 'index');
+  assert.equal(taskListSpawns, 0, 'the active+ready combination spawned no `task list`');
+
+  // The carrier changes; the debounced poll reads `task log` and applies the transition.
+  watch.emit('task-status-events.jsonl');
+  await clock.advance(250);
+
+  assert.equal(indexTasks.get('task-a')?.status, 'done', 'the event updated the shared index row');
+  assert.deepEqual(commandCalls[0]?.slice(0, 3), ['task', 'log', '--json']);
+
+  const after = await service.readSessionMentions({ projectId: 'project-1', sessionId: 'session-1' });
+  assert.equal(after?.tasks[0]?.status, 'done', 'the reading reports the transitioned status');
+  assert.equal(after?.sources.tasks, 'index', 'the event-fresh index still answered');
+  assert.equal(taskListSpawns, 0, 'the whole event path spawned no `task list`');
+  assert.equal(indexLoadRequests, 0, 'a known task transition needs no full reload');
+});
+
+// --------------------------- GOAL CACHE ------------
+
+test('goal cache — two requests inside the TTL spawn once, and crossing the TTL spawns again', async () => {
+  let nowMs = Date.parse('2026-10-25T12:00:00.000Z');
+  const harness = createHarness({
+    rows: [assistantText('t-1 is mentioned')],
+    taskRows: [taskRow('t-1')],
+    goalRows: [{ id: 'GOAL-600', title: 'a goal', status: 'active', kind: 'goal', goal: null }],
+    dependencies: { now: () => nowMs },
+  });
+
+  const first = await read(harness);
+  assert.equal(harness.goalRowReads, 1);
+  assert.equal(first.sources.goals, 'cli', 'the first request spawned `goal list`');
+
+  const second = await read(harness);
+  assert.equal(harness.goalRowReads, 1, 'inside the TTL the second request spawns nothing');
+  assert.equal(second.sources.goals, 'cache');
+  assert.deepEqual(second.goals, first.goals, 'the cached reading answers the same goal rows');
+
+  nowMs += 60_000;
+  const third = await read(harness);
+  assert.equal(harness.goalRowReads, 2, 'the TTL expired, so the next request spawns again');
+  assert.equal(third.sources.goals, 'cli');
+});
+
+test('goal cache — three concurrent requests share exactly one spawn', async () => {
+  let goalSpawns = 0;
+  const harness = createHarness({
+    rows: [assistantText('t-1 and GOAL-700 are mentioned')],
+    taskRows: [taskRow('t-1')],
+    dependencies: {
+      readGoalRows: async () => {
+        goalSpawns += 1;
+        // Hold the spawn open so the other two requests arrive while it is still in flight.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        return [{ id: 'GOAL-700', title: 'a goal', status: 'active', kind: 'goal', goal: null }];
+      },
+    },
+  });
+
+  const readings = await Promise.all([
+    harness.service.readSessionMentions({ projectId: 'project-1', sessionId: 'session-1' }),
+    harness.service.readSessionMentions({ projectId: 'project-1', sessionId: 'session-1' }),
+    harness.service.readSessionMentions({ projectId: 'project-1', sessionId: 'session-1' }),
+  ]);
+
+  assert.equal(goalSpawns, 1, 'single-flight: three concurrent readers, one `goal list` child');
+  for (const reading of readings) {
+    assert.ok(reading !== null);
+    assert.deepEqual(reading.goals.map((goal) => goal.goalId), ['GOAL-700']);
+  }
+});
+
+test('goal cache — a failed read keeps the unavailable semantics and is never cached as empty', async () => {
+  let goalSpawns = 0;
+  const harness = createHarness({
+    rows: [assistantText('t-1 is mentioned')],
+    taskRows: [taskRow('t-1', { goalAc: 'AC-600' })],
+    dependencies: {
+      readGoalRows: async () => {
+        goalSpawns += 1;
+        if (goalSpawns === 1) return null; // the CLI failed this once
+        return [
+          { id: 'GOAL-600', title: 'a goal', status: 'active', kind: 'goal', goal: null },
+          { id: 'AC-600', title: 'criterion', status: 'active', kind: 'criterion', goal: 'GOAL-600' },
+        ];
+      },
+    },
+  });
+
+  const failed = await read(harness);
+  assert.deepEqual(failed.goals, [], 'without a goal reading there is no goal row to report');
+  assert.equal(failed.tasks[0]?.goalId, null, 'and no criterion row to resolve a task goal through');
+  assert.equal(failed.sources.goals, 'cli');
+
+  const retried = await read(harness);
+  assert.equal(goalSpawns, 2, 'the failure was not cached: the very next request retried');
+  assert.equal(retried.sources.goals, 'cli');
+  assert.equal(retried.tasks[0]?.goalId, 'GOAL-600', 'the retry answers the real join');
+});
+
+test('goal cache / CLI arm — every field except the added sources is unchanged', async () => {
+  const harness = createHarness({
+    rows: [assistantText('t-1 runs, GOAL-800 is named', '2026-10-25T09:00:00.000Z')],
+    taskRows: [taskRow('t-1', { status: 'ready', goalAc: 'AC-800' })],
+    goalRows: [
+      { id: 'GOAL-800', title: 'goal eight hundred', status: 'active', kind: 'goal', goal: null },
+      { id: 'AC-800', title: 'criterion', status: 'active', kind: 'criterion', goal: 'GOAL-800' },
+    ],
+    lanes: lanesOf([laneInterval('t-1', 'implementing')]),
+  });
+
+  const reading = await read(harness);
+  const { sources, ...rest } = reading;
+
+  assert.deepEqual(rest, {
+    ok: true,
+    sessionId: 'session-1',
+    projectId: 'project-1',
+    tasks: [
+      {
+        taskId: 't-1',
+        title: 'title of t-1',
+        status: 'ready',
+        phase: 'implementing',
+        goalId: 'GOAL-800',
+        mentionCount: 1,
+        lastMentionAt: '2026-10-25T09:00:00.000Z',
+      },
+    ],
+    goals: [
+      { goalId: 'GOAL-800', title: 'goal eight hundred', status: 'active', viaTaskCount: 1, mentionedDirectly: true },
+    ],
+    generatedAt: '2026-10-25T12:00:00.000Z',
+  }, 'the pre-existing document is untouched; only `sources` was added');
+  assert.deepEqual(sources, { tasks: 'cli', goals: 'cli' });
+});
+
 // --------------------------- AC5: THE ROUTES ------------
 
 /** Mounts the router on a random loopback port and runs `body` against it. */
@@ -578,6 +1046,7 @@ test('AC5 — a null reading is 404 project-or-session-not-found, and a reading 
     projectId: 'project-1',
     tasks: [],
     goals: [],
+    sources: { tasks: 'index', goals: 'cache' },
     generatedAt: '2026-10-25T12:00:00.000Z',
   };
 

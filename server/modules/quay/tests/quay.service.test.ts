@@ -57,6 +57,16 @@ function createDependencies(overrides: Partial<ServiceDependencies> = {}): Servi
 }
 
 /**
+ * Lets every pending promise callback run: a background index load is fire-and-forget, so a test
+ * that asked for one must give its async continuation a chance to land before reading the index.
+ */
+async function settle(): Promise<void> {
+  for (let index = 0; index < 6; index += 1) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
+/**
  * A `.quay/server.json` body in the shape `quay serve` publishes (its `services[]` carry the
  * `name`/`host`/`port` the panel links to). Default argument is the one live `web` entry the
  * dashboard fixture reads.
@@ -2155,4 +2165,65 @@ test('loop costs no extra driver-status spawn, is null on failure, and rides the
     assert.equal(failedSnapshot?.tasks?.total, 3, 'the rest of the snapshot is unaffected');
     assert.ok(failedSnapshot?.warnings.some((warning) => warning.includes('driver status')));
   });
+});
+
+//----------------- COMPACT TASK INDEX: goal_ac ------------
+
+test('task index: the loader carries each row’s goal_ac, and an event update leaves it intact', async () => {
+  const spawns: string[][] = [];
+  const service = createQuayService(createDependencies({
+    runCommand: async (_cwd, args) => {
+      spawns.push([...args]);
+      return {
+        ok: true,
+        code: 0,
+        stdout: JSON.stringify([
+          {
+            id: 'gap-indexed',
+            title: 'indexed task',
+            status: 'ready',
+            updatedAt: '2026-10-25T00:00:00.000Z',
+            goal_ac: 'AC-394',
+          },
+          { id: 'gap-no-goal', title: 'no goal', status: 'todo', updatedAt: null },
+        ]),
+        stderr: '',
+      };
+    },
+  }));
+
+  service.requestTaskIndexLoad('project-1');
+  await settle();
+
+  const index = service.readTaskIndex('project-1');
+  assert.equal(index.state, 'ready');
+  assert.equal(
+    index.tasks.get('gap-indexed')?.goalAc,
+    'AC-394',
+    'goal_ac from the SAME --no-body read is carried on the row',
+  );
+  assert.equal(
+    index.tasks.get('gap-no-goal')?.goalAc,
+    null,
+    'a row that carries no goal_ac reads null, never undefined',
+  );
+  assert.deepEqual(
+    spawns,
+    [['task', 'list', '--json', '--no-body']],
+    'arriving goal_ac costs no second CLI read',
+  );
+
+  const applied = service.updateTaskIndexRow('project-1', 'gap-indexed', {
+    status: 'done',
+    updatedAt: '2026-10-25T01:00:00.000Z',
+  });
+  assert.equal(applied, true, 'the row exists, so an event may update it');
+
+  const after = service.readTaskIndex('project-1');
+  assert.equal(after.tasks.get('gap-indexed')?.status, 'done');
+  assert.equal(
+    after.tasks.get('gap-indexed')?.goalAc,
+    'AC-394',
+    'an event carries no goal_ac, so the known row’s value must survive the update',
+  );
 });

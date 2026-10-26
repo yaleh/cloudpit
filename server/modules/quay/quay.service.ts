@@ -251,6 +251,13 @@ export type QuayTaskStatusRow = {
   updatedAt: string | null;
   /** The task title, truncated to {@link QUAY_TASK_INDEX_TITLE_LIMIT} characters. */
   title: string;
+  /**
+   * The record's `goal_ac` (an AC id), or `null` when it carries none. Optional because a row
+   * carried only by the event path (a transition with no title and no goal_ac) never saw a full
+   * load's record; every consumer defaults a missing value to `null`. The MCP `changes` reading
+   * never reads this field, so its outward document is unchanged.
+   */
+  goalAc?: string | null;
 };
 
 /**
@@ -2148,12 +2155,17 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
         continue;
       }
       const epochMs = readUpdatedAtEpochMs(record.updatedAt);
+      // `--no-body` rows still carry `goal_ac`; reading it from the SAME load is what lets the
+      // session mention join answer a task's goal without a second CLI call.
+      const goalAc =
+        typeof record.goal_ac === 'string' && record.goal_ac.trim() !== '' ? record.goal_ac.trim() : null;
       tasks.set(String(record.id), {
         taskId: String(record.id),
         status: typeof record.status === 'string' ? record.status : 'unknown',
         // `readUpdatedAtEpochMs` has already refused anything a `Date` cannot hold.
         updatedAt: epochMs === null ? null : new Date(epochMs).toISOString(),
         title: typeof record.title === 'string' ? record.title.slice(0, QUAY_TASK_INDEX_TITLE_LIMIT) : '',
+        goalAc,
       });
     }
     taskIndex.set(projectId, { tasks, observedAtMs: dependencies.now() });

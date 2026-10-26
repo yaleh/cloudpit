@@ -22,12 +22,25 @@
  * READ-ONLY BY CONSTRUCTION. Every dependency is a reader, injected by `quay.module.ts`, and the
  * service's one verb answers a reading.
  *
+ * WHERE THE VOCABULARY COMES FROM, AND HOW FRESH IT IS. Task rows are taken from the event-driven
+ * task index whenever that index is genuinely event-fresh — the project's monitor is `active` and
+ * the index is `ready` (inside its TTL). That costs zero CLI spawns, but it is the one place this
+ * reading can be STALE: a hand edit of a task file emits no event, so under the event path the
+ * worst-case lag equals the index's freshness window (the same bound the MCP `changes` tool
+ * reports). Every other case — no monitor, a degraded monitor, or a `cold` / `warming` / `stale` /
+ * `error` index — falls back to the direct `task list --json --no-body` read, which is exactly
+ * today's freshness, and a `cold` / `stale` index is also asked to reload so the NEXT open can
+ * use it. Goal rows ride the 60 s single-flight cache in `session-mentions-goal-cache.ts`; a
+ * failed goal read is never cached, so it retries on the next request.
+ *
  * Consumers: `server/modules/quay/quay.routes.ts` (the `GET /api/quay/:projectId/session-mentions`
  * endpoint) and `server/modules/quay/tests/session-mentions.test.ts` (the criterion), which drives
  * this factory with injected transcript/task/goal/lanes stubs and no subprocess.
  */
 
 import type { QuayGanttLanes } from '@/shared/types.js';
+
+import { createSessionMentionsGoalCache } from './session-mentions-goal-cache.js';
 
 // --------------------------- TRANSCRIPT TEXT ------------
 
@@ -142,8 +155,47 @@ export type SessionMentionsReading = {
   projectId: string;
   tasks: SessionMentionTaskReading[];
   goals: SessionMentionGoalReading[];
+  /** Where each vocabulary came from, so a criterion and a debugging reader can tell the arms apart. */
+  sources: SessionMentionsSources;
   /** When this reading was assembled (ISO-8601). */
   generatedAt: string;
+};
+
+/**
+ * The provenance of one reading's two vocabularies. Read-only reporting: no existing field
+ * changes shape because of it, and a consumer that does not know the field ignores it.
+ */
+export type SessionMentionsSources = {
+  /** `index` when the event-fresh task index answered; `cli` when this request spawned `task list`. */
+  tasks: 'index' | 'cli';
+  /** `cache` when the in-process goal cache answered; `cli` when this request spawned `goal list`. */
+  goals: 'cache' | 'cli';
+};
+
+/** Where a project's event-driven task index stands, as far as this reading cares. */
+export type SessionMentionsIndexState = 'cold' | 'warming' | 'ready' | 'stale' | 'error';
+
+/** One task-index row, as the mention join consumes it. */
+export type SessionMentionsTaskIndexRow = {
+  taskId: string;
+  title: string;
+  status: string;
+  /** The task's `goal_ac`, or `null`; omitted only by a row that never saw a full `task list` load. */
+  goalAc?: string | null;
+};
+
+/**
+ * The task-index reading this service consumes: where the index stands and the rows it holds.
+ * A `ready` index under an `active` monitor is the only combination served without a CLI read.
+ */
+export type SessionMentionsTaskIndexReading = {
+  state: SessionMentionsIndexState;
+  tasks: ReadonlyMap<string, SessionMentionsTaskIndexRow>;
+};
+
+/** The event monitor's state, narrowed to the one question this service asks of it. */
+export type SessionMentionsMonitorState = {
+  state: 'off' | 'active' | 'degraded';
 };
 
 /** One task row of the project's index, as the reader hands it over. */
@@ -187,6 +239,15 @@ export type SessionMentionsDependencies = {
   readTaskRows(projectPath: string): Promise<readonly SessionMentionsTaskRow[] | null>;
   /** The project's `quay goal list --json` rows (goals AND criteria), or `null` on a failed read. */
   readGoalRows(projectPath: string): Promise<readonly SessionMentionsGoalRow[] | null>;
+  /**
+   * The project's task index as of its last load, WITHOUT loading. Reading it is also this
+   * project's activity signal, which is what activates (and keeps alive) the event monitor.
+   */
+  readTaskIndex(projectId: string): SessionMentionsTaskIndexReading;
+  /** The project's event monitor state; only `active` makes the index event-fresh. */
+  readMonitorState(projectId: string): SessionMentionsMonitorState;
+  /** Asks for a background index load; returns at once. Used when the index is `cold` / `stale`. */
+  requestTaskIndexLoad(projectId: string): void;
   /** The project's packed lanes for the in-flight phase join, or `null` when unreadable. */
   readLanes(input: { projectId: string; projectPath: string }): Promise<QuayGanttLanes | null>;
   now(): number;
@@ -216,6 +277,23 @@ type TranscriptScanCache = {
   offset: number;
   mentions: Map<string, MentionTally>;
 };
+
+/**
+ * The index reading's rows, narrowed to the join's own row shape. A row that never saw a full
+ * load omits `goalAc`; that defaults to `null` here rather than leaking `undefined` into the join.
+ */
+function indexTaskRows(reading: SessionMentionsTaskIndexReading): SessionMentionsTaskRow[] {
+  const rows: SessionMentionsTaskRow[] = [];
+  for (const row of reading.tasks.values()) {
+    rows.push({
+      taskId: row.taskId,
+      title: row.title,
+      status: row.status,
+      goalAc: row.goalAc ?? null,
+    });
+  }
+  return rows;
+}
 
 /** The in-flight phase of each task named by a lane set; the latest interval wins. */
 function inFlightPhases(lanes: QuayGanttLanes | null): Map<string, string> {
@@ -276,6 +354,13 @@ export function createSessionMentionsService(
   dependencies: SessionMentionsDependencies,
 ): SessionMentionsService {
   const scans = new Map<string, TranscriptScanCache>();
+  // The goal vocabulary is slow-moving, so one project's successful read serves a 60 s window
+  // and concurrent requests share a single spawn. A failed read is never cached (the cache
+  // module owns that rule), so a transient failure retries on the next request.
+  const goalCache = createSessionMentionsGoalCache<SessionMentionsGoalRow>({
+    readGoalRows: (projectPath) => dependencies.readGoalRows(projectPath),
+    now: () => dependencies.now(),
+  });
 
   const scanCacheKey = (projectId: string, sessionId: string): string => `${projectId}\u0000${sessionId}`;
 
@@ -362,11 +447,25 @@ export function createSessionMentionsService(
     const scan = scanFor(scanCacheKey(input.projectId, input.sessionId), transcriptPath);
     await readNewTranscriptLines(scan);
 
-    const [taskRows, goalRows, lanes] = await Promise.all([
-      dependencies.readTaskRows(projectPath),
-      dependencies.readGoalRows(projectPath),
+    // Reading the index is also the activity signal that activates this project's event monitor,
+    // which is why it happens before the monitor is consulted. Only BOTH answers — an `active`
+    // monitor and a `ready` (inside-TTL) index — make the index event-fresh enough to serve.
+    const index = dependencies.readTaskIndex(input.projectId);
+    const monitorState = dependencies.readMonitorState(input.projectId).state;
+    const useIndex = monitorState === 'active' && index.state === 'ready';
+    if (!useIndex && (index.state === 'cold' || index.state === 'stale')) {
+      // Nothing (or only an aged reading) is in the index: ask for a background load so the NEXT
+      // open can serve from it. A `warming` index already has a load in flight.
+      dependencies.requestTaskIndexLoad(input.projectId);
+    }
+
+    const [taskRows, goalReading, lanes] = await Promise.all([
+      // Zero spawns on the index arm; the CLI arm is exactly today's direct read.
+      useIndex ? Promise.resolve(indexTaskRows(index)) : dependencies.readTaskRows(projectPath),
+      goalCache.read(projectPath),
       dependencies.readLanes({ projectId: input.projectId, projectPath }),
     ]);
+    const goalRows = goalReading.rows;
 
     // The vocabulary. Task ids are lower-kebab (already lower-case); goal ids are `GOAL-NNN`,
     // so every lookup is case-insensitive against a lower-cased key while the reading keeps the
@@ -453,6 +552,10 @@ export function createSessionMentionsService(
       projectId: input.projectId,
       tasks,
       goals,
+      sources: {
+        tasks: useIndex ? 'index' : 'cli',
+        goals: goalReading.source,
+      },
       generatedAt: new Date(dependencies.now()).toISOString(),
     };
   };

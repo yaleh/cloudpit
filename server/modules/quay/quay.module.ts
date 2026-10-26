@@ -543,6 +543,12 @@ export const sessionMentions = createSessionMentionsService({
     const result = await quayService.runQuayCommand(projectPath, ['goal', 'list', '--json']);
     return result.ok ? parseGoalRowsForMentions(result.stdout) : null;
   },
+  // The event-fresh index arm: when the project's monitor is `active` and the index is `ready`,
+  // the mention reading joins those rows (which carry `goal_ac`) with zero CLI spawns. The read
+  // is also this project's activity signal, so a popover open keeps its own monitor alive.
+  readTaskIndex: (projectId) => quayService.readTaskIndex(projectId),
+  readMonitorState: (projectId) => quayTaskEvents.readMonitorState(projectId),
+  requestTaskIndexLoad: (projectId) => quayService.requestTaskIndexLoad(projectId),
   readLanes: async ({ projectId }) => {
     const reading = await quayService.getQuayLanes(projectId);
     return reading?.gantt ?? null;
