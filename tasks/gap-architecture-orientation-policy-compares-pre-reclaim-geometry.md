@@ -31,6 +31,7 @@ extra:
 - src/modules/architecture/layoutOrientation.ts
 - src/modules/architecture/PlantUmlGraph.tsx
 - src/modules/architecture/semanticZoomLayout.ts
+- src/modules/architecture/drawnFit.ts
 - src/modules/architecture/tests/layoutAspect.test.tsx
 - e2e/architecture-canvas-layout.spec.ts
 - tasks/gap-architecture-orientation-policy-compares-pre-reclaim-geometry.md
@@ -47,6 +48,8 @@ extra:
   - 396 实体大图：DOWN `entity-budget-exceeded`，fill 0.516（未跑第二次布局）。
   - 截图：`tmp/orientation-shots/arch-chrome-orientation-{pc,phone,control-right,control-restored,1920x900,1920x900-forced-right,large-graph}.png`。
 - `scripts/ui-scenario.mjs`：仓库现有场景仅 `e2e/scenarios/cockpit-mode-switch.json` 与 `quay-wall-focus-pin-utter.json`，无架构场景，故“存在可用的架构场景时”一项不适用；大颗粒度回归由上述 Playwright spec 承担。
+- 棘轮（上一轮 fan-in 唯一红因）：`PlantUmlGraph.tsx` 曾因本任务改动 4453→4498，架构棘轮不允许上调。处理：把本任务新增的 `drawnFitScaleOf`、行数上限规则 `capDrawnMemberRows` 以及 `semanticDrawnFitScale` 包一层移入 `src/modules/architecture/drawnFit.ts`（`capDrawnMemberRows` 仍从 `PlantUmlGraph` 再导出，所有消费方导入路径不变；`semanticDrawnFitScale` 从 `drawnFit.ts` 导出，`layoutAspect.test.tsx` 的 import 同步改指）。读数：`PlantUmlGraph.tsx` 4453→4440（打印 `可下调基线`），`semanticZoomLayout.ts` 回到 develop 的 1688（本任务不再增长），`semanticZoomPlan.ts` 未改。`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 只剩 develop 既有的两条基线红（semanticZoomLayout 1642→1688、semanticZoomPlan 876→894），本任务未新增红。
+- 抽取后复验：`npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` → 15 passed；`npx vitest run src/modules/architecture/tests/architectureTab.test.tsx` → 129 passed；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` → 11 passed；`npx tsc --noEmit -p .` 无输出；上面三例 e2e 重跑 3 passed（读数与上表逐项一致）。
 
 ## Blocker
 
