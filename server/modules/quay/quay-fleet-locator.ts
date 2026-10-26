@@ -1,7 +1,14 @@
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+import {
+  createQuayFleetExec,
+  parseFleetJsonObject,
+  QUAY_FLEET_BIN_NOT_FOUND_REASON,
+  type QuayFleetCommandResult,
+  type QuayFleetExec,
+} from './quay-fleet-cli.js';
 
 /**
  * The ONE place that decides which `quay-fleet` binary this server talks to, and the ONE place
@@ -80,22 +87,15 @@ export type QuayFleetCliLocation = {
   source: QuayFleetCliSource;
 };
 
-/** The answer to one child invocation, in the same shape the quay adapters use. */
-export type QuayFleetCliCommandResult = {
-  ok: boolean;
-  code: number | null;
-  stdout: string;
-  stderr: string;
-  /** Why the child could not be run or answered with a failure, when that is known. */
-  error?: string;
-};
+/**
+ * The answer to one child invocation. An alias of the shared {@link QuayFleetCommandResult}: the
+ * locator keeps its historical public name for its own consumers (the locator criterion), while
+ * the definition lives once in `quay-fleet-cli.ts`.
+ */
+export type QuayFleetCliCommandResult = QuayFleetCommandResult;
 
-/** The child-process seam; production binds {@link defaultExecFile}, a test may bind a stub. */
-export type QuayFleetCliExec = (
-  file: string,
-  args: readonly string[],
-  options: { timeout: number; maxBuffer: number; encoding: 'utf8'; windowsHide: boolean },
-) => Promise<QuayFleetCliCommandResult>;
+/** The child-process seam; an alias of the shared {@link QuayFleetExec} (identical signature). */
+export type QuayFleetCliExec = QuayFleetExec;
 
 /** Filesystem / environment seams; every one defaults to the real host. */
 export type QuayFleetCliLocateOptions = {
@@ -144,31 +144,6 @@ export const QUAY_FLEET_HANDSHAKE_TTL_MS = 60_000;
 
 /** Cap on captured stdout — the handshake document is tiny; this only bounds a runaway child. */
 const QUAY_FLEET_HANDSHAKE_MAX_OUTPUT_BYTES = 64 * 1024;
-
-type QuayFleetExecError = Error & { code?: number | string | null; killed?: boolean };
-
-/** Production child-process binding; every failure is a value, so the caller never sees a throw. */
-const defaultExecFile: QuayFleetCliExec = (file, args, options) =>
-  new Promise((resolve) => {
-    execFile(file, [...args], options, (error: QuayFleetExecError | null, stdout, stderr) => {
-      if (!error) {
-        resolve({ ok: true, code: 0, stdout: stdout ?? '', stderr: stderr ?? '' });
-        return;
-      }
-      const reason = error.killed === true
-        ? `quay-fleet --version timed out: ${error.message}`
-        : error.code === 'ENOENT'
-          ? `quay-fleet was not found: ${file}`
-          : `quay-fleet --version failed: ${error.message}`;
-      resolve({
-        ok: false,
-        code: typeof error.code === 'number' ? error.code : null,
-        stdout: stdout ?? '',
-        stderr: stderr ?? '',
-        error: reason,
-      });
-    });
-  });
 
 /** True when `filePath` names an executable regular file. */
 function defaultIsExecutable(filePath: string): boolean {
@@ -243,18 +218,6 @@ export function quayFleetBinPath(options: QuayFleetCliLocateOptions = {}): strin
   return locateQuayFleetCli(options).binPath ?? 'quay-fleet';
 }
 
-/** Parses a JSON object, or `null` when the child printed something else. */
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Reads the `contracts` document, or `null` when the CLI did not declare one. */
 function readContracts(value: unknown): QuayFleetContracts | null {
   if (value === null || typeof value !== 'object') return null;
@@ -298,7 +261,7 @@ function missingReading(): QuayFleetCliReading {
     binPath: null,
     version: null,
     contracts: null,
-    reason: 'quay-fleet was not found (checked QUAY_FLEET_BIN, PATH and ~/.quay-fleet/bin/quay-fleet)',
+    reason: QUAY_FLEET_BIN_NOT_FOUND_REASON,
   };
 }
 
@@ -311,7 +274,9 @@ function missingReading(): QuayFleetCliReading {
  * in-flight child rather than forking one each.
  */
 export function createQuayFleetCliReader(options: QuayFleetCliReaderOptions = {}): QuayFleetCliReader {
-  const exec = options.exec ?? defaultExecFile;
+  // The handshake keeps the `quay-fleet --version` label so its timeout/failure sentence is
+  // worded exactly as it was before this pipeline was consolidated.
+  const exec = options.exec ?? createQuayFleetExec('quay-fleet --version');
   const timeoutMs = options.timeoutMs ?? QUAY_FLEET_HANDSHAKE_TIMEOUT_MS;
   const ttlMs = options.ttlMs ?? QUAY_FLEET_HANDSHAKE_TTL_MS;
   const now = options.now ?? Date.now;
@@ -345,7 +310,7 @@ export function createQuayFleetCliReader(options: QuayFleetCliReaderOptions = {}
       return noHandshake(binPath, detail);
     }
 
-    const document = parseJsonObject(result.stdout);
+    const document = parseFleetJsonObject(result.stdout);
     const contracts = readContracts(document?.contracts);
     if (contracts === null) {
       return noHandshake(binPath, 'quay-fleet --version did not report contracts (older quay-fleet?)');
