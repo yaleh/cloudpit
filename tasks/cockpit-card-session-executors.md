@@ -67,6 +67,7 @@ goal_ac: AC-428
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/hooks/useCockpitCards.ts
 - src/modules/cockpit/tests/cockpitCardController.test.ts
+- src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
 - server/shared/tests/quay-test-script.test.ts
@@ -101,3 +102,17 @@ goal_ac: AC-428
 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-confirm.json --base-url http://127.0.0.1:12012 --auth-token … --project "DoD project" --session "DoD idle session" --out tmp/scenario-cockpit-cards-confirm` → `passed (6 steps, 3662ms, 5 checkpoint(s))`，退出 0；报告 `tmp/scenario-cockpit-cards-confirm.report.json`，检查点截图在 `tmp/scenario-cockpit-cards-confirm/`。
 
 实例用毕已 `isolated-instance.sh stop`（状态目录 `tmp/iso-cockpit-executors`），Vite dev 一并停止。
+
+### 第二回合：全量 suite 红的真因与修复
+
+- 上回合 suite 红不是环境 flake：`src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts` 的 2 例抛 `useNavigate() may be used only in the context of a <Router> component.`，栈顶即本任务新增的 `useCockpitCards → useNavigate()`；该夹具直接渲染 `CockpitCardList` 却没给路由上下文。
+- 修复只动夹具：按仓库既有 `MemoryRouter` 用法（41 处，含同目录 `CockpitStage.test.tsx`）把列表挂在与产品页面相同的上下文里；断言一字未改。该文件已加入 Touches。
+- 复跑：`npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts` → `4 passed`；`npx vitest run src/modules/cockpit src/modules/ui-scenario --maxWorkers=2` → `17 files / 210 tests passed`；`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning，本次改动文件无告警）。
+
+## Blocker
+
+**2026-10-26T23:19:15.647Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=41 src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts passed=false end_ms=1793056692941
+- run_id：wk-prod-anchor
+- session_id：fd781c3f-296c-4d38-b12f-f139065d0463
