@@ -76,3 +76,11 @@ extra:
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-database-migration-column-and-flag-helpers.md
+
+## Blocker
+
+**2026-10-26T06:11:54.520Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：bd724156-927d-4e1a-a516-eb8a4ee4eed4
