@@ -5,7 +5,8 @@ import path from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
-import { resolveModelLaunchSpec } from '@/modules/providers/index.js';
+import { providerRegistry, resolveModelLaunchSpec } from '@/modules/providers/index.js';
+import type { IProviderShell } from '@/shared/interfaces.js';
 import type { ResolvedLaunchSpec } from '@/shared/types.js';
 import { applyLaunchSpecEnv, parseIncomingJsonObject, readOptionalString, stripAnsiSequences } from '@/shared/utils.js';
 
@@ -174,11 +175,22 @@ function resolveResumeSessionId(
 }
 
 /**
- * Single-quotes one argv element for bash or PowerShell so profile-supplied
- * values cannot be re-interpreted by the shell.
+ * Resolves the provider's own shell facet.
+ *
+ * The registry is the only lookup: a provider that mounts `shell` is launchable
+ * from the terminal without this module naming it. A runtime-registered id
+ * without the facet falls back to Claude's launch contract, which is what an
+ * unrecognised provider did before the seam existed.
  */
-function quoteShellArg(arg: string): string {
-  return `'${arg.replace(/'/g, os.platform() === 'win32' ? "''" : `'\\''`)}'`;
+function resolveShell(provider: string): IProviderShell {
+  const shell = providerRegistry.resolveProvider(provider).shell
+    ?? providerRegistry.resolveProvider('claude').shell;
+  if (!shell) {
+    throw new Error(
+      `Provider "${provider}" mounts no shell facet, and the Claude fallback has none either.`,
+    );
+  }
+  return shell;
 }
 
 /**
@@ -202,50 +214,13 @@ function buildShellCommand(
     return initialCommand;
   }
 
-  if (provider === 'cursor') {
-    if (resumeSessionId) {
-      return `cursor-agent --resume="${resumeSessionId}"`;
-    }
-    return 'cursor-agent';
-  }
-
-  if (provider === 'codex') {
-    if (resumeSessionId) {
-      if (os.platform() === 'win32') {
-        return `codex resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { codex }`;
-      }
-      return `codex resume "${resumeSessionId}" || codex`;
-    }
-    return 'codex';
-  }
-
-  if (provider === 'opencode') {
-    if (resumeSessionId) {
-      return `opencode --session "${resumeSessionId}"`;
-    }
-    return initialCommand || 'opencode';
-  }
-
-  // Launching with the flag is what unlocks "bypass permissions" in the CLI's
-  // shift+tab permission-mode cycle; it cannot be enabled from inside a
-  // session started without it.
-  const bypassFlag = readBoolean(message.bypassPermissions)
-    ? ' --dangerously-skip-permissions'
-    : '';
-  // The same compiled model argv rides on the first launch, the --resume
-  // attempt and the fallback launch so a resumed terminal matches the original.
-  const argvSuffix = modelSpec.argv
-    .map((arg) => ` ${quoteShellArg(arg)}`)
-    .join('');
-  const claudeFlags = `${bypassFlag}${argvSuffix}`;
-  const command = initialCommand || `claude${claudeFlags}`;
-  if (resumeSessionId) {
-    if (os.platform() === 'win32') {
-      return `claude --resume "${resumeSessionId}"${claudeFlags}; if ($LASTEXITCODE -ne 0) { claude${claudeFlags} }`;
-    }
-    return `claude --resume "${resumeSessionId}"${claudeFlags} || claude${claudeFlags}`;
-  }
-  return command;
+  return resolveShell(provider).launchCommand({
+    resumeSessionId,
+    initialCommand,
+    platform: os.platform(),
+    bypassPermissions: readBoolean(message.bypassPermissions),
+    modelArgv: modelSpec.argv,
+  });
 }
 
 function readEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
@@ -558,14 +533,7 @@ export function handleShellConnection(
 
         let welcomeMsg = `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`;
         if (!isPlainShell) {
-          const providerName =
-            provider === 'cursor'
-              ? 'Cursor'
-              : provider === 'codex'
-                ? 'Codex'
-                : provider === 'opencode'
-                    ? 'OpenCode'
-                  : 'Claude';
+          const providerName = resolveShell(provider).displayName;
           welcomeMsg = hasSession && resumeSessionId
             ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`
             : `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;

@@ -1888,6 +1888,9 @@ function collectCodexForkAnchorRows(rawMessages: AnyRecord[]): Set<AnyRecord> {
 }
 
 export class CodexSessionsProvider implements IProviderSessions {
+  /** Codex's history reader parses the session row's rollout JSONL itself. */
+  readonly transcriptFileBacked = true;
+
   /**
    * Resolves the last turn to keep when the turn `anchorId` names is replaced.
    *
