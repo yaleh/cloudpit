@@ -84,6 +84,8 @@ export const ORIENTATION_REASON = {
   withinHysteresis: 'fit-within-hysteresis',
   /** A DEV-only control arm forced the downward layout. */
   forcedDown: 'forced-down',
+  /** A DEV-only control arm forced the turned (rightward) layout. */
+  forcedRight: 'forced-right',
 } as const;
 
 export type OrientationReason = (typeof ORIENTATION_REASON)[keyof typeof ORIENTATION_REASON];
@@ -172,6 +174,29 @@ export type OrientationDecisionInput = {
   readonly firstLayoutMs: number;
   /** A DEV-only control arm: never turn the drawing, whatever the numbers say. */
   readonly forceDown?: boolean;
+  /**
+   * A DEV-only control arm that forces the TURNED drawing. It exists so the
+   * criterion can measure the direction the policy declined — with the drawing
+   * actually laid out RIGHT, not simulated — after `forceDown` stopped being
+   * the losing side.
+   */
+  readonly forceRight?: boolean;
+  /**
+   * The semantic fit scale each direction is really PAINTED at, measured on
+   * the drawing AFTER the semantic layout reclaims the blank body of frames
+   * whose member rows are not drawn.
+   *
+   * `down`/`right` are the renderer's natural sizes — the geometry BEFORE that
+   * reclaim. A tall frame that drops to a compact strip is still counted at its
+   * full height there, so two directions compared on those sizes can pick the
+   * one the canvas shows SMALLER (the defect this policy fixes). A caller that
+   * solved the semantic layout for a direction supplies the solved scale and
+   * the comparison uses it. Omitted ⇒ the pre-reclaim sizes are compared, which
+   * is correct for a caller that has no semantic pass (and for the pure-arithmetic
+   * cases of `tests/layoutAspect.test.tsx`).
+   */
+  readonly downDrawnFitScale?: number;
+  readonly rightDrawnFitScale?: number;
 };
 
 /** The chosen direction, why, and the two fits it was chosen from. */
@@ -185,17 +210,38 @@ export type OrientationDecision = {
 };
 
 /**
+ * A caller-supplied drawn fit, or `null` when it did not solve the direction.
+ * A non-positive reading is the same as no reading: it cannot be compared.
+ */
+function usableDrawnFit(value: number | undefined): number | null {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
  * Choose the layout direction. Same input → same output: no clocks, no globals.
+ *
+ * The comparison uses the DRAWN fit — the semantic layout's post-reclaim scale
+ * when the caller supplies it (see {@link OrientationDecisionInput.downDrawnFitScale}),
+ * the renderer's natural size otherwise. That is the whole point of the policy:
+ * "which direction the canvas can show larger" is a statement about the
+ * drawing the reader sees, not about the renderer's pre-semantic geometry.
  *
  * Ties — and gaps inside {@link ORIENTATION_FIT_HYSTERESIS} — keep `DOWN`, the
  * direction the graph was drawn with first. That is what makes the choice
  * stable: turning the drawing must win by a margin a reader could notice.
  */
 export function chooseLayoutOrientation(input: OrientationDecisionInput): OrientationDecision {
-  const downFitScale = fitScaleFor(input.down, input.canvas);
+  const drawnDownFit = usableDrawnFit(input.downDrawnFitScale);
+  const downFitScale = drawnDownFit ?? fitScaleFor(input.down, input.canvas);
 
   if (input.forceDown === true) {
     return { direction: 'DOWN', reason: ORIENTATION_REASON.forcedDown, downFitScale, rightFitScale: null };
+  }
+  // The turned control arm measures the drawing the policy declined. It has no
+  // comparison reading of its own (only one direction was laid out), so the
+  // forced drawing's fit is reported on both sides.
+  if (input.forceRight === true) {
+    return { direction: 'RIGHT', reason: ORIENTATION_REASON.forcedRight, downFitScale, rightFitScale: downFitScale };
   }
 
   const eligibility = shouldAttemptDualLayout({
@@ -223,7 +269,7 @@ export function chooseLayoutOrientation(input: OrientationDecisionInput): Orient
     };
   }
 
-  const rightFitScale = fitScaleFor(input.right, input.canvas);
+  const rightFitScale = usableDrawnFit(input.rightDrawnFitScale) ?? fitScaleFor(input.right, input.canvas);
   if (downFitScale <= 0 || rightFitScale <= 0) {
     return { direction: 'DOWN', reason: ORIENTATION_REASON.verticalLarger, downFitScale, rightFitScale };
   }
