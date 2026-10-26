@@ -39,6 +39,8 @@ goal_ac: AC-426
 
 **实现要点。** `read().cockpit.cards` 严格解析 `data-cockpit-cards`（缺失/非 JSON/形状不完整 ⇒ null），`confirmOpenCardId` 从确认面板自身的 `data-card-id` 读出，不猜。五个 drive 动词只派发真实事件（pointerdown / click / 原生 setter + input）。React 18 在事件处理返回后才提交离散更新，所以一个卡片步骤是两次按压：`drive` 做第一次按压并登记后续，`settle()` 跨一个宏任务边界后按第二次（下拉里的选项、自己的回复编辑框、确认卡的发送），再跨一次边界让读数看到提交结果；运行器每步 drive 后 await `settle()`。两半都是真实 DOM 按压，动词从不写 `data-cockpit-cards`。
 
+**本轮修复（超长文件棘轮）。** 上一轮 fan-in 只红 `architecture-ratchet` 的 `oversizeFiles src/modules/ui-scenario/scenarioSurface.ts 基线外→1018`（基线外文件上限 800 行）。把卡片读数与五个 `cockpitCard.*` 动词的实现整体拆到同模块新文件 `src/modules/ui-scenario/cockpitCardsSurface.ts`（411 行），`scenarioSurface.ts` 降到 654 行，两个文件都在 800 行上限内；`index.ts` 桶改为从新文件导出 `ScenarioCockpitCardTarget` / `ScenarioCockpitCardsReading`，跨模块导入路径不变，行为不变。本轮复跑：`architecture-ratchet.test.ts` ⇒ 6/6 通过；两条 AC 判据合计 6/6 通过（4+2）；`npm run typecheck` 与 `npm run lint` 退出 0。基线只允许下降，未上调任何读数。
+
 **AC1** `npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts` ⇒
 `Test Files 1 passed (1) / Tests 4 passed (4)`，退出 0（夹具就是真实 `CockpitCardList`，HTTP 缝被 stub；四条用例分别覆盖读数与顺序、缺失/坏属性读 null、五个动词经控件驱动且读数跟随、生产构建开关关闭不挂载）。
 
@@ -114,6 +116,7 @@ goal_ac: AC-426
 
 - tasks/ui-scenario-cockpit-card-readings.md
 - src/modules/ui-scenario/scenarioSurface.ts
+- src/modules/ui-scenario/cockpitCardsSurface.ts (new)
 - src/modules/ui-scenario/index.ts
 - src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts (new)
 - src/modules/ui-scenario/tests/scenarioSurface.test.ts
