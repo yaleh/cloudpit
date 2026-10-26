@@ -70,6 +70,18 @@ export type CockpitCardConfirmOutcome =
   | { ok: true; cardId: string; executor: string; result: unknown }
   | { ok: false; cardId: string; message: string };
 
+/**
+ * The one thing the controller announces rather than stores: a confirmation that OPENED a new
+ * conversation. The controller does not navigate (that is the binding's job and a router is not
+ * a model), but the rule that a `session.start` confirmation is immediately followed by the new
+ * conversation belongs here, where the answer is read — not re-derived in the hook.
+ */
+export type CockpitCardControllerEvent = {
+  type: 'sessionStarted';
+  /** The id the server minted for the new conversation. */
+  sessionId: string;
+};
+
 /** The controller's two transports and its clock; a criterion binds all three. */
 export type CockpitCardControllerDeps = {
   /** Reads every open card, in the provider's order. */
@@ -85,6 +97,12 @@ export type CockpitCardControllerDeps = {
    * a criterion uses; the hook keeps the default so another display's change arrives.
    */
   refreshIntervalMs?: number;
+  /**
+   * Called when a confirmation answered `session.start` and named the conversation it opened.
+   * The binding navigates to it; a criterion records the event. Absent means the controller
+   * still records the outcome, only nobody is told to move.
+   */
+  onEvent?: (event: CockpitCardControllerEvent) => void;
 };
 
 /** The immutable reading the components render. */
@@ -253,6 +271,20 @@ export function confirmTargetOf(
     irreversible: isIrreversibleOption(option),
     disabled: false,
   };
+}
+
+/**
+ * The conversation a confirmation opened, read from the executor's answer.
+ *
+ * Only `session.start` creates one, and only an answer that actually names the id can be
+ * navigated to. The id is deliberately read from the RESULT rather than from the card's subject:
+ * the server mints it while handling the confirmation, so the card cannot have known it.
+ */
+export function startedSessionIdOf(executor: string, result: unknown): string | null {
+  if (executor !== 'session.start') return null;
+  if (typeof result !== 'object' || result === null) return null;
+  const sessionId = (result as { sessionId?: unknown }).sessionId;
+  return typeof sessionId === 'string' && sessionId.trim() !== '' ? sessionId : null;
 }
 
 /** Applies the type and project filters, preserving provider order. */
@@ -482,10 +514,6 @@ export function createCockpitCardController(
         executor: answer.executor,
         result: answer.result,
       };
-      commit({ pendingConfirm: null, lastOutcome: outcome });
-      // Re-read so a provider that bumped the revision is reflected IN PLACE. The selection,
-      // anchor and order are preserved by `normalize`.
-      await read();
     } catch (failure) {
       outcome = { ok: false, cardId: pending.cardId, message: failureMessage(failure) };
       // A failed confirmation did not happen; closing the card avoids re-sending a revision
@@ -494,6 +522,17 @@ export function createCockpitCardController(
     } finally {
       confirming = false;
       commit({ confirming: false });
+    }
+    if (outcome.ok) {
+      commit({ pendingConfirm: null, lastOutcome: outcome });
+      // A `session.start` confirmation opened a conversation: announce it BEFORE the re-read so
+      // the binding's navigation is not queued behind a network round-trip. The announcement is
+      // outside the try above on purpose — a listener that throws is not a failed confirmation.
+      const sessionId = startedSessionIdOf(outcome.executor, outcome.result);
+      if (sessionId !== null) deps.onEvent?.({ type: 'sessionStarted', sessionId });
+      // Re-read so a provider that bumped the revision is reflected IN PLACE. The selection,
+      // anchor and order are preserved by `normalize`.
+      await read();
     }
     return outcome.ok;
   };

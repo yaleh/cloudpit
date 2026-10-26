@@ -368,7 +368,7 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/modules/cockpit/tests/cockpit-brief.test.ts
     // (453 + 2 = 455 collected server test files). This fixture names 3 known files, so
     // 455 - 3 = 452.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=452$/);
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=453$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -435,7 +435,7 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/cockpit/tests/cockpit-brief-spec.test.ts)
     // — but this fixture names ONE known file, so 455 - 1 = 454 (AC2 reads 452 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=454$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=455$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

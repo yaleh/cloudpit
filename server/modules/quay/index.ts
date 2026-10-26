@@ -16,6 +16,7 @@
 export {
   quayCapabilities,
   quayDispatchCarrier,
+  quayFleetProjectIds,
   quayFleetRegistry,
   quayInitiatives,
   quayRoutes,

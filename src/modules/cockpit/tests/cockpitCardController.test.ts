@@ -13,6 +13,7 @@ import type {
   CockpitCardConfirmRequest,
   CockpitCardController,
   CockpitCardControllerDeps,
+  CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
 } from '@/modules/cockpit/cockpitCardController';
 
@@ -230,6 +231,59 @@ describe('the confirm card gates the one request', () => {
 
     expect(h.reads).toBeGreaterThan(readsAfterLoad);
     expect(h.snapshot().lastOutcome).toMatchObject({ ok: true, executor: 'test.exec' });
+  });
+});
+
+describe('a started conversation is announced', () => {
+  it('emits sessionStarted with the new session id when the executor is session.start', async () => {
+    const events: CockpitCardControllerEvent[] = [];
+    const h = harness([card('c1')], {
+      confirm: async () => ({
+        executor: 'session.start',
+        result: { sessionId: 'new-42', projectPath: '/repos/p1' },
+      }),
+      onEvent: (event) => events.push(event),
+    });
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(true);
+
+    expect(events).toEqual([{ type: 'sessionStarted', sessionId: 'new-42' }]);
+  });
+
+  it('says nothing for any other executor, even one whose answer names a session', async () => {
+    const events: CockpitCardControllerEvent[] = [];
+    const h = harness([card('c1')], {
+      confirm: async () => ({
+        executor: 'test.exec',
+        result: { sessionId: 'not-a-start' },
+      }),
+      onEvent: (event) => events.push(event),
+    });
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(true);
+
+    expect(events).toEqual([]);
+  });
+
+  it('says nothing when a failed confirmation answers', async () => {
+    const events: CockpitCardControllerEvent[] = [];
+    const h = harness([card('c1')], {
+      confirm: async () => {
+        throw new Error('refused');
+      },
+      onEvent: (event) => events.push(event),
+    });
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(false);
+
+    expect(events).toEqual([]);
+    expect(h.snapshot().lastOutcome).toMatchObject({ ok: false, message: 'refused' });
   });
 });
 

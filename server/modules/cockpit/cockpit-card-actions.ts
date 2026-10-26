@@ -190,6 +190,11 @@ export function createCockpitCardActions(deps: {
     } catch (failure) {
       // The action did not happen, so the revision stays confirmable.
       accepted.delete(key);
+      // An executor's OWN refusal is the most specific answer available: `session.send` throws
+      // an AppError carrying the control service's code (SESSION_NOT_FOUND, RUN_IN_PROGRESS,
+      // FORBIDDEN…), and re-wrapping it would hide the reason from the person. Any other throw
+      // is an implementation failure, which this channel names as such.
+      if (failure instanceof AppError) throw failure;
       throw new AppError(
         `executor ${action.executor} failed: ${failure instanceof Error ? failure.message : String(failure)}`,
         { code: 'EXECUTOR_FAILED', statusCode: 500 },

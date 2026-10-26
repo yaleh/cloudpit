@@ -20,7 +20,7 @@ import type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.s
 import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
 import type { CockpitBriefDeps } from '@/modules/cockpit/cockpit-brief.service.js';
 import { fallbackResult, noTokens } from '@/modules/cockpit/cockpit-brief-result.js';
-import type { CockpitCard } from '@/shared/types.js';
+import type { CockpitCard, CockpitFixtureSubject } from '@/shared/types.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 
 /** Everything the composition root can supply to the cockpit hub. */
@@ -46,6 +46,12 @@ export function createCockpitModule(deps: CockpitModuleDeps = {}): CockpitHub {
  */
 export type CockpitCardsModuleDeps = {
   fixtureCards: boolean;
+  /**
+   * The settings file's `cockpit.fixtureSubject`: the subject every fixture card is
+   * given so an isolated instance's DoD can point the fixture at a copied-but-idle
+   * conversation or project. Honoured only together with `fixtureCards`.
+   */
+  fixtureSubject?: CockpitFixtureSubject;
   providers?: readonly ICockpitCardProvider[];
   executors?: readonly ICockpitActionExecutor[];
   /**
@@ -116,7 +122,7 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   const executors: ICockpitActionExecutor[] = [...(deps.executors ?? [])];
 
   if (deps.fixtureCards) {
-    const fixture = createCockpitFixtureCardProvider();
+    const fixture = createCockpitFixtureCardProvider({ subject: deps.fixtureSubject });
     providers.push(fixture.provider);
     executors.push(fixture.executor);
   }

@@ -26,6 +26,31 @@ export type {
   CockpitFixtureCardProvider,
   CockpitFixtureConfirmation,
 } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+// The two built-in content executors: `session.send` writes into the subject's
+// conversation, `session.start` opens a new one and navigates to it. They take their
+// outside world as injected functions, so the leaf module never imports a sibling.
+export {
+  COCKPIT_SESSION_SEND_EXECUTOR_ID,
+  CockpitSessionSendExecutor,
+} from '@/modules/cockpit/cockpit-session-send.executor.js';
+export type {
+  CockpitSessionSendDeps,
+  CockpitSessionSendRequest,
+  CockpitSessionSendResult,
+} from '@/modules/cockpit/cockpit-session-send.executor.js';
+export {
+  COCKPIT_SESSION_START_EXECUTOR_ID,
+  COCKPIT_SESSION_PROVIDERS,
+  CockpitSessionStartExecutor,
+  DEFAULT_COCKPIT_SESSION_PROVIDER,
+  resolveSessionProject,
+} from '@/modules/cockpit/cockpit-session-start.executor.js';
+export type {
+  CockpitProjectLookup,
+  CockpitSessionStartDeps,
+  CockpitSessionStartRequest,
+  CockpitSessionStartResult,
+} from '@/modules/cockpit/cockpit-session-start.executor.js';
 // The brief service: card content in, BriefSpec (or the deterministic default) out. The
 // composition root injects its gateway/session/transcript seams; the card router calls it.
 export { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';

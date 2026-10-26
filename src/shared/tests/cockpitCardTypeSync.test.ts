@@ -126,6 +126,7 @@ const ROWS: readonly SyncRow[] = [
   { typeName: 'CockpitCardAction', reader: 'object' },
   { typeName: 'CockpitCardSubject', reader: 'object' },
   { typeName: 'CockpitCardContentRef', reader: 'object' },
+  { typeName: 'CockpitFixtureSubject', reader: 'object' },
   { typeName: 'CockpitCardOwnReply', reader: 'object' },
   { typeName: 'CockpitCardConversation', reader: 'object' },
   { typeName: 'CockpitCardNotify', reader: 'object' },
