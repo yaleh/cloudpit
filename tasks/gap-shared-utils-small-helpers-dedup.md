@@ -100,10 +100,3 @@ depends_on:
 
 - L_D 该轴仍暗，理由：本任务只把既有小工具函数的等价副本收进 shared utils，不新增领域数据通路或领域数据结构，没有可读的领域数据轴读数。
 - L_G 该轴仍暗，理由：本任务不产出生成质量读数——替换是行为等价的，错误文本逐字保持不变。
-
-## Blocker
-
-**2026-10-26T08:47:15.473Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/voice-realtime/voice-realtime-uplink-vad.ts 1041→1043 — 基线内读数不得上调（此基线只允许下降）
-- run_id：wk-prod-anchor
