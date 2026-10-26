@@ -26,6 +26,7 @@
  */
 
 import { tierWithinDeadzone } from '@/modules/architecture/explosionLod';
+import { computePackageBounds } from '@/modules/architecture/semanticZoomPackageBounds';
 import { MIN_ZOOM_SCALE } from '@/modules/architecture/svgViewport';
 export type {
   SemanticDrawingGeometry,
@@ -971,77 +972,19 @@ function evaluateTier(
   });
 
   // ---- packages
-  // The y axis is shared: a member-hidden class's `plan.minHeight` constraint
-  // can hold a SIDE-BY-SIDE neighbour's cell taller than the rows that
-  // neighbour draws. The neighbour's frame is drawn row-tight (above), so the
-  // package that contains it must end at the DRAWN bottom too — otherwise the
-  // stretch survives as a blank strip below the package's lowest class. The
-  // renderer's own bottom padding (the raw distance from the deepest child to
-  // the package edge) is kept, scaled with the drawing, so the 100 % reading is
-  // unchanged. Computed deepest-first so a parent can follow a folded child.
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const treeById = new Map(tree.map((entry) => [entry.geometry.id, entry]));
-  const packageBottom = new Map<string, number>();
-  for (const entry of [...tree].sort((a, b) => b.depth - a.depth)) {
-    const rect = entry.geometry.rect;
-    const frameTop = y.map(rect.y);
-    const frameBottom = y.map(rect.y + rect.height);
-    // Tier C draws no class box: its package-only drawing keeps the mapped box.
-    if (tier === 'C') {
-      packageBottom.set(entry.geometry.id, frameBottom);
-      continue;
-    }
-    let drawnBottom = Number.NEGATIVE_INFINITY;
-    let deepestRawBottom = Number.NEGATIVE_INFINITY;
-    for (const nodeId of entry.nodeIds) {
-      const node = nodeById.get(nodeId);
-      const raw = workingById.get(nodeId)?.geometry.rect;
-      if (node === undefined || raw === undefined) continue;
-      drawnBottom = Math.max(drawnBottom, node.drawn.y + node.drawn.height);
-      deepestRawBottom = Math.max(deepestRawBottom, raw.y + raw.height);
-    }
-    for (const childId of entry.childPackageIds) {
-      const child = treeById.get(childId);
-      if (child === undefined) continue;
-      const childBottom = packageBottom.get(childId);
-      if (childBottom !== undefined) drawnBottom = Math.max(drawnBottom, childBottom);
-      deepestRawBottom = Math.max(
-        deepestRawBottom,
-        child.geometry.rect.y + child.geometry.rect.height,
-      );
-    }
-    if (!Number.isFinite(drawnBottom) || !Number.isFinite(deepestRawBottom)) {
-      packageBottom.set(entry.geometry.id, frameBottom);
-      continue;
-    }
-    const tab = tabOf(entry.geometry.id, entry.nodeIds.length, mentionedIn(entry.nodeIds));
-    const padding = Math.max(0, scale * (rect.y + rect.height - deepestRawBottom));
-    // Never grow past the mapped box (the bug is a strip that is too large),
-    // and never shrink above the tab band the frame still has to carry.
-    packageBottom.set(
-      entry.geometry.id,
-      Math.min(frameBottom, Math.max(drawnBottom + padding, frameTop + tab.height)),
-    );
-  }
-  const packages: SemanticPackageLayout[] = tree.map((entry) => {
-    const mentionedCount = mentionedIn(entry.nodeIds);
-    const tab = tabOf(entry.geometry.id, entry.nodeIds.length, mentionedCount);
-    const rect = entry.geometry.rect;
-    const frame: SemanticRect = {
-      x: x.map(rect.x),
-      y: y.map(rect.y),
-      width: x.map(rect.x + rect.width) - x.map(rect.x),
-      height: (packageBottom.get(entry.geometry.id) ?? y.map(rect.y + rect.height)) - y.map(rect.y),
-    };
-    const fits = frame.width >= tab.width + 4 && frame.height >= tab.height + 4;
-    return {
-      id: entry.geometry.id,
-      depth: entry.depth,
-      frame,
-      tab,
-      tabRect: fits ? { x: frame.x + 5, y: frame.y, w: tab.width, h: tab.height } : null,
-      mentionedCount,
-    };
+  // The shared y axis lets a member-hidden neighbour stretch a cell beyond the
+  // rows drawn in it; `computePackageBounds` folds each package frame onto the
+  // DRAWN bottom (see that module for the rule).
+  const packages: SemanticPackageLayout[] = computePackageBounds({
+    tier,
+    scale,
+    tree,
+    nodes,
+    rawRectById: new Map(geometry.nodes.map((node) => [node.id, node.rect])),
+    mapX: x.map,
+    mapY: y.map,
+    tabOf,
+    mentionedIn,
   });
 
   return {
