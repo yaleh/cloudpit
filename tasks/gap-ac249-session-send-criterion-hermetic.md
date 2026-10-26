@@ -2,7 +2,7 @@
 id: gap-ac249-session-send-criterion-hermetic
 title: AC-249 判据文件自钉 RESIDENT_RUN_IS_TURN 关态：裸 goal-gate 命令在 anchor 继承该开关时仍 8/8
   绿，(a)/(c)/(h) 读数不变
-status: ready
+status: done
 labels:
   - gap
   - defect
