@@ -60,3 +60,11 @@ Claude 侧已经有正确做法：记录格式规则放在 `providers/list/claud
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-codex-transcript-format-shared-helpers.md
+
+## Blocker
+
+**2026-10-26T07:33:11.454Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：b2fedb9d-438b-48b6-a11f-68e219fbd3fb
