@@ -66,13 +66,13 @@ f=server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts; [ 
 
 ## AC
 
-- [ ] AC1（AC 尾部直接翻绿）：在**继承 `RESIDENT_RUN_IS_TURN=1`** 的环境下跑 AC-339 的逐字命令 `npx tsx --tsconfig server/tsconfig.json --test server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` ⇒ `EXIT=0`；逐字抄退出码与每文件计数（预期 audit 4/4、lifecycle 15/15，总 fail 0）。不得经 `scripts/test.sh`，不得用 `env -u`。
-- [ ] AC2（关态同读数）：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` ⇒ `EXIT=0`、`tests 15 / pass 15 / fail 0`。两种宿主环境同一读数。
-- [ ] AC3（钉子承重，负向控制）：先提交实现，再临时移除钉住块（备份或存 `git diff` 补丁），以 `RESIDENT_RUN_IS_TURN=1` 跑 lifecycle 单文件 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) session_create with a message returns the live runId; without one it starts nothing` + `the returned runId must be the registry current run verbatim`（actual `'null'`）与 `✖ (d) session_interrupt aborts the running resident turn and leaves the host pid unchanged` + `the run registry must record the aborted terminal state`（actual `'unknown'`）；恢复钉子后 AC1 重新绿。证明绿来自钉住的世界，不是把断言改松。
-- [ ] AC4（断言与读数未被改动）：`git diff develop...HEAD -- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 只含 env 钉住块与 `after` 恢复（以及必要注释），十五个 `test(...)` 与全部 `assert*` 行逐字不变；AC1 运行里 `(a) … registry.current=…`、`(d) pidBefore=… statusBefore=… statusAfter=aborted …` 等 `say(...)` 读数照常打印并逐字抄进完成记录。
-- [ ] AC5（恢复语义）：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值。完成记录写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数，分别对 `RESIDENT_RUN_IS_TURN=1` 与未设两种调用各取一次（临时打印验证后可移除）。
-- [ ] AC6（无实现改动）：`git diff --stat develop...HEAD` 只列 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 与 `tasks/gap-ac339-mcp-session-lifecycle-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts'` 无输出。
-- [ ] AC7（不回归）：`npx tsx --tsconfig server/tsconfig.json --test server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts` ⇒ `EXIT=0`、4/4；`npm run typecheck` 退出 0；`npm run lint` 输出中 `: error ` 计数 = 0。
+- [x] AC1（AC 尾部直接翻绿）：在**继承 `RESIDENT_RUN_IS_TURN=1`** 的环境下跑 AC-339 的逐字命令 `npx tsx --tsconfig server/tsconfig.json --test server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` ⇒ `EXIT=0`；逐字抄退出码与每文件计数（预期 audit 4/4、lifecycle 15/15，总 fail 0）。不得经 `scripts/test.sh`，不得用 `env -u`。
+- [x] AC2（关态同读数）：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` ⇒ `EXIT=0`、`tests 15 / pass 15 / fail 0`。两种宿主环境同一读数。
+- [x] AC3（钉子承重，负向控制）：先提交实现，再临时移除钉住块（备份或存 `git diff` 补丁），以 `RESIDENT_RUN_IS_TURN=1` 跑 lifecycle 单文件 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) session_create with a message returns the live runId; without one it starts nothing` + `the returned runId must be the registry current run verbatim`（actual `'null'`）与 `✖ (d) session_interrupt aborts the running resident turn and leaves the host pid unchanged` + `the run registry must record the aborted terminal state`（actual `'unknown'`）；恢复钉子后 AC1 重新绿。证明绿来自钉住的世界，不是把断言改松。
+- [x] AC4（断言与读数未被改动）：`git diff develop...HEAD -- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 只含 env 钉住块与 `after` 恢复（以及必要注释），十五个 `test(...)` 与全部 `assert*` 行逐字不变；AC1 运行里 `(a) … registry.current=…`、`(d) pidBefore=… statusBefore=… statusAfter=aborted …` 等 `say(...)` 读数照常打印并逐字抄进完成记录。
+- [x] AC5（恢复语义）：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值。完成记录写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数，分别对 `RESIDENT_RUN_IS_TURN=1` 与未设两种调用各取一次（临时打印验证后可移除）。
+- [x] AC6（无实现改动）：`git diff --stat develop...HEAD` 只列 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 与 `tasks/gap-ac339-mcp-session-lifecycle-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts'` 无输出。
+- [x] AC7（不回归）：`npx tsx --tsconfig server/tsconfig.json --test server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts` ⇒ `EXIT=0`、4/4；`npm run typecheck` 退出 0；`npm run lint` 输出中 `: error ` 计数 = 0。
 
 ## DoD
 
@@ -81,6 +81,66 @@ f=server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts; [ 
 - `(a)`/`(d)` 的读数逐字记录，且语义与 AC-250 原判据一致（(a) 返回的 runId 就是 registry 当前 run、source=mcp、`listRunningRuns` 含该会话；(d) `statusAfter=aborted`、pid 不变、host 仍 live、abort 恰好 1 次）；没有一条断言被删除、放宽或替换成「存在某个 run」。
 - 判据不构造云端调用、不跑真 CLI；这次改动只影响测试进程的环境变量，不引入新的外部依赖或新测试文件。
 - 遵守 `$backend-module-standards`（这是 `server/` 下的判据文件：只加环境钉住块，不导出无消费者符号）；ADR-007 暗轴无位移（理由是只钉住测试进程的环境变量，未改模块依赖图与服务实现）。
+
+## Notes
+
+### 完成记录（2026-10-26）
+
+**改动**：只改 `server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 的判据环境块与既有 `after` 钩子：
+- 在任何 aliased 模块动态 import 之前保存 `incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN` 并 `delete process.env.RESIDENT_RUN_IS_TURN`（出厂默认关；`residentRunIsTurn()` 只认字面 `1`）。
+- `after` 钩子按进进程原值恢复：原本未设则保持删除，原本有值则写回。语义与 `scripts/test.sh` 的 `unset RESIDENT_RUN_IS_TURN` 及 AC-385 判据「this criterion's world」相同；goal gate 不经过 test.sh，所以文件自己钉住。
+- 十五个 `test(...)` 与全部 `assert*` 行逐字未改。
+
+**AC1（继承 `RESIDENT_RUN_IS_TURN=1`，逐字 AC-339 命令）**：
+```
+$ RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/voice-realtime/tests/voice-realtime-interrupt-audit.test.ts server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts
+EXIT=0
+tests 19 / pass 19 / fail 0
+分文件：audit tests 4 / pass 4 / fail 0；lifecycle tests 15 / pass 15 / fail 0
+```
+同一会话环境继承读数：`RESIDENT_RUN_IS_TURN=1`；未用 `scripts/test.sh`、未用 `env -u`。
+
+**AC2（关态同读数）**：
+```
+$ env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts
+EXIT=0
+tests 15 / pass 15 / fail 0
+```
+
+**AC3（负向控制，先提交 `79b13597a`）**：`git checkout develop -- <判据文件>` 临时移除钉住块，`RESIDENT_RUN_IS_TURN=1` 单跑 lifecycle ⇒ `EXIT=1`、`tests 15 / pass 13 / fail 2`，逐字失败：
+```
+✖ (a) session_create with a message returns the live runId; without one it starts nothing
+  AssertionError [ERR_ASSERTION]: the returned runId must be the registry current run verbatim
+    actual: 'null',
+    expected: '58c63340-6477-4939-ad0b-7a6e0cda208a',
+✖ (d) session_interrupt aborts the running resident turn and leaves the host pid unchanged
+  AssertionError [ERR_ASSERTION]: the run registry must record the aborted terminal state
+    actual: 'unknown',
+    expected: 'aborted',
+```
+恢复：`git checkout HEAD -- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts`；恢复后 AC1 同一命令复跑 ⇒ `EXIT=0`、19/19。
+
+**AC4（断言与读数未被改动）**：`git diff develop...HEAD -- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 只有两个 hunk：环境块新增保存/删除（含注释）与 `after` 新增恢复分支；`test(...)` 计数 develop=15、HEAD=15；diff 中无任何 `assert*` 行。flag-on 运行逐字读数：
+```
+session-lifecycle (a) with-message payload={"sessionId":"068f6698-782f-4c9f-af0f-9db06a714173","deliveryId":null,"runId":"05ddcbaa-6c6b-4889-a4db-f8948af9d78e"}
+session-lifecycle (a) registry.current={"runId":"05ddcbaa-6c6b-4889-a4db-f8948af9d78e","source":"mcp","status":"running"}
+session-lifecycle (a) registry.byId={"runId":"05ddcbaa-6c6b-4889-a4db-f8948af9d78e","sessionId":"068f6698-782f-4c9f-af0f-9db06a714173","source":"mcp","status":"running","startedAt":1793014350903,"completedAt":null,"lastSeq":1}
+session-lifecycle (a) listRunningRuns(for session)=[{"sessionId":"068f6698-782f-4c9f-af0f-9db06a714173","provider":"debug","startedAt":1793014350903,"lastSeq":1,"correlationId":null}]
+session-lifecycle (d) pidBefore=4242 hostBefore=true statusBefore=running runId=61daf15b-d2c1-4c16-b111-9226e021f768
+session-lifecycle (d) interrupt={"aborted":true} isError=false pidAfter=4242 hostAfter=true statusAfter=aborted abortCount=1
+```
+
+**AC5（恢复语义）**：临时 `console.error` 打印（验证后 `git checkout HEAD --` 移除，`grep -c AC339PIN` = 0）：
+- 进进程 `RESIDENT_RUN_IS_TURN=1`：incoming=`"1"` → 文件内=`undefined` → 退出前恢复=`"1"`。
+- 进进程未设：incoming=`undefined` → 文件内=`undefined` → 退出前恢复=`undefined`。
+
+**AC7（不回归）**：audit 单文件 `EXIT=0`、4/4；`npm run typecheck` `EXIT=0`；`npm run lint` `EXIT=0`、`grep -c ': error '` = 0。
+
+**DoD / 语义**：(a) 返回的 runId 即 registry 当前 run、`source=mcp`、`listRunningRuns` 含该会话；(d) `statusAfter=aborted`、pid 4242 不变、host 仍 live、`abortCount=1`；没有断言被删除、放宽或替换成「存在某个 run」。
+本次改动只影响测试进程的环境变量，不构造云端调用、不跑真 CLI、不引入新依赖或新测试文件。
+遵守 `$backend-module-standards`（仅环境钉住块，不导出无消费者符号）。
+
+- 该轴仍暗,理由:只钉住测试进程环境变量，未改模块依赖图与服务实现
 
 ## Touches
 
