@@ -26,7 +26,7 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 
 在 `/data/home/yale/work/claudecodeui` 上当场跑：
 
-- **裸命令**（本会话环境带 `RESIDENT_RUN_IS_TURN=1`，与 anchor 从 `~/.config/systemd/user/claudecodeui-server.service.d/40-resident-run-is-turn.conf` 继承的值一致）⇒ `EXIT=1`，`tests 3 / pass 0 / fail 3`。逐字读数：`unattendedSource=none unattendedDeliveryIds=0 unattendedNotifications=0 unattendedTrigger=none unattendedCompletes=-1`、`peerSource=none peerDeliveryIds=0 peerNotifications=0 peerTrigger=none peerCompletes=-1`、`staleResidueUnattended=false staleResidueUnattendedNotifications=0 residueRoundsOpen=1 residuePendingStart=0`、`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=false cronIsForeign=true foreignUuidInPublicReadings=false`。三条红：`AC381-a` 的 `the unattended turn must be identified by the opener uuid the CLI minted`（actual `null`，`…test.ts:488:10`）、`AC381-b` 的 `a stale round must not mask the unattended turn the CLI announced after it`（`false !== true`，`:553:10`）、`AC381-c` 的 `a foreign \`started\` does not make the turn delivered`（`false !== true`，`:616:10`）。
+- **裸命令**（本会话环境带 `RESIDENT_RUN_IS_TURN=1`，与 anchor 从 `~/.config/systemd/user/claudecodeui-server.service.d/40-resident-run-is-turn.conf` 继承的值一致）⇒ `EXIT=1`，`tests 3 / pass 0 / fail 3`。逐字读数：`unattendedSource=none unattendedDeliveryIds=0 unattendedNotifications=0 unattendedTrigger=none unattendedCompletes=-1`、`peerSource=none peerDeliveryIds=0 peerNotifications=0 peerTrigger=none peerCompletes=-1`、`staleResidueUnattended=false staleResidueUnattendedNotifications=0 residueRoundsOpen=1 residuePendingStart=0`、`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=false cronIsForeign=true foreignUuidInPublicReadings=false`。三条红：`AC381-a` 的 `the unattended turn must be identified by the opener uuid the CLI minted`（actual `null`，`…test.ts:488:10`）、`AC381-b` 的 `a stale round must not mask the unattended turn the CLI announced after it`（`false !== true`，`:553:10`）、`AC381-c` 的 `a foreign \\`started\\` does not make the turn delivered`（`false !== true`，`:616:10`）。
 - **同一命令 `env -u RESIDENT_RUN_IS_TURN`** ⇒ `EXIT=0`，`tests 3 / pass 3 / fail 0`，五条读数全部正确（`unattendedSource=unattended … unattendedNotifications=1`、`peerSource=unattended … peerCompletes=1`、`[rest] roundsOpen=0 turnLeasesOpen=0`、`staleResidueUnattended=true staleResidueUnattendedNotifications=1`、`deliveredTurn=true … cronUnattended=true …`）。
 
 ⇒ 红/绿的唯一差别是宿主导出的 `RESIDENT_RUN_IS_TURN`，不是 driver/账本回归。
@@ -51,22 +51,95 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 
 ## AC
 
-- [ ] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`、`tests 3 / pass 3 / fail 0`；逐字抄命令行、退出码、计数与五条读数（`unattendedSource=unattended unattendedDeliveryIds=0 unattendedNotifications=1 unattendedTrigger=background-task unattendedCompletes=1`；`peerSource=unattended peerDeliveryIds=0 peerNotifications=1 peerTrigger=cross-session-message peerCompletes=1`；`[rest] roundsOpen=0 turnLeasesOpen=0`；`staleResidueUnattended=true staleResidueUnattendedNotifications=1 residueRoundsOpen=1 residuePendingStart=0`；`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=true cronIsForeign=true foreignUuidInPublicReadings=false`）。
-- [ ] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`、`tests 3 / pass 3 / fail 0`，五条读数与 AC1 逐字相同。两种宿主环境同一读数，判据不再依赖调用者环境。
-- [ ] AC3 钉子承重（负向控制）：先备份文件，把钉子那块（保存/`delete`/`after` 恢复 + 注释）临时移除，以 `RESIDENT_RUN_IS_TURN=1` 跑 AC1 的命令 ⇒ `EXIT=1`、`tests 3 / pass 0 / fail 3`，且逐字红行是 AC381-a 的 `the unattended turn must be identified by the opener uuid the CLI minted`、AC381-b 的 `a stale round must not mask the unattended turn the CLI announced after it`、AC381-c 的 `a foreign \`started\` does not make the turn delivered`，读数含 `unattendedSource=none`、`staleResidueUnattended=false`、`cronUnattended=false`；恢复钉子后 AC1 重新 3/3。证明绿来自钉住的世界，不是把断言改松。
-- [ ] AC4 改动面最小且读数未变：`git diff develop...HEAD -- server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` 只含 env 钉住块（保存/`delete`/恢复 + 注释）与 `after` 的 import；三个 `test(...)`、全部 `assert*`、全部 `console.log` 行逐字不变；AC1 的运行里仍打印上面五条读数。
-- [ ] AC5 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）；完成记录里写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数（用临时打印或同进程小探针证明；临时打印若留在判据里必须不影响 AC4 的逐字断言与 AC1 的退出码）。
-- [ ] AC6 不外溢：两个兄弟判据各起独立进程、各自 `EXIT=0`、fail 0：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-merged-queued-turn.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts`（后者文件内按开态测量，证明本文件的钉子不改变它的世界）。
-- [ ] AC7 对齐与仓库门：`git diff --stat develop...HEAD` 与 `## Touches` 逐条一致（且无新增测试文件 ⇒ `server/shared/tests/quay-test-script.test.ts` 的计数 pin 与 `scripts/suite-duration-baseline.tsv` 均未改动）；`npx tsc --noEmit -p server/tsconfig.json` 退出 0；`npx oxlint server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` 退出 0。
+- [x] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`、`tests 3 / pass 3 / fail 0`；逐字抄命令行、退出码、计数与五条读数（`unattendedSource=unattended unattendedDeliveryIds=0 unattendedNotifications=1 unattendedTrigger=background-task unattendedCompletes=1`；`peerSource=unattended peerDeliveryIds=0 peerNotifications=1 peerTrigger=cross-session-message peerCompletes=1`；`[rest] roundsOpen=0 turnLeasesOpen=0`；`staleResidueUnattended=true staleResidueUnattendedNotifications=1 residueRoundsOpen=1 residuePendingStart=0`；`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=true cronIsForeign=true foreignUuidInPublicReadings=false`）。
+- [x] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`、`tests 3 / pass 3 / fail 0`，五条读数与 AC1 逐字相同。两种宿主环境同一读数，判据不再依赖调用者环境。
+- [x] AC3 钉子承重（负向控制）：先备份文件，把钉子那块（保存/`delete`/`after` 恢复 + 注释）临时移除，以 `RESIDENT_RUN_IS_TURN=1` 跑 AC1 的命令 ⇒ `EXIT=1`、`tests 3 / pass 0 / fail 3`，且逐字红行是 AC381-a 的 `the unattended turn must be identified by the opener uuid the CLI minted`、AC381-b 的 `a stale round must not mask the unattended turn the CLI announced after it`、AC381-c 的 `a foreign \\`started\\` does not make the turn delivered`，读数含 `unattendedSource=none`、`staleResidueUnattended=false`、`cronUnattended=false`；恢复钉子后 AC1 重新 3/3。证明绿来自钉住的世界，不是把断言改松。
+- [x] AC4 改动面最小且读数未变：`git diff develop...HEAD -- server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` 只含 env 钉住块（保存/`delete`/恢复 + 注释）与 `after` 的 import；三个 `test(...)`、全部 `assert*`、全部 `console.log` 行逐字不变；AC1 的运行里仍打印上面五条读数。
+- [x] AC5 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）；完成记录里写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数（用临时打印或同进程小探针证明；临时打印若留在判据里必须不影响 AC4 的逐字断言与 AC1 的退出码）。
+- [x] AC6 不外溢：两个兄弟判据各起独立进程、各自 `EXIT=0`、fail 0：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-merged-queued-turn.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts`（后者文件内按开态测量，证明本文件的钉子不改变它的世界）。
+- [x] AC7 对齐与仓库门：`git diff --stat develop...HEAD` 与 `## Touches` 逐条一致（且无新增测试文件 ⇒ `server/shared/tests/quay-test-script.test.ts` 的计数 pin 与 `scripts/suite-duration-baseline.tsv` 均未改动）；`npx tsc --noEmit -p server/tsconfig.json` 退出 0；`npx oxlint server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` 退出 0。
 
 ## DoD
 
-- [ ] 判据文件在模块顶层把 `RESIDENT_RUN_IS_TURN` 钉成关态（保存进进程值 → `delete` → `after` 恢复原值），注释写明这就是 AC-381 判据所在的世界、与 `scripts/test.sh` 的 `unset RESIDENT_RUN_IS_TURN`、兄弟判据文件的钉子以及 `claude-resident-busy-input.test.ts:108-116` 是同一件事；goal gate 不经过 test.sh，所以文件必须自己钉住。
-- [ ] 实现只改判据文件：`git diff develop...HEAD` 的该文件仅含 env 钉住块与 `after` import；三个 `test(...)`、全部 `assert*` 与五条读数未改动（AC4）。
-- [ ] 裸判据命令在「宿主带 `RESIDENT_RUN_IS_TURN=1`」与「开关未设」两种环境下均 `EXIT=0`、`tests 3 / pass 3 / fail 0`（AC1/AC2），五条读数逐字贴进 `## 完成记录`。
-- [ ] 负向控制（去掉钉子 ⇒ 三条腿红，逐字失败行与读数）、恢复语义三项读数、两个兄弟判据的 exit 0，均逐字记录在 `## 完成记录`（AC3/AC5/AC6）——只写「已通过」不算完成。
+- [x] 判据文件在模块顶层把 `RESIDENT_RUN_IS_TURN` 钉成关态（保存进进程值 → `delete` → `after` 恢复原值），注释写明这就是 AC-381 判据所在的世界、与 `scripts/test.sh` 的 `unset RESIDENT_RUN_IS_TURN`、兄弟判据文件的钉子以及 `claude-resident-busy-input.test.ts:108-116` 是同一件事；goal gate 不经过 test.sh，所以文件必须自己钉住。
+- [x] 实现只改判据文件：`git diff develop...HEAD` 的该文件仅含 env 钉住块与 `after` import；三个 `test(...)`、全部 `assert*` 与五条读数未改动（AC4）。
+- [x] 裸判据命令在「宿主带 `RESIDENT_RUN_IS_TURN=1`」与「开关未设」两种环境下均 `EXIT=0`、`tests 3 / pass 3 / fail 0`（AC1/AC2），五条读数逐字贴进 `## 完成记录`。
+- [x] 负向控制（去掉钉子 ⇒ 三条腿红，逐字失败行与读数）、恢复语义三项读数、两个兄弟判据的 exit 0，均逐字记录在 `## 完成记录`（AC3/AC5/AC6）——只写「已通过」不算完成。
 
 ## Touches
 
 - `server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` （模块顶层钉住 `RESIDENT_RUN_IS_TURN` 关态：保存/delete/`after` 恢复 + 注释 + `after` import；断言与读数一行不动）
 - `tasks/gap-ac381-unattended-criterion-hermetic.md` （自触）
+
+## 完成记录
+
+实现 commit：`810bd9e12`（worktree branch `task/gap-ac381-unattended-criterion-hermetic`，基于 `develop` `23e8a0db4`）。
+
+### AC1 —— 宿主带 `RESIDENT_RUN_IS_TURN=1`
+
+命令：
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts
+```
+
+`EXIT=0`，`tests 3 / pass 3 / fail 0`（`duration_ms 7324.65473`）。三条腿 `✔ AC381-a`、`✔ AC381-b`、`✔ AC381-c`。五条读数逐字：
+
+```
+unattendedSource=unattended unattendedDeliveryIds=0 unattendedNotifications=1 unattendedTrigger=background-task unattendedCompletes=1
+peerSource=unattended peerDeliveryIds=0 peerNotifications=1 peerTrigger=cross-session-message peerCompletes=1
+[rest] roundsOpen=0 turnLeasesOpen=0
+staleResidueUnattended=true staleResidueUnattendedNotifications=1 residueRoundsOpen=1 residuePendingStart=0
+deliveredTurn=true unattendedRunsOpened=0 cronUnattended=true cronIsForeign=true foreignUuidInPublicReadings=false
+```
+
+### AC2 —— 开关未设
+
+命令 `env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`，`tests 3 / pass 3 / fail 0`。五条读数与 AC1 逐字相同（`unattendedSource=unattended …`、`peerSource=unattended …`、`[rest] roundsOpen=0 turnLeasesOpen=0`、`staleResidueUnattended=true …`、`deliveredTurn=true … cronUnattended=true …`）。
+
+### AC3 —— 负向控制（临时移除钉子，备份后恢复）
+
+移除钉住块后以 `RESIDENT_RUN_IS_TURN=1` 跑 AC1 命令 ⇒ `EXIT=1`，`tests 3 / pass 0 / fail 3`。逐字红行：
+
+```
+✖ AC381-a an `init` nothing pushed is an unattended turn after several ordinary turns
+  AssertionError [ERR_ASSERTION]: the unattended turn must be identified by the opener uuid the CLI minted
+    actual: null,
+    expected: true,
+✖ AC381-b a round left behind by a merged turn does not mask the next unattended turn
+  AssertionError [ERR_ASSERTION]: a stale round must not mask the unattended turn the CLI announced after it
+    actual: false,
+    expected: true,
+✖ AC381-c a waiting `started` makes the turn delivered, and a foreign one does not
+  AssertionError [ERR_ASSERTION]: a foreign `started` does not make the turn delivered
+    actual: false,
+    expected: true,
+```
+
+读数含 `unattendedSource=none`、`staleResidueUnattended=false`、`cronUnattended=false`（完整两行：`unattendedSource=none unattendedDeliveryIds=0 unattendedNotifications=0 unattendedTrigger=none unattendedCompletes=-1`；`staleResidueUnattended=false staleResidueUnattendedNotifications=0 residueRoundsOpen=1 residuePendingStart=0`；`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=false cronIsForeign=true foreignUuidInPublicReadings=false`）。从备份恢复钉子后 AC1 重新 `EXIT=0`、`pass 3 / fail 0`。
+
+### AC5 —— 恢复语义（临时打印，已移除）
+
+临时打印三项读数：
+
+```
+RESIDENT_RUN_IS_TURN=1        : 进进程=1    → 文件内=unset → 退出前恢复=1
+env -u RESIDENT_RUN_IS_TURN   : 进进程=unset → 文件内=unset → 退出前恢复=unset
+```
+
+两次均 `EXIT=0`、`pass 3 / fail 0`。临时打印已移除；最终文件相对 `develop` 没有任何 `console.log` 增删（见 AC4 检查：test/assert/console 改动行数 0）。
+
+### AC6 —— 兄弟判据各自独立进程
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-merged-queued-turn.test.ts` ⇒ `EXIT=0`，`tests 4 / pass 4 / fail 0`
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts`（进程环境 `RESIDENT_RUN_IS_TURN=1`，即该文件自己的开态世界）⇒ `EXIT=0`，`tests 1 / pass 1 / fail 0`
+
+### AC4 / AC7 —— 改动面与仓库门
+
+- `git diff --stat develop...HEAD`：`.../claude-resident-unattended-after-turns.test.ts | 28 +++++++++++++++++++++-`，`1 file changed, 27 insertions(+), 1 deletion(-)` —— 仅 `after` import 与 env 钉住块（保存/`delete`/`after` 恢复 + 注释）；`test(`/`assert`/`console.log` 相关改动行计数为 0；无新增测试文件，`server/shared/tests/quay-test-script.test.ts` 与 `scripts/suite-duration-baseline.tsv` 均未改动。`tasks/gap-ac381-unattended-criterion-hermetic.md` 是自触，经 task ABI 写入 store，不出现在 worktree 分支的 diff 里。
+- `npx tsc --noEmit -p server/tsconfig.json` ⇒ `EXIT=0`
+- `npx oxlint server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`
+
+### ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只改判据文件的进程环境钉子，没有可测的架构增量。
