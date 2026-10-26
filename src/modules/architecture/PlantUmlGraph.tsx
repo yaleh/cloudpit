@@ -80,6 +80,10 @@ import {
 import { createGraphGestureController } from '@/modules/architecture/graphGestureController';
 import { createGraphSelectionController } from '@/modules/architecture/graphSelectionController';
 import {
+  createGraphViewportController,
+  type GraphZoom,
+} from '@/modules/architecture/graphViewportController';
+import {
   selectionsIntersectingBox,
   type ArchitectureSelection,
 } from '@/modules/architecture/selectionModel';
@@ -100,9 +104,7 @@ import {
   readSvgNaturalSize,
   ZOOM_STEP,
   type SvgCornerRect,
-  type SvgFitAreaInsets,
   type SvgFitPlacement,
-  type SvgViewportController,
   type SvgViewportSize,
 } from '@/modules/architecture/svgViewport';
 import {
@@ -812,24 +814,6 @@ type PlantUmlGraphProps = ArchitectureRendererProps & {
 };
 
 /**
- * The diagram's presentation scale and whether it follows the canvas.
- *
- * `auto` is the sticky fit state: every canvas size change (window resize,
- * fullscreen, the inspector/drawer/tray opening, phone rotation, a re-layout)
- * re-solves the scale after a short debounce. Any EXPLICIT zoom — a button, the
- * wheel, a pinch, the keyboard, a package click — flips the state to `manual`,
- * which keeps the reader's `scale` and only clamps the scroll. Pressing Fit
- * returns to `auto`.
- */
-type DiagramZoom = {
-  readonly scale: number;
-  readonly fit: 'auto' | 'manual';
-};
-
-/** How long a canvas size change must settle before an `auto` fit re-solves. */
-const AUTO_FIT_DEBOUNCE_MS = 150;
-
-/**
  * The pixel the overlay's Fit leaves for the semantic writer's `Math.ceil`.
  * See `fullscreenFitBox` — it is rounding allowance, not a reserved margin.
  */
@@ -1132,15 +1116,24 @@ export function PlantUmlGraph({
     onViewChange?.(view);
   }, [onViewChange, view]);
 
-  // The viewed scale and whether it follows the canvas (see DiagramZoom).
-  // Rendering reads it for the toolbar readout; the semantic path rewrites the
-  // geometry at this scale and the ordinary path resizes the SVG imperatively,
-  // so neither re-enters the drawing path.
-  const [zoom, setZoom] = useState<DiagramZoom>({ scale: 1, fit: 'auto' });
-  // Mirror of `zoom` for the async render / wheel / resize handlers, which run
-  // outside the render that last committed the state.
-  const zoomRef = useRef(zoom);
-  const viewportRef = useRef<SvgViewportController | null>(null);
+  // Zoom, the SVG viewport and the auto-fit rules are ONE owned slice (see
+  // `graphViewportController.ts`). This component renders the snapshot and
+  // forwards the host's measurements; the owner decides when a resize re-fits,
+  // which scale survives a manual zoom, and how a Fit token is answered.
+  const viewportController = useMemo(() => createGraphViewportController({
+    autoFitDisabled,
+  }), []);
+  const viewportSnapshot = useSyncExternalStore(
+    viewportController.subscribe,
+    viewportController.getSnapshot,
+    viewportController.getSnapshot,
+  );
+  const {
+    zoom,
+    packageFocus,
+    fullscreenInsets,
+    fitViewport: fitViewportReading,
+  } = viewportSnapshot;
   /**
    * The drawing's ORIGINAL size for every fit computation.
    *
@@ -1160,23 +1153,22 @@ export function PlantUmlGraph({
     if (folded !== null && folded.foldDepth !== null) {
       return { width: Math.max(1, folded.content.width), height: Math.max(1, folded.content.height) };
     }
-    const semanticBase = viewportRef.current?.semanticBaseSize() ?? null;
+    const semanticBase = viewportController.viewport()?.semanticBaseSize() ?? null;
     if (semanticBase !== null) return semanticBase;
     return drawing === null ? null : readSvgNaturalSize(drawing);
-  }, []);
-  const applyZoom = useCallback((next: DiagramZoom): void => {
-    // A settle that re-derives the same state must not re-render (the semantic
-    // pass writes the solved scale back after every application).
-    if (next.scale === zoomRef.current.scale && next.fit === zoomRef.current.fit) return;
-    zoomRef.current = next;
-    setZoom(next);
-  }, []);
+  }, [viewportController]);
+  /** The one write path for a scale solved by Fit, the semantic engine or a gesture. */
+  const applyZoom = useCallback((next: GraphZoom): boolean => viewportController.setZoom(next), [viewportController]);
+  /** The owner's reading at call time; async handlers run outside the last render. */
+  const controllerZoom = useCallback(
+    (): GraphZoom => viewportController.getSnapshot().zoom,
+    [viewportController],
+  );
 
-  // The package the reader zoomed into from the too-small overview hint (the  // "tap a package" gesture), or `null` while the whole graph is on screen. It
-  // is what keeps the hint row visible after the zoom and gives that row its
-  // "back to whole graph" action; a fit or an explicit readable-mode switch
-  // clears it.
-  const [packageFocus, setPackageFocus] = useState<string | null>(null);
+  // The package the reader zoomed into from the too-small overview hint (the
+  // "tap a package" gesture) lives in the viewport owner's snapshot with the
+  // zoom; it keeps the hint row visible and gives that row its action.
+
 
   /** The viewBox origin of the drawing on screen, in user units (usually 0,0). */
   const drawingOrigin = useCallback((): { x: number; y: number } => {    const parts = (hostRef.current?.querySelector('svg')?.getAttribute('viewBox') ?? '')
@@ -1190,26 +1182,9 @@ export function PlantUmlGraph({
   // when the renderer is not inside a panel (see `CanvasHeaderSlotContext`).
   const canvasHeaderSlot = useCanvasHeaderSlot();
 
-  /**
-   * The overlay's Fit area, and the host padding that realises it.
-   *
-   * State, not a ref: the host's padding is render output, so the measured
-   * insets have to reach the next render. `null` means "not the overlay" (or
-   * not measured yet), and the non-fullscreen padding formula applies.
-   */
-  const [fullscreenInsets, setFullscreenInsets] = useState<SvgFitAreaInsets | null>(null);
-  /**
-   * The box the last Fit solved against, published as
-   * `data-architecture-fit-viewport` so a unit test and the e2e reading can
-   * state which area the drawing was fitted to instead of re-deriving it.
-   */
-  const [fitViewportReading, setFitViewportReading] = useState<SvgViewportSize | null>(null);
-  /**
-   * The last canvas box measured while NOT fullscreen. The control arm uses it
-   * to restore the retired "keep the non-fullscreen canvas" defect; the
-   * shipped path never reads it.
-   */
-  const lastFlowViewportRef = useRef<SvgViewportSize | null>(null);
+  // The overlay's measured insets and the box the last Fit solved against are
+  // part of the viewport owner's snapshot: the host padding is render output,
+  // and `data-architecture-fit-viewport` must state the area the solve used.
 
   /**
    * The chrome rectangles the overlay paints OVER its viewport-sized host, in
@@ -1315,14 +1290,14 @@ export function PlantUmlGraph({
   const fullscreenFitBox = useCallback((): SvgViewportSize | null => {
     const host = hostRef.current;
     if (host === null) return null;
-    if (forcedFullscreenReservedMargins()) return lastFlowViewportRef.current ?? measureHostSize(host);
+    if (forcedFullscreenReservedMargins()) return viewportController.lastFlowViewport() ?? measureHostSize(host);
     const area = fullscreenFitArea();
     if (area === null) return null;
     return {
       width: Math.max(1, area.width - FULLSCREEN_FIT_ROUNDING_ALLOWANCE_PX),
       height: Math.max(1, area.height - FULLSCREEN_FIT_ROUNDING_ALLOWANCE_PX),
     };
-  }, [fullscreenFitArea]);
+  }, [fullscreenFitArea, viewportController]);
 
   /** The reading every Fit/fold/sticky solve measures against. */
   const currentFitViewport = useCallback((host: HTMLElement): SvgViewportSize | null => {
@@ -1333,15 +1308,10 @@ export function PlantUmlGraph({
     return measureViewportSize(host);
   }, [fullscreen, fullscreenFitBox]);
 
-  /** Publish the box the solve used, without re-rendering for an unchanged box. */
+  /** Publish the box the solve used; the owner ignores an unchanged reading. */
   const recordFitViewport = useCallback((box: SvgViewportSize | null): void => {
-    if (box === null || !(box.width > 0) || !(box.height > 0)) return;
-    setFitViewportReading((previous) => previous !== null
-      && Math.abs(previous.width - box.width) < 0.5
-      && Math.abs(previous.height - box.height) < 0.5
-      ? previous
-      : { width: box.width, height: box.height });
-  }, []);
+    viewportController.reportFitViewport(box);
+  }, [viewportController]);
 
   /**
    * The floating corner chrome rectangles — the minimap and the zoom cluster —
@@ -1420,7 +1390,7 @@ export function PlantUmlGraph({
    */
   const zoomToPackage = useCallback((packageId: string): void => {
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) return;
     const frame = drawnPackageFrame(host, packageId);
     const box = measureViewportSize(host);
@@ -1434,12 +1404,12 @@ export function PlantUmlGraph({
       // so the multiplier is relative to the scale on screen. The new scale is
       // solved by the same engine as Fit (its floor-font rule keeps every label
       // readable), and the geometry is rewritten now rather than 200 ms later.
-      const current = appliedLayoutRef.current?.scale ?? zoomRef.current.scale;
+      const current = appliedLayoutRef.current?.scale ?? controllerZoom().scale;
       const solved = clampZoomScale(Math.max(current * multiplier, MIN_ZOOM_SCALE));
       applyZoom({ scale: solved, fit: 'manual' });
       centerPackageOnApplyRef.current = packageId;
       applySemanticRef.current?.({ fit: false, scale: solved });
-      setPackageFocus(packageId);
+      viewportController.setPackageFocus(packageId);
       return;
     }
     const scale = clampZoomScale(Math.max(multiplier, MIN_READABLE_ZOOM_SCALE));
@@ -1457,8 +1427,8 @@ export function PlantUmlGraph({
     }, applied);
     host.scrollLeft = offsets.left;
     host.scrollTop = offsets.top;
-    setPackageFocus(packageId);
-  }, [applyPlacement, applyZoom, drawingOrigin]);
+    viewportController.setPackageFocus(packageId);
+  }, [applyPlacement, applyZoom, controllerZoom, drawingOrigin, viewportController]);
 
   // Set when a drawing was too wide for its container and was collapsed to the
   // directory overview; the notice stays until the user asks for the explosion
@@ -1718,16 +1688,18 @@ export function PlantUmlGraph({
     positionOverviewHint(host);
   }, [gestureController, applySemanticLayout, applyZoom, currentFitViewport, recordFitViewport]);
   applySemanticRef.current = applySemantic;
-  // One controller per mount: it survives the renderer replacing the SVG (each
-  // render re-attaches), so the mode and scale outlive a single drawing.
+  // The viewport controller lives in the owner: it survives the renderer
+  // replacing the SVG (each render re-attaches), so the mode and scale outlive
+  // a single drawing, while the owner clears its debounce timer on unmount.
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
-    viewportRef.current = createSvgViewport(host);
+    viewportController.attachViewport(createSvgViewport(host));
     return () => {
-      viewportRef.current = null;
+      viewportController.attachViewport(null);
     };
-  }, []);
+  }, [viewportController]);
+  useEffect(() => () => viewportController.dispose(), [viewportController]);
 
   // A sticky package name belongs to the VIEWPORT, not to the drawing: panning
   // must move the ghost labels with the reader, and must never leave one over a
@@ -1765,13 +1737,13 @@ export function PlantUmlGraph({
   // also why the single-finger drag has to pan the container here.
   useEffect(() => {
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) return;
     const gestures = createSvgTouchGestures(host, viewport, {
       onZoom: (scale) => applyZoom({ scale, fit: 'manual' }),
     });
     return () => gestures.destroy();
-  }, [applyZoom]);
+  }, [applyZoom, viewportController]);
 
   // Mouse/pen panning rides on the same scroll container the touch gestures
   // pan: left-drag from the blank canvas and middle-drag from anywhere scroll
@@ -2238,7 +2210,7 @@ export function PlantUmlGraph({
         const capture = semanticEligible ? captureSemanticDrawing(host, graph) : null;
         semanticCaptureRef.current = capture;
         semanticTierRef.current = null;
-        const viewportForMode = viewportRef.current;
+        const viewportForMode = viewportController.viewport();
         // The semantic base size is the SAME boundary the canvas will draw
         // (`semanticContentBounds`), not the renderer's pre-semantic viewBox:
         // the fit reading and the minimap must measure what is on screen.
@@ -2270,7 +2242,7 @@ export function PlantUmlGraph({
           drawing.style.marginBottom = 'auto';
           drawing.style.flex = 'none';
         }
-        const viewport = viewportRef.current;
+        const viewport = viewportController.viewport();
         if (drawing !== null && viewport !== null) {
           viewport.attach(drawing);
           const natural = naturalOfDrawing(drawing);
@@ -2293,14 +2265,14 @@ export function PlantUmlGraph({
             // fits the whole drawing down to the manual floor; `manual` keeps
             // the reader's own scale. Either way the placement re-centres it.
             const placement = natural === null ? null : fitPlacementFor(natural, box ?? { width: 0, height: 0 });
-            const drawnScale = zoomRef.current.fit === 'auto'
-              ? viewport.zoomTo(placement?.scale ?? zoomRef.current.scale)
-              : viewport.zoomTo(zoomRef.current.scale);
+            const drawnScale = controllerZoom().fit === 'auto'
+              ? viewport.zoomTo(placement?.scale ?? controllerZoom().scale)
+              : viewport.zoomTo(controllerZoom().scale);
             applyPlacement(drawing, placement);
-            applyZoom({ scale: drawnScale, fit: zoomRef.current.fit });
+            applyZoom({ scale: drawnScale, fit: controllerZoom().fit });
             // A fresh drawing is a new whole-graph view; a package zoom from
             // the previous one no longer names a frame on screen.
-            setPackageFocus(null);
+            viewportController.setPackageFocus(null);
           }
         }
         // A fresh SVG has no highlight classes; re-pin the current selection.
@@ -2337,7 +2309,7 @@ export function PlantUmlGraph({
           // The new drawing is applied through ONE path, so the draw and the
           // settled-zoom/resize paths can never disagree about which scale is
           // on screen.
-          applySemantic({ fit: zoomRef.current.fit === 'auto', scale: zoomRef.current.scale });
+          applySemantic({ fit: controllerZoom().fit === 'auto', scale: controllerZoom().scale });
         }
         // A focus request (search hit) is centred LAST: the reader asked for
         // THIS node, so it wins.
@@ -2393,7 +2365,7 @@ export function PlantUmlGraph({
       // decides again whether to announce (and clears it again when it ends).
       setLayoutStatusNodes(null);
     };
-  }, [applyPlacement, applySemantic, applySemanticLayout, applyZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, gestureController, graph, idShape, layoutAspect, naturalOfDrawing, view]);
+  }, [applyPlacement, applySemantic, applySemanticLayout, applyZoom, controllerZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, gestureController, graph, idShape, layoutAspect, naturalOfDrawing, view, viewportController]);
 
   /**
    * Keep the SELECTED box inside the visible canvas.
@@ -2751,8 +2723,7 @@ export function PlantUmlGraph({
     if (host === null) return;
 
     const onWheel = (event: WheelEvent): void => {
-      const viewport = viewportRef.current;
-      if (viewport === null) return;
+      if (viewportController.viewport() === null) return;
       // The drawing never scrolls under the wheel any more; the zoom below is
       // the whole response, so the browser's own scroll/page zoom must not run.
       event.preventDefault();
@@ -2760,51 +2731,36 @@ export function PlantUmlGraph({
       // trackpad zoom at comparable rates.
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
       const factor = Math.exp(-event.deltaY * unit * 0.0015);
-      applyZoom({
-        scale: viewport.zoomBy(factor, { clientX: event.clientX, clientY: event.clientY }),
-        fit: 'manual',
-      });
+      viewportController.zoomBy(factor, { clientX: event.clientX, clientY: event.clientY });
     };
 
     // `passive: false` is needed because a passive wheel listener may not call
     // preventDefault — without it the browser's own page zoom would also fire.
     host.addEventListener('wheel', onWheel, { passive: false });
     return () => host.removeEventListener('wheel', onWheel);
-  }, [applyZoom]);
+  }, [viewportController]);
 
-  // The auto-fit debounce: a canvas size change settles for 150ms before the
-  // scale is re-solved. One timer per mount; the latest reading wins.
-  const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (autoFitTimerRef.current !== null) clearTimeout(autoFitTimerRef.current);
-    autoFitTimerRef.current = null;
-  }, []);
-  const scheduleAutoFit = useCallback((): void => {
-    if (zoomRef.current.fit !== 'auto') return;
-    if (autoFitTimerRef.current !== null) clearTimeout(autoFitTimerRef.current);
-    autoFitTimerRef.current = setTimeout(() => {
-      autoFitTimerRef.current = null;
-      // Read the state at FIRE time: an explicit zoom in the meantime cancels
-      // the pending refit even if the timer already fired its scheduling.
-      if (zoomRef.current.fit !== 'auto' || autoFitDisabled()) return;
-      if (semanticCaptureRef.current !== null) {
-        applySemanticRef.current?.({ fit: true, scale: zoomRef.current.scale });
-        return;
-      }
-      const host = hostRef.current;
-      const viewport = viewportRef.current;
-      if (host === null || viewport === null) return;
-      const drawing = host.querySelector('svg');
-      const natural = naturalOfDrawing(drawing);
-      const box = currentFitViewport(host);
-      recordFitViewport(box);
-      if (natural === null || box === null) return;
-      const placement = fitPlacementFor(natural, box);
-      const scale = viewport.zoomTo(placement.scale);
-      applyPlacement(drawing, placement);
-      applyZoom({ scale, fit: 'auto' });
-    }, AUTO_FIT_DEBOUNCE_MS);
-  }, [applyPlacement, applyZoom, currentFitViewport, fitPlacementFor, naturalOfDrawing, recordFitViewport]);
+  // The auto-fit re-solve. The debounce, the `auto`-mode gate and the control
+  // arm's "refit off" reading live in the viewport owner; this is only the
+  // drawing-bound half (semantic rewrite vs. CSS resize + placement).
+  const runAutoFit = useCallback((): void => {
+    if (semanticCaptureRef.current !== null) {
+      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
+      return;
+    }
+    const host = hostRef.current;
+    const viewport = viewportController.viewport();
+    if (host === null || viewport === null) return;
+    const drawing = host.querySelector('svg');
+    const natural = naturalOfDrawing(drawing);
+    const box = currentFitViewport(host);
+    recordFitViewport(box);
+    if (natural === null || box === null) return;
+    const placement = fitPlacementFor(natural, box);
+    const scale = viewport.zoomTo(placement.scale);
+    applyPlacement(drawing, placement);
+    applyZoom({ scale, fit: 'auto' });
+  }, [applyPlacement, applyZoom, controllerZoom, currentFitViewport, fitPlacementFor, naturalOfDrawing, recordFitViewport, viewportController]);
 
   // Every canvas size change — window resize, fullscreen, the inspector/drawer/
   // tray opening, a phone rotation, a re-layout — reaches this observer. Under
@@ -2824,7 +2780,7 @@ export function PlantUmlGraph({
         scheduleAspectRelayout(measured);
       }
       revealSelectedRef.current?.();
-      scheduleAutoFit();
+      viewportController.scheduleAutoFit();
     });
     observer.observe(host);
     // The corner chrome decides the CSS-scaled fit, and the minimap mounts a
@@ -2833,7 +2789,7 @@ export function PlantUmlGraph({
     const overlays = host.parentElement?.querySelector<HTMLElement>('[data-architecture-canvas-overlays]');
     if (overlays !== undefined && overlays !== null) observer.observe(overlays);
     return () => observer.disconnect();
-  }, [scheduleAspectRelayout, scheduleAutoFit]);
+  }, [scheduleAspectRelayout, viewportController]);
 
   // Remember the box the ordinary (non-fullscreen) layout fits against. The
   // control arm's lever reads it to restore the retired defect; the shipped
@@ -2843,7 +2799,7 @@ export function PlantUmlGraph({
     if (fullscreen) return;
     const host = hostRef.current;
     if (host === null) return;
-    lastFlowViewportRef.current = measureViewportSize(host);
+    viewportController.reportFlowViewport(measureViewportSize(host));
   });
 
   // The overlay's Fit area: the viewport-sized host less the chrome actually
@@ -2857,7 +2813,7 @@ export function PlantUmlGraph({
   // resize uses, which is what makes opening/closing an overlay re-fit.
   useEffect(() => {
     if (!fullscreen) {
-      setFullscreenInsets(null);
+      viewportController.setFullscreenInsets(null);
       return;
     }
     const host = hostRef.current;
@@ -2868,18 +2824,13 @@ export function PlantUmlGraph({
       if (forcedFullscreenReservedMargins()) {
         // The control arm keeps the retired rule: no chrome is deducted, so no
         // inset is written and the drawing is centred in the whole overlay.
-        setFullscreenInsets({ top: 0, right: 0, bottom: 0, left: 0 });
+        viewportController.setFullscreenInsets({ top: 0, right: 0, bottom: 0, left: 0 });
         return;
       }
       const area = solveFitArea(hostSize, fullscreenOverlays());
-      const next = fitAreaInsets(hostSize, area);
-      setFullscreenInsets((previous) => previous !== null
-        && Math.abs(previous.top - next.top) < 0.5
-        && Math.abs(previous.right - next.right) < 0.5
-        && Math.abs(previous.bottom - next.bottom) < 0.5
-        && Math.abs(previous.left - next.left) < 0.5
-        ? previous
-        : next);
+      // The owner ignores a sub-half-pixel-unchanged reading, so a re-measure
+      // that found the same chrome is not a second re-fit.
+      viewportController.setFullscreenInsets(fitAreaInsets(hostSize, area));
     };
     measure();
     // One frame after the overlay mounts, its chrome rows are laid out.
@@ -2887,7 +2838,7 @@ export function PlantUmlGraph({
     const observer = typeof ResizeObserver === 'function'
       ? new ResizeObserver(() => {
           measure();
-          scheduleAutoFit();
+          viewportController.scheduleAutoFit();
         })
       : null;
     if (observer !== null) {
@@ -2910,18 +2861,18 @@ export function PlantUmlGraph({
       if (frame !== null) cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [fullscreen, fullscreenOverlays, scheduleAutoFit]);
+  }, [fullscreen, fullscreenOverlays, viewportController]);
 
-  // The zoom is read through `zoomRef` when the debounced application runs, so
-  // a burst of wheel updates coalesces into one rewrite rather than walking
-  // every intermediate level. Auto-fit re-solves are driven by the resize path
-  // above; this effect only answers explicit (manual) scales.
+  // The scale is read from the owner at FIRE time, so a burst of wheel updates
+  // coalesces into one rewrite rather than walking every intermediate level.
+  // Auto-fit re-solves are driven by the resize path above; this effect only
+  // answers explicit (manual) scales.
   useEffect(() => {
     if (zoom.fit !== 'manual') return;
     const scheduler = lodSchedulerRef.current;
     if (scheduler === null) return;
-    scheduler.request(() => applySemanticRef.current?.({ fit: false, scale: zoomRef.current.scale }));
-  }, [zoom.fit, zoom.scale]);
+    scheduler.request(() => applySemanticRef.current?.({ fit: false, scale: controllerZoom().scale }));
+  }, [controllerZoom, zoom.fit, zoom.scale]);
 
   const zoomToScale = (scale: number): void => {
     if (semanticCaptureRef.current !== null) {
@@ -2930,19 +2881,18 @@ export function PlantUmlGraph({
       applySemanticRef.current?.({ fit: false, scale: applied });
       return;
     }
-    const viewport = viewportRef.current;
-    applyZoom({ scale: viewport?.zoomTo(scale) ?? scale, fit: 'manual' });
+    // The owner applies the CSS scale through the viewport and clamps it.
+    viewportController.zoomTo(scale);
   };
 
   const zoomByStep = (factor: number): void => {
     if (semanticCaptureRef.current !== null) {
-      const applied = clampZoomScale(zoomRef.current.scale * factor);
+      const applied = clampZoomScale(controllerZoom().scale * factor);
       applyZoom({ scale: applied, fit: 'manual' });
       applySemanticRef.current?.({ fit: false, scale: applied });
       return;
     }
-    const viewport = viewportRef.current;
-    applyZoom({ scale: viewport?.zoomBy(factor) ?? 1, fit: 'manual' });
+    viewportController.zoomBy(factor);
   };
 
   /**
@@ -2953,14 +2903,14 @@ export function PlantUmlGraph({
   const fitDiagram = (): void => {
     // A fit is the whole-graph reading: the package zoom the hint offered is
     // over, and its row must not keep asking the reader to go back.
-    setPackageFocus(null);
+    viewportController.setPackageFocus(null);
     if (semanticCaptureRef.current !== null) {
-      applyZoom({ scale: zoomRef.current.scale, fit: 'auto' });
-      applySemanticRef.current?.({ fit: true, scale: zoomRef.current.scale });
+      applyZoom({ scale: controllerZoom().scale, fit: 'auto' });
+      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
       return;
     }
     const host = hostRef.current;
-    const viewport = viewportRef.current;
+    const viewport = viewportController.viewport();
     if (host === null || viewport === null) {
       applyZoom({ scale: 1, fit: 'auto' });
       return;
@@ -2979,32 +2929,26 @@ export function PlantUmlGraph({
     applyZoom({ scale, fit: 'auto' });
   };
 
-  // The panel is told whether the drawing follows the container, because that
-  // is the condition under which a fullscreen toggle may re-fit it: a scale the
-  // reader chose must survive the overlay. The callback rides in a ref so a new
-  // parent render identity never re-registers the effect.
-  const onZoomModeChangeRef = useRef(onZoomModeChange);
-  onZoomModeChangeRef.current = onZoomModeChange;
+  // The owner publishes the mode the panel needs (the condition under which a
+  // fullscreen toggle may re-fit): a new parent render identity is just a new
+  // callback slot, never a second write path. The two drawing-bound actions are
+  // re-bound every render so they close over the latest props and refs.
   useEffect(() => {
-    onZoomModeChangeRef.current?.(zoom.fit === 'auto' ? 'fit' : 'custom');
-  }, [zoom.fit]);
+    viewportController.setActions({
+      fit: fitDiagram,
+      autoFit: runAutoFit,
+      onZoomModeChange,
+    });
+  });
 
   // A fit request comes from the PANEL's own size change (the fullscreen
-  // overlay swaps the region's `flex-1` for `fixed; inset: 0`). The renderer
+  // overlay swaps the region's `flex-1` for `fixed; inset: 0`). The owner
   // answers each token once, and only while it is in Fit mode: the overlay must
-  // not undo a manual zoom. The token is remembered synchronously so a re-render
-  // carrying the same request cannot fit twice. `force` is the fresh-analysis
-  // case: the content the reader had zoomed is gone, so the panel asks for a fit.
-  const fitDiagramRef = useRef(fitDiagram);
-  fitDiagramRef.current = fitDiagram;
-  const answeredFitTokenRef = useRef<number | null>(null);
+  // not undo a manual zoom. `force` is the fresh-analysis case: the content the
+  // reader had zoomed is gone, so the panel asks for a fit.
   useEffect(() => {
-    if (fitRequest === null) return;
-    if (answeredFitTokenRef.current === fitRequest.token) return;
-    answeredFitTokenRef.current = fitRequest.token;
-    if (zoomRef.current.fit !== 'auto' && fitRequest.force !== true) return;
-    fitDiagramRef.current();
-  }, [fitRequest]);
+    viewportController.requestFit(fitRequest);
+  }, [fitRequest, viewportController]);
 
   /**
    * The node a cursor id names, when it names an entity that is in the payload.
@@ -4280,6 +4224,10 @@ export function PlantUmlGraph({
                 })}
                 onClick={() => setClusterExpanded(true)}
                 data-architecture-zoom-cluster-toggle="true"
+                // The collapsed form IS the cluster's percentage reading on the
+                // portrait tier; state it under the same attribute the expanded
+                // span uses so a reading never depends on which form is shown.
+                data-architecture-zoom-cluster-level="true"
                 style={TOUCH_TARGET_STYLE}
                 className={TOOLBAR_BUTTON_CLASS}
               >

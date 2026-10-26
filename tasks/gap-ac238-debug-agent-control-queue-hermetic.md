@@ -56,13 +56,13 @@ for f in server/modules/debug-agent/tests/debug-agent-control-queue.test.ts; do 
 
 ## AC
 
-- [ ] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。逐字抄命令行、退出码与计数（不得经 `scripts/test.sh`，不得用 `env -u`）。
-- [ ] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。两种宿主环境同一读数。
-- [ ] AC3 钉子承重（负向控制）：先提交实现，再临时移除钉住块（备份或存 `git diff` 补丁），以 `RESIDENT_RUN_IS_TURN=1` 跑同一命令 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) a busy resident send queues and hands over the driver queue tail` + `Error: probe child (queue) exited non-zero`（子进程 stderr 含 `Warning: Detected unsettled top-level await`）；恢复钉子后 AC1 重新 5/5。证明绿来自钉住的世界，不是把断言改松。
-- [ ] AC4 四条读数与断言未被改动：`git diff develop...HEAD -- server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 只含 env 钉住（`import test, { after }` + 保存/删除/`after` 恢复 + 注释），五个 `test(...)` 与全部 `assert*` 行逐字不变。AC1 运行里仍打印 `(a) first=… second=… queue=…`、`(b) round1RunId=… round2RunId=… round2Complete=true …`、`(c) verdict=withdrawn … pidBefore=… pidAfter=…`、`(d) … verdict=already-started …`、`(e) socketReferences=[]`；五条读数逐字抄进完成记录。
-- [ ] AC5 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）。完成记录写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数，分别对 `RESIDENT_RUN_IS_TURN=1` 与未设两种调用各取一次（临时打印验证后可移除）。
-- [ ] AC6 无实现改动：`git diff --stat develop...HEAD` 只列 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 与 `tasks/gap-ac238-debug-agent-control-queue-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/debug-agent/tests/debug-agent-control-queue.test.ts'` 无输出。
-- [ ] AC7 不回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-host-driver.test.ts` ⇒ `EXIT=0`、fail 0（该文件与本判据共用调试驱动 stand-in）；`npm run typecheck` 退出 0；`npm run lint` 无 `: error `（写下 error 计数）。
+- [x] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。逐字抄命令行、退出码与计数（不得经 `scripts/test.sh`，不得用 `env -u`）。
+- [x] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。两种宿主环境同一读数。
+- [x] AC3 钉子承重（负向控制）：先提交实现，再临时移除钉住块（备份或存 `git diff` 补丁），以 `RESIDENT_RUN_IS_TURN=1` 跑同一命令 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) a busy resident send queues and hands over the driver queue tail` + `Error: probe child (queue) exited non-zero`（子进程 stderr 含 `Warning: Detected unsettled top-level await`）；恢复钉子后 AC1 重新 5/5。证明绿来自钉住的世界，不是把断言改松。
+- [x] AC4 四条读数与断言未被改动：`git diff develop...HEAD -- server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 只含 env 钉住（`import test, { after }` + 保存/删除/`after` 恢复 + 注释），五个 `test(...)` 与全部 `assert*` 行逐字不变。AC1 运行里仍打印 `(a) first=… second=… queue=…`、`(b) round1RunId=… round2RunId=… round2Complete=true …`、`(c) verdict=withdrawn … pidBefore=… pidAfter=…`、`(d) … verdict=already-started …`、`(e) socketReferences=[]`；五条读数逐字抄进完成记录。
+- [x] AC5 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）。完成记录写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数，分别对 `RESIDENT_RUN_IS_TURN=1` 与未设两种调用各取一次（临时打印验证后可移除）。
+- [x] AC6 无实现改动：`git diff --stat develop...HEAD` 只列 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 与 `tasks/gap-ac238-debug-agent-control-queue-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/debug-agent/tests/debug-agent-control-queue.test.ts'` 无输出。
+- [x] AC7 不回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-host-driver.test.ts` ⇒ `EXIT=0`、fail 0（该文件与本判据共用调试驱动 stand-in）；`npm run typecheck` 退出 0；`npm run lint` 无 `: error `（写下 error 计数）。
 
 ## DoD
 
@@ -71,6 +71,77 @@ for f in server/modules/debug-agent/tests/debug-agent-control-queue.test.ts; do 
 - 四条读数（a）–（d）逐字记录，且与上一轮落地记录里的读数语义一致（(a) uuid = 驱动队列末条；(b) 两个不同 runId、两轮各一个终止帧；(c) `withdrawn`、不再成轮、pid 不变；(d) `already-started`）；没有一条断言被删除、放宽或替换成「存在某个 run」。
 - 判据不构造 socket、不跑真 CLI；这次改动只影响进程环境，不引入新的外部依赖。
 - 遵守 `$backend-module-standards`（这是 `server/` 下的判据文件：只加环境钉住块与必要 import，不导出无消费者符号）；ADR-007 暗轴无位移（理由是只钉住测试进程的环境变量，未改模块依赖图与服务实现）。
+
+## 完成记录
+
+实现提交：`de78a8ca9`（`test(debug-agent): pin RESIDENT_RUN_IS_TURN off in AC-238 criterion`），只改判据文件。工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-ac238-debug-agent-control-queue-hermetic`。
+
+### AC1 裸判据命令在继承宿主开关的环境下
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts
+```
+
+⇒ `EXIT=0`，`tests 5 / pass 5 / fail 0`（`duration_ms 36067.991524`）。
+
+五条读数（逐字）：
+
+```
+control-queue (a) first={"ok":true,"runId":"44f7beec-8f0e-41e7-be2d-78081c6197be","queued":false,"queuedMessageUuid":null} second={"ok":true,"runId":"fc68339b-545f-404e-ad31-cef259b4ee3e","queued":true,"queuedMessageUuid":"8aa1efa4-e1e0-49dc-b7b9-b43def0f8d0d"} queue=["8aa1efa4-e1e0-49dc-b7b9-b43def0f8d0d"]
+control-queue (b) round1RunId=40e89de8-5274-4702-8795-fde3aee653bf round1Complete=true round2RunId=75938a19-53a4-4ff6-a084-1d9d419f1620 round2Source=unattended round2Text="second" round2Complete=true openedRounds=1
+control-queue (c) verdict=withdrawn uuid=9e15a8cf-59bd-46f1-974f-a73fd3c4fa9d queueAfterCancel=[] queueHeld=false openedRounds=0 round1Complete=true pidBefore=null pidAfter=null
+control-queue (d) uuid=0b2c5efc-c6c8-412f-9b78-c56bbac73deb queueAfterDequeue=[] queueHeld=false verdict=already-started openedRounds=1
+control-queue (e) socketReferences=[]
+```
+
+### AC2 同一命令在开关未设时
+
+```
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts
+```
+
+⇒ `EXIT=0`，`tests 5 / pass 5 / fail 0`（`duration_ms 34866.235694`）。四条读数与 (e) 同语义：`(a)` 的 `queuedMessageUuid` 仍是驱动队列末条；`(b)` 两个不同 `runId`、两轮 `Complete=true`；`(c)` `verdict=withdrawn`、`openedRounds=0`；`(d)` `verdict=already-started`；`(e) socketReferences=[]`。
+
+### AC3 负向控制（先提交 `de78a8ca9`，再 `git checkout d67638f63 -- <判据文件>` 移回未钉住版本，备份在 `/tmp/ac238-pinned-backup.test.ts`）
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-control-queue.test.ts
+```
+
+⇒ `EXIT=1`，`tests 5 / pass 1 / fail 4`。逐字失败行：
+
+```
+✖ (a) a busy resident send queues and hands over the driver queue tail (7264.709871ms)
+  Error: probe child (queue) exited non-zero.
+  Warning: Detected unsettled top-level await at /data/home/yale/work/claudecodeui-worktrees/gap-ac238-debug-agent-control-queue-hermetic/server/modules/debug-agent/tests/debug-agent-control-queue.test.ts:492
+```
+
+(b)/(c)/(d) 同形（`probe child (not-withdrawn|withdrawn|already-started) exited non-zero`），(e) 仍绿。恢复命令：`git checkout HEAD -- server/modules/debug-agent/tests/debug-agent-control-queue.test.ts`（`diff -q` 与备份一致），恢复后重跑 AC1 ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。
+
+### AC4 读数与断言未被改动
+
+`git diff develop...HEAD -- server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 只含 `import test, { after } from 'node:test'`、模块级保存/删除、`after` 恢复与说明注释（28 行变更：27 insertions / 1 deletion）；五个 `test(...)` 与全部 `assert*` 行逐字未动。AC1 运行仍逐字打印上面五条读数。
+
+### AC5 恢复语义
+
+临时打印（验证后已移除），以 `--test-name-pattern='(e)'` 加速触发 `after`：
+
+- 进进程 `RESIDENT_RUN_IS_TURN=1`：`PIN incoming="1" inFile=undefined` → 退出前 `PIN restored="1"`，即 `进进程原值 "1" → 文件内值 undefined → 退出前恢复值 "1"`。
+- 进进程未设：`PIN incoming=undefined inFile=undefined` → 退出前 `PIN restored=undefined`，即 `进进程原值 undefined → 文件内值 undefined → 退出前恢复值 undefined`。
+
+### AC6 无实现改动
+
+`git diff --stat develop...HEAD` 只列 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 与 `tasks/gap-ac238-debug-agent-control-queue-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/debug-agent/tests/debug-agent-control-queue.test.ts'` 无输出（0 行）。
+
+### AC7 不回归
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/debug-agent/tests/debug-agent-host-driver.test.ts` ⇒ `EXIT=0`，`tests 5 / pass 5 / fail 0`（`duration_ms 20273.998553`）。
+- `npm run typecheck` ⇒ `EXIT=0`（`tsc --noEmit` 三次全部通过）。
+- `npm run lint` ⇒ `EXIT=0`，输出中 `: error ` 计数 = `0`。
+
+ADR-007 暗轴记录：
+
+该轴仍暗,理由:只钉住测试进程的环境变量，未改模块依赖图与服务实现。
 
 ## Touches
 
