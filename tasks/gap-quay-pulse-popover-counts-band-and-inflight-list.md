@@ -27,13 +27,13 @@ extra:
 
 ## AC
 
-- [ ] 读取时机：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；新增用例：popover 打开时 `quaySnapshot` 恰被调用一次且带当前窗口小时数，关闭后重新打开再调一次；打开期间没有定时重读；触发器的 lanes 轮询次数与改动前相同。
-- [ ] 计数带：同一测试文件含用例：给定 `tasks.byStatus` 与 `goals.breakdown.byStatus`，每个状态各出一个徽标且数字正确；`tasks: null` 时该组出现「未读到」且文本里没有数字 0；会话计数行等于提及列表的任务数与 goal 数。
-- [ ] in-flight：同一测试文件含用例：三项 `inFlight`（不同阶段）渲染三行，徽标色取自 `QUAY_IN_FLIGHT_PHASE_META`；本会话提到过的任务行带标记、没提到的不带；`inFlight: null` 与 `[]` 渲染出不同的文案。
-- [ ] 降级：同一测试文件含用例：`quaySnapshot` 拒绝时，计数带与 in-flight 位置出现错误提示，而甘特图与会话任务列表仍然渲染。
-- [ ] 不读内部文件：`git diff -U0 -- src server | grep -nE "\\.quay/|full-suite-state|verification-round|worker-outcome"` 无输出；`git diff -U0 -- server` 无输出。
-- [ ] 文案与完整性：`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，十二个 locale 的 `common.json` 都含新增键；`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay` exit 0。
+- [x] 读取时机：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；新增用例：popover 打开时 `quaySnapshot` 恰被调用一次且带当前窗口小时数，关闭后重新打开再调一次；打开期间没有定时重读；触发器的 lanes 轮询次数与改动前相同。
+- [x] 计数带：同一测试文件含用例：给定 `tasks.byStatus` 与 `goals.breakdown.byStatus`，每个状态各出一个徽标且数字正确；`tasks: null` 时该组出现「未读到」且文本里没有数字 0；会话计数行等于提及列表的任务数与 goal 数。
+- [x] in-flight：同一测试文件含用例：三项 `inFlight`（不同阶段）渲染三行，徽标色取自 `QUAY_IN_FLIGHT_PHASE_META`；本会话提到过的任务行带标记、没提到的不带；`inFlight: null` 与 `[]` 渲染出不同的文案。
+- [x] 降级：同一测试文件含用例：`quaySnapshot` 拒绝时，计数带与 in-flight 位置出现错误提示，而甘特图与会话任务列表仍然渲染。
+- [x] 不读内部文件：`git diff -U0 -- src server | grep -nE "\\.quay/|full-suite-state|verification-round|worker-outcome"` 无输出；`git diff -U0 -- server` 无输出。
+- [x] 文案与完整性：`npx vitest run src/modules/project-workspace/tests/i18nQuayTabCompleteness.test.ts` exit 0，十二个 locale 的 `common.json` 都含新增键；`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay` exit 0。
 
 ## DoD
 
