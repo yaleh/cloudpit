@@ -4700,6 +4700,17 @@ export type CockpitCardContentRef = {
   ref?: string;
 };
 
+/**
+ * The subject a fixture card is given by the server settings file, for an isolated
+ * instance's DoD: the fixture provider is a stand-in for a real fleet provider, and a
+ * real one always addresses a conversation or a project. `undefined` fields are left
+ * out — an empty object means "no override at all", not "clear every field".
+ */
+export type CockpitFixtureSubject = {
+  sessionId?: string;
+  project?: string;
+};
+
 /** The executor a free-text reply goes through; the reply text joins its params at call time. */
 export type CockpitCardOwnReply = {
   executor: string;
@@ -4744,6 +4755,13 @@ export type CockpitCard = {
   ask?: string;
   situation?: string;
   ownReply?: CockpitCardOwnReply;
+  /**
+   * Why the cockpit could not derive a default own-reply executor for this card: its
+   * subject names neither a session nor a project. Set by the projection, never by a
+   * provider; the value is the readable reason, and its presence means `ownReply` is
+   * absent. A provider that declares `ownReply` itself never gets this field.
+   */
+  ownReplyUnavailable?: string;
   conversation?: CockpitCardConversation;
   notify?: CockpitCardNotify;
 };

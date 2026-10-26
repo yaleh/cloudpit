@@ -66,6 +66,7 @@ import { locateQuayFleetCli, quayFleetRegistry, quayRoutes, quayService } from '
 // no sibling module), which is why the two seams it needs are bound here.
 import { createCockpitCardsModule, createCockpitModule } from './modules/cockpit/index.js';
 import { createCockpitBriefDeps } from './cockpit-brief-wiring.js';
+import { createCockpitCardExecutors } from './cockpit-executors-wiring.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { loadServerSettings, createServerFeaturesRouter, settingsRoutes, type ResidentRestoreSettings } from './modules/settings/index.js';
 import {
@@ -297,14 +298,11 @@ installInitiativeAuditRatioPort({ readAuditRatio: () => serverSettings.initiativ
 // line: a route can never expose the cockpit by omission.
 installCockpitEnabledPort({ readEnabled: () => serverSettings.cockpit.enabled });
 
-// The cockpit's CARD module: the registry, the confirmation channel and the thin
-// `/api/cockpit/cards` router. The module is a leaf, so the boot-time `cockpit.fixtureCards`
+// The cockpit's CARD module is built BELOW, after the one chat control service it sends
+// through exists: its two content executors are bound to that service in
+// `cockpit-executors-wiring.ts`. The module is a leaf, so the boot-time `cockpit.fixtureCards`
 // switch selects the fixture provider and the brief service's seams are bound in
 // `cockpit-brief-wiring.ts`.
-const cockpitCards = createCockpitCardsModule({
-    fixtureCards: serverSettings.cockpit.fixtureCards,
-    briefDeps: createCockpitBriefDeps(),
-});
 const queryClaude = providerRuntimeService.getRunner('claude');
 const queryCursor = providerRuntimeService.getRunner('cursor');
 const gitRoutes = createGitModule({
@@ -336,6 +334,16 @@ const chatControl = createChatControlService({
     recordContextEvent: (event) => {
         void contextEvents.record(event);
     },
+});
+
+// The cockpit's CARD module: the registry, the confirmation channel, the two content executors
+// (`session.send` / `session.start`) and the thin `/api/cockpit/cards` router. Its executors are
+// bound to the SAME `chatControl` above, so confirming a card opens no second send path.
+const cockpitCards = createCockpitCardsModule({
+    fixtureCards: serverSettings.cockpit.fixtureCards,
+    fixtureSubject: serverSettings.cockpit.fixtureSubject,
+    executors: createCockpitCardExecutors({ control: chatControl }),
+    briefDeps: createCockpitBriefDeps(),
 });
 
 // The cockpit hub: ONE per process, the state every display and input device of a user shares.

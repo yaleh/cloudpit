@@ -20,7 +20,7 @@
  * revision's re-send a real `REVISION_CONFLICT` instead of a second execution.
  */
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
-import type { CockpitCard, CockpitCardOption } from '@/shared/types.js';
+import type { CockpitCard, CockpitCardOption, CockpitCardSubject, CockpitFixtureSubject } from '@/shared/types.js';
 
 /** The one executor this provider declares. */
 const FIXTURE_EXECUTOR_ID = 'fixture.record';
@@ -238,15 +238,47 @@ function fixtureCards(): CockpitCard[] {
 }
 
 /**
+ * Applies the settings-file subject override to every fixture card.
+ *
+ * The override REPLACES the addressing fields rather than merging: the DoD flips
+ * `{ sessionId }` to `{ project }` to prove the two own-reply defaults, and a merge
+ * would leave a card's built-in `sessionId` in place and silently keep the wrong
+ * executor. `uri` stays because it is the card's stable identity, not an address.
+ */
+function withSubjectOverride(
+  cards: readonly CockpitCard[],
+  override: CockpitFixtureSubject | undefined,
+): CockpitCard[] {
+  if (override === undefined) return cards.map((card) => structuredClone(card));
+  const addressing: Omit<CockpitCardSubject, 'uri'> = {
+    ...(override.sessionId === undefined ? {} : { sessionId: override.sessionId }),
+    ...(override.project === undefined ? {} : { project: override.project }),
+  };
+  if (Object.keys(addressing).length === 0) return cards.map((card) => structuredClone(card));
+  return cards.map((card) => ({
+    ...structuredClone(card),
+    subject: { uri: card.subject.uri, ...addressing },
+  }));
+}
+
+/**
  * Builds one fixture provider over its own private card list and log.
  *
  * Two readers are exposed for criteria and for an isolated instance's DoD: the
  * provider/executor pair the composition registers, and a copy of the
  * confirmation log. Nothing is module-level, so two instances in one process are
  * independent.
+ *
+ * `subject` is the server settings file's `cockpit.fixtureSubject`. It REPLACES
+ * every fixture card's subject (except the stable `uri`) so an isolated instance
+ * can point the fixture at a copied-but-idle conversation — the only way the DoD's
+ * `session.send` leg is real without sending to a live conversation. An empty
+ * object, or none, leaves the fixture's own subjects untouched.
  */
-export function createCockpitFixtureCardProvider(): CockpitFixtureCardProvider {
-  const cards = fixtureCards();
+export function createCockpitFixtureCardProvider(options: {
+  subject?: CockpitFixtureSubject;
+} = {}): CockpitFixtureCardProvider {
+  const cards = withSubjectOverride(fixtureCards(), options.subject);
   const records: CockpitFixtureConfirmation[] = [];
   const listeners = new Set<() => void>();
 

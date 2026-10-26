@@ -44,6 +44,7 @@ import {
   type ViewEventsSettings,
 } from '@/modules/observation/index.js';
 import { errorMessage } from '@/shared/utils.js';
+import type { CockpitFixtureSubject } from '@/shared/types.js';
 
 /**
  * The environment variable naming the settings file, or nothing when the shipped user-copy
@@ -134,6 +135,13 @@ export type InitiativeSettings = {
 export type CockpitSettings = {
   enabled: boolean;
   fixtureCards: boolean;
+  /**
+   * The subject every fixture card is given, for an isolated instance's DoD. It
+   * REPLACES the fixture's own addressing fields, so the DoD can flip between
+   * 「reply into a copied conversation」 and 「start a new conversation in a project」.
+   * Empty (the shipped value) leaves the fixture subjects untouched.
+   */
+  fixtureSubject: CockpitFixtureSubject;
 };
 
 /** The shipped cockpit switch: off. Mirrored by `config/server.settings.example.json`. */
@@ -265,6 +273,7 @@ function defaultServerSettings(filePath: string): ServerSettings {
     cockpit: {
       enabled: DEFAULT_COCKPIT_ENABLED,
       fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
+      fixtureSubject: {},
     },
     source: 'default',
     path: filePath,
@@ -437,18 +446,24 @@ function readInitiative(raw: unknown, problems: string[]): InitiativeSettings {
 }
 
 /**
- * The `cockpit` block, read for its `enabled` and `fixtureCards` switches only.
+ * The `cockpit` block, read for its two switches and the fixture subject override.
  *
  * EVERYTHING ELSE IN THE BLOCK IS IGNORED. `cockpit.counterVoice` belongs to
  * `modules/quay/counter-voice-settings.ts`; ignoring it here is what keeps the two readers
  * independent (and a `cockpit` object that carries only `counterVoice` valid). Each switch
  * must be a real boolean: a string `"true"` is a malformed value, and the shipped default
  * (off) is the safe reading for a release that cannot decide.
+ *
+ * `fixtureSubject` is read only for an isolated instance's DoD. Each field must be a
+ * non-empty string; a malformed field is dropped and reported on its own rather than
+ * refusing the whole block, so a typo can never turn the fixtures into a card set with
+ * no subject (which would silently disable every own-reply default).
  */
 function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
   const settings: CockpitSettings = {
     enabled: DEFAULT_COCKPIT_ENABLED,
     fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
+    fixtureSubject: {},
   };
 
   if (raw === undefined) {
@@ -474,7 +489,30 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
       problems.push('`cockpit.fixtureCards` must be a boolean');
     }
   }
+  if (record.fixtureSubject !== undefined) {
+    settings.fixtureSubject = readFixtureSubject(record.fixtureSubject, problems);
+  }
   return settings;
+}
+
+/** Reads the fixture subject's optional address fields, dropping malformed ones by name. */
+function readFixtureSubject(raw: unknown, problems: string[]): CockpitFixtureSubject {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    problems.push('`cockpit.fixtureSubject` must be a JSON object');
+    return {};
+  }
+  const record = raw as Record<string, unknown>;
+  const subject: CockpitFixtureSubject = {};
+  for (const field of ['sessionId', 'project'] as const) {
+    const value = record[field];
+    if (value === undefined) continue;
+    if (typeof value === 'string' && value.trim() !== '') {
+      subject[field] = value;
+    } else {
+      problems.push(`\`cockpit.fixtureSubject.${field}\` must be a non-empty string`);
+    }
+  }
+  return subject;
 }
 
 /** Whether the read failure was "the file is not there", the one benign case for the user copy. */

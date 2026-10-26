@@ -759,3 +759,9 @@
 #   (dur=2536ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 455 server test files).
 2536	server/modules/cockpit/tests/cockpit-brief-spec.test.ts
+#   and the cockpit-session-executors row by cockpit-card-session-executors, measured once on
+#   2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-executors.test.ts`
+#   (dur=2729ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 456 server test files).
+2729	server/modules/cockpit/tests/cockpit-session-executors.test.ts

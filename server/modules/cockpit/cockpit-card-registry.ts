@@ -12,17 +12,31 @@
  *   3. order what is left by the provider's own `group`, then `rank`, keeping the
  *      provider's relative order for ties — no clock, no per-kind table, no
  *      "rescue first" special case;
- *   4. pass every field through verbatim, `revision` included.
+ *   4. pass every provider-declared field through verbatim, `revision` included;
+ *   5. where a provider declared no `ownReply`, fill the CONTENT DEFAULT from the
+ *      card's own subject: a session gets `session.send` writing back into it, a
+ *      project gets `session.start` opening a new conversation in it, and a card
+ *      with neither carries `ownReplyUnavailable` with the readable reason. This
+ *      is a default for a field the provider left empty, not a judgement about
+ *      the card: a provider that states `ownReply` always wins.
  *
  * The action channel reads the same projection (`getCard`), so a confirmation can
  * only act on a card the registry currently shows, and the provider's declared
- * executor set is the union of its providers' declarations.
+ * executor set is the union of its providers' declarations plus the two built-in
+ * content-default executors (they are CloudCLI's own, not any provider's).
  *
  * A new provider is one implementation plus one `register` (or one element in the
  * constructor array); no call site in the cockpit changes.
  */
 import type { ICockpitCardProvider } from '@/shared/interfaces.js';
 import type { CockpitCard } from '@/shared/types.js';
+
+import {
+  COCKPIT_SESSION_SEND_EXECUTOR_ID,
+} from './cockpit-session-send.executor.js';
+import {
+  COCKPIT_SESSION_START_EXECUTOR_ID,
+} from './cockpit-session-start.executor.js';
 
 /** The registry's public surface. */
 export type CockpitCardRegistry = {
@@ -46,6 +60,50 @@ export type CockpitCardRegistry = {
 function compareByProviderOrder(a: CockpitCard, b: CockpitCard): number {
   if (a.group !== b.group) return a.group < b.group ? -1 : 1;
   return a.rank - b.rank;
+}
+
+/** The reason a card with no session and no project gets no own-reply path. */
+export const OWN_REPLY_UNAVAILABLE_REASON =
+  'card subject names neither a session nor a project, so there is no conversation to reply into';
+
+/**
+ * The content default for a card whose provider declared no `ownReply`.
+ *
+ * The subject decides, because the subject is what the card is about: a card that
+ * names a session is answered IN that session; a card that names only a project is
+ * answered by opening a NEW conversation in that project (the person's reply is its
+ * first message); a card that names neither cannot be answered from here and says so.
+ *
+ * The returned params carry only the addressing field. The reply text is joined by
+ * the action channel under `reply` at confirmation time — the channel, not this
+ * projection, is the one place that knows the typed text.
+ */
+function applyOwnReplyDefault(card: CockpitCard): CockpitCard {
+  if (card.ownReply !== undefined) return card;
+
+  const sessionId = card.subject.sessionId?.trim() ?? '';
+  if (sessionId !== '') {
+    return {
+      ...card,
+      ownReply: {
+        executor: COCKPIT_SESSION_SEND_EXECUTOR_ID,
+        params: { sessionId },
+      },
+    };
+  }
+
+  const project = card.subject.project?.trim() ?? '';
+  if (project !== '') {
+    return {
+      ...card,
+      ownReply: {
+        executor: COCKPIT_SESSION_START_EXECUTOR_ID,
+        params: { project },
+      },
+    };
+  }
+
+  return { ...card, ownReplyUnavailable: OWN_REPLY_UNAVAILABLE_REASON };
 }
 
 /** Builds a registry over the providers already known (more may be registered later). */
@@ -77,14 +135,21 @@ export function createCockpitCardRegistry(
         return cards.filter((card) => card.state === 'open');
       }),
     );
-    return perProvider.flat().sort(compareByProviderOrder);
+    return perProvider.flat().sort(compareByProviderOrder).map(applyOwnReplyDefault);
   };
 
   const getCard = async (cardId: string): Promise<CockpitCard | null> =>
     (await listCards()).find((card) => card.id === cardId) ?? null;
 
   const declaredExecutors = (): ReadonlySet<string> => {
-    const ids = new Set<string>();
+    // The two built-in executors are CloudCLI's own content defaults; no provider
+    // declares them, yet every card whose subject names a session/project reaches
+    // them, so the declared set must include them or the action channel would
+    // refuse the very defaults this projection fills in.
+    const ids = new Set<string>([
+      COCKPIT_SESSION_SEND_EXECUTOR_ID,
+      COCKPIT_SESSION_START_EXECUTOR_ID,
+    ]);
     for (const provider of registered) {
       for (const id of provider.declaredExecutors()) ids.add(id);
     }

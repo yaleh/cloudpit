@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import type { CockpitCard } from '@/shared/types';
 import { api, readApiJson } from '@/shared/api';
@@ -7,6 +8,7 @@ import type {
   CockpitCardConfirmRequest,
   CockpitCardController,
   CockpitCardControllerDeps,
+  CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
 } from '@/modules/cockpit/cockpitCardController';
 
@@ -21,6 +23,10 @@ import type {
  * The route documents: `GET /api/cockpit/cards` answers `{cards}`; `POST /api/cockpit/cards/confirm`
  * answers `{ok, cardId, executor, params, result}` or the server's error envelope, which
  * `readApiJson` turns into an `ApiRequestError` carrying the server's code and message.
+ *
+ * The one decision the binding does make is where a `session.start` confirmation lands: the
+ * person asked to start a conversation, so the page switches to it at once (user, 2026-10-27)
+ * rather than leaving them on a card that now points at a conversation they have to find.
  */
 
 /** The API's confirmation answer, narrowed to what the controller records. */
@@ -41,7 +47,8 @@ export type CockpitCardsBinding = {
 export type CockpitCardsDepsOverride = Partial<CockpitCardControllerDeps>;
 
 export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): CockpitCardsBinding {
-  const { fetchCards, confirm, clock, refreshIntervalMs } = overrides;
+  const { fetchCards, confirm, clock, refreshIntervalMs, onEvent } = overrides;
+  const navigate = useNavigate();
   const deps = useMemo<CockpitCardControllerDeps>(
     () => ({
       fetchCards:
@@ -58,10 +65,19 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
           );
           return { executor: answer.executor, result: answer.result };
         }),
+      // The cockpit's own navigation rule: a confirmation that started a conversation switches
+      // to it immediately. A caller that supplies its own listener replaces this behaviour.
+      onEvent:
+        onEvent ??
+        ((event: CockpitCardControllerEvent) => {
+          if (event.type === 'sessionStarted') {
+            navigate(`/session/${encodeURIComponent(event.sessionId)}`);
+          }
+        }),
       ...(clock === undefined ? {} : { clock }),
       ...(refreshIntervalMs === undefined ? {} : { refreshIntervalMs }),
     }),
-    [fetchCards, confirm, clock, refreshIntervalMs],
+    [fetchCards, confirm, clock, refreshIntervalMs, onEvent, navigate],
   );
 
   const controller = useMemo(() => createCockpitCardController(deps), [deps]);
