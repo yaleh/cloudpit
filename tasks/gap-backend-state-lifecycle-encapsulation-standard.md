@@ -1,7 +1,7 @@
 ---
 id: gap-backend-state-lifecycle-encapsulation-standard
 title: 把「模块级可变状态必须收进带生命周期的类/对象」写成 backend 模块标准强制规则
-status: ready
+status: done
 labels:
   - gap
 parent: null
