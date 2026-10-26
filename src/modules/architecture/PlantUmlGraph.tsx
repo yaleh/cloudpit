@@ -19,37 +19,26 @@ import {
 } from '@/modules/architecture/archguardToPlantUml';
 import { standardiseDrawnStereotypes } from '@/modules/architecture/plantUmlText';
 import {
-  createExplosionLodScheduler,
-  type ExplosionLodScheduler,
-} from '@/modules/architecture/explosionLod';
-import {
-  ASPECT_RELAYOUT_DEBOUNCE_MS,
   createLayoutEngine,
-  shouldRelayoutForAspect,
   type ArchitectureLayoutEngineClass,
 } from '@/modules/architecture/elkAspectEngine';
 import {
-  chooseLayoutOrientation,
-  createOrientationCache,
   graphFingerprint,
-  orientationCacheKey,
-  shouldAttemptDualLayout,
-  ORIENTATION_REASON,
   type LayoutOrientation,
-  type OrientationDecision,
   type OrientationSize,
 } from '@/modules/architecture/layoutOrientation';
 import {
   solveFitArea,
-  solveFitScale,
-  solveSemanticZoom,
   semanticContentBounds,
-  lodDepthForTier,
   type FitAreaRect,
   type FitOverlayRect,
-  type SemanticTier,
   type SemanticZoomLayout,
 } from '@/modules/architecture/semanticZoomLayout';
+import {
+  createGraphLayoutPipeline,
+  LAYOUT_STATUS_THRESHOLD_MS,
+  type GraphLayoutCommit,
+} from '@/modules/architecture/graphLayoutPipeline';
 import { capDrawnMemberRows, drawnFitScaleOf } from '@/modules/architecture/drawnFit';
 import {
   SEMANTIC_MIN_FONT_MOBILE_PX,
@@ -64,7 +53,7 @@ import {
   useTouchLayout,
   ZOOM_CLUSTER_TARGET_STYLE,
 } from '@/modules/architecture/hooks/useTouchLayout';
-import { canvasIsTooWide, READABLE_ZOOM_SCALE } from '@/modules/architecture/readableZoom';
+import { canvasIsTooWide } from '@/modules/architecture/readableZoom';
 import type {
   ArchitectureDiffHighlight,
   ArchitectureRendererEdge,
@@ -280,45 +269,6 @@ const NAV_RING_CLASS = 'arch-nav-ring';
 const NAV_DOM_ID_PREFIX = 'arch-nav-';
 /** How far the focus ring sits outside the box, in SVG user units. */
 const NAV_RING_GAP = 2;
-
-/**
- * The layout cost, per entity, a drawing with NO measured sample is assumed to
- * pay. Calibrated on the reported project (573 functions in 17.6 s ≈ 31 ms per
- * entity on this machine), rounded DOWN on purpose: the estimate only decides
- * whether to say "laying out", and a false positive costs the reader a status
- * line for the length of a fast layout, while a false negative leaves a
- * 17-second blank canvas unexplained.
- */
-const LAYOUT_MS_PER_ENTITY_FALLBACK = 4;
-
-/**
- * How long a layout is expected to take before the canvas says so. Below this
- * the status would flash and be noise; above it the reader has time to wonder
- * whether the click did anything.
- */
-const LAYOUT_STATUS_THRESHOLD_MS = 1000;
-
-/** One measured layout of a drawing kind: how many entities, and how long ELK took. */
-type LayoutSample = { readonly nodes: number; readonly ms: number };
-
-/**
- * The expected duration of a layout of `nodes` entities, from the entity count
- * and the LAST layout of the same drawing kind (`sample`).
- *
- * Both inputs matter: a project whose drawings are consistently slow shows the
- * status earlier than its entity count alone would suggest, and a fast one
- * never hides a genuinely slow layout behind a low sample. The measured
- * per-entity cost is therefore used only when it is ABOVE the shipped floor —
- * a sample from a small, fast drawing must not talk the canvas out of
- * announcing a large one.
- */
-export function estimateLayoutMs(nodes: number, sample: LayoutSample | null): number {
-  if (!Number.isFinite(nodes) || nodes <= 0) return 0;
-  const measured = sample !== null && sample.nodes > 0 && Number.isFinite(sample.ms)
-    ? sample.ms / sample.nodes
-    : 0;
-  return nodes * Math.max(measured, LAYOUT_MS_PER_ENTITY_FALLBACK);
-}
 
 /**
  * Resolve after the browser has had the chance to PAINT what React just
@@ -1134,6 +1084,26 @@ export function PlantUmlGraph({
     fullscreenInsets,
     fitViewport: fitViewportReading,
   } = viewportSnapshot;
+  // The semantic tier, the aspect debounce, the orientation cache and the
+  // relayout lock are ONE owned slice (see `graphLayoutPipeline.ts`): this
+  // component renders its snapshot and supplies the two DOM-bound actions
+  // (solve, and write the solved layout) it cannot do itself.
+  const layoutPipeline = useMemo(() => createGraphLayoutPipeline(), []);
+  const layoutSnapshot = useSyncExternalStore(
+    layoutPipeline.subscribe,
+    layoutPipeline.getSnapshot,
+    layoutPipeline.getSnapshot,
+  );
+  useEffect(() => () => layoutPipeline.dispose(), [layoutPipeline]);
+  // At the package-only tiers the drawing is a map of frames, not selectable
+  // entities: clicks zoom into a package and coarse hit rectangles are unused.
+  const packageOnlyTier = useCallback(
+    (): boolean => {
+      const tier = layoutPipeline.getSnapshot().semanticTier;
+      return tier === 'C' || tier === 'D';
+    },
+    [layoutPipeline],
+  );
   /**
    * The drawing's ORIGINAL size for every fit computation.
    *
@@ -1149,14 +1119,14 @@ export function PlantUmlGraph({
     // identity maps), so measuring a fit against the original bounds would ask
     // for a scale of a fraction of a percent and then render the fold at 1:1
     // anyway. Here the drawing on screen IS its own natural size.
-    const folded = appliedLayoutRef.current;
+    const folded = layoutPipeline.getSnapshot().appliedLayout;
     if (folded !== null && folded.foldDepth !== null) {
       return { width: Math.max(1, folded.content.width), height: Math.max(1, folded.content.height) };
     }
     const semanticBase = viewportController.viewport()?.semanticBaseSize() ?? null;
     if (semanticBase !== null) return semanticBase;
     return drawing === null ? null : readSvgNaturalSize(drawing);
-  }, [viewportController]);
+  }, [layoutPipeline, viewportController]);
   /** The one write path for a scale solved by Fit, the semantic engine or a gesture. */
   const applyZoom = useCallback((next: GraphZoom): boolean => viewportController.setZoom(next), [viewportController]);
   /** The owner's reading at call time; async handlers run outside the last render. */
@@ -1399,16 +1369,16 @@ export function PlantUmlGraph({
       (box.width * 0.9) / frame.width,
       (box.height * 0.9) / frame.height,
     );
-    if (semanticCaptureRef.current !== null) {
+    if (layoutPipeline.getSnapshot().semanticCapture !== null) {
       // The frame's attributes are already in the CURRENT map's screen units,
       // so the multiplier is relative to the scale on screen. The new scale is
       // solved by the same engine as Fit (its floor-font rule keeps every label
       // readable), and the geometry is rewritten now rather than 200 ms later.
-      const current = appliedLayoutRef.current?.scale ?? controllerZoom().scale;
+      const current = layoutPipeline.getSnapshot().appliedLayout?.scale ?? controllerZoom().scale;
       const solved = clampZoomScale(Math.max(current * multiplier, MIN_ZOOM_SCALE));
       applyZoom({ scale: solved, fit: 'manual' });
-      centerPackageOnApplyRef.current = packageId;
-      applySemanticRef.current?.({ fit: false, scale: solved });
+      layoutPipeline.requestPackageCenter(packageId);
+      layoutPipeline.applySemantic({ fit: false, scale: solved });
       viewportController.setPackageFocus(packageId);
       return;
     }
@@ -1476,59 +1446,10 @@ export function PlantUmlGraph({
   // from the previous one must not be carried over: a neighbourhood opened in
   // the class diagram used to reappear after switching to the file graph and
   // back. The default view is the discriminator (hierarchy vs. overview).
-  const previousIdShapeRef = useRef(idShape);
   useEffect(() => {
-    if (previousIdShapeRef.current === idShape) return;
-    previousIdShapeRef.current = idShape;
+    if (!layoutPipeline.observeIdShape(idShape)) return;
     setView(defaultViewOf(idShape));
-  }, [idShape]);
-
-  // The drawing captured for semantic zoom: its annotated inner SVG, the
-  // geometry read once, and the tooltips annotateNodes added. `null` for views
-  // that are not semantically zoomed (the grouped file overview).
-  const semanticCaptureRef = useRef<SemanticCapture | null>(null);
-  const semanticTierRef = useRef<SemanticTier | null>(null);
-  /**
-   * The last layout's cost per drawing KIND (`entity` / `file`), keyed by the
-   * id shape. The status estimate reads the sample of the kind it is about to
-   * lay out: class boxes and file boxes cost different amounts, and a file
-   * drawing's 200-node sample must not predict a class drawing's 500.
-   */
-  const layoutSamplesRef = useRef<Map<string, LayoutSample>>(new Map());
-  /**
-   * How many entities the layout in progress holds, or `null` when no layout is
-   * running. Essential state, not a derived reading: it is written BEFORE the
-   * blocking ELK call and cleared after it, and nothing in the render output
-   * can reconstruct "a layout this size is running right now".
-   */
-  const [layoutStatusNodes, setLayoutStatusNodes] = useState<number | null>(null);
-  /**
-   * How many package levels the folded tier kept for the drawing on screen, or
-   * `null` for every other tier. State, not a derived value: it is the semantic
-   * pass's reading of the geometry it just rewrote, and nothing in the render
-   * output can reconstruct it.
-   */
-  const [foldDepth, setFoldDepth] = useState<number | null>(null);
-  // The last layout applied to the captured drawing, plus the font it was
-  // planned at. The scroll listener re-reads them to keep the sticky package
-  // names at the viewport's top edge as the reader pans.
-  const appliedLayoutRef = useRef<SemanticZoomLayout | null>(null);
-  const appliedFontRef = useRef<number>(SEMANTIC_MIN_FONT_PX);
-  // A package the reader asked to zoom into; the next semantic application
-  // centres THIS frame instead of the densest window.
-  const centerPackageOnApplyRef = useRef<string | null>(null);
-  // The neighbourhood's centre entity, re-marked after every rewrite (the
-  // rewrite rebuilds the node groups' children from the captured drawing).
-  const neighborCenterRef = useRef<string | null>(null);
-  // The semantic application, reachable from `zoomToPackage` (defined above it)
-  // so the "tap a package" gesture rewrites and centres in one go, and from the
-  // debounced resize / zoom paths.
-  const applySemanticRef = useRef<((options: { readonly fit: boolean; readonly scale: number }) => void) | null>(null);
-  const lodSchedulerRef = useRef<ExplosionLodScheduler | null>(null);
-  const [lodDepth, setLodDepth] = useState<0 | 1 | 2 | null>(null);
-  // Bumped whenever the semantic pass rewrites the geometry, so the minimap
-  // re-reads its boxes instead of blitting the previous scale's bitmap.
-  const [drawnRevision, setDrawnRevision] = useState(0);
+  }, [idShape, layoutPipeline]);
 
   // Repaint the structural diff whenever the panel hands a new set in, and after every draw:
   // the two subgraphs (and the drill-down views) each rewrite the SVG, and a marker applied to
@@ -1537,12 +1458,7 @@ export function PlantUmlGraph({
     diffHighlightRef.current = diffHighlight;
     const host = hostRef.current;
     if (host !== null) applyDiffStyles(host, diffHighlight);
-  }, [diffHighlight, drawnRevision]);
-  // Whether the portrait phone's zoom cluster is open. Why state: the tier
-  // ships ONE 44px button by default (its drawing owns the height), and the
-  // reader's open is what reveals the ±/Fit row. Not persisted: the compact
-  // default is part of the tier, not a per-reader preference.
-  const [clusterExpanded, setClusterExpanded] = useState(false);
+  }, [diffHighlight, layoutSnapshot.drawnRevision]);
 
   /**
    * Write one semantic layout onto the captured drawing, INCLUDING the folded
@@ -1601,52 +1517,19 @@ export function PlantUmlGraph({
     if (controlFactor !== null) applyZoomScale(capture.svg, controlFactor);
   }, [gestureController]);
 
-  // Apply a semantic solve: `fit` asks the engine for the largest scale whose
-  // mapped content fits the canvas; otherwise the reader's explicit scale is
-  // honoured. Both paths draw 1:1 (see `applySemanticLayout`).
-  const applySemantic = useCallback((options: { readonly fit: boolean; readonly scale: number }): void => {
+  /**
+   * Write a layout the pipeline solved onto the drawing, in the same order as
+   * the old inline application: geometry first, then the viewport scale, then
+   * the DOM readings that depend on the rewritten elements, and the sticky
+   * labels LAST because they are positioned from the scroll offset written
+   * just above them.
+   */
+  const commitSemantic = useCallback((commit: GraphLayoutCommit): void => {
     const host = hostRef.current;
-    const capture = semanticCaptureRef.current;
-    if (host === null || capture === null) return;
-    // On the overlay this is the host less its measured chrome, so Fit spends
-    // the whole screen instead of inheriting the non-fullscreen margin.
-    const box = currentFitViewport(host);
-    recordFitViewport(box);
-    const fontPx = gestureController.isCoarsePointer() ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
-    let layout: SemanticZoomLayout;
-    let solvedScale: number;
-    if (options.fit) {
-      const forcedFocus = forcedDefaultFocus();
-      const fit = solveFitScale(capture.geometry, { viewport: box, minFontPx: fontPx });
-      if (forcedFocus && fit.fits) {
-        // The control arm's retired rule: the "unreadable fit" opened at the
-        // readable floor instead of the solved scale, overflowing the canvas.
-        layout = solveSemanticZoom(capture.geometry, {
-          scale: Math.max(fit.scale, READABLE_ZOOM_SCALE),
-          viewport: box,
-          previousTier: null,
-          minFontPx: fontPx,
-        });
-        solvedScale = layout.scale;
-      } else {
-        layout = fit.layout;
-        solvedScale = fit.scale;
-      }
-    } else {
-      layout = solveSemanticZoom(capture.geometry, {
-        scale: options.scale,
-        viewport: box,
-        previousTier: semanticTierRef.current,
-        minFontPx: fontPx,
-      });
-      solvedScale = layout.scale;
-    }
-    semanticTierRef.current = layout.tier;
-    appliedLayoutRef.current = layout;
-    appliedFontRef.current = fontPx;
+    if (host === null) return;
+    const { capture, layout, fontPx } = commit;
     applySemanticLayout(host, capture, layout, fontPx);
-    setFoldDepth(layout.foldDepth);
-    applyZoom({ scale: solvedScale, fit: options.fit ? 'auto' : 'manual' });
+    applyZoom({ scale: commit.scale, fit: commit.fit ? 'auto' : 'manual' });
     // A rewritten SVG is a fresh set of elements: re-pin the selection and the
     // unselectable declaration, exactly as the render effect does.
     const selection = selectionController.getSnapshot();
@@ -1654,22 +1537,17 @@ export function PlantUmlGraph({
     highlightSelection(host, selection.primaryNodeId);
     markDrawingUnselectable(host);
     applyDiffStyles(host, diffHighlightRef.current);
-    if (neighborCenterRef.current !== null) {
-      nodeElement(host, neighborCenterRef.current)?.classList.add('arch-center');
-    }
-    setLodDepth(lodDepthForTier(layout.tier));
-    setDrawnRevision((revision) => revision + 1);
+    const center = layoutPipeline.getSnapshot().neighborCenter;
+    if (center !== null) nodeElement(host, center)?.classList.add('arch-center');
     // The zoom anchor is the densest window of the mapped layout, not the
     // bounding-box centre: on a sparse drawing the centre is blank space. A
     // "tap a package" request overrides it with that package's frame.
     const width = host.clientWidth;
     const height = host.clientHeight;
     if (width > 0 && height > 0) {
-      const requested = centerPackageOnApplyRef.current;
-      centerPackageOnApplyRef.current = null;
-      const target = requested === null
+      const target = commit.centerPackage === null
         ? null
-        : layout.packages.find((entry) => entry.id === requested) ?? null;
+        : layout.packages.find((entry) => entry.id === commit.centerPackage) ?? null;
       if (target === null) {
         host.scrollLeft = Math.max(0, layout.anchor.x - width / 2);
         host.scrollTop = Math.max(0, layout.anchor.y - height / 2);
@@ -1684,10 +1562,24 @@ export function PlantUmlGraph({
     // offset, so they are drawn after it is written. Drawing them inside the
     // layout pass measured the previous offset and left the ghosts one zoom
     // behind (the defect this task fixes).
-    drawStickyLabels(host, layout, appliedFontRef.current);
+    drawStickyLabels(host, layout, fontPx);
     positionOverviewHint(host);
-  }, [gestureController, applySemanticLayout, applyZoom, currentFitViewport, recordFitViewport]);
-  applySemanticRef.current = applySemantic;
+  }, [applySemanticLayout, applyZoom, layoutPipeline, selectionController]);
+
+  // The pipeline owns WHICH layout is drawn and WHEN; these actions are the
+  // DOM-bound half it cannot do itself. Re-registered per render so a callback
+  // identity change reaches the owner without re-creating it.
+  useEffect(() => {
+    layoutPipeline.setActions({
+      fitViewport: () => (hostRef.current === null ? null : currentFitViewport(hostRef.current)),
+      recordFitViewport,
+      semanticFontPx: () =>
+        gestureController.isCoarsePointer() ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX,
+      commitSemantic,
+      measureAspect: () => (hostRef.current === null ? null : measureLayoutAspect(hostRef.current)),
+      forcedDefaultFocus,
+    });
+  }, [layoutPipeline, commitSemantic, currentFitViewport, recordFitViewport, gestureController]);
   // The viewport controller lives in the owner: it survives the renderer
   // replacing the SVG (each render re-attaches), so the mode and scale outlive
   // a single drawing, while the owner clears its debounce timer on unmount.
@@ -1711,9 +1603,9 @@ export function PlantUmlGraph({
     let frame: number | null = null;
     const repaint = (): void => {
       frame = null;
-      const layout = appliedLayoutRef.current;
-      if (layout === null || semanticCaptureRef.current === null) return;
-      drawStickyLabels(host, layout, appliedFontRef.current);
+      const applied = layoutPipeline.getSnapshot();
+      if (applied.appliedLayout === null || applied.semanticCapture === null) return;
+      drawStickyLabels(host, applied.appliedLayout, applied.appliedFontPx);
       positionOverviewHint(host);
     };
     const onScroll = (): void => {
@@ -1729,7 +1621,7 @@ export function PlantUmlGraph({
       host.removeEventListener('scroll', onScroll);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [layoutPipeline]);
 
   // Touch gestures ride on the SAME controller the toolbar and Ctrl+wheel use,
   // so pinch never introduces a second zoom model. The host's `touch-action:
@@ -1881,85 +1773,23 @@ export function PlantUmlGraph({
     };
   }, [gestureController]);
 
-  // The LOD debouncer lives for the mount; a drawing change cancels its pending
-  // application through the render effect below.
+  // The panel owns the lock (it knows when a dock/split transition starts); the
+  // pipeline owns what the lock suppresses and how lifting it re-bases the
+  // container ratio, so the component only forwards the prop.
   useEffect(() => {
-    const scheduler = createExplosionLodScheduler();
-    lodSchedulerRef.current = scheduler;
-    return () => {
-      scheduler.cancel();
-      lodSchedulerRef.current = null;
-    };
-  }, []);
-
-  // The container ratio the NEXT drawing is laid out for. A resize does not
-  // re-render on its own (the SVG is resized imperatively), so a shape change
-  // that is worth a new layout needs a state write to re-enter the render
-  // effect; it stays `null` until the first such change, letting the first draw
-  // measure the container directly (see `measureLayoutAspect`).
-  const [layoutAspect, setLayoutAspect] = useState<number | null>(null);
-  // The ratio the drawing on screen was laid out with (`null` = the engine's own
-  // default). Read by the resize observer to decide whether the container has
-  // moved far enough to earn a re-layout.
-  const drawnAspectRef = useRef<number | null>(null);
-  // The direction the drawing on screen was laid out in, and the policy's reason
-  // for it. Published as the layout readout (`data-architecture-layout-direction`
-  // and its `-reason` sibling); `null` before the first drawing lands.
-  const [layoutDirection, setLayoutDirection] = useState<LayoutOrientation | null>(null);
-  const [layoutDirectionReason, setLayoutDirectionReason] = useState<string | null>(null);
-  // One direction-decision cache per canvas. A graph re-laid out for the same
-  // canvas band reuses the decision instead of paying for the comparison layout
-  // a second time (see `layoutOrientation.ts`).
-  const orientationCacheRef = useRef(createOrientationCache());
-  // The drawing the LOD level belongs to, so an aspect re-layout of the SAME
-  // view carries the current level and focus over instead of re-deriving them.
-  const drawnKeyRef = useRef<string | null>(null);
-  // The inputs the last layout effect run was given. When the effect re-runs
-  // with the SAME inputs it is an aspect-driven re-layout (the container's
-  // shape changed), not a new view/graph; a custom zoom the reader chose must
-  // survive that. A genuinely new drawing re-derives its own scale.
-  const layoutInputRef = useRef<{ graph: unknown; viewKey: string; idShape: string; entityGraph: boolean } | null>(null);
-  // Pending debounced re-layout (one timer: the latest reading wins).
-  const aspectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Whether aspect-driven re-layout is frozen (see `relayoutLocked`). The lock
-  // lives in the panel; here it only suppresses the schedule. When it LIFTS,
-  // the current container ratio becomes the new comparison base WITHOUT a
-  // layout, so the dock opening/closing is never itself a shape change.
-  const relayoutLockedRef = useRef(relayoutLocked);
-  const wasRelayoutLockedRef = useRef(relayoutLocked);
-  useEffect(() => {
-    relayoutLockedRef.current = relayoutLocked;
-    if (wasRelayoutLockedRef.current && !relayoutLocked) {
-      const host = hostRef.current;
-      const measured = host === null ? null : measureLayoutAspect(host);
-      if (measured !== null) drawnAspectRef.current = measured;
-    }
-    wasRelayoutLockedRef.current = relayoutLocked;
-  }, [relayoutLocked]);
-  const scheduleAspectRelayout = useCallback((aspect: number): void => {
-    if (aspectTimerRef.current !== null) clearTimeout(aspectTimerRef.current);
-    aspectTimerRef.current = setTimeout(() => {
-      aspectTimerRef.current = null;
-      setLayoutAspect(aspect);
-    }, ASPECT_RELAYOUT_DEBOUNCE_MS);
-  }, []);
-  useEffect(() => () => {
-    if (aspectTimerRef.current !== null) clearTimeout(aspectTimerRef.current);
-    aspectTimerRef.current = null;
-  }, []);
+    if (relayoutLocked) layoutPipeline.lockRelayout();
+    else layoutPipeline.unlockRelayout();
+  }, [relayoutLocked, layoutPipeline]);
 
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
 
     let cancelled = false;
-    // The drawing identity is recorded so a re-layout of the SAME view can
-    // carry the semantic tier over inside the engine's dead band.
     const viewKey = drawingKeyOf(view);
-    layoutInputRef.current = { graph, viewKey, idShape, entityGraph };
     // A pending application belongs to the drawing being replaced; the new one
     // is applied synchronously below.
-    lodSchedulerRef.current?.cancel();
+    layoutPipeline.beginDrawing();
     setFailure(null);
     gestureController.getHandlers().onNodeHover?.(null);
     // A reloaded graph may not contain the previously selected entity.
@@ -1984,7 +1814,7 @@ export function PlantUmlGraph({
         // The container's shape is a LAYOUT input, not a post-render scale: the
         // engine is CONSTRUCTED with it so ELK draws for this container instead
         // of for its own default proportions.
-        const drawnAspect = layoutAspect ?? measureLayoutAspect(host);
+        const drawnAspect = layoutSnapshot.layoutAspect ?? measureLayoutAspect(host);
         // The panel is the adaptive consumer for the FILE graph: the bridge
         // collapses its directory layers itself (the renderer's
         // `groupByPathPrefix` would count a file name as a layer, which is the
@@ -2012,13 +1842,13 @@ export function PlantUmlGraph({
         // previous drawing stays in the host throughout: nothing replaces it
         // until the new SVG is ready.
         const layoutNodes = graph.nodes.length;
-        const estimate = estimateLayoutMs(layoutNodes, layoutSamplesRef.current.get(idShape) ?? null);
+        const estimate = layoutPipeline.estimateLayoutMs(idShape, layoutNodes);
         const announce = estimate > LAYOUT_STATUS_THRESHOLD_MS;
         if (announce) {
-          setLayoutStatusNodes(layoutNodes);
+          layoutPipeline.setLayoutStatus(layoutNodes);
           await afterPaint();
           if (cancelled) {
-            setLayoutStatusNodes(null);
+            layoutPipeline.setLayoutStatus(null);
             return;
           }
         }
@@ -2056,108 +1886,45 @@ export function PlantUmlGraph({
           );
         };
 
-        // The direction policy (see `layoutOrientation.ts`): draw the graph
-        // downward, and — only for a small graph on a canvas clearly wider than
-        // that drawing — draw it once more to the RIGHT, keeping whichever the
-        // canvas can show larger. The decision is cached per graph + canvas
-        // band, so a shape-driven re-layout reuses it instead of laying the
-        // graph out twice again.
+        // The direction policy (see `layoutOrientation.ts`) lives in the
+        // pipeline owner: draw the graph downward, and — only for a small graph
+        // on a canvas clearly wider than that drawing — draw it once more to
+        // the RIGHT, keeping whichever the canvas can show larger. The decision
+        // is cached per graph + canvas band, so a shape-driven re-layout reuses
+        // it instead of laying the graph out twice again.
         const canvasBox = measureViewportSize(host);
-        const cacheKey = canvasBox === null
-          ? null
-          : orientationCacheKey(graphFingerprint(graph, viewKey, idShape), canvasBox);
-        const forced = forcedLayoutOrientation();
-        // A forced reading is a control arm, not a cached result: it must not be
-        // shadowed by a RIGHT decision the same canvas earned a moment ago.
-        const cached = forced === null && cacheKey !== null
-          ? orientationCacheRef.current.get(cacheKey)
-          : null;
-
-        let detailed: Awaited<ReturnType<typeof renderWithMemberDetail>>;
-        let elapsedMs = 0;
-        let orientation: OrientationDecision;
-
-        if (cached !== null) {
-          // Cache hit: this drawing was already evaluated for this canvas band,
-          // so only its chosen direction is drawn — no comparison layout.
-          const cachedStartedAt = performance.now();
-          detailed = await renderOnce(cached.direction === 'DOWN' ? undefined : 'RIGHT');
-          elapsedMs = Math.round(performance.now() - cachedStartedAt);
-          orientation = cached;
-        } else if (forced !== null) {
-          const forcedStartedAt = performance.now();
-          detailed = await renderOnce(forced === 'DOWN' ? undefined : 'RIGHT');
-          elapsedMs = Math.round(performance.now() - forcedStartedAt);
-          // A forced arm measures ONE direction, so its fit is the raw geometry
-          // of that drawing: there is no second candidate to compare against.
-          orientation = chooseLayoutOrientation({
-            canvas: canvasBox ?? { width: 0, height: 0 },
-            down: layoutSizeOf(detailed) ?? { width: 0, height: 0 },
-            right: null,
-            entities: layoutNodes,
-            firstLayoutMs: elapsedMs,
-            forceDown: forced === 'DOWN',
-            forceRight: forced === 'RIGHT',
-          });
-        } else {
-          const firstStartedAt = performance.now();
-          const down = await renderOnce(undefined);
-          const firstLayoutMs = Math.round(performance.now() - firstStartedAt);
-          const downSize = layoutSizeOf(down);
-          const eligibility = canvasBox === null || downSize === null
-            ? { attempt: false as const, reason: ORIENTATION_REASON.canvasNotWide }
-            : shouldAttemptDualLayout({
-                canvas: canvasBox,
-                down: downSize,
-                entities: layoutNodes,
-                firstLayoutMs,
-              });
-          if (eligibility.attempt && canvasBox !== null && downSize !== null) {
-            const secondStartedAt = performance.now();
-            const right = await renderOnce('RIGHT');
-            const secondLayoutMs = Math.round(performance.now() - secondStartedAt);
-            if (cancelled) return;
-            // Compare the DRAWN fit, not the renderer's pre-reclaim size: the
-            // semantic pass reclaims the blank body of frames whose member rows
-            // are not drawn, and that is the size the reader sees. Both
-            // candidates are solved against the SAME box — the one eligibility
-            // just judged — so the comparison is like-for-like.
-            const fontPx = gestureController.isCoarsePointer() ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
-            orientation = chooseLayoutOrientation({
-              canvas: canvasBox,
-              down: downSize,
-              right: layoutSizeOf(right),
-              downDrawnFitScale: drawnFitScaleOf(down, graph, canvasBox, fontPx) ?? undefined,
-              rightDrawnFitScale: drawnFitScaleOf(right, graph, canvasBox, fontPx) ?? undefined,
-              entities: layoutNodes,
-              firstLayoutMs,
-            });
-            const turned = orientation.direction === 'RIGHT';
-            detailed = turned ? right : down;
-            elapsedMs = turned ? secondLayoutMs : firstLayoutMs;
-          } else {
-            orientation = chooseLayoutOrientation({
-              canvas: canvasBox ?? { width: 0, height: 0 },
-              down: downSize ?? { width: 0, height: 0 },
-              right: null,
-              entities: layoutNodes,
-              firstLayoutMs,
-            });
-            detailed = down;
-            elapsedMs = firstLayoutMs;
-          }
-          if (cacheKey !== null) orientationCacheRef.current.set(cacheKey, orientation);
-        }
-
-        // The next layout of this kind is estimated from this one: the sample is
-        // the drawing kind's own, never another kind's.
-        layoutSamplesRef.current.set(idShape, { nodes: layoutNodes, ms: elapsedMs });
+        const outcome = await layoutPipeline.orientLayout({
+          fingerprint: graphFingerprint(graph, viewKey, idShape),
+          canvas: canvasBox,
+          entities: layoutNodes,
+          forced: forcedLayoutOrientation(),
+          render: async (direction) => {
+            const startedAt = performance.now();
+            const rendered = await renderOnce(direction === 'DOWN' ? undefined : direction);
+            const renderedMs = Math.round(performance.now() - startedAt);
+            return {
+              size: layoutSizeOf(rendered),
+              // Paid only when a second candidate exists (see the pipeline).
+              drawnFitScale: () => {
+                if (canvasBox === null) return null;
+                const fontPx = gestureController.isCoarsePointer()
+                  ? SEMANTIC_MIN_FONT_MOBILE_PX
+                  : SEMANTIC_MIN_FONT_PX;
+                return drawnFitScaleOf(rendered, graph, canvasBox, fontPx);
+              },
+              elapsedMs: renderedMs,
+              drawn: { rendered, elapsedMs: renderedMs },
+            };
+          },
+        });
         if (cancelled) return;
-        // The orientation is part of the layout reading, not a hidden detail:
-        // the canvas states which direction it drew and why, so a reader (and
-        // the criterion's control arm) can tell the two layouts apart.
-        setLayoutDirection(orientation.direction);
-        setLayoutDirectionReason(orientation.reason);
+        const detailed = outcome.drawn.rendered;
+        const elapsedMs = outcome.drawn.elapsedMs;
+        // The next layout of this kind is estimated from this one: the sample is
+        // the drawing kind's own, never another kind's. The orientation itself
+        // is published by the policy as part of the layout reading, so a reader
+        // (and the criterion's control arm) can tell the two layouts apart.
+        layoutPipeline.recordLayoutSample(idShape, { nodes: layoutNodes, ms: elapsedMs });
 
         const { svg, model } = detailed;
         host.innerHTML = svg;
@@ -2173,14 +1940,10 @@ export function PlantUmlGraph({
           canvasRect.setAttribute('fill', 'none');
         }
         setLayoutMs(elapsedMs);
-        // The layout of the drawing that was just replaced must not answer
-        // questions about this one (a folded layout's content size, in
-        // particular, is not this drawing's).
-        appliedLayoutRef.current = null;
         // The new drawing is in the host, so the layout the status described is
         // over: it is cleared in this same commit. A state write here is safe
         // because the drawing the reader now sees is already the new one.
-        setLayoutStatusNodes(null);
+        layoutPipeline.setLayoutStatus(null);
         // The text page reads this: the model just drawn, plus the upstream
         // functions that serialize and scope it. `diagram.aliasOf` is the
         // graph-id (and overview `grp::` group) → drawn entity id map.
@@ -2193,7 +1956,6 @@ export function PlantUmlGraph({
           toPlantUml: (drawnModel) => standardiseDrawnStereotypes(toPlantUml(drawnModel)),
           applyView,
         });
-        drawnAspectRef.current = drawnAspect;
         restoreEntityIds(host, diagram.aliasOf);
         // Labels are off until a node is hovered/selected, and every entity
         // box carries its source file + seed marker (see `annotateNodes`).
@@ -2208,8 +1970,10 @@ export function PlantUmlGraph({
         // map, not a UML drawing) keeps the ordinary CSS-scaled viewport.
         const semanticEligible = !diagram.grouped && !(view.kind === 'overview' && !entityGraph);
         const capture = semanticEligible ? captureSemanticDrawing(host, graph) : null;
-        semanticCaptureRef.current = capture;
-        semanticTierRef.current = null;
+        // One write path: the owner drops the replaced drawing's applied layout,
+        // tier, status and neighbourhood centre, and records the ratio this
+        // drawing was laid out with.
+        layoutPipeline.markDrawn({ viewKey, capture, aspect: drawnAspect });
         const viewportForMode = viewportController.viewport();
         // The semantic base size is the SAME boundary the canvas will draw
         // (`semanticContentBounds`), not the renderer's pre-semantic viewBox:
@@ -2277,13 +2041,12 @@ export function PlantUmlGraph({
         }
         // A fresh SVG has no highlight classes; re-pin the current selection.
         highlightSelection(host, selectionController.getSnapshot().primaryNodeId);
-        neighborCenterRef.current = null;
         if (view.kind === 'neighborhood') {
           const center = diagram.rendererEntity;
           if (center !== null) {
             const id = reverseAliases(diagram.aliasOf).get(center);
             if (id !== undefined) {
-              neighborCenterRef.current = id;
+              layoutPipeline.setNeighborCenter(id);
               nodeElement(host, id)?.classList.add('arch-center');
             }
           }
@@ -2292,24 +2055,16 @@ export function PlantUmlGraph({
         // never flashes at the wrong detail before the debouncer fires. The
         // sticky fit state decides how: `auto` re-solves the scale against the
         // new drawing's canvas, `manual` keeps the reader's scale.
-        const drawingKey = drawingKeyOf(view);
-        const carriedTier = drawingKey === drawnKeyRef.current ? semanticTierRef.current : null;
-        drawnKeyRef.current = drawingKey;
         if (capture === null) {
-          semanticTierRef.current = null;
-          appliedLayoutRef.current = null;
-          setLodDepth(null);
-          setFoldDepth(null);
           // A drawing with no semantic pass still needs its coarse-pointer hit
           // rectangles; the captured path lays them down inside
           // `applySemanticLayout`, after the rewrite rebuilt the nodes.
           addNodeHitTargets(host, coarsePointer);
         } else {
-          semanticTierRef.current = carriedTier;
           // The new drawing is applied through ONE path, so the draw and the
           // settled-zoom/resize paths can never disagree about which scale is
           // on screen.
-          applySemantic({ fit: controllerZoom().fit === 'auto', scale: controllerZoom().scale });
+          layoutPipeline.applySemantic({ fit: controllerZoom().fit === 'auto', scale: controllerZoom().scale });
         }
         // A focus request (search hit) is centred LAST: the reader asked for
         // THIS node, so it wins.
@@ -2325,9 +2080,9 @@ export function PlantUmlGraph({
         }
         // Every scroll above has landed: place the sticky package names and the
         // overview hint against the viewport the reader will actually see.
-        const appliedLayout = appliedLayoutRef.current;
-        if (appliedLayout !== null && semanticCaptureRef.current !== null) {
-          drawStickyLabels(host, appliedLayout, appliedFontRef.current);
+        const applied = layoutPipeline.getSnapshot();
+        if (applied.appliedLayout !== null && applied.semanticCapture !== null) {
+          drawStickyLabels(host, applied.appliedLayout, applied.appliedFontPx);
           positionOverviewHint(host);
         }
         setDrawn({
@@ -2343,12 +2098,9 @@ export function PlantUmlGraph({
         host.innerHTML = '';
         setDrawn(null);
         setLayoutMs(null);
-        setLayoutDirection(null);
-        setLayoutDirectionReason(null);
         // The layout ended — badly — so the status that described it must not
         // outlive it; the failure line below is the reader's explanation.
-        setLayoutStatusNodes(null);
-        setFoldDepth(null);
+        layoutPipeline.failDrawing();
         // The previous drawing is gone; the text page must not keep describing it.
         gestureController.getHandlers().onDrawnChange?.(null);
         setFailure(error instanceof Error ? error.message : 'unknown render error');
@@ -2363,9 +2115,9 @@ export function PlantUmlGraph({
       gestureController.getHandlers().onDrawnChange?.(null);
       // A status belongs to the layout that set it; the run replacing this one
       // decides again whether to announce (and clears it again when it ends).
-      setLayoutStatusNodes(null);
+      layoutPipeline.setLayoutStatus(null);
     };
-  }, [applyPlacement, applySemantic, applySemanticLayout, applyZoom, controllerZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, gestureController, graph, idShape, layoutAspect, naturalOfDrawing, view, viewportController]);
+  }, [applyPlacement, applyZoom, controllerZoom, coarsePointer, entityGraph, fitPlacementFor, focusNodeId, gestureController, graph, idShape, layoutPipeline, layoutSnapshot.layoutAspect, naturalOfDrawing, view, viewportController]);
 
   /**
    * Keep the SELECTED box inside the visible canvas.
@@ -2422,7 +2174,7 @@ export function PlantUmlGraph({
       cancelAnimationFrame(frame);
       for (const timer of timers) clearTimeout(timer);
     };
-  }, [bottomObscuredPx, selectedNodeId, drawnRevision]);
+  }, [bottomObscuredPx, selectedNodeId, layoutSnapshot.drawnRevision]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -2563,7 +2315,7 @@ export function PlantUmlGraph({
       // zooms into it — the "tap a package" gesture the too-small overview hint
       // offers, on every pointer tier. It runs before the background-clear
       // branch because a frame carries no `data-entity-id` of its own.
-      if (semanticTierRef.current === 'C' || semanticTierRef.current === 'D') {
+      if (packageOnlyTier()) {
         const frame = event.target instanceof Element
           ? event.target.closest('.uml-package[data-package-id]')
           : null;
@@ -2581,7 +2333,7 @@ export function PlantUmlGraph({
       // drawing's rectangles overlap (the topmost rectangle would otherwise
       // hand the tap to a neighbour). The package-only tiers draw no entities,
       // so they keep their frame-zoom path untouched.
-      const packageOnly = semanticTierRef.current === 'C' || semanticTierRef.current === 'D';
+      const packageOnly = packageOnlyTier();
       const coarseNodeId = packageOnly
         ? null
         : gestureController.resolveCoarseNodeHit(event.clientX, event.clientY);
@@ -2685,7 +2437,7 @@ export function PlantUmlGraph({
       host.removeEventListener('dblclick', onDoubleClick);
       host.removeEventListener('contextmenu', onContextMenu);
     };
-  }, [canCurate, drillInto, gestureController, zoomToPackage]);
+  }, [canCurate, drillInto, gestureController, packageOnlyTier, zoomToPackage]);
 
   // The other direction of the cross-panel linkage: a sibling panel selects an
   // entity by its stable id (e.g. a file referenced in chat). The graph pins the
@@ -2744,8 +2496,8 @@ export function PlantUmlGraph({
   // arm's "refit off" reading live in the viewport owner; this is only the
   // drawing-bound half (semantic rewrite vs. CSS resize + placement).
   const runAutoFit = useCallback((): void => {
-    if (semanticCaptureRef.current !== null) {
-      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
+    if (layoutPipeline.getSnapshot().semanticCapture !== null) {
+      layoutPipeline.applySemantic({ fit: true, scale: controllerZoom().scale });
       return;
     }
     const host = hostRef.current;
@@ -2760,7 +2512,7 @@ export function PlantUmlGraph({
     const scale = viewport.zoomTo(placement.scale);
     applyPlacement(drawing, placement);
     applyZoom({ scale, fit: 'auto' });
-  }, [applyPlacement, applyZoom, controllerZoom, currentFitViewport, fitPlacementFor, naturalOfDrawing, recordFitViewport, viewportController]);
+  }, [applyPlacement, applyZoom, controllerZoom, currentFitViewport, fitPlacementFor, layoutPipeline, naturalOfDrawing, recordFitViewport, viewportController]);
 
   // Every canvas size change — window resize, fullscreen, the inspector/drawer/
   // tray opening, a phone rotation, a re-layout — reaches this observer. Under
@@ -2775,10 +2527,9 @@ export function PlantUmlGraph({
     const host = hostRef.current;
     if (host === null || typeof ResizeObserver !== 'function') return;
     const observer = new ResizeObserver(() => {
-      const measured = measureLayoutAspect(host);
-      if (shouldRelayoutForAspect(drawnAspectRef.current, measured, { locked: relayoutLockedRef.current }) && measured !== null) {
-        scheduleAspectRelayout(measured);
-      }
+      // The owner holds the threshold, the lock and the debounce: this only
+      // reports what the container now measures.
+      layoutPipeline.reportAspect(measureLayoutAspect(host));
       revealSelectedRef.current?.();
       viewportController.scheduleAutoFit();
     });
@@ -2789,7 +2540,7 @@ export function PlantUmlGraph({
     const overlays = host.parentElement?.querySelector<HTMLElement>('[data-architecture-canvas-overlays]');
     if (overlays !== undefined && overlays !== null) observer.observe(overlays);
     return () => observer.disconnect();
-  }, [scheduleAspectRelayout, viewportController]);
+  }, [layoutPipeline, viewportController]);
 
   // Remember the box the ordinary (non-fullscreen) layout fits against. The
   // control arm's lever reads it to restore the retired defect; the shipped
@@ -2869,16 +2620,14 @@ export function PlantUmlGraph({
   // answers explicit (manual) scales.
   useEffect(() => {
     if (zoom.fit !== 'manual') return;
-    const scheduler = lodSchedulerRef.current;
-    if (scheduler === null) return;
-    scheduler.request(() => applySemanticRef.current?.({ fit: false, scale: controllerZoom().scale }));
-  }, [controllerZoom, zoom.fit, zoom.scale]);
+    layoutPipeline.scheduleSemanticApply(() => ({ fit: false, scale: controllerZoom().scale }));
+  }, [controllerZoom, layoutPipeline, zoom.fit, zoom.scale]);
 
   const zoomToScale = (scale: number): void => {
-    if (semanticCaptureRef.current !== null) {
+    if (layoutPipeline.getSnapshot().semanticCapture !== null) {
       const applied = clampZoomScale(scale);
       applyZoom({ scale: applied, fit: 'manual' });
-      applySemanticRef.current?.({ fit: false, scale: applied });
+      layoutPipeline.applySemantic({ fit: false, scale: applied });
       return;
     }
     // The owner applies the CSS scale through the viewport and clamps it.
@@ -2886,10 +2635,10 @@ export function PlantUmlGraph({
   };
 
   const zoomByStep = (factor: number): void => {
-    if (semanticCaptureRef.current !== null) {
+    if (layoutPipeline.getSnapshot().semanticCapture !== null) {
       const applied = clampZoomScale(controllerZoom().scale * factor);
       applyZoom({ scale: applied, fit: 'manual' });
-      applySemanticRef.current?.({ fit: false, scale: applied });
+      layoutPipeline.applySemantic({ fit: false, scale: applied });
       return;
     }
     viewportController.zoomBy(factor);
@@ -2904,9 +2653,9 @@ export function PlantUmlGraph({
     // A fit is the whole-graph reading: the package zoom the hint offered is
     // over, and its row must not keep asking the reader to go back.
     viewportController.setPackageFocus(null);
-    if (semanticCaptureRef.current !== null) {
+    if (layoutPipeline.getSnapshot().semanticCapture !== null) {
       applyZoom({ scale: controllerZoom().scale, fit: 'auto' });
-      applySemanticRef.current?.({ fit: true, scale: controllerZoom().scale });
+      layoutPipeline.applySemantic({ fit: true, scale: controllerZoom().scale });
       return;
     }
     const host = hostRef.current;
@@ -3445,7 +3194,7 @@ export function PlantUmlGraph({
       return;
     }
     paintCurrentNavigationItem(host);
-  }, [drawn, drawnRevision, selectionSnapshot.navigationActive, selectionSnapshot.navigationCursorId]);
+  }, [drawn, layoutSnapshot.drawnRevision, selectionSnapshot.navigationActive, selectionSnapshot.navigationCursorId]);
 
   const viewLabel = view.kind === 'overview'
     ? t('architecture.plantuml.overview', { defaultValue: 'Overview' })
@@ -3535,8 +3284,8 @@ export function PlantUmlGraph({
       // The zoom readout carries the same orientation reading as the layout
       // row: the scale on screen and the direction that produced it are one
       // statement about the drawing.
-      data-architecture-layout-direction={layoutDirection ?? undefined}
-      data-architecture-layout-direction-reason={layoutDirectionReason ?? undefined}
+      data-architecture-layout-direction={layoutSnapshot.layoutDirection ?? undefined}
+      data-architecture-layout-direction-reason={layoutSnapshot.layoutDirectionReason ?? undefined}
       className="min-w-9 text-center tabular-nums"
     >
       {Math.round(displayScale * 100)}%
@@ -3614,7 +3363,7 @@ export function PlantUmlGraph({
     ? PORTRAIT_CONTROL_BAND_PX
     : 0;
   /** The portrait cluster's shipped form is the one 44px button. */
-  const portraitClusterCollapsed = portraitPhone && !clusterExpanded && !portraitControlsOverlay;
+  const portraitClusterCollapsed = portraitPhone && !layoutSnapshot.clusterExpanded && !portraitControlsOverlay;
 
   /**
    * The canvas pill. It has two reasons to exist, and neither is a Focus notice:
@@ -3627,7 +3376,7 @@ export function PlantUmlGraph({
    * `auto` fit always shows the whole graph on purpose, so a sentence telling
    * the reader it is too small had no action to offer that the palette did not.
    */
-  const foldedDepth = foldDepth;
+  const foldedDepth = layoutSnapshot.foldDepth;
   const showOverviewHint = foldedDepth !== null || packageFocus !== null;
   const overviewHintText = foldedDepth !== null
     ? t('architecture.plantuml.readable.folded', {
@@ -3642,7 +3391,7 @@ export function PlantUmlGraph({
     const host = hostRef.current;
     if (host === null || !showOverviewHint) return;
     positionOverviewHint(host);
-  }, [showOverviewHint, drawnRevision, zoom.scale, packageFocus, foldedDepth]);
+  }, [showOverviewHint, layoutSnapshot.drawnRevision, zoom.scale, packageFocus, foldedDepth]);
 
   const zoomOutButton = (
     <button
@@ -3793,7 +3542,7 @@ export function PlantUmlGraph({
       // The ONE proportion on screen. For a semantic drawing it equals the
       // SVG's own `data-architecture-semantic-scale`; there is no CSS factor.
       data-architecture-zoom-scale={displayScale}
-      data-architecture-semantic-scale={semanticCaptureRef.current !== null ? displayScale : undefined}
+      data-architecture-semantic-scale={layoutSnapshot.semanticCapture !== null ? displayScale : undefined}
       // The box the last Fit solved against, as `WxH`. On the overlay that is
       // the host less its measured chrome (not the non-fullscreen margin),
       // minus the one pixel the semantic writer rounds up — the reading a
@@ -3801,13 +3550,13 @@ export function PlantUmlGraph({
       data-architecture-fit-viewport={fitViewportReading === null
         ? undefined
         : `${Math.round(fitViewportReading.width)}x${Math.round(fitViewportReading.height)}`}
-      data-architecture-fold-depth={foldDepth ?? undefined}
-      data-architecture-lod-depth={lodDepth ?? undefined}
+      data-architecture-fold-depth={layoutSnapshot.foldDepth ?? undefined}
+      data-architecture-lod-depth={layoutSnapshot.lodDepth ?? undefined}
       data-architecture-layout-ms={layoutMs ?? undefined}
       // The layout readout's direction and reason: WHICH orientation the
       // drawing was laid out in, and why the policy chose it.
-      data-architecture-layout-direction={layoutDirection ?? undefined}
-      data-architecture-layout-direction-reason={layoutDirectionReason ?? undefined}
+      data-architecture-layout-direction={layoutSnapshot.layoutDirection ?? undefined}
+      data-architecture-layout-direction-reason={layoutSnapshot.layoutDirectionReason ?? undefined}
     >
       <style>{HIGHLIGHT_STYLE}</style>
       <style data-architecture-diff-highlight-style="true">{DIFF_HIGHLIGHT_STYLE}</style>
@@ -3961,14 +3710,14 @@ export function PlantUmlGraph({
         >
           {selectionSnapshot.navigationAnnouncement}
         </span>
-        {layoutStatusNodes !== null && (
+        {layoutSnapshot.layoutStatusNodes !== null && (
           // An overlay, deliberately: a status drawn in flow would change the
           // canvas' height, and therefore the very fit the drawing after it is
           // laid out for. It sits above the drawing the reader is still looking
           // at, not in place of it — the host keeps the previous SVG until the
           // new one is ready.
           <div
-            data-architecture-layout-status={layoutStatusNodes}
+            data-architecture-layout-status={layoutSnapshot.layoutStatusNodes}
             role="status"
             aria-live="polite"
             style={{ position: 'absolute', zIndex: 26, left: 12, top: 12, maxWidth: '78%' }}
@@ -3978,7 +3727,7 @@ export function PlantUmlGraph({
             <span className="min-w-0 truncate">
               {t('architecture.plantuml.layoutProgress', {
                 defaultValue: 'Laying out {{count}} entities…',
-                count: layoutStatusNodes,
+                count: layoutSnapshot.layoutStatusNodes,
               })}
             </span>
           </div>
@@ -4178,11 +3927,11 @@ export function PlantUmlGraph({
             // A new drawing, and every semantic rewrite, is a new set of node
             // rectangles; the same drawing re-fitted or panned only moves the
             // range frame.
-            revision={`${drawnRevision}:${semanticTierRef.current ?? ''}`}
+            revision={`${layoutSnapshot.drawnRevision}:${layoutSnapshot.semanticTier ?? ''}`}
             // In semantic mode the SVG is already sized in mapped screen
             // units, so the drawing's scale is 1 — the non-linear map lives in
             // the geometry, not in the minimap's arithmetic.
-            scale={semanticCaptureRef.current !== null ? 1 : zoom.scale}
+            scale={layoutSnapshot.semanticCapture !== null ? 1 : zoom.scale}
           />
           {/* The zoom cluster floats at the bottom right OF the drawing: the
               three controls act on it, so they stay next to it instead of in
@@ -4222,7 +3971,7 @@ export function PlantUmlGraph({
                 aria-label={t('architecture.plantuml.zoomControls.show', {
                   defaultValue: 'Show zoom controls',
                 })}
-                onClick={() => setClusterExpanded(true)}
+                onClick={() => layoutPipeline.expandCluster()}
                 data-architecture-zoom-cluster-toggle="true"
                 // The collapsed form IS the cluster's percentage reading on the
                 // portrait tier; state it under the same attribute the expanded
@@ -4250,11 +3999,11 @@ export function PlantUmlGraph({
                     {Math.round(displayScale * 100)}%
                   </span>
                 )}
-                {lodDepth !== null && (
+                {layoutSnapshot.lodDepth !== null && (
                   <span data-architecture-lod-label className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">
-                    {lodDepth === 2
+                    {layoutSnapshot.lodDepth === 2
                       ? t('architecture.plantuml.lod.tierNames', { defaultValue: 'Names' })
-                      : lodDepth === 1
+                      : layoutSnapshot.lodDepth === 1
                         ? t('architecture.plantuml.lod.tierFrames', { defaultValue: 'Frames' })
                         : t('architecture.plantuml.lod.tierPackages', { defaultValue: 'Packages' })}
                   </span>
@@ -4268,7 +4017,7 @@ export function PlantUmlGraph({
                     aria-label={t('architecture.plantuml.zoomControls.hide', {
                       defaultValue: 'Hide zoom controls',
                     })}
-                    onClick={() => setClusterExpanded(false)}
+                    onClick={() => layoutPipeline.collapseCluster()}
                     data-architecture-zoom-cluster-collapse="true"
                     style={TOUCH_TARGET_STYLE}
                     className={TOOLBAR_BUTTON_CLASS}
