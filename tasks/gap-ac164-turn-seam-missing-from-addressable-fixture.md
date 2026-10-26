@@ -2,7 +2,7 @@
 id: gap-ac164-turn-seam-missing-from-addressable-fixture
 title: AC-164 地址判据在锚点环境（RESIDENT_RUN_IS_TURN=1）红：判据夹具只装了组合根两条 run 缝中的
   setUnattendedRunOpener，跨会话送达因此打不开无人轮；地址四腿本身全绿
-status: todo
+status: ready
 labels:
   - gap
   - defect
