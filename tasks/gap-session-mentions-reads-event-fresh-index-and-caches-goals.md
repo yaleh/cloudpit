@@ -39,13 +39,13 @@ depends_on:
 
 ## AC
 
-- [ ] 索引新鲜时零 spawn：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/session-mentions.test.ts` exit 0；含用例：注入索引读数（`state: 'ready'`，行带 `goalAc`）与监视器状态 `active`，请求会话提及后，任务的 status、title、goalId 都来自索引，命令桩记录到的 `task list` 调用数为 0，响应 `sources.tasks` 为 `index`。
-- [ ] 不新鲜就退回直读：同一测试文件含用例，逐一令监视器为 `off`、`degraded`，或令索引为 `cold`、`warming`、`stale`、`error`，每种情形都恰好发生一次 `task list --json --no-body` 直读、`sources.tasks` 为 `cli`；`stale` 与 `cold` 两种还恰好触发一次 `requestTaskIndexLoad`。取假：去掉对监视器状态的判断，`degraded` 那一例必须红；去掉对索引状态的判断，`stale` 那一例必须红。
-- [ ] 事件链路端到端：同一测试文件含用例，用真实的 `createQuayTaskEvents` 加假时钟与 `task log` 桩：先让监视器激活，再投递一条某任务 `ready → done` 的事件页，推进防抖时间，之后的会话提及请求报出该任务为 `done`，期间 `task list` 的 spawn 数为 0。
-- [ ] goal 缓存：同一测试文件含用例：TTL 内两次请求只发生一次 `goal list`；并发的三次请求只发生一次；推进时钟越过 TTL 后再请求发生第二次；`goal list` 返回非零退出时，该次的 goal 相关字段与今天的「读数不可用」语义一致，且紧接着的下一次请求会再 spawn 一次（没有把失败缓存成空）。
-- [ ] 索引行带 `goal_ac` 且不波及 MCP：`server/modules/quay/tests/quay.service.test.ts` 新增用例：加载器把 `task list --json --no-body` 行里的 `goal_ac` 解析进索引行的 `goalAc`（缺省为 null），事件应用状态转移后已知任务的 `goalAc` 保持不变；`git diff --stat -- server/modules/mcp-gateway` 无输出，`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/mcp-gateway/tests/mcp-changes.test.ts server/modules/mcp-gateway/tests/mcp-changes-quay-index.test.ts server/modules/mcp-gateway/tests/mcp-changes-cursor-bounds.test.ts server/modules/mcp-gateway/tests/mcp-changes-session-paging.test.ts server/modules/mcp-gateway/tests/mcp-english-only.test.ts` exit 0。
-- [ ] 既有行为不变：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts server/modules/quay/tests/session-mentions.test.ts server/modules/quay/tests/session-task-chain.test.ts` exit 0；会话提及响应对除 `sources` 之外的字段，与改动前在同一组输入下逐字段深度相等；`git diff --stat -- src/` 无输出（不动前端）。
-- [ ] 钉子与静态检查：不新增 server 测试文件，只在既有文件里加用例；`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/quay-test-script.test.ts server/shared/tests/server-import-cycle-budget.test.ts` exit 0；`npx tsc --noEmit -p server/tsconfig.json` exit 0 且 `npx oxlint server/modules/quay` exit 0。
+- [x] 索引新鲜时零 spawn：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/session-mentions.test.ts` exit 0；含用例：注入索引读数（`state: 'ready'`，行带 `goalAc`）与监视器状态 `active`，请求会话提及后，任务的 status、title、goalId 都来自索引，命令桩记录到的 `task list` 调用数为 0，响应 `sources.tasks` 为 `index`。
+- [x] 不新鲜就退回直读：同一测试文件含用例，逐一令监视器为 `off`、`degraded`，或令索引为 `cold`、`warming`、`stale`、`error`，每种情形都恰好发生一次 `task list --json --no-body` 直读、`sources.tasks` 为 `cli`；`stale` 与 `cold` 两种还恰好触发一次 `requestTaskIndexLoad`。取假：去掉对监视器状态的判断，`degraded` 那一例必须红；去掉对索引状态的判断，`stale` 那一例必须红。
+- [x] 事件链路端到端：同一测试文件含用例，用真实的 `createQuayTaskEvents` 加假时钟与 `task log` 桩：先让监视器激活，再投递一条某任务 `ready → done` 的事件页，推进防抖时间，之后的会话提及请求报出该任务为 `done`，期间 `task list` 的 spawn 数为 0。
+- [x] goal 缓存：同一测试文件含用例：TTL 内两次请求只发生一次 `goal list`；并发的三次请求只发生一次；推进时钟越过 TTL 后再请求发生第二次；`goal list` 返回非零退出时，该次的 goal 相关字段与今天的「读数不可用」语义一致，且紧接着的下一次请求会再 spawn 一次（没有把失败缓存成空）。
+- [x] 索引行带 `goal_ac` 且不波及 MCP：`server/modules/quay/tests/quay.service.test.ts` 新增用例：加载器把 `task list --json --no-body` 行里的 `goal_ac` 解析进索引行的 `goalAc`（缺省为 null），事件应用状态转移后已知任务的 `goalAc` 保持不变；`git diff --stat -- server/modules/mcp-gateway` 无输出，`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/mcp-gateway/tests/mcp-changes.test.ts server/modules/mcp-gateway/tests/mcp-changes-quay-index.test.ts server/modules/mcp-gateway/tests/mcp-changes-cursor-bounds.test.ts server/modules/mcp-gateway/tests/mcp-changes-session-paging.test.ts server/modules/mcp-gateway/tests/mcp-english-only.test.ts` exit 0。
+- [x] 既有行为不变：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts server/modules/quay/tests/session-mentions.test.ts server/modules/quay/tests/session-task-chain.test.ts` exit 0；会话提及响应对除 `sources` 之外的字段，与改动前在同一组输入下逐字段深度相等；`git diff --stat -- src/` 无输出（不动前端）。
+- [x] 钉子与静态检查：不新增 server 测试文件，只在既有文件里加用例；`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/quay-test-script.test.ts server/shared/tests/server-import-cycle-budget.test.ts` exit 0；`npx tsc --noEmit -p server/tsconfig.json` exit 0 且 `npx oxlint server/modules/quay` exit 0。
 
 ## DoD
 
@@ -54,6 +54,7 @@ depends_on:
 ## Touches
 
 - server/modules/quay/session-mentions.service.ts
+- server/modules/quay/session-mentions-goal-cache.ts
 - server/modules/quay/quay.service.ts
 - server/modules/quay/quay.module.ts
 - server/modules/quay/tests/session-mentions.test.ts
