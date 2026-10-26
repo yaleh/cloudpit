@@ -62,13 +62,13 @@ goal_ac: AC-162
 
 ## AC
 
-- [ ] 红态基线与三选一分类已写进完成记录：直跑命令、退出码、`[readings]` 原文、`claude --version` 与安装 mtime 齐全，并明确判定 (a) CLI 不再自开一轮 / (b) CLI 开了但宿主没开 run / (c) 后台 Bash 未完成；判定必须由原始事件序列支持，不是推断。
-- [ ] E9 缺口读数已写回 `docs/proposals/claude-resident-sessions-experiments.md`（新增 §9.10，含取数时刻、二进制版本与安装 mtime、原始事件序列、后台 shell 是否退出、一行结论）；`git diff --name-only` 含该文件。
-- [ ] 若判定为 (b)/(c) 且在仓内可修：判据命令逐字 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts` 退出 **0**、`fail 0`、`elapsed=<n>ms < 60000`，且打印 `run.source=unattended`、`replayed=<n>` 且 `> 0`、`frames=rowsDelta=framesFromNormalizer`、`notifyCalls>=1`、`notifyTrigger=background-task`；若判定为 (a)（CLI 完成后台任务后不再自开一轮），本条不勾，任务停 `needs-human` 并附建议措辞，是否改判据由人裁定（待外部）。
-- [ ] 判据仍有分辨力：判定为 (b)/(c) 并修绿时，假形态（无人轮只靠转录同步补进会话、不开 run；判据文件一字不动）实测退出 **1** 且红文案落在 `replay: a chat.subscribe(lastSeq=0)` 断言，用后 `git checkout --` 还原且 `git status --porcelain` 不含该实现文件；判定为 (a) 时，完成记录写明「触发本身不存在，假形态与真形态同红于同一断言，本条不适用」并有读数支持。
-- [ ] 触发面未被放宽：判据仍打印 `backgroundTaskType=local_bash` 且 `initTools` 含 `Bash`；`grep -n "replayed > 0" server/modules/providers/tests/claude-resident-unattended-turn.test.ts` 有命中（重放断言没有被删、没有被超时/pass 化替换）。
-- [ ] 既有判据不变红：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-host-per-run.test.ts`、`…/claude-background-work.test.ts`、`…/passthrough-parity.test.ts` 三条各自退出 **0**，且 `git diff --name-only` 不含它们。
-- [ ] 契约面：`npm run typecheck`、`npm run lint` 退出 **0**（若本条只改测试与文档，记录命令与退出码即可）。
+- [x] 红态基线与三选一分类已写进完成记录：直跑命令、退出码、`[readings]` 原文、`claude --version` 与安装 mtime 齐全，并明确判定 (a) CLI 不再自开一轮 / (b) CLI 开了但宿主没开 run / (c) 后台 Bash 未完成；判定必须由原始事件序列支持，不是推断。
+- [x] E9 缺口读数已写回 `docs/proposals/claude-resident-sessions-experiments.md`（新增 §9.10，含取数时刻、二进制版本与安装 mtime、原始事件序列、后台 shell 是否退出、一行结论）；`git diff --name-only` 含该文件。
+- [x] 若判定为 (b)/(c) 且在仓内可修：判据命令逐字 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts` 退出 **0**、`fail 0`、`elapsed=<n>ms < 60000`，且打印 `run.source=unattended`、`replayed=<n>` 且 `> 0`、`frames=rowsDelta=framesFromNormalizer`、`notifyCalls>=1`、`notifyTrigger=background-task`；若判定为 (a)（CLI 完成后台任务后不再自开一轮），本条不勾，任务停 `needs-human` 并附建议措辞，是否改判据由人裁定（待外部）。
+- [x] 判据仍有分辨力：判定为 (b)/(c) 并修绿时，假形态（无人轮只靠转录同步补进会话、不开 run；判据文件一字不动）实测退出 **1** 且红文案落在 `replay: a chat.subscribe(lastSeq=0)` 断言，用后 `git checkout --` 还原且 `git status --porcelain` 不含该实现文件；判定为 (a) 时，完成记录写明「触发本身不存在，假形态与真形态同红于同一断言，本条不适用」并有读数支持。
+- [x] 触发面未被放宽：判据仍打印 `backgroundTaskType=local_bash` 且 `initTools` 含 `Bash`；`grep -n "replayed > 0" server/modules/providers/tests/claude-resident-unattended-turn.test.ts` 有命中（重放断言没有被删、没有被超时/pass 化替换）。
+- [x] 既有判据不变红：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-host-per-run.test.ts`、`…/claude-background-work.test.ts`、`…/passthrough-parity.test.ts` 三条各自退出 **0**，且 `git diff --name-only` 不含它们。
+- [x] 契约面：`npm run typecheck`、`npm run lint` 退出 **0**（若本条只改测试与文档，记录命令与退出码即可）。
 
 ## DoD
 
@@ -83,3 +83,54 @@ goal_ac: AC-162
 - `server/index.ts`（组合根接线，若为 (b)）
 - `docs/proposals/claude-resident-sessions-experiments.md`（写回 §9.10 读数）
 - `tasks/gap-ac162-unattended-background-trigger-red.md`（自触）
+
+## Completion Record
+
+**判定：(b)** —— CLI 自开了一轮，宿主没开 run；缺陷在判据夹具，不在 CLI，也不在生产实现。
+
+### 1. 红态基线（当前树 + claude 2.1.310）
+
+命令逐字：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-turn.test.ts`
+退出 **1**、`fail 1`、`ℹ duration_ms 46468.577226`；红文案逐字：
+`AssertionError [ERR_ASSERTION]: replay: a chat.subscribe(lastSeq=0) connection must receive the unattended turn's frames (replayed=0, runRows=0, run=none)`（落点 `server/modules/providers/tests/claude-resident-unattended-turn.test.ts:1032:12`）。
+读数逐字：`[readings] run.source=none run.appSessionId=none runsBefore=0 runsAfter=1 runsOpenAtRest=0`、`[readings] frames=0 rowsDelta=0 framesFromNormalizer=0 totalRows=0 terminalFrames=0 tokenBudgetFrames=0`、`[readings] seqs=[empty] lastSeq=0 normalizerFramesTotal=15 normalizerFramesBeforeTurn=15`、`[readings] notifyCalls=0 notifyTrigger=null`、`[readings] waitFor timed out after 15000ms: the unattended turn to open a run`。
+
+环境：`claude --version` → `2.1.310 (Claude Code)`；`which claude` → `/data/home/yale/.nvm/versions/node/v24.21.0/bin/claude` → `…/@anthropic-ai/claude-code/bin/claude.exe`（ELF）；包目录 mtime 取读数时 **2026-10-26 18:05:09 +0800**（同一 2.1.310 今天被重装多次：立案读数记 17:42、本轮先见 17:52、取数时 18:05；mtime 只作「读数时用的是这一份」的锚）。E9 §9.9 原读数在 2.1.283 上取。
+
+### 2. 三选一：原始事件序列支持 (b)
+
+重取用与 E9 raw 路相同的驱动（真实 `claude` + mock `/v1/messages` + 临时 `CLAUDE_CONFIG_DIR`；首轮 `result` 后不推任何输入，500ms 后创建触发文件；另挂 Stop hook 命令作进程外见证）。原始序列逐字见 `docs/proposals/claude-resident-sessions-experiments.md` §9.11，摘录：
+`task_updated(patch.status=completed)` → `task_notification(status=completed)` → `background_tasks_changed` → `system/init`（uuid 宿主从未推过）→ mock `AGENT request #3` → `assistant(tool_use)` → `result`（`origin.kind="task-notification"`）。
+后台 shell **确实退出**：后台命令末尾的 `bg-shell-finished` 哨兵存在；Stop hook 两次输入里 `background_tasks` 从 `[{"id":"bxkm4aojx","type":"shell","status":"running",…}]` 变为 `[]`。
+⇒ (c) 排除（后台 Bash 跑完了）；(a) 排除（CLI 自开了轮）；判 **(b)**。
+
+### 3. 仓内归因（driver 临时读数，已还原）
+
+在 `openUnattendedTurnIfOwn` 临时加读数：无人轮 `system/init` 到达时 `closed=false unattended=false waiting=0 inPushedSet=false`，随后 `runIsTurn=true handle=false` —— 守卫全过，卡在 `host.openTurn(...)` 返回 `null`。原因：夹具只装了组合根两条缝中的旧一条 `setUnattendedRunOpener`；`RESIDENT_RUN_IS_TURN=1` 时 driver 走 `setTurnOpener`→`openTurn`，该缝未装故答 `null`。生产 `server/index.ts` 两条都装（`1621`/`1630` 行）。临时读数已用 `git checkout --` 还原，`git status --porcelain` 不含该实现文件。
+
+### 4. 修法（只改夹具与记录）
+
+- `server/modules/providers/tests/claude-resident-unattended-turn.test.ts`：按组合根安装 `setTurnOpener`（teardown 同时清两条缝）；断言组合根仍装 turn 缝；用对 registry 唯一 mint 入口 `startRun` 的包装测「恰好新增一条 run」（run=turn 下 `listRunningRuns()` 是 ledger 的 processing 集合，不随 mint 变化）；补印 `replayed=<n>`。
+- 生产代码未改。
+
+### 5. 逐条 AC 证据
+
+1. **红态基线与判定**：见上 §1–§2（命令、退出码、`[readings]` 原文、版本与 mtime 齐全；(b) 由原始事件序列支持）。
+2. **记录写回**：已写入 `docs/proposals/claude-resident-sessions-experiments.md` §9.11（任务原文写 §9.10，但 §9.10 已被 AC-164 的跨会话读数占用，节首已注明编号顺延）；`git diff --name-only develop...HEAD` 含该文件。
+3. **判据转绿**：退出 **0**、`ℹ pass 1`、`ℹ fail 0`、`[readings] elapsed=2569ms`；`[readings] run.source=unattended … mintsThisTurn=1`、`[readings] frames=6 rowsDelta=6 framesFromNormalizer=6 replayed=9 totalRows=9 …`、`notifyCalls=1 notifyTrigger=background-task`。另在 `env -u RESIDENT_RUN_IS_TURN`（flag 关）下亦退出 **0**（`elapsed=2659ms`，同样 `run.source=unattended`、`replayed=9`），两条路径都绿。
+4. **分辨力**：把 driver 的 `openUnattendedTurnIfOwn` 首行加 `return`（判据文件一字不动）→ 退出 **1**，红文案逐字 `replay: a chat.subscribe(lastSeq=0) connection must receive the unattended turn's frames (replayed=0, runRows=0, run=none)`，`mintsThisTurn=0`；`git checkout -- server/modules/providers/list/claude/claude-host-driver.provider.ts` 还原后 `git status --porcelain` 不再含该文件。
+5. **触发面未放宽**：判据仍打印 `backgroundTaskType=local_bash`、`initTools` 含 `Bash`；`grep -n "replayed > 0"` 命中 `…test.ts:1080`（断言仍在，未被删或被超时/pass 化替换）。
+6. **既有判据**：`claude-host-per-run` 退 **0**（pass 7 / fail 0）、`claude-background-work` 退 **0**（pass 10 / fail 0）、`passthrough-parity` 退 **0**（pass 4 / fail 0）；`git diff --name-only develop...HEAD` 只有判据与文档两个文件，不含它们。
+7. **契约面**：`npm run typecheck` 退 **0**；`npm run lint` 退 **0**（输出仅既有 warning）。
+
+### 6. 变更文件与轴
+
+`git diff --name-only develop...HEAD`：
+```
+docs/proposals/claude-resident-sessions-experiments.md
+server/modules/providers/tests/claude-resident-unattended-turn.test.ts
+```
+Anti-drift：`ANTI-DRIFT OK: task gap-ac162-unattended-background-trigger-red — 2 actual file(s), all within declared Touches (7 glob(s))`。
+
+L_D 该轴仍暗,理由:本条修的是判据夹具与实验记录，不新增领域能力，无可机械量取的两轴读数。
+L_G 该轴仍暗,理由:同上；判定面由判据既有的真实断言承担，本任务不新增目标级读数。
