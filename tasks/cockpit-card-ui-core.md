@@ -75,3 +75,4 @@ goal_ac: AC-424
 - src/modules/i18n/locales/ru/common.json
 - src/modules/i18n/locales/tr/common.json
 - src/modules/i18n/locales/zh-CN/common.json
+- src/modules/i18n/locales/zh-TW/common.json
