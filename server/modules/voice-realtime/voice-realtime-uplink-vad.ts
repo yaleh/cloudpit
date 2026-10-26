@@ -56,12 +56,9 @@
  */
 import { statSync } from 'node:fs';
 
-// THIS MODULE HAS EXACTLY ONE STATIC IMPORT — THE FILESYSTEM — ON PURPOSE. It is loaded on the relay's
-// frame path and must carry no load-time dependency on the server's module graph; its own criterion
-// pins that literally (`staticImports === ['node:fs']` in AC7/AC8 of the VAD task). That is why the
-// shared `errorMessage` helper is deliberately NOT imported here and the catch blocks below spell the
-// same one-line rendering inline instead. Folding this back into an import means renegotiating that
-// criterion, not merely deleting the inline form.
+// THIS MODULE KEEPS EXACTLY ONE STATIC IMPORT — THE FILESYSTEM — ON PURPOSE: it runs on the relay's
+// frame path and must carry no load-time module-graph dependency (pinned by the VAD criterion). The
+// catch blocks below therefore inline the error rendering instead of importing `errorMessage`.
 
 // ── the grid contract ────────────────────────────────────────────────────────────────────────────
 
