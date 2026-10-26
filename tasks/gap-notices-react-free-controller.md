@@ -1,7 +1,7 @@
 ---
 id: gap-notices-react-free-controller
 title: 把 useNotices 的 poll/失败保底/409 规则抽成 React-free noticesController
-status: todo
+status: ready
 labels:
   - gap
 parent: null
