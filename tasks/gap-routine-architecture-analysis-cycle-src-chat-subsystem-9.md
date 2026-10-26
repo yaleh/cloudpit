@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-chat-subsystem-9
 title: "architecture-analysis: 9-package SCC inside chat: hooks ->
   utils/{session,transcript,voice} (38 edges) while transcript -> hooks (8
   edges) and utils/transcript -> export (chatExpor"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
