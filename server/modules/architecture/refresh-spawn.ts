@@ -28,6 +28,8 @@ import fs, { promises as fsPromises } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { isRecord } from '@/shared/utils.js';
+
 import { resolveArchguardCli } from './refresh-settings.js';
 
 /** The spawn signature this module uses; injectable so a criterion can count calls. */
@@ -81,10 +83,6 @@ export type RefreshSpawner = {
   /** Kill the child's whole process group (the CLI may have worker children). */
   killGroup(child: ChildProcess, signal: NodeJS.Signals): void;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function realpathOrSelf(filePath: string): string {
   try {

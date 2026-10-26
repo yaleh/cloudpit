@@ -1,4 +1,5 @@
 import type { HostResidentStartResult, LLMProvider } from '@/shared/types.js';
+import { errorMessage } from '@/shared/utils.js';
 
 import { RESIDENT_IDLE_TIMEOUT } from './session-host-manager.service.js';
 import type { HostDriverResolver, ResidentSessionStarter } from './session-hosts.routes.js';
@@ -280,15 +281,3 @@ function compareByLastActivity(left: RestorableResidentSession, right: Restorabl
   return left.appSessionId < right.appSessionId ? 1 : -1;
 }
 
-/**
- * The sentence from a rejected launch, whatever was thrown.
- *
- * Duplicated from the resident-host service by design: it is a one-use helper,
- * and importing another module's private utility would either export it
- * speculatively or cross a file boundary for four lines. A non-`Error` rejection
- * is stringified rather than dropped, so the reason a session failed to restore
- * is never reduced to "failed".
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

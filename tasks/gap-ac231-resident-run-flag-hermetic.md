@@ -62,6 +62,16 @@ for f in server/modules/websocket/tests/chat-control-busy.test.ts; do [ -f "$f" 
 - [x] AC7 不外溢：`npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-send.test.ts`（与 AC-231 共用装配）与 `... --test server/modules/websocket/tests/chat-run-turn-semantics.test.ts`（文件内钉住开关开态）各 `EXIT=0`，fail 0。两文件各起独立进程，证明本文件的钉住不外溢。
 - [x] AC8 对齐与仓库门：`git diff --stat develop...HEAD` 与 `## Touches` 逐条一致；`npm run typecheck` 退出 0；`npm run lint` 无 `: error `（写下 error 计数）。
 
+## DoD
+
+- [x] 判据文件在模块顶层把 `RESIDENT_RUN_IS_TURN` 钉成关态（保存进进程值 → `delete` → `after` 恢复原值），注释写明这就是 AC-231 判据所在的世界、与 `scripts/test.sh` 的 `unset RESIDENT_RUN_IS_TURN` 及 AC-385 的「this criterion's world」是同一件事；goal gate 不经过 test.sh，所以文件必须自己钉住。
+- [x] 实现只改判据文件：`git diff develop...HEAD` 的该文件仅含 env 钉住块（保存/删除/恢复 + 注释）；五个 `test(...)`、全部 `assert*` 与四条读数未改动（AC4）。
+- [x] 裸判据命令在「宿主带 `RESIDENT_RUN_IS_TURN=1`」与「开关未设」两种环境下均 `EXIT=0`、`tests 5 / pass 5 / fail 0`（AC1/AC2，续做轮复跑）。
+- [x] 负向控制与四条取假形态的变异 diff、逐字失败行、恢复命令，以及恢复语义三项读数，均逐字记录在 `## 完成记录`（AC3/AC5/AC6）。
+- [x] 共用装配的 `chat-control-send` 与文件内钉住开关开态的 `chat-run-turn-semantics` 各起独立进程 `EXIT=0`、fail 0，本文件的钉住不外溢（AC7）。
+- [x] `## Touches` 与 `git diff --stat develop...HEAD` 一致；`npm run typecheck` 退出 0、`npm run lint` 无 `: error `（AC8）。
+- [x] ADR-007 暗轴声明已写入本任务正文。
+
 ## 完成记录
 
 实现提交：`8a60fdb75 test(websocket): pin chat-control-busy to the run=turn flag-off world`（仅在 `server/modules/websocket/tests/chat-control-busy.test.ts` 增加 26 行、改 1 行：`import test, { after }` + 保存/删除/`after` 恢复 + 注释）。
@@ -239,6 +249,19 @@ env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test serve
 
 与 `## Touches` 的判据文件一致（任务文件由 `task_write` 自身提交进入本分支）。`npm run typecheck` ⇒ `EXIT=0`（三个 tsconfig 全部通过）。`npm run lint` ⇒ `EXIT=0`，`: error ` 计数 **0**（仅既有 warning）。
 
+### 续做轮（2026-10-26）——补齐 DoD 段并复跑 AC1/AC2
+
+上一轮 exited-not-landed 的机械原因是 fan-in 的 `countCompletionCheckboxes()` 要求 AC **与** DoD 两个段都存在（`sectionFound: ac.sectionFound && dod.sectionFound`），而本任务此前只有 `## AC`、没有 `## DoD`，于是被判「AC/DoD 段缺失或无法识别」。本轮补上 `## DoD` 段（不涉及实现改动），并在本 worktree 复跑两条判据命令：
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+⇒ EXIT=0，tests 5 / pass 5 / fail 0
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+⇒ EXIT=0，tests 5 / pass 5 / fail 0
+```
+
+实现 diff 与本记录上方所述一致，未再改动。
+
 ## ADR-007 暗轴
 
 该轴仍暗,理由:本任务只钉住判据文件的测试环境，未改服务实现与模块依赖图，架构轴无位移。
@@ -247,3 +270,11 @@ env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test serve
 
 - server/modules/websocket/tests/chat-control-busy.test.ts
 - tasks/gap-ac231-resident-run-flag-hermetic.md
+
+## Blocker
+
+**2026-10-26T09:17:59.890Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：b50b9802-794f-4d77-b98f-4741d5ad105e

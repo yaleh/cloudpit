@@ -145,7 +145,7 @@
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
 #   and the quay-initiatives row by cockpit-initiative-view-and-decision-queue,
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
-# so this file now covers 396 of the 439 files the current `find server -name '*.test.ts' -o -name
+# so this file now covers 401 of the 445 files the current `find server -name '*.test.ts' -o -name
 # '*.test.js' | sort` list collects; a row here is a dispatch ORDER hint only, so an unlisted file is
 # not skipped — it just sorts alphabetically after the listed ones. The remaining ~43 unlisted files
 # (claude-resident-dispatch-hook and voice-realtime-voice-active-marker among them) came in with
@@ -680,6 +680,12 @@
 #   no green round contains it yet — the row also keeps the 90% coverage floor green now that the
 #   tree collects 444 server test files).
 2842	server/modules/llm-gateway/tests/llm-client.test.ts
+#   and the shared-utils-helpers row by gap-shared-utils-small-helpers-dedup, measured one file at
+#   a time on 2026-10-26 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/shared-utils-helpers.test.ts`
+#   (dur=2310ms; its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 445 server test files).
+2310	server/shared/tests/shared-utils-helpers.test.ts
 #   and the provider-shell-facet row by gap-provider-capability-facets-replace-name-branches,
 #   measured one file at a time on 2026-10-26 with
 #   `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs

@@ -3,6 +3,7 @@ import type {
   HostResidentStartResult,
   LifecycleModeErrorCode,
 } from '@/shared/types.js';
+import { errorMessage } from '@/shared/utils.js';
 
 import type { SessionHostManager } from './session-host-manager.service.js';
 import type {
@@ -292,17 +293,5 @@ function refuse(
   message: string,
 ): ResidentHostRefusal {
   return { ok: false, status, code, message };
-}
-
-/**
- * The sentence from a rejected start, whatever was thrown.
- *
- * A refusal's message is the only part of it a user can act on, so a non-`Error`
- * rejection is stringified rather than dropped: the alternative — a generic
- * "could not be started" — would leave the caller knowing nothing it did not
- * already know from the status code.
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 

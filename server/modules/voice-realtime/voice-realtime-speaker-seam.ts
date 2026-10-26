@@ -24,6 +24,8 @@
 
 import { createRequire } from 'node:module';
 
+import { errorMessage } from '@/shared/utils.js';
+
 import {
   createSessionAttractor,
   normalizeSpeakerVector,
@@ -263,7 +265,7 @@ export function createSpeakerTrackerModel(options: {
         return;
       }
       status = 'failed';
-      reason = describeError(error);
+      reason = errorMessage(error);
       options.log?.(
         `speaker_tracking: CAM++ model FAILED to load path=${options.modelPath} reason=${reason} — ` +
           'shadow stays off for every connection, voice is unaffected',
@@ -634,7 +636,3 @@ function unwrapCommonJs(loaded: unknown): Record<string, unknown> {
   return (value ?? {}) as Record<string, unknown>;
 }
 
-/** A short, log-safe rendering of a thrown value. */
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

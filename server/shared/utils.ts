@@ -170,6 +170,21 @@ export class AppError extends Error {
 }
 
 // ---------------------------
+//----------------- TYPE GUARD / ERROR RENDERING UTILITIES ------------
+/** Narrows an unknown value to a plain object record; `null`, arrays and non-objects are not records. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Renders a thrown value as a sentence; `fallback` covers an empty `Error.message` and non-`Error` values. */
+export function errorMessage(failure: unknown, fallback?: string): string {
+  if (failure instanceof Error) {
+    return failure.message.trim() !== '' ? failure.message : fallback ?? failure.message;
+  }
+  return fallback ?? String(failure);
+}
+
+// ---------------------------
 //----------------- WORKSPACE PATH VALIDATION UTILITIES ------------
 /**
  * Root directory that all workspace/project paths must stay under.
@@ -580,20 +595,8 @@ export function sliceAroundIndex<T>(
 
 // ---------------------------
 //----------------- MCP CONFIG PARSING UTILITIES ------------
-/**
- * Safely narrows an unknown value to a plain object record.
- *
- * This deliberately rejects arrays, `null`, and primitive values so callers can
- * treat the returned value as a JSON-style object map without repeating the same
- * defensive shape checks at every config read site.
- */
-export const readObjectRecord = (value: any): AnyRecord | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-
-  return value as AnyRecord;
-};
+/** `isRecord` in null-returning form: the record, or `null` for anything that is not one. */
+export const readObjectRecord = (value: any): AnyRecord | null => (isRecord(value) ? value : null);
 
 /**
  * Reads an optional string from unknown input and normalizes empty or whitespace-only
@@ -980,13 +983,7 @@ export function normalizeProviderTimestamp(value: unknown): string {
   return new Date().toISOString();
 }
 
-/**
- * Parses a JSON string or narrows an existing object into a plain record.
- *
- * Use this when provider databases store structured JSON inside text columns.
- * Invalid JSON, arrays, and primitive values return `null` so callers can skip
- * malformed optional metadata without hiding the rest of a session transcript.
- */
+/** Parses a JSON string or narrows an existing object into a plain record, or `null`. */
 export function readJsonRecord(value: unknown): AnyRecord | null {
   if (typeof value !== 'string') {
     return readObjectRecord(value);

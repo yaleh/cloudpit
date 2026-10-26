@@ -27,6 +27,8 @@ import { readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { errorMessage, isRecord } from '@/shared/utils.js';
+
 // ---------------------------- SHARED SHAPES ----------------------------
 
 /** The list a reader appends human-readable fallback reasons to. */
@@ -83,14 +85,6 @@ export type SettingsBlockSourceOptions<T> = {
 };
 
 // ---------------------------- SHARED HELPERS ----------------------------
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
 
 /**
  * Expand a leading `~` against `homeDir`; any other path is returned unchanged.

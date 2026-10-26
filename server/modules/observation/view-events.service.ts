@@ -18,7 +18,8 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
-import { AppError } from '@/shared/utils.js';
+import { expandHome } from '@/shared/settings-file.js';
+import { AppError, isRecord } from '@/shared/utils.js';
 
 /** The kind of reading the reader left. Mirrors the frontend's `ViewEventKind`. */
 export type ViewEventKind = 'session' | 'tab' | 'cockpit-tile' | 'cockpit-preview';
@@ -57,18 +58,12 @@ export function defaultViewEventsPath(): string {
   return path.join(homedir(), '.cloudcli', 'ui-view-events.jsonl');
 }
 
-/** Expands a leading `~` so the example file's `~/.cloudcli/...` path is usable as written. */
-function expandHome(filePath: string): string {
-  if (filePath === '~') return homedir();
-  if (filePath.startsWith('~/')) return path.join(homedir(), filePath.slice(2));
-  return filePath;
-}
-
 /** Fills a partial reading with the shipped defaults (used by the module's own composition). */
 export function resolveViewEventsSettings(partial: Partial<ViewEventsSettings> = {}): ViewEventsSettings {
   return {
     enabled: partial.enabled ?? DEFAULT_VIEW_EVENTS_ENABLED,
-    path: expandHome(partial.path ?? defaultViewEventsPath()),
+    // The shared expander takes the home directory explicitly so a criterion can pin it.
+    path: expandHome(partial.path ?? defaultViewEventsPath(), homedir()),
   };
 }
 
@@ -96,10 +91,6 @@ export type ViewEventService = {
 
 function invalid(message: string, statusCode = 400, code = 'INVALID_REQUEST'): AppError {
   return new AppError(message, { code, statusCode });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** A bounded, non-empty string, or null when the value is not one. */

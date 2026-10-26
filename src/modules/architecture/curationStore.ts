@@ -1,4 +1,4 @@
-import { createExternalStore } from '@/shared/utils';
+import { createExternalStore, isRecord } from '@/shared/utils';
 
 import type { ArchitectureEntityKind } from '@/modules/architecture/rendererContract';
 
@@ -134,10 +134,6 @@ const KNOWN_KINDS: readonly ArchitectureEntityKind[] = [
   'function',
   'other',
 ];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function parseItem(value: unknown): ArchitectureCurationItem | null {
   if (!isRecord(value)) return null;

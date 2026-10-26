@@ -22,6 +22,8 @@
 import { promises as fsPromises, type Dirent } from 'node:fs';
 import path from 'node:path';
 
+import { errorMessage, isRecord } from '@/shared/utils.js';
+
 import type { ArchitectureRefreshDefect } from './refresh-settings.js';
 
 /** The filesystem operations this module needs; injectable so a criterion can fake them. */
@@ -45,14 +47,6 @@ export type RefreshPublisher = {
   /** Swap the staged `query` over the live one; rejects with a readable reason. */
   installStagedQuery(projectPath: string, stagedWorkDir: string, jobId: string): Promise<void>;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
 
 /** The scope keys a query directory's manifest declares. */
 async function readScopeKeys(fsImpl: RefreshPublishFs, queryDir: string): Promise<Set<string>> {

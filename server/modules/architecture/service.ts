@@ -28,7 +28,7 @@ import fs, { promises as fsPromises } from 'node:fs';
 import path from 'node:path';
 
 import type { NormalizedMessage } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, isRecord } from '@/shared/utils.js';
 
 import {
   createArchitectureCache,
@@ -523,10 +523,6 @@ export type ArchitectureService = {
  */
 export function hasArchguardCache(projectPath: string): boolean {
   return fs.existsSync(path.join(projectPath, MANIFEST_RELATIVE_PATH));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
