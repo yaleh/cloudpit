@@ -17,6 +17,9 @@ export {
   scenarioWindow,
 } from '@/modules/ui-scenario/scenarioSurface';
 export type {
+  ScenarioCockpitCardTarget,
+  ScenarioCockpitCardsReading,
+  ScenarioCockpitReading,
   ScenarioDriveStep,
   ScenarioFocusReading,
   ScenarioInputPack,
