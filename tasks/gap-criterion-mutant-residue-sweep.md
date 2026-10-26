@@ -1,7 +1,7 @@
 ---
 id: gap-criterion-mutant-residue-sweep
 title: 判据假形态副本的残留清理：被杀掉的测试进程留在源码树里的 __criterion-falsify-* 文件，由 suite 开头按 pid 存活情况清扫
-status: todo
+status: ready
 labels:
   - gap
   - defect
