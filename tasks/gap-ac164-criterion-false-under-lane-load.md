@@ -2,7 +2,7 @@
 id: gap-ac164-criterion-false-under-lane-load
 title: AC-164 地址判据在同一棵树上两过一败：布尔腿仍是单次读、负载下可短暂为假，且门禁的 500 字截断吞掉了腿名 ——
   让判据确定性为绿并让任何假腿自报名字（判据命令、四条地址承诺与假形态不变）
-status: todo
+status: ready
 labels:
   - gap
   - defect
