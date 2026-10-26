@@ -47,3 +47,4 @@ extra:
 
 - server/modules/voice-realtime/voice-realtime-ws-proxy.service.ts
 - server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts
+- tasks/gap-voice-run-end-queued-idle-trigger.md
