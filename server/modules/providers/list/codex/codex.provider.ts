@@ -5,16 +5,20 @@ import { CodexProviderModels } from '@/modules/providers/list/codex/codex-models
 import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
 import { CodexMcpProvider } from '@/modules/providers/list/codex/codex-mcp.provider.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
+import { CodexShellProvider } from '@/modules/providers/list/codex/codex-shell.provider.js';
 import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CodexSkillsProvider } from '@/modules/providers/list/codex/codex-skills.provider.js';
+import { CodexTokenUsageProvider } from '@/modules/providers/list/codex/codex-token-usage.provider.js';
 import type {
   IProviderAuth,
   IProviderFork,
   IProviderModels,
   IProviderRuntime,
   IProviderSessionSynchronizer,
+  IProviderShell,
   IProviderSkills,
   IProviderSessions,
+  IProviderTokenUsage,
 } from '@/shared/interfaces.js';
 
 export class CodexProvider extends AbstractProvider {
@@ -26,6 +30,8 @@ export class CodexProvider extends AbstractProvider {
   readonly sessions: IProviderSessions = new CodexSessionsProvider();
   readonly fork: IProviderFork = new CodexForkProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new CodexSessionSynchronizer();
+  readonly shell: IProviderShell = new CodexShellProvider();
+  readonly tokenUsage: IProviderTokenUsage = new CodexTokenUsageProvider();
 
   constructor() {
     super('codex');

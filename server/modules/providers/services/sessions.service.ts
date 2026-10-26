@@ -714,9 +714,7 @@ export const sessionsService = {
     // re-parsing the whole file per request. Cursor and OpenCode read their
     // messages from elsewhere (store.db / shared SQLite), so that file's stat
     // says nothing about their history — they stay on the direct path.
-    const transcriptPath = provider === 'claude' || provider === 'codex'
-      ? session.jsonl_path
-      : null;
+    const transcriptPath = providerSessions.transcriptFileBacked ? session.jsonl_path : null;
     // Whether the run is in flight rides every read: the readers withhold the
     // last turn's `forkAnchorId` while it is, and the cache keys on it so a
     // running read is never served back as an idle one.
@@ -817,9 +815,7 @@ export const sessionsService = {
 
     // Same cache split as `fetchHistory`: only the providers whose history reader
     // parses `jsonl_path` itself may use the stat-validated cache.
-    const transcriptPath = provider === 'claude' || provider === 'codex'
-      ? session.jsonl_path
-      : null;
+    const transcriptPath = providerSessions.transcriptFileBacked ? session.jsonl_path : null;
     // The same running signal as `fetchHistory`, so both share one cache entry
     // rather than thrashing it: the window draws the same rows, anchor included.
     const running = isSessionProcessing(sessionId);
@@ -906,9 +902,7 @@ export const sessionsService = {
 
     // Same split as `fetchHistory`: only the providers whose history reader
     // parses `jsonl_path` itself may use the cache.
-    const transcriptPath = provider === 'claude' || provider === 'codex'
-      ? session.jsonl_path
-      : null;
+    const transcriptPath = providerSessions.transcriptFileBacked ? session.jsonl_path : null;
     const running = isSessionProcessing(sessionId);
     const loadFull = () => providerSessions.fetchHistory(sessionId, {
       limit: null,

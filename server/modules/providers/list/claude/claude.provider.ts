@@ -9,6 +9,8 @@ import {
 } from '@/modules/providers/list/claude/claude-host-driver.provider.js';
 import { ClaudeMcpProvider } from '@/modules/providers/list/claude/claude-mcp.provider.js';
 import { ClaudeRenameProvider } from '@/modules/providers/list/claude/claude-rename.provider.js';
+import { ClaudeShellProvider } from '@/modules/providers/list/claude/claude-shell.provider.js';
+import { ClaudeTokenUsageProvider } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
 import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claude-session-synchronizer.provider.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { ClaudeSkillsProvider } from '@/modules/providers/list/claude/claude-skills.provider.js';
@@ -27,8 +29,10 @@ import type {
   IProviderRuntime,
   IProviderSessionRename,
   IProviderSessionSynchronizer,
+  IProviderShell,
   IProviderSkills,
   IProviderSessions,
+  IProviderTokenUsage,
 } from '@/shared/interfaces.js';
 import type { BackgroundWorkTrigger, LLMProvider } from '@/shared/types.js';
 
@@ -77,6 +81,8 @@ export class ClaudeProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new ClaudeSkillsProvider();
   readonly sessions: IProviderSessions = new ClaudeSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new ClaudeSessionSynchronizer();
+  readonly shell: IProviderShell = new ClaudeShellProvider();
+  readonly tokenUsage: IProviderTokenUsage = new ClaudeTokenUsageProvider();
   readonly fork: IProviderFork = new ClaudeForkProvider();
   readonly rename: IProviderSessionRename = new ClaudeRenameProvider();
   /**

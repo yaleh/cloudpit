@@ -226,6 +226,12 @@ function normalizeCursorToolInput(toolName: string, rawInput: unknown): unknown 
 
 export class CursorSessionsProvider implements IProviderSessions {
   /**
+   * Cursor keeps messages in `store.db`, not in the row's `jsonl_path`, whose
+   * stat therefore says nothing about this reader's history.
+   */
+  readonly transcriptFileBacked = false;
+
+  /**
    * Loads Cursor's SQLite blob DAG and returns message blobs in conversation
    * order. Cursor history is stored as content-addressed blobs rather than JSONL.
    */
