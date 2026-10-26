@@ -47,3 +47,11 @@ extra:
   - 396 实体大图：DOWN `entity-budget-exceeded`，fill 0.516（未跑第二次布局）。
   - 截图：`tmp/orientation-shots/arch-chrome-orientation-{pc,phone,control-right,control-restored,1920x900,1920x900-forced-right,large-graph}.png`。
 - `scripts/ui-scenario.mjs`：仓库现有场景仅 `e2e/scenarios/cockpit-mode-switch.json` 与 `quay-wall-focus-pin-utter.json`，无架构场景，故“存在可用的架构场景时”一项不适用；大颗粒度回归由上述 Playwright spec 承担。
+
+## Blocker
+
+**2026-10-26T07:16:29.945Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/PlantUmlGraph.tsx 4453→4498 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：ab5a88a9-e636-494e-83ea-7912a1599be3

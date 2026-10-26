@@ -2,7 +2,7 @@
 id: gap-database-migration-column-and-flag-helpers
 title: 数据库样板收敛：12 个 add*Column 迁移改用 ensureColumns，projects 的 4 个
   isStarred/isArchived 写入合成一个私有 setter
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -91,3 +91,14 @@ extra:
 - 本轮 suite 红的归因（三分）：**不是本任务引入，是 develop 全局红**。打红读数 `semanticZoomLayout.ts 1642→1688`（单文件复跑还有 `semanticZoomPlan.ts 876→894`）来自 develop 提交 `3f1b1ea23`（2026-10-26 13:53:44），晚于基线落盘（`f7d20cdcb`，13:42:54），而该提交没有按 ratchet 自己的规则记录上调。证据：测试文件、基线 JSON、两个源文件在 HEAD 与 develop 上 blob 逐字节相同；驱动自己的 develop 基线腿日志 `fan-in-suite-…~baseline-1792995096459-4e4caf.log` 逐字打印同一条断言（`passed=false`）。
 - `changed-assertion` 是结构性假阳性：`baselineEquivalence.changed[0].taskText=""`、`added=[]`。全量 suite 日志把 `not ok -` 攒到末尾（本任务日志第 789 行），而 `__PERFILE__` 在第 97 行，8 行 lookahead 取不到 marker；基线单文件日志里两者相邻，于是 marker 文本非空。两侧 tap 文本逐字相同。
 - 真因收口（在 `src/modules/architecture/**` 与基线 JSON，**不在本任务 Touches**，本轮未动）：由架构侧按 `architecture-ratchet.baseline.json` 的 `note` 规定的“RECORDED CHANGE”格式，为 `3f1b1ea23` 记录的 1642→1688 / 876→894 上调写一段带日期的理由，再用 `ARCHITECTURE_RATCHET_WRITE_BASELINE=1` 重生成该基线；或把两个文件缩回基线。注意 `gap-architecture-orientation-policy-compares-pre-reclaim-geometry` 正在改 `semanticZoomLayout.ts`，修后需复量。
+
+## Needs-Human
+
+**执行 2026-10-26T07:10:17.416Z — 停派终止（失败无法归因，⛔ 不再重派）**
+
+- 阻碍原因：LOOP DEADLOCK: task gap-database-migration-column-and-flag-helpers has been blocked by the SAME pre-existing red set for 3 consecutive fan-in rounds (signature unchanged across rounds). Blocked red points: server/shared/tests/architecture-ratchet.test.ts. No other task in the carrier shares this signature yet — if more arrive, they are mutually landing gates. Suggested resolution: land ANY ONE of them first (each one's own fix is outside the blocked set, so the red set does not grow); the others' blocked sets then shrink by that red point and they land in turn. If a landing still makes it worse, a human must decide the order. ⛔ The gates were NOT relaxed: every new/changed red point still hard-fails this task (baseline-equivalence exemption never covers a red the task introduced). — 停止自动重派（电路断路器：同一既存红签名连续 3 轮未变）。⛔ 判据未放宽：本次新增 / 断言文本变化的红点仍然硬红（既存红等价豁免只覆盖「不变差」的方向）。
+- 失败步/判词：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：86f3cef9-f1a6-4cda-ad0d-1085c8d8c307
+- suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-database-migration-column-and-flag-helpers~wk-prod-anchor~1792998257198-ce314c.log
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-database-migration-column-and-flag-helpers-wk-prod-anchor.log
