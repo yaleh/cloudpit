@@ -12,7 +12,9 @@
  * (`protocol`, `baseUrl`, `authScheme`, `timeoutMs`, `temperature`, …) and, by default, the key
  * are the reply-suggestions module's. The independent block adds only the knobs that are about
  * THIS tier: `enabled`, `model`, `maxPerHour`, `minTurnChars` and an optional `apiKeyFile`
- * override. That is why no gateway key is duplicated here.
+ * override. That is why no gateway key is duplicated here. The file machinery itself (the `~`
+ * expansion, the typed field readers, the key-file grammar and the mtime cache) is
+ * `server/shared/settings-file.ts`; this module keeps only the block's schema.
  *
  * THE READING IS NEVER FATAL. A missing file is the normal "feature off" state; a malformed
  * known key falls back to its shipped default and is named in `problems`; an unknown key is
@@ -24,9 +26,7 @@
  * Consumers: `session-digest-llm.ts` (through the process-wide source it builds) and the tier
  * criterion in `tests/session-digest-llm.test.ts`, which drives the reader over files it owns.
  */
-import { readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 
 import {
   createReplySuggestionsSettingsSource,
@@ -34,6 +34,16 @@ import {
   type ReplySuggestionsProtocol,
   type ReplySuggestionsSettingsSource,
 } from '@/modules/reply-suggestions/index.js';
+import {
+  createSettingsBlockSource,
+  defaultServerSettingsPath,
+  readBoolean,
+  readInteger,
+  readString,
+  resolveApiKey,
+  resolveSettingsPath,
+  type SettingsBlockContext,
+} from '@/shared/settings-file.js';
 
 /**
  * The environment variable naming the server settings file.
@@ -86,156 +96,18 @@ export type SessionDigestLlmSettingsSource = {
   read(): SessionDigestLlmSettings;
 };
 
-type ValidationSink = string[];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
-/** The default server settings location, resolved at call time so a process HOME is honoured. */
-function defaultServerSettingsPath(homeDir: string): string {
-  return path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json');
-}
-
-/** Expand a leading `~` against `homeDir`; any other path is returned unchanged. */
-function expandHome(filePath: string, homeDir: string): string {
-  if (filePath === '~') return homeDir;
-  if (filePath.startsWith('~/')) return path.join(homeDir, filePath.slice(2));
-  return filePath;
-}
-
 /**
- * Resolves a key from a bare-key file or a shell-style `NAME=value` line.
- *
- * `apiKeyFile` is optional in this block; when it is empty the reply-suggestions key is used.
- * A failure is a `problems` entry and an empty key — the effective switch then turns off.
- */
-function resolveApiKey(filePath: string, homeDir: string, problems: ValidationSink): string {
-  const resolvedPath = expandHome(filePath, homeDir);
-  let raw: string;
-  try {
-    raw = readFileSync(resolvedPath, 'utf8');
-  } catch (failure) {
-    problems.push(`could not read the API key file ${resolvedPath}: ${errorMessage(failure)}`);
-    return '';
-  }
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line !== '' && !line.startsWith('#'));
-  if (lines.length === 0) {
-    problems.push(`the API key file ${resolvedPath} is empty`);
-    return '';
-  }
-  const first = lines[0] ?? '';
-  const assignment = /^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*(.*)$/.exec(first);
-  let value = assignment === null ? first : (assignment[1] ?? '');
-  value = value.trim();
-  if (value.length >= 2) {
-    const firstCharacter = value[0];
-    const lastCharacter = value[value.length - 1];
-    if (
-      (firstCharacter === '"' && lastCharacter === '"') ||
-      (firstCharacter === "'" && lastCharacter === "'")
-    ) {
-      value = value.slice(1, -1);
-    }
-  }
-  return value.trim();
-}
-
-function readBoolean(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: boolean,
-  problems: ValidationSink,
-): boolean {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'boolean') {
-    problems.push(`\`${key}\` must be a boolean`);
-    return fallback;
-  }
-  return value;
-}
-
-function readString(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: string,
-  problems: ValidationSink,
-): string {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'string') {
-    problems.push(`\`${key}\` must be a string`);
-    return fallback;
-  }
-  return value;
-}
-
-function readInteger(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: number,
-  bounds: { minimum: number; maximum: number },
-  problems: ValidationSink,
-): number {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
-    problems.push(`\`${key}\` must be an integer`);
-    return fallback;
-  }
-  if (value < bounds.minimum || value > bounds.maximum) {
-    problems.push(`\`${key}\` must be between ${bounds.minimum} and ${bounds.maximum}`);
-    return fallback;
-  }
-  return value;
-}
-
-/** The `observation.sessionDigest` object, or null when the file does not carry a block. */
-function readDigestBlock(
-  parsed: unknown,
-  filePath: string,
-  problems: ValidationSink,
-): Record<string, unknown> | null {
-  if (!isRecord(parsed)) {
-    problems.push(`${filePath} must contain a JSON object`);
-    return null;
-  }
-  const observation = parsed.observation;
-  if (observation === undefined) return null;
-  if (!isRecord(observation)) {
-    problems.push('`observation` must be an object');
-    return null;
-  }
-  const block = observation.sessionDigest;
-  if (block === undefined) return null;
-  if (!isRecord(block)) {
-    problems.push('`observation.sessionDigest` must be an object');
-    return null;
-  }
-  return block;
-}
-
-/**
- * Builds one reading from an already-parsed document, merging the reply-suggestions gateway
- * settings underneath. `parsed` is `{}` for the shipped defaults.
+ * Builds one reading from the already-selected `observation.sessionDigest` block, merging the
+ * reply-suggestions gateway settings underneath. `block` is null when the file does not carry
+ * the block (or there is no file), which is the shipped-defaults state.
  */
 function buildReading(
-  parsed: unknown,
-  filePath: string | null,
-  source: 'default' | 'file',
-  homeDir: string,
+  block: Record<string, unknown> | null,
+  context: SettingsBlockContext,
   reply: ReturnType<ReplySuggestionsSettingsSource['read']>,
-  problems: ValidationSink,
+  homeDir: string,
 ): SessionDigestLlmSettings {
-  const block = readDigestBlock(parsed, filePath ?? '(defaults)', problems);
+  const problems = context.problems;
 
   const configuredEnabled =
     block === null
@@ -278,8 +150,8 @@ function buildReading(
     maxOutputTokens: reply.generation.maxOutputTokens,
     temperature: reply.generation.temperature,
     apiKey,
-    source,
-    path: filePath,
+    source: context.source,
+    path: context.path,
     problems,
   };
 
@@ -310,6 +182,8 @@ function buildReading(
  * `settingsPath` follows the same resolution order as the boot loader: an explicit path, then
  * `SERVER_SETTINGS_PATH`, then `~/.config/claudecodeui/server.settings.json`. `replySource` is
  * injectable so a criterion can supply the gateway without touching the operator's files.
+ *
+ * Consumers: `session-digest-llm.ts` and the tier criterion.
  */
 export function createSessionDigestLlmSettingsSource(
   options: {
@@ -323,65 +197,19 @@ export function createSessionDigestLlmSettingsSource(
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? os.homedir();
   const replySource = options.replySource ?? createReplySuggestionsSettingsSource({ homeDir });
+  const { filePath, explicit } = resolveSettingsPath({
+    settingsPath: options.settingsPath,
+    env,
+    envVar: SERVER_SETTINGS_PATH_ENV,
+    homeDir,
+    defaultPath: defaultServerSettingsPath,
+  });
 
-  let filePath: string | null;
-  let explicit: boolean;
-  if (options.settingsPath === null) {
-    filePath = null;
-    explicit = false;
-  } else if (typeof options.settingsPath === 'string') {
-    filePath = expandHome(options.settingsPath, homeDir);
-    explicit = true;
-  } else {
-    const named = env[SERVER_SETTINGS_PATH_ENV];
-    if (typeof named === 'string' && named.trim() !== '') {
-      filePath = expandHome(named.trim(), homeDir);
-      explicit = true;
-    } else {
-      filePath = defaultServerSettingsPath(homeDir);
-      explicit = false;
-    }
-  }
-
-  let cached: { filePath: string; mtimeMs: number; settings: SessionDigestLlmSettings } | null = null;
-
-  return {
-    read(): SessionDigestLlmSettings {
-      const reply = replySource.read();
-      if (filePath === null) {
-        return buildReading({}, null, 'default', homeDir, reply, []);
-      }
-
-      let mtimeMs: number;
-      try {
-        mtimeMs = statSync(filePath).mtimeMs;
-      } catch (failure) {
-        if (cached !== null && cached.filePath === filePath) cached = null;
-        if (!explicit) {
-          // A default path that does not exist is the ordinary "feature off" state.
-          return buildReading({}, filePath, 'default', homeDir, reply, []);
-        }
-        return buildReading({}, filePath, 'default', homeDir, reply, [
-          `could not read ${filePath}: ${errorMessage(failure)}`,
-        ]);
-      }
-
-      // The reply-suggestions reading is mtime-cached by its own source; the tier file is
-      // cached here on the same rule.
-      if (cached !== null && cached.filePath === filePath && cached.mtimeMs === mtimeMs) {
-        return cached.settings;
-      }
-
-      const problems: ValidationSink = [];
-      let parsed: unknown = {};
-      try {
-        parsed = JSON.parse(readFileSync(filePath, 'utf8'));
-      } catch (failure) {
-        problems.push(`could not read ${filePath}: ${errorMessage(failure)}`);
-      }
-      const settings = buildReading(parsed, filePath, 'file', homeDir, reply, problems);
-      cached = { filePath, mtimeMs, settings };
-      return settings;
-    },
-  };
+  return createSettingsBlockSource({
+    settingsPath: filePath,
+    homeDir,
+    block: 'observation.sessionDigest',
+    explicit,
+    parse: (block, context) => buildReading(block, context, replySource.read(), homeDir),
+  });
 }

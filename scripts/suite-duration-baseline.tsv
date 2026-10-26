@@ -666,3 +666,10 @@
 #   green round contains it yet — the row also keeps the 90% coverage floor green now that the tree
 #   collects 440 server test files).
 2217	server/modules/quay/tests/session-mentions.test.ts
+#   and the settings-file row by gap-settings-file-shared-reader, measured one file at a time on
+#   2026-10-26 with
+#   `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs
+#   --test server/shared/tests/settings-file.test.ts` (dur=2172ms; its own new criterion; no
+#   green round contains it yet — the row also keeps the 90% coverage floor green now that the
+#   tree collects 443 server test files).
+2172	server/shared/tests/settings-file.test.ts

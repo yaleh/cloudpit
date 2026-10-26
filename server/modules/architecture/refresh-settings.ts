@@ -6,8 +6,9 @@
  * The block lives in the same deployment-editable server settings file the other
  * server knobs use (`SERVER_SETTINGS_PATH`, then
  * `~/.config/claudecodeui/server.settings.json`), and this module reads it
- * directly. The reading is cached by file mtime, so a criterion can rewrite the
- * file between arms without restarting the server.
+ * directly. The file machinery (the `~` expansion, the mtime cache and the block
+ * selector) is `server/shared/settings-file.ts`; this module keeps only the
+ * block's schema.
  *
  * A missing file at the DEFAULT path is the ordinary "keep the shipped defaults"
  * state; a file named explicitly that cannot be read is reported in `problems`
@@ -22,6 +23,14 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+
+import {
+  createSettingsBlockSource,
+  defaultServerSettingsPath,
+  expandHome,
+  resolveSettingsPath,
+  type SettingsBlockContext,
+} from '@/shared/settings-file.js';
 
 /** The environment variable naming the server settings file (the same literal `modules/settings` reads). */
 export const SERVER_SETTINGS_PATH_ENV = 'SERVER_SETTINGS_PATH';
@@ -86,26 +95,6 @@ const DEFAULT_REFRESH_SETTINGS: {
   memoryLimitMb: 6144,
   defect: '',
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/** Expand a leading `~` against the process home; any other path is returned unchanged. */
-function expandHome(filePath: string, homeDir: string): string {
-  if (filePath === '~') return homeDir;
-  if (filePath.startsWith('~/')) return path.join(homeDir, filePath.slice(2));
-  return filePath;
-}
-
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
-/** The default settings location, resolved at call time so a process HOME is honoured. */
-function defaultServerSettingsPath(homeDir: string): string {
-  return path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json');
-}
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
@@ -174,43 +163,26 @@ export function resolveArchguardCli(
 }
 
 /**
- * Builds one reading from an already-parsed settings document.
+ * Builds one reading from the already-selected `architecture.refresh` block.
  *
  * Unknown keys are ignored and a malformed known value falls back field by field, so
  * a typo in `timeoutMs` cannot silently disable the whole refresh entry.
  */
 function buildRefreshSettings(
-  parsed: unknown,
-  filePath: string | null,
-  source: 'default' | 'file',
-  problems: string[],
+  block: Record<string, unknown> | null,
+  context: SettingsBlockContext,
 ): RefreshSettings {
+  const problems = context.problems;
   const settings = {
     cliPath: DEFAULT_REFRESH_SETTINGS.cliPath,
     timeoutMs: DEFAULT_REFRESH_SETTINGS.timeoutMs,
     memoryLimitMb: DEFAULT_REFRESH_SETTINGS.memoryLimitMb,
     defect: DEFAULT_REFRESH_SETTINGS.defect as ArchitectureRefreshDefect,
-    path: filePath,
-    source,
-    problems,
+    path: context.path,
+    source: context.source,
+    problems: problems as readonly string[],
   };
-
-  if (!isRecord(parsed)) {
-    problems.push(`${filePath ?? '(settings)'} must contain a JSON object`);
-    return settings;
-  }
-  const architecture = parsed.architecture;
-  if (architecture === undefined) return settings;
-  if (!isRecord(architecture)) {
-    problems.push('`architecture` must be an object');
-    return settings;
-  }
-  const block = architecture.refresh;
-  if (block === undefined) return settings;
-  if (!isRecord(block)) {
-    problems.push('`architecture.refresh` must be an object');
-    return settings;
-  }
+  if (block === null) return settings;
 
   if (block.cliPath !== undefined) {
     if (typeof block.cliPath === 'string') settings.cliPath = block.cliPath;
@@ -249,51 +221,20 @@ export function createRefreshSettingsSource(options: {
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? os.homedir();
   const fsImpl = options.fsImpl ?? fs;
+  const { filePath, explicit } = resolveSettingsPath({
+    settingsPath: options.settingsPath,
+    env,
+    envVar: SERVER_SETTINGS_PATH_ENV,
+    homeDir,
+    defaultPath: defaultServerSettingsPath,
+  });
 
-  let filePath: string | null;
-  let explicit = false;
-  if (options.settingsPath === null) {
-    filePath = null;
-  } else if (typeof options.settingsPath === 'string') {
-    filePath = expandHome(options.settingsPath, homeDir);
-    explicit = true;
-  } else {
-    const named = env[SERVER_SETTINGS_PATH_ENV];
-    if (typeof named === 'string' && named.trim() !== '') {
-      filePath = expandHome(named.trim(), homeDir);
-      explicit = true;
-    } else {
-      filePath = defaultServerSettingsPath(homeDir);
-    }
-  }
-
-  let cached: { mtimeMs: number; settings: RefreshSettings } | null = null;
-
-  return {
-    read(): RefreshSettings {
-      if (filePath === null) return buildRefreshSettings({}, null, 'default', []);
-
-      let mtimeMs: number;
-      try {
-        mtimeMs = fsImpl.statSync(filePath).mtimeMs;
-      } catch (failure) {
-        cached = null;
-        return buildRefreshSettings({}, filePath, 'default', explicit
-          ? [`could not read ${filePath}: ${errorMessage(failure)}`]
-          : []);
-      }
-      if (cached !== null && cached.mtimeMs === mtimeMs) return cached.settings;
-
-      const problems: string[] = [];
-      let parsed: unknown = {};
-      try {
-        parsed = JSON.parse(fsImpl.readFileSync(filePath, 'utf8'));
-      } catch (failure) {
-        problems.push(`could not read ${filePath}: ${errorMessage(failure)}`);
-      }
-      const settings = buildRefreshSettings(parsed, filePath, 'file', problems);
-      cached = { mtimeMs, settings };
-      return settings;
-    },
-  };
+  return createSettingsBlockSource({
+    settingsPath: filePath,
+    homeDir,
+    block: 'architecture.refresh',
+    explicit,
+    fsImpl,
+    parse: (block, context) => buildRefreshSettings(block, context),
+  });
 }

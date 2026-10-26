@@ -24,7 +24,9 @@
  * log or `util.inspect` of the whole reading therefore cannot leak it. The key
  * file itself is read while the file is (re)parsed; the value is never echoed
  * into `problems`, logs, status objects or error messages. A key file wider than
- * mode 600 is reported as a problem but is NOT fatal.
+ * mode 600 is reported as a problem but is NOT fatal. The file machinery (the `~`
+ * expansion, the typed field readers, the key-file grammar and the mtime cache)
+ * is `server/shared/settings-file.ts`; this module keeps only the file's schema.
  *
  * THE READING IS NEVER FATAL. A missing file is the normal "feature off" state; a
  * malformed known key falls back to its shipped default and is named in
@@ -37,10 +39,20 @@
  * reading it merges under its own `observation.sessionDigest` block) and the
  * settings criterion in `tests/reply-suggestions-settings.test.ts`.
  */
-import { readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { inspect } from 'node:util';
+
+import {
+  createSettingsBlockSource,
+  readBoolean,
+  readEnum,
+  readNumber,
+  readString,
+  resolveApiKey,
+  resolveSettingsPath,
+  type SettingsBlockContext,
+} from '@/shared/settings-file.js';
 
 /**
  * The only environment variable this module reads. It names the settings file.
@@ -221,253 +233,21 @@ function defaultSettingsPath(homeDir: string): string {
   return path.join(homeDir, '.config', 'claudecodeui', 'reply-suggestions.settings.json');
 }
 
-/** Expand a leading `~` against `homeDir`; any other path is returned unchanged. */
-function expandHome(filePath: string, homeDir: string): string {
-  if (filePath === '~') return homeDir;
-  if (filePath.startsWith('~/')) return path.join(homeDir, filePath.slice(2));
-  return filePath;
-}
-
-/** Build a fresh defaults reading (problems empty, path not yet known). */
-function defaultSettings(): ReplySuggestionsSettings {
-  return {
-    version: DEFAULT_SETTINGS.version,
-    enabled: DEFAULT_SETTINGS.enabled,
-    upstream: {
-      protocol: DEFAULT_SETTINGS.protocol,
-      baseUrl: DEFAULT_SETTINGS.baseUrl,
-      model: DEFAULT_SETTINGS.model,
-      authScheme: DEFAULT_SETTINGS.authScheme,
-      credential: new ApiCredential(''),
-      disableThinking: DEFAULT_SETTINGS.disableThinking,
-      timeoutMs: DEFAULT_SETTINGS.timeoutMs,
-    },
-    generation: {
-      temperature: DEFAULT_SETTINGS.temperature,
-      redrawTemperature: DEFAULT_SETTINGS.redrawTemperature,
-      maxOutputTokens: DEFAULT_SETTINGS.maxOutputTokens,
-      maxChips: DEFAULT_SETTINGS.maxChips,
-      maxChipChars: DEFAULT_SETTINGS.maxChipChars,
-      maxTailChars: DEFAULT_SETTINGS.maxTailChars,
-      maxFocusChars: DEFAULT_SETTINGS.maxFocusChars,
-      systemPrompt: DEFAULT_SETTINGS.systemPrompt,
-      expansion: DEFAULT_SETTINGS.expansion,
-    },
-    limits: {
-      maxCallsPerMinute: DEFAULT_SETTINGS.maxCallsPerMinute,
-      maxCallsPerDay: DEFAULT_SETTINGS.maxCallsPerDay,
-    },
-    usageLog: DEFAULT_SETTINGS.usageLog,
-    diagnostics: {
-      source: 'default',
-      path: null,
-      problems: [],
-      configuredEnabled: DEFAULT_SETTINGS.enabled,
-      apiKeyFile: DEFAULT_SETTINGS.apiKeyFile,
-      apiKeyVar: DEFAULT_SETTINGS.apiKeyVar,
-    },
-  };
-}
-
-type ValidationSink = string[];
-
-function readBoolean(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: boolean,
-  problems: ValidationSink,
-): boolean {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'boolean') {
-    problems.push(`\`${key}\` must be a boolean`);
-    return fallback;
-  }
-  return value;
-}
-
-function readString(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: string,
-  problems: ValidationSink,
-): string {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'string') {
-    problems.push(`\`${key}\` must be a string`);
-    return fallback;
-  }
-  return value;
-}
-
-function readNumber(
-  record: Record<string, unknown>,
-  key: string,
-  fallback: number,
-  bounds: { minimum: number; maximum: number; integer: boolean },
-  problems: ValidationSink,
-): number {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    problems.push(`\`${key}\` must be a finite number`);
-    return fallback;
-  }
-  if (bounds.integer && !Number.isInteger(value)) {
-    problems.push(`\`${key}\` must be an integer`);
-    return fallback;
-  }
-  if (value < bounds.minimum || value > bounds.maximum) {
-    problems.push(`\`${key}\` must be between ${bounds.minimum} and ${bounds.maximum}`);
-    return fallback;
-  }
-  return value;
-}
-
-function readEnum<T extends string>(
-  record: Record<string, unknown>,
-  key: string,
-  vocabulary: readonly T[],
-  fallback: T,
-  problems: ValidationSink,
-): T {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'string' || !(vocabulary as readonly string[]).includes(value)) {
-    problems.push(`\`${key}\` must be one of ${vocabulary.map((entry) => `"${entry}"`).join(', ')}`);
-    return fallback;
-  }
-  return value as T;
-}
-
-/** Strip one matching pair of surrounding single or double quotes. */
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    const last = trimmed[trimmed.length - 1];
-    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-      return trimmed.slice(1, -1);
-    }
-  }
-  return trimmed;
-}
-
-const KEY_ASSIGNMENT = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/;
-
 /**
- * Resolve the API key from `apiKeyFile` and `apiKeyVar`.
- *
- * The file is either a bare key line or a shell-style `NAME=value` table (an
- * `export` prefix and one pair of single/double quotes are accepted). With
- * `apiKeyVar`, that variable's assignment is the key. Without it, a file holding
- * exactly one assignment contributes that assignment; otherwise the first
- * non-empty, non-comment line wins (as a value when it is an assignment).
- *
- * Every failure is a `problems` entry: the key value itself is NEVER placed in
- * one, and an unreadable key file is not fatal by itself (the effective switch
- * turns off because the credential is empty).
- */
-function resolveApiKey(
-  apiKeyFile: string,
-  apiKeyVar: string,
-  homeDir: string,
-  problems: ValidationSink,
-): string {
-  if (apiKeyFile.trim() === '') {
-    return '';
-  }
-  const resolvedPath = expandHome(apiKeyFile, homeDir);
-  let raw: string;
-  try {
-    raw = readFileSync(resolvedPath, 'utf8');
-  } catch (failure) {
-    const reason = failure instanceof Error ? failure.message : String(failure);
-    problems.push(`could not read the API key file ${resolvedPath}: ${reason}`);
-    return '';
-  }
-
-  try {
-    const stats = statSync(resolvedPath);
-    const mode = stats.mode & 0o777;
-    if ((mode & 0o077) !== 0) {
-      problems.push(
-        `the API key file ${resolvedPath} has mode ${mode.toString(8)}; 600 is expected because the file holds a secret`,
-      );
-    }
-  } catch {
-    // A stat failure after a successful read is not worth a second problem; the
-    // read above already decided whether the file is usable.
-  }
-
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line !== '' && !line.startsWith('#'));
-
-  if (lines.length === 0) {
-    problems.push(`the API key file ${resolvedPath} is empty`);
-    return '';
-  }
-
-  const assignments: Array<{ name: string; value: string }> = [];
-  for (const line of lines) {
-    const match = KEY_ASSIGNMENT.exec(line);
-    if (match) assignments.push({ name: match[1], value: unquote(match[2]) });
-  }
-
-  if (apiKeyVar.trim() !== '') {
-    const selected = assignments.find((assignment) => assignment.name === apiKeyVar);
-    if (!selected) {
-      problems.push(`the API key file ${resolvedPath} does not assign \`${apiKeyVar}\``);
-      return '';
-    }
-    return selected.value.trim();
-  }
-
-  if (assignments.length === 1) {
-    return assignments[0].value.trim();
-  }
-
-  const firstLine = lines[0];
-  const firstMatch = KEY_ASSIGNMENT.exec(firstLine);
-  return (firstMatch ? unquote(firstMatch[2]) : unquote(firstLine)).trim();
-}
-
-/**
- * Parse one settings file into a reading. Never throws: an unreadable or
+ * Parse one settings document into a reading. Never throws: an unreadable or
  * malformed file yields the defaults with the reason in `problems`.
+ *
+ * The shared source selects the document itself (this file is flat) and hands it
+ * here as `block`; a null block means the file was missing or unparseable, and
+ * `context.problems` already carries the reason.
  */
-function readSettingsFile(filePath: string, source: 'default' | 'file', homeDir: string): ReplySuggestionsSettings {
-  const base = defaultSettings();
-  base.diagnostics.source = source;
-  base.diagnostics.path = filePath;
-
-  let raw: string;
-  try {
-    raw = readFileSync(filePath, 'utf8');
-  } catch (failure) {
-    const reason = failure instanceof Error ? failure.message : String(failure);
-    base.diagnostics.problems = [`could not read ${filePath}: ${reason}`];
-    return base;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (failure) {
-    const reason = failure instanceof Error ? failure.message : String(failure);
-    base.diagnostics.problems = [`${filePath} is not valid JSON: ${reason}`];
-    return base;
-  }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    base.diagnostics.problems = [`${filePath} must contain a JSON object`];
-    return base;
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const problems: ValidationSink = [];
+function parseSettings(
+  block: Record<string, unknown> | null,
+  context: SettingsBlockContext,
+  homeDir: string,
+): ReplySuggestionsSettings {
+  const record = block ?? {};
+  const problems = context.problems;
 
   const settings: ReplySuggestionsSettings = {
     version: readString(record, 'version', DEFAULT_SETTINGS.version, problems),
@@ -498,8 +278,8 @@ function readSettingsFile(filePath: string, source: 'default' | 'file', homeDir:
     },
     usageLog: readBoolean(record, 'usageLog', DEFAULT_SETTINGS.usageLog, problems),
     diagnostics: {
-      source,
-      path: filePath,
+      source: context.source,
+      path: context.path,
       problems,
       configuredEnabled: readBoolean(record, 'enabled', DEFAULT_SETTINGS.enabled, problems),
       apiKeyFile: readString(record, 'apiKeyFile', DEFAULT_SETTINGS.apiKeyFile, problems),
@@ -514,7 +294,10 @@ function readSettingsFile(filePath: string, source: 'default' | 'file', homeDir:
     settings.version = DEFAULT_SETTINGS.version;
   }
 
-  const apiKey = resolveApiKey(settings.diagnostics.apiKeyFile, settings.diagnostics.apiKeyVar, homeDir, problems);
+  const apiKey = resolveApiKey(settings.diagnostics.apiKeyFile, homeDir, problems, {
+    apiKeyVar: settings.diagnostics.apiKeyVar,
+    warnOnWideMode: true,
+  });
   settings.upstream.credential = new ApiCredential(apiKey);
 
   // The effective switch. A file that asks for the feature but cannot name a
@@ -567,61 +350,18 @@ export function createReplySuggestionsSettingsSource(
 ): ReplySuggestionsSettingsSource {
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? os.homedir();
+  const { filePath, explicit } = resolveSettingsPath({
+    settingsPath: options.settingsPath,
+    env,
+    envVar: REPLY_SUGGESTIONS_SETTINGS_PATH_ENV,
+    homeDir,
+    defaultPath: defaultSettingsPath,
+  });
 
-  let filePath: string | null;
-  let explicit: boolean;
-  if (options.settingsPath === null) {
-    filePath = null;
-    explicit = false;
-  } else if (typeof options.settingsPath === 'string') {
-    filePath = expandHome(options.settingsPath, homeDir);
-    explicit = true;
-  } else {
-    const named = env[REPLY_SUGGESTIONS_SETTINGS_PATH_ENV];
-    if (typeof named === 'string' && named.trim() !== '') {
-      filePath = expandHome(named.trim(), homeDir);
-      explicit = true;
-    } else {
-      filePath = defaultSettingsPath(homeDir);
-      explicit = false;
-    }
-  }
-
-  let cached: { filePath: string; mtimeMs: number; settings: ReplySuggestionsSettings } | null = null;
-
-  return {
-    read(): ReplySuggestionsSettings {
-      if (filePath === null) {
-        return defaultSettings();
-      }
-
-      let mtimeMs: number;
-      try {
-        mtimeMs = statSync(filePath).mtimeMs;
-      } catch (failure) {
-        if (cached !== null && cached.filePath === filePath) {
-          cached = null;
-        }
-        if (!explicit) {
-          // A default path that does not exist is the ordinary "feature off" state.
-          const settings = defaultSettings();
-          settings.diagnostics.path = filePath;
-          return settings;
-        }
-        const reason = failure instanceof Error ? failure.message : String(failure);
-        const settings = defaultSettings();
-        settings.diagnostics.path = filePath;
-        settings.diagnostics.problems = [`could not read ${filePath}: ${reason}`];
-        return settings;
-      }
-
-      if (cached !== null && cached.filePath === filePath && cached.mtimeMs === mtimeMs) {
-        return cached.settings;
-      }
-
-      const settings = readSettingsFile(filePath, 'file', homeDir);
-      cached = { filePath, mtimeMs, settings };
-      return settings;
-    },
-  };
+  return createSettingsBlockSource({
+    settingsPath: filePath,
+    homeDir,
+    explicit,
+    parse: (block, context) => parseSettings(block, context, homeDir),
+  });
 }
