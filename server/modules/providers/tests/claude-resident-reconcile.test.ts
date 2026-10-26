@@ -56,7 +56,7 @@
  *       server/modules/providers/tests/claude-resident-reconcile.test.ts
  */
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import util from 'node:util';
 
 import {
@@ -83,6 +83,37 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimeWriter,
 } from '@/shared/types.js';
+
+// ---------------------------------------------------------- pin the world ---
+//
+// This criterion is the run=turn flag OFF world: legs (a)–(e2) read the
+// production default, in which a `command_lifecycle` frame is buffered into the
+// run and forwarded to the log sink that leg (e1) reads. The two `withRunIsTurn`
+// legs turn the flag on locally and restore it; everything else — including
+// (e1)'s forwarded line — assumes it starts off. With `RESIDENT_RUN_IS_TURN=1`
+// inherited from the caller, that frame takes SPEC §7.3's transition window
+// instead and is never forwarded, so (e1) reads `one frame, one line (read 0)`.
+//
+// `scripts/test.sh` isolates this file with `unset RESIDENT_RUN_IS_TURN`, but
+// the goal gate runs the criterion command verbatim in whatever environment the
+// anchor inherited (this host's anchor inherits
+// `40-resident-run-is-turn.conf` from the live server). The gate never goes
+// through test.sh, so the file has to pin the world it measures rather than
+// trust its caller — the same declaration AC-381's unattended criterion makes
+// for its own flag-off world. `residentRunIsTurn()` reads the flag at call time
+// and the shipped default is off (it only accepts the literal `1`), so deleting
+// it here is the off state. The `after` hook puts the caller's value back before
+// the process exits, so the pin cannot outlive this file.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
+after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
+});
 
 /**
  * The wall-clock bound this criterion reports the whole run against (AC (g): < 50s).
