@@ -44,3 +44,11 @@ L_D 该轴仍暗，理由：本任务只把面板里的搜索、悬停与深链�
 - src/modules/architecture/tests/architectureDeepLink.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-architecture-panel-search-reveal-owner.md
+
+## Blocker
+
+**2026-10-26T12:01:28.129Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/PlantUmlGraph.tsx 4040→4050 — 基线内读数不得上调（此基线只允许下降）
+- run_id：wk-prod-anchor
+- session_id：c9b78786-53a4-441e-9bb2-988d85f45c96
