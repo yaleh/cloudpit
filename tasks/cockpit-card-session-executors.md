@@ -101,3 +101,11 @@ goal_ac: AC-428
 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-confirm.json --base-url http://127.0.0.1:12012 --auth-token … --project "DoD project" --session "DoD idle session" --out tmp/scenario-cockpit-cards-confirm` → `passed (6 steps, 3662ms, 5 checkpoint(s))`，退出 0；报告 `tmp/scenario-cockpit-cards-confirm.report.json`，检查点截图在 `tmp/scenario-cockpit-cards-confirm/`。
 
 实例用毕已 `isolated-instance.sh stop`（状态目录 `tmp/iso-cockpit-executors`），Vite dev 一并停止。
+
+## Blocker
+
+**2026-10-26T23:19:15.647Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=41 src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts passed=false end_ms=1793056692941
+- run_id：wk-prod-anchor
+- session_id：fd781c3f-296c-4d38-b12f-f139065d0463
