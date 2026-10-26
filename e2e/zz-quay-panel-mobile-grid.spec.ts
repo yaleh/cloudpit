@@ -1003,6 +1003,41 @@ test.describe('the Quay panel on a 390px phone', () => {
       expect(desktop.svgWidth).toBeLessThanOrEqual(DESKTOP_VIEWPORT.width + TOLERANCE_PX);
       // Uniform scaling: the chart keeps its aspect ratio, so axis text is not distorted.
       expect(Math.abs(desktop.aspectRatio - phone.aspectRatio)).toBeLessThan(0.05);
+
+      // A tall session panel must not stretch the three chart cards. The charts column shares a
+      // grid row with the session panel on desktop, so that row grows to the panel's height; a
+      // charts grid without `content-start` hands the extra height to its auto rows and opens a
+      // gap of hundreds of pixels between the cards. jsdom computes no grid tracks, so this
+      // reading can only be taken here.
+      const readCardHeights = () =>
+        page.evaluate(() => {
+          const heightOf = (id: string): number => document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect().height ?? -1;
+          return {
+            loop: heightOf('quay-panel-loop-pulse'),
+            tests: heightOf('quay-panel-tests'),
+            fanIn: heightOf('quay-panel-fanin'),
+          };
+        });
+      const naturalCards = await readCardHeights();
+      const TALL_SESSION_PANEL_PX = 1600;
+      await page.evaluate((minHeight) => {
+        const session = document.querySelector<HTMLElement>('[data-testid="quay-session-panel"]');
+        if (session) session.style.minHeight = `${minHeight}px`;
+      }, TALL_SESSION_PANEL_PX);
+      await page.waitForTimeout(300);
+      const chartsColumn = await page.evaluate(
+        () => document.querySelector('[data-testid="quay-tab-charts"]')?.getBoundingClientRect().height ?? -1,
+      );
+      const tallCards = await readCardHeights();
+      console.log(`[quay-charts] natural ${JSON.stringify(naturalCards)} tall ${JSON.stringify(tallCards)} column ${chartsColumn}`);
+      expect(chartsColumn, 'the charts column must actually be stretched by the tall session panel for this reading to mean anything').toBeGreaterThanOrEqual(TALL_SESSION_PANEL_PX - TOLERANCE_PX);
+      for (const card of ['loop', 'tests', 'fanIn'] as const) {
+        expect(naturalCards[card], `the ${card} card must render`).toBeGreaterThan(0);
+        expect(
+          tallCards[card],
+          `the ${card} card must keep its natural height beside a ${TALL_SESSION_PANEL_PX}px session panel (natural ${naturalCards[card]}px)`,
+        ).toBeLessThanOrEqual(naturalCards[card] + TOLERANCE_PX);
+      }
     } finally {
       await context.close();
       await api.dispose();
