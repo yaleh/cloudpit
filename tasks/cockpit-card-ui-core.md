@@ -81,6 +81,22 @@ DoD（隔离实例 + 真实浏览器；本会话无 MCP 浏览器可用，按项
 - 「自己的回复」编辑框只在提供方声明 `ownReply` 的卡片上渲染，因为服务端对未声明 `ownReply` 的卡片拒绝 `replyText`（会 400）；`fixture:decision` 这类卡片的下拉末项因此不出现编辑框。控制器同样拒绝为这类卡片设置回复。
 - `dist/` 与 `dist-server/` 是 gitignore 产物；为 DoD 额外跑了 `npm run build:server`，不入提交。
 
+
+### 续跑轮（2026-10-27，fan-in ratchet 红）
+
+上一轮 exited-not-landed 的红是真红，且是本任务 delta 自己新增的行：`server/shared/tests/architecture-ratchet.test.ts`（日志 headline 只报了 CockpitPage，单跑该判据同时报出第二条）——
+
+- `oversizeFiles src/modules/cockpit/CockpitPage.tsx` 1881→1883：`cards` 视图在 header 的视图标签三元里多出的一支；
+- `oversizeFiles src/shared/api.ts` 1749→1766：本任务的两个客户端入口 `cockpitCards` / `cockpitConfirmCard`（含契约注释）。
+
+处理：按该基线 note 自带的 RECORDED CHANGE 格式，把这两条按实测值重录并写明为何增加是该改动的诚实形态；其余条目一个未动（同轮读数只降）。`server/shared/tests/architecture-ratchet.baseline.json` 已补进 `## Touches`。复验（均在本 worktree 内）：
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` ⇒ `tests 6 / pass 6 / fail 0`，退出 0；
+- 合并 develop 后逐条复验：AC1+AC2 合计 `Tests 27 passed (27)`；AC4 `src/modules/cockpit/tests` ⇒ `Test Files 15 passed (15) / Tests 201 passed (201)`；AC5 ⇒ `Test Files 2 passed (2) / Tests 23 passed (23)`；AC6 typecheck / lint / build:client 均退出 0（`✓ built in 25.05s`）；
+- AC3 三条假形态在本轮重新做了一遍并各自还原：跳过确认卡直接发请求 ⇒ controller 5 条用例红；无 suggested 时默认第一个选项 ⇒ 1 条红；加独立 Details 按钮 ⇒ 组件 1 条红；还原后 `Tests 27 passed (27)`。
+
+DoD 的隔离实例真实浏览器读数与截图沿用上文同一实现（本轮只动基线记录，UI 源码未变）。
+
 ## ADR-007 轴记录
 
 - 该轴仍暗,理由:本任务只做驾驶舱卡片界面与 React 之外的 controller，不新增领域数据的生成或持久化能力，L_D/L_G 两轴没有可读读数；界面行为由 AC-424/AC-425 判据、隔离实例真实浏览器读数与场景运行器覆盖。
@@ -105,6 +121,7 @@ DoD（隔离实例 + 真实浏览器；本会话无 MCP 浏览器可用，按项
 - src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts
 - src/modules/chat/tests/inlineQuoteChip.test.tsx
 - src/shared/api.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/i18n/locales/de/common.json
 - src/modules/i18n/locales/en/common.json
 - src/modules/i18n/locales/es/common.json
