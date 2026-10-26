@@ -2,7 +2,7 @@
 id: gap-wire-type-sync-criteria
 title: 前后端 wire 契约同步判据：把 reply-suggestions 的 TypeSync 做法推广到 notices / 架构刷新 /
   resident 终态 / 提及来源
-status: ready
+status: done
 labels:
   - gap
 parent: null
