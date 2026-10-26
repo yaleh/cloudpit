@@ -122,3 +122,11 @@ goal_ac: AC-426
 - src/modules/ui-scenario/tests/scenarioSurface.test.ts
 - scripts/ui-scenario.mjs
 - e2e/scenarios/cockpit-cards-confirm.json (new)
+
+## Blocker
+
+**2026-10-26T18:37:23.951Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/ui-scenario/scenarioSurface.ts 基线外→1018 — 基线外的文件不得超过 800 行
+- run_id：wk-prod-anchor
+- session_id：4e8d4be6-06c7-47a1-ac14-78cb69ce16a3
