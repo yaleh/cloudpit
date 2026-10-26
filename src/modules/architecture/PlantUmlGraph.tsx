@@ -1539,6 +1539,16 @@ export function PlantUmlGraph({
     applyDiffStyles(host, diffHighlightRef.current);
     const center = layoutPipeline.getSnapshot().neighborCenter;
     if (center !== null) nodeElement(host, center)?.classList.add('arch-center');
+    // The focus marker is re-pinned too: a re-solve that lands after the draw
+    // replaced the element, so without this the reader's focus (and the deep
+    // link's `?entity=` reading) silently disappeared one settle later.
+    if (focusNodeId !== null) {
+      const focused = nodeElement(host, focusNodeId);
+      if (focused !== null) {
+        focused.classList.add('arch-focus');
+        focused.setAttribute('data-architecture-focus-target', focusNodeId);
+      }
+    }
     // The zoom anchor is the densest window of the mapped layout, not the
     // bounding-box centre: on a sparse drawing the centre is blank space. A
     // "tap a package" request overrides it with that package's frame.
@@ -1564,7 +1574,7 @@ export function PlantUmlGraph({
     // behind (the defect this task fixes).
     drawStickyLabels(host, layout, fontPx);
     positionOverviewHint(host);
-  }, [applySemanticLayout, applyZoom, layoutPipeline, selectionController]);
+  }, [applySemanticLayout, applyZoom, focusNodeId, layoutPipeline, selectionController]);
 
   // The pipeline owns WHICH layout is drawn and WHEN; these actions are the
   // DOM-bound half it cannot do itself. Re-registered per render so a callback
