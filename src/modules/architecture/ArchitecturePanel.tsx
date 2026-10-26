@@ -64,13 +64,9 @@ import {
 } from '@/modules/architecture/elementRelationFilter';
 import {
   architectureExportFilename,
-  downloadBlob,
-  downloadTextFile,
-  EXPORT_PNG_MAX_EDGE,
-  pngTargetSize,
-  rasterizeSvgToPng,
   serializeSvgForExport,
 } from '@/modules/architecture/exportArtifacts';
+import { createArchitectureFitExportController } from '@/modules/architecture/architectureFitExportController';
 import { BOTTOM_SLOT_INFO_INSET_PX, overlayLayoutDefect } from '@/modules/architecture/bottomSlotLayout';
 import {
   CanvasHeaderSlotContext,
@@ -88,10 +84,8 @@ import {
 } from '@/modules/architecture/hoverHintPlacement';
 import type {
   ArchitectureDetailReading,
-  ArchitectureDrawnPlantUml,
   ArchitectureDiffHighlight,
   ArchitectureEntityKind,
-  ArchitectureFitRequest,
   ArchitectureNodeIdShape,
   ArchitectureRendererEdge,
   ArchitectureRendererGraph,
@@ -113,7 +107,7 @@ import {
   formatRefreshElapsed,
   useArchitectureRefresh,
 } from '@/modules/architecture/useArchitectureRefresh';
-import { useArchitectureGraph, type ArchitectureGraphResult } from '@/modules/architecture/useArchitectureGraph';
+import { useArchitectureGraph } from '@/modules/architecture/useArchitectureGraph';
 import { useArchitectureFullscreen } from '@/modules/architecture/useArchitectureFullscreen';
 import {
   buildArchitectureStandaloneHref,
@@ -941,44 +935,62 @@ export default function ArchitecturePanel({
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [searchOpen, search]);
-  // The slice the mounted renderer is drawing. The renderer owns its view, so
-  // it reports every navigation here; the export menu rebuilds exactly this
-  // view instead of guessing from the last click.
-  const [diagramView, setDiagramView] = useState<ArchitectureDiagramView>({ kind: 'overview' });
-  // The aria-live reading of the last export (copied / downscaled / failed).
-  // It is panel state, not menu state: the message must survive the menu closing.
-  const [exportStatus, setExportStatus] = useState('');
-  // The PlantUML text offered in the manual-copy dialog when the Clipboard API
-  // is unavailable. `null` keeps the dialog shut.
-  const [copyFallbackText, setCopyFallbackText] = useState<string | null>(null);
-  // The model the renderer actually laid out and drew, reported by the mounted
-  // renderer. The text page serializes THIS, so aggregated/folded shapes in the
-  // drawing also appear in the copied document. Null while nothing is drawn or
-  // when a stand-in renderer does not report a model (the text page then says
-  // it is showing the bridge fallback).
-  const [drawnPlantUml, setDrawnPlantUml] = useState<ArchitectureDrawnPlantUml | null>(null);
-  // The same model, kept synchronously: the renderer reports it while it is
-  // drawing, one React render before `drawnPlantUml` commits. The Export menu
-  // reads this ref so a click that lands in that window still exports the
-  // document the Text page will settle on, never the bridge spelling.
-  const drawnPlantUmlRef = useRef<ArchitectureDrawnPlantUml | null>(null);
-  const handleDrawnPlantUmlChange = useCallback((drawn: ArchitectureDrawnPlantUml | null): void => {
-    drawnPlantUmlRef.current = drawn;
-    setDrawnPlantUml(drawn);
-  }, []);
+  // ---- Fit / export / refresh-state / scope readings (owner) ---------------
+  // One React-free owner for the panel-level request/answer state: the fit
+  // token and its once-per-viewport measurement, the fullscreen enter/leave
+  // flag, the export notice and manual-copy fallback, the view and drawn model
+  // the export rebuilds, the refresh dialog, and the scope-change disclosure.
+  // The panel subscribes and renders; every rule lives in
+  // `architectureFitExportController`.
+  const readoutRowRef = useRef<HTMLDivElement | null>(null);
+  // The DOM hook for the owner's manual-copy text: focusing and selecting it is
+  // a presentation effect, not an export rule.
+  const copyFallbackTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fitExport = useMemo(
+    () => createArchitectureFitExportController({
+      measure: () => ({
+        canvasHeight: search.canvasRegionRef.current?.getBoundingClientRect().height ?? 0,
+        windowHeight: typeof window === 'undefined' ? 0 : window.innerHeight,
+        chromeBottom: readoutRowRef.current?.getBoundingClientRect().bottom ?? 0,
+      }),
+      reportTopChrome: (pixels) => chrome.reportTopChrome(pixels),
+    }),
+    [chrome],
+  );
+  const fitExportSnapshot = useSyncExternalStore(
+    fitExport.subscribe,
+    fitExport.getSnapshot,
+    fitExport.getSnapshot,
+  );
+  // The view the mounted renderer is drawing (`diagramView`) is the owner's:
+  // the renderer reports every navigation and the export rebuilds exactly it.
+  // `drawnPlantUml` is likewise reported by the renderer; the owner keeps the
+  // single copy, readable synchronously so a click in the render-before-commit
+  // window still exports the document the Text page will settle on.
+  const {
+    fitRequest,
+    exportStatus,
+    copyFallbackText,
+    diagramView,
+    drawnPlantUml,
+    refreshDialogOpen,
+    scopeHiddenDelta,
+  } = fitExportSnapshot;
+  // The owner releases its pending frame on unmount; StrictMode's
+  // teardown-and-reset re-subscribes and revives the same instance.
+  useEffect(() => () => fitExport.dispose(), [fitExport]);
   // The overlay root is the panel's own element: fullscreen restyles it in
   // place rather than mounting a second copy, so the renderer keeps its zoom
   // and the panel keeps every filter/scope/selection reading.
   const panelRootRef = useRef<HTMLDivElement | null>(null);
   // Where focus returns when the overlay closes.
   const fullscreenButtonRef = useRef<HTMLButtonElement | null>(null);
-  const copyFallbackRef = useRef<HTMLTextAreaElement | null>(null);
   // A fallback dialog opens with its text already selected, so the documented
   // "select and copy" path is one keystroke rather than a drag.
   useEffect(() => {
     if (copyFallbackText === null) return;
-    copyFallbackRef.current?.focus();
-    copyFallbackRef.current?.select();
+    copyFallbackTextareaRef.current?.focus();
+    copyFallbackTextareaRef.current?.select();
   }, [copyFallbackText]);
 
   // The page-internal overlay plus, on a fine pointer, the browser's own
@@ -999,89 +1011,31 @@ export default function ArchitecturePanel({
   // it. Entering fullscreen thereafter changes nothing about that geometry.
   const fillsViewport = fullscreenActive || standalone;
   // Focus moves INTO the drawing on entry and back to the toggle on exit, so
-  // the keyboard reader is never left on a control the overlay covers.
-  const wasFullscreenRef = useRef(false);
+  // the keyboard reader is never left on a control the overlay covers. The
+  // enter/leave rule (and its "nothing to restore" answer) is the owner's.
   useEffect(() => {
-    if (fullscreenActive) {
-      wasFullscreenRef.current = true;
+    const target = fitExport.applyFullscreen(fullscreenActive);
+    if (target === 'canvas') {
       (search.canvasRegionRef.current ?? panelRootRef.current)?.focus();
-      return;
+    } else if (target === 'toggle') {
+      fullscreenButtonRef.current?.focus();
     }
-    if (!wasFullscreenRef.current) return;
-    wasFullscreenRef.current = false;
-    fullscreenButtonRef.current?.focus();
-  }, [fullscreenActive]);
+  }, [fullscreenActive, fitExport]);
   // A different session or project is a different reading: fullscreen must not
   // travel with the panel into it.
   useEffect(() => {
     exitFullscreen();
   }, [sessionId, projectId, exitFullscreen]);
 
-  // Whether the drawing follows the container (Fit) or a scale the reader
-  // chose. The renderer reports it; the fullscreen re-fit below is gated on it,
-  // so entering/leaving the overlay never undoes a manual zoom. A ref, not
-  // state: nothing renders from it, and the toggle's effect must read the
-  // latest report without re-scheduling itself.
-  const zoomModeRef = useRef<'fit' | 'custom'>('fit');
-  const handleZoomModeChange = useCallback((mode: 'fit' | 'custom'): void => {
-    zoomModeRef.current = mode;
-  }, []);
-  // A request to fit the drawing again, sent after a size change THIS panel
-  // caused (the overlay turns the region into `fixed; inset: 0`). The token
-  // makes each toggle its own request; null means no request was made yet.
-  const [fitRequest, setFitRequest] = useState<ArchitectureFitRequest | null>(null);
-  const fitTokenRef = useRef(0);
-  // How much of the viewport-sized canvas the floating chrome (the toolbar and
-  // the readout row) covers is measured here (DOM boxes) and published to the
-  // chrome owner, which hands the reading back to the renderer.
-  const readoutRowRef = useRef<HTMLDivElement | null>(null);
-  const filledViewportMeasuredRef = useRef(false);
-  // Whether the last render was viewport-filled. A TRANSITION (entering or
-  // leaving fullscreen) always re-fits; the standalone page's fill is NOT a
-  // transition, so its first fit waits for the reading that gives the chrome
-  // rows their height.
-  const lastFillsViewportRef = useRef(fillsViewport);
+  // The renderer reports which zoom mode it is in; a manual zoom is the
+  // reader's, so the owner refuses to re-fit after it. A viewport-filled
+  // transition (entering or leaving the overlay) asks for its own fit once the
+  // box has settled; the owner schedules that frame and measures the geometry.
+  // The standalone page's fill is NOT a transition, so its first fit waits for
+  // the reading that gives the chrome rows their height.
   useEffect(() => {
-    const transitioned = lastFillsViewportRef.current !== fillsViewport;
-    lastFillsViewportRef.current = fillsViewport;
-
-    if (!fillsViewport) {
-      if (!transitioned) return;
-      // Back to the flex column: the drawing's height is the region's own again.
-      filledViewportMeasuredRef.current = false;
-      chrome.reportTopChrome(0);
-      if (zoomModeRef.current !== 'fit') return;
-      const frame = requestAnimationFrame(() => {
-        fitTokenRef.current += 1;
-        setFitRequest({
-          token: fitTokenRef.current,
-          viewportHeight: search.canvasRegionRef.current?.getBoundingClientRect().height ?? 0,
-        });
-      });
-      return () => cancelAnimationFrame(frame);
-    }
-
-    // The chrome rows live inside the loaded branch. Measuring before they
-    // mount would read 0 and never re-measure — the defect that left the
-    // standalone page's top row of nodes under the toolbar.
-    if (view.status !== 'loaded') return;
-    if (!transitioned && filledViewportMeasuredRef.current) return;
-    // One frame after the toggle (or the first reading): the overlay's box, or
-    // the region's return to the flex column, is laid out by then, so the fit
-    // uses the settled size.
-    const frame = requestAnimationFrame(() => {
-      filledViewportMeasuredRef.current = true;
-      // The readout row is the LAST in-flow chrome row (the toolbar sits above
-      // it), so its bottom edge is the covered band's height.
-      const chromeBottom = readoutRowRef.current?.getBoundingClientRect().bottom ?? 0;
-      chrome.reportTopChrome(Math.ceil(chromeBottom));
-      // A manual zoom is the reader's; only a fit may be re-issued.
-      if (zoomModeRef.current !== 'fit') return;
-      fitTokenRef.current += 1;
-      setFitRequest({ token: fitTokenRef.current, viewportHeight: window.innerHeight });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [fillsViewport, view.status]);
+    fitExport.applyViewport({ fillsViewport, viewStatus: view.status });
+  }, [fillsViewport, view.status, fitExport]);
 
   // The two knobs and the element/relation selection are owner commands; the
   // owner decides when a change becomes a request (narrowing is answered from
@@ -1325,21 +1279,17 @@ export default function ArchitecturePanel({
   // ── the manual whole-project re-analysis ──────────────────────────────────
   // The status is shared server-side, so a tab opened while another session's
   // job is running shows that run. The dialog is the confirmation step; the
-  // panel owns whether it is open and which control opened it (for focus return).
-  const [refreshDialogOpen, setRefreshDialogOpen] = useState(false);
-  const refreshReturnFocusRef = useRef<HTMLElement | null>(null);
-  // Set when a refresh succeeds, consumed once the refetched reading is on
-  // screen: the new analysis re-lays the graph, so the drawing is fitted again.
-  const pendingRefreshFitRef = useRef(false);
+  // owner holds whether it is open and which control opened it (for focus
+  // return), and the post-success fit it arms is consumed once.
   const handleRefreshSucceeded = useCallback((): void => {
     // A new analysis can change entity ids while `(file, name)` stays stable,
     // so the saved curation must be re-anchored on the NEXT reading.
     curation.resetReconcile();
-    pendingRefreshFitRef.current = true;
+    fitExport.refreshSucceeded();
     // The content-addressed cache is keyed by the manifest, so this is a real
     // refetch of the refreshed analysis rather than a cache hit.
     reload();
-  }, [curation, reload]);
+  }, [curation, fitExport, reload]);
   const refresh = useArchitectureRefresh(projectId, { onSucceeded: handleRefreshSucceeded });
   const refreshRunning = refresh.status.state === 'running';
   // A job failure and a transport failure are different faces of the same
@@ -1348,28 +1298,28 @@ export default function ArchitecturePanel({
     ? refresh.status.error
     : refresh.requestError;
   const openRefreshDialog = useCallback((trigger: HTMLElement | null): void => {
-    refreshReturnFocusRef.current = trigger;
-    setRefreshDialogOpen(true);
-  }, []);
+    fitExport.openRefreshDialog(trigger);
+  }, [fitExport]);
+  // The dialog takes a ref object; this binding reads the owner's return target
+  // when the dialog opens and closes, so there is no second copy to sync.
+  const refreshDialogReturnFocusRef = useMemo(
+    () => ({
+      get current(): HTMLElement | null {
+        return fitExport.getSnapshot().refreshDialogReturnFocus;
+      },
+    }),
+    [fitExport],
+  );
   // A finished job closes the dialog on its own; the footer's updated time (and
   // a failed job's own reading) are the durable evidence.
   useEffect(() => {
-    if (refresh.status.state === 'succeeded') setRefreshDialogOpen(false);
-  }, [refresh.status.state]);
+    fitExport.refreshStatusChanged(refresh.status.state);
+  }, [refresh.status.state, fitExport]);
+  // The refetched reading is back: the owner fits it once (even over a manual
+  // zoom) and clears the armed flag.
   useEffect(() => {
-    if (!pendingRefreshFitRef.current) return;
-    if (view.status !== 'loaded' || refreshing) return;
-    pendingRefreshFitRef.current = false;
-    // "Fit" after a refresh is the same reading the Fit control means: the
-    // refreshed drawing is fitted even if the reader had zoomed the old one.
-    zoomModeRef.current = 'fit';
-    fitTokenRef.current += 1;
-    setFitRequest({
-      token: fitTokenRef.current,
-      viewportHeight: search.canvasRegionRef.current?.getBoundingClientRect().height ?? 0,
-      force: true,
-    });
-  }, [view, refreshing]);
+    fitExport.applyRefreshReading({ viewStatus: view.status, refreshing });
+  }, [view, refreshing, fitExport]);
 
   /**
    * The reader's close gesture for the dock (×, Escape, the Text door toggling
@@ -1482,67 +1432,30 @@ export default function ArchitecturePanel({
 
   // A scope change can find more of the graph and then hide ALL of it behind
   // the element/relation filter: the drawing looks identical and the knob feels
-  // dead. Remember the previous settled reading so the delta can be stated, and
-  // offer the one click that makes those entities visible.
+  // dead. The owner remembers the previous settled reading so the delta can be
+  // stated; the panel offers the one click that makes those entities visible.
   //
   // Declared ABOVE the status branches: a hook added after a conditional
   // return changes the hook order when the panel leaves its loading state.
-  type ScopeHiddenDelta = {
-    readonly scope: number;
-    readonly found: number;
-    readonly kinds: readonly { readonly kind: ArchitectureEntityKind; readonly count: number }[];
-    readonly relations: readonly { readonly type: string; readonly count: number }[];
-  };
   const loadedResult = view.status === 'loaded' ? view.result : null;
   // `readout.related` is the pre-budget total; the truncation reading is the
   // same denominator and is available before the status narrowing.
   const scopeRelatedTotal = loadedResult === null
     ? 0
     : truncationReading(loadedResult, granularity).total;
-  const scopeReadingRef = useRef<{
-    scope: number;
-    related: number;
-    hidden: number;
-    kinds: Readonly<Record<string, number>>;
-    relations: Readonly<Record<string, number>>;
-  } | null>(null);
-  const [scopeHiddenDelta, setScopeHiddenDelta] = useState<ScopeHiddenDelta | null>(null);
-  // The payload the previous reading was taken from. The scope STATE flips
-  // before the new response arrives, so keying the comparison on it would
-  // record the old numbers under the new scope and lose the delta.
-  const scopeResultRef = useRef<ArchitectureGraphResult | null>(null);
+  // The payload identity keys the comparison: the scope STATE flips before the
+  // new response arrives, so keying on it would record the old numbers under
+  // the new scope and lose the delta.
   useEffect(() => {
-    if (loadedResult === null) return;
-    if (scopeResultRef.current === loadedResult) return;
-    scopeResultRef.current = loadedResult;
-    const current = {
+    fitExport.observeScope({
+      result: loadedResult,
       scope,
       related: scopeRelatedTotal,
       hidden: hiddenTotal(hiddenReading),
-      kinds: { ...hiddenReading.byKind } as Record<string, number>,
-      relations: { ...hiddenReading.byRelation },
-    };
-    const previous = scopeReadingRef.current;
-    scopeReadingRef.current = current;
-    if (previous === null) return;
-    const found = current.related - previous.related;
-    const hiddenDelta = current.hidden - previous.hidden;
-    // Only an INCREASE in scope can produce "it found more and hid it"; any
-    // other settled reading (a filter widening that revealed them, a smaller
-    // scope) makes the notice stale, so it is cleared.
-    if (scope <= previous.scope || found <= 0 || hiddenDelta < found) {
-      setScopeHiddenDelta(null);
-      return;
-    }
-    // Only the NEW removals belong to this transition, not the whole reading.
-    const kinds = Object.entries(current.kinds)
-      .map(([kind, count]) => ({ kind: kind as ArchitectureEntityKind, count: count - (previous.kinds[kind] ?? 0) }))
-      .filter((entry) => entry.count > 0);
-    const relations = Object.entries(current.relations)
-      .map(([type, count]) => ({ type, count: count - (previous.relations[type] ?? 0) }))
-      .filter((entry) => entry.count > 0);
-    setScopeHiddenDelta({ scope, found, kinds, relations });
-  }, [loadedResult, scope, scopeRelatedTotal, hiddenReading]);
+      kinds: hiddenReading.byKind,
+      relations: hiddenReading.byRelation,
+    });
+  }, [loadedResult, scope, scopeRelatedTotal, hiddenReading, fitExport]);
   // The one-click fix: every kind the transition hid becomes visible again
   // (a widening, so `changeFilter` re-requests it from the server).
   const showScopeHiddenKinds = (): void => {
@@ -1899,7 +1812,7 @@ export default function ArchitecturePanel({
       view: diagramView,
       grouping: granularity === 'file' ? 'adaptive' : 'raw',
       idShape: nodeIdShapeOf(granularity),
-      drawn: drawnPlantUmlRef.current,
+      drawn: fitExport.getDrawnPlantUml(),
     }).text;
 
   /** The live drawing, read from the panel's own subtree at export time. */
@@ -1910,62 +1823,54 @@ export default function ArchitecturePanel({
     architectureExportFilename(granularity, projectId, new Date(), extension);
 
   const exportPlantUml = (): void => {
-    setExportStatus('');
-    downloadTextFile(currentPlantUml(), artifactFilename('puml'));
+    fitExport.exportPlantUml(currentPlantUml(), artifactFilename('puml'));
   };
 
   const copyPlantUml = async (): Promise<void> => {
-    const text = currentPlantUml();
-    try {
-      if (navigator.clipboard?.writeText === undefined) throw new Error('clipboard-unavailable');
-      await navigator.clipboard.writeText(text);
-      setExportStatus(t('architecture.export.copied', { defaultValue: 'PlantUML copied to the clipboard' }));
-    } catch {
-      // Documented fallback: when the clipboard is unavailable, show the same
-      // text selected in a dialog the reader can copy by hand.
-      setCopyFallbackText(text);
-    }
+    await fitExport.copyPlantUml(currentPlantUml());
   };
 
   const exportSvg = (): void => {
     const svg = renderedSvg();
-    if (svg === null) {
-      setExportStatus(t('architecture.export.notReady', { defaultValue: 'The diagram is not ready to export yet.' }));
-      return;
-    }
-    setExportStatus('');
-    downloadTextFile(serializeSvgForExport(svg), artifactFilename('svg'), 'image/svg+xml;charset=utf-8');
+    fitExport.exportSvg(
+      svg === null ? null : serializeSvgForExport(svg),
+      artifactFilename('svg'),
+    );
   };
 
   const exportPng = async (): Promise<void> => {
     const svg = renderedSvg();
     const natural = svg === null ? null : readSvgNaturalSize(svg);
-    if (svg === null || natural === null) {
-      setExportStatus(t('architecture.export.notReady', { defaultValue: 'The diagram is not ready to export yet.' }));
-      return;
-    }
-    setExportStatus('');
-    const target = pngTargetSize(natural);
-    try {
-      const blob = await rasterizeSvgToPng(serializeSvgForExport(svg), target);
-      downloadBlob(blob, artifactFilename('png'));
-      if (target.downscaled) {
-        setExportStatus(t('architecture.export.pngScaled', {
-          defaultValue: 'The PNG was scaled down so its longest side is {{edge}} px.',
-          edge: EXPORT_PNG_MAX_EDGE,
-        }));
-      }
-    } catch {
-      setExportStatus(t('architecture.export.pngFailed', { defaultValue: 'The PNG could not be created.' }));
-    }
+    await fitExport.exportPng(
+      svg === null || natural === null ? null : serializeSvgForExport(svg),
+      natural,
+      artifactFilename('png'),
+    );
   };
 
   // The Mermaid pair is the LEGACY export and deliberately unchanged: the same
   // server-returned document under the same pre-menu filename.
   const exportMermaid = (): void => {
-    setExportStatus('');
-    downloadTextFile(granularity === 'file' ? mmd.file : mmd.entity, `architecture-${granularity}.mmd`);
+    fitExport.exportMermaid(
+      granularity === 'file' ? mmd.file : mmd.entity,
+      `architecture-${granularity}.mmd`,
+    );
   };
+
+  // The notice the menu's aria-live region states. The owner publishes a kind;
+  // the sentence stays here so the controller needs no translator.
+  const exportStatusText = exportStatus === null
+    ? ''
+    : exportStatus.kind === 'copied'
+      ? t('architecture.export.copied', { defaultValue: 'PlantUML copied to the clipboard' })
+      : exportStatus.kind === 'notReady'
+        ? t('architecture.export.notReady', { defaultValue: 'The diagram is not ready to export yet.' })
+        : exportStatus.kind === 'pngScaled'
+          ? t('architecture.export.pngScaled', {
+            defaultValue: 'The PNG was scaled down so its longest side is {{edge}} px.',
+            edge: exportStatus.edge,
+          })
+          : t('architecture.export.pngFailed', { defaultValue: 'The PNG could not be created.' });
 
   const exportMenu = (
     <ArchitectureExportMenu
@@ -4091,7 +3996,7 @@ export default function ArchitecturePanel({
           closing: success, a downscale notice, or a failure is announced to
           screen readers without moving focus. */}
       <span role="status" aria-live="polite" data-architecture-export-status="true" className="sr-only">
-        {exportStatus}
+        {exportStatusText}
       </span>
 
       {copyFallbackText !== null && (
@@ -4109,7 +4014,7 @@ export default function ArchitecturePanel({
               })}
             </p>
             <textarea
-              ref={copyFallbackRef}
+              ref={copyFallbackTextareaRef}
               readOnly
               value={copyFallbackText}
               aria-label={t('architecture.export.plantUml', { defaultValue: 'PlantUML (.puml)' })}
@@ -4119,7 +4024,7 @@ export default function ArchitecturePanel({
             <div className="mt-2 flex justify-end">
               <button
                 type="button"
-                onClick={() => setCopyFallbackText(null)}
+                onClick={fitExport.dismissCopyFallback}
                 data-architecture-export-fallback-close="true"
                 className="rounded-lg border border-border px-3 py-1 text-sm font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
               >
@@ -4445,12 +4350,12 @@ export default function ArchitecturePanel({
                     // answered by an explicit fit, and only when the drawing is
                     // still fitted — a manual zoom survives the toggle.
                     fitRequest={fitRequest}
-                    onZoomModeChange={handleZoomModeChange}
+                    onZoomModeChange={fitExport.reportZoomMode}
                     // The renderer owns the drill-down view; reporting it keeps
                     // the export menu's PlantUML identical to the drawing.
-                    onViewChange={setDiagramView}
+                    onViewChange={fitExport.setDiagramView}
                     // The model it actually drew, for the text page.
-                    onDrawnPlantUmlChange={handleDrawnPlantUmlChange}
+                    onDrawnPlantUmlChange={fitExport.reportDrawn}
                     focusNodeId={focusTarget?.id ?? null}
                     focusToken={focusTarget?.token}
                     focusDrill={focusTarget?.drill ?? false}
@@ -4761,9 +4666,9 @@ export default function ArchitecturePanel({
         }
         elapsedMs={refresh.elapsedMs}
         error={refreshFailureReason}
-        onClose={() => setRefreshDialogOpen(false)}
+        onClose={fitExport.closeRefreshDialog}
         onStart={refresh.start}
-        returnFocusRef={refreshReturnFocusRef}
+        returnFocusRef={refreshDialogReturnFocusRef}
       />
       </div>
       {/* The provenance/cleanup row is the panel's FOOTER: in the document

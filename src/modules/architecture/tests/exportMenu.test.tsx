@@ -679,6 +679,8 @@ test('the filename and download mechanics exist once in the architecture module'
   assert.deepEqual(withDefinition('function downloadTextFile'), ['exportArtifacts.ts']);
   assert.deepEqual(withDefinition('function downloadBlob'), ['exportArtifacts.ts']);
 
+  // The panel still builds the artifact name it hands to the export owner; the
+  // text page builds and downloads its own document.
   for (const consumer of ['ArchitecturePanel.tsx', 'ArchitectureTextPanel.tsx']) {
     const source = readFileSync(join(moduleDir, consumer), 'utf8');
     assert.match(
@@ -686,10 +688,26 @@ test('the filename and download mechanics exist once in the architecture module'
       /import \{[^}]*\barchitectureExportFilename\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
       `${consumer} must import the shared filename scheme`,
     );
+  }
+  // The download mechanics are the export owner's now: the panel and the text
+  // page must not grow a second copy of them.
+  const textPanelSource = readFileSync(join(moduleDir, 'ArchitectureTextPanel.tsx'), 'utf8');
+  assert.match(
+    textPanelSource,
+    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
+    'ArchitectureTextPanel.tsx must import the shared download helper',
+  );
+  const ownerSource = readFileSync(join(moduleDir, 'architectureFitExportController.ts'), 'utf8');
+  for (const helper of ['downloadTextFile', 'downloadBlob', 'rasterizeSvgToPng']) {
     assert.match(
-      source,
-      /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
-      `${consumer} must import the shared download helper`,
+      ownerSource,
+      new RegExp(`import \\{[^}]*\\b${helper}\\b[^}]*\\} from '@/modules/architecture/exportArtifacts'`, 's'),
+      `the export owner must import the shared ${helper} helper`,
     );
   }
+  assert.doesNotMatch(
+    readFileSync(join(moduleDir, 'ArchitecturePanel.tsx'), 'utf8'),
+    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
+    'the panel forwards the export to its owner instead of downloading itself',
+  );
 });
