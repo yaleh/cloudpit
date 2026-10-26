@@ -31,6 +31,7 @@ extra:
 ## Touches
 
 - src/modules/architecture/semanticZoomLayout.ts
+- src/modules/architecture/semanticZoomPackageBounds.ts
 - src/modules/architecture/semanticZoomPlan.ts
 - src/modules/architecture/tests/semanticZoomLayout.test.ts
 - e2e/architecture-canvas-layout.spec.ts
