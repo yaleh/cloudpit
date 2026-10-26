@@ -859,6 +859,28 @@ run_stage_bg() {
 # can never reorder the `__PERFILE__` rows. Both stages always run and either being red still makes
 # the run red (record() sets FAIL; the tail's `# fail N` and exit test are unchanged).
 run_static_stages_parallel() {
+  # ── criterion-mutant residue sweep (gap-criterion-mutant-residue-sweep) ──────────────────────
+  #
+  # The false-form criteria write a mutated copy of the module under test next to it (so relative
+  # imports resolve) and delete it in a `finally`. A process killed by the per-file timeout, an OOM,
+  # or SIGKILL never reaches its `finally`, leaving an untracked `__criterion-falsify-*` file in the
+  # source tree — excluded from the build by name, but read as real source by `git status` and by
+  # ArchGuard's duplicate scan (one leftover produced 14 of a day's 85 groups). Sweep them before the
+  # first stage of every full run: the writer is gone by definition, so the next run is the natural
+  # place to notice. The sweep NEVER deletes a copy whose pid is still alive.
+  #
+  # The output goes to the suite log (stderr is captured with stdout by fan-in) rather than to stdout,
+  # whose `__PERFILE__` / dry-run lines are a contract surface quay's per-file parser reads. A sweep
+  # failure changes nothing: the tool always exits 0, and this block never fails a stage.
+  node scripts/sweep-criterion-residue.mjs --apply \
+    >"$TMP/stage-sweep-criterion-residue.out" 2>&1
+  _sweep_rc=$?
+  {
+    printf '# criterion-residue sweep (rc=%s)\n' "$_sweep_rc"
+    cat "$TMP/stage-sweep-criterion-residue.out"
+  } 1>&2
+  unset _sweep_rc
+
   run_stage_bg typecheck npm run typecheck
   run_stage_bg lint npm run lint
   wait
