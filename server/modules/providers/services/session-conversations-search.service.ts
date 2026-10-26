@@ -14,6 +14,11 @@ import {
   isInternalContent,
   parseLocalCommandPayload,
 } from '@/modules/providers/list/claude/claude-transcript-format.js';
+import {
+  extractCodexText,
+  isInternalCodexContent,
+  isVisibleCodexUserMessage,
+} from '@/modules/providers/list/codex/codex-transcript-format.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex';
@@ -193,15 +198,6 @@ const UNKNOWN_PROJECT_KEY = '__unknown_project__';
  */
 const DEFAULT_MAX_SCANNED_FILES = 200;
 const DEFAULT_MAX_SCAN_MS = 3_000;
-
-/**
- * Codex includes extra internal metadata tags that should not surface as
- * user-facing searchable conversation content.
- */
-const CODEX_INTERNAL_CONTENT_PREFIXES = [
-  '<environment_context>',
-  '<cwd>',
-] as const;
 
 function normalizeComparablePath(inputPath: string): string {
   if (!inputPath || typeof inputPath !== 'string') {
@@ -395,11 +391,6 @@ function findSessionTitleResults(
     })
     .slice(0, limit)
     .map(({ matchIndex: _matchIndex, ...result }) => result);
-}
-
-function isInternalCodexContent(content: string): boolean {
-  const normalized = content.trimStart();
-  return CODEX_INTERNAL_CONTENT_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 function escapeRegex(value: string): string {
@@ -617,35 +608,6 @@ function extractClaudeSearchableMessage(entry: AnyRecord): ClaudeSearchableMessa
     text,
     role: rawRole,
   };
-}
-
-function extractCodexText(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const record = item as AnyRecord;
-      if (
-        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
-        && typeof record.text === 'string'
-      ) {
-        return record.text;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
-    .join(' ');
 }
 
 function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSessionRow[] {
@@ -1096,18 +1058,6 @@ async function parseClaudeSessionMatches(
   return runtime.claudeFileResultsCache.get(fileKey)?.get(session.session_id) ?? null;
 }
 
-function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
-  if (!payload || payload.type !== 'user_message') {
-    return false;
-  }
-
-  if (payload.kind && payload.kind !== 'plain') {
-    return false;
-  }
-
-  return typeof payload.message === 'string' && payload.message.trim().length > 0;
-}
-
 async function parseCodexSessionMatches(
   session: SearchableSessionRow,
   runtime: SearchRuntime,
@@ -1151,10 +1101,10 @@ async function parseCodexSessionMatches(
       } else if (entry.type === 'response_item' && entry.payload?.type === 'message') {
         const payload = entry.payload as AnyRecord;
         if (payload.role === 'user') {
-          text = extractCodexText(payload.content);
+          text = extractCodexText(payload.content, ' ');
           role = 'user';
         } else if (payload.role === 'assistant') {
-          text = extractCodexText(payload.content);
+          text = extractCodexText(payload.content, ' ');
           role = 'assistant';
         }
       } else if (entry.type === 'response_item' && entry.payload?.type === 'reasoning') {
