@@ -2,7 +2,7 @@
 id: gap-database-migration-column-and-flag-helpers
 title: 数据库样板收敛：12 个 add*Column 迁移改用 ensureColumns，projects 的 4 个
   isStarred/isArchived 写入合成一个私有 setter
-status: needs-human
+status: ready
 labels:
   - gap
 parent: null
@@ -67,6 +67,17 @@ extra:
    - 点击星标（`POST /api/projects/<id>/toggle-star` → `{"success":true,"isStarred":true}`）：DB 行 `isStarred` 0 → 1，`isArchived` 保持 0。
    - hover 行 → 垃圾桶 → 弹窗「Archive project」（`DELETE /api/projects/<id>` → 200）：DB 行 `isArchived` 0 → 1，`isStarred` 保持 1。
    - 截图：`tmp/dod-migrations/01-before.png`、`02-after-star.png`、`03-archive-modal.png`、`04-after-archive.png`；读数 `tmp/dod-migrations/report.json`（`pageErrors` 为空）。真实 `~/.cloudcli/auth.db` 只被只读 backup 读取，未写入。
+
+### 第三轮复核（2026-10-26，合并 develop 后重跑）
+
+- 前两轮 suite 红 `architecture-ratchet.test.ts`（`semanticZoomLayout.ts 1642→1688`）的真因是**分支落后于 develop**，不是本任务代码：develop 已由 `gap-codex-transcript-format-shared-helpers` 按基线 note 的 RECORDED CHANGE 格式把 `semanticZoomLayout.ts` 1642→1688、`semanticZoomPlan.ts` 876→894 重录进 `server/shared/tests/architecture-ratchet.baseline.json`，而本任务分支此前仍带旧基线。本轮 `git merge develop`（ort，无冲突；任务文件仅 status `needs-human`→`ready`）后单文件复跑 `architecture-ratchet.test.ts`：6 passed / 0 failed；本任务的去重使 `smallHelperCopies 31→6`、`migrations.ts 1170→1167`，读数只降不升。
+- 合并后 7/7 AC 逐条复跑：AC1 `0` / `ensureColumns` @76；AC2 `12`；AC3 `setProjectFlag` @37 + awk exit 0；AC4 tests 2/pass 2；AC5 tests 18/pass 18；AC6 tests 11/pass 11 且对 merge-base 的基线/测试 diff 为空；AC7 `tsc --noEmit -p server/tsconfig.json` 与 `oxlint server/modules/database` 均 exit 0。
+- anti-drift Touches：5 个实际文件全部落在声明的 6 条 glob 内，exit 0；与 develop 的 delta 为 `scripts/suite-duration-baseline.tsv`、`server/modules/database/migrations.ts`、`server/modules/database/repositories/projects.db.ts`、新判据 `migrations-ensure-columns.test.ts`、`server/shared/tests/quay-test-script.test.ts`。
+
+## ADR-007 dark axis
+
+- L_D 该轴仍暗，理由：本任务只把 `add*Column` 迁移样板与 isStarred/isArchived 写入收敛到文件内的私有 helper，不新增或改变任何领域数据通路/数据结构，没有可读的领域数据轴读数。
+- L_G 该轴仍暗，理由：替换是行为等价的——迁移 DDL 与执行顺序逐字不变，四个公开方法签名与 SQL 语义不变，不产出生成质量读数。
 
 ## Touches
 
