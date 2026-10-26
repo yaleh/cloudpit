@@ -1,3 +1,5 @@
+import { createExternalStore } from '@/shared/utils';
+
 import type { ArchitectureEntityKind } from '@/modules/architecture/rendererContract';
 
 /**
@@ -249,23 +251,23 @@ export function createCurationStore(options: {
   const key = curationStorageKey(projectId, sessionId);
   const canEdit = key !== null;
 
-  let state = readCurationState(storage, projectId, sessionId);
+  /** The current curation reading; every action and `getState` reads through it. */
+  const store = createExternalStore<ArchitectureCurationState>(
+    readCurationState(storage, projectId, sessionId),
+  );
+  const state = (): ArchitectureCurationState => store.getSnapshot();
   const history: ArchitectureCurationState[] = [];
-  const listeners = new Set<() => void>();
-
-  const notify = (): void => {
-    for (const listener of [...listeners]) listener();
-  };
 
   const commit = (next: ArchitectureCurationState, keepHistory = true): CurationActionResult => {
     if (keepHistory) {
-      history.push(state);
+      history.push(state());
       if (history.length > CURATION_UNDO_DEPTH) history.shift();
     }
-    state = next;
-    writeCurationState(storage, projectId, sessionId, state);
-    notify();
-    return { ok: true, state };
+    // Persist before publishing: a listener that reads storage during the
+    // notification must see the value the store is about to hand out.
+    writeCurationState(storage, projectId, sessionId, next);
+    store.set(next);
+    return { ok: true, state: next };
   };
 
   const refusal = (code: CurationFailureCode, limit?: number): CurationActionResult => ({
@@ -286,16 +288,17 @@ export function createCurationStore(options: {
 
   return {
     canEdit,
-    getState: () => state,
+    getState: state,
 
     pin(item) {
       if (!canEdit) return refusal('NO_SESSION');
-      const existing = state.pins.find((entry) => entry.id === item.id);
-      if (existing !== undefined && sameItem(existing, item)) return { ok: true, state };
-      if (existing === undefined && state.pins.length >= CURATION_LIMITS.pins) {
+      const current = state();
+      const existing = current.pins.find((entry) => entry.id === item.id);
+      if (existing !== undefined && sameItem(existing, item)) return { ok: true, state: current };
+      if (existing === undefined && current.pins.length >= CURATION_LIMITS.pins) {
         return refusal('LIMIT_REACHED', CURATION_LIMITS.pins);
       }
-      const base = withoutExcluded(state, item.id);
+      const base = withoutExcluded(current, item.id);
       const pins = existing === undefined
         ? [...base.pins, item]
         : base.pins.map((entry) => (entry.id === item.id ? item : entry));
@@ -304,19 +307,21 @@ export function createCurationStore(options: {
 
     unpin(id) {
       if (!canEdit) return refusal('NO_SESSION');
-      if (!state.pins.some((entry) => entry.id === id)) return { ok: true, state };
-      return commit(withoutPin(state, id));
+      const current = state();
+      if (!current.pins.some((entry) => entry.id === id)) return { ok: true, state: current };
+      return commit(withoutPin(current, id));
     },
 
     exclude(item) {
       if (!canEdit) return refusal('NO_SESSION');
-      const existing = state.excluded.find((entry) => entry.id === item.id);
-      if (existing !== undefined && sameItem(existing, item)) return { ok: true, state };
-      if (existing === undefined && state.excluded.length >= CURATION_LIMITS.excluded) {
+      const current = state();
+      const existing = current.excluded.find((entry) => entry.id === item.id);
+      if (existing !== undefined && sameItem(existing, item)) return { ok: true, state: current };
+      if (existing === undefined && current.excluded.length >= CURATION_LIMITS.excluded) {
         return refusal('LIMIT_REACHED', CURATION_LIMITS.excluded);
       }
       // "后做的覆盖先做的": a removal supersedes a pin of the same entity.
-      const base = withoutPin(state, item.id);
+      const base = withoutPin(current, item.id);
       const excluded = existing === undefined
         ? [...base.excluded, item]
         : base.excluded.map((entry) => (entry.id === item.id ? item : entry));
@@ -325,46 +330,52 @@ export function createCurationStore(options: {
 
     restore(id) {
       if (!canEdit) return refusal('NO_SESSION');
-      if (!state.excluded.some((entry) => entry.id === id)) return { ok: true, state };
-      return commit(withoutExcluded(state, id));
+      const current = state();
+      if (!current.excluded.some((entry) => entry.id === id)) return { ok: true, state: current };
+      return commit(withoutExcluded(current, id));
     },
 
     hideEdge(edge) {
       if (!canEdit) return refusal('NO_SESSION');
-      if (state.hiddenEdges.some((entry) => sameEdge(entry, edge))) return { ok: true, state };
-      if (state.hiddenEdges.length >= CURATION_LIMITS.hiddenEdges) {
+      const current = state();
+      if (current.hiddenEdges.some((entry) => sameEdge(entry, edge))) return { ok: true, state: current };
+      if (current.hiddenEdges.length >= CURATION_LIMITS.hiddenEdges) {
         return refusal('LIMIT_REACHED', CURATION_LIMITS.hiddenEdges);
       }
-      return commit({ ...state, hiddenEdges: [...state.hiddenEdges, edge] });
+      return commit({ ...current, hiddenEdges: [...current.hiddenEdges, edge] });
     },
 
     showEdge(edge) {
       if (!canEdit) return refusal('NO_SESSION');
-      if (!state.hiddenEdges.some((entry) => sameEdge(entry, edge))) return { ok: true, state };
+      const current = state();
+      if (!current.hiddenEdges.some((entry) => sameEdge(entry, edge))) return { ok: true, state: current };
       return commit({
-        ...state,
-        hiddenEdges: state.hiddenEdges.filter((entry) => !sameEdge(entry, edge)),
+        ...current,
+        hiddenEdges: current.hiddenEdges.filter((entry) => !sameEdge(entry, edge)),
       });
     },
 
     restoreGroup(group) {
       if (!canEdit) return refusal('NO_SESSION');
-      if (state[group].length === 0) return { ok: true, state };
-      return commit({ ...state, [group]: [] });
+      const current = state();
+      if (current[group].length === 0) return { ok: true, state: current };
+      return commit({ ...current, [group]: [] });
     },
 
     restoreAll() {
       if (!canEdit) return refusal('NO_SESSION');
-      const total = state.pins.length + state.excluded.length + state.hiddenEdges.length;
-      if (total === 0) return { ok: true, state };
+      const current = state();
+      const total = current.pins.length + current.excluded.length + current.hiddenEdges.length;
+      if (total === 0) return { ok: true, state: current };
       return commit(emptyCurationState());
     },
 
     clearItem(group, id) {
       if (!canEdit) return refusal('NO_SESSION');
-      const list = group === 'pins' ? state.pins : state.excluded;
-      if (!list.some((entry) => entry.id === id)) return { ok: true, state };
-      return commit(group === 'pins' ? withoutPin(state, id) : withoutExcluded(state, id));
+      const current = state();
+      const list = group === 'pins' ? current.pins : current.excluded;
+      if (!list.some((entry) => entry.id === id)) return { ok: true, state: current };
+      return commit(group === 'pins' ? withoutPin(current, id) : withoutExcluded(current, id));
     },
 
     reconcile(entries) {
@@ -384,36 +395,31 @@ export function createCurationStore(options: {
         if (item.stale !== true && item.id === id) return item;
         return next;
       };
-      const pins = state.pins.map(reanchor);
-      const excluded = state.excluded.map(reanchor);
-      const changed = pins.some((entry, index) => entry !== state.pins[index])
-        || excluded.some((entry, index) => entry !== state.excluded[index]);
+      const current = state();
+      const pins = current.pins.map(reanchor);
+      const excluded = current.excluded.map(reanchor);
+      const changed = pins.some((entry, index) => entry !== current.pins[index])
+        || excluded.some((entry, index) => entry !== current.excluded[index]);
       if (!changed) return;
       // Re-anchoring is a system correction, not a reader gesture: it does not
       // push an undo entry (undoing it would merely restore an id that no
       // longer exists).
-      state = { ...state, pins, excluded };
-      writeCurationState(storage, projectId, sessionId, state);
-      notify();
+      const next = { ...current, pins, excluded };
+      writeCurationState(storage, projectId, sessionId, next);
+      store.set(next);
     },
 
     undo() {
       if (!canEdit) return refusal('NO_SESSION');
       const previous = history.pop();
-      if (previous === undefined) return { ok: true, state };
-      state = previous;
-      writeCurationState(storage, projectId, sessionId, state);
-      notify();
-      return { ok: true, state };
+      if (previous === undefined) return { ok: true, state: state() };
+      writeCurationState(storage, projectId, sessionId, previous);
+      store.set(previous);
+      return { ok: true, state: previous };
     },
 
     canUndo: () => history.length > 0,
 
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: store.subscribe,
   };
 }

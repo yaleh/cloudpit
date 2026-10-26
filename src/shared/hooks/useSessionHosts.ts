@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 import { api, readApiJson } from '@/shared/api';
+import { createExternalStore } from '@/shared/utils';
 import type {
   ResidentProcessState,
   SessionHostBindingView,
@@ -88,12 +89,19 @@ export class SessionHostsStore {
   /**
    * The reading every subscriber renders. Replaced wholesale on every change so
    * `useSyncExternalStore` sees a new reference; the snapshot is kept across a
-   * failed read while `error` names the failure.
+   * failed read while `error` names the failure. The store's subscriber
+   * lifecycle is what starts and stops the poller.
    */
-  private state: SessionHostsStoreState = { snapshot: null, error: null, loading: false };
+  private readonly store = createExternalStore<SessionHostsStoreState>(
+    { snapshot: null, error: null, loading: false },
+    {
+      onFirstSubscriber: () => this.start(),
+      onLastUnsubscriber: () => this.stop(),
+    },
+  );
 
-  /** The components subscribed through `useSyncExternalStore`. */
-  private readonly listeners = new Set<() => void>();
+  /** True between {@link start} and {@link stop}, i.e. while a reader is subscribed. */
+  private active = false;
 
   /** The one fallback poller, running between {@link start} and {@link stop}. */
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -124,6 +132,7 @@ export class SessionHostsStore {
    * fallback poller running. The first subscriber calls this.
    */
   start(): void {
+    this.active = true;
     void this.refresh();
     this.startFallbackPoll();
   }
@@ -133,6 +142,7 @@ export class SessionHostsStore {
    * burst of frames had scheduled. The last unsubscribe calls this.
    */
   stop(): void {
+    this.active = false;
     this.stopFallbackPoll();
     this.clearCoalescedRefresh();
   }
@@ -143,23 +153,12 @@ export class SessionHostsStore {
    * has no listener.
    */
   subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-
-    if (this.listeners.size === 1) {
-      this.start();
-    }
-
-    return () => {
-      this.listeners.delete(listener);
-      if (this.listeners.size === 0) {
-        this.stop();
-      }
-    };
+    return this.store.subscribe(listener);
   }
 
   /** The current reading, in the shape `useSyncExternalStore` reads. */
   readState(): SessionHostsStoreState {
-    return this.state;
+    return this.store.getSnapshot();
   }
 
   /**
@@ -197,7 +196,7 @@ export class SessionHostsStore {
    * for. The first subscriber reads the listing itself, so no change is missed.
    */
   invalidate(rev?: number): void {
-    if (this.listeners.size === 0) {
+    if (!this.active) {
       return;
     }
 
@@ -231,7 +230,7 @@ export class SessionHostsStore {
       this.appliedRev = null;
     }
 
-    if (this.listeners.size === 0) {
+    if (!this.active) {
       return;
     }
 
@@ -242,10 +241,7 @@ export class SessionHostsStore {
   }
 
   private emit(next: SessionHostsStoreState): void {
-    this.state = next;
-    for (const listener of this.listeners) {
-      listener();
-    }
+    this.store.set(next);
   }
 
   private async readSnapshot(): Promise<void> {
@@ -263,8 +259,9 @@ export class SessionHostsStore {
       // known" rather than the stale word the kept snapshot would otherwise
       // repeat. Re-emitting the same message would re-render every subscriber for
       // nothing, so it is not.
-      if (message !== this.state.error) {
-        this.emit({ ...this.state, error: message, loading: false });
+      const current = this.store.getSnapshot();
+      if (message !== current.error) {
+        this.emit({ ...current, error: message, loading: false });
       }
     }
   }

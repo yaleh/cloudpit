@@ -1,5 +1,6 @@
 import { synthesizeVoice, voiceConfigSignature } from '@/shared/api';
 import type { VoicePlayState, VoiceSnapshot } from '@/shared/types';
+import { createBoundedLru, createExternalStore } from '@/shared/utils';
 
 // A single app-level audio player for read-aloud. It owns one <audio> element, lives
 // outside the React tree, and caches generated audio by content. Because playback is not
@@ -12,6 +13,21 @@ const IDLE: VoiceSnapshot = { state: 'idle', error: null };
 const CACHE_MAX = 24;
 const CLIENT_TIMEOUT_MS = 330000; // backstop; the server proxy already times out at 5 min
 
+/** The whole player reading; a per-utterance `getSnapshot` derives from it by id. */
+type VoicePlayerReading = {
+  currentId: string | null;
+  state: VoicePlayState;
+  errorId: string | null;
+  errorMsg: string | null;
+};
+
+const IDLE_READING: VoicePlayerReading = {
+  currentId: null,
+  state: 'idle',
+  errorId: null,
+  errorMsg: null,
+};
+
 // Stable id / cache key from the text and voice settings that affect its audio (djb2).
 export function voiceId(content: string, signature = voiceConfigSignature()): string {
   const input = JSON.stringify([content, signature]);
@@ -23,30 +39,25 @@ export function voiceId(content: string, signature = voiceConfigSignature()): st
 class VoicePlayer {
   private audio: HTMLAudioElement | null = null;
   private unlocked = false;
-  private cache = new Map<string, string>(); // id -> blob URL (insertion order = LRU)
-  private currentId: string | null = null;
-  private state: VoicePlayState = 'idle';
-  private errorId: string | null = null;
-  private errorMsg: string | null = null;
+  private cache = createBoundedLru<string, string>(CACHE_MAX); // id -> blob URL
+  private readonly store = createExternalStore<VoicePlayerReading>(IDLE_READING);
   private token = 0; // bumps to ignore stale in-flight results
   private activeController: AbortController | null = null; // aborts the in-flight TTS fetch
   private errorTimer: ReturnType<typeof setTimeout> | null = null;
-  private listeners = new Set<() => void>();
 
   subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.store.subscribe(listener);
   }
 
-  private emit() {
-    this.listeners.forEach((l) => l());
+  /** Applies the reading fields one command changed; subscribers are notified once. */
+  private patch(reading: Partial<VoicePlayerReading>): void {
+    this.store.update((current) => ({ ...current, ...reading }));
   }
 
   getSnapshot(id: string): VoiceSnapshot {
-    const state = this.currentId === id ? this.state : 'idle';
-    const error = this.errorId === id ? this.errorMsg : null;
+    const reading = this.store.getSnapshot();
+    const state = reading.currentId === id ? reading.state : 'idle';
+    const error = reading.errorId === id ? reading.errorMsg : null;
     if (state === 'idle' && error === null) return IDLE;
     return { state, error };
   }
@@ -57,7 +68,8 @@ class VoicePlayer {
    * per-utterance `getSnapshot` cannot answer it, because they do not know the id.
    */
   isBusy(): boolean {
-    return this.state === 'loading' || this.state === 'playing';
+    const { state } = this.store.getSnapshot();
+    return state === 'loading' || state === 'playing';
   }
 
   private ensureAudio(): HTMLAudioElement {
@@ -66,7 +78,7 @@ class VoicePlayer {
       audio.addEventListener('ended', () => this.onEnded());
       audio.addEventListener('error', () => {
         // Only meaningful while we believe we're playing.
-        if (this.state === 'playing') this.onEnded();
+        if (this.store.getSnapshot().state === 'playing') this.onEnded();
       });
       this.audio = audio;
     }
@@ -89,7 +101,8 @@ class VoicePlayer {
 
   toggle(content: string) {
     const id = voiceId(content);
-    if (this.currentId === id && (this.state === 'playing' || this.state === 'loading')) {
+    const { currentId, state } = this.store.getSnapshot();
+    if (currentId === id && (state === 'playing' || state === 'loading')) {
       this.stop();
       return;
     }
@@ -100,9 +113,7 @@ class VoicePlayer {
     this.token++; // ignore any stale in-flight result
     this.abortActive(); // and actually cancel the network request
     if (this.audio) this.audio.pause();
-    this.state = 'idle';
-    this.currentId = null;
-    this.emit();
+    this.patch({ state: 'idle', currentId: null });
   }
 
   private abortActive() {
@@ -113,37 +124,27 @@ class VoicePlayer {
   }
 
   private onEnded() {
-    this.state = 'idle';
-    this.currentId = null;
-    this.emit();
+    this.patch({ state: 'idle', currentId: null });
     // (queue auto-advance would hook in here)
   }
 
   private setError(id: string, msg: string) {
-    this.state = 'idle';
-    this.currentId = id;
-    this.errorId = id;
-    this.errorMsg = msg;
-    this.emit();
+    this.patch({ state: 'idle', currentId: id, errorId: id, errorMsg: msg });
     if (this.errorTimer) clearTimeout(this.errorTimer);
     this.errorTimer = setTimeout(() => {
-      if (this.errorId === id) {
-        this.errorId = null;
-        this.errorMsg = null;
-        if (this.currentId === id) this.currentId = null;
-        this.emit();
-      }
+      if (this.store.getSnapshot().errorId !== id) return;
+      this.patch({
+        errorId: null,
+        errorMsg: null,
+        ...(this.store.getSnapshot().currentId === id ? { currentId: null } : {}),
+      });
     }, 6000);
   }
 
   private async play(id: string, content: string) {
     const audio = this.ensureAudio();
     audio.pause();
-    this.currentId = id;
-    this.errorId = null;
-    this.errorMsg = null;
-    this.state = 'loading';
-    this.emit();
+    this.patch({ currentId: id, errorId: null, errorMsg: null, state: 'loading' });
 
     const myToken = ++this.token;
     this.abortActive(); // cancel any request this play supersedes
@@ -179,8 +180,7 @@ class VoicePlayer {
       audio.load();
       await audio.play();
       if (myToken !== this.token) return;
-      this.state = 'playing';
-      this.emit();
+      this.patch({ state: 'playing' });
     } catch (e) {
       if (myToken !== this.token) return;
       const aborted = e instanceof Error && e.name === 'AbortError';
@@ -189,13 +189,11 @@ class VoicePlayer {
   }
 
   private cacheSet(id: string, url: string) {
-    this.cache.set(id, url);
-    while (this.cache.size > CACHE_MAX) {
-      const oldest = this.cache.keys().next().value as string | undefined;
-      if (oldest === undefined) break;
-      const oldUrl = this.cache.get(oldest);
-      this.cache.delete(oldest);
-      if (oldUrl && oldUrl !== this.audio?.src) URL.revokeObjectURL(oldUrl);
+    const evicted = this.cache.set(id, url);
+    // The evicted blob URL is no longer reachable from the cache; release it unless
+    // the audio element is still playing it.
+    if (evicted !== undefined && evicted !== this.audio?.src) {
+      URL.revokeObjectURL(evicted);
     }
   }
 }

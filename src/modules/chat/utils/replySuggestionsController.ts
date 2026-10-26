@@ -1,4 +1,5 @@
 import type {
+  Clock,
   ReplySuggestionsEventInput,
   ReplySuggestionsEventName,
   ReplySuggestionsExpansionSource,
@@ -6,6 +7,7 @@ import type {
   ReplySuggestionsResult,
   ReplySuggestionsStatus,
 } from '@/shared/types';
+import { createBoundedLru, createExternalStore, defaultClock } from '@/shared/utils';
 
 /**
  * The composer's reply-chip controller: every rule of the model and expansion
@@ -75,10 +77,7 @@ const DEFAULT_MAX_CHIPS = 3;
 type CachedBatch = { chips: string[]; draw: number };
 
 /** Starts and cancels the one settle timer; injectable so tests need no wall clock. */
-export type ReplySuggestionsClock = {
-  setTimeout: (callback: () => void, milliseconds: number) => unknown;
-  clearTimeout: (handle: unknown) => void;
-};
+export type ReplySuggestionsClock = Pick<Clock, 'setTimeout' | 'clearTimeout'>;
 
 /**
  * The page-level table of remembered batches.
@@ -97,15 +96,9 @@ export type ReplySuggestionsBatchCache = {
 export function createReplySuggestionsBatchCache(
   capacity: number = REPLY_SUGGESTIONS_BATCH_CACHE_SIZE,
 ): ReplySuggestionsBatchCache {
-  const batches = new Map<string, CachedBatch>();
+  const batches = createBoundedLru<string, CachedBatch>(capacity);
 
-  const read = (key: string): CachedBatch | null => {
-    const cached = batches.get(key);
-    if (cached === undefined) return null;
-    batches.delete(key);
-    batches.set(key, cached);
-    return cached;
-  };
+  const read = (key: string): CachedBatch | null => batches.get(key) ?? null;
 
   const write = (key: string, batch: CachedBatch): void => {
     // An empty batch is not a batch: remembering it would suppress the retry the
@@ -114,13 +107,8 @@ export function createReplySuggestionsBatchCache(
       batches.delete(key);
       return;
     }
-    batches.delete(key);
+    // `set` refreshes recency and evicts the oldest key past capacity.
     batches.set(key, batch);
-    while (batches.size > capacity) {
-      const oldest = batches.keys().next().value;
-      if (oldest === undefined) break;
-      batches.delete(oldest);
-    }
   };
 
   return { read, write, clear: () => batches.clear() };
@@ -210,11 +198,6 @@ export type ReplySuggestionsController = {
   dispose: () => void;
 };
 
-const defaultClock: ReplySuggestionsClock = {
-  setTimeout: (callback, milliseconds) => globalThis.setTimeout(callback, milliseconds),
-  clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
-};
-
 const emptyContext: ReplySuggestionsContext = {
   sessionId: null,
   lastAssistantMessageId: null,
@@ -242,7 +225,6 @@ export function createReplySuggestionsController(options: {
   const clock = options.clock ?? defaultClock;
   const cache = options.cache ?? createReplySuggestionsBatchCache();
 
-  const listeners = new Set<() => void>();
   let context: ReplySuggestionsContext = emptyContext;
   let started = false;
   let disposed = false;
@@ -285,19 +267,13 @@ export function createReplySuggestionsController(options: {
       && expansionDepth < REPLY_SUGGESTIONS_MAX_EXPANSION_DEPTH,
   });
 
-  let snapshot = buildSnapshot();
-
-  const notify = (): void => {
-    for (const listener of [...listeners]) {
-      listener();
-    }
-  };
+  const store = createExternalStore<ReplySuggestionsSnapshot>(buildSnapshot());
 
   /** Rebuilds the snapshot and notifies only when a published field changed. */
   const publish = (): void => {
     if (disposed) return;
     const next = buildSnapshot();
-    const previous = snapshot;
+    const previous = store.getSnapshot();
     if (
       previous.status === next.status
       && previous.chips === next.chips
@@ -313,8 +289,7 @@ export function createReplySuggestionsController(options: {
     ) {
       return;
     }
-    snapshot = next;
-    notify();
+    store.set(next);
   };
 
   const clearSettleTimer = (): void => {
@@ -579,13 +554,8 @@ export function createReplySuggestionsController(options: {
   };
 
   return {
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    getSnapshot: () => snapshot,
+    subscribe: store.subscribe,
+    getSnapshot: store.getSnapshot,
     setContext,
     redraw,
     requestExpansion,
@@ -594,7 +564,6 @@ export function createReplySuggestionsController(options: {
     dispose: () => {
       disposed = true;
       clearSettleTimer();
-      listeners.clear();
     },
   };
 }

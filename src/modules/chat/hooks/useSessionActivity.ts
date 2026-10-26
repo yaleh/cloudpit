@@ -28,6 +28,7 @@ import { useContext, useEffect, useSyncExternalStore } from 'react';
 import WebSocketContext from '@/shared/context/WebSocketContext';
 import { fetchSessionActivity } from '@/shared/api';
 import type { ActivityScheduleView, ActivityTaskState, ActivityTaskView, DeliveryView } from '@/shared/types';
+import { createExternalStore } from '@/shared/utils';
 
 /** One session's background-work view, as the last snapshot/upsert frame left it. */
 export type SessionActivityView = {
@@ -92,14 +93,12 @@ function readDeliveries(value: unknown): DeliveryView[] {
   return Array.isArray(value) ? (value as DeliveryView[]) : EMPTY_DELIVERIES;
 }
 
-const views = new Map<string, SessionActivityView>();
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of [...listeners]) {
-    listener();
-  }
-}
+/**
+ * Every held session's view, keyed by session id. Replaced wholesale per frame
+ * so `useSyncExternalStore` sees a new map; a session whose own view did not
+ * change keeps the same object identity and does not re-render.
+ */
+const activityStore = createExternalStore<ReadonlyMap<string, SessionActivityView>>(new Map());
 
 /**
  * Applies one whole activity frame for a session, replacing its view.
@@ -121,13 +120,14 @@ export function applyActivityFrame(input: {
     return;
   }
 
-  views.set(sessionId, {
+  const next = new Map(activityStore.getSnapshot());
+  next.set(sessionId, {
     rev: typeof input.rev === 'number' && Number.isFinite(input.rev) ? input.rev : 0,
     tasks: Array.isArray(input.tasks) ? (input.tasks as ActivityTaskView[]) : [],
     schedules: Array.isArray(input.schedules) ? (input.schedules as ActivityScheduleView[]) : [],
     deliveries: readDeliveries(input.deliveries),
   });
-  emit();
+  activityStore.set(next);
 }
 
 /** The session's current view, or the stable empty view when it has none. */
@@ -135,7 +135,7 @@ export function readSessionActivityView(sessionId?: string | null): SessionActiv
   if (!sessionId) {
     return EMPTY_VIEW;
   }
-  return views.get(sessionId) ?? EMPTY_VIEW;
+  return activityStore.getSnapshot().get(sessionId) ?? EMPTY_VIEW;
 }
 
 /**
@@ -156,7 +156,7 @@ export function findTaskByToolUseId(toolUseId?: string | null): ActivityTaskView
   if (!toolUseId) {
     return null;
   }
-  for (const view of views.values()) {
+  for (const view of activityStore.getSnapshot().values()) {
     const task = view.tasks.find((candidate) => candidate.toolUseId === toolUseId);
     if (task) {
       return task;
@@ -166,10 +166,7 @@ export function findTaskByToolUseId(toolUseId?: string | null): ActivityTaskView
 }
 
 function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return activityStore.subscribe(listener);
 }
 
 /**
@@ -278,7 +275,6 @@ export function useTaskByToolUseId(toolUseId?: string | null): ActivityTaskView 
 
 /** Drops every session's view. Test-only; production never clears this. */
 export function resetSessionActivityStore(): void {
-  views.clear();
+  activityStore.set(new Map());
   snapshotFetched.clear();
-  emit();
 }

@@ -19,6 +19,7 @@
  * cache and the DOM. Consumers: `PlantUmlGraph.tsx` (the render pipeline and
  * the readout) and `tests/layoutAspect.test.tsx`.
  */
+import { createBoundedLru } from '@/shared/utils';
 
 /** The two layered-layout directions this policy chooses between. */
 export type LayoutOrientation = 'DOWN' | 'RIGHT';
@@ -294,34 +295,22 @@ export type OrientationCache = {
 const ORIENTATION_CACHE_LIMIT = 32;
 
 /**
- * Create a bounded decision cache. Insertion order is eviction order (the
- * oldest key goes first), which is enough for a per-canvas cache: the drawing
- * on screen is always the most recently inserted.
+ * Create a bounded decision cache. Least-recently-used keys are evicted first,
+ * which is enough for a per-canvas cache: a decision read or written most
+ * recently belongs to the drawing currently on screen.
  */
 export function createOrientationCache(limit = ORIENTATION_CACHE_LIMIT): OrientationCache {
-  const entries = new Map<string, OrientationDecision>();
-  const store = (key: string, decision: OrientationDecision): void => {
-    entries.delete(key);
-    entries.set(key, decision);
-    while (entries.size > limit) {
-      const oldest = entries.keys().next().value;
-      if (oldest === undefined) break;
-      entries.delete(oldest);
-    }
-  };
+  const entries = createBoundedLru<string, OrientationDecision>(limit);
   return {
-    get(key) {
-      const cached = entries.get(key);
-      return cached ?? null;
-    },
-    set(key, decision) {
-      store(key, decision);
+    get: (key) => entries.get(key) ?? null,
+    set: (key, decision) => {
+      entries.set(key, decision);
     },
     resolve(key, compute) {
       const cached = entries.get(key);
       if (cached !== undefined) return cached;
       const decision = compute();
-      store(key, decision);
+      entries.set(key, decision);
       return decision;
     },
     get size() {

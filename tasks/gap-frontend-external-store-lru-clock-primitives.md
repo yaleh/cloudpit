@@ -2,7 +2,7 @@
 id: gap-frontend-external-store-lru-clock-primitives
 title: 前端基础件：createExternalStore / BoundedLru / Clock 收敛 10 份手写 store、4 份手写 LRU
   与 2 个同构时钟类型
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -29,13 +29,13 @@ extra:
 
 ## AC
 
-- [ ] 基础件落地：`grep -nE "export function (createExternalStore|createBoundedLru)" src/shared/utils.ts` 两个都命中，各带说明注释；`grep -n "export type Clock = " src/shared/types.ts` 命中。
-- [ ] 手写 store 清零：`grep -nF "new Set<() => void>()" src/modules/chat/hooks/useSessionActivity.ts src/modules/chat/utils/voice/voicePlayer.ts src/modules/sidebar/hooks/useFleetTaskCounts.ts src/modules/architecture/curationStore.ts src/shared/userSettings.ts src/shared/chatDrafts.ts src/shared/hooks/useSessionHosts.ts src/modules/cockpit/hooks/useObservationWall.ts src/modules/chat/utils/replySuggestionsController.ts src/modules/architecture/architectureRefreshController.ts` 无输出。
-- [ ] 手写 LRU 清零：`grep -nF "keys().next().value" src/modules/chat/utils/replySuggestionsController.ts src/modules/chat/utils/transcript/messageTransforms.ts src/modules/architecture/layoutOrientation.ts src/modules/chat/utils/voice/voicePlayer.ts` 无输出。
-- [ ] 时钟类型收敛：`grep -nE "export type (ReplySuggestionsClock|ArchitectureRefreshClock) = \{" src/modules/chat/utils/replySuggestionsController.ts src/modules/architecture/architectureRefreshController.ts` 无输出（改为 `Clock` 或其 `Pick` 别名，或直接使用 `Clock`）。
-- [ ] 新判据：`npx vitest run src/shared/tests/externalStoreAndLru.test.ts` exit 0，覆盖 store 订阅/退订、同值不通知、LRU 刷新新近度与超容淘汰顺序。
-- [ ] 行为不回归：`npx vitest run src/shared/tests/chatDrafts.test.ts src/shared/tests/userSettings.test.ts src/shared/tests/sessionHostsRequests.test.ts src/modules/architecture/tests/curationStore.test.ts src/modules/cockpit/tests/ObservationWall.test.tsx src/modules/chat/tests/sessionActivityJoinRead.test.tsx src/modules/chat/tests/replySuggestionsController.test.ts src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared src/modules/chat src/modules/architecture src/modules/sidebar src/modules/cockpit` exit 0。
+- [x] 基础件落地：`grep -nE "export function (createExternalStore|createBoundedLru)" src/shared/utils.ts` 两个都命中，各带说明注释；`grep -n "export type Clock = " src/shared/types.ts` 命中。
+- [x] 手写 store 清零：`grep -nF "new Set<() => void>()" src/modules/chat/hooks/useSessionActivity.ts src/modules/chat/utils/voice/voicePlayer.ts src/modules/sidebar/hooks/useFleetTaskCounts.ts src/modules/architecture/curationStore.ts src/shared/userSettings.ts src/shared/chatDrafts.ts src/shared/hooks/useSessionHosts.ts src/modules/cockpit/hooks/useObservationWall.ts src/modules/chat/utils/replySuggestionsController.ts src/modules/architecture/architectureRefreshController.ts` 无输出。
+- [x] 手写 LRU 清零：`grep -nF "keys().next().value" src/modules/chat/utils/replySuggestionsController.ts src/modules/chat/utils/transcript/messageTransforms.ts src/modules/architecture/layoutOrientation.ts src/modules/chat/utils/voice/voicePlayer.ts` 无输出。
+- [x] 时钟类型收敛：`grep -nE "export type (ReplySuggestionsClock|ArchitectureRefreshClock) = \{" src/modules/chat/utils/replySuggestionsController.ts src/modules/architecture/architectureRefreshController.ts` 无输出（改为 `Clock` 或其 `Pick` 别名，或直接使用 `Clock`）。
+- [x] 新判据：`npx vitest run src/shared/tests/externalStoreAndLru.test.ts` exit 0，覆盖 store 订阅/退订、同值不通知、LRU 刷新新近度与超容淘汰顺序。
+- [x] 行为不回归：`npx vitest run src/shared/tests/chatDrafts.test.ts src/shared/tests/userSettings.test.ts src/shared/tests/sessionHostsRequests.test.ts src/modules/architecture/tests/curationStore.test.ts src/modules/cockpit/tests/ObservationWall.test.tsx src/modules/chat/tests/sessionActivityJoinRead.test.tsx src/modules/chat/tests/replySuggestionsController.test.ts src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared src/modules/chat src/modules/architecture src/modules/sidebar src/modules/cockpit` exit 0。
 
 ## DoD
 
