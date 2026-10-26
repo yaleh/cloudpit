@@ -26,6 +26,52 @@ const DEFAULT_SCOPE = DEFAULT_ARCHITECTURE_SCOPE;
 const SCOPE_STORAGE_PREFIX = 'architecture.scope.';
 const DETAIL_STORAGE_PREFIX = 'architecture.detail.';
 
+/**
+ * The narrow storage seam every remembered knob reads and writes through.
+ *
+ * It is deliberately the same two-method shape as the curation store's seam, so
+ * the controllers that own these knobs can be exercised with a plain object in
+ * a test — no `window`, no jsdom. `BROWSER_PANEL_STORAGE` is the production
+ * implementation.
+ */
+export type PanelStorageLike = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+};
+
+/**
+ * The browser storage the panel's remembered knobs persist through.
+ *
+ * Every failure (private mode, storage quota, no `window`) degrades to "this
+ * visit only" instead of throwing into the render path.
+ */
+export const BROWSER_PANEL_STORAGE: PanelStorageLike = {
+  getItem: (key) => {
+    try {
+      return typeof window === 'undefined' ? null : window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+    } catch {
+      // Best-effort: the knob keeps working for this visit.
+    }
+  },
+};
+
+/** The storage key one project's scope choice lives under. */
+export function scopeStorageKey(projectId: string | null): string {
+  return `${SCOPE_STORAGE_PREFIX}${projectId ?? ''}`;
+}
+
+/** The storage key one project's detail-tier choice lives under. */
+export function detailStorageKey(projectId: string | null): string {
+  return `${DETAIL_STORAGE_PREFIX}${projectId ?? ''}`;
+}
+
 /** Whether the one-off touch instruction has been dismissed in this browser. */
 const TOUCH_HINT_STORAGE_KEY = 'architecture.touchHint.dismissed';
 
@@ -50,51 +96,37 @@ export function writeStoredTouchHintDismissed(): void {
 }
 
 /** Read one project's remembered scope, clamped into the stepper's range. */
-export function readStoredScope(projectId: string | null): number {
-  if (projectId === null || typeof window === 'undefined') return DEFAULT_SCOPE;
-  try {
-    const stored = window.localStorage.getItem(`${SCOPE_STORAGE_PREFIX}${projectId}`);
-    if (stored === null) return DEFAULT_SCOPE;
-    const parsed = Number(stored);
-    return Number.isFinite(parsed) ? clampArchitectureScope(parsed) : DEFAULT_SCOPE;
-  } catch {
-    // Storage can be unavailable (private mode, embedded webview); the knob
-    // still works for this visit, it just is not remembered.
-    return DEFAULT_SCOPE;
-  }
+export function readStoredScope(storage: PanelStorageLike, projectId: string | null): number {
+  if (projectId === null) return DEFAULT_SCOPE;
+  const stored = storage.getItem(scopeStorageKey(projectId));
+  if (stored === null) return DEFAULT_SCOPE;
+  const parsed = Number(stored);
+  return Number.isFinite(parsed) ? clampArchitectureScope(parsed) : DEFAULT_SCOPE;
 }
 
 /** Read one project's remembered detail tier, falling back to the identity tier. */
-export function readStoredDetail(projectId: string | null): ArchitectureDetailTier {
-  if (projectId === null || typeof window === 'undefined') return 'all';
-  try {
-    const stored = window.localStorage.getItem(`${DETAIL_STORAGE_PREFIX}${projectId}`);
-    return stored !== null && (ARCHITECTURE_DETAIL_TIERS as readonly string[]).includes(stored)
-      ? (stored as ArchitectureDetailTier)
-      : 'all';
-  } catch {
-    return 'all';
-  }
+export function readStoredDetail(storage: PanelStorageLike, projectId: string | null): ArchitectureDetailTier {
+  if (projectId === null) return 'all';
+  const stored = storage.getItem(detailStorageKey(projectId));
+  return stored !== null && (ARCHITECTURE_DETAIL_TIERS as readonly string[]).includes(stored)
+    ? (stored as ArchitectureDetailTier)
+    : 'all';
 }
 
 /** Remember one project's scope choice; a failed write must not break the knob. */
-export function writeStoredScope(projectId: string | null, scope: number): void {
+export function writeStoredScope(storage: PanelStorageLike, projectId: string | null, scope: number): void {
   if (projectId === null) return;
-  try {
-    window.localStorage.setItem(`${SCOPE_STORAGE_PREFIX}${projectId}`, String(scope));
-  } catch {
-    // See readStoredScope: remembering is best-effort, the knob is not.
-  }
+  storage.setItem(scopeStorageKey(projectId), String(scope));
 }
 
 /** Remember one project's detail choice; a failed write must not break the knob. */
-export function writeStoredDetail(projectId: string | null, detail: ArchitectureDetailTier): void {
+export function writeStoredDetail(
+  storage: PanelStorageLike,
+  projectId: string | null,
+  detail: ArchitectureDetailTier,
+): void {
   if (projectId === null) return;
-  try {
-    window.localStorage.setItem(`${DETAIL_STORAGE_PREFIX}${projectId}`, detail);
-  } catch {
-    // See readStoredScope: remembering is best-effort, the knob is not.
-  }
+  storage.setItem(detailStorageKey(projectId), detail);
 }
 
 /**

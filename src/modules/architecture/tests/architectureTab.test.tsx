@@ -7122,41 +7122,36 @@ test('the project search shows the whole name, moves the path to a second line, 
   assert.match(pinButton.getAttribute('aria-label') ?? '', new RegExp(LONG_NAME));
 });
 
-test('the curation Toast lives 12 seconds and a hover pauses it', () => {
-  vi.useFakeTimers();
-  try {
-    const onDismiss = vi.fn();
-    const onUndo = vi.fn();
-    render(
-      <CurationToast
-        toast={{ id: 1, message: 'Pinned Alpha', undoable: true }}
-        undoLabel="Undo"
-        onUndo={onUndo}
-        onDismiss={onDismiss}
-      />,
-    );
-    const toast = screen.getByRole('status');
+test('the curation Toast reports hover/focus so its owner pauses the lifetime', () => {
+  const onPause = vi.fn();
+  const onResume = vi.fn();
+  const onUndo = vi.fn();
+  render(
+    <CurationToast
+      toast={{ id: 1, message: 'Pinned Alpha', undoable: true }}
+      undoLabel="Undo"
+      onUndo={onUndo}
+      onPause={onPause}
+      onResume={onResume}
+    />,
+  );
+  const toast = screen.getByRole('status');
 
-    // 11 s in: still on screen (the shipped 6 s window would already be gone).
-    act(() => { vi.advanceTimersByTime(11_000); });
-    assert.equal(onDismiss.mock.calls.length, 0, 'the Toast is still there at 11 s');
-    assert.ok(screen.queryByRole('status') !== null);
+  // The timer belongs to `architectureCurationController` (its own test asserts
+  // the 12 s window and the pause/restart); the component's job is to REPORT
+  // the pointer/focus that should pause it.
+  fireEvent.mouseEnter(toast);
+  assert.equal(onPause.mock.calls.length, 1, 'entering the Toast pauses its owner timer');
+  assert.equal(onResume.mock.calls.length, 0);
 
-    // Hover pauses the clock: five more seconds change nothing.
-    fireEvent.mouseEnter(toast);
-    act(() => { vi.advanceTimersByTime(5_000); });
-    assert.equal(onDismiss.mock.calls.length, 0, 'a hover pauses the auto-dismiss');
+  fireEvent.mouseLeave(toast);
+  assert.equal(onResume.mock.calls.length, 1, 'leaving resumes it');
+  assert.equal(onPause.mock.calls.length, 1);
 
-    // Leaving restarts the full window, and 13 s from the start (2 s more
-    // after the pause, then a fresh 12 s) it dismisses.
-    fireEvent.mouseLeave(toast);
-    act(() => { vi.advanceTimersByTime(11_000); });
-    assert.equal(onDismiss.mock.calls.length, 0, 'still inside the restarted window');
-    act(() => { vi.advanceTimersByTime(1_001); });
-    assert.equal(onDismiss.mock.calls.length, 1, 'the Toast dismisses after its 12 s window');
-  } finally {
-    vi.useRealTimers();
-  }
+  const undo = toast.querySelector('[data-architecture-curation-undo]');
+  assert.ok(undo instanceof HTMLElement);
+  fireEvent.click(undo);
+  assert.equal(onUndo.mock.calls.length, 1, 'the Undo action is wired');
 });
 
 test('the Adjusted popover header offers the same Undo once the Toast is gone', async () => {

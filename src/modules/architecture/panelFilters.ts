@@ -6,6 +6,7 @@ import {
   type ArchitectureFilterHidden,
   type ArchitectureRelationPreset,
 } from '@/modules/architecture/elementRelationFilter';
+import type { PanelStorageLike } from '@/modules/architecture/panelPersistence';
 import type { ArchitectureGraphResult } from '@/modules/architecture/useArchitectureGraph';
 
 // The panel's pure filter layer: the stored element/relation filter and its
@@ -31,6 +32,11 @@ export function isRelationPreset(value: unknown): value is ArchitectureRelationP
   return typeof value === 'string' && (ARCHITECTURE_RELATION_PRESETS as readonly string[]).includes(value);
 }
 
+/** The storage key one project's element/relation filter lives under. */
+export function filterStorageKey(projectId: string | null): string {
+  return `${FILTER_STORAGE_PREFIX}${projectId ?? ''}`;
+}
+
 /**
  * Read one project's remembered element/relation filter.
  *
@@ -39,11 +45,14 @@ export function isRelationPreset(value: unknown): value is ArchitectureRelationP
  * rather than throwing. Validation is per FIELD, so one unknown kind does not
  * discard the other two selections.
  */
-export function readStoredFilter(projectId: string | null): ArchitectureElementRelationFilter {
-  if (projectId === null || typeof window === 'undefined') return ARCHITECTURE_DEFAULT_FILTER;
+export function readStoredFilter(
+  storage: PanelStorageLike,
+  projectId: string | null,
+): ArchitectureElementRelationFilter {
+  if (projectId === null) return ARCHITECTURE_DEFAULT_FILTER;
+  const stored = storage.getItem(filterStorageKey(projectId));
+  if (stored === null) return ARCHITECTURE_DEFAULT_FILTER;
   try {
-    const stored = window.localStorage.getItem(`${FILTER_STORAGE_PREFIX}${projectId}`);
-    if (stored === null) return ARCHITECTURE_DEFAULT_FILTER;
     const parsed: unknown = JSON.parse(stored);
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return ARCHITECTURE_DEFAULT_FILTER;
@@ -71,14 +80,14 @@ export function readStoredFilter(projectId: string | null): ArchitectureElementR
   }
 }
 
-/** Remember one project's filter; a failed write must not break the popover. */
-export function writeStoredFilter(projectId: string | null, filter: ArchitectureElementRelationFilter): void {
+/** Remember one project's filter; storage failures are swallowed by the seam. */
+export function writeStoredFilter(
+  storage: PanelStorageLike,
+  projectId: string | null,
+  filter: ArchitectureElementRelationFilter,
+): void {
   if (projectId === null) return;
-  try {
-    window.localStorage.setItem(`${FILTER_STORAGE_PREFIX}${projectId}`, JSON.stringify(filter));
-  } catch {
-    // See readStoredScope: remembering is best-effort, the knob is not.
-  }
+  storage.setItem(filterStorageKey(projectId), JSON.stringify(filter));
 }
 
 /** Add two `hidden` readings; the narrow path composes the local cut onto the server's. */

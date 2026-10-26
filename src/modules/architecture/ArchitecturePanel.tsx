@@ -8,6 +8,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { ArrowLeft, ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,13 +19,12 @@ import { ArchitectureDock } from '@/modules/architecture/ArchitectureDock';
 import { ArchitectureInspector } from '@/modules/architecture/ArchitectureInspector';
 import { ArchitectureRefreshDialog } from '@/modules/architecture/ArchitectureRefreshDialog';
 import {
-  createCurationStore,
-  curationStorageKey,
   type ArchitectureCurationHiddenEdge,
   type ArchitectureCurationItem,
-  type ArchitectureCurationState,
   type CurationActionResult,
 } from '@/modules/architecture/curationStore';
+import { createArchitectureCurationController } from '@/modules/architecture/architectureCurationController';
+import { createArchitectureFilterController } from '@/modules/architecture/architectureFilterController';
 import { resolveCurationItems, useProjectSearch } from '@/modules/architecture/hooks/useProjectSearch';
 import { ArchitectureSheet } from '@/modules/architecture/ArchitectureSheet';
 import {
@@ -41,7 +41,6 @@ import {
   ARCHITECTURE_DETAIL_TIERS,
   ARCHITECTURE_SCOPE_MAX,
   ARCHITECTURE_SCOPE_MIN,
-  clampArchitectureScope,
   rankArchitectureDetail,
   type ArchitectureDetailTier,
 } from '@/modules/architecture/detailRanking';
@@ -51,7 +50,6 @@ import {
   applyFilter,
   ARCHITECTURE_ELEMENT_KINDS,
   ARCHITECTURE_RELATION_PRESETS,
-  filtersEqual,
   hiddenTotal,
   keptMentionedCount,
   relationsForPreset,
@@ -131,18 +129,13 @@ import { useDismissiblePopover } from '@/modules/architecture/useDismissiblePopo
 import {
   addHidden,
   EMPTY_HIDDEN,
-  readStoredFilter,
   truncationReading,
-  writeStoredFilter,
   type ArchitectureGranularity,
 } from '@/modules/architecture/panelFilters';
 import {
   BROWSER_CURATION_STORAGE,
-  readStoredDetail,
-  readStoredScope,
+  BROWSER_PANEL_STORAGE,
   readStoredTouchHintDismissed,
-  writeStoredDetail,
-  writeStoredScope,
   writeStoredTouchHintDismissed,
 } from '@/modules/architecture/panelPersistence';
 
@@ -161,15 +154,6 @@ type ArchitectureDockTabId = 'inspector' | 'text';
 function nodeIdShapeOf(granularity: ArchitectureGranularity): ArchitectureNodeIdShape {
   return granularity === 'file' ? 'project-relative' : 'scope-prefixed';
 }
-
-/**
- * How long a filter/view change waits before it becomes a request.
- *
- * Walking the relation presets (structural → dependency → call) is one gesture;
- * without the debounce each step would POST its own reading. Narrowing never
- * waits at all — it is answered from the payload in hand.
- */
-const FILTER_REQUEST_DEBOUNCE_MS = 250;
 
 /**
  * How many unresolved file paths the "nothing to draw in this view" empty state
@@ -209,13 +193,6 @@ const readReadoutExpandedInSession = (): boolean => {
   } catch {
     return false;
   }
-};
-
-/** The remembered knobs for one project; `projectId` keys the loaded pair. */
-type ArchitectureDisplaySettings = {
-  readonly projectId: string | null;
-  readonly scope: number;
-  readonly detail: ArchitectureDetailTier;
 };
 
 /** A node the reader asked the graph to reveal (search hit or out-of-range jump). */
@@ -519,83 +496,72 @@ export default function ArchitecturePanel({
   const compactHeaderButtonClass = portraitPhone
     ? 'rounded-md px-2 text-sm font-medium'
     : headerButtonClass;
-  // Which of the two server subgraphs is on screen. Purely local state: both
-  // arrive in one response, so this must never re-enter the fetch. The class
-  // diagram is the shipped default (the entity subgraph is the one that has
-  // entity kinds and members); a standalone link's `view` overrides it once.
-  const [granularity, setGranularity] = useState<ArchitectureGranularity>(
-    deepLinkGranularity ?? initialGranularity,
-  );
-  // The two display knobs, remembered per project (localStorage). `scope` is
-  // the requested BFS depth — a server generation parameter and part of the
-  // result cache's key, so changing it refetches; `detail` only ranks the
-  // arrived payload, so changing it must never refetch. The pair is one state
-  // object because a project switch reloads both together. A standalone link's
-  // scope/detail win for the first paint, without being persisted.
-  const [displaySettings, setDisplaySettings] = useState<ArchitectureDisplaySettings>(() => ({
-    projectId,
-    scope: initialDeepLink.scope ?? readStoredScope(projectId),
-    detail: initialDeepLink.detail ?? readStoredDetail(projectId),
-  }));
-  // React's "adjust state when a prop changes" pattern: a project switch swaps
-  // the remembered pair in the same render, so the graph is never requested
-  // with the previous project's depth. The link's readings stay authoritative
-  // for this standalone mount (the project id arrives after the first render).
-  if (displaySettings.projectId !== projectId) {
-    setDisplaySettings({
+  // The filter/display owner: which subgraph is on screen, the requested BFS
+  // depth and the detail tier, the element/relation filter, the debounced
+  // request those selections become, and the filter popover's disclosure. A
+  // deep link's `view`/`scope`/`detail` win for this mount; every other reading
+  // comes from the project's storage. The controller is recreated on a project
+  // switch, so the graph is never requested with the previous project's depth.
+  const settings = useMemo(
+    () => createArchitectureFilterController({
+      storage: BROWSER_PANEL_STORAGE,
       projectId,
-      scope: initialDeepLink.scope ?? readStoredScope(projectId),
-      detail: initialDeepLink.detail ?? readStoredDetail(projectId),
-    });
-  }
-  const { scope, detail } = displaySettings;
-  // The element/relation filter pair. `filter` is what the reader selected and
-  // what the drawing obeys; `requestFilter` is the selection the last SERVER
-  // request was made with, which is what decides whether a change can be
-  // filtered locally (narrowing) or must ask the server (widening). Both are
-  // per project, like the scope/detail pair above.
-  const [filterSettings, setFilterSettings] = useState<{
-    projectId: string | null;
-    filter: ArchitectureElementRelationFilter;
-    requestFilter: ArchitectureElementRelationFilter;
-  }>(() => {
-    const stored = readStoredFilter(projectId);
-    return { projectId, filter: stored, requestFilter: stored };
-  });
-  if (filterSettings.projectId !== projectId) {
-    const stored = readStoredFilter(projectId);
-    setFilterSettings({ projectId, filter: stored, requestFilter: stored });
-  }
-  const { filter, requestFilter } = filterSettings;
+      initialGranularity: deepLinkGranularity ?? initialGranularity,
+      ...(initialDeepLink.scope === null ? {} : { initialScope: initialDeepLink.scope }),
+      ...(initialDeepLink.detail === null ? {} : { initialDetail: initialDeepLink.detail }),
+    }),
+    [projectId, deepLinkGranularity, initialGranularity, initialDeepLink.scope, initialDeepLink.detail],
+  );
+  const settingsSnapshot = useSyncExternalStore(
+    settings.subscribe,
+    settings.getSnapshot,
+    settings.getSnapshot,
+  );
+  const {
+    granularity,
+    scope,
+    detail,
+    filter,
+    requestFilter,
+    requestGranularity,
+    filterMenuOpen,
+    filterPosition,
+    includeToolResults,
+  } = settingsSnapshot;
+  // The owner clears its pending debounce on unmount; StrictMode's
+  // teardown-and-reset re-uses the same instance afterwards (dispose releases
+  // timers only, it does not make the controller dead).
+  useEffect(() => () => settings.dispose(), [settings]);
 
   // ---- Manual curation (pins / removals / hidden relations) ----------------
-  // A counter bumped by another tab's `storage` event. Recreating the store is
-  // how this tab adopts the other tab's pins/exclusions without a second write
-  // path: the store reads localStorage once at creation, so a fresh instance
-  // IS the new state. (Undo history is deliberately per tab and starts over.)
-  const [curationStorageRevision, setCurationStorageRevision] = useState(0);
   // The store is per `(project, session)`: the graph's seeds are the session's
-  // transcript, so a project has no curation of its own. A missing session
-  // leaves `canEdit: false`, which disables the whole feature (and says why).
-  const curationStore = useMemo(
-    () => {
-      // `curationStorageRevision` is the dependency that rebuilds the store when
-      // another tab writes: the store reads localStorage once at creation, so a
-      // fresh instance IS the adopted state. The read makes that intent explicit
-      // to the hook's dependency checker.
-      void curationStorageRevision;
-      return createCurationStore({ storage: BROWSER_CURATION_STORAGE, projectId, sessionId });
-    },
-    [projectId, sessionId, curationStorageRevision],
+  // transcript, so a project has no curation of its own. The controller owns
+  // the store instance, the re-anchoring bookkeeping, the manager/solo
+  // disclosures and the Toast lifetime; a missing session leaves
+  // `canEdit: false`, which disables the whole feature (and says why).
+  const curation = useMemo(
+    () => createArchitectureCurationController({
+      storage: BROWSER_CURATION_STORAGE,
+      projectId,
+      sessionId,
+      resolveItems: resolveCurationItems,
+    }),
+    [projectId, sessionId],
   );
-  const [curationState, setCurationState] = useState<ArchitectureCurationState>(
-    () => curationStore.getState(),
+  const curationSnapshot = useSyncExternalStore(
+    curation.subscribe,
+    curation.getSnapshot,
+    curation.getSnapshot,
   );
-  useEffect(() => {
-    setCurationState(curationStore.getState());
-    return curationStore.subscribe(() => setCurationState(curationStore.getState()));
-  }, [curationStore]);
-  const canCurate = curationStore.canEdit;
+  const {
+    canEdit: canCurate,
+    state: curationState,
+    managerOpen: curationManagerOpen,
+    soloNodeId,
+    toast: curationToast,
+    canUndo: curationCanUndo,
+  } = curationSnapshot;
+  useEffect(() => () => curation.dispose(), [curation]);
   // Pins and removals are ENTITY operations: the request takes entity ids,
   // while a file node's id is a path. The file view can still manage/restore
   // the lists, but it is not where an entity gets pinned.
@@ -617,88 +583,38 @@ export default function ArchitecturePanel({
     () => new Set(curationState.hiddenEdges.map((edge) => `${edge.from}\u0000${edge.to}\u0000${edge.type}`)),
     [curationState.hiddenEdges],
   );
-  // The `已调整 N 项` manager and the one-node "only show this" display filter.
-  const [curationManagerOpen, setCurationManagerOpen] = useState(false);
   // The disclosure that opened the manager, so Escape can return focus to it.
   const curationManagerButtonRef = useRef<HTMLButtonElement | null>(null);
-  const closeCurationManager = useCallback((): void => setCurationManagerOpen(false), []);
+  const closeCurationManager = useCallback((): void => curation.setManagerOpen(false), [curation]);
   useDismissiblePopover(
     curationManagerOpen,
     closeCurationManager,
     curationManagerButtonRef,
     '[data-architecture-curation-manager]',
   );
-  const [soloNodeId, setSoloNodeId] = useState<string | null>(null);
-  // A curation Toast: `undoable` renders the focusable 撤销 action. The
-  // component pauses its own 6s timer while hovered/focused.
-  const [curationToast, setCurationToast] = useState<{
-    readonly id: number;
-    readonly message: string;
-    readonly undoable: boolean;
-  } | null>(null);
-  const curationToastSeq = useRef(0);
   const showCurationToast = useCallback((message: string, undoable = true): void => {
-    curationToastSeq.current += 1;
-    setCurationToast({ id: curationToastSeq.current, message, undoable });
-  }, []);
-  const dismissCurationToast = useCallback((): void => setCurationToast(null), []);
+    curation.showToast(message, undoable);
+  }, [curation]);
+  const dismissCurationToast = useCallback((): void => curation.dismissToast(), [curation]);
+  const pauseCurationToast = useCallback((): void => curation.pauseToast(), [curation]);
+  const resumeCurationToast = useCallback((): void => curation.resumeToast(), [curation]);
 
-  // The granularity the last REQUEST was made for. The element axis does not
-  // apply to the file graph, so switching views moves the request too — but the
-  // drawing switches immediately (both subgraphs arrive in one response).
-  const [requestGranularity, setRequestGranularity] = useState<ArchitectureGranularity>(
-    deepLinkGranularity ?? initialGranularity,
-  );
   // Another tab's change to this project's remembered knobs. `storage` fires
   // only in OTHER documents, so applying it here cannot echo back a write this
-  // tab just made. Curation is adopted by recreating the store (above); the
-  // scope/detail pair and the element/relation filter are plain state, so they
-  // are re-read from the same storage keys the other tab wrote.
+  // tab just made. Each owner re-reads the keys it is responsible for.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const projectFilterKey = `architecture.filter.${projectId ?? ''}`;
-    const projectScopeKey = `architecture.scope.${projectId ?? ''}`;
-    const projectDetailKey = `architecture.detail.${projectId ?? ''}`;
-    const sessionCurationKey = curationStorageKey(projectId, sessionId);
     const onStorage = (event: StorageEvent): void => {
-      // `key === null` is `localStorage.clear()`: every knob is gone, so every
-      // reading has to be re-adopted rather than left describing deleted state.
-      const cleared = event.key === null;
-      if (cleared || event.key === projectFilterKey) {
-        const stored = readStoredFilter(projectId);
-        setFilterSettings({ projectId, filter: stored, requestFilter: stored });
-        // The filter is a generation knob for the view on screen, so the next
-        // read asks for the newly stored selection instead of the old one.
-        setRequestGranularity(granularity);
-      }
-      if (cleared || event.key === projectScopeKey) {
-        const stored = readStoredScope(projectId);
-        setDisplaySettings((current) => ({ ...current, scope: stored }));
-      }
-      if (cleared || event.key === projectDetailKey) {
-        const stored = readStoredDetail(projectId);
-        setDisplaySettings((current) => ({ ...current, detail: stored }));
-      }
-      if (cleared || event.key === sessionCurationKey) {
-        setCurationStorageRevision((revision) => revision + 1);
-      }
+      curation.handleStorageChange(event.key);
+      settings.handleStorageChange(event.key);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [projectId, sessionId, granularity]);
-  // The filter popover; local like the legend and the export menu.
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  }, [curation, settings]);
   // The popover is drawn `position: fixed` on the desktop tier because the
   // toolbar scrolls horizontally and would clip an absolutely positioned panel.
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [filterPosition, setFilterPosition] = useState<{ left: number; top: number } | null>(null);
-  // Widening (or a view switch) is debounced: a reader walking the relation
-  // presets should produce one request, not one per step.
-  const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (filterDebounceRef.current !== null) clearTimeout(filterDebounceRef.current);
-  }, []);
-  const closeFilterMenu = useCallback((): void => setFilterMenuOpen(false), []);
+  const closeFilterMenu = useCallback((): void => settings.closeFilterMenu(), [settings]);
   // Outside-press / Escape dismissal for every panel-owned popover: the menu
   // used to close only by pressing its own trigger again.
   useDismissiblePopover(filterMenuOpen, closeFilterMenu, filterButtonRef, '[data-architecture-filter-menu]');
@@ -984,9 +900,6 @@ export default function ArchitecturePanel({
   // re-bases without a layout — the toggle is never counted as a shape change.
   const [dockLayoutLocked, setDockLayoutLocked] = useState(false);
   const dockLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Whether the sessions page searches tool output too. Off by default: the
-  // tool-output tier is the noisy one, and the reader opts in per inspection.
-  const [includeToolResults, setIncludeToolResults] = useState(false);
   // The graph the renderer actually receives: the detail tier's cut, then the
   // layout budget's cut. PlantUML/ELK runs on the main thread and its layout
   // cost grows super-linearly with the node count, so an over-budget drawing
@@ -1212,75 +1125,15 @@ export default function ArchitecturePanel({
     return () => cancelAnimationFrame(frame);
   }, [fillsViewport, view.status]);
 
-  const changeScope = (next: number): void => {
-    const clamped = clampArchitectureScope(next);
-    setDisplaySettings((current) => ({ ...current, scope: clamped }));
-    writeStoredScope(projectId, clamped);
-  };
-  const changeDetail = (next: ArchitectureDetailTier): void => {
-    setDisplaySettings((current) => ({ ...current, detail: next }));
-    writeStoredDetail(projectId, next);
-  };
-
-  /**
-   * Queue a request for a filter/view change, collapsing a walk through the
-   * presets into one round-trip.
-   */
-  const scheduleRequest = (
-    nextFilter: ArchitectureElementRelationFilter,
-    nextGranularity: ArchitectureGranularity,
-  ): void => {
-    if (filterDebounceRef.current !== null) clearTimeout(filterDebounceRef.current);
-    filterDebounceRef.current = setTimeout(() => {
-      filterDebounceRef.current = null;
-      setFilterSettings((current) => ({ ...current, requestFilter: nextFilter }));
-      setRequestGranularity(nextGranularity);
-    }, FILTER_REQUEST_DEBOUNCE_MS);
-  };
-
-  const cancelScheduledRequest = (): void => {
-    if (filterDebounceRef.current === null) return;
-    clearTimeout(filterDebounceRef.current);
-    filterDebounceRef.current = null;
-  };
-
-  /**
-   * Apply a new selection: show it now, then let the SERVER settle it.
-   *
-   * Both halves matter. The selection is written to state immediately, and
-   * `displayFilter` below cuts the payload in hand, so the drawing narrows in
-   * the same frame as the click — that is the "收窄即时" half of the design and
-   * it stays.
-   *
-   * The request that follows is NOT optional, and it used to be skipped for a
-   * narrowing. A locally narrowed payload cannot reproduce the server's own
-   * reading of the narrower state: the server runs its BFS and its node budget
-   * ON the filtered graph, so a node reachable only through a filtered-away
-   * edge is absent from its answer, while the wider payload in hand still
-   * carries it (and then counts it, or counts its isolated removal). The
-   * summary therefore drifted from what a reload of the same state printed —
-   * "9 related · 1 call relations · 11 isolated nodes" against "5 related ·
-   * 601 call relations · 6 isolated nodes" — and stayed wrong until the page
-   * was reloaded. Every settled selection now ends on a server reading; the
-   * debounce still collapses a walk through the presets into one round trip.
-   */
-  const changeFilter = (next: ArchitectureElementRelationFilter): void => {
-    setFilterSettings((current) => ({ ...current, filter: next }));
-    writeStoredFilter(projectId, next);
-    if (filtersEqual(next, requestFilter)) {
-      // Already the request's own selection: the payload in hand IS this state.
-      cancelScheduledRequest();
-      return;
-    }
-    scheduleRequest(next, requestGranularity);
-  };
-
-  const changeGranularity = (next: ArchitectureGranularity): void => {
-    setGranularity(next);
-    // Both subgraphs are in hand, so the drawing switches now; the request only
-    // follows because the element axis does not apply to the file graph.
-    if (next !== requestGranularity) scheduleRequest(requestFilter, next);
-  };
+  // The two knobs and the element/relation selection are owner commands; the
+  // owner decides when a change becomes a request (narrowing is answered from
+  // the payload in hand, widening after one debounce, a view switch
+  // immediately). Showing the change now and requesting it later is one rule,
+  // so it has one implementation.
+  const changeScope = (next: number): void => settings.changeScope(next);
+  const changeDetail = (next: ArchitectureDetailTier): void => settings.changeDetail(next);
+  const changeFilter = (next: ArchitectureElementRelationFilter): void => settings.changeFilter(next);
+  const changeGranularity = (next: ArchitectureGranularity): void => settings.changeGranularity(next);
 
   // Search the CURRENT subgraph before the detail cut, so a node the tier
   // folded away is still findable and can be reported as out of range. The
@@ -1334,7 +1187,7 @@ export default function ArchitecturePanel({
     // to the identity tier before asking the renderer to show the node.
     if (outOfRange) changeDetail('all');
     // Revealing a node is a request to leave the "only show this pin" slice.
-    setSoloNodeId(null);
+    curation.setSoloNodeId(null);
     // "Reveal" includes SELECTING it: the search/inspector command must open
     // the inspector page and paint the node, not only scroll to it.
     dispatchSelection({ type: 'select-entity', nodeId });
@@ -1400,26 +1253,26 @@ export default function ArchitecturePanel({
   }, [showCurationToast, t]);
 
   const pinItem = useCallback((item: ArchitectureCurationItem, label?: string): void => {
-    if (reportCurationRefusal(curationStore.pin(item))) return;
+    if (reportCurationRefusal(curation.pin(item))) return;
     setSearchOpen(false);
     setSearchQuery('');
     showCurationToast(t('architecture.curation.toastPinned', {
       defaultValue: 'Pinned {{name}}',
       name: label ?? item.name,
     }));
-  }, [curationStore, reportCurationRefusal, showCurationToast, t]);
+  }, [curation, reportCurationRefusal, showCurationToast, t]);
 
   const pinNode = useCallback((node: ArchitectureRendererNode): void => {
     pinItem(curationItemOf(node));
   }, [curationItemOf, pinItem]);
 
   const removeNode = useCallback((node: ArchitectureRendererNode): void => {
-    if (reportCurationRefusal(curationStore.exclude(curationItemOf(node)))) return;
+    if (reportCurationRefusal(curation.exclude(curationItemOf(node)))) return;
     showCurationToast(t('architecture.curation.toastRemoved', {
       defaultValue: 'Removed {{name}} from the graph',
       name: node.label.trim() === '' ? node.id : node.label,
     }));
-  }, [curationItemOf, curationStore, reportCurationRefusal, showCurationToast, t]);
+  }, [curationItemOf, curation, reportCurationRefusal, showCurationToast, t]);
 
   const unpinNode = useCallback((node: ArchitectureRendererNode): void => {
     // "已取消钉住；它仍因与 X 相连而在图中": an unpinned entity that is still
@@ -1432,7 +1285,7 @@ export default function ArchitecturePanel({
     const neighbour = neighbourId === null
       ? null
       : activeNeighbourhood?.nodes.find((candidate) => candidate.id === neighbourId) ?? null;
-    if (reportCurationRefusal(curationStore.unpin(node.id))) return;
+    if (reportCurationRefusal(curation.unpin(node.id))) return;
     const name = node.label.trim() === '' ? node.id : node.label;
     showCurationToast(
       neighbour === null
@@ -1443,38 +1296,38 @@ export default function ArchitecturePanel({
             other: neighbour.label.trim() === '' ? neighbour.id : neighbour.label,
           }),
     );
-  }, [activeNeighbourhood, curationStore, reportCurationRefusal, showCurationToast, t]);
+  }, [activeNeighbourhood, curation, reportCurationRefusal, showCurationToast, t]);
 
   const hideRelation = useCallback((edge: { from: string; to: string; relationType: string }): void => {
     if (reportCurationRefusal(
-      curationStore.hideEdge({ from: edge.from, to: edge.to, type: edge.relationType }),
+      curation.hideEdge({ from: edge.from, to: edge.to, type: edge.relationType }),
     )) return;
     showCurationToast(t('architecture.curation.toastRelationHidden', {
       defaultValue: 'Hid the relation — display only; the code is unchanged.',
     }));
-  }, [curationStore, reportCurationRefusal, showCurationToast, t]);
+  }, [curation, reportCurationRefusal, showCurationToast, t]);
 
   const undoCuration = useCallback((): void => {
-    curationStore.undo();
+    curation.undo();
     dismissCurationToast();
-  }, [curationStore, dismissCurationToast]);
+  }, [curation, dismissCurationToast]);
 
   const restoreItem = useCallback((group: 'pins' | 'excluded', id: string): void => {
-    if (group === 'pins') curationStore.unpin(id);
-    else curationStore.restore(id);
-  }, [curationStore]);
+    if (group === 'pins') curation.unpin(id);
+    else curation.restore(id);
+  }, [curation]);
 
   const restoreEdge = useCallback((edge: ArchitectureCurationHiddenEdge): void => {
-    curationStore.showEdge(edge);
-  }, [curationStore]);
+    curation.showEdge(edge);
+  }, [curation]);
 
   const restoreGroup = useCallback((group: ArchitectureCurationPage): void => {
-    curationStore.restoreGroup(group);
-  }, [curationStore]);
+    curation.restoreGroup(group);
+  }, [curation]);
 
   const clearCurationItem = useCallback((group: 'pins' | 'excluded', id: string): void => {
-    curationStore.clearItem(group, id);
-  }, [curationStore]);
+    curation.clearItem(group, id);
+  }, [curation]);
 
   // The project-wide search's second result group. It only runs with a session
   // (the shared storage key) and from two characters up (the endpoint's floor).
@@ -1482,8 +1335,9 @@ export default function ArchitecturePanel({
 
   // Re-anchor saved items after a re-analysis. Entity ids can change while
   // `(file, name)` stays stable, so every loaded analysis resolves the saved
-  // list once; unresolved items are marked stale instead of disappearing.
-  const reconciledAnalysisRef = useRef<string | null>(null);
+  // list once; unresolved items are marked stale instead of disappearing. The
+  // once-per-analysis bookkeeping and the failed-request retry live in the
+  // owner, so this effect only states when a re-anchoring is due.
   useEffect(() => {
     if (!canCurate || projectId === null || view.status !== 'loaded') return;
     const items = [...curationState.pins, ...curationState.excluded];
@@ -1491,22 +1345,11 @@ export default function ArchitecturePanel({
     const analysisKey = `${projectId}\u0000${sessionId ?? ''}\u0000${
       view.result.provenance.generatedAt ?? ''
     }\u0000${JSON.stringify(view.result.provenance.fingerprints)}`;
-    if (reconciledAnalysisRef.current === analysisKey) return;
-    reconciledAnalysisRef.current = analysisKey;
-    void (async () => {
-      const resolved = await resolveCurationItems(
-        projectId,
-        items.map((item) => ({ name: item.name, file: item.file })),
-      );
-      // A failed request is not a re-analysis: keep the saved ids and try again
-      // on the next load.
-      if (resolved === null) {
-        reconciledAnalysisRef.current = null;
-        return;
-      }
-      curationStore.reconcile(resolved);
-    })();
-  }, [canCurate, projectId, sessionId, view, curationState.pins, curationState.excluded, curationStore]);
+    curation.reconcileForAnalysis(
+      analysisKey,
+      items.map((item) => ({ name: item.name, file: item.file })),
+    );
+  }, [canCurate, projectId, sessionId, view, curationState.pins, curationState.excluded, curation]);
 
   // A scope change (view or session) clears the selection through the reducer.
   useEffect(() => {
@@ -1525,12 +1368,12 @@ export default function ArchitecturePanel({
   const handleRefreshSucceeded = useCallback((): void => {
     // A new analysis can change entity ids while `(file, name)` stays stable,
     // so the saved curation must be re-anchored on the NEXT reading.
-    reconciledAnalysisRef.current = null;
+    curation.resetReconcile();
     pendingRefreshFitRef.current = true;
     // The content-addressed cache is keyed by the manifest, so this is a real
     // refetch of the refreshed analysis rather than a cache hit.
     reload();
-  }, [reload]);
+  }, [curation, reload]);
   const refresh = useArchitectureRefresh(projectId, { onSucceeded: handleRefreshSucceeded });
   const refreshRunning = refresh.status.state === 'running';
   // A job failure and a transport failure are different faces of the same
@@ -2951,11 +2794,15 @@ export default function ArchitecturePanel({
       kept: filterKept,
     });
   const openFilterMenu = (): void => {
-    if (!compactToolbar) {
-      const rect = filterButtonRef.current?.getBoundingClientRect();
-      if (rect !== undefined) setFilterPosition({ left: Math.max(8, rect.left), top: rect.bottom + 4 });
+    if (compactToolbar) {
+      settings.openFilterMenu(null);
+      return;
     }
-    setFilterMenuOpen(true);
+    // Fixed positioning needs a measured anchor on the desktop tier.
+    const rect = filterButtonRef.current?.getBoundingClientRect();
+    settings.openFilterMenu(
+      rect === undefined ? null : { left: Math.max(8, rect.left), top: rect.bottom + 4 },
+    );
   };
   const filterDisclosure = (
     <div className={compactToolbar ? 'flex flex-col gap-1' : 'relative'} data-architecture-filter-root="true">
@@ -2965,7 +2812,7 @@ export default function ArchitecturePanel({
         aria-haspopup="true"
         aria-expanded={filterMenuOpen}
         onClick={() => {
-          if (filterMenuOpen) setFilterMenuOpen(false);
+          if (filterMenuOpen) settings.closeFilterMenu();
           else openFilterMenu();
         }}
         data-architecture-filter-toggle="true"
@@ -3002,7 +2849,7 @@ export default function ArchitecturePanel({
             if (event.key !== 'Escape') return;
             event.preventDefault();
             event.stopPropagation();
-            setFilterMenuOpen(false);
+            settings.closeFilterMenu();
           }}
           className={
             compactToolbar
@@ -3377,7 +3224,7 @@ export default function ArchitecturePanel({
         : t('architecture.curation.noSession', {
             defaultValue: 'Manual adjustments need a session: they are stored per session.',
           })}
-      onClick={() => setCurationManagerOpen((open) => !open)}
+      onClick={() => curation.setManagerOpen(!curationManagerOpen)}
       data-architecture-curation-manager-toggle="true"
       data-architecture-curation-count={curationCount}
       style={compactTargetStyle}
@@ -4712,7 +4559,7 @@ export default function ArchitecturePanel({
                     onUnpinNode={unpinNode}
                     onRemoveNode={removeNode}
                     onHideRelation={hideRelation}
-                    onSoloNode={(node) => setSoloNodeId(node.id)}
+                    onSoloNode={(node) => curation.setSoloNodeId(node.id)}
                     // The right-click menu's entry. It sends the selection the
                     // right-clicked entity belongs to, or that entity alone.
                     {...(canComposeSelection ? { onPutNodeInChat: putNodeInChat } : {})}
@@ -4891,7 +4738,7 @@ export default function ArchitecturePanel({
                   projectId={projectId}
                   sessionId={sessionId}
                   includeToolResults={includeToolResults}
-                  onIncludeToolResultsChange={setIncludeToolResults}
+                  onIncludeToolResultsChange={settings.setIncludeToolResults}
                   onSelectNode={(nodeId) => dispatchSelection({ type: 'select-entity', nodeId })}
                   onCenterNode={inspectRelatedNode}
                   onOpenChat={onOpenChat}
@@ -4956,17 +4803,17 @@ export default function ArchitecturePanel({
 
       <ArchitectureCurationManager
         open={curationManagerOpen}
-        onClose={() => setCurationManagerOpen(false)}
+        onClose={() => curation.setManagerOpen(false)}
         state={curationState}
         canEdit={canCurate}
         onRestoreItem={restoreItem}
         onRestoreEdge={restoreEdge}
         onRestoreGroup={restoreGroup}
-        onRestoreAll={() => curationStore.restoreAll()}
+        onRestoreAll={() => curation.restoreAll()}
         onClearItem={clearCurationItem}
         // The Toast's Undo, offered in the popover header once the Toast is
         // gone; `undoCuration` is the one handler both entry points call.
-        canUndo={curationStore.canUndo()}
+        canUndo={curationCanUndo}
         onUndo={undoCuration}
       />
 
@@ -4974,7 +4821,7 @@ export default function ArchitecturePanel({
         <button
           type="button"
           data-architecture-curation-solo-clear="true"
-          onClick={() => setSoloNodeId(null)}
+          onClick={() => curation.setSoloNodeId(null)}
           className="absolute left-1/2 top-2 z-40 -translate-x-1/2 rounded-full border border-border bg-popover px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           {t('architecture.curation.soloClear', { defaultValue: 'Show the whole graph' })}
@@ -4986,7 +4833,8 @@ export default function ArchitecturePanel({
           toast={curationToast}
           undoLabel={t('architecture.curation.undo', { defaultValue: 'Undo' })}
           onUndo={undoCuration}
-          onDismiss={dismissCurationToast}
+          onPause={pauseCurationToast}
+          onResume={resumeCurationToast}
         />
       )}
 
