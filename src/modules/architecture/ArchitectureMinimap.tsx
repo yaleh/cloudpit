@@ -13,6 +13,7 @@ import {
   readSvgNaturalSize,
   type SvgViewportSize,
 } from '@/modules/architecture/svgViewport';
+import { clamp } from '@/shared/utils';
 
 /**
  * The on-canvas minimap for the architecture diagram.
@@ -142,12 +143,6 @@ export type MinimapViewportReading = {
 
 /** The subset of a React ref this component needs: the owner's scroll container. */
 export type MinimapHostRef = { readonly current: HTMLElement | null };
-
-/** Clamp a finite number into `[min, max]`; a non-finite value falls back to `min`. */
-function clamp(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
 
 /** A usable scale: the caller's value when positive and finite, otherwise 100%. */
 function effectiveScale(scale: number): number {
