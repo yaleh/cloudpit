@@ -1,7 +1,7 @@
 ---
 id: ui-scenario-cockpit-card-readings
 title: 场景运行器读出并操作驾驶舱卡片：语义面加卡片读数与 drive 动词，运行器加 cockpit-cards 打开方式与断言键，新增卡片场景
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
