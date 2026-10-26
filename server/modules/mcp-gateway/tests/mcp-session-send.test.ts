@@ -98,6 +98,26 @@ delete process.env.VITE_IS_PLATFORM;
 mkdirSync(SCRATCH_HOME, { recursive: true });
 mkdirSync(FIXTURE_HOME, { recursive: true });
 
+// Every leg below (a)-(h) reads the run=turn flag OFF world: (a) needs the run
+// `session_send` opens to still be running when the tool returns, with a
+// non-null runId registered against the session, and (c)/(h) need a busy
+// resident send to report `queued: true`. With `RESIDENT_RUN_IS_TURN=1` a
+// resident send takes the delivery shape instead (`runId: null`, nothing
+// registered as running), which is AC-385's world and is covered by
+// `mcp-session-send-delivery.test.ts`, not here. `scripts/test.sh` isolates
+// this file with `unset RESIDENT_RUN_IS_TURN`, but the goal gate runs the
+// criterion command verbatim in whatever environment the anchor inherited — it
+// never goes through test.sh — so the file has to pin the world it measures
+// rather than trust its caller. `residentRunIsTurn()` reads the flag at call
+// time and the shipped default is off (it only accepts the literal `1`), so
+// deleting it here is the off state. The `after` hook puts the caller's value
+// back before the process exits, so the pin cannot outlive this file. This is
+// the same declaration AC-231's chat-control-busy, AC-238's
+// debug-agent-control-queue and AC-390's mcp-session-lifecycle criteria make
+// for their own flag-off worlds.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
 const { closeConnection, getConnection, initializeDatabase, mcpAuditLogDb, sessionsDb } = await import(
   '@/modules/database/index.js'
 );
@@ -916,5 +936,10 @@ async function waitFor(predicate: () => boolean, timeoutMs: number, label: strin
 }
 
 after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
   rmSync(SCRATCH, { recursive: true, force: true });
 });
