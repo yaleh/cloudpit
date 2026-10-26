@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-panel-curation-filter-owner
 title: ArchitecturePanel 切片 1：人工策展与过滤设置状态收进 React-free 属主
-status: todo
+status: ready
 labels:
   - gap
 parent: null
