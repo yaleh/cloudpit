@@ -65,11 +65,11 @@ anchor 进程 `pid 416623` 的 `/proc/416623/environ` 里逐字有 `RESIDENT_RUN
 
 ## AC
 
-- [ ] AC1 净检出直跑判据两次：`npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 均 exit **0**、`ℹ tests 8` / `ℹ pass 8` / `ℹ fail 0`，八条用例名逐字入档；打印 worktree 路径与 `git rev-parse HEAD`、`git status --porcelain -- server shared src package.json package-lock.json` 为空。红态基线逐字入档：台账最近两拍 fail（`2026-10-26T12:55:21.267Z`、`2026-10-26T13:00:14.541Z`，`exit 1`，`treeSha=53135d38…`）。
-- [ ] AC2 anchor 环境复测：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test …` exit **0**、`8/8/0`；并机械证明承重面就是那 25 行自钉：`git show 40c67f665:server/modules/mcp-gateway/tests/mcp-session-send.test.ts | grep -c incomingResidentRunIsTurn` 输出 **0**，`git show 709e120bd:… | grep -c …` 输出 **3**，`git diff 40c67f665 709e120bd -- <file>` 恰为该自钉段（+25 行）。
-- [ ] AC3 ancestry 证据机械入档：`git rev-parse '40c67f665^{tree}'` == `53135d38ef3ac8d9908ba08438f1c1ab6e4ace77`（= 两拍红 `treeSha`）；`git merge-base --is-ancestor 00705355f 40c67f665; echo $?` 非 0；`… 00705355f 709e120bd; echo $?` == 0；`git log -1 --format='%h %cI %s'` 对 `00705355f` / `40c67f665` / `ac64f9bea` / `709e120bd` 逐字入档。
-- [ ] AC4 台账尾巴逐字入档：从 `.quay/gate-events.jsonl` grep `"item_id":"AC-249"` 取最近两拍，抄 `timestamp`、`verdict`、`payload.treeSha`、`payload.evaluationRoot` 与 `payload.reason` 的失败签名（`ERR_ASSERTION … strictEqual … expected: true`）；写明两拍都指 `53135d38`。
-- [ ] AC5 承重面未被本条触碰：`git diff --name-only develop...HEAD -- server src goals scripts` 为空；`git ls-tree develop -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 与 `git ls-tree HEAD -- …` 的 blob 相等；`git status --porcelain` 只含 `tasks/<本条 id>.md`。
+- [x] AC1 净检出直跑判据两次：`npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 均 exit **0**、`ℹ tests 8` / `ℹ pass 8` / `ℹ fail 0`，八条用例名逐字入档；打印 worktree 路径与 `git rev-parse HEAD`、`git status --porcelain -- server shared src package.json package-lock.json` 为空。红态基线逐字入档：台账最近两拍 fail（`2026-10-26T12:55:21.267Z`、`2026-10-26T13:00:14.541Z`，`exit 1`，`treeSha=53135d38…`）。
+- [x] AC2 anchor 环境复测：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test …` exit **0**、`8/8/0`；并机械证明承重面就是那 25 行自钉：`git show 40c67f665:server/modules/mcp-gateway/tests/mcp-session-send.test.ts | grep -c incomingResidentRunIsTurn` 输出 **0**，`git show 709e120bd:… | grep -c …` 输出 **3**，`git diff 40c67f665 709e120bd -- <file>` 恰为该自钉段（+25 行）。
+- [x] AC3 ancestry 证据机械入档：`git rev-parse '40c67f665^{tree}'` == `53135d38ef3ac8d9908ba08438f1c1ab6e4ace77`（= 两拍红 `treeSha`）；`git merge-base --is-ancestor 00705355f 40c67f665; echo $?` 非 0；`… 00705355f 709e120bd; echo $?` == 0；`git log -1 --format='%h %cI %s'` 对 `00705355f` / `40c67f665` / `ac64f9bea` / `709e120bd` 逐字入档。
+- [x] AC4 台账尾巴逐字入档：从 `.quay/gate-events.jsonl` grep `"item_id":"AC-249"` 取最近两拍，抄 `timestamp`、`verdict`、`payload.treeSha`、`payload.evaluationRoot` 与 `payload.reason` 的失败签名（`ERR_ASSERTION … strictEqual … expected: true`）；写明两拍都指 `53135d38`。
+- [x] AC5 承重面未被本条触碰：`git diff --name-only develop...HEAD -- server src goals scripts` 为空；`git ls-tree develop -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 与 `git ls-tree HEAD -- …` 的 blob 相等；`git status --porcelain` 只含 `tasks/<本条 id>.md`。
 
 ## DoD
 
@@ -78,6 +78,83 @@ anchor 进程 `pid 416623` 的 `/proc/416623/environ` 里逐字有 `RESIDENT_RUN
 - 完成记录明确写出判法：**「修复有效；两拍红测量的是自钉进入被评估树之前的 pre-pin 树」**，并给出残留未钉死假设（`13:00:14` 拍为何仍记旧 `treeSha`）。
 - 若判据在净 worktree 上为红：停手置 `needs-human`，逐字上报失败行 —— 不得把环境红写成产品绿，也不得改断言或 criterion。
 - 交付物只动 `tasks/<本条 id>.md`。
+
+## 完成记录（verification-only，实测于隔离 worktree）
+
+开工 worktree：`/data/home/yale/work/claudecodeui-worktrees/gap-ac249-gate-red-measured-pre-pin-tree`
+- provisioning：`dispatch-worktree-setup.sh` 输出 `fork-point PASS — HEAD contains develop (9be30b905…)`，`node_modules` 已链接到主检出。
+- `git rev-parse HEAD` = `9be30b905f8ea37c95206199cfd41d525a67afbf`（= 开工时 develop `9be30b905`，2026-10-26T21:14:18+08:00）。
+- `git status --porcelain -- server shared src package.json package-lock.json` = 空。
+- `grep -c incomingResidentRunIsTurn server/modules/mcp-gateway/tests/mcp-session-send.test.ts` = **3**。
+
+### 判据直跑（逐字命令，净 worktree）
+
+命令：`npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts`
+
+| # | 环境 | exit | ℹ tests | ℹ pass | ℹ fail | duration_ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 裸跑 | **0** | 8 | 8 | 0 | 23821.874565 |
+| 2 | 裸跑 | **0** | 8 | 8 | 0 | 22569.971569 |
+| 3 | `RESIDENT_RUN_IS_TURN=1` | **0** | 8 | 8 | 0 | 22742.513924 |
+
+八条用例逐字通过（run 1 的 `✔` 行）：
+- `(a)/(b) session_send returns while running, with source mcp and the token owner as caller`
+- `(c) a busy resident session queues and hands over the driver queue-tail uuid`
+- `(d) a busy per-run session is refused with the in-flight runId and a run_get hint`
+- `(e) waitSeconds returns early with the closing assistant message`
+- `(f) a token lacking the write scope is denied, audits one denied row, and never calls the control service`
+- `(g) the WebSocket chat.send and the MCP session_send reach the same control service`
+- `(h) a queued send reports the pending request blocking it, byte-identical to approvals_list and session_get`
+- `the stage-4 write table is exactly the five SPEC tools`
+
+run 3（anchor 环境）八条标题与 run 1 逐字相同，全部 `✔`，无 `✖` 行。
+
+### 承重面就是那 25 行自钉
+
+- `git show 40c67f665:server/modules/mcp-gateway/tests/mcp-session-send.test.ts | grep -c incomingResidentRunIsTurn` = **0**
+- `git show 709e120bd:server/modules/mcp-gateway/tests/mcp-session-send.test.ts | grep -c incomingResidentRunIsTurn` = **3**
+- `git diff --numstat 40c67f665 709e120bd -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` = `25	0	server/modules/mcp-gateway/tests/mcp-session-send.test.ts`（+25/−0）。逐字内容只有：文件顶部注释 17 行 + `const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;` / `delete process.env.RESIDENT_RUN_IS_TURN;` + 空行，以及 `after` 内 5 行原值还原。无其他改动。
+
+### ancestry
+
+- `git rev-parse '40c67f665^{tree}'` = `53135d38ef3ac8d9908ba08438f1c1ab6e4ace77`
+- `git log -1 --format='%h %cI %s'`：
+  - `00705355f 2026-10-26T20:55:16+08:00 AC-249: pin RESIDENT_RUN_IS_TURN off in the session_send criterion`
+  - `40c67f665 2026-10-26T20:55:31+08:00 tasks: gap-ac249-session-send-criterion-hermetic task_write by cli:3833691`
+  - `ac64f9bea 2026-10-26T20:55:53+08:00 Merge branch 'develop' into task/gap-ac249-session-send-criterion-hermetic`
+  - `709e120bd 2026-10-26T21:01:50+08:00 tasks: 翻 gap-ac249-session-send-criterion-hermetic done（driver 机械 fan-in）`
+- `git merge-base --is-ancestor 00705355f 40c67f665` → exit **1**（自钉不在该树）
+- `git merge-base --is-ancestor 00705355f 709e120bd` → exit **0**
+
+### 台账尾巴（`.quay/gate-events.jsonl`，`item_id=AC-249` 最近两拍红）
+
+- `2026-10-26T12:55:21.267Z`｜verdict=`fail`｜treeSha=`ebca9a992087933354eceeaa6a72ec50e1de8798`｜evaluationRoot=`/data/home/yale/work/claudecodeui`｜reason=`acceptance failed (exit 1) — … ests/mcp-session-send.test.ts:539:5) at async TestContext.<anonymous> (/data/home/yale/work/claudecodeui/server/modules/mcp-gateway/tests/mcp-session-send.test.ts:838:3) … { generatedMessage: false, code: 'ERR_ASSERTION', actual: false, expected: true, operator: 'strictEqual', diff: 'simple' }`
+- `2026-10-26T13:00:14.541Z`｜verdict=`fail`｜treeSha=`53135d38ef3ac8d9908ba08438f1c1ab6e4ace77`｜evaluationRoot=`/data/home/yale/work/claudecodeui`｜reason=同上逐字失败签名（`:539:5` / `:838:3`，`ERR_ASSERTION … actual: false, expected: true, operator: 'strictEqual'`）
+
+**台账更正（重要，实测推翻立案读数）**：Proposal / AC1 / AC4 写「两拍 treeSha 都是 `53135d38`」，但台账逐字读数不是：`12:55:21.267Z` 那拍是 `ebca9a99…`，只有 `13:00:14.541Z` 那拍是 `53135d38`。`ebca9a99` = `8ff1e2702`（`2026-10-26T20:52:07+08:00 Merge branch 'develop' into task/gap-architecture-panel-fit-export-owner`）的 tree；该树同名文件 `grep -c incomingResidentRunIsTurn` = **0**。两拍所指的树都不含自钉，故归因结论不变且更强。AC4 的末句按台账更正为此读数。
+
+### 交叉印证：红拍之后同一台账里的一拍 pass
+
+- `2026-10-26T13:17:01.172Z`｜verdict=`pass`｜treeSha=`78855cc2c717b843c6b367efa297f15da9c50ce7`｜evaluationRoot=`/data/home/yale/work/claudecodeui`｜reason=`acceptance passed (exit 0)`
+- `78855cc2` = current develop `9be30b905` 的 tree；该树同名文件 `grep -c incomingResidentRunIsTurn` = **3**。即：自钉进入被评估树后，真实 goal gate 在同一 checkout 上转绿。
+
+### 判法
+
+**修复有效；两拍红测量的是自钉进入被评估树之前的 pre-pin 树。**
+
+### 残留未钉死假设（如实登记）
+
+`13:00:14.541Z` 那拍晚于 merge `ac64f9bea`（`12:55:53Z`）约 4.5 分钟，却仍记 `treeSha=53135d38`（pre-merge 的 task 分支树）；本报告无法独立证明 driver 为何缓存该 treeSha（推测为 round 起点 treeSha）。可机械复核的是：该 `treeSha` 指名的树不含自钉，「被评估树 ≠ current HEAD」成立。
+
+### AC5 未触碰承重面
+
+- `git diff --name-only develop...HEAD -- server src goals scripts` = 空
+- `git ls-tree develop -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` blob = `5c5785e0774a2eba5ffd5ae8b228b5bf89157825`，与 `git ls-tree HEAD -- …` 同 blob。
+- 交付物只有 `tasks/gap-ac249-gate-red-measured-pre-pin-tree.md`（由 task_write 提交；worktree 内不产生代码改动）。
+
+## ADR-007 轴记录
+
+- 该轴仍暗,理由:verification-only 归因任务，交付物仅 tasks/gap-ac249-gate-red-measured-pre-pin-tree.md，无代码/文档产物轴可测。
 
 ## Touches
 
