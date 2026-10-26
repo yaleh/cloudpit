@@ -2,7 +2,7 @@
 id: cockpit-card-ui-core
 title: 驾驶舱卡片界面核心：React 之外的 createCockpitCardController + CockpitCard
   组件（三个触摸区、富文本选项下拉、自己的回复、单一确认经确认卡），以 /cockpit?view=cards 非破坏挂载
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
