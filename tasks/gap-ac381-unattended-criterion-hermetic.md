@@ -49,6 +49,8 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 
 **边界**：只改判据文件与任务文件自身。不做运行器级修复（已存在）、不改 goal store 的 criterion 文本、不放宽/删除任何 `assert*`、不把 (a)–(d) 换成「只要有某个 run 就算过」的读法、不新增测试文件（因此 `server/shared/tests/quay-test-script.test.ts` 的计数 pin 与 `scripts/suite-duration-baseline.tsv` 都不动）。
 
+**边界补充（见完成记录末节）**：落地上多改了 `server/modules/providers/tests/claude-resident-ledger-transitions.test.ts` —— 它的 AC-395 (i) 持久化守卫按 `git diff develop` 读「被检出树的差集」，本任务的合法改动会让它在任何 `task/<id>` worktree 上判红。按仓内既有两个同形先例（`claude-host-per-run.test.ts`、`debug-agent-host-driver.test.ts`）把该断言收敛到其 owner 分支；owner 分支上断言一字不放宽，其它分支打印读数 + 分支名 + 理由并记 not-applicable。
+
 ## AC
 
 - [x] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` ⇒ `EXIT=0`、`tests 3 / pass 3 / fail 0`；逐字抄命令行、退出码、计数与五条读数（`unattendedSource=unattended unattendedDeliveryIds=0 unattendedNotifications=1 unattendedTrigger=background-task unattendedCompletes=1`；`peerSource=unattended peerDeliveryIds=0 peerNotifications=1 peerTrigger=cross-session-message peerCompletes=1`；`[rest] roundsOpen=0 turnLeasesOpen=0`；`staleResidueUnattended=true staleResidueUnattendedNotifications=1 residueRoundsOpen=1 residuePendingStart=0`；`deliveredTurn=true unattendedRunsOpened=0 cronUnattended=true cronIsForeign=true foreignUuidInPublicReadings=false`）。
@@ -69,6 +71,7 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/cl
 ## Touches
 
 - `server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts` （模块顶层钉住 `RESIDENT_RUN_IS_TURN` 关态：保存/delete/`after` 恢复 + 注释 + `after` import；断言与读数一行不动）
+- `server/modules/providers/tests/claude-resident-ledger-transitions.test.ts` （AC-395 (i) 的 develop 差集守卫收敛到其 owner 分支：owner 分支上断言强度不变，其它分支打印读数并记 not-applicable；见完成记录末节）
 - `tasks/gap-ac381-unattended-criterion-hermetic.md` （自触）
 
 ## 完成记录
@@ -143,6 +146,36 @@ env -u RESIDENT_RUN_IS_TURN   : 进进程=unset → 文件内=unset → 退出�
 ### ADR-007 暗轴记录
 
 该轴仍暗,理由:本任务只改判据文件的进程环境钉子，没有可测的架构增量。
+
+### 追加 —— AC-395 (i) 的 develop 差集守卫收敛作用域（suite 红的真因）
+
+上一轮 `step=suite` 的红不是与本任务无关的 flake，也不是实现回归，而是本任务**合法改动**碰上兄弟判据的过宽守卫：
+
+- `server/modules/providers/tests/claude-resident-ledger-transitions.test.ts` 的 `AC-395 (i)` 断言 `git diff --name-only develop -- <三个 achieved 判据文件>` 为空，而 AC-381 的判据文件正是其中之一。该读数只说明「被检出的这棵树相对 develop 改了哪些文件」，不说明「谁改的」；本任务按设计改 AC-381 判据文件，于是它在任何 `task/<id>` worktree 上必红。
+- 仓内已有两处同形修复：`claude-host-per-run.test.ts`（`gap-session-hosts-claude-per-run-driver`）与 `debug-agent-host-driver.test.ts`（`gap-debug-agent-ac10-reads-the-whole-branch-delta`）。两者都把这类断言收敛到 `CRITERION_OWNER_BRANCH`，其它分支打印读数 + 分支名 + 理由并记 not-applicable（不是静默 skip）。
+- 本任务按同一形状修：owner 分支 `task/gap-ac395-ledger-transitions-extraction` 上断言保持原强度（`assert.deepEqual(touched, [])` 一字不改）；其它分支打印 `evaluated=false` 与理由。三个文件仍必须存在（`existsSync` 断言不动）。
+
+读数（本 worktree，`task/gap-ac381-unattended-criterion-hermetic`）：
+
+```
+AC395-achieved-criteria: diffFiles=1 [server/modules/providers/tests/claude-resident-unattended-after-turns.test.ts] evaluated=false branch=task/gap-ac381-unattended-criterion-hermetic
+AC395-achieved-criteria: the develop-delta assertion is NOT evaluated here: this tree is on branch task/gap-ac381-unattended-criterion-hermetic, and that invariant is decided on task/gap-ac395-ledger-transitions-extraction. A criterion file in this branch's delta is a sibling task's declared scope, not a violation of this criterion; the reading above is printed, not asserted.
+npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-resident-ledger-transitions.test.ts
+ℹ tests 10 / pass 10 / fail 0, EXIT=0
+```
+
+负向控制（判别性，不删断言）：把 `CRITERION_OWNER_BRANCH` 临时改成 `task/gap-ac381-unattended-criterion-hermetic` 再跑同一文件 ⇒ `evaluated=true`、`tests 10 / pass 9 / fail 1`、`AssertionError [ERR_ASSERTION]: AC-378 / AC-380 / AC-381 must not be modified by this task`、`EXIT=1`；改回 owner 分支 ⇒ 10/10、`EXIT=0`。证明绿来自作用域判据，不是把断言删掉。
+
+更新后的 diff 面（AC7 的逐条一致）：
+
+```
+git diff --stat develop...HEAD
+.../claude-resident-ledger-transitions.test.ts     | 52 +++++++++++++++++++++-
+.../claude-resident-unattended-after-turns.test.ts | 28 +++++++++++-
+2 files changed, 77 insertions(+), 3 deletions(-)
+```
+
+`npx tsc --noEmit -p server/tsconfig.json` ⇒ `EXIT=0`；`npx oxlint` 两个文件 ⇒ `EXIT=0`（`claude-resident-ledger-transitions.test.ts:36` 的 importx warning 在 develop 上已存在，非本次引入）。
 
 ## Blocker
 
