@@ -31,6 +31,15 @@ Apply these rules after the repository's basic scaffolding is in place. Limit th
 - Compose the parts with a factory (`create<Feature>Service(deps)`) that returns a typed object, and pass collaborators through an injected dependency seam instead of importing concretes ad hoc. The factory keeps the public surface stable while the concerns live in separate files with their own tests.
 - The exemplar is `server/modules/reply-suggestions/reply-suggestions.service.ts` (258 lines): it keeps the route input type, per-session draw state and ledger rows, is built by `createReplySuggestionsService(deps)`, and delegates the gateway call, draw store, prompts, chip parsing and typed ledger rows to sibling files. Use it as the shape to copy when a file crosses the ratchet.
 
+## Encapsulate state behind a lifecycle owner
+
+- Module-level mutable state that carries internal state or a lifecycle — caches, registries, timers, in-flight/reschedule flags, and any other module-scope `let`/mutable `Map`/`Set` binding — must live inside a class or factory object with explicit lifecycle methods (`start`/`stop`/`dispose`/`register`/`lookup`/`flush`). Never leave it scattered at module scope where free functions read and write it.
+- Own that state in private fields, give each command one write path, and let callers reach it only through the owner's methods. Export the instance or factory plus its lifecycle entry points; free functions call those commands instead of mutating a module-level binding themselves.
+- A factory is equally valid when instances or injected dependencies are needed: return a typed object that owns the state in its closure and exposes the same explicit lifecycle methods.
+- Module-scope `const` bindings that are immutable configuration or stateless helpers are fine. The rule targets mutable state that outlives a single call and must be started, drained, or disposed.
+- Mechanical check: the module has no column-0 `let`/`var` and no module-scope mutable cache (`const x = new Map()`/`new Set()`), and no free function assigns to state the owner also uses. A compliant service has none; every binding it needs is a field.
+- Exemplars shipped under this rule: `SessionsWatcher` (`server/modules/providers/services/sessions-watcher.service.ts`) keeps its queued batch, start time, flush timer, and in-flight/reschedule flags in private fields behind `start()`/`stop()`/`scheduleUpdate()`/`flush()`; `PluginProcessManager`, `ProviderCapabilitiesRegistry`, and `VoiceClientAsrEngine` follow the same split.
+
 ## Place types, interfaces, and utilities
 
 - Use `type` by default. Use `interface` only for a contract that a class is intended to implement.
@@ -69,4 +78,5 @@ Before finishing:
 2. Confirm shared definitions follow the one-use versus multiple-use placement rule and grouping-comment format.
 3. Confirm no backend service or implementation file has crossed the roughly 260-line ratchet without being split by concern through a factory and injected seam.
 4. Confirm routes only parse, call services, and format responses.
-5. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+5. Confirm owned state and its lifecycle live in a class or factory object: no module-scope mutable binding is read or written by free functions, and every mutation goes through the owner's lifecycle or command methods.
+6. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
