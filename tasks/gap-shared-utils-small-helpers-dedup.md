@@ -41,13 +41,13 @@ depends_on:
 
 ## AC
 
-- [ ] 共享导出：`grep -nE "export function (isRecord|errorMessage)\(" server/shared/utils.ts src/shared/utils.ts` 命中 4 行。
-- [ ] 后端副本清零：`grep -rnE "^function (isRecord|errorMessage|messageOf|describeError|expandHome)\(" server/modules server/shared --include='*.ts' | grep -v '/tests/' | grep -v 'server/modules/voice/sensevoice-worker.ts' | grep -v 'server/shared/utils.ts' | grep -v 'server/shared/settings-file.ts'` 无输出。
-- [ ] 前端副本清零：`grep -nE "^function (isRecord|errorMessage|messageOf|describeError)\(" src/modules/architecture/architectureChatBridge.ts src/modules/architecture/curationStore.ts src/modules/settings/hooks/useSpeakerModelStatus.ts src/modules/architecture/architectureRefreshController.ts` 无输出。
-- [ ] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/shared-utils-helpers.test.ts` exit 0 与 `npx vitest run src/shared/tests/sharedUtilsHelpers.test.ts` exit 0，覆盖普通对象/数组/null/类实例的 `isRecord` 读数与 Error/字符串/空 message 的 `errorMessage` 读数。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/observation/tests/session-digest.test.ts server/modules/architecture/tests/refreshJob.test.ts server/modules/quay/tests/session-mentions.test.ts` exit 0；`npx vitest run src/modules/architecture/tests/curationStore.test.ts src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
-- [ ] 静态检查：`npm run typecheck` exit 0；`npx oxlint server/shared server/modules src/shared src/modules/architecture src/modules/settings` exit 0。
+- [x] 共享导出：`grep -nE "export function (isRecord|errorMessage)\(" server/shared/utils.ts src/shared/utils.ts` 命中 4 行。
+- [x] 后端副本清零：`grep -rnE "^function (isRecord|errorMessage|messageOf|describeError|expandHome)\(" server/modules server/shared --include='*.ts' | grep -v '/tests/' | grep -v 'server/modules/voice/sensevoice-worker.ts' | grep -v 'server/shared/utils.ts' | grep -v 'server/shared/settings-file.ts'` 无输出。
+- [x] 前端副本清零：`grep -nE "^function (isRecord|errorMessage|messageOf|describeError)\(" src/modules/architecture/architectureChatBridge.ts src/modules/architecture/curationStore.ts src/modules/settings/hooks/useSpeakerModelStatus.ts src/modules/architecture/architectureRefreshController.ts` 无输出。
+- [x] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/shared-utils-helpers.test.ts` exit 0 与 `npx vitest run src/shared/tests/sharedUtilsHelpers.test.ts` exit 0，覆盖普通对象/数组/null/类实例的 `isRecord` 读数与 Error/字符串/空 message 的 `errorMessage` 读数。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/observation/tests/session-digest.test.ts server/modules/architecture/tests/refreshJob.test.ts server/modules/quay/tests/session-mentions.test.ts` exit 0；`npx vitest run src/modules/architecture/tests/curationStore.test.ts src/modules/architecture/tests/architectureRefreshController.test.ts` exit 0。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [x] 静态检查：`npm run typecheck` exit 0；`npx oxlint server/shared server/modules src/shared src/modules/architecture src/modules/settings` exit 0。
 
 注：上列「未改动」类判据（与 develop 的 merge-base 比较，覆盖已提交与未提交改动；对 HEAD 比较在提交后恒为空，会真空通过）。
 
