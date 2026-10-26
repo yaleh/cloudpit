@@ -71,10 +71,13 @@ AC 读数（于 worktree `/data/home/yale/work/claudecodeui-worktrees/gap-module
 
 两份 SKILL.md 的 diff（commit 924538aff，`git show 924538aff -- .agents/skills/`）：backend 增加 `IProviderShell`/`IProviderTokenUsage` 能力面与 `selectProtocol` 策略正例、已知残留声明、`llm-gateway` 叶子与 AC-394 登记要求、`settings-file` 近似克隆正例与 ArchGuard 阈值说明，Verify 增补三条；frontend 新增 "Reuse the shared primitives" 节（`createExternalStore`/`createBoundedLru`/`Clock` 与 `ServerFeaturesStore` 类属主边界）、把描述表写成 `PROVIDER_DESCRIPTORS`、把 TypeSync 正例指向 `wireContractTypeSync.test.ts`，Verify 增补一条。共 2 files changed, 19 insertions(+), 9 deletions(-)。
 
+续跑轮（2026-10-26 第二次 fan-in）— suite 红不是本任务 delta：上一轮唯一的红是 develop 自带的 stale-census（`src/modules/architecture/semanticZoomLayout.ts` 基线 1642 / 实测 1688，两个文件与 develop 尖端逐字节相同）。`baseline A/B: changed-assertion` 是签名解析器的 marker/tap 不对称伪影：本轮 task 日志与驱动自己的 develop 基线日志（`.quay/fan-in-suite-…~baseline-1793000690815-bc901b.log`）里的 assertion 文本逐字节相同，两边都红。按「互为 gate 的基线红由一条分支同时承载两份修复」的既有做法，本分支把兄弟任务已提交的 census 重录逐字取来作 collateral：`git checkout task/gap-codex-transcript-format-shared-helpers -- server/shared/tests/architecture-ratchet.baseline.json`（与兄弟分支 `git diff <branch> -- <file>` 为空，来源 `a9ac78eee`，含 RECORDED CHANGE note），并在 `## Touches` 中以 `(collateral: …)` 声明。复验读数：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → tests 6 / pass 6 / fail 0，EXIT=0。
+
 ## Touches
 
 - .agents/skills/backend-module-standards/SKILL.md
 - .agents/skills/frontend-module-standards/SKILL.md
+- server/shared/tests/architecture-ratchet.baseline.json (collateral: 内容逐字取自 task/gap-codex-transcript-format-shared-helpers 的 a9ac78eee，含 RECORDED CHANGE note)
 - tasks/gap-module-standards-inheritance-polymorphism-reuse.md
 
 ## Blocker
