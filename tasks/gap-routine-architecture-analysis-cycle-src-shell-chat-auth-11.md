@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-shell-chat-auth-11
 title: "architecture-analysis: Largest package SCC in src (11 modules): auth ->
   onboarding -> provider-auth -> standalone-shell -> shell -> chat ->
   chat/voice-realtime -> auth, with chat -"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
