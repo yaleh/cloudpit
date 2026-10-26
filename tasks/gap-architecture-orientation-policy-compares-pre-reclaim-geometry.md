@@ -17,10 +17,10 @@ extra:
 
 ## AC
 
-- [ ] 新增单测（`src/modules/architecture/tests/layoutAspect.test.tsx`）：用 `orientationChainGraph()` 的两类夹具，PC 画布 1151×596，断言策略选中的方向，其回收后画出尺寸算出的 fit 不小于另一方向的 fit（减去滞回）；命令 `npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` 退出码 0。
-- [ ] 同一单测在回退本任务对 `layoutOrientation.ts` / `PlantUmlGraph.tsx` 的改动后为红（负臂：stash 这两个文件重跑，退出码非 0）。
-- [ ] `npx vitest run src/modules/architecture` 全绿，`npx tsc --noEmit -p .` 无输出。
-- [ ] e2e：`npx playwright test e2e/architecture-canvas-layout.spec.ts -g "orientation|downward layout|two-entity chain"` 退出码 0；并把 `DRAWING_FILL_FLOOR` 的注释与阈值按新读数复核——若被选方向的 fill 已高于强制 DOWN，则恢复“被选方向 fill 高于强制 DOWN”的对比断言。
+- [x] 新增单测（`src/modules/architecture/tests/layoutAspect.test.tsx`）：用 `orientationChainGraph()` 的两类夹具，PC 画布 1151×596，断言策略选中的方向，其回收后画出尺寸算出的 fit 不小于另一方向的 fit（减去滞回）；命令 `npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` 退出码 0。
+- [x] 同一单测在回退本任务对 `layoutOrientation.ts` / `PlantUmlGraph.tsx` 的改动后为红（负臂：stash 这两个文件重跑，退出码非 0）。
+- [x] `npx vitest run src/modules/architecture` 全绿，`npx tsc --noEmit -p .` 无输出。
+- [x] e2e：`npx playwright test e2e/architecture-canvas-layout.spec.ts -g "orientation|downward layout|two-entity chain"` 退出码 0；并把 `DRAWING_FILL_FLOOR` 的注释与阈值按新读数复核——若被选方向的 fill 已高于强制 DOWN，则恢复“被选方向 fill 高于强制 DOWN”的对比断言。
 
 ## DoD
 
