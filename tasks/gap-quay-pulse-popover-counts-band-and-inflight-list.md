@@ -2,7 +2,7 @@
 id: gap-quay-pulse-popover-counts-band-and-inflight-list
 title: 标题栏 Quay popover：增加各状态任务/goal 计数带与 in-flight 任务列表（Tests/Fan-in 等 quay
   读取动词发版后另做）
-status: ready
+status: done
 labels:
   - gap
 parent: null
