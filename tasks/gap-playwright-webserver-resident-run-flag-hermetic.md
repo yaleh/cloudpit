@@ -2,7 +2,7 @@
 id: gap-playwright-webserver-resident-run-flag-hermetic
 title: AC-361 连续体验 E2E 判据钉住 webServer 的 RESIDENT_RUN_IS_TURN 关态：anchor 导出 =1 时
   X-7 仍 11/11 绿
-status: ready
+status: done
 labels:
   - gap
   - defect
