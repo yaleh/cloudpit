@@ -1,5 +1,6 @@
 import { api } from '@/shared/api';
 import type { QueuedSendOptions } from '@/shared/types';
+import { createExternalStore } from '@/shared/utils';
 
 /**
  * Unsent composer text and queued messages, stored in `auth.db` rather than in
@@ -48,9 +49,15 @@ const SERVER_WRITE_DEBOUNCE_MS = 1_000;
 
 const EMPTY_DRAFT: DraftRecord = { text: '', queuedMessage: null };
 
-const listeners = new Set<() => void>();
+/**
+ * The draft table, keyed by scope. Replaced wholesale on every change so a
+ * reader's snapshot identity changes exactly when a draft did.
+ */
+const draftStore = createExternalStore<ReadonlyMap<string, DraftRecord>>(new Map());
 
-let drafts = new Map<string, DraftRecord>();
+/** The current draft table; every reader and writer goes through this accessor. */
+const drafts = (): ReadonlyMap<string, DraftRecord> => draftStore.getSnapshot();
+
 const pendingScopes = new Set<string>();
 let serverWriteTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -92,19 +99,17 @@ function readMirror(): Map<string, DraftRecord> {
   }
 }
 
-function writeMirror(): void {
+function writeMirror(nextDrafts: ReadonlyMap<string, DraftRecord> = drafts()): void {
   try {
-    localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(Object.fromEntries(drafts)));
+    localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(Object.fromEntries(nextDrafts)));
   } catch {
     // A full localStorage costs the first-paint restore, not the draft: the
     // server copy is authoritative and arrives on hydrate.
   }
 }
 
+/** Announces a change to same-tab DOM listeners; React listeners are the store's. */
 function notifyListeners(): void {
-  for (const listener of listeners) {
-    listener();
-  }
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(CHAT_DRAFTS_CHANGED_EVENT));
   }
@@ -116,7 +121,7 @@ function flushServerWrites(): void {
   pendingScopes.clear();
 
   for (const scope of scopes) {
-    const draft = drafts.get(scope);
+    const draft = drafts().get(scope);
 
     // A save that fails must never surface as an unhandled rejection out of a
     // timer callback: the mirror already holds the draft, and the next
@@ -159,29 +164,31 @@ function flushServerWritesNow(): void {
 }
 
 function updateDraft(scope: string, update: Partial<DraftRecord>): void {
-  const current = drafts.get(scope) ?? EMPTY_DRAFT;
+  const currentDrafts = drafts();
+  const current = currentDrafts.get(scope) ?? EMPTY_DRAFT;
   const next: DraftRecord = { ...current, ...update };
 
   if (next.text === current.text && next.queuedMessage === current.queuedMessage) {
     return;
   }
 
-  const nextDrafts = new Map(drafts);
+  const nextDrafts = new Map(currentDrafts);
   if (isEmptyDraft(next)) {
     nextDrafts.delete(scope);
   } else {
     nextDrafts.set(scope, next);
   }
-  drafts = nextDrafts;
-
-  writeMirror();
+  // Persist before publishing, so a listener that reads the mirror during the
+  // notification sees the draft the store is about to hand out.
+  writeMirror(nextDrafts);
+  draftStore.set(nextDrafts);
   queueServerWrite(scope);
   notifyListeners();
 }
 
 /** Reads one scope's composer text, synchronously, for the first render. */
 export function readDraftText(scope: string): string {
-  return drafts.get(scope)?.text ?? '';
+  return drafts().get(scope)?.text ?? '';
 }
 
 export function writeDraftText(scope: string, text: string): void {
@@ -189,7 +196,7 @@ export function writeDraftText(scope: string, text: string): void {
 }
 
 export function readQueuedMessage(scope: string): StoredQueuedMessage | null {
-  const queued = drafts.get(scope)?.queuedMessage ?? null;
+  const queued = drafts().get(scope)?.queuedMessage ?? null;
   if (!queued) {
     return null;
   }
@@ -220,10 +227,7 @@ export function clearQueuedMessage(scope: string): void {
 
 /** Subscribes to any draft change; returns the unsubscribe function. */
 export function subscribeToChatDrafts(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return draftStore.subscribe(listener);
 }
 
 /**
@@ -272,20 +276,20 @@ export async function hydrateChatDrafts(): Promise<void> {
   // the server snapshot. Every other missing scope was deleted remotely and
   // must also disappear from the mirror.
   for (const scope of pendingScopes) {
-    const pending = drafts.get(scope);
+    const pending = drafts().get(scope);
     if (pending) {
       merged.set(scope, pending);
     }
   }
 
-  drafts = merged;
-  writeMirror();
+  writeMirror(merged);
+  draftStore.set(merged);
   notifyListeners();
 }
 
 /** Drops every cached draft on sign-out, so the next user sees none of them. */
 export function resetChatDrafts(): void {
-  drafts = new Map();
+  draftStore.set(new Map());
   pendingScopes.clear();
   if (serverWriteTimer !== null) {
     clearTimeout(serverWriteTimer);
@@ -302,5 +306,5 @@ export function resetChatDrafts(): void {
 // Read at module load rather than on first use, because the composer's initial
 // input value is a `useState` initializer that runs before any effect.
 if (typeof localStorage !== 'undefined') {
-  drafts = readMirror();
+  draftStore.set(readMirror());
 }

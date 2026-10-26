@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { authenticatedFetch } from '@/shared/api';
 import { useWebSocketOptional } from '@/shared/context/WebSocketContext';
+import { createExternalStore } from '@/shared/utils';
 
 /**
  * The observation wall's client half.
@@ -177,12 +178,14 @@ export function deriveSelfReading(
 // by the cockpit's wall read (which the person opens to use the wall at all) and by writes the
 // person performs here.
 
-let pinnedUris = new Set<string>();
-const pinListeners = new Set<() => void>();
+/**
+ * The one pinned-URI set every sidebar row and wall tile reads. Replaced with a
+ * new set on every change so a reader's snapshot identity tracks the change.
+ */
+const pinStore = createExternalStore<ReadonlySet<string>>(new Set());
 
-function publishPins(next: Set<string>): void {
-  pinnedUris = next;
-  for (const listener of [...pinListeners]) listener();
+function publishPins(next: ReadonlySet<string>): void {
+  pinStore.set(next);
 }
 
 /** Replaces the cache from a wall read. Consumers not mentioned by the read are left alone. */
@@ -190,7 +193,7 @@ export function primeObservationPins(wall: ObservationWall): void {
   // Only the entries the server returned are known; a pinned object that did not fit the cap
   // is still pinned but is not in `entries`, so the read adds rather than replaces. An unpin
   // performed here is what removes an entry, and it publishes its own update.
-  const next = new Set(pinnedUris);
+  const next = new Set(pinStore.getSnapshot());
   for (const entry of wall.entries) {
     if (entry.pinned) next.add(entry.object.uri);
   }
@@ -199,20 +202,15 @@ export function primeObservationPins(wall: ObservationWall): void {
 
 /** The pinned set as the last read/write left it. Exported for tests and the sidebar rows. */
 export function observationPinnedUris(): ReadonlySet<string> {
-  return pinnedUris;
+  return pinStore.getSnapshot();
 }
 
-function subscribePins(listener: () => void): () => void {
-  pinListeners.add(listener);
-  return () => {
-    pinListeners.delete(listener);
-  };
-}
+const subscribePins = pinStore.subscribe;
 
 /** Pins or unpins one object and updates the shared cache on success. */
 export async function toggleObservationPin(uri: string, watched: boolean): Promise<void> {
   await setObservationWatch(uri, watched);
-  const next = new Set(pinnedUris);
+  const next = new Set(pinStore.getSnapshot());
   if (watched) next.add(uri);
   else next.delete(uri);
   publishPins(next);
@@ -226,14 +224,14 @@ export function useObservationPin(uri: string): {
 } {
   const pinned = useSyncExternalStore(
     subscribePins,
-    () => pinnedUris.has(uri),
+    () => pinStore.getSnapshot().has(uri),
     () => false,
   );
   const [pending, setPending] = useState(false);
   const toggle = useCallback(async () => {
     setPending(true);
     try {
-      await toggleObservationPin(uri, !pinnedUris.has(uri));
+      await toggleObservationPin(uri, !pinStore.getSnapshot().has(uri));
     } finally {
       setPending(false);
     }

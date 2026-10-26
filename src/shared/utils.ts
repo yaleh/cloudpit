@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { Project, ProjectSession, SessionHostLease, SessionHostsSnapshot, VoiceClientAssetPaths } from '@/shared/types';
+import type { Clock, Project, ProjectSession, SessionHostLease, SessionHostsSnapshot, VoiceClientAssetPaths } from '@/shared/types';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -348,6 +348,155 @@ export function formatAbsoluteTime(iso: string | null, locale: string): string |
   if (iso === null) return undefined;
   const parsed = new Date(iso);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toLocaleString(locale);
+}
+
+// ---------------------------
+
+//----------------- INJECTABLE CLOCK ------------
+
+/**
+ * The browser's real clock, matching {@link Clock}.
+ *
+ * Use it as the fallback in a controller's dependency seam: production gets this
+ * object, and a test injects a fake with the same five members instead.
+ */
+export const defaultClock: Clock = {
+  setTimeout: (callback, milliseconds) => globalThis.setTimeout(callback, milliseconds),
+  clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+  setInterval: (callback, milliseconds) => globalThis.setInterval(callback, milliseconds),
+  clearInterval: (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
+  now: () => Date.now(),
+};
+
+// ---------------------------
+
+//----------------- EXTERNAL STORES ------------
+
+/**
+ * The subscription surface of a store that lives outside React.
+ *
+ * A module-level store or a React-free controller returns this beside its own
+ * commands; a component reads `getSnapshot` through `useSyncExternalStore` and
+ * calls `subscribe` as its subscribe callback. `set`/`update` notify every
+ * listener only when the value's identity actually changed.
+ */
+export type ExternalStore<T> = {
+  subscribe: (listener: () => void) => () => void;
+  getSnapshot: () => T;
+  set: (next: T) => void;
+  update: (updater: (current: T) => T) => void;
+};
+
+/** Lifecycle hooks for a store whose work should run only while it has readers. */
+export type ExternalStoreOptions = {
+  /** Runs when the first listener subscribes, so the store can start its poller. */
+  onFirstSubscriber?: () => void;
+  /** Runs when the last listener unsubscribes, so the store can stop its poller. */
+  onLastUnsubscriber?: () => void;
+};
+
+/**
+ * Creates a store whose value React reads through `useSyncExternalStore`.
+ *
+ * Replaces the hand-written `listeners = new Set` + `forEach` pattern: `set` and
+ * `update` are the only writers, they skip notification when the value is
+ * identical (`Object.is`), and listeners are notified over a snapshot of the set
+ * so one listener may unsubscribe while being called.
+ */
+export function createExternalStore<T>(
+  initial: T,
+  options: ExternalStoreOptions = {},
+): ExternalStore<T> {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+
+  const commit = (next: T): void => {
+    if (Object.is(next, snapshot)) return;
+    snapshot = next;
+    for (const listener of [...listeners]) listener();
+  };
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      if (listeners.size === 1) options.onFirstSubscriber?.();
+      return () => {
+        // A caller that runs its unsubscribe twice must not make the store report
+        // the last reader leaving for a listener that was already gone.
+        if (!listeners.delete(listener)) return;
+        if (listeners.size === 0) options.onLastUnsubscriber?.();
+      };
+    },
+    getSnapshot: () => snapshot,
+    set: commit,
+    update: (updater) => commit(updater(snapshot)),
+  };
+}
+
+// ---------------------------
+
+//----------------- BOUNDED LRU CACHE ------------
+
+/** A fixed-capacity least-recently-used cache; the oldest key is evicted first. */
+export type BoundedLru<K, V> = {
+  /** Answers the value and marks the key most recently used. */
+  get: (key: K) => V | undefined;
+  /**
+   * Stores the value as the most recently used, evicting the oldest key over
+   * capacity. Returns the value that was evicted, so a caller holding a resource
+   * (a blob URL) can release it; `undefined` when nothing was evicted.
+   */
+  set: (key: K, value: V) => V | undefined;
+  /** Drops one key; returns whether it was present. */
+  delete: (key: K) => boolean;
+  /** Drops every key. */
+  clear: () => void;
+  /** How many keys are currently held. */
+  readonly size: number;
+};
+
+/**
+ * Creates a bounded cache in which both `get` and `set` refresh a key's
+ * recency, and inserting past `capacity` evicts the least recently used key.
+ *
+ * Replaces the hand-written `Map` dance (delete-then-set on write, bump the
+ * oldest key on overflow) that four modules each repeated; using `get` as a
+ * recency signal is the behaviour those copies were reaching for.
+ */
+export function createBoundedLru<K, V>(capacity: number): BoundedLru<K, V> {
+  if (!Number.isInteger(capacity) || capacity < 1) {
+    throw new RangeError(`createBoundedLru capacity must be a positive integer, got ${capacity}`);
+  }
+
+  const entries = new Map<K, V>();
+
+  return {
+    get(key) {
+      if (!entries.has(key)) return undefined;
+      const value = entries.get(key) as V;
+      // Re-insert so map insertion order stays the recency order.
+      entries.delete(key);
+      entries.set(key, value);
+      return value;
+    },
+    set(key, value) {
+      entries.delete(key);
+      entries.set(key, value);
+      let evicted: V | undefined;
+      while (entries.size > capacity) {
+        const oldest = entries.keys().next();
+        if (oldest.done === true) break;
+        evicted = entries.get(oldest.value);
+        entries.delete(oldest.value);
+      }
+      return evicted;
+    },
+    delete: (key) => entries.delete(key),
+    clear: () => entries.clear(),
+    get size() {
+      return entries.size;
+    },
+  };
 }
 
 // ---------------------------

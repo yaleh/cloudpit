@@ -1,4 +1,5 @@
 import type { DiffCalculator, DiffLine, DiffStats } from '@/shared/types';
+import { createBoundedLru } from '@/shared/utils';
 
 /**
  * Splits a file's text into the lines a diff should compare.
@@ -122,8 +123,11 @@ export const parseToolPayload = (payload: unknown): unknown => {
   }
 };
 
+/** How many `(old, new)` pairs one calculator remembers before the oldest is evicted. */
+const CACHED_DIFF_CAPACITY = 100;
+
 export const createCachedDiffCalculator = (): DiffCalculator => {
-  const cache = new Map<string, DiffLine[]>();
+  const cache = createBoundedLru<string, DiffLine[]>(CACHED_DIFF_CAPACITY);
 
   return (oldStr: string, newStr: string) => {
     const key = JSON.stringify([oldStr, newStr]);
@@ -134,12 +138,6 @@ export const createCachedDiffCalculator = (): DiffCalculator => {
 
     const calculated = calculateDiff(oldStr, newStr);
     cache.set(key, calculated);
-    if (cache.size > 100) {
-      const firstKey = cache.keys().next().value;
-      if (firstKey) {
-        cache.delete(firstKey);
-      }
-    }
     return calculated;
   };
 };

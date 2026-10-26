@@ -31,7 +31,9 @@
 import type {
   ArchitectureRefreshStartResult,
   ArchitectureRefreshStatus,
+  Clock,
 } from '@/shared/types';
+import { createExternalStore, defaultClock } from '@/shared/utils';
 
 /** The shipped "nothing has run in this server process" reading. */
 export const IDLE_ARCHITECTURE_REFRESH_STATUS: ArchitectureRefreshStatus = {
@@ -62,13 +64,7 @@ export type ArchitectureRefreshApi = {
 };
 
 /** Schedules the poll and the elapsed ticker; injectable so tests need no wall clock. */
-export type ArchitectureRefreshClock = {
-  setTimeout: (callback: () => void, milliseconds: number) => unknown;
-  clearTimeout: (handle: unknown) => void;
-  setInterval: (callback: () => void, milliseconds: number) => unknown;
-  clearInterval: (handle: unknown) => void;
-  now: () => number;
-};
+export type ArchitectureRefreshClock = Clock;
 
 /** Everything the hook reads through `useSyncExternalStore`. */
 export type ArchitectureRefreshSnapshot = {
@@ -94,14 +90,6 @@ export type ArchitectureRefreshController = {
   readonly dispose: () => void;
 };
 
-const defaultClock: ArchitectureRefreshClock = {
-  setTimeout: (callback, milliseconds) => globalThis.setTimeout(callback, milliseconds),
-  clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
-  setInterval: (callback, milliseconds) => globalThis.setInterval(callback, milliseconds),
-  clearInterval: (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
-  now: () => Date.now(),
-};
-
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() !== '' ? error.message : fallback;
 }
@@ -120,7 +108,6 @@ export function createArchitectureRefreshController(options: {
   const clock = options.clock ?? defaultClock;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
 
-  const listeners = new Set<() => void>();
   let disposed = false;
   // True while at least one subscriber is attached. The activation read and the
   // timers belong to that window, not to the object's lifetime: React 18's
@@ -155,17 +142,20 @@ export function createArchitectureRefreshController(options: {
     requestError,
   });
 
-  let snapshot = buildSnapshot();
-
-  const notify = (): void => {
-    for (const listener of [...listeners]) listener();
-  };
+  /**
+   * The one reading the hook renders. The activation read and the timers run
+   * only between the first subscriber and the last.
+   */
+  const store = createExternalStore<ArchitectureRefreshSnapshot>(buildSnapshot(), {
+    onFirstSubscriber: () => activate(),
+    onLastUnsubscriber: () => deactivate(),
+  });
 
   /** Rebuilds the snapshot and notifies only when a published field changed. */
   const publish = (): void => {
     if (disposed) return;
     const next = buildSnapshot();
-    const previous = snapshot;
+    const previous = store.getSnapshot();
     if (
       previous.status === next.status
       && previous.elapsedMs === next.elapsedMs
@@ -174,8 +164,7 @@ export function createArchitectureRefreshController(options: {
     ) {
       return;
     }
-    snapshot = next;
-    notify();
+    store.set(next);
   };
 
   const stopPolling = (): void => {
@@ -303,20 +292,12 @@ export function createArchitectureRefreshController(options: {
   };
 
   return {
-    subscribe: (listener) => {
-      listeners.add(listener);
-      activate();
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0) deactivate();
-      };
-    },
-    getSnapshot: () => snapshot,
+    subscribe: store.subscribe,
+    getSnapshot: store.getSnapshot,
     refresh,
     dispose: () => {
       disposed = true;
       deactivate();
-      listeners.clear();
     },
   };
 }

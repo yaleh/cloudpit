@@ -4101,3 +4101,23 @@ export type ArchitectureRefreshStartResult = {
 };
 
 // ---------------------------
+
+//----------------- INJECTABLE CLOCK ------------
+
+/**
+ * The timer and wall-clock surface a React-free controller takes through its
+ * dependency seam.
+ *
+ * Tests inject a fake with the same five members instead of waiting on real
+ * timers, which is what makes the controller's scheduling order assertable. The
+ * browser default is `defaultClock` in `@/shared/utils`.
+ */
+export type Clock = {
+  setTimeout: (callback: () => void, milliseconds: number) => unknown;
+  clearTimeout: (handle: unknown) => void;
+  setInterval: (callback: () => void, milliseconds: number) => unknown;
+  clearInterval: (handle: unknown) => void;
+  now: () => number;
+};
+
+// ---------------------------

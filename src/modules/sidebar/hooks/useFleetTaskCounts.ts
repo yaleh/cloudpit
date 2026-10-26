@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { api } from '@/shared/api';
 import type { QuayFleetCliState, QuayFleetSummary, QuayFleetTaskCounts } from '@/shared/types';
+import { createExternalStore } from '@/shared/utils';
 
 /**
  * The 60-second refresh cadence while any project row is mounted. The backend caches each
@@ -43,15 +44,32 @@ const EMPTY_SNAPSHOT: FleetSummarySnapshot = {
   fleetReason: null,
 };
 
-let snapshot: FleetSummarySnapshot = EMPTY_SNAPSHOT;
 // One shared read for every row: a sidebar with twenty projects still issues one request.
 let inFlight: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
-const listeners = new Set<() => void>();
+
+/**
+ * The one reading every row and the mode switch share. The poll and the
+ * visibility listener exist only between the first subscriber and the last.
+ */
+const summaryStore = createExternalStore<FleetSummarySnapshot>(EMPTY_SNAPSHOT, {
+  onFirstSubscriber: () => {
+    if (!pageIsHidden()) void load();
+    startPolling();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+  },
+  onLastUnsubscriber: () => {
+    stopPolling();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  },
+});
 
 const publish = (next: FleetSummarySnapshot): void => {
-  snapshot = next;
-  for (const listener of listeners) listener();
+  summaryStore.set(next);
 };
 
 /** True while the tab is in the background; polling is suspended so a hidden tab is free. */
@@ -74,7 +92,7 @@ const load = (): Promise<void> => {
     try {
       const response = await api.quayFleetSummary();
       if (!response.ok) {
-        publish({ ...snapshot, status: 'error' });
+        publish({ ...summaryStore.getSnapshot(), status: 'error' });
         return;
       }
       const summary = (await response.json()) as QuayFleetSummary;
@@ -103,7 +121,7 @@ const load = (): Promise<void> => {
       });
     } catch {
       // Network failure: keep the last successful reading; the interval retries.
-      publish({ ...snapshot, status: 'error' });
+      publish({ ...summaryStore.getSnapshot(), status: 'error' });
     } finally {
       inFlight = null;
     }
@@ -138,28 +156,8 @@ function handleVisibilityChange(): void {
   startPolling();
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  if (listeners.size === 1) {
-    if (!pageIsHidden()) void load();
-    startPolling();
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }
-  }
-
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0) {
-      stopPolling();
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }
-    }
-  };
-}
-
-const getSnapshot = (): FleetSummarySnapshot => snapshot;
+const subscribe = summaryStore.subscribe;
+const getSnapshot = summaryStore.getSnapshot;
 
 /**
  * The whole fleet-summary reading. Used by `useFleetAttention` (the sidebar mode switch's

@@ -1,5 +1,6 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
+import { createExternalStore } from '@/shared/utils';
 
 /**
  * The one reader and writer for the settings that used to live in browser
@@ -89,7 +90,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
  */
 class UserSettingsStore {
   /** The last known preference values, read synchronously by callers. */
-  private preferences: PreferenceRecord = {};
+  private readonly preferences = createExternalStore<PreferenceRecord>({});
 
   /** Values queued for the next debounced server write, keyed by preference. */
   private pendingServerWrites: PreferenceRecord = {};
@@ -100,16 +101,13 @@ class UserSettingsStore {
   /** True once the server's copy has been read at least once this session. */
   private hasHydrated = false;
 
-  /** Listeners notified after every local write and hydrate. */
-  private readonly listeners = new Set<() => void>();
-
   /**
    * Seeds the in-memory copy from the localStorage mirror. Runs at module load
    * rather than on first use because the theme and language readers run during
    * module initialization, before any component has mounted.
    */
   restoreFromMirror(): void {
-    this.preferences = this.readMirror();
+    this.preferences.set(this.readMirror());
   }
 
   private readMirror(): PreferenceRecord {
@@ -126,19 +124,17 @@ class UserSettingsStore {
     }
   }
 
-  private writeMirror(): void {
+  private writeMirror(preferences: PreferenceRecord = this.preferences.getSnapshot()): void {
     try {
-      localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(this.preferences));
+      localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(preferences));
     } catch {
       // A full or unavailable localStorage costs the first-paint optimization,
       // not the setting itself — the server copy is authoritative.
     }
   }
 
+  /** Announces the change to same-tab DOM listeners; React listeners are the store's. */
   private notifyListeners(): void {
-    for (const listener of this.listeners) {
-      listener();
-    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(USER_PREFERENCES_CHANGED_EVENT));
     }
@@ -181,27 +177,30 @@ class UserSettingsStore {
    * `useState` initial values that run before any fetch could resolve.
    */
   read<T>(key: UserPreferenceKey, fallback: T): T {
-    const value = this.preferences[key];
+    const value = this.preferences.getSnapshot()[key];
     return value === undefined || value === null ? fallback : (value as T);
   }
 
   /** Writes one preference through to the mirror, the listeners and the server. */
   write(key: UserPreferenceKey, value: unknown): void {
-    if (JSON.stringify(this.preferences[key]) === JSON.stringify(value)) {
+    const current = this.preferences.getSnapshot();
+    if (JSON.stringify(current[key]) === JSON.stringify(value)) {
       return;
     }
 
-    this.preferences = { ...this.preferences, [key]: value };
-    this.writeMirror();
+    const next = { ...current, [key]: value };
+    this.writeMirror(next);
+    this.preferences.set(next);
     this.queueServerWrite({ [key]: value });
     this.notifyListeners();
   }
 
   /** Writes several preferences as one change, so listeners re-render once. */
   writeMany(updates: PreferenceRecord): void {
+    const current = this.preferences.getSnapshot();
     const changed: PreferenceRecord = {};
     for (const [key, value] of Object.entries(updates) as Array<[UserPreferenceKey, unknown]>) {
-      if (JSON.stringify(this.preferences[key]) !== JSON.stringify(value)) {
+      if (JSON.stringify(current[key]) !== JSON.stringify(value)) {
         changed[key] = value;
       }
     }
@@ -210,18 +209,16 @@ class UserSettingsStore {
       return;
     }
 
-    this.preferences = { ...this.preferences, ...changed };
-    this.writeMirror();
+    const next = { ...current, ...changed };
+    this.writeMirror(next);
+    this.preferences.set(next);
     this.queueServerWrite(changed);
     this.notifyListeners();
   }
 
   /** Subscribes to any preference change; returns the unsubscribe function. */
   subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.preferences.subscribe(listener);
   }
 
   /**
@@ -272,9 +269,10 @@ class UserSettingsStore {
       delete this.pendingServerWrites[key];
     }
 
-    this.preferences = { ...serverPreferences, ...migrated };
+    const next = { ...serverPreferences, ...migrated };
     this.hasHydrated = true;
-    this.writeMirror();
+    this.writeMirror(next);
+    this.preferences.set(next);
 
     if (Object.keys(migrated).length > 0) {
       this.queueServerWrite(migrated);
@@ -293,7 +291,7 @@ class UserSettingsStore {
    * this device does not start out looking at the previous user's settings.
    */
   dispose(): void {
-    this.preferences = {};
+    this.preferences.set({});
     this.pendingServerWrites = {};
     this.hasHydrated = false;
     if (this.serverWriteTimer !== null) {
