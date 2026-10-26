@@ -34,3 +34,16 @@ extra:
 - src/modules/architecture/tests/layoutAspect.test.tsx
 - e2e/architecture-canvas-layout.spec.ts
 - tasks/gap-architecture-orientation-policy-compares-pre-reclaim-geometry.md
+
+## Evidence
+
+- 单测：`npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` → 15 passed，exit 0。新增用例 `the direction policy compares the POST-reclaim fit, not the renderer geometry`（PC 1151×596）：DOWN 回收后 fit 1.5（内容 792×250），RIGHT 1.236；策略选 DOWN / `vertical-fit-larger`，且 chosen×(1+滞回) ≥ other。同一用例内置前提断言：按渲染器原始几何比较会选 RIGHT（即缺陷形态）。
+- 负臂：把 `layoutOrientation.ts` / `PlantUmlGraph.tsx` 还原为 develop 版本后重跑同一用例 → 1 failed（chosen RIGHT fit 1.236 vs other DOWN 1.5），文件随后恢复。
+- 模块测试与类型：`npx vitest run src/modules/architecture` → 35 files / 604 tests passed；`npx tsc --noEmit -p .` 无输出。
+- e2e：`npx playwright test e2e/architecture-canvas-layout.spec.ts -g "orientation|downward layout|two-entity chain"` → 3 passed，exit 0。隔离实例真实页面读数：
+  - 1440×765 / 画布 1151×596：被选 DOWN `vertical-fit-larger`，natural 792×250，zoom 1.5，fill 0.289；强制 RIGHT `forced-right`，natural 1128×138，zoom 1.21，fill 0.227 —— 被选方向更大。
+  - 1920×900 / 画布 1631×731：被选 DOWN `fit-within-hysteresis`，natural 792×250，zoom 1.5，fill 0.166；强制 RIGHT `forced-right`，natural 1332×101，zoom 1.5，fill 0.113 —— 被选方向更大。
+  - 手机 390×844：DOWN `canvas-not-wide`，fill 0.424。
+  - 396 实体大图：DOWN `entity-budget-exceeded`，fill 0.516（未跑第二次布局）。
+  - 截图：`tmp/orientation-shots/arch-chrome-orientation-{pc,phone,control-right,control-restored,1920x900,1920x900-forced-right,large-graph}.png`。
+- `scripts/ui-scenario.mjs`：仓库现有场景仅 `e2e/scenarios/cockpit-mode-switch.json` 与 `quay-wall-focus-pin-utter.json`，无架构场景，故“存在可用的架构场景时”一项不适用；大颗粒度回归由上述 Playwright spec 承担。
