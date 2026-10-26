@@ -40,12 +40,12 @@ server 与浏览器包不共享类型，wire 形状由人手抄两份，代码�
 
 ## AC
 
-- [ ] 判据全绿：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` exit 0。
-- [ ] 覆盖面：`grep -cE "(NoticeLifecycle|NoticeSeverity|ArchitectureRefreshState|ArchitectureRefreshStage|ArchitectureRefreshStatus|ArchitectureRefreshStartResult|RecentTerminalState|ArchitectureMentionHit|ArchitectureMentionEntity|NoticeList)" src/shared/tests/wireContractTypeSync.test.ts` ≥ 10。
-- [ ] 非空自检：`grep -nE "length > 0|\.length, 0\)|toBeGreaterThan\(0\)" src/shared/tests/wireContractTypeSync.test.ts` 至少命中一处，且该断言覆盖表中每一行（逐行循环或逐行断言）。
-- [ ] 假形态：`grep -nE "false-form|假形态" src/shared/tests/wireContractTypeSync.test.ts` 命中一个用例，它对内存副本改掉一个联合成员与一个对象字段后断言比对 **不** 相等。
-- [ ] 只加判据：`git diff --name-only "$(git merge-base develop HEAD)" -- src/ server/ | grep -v '^src/shared/tests/wireContractTypeSync.test.ts$'` 无输出。
-- [ ] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared/tests/wireContractTypeSync.test.ts` exit 0。
+- [x] 判据全绿：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` exit 0。
+- [x] 覆盖面：`grep -cE "(NoticeLifecycle|NoticeSeverity|ArchitectureRefreshState|ArchitectureRefreshStage|ArchitectureRefreshStatus|ArchitectureRefreshStartResult|RecentTerminalState|ArchitectureMentionHit|ArchitectureMentionEntity|NoticeList)" src/shared/tests/wireContractTypeSync.test.ts` ≥ 10。
+- [x] 非空自检：`grep -nE "length > 0|\.length, 0\)|toBeGreaterThan\(0\)" src/shared/tests/wireContractTypeSync.test.ts` 至少命中一处，且该断言覆盖表中每一行（逐行循环或逐行断言）。
+- [x] 假形态：`grep -nE "false-form|假形态" src/shared/tests/wireContractTypeSync.test.ts` 命中一个用例，它对内存副本改掉一个联合成员与一个对象字段后断言比对 **不** 相等。
+- [x] 只加判据：`git diff --name-only "$(git merge-base develop HEAD)" -- src/ server/ | grep -v '^src/shared/tests/wireContractTypeSync.test.ts$'` 无输出。
+- [x] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared/tests/wireContractTypeSync.test.ts` exit 0。
 
 注：上列「未改动」类判据（与 develop 的 merge-base 比较，覆盖已提交与未提交改动；对 HEAD 比较在提交后恒为空，会真空通过）。
 
@@ -57,3 +57,11 @@ server 与浏览器包不共享类型，wire 形状由人手抄两份，代码�
 
 - src/shared/tests/wireContractTypeSync.test.ts (new)
 - tasks/gap-wire-type-sync-criteria.md
+
+## Blocker
+
+**2026-10-26T04:07:50.328Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/6，剩余未勾 6）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：69008c35-0c77-42e5-9ff6-e4f1ca65a961
