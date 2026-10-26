@@ -48,12 +48,12 @@ extra:
 
 ## AC
 
-- [ ] 判据全绿：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0，输出中逐个打印五个维度的实测总数。
-- [ ] 基线与实测一致：基线由判据同一套读法在执行时生成。`node -e "const b=require('./server/shared/tests/architecture-ratchet.baseline.json');for(const k of ['oversizeFiles','moduleMutableState','hookStateHeavy','providerNameBranches'])if(typeof b[k]!=='object'||Object.keys(b[k]).length===0)process.exit(1);if(!Number.isInteger(b.smallHelperCopies))process.exit(1)"` exit 0。
-- [ ] 能判红：同一测试文件含一组 false-form 用例，对内存中的扫描结果分别做五种篡改——给基线外文件加 1 处模块级 `let`、让基线内文件行数加 1、给基线外文件加 1 处 provider 名字分支、让一个基线外 src 文件的 hook 状态数达到 20、多加 1 份 `isRecord`——每种都断言比对结果为红，且错误信息含维度名与文件路径。
-- [ ] 下降不红：同一测试文件含用例，读数低于基线时比对结果为绿，并输出含 `可下调基线` 的提示行。
-- [ ] 扫描集正确：同一测试文件含用例，断言 `__criterion-falsify-` 前缀文件、`tests/` 目录、`*.test.ts` 和 `node_modules` 都不在扫描集内，且根 `shared/` 在扫描集内。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/shared/tests/architecture-ratchet.test.ts` exit 0。
+- [x] 判据全绿：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0，输出中逐个打印五个维度的实测总数。
+- [x] 基线与实测一致：基线由判据同一套读法在执行时生成。`node -e "const b=require('./server/shared/tests/architecture-ratchet.baseline.json');for(const k of ['oversizeFiles','moduleMutableState','hookStateHeavy','providerNameBranches'])if(typeof b[k]!=='object'||Object.keys(b[k]).length===0)process.exit(1);if(!Number.isInteger(b.smallHelperCopies))process.exit(1)"` exit 0。
+- [x] 能判红：同一测试文件含一组 false-form 用例，对内存中的扫描结果分别做五种篡改——给基线外文件加 1 处模块级 `let`、让基线内文件行数加 1、给基线外文件加 1 处 provider 名字分支、让一个基线外 src 文件的 hook 状态数达到 20、多加 1 份 `isRecord`——每种都断言比对结果为红，且错误信息含维度名与文件路径。
+- [x] 下降不红：同一测试文件含用例，读数低于基线时比对结果为绿，并输出含 `可下调基线` 的提示行。
+- [x] 扫描集正确：同一测试文件含用例，断言 `__criterion-falsify-` 前缀文件、`tests/` 目录、`*.test.ts` 和 `node_modules` 都不在扫描集内，且根 `shared/` 在扫描集内。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/shared/tests/architecture-ratchet.test.ts` exit 0。
 
 ## DoD
 
