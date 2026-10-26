@@ -16,7 +16,9 @@
  *       `quay-panel` — a project's Quay view (sidebar project → session → Quay tab);
  *       `session`    — one session's workspace (the sidebar project → session rows);
  *       `cockpit`    — the cockpit stage, entered through the same mode switch a person uses, so
- *                      the return path a later `session` step lands on is the product's own.
+ *                      the return path a later `session` step lands on is the product's own;
+ *       `cockpit-cards` — the cockpit's cards view: the same mode-switch entry, then the stage's
+ *                      own `?view=cards` address (the app draws no separate cards link).
  *     An unknown opener fails its step rather than being ignored.
  *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudcliScenario.drive`.
  *   · `expect`: a map of reading assertions, evaluated after the step (see
@@ -130,6 +132,31 @@ function stepAction(step) {
   if (typeof step.open === 'string') return `open:${step.open}`;
   if (step.drive !== undefined) return `drive:${Object.keys(step.drive)[0] ?? 'unknown'}`;
   return 'expect';
+}
+
+/**
+ * One card from the cockpit's cards reading, or `null` when that card is not visible.
+ *
+ * The card assertions below all name a card id rather than an index: the visible order changes
+ * with the filters, and an index would silently assert about a different card.
+ *
+ * @param {any} reading
+ * @param {string} cardId
+ * @returns {any | null}
+ */
+function cardReading(reading, cardId) {
+  const cards = reading?.cockpit?.cards ?? null;
+  if (cards === null || !Array.isArray(cards.cards)) return null;
+  return cards.cards.find((/** @type {any} */ card) => card.id === cardId) ?? null;
+}
+
+/**
+ * True when `value` is a non-null, non-array object — the shape the card keys take.
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Deep equality for the small JSON values a scenario asserts (labels, counts, strings).
@@ -271,6 +298,53 @@ function expectationFailures(expect, reading) {
         const actual = reading.lastInputPack !== null
           && reading.lastInputPack.focus === reading.focus;
         if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'cockpitCardsVisible': {
+        // The visible ids IN ORDER: a filter that reorders or hides a card must be observable.
+        const actual = Array.isArray(reading.cockpit?.cards?.visibleCardIds)
+          ? reading.cockpit.cards.visibleCardIds
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'cockpitCardSelected': {
+        const actual = reading.cockpit?.cards?.selectedCardId ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'cockpitCardShownOption': {
+        // `{ cardId, optionId }` — the option one card currently shows (`null` when none).
+        if (!isRecord(expected) || typeof expected.cardId !== 'string') {
+          failures.push(`${key}: expected { cardId, optionId }`);
+          break;
+        }
+        const card = cardReading(reading, expected.cardId);
+        const actual = card === null ? null : card.shownOptionId ?? null;
+        const wanted = expected.optionId ?? null;
+        if (actual !== wanted) fail(key, wanted, actual);
+        break;
+      }
+      case 'cockpitCardConfirmTarget': {
+        // `{ cardId, optionId, label? }` — what one card's confirm bar would send. A card with
+        // no recommendation has no target, which is `{ optionId: null, label: null }`.
+        if (!isRecord(expected) || typeof expected.cardId !== 'string') {
+          failures.push(`${key}: expected { cardId, optionId, label? }`);
+          break;
+        }
+        const card = cardReading(reading, expected.cardId);
+        const compareLabel = expected.label !== undefined;
+        const actual = card === null
+          ? null
+          : {
+              optionId: card.confirmOptionId ?? null,
+              ...(compareLabel ? { label: card.confirmLabel ?? null } : {}),
+            };
+        const wanted = {
+          optionId: expected.optionId ?? null,
+          ...(compareLabel ? { label: expected.label ?? null } : {}),
+        };
+        if (!sameJson(actual, wanted)) fail(key, wanted, actual);
         break;
       }
       default:
@@ -516,6 +590,46 @@ async function openCockpit(page) {
 }
 
 /**
+ * Opens the cockpit's cards view.
+ *
+ * The mode switch is the product's entry into the cockpit — and it is what records the return
+ * path a later `session` step reads. The cards view itself is one of the cockpit's own views,
+ * addressed by its query grammar (`?view=cards`, the inverse of `formatCockpitView`); the app
+ * draws no separate cards link, so the stage's own address is the product path to it.
+ *
+ * @param {import('playwright').Page} page
+ */
+async function openCockpitCards(page) {
+  await openCockpit(page);
+  await page.goto('/cockpit?view=cards');
+  await page.locator('[data-testid="cockpit-page"][data-cockpit-view="cards"]').first().waitFor({
+    state: 'visible',
+    timeout: PANEL_TIMEOUT_MS,
+  });
+  await page.locator('[data-testid="cockpit-card-list"]').first().waitFor({
+    state: 'visible',
+    timeout: PANEL_TIMEOUT_MS,
+  });
+  await waitForSurface(page);
+  // Loaded, empty or failed — all three are settled states; waiting here keeps a scenario's
+  // first reading from catching the list between its mount and its first cards.
+  await page.waitForFunction(
+    () => {
+      // `globalThis` rather than `document`: this file is typechecked under Node's lib only.
+      const list = /** @type {any} */ (globalThis).document.querySelector(
+        '[data-testid="cockpit-card-list"]',
+      );
+      if (list === null) return false;
+      return list.querySelector('[data-cockpit-card-id]') !== null
+        || list.querySelector('[data-testid="cockpit-card-empty"]') !== null
+        || list.querySelector('[data-testid="cockpit-card-error"]') !== null;
+    },
+    undefined,
+    { timeout: PANEL_TIMEOUT_MS },
+  );
+}
+
+/**
  * Navigates the app to one project's Quay view.
  *
  * THE PROJECT IS SELECTED FROM THE SIDEBAR rather than deep-linked: a session-URL landing can
@@ -595,14 +709,21 @@ async function runScenario(browser, scenario, options) {
    */
   const flushBatch = async () => {
     if (batch.length === 0) return;
-    const readings = await page.evaluate((steps) => {
+    const readings = await page.evaluate(async (steps) => {
       const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
-      return steps.map((step) => {
+      /** @type {any[]} */
+      const results = [];
+      for (const step of steps) {
         if (step.drive !== undefined) {
           surface.drive(step.drive);
+          // A `cockpitCard.confirm` sends a real confirmation; await it before reading, so the
+          // step reports the settled card AND the request is not aborted by the next navigation
+          // or by the context closing after the last step.
+          if (typeof surface.settle === 'function') await surface.settle();
         }
-        return surface.read();
-      });
+        results.push(surface.read());
+      }
+      return results;
     }, batch.map((entry) => entry.step));
 
     for (let i = 0; i < batch.length; i += 1) {
@@ -649,6 +770,7 @@ async function runScenario(browser, scenario, options) {
           'quay-panel': () => openQuayPanel(page, { project: options.project, session: options.session }),
           session: () => openSession(page, { project: options.project, session: options.session }),
           cockpit: () => openCockpit(page),
+          'cockpit-cards': () => openCockpitCards(page),
         };
         const execute = openers[step.open];
         if (execute === undefined) {

@@ -1,0 +1,98 @@
+{
+  "name": "cockpit-cards-confirm",
+  "description": "The cards view's first business scenario: a person enters the cockpit through the mode switch, opens its cards view, selects the card that needs a credential, switches the shown option from the recommendation to 「Later」, confirms it, and then reads the card that carries no recommendation. Every assertion is a structured reading of the list's own `data-cockpit-cards` declaration; the drive verbs press the card's real controls (pointer press to select, dropdown trigger then option button, confirm bar then send), never the reading. After the confirmation the card is still listed and its confirm target is the option that was sent — the fixture executor's log (read during the DoD) is what proves exactly one request left.",
+  "steps": [
+    {
+      "open": "cockpit-cards",
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/cockpit",
+        "cockpitViewIs": "cards",
+        "cockpitCardsVisible": [
+          "fixture:need",
+          "fixture:stuck",
+          "fixture:fix",
+          "fixture:ask",
+          "fixture:multi",
+          "fixture:decision"
+        ]
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "fixture:need"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardSelected": "fixture:need",
+        "cockpitCardShownOption": {
+          "cardId": "fixture:need",
+          "optionId": "provide"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.showOption": {
+          "cardId": "fixture:need",
+          "optionId": "later"
+        }
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardShownOption": {
+          "cardId": "fixture:need",
+          "optionId": "later"
+        },
+        "cockpitCardConfirmTarget": {
+          "cardId": "fixture:need",
+          "optionId": "later",
+          "label": "Later"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirm": "fixture:need"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardsVisible": [
+          "fixture:need",
+          "fixture:stuck",
+          "fixture:fix",
+          "fixture:ask",
+          "fixture:multi",
+          "fixture:decision"
+        ],
+        "cockpitCardConfirmTarget": {
+          "cardId": "fixture:need",
+          "optionId": "later",
+          "label": "Later"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "fixture:decision"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardSelected": "fixture:decision",
+        "cockpitCardShownOption": {
+          "cardId": "fixture:decision",
+          "optionId": null
+        }
+      }
+    },
+    {
+      "expect": {
+        "cockpitCardConfirmTarget": {
+          "cardId": "fixture:decision",
+          "optionId": null,
+          "label": null
+        }
+      }
+    }
+  ]
+}

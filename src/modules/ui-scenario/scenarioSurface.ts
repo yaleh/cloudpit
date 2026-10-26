@@ -3,6 +3,20 @@ import {
   readVoiceInputPackBuildCount,
 } from '@/modules/chat';
 import type { VoiceReferencePack } from '@/modules/chat';
+import {
+  openCardDetails,
+  pressCardToSelect,
+  readCockpitCardsReading,
+  settleCardStep,
+  startConfirmingCard,
+  startShowingCardOption,
+  startWritingCardOwnReply,
+} from '@/modules/ui-scenario/cockpitCardsSurface';
+import type {
+  CardContinuation,
+  ScenarioCockpitCardTarget,
+  ScenarioCockpitCardsReading,
+} from '@/modules/ui-scenario/cockpitCardsSurface';
 import type { QuayFocusableObject, QuayObjectUri, QuayViewContract } from '@/shared/types';
 
 /**
@@ -30,6 +44,17 @@ import type { QuayFocusableObject, QuayObjectUri, QuayViewContract } from '@/sha
  * attributes its renderer already draws — the same declaration, read rather than re-derived. See
  * {@link readCockpitReading}.
  *
+ * THE CARDS ARE DRIVEN THROUGH THE CONTROLS A PERSON PRESSES. The `cockpitCard.*` verbs locate the
+ * card's own buttons and textarea and dispatch the same events a press/typing produces; they never
+ * write the card list's published reading. That is why a scenario can assert a card reading
+ * changed only because the product's controller handled the press — a verb that faked the reading
+ * would leave the page's real state where it was.
+ *
+ * A card step IS TWO PRESSES. React 18 commits a discrete event's update after the handler
+ * returns, so the option button / own-reply editor / confirm card a first press renders does not
+ * exist yet in `drive`. `drive` presses the trigger and hands the rest to `settle`, which the
+ * runner awaits after every step. Both halves are still real DOM presses.
+ *
  * THE GATE IS TWO LOCKS. The import into the page is a build-time constant only
  * (`import.meta.env.DEV` at the call sites in `main.tsx` / `QuayPanel.tsx`, so a production bundle
  * never reaches this module at all), and this module additionally refuses to attach or register
@@ -51,7 +76,12 @@ export type ScenarioDriveStep =
   | { confirm: true }
   | { cancel: true }
   | { pin: true | string }
-  | { utter: string };
+  | { utter: string }
+  | { 'cockpitCard.select': string }
+  | { 'cockpitCard.showOption': ScenarioCockpitCardTarget & { optionId: string } }
+  | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
+  | { 'cockpitCard.confirm': string }
+  | { 'cockpitCard.openDetails': string };
 
 /** One focusable's identity, kept beside the contract for assertions that name a label. */
 export type ScenarioFocusReading = {
@@ -116,6 +146,11 @@ export type ScenarioCockpitReading = {
   wallObjects: QuayFocusableObject[];
   /** The last echo sentence the cockpit rendered, or `null` when it shows none. */
   echo: string | null;
+  /**
+   * The cards view's reading, or `null` when the view is not mounted or its attribute is absent
+   * or malformed. `null` is the honest answer — this surface never fabricates a card list.
+   */
+  cards: ScenarioCockpitCardsReading | null;
 };
 
 /** The structured state a scenario reads. Everything here is a READING, never a screenshot. */
@@ -157,6 +192,18 @@ export type ScenarioReading = {
 export type ScenarioSurface = {
   read: () => ScenarioReading;
   drive: (step: ScenarioDriveStep) => ScenarioReading;
+  /**
+   * Completes the card step a drive just started and resolves when its effects have landed.
+   *
+   * `drive` stays synchronous, but React 18 commits a discrete event's update in a microtask — so
+   * a step whose second press targets a control the first press renders (an option button, the
+   * own-reply editor, the confirm card) cannot press it in the same task. `drive` performs the
+   * first press and records the rest; `settle` crosses a task boundary, runs those presses, and
+   * crosses another so the caller's next `read()` sees the committed result. It also awaits the
+   * confirmation request an open confirm card sends, which keeps a scenario's last step from
+   * closing the page under an in-flight request.
+   */
+  settle: () => Promise<void>;
 };
 
 /**
@@ -339,6 +386,7 @@ const EMPTY_COCKPIT_READING: ScenarioCockpitReading = {
   focusLabel: null,
   wallObjects: [],
   echo: null,
+  cards: null,
 };
 
 /** Parses a `data-cockpit-focusables` attribute; anything malformed reads as no declaration. */
@@ -386,12 +434,15 @@ function readCockpitReading(): ScenarioCockpitReading {
   const focused = focus === null ? null : wallObjects.find((object) => object.uri === focus) ?? null;
   const echoNode = document.querySelector('[data-testid="cockpit-echo"]');
   const echoText = echoNode instanceof HTMLElement ? echoNode.textContent?.trim() ?? '' : '';
+  const listNode = document.querySelector('[data-cockpit-cards]');
+  const cards = listNode instanceof HTMLElement ? readCockpitCardsReading(listNode) : null;
   return {
     view: page.getAttribute('data-cockpit-view'),
     focus,
     focusLabel: focused?.label ?? null,
     wallObjects,
     echo: echoText === '' ? null : echoText,
+    cards,
   };
 }
 
@@ -472,6 +523,23 @@ function createScenarioSurface(): ScenarioSurface {
     };
   };
 
+  /** The presses a drive step left for `settle` — at most the one card step just driven. */
+  let pendingCardAction: CardContinuation | null = null;
+
+  /**
+   * Completes the step a drive just started.
+   *
+   * The first press's update is committed in a microtask, so crossing a macrotask boundary is
+   * what makes its rendered controls (and its own reading change) observable. The continuation
+   * then presses those controls; the second boundary lets its commit land before the caller
+   * reads. A confirmation already in flight is awaited too, so a scenario never exits under it.
+   */
+  const settle = async (): Promise<void> => {
+    const continuation = pendingCardAction;
+    pendingCardAction = null;
+    await settleCardStep(continuation);
+  };
+
   const drive = (step: ScenarioDriveStep): ScenarioReading => {
     driveCount += 1;
     const started = nowMs();
@@ -512,13 +580,30 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('utter' in step) {
       action = 'utter';
       utter(step.utter);
+    } else if ('cockpitCard.select' in step) {
+      action = 'cockpitCard.select';
+      pressCardToSelect(step['cockpitCard.select']);
+    } else if ('cockpitCard.showOption' in step) {
+      action = 'cockpitCard.showOption';
+      const { cardId, optionId } = step['cockpitCard.showOption'];
+      pendingCardAction = startShowingCardOption(cardId, optionId);
+    } else if ('cockpitCard.ownReply' in step) {
+      action = 'cockpitCard.ownReply';
+      const { cardId, text } = step['cockpitCard.ownReply'];
+      pendingCardAction = startWritingCardOwnReply(cardId, text);
+    } else if ('cockpitCard.confirm' in step) {
+      action = 'cockpitCard.confirm';
+      pendingCardAction = startConfirmingCard(step['cockpitCard.confirm']);
+    } else if ('cockpitCard.openDetails' in step) {
+      action = 'cockpitCard.openDetails';
+      openCardDetails(step['cockpitCard.openDetails']);
     }
 
     stepTimings.push({ index: driveCount, action, ms: nowMs() - started });
     return read();
   };
 
-  return { read, drive };
+  return { read, drive, settle };
 }
 
 /** The monotonic-ish clock a timing reading uses; `performance.now` when the page has one. */
