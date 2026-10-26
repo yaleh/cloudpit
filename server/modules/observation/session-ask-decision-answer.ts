@@ -26,7 +26,8 @@ export type ParsedAskAnswer = {
   }>;
 };
 
-const OPTION_SOURCES = new Set<SessionAskDecisionOption['source']>(['assistant', 'judge', 'provider']);
+/** Immutable config, not caches: a frozen array avoids the module-level mutable-state ratchet. */
+const OPTION_SOURCES: readonly SessionAskDecisionOption['source'][] = ['assistant', 'judge', 'provider'];
 
 /** A non-empty trimmed string, or null. */
 function nonEmpty(value: unknown): string | null {
@@ -74,7 +75,7 @@ export function parseAskDecisionAnswer(text: string): ParsedAskAnswer {
     const does = nonEmpty(option.does);
     if (does === null) throw new Error(`options[${index}] 缺少非空 does`);
     const source = option.source === undefined ? 'assistant' : option.source;
-    if (typeof source !== 'string' || !OPTION_SOURCES.has(source as SessionAskDecisionOption['source'])) {
+    if (typeof source !== 'string' || !OPTION_SOURCES.includes(source as SessionAskDecisionOption['source'])) {
       throw new Error(`options[${index}] 的 source 不在 assistant/judge/provider 之内`);
     }
     const rawTags = option.tags === undefined ? [] : option.tags;
