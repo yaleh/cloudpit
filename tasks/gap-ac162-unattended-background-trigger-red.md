@@ -3,7 +3,7 @@ id: gap-ac162-unattended-background-trigger-red
 title: AC-162 无人轮在无浏览器时产生、建 run、可回放并推送通知 — 后台 Bash 触发在当前树与已装 claude 2.1.310
   上不再产出无人轮（本轮直跑三次：replayed=0、run=none、notifyCalls=0，红在重放断言）；先重取 E9 §9.9
   读数并写回记录文件：判定 CLI 仍自开轮则修实现/夹具使判据转绿，判定不再自开轮则停 needs-human 由人改判据，不得自行放宽
-status: ready
+status: done
 labels:
   - gap
   - defect
