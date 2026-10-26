@@ -244,6 +244,8 @@ export default function CockpitCardList() {
           <CockpitCardDetails
             card={detailsCard}
             now={snapshot.now}
+            brief={snapshot.briefs[detailsCard.id]}
+            onRetryBrief={() => controller.loadBrief(detailsCard.id)}
             onClose={() => controller.closeDetails()}
             onStartConversation={(card: CockpitCardData) =>
               setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')

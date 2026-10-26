@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import type { CockpitCard } from '@/shared/types';
+import type { CockpitBriefResponse, CockpitCard } from '@/shared/types';
 import { api, readApiJson } from '@/shared/api';
 import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import type {
@@ -47,7 +47,7 @@ export type CockpitCardsBinding = {
 export type CockpitCardsDepsOverride = Partial<CockpitCardControllerDeps>;
 
 export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): CockpitCardsBinding {
-  const { fetchCards, confirm, clock, refreshIntervalMs, onEvent } = overrides;
+  const { fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent } = overrides;
   const navigate = useNavigate();
   const deps = useMemo<CockpitCardControllerDeps>(
     () => ({
@@ -65,6 +65,10 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
           );
           return { executor: answer.executor, result: answer.result };
         }),
+      fetchBrief:
+        fetchBrief ??
+        (async (cardId: string) =>
+          readApiJson<CockpitBriefResponse>(await api.cockpitCardBrief(cardId))),
       // The cockpit's own navigation rule: a confirmation that started a conversation switches
       // to it immediately. A caller that supplies its own listener replaces this behaviour.
       onEvent:
@@ -77,7 +81,7 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
       ...(clock === undefined ? {} : { clock }),
       ...(refreshIntervalMs === undefined ? {} : { refreshIntervalMs }),
     }),
-    [fetchCards, confirm, clock, refreshIntervalMs, onEvent, navigate],
+    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent, navigate],
   );
 
   const controller = useMemo(() => createCockpitCardController(deps), [deps]);

@@ -20,7 +20,16 @@ import type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.s
 import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
 import type { CockpitBriefDeps } from '@/modules/cockpit/cockpit-brief.service.js';
 import { fallbackResult, noTokens } from '@/modules/cockpit/cockpit-brief-result.js';
-import type { CockpitCard, CockpitFixtureSubject } from '@/shared/types.js';
+import type { CockpitBriefResult } from '@/modules/cockpit/cockpit-brief-result.js';
+import type {
+  CockpitBriefBlock,
+  CockpitBriefEvidence,
+  CockpitBriefOption,
+  CockpitBriefRecommendation,
+  CockpitBriefResponse,
+  CockpitCard,
+  CockpitFixtureSubject,
+} from '@/shared/types.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 
 /** Everything the composition root can supply to the cockpit hub. */
@@ -105,6 +114,68 @@ function unsupportedBrief(card: CockpitCard) {
 }
 
 /**
+ * The four tolerant readers the mapper needs. `brief` is untrusted input on the generated path
+ * (the checker proved the shape but the document is still `Record<string, unknown>`), so the
+ * mapper states one safe reading per field instead of casting the whole record.
+ */
+function briefRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function briefList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function briefText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function briefNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Flattens a service result into the wire response the client's `CockpitBriefResponse` declares.
+ *
+ * The service keeps the brief as a `Record` (it is model output until the checker accepts it);
+ * the route is the one place that turns it into the typed wire shape, so the client never parses
+ * an untyped document. A missing recommendation becomes `null` rather than an empty object: the
+ * renderer shows nothing, not an option with no id.
+ */
+function toBriefResponse(result: CockpitBriefResult): CockpitBriefResponse {
+  const brief = result.brief;
+  const recommendation = briefRecord(brief.recommendation);
+  return {
+    cardId: result.cardId,
+    sessionId: result.sessionId,
+    askId: result.askId,
+    revision: result.revision,
+    messageId: result.messageId,
+    status: result.status,
+    reason: result.reason,
+    cached: result.cached,
+    question: result.question,
+    rounds: result.rounds,
+    durationMs: result.durationMs,
+    failures: result.failures,
+    tokens: result.tokens,
+    v: briefNumber(brief.v),
+    itemRef: briefText(brief.itemRef) || `cloudcli://card/${result.cardId}`,
+    headline: briefText(brief.headline),
+    ...(brief.fallback === true ? { fallback: true } : {}),
+    options: briefList(brief.options) as CockpitBriefOption[],
+    recommendation:
+      briefText(recommendation.optionId) === ''
+        ? null
+        : (recommendation as unknown as CockpitBriefRecommendation),
+    evidence: briefList(brief.evidence) as CockpitBriefEvidence[],
+    blocks: briefList(brief.blocks) as CockpitBriefBlock[],
+  };
+}
+
+/**
  * Builds the card registry, its action channel and the HTTP face.
  *
  *   GET  /api/cockpit/cards          — every open card, in provider order
@@ -121,10 +192,14 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   const providers: ICockpitCardProvider[] = [...(deps.providers ?? [])];
   const executors: ICockpitActionExecutor[] = [...(deps.executors ?? [])];
 
+  // The fixture provider also answers the brief route for its own cards. Keeping the reader in a
+  // local means a deployment without fixture cards cannot accidentally expose a fixed brief.
+  let fixtureBriefFor: ((card: CockpitCard) => CockpitBriefResponse | null) | null = null;
   if (deps.fixtureCards) {
     const fixture = createCockpitFixtureCardProvider({ subject: deps.fixtureSubject });
     providers.push(fixture.provider);
     executors.push(fixture.executor);
+    fixtureBriefFor = fixture.brief;
   }
 
   const registry = createCockpitCardRegistry(providers);
@@ -141,12 +216,18 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
         res.status(404).json({ error: 'card-not-found', cardId: req.params.id });
         return;
       }
-      const target = briefTarget(card);
-      if (target === null) {
-        res.json(unsupportedBrief(card));
+      // Fixture cards answer a fixed, gateway-free brief so a real page can draw every preset.
+      const fixtureBrief = fixtureBriefFor?.(card) ?? null;
+      if (fixtureBrief !== null) {
+        res.json(fixtureBrief);
         return;
       }
-      res.json(await brief.briefFor({ cardId: card.id, ...target }));
+      const target = briefTarget(card);
+      if (target === null) {
+        res.json(toBriefResponse(unsupportedBrief(card)));
+        return;
+      }
+      res.json(toBriefResponse(await brief.briefFor({ cardId: card.id, ...target })));
     }, next);
   });
   router.post('/confirm', (req, res, next) => {

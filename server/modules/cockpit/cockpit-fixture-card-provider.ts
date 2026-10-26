@@ -20,7 +20,16 @@
  * revision's re-send a real `REVISION_CONFLICT` instead of a second execution.
  */
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
-import type { CockpitCard, CockpitCardOption, CockpitCardSubject, CockpitFixtureSubject } from '@/shared/types.js';
+import type {
+  CockpitBriefOption,
+  CockpitBriefResponse,
+  CockpitCard,
+  CockpitCardOption,
+  CockpitCardSubject,
+  CockpitFixtureSubject,
+} from '@/shared/types.js';
+
+import { BRIEF_VERSION } from './cockpit-brief-core.js';
 
 /** The one executor this provider declares. */
 const FIXTURE_EXECUTOR_ID = 'fixture.record';
@@ -33,12 +42,19 @@ export type CockpitFixtureConfirmation = {
   params: Record<string, unknown>;
 };
 
-/** The fixture's three readings: the provider, its executor, and its in-memory log. */
+/** The fixture's four readings: the provider, its executor, its log and its brief. */
 export type CockpitFixtureCardProvider = {
   provider: ICockpitCardProvider;
   executor: ICockpitActionExecutor;
   /** A copy of every confirmation the executor accepted, oldest first. */
   confirmations(): readonly CockpitFixtureConfirmation[];
+  /**
+   * The fixed brief for one fixture card, or `null` for any other provider's card. It covers all
+   * seven preset block types at once so the Details drawer's rendering can be verified on a real
+   * page without calling the gateway; it bypasses the checker (and therefore `LIMITS.blocks`)
+   * because it is shipped data, not a model answer.
+   */
+  brief(card: CockpitCard): CockpitBriefResponse | null;
 };
 
 /**
@@ -238,6 +254,158 @@ function fixtureCards(): CockpitCard[] {
 }
 
 /**
+ * The fixed brief a fixture card's Details drawer reads.
+ *
+ * WHY A CONSTANT. The rendering criterion and the isolated instance's DoD need every preset drawn
+ * on a real page while the gateway stays out of the picture. The document therefore carries one
+ * radar (with the mandatory `rev`/`evid` axes plus one judged axis), one compare-table, one
+ * diffstat, one checklist whose second item has no `done` field, one timeline, one graph and one
+ * callout. Option ids are read from the card so the brief and the card's action row name the same
+ * alternatives; a card with no options still gets a readable (empty) options list.
+ */
+function fixtureBrief(card: CockpitCard): CockpitBriefResponse | null {
+  if (card.provider !== 'fixture') return null;
+
+  const options: CockpitBriefOption[] = card.options.map((option) => ({
+    id: option.id,
+    label: option.label,
+    does: option.does,
+    consequence: (option.tags ?? []).map((tag) => ({ kind: tag.kind, text: tag.text })),
+    evidenceRefs: ['e1'],
+  }));
+  const optionIds = options.map((option) => option.id);
+  const first = optionIds[0] ?? 'primary';
+  const second = optionIds[1] ?? first;
+  const recommended = card.options.find((option) => option.suggested)?.id ?? optionIds[0];
+
+  return {
+    cardId: card.id,
+    sessionId: card.subject.sessionId ?? '',
+    askId: `fixture-ask:${card.id}`,
+    revision: card.revision,
+    messageId: null,
+    status: 'generated',
+    reason: null,
+    cached: false,
+    question: card.ask ?? null,
+    rounds: 1,
+    durationMs: 0,
+    failures: [],
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+    v: BRIEF_VERSION,
+    itemRef: `cloudcli://card/${card.id}`,
+    headline: (card.ask ?? `Fixture brief for ${card.kind}`).slice(0, 80),
+    options,
+    recommendation:
+      recommended === undefined
+        ? null
+        : {
+            optionId: recommended,
+            why: ['The fixture brief always recommends the option the card marks suggested.'],
+          },
+    evidence: [
+      { id: 'e1', label: 'the last attempt failed', mechanical: true, observedAt: card.waitingSince },
+      { id: 'e2', label: 'the next step is a judgement call', mechanical: false },
+    ],
+    blocks: [
+      {
+        id: 'radar',
+        type: 'radar',
+        title: 'Options compared',
+        axes: [
+          {
+            id: 'rev',
+            label: 'Reversibility',
+            definition: 'how easily the choice can be undone',
+            basis: 'mechanical',
+            evidenceRefs: ['e1'],
+          },
+          {
+            id: 'evid',
+            label: 'Evidence',
+            definition: 'how much of the choice rests on measured facts',
+            basis: 'mechanical',
+            evidenceRefs: ['e1'],
+          },
+          {
+            id: 'scope',
+            label: 'Scope',
+            definition: 'how much of the work the choice commits to',
+            basis: 'llm',
+          },
+        ],
+        series: [
+          { optionId: first, values: { rev: 80, evid: 70, scope: 40 } },
+          { optionId: second, values: { rev: 30, evid: 50, scope: 80 }, notes: 'commits the wider path' },
+        ],
+      },
+      {
+        id: 'table',
+        type: 'compare-table',
+        title: 'Compared',
+        columns: [first, second],
+        rows: [
+          { label: 'Reversible', cells: { [first]: 'yes', [second]: 'no' }, basis: 'mechanical' },
+          { label: 'Evidence held', cells: { [first]: 'archive verified', [second]: 'none' }, basis: 'mechanical' },
+        ],
+      },
+      {
+        id: 'diffstat',
+        type: 'diffstat',
+        title: 'Change size',
+        files: [
+          { path: 'server/modules/cockpit/cockpit.module.ts', add: 34, del: 6 },
+          { path: 'src/modules/cockpit/CockpitBriefView.tsx', add: 120, del: 0 },
+          { path: 'src/modules/i18n/locales/en/common.json', add: 22, del: 0 },
+        ],
+      },
+      {
+        id: 'checklist',
+        type: 'checklist',
+        title: 'Before choosing',
+        items: [
+          { text: 'Confirm the archive is readable', done: true },
+          { text: 'Decide who owns the next staging cleanup' },
+          { text: 'Tell the team the deploy is unparked', done: false },
+        ],
+      },
+      {
+        id: 'timeline',
+        type: 'timeline',
+        title: 'Attempts',
+        events: [
+          { at: '2026-10-27T00:01:00.000Z', label: 'attempt 1 · suite red', state: 'bad' },
+          { at: '2026-10-27T00:02:00.000Z', label: 'baseline re-checked', state: 'neutral' },
+          { at: '2026-10-27T00:03:00.000Z', label: 'attempt 2 · suite green', state: 'ok' },
+        ],
+      },
+      {
+        id: 'graph',
+        type: 'graph',
+        title: 'Where it lands',
+        nodes: [
+          { id: 'cockpit', label: 'cockpit', state: 'changed' },
+          { id: 'hub', label: 'hub', state: 'same' },
+          { id: 'ui', label: 'cockpit ui', state: 'new' },
+          { id: 'gateway', label: 'gateway', state: 'bad' },
+        ],
+        edges: [
+          { from: 'cockpit', to: 'hub', kind: 'reads' },
+          { from: 'cockpit', to: 'ui', kind: 'mounts' },
+          { from: 'cockpit', to: 'gateway', kind: 'calls' },
+        ],
+      },
+      {
+        id: 'callout',
+        type: 'callout',
+        tone: 'warn',
+        text: 'This fixture brief never calls the model gateway.',
+      },
+    ],
+  };
+}
+
+/**
  * Applies the settings-file subject override to every fixture card.
  *
  * The override REPLACES the addressing fields rather than merging: the DoD flips
@@ -323,5 +491,6 @@ export function createCockpitFixtureCardProvider(options: {
     provider,
     executor,
     confirmations: () => records.map((record) => structuredClone(record)),
+    brief: (card) => fixtureBrief(card),
   };
 }

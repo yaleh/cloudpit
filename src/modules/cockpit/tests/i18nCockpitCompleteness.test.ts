@@ -515,6 +515,49 @@ describe('every locale carries the cockpit copy', () => {
     expect(placeholders(reference.cardDetailsOpenConversation)).toEqual(['sessionId']);
   });
 
+  // The Details drawer's brief section: its four read states, the eleven fallback reasons (a
+  // reason code rendered raw would be protocol leaking into the stage) and the radar's two
+  // legend lines. Naming them keeps a rename from being "covered" by the generic loop while
+  // every locale silently falls back to English.
+  it('covers the brief view and its fallback reasons', () => {
+    const required = [
+      'briefTitle',
+      'briefLoading',
+      'briefError',
+      'briefRetry',
+      'briefUnavailable',
+      'briefNoBlocks',
+      'briefReasonUnknown',
+      'briefReasonDisabled',
+      'briefReasonGatewayUnavailable',
+      'briefReasonUnconfigured',
+      'briefReasonSessionNotFound',
+      'briefReasonTranscriptUnreadable',
+      'briefReasonNoAskingMessage',
+      'briefReasonDailyTokenCap',
+      'briefReasonPerBriefTokenCap',
+      'briefReasonModelCallFailed',
+      'briefReasonCheckFailed',
+      'briefReasonUnsupportedContent',
+      'briefRadarLegend',
+      'briefHighMeans',
+      'briefUnknownBlock',
+      'briefRecommended',
+    ];
+    for (const key of required) {
+      expect(typeof reference[key], `cockpit.${key}`).toBe('string');
+      expect(reference[key].trim().length, `cockpit.${key}`).toBeGreaterThan(0);
+    }
+    expect(placeholders(reference.briefError)).toEqual(['reason']);
+    expect(placeholders(reference.briefReasonUnknown)).toEqual(['reason']);
+    expect(placeholders(reference.briefHighMeans)).toEqual(['definition']);
+    expect(placeholders(reference.briefUnknownBlock)).toEqual(['type']);
+    expect(placeholders(reference.briefRecommended)).toEqual(['label']);
+    // The radar legend must keep both markers: ● is a measured axis, ○ a judged one.
+    expect(reference.briefRadarLegend).toContain('●');
+    expect(reference.briefRadarLegend).toContain('○');
+  });
+
   // Positive control: the same checker must reject a missing block, a blank value, a key-copied
   // value and a dropped placeholder. Without this the green above could not go red.
   it('rejects a missing, blank, key-copied or placeholder-dropping block (positive control)', () => {

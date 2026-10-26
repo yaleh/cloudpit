@@ -1,5 +1,11 @@
-import type { Clock, CockpitCard, CockpitCardKind, CockpitCardOption } from '@/shared/types';
-import { createExternalStore, defaultClock } from '@/shared/utils';
+import type {
+  Clock,
+  CockpitBriefResponse,
+  CockpitCard,
+  CockpitCardKind,
+  CockpitCardOption,
+} from '@/shared/types';
+import { createBoundedLru, createExternalStore, defaultClock } from '@/shared/utils';
 
 /**
  * The cockpit card list's model: cards, filters, density, the Details stack, the option each
@@ -39,6 +45,17 @@ export type CockpitCardTypeFilter = 'all' | CockpitCardKind;
 export type CockpitCardShown =
   | { kind: 'option'; optionId: string }
   | { kind: 'ownReply' };
+
+/**
+ * One card's brief reading. Every non-idle state carries the CARD revision it was read at, so a
+ * re-read that bumps the revision invalidates the reading without a second comparison rule; the
+ * wire response's own `revision` is the transcript's ask revision and is not interchangeable.
+ */
+export type CockpitBriefState =
+  | { status: 'idle' }
+  | { status: 'loading'; cardRevision: number }
+  | { status: 'ready'; cardRevision: number; response: CockpitBriefResponse }
+  | { status: 'error'; cardRevision: number; message: string };
 
 /** The confirmation the bar (and, once opened, the confirm card) is bound to. */
 export type CockpitCardConfirmTarget = {
@@ -90,6 +107,11 @@ export type CockpitCardControllerDeps = {
   confirm: (
     request: CockpitCardConfirmRequest,
   ) => Promise<{ executor: string; result: unknown }>;
+  /**
+   * Reads one card's brief. Absent means the surface cannot show a brief: `loadBrief` then does
+   * nothing and the Details drawer keeps its other sections.
+   */
+  fetchBrief?: (cardId: string) => Promise<CockpitBriefResponse>;
   /** The only clock; defaults to the browser's. */
   clock?: Clock;
   /**
@@ -130,6 +152,8 @@ export type CockpitCardControllerSnapshot = {
   ownReplies: Readonly<Record<string, string>>;
   /** The card whose option dropdown is open, if any. */
   openDropdownCardId: string | null;
+  /** Each card's brief reading; absent means "never asked for". */
+  briefs: Readonly<Record<string, CockpitBriefState>>;
   /** The confirm bar target derived from each card's shown option; absent when unavailable. */
   targets: Readonly<Record<string, CockpitCardConfirmTarget>>;
   /** The open confirm card: set by the first press, cleared by send or cancel. */
@@ -160,6 +184,8 @@ export type CockpitCardController = {
   setProjectFilter: (project: string | null) => void;
   setDensity: (density: CockpitCardDensity) => void;
   openDetails: (cardId: string) => void;
+  /** Reads one card's brief once per (card, revision); a failed read may be retried. */
+  loadBrief: (cardId: string) => void;
   closeDetails: () => void;
   openDropdown: (cardId: string | null) => void;
   showOption: (cardId: string, optionId: string) => void;
@@ -207,6 +233,7 @@ const initialState: CockpitCardControllerSnapshot = {
   shown: {},
   ownReplies: {},
   openDropdownCardId: null,
+  briefs: {},
   targets: {},
   pendingConfirm: null,
   confirming: false,
@@ -366,6 +393,17 @@ function normalize(
   for (const [cardId, text] of Object.entries(next.ownReplies)) {
     if (byId.has(cardId)) ownReplies[cardId] = text;
   }
+  // A brief reading belongs to the card revision it was read at: a re-read that bumped the
+  // revision makes an already-drawn brief stale, so the next open asks again. A removed card
+  // drops its reading with everything else it owned.
+  const briefs: Record<string, CockpitBriefState> = {};
+  for (const [cardId, reading] of Object.entries(next.briefs)) {
+    const card = byId.get(cardId);
+    if (card === undefined) continue;
+    if (reading.status === 'idle' || reading.cardRevision === card.revision) {
+      briefs[cardId] = reading;
+    }
+  }
 
   const selectedCardId =
     next.selectedCardId !== null && visibleIds.has(next.selectedCardId)
@@ -395,6 +433,7 @@ function normalize(
     projects: projectsOf(cards),
     shown,
     ownReplies,
+    briefs,
     selectedCardId,
     anchorCardId,
     detailsStack,
@@ -481,6 +520,85 @@ export function createCockpitCardController(
       openDropdownCardId: null,
       ...(pending !== null && pending.cardId === cardId ? { pendingConfirm: null } : {}),
     });
+  };
+
+  /** Whether the card still reads at the revision a brief request was issued for. */
+  const briefRevisionIsCurrent = (cardId: string, cardRevision: number): boolean =>
+    store
+      .getSnapshot()
+      .cards.some((candidate) => candidate.id === cardId && candidate.revision === cardRevision);
+
+  /** Brief responses by `cardId#cardRevision`, so closing and reopening Details is a cache read. */
+  const briefCache = createBoundedLru<string, CockpitBriefResponse>(64);
+  const briefsInFlight = new Set<string>();
+
+  /**
+   * The one brief request path. It is called by `openDetails`, so the drawer never decides
+   * whether a read is needed: a ready/loading reading for the current revision is a no-op, a
+   * cached response is published without a request, and a response that lands after the card
+   * moved to another revision is dropped rather than drawn over newer content.
+   */
+  const loadBrief = (cardId: string): void => {
+    if (disposed) return;
+    const fetchBrief = deps.fetchBrief;
+    const card = store.getSnapshot().cards.find((candidate) => candidate.id === cardId);
+    if (fetchBrief === undefined || card === undefined) return;
+    const cardRevision = card.revision;
+    const current = store.getSnapshot().briefs[cardId];
+    if (
+      current !== undefined &&
+      current.status !== 'idle' &&
+      current.status !== 'error' &&
+      current.cardRevision === cardRevision
+    ) {
+      return;
+    }
+    const key = `${cardId}#${cardRevision}`;
+    if (briefsInFlight.has(key)) return;
+    const cached = briefCache.get(key);
+    if (cached !== undefined) {
+      commit({
+        briefs: {
+          ...store.getSnapshot().briefs,
+          [cardId]: { status: 'ready', cardRevision, response: cached },
+        },
+      });
+      return;
+    }
+    commit({
+      briefs: {
+        ...store.getSnapshot().briefs,
+        [cardId]: { status: 'loading', cardRevision },
+      },
+    });
+    briefsInFlight.add(key);
+    void (async () => {
+      try {
+        const response = await fetchBrief(cardId);
+        if (disposed || !briefRevisionIsCurrent(cardId, cardRevision)) return;
+        briefCache.set(key, response);
+        commit({
+          briefs: {
+            ...store.getSnapshot().briefs,
+            [cardId]: { status: 'ready', cardRevision, response },
+          },
+        });
+      } catch (failure) {
+        if (disposed || !briefRevisionIsCurrent(cardId, cardRevision)) return;
+        commit({
+          briefs: {
+            ...store.getSnapshot().briefs,
+            [cardId]: {
+              status: 'error',
+              cardRevision,
+              message: failureMessage(failure),
+            },
+          },
+        });
+      } finally {
+        briefsInFlight.delete(key);
+      }
+    })();
   };
 
   const requestConfirm = (cardId?: string): boolean => {
@@ -575,7 +693,9 @@ export function createCockpitCardController(
       if (!snapshot.cards.some((card) => card.id === cardId)) return;
       const without = snapshot.detailsStack.filter((candidate) => candidate !== cardId);
       commit({ detailsStack: [...without, cardId] });
+      loadBrief(cardId);
     },
+    loadBrief,
     closeDetails: () => {
       const snapshot = store.getSnapshot();
       if (snapshot.detailsStack.length === 0) return;

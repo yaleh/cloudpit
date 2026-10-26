@@ -5,10 +5,15 @@ import { useTranslation } from 'react-i18next';
 import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
+import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
+import type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
 
 /**
  * The Details drawer a tap on a card's A zone opens: the full question, the situation and its
- * facts, every option in rich text, and the conversation section.
+ * facts, the brief, every option in rich text, and the conversation section.
+ *
+ * The brief section sits after the facts and before the options: the brief explains what the
+ * options mean, so drawing it below them would ask the reader to choose before the reading.
  *
  * THE CONVERSATION SECTION IS THE DRAWER'S END. A card that belongs to a conversation links to
  * it; a card with only a project offers 「就此开一个会话」, which issues an intent callback and
@@ -24,6 +29,10 @@ export type CockpitCardDetailsProps = {
   onClose: () => void;
   /** 「就此开一个会话」 — the intent only; no conversation is created here. */
   onStartConversation?: (card: CockpitCardData) => void;
+  /** The card's brief reading; absent or idle means the drawer draws no brief section. */
+  brief?: CockpitBriefState;
+  /** Re-reads a failed brief; the drawer's retry button calls it. */
+  onRetryBrief?: () => void;
 };
 
 function waitingText(t: TFunction, now: number, waitingSince: string): string {
@@ -60,6 +69,8 @@ export default function CockpitCardDetails({
   now,
   onClose,
   onStartConversation,
+  brief,
+  onRetryBrief,
 }: CockpitCardDetailsProps) {
   const { t } = useTranslation();
   const descriptor = cockpitCardDescriptor(card.kind);
@@ -119,6 +130,12 @@ export default function CockpitCardDetails({
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {brief !== undefined && brief.status !== 'idle' && (
+        <Section title={t('cockpit.briefTitle')}>
+          <CockpitBriefView state={brief} onRetry={onRetryBrief} />
         </Section>
       )}
 

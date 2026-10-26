@@ -110,6 +110,12 @@ export type {
 export { default as CockpitCardList } from '@/modules/cockpit/CockpitCardList';
 export { default as CockpitCard } from '@/modules/cockpit/CockpitCard';
 export { default as CockpitCardDetails } from '@/modules/cockpit/CockpitCardDetails';
+// The Details drawer's brief section. Exported for the same reason as the list: a sibling
+// criterion (or a scenario surface) renders it without mounting the whole cards view.
+export { default as CockpitBriefView } from '@/modules/cockpit/CockpitBriefView';
+export { CockpitBriefBlockView } from '@/modules/cockpit/cockpitBriefBlocks';
+export type { CockpitBriefBlockContext } from '@/modules/cockpit/cockpitBriefBlocks';
+export type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
 export {
   cockpitCardDescriptor,
   DEFAULT_COCKPIT_CARD_DESCRIPTOR,

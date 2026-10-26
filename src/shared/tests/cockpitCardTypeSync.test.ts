@@ -39,6 +39,23 @@ const readLiteralUnionFromSource = (source: string, typeName: string): string[] 
   return [...new Set(members)].sort();
 };
 
+/**
+ * Reads one exported union of TYPE NAMES (not string literals) out of a source string.
+ *
+ * `CockpitBriefBlock` is `RadarBlock | TableBlock | …`: its members are type names, so the
+ * literal reader above would read nothing and the non-vacuous check would fail. This reader
+ * keeps the same contract — both ends must name the same members — for that shape.
+ */
+const readTypeNameUnionFromSource = (source: string, typeName: string): string[] => {
+  const declaration = new RegExp(`export type ${typeName}\\s*=\\s*([^;]+);`).exec(source);
+  assert.ok(declaration, `${typeName} must be declared as a type-name union`);
+  const members = [...declaration[1].matchAll(/([A-Za-z_$][\w$]*)/g)]
+    .map((match) => match[1])
+    .filter((member) => member !== typeName);
+  assert.ok(members.length > 0, `${typeName} must be a non-empty type-name union`);
+  return [...new Set(members)].sort();
+};
+
 /** Returns the body of the first `{ … }` starting at `startIndex`, braces balanced. */
 const readBalancedBraces = (source: string, startIndex: number): string => {
   assert.equal(source[startIndex], '{', 'balanced-brace read must start at an opening brace');
@@ -111,8 +128,8 @@ const findClientDeclaration = (typeName: string): string => {
 type SyncRow = {
   /** Type name on the client side. The server side uses the same name. */
   readonly typeName: string;
-  /** Which reading applies: a literal union or an object's top-level field set. */
-  readonly reader: 'union' | 'object';
+  /** Which reading applies: a literal union, a type-name union, or an object's field set. */
+  readonly reader: 'union' | 'typeNames' | 'object';
 };
 
 const ROWS: readonly SyncRow[] = [
@@ -130,13 +147,45 @@ const ROWS: readonly SyncRow[] = [
   { typeName: 'CockpitCardOwnReply', reader: 'object' },
   { typeName: 'CockpitCardConversation', reader: 'object' },
   { typeName: 'CockpitCardNotify', reader: 'object' },
+  // The brief read's wire shape (AC-431): the status/reason envelope, the flattened brief
+  // document, and every preset block the renderer table is keyed by.
+  { typeName: 'CockpitBriefStatus', reader: 'union' },
+  { typeName: 'CockpitBriefBlockType', reader: 'union' },
+  { typeName: 'CockpitBriefAxisBasis', reader: 'union' },
+  { typeName: 'CockpitBriefTimelineState', reader: 'union' },
+  { typeName: 'CockpitBriefGraphNodeState', reader: 'union' },
+  { typeName: 'CockpitBriefCalloutTone', reader: 'union' },
+  { typeName: 'CockpitBriefFailure', reader: 'object' },
+  { typeName: 'CockpitBriefTokens', reader: 'object' },
+  { typeName: 'CockpitBriefConsequence', reader: 'object' },
+  { typeName: 'CockpitBriefOption', reader: 'object' },
+  { typeName: 'CockpitBriefRecommendation', reader: 'object' },
+  { typeName: 'CockpitBriefEvidence', reader: 'object' },
+  { typeName: 'CockpitBriefRadarAxis', reader: 'object' },
+  { typeName: 'CockpitBriefRadarSeries', reader: 'object' },
+  { typeName: 'CockpitBriefRadarBlock', reader: 'object' },
+  { typeName: 'CockpitBriefCompareTableRow', reader: 'object' },
+  { typeName: 'CockpitBriefCompareTableBlock', reader: 'object' },
+  { typeName: 'CockpitBriefDiffstatFile', reader: 'object' },
+  { typeName: 'CockpitBriefDiffstatBlock', reader: 'object' },
+  { typeName: 'CockpitBriefChecklistItem', reader: 'object' },
+  { typeName: 'CockpitBriefChecklistBlock', reader: 'object' },
+  { typeName: 'CockpitBriefTimelineEvent', reader: 'object' },
+  { typeName: 'CockpitBriefTimelineBlock', reader: 'object' },
+  { typeName: 'CockpitBriefGraphNode', reader: 'object' },
+  { typeName: 'CockpitBriefGraphEdge', reader: 'object' },
+  { typeName: 'CockpitBriefGraphBlock', reader: 'object' },
+  { typeName: 'CockpitBriefCalloutBlock', reader: 'object' },
+  { typeName: 'CockpitBriefBlock', reader: 'typeNames' },
+  { typeName: 'CockpitBriefResponse', reader: 'object' },
 ];
 
 /** Reads one row's type from an arbitrary source string (used for both ends). */
-const readFromSource = (reader: SyncRow['reader'], source: string, typeName: string): string[] =>
-  reader === 'union'
-    ? readLiteralUnionFromSource(source, typeName)
-    : readObjectKeysFromSource(source, typeName);
+const readFromSource = (reader: SyncRow['reader'], source: string, typeName: string): string[] => {
+  if (reader === 'union') return readLiteralUnionFromSource(source, typeName);
+  if (reader === 'typeNames') return readTypeNameUnionFromSource(source, typeName);
+  return readObjectKeysFromSource(source, typeName);
+};
 
 const readClient = (row: SyncRow): string[] =>
   readFromSource(row.reader, readFile(findClientDeclaration(row.typeName)), row.typeName);
@@ -153,7 +202,7 @@ function describeDrift(row: SyncRow, client: string[], server: string[]): string
   const serverOnly = server.filter((member) => !client.includes(member));
   return (
     `${row.typeName}: src/shared/types.ts and server/shared/types.ts must name the same ` +
-    `${row.reader === 'union' ? 'members' : 'fields'}; ` +
+    `${row.reader === 'object' ? 'fields' : 'members'}; ` +
     `src-only: [${srcOnly.join(', ')}]; server-only: [${serverOnly.join(', ')}]`
   );
 }
@@ -172,8 +221,8 @@ describe('cockpit card type sync', () => {
     }
   });
 
-  it('(a) every literal-union row names the same members on both ends', () => {
-    for (const row of ROWS.filter((candidate) => candidate.reader === 'union')) {
+  it('(a) every union row (literal or type-name) names the same members on both ends', () => {
+    for (const row of ROWS.filter((candidate) => candidate.reader !== 'object')) {
       const client = readClient(row);
       const server = readServer(row);
       assert.deepEqual(client, server, describeDrift(row, client, server));
@@ -205,6 +254,25 @@ describe('cockpit card type sync', () => {
     const message = describeDrift(row, client, server);
     assert.match(message, /src\/shared\/types\.ts/, 'the failure message must name the src file');
     assert.match(message, /expired/, 'the failure message must name the deleted literal');
+  });
+
+  it('false-form: deleting `fallback` from the brief status union names the src file and the literal', () => {
+    const srcTypes = readFile(path.join(srcRoot, 'shared', 'types.ts'));
+    const mutated = srcTypes.replace(
+      "export type CockpitBriefStatus = 'generated' | 'fallback';",
+      "export type CockpitBriefStatus = 'generated';",
+    );
+    assert.notEqual(mutated, srcTypes, 'the brief-status mutation must apply to the in-memory copy');
+
+    const row = ROWS.find((candidate) => candidate.typeName === 'CockpitBriefStatus');
+    assert.ok(row, 'CockpitBriefStatus must be in the comparison table');
+    const client = readFromSource('union', mutated, 'CockpitBriefStatus');
+    const server = readServer(row);
+    assert.notDeepEqual(client, server, 'deleting a src-side brief status member must fail');
+
+    const message = describeDrift(row, client, server);
+    assert.match(message, /src\/shared\/types\.ts/, 'the failure message must name the src file');
+    assert.match(message, /fallback/, 'the failure message must name the deleted literal');
   });
 
   it('false-form: adding a server-side field names the field', () => {

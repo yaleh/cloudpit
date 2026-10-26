@@ -431,6 +431,13 @@ export const api = {
     optionId?: string;
     replyText?: string;
   }) => post('/api/cockpit/cards/confirm', request),
+  /**
+   * One card's brief: the BriefSpec document flattened beside its identity, status and spend.
+   * A fallback is still HTTP 200 — `status` and `reason` say why no model brief was drawn, so
+   * the drawer shows the reason instead of treating it as a transport failure.
+   */
+  cockpitCardBrief: (cardId: string) =>
+    get(`/api/cockpit/cards/${encodeURIComponent(cardId)}/brief`),
   quaySnapshot: (
     projectId: string,
     { refresh = false, hours }: { refresh?: boolean; hours?: number } = {},
