@@ -44,13 +44,29 @@ Invert the shell<->chat and chat/voice-realtime -> auth edges behind injected po
 - statement: 修复后 `<none>` 不再以同一 subject 复发（同 concept_key 的后续记录数应为 0）
 - recorded_at: 2026-10-26T08:43:19.503Z
 
+## Disposition
+已修掉。该 11 包 SCC 的唯一「回边」是 `shell -> chat`：`src/modules/shell/Shell.tsx:10` 为了读
+`getClaudeSettings().skipPermissions`，经 chat 的公共 barrel 导入了整个 chat 特征模块。把这份
+用户偏好读写（两个特征模块都在用）下沉到 `src/shared/claudeSettings.ts` 后，shell 与 chat 都只依赖
+shared 层，SCC 被拆开；`chat/voice-realtime -> auth` 仍是一条前进边（chat → voice-realtime → auth
+→ … → shell），不再是任何环的一部分，因此无需再引入 token 端口即可满足判据。
+
+修复后在工作树（已 merge develop）上实跑：
+`archguard_analyze(projectRoot=<worktree>, sources=['src'], lang=typescript)` +
+`archguard_detect_cycles(scope=src, outputScope=package)`。
+
+- L_G archguard: maxSccSize=9 sccCount=6 authChatCycleCount=0 shellChatCycleEdgeCount=0 voiceAuthCycleEdgeCount=0
+
+判据对照：max SCC size = 9 < 11；含 `modules/auth` 与 `modules/chat` 的环数 = 0。剩余 9 包环是 chat 内部的
+独立 finding（`cycle-src-chat-subsystem-9`，另有任务处置），不在本 finding 的处置范围内。
+
 ## AC
-- [ ] `.quay/routine-findings.jsonl` 中 finding `cycle-src-shell-chat-auth-11`（routine `architecture-analysis`，runId `architecture-analysis-1793004199503`）所描述的问题被复核并处置
-- [ ] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
+- [x] `.quay/routine-findings.jsonl` 中 finding `cycle-src-shell-chat-auth-11`（routine `architecture-analysis`，runId `architecture-analysis-1793004199503`）所描述的问题被复核并处置
+- [x] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
 
 ## DoD
-- [ ] 上面的判据实跑通过
-- [ ] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
+- [x] 上面的判据实跑通过
+- [x] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
 
 ## Touches
 - `src/modules/auth/ProtectedRoute.tsx`
@@ -62,4 +78,9 @@ Invert the shell<->chat and chat/voice-realtime -> auth edges behind injected po
 - `src/modules/chat/voice-realtime/useVoiceRealtimeSession.ts`
 - `src/modules/task-master/context/TaskMasterContext.tsx`
 - `src/modules/task-master/modals/TaskMasterSetupModal.tsx`
+- `src/shared/claudeSettings.ts`
+- `src/modules/chat/utils/session/chatStorage.ts`
+- `src/modules/chat/utils/session/chatPermissions.ts`
+- `src/modules/chat/composer/PermissionRequestsBanner.tsx`
+- `src/modules/chat/index.ts`
 - `tasks/gap-routine-architecture-analysis-cycle-src-shell-chat-auth-11.md`
