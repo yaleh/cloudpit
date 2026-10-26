@@ -40,6 +40,7 @@ L_D 该轴仍暗，理由：本任务只把面板里的搜索、悬停与深链�
 - src/modules/architecture/PlantUmlGraph.tsx
 - src/modules/architecture/detailRanking.ts
 - src/modules/architecture/hoverHintPlacement.ts
+- src/modules/architecture/hooks/useProjectSearch.ts
 - src/modules/architecture/tests/architectureSearchController.test.ts
 - src/modules/architecture/tests/architectureDeepLink.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
