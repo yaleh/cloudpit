@@ -131,10 +131,16 @@ Within `src/shared/types.ts`, `src/shared/utils.ts`, and `src/shared/constants.t
 - A component then renders a snapshot and forwards events. It does not decide what happens next.
 - Exemplars: `replySuggestionsController` (`src/modules/chat/utils/`), `architectureRefreshController` (`src/modules/architecture/`), and `ServerFeaturesStore` (`src/shared/hooks/useServerFeatures.ts`). Existing oversized components are not exemptions: do not add state to them; extract the owner for the slice you touch and leave the file smaller.
 
+## Reuse the shared primitives
+
+- Do not hand-write a primitive that already exists in `src/shared/utils.ts`. Use `createExternalStore` for a store whose state is just a snapshot, `createBoundedLru` for a capacity-bounded cache (never an unbounded `Map` that only grows), and take the current time through an injected `Clock` (`defaultClock` is the production implementation) instead of calling `Date.now()` or `new Date()` inside a controller; the injection is what makes a time-dependent rule testable without sleeping.
+- When a store also owns lifecycle state (an in-flight request, a settled flag, timers), a class owner is the right shape — `ServerFeaturesStore` (`src/shared/hooks/useServerFeatures.ts`) is that exemplar: every command writes through one `publish` path and the state lives in private fields. What is forbidden is a module-level listener set driven by free functions; do not add another one.
+- Exemplars: `createExternalStore` in `chatDrafts` and `curationStore`; `createBoundedLru` in `replySuggestionsController`, `layoutOrientation`, and `messageTransforms`; an injected `Clock` in `architectureRefreshController` and `replySuggestionsController`.
+
 ## Express provider differences as data, not branches
 
-- Do not branch on a provider id (`provider === 'claude'`, `switch (provider)`) in components or hooks to choose a label, logo, login command, or capability. Route the difference through a single provider descriptor table (display name, logo, login command, supported features) looked up by provider id, so a new provider is one table row. Where no table covers the attribute yet, add it there instead of adding another branch.
-- When a type mirrors a server wire shape, import the shared type if one exists. If it must be mirrored, add a type-sync test that fails when either side changes (`src/shared/tests/replySuggestionsTypeSync.test.ts` is the pattern).
+- Do not branch on a provider id (`provider === 'claude'`, `switch (provider)`) in components or hooks to choose a label, logo, login command, or capability. Route the difference through the single provider descriptor table `PROVIDER_DESCRIPTORS` (`src/shared/constants.ts`: display name, logo, login command, supported features) looked up by the provider id, so a new provider is one table row. Where the table does not cover the attribute yet, add it there instead of adding another branch.
+- When a type mirrors a server wire shape, import the shared type if one exists. If it must be mirrored, add or extend a TypeSync criterion that reads BOTH sides and reds the run when either side changes: `src/shared/tests/wireContractTypeSync.test.ts` generalises the reading to literal unions and object field sets across the hand-copied wire, and `src/shared/tests/replySuggestionsTypeSync.test.ts` is the same pattern for one pair of unions. A `Mirrors ...` comment is not a criterion.
 
 ## Place contexts by ownership
 
@@ -193,4 +199,5 @@ Before finishing:
 7. Confirm every newly introduced state declaration explains why it exists or is marked as possibly unnecessary.
 8. Confirm no hook or component holds business rules or a state machine that belongs in a React-free controller, and that any new controller is a factory over an injected dependency seam.
 9. Confirm no state with a lifecycle was added as a new `useState`/`useRef` cluster in an oversized component, no module-level mutable binding was added, and no provider-id branch was added.
-10. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+10. Confirm no new hand-written external store, LRU, or clock was added where `createExternalStore`, `createBoundedLru`, and `Clock` already exist, and every new hand-mirrored wire type has a TypeSync criterion that reads both sides.
+11. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
