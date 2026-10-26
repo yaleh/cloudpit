@@ -159,6 +159,15 @@ events=2
 
 该轴仍暗,理由:本任务只在观察层内部新增叶子模块并复用 shared 类型，未产生 L_D/L_G 架构图读数。
 
+### 第二轮（2026-10-27，续跑）：suite 红的真实原因与本轮修复
+
+上一轮 fan-in suite 红在 `server/shared/tests/architecture-ratchet.test.ts` 的两条读数，两条都是本任务自己的 delta（该测试文件虽不在 delta 里，读的却是 delta 里的文件）：
+
+1. `oversizeFiles server/shared/types.ts 4749→4821`：本任务新增的 72 行 ask/decision wire 词汇（`SessionAskDecisionOption`、`SessionAskDecision`、`SessionAskDecisionReading`、`SessionAskEventKind`、`SessionAskEvent`）被 4 个观察层文件与 `ISessionAskEventWriter` 注入面共用；按后端模块标准「两处以上使用的类型放 `server/shared/types.ts`」，它们就该在这里，不另建模块承载。已按基线文件自带的 RECORDED CHANGE 格式把该条上调为 4821 并在 note 里写明理由（同一行前一天已由 cockpit 卡片契约为同类原因上调 4629→4749）。
+2. `moduleMutableState server/modules/observation/session-ask-decision-answer.ts 基线外→1`：`OPTION_SOURCES` 原为模块级 `new Set(...)`，被 ratchet 计为模块级可变状态（基线外文件必须为 0）。改为 `readonly` 数组 + `includes`，语义不变（仍然只校验选项来源落在 assistant/judge/provider 三项内）。
+
+本轮复跑读数（worktree 内，合并 develop 之后）：`architecture-ratchet.test.ts` → tests 6 / pass 6 / fail 0；`session-ask-decision-digest.test.ts` 8/8；`session-digest.test.ts` 10/10；`session-digest-llm.test.ts` 9/9；`server-import-cycle-budget.test.ts` 11/11；`quay-test-script.test.ts` 14/14；`npm run typecheck` 退出 0；`npm run lint` 退出 0（改动文件无 warning）。合并 develop 无冲突。
+
 ## Touches
 
 - tasks/observation-session-ask-decision-digest.md
@@ -171,6 +180,7 @@ events=2
 - server/modules/observation/index.ts
 - server/shared/types.ts
 - server/shared/interfaces.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
