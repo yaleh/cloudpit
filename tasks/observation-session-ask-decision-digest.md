@@ -18,7 +18,7 @@ goal_ac: AC-423
 
 做什么：
 
-- 新文件 `server/modules/observation/session-ask-decision-digest.ts`：输入一个以助手提问结束的会话的近几轮转写，经注入的 LLM 客户端（复用 `session-digest-llm.ts` 的客户端形态与 `session-digest-llm-settings.ts` 的模型设置，不新建通道）产出 `{ askId, revision, ask, situation, options[{ id, label, does, tags[{kind,text}], suggested, source }], incomplete }`。规则：助手原文给出推荐时只有那一项 `suggested=true` 且 `source=assistant`；原文没有推荐时任何选项都不标 suggested；问题依赖的内容不在送入的近几轮里时 `incomplete=true` 且没有 suggested。输出经结构校验，校验失败按无摘要处理，不把原文末句冒充问题重述。
+- 新文件 `server/modules/observation/session-ask-decision-digest.ts`：输入一个以助手提问结束的会话的近几轮转写，经注入的 LLM 客户端（复用 `session-digest-llm.ts` 的客户端形态与 `session-digest-llm-settings.ts` 的模型设置，不新建通道）产出 `{ askId, revision, ask, situation, options[{ id, label, does, tags[{kind,text}], suggested, source }], incomplete }`。规则：助手原文给出推荐时只有那一项 `suggested=true` 且 `source=assistant`；原文没有推荐时任何选项都不标 suggested；问题依赖的内容不在送入的近几轮里时 `incomplete=true` 且没有 suggested。输出经结构校验，校验失败按无摘要处理，不把原文末句冒充问题重述。问题以转写里最后一条助手消息为准，不取观察层 digest 的 `askingYou` 摘录（2026-10-27 简报实验 E2 实测该摘录可能落后一轮，8 条里有 2 条因此问错了问题）。
 - 去重键（与 quay-fleet 2026-10-27 对齐的 schema 草稿一致）：`askId` 形如 `<sessionId>:<assistantMessageId>`，取该会话自上次用户发言以来第一条提问所在的助手消息 id；用户回答之前再次提问时沿用这个 askId、revision 递增、事件的 `messageId` 换成新提问的消息 id，不另开新卡。
 - 事件：`server/modules/observation/session-digest.producer.ts` 在识别到提问时经注入的事件写入器发出一条 `session.asking`（顶层 session、project、at、refs 为助手消息 id；data 含 askId、messageId、revision 与 `contentRef { resolver: cloudcli.session-ask, sessionId, messageId }`），同一会话随后出现用户发言时发出一条 `session.answered`（顶层 session、at；data 含 askId 与用户消息 id）。事件写入器以接口注入，测试用内存写入器。
 - 摘要结果挂到现有会话 digest 上（新字段，旧字段不变），供后续驾驶舱的 ContentResolver 读取。
@@ -27,7 +27,7 @@ goal_ac: AC-423
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0（AC-423 判据）：夹具转写至少四份——助手给出推荐的提问、没有推荐的提问、依赖上文缺失的提问、同一会话未回答前再次提问；LLM 客户端桩掉；断言摘要字段、suggested 规则、incomplete 规则、再次提问沿用 askId 且 revision 递增；以内存写入器断言 `session.asking` 恰好一条、用户发言后 `session.answered` 恰好一条。
+- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0（AC-423 判据）：夹具转写至少五份——助手给出推荐的提问、没有推荐的提问、依赖上文缺失的提问、同一会话未回答前再次提问、digest 的 askingYou 摘录落后一轮的会话（摘要的问题重述必须对应最后一条助手消息）；LLM 客户端桩掉；断言摘要字段、suggested 规则、incomplete 规则、再次提问沿用 askId 且 revision 递增；以内存写入器断言 `session.asking` 恰好一条、用户发言后 `session.answered` 恰好一条。
 - [ ] 假形态各自变红：让摘要在桩返回无效结构时退回原文末句当问题重述 ⇒ 用例红；在助手没有推荐时补一个 suggested ⇒ 用例红；再次提问时新开 askId ⇒ 用例红。每个假形态改完即还原。
 - [ ] 现有观察层判据不退：`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0（若该文件名不同，以 `ls server/modules/observation/tests` 中会话 digest 的测试文件为准并在完成记录写明）。
 - [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 退出 0。
