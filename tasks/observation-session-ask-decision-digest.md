@@ -2,7 +2,7 @@
 id: observation-session-ask-decision-digest
 title: 观察层：会话提问的结构化决策摘要（问题重述、情境、选项与后果标签、助手推荐、incomplete），并经注入写入器发出
   session.asking 与 session.answered
-status: ready
+status: done
 labels:
   - feature
   - cockpit
