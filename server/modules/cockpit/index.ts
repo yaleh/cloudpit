@@ -26,6 +26,25 @@ export type {
   CockpitFixtureCardProvider,
   CockpitFixtureConfirmation,
 } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+// The brief service: card content in, BriefSpec (or the deterministic default) out. The
+// composition root injects its gateway/session/transcript seams; the card router calls it.
+export { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
+export type {
+  CockpitBrief,
+  CockpitBriefAuthScheme,
+  CockpitBriefComplete,
+  CockpitBriefCompletion,
+  CockpitBriefCompletionRequest,
+  CockpitBriefDeps,
+  CockpitBriefGateway,
+  CockpitBriefProtocol,
+  CockpitBriefResult,
+} from '@/modules/cockpit/cockpit-brief.service.js';
+export { createCockpitBriefSettingsSource } from '@/modules/cockpit/cockpit-brief-settings.js';
+export type {
+  CockpitBriefSettings,
+  CockpitBriefSettingsSource,
+} from '@/modules/cockpit/cockpit-brief-settings.js';
 // The state vocabulary is published for the hub's consumers (the composition root types its
 // target resolver against `CockpitState`) and for the criteria that drive the pure reducer.
 export { COCKPIT_HISTORY_LIMIT, buildCockpitMessageBody, classifyCockpitUtterance, createCockpitState, reduceCockpit } from '@/modules/cockpit/cockpit.reducer.js';

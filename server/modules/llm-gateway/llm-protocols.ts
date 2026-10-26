@@ -73,6 +73,14 @@ export type LlmCompletion = {
   text: string;
   inputTokens: number | null;
   outputTokens: number | null;
+  /**
+   * Anthropic prompt-cache reads and creations. Both are REPORTED but never added to
+   * `inputTokens`: the cockpit brief's budget counts every class separately, so a consumer that
+   * needs the true spend adds these to input + output itself. Absent on dialects (OpenAI) that do
+   * not report them, so a hand-built stub without these fields still satisfies the type.
+   */
+  cacheReadInputTokens?: number | null;
+  cacheCreationInputTokens?: number | null;
 };
 
 /** A response that parsed as JSON but does not carry the protocol's declared shape. */
@@ -122,16 +130,25 @@ function readUsage(
   payload: unknown,
   inputKey: string,
   outputKey: string,
-): { inputTokens: number | null; outputTokens: number | null } {
-  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
-    return { inputTokens: null, outputTokens: null };
-  }
+  cacheReadKey: string | null,
+  cacheCreationKey: string | null,
+): Pick<LlmCompletion, 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens'> {
+  const empty = {
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadInputTokens: null,
+    cacheCreationInputTokens: null,
+  } as const;
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return empty;
   const usage = (payload as Record<string, unknown>).usage;
-  if (usage === null || typeof usage !== 'object' || Array.isArray(usage)) {
-    return { inputTokens: null, outputTokens: null };
-  }
+  if (usage === null || typeof usage !== 'object' || Array.isArray(usage)) return empty;
   const record = usage as Record<string, unknown>;
-  return { inputTokens: tokenCount(record[inputKey]), outputTokens: tokenCount(record[outputKey]) };
+  return {
+    inputTokens: tokenCount(record[inputKey]),
+    outputTokens: tokenCount(record[outputKey]),
+    cacheReadInputTokens: cacheReadKey === null ? null : tokenCount(record[cacheReadKey]),
+    cacheCreationInputTokens: cacheCreationKey === null ? null : tokenCount(record[cacheCreationKey]),
+  };
 }
 
 /** Pull the answer text out of an Anthropic Messages response. */
@@ -212,7 +229,10 @@ export const anthropicProtocol: LlmProtocol = {
     return { 'anthropic-version': '2023-06-01' };
   },
   parseResponse(payload) {
-    return { text: readAnthropicText(payload), ...readUsage(payload, 'input_tokens', 'output_tokens') };
+    return {
+      text: readAnthropicText(payload),
+      ...readUsage(payload, 'input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'),
+    };
   },
 };
 
@@ -256,7 +276,10 @@ export const openaiProtocol: LlmProtocol = {
     return {};
   },
   parseResponse(payload) {
-    return { text: readOpenAiText(payload), ...readUsage(payload, 'prompt_tokens', 'completion_tokens') };
+    return {
+      text: readOpenAiText(payload),
+      ...readUsage(payload, 'prompt_tokens', 'completion_tokens', null, null),
+    };
   },
 };
 

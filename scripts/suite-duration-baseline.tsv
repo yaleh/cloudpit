@@ -749,3 +749,13 @@
 #   (dur=3405ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 453 server test files).
 3405	server/modules/observation/tests/session-ask-decision-digest.test.ts
+#   and the cockpit-brief row by cockpit-session-ask-brief, measured once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-brief.test.ts`
+#   (dur=2618ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 455 server test files).
+2618	server/modules/cockpit/tests/cockpit-brief.test.ts
+#   and the cockpit-brief-spec row by cockpit-session-ask-brief, measured once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-brief-spec.test.ts`
+#   (dur=2536ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 455 server test files).
+2536	server/modules/cockpit/tests/cockpit-brief-spec.test.ts
