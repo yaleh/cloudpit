@@ -2,7 +2,7 @@
 id: gap-wire-type-sync-criteria
 title: 前后端 wire 契约同步判据：把 reply-suggestions 的 TypeSync 做法推广到 notices / 架构刷新 /
   resident 终态 / 提及来源
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -40,18 +40,39 @@ server 与浏览器包不共享类型，wire 形状由人手抄两份，代码�
 
 ## AC
 
-- [ ] 判据全绿：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` exit 0。
-- [ ] 覆盖面：`grep -cE "(NoticeLifecycle|NoticeSeverity|ArchitectureRefreshState|ArchitectureRefreshStage|ArchitectureRefreshStatus|ArchitectureRefreshStartResult|RecentTerminalState|ArchitectureMentionHit|ArchitectureMentionEntity|NoticeList)" src/shared/tests/wireContractTypeSync.test.ts` ≥ 10。
-- [ ] 非空自检：`grep -nE "length > 0|\.length, 0\)|toBeGreaterThan\(0\)" src/shared/tests/wireContractTypeSync.test.ts` 至少命中一处，且该断言覆盖表中每一行（逐行循环或逐行断言）。
-- [ ] 假形态：`grep -nE "false-form|假形态" src/shared/tests/wireContractTypeSync.test.ts` 命中一个用例，它对内存副本改掉一个联合成员与一个对象字段后断言比对 **不** 相等。
-- [ ] 只加判据：`git diff --name-only "$(git merge-base develop HEAD)" -- src/ server/ | grep -v '^src/shared/tests/wireContractTypeSync.test.ts$'` 无输出。
-- [ ] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared/tests/wireContractTypeSync.test.ts` exit 0。
+- [x] 判据全绿：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` exit 0。
+- [x] 覆盖面：`grep -cE "(NoticeLifecycle|NoticeSeverity|ArchitectureRefreshState|ArchitectureRefreshStage|ArchitectureRefreshStatus|ArchitectureRefreshStartResult|RecentTerminalState|ArchitectureMentionHit|ArchitectureMentionEntity|NoticeList)" src/shared/tests/wireContractTypeSync.test.ts` ≥ 10。
+- [x] 非空自检：`grep -nE "length > 0|\.length, 0\)|toBeGreaterThan\(0\)" src/shared/tests/wireContractTypeSync.test.ts` 至少命中一处，且该断言覆盖表中每一行（逐行循环或逐行断言）。
+- [x] 假形态：`grep -nE "false-form|假形态" src/shared/tests/wireContractTypeSync.test.ts` 命中一个用例，它对内存副本改掉一个联合成员与一个对象字段后断言比对 **不** 相等。
+- [x] 只加判据：`git diff --name-only "$(git merge-base develop HEAD)" -- src/ server/ | grep -v '^src/shared/tests/wireContractTypeSync.test.ts$'` 无输出。
+- [x] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared/tests/wireContractTypeSync.test.ts` exit 0。
 
 注：上列「未改动」类判据（与 develop 的 merge-base 比较，覆盖已提交与未提交改动；对 HEAD 比较在提交后恒为空，会真空通过）。
 
 ## DoD
 
 在本地对真实源码做一次漂移演练并贴出输出：临时在 `server/modules/notices/notice-registry.service.ts` 的 `NoticeSeverity` 里加一个成员 `'urgent'`，运行判据，贴出指向 `NoticeSeverity` 的失败信息；再临时给 `server/shared/types.ts` 的 `ArchitectureRefreshStatus` 加一个字段，贴出指向该类型的失败信息；两处都还原后再跑一次贴出全绿。三次运行证明判据在真实文件上能抓住两种漂移（联合成员、对象字段）。
+
+## Evidence
+
+2026-10-26 续做轮（reused worktree `gap-wire-type-sync-criteria`，merge develop 后干净）逐条复验：
+
+- AC1：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` → `4 tests passed (4)`，exit 0。
+- AC2：`grep -cE "…" …` → `29`（≥10）。
+- AC3：命中 4 处（`members.length > 0`、`keys.length > 0`、`readClient(row).length > 0`、`readServer(row).length > 0`）；后两者在 `for (const row of ROWS)` 循环内，覆盖表中每一行。
+- AC4：`244: it('false-form: a mutated in-memory copy is detected for a union member and an object field', …)`，对内存副本分别改 `NoticeSeverity` 联合成员与 `ArchitectureRefreshStatus` 对象字段后 `assert.notDeepEqual`。
+- AC5：`git diff --name-only "$(git merge-base develop HEAD)" -- src/ server/ | grep -v '^src/shared/tests/wireContractTypeSync.test.ts$'` → 无输出（grep exit 1）。
+- AC6：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/shared/tests/wireContractTypeSync.test.ts` exit 0。
+
+DoD 漂移演练（真实源码，三次运行）：
+
+1. 给 `server/modules/notices/notice-registry.service.ts` 的 `NoticeSeverity` 加 `'urgent'` →
+   `× (a) every literal-union row names the same members on both ends`
+   `AssertionError: NoticeSeverity (client) and NoticeSeverity (server) must name the same members`
+2. 给 `server/shared/types.ts` 的 `ArchitectureRefreshStatus` 加 `urgent: boolean;` →
+   `× (b) every object row names the same top-level fields on both ends`
+   `AssertionError: ArchitectureRefreshStatus (client) and ArchitectureRefreshStatus (server) must name the same fields`
+3. 两处 `git checkout --` 还原后重跑 → `Test Files 1 passed (1) / Tests 4 passed (4)`。
 
 ## Touches
 

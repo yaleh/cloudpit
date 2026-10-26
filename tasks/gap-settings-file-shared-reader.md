@@ -1,7 +1,7 @@
 ---
 id: gap-settings-file-shared-reader
 title: 把 4 份近似克隆的 server.settings 读取器收敛到 server/shared/settings-file.ts（叶子，不动导入环预算）
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -33,14 +33,14 @@ extra:
 
 ## AC
 
-- [ ] 共享读取器落地：`grep -nE "export function (createSettingsBlockSource|resolveApiKey|readBoolean|readString|readInteger|expandHome)" server/shared/settings-file.ts` 命中全部 6 个导出，且各带 consumer 注释。
-- [ ] 叶子形态：`grep -nE "from '" server/shared/settings-file.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+|\./[^']+)'"` 无输出（只依赖 node 内置与 server/shared）。
-- [ ] 克隆消失：`grep -nE "^function (resolveApiKey|readBoolean|readString|readInteger|expandHome|isRecord|defaultServerSettingsPath)\(" server/modules/quay/counter-voice-settings.ts server/modules/observation/session-digest-llm-settings.ts server/modules/reply-suggestions/reply-suggestions-settings.ts server/modules/architecture/refresh-settings.ts` 无输出。
-- [ ] 体量下降：`cat server/modules/quay/counter-voice-settings.ts server/modules/observation/session-digest-llm-settings.ts server/modules/reply-suggestions/reply-suggestions-settings.ts server/modules/architecture/refresh-settings.ts | wc -l` ≤ 1250（现 1707）。
-- [ ] 新判据：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/settings-file.test.ts` exit 0，覆盖 mtime 未变不重读、文件变化重读、缺文件/坏 JSON 返回默认值并记 problem、`~` 展开、`apiKeyFile` 解析。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/counter-voice.test.ts server/modules/observation/tests/session-digest-llm.test.ts server/modules/reply-suggestions/tests/reply-suggestions-settings.test.ts server/modules/architecture/tests/refreshJob.test.ts` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0（基线与 MANIFEST_PIN 一字未改）。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/shared server/modules/quay server/modules/observation server/modules/reply-suggestions server/modules/architecture` exit 0。
+- [x] 共享读取器落地：`grep -nE "export function (createSettingsBlockSource|resolveApiKey|readBoolean|readString|readInteger|expandHome)" server/shared/settings-file.ts` 命中全部 6 个导出，且各带 consumer 注释。
+- [x] 叶子形态：`grep -nE "from '" server/shared/settings-file.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+|\./[^']+)'"` 无输出（只依赖 node 内置与 server/shared）。
+- [x] 克隆消失：`grep -nE "^function (resolveApiKey|readBoolean|readString|readInteger|expandHome|isRecord|defaultServerSettingsPath)\(" server/modules/quay/counter-voice-settings.ts server/modules/observation/session-digest-llm-settings.ts server/modules/reply-suggestions/reply-suggestions-settings.ts server/modules/architecture/refresh-settings.ts` 无输出。
+- [x] 体量下降：`cat server/modules/quay/counter-voice-settings.ts server/modules/observation/session-digest-llm-settings.ts server/modules/reply-suggestions/reply-suggestions-settings.ts server/modules/architecture/refresh-settings.ts | wc -l` ≤ 1250（现 1707）。
+- [x] 新判据：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/settings-file.test.ts` exit 0，覆盖 mtime 未变不重读、文件变化重读、缺文件/坏 JSON 返回默认值并记 problem、`~` 展开、`apiKeyFile` 解析。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/counter-voice.test.ts server/modules/observation/tests/session-digest-llm.test.ts server/modules/reply-suggestions/tests/reply-suggestions-settings.test.ts server/modules/architecture/tests/refreshJob.test.ts` exit 0。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0（基线与 MANIFEST_PIN 一字未改）。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/shared server/modules/quay server/modules/observation server/modules/reply-suggestions server/modules/architecture` exit 0。
 
 注：上列「未改动」类判据（与 develop 的 merge-base 比较，覆盖已提交与未提交改动；对 HEAD 比较在提交后恒为空，会真空通过）。
 
