@@ -46,6 +46,7 @@ import {
   solveFitScale,
   solveSemanticZoom,
   semanticContentBounds,
+  semanticDrawnFitScale,
   lodDepthForTier,
   type FitAreaRect,
   type FitOverlayRect,
@@ -186,20 +187,24 @@ function drawnMemberLimits(): { memberMaxChars?: number } {
 }
 
 /**
- * The DEV-only lever the orientation criterion's control arm pulls: forcing the
- * DOWNWARD layout is the only way to measure what the canvas looks like WITHOUT
- * the direction choice, in the same page and through the same reading.
+ * The DEV-only lever the orientation criterion's control arms pull: forcing a
+ * direction is the only way to measure what the canvas looks like for the
+ * direction the policy did NOT choose — laid out for real, through the same
+ * reading. `down` is the pre-feature state; `right` is the losing candidate
+ * once the fit comparison is post-reclaim.
  *
  * DEV-gated exactly like the member-limit lever above — a production build does
  * not contain this branch, so no reader can turn the feature off.
  */
 const LAYOUT_ORIENTATION_STORAGE_KEY = 'architecture-layout-orientation';
 
-/** Whether this build's control arm asked for the downward-only layout. */
+/** Whether this build's control arm asked for one fixed direction. */
 function forcedLayoutOrientation(): LayoutOrientation | null {
   if (import.meta.env.DEV) {
     try {
-      if (window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY) === 'down') return 'DOWN';
+      const forced = window.localStorage.getItem(LAYOUT_ORIENTATION_STORAGE_KEY);
+      if (forced === 'down') return 'DOWN';
+      if (forced === 'right') return 'RIGHT';
     } catch {
       // Private mode: the store is unreadable, so the shipped policy applies.
     }
@@ -215,6 +220,35 @@ function layoutSizeOf(detailed: { readonly layout: unknown }): OrientationSize |
   return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
     ? { width, height }
     : null;
+}
+
+/**
+ * The semantic fit scale a finished render would be PAINTED at, measured on the
+ * drawing AFTER the semantic pass reclaims the blank body of frames whose
+ * member rows are not drawn.
+ *
+ * {@link layoutSizeOf} is the renderer's own geometry, which still counts the
+ * rows nothing draws. The direction policy must compare what the reader sees
+ * (see `layoutOrientation.ts`), so the two candidates are each solved once here.
+ * The geometry is read from the render's own SVG in a DETACHED holder: at
+ * decision time the drawing has not been injected into the host, and the reader
+ * is read-only.
+ */
+function drawnFitScaleOf(
+  detailed: { readonly svg: string },
+  graph: Parameters<typeof captureSemanticDrawing>[1],
+  viewport: OrientationSize,
+  fontPx: number,
+): number | null {
+  const holder = document.createElement('div');
+  holder.innerHTML = detailed.svg;
+  // The row cap is a DRAWING rule applied before the semantic capture, so the
+  // detached reading must apply the same rule or it plans rows nothing paints.
+  capDrawnMemberRows(holder);
+  const capture = captureSemanticDrawing(holder, graph);
+  if (capture === null || capture.geometry.nodes.length === 0) return null;
+  const scale = semanticDrawnFitScale(capture.geometry, viewport, fontPx);
+  return scale > 0 ? scale : null;
 }
 
 /**
@@ -2226,15 +2260,18 @@ export function PlantUmlGraph({
           orientation = cached;
         } else if (forced !== null) {
           const forcedStartedAt = performance.now();
-          detailed = await renderOnce(undefined);
+          detailed = await renderOnce(forced === 'DOWN' ? undefined : 'RIGHT');
           elapsedMs = Math.round(performance.now() - forcedStartedAt);
+          // A forced arm measures ONE direction, so its fit is the raw geometry
+          // of that drawing: there is no second candidate to compare against.
           orientation = chooseLayoutOrientation({
             canvas: canvasBox ?? { width: 0, height: 0 },
             down: layoutSizeOf(detailed) ?? { width: 0, height: 0 },
             right: null,
             entities: layoutNodes,
             firstLayoutMs: elapsedMs,
-            forceDown: true,
+            forceDown: forced === 'DOWN',
+            forceRight: forced === 'RIGHT',
           });
         } else {
           const firstStartedAt = performance.now();
@@ -2254,10 +2291,18 @@ export function PlantUmlGraph({
             const right = await renderOnce('RIGHT');
             const secondLayoutMs = Math.round(performance.now() - secondStartedAt);
             if (cancelled) return;
+            // Compare the DRAWN fit, not the renderer's pre-reclaim size: the
+            // semantic pass reclaims the blank body of frames whose member rows
+            // are not drawn, and that is the size the reader sees. The fit box
+            // is the same one `applySemantic` solves against.
+            const fitBox = currentFitViewport(host) ?? canvasBox;
+            const fontPx = coarsePointerRef.current ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
             orientation = chooseLayoutOrientation({
               canvas: canvasBox,
               down: downSize,
               right: layoutSizeOf(right),
+              downDrawnFitScale: drawnFitScaleOf(down, graph, fitBox, fontPx) ?? undefined,
+              rightDrawnFitScale: drawnFitScaleOf(right, graph, fitBox, fontPx) ?? undefined,
               entities: layoutNodes,
               firstLayoutMs,
             });

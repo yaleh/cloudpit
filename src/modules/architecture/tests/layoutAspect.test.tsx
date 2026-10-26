@@ -56,6 +56,10 @@ import {
   ORIENTATION_REASON,
   type OrientationSize,
 } from '@/modules/architecture/layoutOrientation';
+import { captureSemanticDrawing } from '@/modules/architecture/graphDom';
+import { capDrawnMemberRows } from '@/modules/architecture/PlantUmlGraph';
+import { semanticDrawnFitScale } from '@/modules/architecture/semanticZoomLayout';
+import { SEMANTIC_MIN_FONT_PX } from '@/modules/architecture/semanticZoomPlan';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 
@@ -702,6 +706,70 @@ test('the engine carries the chosen direction as the raw elk.direction option', 
   const unmeasuredTurn = recordingEngineClass();
   createLayoutEngine({ aspectRatio: null, direction: 'RIGHT', Engine: unmeasuredTurn.Engine });
   assert.deepEqual(unmeasuredTurn.received[0], { elk: { 'elk.direction': 'RIGHT' } });
+});
+
+/**
+ * The fit scale a rendered direction is PAINTED at: the drawing is capped the
+ * way the component caps it, captured, and solved against the canvas. This is
+ * the same reading `PlantUmlGraph.tsx` takes before it compares directions.
+ */
+function drawnFitScaleOfRendered(canvas: OrientationSize, svg: string): number {
+  const holder = document.createElement('div');
+  holder.innerHTML = svg;
+  capDrawnMemberRows(holder);
+  const capture = captureSemanticDrawing(holder, orientationChainGraph() as never);
+  assert.ok(capture !== null, 'the rendered fixture must be capturable');
+  assert.equal(capture.geometry.nodes.length, 2, 'both classes must be read');
+  const fit = semanticDrawnFitScale(capture.geometry, canvas, SEMANTIC_MIN_FONT_PX);
+  assert.ok(fit > 0, 'the fixture must have a usable fit');
+  return fit;
+}
+
+test('the direction policy compares the POST-reclaim fit, not the renderer geometry', async () => {
+  // The canvas the browser criterion measures (1151×596, the e2e PC reading).
+  const canvas: OrientationSize = { width: 1151, height: 596 };
+  const down = await drawOrientationFixture(canvas);
+  const right = await drawOrientationFixture(canvas, 'RIGHT');
+  const downFit = drawnFitScaleOfRendered(canvas, down.svg);
+  const rightFit = drawnFitScaleOfRendered(canvas, right.svg);
+  console.log(`[orientation] down=${JSON.stringify(down)} fit=${downFit} right=${JSON.stringify(right)} fit=${rightFit}`);
+
+  // The premise: on the renderer's own sizes the downward column looks the
+  // narrower drawing, so the pre-reclaim rule turns it RIGHT. That is the
+  // defect — RIGHT is the drawing the canvas shows SMALLER once the blank
+  // member body is reclaimed (fit 1.24 vs 1.5). Pinning the premise here makes
+  // the case discriminating rather than merely true.
+  const preReclaim = chooseLayoutOrientation({
+    canvas,
+    down,
+    right,
+    entities: 2,
+    firstLayoutMs: 12,
+  });
+  assert.equal(preReclaim.direction, 'RIGHT', `the fixture must exhibit the defect: ${JSON.stringify({ down, right })}`);
+
+  // The policy handed the two DRAWN fits must pick the direction the canvas can
+  // actually show larger. The comparison key is the post-reclaim reading.
+  const decision = chooseLayoutOrientation({
+    canvas,
+    down,
+    right,
+    downDrawnFitScale: downFit,
+    rightDrawnFitScale: rightFit,
+    entities: 2,
+    firstLayoutMs: 12,
+  });
+  const chosen = decision.direction === 'DOWN' ? downFit : rightFit;
+  const other = decision.direction === 'DOWN' ? rightFit : downFit;
+  assert.ok(
+    chosen * (1 + ORIENTATION_FIT_HYSTERESIS) >= other,
+    `the chosen direction must not draw smaller than the other, up to the hysteresis band: `
+      + `chosen ${chosen} vs other ${other}`,
+  );
+  assert.equal(decision.direction, 'DOWN', 'the larger post-reclaim fit wins');
+  assert.equal(decision.reason, ORIENTATION_REASON.verticalLarger);
+  assert.equal(decision.downFitScale, downFit, 'the decision must report the post-reclaim downward fit');
+  assert.equal(decision.rightFitScale, rightFit, 'the decision must report the post-reclaim rightward fit');
 });
 
 test('a wide canvas turns the two-entity chain RIGHT and the fit is larger', async () => {

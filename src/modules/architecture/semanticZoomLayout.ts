@@ -1667,6 +1667,30 @@ export function solveFitScale(
   return { scale: best.scale, layout: best, fits: true, iterations, foldDepth: best.foldDepth };
 }
 
+/**
+ * The fit scale one RENDERED layout direction would be painted at, measured on
+ * the drawing the semantic pass actually produces — the blank body of frames
+ * whose member rows are not drawn is reclaimed before this size is taken.
+ *
+ * The architecture direction policy (`layoutOrientation.ts`) compares two
+ * directions with this reading instead of the renderer's natural sizes. Those
+ * are pre-reclaim: a tall downward column collapses to a short strip once its
+ * hidden rows are reclaimed, so comparing natural sizes can pick the direction
+ * the canvas shows smaller.
+ *
+ * Returns the same scale `solveFitScale` would apply, so the comparison is the
+ * fit the reader gets, not an approximation of it. A zero/empty geometry has
+ * no fit and answers `0`.
+ */
+export function semanticDrawnFitScale(
+  geometry: SemanticDrawingGeometry,
+  viewport: { readonly width: number; readonly height: number },
+  minFontPx?: number,
+): number {
+  const fit = solveFitScale(geometry, { viewport, minFontPx });
+  return Number.isFinite(fit.scale) && fit.scale > 0 ? fit.scale : 0;
+}
+
 /** The compartments (and their rule offsets) a drawn frame carries. */
 export function semanticCompartmentRules(layout: SemanticNodeLayout): readonly number[] {
   return planCompartmentRules({
