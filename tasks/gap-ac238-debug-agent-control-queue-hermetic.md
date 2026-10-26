@@ -131,7 +131,7 @@ RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/mod
 
 ### AC6 无实现改动
 
-`git diff --stat develop...HEAD` 只列 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 与 `tasks/gap-ac238-debug-agent-control-queue-hermetic.md`；`git diff develop...HEAD -- server/ ':!server/modules/debug-agent/tests/debug-agent-control-queue.test.ts'` 无输出（0 行）。
+本次 task_write 的提交已随 quay 的 propagate 落到 `develop`（`9bdd7eac0`），因此合并 develop 后 `git diff --stat develop...HEAD` 现在只列 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts`——任务文件在 develop 与 HEAD 同侧，故不出现在本命令输出里。以本任务开始时的 develop 尖端 `d67638f63` 计，本任务自身新增的文件恰为 `server/modules/debug-agent/tests/debug-agent-control-queue.test.ts` 与 `tasks/gap-ac238-debug-agent-control-queue-hermetic.md` 两项（同区间其余文件来自期间兄弟任务 landing 后的 develop merge，非本任务改动）。判据要求的那条臂逐字为：`git diff develop...HEAD -- server/ ':!server/modules/debug-agent/tests/debug-agent-control-queue.test.ts'` ⇒ 无输出（0 行）。即没有实现文件改动。
 
 ### AC7 不回归
 
