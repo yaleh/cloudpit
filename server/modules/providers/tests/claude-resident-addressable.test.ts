@@ -77,7 +77,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync, readFileSync, readdirSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -211,6 +211,136 @@ const budgetGuard = setTimeout(() => {
 // Unref'd so the guard cannot itself hold the process open for the full budget
 // once every case has finished.
 budgetGuard.unref();
+
+// ---------------------------------------------------------------------------
+// The leg ledger, and the two things it exists for
+// ---------------------------------------------------------------------------
+//
+// Every boolean leg is recorded here as it is read, whether it came out true or
+// false, and the ledger is written to `tmp/ac164-criterion-legs.json` when the
+// harness tears down. The file is evidence only — nothing below asserts on it —
+// but it is written on the green path too, because the point is that a *red* run
+// and a green run leave behind the same vocabulary of leg names.
+//
+// The second half is the gate's failure excerpt. The acceptance gate keeps the
+// last 500 characters of this criterion's flattened stdout, and on a failing
+// node:test run that tail is the end of the failure dump: the stack and the
+// error object's own properties. The assertion message — the only place a leg
+// name used to appear — sits hundreds of characters earlier and is truncated
+// away. So a failing leg is also attached to the thrown error as `falseLegs`
+// (see `assertLeg` below); Node's inspector prints enumerable error properties
+// after the stack, which puts `opened=false` (or whichever leg) in the last
+// lines of stdout rather than in the omitted middle.
+type LegReading = { name: string; value: boolean; passed: boolean; detail: Record<string, unknown> };
+const legReadings = new Map<string, LegReading>();
+/** Where the ledger lands. Under the repo's ignored `tmp/`, so it never enters a diff. */
+const LEG_DIAGNOSTICS_FILE = path.join(REPO_ROOT, 'tmp', 'ac164-criterion-legs.json');
+/**
+ * A default-off, diagnostics-only switch that forces one named leg false.
+ *
+ * It changes *no* behaviour: the underlying reading is taken exactly as it
+ * always is, and only the value the assertion grades (and the ledger records) is
+ * overridden. It exists so the "a false leg names itself" property can be
+ * measured without editing the fixture, and is deliberately read from the
+ * environment rather than from any shipped path.
+ */
+const FORCED_FALSE_LEG = (process.env.AC164_FORCE_FALSE_LEG ?? '').trim() || null;
+
+function recordLeg(name: string, value: boolean, detail: Record<string, unknown> = {}): boolean {
+  legReadings.set(name, { name, value, passed: value, detail });
+  return value;
+}
+
+/** Records a leg whose pass condition is not "the boolean is true" (a negative control). */
+function recordLegOutcome(
+  name: string,
+  value: boolean,
+  passed: boolean,
+  detail: Record<string, unknown> = {},
+): boolean {
+  legReadings.set(name, { name, value, passed, detail });
+  return passed;
+}
+
+function writeLegDiagnostics(extra: Record<string, unknown> = {}): void {
+  try {
+    mkdirSync(path.dirname(LEG_DIAGNOSTICS_FILE), { recursive: true });
+    const legs = [...legReadings.values()];
+    writeFileSync(
+      LEG_DIAGNOSTICS_FILE,
+      `${JSON.stringify(
+        {
+          runTag: RUN_TAG,
+          writtenAt: new Date().toISOString(),
+          falseLegs: legs.filter((leg) => !leg.passed).map((leg) => leg.name),
+          legs,
+          ...extra,
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+  } catch (error) {
+    // Diagnostics must never be able to red a criterion that is otherwise green.
+    console.log(`[readings] leg diagnostics not written: ${String(error)}`);
+  }
+}
+
+/**
+ * Asserts a boolean leg, and makes the leg name survivable in a gate excerpt.
+ *
+ * The assertion itself is the same `strictEqual(reading, true)` the case used to
+ * make; what is added is the error's own `falseLegs` property, which the test
+ * runner prints at the very end of the failure dump and which therefore lands
+ * inside the gate's 500-character tail. The message is unchanged, so a reader
+ * who gets the full log still reads the same sentence.
+ */
+function assertLeg(
+  name: string,
+  value: boolean,
+  message: string,
+  detail: Record<string, unknown> = {},
+): void {
+  const forced = FORCED_FALSE_LEG === name;
+  const reading = forced ? false : value;
+  recordLegOutcome(name, reading, reading, forced ? { ...detail, forcedByEnv: true, actualValue: value } : detail);
+  if (reading) {
+    return;
+  }
+  const error = new assert.AssertionError({
+    message,
+    actual: reading,
+    expected: true,
+    operator: 'strictEqual',
+  }) as Error & { falseLegs?: string };
+  error.falseLegs = `${name}=${String(reading)}`;
+  throw error;
+}
+
+/** The same, for a leg whose settled reading must be `false` (a negative control). */
+function assertLegFalse(
+  name: string,
+  value: boolean,
+  message: string,
+  detail: Record<string, unknown> = {},
+): void {
+  const forced = FORCED_FALSE_LEG === name;
+  const reading = forced ? true : value;
+  recordLegOutcome(name, reading, !reading, forced ? { ...detail, forcedByEnv: true, actualValue: value } : detail);
+  if (!reading) {
+    return;
+  }
+  const error = new assert.AssertionError({
+    message,
+    actual: reading,
+    expected: false,
+    operator: 'strictEqual',
+  }) as Error & { falseLegs?: string };
+  error.falseLegs = `${name}=${String(reading)}`;
+  throw error;
+}
+
 
 // ---------------------------------------------------------------------------
 // The address, as the CLI registers it. Read here, independently.
@@ -644,7 +774,7 @@ function toolResultPayload(rows: Array<Record<string, unknown>>, toolUseId: stri
   return null;
 }
 
-/** One `GET`, answered as JSON. Local and short-lived; no retries needed. */
+/** One `GET`, answered as JSON. Local and short-lived; a single attempt is enough. */
 function getJson(url: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const request = http.get(url, (response) => {
@@ -766,6 +896,26 @@ type IdentityReading = {
   equalToSnapshot: boolean;
 };
 
+/**
+ * One session's identity, read until it settles or the budget expires.
+ *
+ * The reading this feeds is a *comparison* — the app's published address against
+ * this criterion's own parse of the registry file — and each side lands on its
+ * own schedule. A single pass reads the binding, the projection and the file at
+ * one instant; on a loaded host that instant can catch the projection between
+ * the process starting and its address being published, and the comparison then
+ * reads false although both sides will agree a moment later. That is the
+ * load-shaped false this loop absorbs. It is bounded by the same wall clock a
+ * single pass used before, so the deliberately wrong projection — the form this
+ * criterion is graded against — still spends its budget and still reads false;
+ * the poll does not extend the run, it only stops a transient from being
+ * mistaken for the settled reading.
+ *
+ * A transcript is required as well: three of the assertions taken off this
+ * reading address the process's own record (the conversation id, the names the
+ * app did or did not write), and a settled identity whose transcript has not
+ * landed yet would make those arms read "no record" rather than "no name in it".
+ */
 async function readIdentity(
   apiBaseUrl: string,
   configDir: string,
@@ -775,29 +925,57 @@ async function readIdentity(
   marker: string,
   waitMs: number,
 ): Promise<IdentityReading> {
-  const found = await readBinding(apiBaseUrl, appSessionId);
-  const hostPid = found?.host.pid ?? null;
-  const snapshotPeerName = await awaitPeerName(apiBaseUrl, appSessionId, waitMs, `${label} identity`);
-  const located = findTranscriptByMarker(configDir, marker);
-  const transcript = located.path;
-  const registration = readCliRegistration(configDir, hostPid);
-  return {
-    sessionId: appSessionId,
-    label,
-    title: title ?? '',
-    hostPid,
-    hostState: found?.host.state ?? 'missing',
-    providerSessionId: found?.binding.providerSessionId ?? null,
-    snapshotPeerName,
-    registration,
-    registryName: registration?.name ?? null,
-    registryNameSource: registration?.nameSource ?? null,
-    transcriptPath: transcript,
-    transcriptFile: transcript ? path.basename(transcript) : null,
-    transcriptsScanned: located.scanned,
-    selfWrittenNames: transcript ? selfWrittenNames(readJsonLines(transcript)) : [],
-    equalToSnapshot: Boolean(registration?.name) && snapshotPeerName === registration?.name,
-  };
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const found = await readBinding(apiBaseUrl, appSessionId);
+    const hostPid = found?.host.pid ?? null;
+    const snapshotPeerName = await awaitPeerName(
+      apiBaseUrl,
+      appSessionId,
+      Math.max(0, deadline - Date.now()),
+      `${label} identity`,
+    );
+    const located = findTranscriptByMarker(configDir, marker);
+    const transcript = located.path;
+    const transcriptConversationId = transcript ? path.basename(transcript, '.jsonl') : null;
+    const registration = readCliRegistration(configDir, hostPid);
+    const reading: IdentityReading = {
+      sessionId: appSessionId,
+      label,
+      title: title ?? '',
+      hostPid,
+      hostState: found?.host.state ?? 'missing',
+      providerSessionId: found?.binding.providerSessionId ?? null,
+      snapshotPeerName,
+      registration,
+      registryName: registration?.name ?? null,
+      registryNameSource: registration?.nameSource ?? null,
+      transcriptPath: transcript,
+      transcriptFile: transcript ? path.basename(transcript) : null,
+      transcriptsScanned: located.scanned,
+      selfWrittenNames: transcript ? selfWrittenNames(readJsonLines(transcript)) : [],
+      equalToSnapshot: Boolean(registration?.name) && snapshotPeerName === registration?.name,
+    };
+    // The transcript has to be *this process's* transcript, not merely some
+    // file carrying the marker: a session that is relaunched (the handed-over
+    // arm, and the restart leg) leaves the previous process's transcript behind
+    // with the same marker in it, and settling on that one would read the old
+    // process's `selfWrittenNames`. The registration's conversation id is the
+    // independent claim about which file is current, so the file name has to
+    // name the same conversation.
+    const transcriptIsCurrent =
+      transcript !== null &&
+      (registration?.sessionId === null ||
+        registration?.sessionId === undefined ||
+        transcriptConversationId === registration.sessionId);
+    if (
+      (hostPid !== null && reading.equalToSnapshot && transcriptIsCurrent) ||
+      Date.now() >= deadline
+    ) {
+      return reading;
+    }
+    await sleep(100);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -924,6 +1102,10 @@ async function withAddressableHarness(run: (context: Harness) => Promise<void>):
       mock,
     });
   } finally {
+    // Written before teardown so a failing case leaves its ledger behind even if
+    // the cleanup below is what breaks. Green runs write it too: the file is a
+    // record of every leg, not a dump of failures.
+    writeLegDiagnostics({ caseCompleted: true });
     sessionHostManager.setUnattendedRunOpener(null);
     sessionHostManager.setTurnOpener(null);
     unregisterDesktopNotificationClient(desktopSocket as never);
@@ -1131,11 +1313,12 @@ test('a resident session publishes the address it answers to, and a peer reaches
     // absent address — is a statement about a process, so a process that never
     // came up has to stop the case here instead of quietly making the control
     // arm vacuous.
-    assert.strictEqual(
+    assertLeg(
+      'booted',
       booted,
-      true,
       `all three resident processes must come up before the address readings mean anything ` +
         `(exits=${boots.flatMap((boot) => boot.exits).join(',')} attempts=${boots.map((boot) => String(boot.attempts)).join(',')})`,
+      { bootExits: boots.flatMap((boot) => boot.exits), bootAttempts: boots.map((boot) => boot.attempts) },
     );
 
     // ---------------------------------------------------------------------
@@ -1174,9 +1357,23 @@ test('a resident session publishes the address it answers to, and a peer reaches
     // a process that can be addressed must have been handed the tool that
     // addresses, and this is the reading that says so without going through the
     // mock or through any claim of this criterion's own.
-    const readingB: ClaudeUnattendedReading | null = residentDriver().unattendedReading(SESSION_B);
-    const toolTable = readingB?.initTools ?? [];
-    const sendMessageInToolTable = toolTable.includes('SendMessage');
+    //
+    // Polled rather than read once: the table is published when the process's
+    // init frame lands, and on a loaded host that can be a beat after the turn
+    // that started the process has completed. One instant of an unpopulated
+    // reading is not "the tool is missing"; the budget expiring is.
+    const toolTableDeadline = Date.now() + IDENTITY_TIMEOUT_MS;
+    let toolTable: string[] = [];
+    let sendMessageInToolTable = false;
+    for (;;) {
+      const readingB: ClaudeUnattendedReading | null = residentDriver().unattendedReading(SESSION_B);
+      toolTable = readingB?.initTools ?? [];
+      sendMessageInToolTable = toolTable.includes('SendMessage');
+      if (sendMessageInToolTable || Date.now() >= toolTableDeadline) {
+        break;
+      }
+      await sleep(100);
+    }
     // The negative control: a tool the process lacks must read absent, which is
     // what says this table is a report rather than a list that answers yes to
     // everything. Monitor was the original control, but the CLI now includes it
@@ -1206,19 +1403,21 @@ test('a resident session publishes the address it answers to, and a peer reaches
     // driver's reader, so "the app publishes what the process registered" cannot
     // be satisfied by a reader agreeing with itself.
     // ---------------------------------------------------------------------
-    assert.strictEqual(
+    assertLeg(
+      'A.equalToSnapshot',
       alpha.equalToSnapshot,
-      true,
       `the app must publish the address the process registered, and the process must have registered one ` +
         `(snapshot=${String(alpha.snapshotPeerName)} registry=${String(alpha.registryName)} ` +
         `registryNameSource=${String(alpha.registryNameSource)} providerSessionId=${String(alpha.providerSessionId)})`,
+      { label: 'A', snapshot: alpha.snapshotPeerName, registry: alpha.registryName, transcriptFile: alpha.transcriptFile },
     );
-    assert.strictEqual(
+    assertLeg(
+      'B.equalToSnapshot',
       beta.equalToSnapshot,
-      true,
       `the second resident session must publish the address it registered too ` +
         `(snapshot=${String(beta.snapshotPeerName)} registry=${String(beta.registryName)} ` +
         `registryNameSource=${String(beta.registryNameSource)} providerSessionId=${String(beta.providerSessionId)})`,
+      { label: 'B', snapshot: beta.snapshotPeerName, registry: beta.registryName },
     );
     // AC2: the name the process carries is the CLI's own (`derived`), not one
     // handed to it — a `--name` launch reads `user` here, even when the value is
@@ -1306,12 +1505,13 @@ test('a resident session publishes the address it answers to, and a peer reaches
       'closed',
       `the control host must still be open when its address is read (state=${control.hostState})`,
     );
-    assert.strictEqual(
+    assertLeg(
+      'C.equalToSnapshot',
       control.equalToSnapshot,
-      true,
       `a titleless resident session must still publish the address its process registered ` +
         `(snapshot=${String(control.snapshotPeerName)} registry=${String(control.registryName)} ` +
         `registryNameSource=${String(control.registryNameSource)})`,
+      { label: 'C', snapshot: control.snapshotPeerName, registry: control.registryName },
     );
     assert.strictEqual(
       control.registryNameSource,
@@ -1386,8 +1586,18 @@ test('a resident session publishes the address it answers to, and a peer reaches
       `the projection must publish whatever the process registered, including a handed-over name ` +
         `(${String(handedOver.snapshotPeerName)})`,
     );
-    assert.strictEqual(sendMessageInToolTable, true, 'a process that can be addressed must have been handed the tool that addresses');
-    assert.strictEqual(absentToolInToolTable, false, `the tool table is the process's own, so a tool it lacks must read absent (${absentToolName})`);
+    assertLeg(
+      'sendMessageInToolTable',
+      sendMessageInToolTable,
+      'a process that can be addressed must have been handed the tool that addresses',
+      { tools: toolTable.length },
+    );
+    assertLegFalse(
+      'absentToolInToolTable',
+      absentToolInToolTable,
+      `the tool table is the process's own, so a tool it lacks must read absent (${absentToolName})`,
+      { tools: toolTable.length },
+    );
 
     // ---------------------------------------------------------------------
     // Leg 3 — the rename, through the app's own rename path, before the turn
@@ -1486,18 +1696,38 @@ test('a resident session publishes the address it answers to, and a peer reaches
     // The sender's own account of the delivery, read out of the transcript the
     // process wrote: the address it aimed at, and whether the CLI answered that
     // the message was taken.
+    //
+    // The turn's `complete` frame and the tool *result* row are written by
+    // different parts of the CLI, and the row can land a beat after the frame.
+    // Reading the transcript once right here is the load-shaped false that
+    // turned this leg into `strictEqual(false, true)`: `delivered` was false
+    // because the result row had not been appended yet, not because the send
+    // failed. The loop re-reads until the result is there or the budget is spent;
+    // a send that really was refused still reads false when the budget expires.
+    const deliveryDeadline = Date.now() + IDENTITY_TIMEOUT_MS;
+    let alphaRows: Array<Record<string, unknown>> = [];
+    let sentTo: unknown = null;
+    let payload: Record<string, unknown> | null = null;
+    let delivered = false;
+    for (;;) {
+      alphaRows = alpha.transcriptPath ? readJsonLines(alpha.transcriptPath) : [];
+      sentTo = toolUseInput(alphaRows, SEND_TOOL_ID)?.to ?? null;
+      payload = toolResultPayload(alphaRows, SEND_TOOL_ID);
+      delivered = payload?.success === true;
+      if (delivered || Date.now() >= deliveryDeadline) {
+        break;
+      }
+      await sleep(100);
+    }
     const afterRename = await readIdentity(apiBaseUrl, configDir, 'A', SESSION_A, TITLE_A_RENAMED, MARKER_A, IDENTITY_TIMEOUT_MS);
     const pidAfter = afterRename.hostPid;
     const nameAfter = afterRename.snapshotPeerName;
-    const alphaRows = alpha.transcriptPath ? readJsonLines(alpha.transcriptPath) : [];
-    const sentTo = toolUseInput(alphaRows, SEND_TOOL_ID)?.to ?? null;
-    const payload = toolResultPayload(alphaRows, SEND_TOOL_ID);
-    const delivered = payload?.success === true;
+    const pidUnchanged = pidBefore !== null && pidBefore === pidAfter;
+    const nameUnchanged = nameBefore !== null && nameBefore === nameAfter;
     console.log(
       `[readings] pidBefore=${String(pidBefore)} pidAfter=${String(pidAfter)} ` +
         `peerNameBefore=${String(nameBefore)} peerNameAfter=${String(nameAfter)} ` +
-        `pidUnchanged=${pidBefore !== null && pidBefore === pidAfter} ` +
-        `nameUnchanged=${nameBefore !== null && nameBefore === nameAfter}`,
+        `pidUnchanged=${pidUnchanged} nameUnchanged=${nameUnchanged}`,
     );
     console.log(
       `[readings] sentFrom=${String(nameAfter ?? nameBefore)} sentTo=${String(sentTo)} delivered=${delivered} ` +
@@ -1523,12 +1753,28 @@ test('a resident session publishes the address it answers to, and a peer reaches
         `framesBeforeSubscribe=${framesBeforeSubscribe} appSessionId=${String(runB?.appSessionId ?? 'none')}`,
     );
     console.log(`[readings] buffered=${buffered} replayLanded=${replayLanded} opened=${opened}`);
+    recordLeg('buffered', buffered, {});
+    recordLeg('replayLanded', replayLanded, {});
+    recordLeg('opened', opened, { runsBefore, runsAfter });
 
     // ---------------------------------------------------------------------
     // Assertions — the delivery and its replay.
     // ---------------------------------------------------------------------
-    assert.strictEqual(pidBefore !== null && pidBefore === pidAfter, true, `the rename must not move the process (${String(pidBefore)} -> ${String(pidAfter)})`);
-    assert.strictEqual(nameBefore !== null && nameBefore === nameAfter, true, `the rename must not move the address (${String(nameBefore)} -> ${String(nameAfter)})`);
+    recordLeg('replayedPositive', replayed > 0, { replayed, produced });
+    recordLeg('replayedEqualsProduced', replayed === produced, { replayed, produced });
+    recordLeg('subscribeReplayExact', framesBeforeSubscribe === replayedAtSubscribe, {
+      framesBeforeSubscribe,
+      replayedAtSubscribe,
+    });
+    recordLeg('replayedBefore', replayedBefore === 0, { replayedBefore });
+    assertLeg('pidUnchanged', pidUnchanged, `the rename must not move the process (${String(pidBefore)} -> ${String(pidAfter)})`, {
+      pidBefore,
+      pidAfter,
+    });
+    assertLeg('nameUnchanged', nameUnchanged, `the rename must not move the address (${String(nameBefore)} -> ${String(nameAfter)})`, {
+      nameBefore,
+      nameAfter,
+    });
     assert.strictEqual(afterRename.snapshotPeerName, alpha.registryName, 'the address after the rename must still be the one the CLI registered for the process');
     assert.strictEqual(userTurnRun?.source, 'user', 'a turn the app was asked for must be a user run, not the host layer\'s');
     assert.strictEqual(
@@ -1537,9 +1783,20 @@ test('a resident session publishes the address it answers to, and a peer reaches
       `no background-work report may exist before the delivery (saw ${notifyBeforeDelivery})`,
     );
 
-    assert.strictEqual(sentTo, addressFromRest, `the send must be aimed at the address the REST projection published (${String(sentTo)})`);
-    assert.strictEqual(delivered, true, `the CLI must report the message as taken (${JSON.stringify(payload)})`);
-    assert.strictEqual(opened, true, 'the arriving message must open a run on the addressed session');
+    assertLeg(
+      'sentToEqualsRestAddress',
+      sentTo === addressFromRest,
+      `the send must be aimed at the address the REST projection published (${String(sentTo)})`,
+      { sentTo, addressFromRest },
+    );
+    assertLeg('delivered', delivered, `the CLI must report the message as taken (${JSON.stringify(payload)})`, {
+      payload,
+      sentTo,
+    });
+    assertLeg('opened', opened, 'the arriving message must open a run on the addressed session', {
+      runsBefore,
+      runsAfter,
+    });
     assert.strictEqual(runB?.source, 'unattended', 'the run the message opened must be the host layer\'s own, not a user turn');
     assert.strictEqual(runsAfter, runsBefore + 1, `the delivery must add exactly one run (${runsBefore} -> ${runsAfter})`);
     assert.strictEqual(
@@ -1618,11 +1875,12 @@ test('a resident session publishes the address it answers to, and a peer reaches
       false,
       `the stored name must not carry the app-side suffix shape (${JSON.stringify(storedNameAfter)})`,
     );
-    assert.strictEqual(
+    assertLeg(
+      'A2.equalToSnapshot',
       second.equalToSnapshot,
-      true,
       `the restarted session must publish the address its new process registered ` +
         `(snapshot=${String(second.snapshotPeerName)} registry=${String(second.registryName)})`,
+      { label: 'A2', snapshot: second.snapshotPeerName, registry: second.registryName },
     );
     // The rung the restarted process registers under.
     //
