@@ -6,6 +6,8 @@ import {
   recordAuthLapse,
 } from '@/shared/authToken';
 import type {
+  ArchitectureRefreshStartResult,
+  ArchitectureRefreshStatus,
   ReplySuggestionsEventInput,
   ReplySuggestionsRequest,
   ReplySuggestionsResult,
@@ -570,16 +572,22 @@ export const api = {
    *
    * The body carries `projectId` ONLY: the server resolves the directory itself,
    * and a concurrent start for the same project root joins the running job
-   * (`coalesced: true`) instead of spawning a second analysis.
+   * (`coalesced: true`) instead of spawning a second analysis. The body is
+   * parsed here, so callers never touch a `Response`.
    */
-  architectureRefresh: (projectId: string) =>
-    post('/api/architecture/refresh', { projectId }),
+  architectureRefresh: async (projectId: string): Promise<ArchitectureRefreshStartResult> =>
+    readApiJson<ArchitectureRefreshStartResult>(
+      await post('/api/architecture/refresh', { projectId }),
+    ),
   /**
    * The project's current re-analysis status (`idle | running | succeeded |
-   * failed`) — the tab's activation read and its running-state poll.
+   * failed`) — the tab's activation read and its running-state poll. Parsed here
+   * for the same reason as the start verb.
    */
-  architectureRefreshStatus: (projectId: string) =>
-    get(`/api/architecture/refresh/status${query({ projectId })}`),
+  architectureRefreshStatus: async (projectId: string): Promise<ArchitectureRefreshStatus> =>
+    readApiJson<ArchitectureRefreshStatus>(
+      await get(`/api/architecture/refresh/status${query({ projectId })}`),
+    ),
   renameProject: (projectId: string, displayName: string) =>
     put(`/api/projects/${projectId}/rename`, { displayName }),
   restoreProject: (projectId: string) =>

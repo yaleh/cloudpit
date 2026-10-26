@@ -4032,3 +4032,65 @@ export type ReplySuggestionsRequest = {
 };
 
 // ---------------------------
+
+//----------------- ARCHITECTURE REFRESH ------------
+
+/**
+ * The lifecycle state of one project's manual ArchGuard re-analysis, as the
+ * architecture tab reads it.
+ *
+ * The client's copy of the server's declaration: `idle` means no refresh has
+ * been started in this server process, `running` is the single in-flight job,
+ * and `succeeded`/`failed` stay readable until the next start.
+ */
+export type ArchitectureRefreshState = 'idle' | 'running' | 'succeeded' | 'failed';
+
+/**
+ * Where a running refresh is inside its lifetime.
+ *
+ * `preparing` resolves the CLI and reads the scopes, `analyzing` is the child's
+ * lifetime, and `installing` is the atomic swap of the staged directory. The
+ * two terminal stages mirror {@link ArchitectureRefreshState}.
+ */
+export type ArchitectureRefreshStage =
+  | 'idle'
+  | 'preparing'
+  | 'analyzing'
+  | 'installing'
+  | 'succeeded'
+  | 'failed';
+
+/**
+ * The status document `GET /api/architecture/refresh/status` answers and
+ * `POST /api/architecture/refresh` carries inside its 202 body.
+ *
+ * `jobId` is null only in the `idle` reading; `elapsedMs` is the server's own
+ * duration so a client with a skewed clock still shows the honest reading;
+ * `stderrTail` is bounded server-side and `error` is non-null exactly on failure.
+ */
+export type ArchitectureRefreshStatus = {
+  state: ArchitectureRefreshState;
+  jobId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  stage: ArchitectureRefreshStage;
+  elapsedMs: number;
+  exitCode: number | null;
+  stderrTail: readonly string[];
+  error: string | null;
+};
+
+/**
+ * The `POST /api/architecture/refresh` answer: the job this caller now owns or
+ * joined.
+ *
+ * `coalesced` is true when a running job for the same project root was returned
+ * instead of a second analysis being spawned; `status` is its current reading.
+ */
+export type ArchitectureRefreshStartResult = {
+  jobId: string;
+  coalesced: boolean;
+  status: ArchitectureRefreshStatus;
+};
+
+// ---------------------------
