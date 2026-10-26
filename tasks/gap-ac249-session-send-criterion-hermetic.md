@@ -56,10 +56,10 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/
 
 ## AC
 
-- [ ] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` ⇒ `EXIT=0`、`tests 8 / pass 8 / fail 0`；逐字抄命令行、退出码、计数，并抄 `(a) payload=`（`runId` 非空、`source:"mcp"`）、`(a) registry.current=`（`status:"running"`）、`(c) second=`（`queued:true`、`queuedMessageUuid` 等于 `queue.tail`）、`(h) approval_answer requestId=ac-h-blocker ok=true`。
-- [ ] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` ⇒ `EXIT=0`、`tests 8 / pass 8 / fail 0`，各腿读数与 AC1 逐字一致（仅随机 uuid 与耗时不同）⇒ 判据不再依赖调用者环境。
-- [ ] AC3 钉子承重（负向控制）：`cp` 备份判据文件，把钉住块（保存/`delete`/`after` 恢复 + 注释）临时移除，同一命令在 `RESIDENT_RUN_IS_TURN=1` 下 ⇒ `EXIT=1`、`tests 8 / pass 5 / fail 3`，逐字红行为 `the run must still be running when the tool returns`（`'completed' !== 'running'`，`:623:12`）与 `a resident busy send reports queued`（`false !== true`，`:670:12`、`:871:12`）；从备份还原后 AC1 重新 8/8。证明绿来自钉住的世界，不是把断言改松。
-- [ ] AC4 改动面最小且读数未变：`git diff develop...HEAD -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 只含 env 钉住块（保存/`delete`/`after` 恢复 + 注释）；全部 `test(...)` 标题、全部 `assert*` 调用、全部 `console.log` 行逐字不变；`git diff --name-only develop...HEAD` 只含该判据文件与本任务文件。
+- [x] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` ⇒ `EXIT=0`、`tests 8 / pass 8 / fail 0`；逐字抄命令行、退出码、计数，并抄 `(a) payload=`（`runId` 非空、`source:"mcp"`）、`(a) registry.current=`（`status:"running"`）、`(c) second=`（`queued:true`、`queuedMessageUuid` 等于 `queue.tail`）、`(h) approval_answer requestId=ac-h-blocker ok=true`。
+- [x] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-session-send.test.ts` ⇒ `EXIT=0`、`tests 8 / pass 8 / fail 0`，各腿读数与 AC1 逐字一致（仅随机 uuid 与耗时不同）⇒ 判据不再依赖调用者环境。
+- [x] AC3 钉子承重（负向控制）：`cp` 备份判据文件，把钉住块（保存/`delete`/`after` 恢复 + 注释）临时移除，同一命令在 `RESIDENT_RUN_IS_TURN=1` 下 ⇒ `EXIT=1`、`tests 8 / pass 5 / fail 3`，逐字红行为 `the run must still be running when the tool returns`（`'completed' !== 'running'`，`:623:12`）与 `a resident busy send reports queued`（`false !== true`，`:670:12`、`:871:12`）；从备份还原后 AC1 重新 8/8。证明绿来自钉住的世界，不是把断言改松。
+- [x] AC4 改动面最小且读数未变：`git diff develop...HEAD -- server/modules/mcp-gateway/tests/mcp-session-send.test.ts` 只含 env 钉住块（保存/`delete`/`after` 恢复 + 注释）；全部 `test(...)` 标题、全部 `assert*` 调用、全部 `console.log` 行逐字不变；`git diff --name-only develop...HEAD` 只含该判据文件与本任务文件。
 
 ## DoD
 
