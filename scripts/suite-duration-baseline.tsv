@@ -743,3 +743,9 @@
 #   (dur=2651ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 452 server test files).
 2651	server/modules/cockpit/tests/cockpit-card-registry.test.ts
+#   and the session-ask-decision-digest row by observation-session-ask-decision-digest, measured
+#   once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts`
+#   (dur=3405ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 453 server test files).
+3405	server/modules/observation/tests/session-ask-decision-digest.test.ts
