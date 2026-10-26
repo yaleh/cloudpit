@@ -22,7 +22,7 @@
  * `server/modules/observation/observation.module.ts` (composition), and the producer tasks that
  * write revisions through {@link ObservationStore.writeRevision}.
  */
-import { AppError } from '@/shared/utils.js';
+import { AppError, isRecord } from '@/shared/utils.js';
 import { observationDb } from '@/modules/database/index.js';
 import type {
   ObservationProducerHeartbeatRow,
@@ -192,10 +192,6 @@ export type ObservationStore = {
 /** A 400 for a caller mistake; the process error middleware translates it unchanged. */
 function invalid(message: string, code = 'INVALID_OBSERVATION'): AppError {
   return new AppError(message, { code, statusCode: 400 });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parseJsonRecord(value: string): Record<string, unknown> {

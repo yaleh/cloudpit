@@ -354,8 +354,10 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/modules/quay/tests/quay-fleet-cli.test.ts (447 + 1 = 448 collected server test
     // files), then gap-architecture-refresh-duplicates-per-scope added its criterion
     // server/modules/architecture/tests/refresh-duplicates.test.ts (448 + 1 = 449 collected
-    // server test files). This fixture names 3 known files, so 449 - 3 = 446.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=446$/);
+    // server test files). Then gap-shared-utils-small-helpers-dedup added
+    // server/shared/tests/shared-utils-helpers.test.ts (449 + 1 = 450 collected
+    // server test files). This fixture names 3 known files, so 450 - 3 = 447.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=447$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -404,16 +406,18 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 449 files on this tree (gap-architecture-ratchet-census
+    // Same collection as AC2 — 450 files on this tree (gap-architecture-ratchet-census
     // added server/shared/tests/architecture-ratchet.test.ts, then
     // gap-codex-transcript-format-shared-helpers added
     // server/modules/providers/tests/codex-transcript-format.test.ts, then
     // gap-quay-fleet-cli-runner-consolidation added
     // server/modules/quay/tests/quay-fleet-cli.test.ts, then
-    // gap-architecture-refresh-duplicates-per-scope added its refresh-duplicates criterion)
-    // — but this fixture names ONE known file, so 449 - 1 = 448 (AC2 reads 446 because its
+    // gap-architecture-refresh-duplicates-per-scope added its refresh-duplicates criterion,
+    // then gap-shared-utils-small-helpers-dedup added
+    // server/shared/tests/shared-utils-helpers.test.ts)
+    // — but this fixture names ONE known file, so 450 - 1 = 449 (AC2 reads 447 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=448$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=449$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

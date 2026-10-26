@@ -43,6 +43,7 @@ import {
   defaultViewEventsPath,
   type ViewEventsSettings,
 } from '@/modules/observation/index.js';
+import { errorMessage } from '@/shared/utils.js';
 
 /**
  * The environment variable naming the settings file, or nothing when the shipped user-copy
@@ -458,7 +459,3 @@ function isMissingFile(failure: unknown): boolean {
   return (failure as NodeJS.ErrnoException | null)?.code === 'ENOENT';
 }
 
-/** The sentence from a failed read or parse, whatever was thrown. */
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}

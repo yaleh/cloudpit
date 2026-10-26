@@ -25,6 +25,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isRecord } from '@/shared/utils.js';
+
 import type {
   LiaisonDeliveryMark,
   LiaisonDeliveryRecord,
@@ -39,10 +41,6 @@ type QueuedRow = { kind: 'queued'; entry: LiaisonInboxEntry };
 type DeliveredRow = { kind: 'delivered'; deliveryId: string; mark: LiaisonDeliveryMark };
 type DeliveryRow = { kind: 'delivery'; record: LiaisonDeliveryRecord };
 type InboxRow = QueuedRow | DeliveredRow;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 /** Reads one JSONL file into rows, naming the file and line of the first unreadable row. */
 function readRows(filePath: string): unknown[] {

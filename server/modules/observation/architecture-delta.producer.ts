@@ -21,6 +21,7 @@
  * `server/modules/observation/tests/architecture-delta.test.ts`.
  */
 import type { ArchitectureStructureResult } from '@/modules/architecture/index.js';
+import { errorMessage, isRecord } from '@/shared/utils.js';
 
 import {
   ARCHITECTURE_SIZE_CALIBER,
@@ -103,19 +104,11 @@ type ArchitectureDeltaDigest = {
   [key: string]: unknown;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /** The previous attempt instant a throttle may key on, or null when there is none. */
 function readAttemptedAt(digest: Record<string, unknown> | undefined): number | null {
   if (digest === undefined) return null;
   const value = digest.attemptedAt;
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Builds the producer over its injected world. */

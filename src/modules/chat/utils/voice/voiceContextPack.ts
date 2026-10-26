@@ -1,4 +1,4 @@
-import { shouldHideToolResult } from '@/modules/chat/tools';
+import { shouldHideToolResult } from '@/modules/chat/tools/configs/toolConfigs';
 import { isWorkSegmentMember } from '@/modules/chat/utils/transcript/workSegments';
 import type { ChatMessage, QuayFocusableObject, QuayObjectPos, QuayObjectUri } from '@/shared/types';
 
