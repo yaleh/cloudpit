@@ -69,7 +69,7 @@
  * - No real `claude` binary is started: the seam is the injected process.
  */
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { after } from 'node:test';
 
 import {
   createSessionHostManager,
@@ -91,6 +91,32 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimeWriter,
 } from '@/shared/types.js';
+
+// This criterion measures the flag-off world: `buildArm` below wires only
+// `setUnattendedRunOpener`, while `openUnattendedTurnIfOwn` forks at call time on
+// `RESIDENT_RUN_IS_TURN` — with it set, the driver takes the run=turn seam
+// (`openTurn`), which this arm does not wire, so every unattended turn is
+// answered `null`. `scripts/test.sh` isolates the file with
+// `unset RESIDENT_RUN_IS_TURN`, and the sibling criteria
+// (`claude-resident-busy-input.test.ts`, `chat-control-busy.test.ts`) pin the
+// same flag in their own files — but the goal gate runs the criterion command
+// verbatim in whatever environment the anchor inherited (this host's anchor
+// inherits `40-resident-run-is-turn.conf` from the live server) and never goes
+// through test.sh, so this file must pin the world it measures rather than
+// trust its caller. `residentRunIsTurn()` reads the flag at call time and the
+// shipped default is off (it only accepts the literal `1`), so deleting it here
+// is the off state. The `after` hook puts the caller's value back before the
+// process exits, so the pin cannot outlive this file.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
+after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
+});
 
 /** The provider-native id the scripted turns key their frames by. */
 const PROVIDER_SESSION_ID = 'ac381-unattended-after-turns-provider-session';
