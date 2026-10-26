@@ -2,7 +2,7 @@
 id: gap-quay-fleet-cli-runner-consolidation
 title: quay fleet CLI 管道收敛：4 份 defaultExecFile、4 份 parseJsonObject、2 份
   canonicalPath/run 与重复导出的类型收进 quay-fleet-cli.ts
-status: ready
+status: done
 labels:
   - gap
 parent: null

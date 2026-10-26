@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-semantic-zoom-shared-y-axis-neighbour-stretch
 title: 架构图语义缩放：并排类共享 y 轴时相邻类 minHeight 撑高格子，33% 档 package 底部残留空白
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -36,11 +36,3 @@ extra:
 - src/modules/architecture/tests/semanticZoomLayout.test.ts
 - e2e/architecture-canvas-layout.spec.ts
 - tasks/gap-architecture-semantic-zoom-shared-y-axis-neighbour-stretch.md
-
-## Blocker
-
-**2026-10-26T07:26:58.890Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1740 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts]
-- run_id：wk-prod-anchor
-- session_id：0a4e167f-556d-4e00-bf75-cda42b76af71

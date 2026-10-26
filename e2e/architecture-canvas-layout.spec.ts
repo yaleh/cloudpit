@@ -3555,6 +3555,63 @@ test('main arm — a class box is no wider than the text it draws (1440x765 and 
 });
 
 /**
+ * The package-bottom criterion, on the node-size fixture, in the PC viewport.
+ *
+ * The defect it exists for: two side-by-side classes share one y axis. The
+ * lower `VoiceFrameProcessor` hides its rows at 33 %, and its `plan.minHeight`
+ * constraint stretches the axis; `FrameBudgetLedger` (member rows drawn) is
+ * drawn row-tight, but the `voice` package frame followed the stretched CELL
+ * and kept ~47 px of blank strip under it (100/65/46 % measured 10/6/5 px).
+ * The package now ends at the lowest DRAWN class plus the renderer's own
+ * scaled bottom padding, on every level.
+ */
+test('main arm — a package frame ends at its lowest drawn class (100/65/46/33 %)', async ({ browser }) => {
+  const { context, page } = await openSignedInPage(browser, baseURL, token, {
+    name: 'pc', viewport: VIEWPORT_PC, touch: false,
+  });
+  try {
+    await openArchitectureTab(page, nodeSizeSessionId);
+    await showClassDiagram(page);
+    const shotDir = path.join(process.cwd(), 'tmp');
+    fs.mkdirSync(shotDir, { recursive: true });
+    for (const level of [1, 0.65, 0.46, 0.33]) {
+      const applied = await zoomToScale(page, level);
+      const reading = await readSemantic(page);
+      // The innermost package that owns both classes: the outer ones carry
+      // their own nesting padding, so the criterion is stated on this one.
+      const voice = reading.packages.find((pkg) => pkg.id.endsWith('/voice'));
+      expect(voice, `${Math.round(level * 100)} %: the voice package must be drawn`).toBeDefined();
+      const inside = reading.classes.filter((cls) => cls.rect.x >= (voice as SemanticPackageBox).rect.x - 2
+        && cls.rect.x + cls.rect.width <= (voice as SemanticPackageBox).rect.x + (voice as SemanticPackageBox).rect.width + 2
+        && cls.rect.y >= (voice as SemanticPackageBox).rect.y - 2
+        && cls.rect.y + cls.rect.height <= (voice as SemanticPackageBox).rect.y + (voice as SemanticPackageBox).rect.height + 30);
+      expect(inside.length, `${Math.round(level * 100)} %: both classes sit in the voice package`).toBe(2);
+      const lowest = inside.reduce((low, cls) => Math.max(low, cls.rect.y + cls.rect.height), Number.NEGATIVE_INFINITY);
+      const gap = (voice as SemanticPackageBox).rect.y + (voice as SemanticPackageBox).rect.height - lowest;
+      console.log(
+        `[architecture-layout] packageBottom.level=${Math.round(level * 100)} applied=${applied} `
+          + `gap=${gap.toFixed(1)} classes=${JSON.stringify(inside.map((cls) => [cls.id, cls.rect.height, cls.memberRows.length]))}`,
+      );
+      expect.soft(gap, `${Math.round(level * 100)} %: the package frame must not leave a blank strip under its lowest drawn class`)
+        .toBeLessThanOrEqual(16);
+      // The two class frames are side by side and must never overlap.
+      for (let left = 0; left < inside.length; left += 1) {
+        for (let right = left + 1; right < inside.length; right += 1) {
+          const a = inside[left].rect;
+          const b = inside[right].rect;
+          const overlaps = a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5
+            && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
+          expect.soft(overlaps, `${Math.round(level * 100)} %: class frames must not overlap`).toBe(false);
+        }
+      }
+      await page.screenshot({ path: path.join(shotDir, `architecture-package-bottom-${Math.round(level * 100)}.png`) });
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+/**
  * The two render regressions, on the fixtures that reproduce them.
  *
  * Fixture 1 (`outer-perimeter`) is a drawing whose relations ELK routes along
