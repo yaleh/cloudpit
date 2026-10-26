@@ -176,11 +176,3 @@ git diff --stat develop...HEAD
 ```
 
 `npx tsc --noEmit -p server/tsconfig.json` ⇒ `EXIT=0`；`npx oxlint` 两个文件 ⇒ `EXIT=0`（`claude-resident-ledger-transitions.test.ts:36` 的 importx warning 在 develop 上已存在，非本次引入）。
-
-## Blocker
-
-**2026-10-26T12:11:30.137Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/modules/providers/tests/claude-resident-ledger-transitions.test.ts:   AssertionError [ERR_ASSERTION]: AC-378 / AC-380 / AC-381 must not be modified by this task
-- run_id：wk-prod-anchor
-- session_id：a07af999-6215-4646-abf2-9b298d0a3e28
