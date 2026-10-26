@@ -58,3 +58,11 @@ extra:
 - scripts/sweep-criterion-residue.test.mjs (new)
 - scripts/test.sh
 - tasks/gap-criterion-mutant-residue-sweep.md
+
+## Blocker
+
+**2026-10-26T05:33:24.251Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/5，剩余未勾 5）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：9af6fb15-bc01-4a52-9ca4-8904c20e5b1a
