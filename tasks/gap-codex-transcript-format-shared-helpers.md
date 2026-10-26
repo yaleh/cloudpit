@@ -38,12 +38,12 @@ Claude 侧已经有正确做法：记录格式规则放在 `providers/list/claud
 
 ## AC
 
-- [ ] 副本清零：`grep -nE "^function (isVisibleCodexUserMessage|extractCodexText|extractCodexTextContent)\(" server/modules/providers/services/session-conversations-search.service.ts server/modules/providers/list/codex/codex-sessions.provider.ts` 无输出；`grep -nE "^export function (isVisibleCodexUserMessage|extractCodexText)\(" server/modules/providers/list/codex/codex-transcript-format.ts` 命中两行。
-- [ ] 新文件为叶子：`grep -hE "from '" server/modules/providers/list/codex/codex-transcript-format.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+)'"` 无输出。
-- [ ] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-transcript-format.test.ts` exit 0，覆盖可见/不可见用户消息、三种文本块类型（input_text/output_text/text）、非对象条目与空内容，以及两种分隔符各自的输出。
-- [ ] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/codex-sessions.test.ts server/modules/providers/tests/claude-search-ignores-capture-rows.test.ts` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/providers` exit 0。
+- [x] 副本清零：`grep -nE "^function (isVisibleCodexUserMessage|extractCodexText|extractCodexTextContent)\(" server/modules/providers/services/session-conversations-search.service.ts server/modules/providers/list/codex/codex-sessions.provider.ts` 无输出；`grep -nE "^export function (isVisibleCodexUserMessage|extractCodexText)\(" server/modules/providers/list/codex/codex-transcript-format.ts` 命中两行。
+- [x] 新文件为叶子：`grep -hE "from '" server/modules/providers/list/codex/codex-transcript-format.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+)'"` 无输出。
+- [x] 新判据：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-transcript-format.test.ts` exit 0，覆盖可见/不可见用户消息、三种文本块类型（input_text/output_text/text）、非对象条目与空内容，以及两种分隔符各自的输出。
+- [x] 行为不回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/codex-sessions.test.ts server/modules/providers/tests/claude-search-ignores-capture-rows.test.ts` exit 0。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/providers` exit 0。
 
 ## DoD
 
