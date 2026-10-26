@@ -88,3 +88,11 @@ depends_on:
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-shared-utils-small-helpers-dedup.md
+
+## Blocker
+
+**2026-10-26T05:03:00.054Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/voice-realtime/tests/voice-realtime-uplink-vad.test.ts:   AssertionError [ERR_ASSERTION]: the module’s only static import must be the filesystem
+- run_id：wk-prod-anchor
+- session_id：938f29e6-cc03-4cb2-b026-c38ffc815927
