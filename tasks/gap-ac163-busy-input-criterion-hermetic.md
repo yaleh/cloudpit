@@ -2,7 +2,7 @@
 id: gap-ac163-busy-input-criterion-hermetic
 title: AC-163 判据文件自钉 RESIDENT_RUN_IS_TURN 关态：裸 goal-gate 命令在 anchor 继承该开关时仍 1/1
   绿，五条取假形态与四条读数不变
-status: todo
+status: ready
 labels:
   - gap
   - defect
