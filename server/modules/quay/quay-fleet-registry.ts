@@ -1,7 +1,10 @@
-import { execFile } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-
+import {
+  canonicalFleetPath,
+  createQuayFleetRunner,
+  parseFleetJsonObject,
+  type QuayFleetCommandResult,
+  type QuayFleetExec,
+} from './quay-fleet-cli.js';
 import { locateQuayFleetCli } from './quay-fleet-locator.js';
 
 /**
@@ -19,53 +22,6 @@ import { locateQuayFleetCli } from './quay-fleet-locator.js';
  * last-opened session and tells the person the pin could not be read. Throwing here would turn
  * "the fleet is not installed on this host" into a 500 on a page that otherwise works.
  */
-
-/** Subprocess bound. The fleet CLI answers from one small JSON document, so this is generous. */
-const QUAY_FLEET_TIMEOUT_MS = 10_000;
-
-/** Cap on captured stdout — the registry document is small; this only bounds a runaway child. */
-const QUAY_FLEET_MAX_OUTPUT_BYTES = 1024 * 1024;
-
-/** The answer to one fleet CLI invocation, in the same shape the quay adapter uses. */
-export type QuayFleetCommandResult = {
-  ok: boolean;
-  code: number | null;
-  stdout: string;
-  stderr: string;
-  /** Why the child could not be run or answered with a failure, when that is known. */
-  error?: string;
-};
-
-/** The child-process seam; production binds {@link defaultExecFile}, a test may bind a stub. */
-export type QuayFleetExec = (
-  file: string,
-  args: readonly string[],
-  options: { timeout: number; maxBuffer: number; encoding: 'utf8'; windowsHide: boolean },
-) => Promise<QuayFleetCommandResult>;
-
-type QuayFleetExecError = Error & { code?: number | string | null; killed?: boolean };
-
-const defaultExecFile: QuayFleetExec = (file, args, options) =>
-  new Promise((resolve) => {
-    execFile(file, [...args], options, (error: QuayFleetExecError | null, stdout, stderr) => {
-      if (!error) {
-        resolve({ ok: true, code: 0, stdout: stdout ?? '', stderr: stderr ?? '' });
-        return;
-      }
-      const reason = error.killed === true
-        ? `quay-fleet timed out: ${error.message}`
-        : error.code === 'ENOENT'
-          ? `quay-fleet was not found: ${file}`
-          : `quay-fleet failed: ${error.message}`;
-      resolve({
-        ok: false,
-        code: typeof error.code === 'number' ? error.code : null,
-        stdout: stdout ?? '',
-        stderr: stderr ?? '',
-        error: reason,
-      });
-    });
-  });
 
 /** The fleet registry reading for one project. */
 export type QuayFleetInterfaceSessionReading =
@@ -109,30 +65,6 @@ function isProjectRow(value: unknown): value is { id: string; root: string } {
   return typeof row.id === 'string' && row.id !== '' && typeof row.root === 'string' && row.root !== '';
 }
 
-/** Parses a JSON document, or `null` when the child printed something else. */
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A path canonicalized for root comparison: symlinks resolved, trailing separators dropped. */
-function canonicalPath(filePath: string): string {
-  let resolved = filePath;
-  try {
-    resolved = fs.realpathSync.native(filePath);
-  } catch {
-    resolved = path.resolve(filePath);
-  }
-  const trimmed = resolved.replace(/[\\/]+$/, '');
-  return trimmed === '' ? resolved : trimmed;
-}
-
 /**
  * Builds the fleet-registry service.
  *
@@ -143,8 +75,7 @@ function canonicalPath(filePath: string): string {
 export function createQuayFleetRegistry(
   dependencies: QuayFleetRegistryDependencies,
 ): QuayFleetRegistryService {
-  const exec = dependencies.exec ?? defaultExecFile;
-  const normalize = dependencies.normalizePath ?? canonicalPath;
+  const normalize = dependencies.normalizePath ?? canonicalFleetPath;
 
   /**
    * The binary each call spawns, resolved per call so an install (or a `QUAY_FLEET_BIN`
@@ -157,24 +88,7 @@ export function createQuayFleetRegistry(
     ?? locateQuayFleetCli().binPath
     ?? (dependencies.exec === undefined ? null : 'quay-fleet');
 
-  const run = async (args: readonly string[]): Promise<QuayFleetCommandResult> => {
-    const binPath = resolveBinPath();
-    if (binPath === null) {
-      return {
-        ok: false,
-        code: null,
-        stdout: '',
-        stderr: '',
-        error: 'quay-fleet was not found (checked QUAY_FLEET_BIN, PATH and ~/.quay-fleet/bin/quay-fleet)',
-      };
-    }
-    return exec(binPath, args, {
-      timeout: QUAY_FLEET_TIMEOUT_MS,
-      maxBuffer: QUAY_FLEET_MAX_OUTPUT_BYTES,
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-  };
+  const run = createQuayFleetRunner({ resolveBinPath, exec: dependencies.exec });
 
   /**
    * Resolves the CloudCLI project to the fleet's own registry id.
@@ -195,7 +109,7 @@ export function createQuayFleetRegistry(
     if (!listed.ok) {
       return { ok: false, reason: 'fleet-cli-unavailable', detail: listed.error };
     }
-    const document = parseJsonObject(listed.stdout);
+    const document = parseFleetJsonObject(listed.stdout);
     const rows = document?.projects;
     if (!Array.isArray(rows)) {
       return { ok: false, reason: 'fleet-cli-invalid-output', detail: 'registry list carried no projects' };
@@ -214,7 +128,7 @@ export function createQuayFleetRegistry(
     result: QuayFleetCommandResult,
     failureReason: string,
   ): QuayFleetInterfaceSessionReading | QuayFleetInterfaceSessionWrite => {
-    const document = parseJsonObject(result.stdout);
+    const document = parseFleetJsonObject(result.stdout);
     if (document === null) {
       return result.ok
         ? { ok: false, reason: 'fleet-cli-invalid-output' }

@@ -703,3 +703,11 @@
 #   yet — the row also keeps the 90% coverage floor green now that the tree collects 447 server
 #   test files).
 2465	server/modules/providers/tests/codex-transcript-format.test.ts
+#   and the quay-fleet-cli row by gap-quay-fleet-cli-runner-consolidation, measured once on
+#   2026-10-26 with
+#   `env TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --import
+#   ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-fleet-cli.test.ts`
+#   (dur=2897ms, the shape scripts/test.sh runs; its own new criterion; no green round contains it
+#   yet — the row also keeps the 90% coverage floor green now that the tree collects 448 server
+#   test files).
+2897	server/modules/quay/tests/quay-fleet-cli.test.ts
