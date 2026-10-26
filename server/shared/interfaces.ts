@@ -27,6 +27,7 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimePermissionGateway,
   ProviderRuntimeWriter,
+  SessionAskEvent,
   SessionBinding,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
@@ -638,4 +639,20 @@ export interface ICockpitCardProvider {
 export interface ICockpitActionExecutor {
   readonly id: string;
   execute(params: Record<string, unknown>): Promise<unknown> | unknown;
+}
+
+// ---------------------------
+//----------------- SESSION ASK EVENT WRITER ------------
+
+/**
+ * The write seam for the observation layer's `session.asking` / `session.answered` events.
+ *
+ * The observation producer states the event; the host-level context-event writer is the real
+ * implementation once quay-fleet's schema carries these two kinds (待外部). Criteria inject an
+ * in-memory writer, which is why the seam is an interface rather than the concrete writer: a
+ * producer must be exercisable without a fleet install.
+ */
+export interface ISessionAskEventWriter {
+  /** Appends one event. Throwing is the writer's business; the producer catches and swallows. */
+  write(event: SessionAskEvent): void;
 }

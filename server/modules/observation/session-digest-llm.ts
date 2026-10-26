@@ -40,6 +40,7 @@ import { createReplySuggestionsUsageLog } from '@/modules/reply-suggestions/inde
 
 import type { ObservedObject, ObservationStore } from './observation-store.js';
 import { createObservationStore } from './observation-store.js';
+import { createSessionAskDecisionDigest } from './session-ask-decision-digest.js';
 import { createSessionDigestProducer } from './session-digest.producer.js';
 import type { SessionDigestProducer, SessionTurnEndEvent } from './session-digest.producer.js';
 import {
@@ -383,7 +384,14 @@ function defaultSettingsSource(): ReturnType<typeof createSessionDigestLlmSettin
 const processObservationStore = createObservationStore();
 
 export const sessionDigestProducer: SessionDigestProducer = createSessionDigestLlmTier({
-  deterministic: createSessionDigestProducer({ store: processObservationStore }),
+  deterministic: createSessionDigestProducer({
+    store: processObservationStore,
+    // The T1 decision digest rides the deterministic turn-end: it reads the same transcript and
+    // attaches `askDecision` before the tier's own revision is written (which spreads the field
+    // through unchanged). The event writer stays unbound until quay-fleet's stream schema carries
+    // `session.asking` / `session.answered` (待外部).
+    summarizeAsk: createSessionAskDecisionDigest({ readSettings: () => defaultSettingsSource().read() }),
+  }),
   store: processObservationStore,
   readSettings: () => defaultSettingsSource().read(),
 });

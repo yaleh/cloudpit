@@ -21,9 +21,12 @@
 import { readFile } from 'node:fs/promises';
 
 import { observationDb, sessionsDb } from '@/modules/database/index.js';
+import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
+import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
 import { formatSessionUri } from './observation-uri.js';
 import { createObservationStore, type ObservedObject, type ObservationStore } from './observation-store.js';
+import { readSessionAsk, type SessionAskDecisionDigest } from './session-ask-decision-digest.js';
 import { buildSessionDigest, type SessionDigest } from './session-digest.js';
 
 /** The producer name every digest revision is stamped with. */
@@ -47,8 +50,18 @@ export type SessionTurnEndEvent = {
 export type SessionDigestProducerDeps = {
   /** The observation store the revision is written through. */
   store: ObservationStore;
-  /** Resolves a session's display title and transcript path. Defaults to `sessionsDb`. */
-  resolveSession?: (appSessionId: string) => { title: string; jsonlPath: string | null } | null;
+  /** Resolves a session's display title, project and transcript path. Defaults to `sessionsDb`. */
+  resolveSession?: (appSessionId: string) => { title: string; projectPath: string; jsonlPath: string | null } | null;
+  /**
+   * The T1 ask decision digest. Absent means this build attaches no `askDecision` — the criterion
+   * injects a summariser with a stub completion, and a deployment without the tier leaves it out.
+   */
+  summarizeAsk?: SessionAskDecisionDigest;
+  /**
+   * The `session.asking`/`session.answered` seam. Absent until quay-fleet's stream schema carries
+   * those two kinds (待外部); criteria inject an in-memory writer.
+   */
+  eventWriter?: ISessionAskEventWriter;
   /** Reads a transcript file, answering `null` when it does not exist. Defaults to `fs.readFile`. */
   readTranscript?: (jsonlPath: string) => Promise<string | null>;
   /** Whether anyone pinned this object. Defaults to the observation watch entries. */
@@ -62,11 +75,14 @@ export type SessionDigestProducer = {
   handleTurnEnd(event: SessionTurnEndEvent): Promise<ObservedObject | null>;
 };
 
-function defaultResolveSession(appSessionId: string): { title: string; jsonlPath: string | null } | null {
+function defaultResolveSession(
+  appSessionId: string,
+): { title: string; projectPath: string; jsonlPath: string | null } | null {
   const row = sessionsDb.getSessionById(appSessionId);
   if (row === null) return null;
   return {
     title: (row.custom_name ?? '').trim() || appSessionId,
+    projectPath: row.project_path ?? '',
     jsonlPath: row.jsonl_path ?? null,
   };
 }
@@ -86,6 +102,27 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
   const readTranscript = deps.readTranscript ?? defaultReadTranscript;
   const isObserved = deps.isObserved ?? ((uri: string) => observationDb.listWatchUserIds(uri).length > 0);
   const now = deps.now ?? (() => Date.now());
+  const summarizeAsk = deps.summarizeAsk;
+  const eventWriter = deps.eventWriter;
+
+  /**
+   * The asks/answers already stated in this process, so a repeated turn-end does not re-emit.
+   *
+   * Keyed by askId+revision (an ask) and askId+user message id (an answer): a new turn has a new
+   * first-asking message id, so its key differs and it is never suppressed by an older turn.
+   * In-process only — the stream is at-least-once, and the fleet dedups by its own dedupKey.
+   */
+  const emittedEvents = new Set<string>();
+  const emitOnce = (key: string, event: SessionAskEvent): void => {
+    if (eventWriter === undefined || emittedEvents.has(key)) return;
+    emittedEvents.add(key);
+    try {
+      // The chat path must not learn that the evidence stream failed.
+      eventWriter.write(event);
+    } catch {
+      // A rejected event is the writer's reading to publish, not the turn's failure.
+    }
+  };
 
   /**
    * The delta the wall shows after this revision.
@@ -140,7 +177,64 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
             : buildSessionDigest(raw, { error: event.error !== null });
 
         if (result.state === 'evaluated') {
-          const { digest } = result;
+          let digest = result.digest;
+          const ask = readSessionAsk(raw ?? '', event.appSessionId);
+          const at = new Date(event.completedAt || now()).toISOString();
+
+          // The answer precedes the question chronologically, so it is stated first.
+          if (ask.answered !== null) {
+            emitOnce(`answered:${ask.answered.askId}:${ask.answered.messageId}`, {
+              kind: 'session.answered',
+              session: event.appSessionId,
+              project: resolved.projectPath,
+              at,
+              data: { askId: ask.answered.askId, messageId: ask.answered.messageId },
+            });
+          }
+          if (ask.current !== null) {
+            emitOnce(`asking:${ask.current.askId}:${ask.current.revision}`, {
+              kind: 'session.asking',
+              session: event.appSessionId,
+              project: resolved.projectPath,
+              at,
+              refs: [ask.current.messageId],
+              data: {
+                askId: ask.current.askId,
+                messageId: ask.current.messageId,
+                revision: ask.current.revision,
+                contentRef: {
+                  resolver: 'cloudcli.session-ask',
+                  sessionId: event.appSessionId,
+                  messageId: ask.current.messageId,
+                },
+              },
+            });
+
+            if (summarizeAsk !== undefined) {
+              try {
+                digest = {
+                  ...digest,
+                  askDecision: await summarizeAsk.summarize({
+                    sessionId: event.appSessionId,
+                    sessionTitle: resolved.title,
+                    askId: ask.current.askId,
+                    revision: ask.current.revision,
+                    assistantText: ask.current.assistantText,
+                    context: ask.context,
+                  }),
+                };
+              } catch (failure) {
+                digest = {
+                  ...digest,
+                  askDecision: {
+                    state: 'unevaluated',
+                    reason: `提问摘要生成失败：${failure instanceof Error ? failure.message : String(failure)}`,
+                  } satisfies SessionAskDecisionReading,
+                };
+              }
+            }
+          }
+
           const observed = isObserved(uri);
           // An idle, unwatched turn is exactly the traffic the wall does not need.
           if (!observed && digest.activity === 'idle') return null;

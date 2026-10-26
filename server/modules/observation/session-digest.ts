@@ -16,6 +16,7 @@
  * `server/modules/observation/tests/session-digest.test.ts` (the criterion).
  */
 
+import type { SessionAskDecisionReading } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 /** What one turn's activity reads as on the wall. */
@@ -59,6 +60,13 @@ export type SessionDigest = {
   };
   /** How many real user prompts the transcript holds — the delta's "新增 N 轮" baseline. */
   turnCount: number;
+  /**
+   * The T1 structured decision digest for the question this turn ends on, when one was produced.
+   *
+   * Optional because it is written by the model tier, not read off the transcript: a turn that
+   * does not ask, or a deployment that has the tier switched off, carries no such field at all.
+   */
+  askDecision?: SessionAskDecisionReading;
 };
 
 /** Either a readable digest or the reason one could not be read. */
@@ -129,11 +137,41 @@ function blockText(block: UnknownRecord): string {
  * Claude records tool results as `user` rows. Treating those as turn boundaries would split a
  * single turn at every tool call, so the boundary is a row that carries non-empty text.
  */
-function isUserPromptRow(row: UnknownRecord): boolean {
+export function isUserPromptRow(row: UnknownRecord): boolean {
+  if (transcriptRowRole(row) !== 'user') return false;
+  return rowContentBlocks(row).some((block) => block.type === 'text' && blockText(block).trim() !== '');
+}
+
+/**
+ * One transcript row's role, normalised across the provider shapes transcripts use.
+ *
+ * Consumers: `session-ask-decision-digest.ts`, which walks the same rows the digest reads to
+ * find the asking message; keeping the role rule in one place stops the two walks drifting.
+ */
+export function transcriptRowRole(row: UnknownRecord): 'user' | 'assistant' | '' {
   const message = rowMessage(row);
   const role = asString(message?.role) || asString(row.type);
-  if (role !== 'user') return false;
-  return rowContentBlocks(row).some((block) => block.type === 'text' && blockText(block).trim() !== '');
+  return role === 'user' || role === 'assistant' ? role : '';
+}
+
+/** The row's own text blocks joined — the assistant's words for that message, nothing else. */
+export function transcriptRowText(row: UnknownRecord): string {
+  return rowContentBlocks(row)
+    .filter((block) => block.type === 'text')
+    .map(blockText)
+    .join('\n')
+    .trim();
+}
+
+/**
+ * The row's stable message id: the transcript `uuid` when present, else the provider message id.
+ *
+ * Consumers: `session-ask-decision-digest.ts`, where `askId` is `<sessionId>:<messageId>` and the
+ * event's `refs` names this id. A row with neither id cannot be deduplicated and is skipped.
+ */
+export function transcriptRowMessageId(row: UnknownRecord): string {
+  const uuid = asString(row.uuid);
+  return uuid !== '' ? uuid : asString(rowMessage(row)?.id);
 }
 
 /** The content of a tool_result block, as text (providers store it either way). */
@@ -274,8 +312,13 @@ function excerptConclusion(paragraph: string): SessionDigest['conclusion'] {
   return { text, truncated, tier: 'deterministic', label: '原文摘录' };
 }
 
-/** Parses one transcript's non-empty lines, keeping the rows that are JSON objects. */
-function parseRows(raw: string): UnknownRecord[] {
+/**
+ * Parses one transcript's non-empty lines, keeping the rows that are JSON objects.
+ *
+ * Consumers: `buildSessionDigest` below and `session-ask-decision-digest.ts`, so both walks see
+ * exactly the same rows (a half-written trailing line is skipped in both).
+ */
+export function parseTranscriptRows(raw: string): UnknownRecord[] {
   const rows: UnknownRecord[] = [];
   for (const line of raw.split('\n')) {
     if (line.trim() === '') continue;
@@ -297,7 +340,7 @@ function parseRows(raw: string): UnknownRecord[] {
  * cannot invent an error from text alone, and it does not try to.
  */
 export function buildSessionDigest(raw: string, options: { error?: boolean } = {}): SessionDigestResult {
-  const rows = parseRows(raw);
+  const rows = parseTranscriptRows(raw);
   if (rows.length === 0) {
     return { state: 'unevaluated', reason: 'transcript 为空或没有任何可解析的行' };
   }

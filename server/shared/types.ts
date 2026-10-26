@@ -4747,3 +4747,75 @@ export type CockpitCard = {
   conversation?: CockpitCardConversation;
   notify?: CockpitCardNotify;
 };
+
+// ---------------------------
+//----------------- SESSION ASK DECISION DIGEST ------------
+
+/**
+ * One option the assistant's question offers, restated by the T1 decision digest.
+ *
+ * This is the subset of `CockpitCardOption` the observation layer fills on its own: `id`,
+ * `label` and `does` restate the assistant's own words, `tags` are consequence labels, and
+ * `source` records where the option came from. `suggested` is true for exactly one option when
+ * — and only when — the assistant's original text recommends it.
+ */
+export type SessionAskDecisionOption = {
+  id: string;
+  label: string;
+  does: string;
+  tags: CockpitCardTag[];
+  suggested: boolean;
+  source: CockpitCardOptionSource;
+};
+
+/**
+ * The structured decision digest for one question a session is waiting on (T1 content).
+ *
+ * `askId` is the deduplication key agreed with quay-fleet: `<sessionId>:<assistantMessageId>`,
+ * where the message id is the FIRST asking message since the last user prompt. A re-ask before
+ * the user answers keeps the same `askId`, bumps `revision`, and names the new message in the
+ * event. `ask`/`situation`/`options` are the model's restatement of the assistant's own words —
+ * semantic content, never a verbatim excerpt. `incomplete` is true when the question depends on
+ * context outside the turns that were sent; an incomplete digest never claims a recommendation.
+ */
+export type SessionAskDecision = {
+  askId: string;
+  revision: number;
+  ask: string;
+  situation: string;
+  options: SessionAskDecisionOption[];
+  incomplete: boolean;
+};
+
+/**
+ * One ask digest reading, with the same loud-failure discipline as every observation reading.
+ *
+ * `evaluated` carries the digest plus the token counts the upstream reported, so the spend stays
+ * auditable. `skipped` is a deliberate non-call (the tier is switched off). `unevaluated` means
+ * the model answered something the schema does not accept — the producer then attaches NO `ask`
+ * rather than passing the assistant's last sentence off as a restatement.
+ */
+export type SessionAskDecisionReading =
+  | ({ state: 'evaluated'; inputTokens: number | null; outputTokens: number | null } & SessionAskDecision)
+  | { state: 'skipped'; reason: string }
+  | { state: 'unevaluated'; reason: string };
+
+/** The two context-event kinds a session ask produces; the fleet schema pins their names. */
+export type SessionAskEventKind = 'session.asking' | 'session.answered';
+
+/**
+ * One `session.asking`/`session.answered` event as the observation layer states it.
+ *
+ * The envelope mirrors quay-fleet's context-event stream: `session` and `project` are top-level
+ * identities, `at` is ISO-8601, and `refs` names the assistant message the question came from.
+ * The real stream writer is injected only after the fleet's schema carries these two kinds
+ * (待外部); until then the producer's event writer is a test/memory implementation.
+ */
+export type SessionAskEvent = {
+  kind: SessionAskEventKind;
+  session: string;
+  project: string;
+  at: string;
+  refs?: string[];
+  data: Record<string, unknown>;
+};

@@ -64,6 +64,20 @@ export type {
   SessionTestReading,
   SessionTestRunner,
 } from './session-digest.js';
+// consumer: session-digest.producer.ts, which states the session.asking/session.answered events
+// and attaches the T1 decision digest; the cockpit's ContentResolver task will read the digest
+// through this same barrel once it lands.
+export {
+  createSessionAskDecisionDigest,
+  readSessionAsk,
+  SESSION_ASK_CONTEXT_TURNS,
+} from './session-ask-decision-digest.js';
+export type {
+  SessionAskDecisionDigest,
+  SessionAskDecisionDigestDeps,
+  SessionAskReading,
+  SessionAskSummaryInput,
+} from './session-ask-decision-digest.js';
 // consumer: the composition root, which refreshes each fleet-registered project on the quay
 // snapshot's TTL and on task-status transitions; and `observation-wall-ui`, which renders the
 // five layers. The criterion builds its own producer over an injected clock and readers.
