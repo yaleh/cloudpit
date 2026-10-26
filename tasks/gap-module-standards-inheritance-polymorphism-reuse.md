@@ -1,7 +1,7 @@
 ---
 id: gap-module-standards-inheritance-polymorphism-reuse
 title: 模块标准补继承/多态/复用/去重/契约规则，并以已落地的重构为正例
-status: ready
+status: done
 labels:
   - gap
 parent: null
