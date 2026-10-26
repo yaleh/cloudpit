@@ -38,11 +38,11 @@ extra:
 
 ## AC
 
-- [ ] 清扫器判据：`node --test scripts/sweep-criterion-residue.test.mjs` exit 0。在临时目录中放置四种夹具：(a) 以已退出进程 pid 结尾的 `.ts` 副本；(b) 以当前测试进程 pid 结尾的副本；(c) 名字里没有 pid 的副本；(d) 以已退出 pid 结尾的目录。断言 `--apply` 后只有 (a) 和 (d) 被删除，(b)、(c) 保留；不加 `--apply` 时四者都保留；每条都有对应的 `residue:` 输出行。
-- [ ] 不越界：同一测试文件含用例，`node_modules/` 与 `dist/` 下同名前缀的文件不被列出；不以 `__criterion-falsify-` 开头的文件即使以 `-<死 pid>.ts` 结尾也不被列出。
-- [ ] 接入 suite：`grep -n "sweep-criterion-residue.mjs --apply" scripts/test.sh` 命中一行，且它的行号小于 `grep -n "run_stage_bg typecheck" scripts/test.sh` 的行号。
-- [ ] suite 入口契约不受影响：`QUAY_TEST_DRY=1 bash scripts/test.sh --buckets server --run-id probe` exit 0。
-- [ ] 脚本测试清单：`node scripts/list-script-tests.mjs | grep -c "sweep-criterion-residue.test.mjs"` 输出 1。
+- [x] 清扫器判据：`node --test scripts/sweep-criterion-residue.test.mjs` exit 0。在临时目录中放置四种夹具：(a) 以已退出进程 pid 结尾的 `.ts` 副本；(b) 以当前测试进程 pid 结尾的副本；(c) 名字里没有 pid 的副本；(d) 以已退出 pid 结尾的目录。断言 `--apply` 后只有 (a) 和 (d) 被删除，(b)、(c) 保留；不加 `--apply` 时四者都保留；每条都有对应的 `residue:` 输出行。
+- [x] 不越界：同一测试文件含用例，`node_modules/` 与 `dist/` 下同名前缀的文件不被列出；不以 `__criterion-falsify-` 开头的文件即使以 `-<死 pid>.ts` 结尾也不被列出。
+- [x] 接入 suite：`grep -n "sweep-criterion-residue.mjs --apply" scripts/test.sh` 命中一行，且它的行号小于 `grep -n "run_stage_bg typecheck" scripts/test.sh` 的行号。
+- [x] suite 入口契约不受影响：`QUAY_TEST_DRY=1 bash scripts/test.sh --buckets server --run-id probe` exit 0。
+- [x] 脚本测试清单：`node scripts/list-script-tests.mjs | grep -c "sweep-criterion-residue.test.mjs"` 输出 1。
 
 ## DoD
 
