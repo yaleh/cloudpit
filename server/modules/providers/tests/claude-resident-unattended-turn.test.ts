@@ -555,6 +555,18 @@ type Harness = {
   mock: MockAnthropic;
   /** Normalizer frames seen so far, in emission order. */
   normalizerFrames: Array<Record<string, unknown>>;
+  /**
+   * Every run id the registry minted while this harness has been installed.
+   *
+   * The registry's own `startRun` property is the single mint entry every
+   * run-opening verb calls through (the registry says so in its own source), so
+   * wrapping it here counts mints wherever the opener's verb lives. That is what
+   * this criterion needs for "opening the turn added exactly one run": under
+   * run=turn `listRunningRuns()` lists the LEDGER's processing sessions, which
+   * already name this session before the turn opens, so its count does not move
+   * when the unattended run is minted.
+   */
+  mintedRunIds: string[];
 };
 
 /**
@@ -602,6 +614,11 @@ async function withUnattendedHarness(run: (context: Harness) => Promise<void>): 
   const normalizerFrames: Array<Record<string, unknown>> = [];
   let previousNormalize: unknown = null;
   let patchedSessions: Record<string, unknown> | null = null;
+  // The mint counter behind "opening the turn added exactly one run" (see the
+  // Harness type). Declared out here so the `finally` can restore the mint entry
+  // even when the leg throws; installed further down, once the seams are.
+  const mintedRunIds: string[] = [];
+  const realStartRun = chatRunRegistry.startRun;
 
   try {
     closeConnection();
@@ -657,14 +674,31 @@ async function withUnattendedHarness(run: (context: Harness) => Promise<void>): 
       return emitted;
     };
 
-    // The composition root's one line, reproduced here for the same reason the
+    // The composition root's two lines, reproduced here for the same reason the
     // routers above are mounted here: this criterion runs the harness, not the
-    // process entry point, and without the seam a resident process's own turn
-    // has nowhere to open a run — the frames stay with the last writer. The
-    // entry point itself is read (and asserted) further down, so the wiring this
-    // harness leans on cannot quietly disappear from production while the
-    // criterion stays green.
+    // process entry point, and without the seams a resident process's own turn
+    // has nowhere to open a run — the frames stay with the last writer. Both are
+    // installed because the driver picks between them by `residentRunIsTurn()`:
+    // with run=turn on (this process's `RESIDENT_RUN_IS_TURN=1`) it opens through
+    // `openTurn`, so installing only the older `openUnattendedRun` seam leaves
+    // every unattended turn answered `null` and unrecorded. The entry point
+    // itself is read (and asserted) further down, so the wiring this harness
+    // leans on cannot quietly disappear from production while the criterion
+    // stays green.
     sessionHostManager.setUnattendedRunOpener((input) => chatRunRegistry.openUnattendedRun(input));
+    sessionHostManager.setTurnOpener((input) => chatRunRegistry.openTurn(input));
+
+    // The mint counter behind "opening the turn added exactly one run". It wraps
+    // the registry's ONE mint entry, so a run opened through either opener verb
+    // is counted; installed before round one so the test can take a before/after
+    // delta around the trigger instead of assuming round one's mints.
+    chatRunRegistry.startRun = ((input: Parameters<typeof realStartRun>[0]) => {
+      const minted = realStartRun(input);
+      if (minted) {
+        mintedRunIds.push(minted.runId);
+      }
+      return minted;
+    }) as typeof chatRunRegistry.startRun;
 
     socket = createFakeSocket();
     const runtime = createProviderRuntimeService();
@@ -685,12 +719,15 @@ async function withUnattendedHarness(run: (context: Harness) => Promise<void>): 
       stopHookFile,
       mock,
       normalizerFrames,
+      mintedRunIds,
     });
   } finally {
     if (patchedSessions && previousNormalize) {
       patchedSessions.normalizeMessage = previousNormalize;
     }
+    chatRunRegistry.startRun = realStartRun;
     sessionHostManager.setUnattendedRunOpener(null);
+    sessionHostManager.setTurnOpener(null);
     unregisterDesktopNotificationClient(desktopSocket as never);
     for (const host of sessionHostManager.snapshot()) {
       if (host.state !== 'closed') {
@@ -749,7 +786,7 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
   const elapsed = () => `${Date.now() - STARTED_AT}ms`;
 
   await withUnattendedHarness(async (context) => {
-    const { socket, desktopSocket, cwd, apiBaseUrl, configDir, triggerFile, stopHookFile, mock, normalizerFrames } = context;
+    const { socket, desktopSocket, cwd, apiBaseUrl, configDir, triggerFile, stopHookFile, mock, normalizerFrames, mintedRunIds } = context;
 
     // ---------------------------------------------------------------------
     // Leg 1 — a real user-pushed round that leaves background work running.
@@ -808,7 +845,10 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
     chatRunRegistry.clearAll();
     const replayedBefore = chatRunRegistry.replayEvents(SESSION_ID, 0).length;
     const runsBefore = chatRunRegistry.listRunningRuns().length;
-    console.log(`[readings] replayed-before=${replayedBefore} runsBefore=${runsBefore}`);
+    // The mint count the "exactly one run was added" assertion is a delta of.
+    // Taken after `clearAll`, so only mints caused by the unattended turn count.
+    const mintsBeforeTurn = mintedRunIds.length;
+    console.log(`[readings] replayed-before=${replayedBefore} runsBefore=${runsBefore} mintsBefore=${mintsBeforeTurn}`);
 
     mock.hold();
     const { writeFileSync } = await import('node:fs');
@@ -882,10 +922,12 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
     // ---------------------------------------------------------------------
     const run = chatRunRegistry.getRun(SESSION_ID);
     const rows = run?.events ?? [];
+    const mintsThisTurn = mintedRunIds.length - mintsBeforeTurn;
     console.log(
       `[readings] run.source=${run?.source ?? 'none'} run.appSessionId=${run?.appSessionId ?? 'none'} ` +
         `runsBefore=${runsBefore} runsAfter=${runsAfter} ` +
-        `runsOpenAtRest=${chatRunRegistry.listRunningRuns().length}`,
+        `runsOpenAtRest=${chatRunRegistry.listRunningRuns().length} ` +
+        `mintsThisTurn=${mintsThisTurn} mintedRunId=${mintedRunIds.at(-1) ?? 'none'}`,
     );
 
     const reading: ClaudeUnattendedReading | null = driver.unattendedReading(SESSION_ID);
@@ -913,7 +955,7 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
     );
     console.log(
       `[readings] frames=${frames} rowsDelta=${rowsDelta} framesFromNormalizer=${matched} ` +
-        `totalRows=${totalFrames} terminalFrames=${terminalFrames} tokenBudgetFrames=${budgetFrames} ` +
+        `replayed=${replayed} totalRows=${totalFrames} terminalFrames=${terminalFrames} tokenBudgetFrames=${budgetFrames} ` +
         `wireTotal=${replayed} replayedAtSubscribe=${framesAtSubscribe} replayedAfterRelease=${replayed - framesAtSubscribe}`,
     );
     console.log(
@@ -999,11 +1041,17 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
 
     // The wiring the harness above reproduces, read out of the composition root.
     // The seam is installed where both halves are in scope, and this is the
-    // reading that says the root still installs it.
-    const rootWiring = readFileSync(path.join(REPO_ROOT, 'server/index.ts'), 'utf8')
-      .split('\n')
+    // reading that says the root still installs it. Both seams are read: which
+    // one the driver takes is decided by the run=turn flag, so a root that kept
+    // only the older one would still answer the harness `null` on a default
+    // process.
+    const rootLines = readFileSync(path.join(REPO_ROOT, 'server/index.ts'), 'utf8').split('\n');
+    const rootWiring = rootLines
       .find((line) => line.includes('setUnattendedRunOpener')) ?? 'composition root does not install the seam';
+    const rootTurnWiring = rootLines
+      .find((line) => line.includes('setTurnOpener')) ?? 'composition root does not install the turn seam';
     console.log(`[readings] compositionRootWire server/index.ts: ${rootWiring.trim()}`);
+    console.log(`[readings] compositionRootTurnWire server/index.ts: ${rootTurnWiring.trim()}`);
 
     // The criterion's own text, read for the word it is not allowed to read out
     // of a message. Hits are counted per line and split by whether the line is a
@@ -1055,7 +1103,16 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
     assert.strictEqual(opened, true, 'the process must open a run for its own turn');
     assert.strictEqual(run?.source, 'unattended', 'the run must be marked as the host layer\'s, not a user turn');
     assert.strictEqual(run?.appSessionId, SESSION_ID, 'the run must be keyed by the app session id');
-    assert.strictEqual(runsAfter, runsBefore + 1, `opening the turn must add exactly one run (${runsBefore} -> ${runsAfter})`);
+    assert.strictEqual(
+      mintsThisTurn,
+      1,
+      `opening the turn must add exactly one run (mints before=${mintsBeforeTurn}, after=${mintedRunIds.length})`,
+    );
+    assert.strictEqual(
+      run?.runId,
+      mintedRunIds.at(-1),
+      'the run the opener minted must be the session\'s current run (added, not replaced)',
+    );
     assert.strictEqual(replayedBefore, 0, 'nothing may be replayable before the unattended turn opens');
 
     assert.ok(reading, 'the resident host must still be live when its readings are taken');
@@ -1092,6 +1149,10 @@ test('a resident process that opens its own turn gets a run, a replay, a notific
     assert.ok(
       rootWiring.includes('chatRunRegistry.openUnattendedRun'),
       `the composition root must install the unattended-run seam (${rootWiring})`,
+    );
+    assert.ok(
+      rootTurnWiring.includes('chatRunRegistry.openTurn'),
+      `the composition root must install the turn-run seam the driver uses under run=turn (${rootTurnWiring})`,
     );
     assert.ok(gapLine !== 'gap statement not found', 'provider.registry.ts must still state the run-registry gap it cannot close');
 
