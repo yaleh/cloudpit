@@ -51,7 +51,7 @@
     "src/modules/architecture/archguardToPlantUml.ts": 810,
     "src/modules/architecture/ArchitectureInspector.tsx": 990,
     "src/modules/architecture/ArchitectureMinimap.tsx": 868,
-    "src/modules/architecture/ArchitecturePanel.tsx": 4782,
+    "src/modules/architecture/ArchitecturePanel.tsx": 4780,
     "src/modules/architecture/graphDom.ts": 1490,
     "src/modules/architecture/PlantUmlGraph.tsx": 4040,
     "src/modules/architecture/semanticZoomLayout.ts": 1688,
@@ -191,7 +191,7 @@
     "src/shared/voiceRuntimeConfig.ts": 1
   },
   "hookStateHeavy": {
-    "src/modules/architecture/ArchitecturePanel.tsx": 38,
+    "src/modules/architecture/ArchitecturePanel.tsx": 27,
     "src/modules/chat/hooks/useChatSessionState.ts": 51,
     "src/modules/chat/voice-realtime/useVoiceRealtimeSession.ts": 62,
     "src/modules/cockpit/CockpitPage.tsx": 32,
