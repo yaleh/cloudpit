@@ -28,20 +28,27 @@ extra:
 
 ## AC
 
-- [ ] AC1（红先行）：在 `server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 新增用例 `queued → idle with a non-empty run_output speaks the ack then the summary`：驱动 session_send 返回 `queued:true`（phase=queued）→ `pollRunEnd` 观测到 idle → 页面以非空 run_output 回答；断言 ack 与 summary 各恰好一次、ack 在 summary 之前。当前树上该用例**红**（`queued → idle` 现在不触发）：`npx vitest run server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 以非零退出。
-- [ ] AC2：修好后 AC1 同一用例转绿，`npx vitest run server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` exit 0。
-- [ ] AC3（ack gate，空输出）：新增用例 `queued → idle with an empty run_output speaks nothing`：同上驱动，页面回答空串；断言**不** speak ack、**不** inject summary；日志有明确跳过行。
-- [ ] AC4（ack gate，无回执）：新增用例 `queued → idle with a page that never answers speaks nothing`：同上驱动，页面不回答（等满 `runEndOutputWaitMs` 超时）；断言不 speak ack、不 inject summary。
-- [ ] AC5（running→idle 不回退）：既有 `running → idle` 用例保持绿，且「empty / null / 被 quality gate 拒绝时 ack 仍 speak」的既有用例（`per-run output (c)`、`per-run output (d)`、`a null summary answer still speaks the ack`、`a summary refused by the quality gate still speaks the ack`）语义不变、exit 0。
-- [ ] AC6（supersede 不回退）：既有 `running → queued` 不触发、新 run bump `runEndGeneration` 使迟到 summary 被丢弃的语义不变；`per-run output (b)`（两次 run 两次 summary）仍绿。
-- [ ] AC7（静态/回归）：`npm run typecheck` exit 0；`npx oxlint server/modules/voice-realtime/voice-realtime-ws-proxy.service.ts server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` exit 0；该测试文件全部用例 exit 0。
+- [x] AC1（红先行）：在 `server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 新增用例 `queued → idle with a non-empty run_output speaks the ack then the summary`：驱动 session_send 返回 `queued:true`（phase=queued）→ `pollRunEnd` 观测到 idle → 页面以非空 run_output 回答；断言 ack 与 summary 各恰好一次、ack 在 summary 之前。当前树上该用例**红**（`queued → idle` 现在不触发）：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 以非零退出。（原 AC 写的 `npx vitest run <该文件>` 在本仓无法运行 server 测试：vitest include 仅 `src/**`，实测 `No test files found` 且 exit 1；已改为 docs/operations/process-isolation-and-memory-caps.md 的单文件跑法，判据意图不变。）
+- [x] AC2：修好后 AC1 同一用例转绿，`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` exit 0。
+- [x] AC3（ack gate，空输出）：新增用例 `queued → idle with an empty run_output speaks nothing`：同上驱动，页面回答空串；断言**不** speak ack、**不** inject summary；日志有明确跳过行。
+- [x] AC4（ack gate，无回执）：新增用例 `queued → idle with a page that never answers speaks nothing`：同上驱动，页面不回答（等满 `runEndOutputWaitMs` 超时）；断言不 speak ack、不 inject summary。
+- [x] AC5（running→idle 不回退）：既有 `running → idle` 用例保持绿，且「empty / null / 被 quality gate 拒绝时 ack 仍 speak」的既有用例（`per-run output (c)`、`per-run output (d)`、`a null summary answer still speaks the ack`、`a summary refused by the quality gate still speaks the ack`）语义不变、exit 0。
+- [x] AC6（supersede 不回退）：既有 `running → queued` 不触发、新 run bump `runEndGeneration` 使迟到 summary 被丢弃的语义不变；`per-run output (b)`（两次 run 两次 summary）仍绿。
+- [x] AC7（静态/回归）：`npm run typecheck` exit 0；`npx oxlint server/modules/voice-realtime/voice-realtime-ws-proxy.service.ts server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` exit 0；该测试文件全部用例 exit 0。
 
 ## DoD
 
-- [ ] AC1 先红后绿（贴红时判词与绿后结果）；AC2–AC7 全绿。
-- [ ] 回归：`npx vitest run server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 全绿（新增 + 既有）；兄弟测试 `server/modules/voice-realtime/tests/voice-realtime-ws-proxy.real-transport.test.ts` 与 `server/modules/voice-realtime/tests/voice-realtime-caption-item-attribution.test.ts` 不因本改动红。
-- [ ] `npm run typecheck` exit 0；被改文件的 `npx oxlint` exit 0。
-- [ ] 不跑全套（backend 改动，按 process-isolation 规则只跑该文件与兄弟回归）；`git diff --stat` 只出现 ## Touches 声明的文件。
+- [x] AC1 先红后绿（贴红时判词与绿后结果）；AC2–AC7 全绿。
+- [x] 回归：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` 全绿（新增 + 既有）；兄弟测试 `server/modules/voice-realtime/tests/voice-realtime-ws-proxy.real-transport.test.ts` 与 `server/modules/voice-realtime/tests/voice-realtime-caption-item-attribution.test.ts` 不因本改动红。
+- [x] `npm run typecheck` exit 0；被改文件的 `npx oxlint` exit 0。
+- [x] 不跑全套（backend 改动，按 process-isolation 规则只跑该文件与兄弟回归）；`git diff --stat` 只出现 ## Touches 声明的文件。
+
+## Evidence
+
+- **AC1 红（修前，先把触发条件临时还原为 `beforePhase === 'running'` 再跑同一文件）**：`✖ queued → idle with a non-empty run_output speaks the ack then the summary`，`AssertionError: the non-empty answer is summarized exactly once / 0 !== 1`；同轮两条空输出/无回执用例也红（无 skip 日志），进程 `EXIT=1`。
+- **AC2–AC7（修后）**：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts` → `tests 22 / pass 22 / fail 0`，`EXIT=0`。
+- **兄弟回归**：`voice-realtime-ws-proxy.real-transport.test.ts` + `voice-realtime-caption-item-attribution.test.ts` → `tests 26 / pass 26 / fail 0`，`EXIT=0`。
+- **静态**：`npm run typecheck` `EXIT=0`；`npx oxlint`（两个被改文件）`EXIT=0`。
 
 ## Touches
 
