@@ -143,3 +143,11 @@ env -u RESIDENT_RUN_IS_TURN   : 进进程=unset → 文件内=unset → 退出�
 ### ADR-007 暗轴记录
 
 该轴仍暗,理由:本任务只改判据文件的进程环境钉子，没有可测的架构增量。
+
+## Blocker
+
+**2026-10-26T12:11:30.137Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/providers/tests/claude-resident-ledger-transitions.test.ts:   AssertionError [ERR_ASSERTION]: AC-378 / AC-380 / AC-381 must not be modified by this task
+- run_id：wk-prod-anchor
+- session_id：a07af999-6215-4646-abf2-9b298d0a3e28
