@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-panel-fit-export-owner
 title: ArchitecturePanel 切片 4：Fit/全屏请求、导出与刷新对话状态收进属主
-status: ready
+status: done
 labels:
   - gap
 parent: null
