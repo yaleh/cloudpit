@@ -71,14 +71,6 @@ extra:
 - suite 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-composer-suggest-highlight-on-selection~wk-prod-anchor~1792960093954-18ebd5.log
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-composer-suggest-highlight-on-selection-wk-prod-anchor.log
 
-## Blocker
-
-**2026-10-25T22:48:16.276Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: # fail 1
-- run_id：wk-prod-anchor
-- session_id：526d0c43-ee74-4da6-afc7-738a81222dea
-
 ## Needs-Human
 
 **执行 2026-10-25T22:48:16.898Z — 停派终止（失败无法归因，⛔ 不再重派）**
