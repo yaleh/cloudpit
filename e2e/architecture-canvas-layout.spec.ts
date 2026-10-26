@@ -6750,9 +6750,13 @@ test('control arm — forcing the RIGHT layout reds the PC orientation fill read
     touch: false,
     forceRightLayout: true,
   });
+  // The forced reading the restored page is compared against; the context is
+  // closed before that comparison, so the number is carried out of the block.
+  let forcedFill: number | null = null;
   try {
     await openOrientationDrawing(page, orientationSessionId);
     const forced = await readDrawingAreaFill(page);
+    forcedFill = forced.fill;
     printAreaFill('orientation.control.right', forced);
     await shot(page, 'orientation-control-right');
     expect(forced.direction, 'the control arm must actually render the turned layout').toBe('RIGHT');
@@ -6783,8 +6787,8 @@ test('control arm — forcing the RIGHT layout reds the PC orientation fill read
     expect(
       restored.fill,
       `the chosen DOWN drawing must cover more of the canvas than forced RIGHT — `
-        + `chosen ${String(restored.fill)} vs forced ${String(forced.fill)}`,
-    ).toBeGreaterThan(forced.fill ?? Number.POSITIVE_INFINITY);
+        + `chosen ${String(restored.fill)} vs forced ${String(forcedFill)}`,
+    ).toBeGreaterThan(forcedFill ?? Number.POSITIVE_INFINITY);
   } finally {
     await restoredContext.context.close();
   }
@@ -6810,9 +6814,12 @@ test('main arm — the orientation holds on a wider viewport and large graphs ke
     viewport: { width: 1920, height: 900 },
     touch: false,
   });
+  // The chosen direction's fill, carried out of the block for the contrast leg.
+  let chosenFill: number | null = null;
   try {
     await openOrientationDrawing(wide.page, orientationSessionId);
     const reading = await readDrawingAreaFill(wide.page);
+    chosenFill = reading.fill;
     printAreaFill('orientation.1920x900', reading);
     await shot(wide.page, 'orientation-1920x900');
     expect(reading.direction, 'a wider canvas keeps the stable DOWN layout').toBe('DOWN');
@@ -6822,6 +6829,30 @@ test('main arm — the orientation holds on a wider viewport and large graphs ke
     ).toContain(reading.reason);
   } finally {
     await wide.context.close();
+  }
+
+  // The DoD's contrast, at this viewport too: the direction the policy chose
+  // must draw more of the canvas than the direction it declined, measured on
+  // the REAL declined layout through the DEV lever.
+  const wideRight = await openSignedInPage(browser, baseURL, token, {
+    viewport: { width: 1920, height: 900 },
+    touch: false,
+    forceRightLayout: true,
+  });
+  try {
+    await openOrientationDrawing(wideRight.page, orientationSessionId);
+    const forced = await readDrawingAreaFill(wideRight.page);
+    printAreaFill('orientation.1920x900.forcedRight', forced);
+    await shot(wideRight.page, 'orientation-1920x900-forced-right');
+    expect(forced.direction, 'the lever must render the turned layout').toBe('RIGHT');
+    expect(forced.reason).toBe('forced-right');
+    expect(
+      chosenFill,
+      `at 1920x900 the chosen DOWN drawing must cover more than forced RIGHT — `
+        + `chosen ${String(chosenFill)} vs forced ${String(forced.fill)}`,
+    ).toBeGreaterThan(forced.fill ?? Number.POSITIVE_INFINITY);
+  } finally {
+    await wideRight.context.close();
   }
 
   // The function fixture is the >150-entity drawing: 384 functions hidden until

@@ -2293,16 +2293,16 @@ export function PlantUmlGraph({
             if (cancelled) return;
             // Compare the DRAWN fit, not the renderer's pre-reclaim size: the
             // semantic pass reclaims the blank body of frames whose member rows
-            // are not drawn, and that is the size the reader sees. The fit box
-            // is the same one `applySemantic` solves against.
-            const fitBox = currentFitViewport(host) ?? canvasBox;
+            // are not drawn, and that is the size the reader sees. Both
+            // candidates are solved against the SAME box — the one eligibility
+            // just judged — so the comparison is like-for-like.
             const fontPx = coarsePointerRef.current ? SEMANTIC_MIN_FONT_MOBILE_PX : SEMANTIC_MIN_FONT_PX;
             orientation = chooseLayoutOrientation({
               canvas: canvasBox,
               down: downSize,
               right: layoutSizeOf(right),
-              downDrawnFitScale: drawnFitScaleOf(down, graph, fitBox, fontPx) ?? undefined,
-              rightDrawnFitScale: drawnFitScaleOf(right, graph, fitBox, fontPx) ?? undefined,
+              downDrawnFitScale: drawnFitScaleOf(down, graph, canvasBox, fontPx) ?? undefined,
+              rightDrawnFitScale: drawnFitScaleOf(right, graph, canvasBox, fontPx) ?? undefined,
               entities: layoutNodes,
               firstLayoutMs,
             });
