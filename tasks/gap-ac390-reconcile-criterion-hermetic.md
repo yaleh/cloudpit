@@ -2,7 +2,7 @@
 id: gap-ac390-reconcile-criterion-hermetic
 title: AC-390 判据文件自钉 RESIDENT_RUN_IS_TURN 关态：裸 goal-gate 命令在 anchor 继承该开关时仍
   21/21 绿，(e1) 的 forwarded 行读数与取假形态不变
-status: todo
+status: ready
 labels:
   - gap
   - defect
