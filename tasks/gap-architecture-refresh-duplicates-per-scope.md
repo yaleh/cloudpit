@@ -43,12 +43,12 @@ extra:
 
 ## AC
 
-- [ ] 分析源：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refreshJob.test.ts` exit 0，其中新增用例断言：项目根有 `shared/` 且 manifest 未覆盖时，spawn 的 argv 在 `-s` 后包含它的绝对路径；已有 scope 的来源顺序与集合不变。
-- [ ] 重复检测按 scope 落盘：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refresh-duplicates.test.ts` exit 0。用假的 MCP 子进程覆盖三种情形：(a) 旧版行为（每次覆盖扁平文件），结束后每个 scope 都有 `duplicates/<scopeKey>/{manifest,groups}.json`，manifest 含正确的 `scopeKey`/`label`，`index.json` 的 entries 与 scope 一一对应；(b) 新版行为（工具已写出按 scope 的目录），文件不被改写；(c) MCP 启动失败或单次调用出错时，刷新 job 仍为 `succeeded`，且 `stderrTail` 含失败原因。
-- [ ] 不再搬运扁平文件：同一测试文件含用例，旧工作目录里有扁平 `duplicates/manifest.json` 时，发布后的新 `query/` 下没有扁平文件；`duplicates/<staleKey>/`（不在新 manifest 中的 scope）被丢弃；`git-history/`、`shape-smells/` 照常保留。
-- [ ] 叶子出边：`grep -hE "from '" server/modules/architecture/refresh-duplicates.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+|\./[^']+)'"` 无输出。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/architecture` exit 0。
+- [x] 分析源：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refreshJob.test.ts` exit 0，其中新增用例断言：项目根有 `shared/` 且 manifest 未覆盖时，spawn 的 argv 在 `-s` 后包含它的绝对路径；已有 scope 的来源顺序与集合不变。
+- [x] 重复检测按 scope 落盘：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/architecture/tests/refresh-duplicates.test.ts` exit 0。用假的 MCP 子进程覆盖三种情形：(a) 旧版行为（每次覆盖扁平文件），结束后每个 scope 都有 `duplicates/<scopeKey>/{manifest,groups}.json`，manifest 含正确的 `scopeKey`/`label`，`index.json` 的 entries 与 scope 一一对应；(b) 新版行为（工具已写出按 scope 的目录），文件不被改写；(c) MCP 启动失败或单次调用出错时，刷新 job 仍为 `succeeded`，且 `stderrTail` 含失败原因。
+- [x] 不再搬运扁平文件：同一测试文件含用例，旧工作目录里有扁平 `duplicates/manifest.json` 时，发布后的新 `query/` 下没有扁平文件；`duplicates/<staleKey>/`（不在新 manifest 中的 scope）被丢弃；`git-history/`、`shape-smells/` 照常保留。
+- [x] 叶子出边：`grep -hE "from '" server/modules/architecture/refresh-duplicates.ts | grep -vE "from '(node:[a-z/]+|@/shared/[^']+|\./[^']+)'"` 无输出。
+- [x] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0；`npx oxlint server/modules/architecture` exit 0。
 
 ## DoD
 
@@ -60,6 +60,24 @@ extra:
 用 MCP 浏览器截图架构 tab 刷新前后两个状态，存 `tmp/` 并贴出；存在可用场景时同时跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴出 JSON 报告。最后注明本次运行的 archguard 是旧版行为（由本仓库搬入按 scope 的目录）还是新版行为（工具自己写出）。
 
 注：上列「未改动」类判据与 develop 的 merge-base 比较，覆盖已提交与未提交的改动；与 HEAD 比较在提交后恒为空，会真空通过。
+
+### 本次运行读数（2026-10-26，隔离实例 :3217，架构 tab 手动刷新）
+
+- 工具链：worktree 里 `npm run build`（= `build:client` + `build:server`）后 `scripts/isolated-instance.sh start`；archguard 0.1.42（`~/.claude/plugins/npm-cache/node_modules/@yalehwang/archguard`）。
+- 浏览器：Playwright 驱动 `tmp/archguard-dod/drive.mjs`，报告 `tmp/archguard-dod/drive-report.json`；刷新前 `refreshState=idle`、`Analysis: 5 hours ago`，刷新后 `refreshState=succeeded`、`Analysis: 9 seconds ago`，`consoleErrors=[]`、`pageErrors=[]`。截图 `tmp/archguard-dod/architecture-before.png`、`tmp/archguard-dod/architecture-after.png`（均位于本任务 worktree 的 gitignored `tmp/`）。
+- 新 `query/manifest.json` scopes（`generatedAt=2026-10-26T08:19:53.394Z`）：
+  - `7911e2cb` `shared (typescript)` `["/data/home/yale/work/claudecodeui/shared"]`
+  - `93e0a992` `src (typescript)` `["/data/home/yale/work/claudecodeui/src"]`
+  - `bcc56acf` `server (typescript)` `["/data/home/yale/work/claudecodeui/server"]`
+- `duplicates/index.json` 全文：
+  `{"version":"1.0","generatedAt":"2026-10-26T08:19:56.427Z","entries":[{"scopeKey":"7911e2cb","label":"shared (typescript)","sources":["/data/home/yale/work/claudecodeui/shared"],"scannedFiles":13,"scannedFunctions":185,"totalGroups":4,"generatedAt":"2026-10-26T08:19:54.795Z"},{"scopeKey":"93e0a992","label":"src (typescript)","sources":["/data/home/yale/work/claudecodeui/src"],"scannedFiles":633,"scannedFunctions":8076,"totalGroups":4,"generatedAt":"2026-10-26T08:19:55.735Z"},{"scopeKey":"bcc56acf","label":"server (typescript)","sources":["/data/home/yale/work/claudecodeui/server"],"scannedFiles":462,"scannedFunctions":6463,"totalGroups":4,"generatedAt":"2026-10-26T08:19:56.425Z"}]}`
+  entries 与 manifest 的三个 scope 一一对应；三个 scope 的 `totalGroups` 均为 4（默认阈值 `minStatements=6`、`minTokens=50`、`topN=20`）。扁平 `duplicates/{manifest,groups}.json` 已不在磁盘上。
+- server scope 可省行数最多的前 3 组：
+  1. `savableLines=14`（7 statements / 70 tokens）：`server/shared/settings-file.ts:150-163 readBoolean` ↔ `server/shared/settings-file.ts:170-183 readString`
+  2. `savableLines=8`（6 statements / 60 tokens）：`server/modules/observation/architecture-delta.producer.ts:223-230 refreshAll` ↔ `server/modules/observation/project-truth.producer.ts:311-318 refreshAll`
+  3. `savableLines=6`（6 statements / 64 tokens）：`server/modules/voice-realtime/voice-realtime-tts.ts:282-287 nestedErrorCode` ↔ 同文件 `:290-295 nestedErrorMessage`
+- 行为判定：**旧版行为**。0.1.42 的 `dist/analysis/duplicates/persistence.js` 仍把结果写进扁平 `query/duplicates/{manifest,groups}.json`，不写按 scope 的目录；落盘的 `duplicates/<scopeKey>/manifest.json` 里的 `scopeKey`/`label` 由本仓库的 `refresh-duplicates.ts` 补写（工具不写这两个字段）。
+- 场景运行器：`scripts/ui-scenario.mjs` 的 opener 词汇只有 `quay-panel`（`architecture` tab 没有 opener/语义面），仓库里也没有 architecture 场景 JSON，故无可用场景可跑。
 
 ## Touches
 
