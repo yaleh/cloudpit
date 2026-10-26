@@ -117,3 +117,11 @@ DoD（隔离实例 + 真实浏览器；本会话无 MCP 浏览器可用，按项
 - src/modules/i18n/locales/tr/common.json
 - src/modules/i18n/locales/zh-CN/common.json
 - src/modules/i18n/locales/zh-TW/common.json
+
+## Blocker
+
+**2026-10-26T17:59:44.831Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/cockpit/CockpitPage.tsx 1881→1883 — 基线内读数不得上调（此基线只允许下降）
+- run_id：wk-prod-anchor
+- session_id：b4f8e129-3438-4c71-a620-74420589ba02
