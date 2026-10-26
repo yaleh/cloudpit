@@ -42,21 +42,39 @@ Extract the transcript-export helpers out of the utils layer and make transcript
 - statement: 修复后 `<none>` 不再以同一 subject 复发（同 concept_key 的后续记录数应为 0）
 - recorded_at: 2026-10-26T08:43:19.503Z
 
+## Disposition（复核与处置）
+- 复核：本地目录级 import 图（`src/modules/chat`）复现 finding 的 9 包 SCC，节点集合与 finding 完全一致：`activity, export, hooks, tools, tools/ContentRenderers, transcript, utils/session, utils/transcript, utils/voice`。
+- 修掉（切断 utils 层两条上行边）：
+  1. `utils/transcript/chatExport.ts` 组合 `chat/export/*`，令 utils 依赖 export 功能层。已把下载导出入口移到 `chat/export/chatExport.ts`（消费方 `ChatInterface.tsx` 与两个导出测试同步改路径）。
+  2. `utils/voice/voiceContextPack.ts` 从 `@/modules/chat/tools` 桶导入 `shouldHideToolResult`，把整个 tools 包拉到 utils 之下。改为从定义叶 `@/modules/chat/tools/configs/toolConfigs` 读取，与 `toolGrouping` / `workSegmentTitle` 的既有读法一致。
+- 复测（finding 的主仪器 archguard）：`archguard_detect_cycles --outputScope package`，scope `c0cb97c7`（`src/modules/chat`）→ `maxScc=3`，唯一环为 `{tools, tools/ContentRenderers, transcript}`；修复前 finding 记录为 9 包 SCC。
+- 「make transcript render from props, not hooks」未单独实施：两条上行边切断后，`transcript -> hooks / activity / tools` 均为单向（hooks、activity 已无回到 transcript 的路径），archguard 读数已满足 AC（≤5）。
+- 实跑：`transcriptExport.test.tsx`（13）、`transcriptExportWorkSegments.test.tsx`（3）、`voiceContextPack.test.ts`（20）全绿；`tsc --noEmit -p tsconfig.json` 与 `oxlint src/modules/chat` 均通过。
+
+## Architecture axis（ADR-007）
+- L_G archguard: maxScc=3, cycles=1, before_maxScc=9 (scope c0cb97c7, src/modules/chat)
+
 ## AC
-- [ ] `.quay/routine-findings.jsonl` 中 finding `cycle-src-chat-subsystem-9`（routine `architecture-analysis`，runId `architecture-analysis-1793004199503`）所描述的问题被复核并处置
-- [ ] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
+- [x] `.quay/routine-findings.jsonl` 中 finding `cycle-src-chat-subsystem-9`（routine `architecture-analysis`，runId `architecture-analysis-1793004199503`）所描述的问题被复核并处置
+- [x] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
 
 ## DoD
-- [ ] 上面的判据实跑通过
-- [ ] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
+- [x] 上面的判据实跑通过
+- [x] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
 
 ## Touches
 - `src/modules/chat/hooks/useSessionStore.ts`
 - `src/modules/chat/hooks/useChatMessages.ts`
 - `src/modules/chat/transcript/ChatMessagesPane.tsx`
 - `src/modules/chat/utils/transcript/chatExport.ts`
+- `src/modules/chat/export/chatExport.ts`
 - `src/modules/chat/export/buildTranscriptMarkdown.ts`
 - `src/modules/chat/activity/ActivityDockPanel.tsx`
 - `src/modules/chat/utils/voice/voiceContextPack.ts`
 - `src/modules/chat/tools/ToolRenderer.tsx`
+- `src/modules/chat/ChatInterface.tsx`
+- `src/modules/chat/tests/transcriptExport.test.tsx`
+- `src/modules/chat/tests/transcriptExportWorkSegments.test.tsx`
+- `src/modules/chat/utils/tests/voiceContextPack.test.ts`
+- `src/modules/chat/utils/transcript/index.ts`
 - `tasks/gap-routine-architecture-analysis-cycle-src-chat-subsystem-9.md`
