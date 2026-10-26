@@ -6,6 +6,7 @@ import type {
   QuayGanttUnavailableReason,
   QuayLanesReading,
   QuaySessionMentionsReading,
+  QuaySnapshot,
 } from '@/shared/types';
 
 /**
@@ -15,9 +16,11 @@ import type {
  *
  * - `useSessionPulseWindow` — the per-project window, persisted in localStorage;
  * - `useSessionPulse` — the 30 s lanes poll behind the mini gantt and the popover's chart;
+ * - `useSessionSnapshot` — the one-shot project snapshot read the popover's counts band and
+ *   in-flight list render;
  * - `useSessionMentions` — the one-shot session-mentions read the popover's list renders.
  *
- * They are separate so the popover can own its one-shot read without making the trigger's
+ * They are separate so the popover can own its one-shot reads without making the trigger's
  * poll (or its window) depend on whether the popover is open.
  */
 
@@ -241,6 +244,71 @@ export function useSessionPulse(
   }, [projectId, hasQuayConfig, windowHours]);
 
   return reading;
+}
+
+export type SessionSnapshotState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'loaded'; snapshot: QuaySnapshot };
+
+/**
+ * Reads the project snapshot ONCE for each opening of the popover.
+ *
+ * The popover mounts only while it is open, so opening fetches, closing discards the reply and
+ * reopening fetches again — there is deliberately no poll: the counts band and the in-flight
+ * list are a reading of the project at the instant the layer opened, and the trigger's own
+ * 30 s lanes poll already keeps the chart live. The window is sent along so the snapshot and
+ * the chart it sits above are read over the same range (and share the backend's TTL cache).
+ */
+export function useSessionSnapshot(
+  projectId: string | null,
+  windowHours: number,
+  enabled: boolean,
+): SessionSnapshotState {
+  const [state, setState] = useState<SessionSnapshotState>({ status: 'idle' });
+
+  useEffect(() => {
+    if (!enabled || !projectId) {
+      setState({ status: 'idle' });
+      return;
+    }
+
+    let disposed = false;
+    setState({ status: 'loading' });
+
+    void (async () => {
+      try {
+        const response = await api.quaySnapshot(projectId, { hours: windowHours });
+        if (disposed) {
+          return;
+        }
+        if (!response.ok) {
+          setState({ status: 'error', message: `Failed to load the quay snapshot (HTTP ${response.status})` });
+          return;
+        }
+        const snapshot = (await response.json()) as QuaySnapshot;
+        if (disposed) {
+          return;
+        }
+        setState({ status: 'loaded', snapshot });
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+        setState({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to load the quay snapshot',
+        });
+      }
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [projectId, windowHours, enabled]);
+
+  return state;
 }
 
 export type SessionMentionsState =

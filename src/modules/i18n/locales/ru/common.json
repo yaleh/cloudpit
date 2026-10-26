@@ -971,7 +971,17 @@
     "viaTasks_other": "через {{count}} задачи",
     "mentionedInMessage": "упомянута в сообщении",
     "mentionedAt": "Упомянута {{when}}",
-    "openQuayPanel": "Открыть панель Quay"
+    "openQuayPanel": "Открыть панель Quay",
+    "projectCounts": "Проект",
+    "tasksCountLabel": "Задачи",
+    "goalsCountLabel": "Цели",
+    "notRead": "не прочитано",
+    "sessionCounts": "Эта сессия · задач: {{tasks}} · целей: {{goals}}",
+    "inFlightHeading": "В работе",
+    "inFlightEmpty": "Сейчас нет выполняющихся задач",
+    "inFlightMentioned": "упомянута здесь",
+    "snapshotLoading": "Загрузка снимка quay…",
+    "snapshotError": "Не удалось прочитать снимок quay."
   },
   "quayTab": {
     "driverRunning": "Драйвер работает",

@@ -7,12 +7,23 @@ import type {
   QuayGanttLanes,
   QuayGanttUnavailableReason,
 } from '@/shared/types';
+import {
+  QUAY_DEFAULT_TASK_STATUS_BADGE_CLASS,
+  QUAY_IN_FLIGHT_PHASE_META,
+  QUAY_TASK_BADGE_BASE_CLASS,
+  QUAY_TASK_STATUS_BADGE_CLASSES,
+} from '@/shared/constants';
+import { cn } from '@/shared/utils';
 import LoopPulseGantt from '@/modules/quay/LoopPulseGantt';
 import {
   SessionMentionsSections,
   type SessionMentionsLabels,
 } from '@/modules/quay/SessionTaskRows';
-import { useSessionMentions } from '@/modules/quay/hooks/useSessionPulse';
+import {
+  useSessionMentions,
+  useSessionSnapshot,
+  type SessionSnapshotState,
+} from '@/modules/quay/hooks/useSessionPulse';
 
 /**
  * The title bar's Loop pulse popover: the big gantt plus the tasks and goals this session's own
@@ -87,6 +98,227 @@ type SessionPulsePopoverProps = {
   onOpenQuayPanel: () => void;
 };
 
+/** The shared badge pair: the Quay panel's in-flight card draws its statuses the same way. */
+function statusBadgeClass(status: string): string {
+  return cn(
+    QUAY_TASK_BADGE_BASE_CLASS,
+    QUAY_TASK_STATUS_BADGE_CLASSES[status] ?? QUAY_DEFAULT_TASK_STATUS_BADGE_CLASS,
+  );
+}
+
+/**
+ * How long an in-flight task has been running, in the Quay panel's own units.
+ *
+ * Mirrors the in-flight card's reading (`elapsedSince` against the snapshot's `generatedAt`)
+ * rather than calling `Date.now()` here: the two surfaces compare the same two instants, so the
+ * popover's row and the panel's row cannot disagree about how long a task has run. A missing or
+ * unparseable start reads as the shared em-dash placeholder, never as `0s`.
+ */
+function formatElapsedRun(startedAt: string | null, generatedAt: string): string {
+  if (startedAt === null) {
+    return '—';
+  }
+  const start = Date.parse(startedAt);
+  const now = Date.parse(generatedAt);
+  if (Number.isNaN(start) || Number.isNaN(now)) {
+    return '—';
+  }
+  const durationMs = Math.max(0, now - start);
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+  const seconds = Math.round(durationMs / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+/**
+ * Project-level counts: one badge per task status and per goal status, then the session's own
+ * two counts.
+ *
+ * The snapshot is the PROJECT's reading, so the band says 「Project」 above it — the session line
+ * beneath is the only part computed from this conversation's mentions. A `null` group is an
+ * UNREAD reading and says so; it never draws `0`, because "could not read the task store" and
+ * "the store has no tasks" are different facts.
+ */
+function ProjectCounts({
+  snapshot,
+  sessionTaskCount,
+  sessionGoalCount,
+}: {
+  snapshot: SessionSnapshotState;
+  /** The mention list's counts, or `null` while that independent read is not loaded. */
+  sessionTaskCount: number | null;
+  sessionGoalCount: number | null;
+}) {
+  const { t } = useTranslation();
+
+  if (snapshot.status === 'error') {
+    return (
+      <p className="px-3 pb-1 pt-2 text-[11px] text-amber-700 dark:text-amber-300" data-testid="quay-pulse-counts-error">
+        {t('quayPulse.snapshotError')}
+      </p>
+    );
+  }
+
+  if (snapshot.status !== 'loaded') {
+    return (
+      <p className="px-3 pb-1 pt-2 text-[11px] text-muted-foreground" data-testid="quay-pulse-counts-loading">
+        {t('quayPulse.snapshotLoading')}
+      </p>
+    );
+  }
+
+  const tasks = snapshot.snapshot.tasks;
+  const goals = snapshot.snapshot.goals;
+  const taskStatuses = Object.entries(tasks?.byStatus ?? {}).sort((a, b) => b[1] - a[1]);
+  const goalStatuses = Object.entries(goals?.breakdown.byStatus ?? {}).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <section className="px-3 pb-1 pt-2" data-testid="quay-pulse-counts">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t('quayPulse.projectCounts')}
+      </p>
+      <div className="flex flex-wrap items-center gap-1" data-testid="quay-pulse-task-counts">
+        <span className="text-[10px] text-muted-foreground">{t('quayPulse.tasksCountLabel')}</span>
+        {tasks === null ? (
+          <span className="text-[10px] text-amber-700 dark:text-amber-300" data-testid="quay-pulse-task-counts-unavailable">
+            {t('quayPulse.notRead')}
+          </span>
+        ) : (
+          taskStatuses.map(([status, count]) => (
+            <span
+              key={`task-${status}`}
+              className={statusBadgeClass(status)}
+              data-testid={`quay-pulse-task-count-${status}`}
+              data-status={status}
+              data-count={count}
+            >
+              {status} {count}
+            </span>
+          ))
+        )}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="quay-pulse-goal-counts">
+        <span className="text-[10px] text-muted-foreground">{t('quayPulse.goalsCountLabel')}</span>
+        {goals === null ? (
+          <span className="text-[10px] text-amber-700 dark:text-amber-300" data-testid="quay-pulse-goal-counts-unavailable">
+            {t('quayPulse.notRead')}
+          </span>
+        ) : (
+          goalStatuses.map(([status, count]) => (
+            <span
+              key={`goal-${status}`}
+              className={statusBadgeClass(status)}
+              data-testid={`quay-pulse-goal-count-${status}`}
+              data-status={status}
+              data-count={count}
+            >
+              {status} {count}
+            </span>
+          ))
+        )}
+      </div>
+      {sessionTaskCount !== null && sessionGoalCount !== null && (
+        <p className="mt-1 text-[10px] text-muted-foreground" data-testid="quay-pulse-session-counts">
+          {t('quayPulse.sessionCounts', { tasks: sessionTaskCount, goals: sessionGoalCount })}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The project's in-flight tasks, one row each: id, phase badge, elapsed run time, and a marker
+ * when this conversation itself mentioned the task.
+ *
+ * `inFlight: null` (no lane reading) and `[]` (read, nothing running) render DIFFERENT text: an
+ * unread set must never be shown as an empty one.
+ */
+function InFlightList({
+  snapshot,
+  mentionedTaskIds,
+}: {
+  snapshot: SessionSnapshotState;
+  mentionedTaskIds: ReadonlySet<string>;
+}) {
+  const { t } = useTranslation();
+
+  if (snapshot.status === 'error') {
+    return (
+      <p className="px-3 pb-1 pt-2 text-[11px] text-amber-700 dark:text-amber-300" data-testid="quay-pulse-inflight-error">
+        {t('quayPulse.snapshotError')}
+      </p>
+    );
+  }
+
+  if (snapshot.status !== 'loaded') {
+    return (
+      <p className="px-3 pb-1 pt-2 text-[11px] text-muted-foreground" data-testid="quay-pulse-inflight-loading">
+        {t('quayPulse.snapshotLoading')}
+      </p>
+    );
+  }
+
+  const { inFlight, generatedAt } = snapshot.snapshot;
+
+  return (
+    <section className="px-3 pb-1 pt-2" data-testid="quay-pulse-inflight">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t('quayPulse.inFlightHeading')}
+      </p>
+      {inFlight === null ? (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300" data-testid="quay-pulse-inflight-unavailable">
+          {t('quayPulse.notRead')}
+        </p>
+      ) : inFlight.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground" data-testid="quay-pulse-inflight-empty">
+          {t('quayPulse.inFlightEmpty')}
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {inFlight.map((task) => {
+            const phase = (QUAY_IN_FLIGHT_PHASE_META as Record<string, { label: string; className: string } | undefined>)[task.phase];
+            const mentioned = mentionedTaskIds.has(task.taskId);
+            return (
+              <li
+                key={task.taskId}
+                className="flex items-center gap-2 text-xs"
+                data-testid="quay-pulse-inflight-row"
+                data-task-id={task.taskId}
+                data-mentioned={mentioned ? 'true' : 'false'}
+              >
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground" title={task.taskId}>
+                  {task.taskId}
+                </span>
+                <span
+                  className={cn(QUAY_TASK_BADGE_BASE_CLASS, phase?.className ?? QUAY_DEFAULT_TASK_STATUS_BADGE_CLASS)}
+                  data-testid={`quay-pulse-inflight-phase-${task.phase}`}
+                >
+                  {phase?.label ?? task.phase}
+                </span>
+                <span className="shrink-0 text-[10px] text-muted-foreground" data-testid="quay-pulse-inflight-elapsed">
+                  {formatElapsedRun(task.startedAt, generatedAt)}
+                </span>
+                {mentioned && (
+                  <span
+                    className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                    data-testid="quay-pulse-inflight-mentioned"
+                  >
+                    {t('quayPulse.inFlightMentioned')}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** The title-bar popover. Used by `SessionPulse`; not exported from the module barrel. */
 export default function SessionPulsePopover({
   projectId,
@@ -120,6 +352,9 @@ export default function SessionPulsePopover({
   // height grows to its content and the panel clips it — so the height is measured and set.
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
   const mentions = useSessionMentions(projectId, sessionId, true);
+  // The project's counts and in-flight rows. Read once per opening, like the mention list and
+  // independently of it: one failed read must not blank the other.
+  const snapshot = useSessionSnapshot(projectId, windowHours, true);
 
   useEffect(() => {
     const update = () => setGeometry(computeGeometry(anchorRef.current, isMobile));
@@ -158,7 +393,7 @@ export default function SessionPulsePopover({
       + (footerRef.current?.offsetHeight ?? 0);
     const next = Math.min(geometry.maxHeight, Math.max(0, natural));
     setPanelHeight((previous) => (previous === next ? previous : next));
-  }, [geometry.maxHeight, mentions, doneExpanded]);
+  }, [geometry.maxHeight, mentions, snapshot, doneExpanded]);
 
   /*
    * Escape closes the popover. This is the topmost layer, so it claims the key on `window`'s
@@ -212,11 +447,16 @@ export default function SessionPulsePopover({
   // group expands, the measured height is applied).
   useEffect(() => {
     updateBottomFade();
-  }, [updateBottomFade, mentions, doneExpanded, panelHeight]);
+  }, [updateBottomFade, mentions, snapshot, doneExpanded, panelHeight]);
 
   const hasSession = sessionId !== null;
   const goals = mentions.status === 'loaded' ? mentions.reading.goals : [];
   const tasks = mentions.status === 'loaded' ? mentions.reading.tasks : [];
+  const sessionTaskCount = mentions.status === 'loaded' ? mentions.reading.tasks.length : null;
+  const sessionGoalCount = mentions.status === 'loaded' ? mentions.reading.goals.length : null;
+  // A small, stable set: the in-flight rows only need membership, and deriving it here keeps the
+  // marker on exactly the tasks this session's own prose named.
+  const mentionedTaskIds: ReadonlySet<string> = new Set(tasks.map((task) => task.taskId));
   const labels: SessionMentionsLabels = {
     goalsHeading: (count) => t('quayPulse.goalsHeading', { count }),
     tasksHeading: (count) => t('quayPulse.tasksHeading', { count }),
@@ -328,6 +568,18 @@ export default function SessionPulsePopover({
           className="h-full overflow-y-auto overscroll-contain"
           data-testid="quay-pulse-list"
         >
+          {/*
+            Order is the task's own: chart (above), project counts, in-flight rows, then the
+            session's mentioned goals and tasks. The first two read the project snapshot and the
+            last reads the session; all three are independent, so a failure in one leaves the
+            others standing.
+          */}
+          <ProjectCounts
+            snapshot={snapshot}
+            sessionTaskCount={sessionTaskCount}
+            sessionGoalCount={sessionGoalCount}
+          />
+          <InFlightList snapshot={snapshot} mentionedTaskIds={mentionedTaskIds} />
           {renderListBody()}
         </div>
         {showBottomFade && (

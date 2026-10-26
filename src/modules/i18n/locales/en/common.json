@@ -1090,7 +1090,17 @@
     "viaTasks_other": "via {{count}} tasks",
     "mentionedInMessage": "mentioned in a message",
     "mentionedAt": "Mentioned {{when}}",
-    "openQuayPanel": "Open Quay panel"
+    "openQuayPanel": "Open Quay panel",
+    "projectCounts": "Project",
+    "tasksCountLabel": "Tasks",
+    "goalsCountLabel": "Goals",
+    "notRead": "not read",
+    "sessionCounts": "This session · {{tasks}} tasks · {{goals}} goals",
+    "inFlightHeading": "In flight",
+    "inFlightEmpty": "No tasks are running right now",
+    "inFlightMentioned": "mentioned here",
+    "snapshotLoading": "Loading quay snapshot…",
+    "snapshotError": "Could not read the quay snapshot."
   },
   "quayTab": {
     "driverRunning": "Driver running",

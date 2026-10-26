@@ -18,7 +18,11 @@ import type {
   QuaySnapshot,
 } from '@/shared/types';
 import { cn, formatRelativeTime } from '@/shared/utils';
-import { QUAY_IN_FLIGHT_PHASE_META, QUAY_TASK_BADGE_BASE_CLASS } from '@/shared/constants';
+import {
+  QUAY_IN_FLIGHT_PHASE_META,
+  QUAY_TASK_BADGE_BASE_CLASS,
+  QUAY_TASK_STATUS_BADGE_CLASSES,
+} from '@/shared/constants';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import LoopPulseGantt from '@/modules/quay/LoopPulseGantt';
 import QuayPanel from '@/modules/quay/QuayPanel';
@@ -40,6 +44,7 @@ import {
 const apiMock = vi.hoisted(() => ({
   quayLanes: vi.fn(),
   quaySessionMentions: vi.fn(),
+  quaySnapshot: vi.fn(),
 }));
 vi.mock('@/shared/api', () => ({ api: apiMock }));
 
@@ -200,6 +205,42 @@ const mentionsReading = (
   generatedAt: new Date(NOW).toISOString(),
 });
 
+/**
+ * The project snapshot behind the popover's counts band and in-flight list. Every reading the
+ * task renders is populated here; each case overrides exactly the field it is about, so a null
+ * arm and an empty arm differ in one place only.
+ */
+const snapshotReading = (overrides: Partial<QuaySnapshot> = {}): QuaySnapshot => ({
+  projectId: 'proj-a',
+  projectPath: '/repo',
+  generatedAt: new Date(NOW).toISOString(),
+  cached: false,
+  driver: null,
+  tasks: {
+    total: 6,
+    byStatus: { ready: 2, done: 3, 'needs-human': 1 },
+    ready: 2,
+    needsHuman: 1,
+    done: 3,
+    recent: [],
+  },
+  goals: {
+    total: 5,
+    achieved: 4,
+    breakdown: { byStatus: { active: 1, achieved: 4 }, recent: [] },
+  },
+  adrs: null,
+  configIssues: null,
+  tests: { current: null, recentRounds: [] },
+  fanIn: { recent: [] },
+  inFlight: [],
+  gantt: null,
+  ganttUnavailable: null,
+  dashboardUrl: null,
+  warnings: [],
+  ...overrides,
+});
+
 const trigger = (): HTMLButtonElement => {
   const element = document.querySelector('[data-testid="quay-pulse-trigger"]') as HTMLButtonElement | null;
   assert.ok(element, 'the quay pulse trigger must be rendered');
@@ -263,8 +304,10 @@ beforeEach(() => {
   window.localStorage.clear();
   apiMock.quayLanes.mockReset();
   apiMock.quaySessionMentions.mockReset();
+  apiMock.quaySnapshot.mockReset();
   apiMock.quayLanes.mockResolvedValue(jsonResponse(lanesReading(FOUR_STATE_GANTT)));
   apiMock.quaySessionMentions.mockResolvedValue(jsonResponse(mentionsReading()));
+  apiMock.quaySnapshot.mockResolvedValue(jsonResponse(snapshotReading()));
   Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1440 });
   Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 900 });
 });
@@ -766,6 +809,192 @@ test('session-mentions is read once per opening, never while closed and never po
 
   await openPopover();
   assert.equal(apiMock.quaySessionMentions.mock.calls.length, 2, 'reopening reads again');
+});
+
+/* ── 项目读数：计数带与 in-flight 列表 ───────────────────────────────── */
+
+test('the project snapshot is read once per opening with the current window, and never polled', async () => {
+  vi.useFakeTimers();
+  // A non-default window proves the request carries the popover's own value, not a constant.
+  window.localStorage.setItem(pulseWindowStorageKey('proj-a'), '6');
+  render(<PulseHarness />);
+  await flush();
+  assert.equal(apiMock.quaySnapshot.mock.calls.length, 0, 'a closed popover reads nothing');
+
+  await openPopover();
+  assert.equal(apiMock.quaySnapshot.mock.calls.length, 1, 'opening reads exactly once');
+  assert.deepEqual(apiMock.quaySnapshot.mock.calls[0], ['proj-a', { hours: 6 }], 'the read carries the popover window');
+
+  const lanesCallsBefore = apiMock.quayLanes.mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  assert.equal(apiMock.quaySnapshot.mock.calls.length, 1, 'the open snapshot is not re-read on a timer');
+  assert.equal(
+    apiMock.quayLanes.mock.calls.length,
+    lanesCallsBefore + 1,
+    'the trigger still polls the lanes exactly once per 30 s, as before',
+  );
+
+  await act(async () => {
+    fireEvent.keyDown(document, { key: 'Escape' });
+  });
+  assert.equal(popover(), null, 'Escape closes the popover');
+
+  await openPopover();
+  assert.equal(apiMock.quaySnapshot.mock.calls.length, 2, 'reopening reads the snapshot again');
+});
+
+test('the counts band badges every task and goal status, and counts this session from the mention list', async () => {
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  const segment = (testId: string): HTMLElement => {
+    const element = document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
+    assert.ok(element, `${testId} must render`);
+    return element;
+  };
+
+  // The band says these are the PROJECT's counts; the session line below is the only
+  // conversation-scoped number.
+  assert.match(segment('quay-pulse-counts').textContent ?? '', /Project/);
+
+  for (const [status, count] of Object.entries({ ready: 2, done: 3, 'needs-human': 1 })) {
+    const badge = segment(`quay-pulse-task-count-${status}`);
+    assert.equal(badge.getAttribute('data-count'), String(count), `${status} task count`);
+    assert.equal((badge.textContent ?? '').trim(), `${status} ${count}`, `${status} badge text`);
+    assert.equal(
+      badge.className,
+      cn(QUAY_TASK_BADGE_BASE_CLASS, QUAY_TASK_STATUS_BADGE_CLASSES[status]),
+      `${status} must use the shared status-badge pair`,
+    );
+  }
+
+  for (const [status, count] of Object.entries({ active: 1, achieved: 4 })) {
+    const badge = segment(`quay-pulse-goal-count-${status}`);
+    assert.equal(badge.getAttribute('data-count'), String(count), `${status} goal count`);
+    assert.equal((badge.textContent ?? '').trim(), `${status} ${count}`, `${status} goal badge text`);
+  }
+
+  assert.equal(
+    (segment('quay-pulse-session-counts').textContent ?? '').trim(),
+    'This session · 4 tasks · 2 goals',
+    'the session line is the mention list’s own task and goal counts',
+  );
+});
+
+test('an unread task group says “not read” and draws no zero, while the goal group still reports', async () => {
+  apiMock.quaySnapshot.mockResolvedValue(jsonResponse(snapshotReading({ tasks: null })));
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  const taskGroup = document.querySelector('[data-testid="quay-pulse-task-counts"]') as HTMLElement | null;
+  assert.ok(taskGroup, 'the task group must still occupy its place');
+  assert.ok(
+    taskGroup.querySelector('[data-testid="quay-pulse-task-counts-unavailable"]'),
+    'an unread task group must say so',
+  );
+  assert.ok(
+    !(taskGroup.textContent ?? '').includes('0'),
+    `an unread group must not fabricate a zero: "${taskGroup.textContent}"`,
+  );
+  assert.equal(
+    taskGroup.querySelectorAll('[data-testid^="quay-pulse-task-count-"]').length,
+    0,
+    'no status badge is drawn for an unread group',
+  );
+
+  // The goal group is an independent reading and still reports.
+  assert.ok(document.querySelector('[data-testid="quay-pulse-goal-count-active"]'), 'goals still report');
+});
+
+test('the in-flight list draws one row per task with the panel’s phase badge and a session mention marker', async () => {
+  const inFlight: QuayInFlightTask[] = [
+    { taskId: 't-impl', phase: 'implementing', startedAt: new Date(NOW - 5 * 60_000).toISOString(), lastHeartbeat: new Date(NOW).toISOString(), workerPid: 11 },
+    { taskId: 't-fanin', phase: 'fan-in', startedAt: new Date(NOW - 2 * HOUR).toISOString(), lastHeartbeat: new Date(NOW).toISOString(), workerPid: 12 },
+    { taskId: 't-stranger', phase: 'awaiting-land', startedAt: null, lastHeartbeat: new Date(NOW).toISOString(), workerPid: 13 },
+  ];
+  apiMock.quaySnapshot.mockResolvedValue(jsonResponse(snapshotReading({ inFlight })));
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  const rows = Array.from(document.querySelectorAll('[data-testid="quay-pulse-inflight-row"]'));
+  assert.equal(rows.length, 3, 'one row per in-flight task');
+
+  const rowFor = (taskId: string) => {
+    const row = document.querySelector(
+      `[data-testid="quay-pulse-inflight-row"][data-task-id="${taskId}"]`,
+    ) as HTMLElement | null;
+    assert.ok(row, `a row for ${taskId}`);
+    return row;
+  };
+
+  for (const task of inFlight) {
+    const badge = rowFor(task.taskId).querySelector(
+      `[data-testid="quay-pulse-inflight-phase-${task.phase}"]`,
+    );
+    assert.ok(badge, `${task.taskId} must carry its phase badge`);
+    assert.equal(
+      badge.className,
+      cn(QUAY_TASK_BADGE_BASE_CLASS, QUAY_IN_FLIGHT_PHASE_META[task.phase].className),
+      `${task.phase} must use QUAY_IN_FLIGHT_PHASE_META's badge`,
+    );
+    assert.ok(
+      rowFor(task.taskId).querySelector('[data-testid="quay-pulse-inflight-elapsed"]'),
+      `${task.taskId} must show how long it has run`,
+    );
+  }
+
+  // MENTION_TASKS names t-impl and t-fanin; t-stranger is not in this session's prose.
+  for (const taskId of ['t-impl', 't-fanin']) {
+    assert.ok(
+      rowFor(taskId).querySelector('[data-testid="quay-pulse-inflight-mentioned"]'),
+      `${taskId} is mentioned in this session and must be marked`,
+    );
+  }
+  assert.equal(
+    rowFor('t-stranger').querySelector('[data-testid="quay-pulse-inflight-mentioned"]'),
+    null,
+    'an unmentioned task must not carry the marker',
+  );
+});
+
+test('an unread in-flight set and a read-but-empty set render different text', async () => {
+  apiMock.quaySnapshot.mockResolvedValue(jsonResponse(snapshotReading({ inFlight: null })));
+  const unread = render(<PulseHarness />);
+  await flush();
+  await openPopover();
+  assert.ok(document.querySelector('[data-testid="quay-pulse-inflight-unavailable"]'), 'null says it was not read');
+  assert.equal(document.querySelector('[data-testid="quay-pulse-inflight-empty"]'), null, 'null is not empty');
+  unread.unmount();
+
+  apiMock.quaySnapshot.mockResolvedValue(jsonResponse(snapshotReading({ inFlight: [] })));
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+  assert.ok(document.querySelector('[data-testid="quay-pulse-inflight-empty"]'), '[] says nothing is running');
+  assert.equal(document.querySelector('[data-testid="quay-pulse-inflight-unavailable"]'), null, 'empty is not unread');
+
+  const emptyText = document.querySelector('[data-testid="quay-pulse-inflight-empty"]')?.textContent ?? '';
+  assert.ok(!emptyText.includes('not read'), `the empty state must not borrow the unread wording: "${emptyText}"`);
+});
+
+test('a failed snapshot read degrades both project blocks but leaves the chart and session list standing', async () => {
+  apiMock.quaySnapshot.mockRejectedValue(new Error('boom'));
+  render(<PulseHarness />);
+  await flush();
+  await openPopover();
+
+  assert.ok(document.querySelector('[data-testid="quay-pulse-counts-error"]'), 'the counts band states the failure');
+  assert.ok(document.querySelector('[data-testid="quay-pulse-inflight-error"]'), 'the in-flight block states the failure');
+  assert.ok(document.querySelector('[data-testid="quay-gantt"]'), 'the chart is from the lanes read and survives');
+  assert.ok(
+    document.querySelectorAll('[data-testid="quay-pulse-task-row"]').length > 0,
+    'the session mention list is an independent read and survives',
+  );
 });
 
 /* ── 关闭与焦点 ───────────────────────────────────────────────────────── */

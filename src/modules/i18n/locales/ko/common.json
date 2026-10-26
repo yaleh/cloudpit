@@ -998,7 +998,17 @@
     "viaTasks_other": "{{count}}개 작업을 통해",
     "mentionedInMessage": "메시지에서 언급됨",
     "mentionedAt": "{{when}}에 언급됨",
-    "openQuayPanel": "Quay 패널 열기"
+    "openQuayPanel": "Quay 패널 열기",
+    "projectCounts": "프로젝트",
+    "tasksCountLabel": "태스크",
+    "goalsCountLabel": "골",
+    "notRead": "읽지 못함",
+    "sessionCounts": "이 세션 · 태스크 {{tasks}}개 · 골 {{goals}}개",
+    "inFlightHeading": "실행 중",
+    "inFlightEmpty": "현재 실행 중인 태스크가 없습니다",
+    "inFlightMentioned": "여기서 언급됨",
+    "snapshotLoading": "quay 스냅샷 불러오는 중…",
+    "snapshotError": "quay 스냅샷을 읽을 수 없습니다."
   },
   "quayTab": {
     "driverRunning": "드라이버 실행 중",

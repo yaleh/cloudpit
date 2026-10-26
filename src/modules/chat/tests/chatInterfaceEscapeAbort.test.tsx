@@ -138,6 +138,28 @@ vi.mock('@/shared/api', () => ({
         generatedAt: new Date(START).toISOString(),
       }),
     }),
+    // The popover's project counts band and in-flight list read the snapshot once per opening.
+    // An unread store / no lanes keep this fixture's focus on the Escape contract.
+    quaySnapshot: async () => ({
+      ok: true,
+      json: async () => ({
+        projectId: PROJECT.projectId,
+        projectPath: PROJECT.path,
+        generatedAt: new Date(START).toISOString(),
+        cached: false,
+        driver: null,
+        tasks: null,
+        goals: null,
+        adrs: null,
+        configIssues: null,
+        tests: { current: null, recentRounds: [] },
+        fanIn: { recent: [] },
+        inFlight: [],
+        gantt: null,
+        dashboardUrl: null,
+        warnings: [],
+      }),
+    }),
   },
 }));
 

@@ -969,7 +969,17 @@
     "viaTasks_other": "über {{count}} Aufgaben",
     "mentionedInMessage": "in einer Nachricht erwähnt",
     "mentionedAt": "Erwähnt {{when}}",
-    "openQuayPanel": "Quay-Panel öffnen"
+    "openQuayPanel": "Quay-Panel öffnen",
+    "projectCounts": "Projekt",
+    "tasksCountLabel": "Aufgaben",
+    "goalsCountLabel": "Ziele",
+    "notRead": "nicht gelesen",
+    "sessionCounts": "Diese Sitzung · {{tasks}} Aufgaben · {{goals}} Ziele",
+    "inFlightHeading": "In Ausführung",
+    "inFlightEmpty": "Derzeit laufen keine Aufgaben",
+    "inFlightMentioned": "hier erwähnt",
+    "snapshotLoading": "Quay-Snapshot wird geladen…",
+    "snapshotError": "Der Quay-Snapshot konnte nicht gelesen werden."
   },
   "quayTab": {
     "driverRunning": "Treiber läuft",

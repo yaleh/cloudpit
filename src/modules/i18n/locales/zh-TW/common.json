@@ -998,7 +998,17 @@
     "viaTasks_other": "經由 {{count}} 個任務",
     "mentionedInMessage": "在訊息中提及",
     "mentionedAt": "{{when}}提及",
-    "openQuayPanel": "開啟 Quay 面板"
+    "openQuayPanel": "開啟 Quay 面板",
+    "projectCounts": "專案",
+    "tasksCountLabel": "任務",
+    "goalsCountLabel": "目標",
+    "notRead": "未讀到",
+    "sessionCounts": "本工作階段 · {{tasks}} 個任務 · {{goals}} 個 goal",
+    "inFlightHeading": "進行中",
+    "inFlightEmpty": "目前沒有任務在執行",
+    "inFlightMentioned": "本工作階段已提及",
+    "snapshotLoading": "正在讀取 quay 快照…",
+    "snapshotError": "讀不到 quay 快照。"
   },
   "quayTab": {
     "driverRunning": "驅動執行中",
