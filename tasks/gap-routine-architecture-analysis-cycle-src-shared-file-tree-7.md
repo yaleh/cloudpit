@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-shared-file-tree-7
 title: "architecture-analysis: The shared layer imports upward:
   src/shared/projectIdentifiers.ts:27 imports loadProjectFileIndex from
   '@/modules/file-tree', closing a 7-package SCC (shared"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
