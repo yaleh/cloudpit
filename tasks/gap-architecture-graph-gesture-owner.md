@@ -21,11 +21,11 @@ depends_on:
 
 ## AC
 
-- [ ] 属主文件存在且不依赖 React：`grep -nE "export function createGraphGestureController" src/modules/architecture/graphGestureController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/graphGestureController.ts` 无输出。
-- [ ] 下列声明已从组件中清零：`grep -cE "const \[?(hoverCallbackRef|clickCallbackRef|edgeClickCallbackRef|selectionClearCallbackRef|escapeSelectionCallbackRef|toggleNodeCallbackRef|toggleEdgeCallbackRef|multiSelectStartCallbackRef|boxSelectCallbackRef|drawnCallbackRef|multiSelectModeRef|suppressClickRef|shiftHeldRef|marquee|marqueeClientRef|coarsePointerRef)\b" src/modules/architecture/PlantUmlGraph.tsx` 输出 0。
-- [ ] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/graphGestureController.test.ts`，覆盖：拖拽后抑制一次点击、框选矩形随指针更新并在 pointerUp 时回调选中集合、Shift 与多选模式改变点击语义、粗指针放大命中半径、`setHandlers` 替换后旧回调不再被调用、dispose 后事件被忽略；`npx vitest run src/modules/architecture/tests/graphGestureController.test.ts` 退出码 0。
-- [ ] 行数只降不升：`wc -l src/modules/architecture/PlantUmlGraph.tsx` 小于本任务开始时的行数（以 `server/shared/tests/architecture-ratchet.baseline.json` 当前值为准），且该基线在同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
-- [ ] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
+- [x] 属主文件存在且不依赖 React：`grep -nE "export function createGraphGestureController" src/modules/architecture/graphGestureController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/graphGestureController.ts` 无输出。
+- [x] 下列声明已从组件中清零：`grep -cE "const \[?(hoverCallbackRef|clickCallbackRef|edgeClickCallbackRef|selectionClearCallbackRef|escapeSelectionCallbackRef|toggleNodeCallbackRef|toggleEdgeCallbackRef|multiSelectStartCallbackRef|boxSelectCallbackRef|drawnCallbackRef|multiSelectModeRef|suppressClickRef|shiftHeldRef|marquee|marqueeClientRef|coarsePointerRef)\b" src/modules/architecture/PlantUmlGraph.tsx` 输出 0。
+- [x] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/graphGestureController.test.ts`，覆盖：拖拽后抑制一次点击、框选矩形随指针更新并在 pointerUp 时回调选中集合、Shift 与多选模式改变点击语义、粗指针放大命中半径、`setHandlers` 替换后旧回调不再被调用、dispose 后事件被忽略；`npx vitest run src/modules/architecture/tests/graphGestureController.test.ts` 退出码 0。
+- [x] 行数只降不升：`wc -l src/modules/architecture/PlantUmlGraph.tsx` 小于本任务开始时的行数（以 `server/shared/tests/architecture-ratchet.baseline.json` 当前值为准），且该基线在同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
+- [x] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
 
 ## DoD
 
