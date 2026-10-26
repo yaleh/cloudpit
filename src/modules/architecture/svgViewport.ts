@@ -15,6 +15,7 @@
  */
 
 import { READABLE_ZOOM_SCALE } from '@/modules/architecture/readableZoom';
+import { parseCssPx } from '@/shared/utils';
 
 /** A width/height pair, in SVG user units or CSS pixels. */
 export type SvgViewportSize = {
@@ -452,12 +453,8 @@ export function measureViewportSize(container: HTMLElement): SvgViewportSize | n
   let paddingY = 0;
   if (typeof getComputedStyle === 'function') {
     const style = getComputedStyle(container);
-    const px = (value: string): number => {
-      const parsed = Number.parseFloat(value);
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
-    paddingX = px(style.paddingLeft) + px(style.paddingRight);
-    paddingY = px(style.paddingTop) + px(style.paddingBottom);
+    paddingX = parseCssPx(style.paddingLeft) + parseCssPx(style.paddingRight);
+    paddingY = parseCssPx(style.paddingTop) + parseCssPx(style.paddingBottom);
   }
   const width = container.clientWidth - paddingX;
   const height = container.clientHeight - paddingY;

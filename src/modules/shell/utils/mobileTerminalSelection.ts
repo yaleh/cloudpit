@@ -1,6 +1,6 @@
 import type { IDisposable, Terminal } from '@xterm/xterm';
 
-import { copyTextToClipboard } from '@/shared/utils';
+import { clamp, copyTextToClipboard } from '@/shared/utils';
 import type { MobileTerminalSelectionManager } from '@/shared/types';
 
 type TerminalCoords = {
@@ -74,10 +74,6 @@ function isTouchSelectionEnvironment(): boolean {
     'ontouchstart' in window ||
     window.matchMedia?.('(pointer: coarse)').matches === true
   );
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 function getDistance(start: TouchCoords, end: TouchCoords): number {

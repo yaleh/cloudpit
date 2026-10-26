@@ -19,6 +19,8 @@
  * average so a jump is not centred against a flat constant. Unit-tested directly.
  */
 
+import { clamp } from '@/shared/utils';
+
 /** Placeholder px per message before any row has been measured — bootstrap only. */
 export const DEFAULT_ROW_HEIGHT_PX = 100;
 
@@ -61,11 +63,6 @@ export type AboveTarget = {
   /** How far into that row, 0..1, the position sits. */
   ratio: number;
 };
-
-/** Clamps a number into `[min, max]`. */
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 /**
  * The estimated pixel geometry for the loaded window and the conversation it is a

@@ -387,6 +387,34 @@ export function errorMessage(failure: unknown, fallback?: string): string {
 
 // ---------------------------
 
+//----------------- NUMERIC / CSS LENGTH UTILITIES ------------
+
+/**
+ * Clamps `value` into `[min, max]`; a non-finite `value` falls back to `min`.
+ *
+ * Used by the architecture minimap and semantic zoom, the shell's mobile
+ * terminal selection and the chat transcript height model, which all stop a
+ * computed offset at an edge.
+ */
+export function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Reads a CSS length the browser reported in px, returning 0 when it is absent
+ * (`''`) or not numeric (`'auto'`).
+ *
+ * Used by the architecture graph DOM and viewport code, which subtract a
+ * container's computed padding from its measured size.
+ */
+export function parseCssPx(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// ---------------------------
+
 //----------------- EXTERNAL STORES ------------
 
 /**
