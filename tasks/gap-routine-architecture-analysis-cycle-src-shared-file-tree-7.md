@@ -57,10 +57,11 @@ Take the file index as a parameter/port instead of importing the feature module,
 - 含 tests 的同一命令仍有 5 条，全部是测试夹具而非生产边：`sharedLayerIsolation.test.tsx` 必须 `vi.mock('@/modules/auth'|'@/modules/settings')` 才能造出「导入即抛错」的桩；`voiceUpload16k.test.ts` 与 `debug-agent-display-identity.test.ts` 是被兄弟判据按路径钉住、必须读 feature 符号的消费者测试，不能移动。因此该条 request 的 0 命中口径按生产源码取（与 gap-src-shared-feature-layering-inversion 的既有裁定一致）。
 - `archguard_detect_cycles`（package 粒度，sources=`src`，同一 merge-base `a69cf7277`）：
   - 修复前（develop 基线 worktree）：存在 **7 包** SCC = `modules/file-tree, modules/file-tree/hooks, modules/file-tree/utils, shared, shared/context, shared/hooks, shared/ui`；环内 `shared -> modules/*` 边 **1** 条（`shared/projectIdentifiers.ts:27`）。
-  - 修复后：该 7 包 SCC **消失**；含 `shared` 的最大 SCC 为 **4** 包（`shared, shared/context, shared/hooks, shared/ui`，纯 shared 内部、修复前即存在的独立环，不是本 finding 的 upward 边）；环内 `shared -> modules/*` 边 **0** 条。
+  - 修复后：该 7 包 SCC **消失**；含 `shared` 的最大 SCC 为 **4 包**（`shared, shared/context, shared/hooks, shared/ui`，纯 shared 内部、修复前即存在的独立环，不是本 finding 的 upward 边）；环内 `shared -> modules/*` 边 **0** 条。
 - `npx vitest run src/shared/tests/projectIdentifiers.test.ts` → 5 passed；`npx vitest run src/modules/chat/tests/voiceTranscriptRepair.test.tsx src/modules/file-tree/tests/projectFileIndex.test.tsx` → 10 passed；`npx tsc --noEmit -p tsconfig.json` → exit 0。
-
 - L_G archguard: shared_to_modules_cycle_edges=0; scc_size_before=7; scc_size_after=4
+
+**复测轮（修复上一轮唯一失败：ratchet）**：上一轮 fan-in 仅有 `server/shared/tests/architecture-ratchet.test.ts` 红 —— `oversizeFiles src/modules/chat/composer/ChatComposer.tsx 1606→1608`。注入 reader 需要一行 import，故把同处注释由 5 行压到 3 行，文件回到 **1606** 行基线。本 worktree 复跑：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6 pass / 0 fail（含 AC1 在真实树上跑）；`npx vitest run src/shared/tests/projectIdentifiers.test.ts src/modules/chat/tests/voiceTranscriptRepair.test.tsx src/modules/file-tree/tests/projectFileIndex.test.tsx` → 15 passed；`npx tsc --noEmit -p tsconfig.json` → exit 0；`archguard_detect_cycles`（package，本 worktree，sources=`src`）→ 含 shared 的最大 SCC=4（纯 shared），`shared -> modules/*` 边=0。
 
 ## Touches
 - `src/shared/projectIdentifiers.ts`

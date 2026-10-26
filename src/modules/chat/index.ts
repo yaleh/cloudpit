@@ -29,7 +29,6 @@ export {
   readVoiceInputPackBuildCount,
 } from '@/modules/chat/utils/voice/voiceContextPack';
 export type { VoiceReferencePack } from '@/modules/chat/utils/voice/voiceContextPack';
-export { getClaudeSettings } from '@/modules/chat/utils/session/chatStorage';
 export { default as ResidentSessionBadge } from '@/modules/chat/transcript/ResidentSessionBadge';
 /**
  * The cockpit's push-to-talk reuses chat's ONE dictation hook rather than a second ASR path:
