@@ -97,6 +97,18 @@ DoD（隔离实例 + 真实浏览器；本会话无 MCP 浏览器可用，按项
 
 DoD 的隔离实例真实浏览器读数与截图沿用上文同一实现（本轮只动基线记录，UI 源码未变）。
 
+### 续跑轮（2026-10-27，合并 develop 的基线冲突）
+
+上一轮的未落地原因是 `step=merge-develop` 在 `server/shared/tests/architecture-ratchet.baseline.json` 上 CONFLICT。冲突只在 `note` 字段：HEAD 携带本任务的 `cockpit-card-ui-core` RECORDED CHANGE，develop 新增了 `observation-session-ask-decision-digest` 的 RECORDED CHANGE。按语义并集处理：保留 develop 的那段在前、再把本任务的那段接在其后；`oversizeFiles` 的读数体在自动合并里已正确合入（`server/shared/types.ts` 4821、`src/modules/cockpit/CockpitPage.tsx` 1883、`src/shared/api.ts` 1766），未手工改数。`JSON.parse` 校验通过后 `git commit --no-edit` 完成合并，工作树干净（`git status --short` 无输出）。
+
+合并后逐条复验（均在本 worktree 内）：
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` ⇒ `tests 6 / pass 6 / fail 0`，退出 0；
+- AC1 `cockpitCardController.test.ts` ⇒ `Tests 18 passed (18)`；AC2 `CockpitCard.test.tsx` ⇒ `Tests 9 passed (9)`；AC4 `src/modules/cockpit/tests` ⇒ `Test Files 15 passed (15) / Tests 201 passed (201)`；AC5 ⇒ `Test Files 2 passed (2) / Tests 23 passed (23)`；AC6 typecheck / lint / build:client 均退出 0（`✓ built in 28.49s`）；
+- anti-drift：`ANTI-DRIFT OK: task cockpit-card-ui-core — 29 actual file(s), all within declared Touches (31 glob(s))`。
+
+AC3 的三条假形态沿用上一轮同一实现（本轮只解基线合并冲突，UI 与控制器的源码未变），上一轮已各自变红后还原。
+
 ## ADR-007 轴记录
 
 - 该轴仍暗,理由:本任务只做驾驶舱卡片界面与 React 之外的 controller，不新增领域数据的生成或持久化能力，L_D/L_G 两轴没有可读读数；界面行为由 AC-424/AC-425 判据、隔离实例真实浏览器读数与场景运行器覆盖。
