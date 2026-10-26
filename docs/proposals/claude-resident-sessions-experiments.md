@@ -642,6 +642,51 @@ claude --version：2.1.283 (Claude Code)
 
 结论：环境核对：raw 驱动那条腿的实例写的是临时库（/proc/<pid>/environ 已核对）；收尾后本进程的 claude 后代剩 0 个、tmux 里没有本实验的会话、systemd user scope 里没有本实验的单元（读数为空即"无残留"）。 轮次边界：raw 驱动下 session_state_changed **一条都没有**，SDK query() 那条路 同样一条都没有；可用的轮次把手是「每轮一条 system/init + 轮末一条 result」这一对，command_lifecycle 的 queued/started/completed 另外给出每条消息被排进了哪一轮。 忙时推入：priority 三档（later/next/now）都被 CLI 收下并排进 command_lifecycle 的 queued→started 队列（完成后各自 completed；这一条序列就是"队列"的可见形态）；cancel_async_message 的三种时机——仍在队列里→（无响应），已被处理完→（无响应），uuid 不存在→（无响应）。 后台工作的事件面：本实验读到的 subtype 是 task_started、task_notification、background_tasks_changed；工具表里 **没有** Monitor、有 ScheduleWakeup——即常驻会话里"调度"只能靠 cron（CronCreate/CronList/CronDelete 在表里）。 cron 无人轮：发火在流里表现为 CLI **自己造** command_uuid 的 command_lifecycle started（该 uuid 从未 queued——宿主没推过它，共 0 条），它**没有** origin 字段、**没有** scheduled_task_fire、也**不**在 transcript 里新造 user 帧（全部 4 条 user 事件里带 origin 的只有 0 条）；无人轮自身的取数只能靠 Stop hook——session_crons 在 2 次调用里 2 次非空，background_tasks 1 次非空，这就是 §10 要的权威清单（字段与在飞任务都能对上）。 需要人回应的入口：side_question（宿主→CLI 的控制请求，宿主问、CLI 答）**没有响应**，方向与 canUseTool（CLI 问、宿主答）相反；elicitation **读到了 1 条**（MCP 工具把问题转成控制请求交给宿主）；request_user_dialog 只出现在 SDK 的类型联合里，本实验没有触发它的入口（工具驱动的阻塞对话框要有对应的工具在场），属读数缺口。 flag settings 层：两个变体的 `get_settings` 响应里，`remoteControlAtStartup` 分别为 （没读到） 与 （没读到），`isolatePeerMachines` 分别为 （没读到） 与 （没读到）——即全是"没读到"，**不能**据此说 `--settings` 盖过了用户 settings（那是读数缺口，不是证据）；方案据此走**最保守分支**：不等这个读数，检测到 Remote Control 已开启就拒绝以 bypass 启动常驻进程，并在界面说明（见 §9）；两个变体都**没有**把 `/v1/messages` 之外的流量发给 mock 端点，说明关掉它之后不会再有第二个"控制面"连接（本机没有可用的 Remote Control 后端，开着的那个也无法在此环境里连线，故"开着会怎样"只取到设置层的读数）。 交互式 CLI 的忙时输入：第二条消息落在**后一轮**（排在当前轮之后，不并入）。这一条与 E2/E3 的 stream-json 形态**一致**（都是"另起一轮"），§8 的忙时基准因此对两种形态都成立；但它精确对应三档里的哪一档，本实验**定不了**——9.2 里 `next` 那一档在排队时被撤掉了、没读到它执行时的落点，而 9.2 又显示"后一轮"这个落点对 `now` 与 `later` 都成立，光看落在哪一轮分不开三档；要定档得补一次不取消 `next` 的读数（缺口记在 proposal §8）。
 
+**9.11 重取 E9 §9.9：后台 Bash 完成后 CLI 是否仍自行开一轮（AC-162，2026-10-26）**
+
+编号说明：AC-162 任务原文要求「新增 §9.10」，写回时 §9.10 已被上一节（AC-164 的跨会话到达读数）占用，故本节顺延为 §9.11，内容即该任务要求的 §9.10 读数。
+
+取数时刻：2026-10-26T10:11Z（18:11 +0800）
+claude --version：2.1.310 (Claude Code)
+二进制：`/data/home/yale/.nvm/versions/node/v24.21.0/bin/claude` → `…/@anthropic-ai/claude-code/bin/claude.exe`（package `@anthropic-ai/claude-code@2.1.310`）
+包目录 mtime：2026-10-26 18:05:09 +0800。注意：同一 2.1.310 今天被重装多次（任务立案读数记的是 17:42，本轮会话先读到 17:52，取本节读数时是 18:05），mtime 只能当「读数时用的是这一份」的锚，不能当版本变化。
+驱动方式：与 E9 的 raw 路相同 —— `claude --print --input-format stream-json --output-format stream-json --verbose`，宿主自己写一条 `user` 帧，mock 端点只答 `/v1/messages`；首轮 `result` 后**不再推任何输入**，500ms 后宿主创建后台命令盯的触发文件。另在临时项目 `.claude/settings.json` 挂 `Stop` 命令钩子（`cat >> stop-hooks.jsonl`）作进程外见证，后台命令末尾 `touch bg-shell-finished` 作 shell 退出的独立见证。
+
+原始事件序列（`[ev]` 行逐字，时间相对首帧；mock 的 agent 请求序号附在括号里）：
+
+```
+[250ms] [ev] command_lifecycle uuid=2d076cbf-…
+[252ms] [ev] command_lifecycle uuid=147e1c6f-…
+[286ms] [ev] system/init uuid=bf07ba36-… tools=22               ← 宿主推的那一轮
+[320ms] [mock] AGENT request #1
+[330ms] [ev] assistant tool_use:Bash(run_in_background) uuid=88aa63b9-…
+[378ms] [ev] system/task_started uuid=5dd1e08c-… task_id=bxkm4aojx
+[398ms] [mock] AGENT request #2
+[401ms] [ev] assistant text="round-one-ack" uuid=f9343683-…
+[411ms] [ev] result uuid=c29c332f-…                              ← 第 1 轮结束（此后不再推入）
+[412ms] [host] first result; creating trigger in 500ms; NO further input pushed
+[912ms] [host] trigger created
+[987ms] [ev] system/task_updated uuid=8f4a50c3-… task_id=bxkm4aojx patch.status=completed
+[988ms] [ev] system/task_notification uuid=a0d9e15a-… task_id=bxkm4aojx status=completed
+[988ms] [ev] system/background_tasks_changed uuid=94025aa2-…
+[1041ms] [ev] system/init uuid=3eae49b8-… tools=22               ← CLI 自己开的轮
+[1049ms] [mock] AGENT request #3
+[1052ms] [ev] assistant tool_use:Bash(echo AC162_UNATTENDED_STEP) uuid=98da6b0b-…
+[1075ms] [mock] AGENT request #4
+[1076ms] [ev] assistant text="AC162-UNATTENDED-MARKER" uuid=e3344878-…
+[1084ms] [ev] result origin={"kind":"task-notification","producer":"session-task","runId":"0mvp3jefw-b104e14b"} uuid=d1f67a99-…
+```
+
+后台 shell 是否退出：**退出**。`bg-shell-finished` 哨兵文件存在（命令走到 `touch` 才创建）；CLI 自己的账是 `task_updated patch.status=completed` + `task_notification status=completed`；Stop hook 两次输入里 `background_tasks` 从 `[{"id":"bxkm4aojx","type":"shell","status":"running",…}]`（第一次，后台命令仍在盯文件）变成 `[]`（第二次，无人轮结束时）。
+
+**结论（一行）**：claude 2.1.310 在后台 Bash 完成、宿主不推任何输入时**仍会自己开一轮**（`task_updated` → `task_notification` → `background_tasks_changed` → `system/init` → agent 请求 → `assistant` → `result`，`result.origin.kind="task-notification"`），因此 AC-162 的 (a)「CLI 不再自开轮」分支**不成立**；本次判据红是 (b) —— CLI 开了轮、宿主没开 run。
+
+**归因（仓内/夹具，不是 CLI）**：同一读数在判据 `claude-resident-unattended-turn.test.ts` 上表现为 `waitFor timed out: the unattended turn to open a run`、`run.source=none`、`normalizerFramesTotal` 在触发前后都是 15（无人轮的帧一条也没到宿主侧）。在 driver 的 `openUnattendedTurnIfOwn` 上临时加读数（已还原）得到：无人轮 `system/init` 到达时 `closed=false unattended=false waiting=0 inPushedSet=false`，随后 `runIsTurn=true handle=false` —— 守卫全过，卡在 `host.openTurn(...)` 返回 `null`。原因是判据夹具只安装了组合根两条缝中的旧一条 `setUnattendedRunOpener`；run=turn 打开（`RESIDENT_RUN_IS_TURN=1`，本机 anchor 环境）时 driver 走 `setTurnOpener` 那条缝，夹具没装它，`openTurn` 便答 `null`。生产 `server/index.ts` 两条都装（1621、1630 行）。修法：夹具按组合根安装**两条**缝（并把「组合根必须装 turn 缝」也读出来断言）；未改生产代码。
+
+修后判据读数（逐字，见完成记录）：`run.source=unattended … mintsThisTurn=1`、`frames=6 rowsDelta=6 framesFromNormalizer=6 replayed=9 …`、`notifyCalls=1 notifyTrigger=background-task`、`elapsed=2734ms`、退出 0。假形态（driver 的 `openUnattendedTurnIfOwn` 直接 `return`，判据文件一字不动）退出 1，红在 `replay: a chat.subscribe(lastSeq=0) … (replayed=0, runRows=0, run=none)`，分辨力未变。
+
+附注：本节 raw 路的 `system/init.tools` 是 22 个；判据 SDK 路读到 26 个（`initTools` 含 `Bash`、`Monitor`）。两种启动形态的工具表不同，本节结论只承载「是否自开轮」，工具表不作承载面。
+
 ## E10 入队—中断—出队：U1 中断后排队消息去向 / U2 出队时机与修正落点 / U3 N=3 排空拼接 / U4 非最新条目撤回
 取数时间：2026-10-12T06:29:10.385Z
 claude --version：2.1.296 (Claude Code)
