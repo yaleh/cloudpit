@@ -1,7 +1,7 @@
 ---
 id: gap-settings-file-shared-reader
 title: 把 4 份近似克隆的 server.settings 读取器收敛到 server/shared/settings-file.ts（叶子，不动导入环预算）
-status: ready
+status: done
 labels:
   - gap
 parent: null
