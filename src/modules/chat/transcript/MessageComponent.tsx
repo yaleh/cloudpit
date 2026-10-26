@@ -17,6 +17,7 @@ import MessageCopyControl from '@/modules/chat/transcript/MessageCopyControl';
 import MessageSpeakControl from '@/modules/chat/transcript/MessageSpeakControl';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { MemoryCitations } from '@/modules/chat/transcript/MemoryCitations';
+import { resolveProviderDescriptor } from '@/shared/constants';
 import type { ReplyItemRenderContext } from '@/modules/chat/utils/transcript/replyItems';
 import {
   UNATTENDED_DIVIDER_MESSAGE_TYPE,
@@ -170,6 +171,23 @@ function readDividerLabel(
  */
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, onForkFromMessage, isInFlightTurn, replyItems }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
+  // What this build knows about the message's provider. Absent for an id the
+  // table cannot describe (the debug agent's runtime id, an id from a newer
+  // server), which is exactly when the header must fall back to Claude's name
+  // rather than leave the slot blank.
+  const providerDescriptor = resolveProviderDescriptor(provider);
+  const providerLabel = providerDescriptor
+    ? providerDescriptor.messageLabelDefault
+      ? t(providerDescriptor.messageLabelKey, { defaultValue: providerDescriptor.messageLabelDefault })
+      : t(providerDescriptor.messageLabelKey)
+    : provider === 'debug'
+      // A debug agent's replies are synthetic, and the mark beside this name
+      // already says so. Without a branch of its own the chain named them
+      // "Claude" — asserting a provenance the message does not have, which is
+      // worse than a missing name and undetectable by a reader. The fallback
+      // below stays for ids this build cannot name at all.
+      ? t('messageTypes.debug')
+      : t('messageTypes.claude');
   // The Task entity this row's tool call launched, read by the call's
   // `tool_use` id from the session's activity snapshot (AC-194). A tool row with
   // no task (or before any frame arrives) answers null and the card falls back to
@@ -186,11 +204,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
   const formattedMessageContent = useMemo(
     () => {
       const content = formatUsageLimitText(String(message.content || ''));
-      return provider === 'codex' && message.type === 'assistant' && !message.isThinking
+      return providerDescriptor?.stripsProposedPlanEnvelope && message.type === 'assistant' && !message.isThinking
         ? stripProposedPlanEnvelope(content)
         : content;
     },
-    [message.content, message.isThinking, message.type, provider]
+    [message.content, message.isThinking, message.type, providerDescriptor]
   );
   const assistantCopyContent = message.isToolUse
     ? String(message.displayText || message.content || '')
@@ -517,20 +535,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   ? t('messageTypes.error')
                   : message.type === 'tool'
                     ? t('messageTypes.tool')
-                    : (provider === 'cursor'
-                        ? t('messageTypes.cursor')
-                        : provider === 'codex'
-                          ? t('messageTypes.codex')
-                          : provider === 'opencode'
-                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                              // A debug agent's replies are synthetic, and the mark beside this
-                              // name already says so. Without a branch of its own the chain named
-                              // them "Claude" — asserting a provenance the message does not have,
-                              // which is worse than a missing name and undetectable by a reader.
-                              // The fallback below stays for ids this build cannot name at all.
-                              : provider === 'debug'
-                                ? t('messageTypes.debug')
-                                : t('messageTypes.claude'))}
+                    : providerLabel}
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
 import { StandaloneShell } from '@/modules/standalone-shell';
+import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import { IS_PLATFORM } from '@/shared/utils';
 import type { LLMProvider } from '@/shared/types';
 
@@ -43,32 +44,13 @@ const getProviderCommand = ({
     return customCommand;
   }
 
-  if (provider === 'claude') {
-    return 'claude --dangerously-skip-permissions /login';
-  }
-
-  if (provider === 'cursor') {
-    return 'cursor-agent login';
-  }
-
-  if (provider === 'codex') {
-    return IS_PLATFORM ? 'codex login --device-auth' : 'codex login';
-  }
-
-  if (provider === 'opencode') {
-    return 'opencode auth login';
-  }
-
-  return 'claude --dangerously-skip-permissions /login';
+  const descriptor = PROVIDER_DESCRIPTORS[provider];
+  return IS_PLATFORM
+    ? descriptor.platformLoginCommand ?? descriptor.loginCommand
+    : descriptor.loginCommand;
 };
 
-const getProviderTitle = (provider: LLMProvider) => {
-  if (provider === 'claude') return 'Claude CLI Login';
-  if (provider === 'cursor') return 'Cursor CLI Login';
-  if (provider === 'codex') return 'Codex CLI Login';
-  if (provider === 'opencode') return 'OpenCode CLI Login';
-  return 'Claude CLI Login';
-};
+const getProviderTitle = (provider: LLMProvider) => PROVIDER_DESCRIPTORS[provider].loginTitle;
 
 /** Used by the onboarding and settings modules to run a provider's CLI login command in an embedded shell. */
 export default function ProviderLoginModal({

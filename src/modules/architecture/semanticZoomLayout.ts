@@ -26,6 +26,7 @@
  */
 
 import { tierWithinDeadzone } from '@/modules/architecture/explosionLod';
+import { computePackageBounds } from '@/modules/architecture/semanticZoomPackageBounds';
 import { MIN_ZOOM_SCALE } from '@/modules/architecture/svgViewport';
 export type {
   SemanticDrawingGeometry,
@@ -49,7 +50,9 @@ import {
   planEdgeOpacity,
   planEntityContent,
   planEntityNameForWidth,
+  MEMBER_FRAME_BOTTOM_PADDING_PX,
   planMemberFrameHeight,
+  plannedMemberLineCount,
   planMemberRows,
   planPackageTab,
   planStickyLabels,
@@ -523,6 +526,12 @@ type AxisElement = {
   readonly minLength: number;
   /** This element's own cell is compacted, so gaps it covers may compress. */
   readonly compact: boolean;
+  /**
+   * The span a drawn-rows frame no longer needs (the renderer sized it for rows
+   * that are not drawn). It collapses to nothing wherever no other element
+   * covers it, at every scale, so the frame's package follows the shorter frame.
+   */
+  readonly reclaim?: boolean;
 };
 
 /** One "at least m between these two breakpoints" constraint. */
@@ -563,6 +572,15 @@ function solveAxis(
   const identity = scale >= SEMANTIC_IDENTITY_SCALE;
   for (let index = 1; index < breakpoints.length; index += 1) {
     let compressible = false;
+    let reclaimed = false;
+    if (axis === 'y') {
+      const low = breakpoints[index - 1];
+      const high = breakpoints[index];
+      const covering = elements.filter(
+        (element) => element.start <= low + 1e-6 && element.start + element.length >= high - 1e-6,
+      );
+      reclaimed = covering.length > 0 && covering.every((element) => element.reclaim === true);
+    }
     if (!identity && axis === 'y' && alpha > 0) {
       const low = breakpoints[index - 1];
       const high = breakpoints[index];
@@ -578,7 +596,7 @@ function solveAxis(
     }
     compressed[index] = compressible;
     mapped[index] = mapped[index - 1]
-      + scale * (breakpoints[index] - breakpoints[index - 1]) * (compressible ? 1 - alpha : 1);
+      + (reclaimed ? 0 : scale * (breakpoints[index] - breakpoints[index - 1]) * (compressible ? 1 - alpha : 1));
     constrained[index] = false;
     if (identity) continue;
     for (const constraint of constraints[index]) {
@@ -699,6 +717,18 @@ function evaluateTier(
       compactHeight,
       rows: { visible: showMembers },
       compaction: memberCompaction,
+      // Rows are drawn at a fixed screen size, the solver works in source
+      // units: the rows' need is converted by the scale.
+      // The title is the one the draw pass will pick for this box's width (the
+      // mapped width is never narrower than rect.width * scale), not the worst
+      // name form the planning cap reserved.
+      contentHeight: scale > 0
+        ? (plan.titleHeight
+            - plan.name.titleHeight
+            + planEntityNameForWidth(plan.name.label, node.rect.width * scale, fontPx, node.seed).titleHeight
+            + plannedMemberLineCount(rows) * rows.lineHeight
+            + MEMBER_FRAME_BOTTOM_PADDING_PX) / scale
+        : undefined,
     });
     return { geometry: node, plan, showMembers, effectiveHeight };
   });
@@ -820,6 +850,16 @@ function evaluateTier(
       minLength: entry.showMembers ? 0 : tier === 'B' ? 16 : entry.plan.minHeight,
       compact: !entry.showMembers,
     });
+    const freed = entry.geometry.rect.height - entry.effectiveHeight;
+    if (entry.showMembers && freed > 0.5) {
+      yElements.push({
+        start: entry.geometry.rect.y + entry.effectiveHeight,
+        length: freed,
+        minLength: 0,
+        compact: false,
+        reclaim: true,
+      });
+    }
   }
   // Package tab bands (raw geometry, the same band the y constraints reserve)
   // are protected from the text-hidden compression.
@@ -874,12 +914,19 @@ function evaluateTier(
       // have grown by the width-based re-plan, and a frame that no longer has
       // room for two rows must compact instead of drawing one lonely row.
       if (memberRows.visible) {
+        // A neighbour on the same rows of the shared y axis can keep the cell
+        // taller than its own rows need; the frame is drawn as tall as the rows
+        // (edges follow it, as they do a text-hidden frame).
+        const needed = plan.titleHeight
+          + plannedMemberLineCount(memberRows) * memberRows.lineHeight
+          + MEMBER_FRAME_BOTTOM_PADDING_PX;
+        const drawnHeight = Math.min(cell.height, Math.max(needed, CLASS_HIDDEN_HEIGHT_PX));
         return {
           id: entry.geometry.id,
           plan,
           cell,
           sourceCell,
-          drawn: cell,
+          drawn: drawnHeight < cell.height ? { ...cell, height: drawnHeight } : cell,
           drawnTitleHeight: plan.titleHeight,
           showMembers: true,
           memberRows,
@@ -925,25 +972,19 @@ function evaluateTier(
   });
 
   // ---- packages
-  const packages: SemanticPackageLayout[] = tree.map((entry) => {
-    const mentionedCount = mentionedIn(entry.nodeIds);
-    const tab = tabOf(entry.geometry.id, entry.nodeIds.length, mentionedCount);
-    const rect = entry.geometry.rect;
-    const frame: SemanticRect = {
-      x: x.map(rect.x),
-      y: y.map(rect.y),
-      width: x.map(rect.x + rect.width) - x.map(rect.x),
-      height: y.map(rect.y + rect.height) - y.map(rect.y),
-    };
-    const fits = frame.width >= tab.width + 4 && frame.height >= tab.height + 4;
-    return {
-      id: entry.geometry.id,
-      depth: entry.depth,
-      frame,
-      tab,
-      tabRect: fits ? { x: frame.x + 5, y: frame.y, w: tab.width, h: tab.height } : null,
-      mentionedCount,
-    };
+  // The shared y axis lets a member-hidden neighbour stretch a cell beyond the
+  // rows drawn in it; `computePackageBounds` folds each package frame onto the
+  // DRAWN bottom (see that module for the rule).
+  const packages: SemanticPackageLayout[] = computePackageBounds({
+    tier,
+    scale,
+    tree,
+    nodes,
+    rawRectById: new Map(geometry.nodes.map((node) => [node.id, node.rect])),
+    mapX: x.map,
+    mapY: y.map,
+    tabOf,
+    mentionedIn,
   });
 
   return {

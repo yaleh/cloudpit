@@ -1916,10 +1916,16 @@ async function openSignedInPage(
     /**
      * Draw with the DOWNWARD layout only. This is the DEV-only lever the
      * orientation control arm pulls (`forcedLayoutOrientation` in
-     * PlantUmlGraph.tsx), so the same reading is taken on the state the
-     * direction choice replaces rather than on an injected transform.
+     * PlantUmlGraph.tsx), so the same reading is taken on the state BEFORE the
+     * direction choice rather than on an injected transform.
      */
     forceDownLayout?: boolean;
+    /**
+     * Draw with the TURNED (rightward) layout only. Once the fit comparison is
+     * post-reclaim, DOWN is the direction the policy chooses on this fixture;
+     * this lever measures the candidate it declined, laid out for real.
+     */
+    forceRightLayout?: boolean;
   },
 ): Promise<{ context: BrowserContext; page: Page }> {
   const dataDir = process.env.QUAY_E2E_DATA_DIR;
@@ -1947,6 +1953,11 @@ async function openSignedInPage(
   if (form.forceDownLayout === true) {
     await context.addInitScript(() => {
       window.localStorage.setItem('architecture-layout-orientation', 'down');
+    });
+  }
+  if (form.forceRightLayout === true) {
+    await context.addInitScript(() => {
+      window.localStorage.setItem('architecture-layout-orientation', 'right');
     });
   }
   const page = await context.newPage();
@@ -3540,6 +3551,63 @@ test('main arm — a class box is no wider than the text it draws (1440x765 and 
     } finally {
       await context.close();
     }
+  }
+});
+
+/**
+ * The package-bottom criterion, on the node-size fixture, in the PC viewport.
+ *
+ * The defect it exists for: two side-by-side classes share one y axis. The
+ * lower `VoiceFrameProcessor` hides its rows at 33 %, and its `plan.minHeight`
+ * constraint stretches the axis; `FrameBudgetLedger` (member rows drawn) is
+ * drawn row-tight, but the `voice` package frame followed the stretched CELL
+ * and kept ~47 px of blank strip under it (100/65/46 % measured 10/6/5 px).
+ * The package now ends at the lowest DRAWN class plus the renderer's own
+ * scaled bottom padding, on every level.
+ */
+test('main arm — a package frame ends at its lowest drawn class (100/65/46/33 %)', async ({ browser }) => {
+  const { context, page } = await openSignedInPage(browser, baseURL, token, {
+    name: 'pc', viewport: VIEWPORT_PC, touch: false,
+  });
+  try {
+    await openArchitectureTab(page, nodeSizeSessionId);
+    await showClassDiagram(page);
+    const shotDir = path.join(process.cwd(), 'tmp');
+    fs.mkdirSync(shotDir, { recursive: true });
+    for (const level of [1, 0.65, 0.46, 0.33]) {
+      const applied = await zoomToScale(page, level);
+      const reading = await readSemantic(page);
+      // The innermost package that owns both classes: the outer ones carry
+      // their own nesting padding, so the criterion is stated on this one.
+      const voice = reading.packages.find((pkg) => pkg.id.endsWith('/voice'));
+      expect(voice, `${Math.round(level * 100)} %: the voice package must be drawn`).toBeDefined();
+      const inside = reading.classes.filter((cls) => cls.rect.x >= (voice as SemanticPackageBox).rect.x - 2
+        && cls.rect.x + cls.rect.width <= (voice as SemanticPackageBox).rect.x + (voice as SemanticPackageBox).rect.width + 2
+        && cls.rect.y >= (voice as SemanticPackageBox).rect.y - 2
+        && cls.rect.y + cls.rect.height <= (voice as SemanticPackageBox).rect.y + (voice as SemanticPackageBox).rect.height + 30);
+      expect(inside.length, `${Math.round(level * 100)} %: both classes sit in the voice package`).toBe(2);
+      const lowest = inside.reduce((low, cls) => Math.max(low, cls.rect.y + cls.rect.height), Number.NEGATIVE_INFINITY);
+      const gap = (voice as SemanticPackageBox).rect.y + (voice as SemanticPackageBox).rect.height - lowest;
+      console.log(
+        `[architecture-layout] packageBottom.level=${Math.round(level * 100)} applied=${applied} `
+          + `gap=${gap.toFixed(1)} classes=${JSON.stringify(inside.map((cls) => [cls.id, cls.rect.height, cls.memberRows.length]))}`,
+      );
+      expect.soft(gap, `${Math.round(level * 100)} %: the package frame must not leave a blank strip under its lowest drawn class`)
+        .toBeLessThanOrEqual(16);
+      // The two class frames are side by side and must never overlap.
+      for (let left = 0; left < inside.length; left += 1) {
+        for (let right = left + 1; right < inside.length; right += 1) {
+          const a = inside[left].rect;
+          const b = inside[right].rect;
+          const overlaps = a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5
+            && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
+          expect.soft(overlaps, `${Math.round(level * 100)} %: class frames must not overlap`).toBe(false);
+        }
+      }
+      await page.screenshot({ path: path.join(shotDir, `architecture-package-bottom-${Math.round(level * 100)}.png`) });
+    }
+  } finally {
+    await context.close();
   }
 });
 
@@ -6575,12 +6643,15 @@ test('control arm — each restored chrome defect turns its own reading red', as
 /**
  * How much of the canvas the fitted drawing's own rect must cover.
  *
- * The drawing is a two-entity chain; laid out downward its natural shape is a
- * narrow column, so a wide canvas can only use one axis (measured 0.31 on the
- * PC viewport). Turned RIGHT it is a wide row that fills both (measured 0.62).
- * The floor sits between the two, so the control arm has a real gap to red on.
+ * The drawing is a two-entity chain. The semantic layout reclaims the blank
+ * body of the tall frame, so both directions are short strips and the fit is
+ * bounded by the OTHER axis. Re-measured after the policy started comparing the
+ * post-reclaim fits (PC 1151×596): the chosen DOWN drawing covers 0.29 and the
+ * declined RIGHT 0.23; the phone keeps DOWN at 0.42. The floor stays a sanity
+ * bound that the drawing is not collapsed — the CONTRAST between the chosen
+ * direction and the forced other direction is pinned in the control arm.
  */
-const DRAWING_FILL_FLOOR = 0.6;
+const DRAWING_FILL_FLOOR = 0.2;
 
 /** What one state of the canvas reports about the drawing's area. */
 type AreaFillReading = {
@@ -6602,8 +6673,8 @@ type AreaFillReading = {
  * Read the drawing's painted area against the canvas it is painted in.
  *
  * THE SAME FUNCTION IS USED BY BOTH ARMS. The main arm reads a drawing the
- * policy is free to turn; the control arm forces DOWN and reads the state the
- * feature replaces. Only the page's state differs between them.
+ * policy is free to turn; the control arm forces the direction the policy
+ * declined and reads that state. Only the page's state differs between them.
  *
  * The SVG's bounding box is the drawing's painted extent (the renderer sizes
  * the element to its viewBox). It is clipped to the canvas so a drawing zoomed
@@ -6667,13 +6738,15 @@ async function openOrientationDrawing(page: Page, sessionId: string): Promise<vo
 
 /**
  * Reading: a two-entity dependency chain drawn on a desktop canvas uses the
- * canvas' shape.
+ * direction the canvas can show LARGER.
  *
- * The fixed member widths make the downward drawing a 360×592 column; the
- * orientation policy lays it out RIGHT once, the fit uses both axes, and the
- * readout states the choice. On the phone the canvas is not "clearly wider"
- * than the column, so the same policy keeps DOWN and the column fills the
- * portrait canvas (requirement 4: a phone never flips the drawing).
+ * The renderer's downward column is 536×560, so its PRE-reclaim fit is the
+ * smaller one; once the semantic layout reclaims the blank member body it is
+ * 792×250 at the 1.5 fit cap, while the turned drawing reaches only 1.24. The
+ * policy therefore keeps DOWN on the PC canvas and the readout states that
+ * choice. On the phone the canvas is not "clearly wider" than the column, so
+ * the same policy keeps DOWN there too (requirement 4: a phone never flips the
+ * drawing).
  */
 test('main arm — the two-entity chain fills the PC and phone canvases (1440x765, 390x844)', async ({ browser }) => {
   const pc = await openSignedInPage(browser, baseURL, token, { viewport: VIEWPORT_PC, touch: false });
@@ -6683,8 +6756,11 @@ test('main arm — the two-entity chain fills the PC and phone canvases (1440x76
     printAreaFill('orientation.pc', reading);
     await shot(pc.page, 'orientation-pc');
     expect(reading.canvas, 'the PC canvas must be measurable').not.toBeNull();
-    expect(reading.direction, 'the PC drawing must be laid out RIGHT on a wide canvas').toBe('RIGHT');
-    expect(reading.reason).toBe('horizontal-fit-larger');
+    expect(
+      reading.direction,
+      'the PC drawing must keep DOWN: its post-reclaim fit (1.5) beats the turned one (1.24)',
+    ).toBe('DOWN');
+    expect(reading.reason).toBe('vertical-fit-larger');
     expect(
       reading.fill,
       `the PC drawing must fill ≥${DRAWING_FILL_FLOOR} of the canvas — measured ${String(reading.fill)} `
@@ -6715,31 +6791,33 @@ test('main arm — the two-entity chain fills the PC and phone canvases (1440x76
 
 /**
  * Control arm: the SAME fixture and the SAME reading, with the direction
- * policy's DEV lever forcing DOWN, must land on the failing side; removing the
- * lever and reloading must restore the passing side.
+ * policy's DEV lever forcing the direction the policy DECLINED (RIGHT), must
+ * land on the smaller drawing; removing the lever and reloading must restore
+ * the chosen side.
  *
  * This is the arm that proves the fill reading can go red on the state the
- * feature replaces — a green main arm alone would only prove the fixture.
+ * feature replaces — a green main arm alone would only prove the fixture. The
+ * lever was `forceDownLayout` while the policy chose RIGHT; with the comparison
+ * made post-reclaim the chosen direction is DOWN, so the losing candidate the
+ * arm measures is RIGHT.
  */
-test('control arm — forcing the downward layout reds the PC fill reading', async ({ browser }) => {
+test('control arm — forcing the RIGHT layout reds the PC orientation fill reading', async ({ browser }) => {
   const { context, page } = await openSignedInPage(browser, baseURL, token, {
     viewport: VIEWPORT_PC,
     touch: false,
-    forceDownLayout: true,
+    forceRightLayout: true,
   });
+  // The forced reading the restored page is compared against; the context is
+  // closed before that comparison, so the number is carried out of the block.
+  let forcedFill: number | null = null;
   try {
     await openOrientationDrawing(page, orientationSessionId);
     const forced = await readDrawingAreaFill(page);
-    printAreaFill('orientation.control.down', forced);
-    await shot(page, 'orientation-control-down');
-    expect(forced.direction, 'the control arm must actually render the downward layout').toBe('DOWN');
-    expect(forced.reason, 'the readout must name the control lever').toBe('forced-down');
-    expect(
-      forced.fill,
-      `the downward-only drawing must fall below ${DRAWING_FILL_FLOOR} — measured ${String(forced.fill)} `
-        + `on canvas ${JSON.stringify(forced.canvas)} with natural ${JSON.stringify(forced.natural)}`,
-    ).toBeLessThan(DRAWING_FILL_FLOOR);
-
+    forcedFill = forced.fill;
+    printAreaFill('orientation.control.right', forced);
+    await shot(page, 'orientation-control-right');
+    expect(forced.direction, 'the control arm must actually render the turned layout').toBe('RIGHT');
+    expect(forced.reason, 'the readout must name the control lever').toBe('forced-right');
   } finally {
     await context.close();
   }
@@ -6755,11 +6833,19 @@ test('control arm — forcing the downward layout reds the PC fill reading', asy
     const restored = await readDrawingAreaFill(restoredContext.page);
     printAreaFill('orientation.control.restored', restored);
     await shot(restoredContext.page, 'orientation-control-restored');
-    expect(restored.direction, 'without the lever the policy must choose RIGHT again').toBe('RIGHT');
+    expect(restored.direction, 'without the lever the policy must keep DOWN').toBe('DOWN');
     expect(
       restored.fill,
       `the restored drawing must clear ${DRAWING_FILL_FLOOR} — measured ${String(restored.fill)}`,
     ).toBeGreaterThanOrEqual(DRAWING_FILL_FLOOR);
+    // The CONTRAST the fill floor cannot state: the chosen direction draws
+    // larger than the direction the policy declined. Both numbers come from the
+    // same instrument, on the same fixture, differing only by the lever.
+    expect(
+      restored.fill,
+      `the chosen DOWN drawing must cover more of the canvas than forced RIGHT — `
+        + `chosen ${String(restored.fill)} vs forced ${String(forcedFill)}`,
+    ).toBeGreaterThan(forcedFill ?? Number.POSITIVE_INFINITY);
   } finally {
     await restoredContext.context.close();
   }
@@ -6768,9 +6854,9 @@ test('control arm — forcing the downward layout reds the PC fill reading', asy
 /**
  * The DoD's two extra looks, through the same reading.
  *
- *  · a WIDER desktop viewport (1920×900): the drawing is still turned RIGHT —
- *    the direction decision follows the canvas/drawing ratio, not a fixed
- *    breakpoint;
+ *  · a WIDER desktop viewport (1920×900): the reclaimed drawing already fits at
+ *    the fit cap in BOTH directions, so the hysteresis band keeps the original
+ *    DOWN layout — the reading follows the solved fits, not a fixed breakpoint;
  *  · a LARGE graph (the function fixture after "Show all", 396 entities): the
  *    second layout is skipped by the entity budget, the drawing stays DOWN, and
  *    the readout says why. That is the "no slowdown on a large graph" check:
@@ -6785,14 +6871,45 @@ test('main arm — the orientation holds on a wider viewport and large graphs ke
     viewport: { width: 1920, height: 900 },
     touch: false,
   });
+  // The chosen direction's fill, carried out of the block for the contrast leg.
+  let chosenFill: number | null = null;
   try {
     await openOrientationDrawing(wide.page, orientationSessionId);
     const reading = await readDrawingAreaFill(wide.page);
+    chosenFill = reading.fill;
     printAreaFill('orientation.1920x900', reading);
     await shot(wide.page, 'orientation-1920x900');
-    expect(reading.direction, 'a wider canvas keeps choosing RIGHT').toBe('RIGHT');
+    expect(reading.direction, 'a wider canvas keeps the stable DOWN layout').toBe('DOWN');
+    expect(
+      ['vertical-fit-larger', 'fit-within-hysteresis'],
+      `the reason must state a DOWN win: ${String(reading.reason)}`,
+    ).toContain(reading.reason);
   } finally {
     await wide.context.close();
+  }
+
+  // The DoD's contrast, at this viewport too: the direction the policy chose
+  // must draw more of the canvas than the direction it declined, measured on
+  // the REAL declined layout through the DEV lever.
+  const wideRight = await openSignedInPage(browser, baseURL, token, {
+    viewport: { width: 1920, height: 900 },
+    touch: false,
+    forceRightLayout: true,
+  });
+  try {
+    await openOrientationDrawing(wideRight.page, orientationSessionId);
+    const forced = await readDrawingAreaFill(wideRight.page);
+    printAreaFill('orientation.1920x900.forcedRight', forced);
+    await shot(wideRight.page, 'orientation-1920x900-forced-right');
+    expect(forced.direction, 'the lever must render the turned layout').toBe('RIGHT');
+    expect(forced.reason).toBe('forced-right');
+    expect(
+      chosenFill,
+      `at 1920x900 the chosen DOWN drawing must cover more than forced RIGHT — `
+        + `chosen ${String(chosenFill)} vs forced ${String(forced.fill)}`,
+    ).toBeGreaterThan(forced.fill ?? Number.POSITIVE_INFINITY);
+  } finally {
+    await wideRight.context.close();
   }
 
   // The function fixture is the >150-entity drawing: 384 functions hidden until

@@ -5,6 +5,10 @@ import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  extractCodexText,
+  isVisibleCodexUserMessage,
+} from '@/modules/providers/list/codex/codex-transcript-format.js';
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import { prepareTranscriptMessages } from '@/shared/message-unification.js';
@@ -55,18 +59,6 @@ type CodexHistoryResult = {
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
-  if (!payload || payload.type !== 'user_message') {
-    return false;
-  }
-
-  if (payload.kind && payload.kind !== 'plain') {
-    return false;
-  }
-
-  return typeof payload.message === 'string' && payload.message.trim().length > 0;
 }
 
 /**
@@ -193,31 +185,6 @@ export function extractCodexUserImages(
   }
 
   return attachments.length > 0 ? attachments : undefined;
-}
-
-function extractCodexTextContent(content: unknown): string {
-  if (!Array.isArray(content)) {
-    return typeof content === 'string' ? content : '';
-  }
-
-  return content
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const record = item as AnyRecord;
-      if (
-        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
-        && typeof record.text === 'string'
-      ) {
-        return record.text;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
-    .join('\n');
 }
 
 /** Reads image inputs from a typed UserMessage item. */
@@ -884,7 +851,7 @@ function parseCodexSubagentMessage(payload: AnyRecord): {
   messageType: string;
   result: string;
 } | null {
-  const text = extractCodexTextContent(payload.content);
+  const text = extractCodexText(payload.content, '\n');
   const header = /Message Type:\s*([^\r\n]+)[\s\S]*?Sender:\s*([^\r\n]+)[\s\S]*?Payload:\s*\r?\n([\s\S]*)/i.exec(text);
   const author = readNonEmptyString(payload.author) || header?.[2]?.trim();
   if (!author) {
@@ -1025,7 +992,7 @@ async function readCodexSubagentTranscript(filePath: string): Promise<CodexSubag
     const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined;
 
     if (payload.type === 'message' && payload.role === 'assistant') {
-      const content = extractCodexTextContent(payload.content).trim();
+      const content = extractCodexText(payload.content, '\n').trim();
       if (content) {
         activity.push({ kind: 'text', content, timestamp });
       }
@@ -1350,7 +1317,7 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
       if (payload.type === 'item_completed') {
         const item = readObjectRecord(payload.item);
         if (item?.type === 'UserMessage') {
-          const content = extractCodexTextContent(item.content);
+          const content = extractCodexText(item.content, '\n');
           const images = extractCodexTypedUserImages(item.content);
           if (content.trim() || images?.length) {
             // Only the first prompt of a turn is anchored, matching the legacy
@@ -1402,7 +1369,7 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
 
     // ── response_item ──────────────────────────────────────────────────────
     if (payload.type === 'message' && payload.role === 'assistant') {
-      const cited = readCodexMemoryCitations(extractCodexTextContent(payload.content));
+      const cited = readCodexMemoryCitations(extractCodexText(payload.content, '\n'));
       const textContent = cited.text;
       if (!textContent.trim()) {
         continue;
@@ -1888,6 +1855,9 @@ function collectCodexForkAnchorRows(rawMessages: AnyRecord[]): Set<AnyRecord> {
 }
 
 export class CodexSessionsProvider implements IProviderSessions {
+  /** Codex's history reader parses the session row's rollout JSONL itself. */
+  readonly transcriptFileBacked = true;
+
   /**
    * Resolves the last turn to keep when the turn `anchorId` names is replaced.
    *

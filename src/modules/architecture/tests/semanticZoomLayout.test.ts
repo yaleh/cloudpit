@@ -1025,18 +1025,72 @@ describe('the member-hidden vertical compaction (axis solver × planMemberRows)'
     }
   });
 
-  test('a class that DOES render its rows keeps the full mapped height', () => {
-    // A tall box at 90 % leaves room for many rows at the floor font, so the
-    // member text is drawn and the compaction must not touch the frame.
+  test('a class that DOES render its rows is only as tall as those rows need', () => {
+    // A tall box at 90 % leaves far more room than 6 rows use. The drawn rows
+    // keep their frame, but the blank body under them is reclaimed.
     const tall = compactNode('tall', { x: 0, y: 0, width: 220, height: 240 }, 6);
     const drawing: SemanticDrawingGeometry = { width: 300, height: 300, nodes: [tall], packages: [], edges: [] };
     const layout = solveSemanticZoom(drawing, { scale: 0.9, forceTier: 'A', viewport: null });
     const node = layout.nodes[0];
     assert.equal(node.showMembers, true, 'the fixture must genuinely draw member rows');
-    assert.ok(node.memberRows !== null && node.memberRows.rows.length >= 2);
-    assert.ok(Math.abs(node.cell.height - 240 * 0.9) < 1e-6, `full height kept: ${node.cell.height}`);
-    assert.ok(Math.abs(node.sourceCell.height - node.cell.height) < 1e-6, 'nothing was compacted');
+    const rows = node.memberRows;
+    assert.ok(rows !== null && rows.rows.length >= 2);
+    const need = node.plan.titleHeight + (rows.rows.length + (rows.moreLabel === null ? 0 : 1)) * rows.lineHeight;
+    assert.ok(node.cell.height < 240 * 0.9 - 1, `blank body reclaimed: ${node.cell.height}`);
+    assert.ok(node.cell.height >= need, `rows still fit: ${node.cell.height} < ${need}`);
+    assert.ok(Math.abs(node.sourceCell.height - 240 * 0.9) < 1e-6, 'the source rect is unchanged');
     assert.ok(Math.abs(node.drawn.height - node.cell.height) < 1e-6);
+  });
+
+  test('a package frame ends at the drawn class, not at a hidden neighbour’s min-height stretch', () => {
+    // The reported 33 % state, on a hand-built drawing shaped like the e2e
+    // fixture: `FrameBudgetLedger` draws member rows while a lower, overlapping
+    // `VoiceFrameProcessor` hides them. The hidden frame's `plan.minHeight`
+    // constraint collapses its compressed band to zero and then stretches the
+    // shared y axis, which keeps the neighbour's CELL tall although only its
+    // row-tight frame is drawn. The package must follow the drawn frame, or its
+    // bottom keeps the stretch as the reported ~47 px blank strip.
+    const rich = {
+      ...compactNode('FrameBudgetLedger', { x: 20, y: 40, width: 240, height: 348 }, 6),
+      // The renderer emits at most six member rows and counts the rest in
+      // `memberTotal`, so the row plan saturates: the drawn frame stays shorter
+      // than a cell a neighbour's constraint has stretched.
+      memberTotal: 20,
+    };
+    const hidden = compactNode(
+      'VoiceFrameProcessorWithOverflow',
+      { x: 280, y: 60, width: 200, height: 100 },
+      7,
+    );
+    const voice: SemanticPackageGeometry = {
+      id: 'src/runtime/voice',
+      rect: { x: 0, y: 0, width: 520, height: 398 },
+      rawLabel: 'voice',
+      tabWidth: null,
+      tabHeight: null,
+      tabClosed: false,
+    };
+    const drawing: SemanticDrawingGeometry = {
+      width: 520,
+      height: 410,
+      nodes: [rich, hidden],
+      packages: [voice],
+      edges: [],
+    };
+    const layout = solveSemanticZoom(drawing, { scale: 0.33, forceTier: 'A', viewport: null });
+    const withRows = layout.nodes.find((node) => node.id === 'FrameBudgetLedger');
+    const withoutRows = layout.nodes.find((node) => node.id === 'VoiceFrameProcessorWithOverflow');
+    assert.ok(withRows !== undefined && withoutRows !== undefined);
+    assert.equal(withRows.showMembers, true, 'the fixture must genuinely draw member rows');
+    assert.equal(withoutRows.showMembers, false, 'the neighbour must genuinely hide its rows');
+    assert.ok(
+      withRows.drawn.height < withRows.cell.height - 10,
+      `the drawn frame must be row-tight against a stretched cell: `
+        + `${withRows.drawn.height} vs ${withRows.cell.height}`,
+    );
+    const frame = layout.packages[0].frame;
+    const gap = frame.y + frame.height - (withRows.drawn.y + withRows.drawn.height);
+    assert.ok(gap <= 16, `the package bottom leaves ${gap} px under the drawn class (max 16)`);
   });
 
   test('compaction tightens the column without ever letting neighbours overlap', () => {

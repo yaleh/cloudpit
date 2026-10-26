@@ -200,6 +200,12 @@ const aggregateOpenCodeSessionTokenUsage = (
 
 export class OpenCodeSessionsProvider implements IProviderSessions {
   /**
+   * OpenCode keeps messages in its shared SQLite store, not in the row's
+   * `jsonl_path`, whose stat therefore says nothing about this reader's history.
+   */
+  readonly transcriptFileBacked = false;
+
+  /**
    * Normalizes live `opencode run --format json` events into frontend messages.
    */
   normalizeMessage(rawMessage: unknown, sessionId: string | null): NormalizedMessage[] {

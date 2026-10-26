@@ -35,7 +35,7 @@ import {
   isInternalContent,
   parseLocalCommandPayload,
 } from '@/modules/providers/list/claude/claude-transcript-format.js';
-import { summarizeClaudeTokenUsage } from '@/modules/providers/services/provider-token-usage.service.js';
+import { summarizeClaudeTokenUsage } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
 import { takeHistoryLoadContext } from '@/modules/providers/services/session-history-cache.service.js';
 
 const PROVIDER = 'claude';
@@ -1116,6 +1116,9 @@ function collectClaudeForkAnchorUuids(rawMessages: AnyRecord[], running: boolean
 }
 
 export class ClaudeSessionsProvider implements IProviderSessions {
+  /** Claude's history reader parses the session row's JSONL transcript itself. */
+  readonly transcriptFileBacked = true;
+
   /**
    * Normalizes one Claude JSONL entry or live SDK stream event into the shared
    * message shape consumed by REST and WebSocket clients.
