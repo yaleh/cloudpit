@@ -13,9 +13,7 @@ import {
 import {
   archguardToPlantUml,
   DEFAULT_NEIGHBORHOOD_HOPS,
-  MEMBER_MAX_ROWS,
   memberDisplayLimits,
-  memberOverflowLabel,
   parserSafePlantUml,
   type ArchitectureDiagramView,
 } from '@/modules/architecture/archguardToPlantUml';
@@ -46,13 +44,13 @@ import {
   solveFitScale,
   solveSemanticZoom,
   semanticContentBounds,
-  semanticDrawnFitScale,
   lodDepthForTier,
   type FitAreaRect,
   type FitOverlayRect,
   type SemanticTier,
   type SemanticZoomLayout,
 } from '@/modules/architecture/semanticZoomLayout';
+import { capDrawnMemberRows, drawnFitScaleOf } from '@/modules/architecture/drawnFit';
 import {
   SEMANTIC_MIN_FONT_MOBILE_PX,
   SEMANTIC_MIN_FONT_PX,
@@ -223,67 +221,11 @@ function layoutSizeOf(detailed: { readonly layout: unknown }): OrientationSize |
 }
 
 /**
- * The semantic fit scale a finished render would be PAINTED at, measured on the
- * drawing AFTER the semantic pass reclaims the blank body of frames whose
- * member rows are not drawn.
- *
- * {@link layoutSizeOf} is the renderer's own geometry, which still counts the
- * rows nothing draws. The direction policy must compare what the reader sees
- * (see `layoutOrientation.ts`), so the two candidates are each solved once here.
- * The geometry is read from the render's own SVG in a DETACHED holder: at
- * decision time the drawing has not been injected into the host, and the reader
- * is read-only.
+ * The row-cap and drawn-fit readings live in `drawnFit.ts` (this panel is
+ * size-ratcheted); `capDrawnMemberRows` stays re-exported here because the
+ * renderer is where its consumers expect to find it.
  */
-function drawnFitScaleOf(
-  detailed: { readonly svg: string },
-  graph: Parameters<typeof captureSemanticDrawing>[1],
-  viewport: OrientationSize,
-  fontPx: number,
-): number | null {
-  const holder = document.createElement('div');
-  holder.innerHTML = detailed.svg;
-  // The row cap is a DRAWING rule applied before the semantic capture, so the
-  // detached reading must apply the same rule or it plans rows nothing paints.
-  capDrawnMemberRows(holder);
-  const capture = captureSemanticDrawing(holder, graph);
-  if (capture === null || capture.geometry.nodes.length === 0) return null;
-  const scale = semanticDrawnFitScale(capture.geometry, viewport, fontPx);
-  return scale > 0 ? scale : null;
-}
-
-/**
- * Cap the member ROWS the drawing shows, after layout and before the drawing is
- * captured for semantic zoom.
- *
- * This is the drawing layer's rule, not the renderer's: `memberMaxRows` would
- * write the fold row into `model.entities[].members` as a synthetic member, and
- * the Text page / a copied document must never state a member the source did
- * not declare. The renderer is asked only to shorten LINES (`memberMaxChars`);
- * here the surplus rows are removed from the DOM and replaced by the same
- * `… +N more (M members)` row the renderer would emit — which the read layer
- * already parses back into `memberTotal`, so the count survives the fold.
- *
- * Rows the entity does not exceed are left untouched, and a box keeps the
- * rect the layout gave it: the drawing is not re-laid out for a display rule.
- *
- * The label is the LONG form on purpose, and only here: the read layer parses
- * `… +N more (M members)` as the total source, so the marker survives the
- * semantic pass as a count. The semantic pass's own `… +N more` stays short —
- * if IT painted the long form, a re-read drawing would count the app's own row
- * as an upstream overflow and trip the "one marker only" guard.
- */
-export function capDrawnMemberRows(host: HTMLElement): void {
-  for (const group of host.querySelectorAll('.uml-node[data-entity-id]')) {
-    const rows = [...group.querySelectorAll<SVGTextElement>('text.uml-attr, text.uml-op')];
-    if (rows.length <= MEMBER_MAX_ROWS) continue;
-    const hidden = rows.slice(MEMBER_MAX_ROWS);
-    // The marker inherits the first hidden row's position and font attributes.
-    const marker = hidden[0].cloneNode(false) as SVGTextElement;
-    for (const row of hidden) row.remove();
-    marker.textContent = memberOverflowLabel(hidden.length, rows.length);
-    group.appendChild(marker);
-  }
-}
+export { capDrawnMemberRows };
 
 /**
  * The member detail every drawing is rendered with.

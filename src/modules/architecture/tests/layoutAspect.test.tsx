@@ -58,7 +58,7 @@ import {
 } from '@/modules/architecture/layoutOrientation';
 import { captureSemanticDrawing } from '@/modules/architecture/graphDom';
 import { capDrawnMemberRows } from '@/modules/architecture/PlantUmlGraph';
-import { semanticDrawnFitScale } from '@/modules/architecture/semanticZoomLayout';
+import { semanticDrawnFitScale } from '@/modules/architecture/drawnFit';
 import { SEMANTIC_MIN_FONT_PX } from '@/modules/architecture/semanticZoomPlan';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
