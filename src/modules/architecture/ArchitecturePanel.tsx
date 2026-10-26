@@ -138,12 +138,7 @@ import {
   readStoredTouchHintDismissed,
   writeStoredTouchHintDismissed,
 } from '@/modules/architecture/panelPersistence';
-
-/**
- * The dock's pages. `inspector` is the selection reading; `text` is the
- * PlantUML page registered by the text-page task on the same shell.
- */
-type ArchitectureDockTabId = 'inspector' | 'text';
+import { createArchitectureChromeController } from '@/modules/architecture/architectureChromeController';
 
 /**
  * The id scheme the server used for a subgraph. File ids ARE project-relative
@@ -169,14 +164,6 @@ const EMPTY_VIEW_UNRESOLVED_LIMIT = 5;
  */
 const MENTIONED_HINT_ID = 'architecture-filter-mentioned-hint';
 /**
- * How long the dock's open/close animation lasts (matching the 160ms
- * `transform` transition in `ArchitectureDock`). Aspect-driven re-layout stays
- * frozen for the duration, plus a frame of slack, so the width change caused by
- * the dock itself is never read as a container shape change.
- */
-const DOCK_LAYOUT_LOCK_MS = 200;
-
-/**
  * Where the portrait phone's summary remembers whether it is expanded.
  *
  * `sessionStorage`, not `localStorage`: the requirement is "remembered within
@@ -193,19 +180,6 @@ const readReadoutExpandedInSession = (): boolean => {
   } catch {
     return false;
   }
-};
-
-/** A node the reader asked the graph to reveal (search hit or out-of-range jump). */
-type ArchitectureFocusTarget = {
-  readonly id: string;
-  /** Bumped on every request so choosing the same node twice re-centres it. */
-  readonly token: number;
-  /**
-   * Whether the request also opens the node's neighbourhood. A plain search
-   * Enter only centres and selects IN the current drawing; only Shift+Enter or
-   * the result row's "view neighbourhood" action drills.
-   */
-  readonly drill: boolean;
 };
 
 type ArchitecturePanelProps = {
@@ -496,6 +470,66 @@ export default function ArchitecturePanel({
   const compactHeaderButtonClass = portraitPhone
     ? 'rounded-md px-2 text-sm font-medium'
     : headerButtonClass;
+  // ---- Panel chrome (open surfaces, drawer height, layout lock) ------------
+  // The owner holds every open/close reading, the coarse drawer's height, the
+  // dock's layout-lock window and the two remembered choices (the one-off touch
+  // hint, the portrait readout). Viewport readings are callables because they
+  // change per event; the ref keeps the owner stable across an orientation
+  // change, so a rotation does not reset the dock.
+  const portraitPhoneRef = useRef(portraitPhone);
+  useEffect(() => {
+    portraitPhoneRef.current = portraitPhone;
+  }, [portraitPhone]);
+  const chrome = useMemo(
+    () => createArchitectureChromeController({
+      viewport: {
+        portraitPhone: () => portraitPhoneRef.current,
+        height: () => (typeof window === 'undefined' ? 0 : window.innerHeight),
+      },
+      persistence: {
+        readTouchHintDismissed: readStoredTouchHintDismissed,
+        persistTouchHintDismissed: writeStoredTouchHintDismissed,
+        readReadoutExpanded: readReadoutExpandedInSession,
+        persistReadoutExpanded: (open) => {
+          if (typeof window === 'undefined') return;
+          try {
+            window.sessionStorage.setItem(READOUT_EXPANDED_SESSION_KEY, open ? 'true' : 'false');
+          } catch {
+            // Private mode: the choice still holds for this mount.
+          }
+        },
+      },
+    }),
+    [],
+  );
+  const chromeSnapshot = useSyncExternalStore(
+    chrome.subscribe,
+    chrome.getSnapshot,
+    chrome.getSnapshot,
+  );
+  const {
+    sheetOpen,
+    sheetControlsHost,
+    canvasHeaderHost,
+    touchHintDismissed,
+    focusTarget,
+    trayExpanded,
+    dockOpen,
+    dockTab,
+    dockLayoutLocked,
+    touchDrawerHeight,
+    readoutOpen,
+    legendOpen,
+    unresolvedOpen,
+    scopeHygieneOpen,
+    topChromePx,
+    multiSelectMode,
+  } = chromeSnapshot;
+  const dismissTouchHint = chrome.dismissTouchHint;
+  // The owner releases the layout-lock timer on unmount; StrictMode's
+  // teardown-and-reset re-uses the same instance afterwards (dispose is not a
+  // kill switch).
+  useEffect(() => () => chrome.dispose(), [chrome]);
   // The filter/display owner: which subgraph is on screen, the requested BFS
   // depth and the detail tier, the element/relation filter, the debounced
   // request those selections become, and the filter popover's disclosure. A
@@ -803,35 +837,12 @@ export default function ArchitecturePanel({
       : { shown: detailRanking.retainedNodeIds.size, totalInScope: displayNeighbourhood.nodes.length }),
     [detailRanking, displayNeighbourhood],
   );
-  // Whether the compact tier's bottom sheet is open. On that tier the panel
-  // draws one header row (the view switch and `Adjust`); every other control
-  // lives in this sheet, which is the phone's one menu.
-  const [sheetOpen, setSheetOpen] = useState(false);
   // The control that opened the sheet. Closing the dialog returns focus here.
   const sheetTriggerRef = useRef<HTMLButtonElement | null>(null);
-  // The sheet body's DOM node while it is open. It is handed to the renderer
-  // through `CompactToolbarSlotContext` so the graph's own controls are drawn
-  // inside the same sheet instead of in a second toolbar row.
-  const [sheetControlsHost, setSheetControlsHost] = useState<HTMLElement | null>(null);
-  // The right-hand cell of the in-flow row above the canvas. The renderer
-  // portals the zoom tier and its scale reading into it, so that chrome sits in
-  // normal flow instead of floating over the drawing's first row. On the
-  // compact tier the same slot lives INSIDE the sheet (the canvas keeps no
-  // in-flow chrome row there).
-  const [canvasHeaderHost, setCanvasHeaderHost] = useState<HTMLElement | null>(null);
-  // A coarse pointer has no hover, so the touch instruction is shown once and
-  // then dismissed — by its close button, by the first node selection, or by
-  // its own fade-out. The choice is remembered per browser, so the bubble is a
-  // genuine one-off rather than a row that returns on every mount.
-  const [touchHintDismissed, setTouchHintDismissed] = useState<boolean>(readStoredTouchHintDismissed);
-  const dismissTouchHint = useCallback((): void => {
-    setTouchHintDismissed(true);
-    writeStoredTouchHintDismissed();
-  }, []);
-  // The node the reader asked to see, and the token that re-triggers the same
-  // request. The renderer navigates to it and centres it; the panel only holds
-  // the request so a search hit survives the renderer's own navigation state.
-  const [focusTarget, setFocusTarget] = useState<ArchitectureFocusTarget | null>(null);
+  // The sheet body's DOM node while it is open, and the right-hand cell of the
+  // in-flow row above the canvas. Both are renderer portal targets reported to
+  // the chrome owner; the owner publishes them with the rest of the surface
+  // state (see `sheetControlsHost` / `canvasHeaderHost`).
   // The node the reader asked for is PINNED: the layout budget may cut a large
   // graph down to its most important nodes, and a searched-for node must
   // survive that cut even when its own importance would put it outside it.
@@ -868,38 +879,10 @@ export default function ArchitecturePanel({
       : [])),
     [selections],
   );
-  // Whether the touch multi-select mode is on. It makes every tap a toggle
-  // instead of a replace; a long-press on an entity turns it on.
-  const [multiSelectMode, setMultiSelectMode] = useState(false);
-  // Whether the selection tray is expanded. The panel owns it because Escape
-  // collapses the tray before it clears the selection.
-  const [trayExpanded, setTrayExpanded] = useState(false);
-  // Whether the dock is on screen. It ALWAYS starts closed: the previous
-  // browser-remembered value was the cause of a fresh entry opening a 320px
-  // empty inspector ("Select a node …") and squeezing the canvas. Only a
-  // gesture opens it — a fresh selection, or the toolbar's explicit Text door.
-  const [dockOpen, setDockOpen] = useState(false);
-  // The coarse drawer's height in CSS pixels, reported by the dock itself (it
-  // alone knows which of the three snaps is in force). Two consumers need the
-  // number: the selection tray is lifted above the drawer, and the drawing
-  // reserves the band so the selected box is not hidden behind it. 0 when the
-  // drawer is closed or the tier is the desktop dock.
-  const [touchDrawerHeight, setTouchDrawerHeight] = useState(0);
-  // True when the reader opened the dock THEMSELVES while nothing was
-  // selected (the Text button). Only that kind of open may show an empty
-  // inspector page; an open that a selection caused must close as soon as the
-  // selection empties, so an empty dock never claims a column on its own.
-  const [dockExplicitlyOpened, setDockExplicitlyOpened] = useState(false);
-  // Which dock page is on screen. The shell owns the tablist; this state is the
-  // half that makes a tab click reach the content. A fresh selection does not
-  // switch pages: a reader looking at the text of the drawing they just
-  // selected in keeps that page.
-  const [dockTab, setDockTab] = useState<ArchitectureDockTabId>('inspector');
-  // True while the dock's 160ms open/close transition runs. The renderer freezes
-  // aspect-driven re-layout for that window (the dock narrows the canvas), then
-  // re-bases without a layout — the toggle is never counted as a shape change.
-  const [dockLayoutLocked, setDockLayoutLocked] = useState(false);
-  const dockLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The multi-select/tray/dock readings below are the chrome owner's: the
+  // snapshot destructured at the top of the component is the render side. Its
+  // rules — the dock's explicit-vs-selection open, the layout-lock window, the
+  // drawer height clamp — live in `architectureChromeController`.
   // The graph the renderer actually receives: the detail tier's cut, then the
   // layout budget's cut. PlantUML/ELK runs on the main thread and its layout
   // cost grows super-linearly with the node count, so an over-budget drawing
@@ -922,34 +905,13 @@ export default function ArchitecturePanel({
       )),
     [displayNeighbourhood, detail, layoutPinnedIds],
   );
-  // The one-line readout's expanded state: the explanation and the two knobs
-  // ("raise detail", "reduce scope") live behind this toggle. Why state: the
-  // portrait tier must start collapsed (its height budget) yet keep the
-  // reader's expansion across a tab round trip, so the initial value reads the
-  // session store and the effect below writes every change back.
-  const [readoutOpen, setReadoutOpen] = useState<boolean>(
-    () => portraitPhone && readReadoutExpandedInSession(),
-  );
-  useEffect(() => {
-    if (!portraitPhone) return;
-    try {
-      window.sessionStorage.setItem(READOUT_EXPANDED_SESSION_KEY, readoutOpen ? 'true' : 'false');
-    } catch {
-      // Private mode: the choice still holds for this mount.
-    }
-  }, [portraitPhone, readoutOpen]);
-  // The `?` legend popover; shut by default so the drawing owns the canvas.
-  const [legendOpen, setLegendOpen] = useState(false);
+  // The one-line readout, legend, unresolved-list and scope-hygiene disclosures
+  // are chrome-owner readings (see the snapshot above); the legend's own focus
+  // return stays here because it is a DOM gesture, not open/close state.
   // The disclosure that opened the legend, so Escape can return focus to it.
   const legendButtonRef = useRef<HTMLButtonElement | null>(null);
-  const closeLegend = useCallback((): void => setLegendOpen(false), []);
+  const closeLegend = useCallback((): void => chrome.closeLegend(), [chrome]);
   useDismissiblePopover(legendOpen, closeLegend, legendButtonRef, '[data-architecture-legend]');
-  // The source line's unresolved-names list, expanded on demand rather than
-  // printing every unresolved identifier as a permanent row.
-  const [unresolvedOpen, setUnresolvedOpen] = useState(false);
-  // Expansion state for the scope-cleanup row; it only exists for readings the
-  // server reported a cleanup for, so a healthy project renders nothing here.
-  const [scopeHygieneOpen, setScopeHygieneOpen] = useState(false);
   // The search box's text. It is local because it only filters the payload in
   // hand; selecting a result is what changes the graph.
   const [searchQuery, setSearchQuery] = useState('');
@@ -1071,11 +1033,8 @@ export default function ArchitecturePanel({
   const [fitRequest, setFitRequest] = useState<ArchitectureFitRequest | null>(null);
   const fitTokenRef = useRef(0);
   // How much of the viewport-sized canvas the floating chrome (the toolbar and
-  // the readout row) covers. Reserving it lets the renderer fit the drawing
-  // BELOW the chrome instead of tucking its top row underneath it. 0 when the
-  // chrome sits in normal flow (the in-tab layout), where it takes height from
-  // the canvas rather than covering it.
-  const [topChromePx, setTopChromePx] = useState(0);
+  // the readout row) covers is measured here (DOM boxes) and published to the
+  // chrome owner, which hands the reading back to the renderer.
   const readoutRowRef = useRef<HTMLDivElement | null>(null);
   const filledViewportMeasuredRef = useRef(false);
   // Whether the last render was viewport-filled. A TRANSITION (entering or
@@ -1091,7 +1050,7 @@ export default function ArchitecturePanel({
       if (!transitioned) return;
       // Back to the flex column: the drawing's height is the region's own again.
       filledViewportMeasuredRef.current = false;
-      setTopChromePx(0);
+      chrome.reportTopChrome(0);
       if (zoomModeRef.current !== 'fit') return;
       const frame = requestAnimationFrame(() => {
         fitTokenRef.current += 1;
@@ -1116,7 +1075,7 @@ export default function ArchitecturePanel({
       // The readout row is the LAST in-flow chrome row (the toolbar sits above
       // it), so its bottom edge is the covered band's height.
       const chromeBottom = readoutRowRef.current?.getBoundingClientRect().bottom ?? 0;
-      setTopChromePx(Math.ceil(chromeBottom));
+      chrome.reportTopChrome(Math.ceil(chromeBottom));
       // A manual zoom is the reader's; only a fit may be re-issued.
       if (zoomModeRef.current !== 'fit') return;
       fitTokenRef.current += 1;
@@ -1193,7 +1152,7 @@ export default function ArchitecturePanel({
     dispatchSelection({ type: 'select-entity', nodeId });
     // `drill` is the ONLY thing that replaces the drawing with the entity's
     // neighbourhood; a plain reveal centres it in the drawing on screen.
-    setFocusTarget((current) => ({ id: nodeId, token: (current?.token ?? 0) + 1, drill }));
+    chrome.focusNode(nodeId, drill);
     setSearchOpen(false);
   };
 
@@ -1406,72 +1365,33 @@ export default function ArchitecturePanel({
   }, [view, refreshing]);
 
   /**
-   * Open or close the dock and freeze aspect re-layout for the transition.
-   * The lock is a plain boolean handed to the renderer; the panel owns its
-   * lifetime because the panel owns the dock.
-   */
-  const changeDockOpen = useCallback((next: boolean): void => {
-    setDockOpen(next);
-    // Closing drops the explicit-open licence; the next open has to earn it
-    // again (a fresh selection, or another press on the Text door).
-    if (!next) setDockExplicitlyOpened(false);
-    setDockLayoutLocked(true);
-    if (dockLockTimerRef.current !== null) clearTimeout(dockLockTimerRef.current);
-    dockLockTimerRef.current = setTimeout(() => {
-      dockLockTimerRef.current = null;
-      setDockLayoutLocked(false);
-    }, DOCK_LAYOUT_LOCK_MS);
-  }, []);
-
-  /**
    * The reader's close gesture for the dock (×, Escape, the Text door toggling
-   * itself shut). Closing the dock also clears the selection: the review found
-   * that closing the inspector left the selection's dimming and highlight on
-   * the drawing with no inspector open to explain it, and only a press on the
-   * empty canvas cleared it.
+   * itself shut). The owner closes the dock and drops the explicit-open licence;
+   * the panel clears the selection with it: the review found that closing the
+   * inspector left the selection's dimming and highlight on the drawing with no
+   * inspector open to explain it, and only a press on the empty canvas cleared it.
    */
   const closeDock = useCallback((): void => {
-    setMultiSelectMode(false);
     dispatchSelection({ type: 'clear' });
-    changeDockOpen(false);
-  }, [changeDockOpen]);
-  useEffect(() => () => {
-    if (dockLockTimerRef.current !== null) clearTimeout(dockLockTimerRef.current);
-  }, []);
+    chrome.closeDock();
+  }, [chrome]);
 
   // Selecting anything is a request to inspect it: a NEW selection opens the
   // dock AND lands on the Inspector page, whatever page the reader last used.
-  // The review found a selection opening the remembered "Text" page, so the
-  // inspector they asked for never appeared. Keyed on the selection alone:
-  // closing the dock clears the selection in the same gesture, so this effect
-  // can never immediately reopen it.
-  const dockOpenRef = useRef(dockOpen);
+  // An open dock whose selection emptied is an empty column and closes — unless
+  // the READER opened it themselves while nothing was selected (the Text door).
+  // Both halves of that rule are the owner's; this effect only reports the fact.
   useEffect(() => {
-    dockOpenRef.current = dockOpen;
-  }, [dockOpen]);
-  useEffect(() => {
-    if (selection === null) return;
-    setDockTab('inspector');
-    if (!dockOpenRef.current) changeDockOpen(true);
-  }, [selection, changeDockOpen]);
+    chrome.selectionChanged(selection !== null);
+  }, [selection, chrome]);
 
   // A different session (or project) is a different reading, and the dock's
   // open state is per reading: it must not travel into a page with nothing
   // selected in it. This was the "empty 320px inspector on entry" the sessions
   // showed when they had opened the dock earlier.
   useEffect(() => {
-    setDockExplicitlyOpened(false);
-    if (dockOpenRef.current) changeDockOpen(false);
-  }, [sessionId, projectId, changeDockOpen]);
-
-  // An open dock whose selection emptied (a filter hid the selected node, a
-  // curation removed it, the scope reducer cleared it) would be an empty
-  // column. Close it — unless the READER opened the dock themselves while
-  // nothing was selected (the Text door), where the empty inspector page is a
-  // page they asked to see.
-  useEffect(() => {
-    if (selection === null && !dockExplicitlyOpened && dockOpenRef.current) changeDockOpen(false);
-  }, [selection, dockExplicitlyOpened, changeDockOpen]);
+    chrome.readingChanged();
+  }, [sessionId, projectId, chrome]);
 
   const selectNodeOnCanvas = useCallback((node: ArchitectureRendererNode): void => {
     dispatchSelection({ type: 'select-entity', nodeId: node.id });
@@ -1497,9 +1417,9 @@ export default function ArchitecturePanel({
   }, []);
   /** A touch long-press on an entity: turn multi-select on and add that node. */
   const startMultiSelect = useCallback((node: ArchitectureRendererNode): void => {
-    setMultiSelectMode(true);
+    chrome.setMultiSelectMode(true);
     dispatchSelection({ type: 'toggle-entity', nodeId: node.id });
-  }, []);
+  }, [chrome]);
   /** A marquee release: add every drawn thing the rectangle hit. */
   const addBoxSelection = useCallback((boxed: readonly ArchitectureSelection[]): void => {
     if (boxed.length > 0) dispatchSelection({ type: 'add-selections', selections: boxed });
@@ -1515,27 +1435,21 @@ export default function ArchitecturePanel({
    * Escape, while the canvas owns the key: an expanded tray collapses first
    * (the selection survives), then the dock closes — and, like the × button,
    * that close also clears the selection, so no dim/highlight is left behind.
+   * The owner decides which surface the press consumed; the panel performs the
+   * reducer clear that the last two steps imply.
    * `stopPropagation` happens in the renderer, so the chat page's global abort
    * never fires.
    */
   const escapeSelection = useCallback((): void => {
-    if (trayExpanded) {
-      setTrayExpanded(false);
-      return;
-    }
-    if (dockOpen) {
-      closeDock();
-      return;
-    }
-    setMultiSelectMode(false);
+    const step = chrome.escapeSelection();
+    if (step === 'tray') return;
     dispatchSelection({ type: 'clear' });
-  }, [closeDock, dockOpen, trayExpanded]);
+  }, [chrome]);
   /** A click on the empty canvas clears the selection AND closes the dock. */
   const clearSelectionOnCanvas = useCallback((): void => {
     dispatchSelection({ type: 'clear' });
-    setMultiSelectMode(false);
-    if (dockOpen) changeDockOpen(false);
-  }, [dockOpen, changeDockOpen]);
+    chrome.clearSelection();
+  }, [chrome]);
 
   /**
    * `F`, while the drawing owns the keyboard: the same toggle the toolbar
@@ -1552,9 +1466,8 @@ export default function ArchitecturePanel({
   // later selection starts from the pill rather than a stale drawer.
   useEffect(() => {
     if (selections.length > 0) return;
-    setTrayExpanded(false);
-    setMultiSelectMode(false);
-  }, [selections.length]);
+    chrome.selectionsEmptied();
+  }, [selections.length, chrome]);
   /** Selecting a related node from the inspector also centres it in the drawing. */
   const inspectRelatedNode = (nodeId: string): void => {
     revealNode(nodeId, false);
@@ -2059,7 +1972,7 @@ export default function ArchitecturePanel({
         void exportPng();
       }}
       onExportMermaid={exportMermaid}
-      onAction={() => setSheetOpen(false)}
+      onAction={() => chrome.setSheetOpen(false)}
     />
   );
 
@@ -2085,7 +1998,7 @@ export default function ArchitecturePanel({
         void exportPng();
       }}
       onExportMermaid={exportMermaid}
-      onShowLegend={() => setLegendOpen(true)}
+      onShowLegend={() => chrome.setLegendOpen(true)}
       // Opening the overflow is a different disclosure: a legend left open
       // behind it would sit over the menu.
       onOpen={closeLegend}
@@ -2127,11 +2040,9 @@ export default function ArchitecturePanel({
           closeDock();
           return;
         }
-        setDockTab('text');
         // This is the reader's own door, so the open is explicit: with nothing
         // selected it may legitimately show the empty inspector page.
-        setDockExplicitlyOpened(true);
-        if (!dockOpen) changeDockOpen(true);
+        chrome.openDock({ explicit: true, tab: 'text' });
       }}
       data-architecture-text-toggle="true"
       style={compactTargetStyle}
@@ -2179,7 +2090,7 @@ export default function ArchitecturePanel({
       // asked for. Same commit as the toggle, so the panel's focus-into-the-
       // canvas effect still runs after the sheet's focus restore.
       onClick={() => {
-        if (sheetOpen) setSheetOpen(false);
+        if (sheetOpen) chrome.setSheetOpen(false);
         fullscreen.toggle();
       }}
       data-architecture-fullscreen-toggle="true"
@@ -2228,7 +2139,7 @@ export default function ArchitecturePanel({
       aria-haspopup="dialog"
       aria-expanded={sheetOpen}
       aria-label={t('architecture.sheet.open', { defaultValue: 'Adjust' })}
-      onClick={() => setSheetOpen(true)}
+      onClick={() => chrome.setSheetOpen(true)}
       data-architecture-sheet-toggle="true"
       style={compactTargetStyle}
       className={`${compactHeaderButtonClass} rounded-lg border border-border text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60`}
@@ -3506,7 +3417,7 @@ export default function ArchitecturePanel({
         type="button"
         aria-expanded={unresolvedOpen}
         data-architecture-unresolved={unresolvedCount}
-        onClick={() => setUnresolvedOpen((open) => !open)}
+        onClick={() => chrome.toggleUnresolved()}
         style={compactTargetStyle}
         className="shrink-0 whitespace-nowrap rounded-md border border-border/60 bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
       >
@@ -3576,7 +3487,7 @@ export default function ArchitecturePanel({
           data-architecture-scope-hygiene="true"
           data-architecture-scope-hygiene-total={scopeHygiene.total}
           data-architecture-scope-hygiene-kept={scopeHygiene.kept}
-          onClick={() => setScopeHygieneOpen((open) => !open)}
+          onClick={() => chrome.toggleScopeHygiene()}
           style={compactTargetStyle}
           className="shrink-0 rounded-md border border-border/60 bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
         >
@@ -3674,7 +3585,7 @@ export default function ArchitecturePanel({
       <button
         type="button"
         aria-expanded={readoutOpen}
-        onClick={() => setReadoutOpen((open) => !open)}
+        onClick={() => chrome.toggleReadout()}
         data-architecture-readout-toggle="true"
         style={compactTargetStyle}
         className={compactToolbar
@@ -3980,7 +3891,7 @@ export default function ArchitecturePanel({
     <button
       type="button"
       aria-expanded={readoutOpen}
-      onClick={() => setReadoutOpen((open) => !open)}
+      onClick={() => chrome.toggleReadout()}
       data-architecture-readout-toolbar-toggle="true"
       data-architecture-readout-toolbar-summary={readout.shown}
       data-architecture-readout-toolbar-total={readout.related}
@@ -4014,8 +3925,8 @@ export default function ArchitecturePanel({
         expanded={trayExpanded}
         compact={compactToolbar}
         panelRow
-        onExpandedChange={setTrayExpanded}
-        onExitMultiSelect={() => setMultiSelectMode(false)}
+        onExpandedChange={chrome.setTrayExpanded}
+        onExitMultiSelect={() => chrome.setMultiSelectMode(false)}
         onToggleItem={toggleSelection}
         onClear={clearSelectionOnCanvas}
         onCompose={composeSelectionText}
@@ -4232,7 +4143,7 @@ export default function ArchitecturePanel({
           title={t('architecture.sheet.title', { defaultValue: 'Adjust' })}
           closeLabel={t('architecture.sheet.close', { defaultValue: 'Close adjust panel' })}
           handleLabel={t('architecture.sheet.dragHandle', { defaultValue: 'Drag to close' })}
-          onClose={() => setSheetOpen(false)}
+          onClose={() => chrome.setSheetOpen(false)}
           returnFocusRef={sheetTriggerRef}
         >
           {/* Every group in the sheet is LABELLED. The unlabelled version made
@@ -4276,7 +4187,7 @@ export default function ArchitecturePanel({
                 Drill in) is portaled in here; on the compact tier the sheet is
                 the one menu, so those entries do not spend a second canvas row. */}
             <div
-              ref={setCanvasHeaderHost}
+              ref={chrome.setCanvasHeaderHost}
               data-architecture-sheet-view-controls="true"
               className="flex flex-col"
               style={{ gap: TOUCH_CONTROL_GAP_PX }}
@@ -4317,7 +4228,7 @@ export default function ArchitecturePanel({
           {/* The renderer's remaining controls (view label, export) are drawn
               inside the same sheet at the same 44px targets. */}
           <div
-            ref={setSheetControlsHost}
+            ref={chrome.setSheetControlsHost}
             data-architecture-compact-graph-controls="true"
             className="flex flex-col border-t border-border/60 pt-2"
             style={{ gap: TOUCH_CONTROL_GAP_PX }}
@@ -4384,7 +4295,7 @@ export default function ArchitecturePanel({
               >
                 <div className="flex min-w-0 flex-1 items-center gap-1">{readoutPanel}</div>
                 <div
-                  ref={setCanvasHeaderHost}
+                  ref={chrome.setCanvasHeaderHost}
                   data-architecture-canvas-header-actions="true"
                   className="flex min-w-0 max-w-[65%] shrink-0 flex-nowrap items-center justify-end gap-1"
                 />
@@ -4643,8 +4554,8 @@ export default function ArchitecturePanel({
                   // there is nothing to lift above — and the DEV drawer override
                   // deliberately keeps the overlay's covering behaviour.
                   bottomInset={dockTier === 'drawer' && dockOpen && !shortTouch ? touchDrawerHeight : 0}
-                  onExpandedChange={setTrayExpanded}
-                  onExitMultiSelect={() => setMultiSelectMode(false)}
+                  onExpandedChange={chrome.setTrayExpanded}
+                  onExitMultiSelect={() => chrome.setMultiSelectMode(false)}
                   onToggleItem={toggleSelection}
                   onClear={clearSelectionOnCanvas}
                   onCompose={composeSelectionText}
@@ -4788,10 +4699,10 @@ export default function ArchitecturePanel({
             },
           ]}
           activeTabId={dockTab}
-          onTabChange={(tabId) => setDockTab(tabId === 'text' ? 'text' : 'inspector')}
+          onTabChange={(tabId) => chrome.setDockTab(tabId === 'text' ? 'text' : 'inspector')}
           onClose={closeDock}
           collapsedSummary={dockSummary}
-          onTouchDrawerHeightChange={setTouchDrawerHeight}
+          onTouchDrawerHeightChange={chrome.setDrawerHeight}
           snapLabels={{
             collapsed: t('architecture.dock.snapCollapsed', { defaultValue: 'Collapsed' }),
             half: t('architecture.dock.snapHalf', { defaultValue: 'Half' }),
