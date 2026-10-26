@@ -32,7 +32,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
@@ -41,6 +41,31 @@ import { createChatControlService } from '@/modules/websocket/services/chat-cont
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import type { ProviderRuntimeGateway } from '@/modules/websocket/services/chat-websocket.service.js';
 import type { AnyRecord, HostQueuedInputCancelResult, LLMProvider } from '@/shared/types.js';
+
+// ---------------------------------------------------------- pin the world ---
+//
+// This criterion is the run=turn flag OFF world. With the flag off the control
+// service answers the registered run id on a resident send — the (a) reading —
+// while with it on the send path answers `null` until a delivery binds, and
+// that world belongs to AC-385's criterion, which sets the flag in its own
+// file. `scripts/test.sh` isolates this file with `unset RESIDENT_RUN_IS_TURN`,
+// but the goal gate runs the criterion command verbatim in whatever environment
+// the anchor inherited: it never goes through test.sh, so the file has to pin
+// the world it measures rather than trust its caller. `residentRunIsTurn()`
+// reads the flag at call time and the shipped default is off (it only accepts
+// the literal `1`), so deleting it here is the off state. The `after` hook puts
+// the caller's value back before the process exits, so the pin cannot outlive
+// this file.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
+after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
+});
 
 const SESSION_ID = 'control-busy-session';
 
