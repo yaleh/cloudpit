@@ -2,7 +2,7 @@
 id: gap-database-migration-column-and-flag-helpers
 title: 数据库样板收敛：12 个 add*Column 迁移改用 ensureColumns，projects 的 4 个
   isStarred/isArchived 写入合成一个私有 setter
-status: todo
+status: ready
 labels:
   - gap
 parent: null
