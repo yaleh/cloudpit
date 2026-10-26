@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
 
 import { CockpitCardList } from '@/modules/cockpit';
@@ -131,14 +132,21 @@ const CARD_LIST = [NEED_CARD, DECISION_CARD];
 
 function renderCards(): { surface: ScenarioSurface; ledger: ClickLedger; container: HTMLElement } {
   assert.equal(attachScenarioSurface(), true, 'the runtime lock is open in this file');
+  // The list is a routed container: its binding navigates to the conversation a `session.start`
+  // confirmation opens. Mount it in the same context the product's page gives it, so the fixture
+  // exercises the real binding rather than a router-less approximation of it.
   const view = render(
     React.createElement(
-      I18nextProvider,
-      { i18n },
+      MemoryRouter,
+      null,
       React.createElement(
-        'div',
-        { 'data-testid': 'cockpit-page', 'data-cockpit-view': 'cards' },
-        React.createElement(CockpitCardList),
+        I18nextProvider,
+        { i18n },
+        React.createElement(
+          'div',
+          { 'data-testid': 'cockpit-page', 'data-cockpit-view': 'cards' },
+          React.createElement(CockpitCardList),
+        ),
       ),
     ),
   );
