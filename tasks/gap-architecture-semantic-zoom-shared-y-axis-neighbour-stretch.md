@@ -19,10 +19,10 @@ extra:
 
 ## AC
 
-- [ ] 新增单测（`src/modules/architecture/tests/semanticZoomLayout.test.ts`）：两个并排类（一个 tier A 带成员行，一个成员行因高度不足被隐藏，二者 y 区间重叠），scale 0.33、`forceTier: 'A'`，断言 package 框底边与带成员行类的 `drawn` 底边之差不超过 16px；命令 `npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts` 退出码 0。
-- [ ] 同一单测在回退本任务对 `semanticZoomLayout.ts` 的改动后为红（负臂：`git stash` 该文件后重跑，退出码非 0，红在上条断言上）。
-- [ ] `npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
-- [ ] e2e：`npx playwright test e2e/architecture-canvas-layout.spec.ts -g "orientation|downward layout|two-entity chain|perimeter"` 退出码 0（与本任务前相比无新增红）。
+- [x] 新增单测（`src/modules/architecture/tests/semanticZoomLayout.test.ts`）：两个并排类（一个 tier A 带成员行，一个成员行因高度不足被隐藏，二者 y 区间重叠），scale 0.33、`forceTier: 'A'`，断言 package 框底边与带成员行类的 `drawn` 底边之差不超过 16px；命令 `npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts` 退出码 0。
+- [x] 同一单测在回退本任务对 `semanticZoomLayout.ts` 的改动后为红（负臂：`git stash` 该文件后重跑，退出码非 0，红在上条断言上）。
+- [x] `npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
+- [x] e2e：`npx playwright test e2e/architecture-canvas-layout.spec.ts -g "orientation|downward layout|two-entity chain|perimeter"` 退出码 0（与本任务前相比无新增红）。
 
 ## DoD
 
