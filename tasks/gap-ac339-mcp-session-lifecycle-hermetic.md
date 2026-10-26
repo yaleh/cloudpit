@@ -2,7 +2,7 @@
 id: gap-ac339-mcp-session-lifecycle-hermetic
 title: AC-339 网关兼容腿（mcp-session-lifecycle）判据文件未自钉 RESIDENT_RUN_IS_TURN 关态：anchor
   继承开关时 (a)/(d) 红，AC-339 (c) 项无法成立
-status: ready
+status: done
 labels:
   - gap
   - defect
