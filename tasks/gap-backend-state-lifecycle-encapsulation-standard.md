@@ -17,9 +17,9 @@ extra:
 
 ## AC
 
-- [ ] 规则落地：`grep -niE "module-level|mutable state" .agents/skills/backend-module-standards/SKILL.md` 命中一条规则，要求「有内部状态/生命周期的模块级可变状态（缓存、注册表、timer）必须收进带显式生命周期方法的类或工厂对象，禁止散在模块顶层被 free function 读写」。
-- [ ] 点名正例：`grep -nE "SessionsWatcher|PluginProcessManager|ProviderCapabilitiesRegistry|VoiceClientAsrEngine" .agents/skills/backend-module-standards/SKILL.md` 至少命中一个正例类名。
-- [ ] 仅改标准：`git diff --stat -- .agents/skills/` 只含 `backend-module-standards/SKILL.md`；`git diff --name-only -- server/ src/` 无输出。
+- [x] 规则落地：`grep -niE "module-level|mutable state" .agents/skills/backend-module-standards/SKILL.md` 命中一条规则，要求「有内部状态/生命周期的模块级可变状态（缓存、注册表、timer）必须收进带显式生命周期方法的类或工厂对象，禁止散在模块顶层被 free function 读写」。
+- [x] 点名正例：`grep -nE "SessionsWatcher|PluginProcessManager|ProviderCapabilitiesRegistry|VoiceClientAsrEngine" .agents/skills/backend-module-standards/SKILL.md` 至少命中一个正例类名。
+- [x] 仅改标准：`git diff --stat -- .agents/skills/` 只含 `backend-module-standards/SKILL.md`；`git diff --name-only -- server/ src/` 无输出。
 
 ## DoD
 
