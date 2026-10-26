@@ -1,7 +1,7 @@
 ---
 id: gap-criterion-mutant-residue-sweep
 title: 判据假形态副本的残留清理：被杀掉的测试进程留在源码树里的 __criterion-falsify-* 文件，由 suite 开头按 pid 存活情况清扫
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -81,11 +81,3 @@ DoD 真实残留复现与清扫（同一 worktree）：
 4. 再次 `git status --porcelain server/`：空。
 
 develop 已合并（`c10cea1fa`）；anti-drift Touches 检查 OK（3 actual files，全部在声明的 4 个 glob 内，exit 0）。
-
-## Blocker
-
-**2026-10-26T05:33:24.251Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：AC 未全勾（checked 0/5，剩余未勾 5）——续做只需验证并勾选 AC
-- run_id：wk-prod-anchor
-- session_id：9af6fb15-bc01-4a52-9ca4-8904c20e5b1a
