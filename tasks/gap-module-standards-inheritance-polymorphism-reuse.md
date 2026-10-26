@@ -1,7 +1,7 @@
 ---
 id: gap-module-standards-inheritance-polymorphism-reuse
 title: 模块标准补继承/多态/复用/去重/契约规则，并以已落地的重构为正例
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -79,11 +79,3 @@ AC 读数（于 worktree `/data/home/yale/work/claudecodeui-worktrees/gap-module
 - .agents/skills/frontend-module-standards/SKILL.md
 - server/shared/tests/architecture-ratchet.baseline.json (collateral: 内容逐字取自 task/gap-codex-transcript-format-shared-helpers 的 a9ac78eee，含 RECORDED CHANGE note)
 - tasks/gap-module-standards-inheritance-polymorphism-reuse.md
-
-## Blocker
-
-**2026-10-26T07:45:13.480Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
-- run_id：wk-prod-anchor
-- session_id：fefc146a-4d96-40bb-901a-0aa0660e7b15
