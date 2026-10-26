@@ -3,7 +3,7 @@ id: gap-ac249-gate-red-measured-pre-pin-tree
 title: AC-249 台账红拍测量的是无 RESIDENT_RUN_IS_TURN 自钉的旧树（treeSha 53135d38 =
   40c67f665）；current HEAD 709e120bd 裸跑与 anchor 环境 flag=1 均 8/8
   绿，verification-only 归因
-status: ready
+status: done
 labels:
   - gap
 parent: null
