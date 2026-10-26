@@ -24,7 +24,15 @@
  * listed loses the repair, and must not lose the dictation with it.
  */
 
-import { loadProjectFileIndex } from '@/modules/file-tree';
+/**
+ * The one thing this module reads from the feature layer: a project's file index.
+ *
+ * Taken as a parameter rather than imported, so `src/shared` stays below
+ * `src/modules` — shared code must not reach into a feature module. The file
+ * tree module owns the request and its per-project cache; the caller wires that
+ * reader in.
+ */
+export type ProjectFileIndexReader = (projectId: string) => Promise<unknown>;
 
 /** One entry, as much of an index entry (or a legacy tree node) as this module reads. */
 type FileIndexEntry = {
@@ -71,15 +79,24 @@ export function flattenProjectIdentifiers(entries: unknown): string[] {
 }
 
 /**
- * The project's identifier candidates, fetched at most once per project id.
+ * The project's identifier candidates, read through the injected index reader.
  *
- * The request and its cache live in the shared file index, so the composer
- * joins the same one load as every other filename-reference surface. Never
- * rejects: a missing id, a failed request and an empty project all resolve to
- * `[]`, which the repair reads as "nothing to do" and the transcript path
- * reads as unchanged behaviour.
+ * The file-tree module owns the request and its per-project cache, so the
+ * composer still joins the same one load as every other filename-reference
+ * surface. The reader is a parameter rather than an import because `src/shared`
+ * must not import a feature module. Never rejects: a missing id, a reader that
+ * throws or rejects, and an empty project all resolve to `[]`, which the repair
+ * reads as "nothing to do" and the transcript path reads as unchanged
+ * behaviour.
  */
-export function loadProjectIdentifiers(projectId: string | null | undefined): Promise<string[]> {
-  if (!projectId) return Promise.resolve([]);
-  return loadProjectFileIndex(projectId).then(flattenProjectIdentifiers);
+export async function loadProjectIdentifiers(
+  projectId: string | null | undefined,
+  readFileIndex: ProjectFileIndexReader,
+): Promise<string[]> {
+  if (!projectId) return [];
+  try {
+    return flattenProjectIdentifiers(await readFileIndex(projectId));
+  } catch {
+    return [];
+  }
 }

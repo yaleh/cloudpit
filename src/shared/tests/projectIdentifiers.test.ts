@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 
-import { beforeEach, test, vi } from 'vitest';
+import { test, vi } from 'vitest';
 
 import { repairIdentifiers } from '@/shared/identifierRepair';
+import { flattenProjectIdentifiers, loadProjectIdentifiers } from '@/shared/projectIdentifiers';
 
 /**
  * The candidate source the transcript repair is fed from.
@@ -10,29 +11,18 @@ import { repairIdentifiers } from '@/shared/identifierRepair';
  * `identifierRepair.test.ts` already covers what the repair does with a list of
  * names; nothing covered where that list comes from, and every way the source can
  * fail is a way the dictation path has to survive. The two readings that matter
- * are "the names arrive in the shape the repair matches against" and "one session
- * asks the project once".
+ * are "the names arrive in the shape the repair matches against" and "the index
+ * reader is asked for the open project, and nothing else".
  *
- * The module memoises its request at module scope, so each test loads a fresh copy
- * after resetting the registry — the ambient copy would otherwise carry the
- * previous test's project ids in its cache and quietly answer from them.
+ * The request and its per-project cache belong to the file-tree module
+ * (`loadProjectFileIndex`, pinned by `file-tree/tests/projectFileIndex.test.tsx`);
+ * the reader is injected here so this shared module never imports a feature
+ * module. That also means there is no module-scope cache to reset between cases.
  */
 
-const { getFileIndex } = vi.hoisted(() => ({ getFileIndex: vi.fn() }));
-
-vi.mock('@/shared/api', () => ({ api: { getFileIndex } }));
-
-const load = async () => {
-  vi.resetModules();
-  return import('@/shared/projectIdentifiers');
-};
-
-/** One `200` carrying `body`, in the `Response`-shaped subset the module reads. */
-const okJson = (body: unknown) => ({
-  ok: true,
-  status: 200,
-  json: async () => body,
-});
+/** A reader that records the project ids it was asked for and answers with `entries`. */
+const readerReturning = (entries: unknown) =>
+  vi.fn(async (_projectId: string) => entries);
 
 /** The tree the first flattening reading is written against. */
 const TREE = [
@@ -55,14 +45,7 @@ const INDEX = [
   { type: 'file', name: 'README.md', path: '/project/README.md' },
 ];
 
-beforeEach(() => {
-  getFileIndex.mockReset();
-  getFileIndex.mockResolvedValue(okJson({ files: INDEX, truncated: false }));
-});
-
-test('a file tree is flattened to the two shapes a recogniser breaks', async () => {
-  const { flattenProjectIdentifiers } = await load();
-
+test('a file tree is flattened to the two shapes a recogniser breaks', () => {
   assert.deepEqual(
     [...flattenProjectIdentifiers(TREE)].sort(),
     [
@@ -81,61 +64,53 @@ test('a file tree is flattened to the two shapes a recogniser breaks', async () 
   );
 });
 
-test('a file tree with no files yields no candidates', async () => {
-  const { flattenProjectIdentifiers } = await load();
-
+test('a file tree with no files yields no candidates', () => {
   assert.deepEqual(flattenProjectIdentifiers([]), []);
   // A response the module does not recognise is a smaller list, never a throw.
   assert.deepEqual(flattenProjectIdentifiers(undefined), []);
   assert.deepEqual(flattenProjectIdentifiers([{ type: 'directory', name: 'src' }]), []);
 });
 
-test('one session asks the project for its files once', async () => {
-  const { loadProjectIdentifiers } = await load();
+test('the injected index reader is asked for the open project, and its answer is flattened', async () => {
+  const read = readerReturning(INDEX);
+  const candidates = await loadProjectIdentifiers('project-1', read);
 
-  // Concurrent callers — the composer mounting, a second one for the same project —
-  // and a later one, which must still be answered from what the first already learnt.
-  const [first, second] = await Promise.all([
-    loadProjectIdentifiers('project-1'),
-    loadProjectIdentifiers('project-1'),
-  ]);
-  const third = await loadProjectIdentifiers('project-1');
+  assert.deepEqual(
+    [...candidates].sort(),
+    ['README', 'README.md', 'useVoiceInput', 'useVoiceInput.tsx', 'voice.routes', 'voice.routes.ts'].sort(),
+    'a flat index yields the same two shapes the tree does',
+  );
+  assert.equal(read.mock.calls.length, 1, 'the injected reader is the only source of names');
+  assert.deepEqual(read.mock.calls[0], ['project-1']);
 
-  assert.deepEqual(first, second);
-  assert.deepEqual(third, first);
-  assert.equal(getFileIndex.mock.calls.length, 1, 'the file index is a session-level read, not a per-utterance one');
-  assert.deepEqual(getFileIndex.mock.calls[0], ['project-1']);
-
-  // A different project is a different question.
-  await loadProjectIdentifiers('project-2');
-  assert.equal(getFileIndex.mock.calls.length, 2);
+  // No project open is no question at all.
+  assert.deepEqual(await loadProjectIdentifiers(null, read), []);
+  assert.deepEqual(await loadProjectIdentifiers(undefined, read), []);
+  assert.equal(read.mock.calls.length, 1, 'and nothing was asked for them');
 });
 
-test('a failed request leaves the transcript something to fall back on', async () => {
-  const { loadProjectIdentifiers } = await load();
+test('a failed read leaves the transcript something to fall back on', async () => {
+  const rejected = vi.fn(async () => {
+    throw new Error('offline');
+  });
+  assert.deepEqual(
+    await loadProjectIdentifiers('project-1', rejected),
+    [],
+    'a rejected read is no candidates, not a throw',
+  );
 
-  getFileIndex.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
-  assert.deepEqual(await loadProjectIdentifiers('project-1'), [], 'an error status is no candidates, not a throw');
-
-  getFileIndex.mockRejectedValue(new Error('offline'));
-  assert.deepEqual(await loadProjectIdentifiers('project-2'), [], 'a rejected fetch is no candidates, not a throw');
-
-  // The failure is remembered like any other answer, so a project that cannot be listed
-  // does not pay a round trip in front of every dictation for the rest of the session.
-  const before = getFileIndex.mock.calls.length;
-  await loadProjectIdentifiers('project-2');
-  assert.equal(getFileIndex.mock.calls.length, before);
-
-  assert.deepEqual(await loadProjectIdentifiers(null), [], 'no project open is no candidates');
-  assert.deepEqual(await loadProjectIdentifiers(undefined), []);
-  assert.equal(getFileIndex.mock.calls.length, before, 'and nothing was asked for them');
+  const threw = vi.fn(() => {
+    throw new Error('synchronous failure');
+  });
+  assert.deepEqual(
+    await loadProjectIdentifiers('project-2', threw),
+    [],
+    'a reader that throws before returning is no candidates either',
+  );
 });
 
 test('no candidates is the utterance unchanged — the degradation is silent', async () => {
-  const { flattenProjectIdentifiers, loadProjectIdentifiers } = await load();
-
-  getFileIndex.mockResolvedValue(okJson({ files: [], truncated: false }));
-  const candidates = await loadProjectIdentifiers('project-1');
+  const candidates = await loadProjectIdentifiers('project-1', readerReturning([]));
   assert.deepEqual(candidates, []);
 
   // This is the whole reading of the fallback: the repair is a pure function of its
