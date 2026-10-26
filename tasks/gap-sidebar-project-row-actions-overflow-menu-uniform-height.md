@@ -1,7 +1,7 @@
 ---
 id: gap-sidebar-project-row-actions-overflow-menu-uniform-height
 title: 手机端项目行：右侧控件收进「⋯」菜单，行内只留收藏星 + ⋯ + 箭头，所有项目卡片等高（桌面不变）
-status: ready
+status: done
 labels:
   - gap
 parent: null
