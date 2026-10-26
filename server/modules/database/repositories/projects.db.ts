@@ -15,6 +15,40 @@ function normalizeProjectDisplayName(projectPath: string, customProjectName: str
     return directoryName || projectPath;
 }
 
+/** The boolean columns a project row exposes as a toggle. Closed so no caller text reaches the SQL. */
+type ProjectFlagColumn = 'isStarred' | 'isArchived';
+
+/** The keys a project row can be addressed by, each mapped to its own column. */
+const PROJECT_FLAG_KEY_COLUMNS = {
+    path: 'project_path',
+    id: 'project_id',
+} as const;
+
+type ProjectFlagKey = keyof typeof PROJECT_FLAG_KEY_COLUMNS;
+
+/**
+ * Sets one boolean project flag on the row addressed by `by`.
+ *
+ * The column name comes from `ProjectFlagColumn` and the WHERE column from
+ * `PROJECT_FLAG_KEY_COLUMNS`, so the only values interpolated into the SQL are
+ * this module's own literals — never caller-supplied text. A path key is
+ * normalized exactly as the four public setters did before this helper existed.
+ */
+function setProjectFlag(
+    column: ProjectFlagColumn,
+    by: ProjectFlagKey,
+    key: string,
+    value: boolean
+): void {
+    const db = getConnection();
+    const normalizedKey = by === 'path' ? normalizeProjectPath(key) : key;
+    db.prepare(`
+        UPDATE projects
+        SET ${column} = ?
+        WHERE ${PROJECT_FLAG_KEY_COLUMNS[by]} = ?
+    `).run(value ? 1 : 0, normalizedKey);
+}
+
 export const projectsDb = {
     createProjectPath(projectPath: string, customProjectName: string | null = null): CreateProjectPathResult {
         const db = getConnection();
@@ -140,41 +174,19 @@ export const projectsDb = {
     },
 
     updateProjectIsStarred(projectPath: string, isStarred: boolean): void {
-        const db = getConnection();
-        const normalizedProjectPath = normalizeProjectPath(projectPath);
-        db.prepare(`
-            UPDATE projects
-            SET isStarred = ?
-            WHERE project_path = ?
-        `).run(isStarred ? 1 : 0, normalizedProjectPath);
+        setProjectFlag('isStarred', 'path', projectPath, isStarred);
     },
 
     updateProjectIsStarredById(projectId: string, isStarred: boolean): void {
-        const db = getConnection();
-        db.prepare(`
-            UPDATE projects
-            SET isStarred = ?
-            WHERE project_id = ?
-        `).run(isStarred ? 1 : 0, projectId);
+        setProjectFlag('isStarred', 'id', projectId, isStarred);
     },
 
     updateProjectIsArchived(projectPath: string, isArchived: boolean): void {
-        const db = getConnection();
-        const normalizedProjectPath = normalizeProjectPath(projectPath);
-        db.prepare(`
-            UPDATE projects
-            SET isArchived = ?
-            WHERE project_path = ?
-        `).run(isArchived ? 1 : 0, normalizedProjectPath);
+        setProjectFlag('isArchived', 'path', projectPath, isArchived);
     },
 
     updateProjectIsArchivedById(projectId: string, isArchived: boolean): void {
-        const db = getConnection();
-        db.prepare(`
-            UPDATE projects
-            SET isArchived = ?
-            WHERE project_id = ?
-        `).run(isArchived ? 1 : 0, projectId);
+        setProjectFlag('isArchived', 'id', projectId, isArchived);
     },
 
     /** Raw `session_filter` JSON for a project (NULL = no rules); consumed by the projects module. */

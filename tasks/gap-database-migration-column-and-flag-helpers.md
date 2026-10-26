@@ -2,7 +2,7 @@
 id: gap-database-migration-column-and-flag-helpers
 title: 数据库样板收敛：12 个 add*Column 迁移改用 ensureColumns，projects 的 4 个
   isStarred/isArchived 写入合成一个私有 setter
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -87,21 +87,6 @@ extra:
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-database-migration-column-and-flag-helpers.md
-
-## Blocker
-
-**2026-10-26T06:11:54.520Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
-- run_id：wk-prod-anchor
-- session_id：bd724156-927d-4e1a-a516-eb8a4ee4eed4
-
-**2026-10-26T07:03:57Z — 本轮复核（worker；未新增代码改动，仅记录判读）**
-
-- 合并 develop 后逐条复核 7/7 AC 全绿：AC1 `0` / `ensureColumns` @76；AC2 `12`；AC3 `setProjectFlag` @37 + awk exit 0；AC4 tests 2/pass 2；AC5 tests 18/pass 18；AC6 tests 11/pass 11 + merge-base diff empty；AC7 `tsc --noEmit -p server/tsconfig.json` 与 `oxlint server/modules/database` 均 exit 0。anti-drift-touches-check exit 0（5 个实际文件全在 Touches 内）。
-- 本轮 suite 红的归因（三分）：**不是本任务引入，是 develop 全局红**。打红读数 `semanticZoomLayout.ts 1642→1688`（单文件复跑还有 `semanticZoomPlan.ts 876→894`）来自 develop 提交 `3f1b1ea23`（2026-10-26 13:53:44），晚于基线落盘（`f7d20cdcb`，13:42:54），而该提交没有按 ratchet 自己的规则记录上调。证据：测试文件、基线 JSON、两个源文件在 HEAD 与 develop 上 blob 逐字节相同；驱动自己的 develop 基线腿日志 `fan-in-suite-…~baseline-1792995096459-4e4caf.log` 逐字打印同一条断言（`passed=false`）。
-- `changed-assertion` 是结构性假阳性：`baselineEquivalence.changed[0].taskText=""`、`added=[]`。全量 suite 日志把 `not ok -` 攒到末尾（本任务日志第 789 行），而 `__PERFILE__` 在第 97 行，8 行 lookahead 取不到 marker；基线单文件日志里两者相邻，于是 marker 文本非空。两侧 tap 文本逐字相同。
-- 真因收口（在 `src/modules/architecture/**` 与基线 JSON，**不在本任务 Touches**，本轮未动）：由架构侧按 `architecture-ratchet.baseline.json` 的 `note` 规定的“RECORDED CHANGE”格式，为 `3f1b1ea23` 记录的 1642→1688 / 876→894 上调写一段带日期的理由，再用 `ARCHITECTURE_RATCHET_WRITE_BASELINE=1` 重生成该基线；或把两个文件缩回基线。注意 `gap-architecture-orientation-policy-compares-pre-reclaim-geometry` 正在改 `semanticZoomLayout.ts`，修后需复量。
 
 ## Needs-Human
 
