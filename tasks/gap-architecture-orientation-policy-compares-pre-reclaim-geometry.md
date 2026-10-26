@@ -53,8 +53,8 @@ extra:
 
 ## Blocker
 
-**2026-10-26T07:16:29.945Z — worker 未落地（exited-not-landed）**
+**2026-10-26T07:39:24.181Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/PlantUmlGraph.tsx 4453→4498 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts]
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
 - run_id：wk-prod-anchor
-- session_id：ab5a88a9-e636-494e-83ea-7912a1599be3
+- session_id：7136a79f-4cfd-4093-abc1-4680c6ee5baa
