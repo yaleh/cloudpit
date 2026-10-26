@@ -11,7 +11,7 @@ extra:
 ---
 ## Proposal
 
-现象：`src/modules/architecture/layoutOrientation.ts` 的方向策略把同一张图排两次（DOWN / RIGHT），按渲染器原始几何算各自在画布上的 fit，选更大者（`horizontal-fit-larger`，滞回 `ORIENTATION_FIT_HYSTERESIS`）。语义缩放现在会回收类框里为未画出的成员行预留的空白（提交 da77a3e33），画出的几何比渲染器几何矮得多，但策略仍拿回收之前的几何比较。e2e 夹具 `architecture-canvas-layout-workspace-orientation`（两个类，其一 20 个成员）在 PC 视口 1151×596 画布上：策略选 RIGHT（原始几何 RIGHT fit 更大），回收后实际读数 RIGHT 自然尺寸 1128×138、zoom 1.21、fill 0.227；强制 DOWN 为 792×250、zoom 1.5、fill 0.289——被选中的方向反而更小。
+现象：`src/modules/architecture/layoutOrientation.ts` 的方向策略把同一张图排两次（DOWN / RIGHT），按渲染器原始几何算各自在画布上的 fit，选更大者（`horizontal-fit-larger`，滞回 `ORIENTATION_FIT_HYSTERESIS`）。语义缩放现在会回收类框里为未画出的成员行预留的空白（提交 3f1b1ea23），画出的几何比渲染器几何矮得多，但策略仍拿回收之前的几何比较。e2e 夹具 `architecture-canvas-layout-workspace-orientation`（两个类，其一 20 个成员）在 PC 视口 1151×596 画布上：策略选 RIGHT（原始几何 RIGHT fit 更大），回收后实际读数 RIGHT 自然尺寸 1128×138、zoom 1.21、fill 0.227；强制 DOWN 为 792×250、zoom 1.5、fill 0.289——被选中的方向反而更小。
 
 机制：方向决策的输入（两次布局的 natural size）与最终画出的尺寸来自两套高度口径——策略读渲染器 SVG 尺寸，画出尺寸由 `semanticZoomLayout.ts` 的 y 轴求解（含 reclaim 区间、`planMemberFrameHeight`）决定。处理方向由执行者实测后定：(a) 策略对两个方向各自过一遍语义缩放的 y 轴求解（或其轻量近似），用回收后的尺寸比较；(b) 或把回收后的内容尺寸回填到方向缓存的比较键。不得放宽滞回来掩盖。
 
