@@ -60,7 +60,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import express from 'express';
@@ -82,6 +82,39 @@ import { createSessionHostsRouter, sessionHostManager } from '@/modules/session-
 import { chatRunRegistry, connectedClients, handleChatConnection } from '@/modules/websocket/index.js';
 import type { ClaudeResidentHostDriver } from '@/modules/providers/list/claude/claude-host-driver.provider.js';
 import type { ProviderModelEnvRow } from '@/shared/types.js';
+
+// ---------------------------------------------------------- pin the world ---
+//
+// This criterion is the run=turn flag OFF world: a busy send is answered by the
+// process's own input queue and the message is recorded in the run of the turn
+// it starts, which is what the seq readings below assert. With
+// `RESIDENT_RUN_IS_TURN=1` the driver takes the run=turn seam instead, so the
+// leg-2 frame is never written into the process and the reading that fails is
+// `the leg-2 frame must be readable with its own uuid` — not a busy-input
+// regression. The flag-on world belongs to AC-382/383/384's criteria, which set
+// the flag in their own files.
+//
+// `scripts/test.sh` isolates this file with `unset RESIDENT_RUN_IS_TURN`, but
+// the goal gate runs the criterion command verbatim in whatever environment the
+// anchor inherited (this host's anchor inherits
+// `40-resident-run-is-turn.conf` from the live server). The gate never goes
+// through test.sh, so the file has to pin the world it measures rather than
+// trust its caller — the same declaration AC-231's chat-control-busy criterion
+// and AC-238's debug-agent criterion make for their own flag-off worlds.
+// `residentRunIsTurn()` reads the flag at call time and the shipped default is
+// off (it only accepts the literal `1`), so deleting it here is the off state.
+// The `after` hook puts the caller's value back before the process exits, so the
+// pin cannot outlive this file.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
+after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
+});
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The checkout this criterion measures: its own repository root. */
