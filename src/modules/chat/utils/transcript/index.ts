@@ -1,11 +1,11 @@
 /**
  * Transcript sub-package of `chat/utils`: the row model, keys and ordering, message text
- * projection (markdown, diffs, tool groups) and the export geometry the transcript renders
+ * projection (markdown, diffs, tool groups) and the geometry the transcript renders
  * against. Consumers reach transcript utilities through this barrel.
  *
- * `chatExport` is deliberately NOT re-exported here: it composes `chat/export/*`, whose
- * components import this barrel, so re-exporting it would close a barrel cycle at module
- * evaluation time. Its callers import `.../transcript/chatExport` directly.
+ * The downloadable-export entry point (`chatExport`) lives in `chat/export/`: it composes
+ * `chat/export/*`, whose components import this barrel, so keeping it here would make the
+ * utils layer depend on the export feature and close a package cycle.
  */
 export * from '@/modules/chat/utils/transcript/chatFormatting';
 export * from '@/modules/chat/utils/transcript/contentHeightModel';
