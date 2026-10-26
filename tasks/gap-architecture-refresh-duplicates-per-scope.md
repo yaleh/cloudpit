@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-refresh-duplicates-per-scope
 title: 架构 tab 刷新：按 scope 重算 ArchGuard 重复报告并按约定形状落盘，分析源补上根 shared/
-status: done
+status: ready
 labels:
   - gap
 parent: null
