@@ -40,6 +40,18 @@ Apply these rules after the repository's basic scaffolding is in place. Limit th
 - Mechanical check: the module has no column-0 `let`/`var` and no module-scope mutable cache (`const x = new Map()`/`new Set()`), and no free function assigns to state the owner also uses. A compliant service has none; every binding it needs is a field.
 - Exemplars shipped under this rule: `SessionsWatcher` (`server/modules/providers/services/sessions-watcher.service.ts`) keeps its queued batch, start time, flush timer, and in-flight/reschedule flags in private fields behind `start()`/`stop()`/`scheduleUpdate()`/`flush()`; `PluginProcessManager`, `ProviderCapabilitiesRegistry`, and `VoiceClientAsrEngine` follow the same split.
 
+## Use inheritance and polymorphism deliberately
+
+Encapsulation (state behind an owner, above) is one of three object-oriented properties this codebase relies on; apply the other two with the same discipline.
+
+- Inheritance has exactly two valid uses: a template method (the base class implements the flow, subclasses fill small hooks) and `implements` of a capability interface. Never inherit merely to reuse code; reuse by composition or a shared function instead. Keep hierarchies one level deep (Error subclasses aside).
+- Exemplars: `McpProvider` (`server/modules/providers/shared/mcp/mcp.provider.ts`) and `SkillsProvider` (`.../shared/skills/skills.provider.ts`) implement `listServers`/`upsertServer`/`removeServer` once and leave `readScopedServers`/`writeScopedServers`/`buildServerConfig` to each provider subclass; `AbstractProvider` only aggregates the capability surfaces behind `IProvider`.
+- Do not branch on a provider id (`provider === 'claude'`, `switch (provider)`) outside `server/modules/providers/list/`. A provider-specific difference is a capability: add or extend an `IProvider*` interface in `server/shared/interfaces.ts`, implement it in each provider, and let callers reach it through the provider registry. The same applies to any family of interchangeable implementations (an LLM wire protocol, an ASR engine): model it as a strategy object chosen once, not an `if` chain repeated at each call site.
+- Adding a variant (a new provider, protocol, or ASR adapter) must mean adding one implementation and registering it, not editing every caller.
+- A capability that more than one module needs (an LLM client, a settings reader, an `isRecord`-style helper) must live in a leaf module or `server/shared/`, never inside the feature module that happened to write it first. Do not import another feature's barrel to borrow a generic capability.
+- When a second structurally identical piece appears (a settings reader, a store, a client), extract the common part at that point; do not wait for a third. Near-clones of three to five statements are invisible to ArchGuard's duplicate report, so count them by reading.
+- Mechanical checks: outside `server/modules/providers/list/`, `grep -rnE "provider ===? '" server --include=*.ts` should find no new hits; a helper defined in two or more files must be in `server/shared/utils.ts`.
+
 ## Place types, interfaces, and utilities
 
 - Use `type` by default. Use `interface` only for a contract that a class is intended to implement.
@@ -79,4 +91,5 @@ Before finishing:
 3. Confirm no backend service or implementation file has crossed the roughly 260-line ratchet without being split by concern through a factory and injected seam.
 4. Confirm routes only parse, call services, and format responses.
 5. Confirm owned state and its lifecycle live in a class or factory object: no module-scope mutable binding is read or written by free functions, and every mutation goes through the owner's lifecycle or command methods.
-6. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+6. Confirm no new provider-id branch outside `providers/list/`, no inheritance used purely for code reuse, and no generic capability borrowed from a feature module's barrel.
+7. Run the narrow relevant tests, then `npm run build`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.

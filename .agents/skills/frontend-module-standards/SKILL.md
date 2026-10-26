@@ -116,12 +116,25 @@ Within `src/shared/types.ts`, `src/shared/utils.ts`, and `src/shared/constants.t
 - Do not move a module-private hook into shared code merely because multiple components within the same module use it.
 - Search for an existing equivalent hook before adding a new one.
 
-## Keep business rules out of hooks
+## Keep business rules and state machines out of hooks and components
 
-- A hook must not hold business rules. Request gating, caching and cache invalidation, ordering, stale-answer guards, retry/depth limits, sequencing and reporting belong to a React-free controller, not to React state, refs, or effects.
+- A hook or a component must not hold business rules or a state machine. Request gating, caching and cache invalidation, ordering, stale-answer guards, retry/depth limits, sequencing and reporting belong to a React-free controller, not to React state, refs, or effects.
 - A hook is the React binding only: create the controller once (for example with `useMemo`), subscribe to its snapshot with `useSyncExternalStore`, hand changed inputs to it in an effect, and dispose it on unmount. Translate the snapshot into props and callbacks; do not re-implement its decisions.
 - Put the controller in `src/modules/<feature>/utils/` with a descriptive name. Export a factory (`create<Feature>Controller(deps)`) that returns one typed object exposing commands plus a stable `getSnapshot`, and take the API client, cache, timers, and other collaborators through an injected dependency seam so the rules are testable without React.
 - The exemplar is `useReplySuggestions` (`src/modules/chat/hooks/useReplySuggestions.ts`): the hook is a thin `useSyncExternalStore` binding over the React-free controller in `src/modules/chat/utils/replySuggestionsController.ts`, which owns every draw rule and its injected API and cache. Copy that split whenever a hook starts deciding something.
+
+## Encapsulate state behind an owner
+
+- State that has a lifecycle, more than one writer, or rules about when it may change (viewport and zoom, selection, keyboard-navigation cursor, gesture, layout cache, polling, in-flight guards, timers) belongs to one owner: a React-free class or a `create<Feature>Controller(deps)` factory with explicit lifecycle methods (`start`/`stop`/`dispose`) and one write path per command. It must not live as a cluster of `useState`/`useRef` and effects inside a component.
+- Module-level mutable bindings (a module-scope `let`, a mutable `Map`/`Set`, a hand-written listener set with `publish`/`getSnapshot`) are the same defect without React in the way: move them into a store object. Build it on `createExternalStore` from `@/shared/utils` instead of hand-writing another listener set.
+- Warning signs that state needs an owner: a component that mirrors every `useState` with a `useRef` so callbacks see the latest value, a ref that exists only to hold a callback, more than about ten state declarations in one component, a timer started in one effect and cleared in another, or an effect whose only job is to keep two copies of the same value in sync. Each means the owner is missing; do not add the next ref, extract the owner.
+- A component then renders a snapshot and forwards events. It does not decide what happens next.
+- Exemplars: `replySuggestionsController` (`src/modules/chat/utils/`), `architectureRefreshController` (`src/modules/architecture/`), and `ServerFeaturesStore` (`src/shared/hooks/useServerFeatures.ts`). Existing oversized components are not exemptions: do not add state to them; extract the owner for the slice you touch and leave the file smaller.
+
+## Express provider differences as data, not branches
+
+- Do not branch on a provider id (`provider === 'claude'`, `switch (provider)`) in components or hooks to choose a label, logo, login command, or capability. Route the difference through a single provider descriptor table (display name, logo, login command, supported features) looked up by provider id, so a new provider is one table row. Where no table covers the attribute yet, add it there instead of adding another branch.
+- When a type mirrors a server wire shape, import the shared type if one exists. If it must be mirrored, add a type-sync test that fails when either side changes (`src/shared/tests/replySuggestionsTypeSync.test.ts` is the pattern).
 
 ## Place contexts by ownership
 
@@ -178,5 +191,6 @@ Before finishing:
 5. Confirm types, utilities, constants, hooks, contexts, UI components, modals, and tests follow their ownership and usage rules.
 6. Confirm shared types, utilities, and constants use the required comments and grouping separators.
 7. Confirm every newly introduced state declaration explains why it exists or is marked as possibly unnecessary.
-8. Confirm no hook holds business rules that belong in a React-free controller, and that any new controller is a factory over an injected dependency seam.
-9. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
+8. Confirm no hook or component holds business rules or a state machine that belongs in a React-free controller, and that any new controller is a factory over an injected dependency seam.
+9. Confirm no state with a lifecycle was added as a new `useState`/`useRef` cluster in an oversized component, no module-level mutable binding was added, and no provider-id branch was added.
+10. Run the narrow relevant frontend tests, followed by `npm run test:client`, `npm run build:client`, `npm run typecheck`, and `npm run lint` when the task scope and environment permit.
