@@ -26,6 +26,7 @@
  */
 
 import { tierWithinDeadzone } from '@/modules/architecture/explosionLod';
+import { computePackageBounds } from '@/modules/architecture/semanticZoomPackageBounds';
 import { MIN_ZOOM_SCALE } from '@/modules/architecture/svgViewport';
 export type {
   SemanticDrawingGeometry,
@@ -971,25 +972,19 @@ function evaluateTier(
   });
 
   // ---- packages
-  const packages: SemanticPackageLayout[] = tree.map((entry) => {
-    const mentionedCount = mentionedIn(entry.nodeIds);
-    const tab = tabOf(entry.geometry.id, entry.nodeIds.length, mentionedCount);
-    const rect = entry.geometry.rect;
-    const frame: SemanticRect = {
-      x: x.map(rect.x),
-      y: y.map(rect.y),
-      width: x.map(rect.x + rect.width) - x.map(rect.x),
-      height: y.map(rect.y + rect.height) - y.map(rect.y),
-    };
-    const fits = frame.width >= tab.width + 4 && frame.height >= tab.height + 4;
-    return {
-      id: entry.geometry.id,
-      depth: entry.depth,
-      frame,
-      tab,
-      tabRect: fits ? { x: frame.x + 5, y: frame.y, w: tab.width, h: tab.height } : null,
-      mentionedCount,
-    };
+  // The shared y axis lets a member-hidden neighbour stretch a cell beyond the
+  // rows drawn in it; `computePackageBounds` folds each package frame onto the
+  // DRAWN bottom (see that module for the rule).
+  const packages: SemanticPackageLayout[] = computePackageBounds({
+    tier,
+    scale,
+    tree,
+    nodes,
+    rawRectById: new Map(geometry.nodes.map((node) => [node.id, node.rect])),
+    mapX: x.map,
+    mapY: y.map,
+    tabOf,
+    mentionedIn,
   });
 
   return {

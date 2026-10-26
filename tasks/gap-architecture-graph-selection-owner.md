@@ -19,11 +19,11 @@ extra:
 
 ## AC
 
-- [ ] 属主文件存在且不依赖 React：`grep -nE "export function createGraphSelectionController" src/modules/architecture/graphSelectionController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/graphSelectionController.ts` 无输出。
-- [ ] 下列声明已从组件中清零：`grep -cE "const \[?(selectedId|selectedByTouch|selectedRef|selectedNodeIdRef|selectedRelationRef|selectedNodeIdsRef|selectedRelationsRef|keyboardFocusRef|navigationActive|navigationCursorId|navigationAnnouncement|navigationActiveRef|navigationCursorRef|focusModalityRef|contextMenu|lastPointerTypeRef|lastTapRef)\b" src/modules/architecture/PlantUmlGraph.tsx` 输出 0。
-- [ ] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/graphSelectionController.test.ts`，用注入的假时钟/假焦点读数覆盖：单选与多选切换、清选区、导航光标移动与公告文本、触摸与键盘模态切换、双击、dispose 后不再通知；`npx vitest run src/modules/architecture/tests/graphSelectionController.test.ts` 退出码 0。
-- [ ] 行数只降不升：`wc -l src/modules/architecture/PlantUmlGraph.tsx` 的行数小于 4453，且 `server/shared/tests/architecture-ratchet.baseline.json` 中该文件的 `oversizeFiles` 值在同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
-- [ ] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
+- [x] 属主文件存在且不依赖 React：`grep -nE "export function createGraphSelectionController" src/modules/architecture/graphSelectionController.ts` 有命中，且 `grep -n "from 'react'" src/modules/architecture/graphSelectionController.ts` 无输出。
+- [x] 下列声明已从组件中清零：`grep -cE "const \[?(selectedId|selectedByTouch|selectedRef|selectedNodeIdRef|selectedRelationRef|selectedNodeIdsRef|selectedRelationsRef|keyboardFocusRef|navigationActive|navigationCursorId|navigationAnnouncement|navigationActiveRef|navigationCursorRef|focusModalityRef|contextMenu|lastPointerTypeRef|lastTapRef)\b" src/modules/architecture/PlantUmlGraph.tsx` 输出 0。
+- [x] 属主可脱离 React 测试：新增 `src/modules/architecture/tests/graphSelectionController.test.ts`，用注入的假时钟/假焦点读数覆盖：单选与多选切换、清选区、导航光标移动与公告文本、触摸与键盘模态切换、双击、dispose 后不再通知；`npx vitest run src/modules/architecture/tests/graphSelectionController.test.ts` 退出码 0。
+- [x] 行数只降不升：`wc -l src/modules/architecture/PlantUmlGraph.tsx` 的行数小于 4453，且 `server/shared/tests/architecture-ratchet.baseline.json` 中该文件的 `oversizeFiles` 值在同一提交里同步下调；`npx tsx --test server/shared/tests/architecture-ratchet.test.ts` 退出码 0。
+- [x] 回归：`npx vitest run src/modules/architecture` 全绿（退出码 0），`npx tsc --noEmit -p .` 无输出。
 
 ## DoD
 
