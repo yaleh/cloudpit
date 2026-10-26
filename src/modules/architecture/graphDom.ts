@@ -60,6 +60,7 @@ import {
   readSvgNaturalSize,
   type SvgViewportSize,
 } from '@/modules/architecture/svgViewport';
+import { parseCssPx } from '@/shared/utils';
 
 /**
  * The renderer options this component drives. Structural subsets of the
@@ -1185,12 +1186,6 @@ export function drawSemanticLayout(
   svg.setAttribute('data-architecture-semantic-scale', String(layout.scale));
 }
 
-/** A CSS length read out of a computed style, in px (0 when absent). */
-export function stylePx(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 /**
  * The reader's visible content box, in the drawing SVG's own user units.
  *
@@ -1208,10 +1203,10 @@ export function visibleViewportInSvg(host: HTMLElement, svg: SVGSVGElement): Pla
   let paddingY = 0;
   if (typeof getComputedStyle === 'function') {
     const style = getComputedStyle(host);
-    paddingLeft = stylePx(style.paddingLeft);
-    paddingTop = stylePx(style.paddingTop);
-    paddingX = paddingLeft + stylePx(style.paddingRight);
-    paddingY = paddingTop + stylePx(style.paddingBottom);
+    paddingLeft = parseCssPx(style.paddingLeft);
+    paddingTop = parseCssPx(style.paddingTop);
+    paddingX = paddingLeft + parseCssPx(style.paddingRight);
+    paddingY = paddingTop + parseCssPx(style.paddingBottom);
   }
   const width = host.clientWidth - paddingX;
   const height = host.clientHeight - paddingY;
