@@ -17,12 +17,12 @@
  * Consumers: `reply-suggestions.routes.ts` and the service criterion.
  */
 import { AppError } from '@/shared/utils.js';
+import { completeLlm } from '@/modules/llm-gateway/index.js';
 
 import { tailCodePoints, truncateCodePoints } from './reply-suggestions-chips.js';
-import {
-  completeReplySuggestions,
-  type ReplySuggestionsCompletion,
-  type ReplySuggestionsCompletionRequest,
+import type {
+  ReplySuggestionsCompletion,
+  ReplySuggestionsCompletionRequest,
 } from './reply-suggestions-client.js';
 import { createDrawRunner } from './reply-suggestions-draw.js';
 import { createDrawStore } from './reply-suggestions-draw-store.js';
@@ -131,7 +131,7 @@ function inflightKey(
 export function createReplySuggestionsService(deps: ReplySuggestionsServiceDeps): ReplySuggestionsService {
   const now = deps.now ?? Date.now;
   const logger = deps.logger ?? ((line: string) => console.log(line));
-  const complete = deps.complete ?? ((request: ReplySuggestionsCompletionRequest) => completeReplySuggestions(request));
+  const complete = deps.complete ?? ((request: ReplySuggestionsCompletionRequest) => completeLlm(request));
   const usageLog = deps.usageLog ?? createReplySuggestionsUsageLog();
   const runner = createDrawRunner({ complete, now, logger });
   const store = createDrawStore();

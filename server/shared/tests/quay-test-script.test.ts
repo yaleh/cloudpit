@@ -341,8 +341,10 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server test files).
     // Then gap-settings-file-shared-reader added its criterion
     // server/shared/tests/settings-file.test.ts (442 + 1 = 443 collected server test
-    // files). This fixture names 3 known files, so 443 - 3 = 440.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=440$/);
+    // files). Then gap-llm-gateway-leaf-module added
+    // server/modules/llm-gateway/tests/llm-client.test.ts (443 + 1 = 444 collected
+    // server test files). This fixture names 3 known files, so 444 - 3 = 441.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=441$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -391,10 +393,11 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 443 files on this tree (gap-settings-file-shared-reader
-    // added server/shared/tests/settings-file.test.ts) — but this fixture names ONE known
-    // file, so 443 - 1 = 442 (AC2 reads 440 because its fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=442$/);
+    // Same collection as AC2 — 444 files on this tree (gap-settings-file-shared-reader
+    // added server/shared/tests/settings-file.test.ts, then gap-llm-gateway-leaf-module
+    // added server/modules/llm-gateway/tests/llm-client.test.ts) — but this fixture names
+    // ONE known file, so 444 - 1 = 443 (AC2 reads 441 because its fixture names 3).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=443$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,7 +1,7 @@
 ---
 id: gap-llm-gateway-leaf-module
 title: 把直连 LLM 客户端从 reply-suggestions 抽成叶子模块 modules/llm-gateway，协议分支改为策略对象
-status: ready
+status: done
 labels:
   - gap
 parent: null

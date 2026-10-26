@@ -31,12 +31,12 @@
  * counter-voice criterion in `tests/counter-voice.test.ts`.
  */
 import {
-  ApiCredential,
-  completeReplySuggestions,
-  createReplySuggestionsUsageLog,
-  type ReplySuggestionsCompletion,
-  type ReplySuggestionsCompletionRequest,
-} from '@/modules/reply-suggestions/index.js';
+  completeLlm,
+  credentialFromKey,
+  type LlmCompletion,
+  type LlmCompletionRequest,
+} from '@/modules/llm-gateway/index.js';
+import { createReplySuggestionsUsageLog } from '@/modules/reply-suggestions/index.js';
 
 import {
   createCounterVoiceSettingsSource,
@@ -125,8 +125,8 @@ type CounterVoiceUsageLog = {
 export type CounterVoiceDependencies = {
   /** The settings reading, re-read per request so an edit reaches the next question. */
   readSettings?: () => CounterVoiceSettings;
-  /** The completion seam. Defaults to the reply-suggestions client. */
-  complete?: (request: ReplySuggestionsCompletionRequest) => Promise<ReplySuggestionsCompletion>;
+  /** The completion seam. Defaults to the gateway leaf client. */
+  complete?: (request: LlmCompletionRequest) => Promise<LlmCompletion>;
   /** The usage ledger. Defaults to the reply-suggestions JSONL ledger. */
   usageLog?: CounterVoiceUsageLog;
   /** The clock. Defaults to `Date.now`. */
@@ -242,7 +242,7 @@ function parseCounterVoiceAnswer(text: string): {
  */
 export function createCounterVoice(dependencies: CounterVoiceDependencies = {}): CounterVoiceService {
   const readSettings = dependencies.readSettings ?? createCounterVoiceSettingsSource().read;
-  const complete = dependencies.complete ?? completeReplySuggestions;
+  const complete = dependencies.complete ?? completeLlm;
   const usageLog: CounterVoiceUsageLog = dependencies.usageLog ?? createReplySuggestionsUsageLog();
   const now = dependencies.now ?? (() => Date.now());
 
@@ -303,13 +303,13 @@ export function createCounterVoice(dependencies: CounterVoiceDependencies = {}):
       }
       callTimes.push(at);
 
-      const request: ReplySuggestionsCompletionRequest = {
+      const request: LlmCompletionRequest = {
         config: {
           protocol: settings.protocol,
           baseUrl: settings.baseUrl,
           model: settings.model,
           authScheme: settings.authScheme,
-          credential: new ApiCredential(settings.apiKey),
+          credential: credentialFromKey(settings.apiKey),
           disableThinking: settings.disableThinking,
           timeoutMs: settings.timeoutMs,
         },
@@ -320,7 +320,7 @@ export function createCounterVoice(dependencies: CounterVoiceDependencies = {}):
       };
 
       const startedAt = now();
-      let completion: ReplySuggestionsCompletion;
+      let completion: LlmCompletion;
       try {
         completion = await complete(request);
       } catch (failure) {

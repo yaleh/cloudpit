@@ -15,7 +15,8 @@
  */
 import type { Router } from 'express';
 
-import type { ReplySuggestionsCompletion, ReplySuggestionsCompletionRequest } from './reply-suggestions-client.js';
+import type { LlmCompletion, LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
+
 import { createReplySuggestionsRoutes } from './reply-suggestions.routes.js';
 import {
   createReplySuggestionsService,
@@ -41,7 +42,7 @@ export type ReplySuggestionsModuleDeps = {
   homeDir?: string;
   now?: () => number;
   logger?: (line: string) => void;
-  complete?: (request: ReplySuggestionsCompletionRequest) => Promise<ReplySuggestionsCompletion>;
+  complete?: (request: LlmCompletionRequest) => Promise<LlmCompletion>;
   usageLogPath?: string;
   usageLogMaxBytes?: number;
 };

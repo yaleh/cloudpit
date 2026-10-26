@@ -30,10 +30,9 @@
  */
 import os from 'node:os';
 
+import type { LlmAuthScheme, LlmProtocolName } from '@/modules/llm-gateway/index.js';
 import {
   createReplySuggestionsSettingsSource,
-  type ReplySuggestionsAuthScheme,
-  type ReplySuggestionsProtocol,
   type ReplySuggestionsSettingsSource,
 } from '@/modules/reply-suggestions/index.js';
 import {
@@ -82,9 +81,9 @@ export type CounterVoiceSettings = {
   maxPerHour: number;
   /** The block's own key path, or the empty string to use the reply-suggestions key. */
   apiKeyFile: string;
-  protocol: ReplySuggestionsProtocol;
+  protocol: LlmProtocolName;
   baseUrl: string;
-  authScheme: ReplySuggestionsAuthScheme;
+  authScheme: LlmAuthScheme;
   disableThinking: boolean;
   timeoutMs: number;
   maxOutputTokens: number;
