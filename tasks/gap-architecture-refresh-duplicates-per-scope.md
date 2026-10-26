@@ -90,3 +90,13 @@ extra:
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-architecture-refresh-duplicates-per-scope.md
+
+## Blocker
+
+**2026-10-26T08:32:45.144Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: suite 证书 — suite_head..tip 恰为本任务的单个 flip-done 提交（身份判定：仅 M tasks/gap-architecture-refresh-duplicates-per-scope.md）⇒ 判惰性，⛔ 未调分类器
+fan-in-ff-merge: FF FAILED — ! [rejected]            task/gap-architecture-refresh-duplicates-per-scope -> develop (non-fast-forward); not a fast-forward. Retry record written (attempt 1). Return to 无锁段 step 1 (merge develop again — 必须 merge 不得 rebase, AC75), re-judge the delta (step 2) and re-run.
+fan-in-ff-merge: measure ff_only_locked=false
+- run_id：wk-prod-anchor
+- session_id：f1dce048-02d6-4a48-88bc-67a904e53e30

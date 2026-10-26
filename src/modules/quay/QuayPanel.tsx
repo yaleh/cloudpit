@@ -996,7 +996,7 @@ function LoadedQuayPanel({
         data-testid="quay-tab-layers"
         className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]"
       >
-        <div data-testid="quay-tab-charts" className="grid min-w-0 grid-cols-1 gap-4">
+        <div data-testid="quay-tab-charts" className="grid min-w-0 grid-cols-1 content-start gap-4">
           <LoopPulseCard
             gantt={snapshot.gantt ?? null}
             ganttUnavailable={snapshot.ganttUnavailable ?? null}
