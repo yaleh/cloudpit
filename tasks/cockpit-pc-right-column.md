@@ -2,7 +2,7 @@
 id: cockpit-pc-right-column
 title: PC 右侧驾驶舱列：会话页右侧常驻可收起（≥1280 挤压、900–1280 覆盖、<900 不挂），header
   计数按钮，卡片会话链接在左侧打开，键盘按焦点归属，输入大纲改贴会话区右缘
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
