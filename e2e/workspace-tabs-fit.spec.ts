@@ -253,6 +253,12 @@ type HeaderReading = {
   scroll: { left: number; right: number; width: number };
   /** The flex item that owns the strip: the room the icon/full decision is taken against. */
   roomWidth: number | null;
+  /** The empty grow cell that now takes the slack between the title block and the pulse trigger. */
+  spacerWidth: number | null;
+  /** The Loop Pulse trigger's box, so its own 110→43 px switch point can be scanned too. */
+  pulseWidth: number | null;
+  /** The header's own width: the pulse trigger's breakpoint is measured against this, not the viewport. */
+  headerWidth: number | null;
   scrollRightButton: boolean;
   titleWidth: number | null;
   tablistWidth: number;
@@ -276,12 +282,17 @@ const readHeader = (page: Page): Promise<HeaderReading> =>
     const header = document.querySelector<HTMLElement>('header[data-app-header]');
     const titleBlock = header?.firstElementChild as HTMLElement | null;
     const room = document.querySelector<HTMLElement>('[data-workspace-tabs-room]');
+    const spacer = document.querySelector<HTMLElement>('[data-workspace-tabs-spacer]');
+    const pulse = document.querySelector<HTMLElement>('[data-testid="quay-pulse-trigger"]');
 
     return {
       mode: tablist.getAttribute('data-workspace-tabs-mode'),
       viewport: { width: window.innerWidth, height: window.innerHeight },
       scroll: { left: scrollRect.left, right: scrollRect.right, width: scrollRect.width },
       roomWidth: room === null ? null : room.getBoundingClientRect().width,
+      spacerWidth: spacer === null ? null : spacer.getBoundingClientRect().width,
+      pulseWidth: pulse === null ? null : pulse.getBoundingClientRect().width,
+      headerWidth: header === null ? null : header.getBoundingClientRect().width,
       scrollRightButton: document.querySelector('[aria-label*="Scroll tabs right"]') !== null,
       titleWidth: titleBlock === null ? null : titleBlock.getBoundingClientRect().width,
       tablistWidth: tablist.getBoundingClientRect().width,
@@ -321,6 +332,54 @@ async function settleViewport(page: Page, expectedMode?: 'full' | 'icon'): Promi
   }
   return reading;
 }
+
+/**
+ * What the adjacency criterion measures, in one round trip.
+ *
+ * `gap` is the header's own computed column gap — the distance the flex row leaves between any
+ * two of its children. The two distances that matter are from the Loop Pulse trigger's right edge
+ * to (a) the tablist's left edge when the strip fits, and (b) the tab container's left edge when
+ * it overflows and the tabs scroll inside the container.
+ */
+type AdjacencyReading = {
+  gap: number;
+  pulseRight: number;
+  tablistLeft: number;
+  tablistRight: number;
+  roomLeft: number | null;
+  roomRight: number | null;
+  viewportWidth: number;
+  mode: string | null;
+  scrollRightButton: boolean;
+};
+
+const readAdjacency = (page: Page): Promise<AdjacencyReading> =>
+  page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>('header[data-app-header]');
+    const pulse = document.querySelector<HTMLElement>('[data-testid="quay-pulse-trigger"]');
+    const tablist = document.querySelector<HTMLElement>('[role="tablist"]');
+    const room = document.querySelector<HTMLElement>('[data-workspace-tabs-room]');
+    if (header === null || pulse === null || tablist === null) {
+      throw new Error('the desktop header, pulse trigger and tablist must all be in the document');
+    }
+    const headerStyle = window.getComputedStyle(header);
+    const tablistRect = tablist.getBoundingClientRect();
+    const roomRect = room === null ? null : room.getBoundingClientRect();
+    return {
+      gap: Number.parseFloat(headerStyle.columnGap || headerStyle.gap || '0'),
+      pulseRight: pulse.getBoundingClientRect().right,
+      tablistLeft: tablistRect.left,
+      tablistRight: tablistRect.right,
+      roomLeft: roomRect === null ? null : roomRect.left,
+      roomRight: roomRect === null ? null : roomRect.right,
+      viewportWidth: window.innerWidth,
+      mode: tablist.getAttribute('data-workspace-tabs-mode'),
+      scrollRightButton: document.querySelector('[aria-label*="Scroll tabs right"]') !== null,
+    };
+  });
+
+/** The desktop header's gap, as `gap-2` and `md:gap-3` compose it. */
+const DESKTOP_HEADER_GAP_PX = 12;
 
 /** One line per width, so a red gate's tail can read the numbers the assertions used. */
 function printReading(label: string, reading: HeaderReading): void {
@@ -440,3 +499,220 @@ test('at 1024 with plugins the overflow arrow still reaches the last tab and the
     await context.close();
   }
 });
+
+/* ── the adjacency criteria ────────────────────────────────────────────────── */
+
+/** The three viewport widths the fit-regime adjacency criterion drives. */
+const ADJACENCY_VIEWPORTS = [1200, 1440, 1920] as const;
+
+/**
+ * The Loop Pulse trigger is the header's own flex child immediately before the tab container, so
+ * the visible distance from its right edge to the strip's left edge is the header's gap. In the
+ * fit regime the container is content-sized and the scroll container has no resting padding, so
+ * the tablist's outer box IS the container's left edge; measuring the tablist here would catch a
+ * regression that reintroduced padding between the two.
+ */
+test('the pulse trigger sits one header gap before the tablist at 1200/1440/1920', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { context, page } = await openWorkspacePage(browser, { width: ADJACENCY_VIEWPORTS[0], height: 900 });
+  try {
+    for (const width of ADJACENCY_VIEWPORTS) {
+      await page.setViewportSize({ width, height: 900 });
+      const settled = await settleViewport(page);
+      printReading('adjacency', settled);
+      const reading = await readAdjacency(page);
+      console.log(
+        `${TAG} adjacency width=${width} gap=${reading.gap} mode=${reading.mode} arrow=${reading.scrollRightButton} `
+          + `pulseRight=${reading.pulseRight.toFixed(1)} tablistLeft=${reading.tablistLeft.toFixed(1)} `
+          + `distance=${(reading.tablistLeft - reading.pulseRight).toFixed(1)}`,
+      );
+
+      expect(
+        Math.abs(reading.gap - DESKTOP_HEADER_GAP_PX),
+        `the desktop header gap must be ${DESKTOP_HEADER_GAP_PX}px at ${width}px; got ${reading.gap}`,
+      ).toBeLessThanOrEqual(0.5);
+      expect(
+        reading.scrollRightButton,
+        `at ${width}px the strip must be in the fit regime (no scroll arrow) for the tablist's left edge to be the strip's edge`,
+      ).toBe(false);
+
+      const distance = reading.tablistLeft - reading.pulseRight;
+      expect(
+        Math.abs(distance - reading.gap),
+        `the pulse trigger's right edge must be one header gap (${reading.gap}px) before the tablist at ${width}px; `
+          + `it was ${distance.toFixed(1)}px`,
+      ).toBeLessThanOrEqual(1);
+
+      await page.locator('header[data-app-header]').screenshot({
+        path: path.join('tmp', `workspace-tabs-adjacency-${width}.png`),
+      });
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+/**
+ * The overflow regime is the other half: once the strip cannot fit, the container is clipped to
+ * the available width and the tabs scroll inside it. The pulse must still be exactly one header
+ * gap from the CONTAINER (the strip's scroll padding lives inside it, for the arrows), and the
+ * container itself must stay inside the viewport rather than being pushed off the right edge.
+ */
+test('in the overflow regime the pulse trigger stays one header gap from the tab container', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { context, page } = await openWorkspacePage(browser, OVERFLOW_VIEWPORT);
+  try {
+    const settled = await settleViewport(page, 'icon');
+    printReading('overflow-adjacency', settled);
+    const reading = await readAdjacency(page);
+    console.log(
+      `${TAG} overflow-adjacency gap=${reading.gap} mode=${reading.mode} arrow=${reading.scrollRightButton} `
+        + `pulseRight=${reading.pulseRight.toFixed(1)} roomLeft=${reading.roomLeft?.toFixed(1)} `
+        + `roomRight=${reading.roomRight?.toFixed(1)} tablistLeft=${reading.tablistLeft.toFixed(1)} `
+        + `viewport=${reading.viewportWidth}`,
+    );
+
+    expect(reading.scrollRightButton, 'the narrow viewport must overflow the strip so the right arrow renders').toBe(true);
+    expect(reading.roomLeft, 'the tab container must be in the document').not.toBeNull();
+    const distance = (reading.roomLeft ?? Number.NaN) - reading.pulseRight;
+    expect(
+      Math.abs(distance - reading.gap),
+      `the pulse trigger's right edge must be one header gap (${reading.gap}px) before the tab container; `
+        + `it was ${distance.toFixed(1)}px`,
+    ).toBeLessThanOrEqual(1);
+
+    expect(
+      reading.roomRight ?? Number.POSITIVE_INFINITY,
+      `the tab container must stay inside the viewport (${reading.viewportWidth}px), not be pushed off the right edge`,
+    ).toBeLessThanOrEqual(reading.viewportWidth + 1);
+    expect(reading.tablistLeft, 'the tablist must start inside the viewport').toBeGreaterThanOrEqual(0);
+    expect(reading.tablistLeft, 'the tablist must not start past the viewport').toBeLessThan(reading.viewportWidth);
+
+    await page.locator('header[data-app-header]').screenshot({
+      path: path.join('tmp', 'workspace-tabs-adjacency-overflow.png'),
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+/* ── the switch-point scan ─────────────────────────────────────────────────── */
+
+/**
+ * The grid the switch-point criterion is measured on: 10 px steps across the whole desktop range.
+ *
+ * It has to hold BOTH switches the header makes on its own: the Loop Pulse trigger's 43→110 px
+ * shape (its breakpoint is a 960 px HEADER, not a viewport) and the tab strip's icon↔full label
+ * mode. A coarse grid would let a shifted switch hide between two samples, so the step is 10 px
+ * — the criterion's own tolerance is 1 px against a recorded baseline taken on this same grid.
+ */
+const SCAN_WIDTHS: readonly number[] = Array.from({ length: 127 }, (_, index) => 800 + index * 10);
+
+/**
+ * The two switch widths this fixture produced BEFORE the header's spacer change.
+ *
+ * MEASURED 2026-10-26 on this exact grid (10 px steps, 800–2060, plugin tabs installed), against
+ * the pre-change `WorkspaceHeader` on `develop`:
+ *   - label mode: icon at 1640, full at 1650  → `LABEL_MODE_FULL_AT` is the first FULL sample.
+ *   - pulse shape: 43 px at 1280, 110 px at 1290 → `PULSE_WIDE_AT` is the first 110 px sample.
+ *
+ * The adjacency change moves width between the grow spacer and the tab container but leaves their
+ * SUM — the decision's input — untouched, so neither switch may move. The pulse switch is the
+ * trigger's own header-width breakpoint (960 px of header CONTENT, which is why it lands at a
+ * 1290 px viewport) and is recorded here as the control arm: it must not move either.
+ */
+const BASELINE_LABEL_MODE_FULL_AT_PX = 1650;
+const BASELINE_PULSE_WIDE_AT_PX = 1290;
+
+type ScanRow = {
+  width: number;
+  mode: string | null;
+  pulseWidth: number | null;
+  headerWidth: number | null;
+};
+
+type Transition<T> = { at: number; from: T; to: T };
+
+/** Every place `key` changes between consecutive 10 px samples, with the width it changed at. */
+function transitionsOf<T>(rows: readonly ScanRow[], key: (row: ScanRow) => T): Transition<T>[] {
+  const out: Transition<T>[] = [];
+  for (let index = 1; index < rows.length; index += 1) {
+    const from = key(rows[index - 1]);
+    const to = key(rows[index]);
+    if (from !== to) out.push({ at: rows[index].width, from, to });
+  }
+  return out;
+}
+
+test('scan: label-mode and pulse-shape switch points stay on the recorded baseline', async ({ browser }) => {
+  test.setTimeout(300_000);
+  const { context, page } = await openWorkspacePage(browser, { width: SCAN_WIDTHS[0], height: 900 });
+  try {
+    const rows: ScanRow[] = [];
+    for (const width of SCAN_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      const reading = await settleViewport(page);
+      rows.push({
+        width,
+        mode: reading.mode,
+        pulseWidth: reading.pulseWidth === null ? null : Math.round(reading.pulseWidth),
+        headerWidth: reading.headerWidth === null ? null : Math.round(reading.headerWidth),
+      });
+    }
+
+    const modeSwitches = transitionsOf(rows, (row) => row.mode);
+    const pulseSwitches = transitionsOf(rows, (row) => row.pulseWidth);
+    console.log(`${TAG} scan mode-switches=${JSON.stringify(modeSwitches)}`);
+    console.log(`${TAG} scan pulse-switches=${JSON.stringify(pulseSwitches)}`);
+    console.log(`${TAG} scan rows=${JSON.stringify(rows)}`);
+
+    // The scan is only meaningful if both switches are inside it.
+    const labelSwitch = modeSwitches.find((transition) => transition.to === 'full');
+    const pulseSwitch = pulseSwitches.find((transition) => transition.to === 110);
+    expect(labelSwitch, `the tab-label switch must be inside the scan grid; got ${JSON.stringify(modeSwitches)}`).toBeTruthy();
+    expect(pulseSwitch, `the pulse-shape switch must be inside the scan grid; got ${JSON.stringify(pulseSwitches)}`).toBeTruthy();
+
+    // Exactly one switch of each across the whole grid: neither signal may flip back and forth.
+    expect(
+      modeSwitches.length,
+      `the label mode must switch exactly once across 800–2060 px; got ${JSON.stringify(modeSwitches)}`,
+    ).toBe(1);
+    expect(
+      pulseSwitches.length,
+      `the pulse shape must switch exactly once across 800–2060 px; got ${JSON.stringify(pulseSwitches)}`,
+    ).toBe(1);
+
+    // Against the pre-change baseline, on the same grid and fixture (1 px tolerance; the grid
+    // itself is 10 px, so a moved switch shows up as a different sample).
+    const labelDelta = Math.abs((labelSwitch?.at ?? -1) - BASELINE_LABEL_MODE_FULL_AT_PX);
+    expect(
+      labelDelta,
+      `the full-label switch must stay at ${BASELINE_LABEL_MODE_FULL_AT_PX}px (±1); it moved to ${labelSwitch?.at}px`,
+    ).toBeLessThanOrEqual(1);
+    const pulseDelta = Math.abs((pulseSwitch?.at ?? -1) - BASELINE_PULSE_WIDE_AT_PX);
+    expect(
+      pulseDelta,
+      `the pulse-shape switch is the control arm and must stay at ${BASELINE_PULSE_WIDE_AT_PX}px (±1); it moved to ${pulseSwitch?.at}px`,
+    ).toBeLessThanOrEqual(1);
+
+    // ±20 px around the label-mode switch: one boundary, and no mode flips on either side.
+    const around = rows.filter((row) => Math.abs(row.width - BASELINE_LABEL_MODE_FULL_AT_PX) <= 20);
+    expect(around.map((row) => row.width), 'the scan grid must cover ±20 px around the switch').toEqual([
+      BASELINE_LABEL_MODE_FULL_AT_PX - 20,
+      BASELINE_LABEL_MODE_FULL_AT_PX - 10,
+      BASELINE_LABEL_MODE_FULL_AT_PX,
+      BASELINE_LABEL_MODE_FULL_AT_PX + 10,
+      BASELINE_LABEL_MODE_FULL_AT_PX + 20,
+    ]);
+    for (const row of around) {
+      const expected = row.width >= BASELINE_LABEL_MODE_FULL_AT_PX ? 'full' : 'icon';
+      expect(
+        row.mode,
+        `at ${row.width}px, within ±20 px of the ${BASELINE_LABEL_MODE_FULL_AT_PX}px switch, the mode must be ${expected}; got ${row.mode}`,
+      ).toBe(expected);
+    }
+  } finally {
+    await context.close();
+  }
+});
+

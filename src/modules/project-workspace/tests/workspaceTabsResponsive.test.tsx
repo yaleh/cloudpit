@@ -240,14 +240,17 @@ const tablistParts = (): string[] => {
 };
 
 /**
- * Installs the two readings the label-mode decision takes, and lets a case move them.
+ * Installs the readings the label-mode decision takes, and lets a case move them.
  *
- * `room` is the flex item (`data-workspace-tabs-room`) and `natural` the off-screen full-label
- * copy (`data-workspace-tabs-measure`); every other element reads 0, so the two numbers cannot
- * be confused with each other. `triggerResize` replays the ResizeObserver notification the
- * browser would send; `restore` puts the jsdom prototypes and the global observer back.
+ * The room the header gives the strip is split across two flex children since the Loop Pulse
+ * trigger moved next to the tabs: the empty grow cell (`data-workspace-tabs-spacer`) and the
+ * content-sized tab container (`data-workspace-tabs-room`). The decision reads their SUM, so the
+ * stub takes both. `natural` is the off-screen full-label copy; every other element reads 0, so
+ * the three numbers cannot be confused with one another. `triggerResize` replays the
+ * ResizeObserver notification the browser would send; `restore` puts the jsdom prototypes and the
+ * global observer back.
  */
-function installStripWidthStubs(widths: { room: number; natural: number }): {
+function installStripWidthStubs(widths: { spacer: number; room: number; natural: number }): {
   triggerResize: () => void;
   restore: () => void;
 } {
@@ -268,6 +271,7 @@ function installStripWidthStubs(widths: { room: number; natural: number }): {
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     configurable: true,
     get(this: HTMLElement) {
+      if (this.hasAttribute('data-workspace-tabs-spacer')) return widths.spacer;
       return this.hasAttribute('data-workspace-tabs-room') ? widths.room : 0;
     },
   });
@@ -428,7 +432,9 @@ test('mobile dialog lists the same order as desktop', () => {
 // off-screen full-label copy is what makes the decision stable, so this case also reads that
 // copy across the two switches: its width and its labels must not change with the mode.
 test('tab strip drops to icon-only when the full-label width exceeds the room, and returns when it fits', () => {
-  const widths = { room: 500, natural: 900 };
+  // 200 + 300 is the same 500 px total the single `room` reading used to carry; the split is
+  // only how that total is now presented to the header.
+  const widths = { spacer: 200, room: 300, natural: 900 };
   const stubs = installStripWidthStubs(widths);
 
   try {
@@ -445,8 +451,9 @@ test('tab strip drops to icon-only when the full-label width exceeds the room, a
     const naturalInIconMode = (measure as HTMLElement).scrollWidth;
     const labelsInIconMode = measure.textContent;
 
-    // The room grows past the natural width: the strip returns to full labels.
-    widths.room = 1000;
+    // The total left for the strip grows past the natural width: the strip returns to full labels.
+    widths.spacer = 200;
+    widths.room = 800;
     act(() => {
       stubs.triggerResize();
     });
@@ -476,6 +483,128 @@ test('tab strip drops to icon-only when the full-label width exceeds the room, a
   }
 });
 
+// The strip's decision reads the SUM of the two flex children that now share its old room. The
+// boundary is exact: `natural + reserved` is full, one pixel less is icon. Redistributing a fixed
+// sum between the two must not change the mode — if it did, icon mode narrowing the container
+// would grow the spacer and keep choosing icon, which is the feedback loop the spacer exists to
+// prevent.
+test('the label-mode decision reads spacer + room and ignores how the same total is split', () => {
+  const NATURAL = 900;
+  const RESERVED = 4; // WorkspaceHeader's TAB_STRIP_INLINE_PADDING_PX
+  const widths = { spacer: 400, room: NATURAL + RESERVED - 400, natural: NATURAL };
+  const stubs = installStripWidthStubs(widths);
+
+  try {
+    render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+
+    assert.equal(widths.spacer + widths.room, NATURAL + RESERVED);
+    assert.equal(stripMode(), 'full', 'available = natural + the reserved slack must keep full labels');
+
+    // One pixel under the boundary: icon-only.
+    widths.room = NATURAL + RESERVED - 1 - widths.spacer;
+    act(() => {
+      stubs.triggerResize();
+    });
+    assert.equal(stripMode(), 'icon', 'available = natural + the reserved slack - 1 must choose icon-only');
+
+    // Back to the full boundary, then move the SAME total from the container into the spacer.
+    // The mode must not change: the two readings are one number.
+    widths.spacer = 100;
+    widths.room = NATURAL + RESERVED - 100;
+    act(() => {
+      stubs.triggerResize();
+    });
+    assert.equal(stripMode(), 'full', 'a total at the boundary must be full no matter which child holds it');
+
+    widths.spacer = 800;
+    widths.room = NATURAL + RESERVED - 800;
+    act(() => {
+      stubs.triggerResize();
+    });
+    assert.equal(
+      stripMode(),
+      'full',
+      'moving 700 px from the container to the spacer must not flip the mode: the decision reads their sum',
+    );
+  } finally {
+    stubs.restore();
+  }
+});
+
+// The desktop header's direct children are one row in DOM order: title block, the empty grow
+// cell, the Loop Pulse trigger, the tab container, the menu. The trigger must be a SIBLING of the
+// container, never a descendant: the move exists to put the pulse next to the tabs without
+// putting it inside the tab surface. The mobile branch is untouched and renders no spacer.
+test('desktop header places the pulse trigger between the grow spacer and the tab container', () => {
+  render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowQuayTab shouldShowBrowserTab />);
+
+  const header = document.querySelector('header[data-app-header]');
+  assert.ok(header, 'the header must render');
+  const children = Array.from(header.children);
+  assert.equal(
+    children.length,
+    5,
+    `the desktop header must have exactly its five direct children; got ${children.map((element) => element.tagName).join(',')}`,
+  );
+
+  assert.ok(
+    (children[0].textContent ?? '').includes(PROJECT.displayName),
+    'the first child must be the title block',
+  );
+
+  const spacer = children[1];
+  assert.equal(spacer.getAttribute('data-workspace-tabs-spacer'), '', 'the second child must be the grow spacer');
+  assert.equal(spacer.getAttribute('aria-hidden'), 'true', 'the spacer is decorative and must never be announced');
+  assert.equal((spacer.textContent ?? '').trim(), '', 'the spacer must carry no content');
+
+  const pulse = children[2];
+  assert.equal(pulse.getAttribute('data-testid'), 'quay-pulse-trigger', 'the third child must be the pulse trigger');
+
+  const room = children[3];
+  assert.equal(room.getAttribute('data-workspace-tabs-room'), '', 'the fourth child must be the tab container');
+  assert.equal(
+    room.querySelector('[data-testid="quay-pulse-trigger"]'),
+    null,
+    'the pulse trigger must not be a descendant of the tab container',
+  );
+
+  assert.ok(
+    children[4].querySelector('[data-workspace-menu-trigger]'),
+    'the last child must be the workspace menu',
+  );
+});
+
+test('mobile header keeps its pre-change child order and renders no spacer', () => {
+  render(<HeaderHarness isMobile shouldShowTasksTab shouldShowQuayTab shouldShowBrowserTab />);
+
+  const header = document.querySelector('header[data-app-header]');
+  assert.ok(header, 'the header must render');
+  const children = Array.from(header.children);
+  assert.equal(
+    children.length,
+    2,
+    `the mobile header must still be title block + one action row; got ${children.map((element) => element.tagName).join(',')}`,
+  );
+  assert.ok((children[0].textContent ?? '').includes(PROJECT.displayName), 'the first child must be the title block');
+  assert.equal(
+    document.querySelector('[data-workspace-tabs-spacer]'),
+    null,
+    'the desktop-only spacer must not render on mobile',
+  );
+  assert.ok(
+    children[1].querySelector('[data-testid="quay-pulse-trigger"]'),
+    'the mobile action row must still carry the pulse trigger',
+  );
+  assert.ok(
+    children[1].querySelector('[data-workspace-tab][aria-haspopup="dialog"]'),
+    'the mobile action row must still carry the workspace picker',
+  );
+  assert.ok(
+    children[1].querySelector('[data-workspace-menu-trigger]'),
+    'the mobile action row must still carry the menu',
+  );
+});
+
 // The tooltip rule from `gap-architecture-compact-chrome-and-tab-tooltip` — a bubble only for
 // a tab whose word is hidden — now follows the label MODE rather than a viewport breakpoint.
 // A tab is tooltipped when its Pill sits inside Tooltip's wrapper element.
@@ -496,7 +625,7 @@ test('tab tooltip follows the label mode, not the breakpoint', () => {
   }
   full.unmount();
 
-  const widths = { room: 400, natural: 900 };
+  const widths = { spacer: 150, room: 250, natural: 900 };
   const stubs = installStripWidthStubs(widths);
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
@@ -848,7 +977,7 @@ test('tab tooltip only when the label is hidden', async () => {
 
   // Icon mode: only the icon is drawn, so an inactive tab earns a bubble.
   // The ACTIVE tab still spells its own name and must not get one.
-  const stubs = installStripWidthStubs({ room: 400, natural: 900 });
+  const stubs = installStripWidthStubs({ spacer: 150, room: 250, natural: 900 });
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
     assert.equal(stripMode(), 'icon', 'the narrow room must choose icon-only');
