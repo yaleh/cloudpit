@@ -89,6 +89,19 @@ delete process.env.VITE_IS_PLATFORM;
 mkdirSync(SCRATCH_HOME, { recursive: true });
 mkdirSync(FIXTURE_HOME, { recursive: true });
 
+// This criterion is the world where `RESIDENT_RUN_IS_TURN` is OFF: the factory
+// default (`residentRunIsTurn()` in `shared/utils.ts` recognizes only the
+// literal '1'), so deleting the variable is the off state. The file must say so
+// itself rather than inherit it: `scripts/test.sh` unsets this variable, but the
+// goal gate runs the AC's literal command in the anchor's environment, where the
+// host's `40-resident-run-is-turn.conf` exports it. Inheriting ON makes the first
+// resident `send` poll for a delivery the first turn never records (AC-385's
+// 2s handover), the first turn ends before send returns, and the second send is
+// no longer busy — so the readings below would be of a different world. The
+// on-state world belongs to AC-385's own criterion.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
 const { closeConnection, getConnection, initializeDatabase, mcpAuditLogDb, sessionsDb } = await import(
   '@/modules/database/index.js'
 );
@@ -729,5 +742,12 @@ test('the criterion file neither opens a socket nor spawns a real CLI', async ()
 });
 
 after(() => {
+  // The pin must not outlive this file: restore exactly what the caller had
+  // (including "unset"), so anything in the same process sees the original value.
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
   rmSync(SCRATCH, { recursive: true, force: true });
 });
