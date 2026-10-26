@@ -1,7 +1,7 @@
 ---
 id: gap-shared-numeric-css-helpers-clamp-px
 title: 数值小工具归位：clamp 与 CSS px 解析的重复副本收进 src/shared/utils
-status: todo
+status: ready
 labels:
   - gap
 parent: null
