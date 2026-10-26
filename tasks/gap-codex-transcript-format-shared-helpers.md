@@ -12,7 +12,7 @@ extra:
 ---
 ## Proposal
 
-<!-- dedup-ref --> 2026-10-26 架构复查第二批第 5 条（重复代码家族之一）。与 `gap-provider-capability-facets-replace-name-branches` 同属「provider 专属知识泄漏到通用服务」，但机制不同：那条处理按 provider 名字的分支，本条处理 Codex 记录格式解析的副本。两条的 Touches 不重叠。
+<!-- dedup-ref --> 2026-10-26 架构复查第二批第 5 条（重复代码家族之一）。与 `gap-provider-capability-facets-replace-name-branches` 同属「provider 专属知识泄漏到通用服务」，但机制不同：那条处理按 provider 名字的分支，本条处理 Codex 记录格式解析的副本。两条都会改 `server/modules/providers/list/codex/codex-sessions.provider.ts`（那条加 `transcriptFileBacked` 属性，本条删两个本地函数），调度器按 Touches 串行，改动区域不同，不需要 depends_on。
 
 ### 现状（2026-10-26 实测）
 
