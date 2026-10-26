@@ -1688,7 +1688,7 @@ test('entity navigation: Enter activates a ringed cursor, arrows move it, and th
     assert.ok(domId !== null, `${key} must leave an active descendant`);
     const active = document.getElementById(domId);
     assert.ok(active !== null, `${key} must point at a drawn element`);
-    const entityId = active.getAttribute('data-entity-id');
+    const entityId = active.getAttribute('data-entity-id') ?? active.getAttribute('data-package-id');
     assert.ok(entityId !== null, `${key} must land on an entity or frame`);
     visited.add(entityId);
   }

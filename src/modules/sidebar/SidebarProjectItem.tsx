@@ -289,8 +289,8 @@ function SidebarProjectItem({
             )}
             onClick={toggleProject}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-y-2">
+              <div className="flex min-w-[8rem] flex-1 items-center gap-3">
                 <button
                   className={cn(
                     'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
@@ -343,33 +343,31 @@ function SidebarProjectItem({
                     />
                   ) : (
                     <>
-                      <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
-                        <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-                          {showTaskCounts && fleetTaskCounts && (
-                            <ProjectTaskCountsBadge counts={fleetTaskCounts} />
-                          )}
-                          <QuayIndicator
-                            hasQuayConfig={Boolean(project.hasQuayConfig)}
-                            status={quayStatus}
+                      <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
+                        {showTaskCounts && fleetTaskCounts && (
+                          <ProjectTaskCountsBadge counts={fleetTaskCounts} />
+                        )}
+                        <QuayIndicator
+                          hasQuayConfig={Boolean(project.hasQuayConfig)}
+                          status={quayStatus}
+                          size="xs"
+                        />
+                        {tasksEnabled && (
+                          <TaskIndicator
+                            status={taskStatus}
                             size="xs"
+                            className="hidden md:inline-flex"
                           />
-                          {tasksEnabled && (
-                            <TaskIndicator
-                              status={taskStatus}
-                              size="xs"
-                              className="hidden md:inline-flex"
-                            />
-                          )}
-                        </div>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="ml-auto flex items-center gap-1">
                 {isEditing ? (
                   <>
                     <button
@@ -519,10 +517,11 @@ function SidebarProjectItem({
                 </div>
               ) : (
                 <div>
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span className="truncate text-sm font-normal text-foreground" title={project.displayName}>
-                      {project.displayName}
-                    </span>
+                  <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
+                    {project.displayName}
+                  </div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>{sessionCountDisplay}</span>
                     <QuayIndicator
                       hasQuayConfig={Boolean(project.hasQuayConfig)}
                       status={quayStatus}
@@ -532,11 +531,8 @@ function SidebarProjectItem({
                     {showTaskCounts && fleetTaskCounts && (
                       <ProjectTaskCountsBadge counts={fleetTaskCounts} className="flex-shrink-0" />
                     )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {sessionCountDisplay}
                     {project.fullPath !== project.displayName && (
-                      <span className="ml-1 opacity-60" title={project.fullPath}>
+                      <span className="opacity-60" title={project.fullPath}>
                         {' - '}
                         {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
                       </span>
