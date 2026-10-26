@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-graph-gesture-owner
 title: PlantUmlGraph 切片 2：手势、框选与回调槽收进 React-free 属主
-status: ready
+status: done
 labels:
   - gap
 parent: null
