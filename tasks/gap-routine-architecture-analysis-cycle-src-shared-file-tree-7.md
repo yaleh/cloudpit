@@ -70,3 +70,11 @@ Take the file index as a parameter/port instead of importing the feature module,
 - `src/modules/file-tree/hooks/useFileTreeData.ts`
 - `src/modules/file-tree/utils/fileTreeUtils.ts`
 - `tasks/gap-routine-architecture-analysis-cycle-src-shared-file-tree-7.md`
+
+## Blocker
+
+**2026-10-26T09:10:04.026Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat/composer/ChatComposer.tsx 1606→1608 — 基线内读数不得上调（此基线只允许下降）
+- run_id：wk-prod-anchor
+- session_id：ee9e2e93-b00b-45ad-a262-e3c5bda4935d
