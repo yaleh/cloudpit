@@ -2,7 +2,7 @@
 id: gap-frontend-external-store-lru-clock-primitives
 title: 前端基础件：createExternalStore / BoundedLru / Clock 收敛 10 份手写 store、4 份手写 LRU
   与 2 个同构时钟类型
-status: ready
+status: done
 labels:
   - gap
 parent: null
