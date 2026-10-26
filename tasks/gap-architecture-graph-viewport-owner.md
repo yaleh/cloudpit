@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-graph-viewport-owner
 title: PlantUmlGraph 切片 3：缩放、视口与自动 Fit 状态收进 React-free 属主
-status: ready
+status: done
 labels:
   - gap
 parent: null
