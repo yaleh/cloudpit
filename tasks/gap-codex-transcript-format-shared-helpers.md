@@ -2,7 +2,7 @@
 id: gap-codex-transcript-format-shared-helpers
 title: Codex transcript 解析去重：会话搜索服务改用 providers/list/codex 下的
   codex-transcript-format.ts，与 Claude 侧已有做法对齐
-status: todo
+status: ready
 labels:
   - gap
 parent: null
