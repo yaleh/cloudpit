@@ -2,7 +2,7 @@
 id: gap-shared-utils-small-helpers-dedup
 title: 小工具归位：isRecord / errorMessage / expandHome 的 30 余份副本收进
   server/shared/utils 与 src/shared/utils
-status: todo
+status: ready
 labels:
   - gap
 parent: null
