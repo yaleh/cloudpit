@@ -1,7 +1,7 @@
 ---
 id: gap-provider-capability-facets-replace-name-branches
 title: Provider 多态补洞：shell/transcript/token-usage 能力面替代服务端名字分支，前端改用 provider 描述表
-status: ready
+status: done
 labels:
   - gap
 parent: null
