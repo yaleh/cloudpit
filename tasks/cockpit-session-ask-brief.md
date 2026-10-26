@@ -2,7 +2,7 @@
 id: cockpit-session-ask-brief
 title: 驾驶舱卡片简报：卡片浮出时网关单次生成 BriefSpec、宿主检查最多 3 轮、不过回落默认卡，单条 30k 与每日 0.5M token
   上限经 server.settings.json
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
