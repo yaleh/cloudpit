@@ -16,6 +16,8 @@
  * `server/modules/observation/tests/session-digest.test.ts` (the criterion).
  */
 
+import { isRecord } from '@/shared/utils.js';
+
 /** What one turn's activity reads as on the wall. */
 export type SessionActivity = 'running' | 'waiting' | 'idle' | 'error';
 
@@ -92,10 +94,6 @@ const PLAYWRIGHT_COUNT = /^\s*(\d+)\s+(passed|failed)\b/gm;
 const NUMBERED_OPTION = /^\s*(?:\(?\d+[.)、]|（\d+）)\s+(.+)$/;
 
 type UnknownRecord = Record<string, unknown>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';

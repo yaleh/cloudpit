@@ -28,6 +28,7 @@ import type {
   ArchitectureStructureEdge,
   ArchitectureStructureSnapshot,
 } from '@/modules/architecture/index.js';
+import { isRecord } from '@/shared/utils.js';
 
 /** The size caliber every reading carries; spelled once so the digest and tests cannot drift. */
 export const ARCHITECTURE_SIZE_CALIBER = 'additionsShare' as const;
@@ -87,10 +88,6 @@ export type ArchitectureStructuralDiff = {
   /** Tile-ready sentences stating the facts (bounded per kind). */
   readonly deltaItems: readonly string[];
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * Reads a persisted snapshot back out of an observation digest.

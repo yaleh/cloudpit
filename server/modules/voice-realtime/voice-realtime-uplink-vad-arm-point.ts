@@ -28,6 +28,8 @@
 //     and flips it to `failed` when the backend throws (the fail-safe bypass).
 //   · `server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` — the criterion.
 
+import { errorMessage } from '@/shared/utils.js';
+
 import {
   UPLINK_VAD_BACKENDS,
   bypassedVerdict,
@@ -157,11 +159,6 @@ export type UplinkVadArmPointOptions = {
   createClassifier?: (options: UplinkVadClassifierOptions) => Promise<UplinkVadClassifier>;
 };
 
-/** A backend failure's message, for a log line and a state reason. */
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Builds one connection's arm point and starts its backend load.
  *
@@ -226,7 +223,7 @@ export function createUplinkVadArmPoint(options: UplinkVadArmPointOptions): Upli
       }
     })
     .catch((error) => {
-      transition('failed', `the classifier could not be built: ${describeError(error)}`);
+      transition('failed', `the classifier could not be built: ${errorMessage(error)}`);
     });
 
   return {

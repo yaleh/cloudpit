@@ -53,20 +53,228 @@ for f in server/modules/websocket/tests/chat-control-busy.test.ts; do [ -f "$f" 
 
 ## AC
 
-- [ ] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。逐字抄命令行、退出码与计数。
-- [ ] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。两种宿主环境同一读数，判据不再依赖调用者环境。
-- [ ] AC3 钉子承重（负向控制）：先把钉子两行临时移除（备份文件或用 `git diff` 保存补丁），再以 `RESIDENT_RUN_IS_TURN=1` 跑同一命令 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) a resident busy session queues the second send and mints a second queryable run` + `AssertionError [ERR_ASSERTION]: runId must be a non-empty string (got null)`；恢复钉子后 AC1 重新 5/5。证明绿来自钉住的世界，不是把断言改松。
-- [ ] AC4 四条读数与无 socket 守卫未被改动：`git diff develop...HEAD -- server/modules/websocket/tests/chat-control-busy.test.ts` 只含 env 钉住（保存/删除/恢复 + 注释），五个 `test(...)` 与全部 `assert*` 行逐字不变；AC1 的运行里仍打印 `(a) firstSend=… secondSend=… queue=…`、`(b) uuid=… verdict=cancelled …`、`(c) secondSend={"ok":false,"code":"RUN_IN_PROGRESS",…}`、`(d) neverUuid=… verdict=unknown …`、`(e) socketReferences=[]`。五条读数逐字抄进完成记录。
-- [ ] AC5 四条取假形态在钉住的世界里仍各自必红（先提交实现再变异，逐条记录变异 diff、逐字失败行、恢复命令）：(i) `chat-websocket.service.ts` 忙时分支改 `if (!run && false) {` ⇒ (a) 红；(ii) 同处改 `if (!run) {` ⇒ (c) 红；(iii) `chat-control.service.ts` 的 `queuedMessageUuid` 改成 `randomUUID()` ⇒ (b) 红；(iv) `cancelQueued` 驱动判决透传改成 `return 'cancelled';` ⇒ (d) 红。每条跑完 `git checkout -- <被变异文件>` 恢复并重跑 AC1 绿。若某条因更晚改动无法按原文变异，逐字写下实际 diff 与失败行并说明替代，不得跳过。
-- [ ] AC6 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）；完成记录里写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数（用同进程小脚本或临时打印证明；临时打印若留在判据里必须不影响 AC4 的逐字断言）。
-- [ ] AC7 不外溢：`npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-send.test.ts`（与 AC-231 共用装配）与 `... --test server/modules/websocket/tests/chat-run-turn-semantics.test.ts`（文件内钉住开关开态）各 `EXIT=0`，fail 0。两文件各起独立进程，证明本文件的钉住不外溢。
-- [ ] AC8 对齐与仓库门：`git diff --stat develop...HEAD` 与 `## Touches` 逐条一致；`npm run typecheck` 退出 0；`npm run lint` 无 `: error `（写下 error 计数）。
+- [x] AC1 裸判据命令在「继承宿主开关」的环境下退出 0：`RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。逐字抄命令行、退出码与计数。
+- [x] AC2 同一命令在开关未设时也退出 0：`env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts` ⇒ `EXIT=0`、`tests 5 / pass 5 / fail 0`。两种宿主环境同一读数，判据不再依赖调用者环境。
+- [x] AC3 钉子承重（负向控制）：先把钉子两行临时移除（备份文件或用 `git diff` 保存补丁），再以 `RESIDENT_RUN_IS_TURN=1` 跑同一命令 ⇒ `EXIT=1`，且逐字失败行是 `✖ (a) a resident busy session queues the second send and mints a second queryable run` + `AssertionError [ERR_ASSERTION]: runId must be a non-empty string (got null)`；恢复钉子后 AC1 重新 5/5。证明绿来自钉住的世界，不是把断言改松。
+- [x] AC4 四条读数与无 socket 守卫未被改动：`git diff develop...HEAD -- server/modules/websocket/tests/chat-control-busy.test.ts` 只含 env 钉住（保存/删除/恢复 + 注释），五个 `test(...)` 与全部 `assert*` 行逐字不变；AC1 的运行里仍打印 `(a) firstSend=… secondSend=… queue=…`、`(b) uuid=… verdict=cancelled …`、`(c) secondSend={"ok":false,"code":"RUN_IN_PROGRESS",…}`、`(d) neverUuid=… verdict=unknown …`、`(e) socketReferences=[]`。五条读数逐字抄进完成记录。
+- [x] AC5 四条取假形态在钉住的世界里仍各自必红（先提交实现再变异，逐条记录变异 diff、逐字失败行、恢复命令）：(i) `chat-websocket.service.ts` 忙时分支改 `if (!run && false) {` ⇒ (a) 红；(ii) 同处改 `if (!run) {` ⇒ (c) 红；(iii) `chat-control.service.ts` 的 `queuedMessageUuid` 改成 `randomUUID()` ⇒ (b) 红；(iv) `cancelQueued` 驱动判决透传改成 `return 'cancelled';` ⇒ (d) 红。每条跑完 `git checkout -- <被变异文件>` 恢复并重跑 AC1 绿。若某条因更晚改动无法按原文变异，逐字写下实际 diff 与失败行并说明替代，不得跳过。
+- [x] AC6 恢复语义：`after` 钩子把 `RESIDENT_RUN_IS_TURN` 恢复为进进程时的原值（原本未设则删除）；完成记录里写下「进进程原值 → 文件内值 → 退出前恢复值」三项读数（用同进程小脚本或临时打印证明；临时打印若留在判据里必须不影响 AC4 的逐字断言）。
+- [x] AC7 不外溢：`npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-send.test.ts`（与 AC-231 共用装配）与 `... --test server/modules/websocket/tests/chat-run-turn-semantics.test.ts`（文件内钉住开关开态）各 `EXIT=0`，fail 0。两文件各起独立进程，证明本文件的钉住不外溢。
+- [x] AC8 对齐与仓库门：`git diff --stat develop...HEAD` 与 `## Touches` 逐条一致；`npm run typecheck` 退出 0；`npm run lint` 无 `: error `（写下 error 计数）。
 
 ## DoD
 
-真实落地判据：AC-231 的判据命令**按 goal store 的字面文本**、在继承 `RESIDENT_RUN_IS_TURN=1` 的 anchor 环境里跑，退出 0 且 5/5——实测读数，不是「文件存在」也不是「看起来该绿」。判据文件自己声明所在世界（flag-off），而不是赌启动它的人的环境；(a)–(d) 四条语义读数与 (e) 无 socket 守卫逐字未变；钉子承重由 AC3 证明（移除即复现 gate 看到的逐字红），四条取假形态仍各自红在自己那条腿上（AC5）。不改服务实现、不改 AC 记录/criterion 命令、不改 `scripts/test.sh`；最终 diff 只有判据文件与任务文件。
+- [x] 判据文件在模块顶层把 `RESIDENT_RUN_IS_TURN` 钉成关态（保存进进程值 → `delete` → `after` 恢复原值），注释写明这就是 AC-231 判据所在的世界、与 `scripts/test.sh` 的 `unset RESIDENT_RUN_IS_TURN` 及 AC-385 的「this criterion's world」是同一件事；goal gate 不经过 test.sh，所以文件必须自己钉住。
+- [x] 实现只改判据文件：`git diff develop...HEAD` 的该文件仅含 env 钉住块（保存/删除/恢复 + 注释）；五个 `test(...)`、全部 `assert*` 与四条读数未改动（AC4）。
+- [x] 裸判据命令在「宿主带 `RESIDENT_RUN_IS_TURN=1`」与「开关未设」两种环境下均 `EXIT=0`、`tests 5 / pass 5 / fail 0`（AC1/AC2，续做轮复跑）。
+- [x] 负向控制与四条取假形态的变异 diff、逐字失败行、恢复命令，以及恢复语义三项读数，均逐字记录在 `## 完成记录`（AC3/AC5/AC6）。
+- [x] 共用装配的 `chat-control-send` 与文件内钉住开关开态的 `chat-run-turn-semantics` 各起独立进程 `EXIT=0`、fail 0，本文件的钉住不外溢（AC7）。
+- [x] `## Touches` 与 `git diff --stat develop...HEAD` 一致；`npm run typecheck` 退出 0、`npm run lint` 无 `: error `（AC8）。
+- [x] ADR-007 暗轴声明已写入本任务正文。
+
+## 完成记录
+
+实现提交：`8a60fdb75 test(websocket): pin chat-control-busy to the run=turn flag-off world`（仅在 `server/modules/websocket/tests/chat-control-busy.test.ts` 增加 26 行、改 1 行：`import test, { after }` + 保存/删除/`after` 恢复 + 注释）。
+
+### AC1 — 继承宿主开关
+
+命令：
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+```
+
+`EXIT=0`，`tests 5 / pass 5 / fail 0`。
+
+### AC2 — 开关未设
+
+命令：
+
+```
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+```
+
+`EXIT=0`，`tests 5 / pass 5 / fail 0`。两种宿主环境同一读数。
+
+### AC3 — 负向控制（移除钉子两行再跑）
+
+变异（临时移除 `const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;` 与 `delete process.env.RESIDENT_RUN_IS_TURN;` 及 `after` 钩子，即回到未钉住文件）：
+
+```diff
+-const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+-delete process.env.RESIDENT_RUN_IS_TURN;
+-
+-after(() => {
+-  if (incomingResidentRunIsTurn === undefined) {
+-    delete process.env.RESIDENT_RUN_IS_TURN;
+-  } else {
+-    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+-  }
+-});
+```
+
+`RESIDENT_RUN_IS_TURN=1` 下 `EXIT=1`，`tests 5 / pass 4 / fail 1`，逐字失败行：
+
+```
+✖ (a) a resident busy session queues the second send and mints a second queryable run
+  AssertionError [ERR_ASSERTION]: runId must be a non-empty string (got null)
+```
+
+恢复钉子后重跑 AC1：`EXIT=0`，`tests 5 / pass 5 / fail 0`。
+
+### AC4 — diff 只含 env 钉住 + 五条读数逐字
+
+`git diff develop...HEAD -- server/modules/websocket/tests/chat-control-busy.test.ts` 仅含：`import test, { after } from 'node:test';` 与保存/删除/`after` 恢复块及注释；五个 `test(...)` 与全部 `assert*` 行未出现于 diff。
+
+AC1 运行的读数（逐字）：
+
+```
+control-busy (a) firstSend={"ok":true,"deliveryId":null,"runId":"580500f1-3d69-4c6d-88ae-53f067f3ee92","queued":false,"queuedMessageUuid":null,"completion":{}} secondSend={"ok":true,"deliveryId":"ffbb2c97-0d35-4e33-a4bb-acd87b40b6ea","runId":"7d2a3a15-188c-41bb-a03c-533190be9c3b","queued":true,"queuedMessageUuid":"ffbb2c97-0d35-4e33-a4bb-acd87b40b6ea","completion":{}} queue=["7238f8ba-aca8-4789-a2c0-eb96d2984373","ffbb2c97-0d35-4e33-a4bb-acd87b40b6ea"]
+control-busy (a) getRunById(runId1)={"runId":"580500f1-3d69-4c6d-88ae-53f067f3ee92","status":"running"} getRunById(runId2)={"runId":"7d2a3a15-188c-41bb-a03c-533190be9c3b","status":"running"}
+control-busy (b) uuid=419c323a-6d81-4006-aafc-1ff23e543afb verdict=cancelled before=["4b152031-f5cb-4e73-b25f-71dd582f6724","419c323a-6d81-4006-aafc-1ff23e543afb"] after=["4b152031-f5cb-4e73-b25f-71dd582f6724"]
+control-busy (c) secondSend={"ok":false,"code":"RUN_IN_PROGRESS","message":"Session \"control-busy-session\" already has a run in progress."} runCallsBefore=1 runCallsAfter=1 currentRunId=b1126041-517a-4fcd-9b02-f5b5d0e64532 runningForSession=1 getRunById(runId1)=b1126041-517a-4fcd-9b02-f5b5d0e64532
+control-busy (d) neverUuid=523ca97d-eacc-404d-87ff-cf7e85b2c3e8 verdict=unknown before=["109c1e6f-6a82-4626-a194-69f3a86ac415","b8115a7c-167b-4cdf-8441-8a237e2bb73f"] after=["109c1e6f-6a82-4626-a194-69f3a86ac415","b8115a7c-167b-4cdf-8441-8a237e2bb73f"]
+control-busy (e) socketReferences=[]
+```
+
+### AC5 — 四条取假形态（每条跑完 `git checkout -- <文件>` 恢复并重跑 AC1 绿）
+
+(i) `server/modules/websocket/services/chat-websocket.service.ts` 忙时分支：
+
+```diff
+-    if (!run && busyInputAccepted) {
++    if (!run && false) {
+```
+
+`EXIT=1`，`tests 5 / pass 2 / fail 3`；(a) 逐字失败行：
+
+```
+✖ (a) a resident busy session queues the second send and mints a second queryable run
+  AssertionError [ERR_ASSERTION]: the busy send must be queued, not refused (got {"ok":false,"code":"RUN_IN_PROGRESS","message":"Session \"control-busy-session\" already has a run in progress."})
+```
+
+同一条共享忙时路径上的 (b)/(d) 也随之为红（`The expression evaluated to a falsy value`），(c) 仍绿。恢复：`git checkout -- server/modules/websocket/services/chat-websocket.service.ts`；AC1 重跑 5/5。
+
+(ii) 同处：
+
+```diff
+-    if (!run && busyInputAccepted) {
++    if (!run) {
+```
+
+`EXIT=1`，`tests 5 / pass 4 / fail 1`；(c) 逐字失败行：
+
+```
+✖ (c) a per-run busy session is refused without touching the provider
+  AssertionError [ERR_ASSERTION]: a per-run busy session refuses the second send
+```
+
+恢复：`git checkout -- server/modules/websocket/services/chat-websocket.service.ts`；AC1 重跑 5/5。
+
+(iii) `server/modules/websocket/services/chat-control.service.ts` 的 `queuedMessageUuid`。实际 diff 多一行 import，因为该文件原本未引入 `randomUUID`（变异所需的实际形态，按 AC5 的「写下实际 diff」记录）：
+
+```diff
++import { randomUUID } from 'node:crypto';
++
+...
+-      const queuedMessageUuid = await readQueuedMessageUuid(deps.runtime, provider, input.sessionId);
++      const queuedMessageUuid = randomUUID();
+```
+
+`EXIT=1`，`tests 5 / pass 4 / fail 1`；(b) 逐字失败行：
+
+```
+✖ (b) cancelQueued withdraws exactly the uuid the provider handed over
+  AssertionError [ERR_ASSERTION]: the queued message must be withdrawable by the returned uuid
+```
+
+恢复：`git checkout -- server/modules/websocket/services/chat-control.service.ts`；AC1 重跑 5/5。
+
+(iv) 同一文件的 `cancelQueued` 判决透传：
+
+```diff
+-    const provider = session.provider as LLMProvider;
+-    return (
+-      (await deps.runtime.cancelQueuedInput?.(provider, input.sessionId, input.messageUuid)) ??
+-      'unknown'
+-    );
++    return 'cancelled';
+```
+
+`EXIT=1`，`tests 5 / pass 3 / fail 2`；(d) 逐字失败行：
+
+```
+✖ (d) an unknown uuid answers unknown, not cancelled
+  AssertionError [ERR_ASSERTION]: an id the provider never queued cannot be withdrawn
+```
+
+同时 (b) 因不再真正撤队而红（`the withdrawn message is gone from the provider queue`）。恢复：`git checkout -- server/modules/websocket/services/chat-control.service.ts`；AC1 重跑 5/5。
+
+### AC6 — 恢复语义三项读数
+
+临时在同一判据文件内加两行 `say`（验证后已移除，最终 diff 中无打印），以
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test …
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test …
+```
+
+分别取得：
+
+```
+flag=1:  atEntry="1"         inFile=undefined  beforeExit="1"
+unset:   atEntry=undefined   inFile=undefined  beforeExit=undefined
+```
+
+即「进进程原值 → 文件内值 → 退出前恢复值」分别为 `"1" → undefined → "1"` 与 `undefined → undefined → undefined`。两次运行均 `tests 5 / pass 5 / fail 0`。
+
+### AC7 — 不外溢
+
+```
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-send.test.ts
+⇒ EXIT=0，tests 4 / pass 4 / fail 0
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-run-turn-semantics.test.ts
+⇒ EXIT=0，tests 2 / pass 2 / fail 0
+```
+
+两文件各起独立进程；本文件的钉住只在自身进程内生效。
+
+### AC8 — 对齐与仓库门
+
+`git diff --stat develop...HEAD`（task_write 前）只列：
+
+```
+ server/modules/websocket/tests/chat-control-busy.test.ts | 27 +++++++++++++++++++++-
+```
+
+与 `## Touches` 的判据文件一致（任务文件由 `task_write` 自身提交进入本分支）。`npm run typecheck` ⇒ `EXIT=0`（三个 tsconfig 全部通过）。`npm run lint` ⇒ `EXIT=0`，`: error ` 计数 **0**（仅既有 warning）。
+
+### 续做轮（2026-10-26）——补齐 DoD 段并复跑 AC1/AC2
+
+上一轮 exited-not-landed 的机械原因是 fan-in 的 `countCompletionCheckboxes()` 要求 AC **与** DoD 两个段都存在（`sectionFound: ac.sectionFound && dod.sectionFound`），而本任务此前只有 `## AC`、没有 `## DoD`，于是被判「AC/DoD 段缺失或无法识别」。本轮补上 `## DoD` 段（不涉及实现改动），并在本 worktree 复跑两条判据命令：
+
+```
+RESIDENT_RUN_IS_TURN=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+⇒ EXIT=0，tests 5 / pass 5 / fail 0
+env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-control-busy.test.ts
+⇒ EXIT=0，tests 5 / pass 5 / fail 0
+```
+
+实现 diff 与本记录上方所述一致，未再改动。
+
+## ADR-007 暗轴
+
+该轴仍暗,理由:本任务只钉住判据文件的测试环境，未改服务实现与模块依赖图，架构轴无位移。
 
 ## Touches
 
 - server/modules/websocket/tests/chat-control-busy.test.ts
 - tasks/gap-ac231-resident-run-flag-hermetic.md
+
+## Blocker
+
+**2026-10-26T09:17:59.890Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：b50b9802-794f-4d77-b98f-4741d5ad105e

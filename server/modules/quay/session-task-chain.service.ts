@@ -25,6 +25,7 @@
  */
 
 import { parseFrontMatter } from '@/shared/frontmatter.js';
+import { isRecord } from '@/shared/utils.js';
 
 // --------------------------- TRANSCRIPT SCAN ------------
 
@@ -157,10 +158,6 @@ const QUAY_TASK_WRITE_COMMAND = /\bquay\s+task\s+(create|edit|write)\b([^\n;&|]*
 const MCP_TASK_WRITE_SUFFIX = 'task_write';
 
 type UnknownRecord = Record<string, unknown>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** A non-empty string, or `null`. */
 function nonEmptyString(value: unknown): string | null {

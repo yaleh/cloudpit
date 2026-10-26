@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/shared/api';
+import { errorMessage } from '@/shared/utils';
 
 /**
  * The speaker tracker's CAM++ model reading, as `GET /api/voice-realtime/speaker-model` answers it.
@@ -78,11 +79,6 @@ async function readFailure(response: Response, fallback: string): Promise<string
   return `${fallback} (HTTP ${response.status})`;
 }
 
-/** Converts an unknown throw into the sentence the panel shows. */
-function describeError(error: unknown): string {
-  return error instanceof Error && error.message !== '' ? error.message : String(error);
-}
-
 /**
  * Reads the speaker model's provisioning state, and polls while a download runs.
  *
@@ -121,7 +117,7 @@ export function useSpeakerModelStatus(): UseSpeakerModelStatus {
       setStatus(body);
       setError(null);
     } catch (requestError) {
-      setError(describeError(requestError));
+      setError(errorMessage(requestError, String(requestError)));
     } finally {
       setLoading(false);
     }
@@ -144,7 +140,7 @@ export function useSpeakerModelStatus(): UseSpeakerModelStatus {
       // is the download, and the next status call is what reports it.
       await refresh();
     } catch (requestError) {
-      setError(describeError(requestError));
+      setError(errorMessage(requestError, String(requestError)));
     }
   }, [refresh]);
 
