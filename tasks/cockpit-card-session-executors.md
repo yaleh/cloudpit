@@ -2,7 +2,7 @@
 id: cockpit-card-session-executors
 title: 驾驶舱卡片执行器：session.send（经 chatControl 发进会话）与 session.start（经
   createAppSession 开新会话并立即切过去），「自己的回复」按卡片主体给默认执行器
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
