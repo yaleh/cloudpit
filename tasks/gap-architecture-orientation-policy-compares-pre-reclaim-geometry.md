@@ -34,6 +34,7 @@ extra:
 - src/modules/architecture/drawnFit.ts
 - src/modules/architecture/tests/layoutAspect.test.tsx
 - e2e/architecture-canvas-layout.spec.ts
+- server/shared/tests/architecture-ratchet.baseline.json (collateral: verbatim from task/gap-codex-transcript-format-shared-helpers a9ac78eee, stale-census ratchet re-sync)
 - tasks/gap-architecture-orientation-policy-compares-pre-reclaim-geometry.md
 
 ## Evidence
@@ -48,13 +49,14 @@ extra:
   - 396 实体大图：DOWN `entity-budget-exceeded`，fill 0.516（未跑第二次布局）。
   - 截图：`tmp/orientation-shots/arch-chrome-orientation-{pc,phone,control-right,control-restored,1920x900,1920x900-forced-right,large-graph}.png`。
 - `scripts/ui-scenario.mjs`：仓库现有场景仅 `e2e/scenarios/cockpit-mode-switch.json` 与 `quay-wall-focus-pin-utter.json`，无架构场景，故“存在可用的架构场景时”一项不适用；大颗粒度回归由上述 Playwright spec 承担。
-- 棘轮（上一轮 fan-in 唯一红因）：`PlantUmlGraph.tsx` 曾因本任务改动 4453→4498，架构棘轮不允许上调。处理：把本任务新增的 `drawnFitScaleOf`、行数上限规则 `capDrawnMemberRows` 以及 `semanticDrawnFitScale` 包一层移入 `src/modules/architecture/drawnFit.ts`（`capDrawnMemberRows` 仍从 `PlantUmlGraph` 再导出，所有消费方导入路径不变；`semanticDrawnFitScale` 从 `drawnFit.ts` 导出，`layoutAspect.test.tsx` 的 import 同步改指）。读数：`PlantUmlGraph.tsx` 4453→4440（打印 `可下调基线`），`semanticZoomLayout.ts` 回到 develop 的 1688（本任务不再增长），`semanticZoomPlan.ts` 未改。`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 只剩 develop 既有的两条基线红（semanticZoomLayout 1642→1688、semanticZoomPlan 876→894），本任务未新增红。
+- 棘轮（上一轮 fan-in 唯一红因）：`PlantUmlGraph.tsx` 曾因本任务改动 4453→4498，架构棘轮不允许上调。处理：把本任务新增的 `drawnFitScaleOf`、行数上限规则 `capDrawnMemberRows` 以及 `semanticDrawnFitScale` 包一层移入 `src/modules/architecture/drawnFit.ts`（`capDrawnMemberRows` 仍从 `PlantUmlGraph` 再导出，所有消费方导入路径不变；`semanticDrawnFitScale` 从 `drawnFit.ts` 导出，`layoutAspect.test.tsx` 的 import 同步改指）。读数：`PlantUmlGraph.tsx` 4453→4440（打印 `可下调基线`），`semanticZoomLayout.ts` 回到 develop 的 1688（本任务不再增长），`semanticZoomPlan.ts` 未改。
 - 抽取后复验：`npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` → 15 passed；`npx vitest run src/modules/architecture/tests/architectureTab.test.tsx` → 129 passed；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` → 11 passed；`npx tsc --noEmit -p .` 无输出；上面三例 e2e 重跑 3 passed（读数与上表逐项一致）。
+- 本轮（续跑，suite 红因收尾）：develop 尖端的 `semanticZoomLayout.ts` 1688 / `semanticZoomPlan.ts` 894 与 census 快照 1642/876 不一致，`server/shared/tests/architecture-ratchet.test.ts` 在任何树上都红，而本任务的 delta 从未碰这两个文件。按 collateral 先例从 `task/gap-codex-transcript-format-shared-helpers` 的 `a9ac78eee` 逐字取来 `server/shared/tests/architecture-ratchet.baseline.json`（`git diff <兄弟分支> -- <该文件>` 为空）并声明进 `## Touches`。复验：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6/6 pass，exit 0（`PlantUmlGraph.tsx` 4440 打印 `可下调基线`）；`npx vitest run src/modules/architecture/tests/layoutAspect.test.tsx` → 15 passed，exit 0。
 
 ## Blocker
 
-**2026-10-26T07:16:29.945Z — worker 未落地（exited-not-landed）**
+**2026-10-26T07:39:24.181Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/PlantUmlGraph.tsx 4453→4498 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts]
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/semanticZoomLayout.ts 1642→1688 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
 - run_id：wk-prod-anchor
-- session_id：ab5a88a9-e636-494e-83ea-7912a1599be3
+- session_id：7136a79f-4cfd-4093-abc1-4680c6ee5baa
