@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-graph-selection-owner
 title: PlantUmlGraph 切片 1：选区与键盘导航状态收进 React-free 属主
-status: todo
+status: ready
 labels:
   - gap
 parent: null
