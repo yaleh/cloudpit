@@ -270,11 +270,3 @@ env -u RESIDENT_RUN_IS_TURN npx tsx --tsconfig server/tsconfig.json --test serve
 
 - server/modules/websocket/tests/chat-control-busy.test.ts
 - tasks/gap-ac231-resident-run-flag-hermetic.md
-
-## Blocker
-
-**2026-10-26T09:17:59.890Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
-- run_id：wk-prod-anchor
-- session_id：b50b9802-794f-4d77-b98f-4741d5ad105e
