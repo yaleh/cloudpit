@@ -56,6 +56,8 @@
  */
 import { statSync } from 'node:fs';
 
+import { errorMessage } from '@/shared/utils.js';
+
 // ── the grid contract ────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -334,11 +336,6 @@ function defaultWeightsExist(path: string): boolean {
   }
 }
 
-/** A short, log-safe rendering of a thrown value. */
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * A verdict for a frame no model judged. Always speech — see the file header for why the fail-open
  * direction is the only defensible one here.
@@ -483,7 +480,7 @@ async function loadSilero(
   try {
     loaded = await loadDependency('onnxruntime-node');
   } catch (error) {
-    return { reason: `optional dependency onnxruntime-node could not be loaded: ${describeError(error)}` };
+    return { reason: `optional dependency onnxruntime-node could not be loaded: ${errorMessage(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as SileroRuntime;
   if (typeof runtime.InferenceSession?.create !== 'function' || typeof runtime.Tensor !== 'function') {
@@ -501,7 +498,7 @@ async function loadSilero(
     });
     return { session, runtime };
   } catch (error) {
-    return { reason: `silero session could not be created from ${path}: ${describeError(error)}` };
+    return { reason: `silero session could not be created from ${path}: ${errorMessage(error)}` };
   }
 }
 
@@ -656,7 +653,7 @@ async function loadTen(
   try {
     loaded = await loadDependency('sherpa-onnx-node');
   } catch (error) {
-    return { reason: `optional dependency sherpa-onnx-node could not be loaded: ${describeError(error)}` };
+    return { reason: `optional dependency sherpa-onnx-node could not be loaded: ${errorMessage(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as SherpaRuntime;
   if (typeof runtime.Vad !== 'function') {
@@ -673,7 +670,7 @@ async function loadTen(
     );
     return { vad };
   } catch (error) {
-    return { reason: `ten detector could not be created from ${path}: ${describeError(error)}` };
+    return { reason: `ten detector could not be created from ${path}: ${errorMessage(error)}` };
   }
 }
 
@@ -779,7 +776,7 @@ async function loadWebrtc(
   try {
     loaded = await loadDependency('webrtcvad');
   } catch (error) {
-    return { reason: `optional dependency webrtcvad could not be loaded: ${describeError(error)}` };
+    return { reason: `optional dependency webrtcvad could not be loaded: ${errorMessage(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as WebrtcRuntime;
   if (typeof runtime.default !== 'function') {
@@ -792,7 +789,7 @@ async function loadWebrtc(
     );
     return { vad };
   } catch (error) {
-    return { reason: `webrtc detector could not be created: ${describeError(error)}` };
+    return { reason: `webrtc detector could not be created: ${errorMessage(error)}` };
   }
 }
 

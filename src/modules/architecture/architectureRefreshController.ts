@@ -33,7 +33,7 @@ import type {
   ArchitectureRefreshStatus,
   Clock,
 } from '@/shared/types';
-import { createExternalStore, defaultClock } from '@/shared/utils';
+import { createExternalStore, defaultClock, errorMessage } from '@/shared/utils';
 
 /** The shipped "nothing has run in this server process" reading. */
 export const IDLE_ARCHITECTURE_REFRESH_STATUS: ArchitectureRefreshStatus = {
@@ -89,10 +89,6 @@ export type ArchitectureRefreshController = {
   /** Stops the timers and subscribers; a controller is not reusable afterwards. */
   readonly dispose: () => void;
 };
-
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim() !== '' ? error.message : fallback;
-}
 
 /** Build one controller for one project (null means nothing is selected yet). */
 export function createArchitectureRefreshController(options: {
@@ -186,7 +182,7 @@ export function createArchitectureRefreshController(options: {
           applyStatus(body);
         } catch (error) {
           if (!active || disposed) return;
-          requestError = messageOf(error, 'The refresh status could not be read.');
+          requestError = errorMessage(error, 'The refresh status could not be read.');
           publish();
           // A failed poll is not a terminal job: keep reading while it runs.
           schedulePoll();
@@ -243,7 +239,7 @@ export function createArchitectureRefreshController(options: {
         applyStatus(body);
       } catch (error) {
         if (!active || disposed) return;
-        requestError = messageOf(error, 'The refresh status could not be read.');
+        requestError = errorMessage(error, 'The refresh status could not be read.');
         publish();
       }
     })();
@@ -281,7 +277,7 @@ export function createArchitectureRefreshController(options: {
         applyStatus(body.status);
       } catch (error) {
         if (disposed) return;
-        requestError = messageOf(error, 'The analysis could not be started.');
+        requestError = errorMessage(error, 'The analysis could not be started.');
       } finally {
         if (!disposed) {
           starting = false;

@@ -26,6 +26,8 @@
 import { join } from 'node:path';
 import { statSync } from 'node:fs';
 
+import { errorMessage } from '@/shared/utils.js';
+
 import {
   emitVoiceRealtimeSynthesisFrames,
   type VoiceRealtimeTtsSynthesis,
@@ -106,11 +108,6 @@ function unwrapCommonJs(loaded: unknown): Record<string, unknown> {
 /** The default dependency resolver: a dynamic import through a VARIABLE specifier, so it stays optional. */
 async function importOptional(specifier: string): Promise<unknown> {
   return import(specifier);
-}
-
-/** A short, log-safe rendering of a thrown value. */
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Whether a path exists AND is a regular file — a directory where a model belongs is not a model. */
@@ -207,7 +204,7 @@ export function createLocalVoiceRealtimeTtsSeam(options: LocalVoiceRealtimeTtsOp
         return {
           ok: false,
           code: 'TTS_NOT_CONFIGURED',
-          message: describeError(error),
+          message: errorMessage(error),
         };
       }
       let generated: { samples: Float32Array; sampleRate: number };
@@ -217,7 +214,7 @@ export function createLocalVoiceRealtimeTtsSeam(options: LocalVoiceRealtimeTtsOp
         return {
           ok: false,
           code: 'TTS_UNREACHABLE',
-          message: `the local TTS synthesis failed: ${describeError(error)}`,
+          message: `the local TTS synthesis failed: ${errorMessage(error)}`,
         };
       }
       if (generated.samples.length === 0) {

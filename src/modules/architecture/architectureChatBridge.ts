@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { resolveDraftScope } from '@/modules/architecture/selectionModel';
 import { readDraftText, writeDraftText } from '@/shared/chatDrafts';
+import { isRecord } from '@/shared/utils';
 
 /**
  * The bridge between a standalone architecture page and its session's workspace
@@ -72,10 +73,6 @@ type ArchitectureChannel = {
 
 /** A message counter within one page; the reply must name the request it answers. */
 let nextArchitectureRequestId = 1;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object';
-}
 
 /** Narrow an incoming channel payload; anything unrecognised is ignored. */
 function parseArchitectureChatMessage(data: unknown): ArchitectureChatMessage | null {

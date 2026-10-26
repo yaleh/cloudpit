@@ -39,6 +39,7 @@
  */
 
 import type { QuayGanttLanes } from '@/shared/types.js';
+import { isRecord } from '@/shared/utils.js';
 
 import { createSessionMentionsGoalCache } from './session-mentions-goal-cache.js';
 
@@ -50,12 +51,6 @@ export type SessionMessageText = {
   /** The row's `timestamp` as the transcript printed it, or `null` when it carries none. */
   timestamp: string | null;
 };
-
-type UnknownRecord = Record<string, unknown>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * The text of one message `content` value: a plain string, or the `text` blocks of an array.

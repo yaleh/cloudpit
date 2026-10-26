@@ -170,6 +170,41 @@ export class AppError extends Error {
 }
 
 // ---------------------------
+//----------------- TYPE GUARD / ERROR RENDERING UTILITIES ------------
+/**
+ * Narrows an unknown value to a plain object record.
+ *
+ * `null`, arrays and every non-object are NOT records: code that walks a
+ * persisted JSON document or a wire payload reaches a property only after this
+ * guard, so an array must never answer as a record by accident. It replaces the
+ * byte-identical private copies the observation, architecture, quay, liaison and
+ * settings modules each carried.
+ *
+ * Consumers: the observation, architecture, quay, liaison and settings modules.
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Renders a thrown value as the sentence a log line or user-facing message shows.
+ *
+ * An `Error` contributes its own message so the cause survives; any other thrown
+ * value is stringified rather than dropped. Pass `fallback` when an EMPTY or
+ * whitespace-only message must not reach the reader — it is used for a blank
+ * `Error.message` and for every non-`Error` value. Omit it for the raw reading.
+ *
+ * Consumers: the architecture, observation, settings, session-hosts and
+ * voice-realtime modules.
+ */
+export function errorMessage(failure: unknown, fallback?: string): string {
+  if (failure instanceof Error) {
+    return failure.message.trim() !== '' ? failure.message : fallback ?? failure.message;
+  }
+  return fallback ?? String(failure);
+}
+
+// ---------------------------
 //----------------- WORKSPACE PATH VALIDATION UTILITIES ------------
 /**
  * Root directory that all workspace/project paths must stay under.

@@ -34,7 +34,7 @@ import type {
   ArchitectureRefreshStartResult,
   ArchitectureRefreshStatus,
 } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, errorMessage } from '@/shared/utils.js';
 
 import { createRefreshPublisher } from './refresh-publish.js';
 import {
@@ -97,10 +97,6 @@ type JobRecord = {
   closed: Promise<void>;
   resolveClosed: () => void;
 };
-
-function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
 
 /** The key a record is stored under: one job per real path, never per symlink alias. */
 function realpathOrSelf(filePath: string): string {
