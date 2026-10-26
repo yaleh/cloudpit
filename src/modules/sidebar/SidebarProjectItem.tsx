@@ -11,6 +11,7 @@ import { WatchPinToggle, cockpitViewPath, formatProjectUri } from '@/modules/coc
 import { getQuayIndicatorStatus, getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
 import QuayIndicator from '@/modules/sidebar/QuayIndicator';
+import SidebarProjectActionsMenu from '@/modules/sidebar/SidebarProjectActionsMenu';
 import SidebarProjectSessions from '@/modules/sidebar/SidebarProjectSessions';
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
@@ -280,6 +281,8 @@ function SidebarProjectItem({
         {isCompact && (
         <div className="bg-background">
           <div
+            data-testid="sidebar-project-card"
+            data-project-id={project.projectId}
             className={cn(
               'p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
               isSelected && 'bg-primary/5 border-primary/20',
@@ -289,85 +292,95 @@ function SidebarProjectItem({
             )}
             onClick={toggleProject}
           >
-            <div className="flex flex-wrap items-center justify-between gap-y-2">
-              <div className="flex min-w-[8rem] flex-1 items-center gap-3">
-                <button
+            <div className="flex items-center gap-3">
+              <button
+                data-testid="project-star-toggle"
+                className={cn(
+                  'w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
+                  isStarred
+                    ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
+                    : 'bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleStarProject();
+                }}
+                title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
+              >
+                <Star
                   className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
+                    'w-4 h-4 transition-colors',
                     isStarred
-                      ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
+                      ? 'text-yellow-600 dark:text-yellow-400 fill-current'
+                      : 'text-gray-600 dark:text-gray-400',
                   )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleStarProject();
-                  }}
-                  title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
-                >
-                  <Star
-                    className={cn(
-                      'w-4 h-4 transition-colors',
-                      isStarred
-                        ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-gray-600 dark:text-gray-400',
-                    )}
+                />
+              </button>
+
+              <div className="min-w-0 flex-1">
+                {isEditing ? (
+                  <input
+                    ref={mobileRenameInputRef}
+                    type="text"
+                    value={renameDraft}
+                    onChange={(event) => onRenameDraftChange(event.target.value)}
+                    className="w-full rounded-lg border-2 border-primary/40 bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-all duration-200 focus:border-primary focus:shadow-md focus:outline-none"
+                    placeholder={t('projects.projectNamePlaceholder')}
+                    autoFocus
+                    autoComplete="off"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        saveProjectName();
+                      }
+
+                      if (event.key === 'Escape') {
+                        onCancelEditingProject();
+                      }
+                    }}
+                    style={{
+                      fontSize: '16px',
+                      WebkitAppearance: 'none',
+                      borderRadius: '8px',
+                    }}
                   />
-                </button>
-
-                <div className="min-w-0 flex-1">
-                  {isEditing ? (
-                    <input
-                      ref={mobileRenameInputRef}
-                      type="text"
-                      value={renameDraft}
-                      onChange={(event) => onRenameDraftChange(event.target.value)}
-                      className="w-full rounded-lg border-2 border-primary/40 bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-all duration-200 focus:border-primary focus:shadow-md focus:outline-none"
-                      placeholder={t('projects.projectNamePlaceholder')}
-                      autoFocus
-                      autoComplete="off"
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          saveProjectName();
-                        }
-
-                        if (event.key === 'Escape') {
-                          onCancelEditingProject();
-                        }
-                      }}
-                      style={{
-                        fontSize: '16px',
-                        WebkitAppearance: 'none',
-                        borderRadius: '8px',
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
-                        {showTaskCounts && fleetTaskCounts && (
-                          <ProjectTaskCountsBadge counts={fleetTaskCounts} />
-                        )}
-                        <QuayIndicator
-                          hasQuayConfig={Boolean(project.hasQuayConfig)}
-                          status={quayStatus}
+                ) : (
+                  <>
+                    <h3 className="truncate text-sm font-normal text-foreground" title={project.displayName}>
+                      {project.displayName}
+                    </h3>
+                    {/*
+                      The second line never wraps: at 320 the middle column is ~160px, so the
+                      activity icon is dropped first and the session count truncates after it.
+                      Wrapping here is what used to make cards differ in height by a whole line.
+                    */}
+                    <div
+                      className="flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap"
+                      data-testid="project-row-meta"
+                    >
+                      <p className="min-w-0 truncate text-xs text-muted-foreground">{sessionCountLabel}</p>
+                      {showTaskCounts && fleetTaskCounts && (
+                        <ProjectTaskCountsBadge counts={fleetTaskCounts} className="flex-shrink-0" />
+                      )}
+                      <QuayIndicator
+                        hasQuayConfig={Boolean(project.hasQuayConfig)}
+                        status={quayStatus}
+                        size="xs"
+                        className="hidden flex-shrink-0 min-[360px]:inline-flex"
+                      />
+                      {tasksEnabled && (
+                        <TaskIndicator
+                          status={taskStatus}
                           size="xs"
+                          className="hidden flex-shrink-0 md:inline-flex"
                         />
-                        {tasksEnabled && (
-                          <TaskIndicator
-                            status={taskStatus}
-                            size="xs"
-                            className="hidden md:inline-flex"
-                          />
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="ml-auto flex items-center gap-1">
+              <div className="flex flex-shrink-0 items-center gap-1">
                 {isEditing ? (
                   <>
                     <button
@@ -391,58 +404,35 @@ function SidebarProjectItem({
                   </>
                 ) : (
                   <>
-                    {cockpitEnabled && fleetProjectId !== null && (
-                      <WatchPinToggle
-                        uri={formatProjectUri(fleetProjectId)}
-                        testId="cockpit-project-watch-toggle"
-                      />
-                    )}
-                    {cockpitEnabled && fleetProjectId !== null && (
-                      <CockpitProjectLink
-                        compact
+                    {/*
+                      Everything that used to sit inline is behind this trigger. Stopping
+                      propagation on the wrapper covers both the trigger and the portalled
+                      menu items (React events follow the React tree through a portal), so
+                      neither opens the row.
+                    */}
+                    <div
+                      className="flex items-center"
+                      data-testid="project-actions-menu"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <SidebarProjectActionsMenu
+                        project={project}
+                        cockpitEnabled={cockpitEnabled}
                         fleetProjectId={fleetProjectId}
-                        label={cockpitLinkLabel}
-                        onNavigate={(event) => event.stopPropagation()}
+                        onStartEditingProject={onStartEditingProject}
+                        onEditSessionFilter={onEditSessionFilter}
+                        onDeleteProject={onDeleteProject}
+                        t={t}
                       />
-                    )}
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDeleteProject(project);
-                      }}
+                    </div>
+                    <div
+                      className="flex h-8 w-8 items-center justify-center"
+                      data-testid="project-expand-indicator"
                     >
-                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    </button>
-
-                    {onEditSessionFilter && (
-                      <button
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/30 active:scale-90"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onEditSessionFilter(project);
-                        }}
-                        title={t('sessionFilter.menuItem')}
-                      >
-                        <ListFilter className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    )}
-
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 active:scale-90 dark:border-primary/30 dark:bg-primary/20"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStartEditingProject(project);
-                      }}
-                    >
-                      <Edit3 className="h-4 w-4 text-primary" />
-                    </button>
-
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
                       {isExpanded ? (
-                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
                       ) : (
-                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
                     </div>
                   </>
