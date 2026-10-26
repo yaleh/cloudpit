@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -77,6 +77,7 @@ import {
   type EntityNavigationDirection,
   type EntityNavigationItem,
 } from '@/modules/architecture/entityNavigation';
+import { createGraphSelectionController } from '@/modules/architecture/graphSelectionController';
 import {
   selectionsIntersectingBox,
   type ArchitectureSelection,
@@ -105,7 +106,6 @@ import {
   type SvgViewportSize,
 } from '@/modules/architecture/svgViewport';
 import {
-  DOUBLE_TAP_MS,
   ENTITY_HIGHLIGHT_EVENT,
   GROUP_PREFIX,
   KEYBOARD_PAN_STEP,
@@ -1049,75 +1049,23 @@ export function PlantUmlGraph({
   const drawnCallbackRef = useRef(onDrawnPlantUmlChange);
   // The geometry of the current drawing, kept beside the model it belongs to.
   const drawnLayoutRef = useRef<unknown>(null);
-  // The panel's selection, readable from the delegated listeners and the async
-  // draw without re-registering either. It is also what the draw re-applies
-  // after replacing the SVG.
-  const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
-  const selectedRelationRef = useRef<PlantUmlGraphProps['selectedRelation']>(selectedRelation);
-  // The whole set, readable from the async draw that replaces the SVG.
-  const selectedNodeIdsRef = useRef<readonly string[]>(selectedNodeIds ?? []);
-  const selectedRelationsRef = useRef<NonNullable<PlantUmlGraphProps['selectedRelations']>>(
-    selectedRelations ?? [],
+  // Selection and keyboard navigation are ONE owned slice. Every reading the
+  // delegated listeners, the async draw and the render need lives in the
+  // controller (see `graphSelectionController.ts`); this component renders its
+  // snapshot and forwards events. The controller is created once per mount:
+  // listeners read `getSnapshot()` at fire time, which is what the mirrored
+  // refs used to provide.
+  const selectionController = useMemo(() => createGraphSelectionController(), []);
+  const selectionSnapshot = useSyncExternalStore(
+    selectionController.subscribe,
+    selectionController.getSnapshot,
+    selectionController.getSnapshot,
   );
-  // The last entity the keyboard cursor stood on. A ref (not state): the
-  // cursor's own move only edits SVG classes/ids, and this reading exists so
-  // re-entering the navigation state lands where the reader left off rather
-  // than at the top-left entity.
-  const keyboardFocusRef = useRef<string | null>(null);
-  // Whether the canvas is in its entity-navigation state: Enter puts it there,
-  // Escape leaves it. State, not a ref, because the host's role and
-  // `aria-activedescendant` are render output that must follow it.
-  const [navigationActive, setNavigationActive] = useState(false);
-  // The item the keyboard cursor stands on (an entity id, or
-  // `package::<path>`). Also state: it is the `aria-activedescendant` value.
-  const [navigationCursorId, setNavigationCursorId] = useState<string | null>(null);
-  // The polite live-region sentence for the current entity / last selection.
-  const [navigationAnnouncement, setNavigationAnnouncement] = useState('');
-  // The same two readings as refs: the redraw callback (async, outside the
-  // render that created it) re-paints the ring from the settled values.
-  const navigationActiveRef = useRef(false);
-  const navigationCursorRef = useRef<string | null>(null);
-  // What produced the focus the canvas is about to receive. `keyboard` is the
-  // only modality that enters entity navigation: a pointer press focuses the
-  // host too (so click-then-arrow panning keeps working), and a ring appearing
-  // under a mouse click would be noise. A window CAPTURE listener keeps this
-  // fresh before the press that focuses the host commits.
-  const focusModalityRef = useRef<'keyboard' | 'pointer'>('keyboard');
   /** Leave the navigation state; the selection and the drawing stay unchanged. */
   const exitEntityNavigation = (host: HTMLElement): void => {
-    navigationActiveRef.current = false;
-    navigationCursorRef.current = null;
-    setNavigationActive(false);
-    setNavigationCursorId(null);
-    setNavigationAnnouncement('');
+    selectionController.exitNavigation();
     clearNavigationFocus(host);
   };
-  // The entity the user clicked (or a sibling panel asked for). Unlike the
-  // hover reading it survives leaving the node and being re-rendered, so the
-  // dependency/reverse-dependency highlight stays pinned until the selection is
-  // replaced or cleared.
-  const selectedRef = useRef<string | null>(null);
-  // A state copy of the selection, used only to render the explicit "Drill in"
-  // action. It deliberately does not feed the drawing effect: selecting must
-  // never re-lay the diagram out.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Whether the selection came from a touch tap. A desktop click already
-  // navigated, so only a touch selection needs a separate drill command.
-  const [selectedByTouch, setSelectedByTouch] = useState(false);
-  // The pointer type of the last press on the graph. A click that follows a
-  // touch press keeps the touch semantics (select only); a mouse click keeps
-  // the original click-to-drill behaviour.
-  const lastPointerTypeRef = useRef<string | null>(null);
-  // The previous tap, for the touch double-tap drill gesture.
-  const lastTapRef = useRef<{ id: string; at: number } | null>(null);
-  // The pin menu: right-click (desktop) or long-press (touch) on a node or a
-  // relation opens the same adjustment actions the inspector offers. Null keeps
-  // it shut; the position is in the canvas's own coordinate space.
-  const [contextMenu, setContextMenu] = useState<
-    | { readonly x: number; readonly y: number; readonly nodeId: string }
-    | { readonly x: number; readonly y: number; readonly edge: ArchitectureRendererEdge }
-    | null
-  >(null);
   const pinnedSet = useMemo(() => new Set(pinnedNodeIds), [pinnedNodeIds]);
   useEffect(() => {
     viewRef.current = view;
@@ -1133,12 +1081,6 @@ export function PlantUmlGraph({
     boxSelectCallbackRef.current = onBoxSelect;
     multiSelectModeRef.current = multiSelectMode;
     drawnCallbackRef.current = onDrawnPlantUmlChange;
-    selectedNodeIdRef.current = selectedNodeId;
-    selectedRelationRef.current = selectedRelation;
-    selectedNodeIdsRef.current = selectedNodeIds
-      ?? (selectedNodeId === null ? [] : [selectedNodeId]);
-    selectedRelationsRef.current = selectedRelations
-      ?? (selectedRelation === null ? [] : [selectedRelation]);
     diffHighlightRef.current = diffHighlight;
   }, [view, graph, onNodeHover, onNodeClick, onEdgeClick, onSelectionClear, onEscapeSelection, onDrawnPlantUmlChange, selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations, onToggleNodeClick, onToggleEdgeClick, onMultiSelectStart, onBoxSelect, multiSelectMode, diffHighlight]);
 
@@ -1171,11 +1113,16 @@ export function PlantUmlGraph({
     if (host === null) return;
     const nodeIds = selectedNodeIds ?? (selectedNodeId === null ? [] : [selectedNodeId]);
     const relationList = selectedRelations ?? (selectedRelation === null ? [] : [selectedRelation]);
+    selectionController.syncPanelSelection({
+      nodeId: selectedNodeId,
+      relation: selectedRelation,
+      nodeIds,
+      relations: relationList,
+    });
     paintSelectionStyles(host, nodeIds, relationList);
-    selectedRef.current = selectedNodeId;
     if (selectedNodeId !== null) highlightSelection(host, selectedNodeId);
     else if (relationList.length === 0) clearHighlight(host);
-  }, [selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations]);
+  }, [selectedNodeId, selectedRelation, selectedNodeIds, selectedRelations, selectionController]);
 
   // Tell the panel which slice is on screen. The export menu rebuilds exactly
   // this view; a remount (session/scope change resets `view`) reports the
@@ -1536,7 +1483,7 @@ export function PlantUmlGraph({
   }, []);
 
   const drillSelected = useCallback((): void => {
-    const id = selectedRef.current;
+    const id = selectionController.getSnapshot().primaryNodeId;
     if (id !== null) drillInto(id);
   }, [drillInto]);
 
@@ -1550,11 +1497,9 @@ export function PlantUmlGraph({
    */
   useEffect(() => {
     if (focusNodeId === null) return;
-    selectedRef.current = focusNodeId;
-    setSelectedId(focusNodeId);
-    setSelectedByTouch(false);
+    selectionController.focusNode(focusNodeId);
     if (focusDrill) setView({ kind: 'neighborhood', entityId: focusNodeId, hops: DEFAULT_NEIGHBORHOOD_HOPS });
-  }, [focusNodeId, focusToken, focusDrill]);
+  }, [focusNodeId, focusToken, focusDrill, selectionController]);
 
   // Switching the class/file subgraph is a new drawing, so a drill-down state
   // from the previous one must not be carried over: a neighbourhood opened in
@@ -1733,8 +1678,9 @@ export function PlantUmlGraph({
     applyZoom({ scale: solvedScale, fit: options.fit ? 'auto' : 'manual' });
     // A rewritten SVG is a fresh set of elements: re-pin the selection and the
     // unselectable declaration, exactly as the render effect does.
-    paintSelectionStyles(host, selectedNodeIdsRef.current, selectedRelationsRef.current);
-    highlightSelection(host, selectedRef.current);
+    const selection = selectionController.getSnapshot();
+    paintSelectionStyles(host, selection.panel.nodeIds, selection.panel.relations);
+    highlightSelection(host, selection.primaryNodeId);
     markDrawingUnselectable(host);
     applyDiffStyles(host, diffHighlightRef.current);
     if (neighborCenterRef.current !== null) {
@@ -1876,7 +1822,7 @@ export function PlantUmlGraph({
       // A pointer press is not the keyboard: leaving the navigation state
       // clears the ring and the active descendant. The modality gate above
       // keeps the focus this press just gave the host from re-entering it.
-      if (navigationActiveRef.current) exitEntityNavigation(host);
+      if (selectionController.getSnapshot().navigationActive) exitEntityNavigation(host);
     };
     host.addEventListener('mousedown', onMouseDown);
     return () => host.removeEventListener('mousedown', onMouseDown);
@@ -1905,8 +1851,8 @@ export function PlantUmlGraph({
   // focuses the host for click-then-arrow panning and must not paint a ring.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const fromPointer = (): void => { focusModalityRef.current = 'pointer'; };
-    const fromKeyboard = (): void => { focusModalityRef.current = 'keyboard'; };
+    const fromPointer = (): void => selectionController.setFocusModality('pointer');
+    const fromKeyboard = (): void => selectionController.setFocusModality('keyboard');
     window.addEventListener('pointerdown', fromPointer, true);
     window.addEventListener('keydown', fromKeyboard, true);
     return () => {
@@ -2078,10 +2024,9 @@ export function PlantUmlGraph({
     setFailure(null);
     hoverCallbackRef.current?.(null);
     // A reloaded graph may not contain the previously selected entity.
-    if (selectedRef.current !== null && !graph.nodes.some((node) => node.id === selectedRef.current)) {
-      selectedRef.current = null;
-      setSelectedId(null);
-      setSelectedByTouch(false);
+    const previousSelection = selectionController.getSnapshot().primaryNodeId;
+    if (previousSelection !== null && !graph.nodes.some((node) => node.id === previousSelection)) {
+      selectionController.clearSelection();
     }
 
     void (async () => {
@@ -2336,7 +2281,11 @@ export function PlantUmlGraph({
         viewportForMode?.setSemanticMode(
           capture === null ? null : semanticContentBounds(capture.geometry),
         );
-        paintSelectionStyles(host, selectedNodeIdsRef.current, selectedRelationsRef.current);
+        paintSelectionStyles(
+          host,
+          selectionController.getSnapshot().panel.nodeIds,
+          selectionController.getSnapshot().panel.relations,
+        );
         applyDiffStyles(host, diffHighlightRef.current);
         // Every view has its own natural size, so the scale is re-derived here
         // rather than carried over; the fit/custom MODE survives so the resize
@@ -2391,7 +2340,7 @@ export function PlantUmlGraph({
           }
         }
         // A fresh SVG has no highlight classes; re-pin the current selection.
-        highlightSelection(host, selectedRef.current);
+        highlightSelection(host, selectionController.getSnapshot().primaryNodeId);
         neighborCenterRef.current = null;
         if (view.kind === 'neighborhood') {
           const center = diagram.rendererEntity;
@@ -2568,7 +2517,7 @@ export function PlantUmlGraph({
       const next = event.relatedTarget;
       if (next instanceof Node && node.contains(next)) return;
       // Hover is transient; a pinned selection is restored when the pointer leaves.
-      highlightSelection(host, selectedRef.current);
+      highlightSelection(host, selectionController.getSnapshot().primaryNodeId);
       hoverCallbackRef.current?.(null);
     };
 
@@ -2595,13 +2544,13 @@ export function PlantUmlGraph({
         const to = edgeHit.getAttribute('data-architecture-edge-target');
         const relationType = edgeHit.getAttribute('data-architecture-edge-type') ?? '';
         if (from === null || to === null) return false;
-        setContextMenu({ x, y, edge: { from, to, relationType } });
+        selectionController.openContextMenu({ x, y, edge: { from, to, relationType } });
         return true;
       }
       const id = nodeFrom(target)?.getAttribute('data-entity-id') ?? null;
       if (id === null || id.startsWith(GROUP_PREFIX) || id.startsWith(STUB_PREFIX)) return false;
       if (!graphRef.current.nodes.some((candidate) => candidate.id === id)) return false;
-      setContextMenu({ x, y, nodeId: id });
+      selectionController.openContextMenu({ x, y, nodeId: id });
       return true;
     };
 
@@ -2613,7 +2562,7 @@ export function PlantUmlGraph({
     // blank canvas keeps opening the curation menu. `navigator.vibrate` is the
     // optional acknowledgement — guarded because jsdom and some browsers lack it.
     const onPointerDown = (event: PointerEvent): void => {
-      lastPointerTypeRef.current = event.pointerType ?? null;
+      selectionController.recordPointerType(event.pointerType ?? null);
       cancelLongPress();
       if (event.pointerType !== 'touch') return;
       const target = event.target;
@@ -2646,12 +2595,12 @@ export function PlantUmlGraph({
     const onContextMenu = (event: MouseEvent): void => {
       if (!canCurate) return;
       if (openMenuAt(event.clientX, event.clientY, event.target)) event.preventDefault();
-      else setContextMenu(null);
+      else selectionController.closeContextMenu();
     };
 
     /** Pin an entity's highlight and announce it to sibling panels. */
-    const selectEntity = (id: string): void => {
-      selectedRef.current = id;
+    const selectEntity = (id: string, isTouchTap: boolean): void => {
+      selectionController.selectNode(id, isTouchTap);
       highlightRelations(host, id);
       const clickedNode = graphRef.current.nodes.find((candidate) => candidate.id === id);
       if (clickedNode === undefined) return;
@@ -2662,8 +2611,7 @@ export function PlantUmlGraph({
     };
 
     const onClick = (event: MouseEvent): void => {
-      const isTouchTap = lastPointerTypeRef.current === 'touch';
-      lastPointerTypeRef.current = null;
+      const isTouchTap = selectionController.consumePointerType() === 'touch';
       // A gesture already acted on release (long-press multi-select, marquee):
       // the browser's trailing click is not a second command.
       if (suppressClickRef.current) {
@@ -2675,7 +2623,7 @@ export function PlantUmlGraph({
       const additive = event.shiftKey || event.ctrlKey || event.metaKey || multiSelectModeRef.current;
       // Any ordinary click on the drawing closes the pin menu. A click on the
       // menu itself never reaches this listener (the menu is a sibling).
-      setContextMenu(null);
+      selectionController.closeContextMenu();
 
       // At the package-only levels (`C`, and the folded `D` it deepens into)
       // the drawing is a map of frames, not selectable entities: a click on one
@@ -2725,10 +2673,7 @@ export function PlantUmlGraph({
             toggleEdgeCallbackRef.current(edge);
             return;
           }
-          selectedRelationRef.current = edge;
-          selectedRef.current = null;
-          setSelectedId(null);
-          setSelectedByTouch(false);
+          selectionController.selectRelation(edge);
           highlightEdge(host, edgeElement(host, from, to));
           edgeClickCallbackRef.current?.(edge);
           return;
@@ -2737,9 +2682,7 @@ export function PlantUmlGraph({
       }
       if (id === null) {
         // Clicking the background is the "clear the pinned selection" gesture.
-        selectedRef.current = null;
-        setSelectedId(null);
-        setSelectedByTouch(false);
+        selectionController.clearSelection();
         clearHighlight(host);
         hoverCallbackRef.current?.(null);
         selectionClearCallbackRef.current?.();
@@ -2750,7 +2693,7 @@ export function PlantUmlGraph({
       if (id.startsWith(GROUP_PREFIX)) {
         // A group is view scaffolding: selecting it marks the node but does not
         // announce an entity to sibling panels.
-        selectedRef.current = id;
+        selectionController.selectNode(id, isTouchTap);
         highlightRelations(host, id);
       } else {
         const node = graphRef.current.nodes.find((candidate) => candidate.id === id);
@@ -2758,16 +2701,14 @@ export function PlantUmlGraph({
         // Additive clicks toggle the member without touching the drill machinery
         // (a multi-select gesture is not a request to open the neighbourhood).
         if (additive && toggleNodeCallbackRef.current !== undefined) {
-          selectedRef.current = id;
+          selectionController.addToSelection(id);
           highlightRelations(host, id);
           announceSelection(graphRef.current, id);
           toggleNodeCallbackRef.current(node);
           return;
         }
-        selectEntity(id);
+        selectEntity(id, isTouchTap);
       }
-      setSelectedId(id);
-      setSelectedByTouch(isTouchTap);
 
       if (!isTouchTap) {
         // Desktop: a single click only SELECTS and opens the inspector. Drilling
@@ -2777,12 +2718,7 @@ export function PlantUmlGraph({
       // Touch: the first tap only selects — the drawing must not re-lay out
       // under the finger. A second tap on the same node inside the double-tap
       // window is the explicit drill command.
-      const last = lastTapRef.current;
-      lastTapRef.current = { id, at: event.timeStamp };
-      if (last !== null && last.id === id && event.timeStamp - last.at <= DOUBLE_TAP_MS) {
-        lastTapRef.current = null;
-        drillInto(id);
-      }
+      if (selectionController.registerTap(id)) drillInto(id);
     };
 
     // Desktop drill-down: two clicks on the same node. The click handler above
@@ -2828,9 +2764,7 @@ export function PlantUmlGraph({
       if (typeof id !== 'string' || id.length === 0) return;
       const node = graphRef.current.nodes.find((candidate) => candidate.id === id);
       if (node === undefined) return;
-      selectedRef.current = id;
-      setSelectedId(id);
-      setSelectedByTouch(false);
+      selectionController.focusNode(id);
       const host = hostRef.current;
       if (host !== null) highlightSelection(host, id);
       const current = viewRef.current;
@@ -3207,16 +3141,9 @@ export function PlantUmlGraph({
     });
   };
 
-  /** Write the cursor into both the refs the async redraw reads and the render state. */
-  const applyNavigationCursor = (cursorId: string | null, announcement: string): void => {
-    navigationCursorRef.current = cursorId;
-    setNavigationCursorId(cursorId);
-    setNavigationAnnouncement(announcement);
-  };
-
   /** Repaint the ring and scroll the current box into the viewport. */
   const paintCurrentNavigationItem = (host: HTMLElement): void => {
-    const cursorId = navigationCursorRef.current;
+    const cursorId = selectionController.getSnapshot().navigationCursorId;
     paintNavigationFocus(host, cursorId);
     if (cursorId === null) return;
     const element = navigationElementOf(host, cursorId);
@@ -3256,17 +3183,15 @@ export function PlantUmlGraph({
    */
   const enterEntityNavigation = (host: HTMLElement): boolean => {
     const items = collectNavigationItems(host);
-    const preferred = selectedRef.current ?? keyboardFocusRef.current;
+    const snapshot = selectionController.getSnapshot();
+    const preferred = snapshot.primaryNodeId ?? snapshot.keyboardFocusId;
     const centre = navigationViewportCentre(host);
     const clientItems = navigationClientItems(host, items);
     const startId = keyboardA11yDefect() === 'farthest-start'
       ? farthestNavigationStart(clientItems, centre)
       : pickNavigationStart(clientItems, preferred, centre);
     if (startId === null) return false;
-    navigationActiveRef.current = true;
-    setNavigationActive(true);
-    keyboardFocusRef.current = startId;
-    applyNavigationCursor(startId, navigationAnnouncementFor(host, startId));
+    selectionController.enterNavigation(startId, navigationAnnouncementFor(host, startId));
     paintCurrentNavigationItem(host);
     return true;
   };
@@ -3278,8 +3203,9 @@ export function PlantUmlGraph({
    */
   const onCanvasFocus = (): void => {
     const host = hostRef.current;
-    if (host === null || navigationActiveRef.current) return;
-    if (focusModalityRef.current === 'pointer') return;
+    const snapshot = selectionController.getSnapshot();
+    if (host === null || snapshot.navigationActive) return;
+    if (snapshot.focusModality === 'pointer') return;
     enterEntityNavigation(host);
   };
 
@@ -3289,22 +3215,25 @@ export function PlantUmlGraph({
     if (host === null) return;
     // Control arm: keep the ring painted after focus leaves.
     if (keyboardA11yDefect() === 'keep-ring-on-blur') return;
-    if (navigationActiveRef.current) exitEntityNavigation(host);
+    if (selectionController.getSnapshot().navigationActive) exitEntityNavigation(host);
   };
 
   /** Move the cursor one step and announce the landing (or "nothing there"). */
   const moveNavigationCursor = (host: HTMLElement, direction: EntityNavigationDirection): void => {
-    const currentId = navigationCursorRef.current;
+    const currentId = selectionController.getSnapshot().navigationCursorId;
     const next = moveEntityFocus(collectNavigationItems(host), currentId, direction);
     if (next === null) return;
     if (next === currentId) {
-      applyNavigationCursor(currentId, t('architecture.nav.noNeighbour', {
+      selectionController.moveNavigationCursor(currentId, t('architecture.nav.noNeighbour', {
         defaultValue: 'No entity in that direction',
-      }));
+      }), false);
       return;
     }
-    if (!next.startsWith(PACKAGE_NAV_PREFIX)) keyboardFocusRef.current = next;
-    applyNavigationCursor(next, navigationAnnouncementFor(host, next));
+    selectionController.moveNavigationCursor(
+      next,
+      navigationAnnouncementFor(host, next),
+      !next.startsWith(PACKAGE_NAV_PREFIX),
+    );
     paintCurrentNavigationItem(host);
   };
 
@@ -3341,21 +3270,22 @@ export function PlantUmlGraph({
     if (event.ctrlKey || event.metaKey) return;
 
     if (event.key === 'Escape') {
-      if (contextMenu !== null) {
+      const snapshot = selectionController.getSnapshot();
+      if (snapshot.contextMenu !== null) {
         event.preventDefault();
         event.stopPropagation();
-        setContextMenu(null);
+        selectionController.closeContextMenu();
         return;
       }
       // In the entity-navigation state Escape leaves that state and nothing
       // else: `stopPropagation` keeps the chat page's global abort out of it.
-      if (navigationActiveRef.current) {
+      if (snapshot.navigationActive) {
         event.preventDefault();
         event.stopPropagation();
         exitEntityNavigation(host);
         return;
       }
-      if (selectedRef.current === null && selectedRelationRef.current === null) return;
+      if (snapshot.primaryNodeId === null && snapshot.panel.relation === null) return;
       event.preventDefault();
       event.stopPropagation();
       escapeSelectionCallbackRef.current?.();
@@ -3367,8 +3297,9 @@ export function PlantUmlGraph({
     // key away from the chat page's global abort — the drawing owns it only
     // while a selection exists AND a curation callback can act on it.
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      const edge = selectedRelationRef.current ?? null;
-      const nodeId = selectedRef.current;
+      const snapshot = selectionController.getSnapshot();
+      const edge = snapshot.panel.relation;
+      const nodeId = snapshot.primaryNodeId;
       if (edge === null && nodeId === null) return;
       if (edge !== null) {
         if (onHideRelation === undefined) return;
@@ -3387,16 +3318,17 @@ export function PlantUmlGraph({
     }
 
     /** The entity the cursor stands on, or null on a frame / nowhere. */
-    const cursorNode = (): ArchitectureRendererNode | null => navigationNodeOf(navigationCursorRef.current);
+    const cursorNode = (): ArchitectureRendererNode | null =>
+      navigationNodeOf(selectionController.getSnapshot().navigationCursorId);
 
     /** Enter's selection: an entity opens the inspector, a frame zooms into it. */
     const selectCursorItem = (): boolean => {
-      const cursorId = navigationCursorRef.current;
+      const cursorId = selectionController.getSnapshot().navigationCursorId;
       if (cursorId === null) return false;
       if (cursorId.startsWith(PACKAGE_NAV_PREFIX)) {
         // A frame is a place, not an entity: the same gesture a tap gives it.
         zoomToPackage(cursorId.slice(PACKAGE_NAV_PREFIX.length));
-        setNavigationAnnouncement(t('architecture.nav.enteredPackage', {
+        selectionController.announce(t('architecture.nav.enteredPackage', {
           defaultValue: 'Entered package {{package}}',
           package: cursorId.slice(PACKAGE_NAV_PREFIX.length),
         }));
@@ -3404,11 +3336,11 @@ export function PlantUmlGraph({
       }
       const node = cursorNode();
       if (node === null) return false;
-      selectedRef.current = cursorId;
+      selectionController.addToSelection(cursorId);
       highlightRelations(host, cursorId);
       announceSelection(graphRef.current, cursorId);
       clickCallbackRef.current?.(node);
-      setNavigationAnnouncement(t('architecture.nav.selected', {
+      selectionController.announce(t('architecture.nav.selected', {
         defaultValue: '{{label}} selected',
         label: navigationLabelOf(host, cursorId),
       }));
@@ -3418,15 +3350,16 @@ export function PlantUmlGraph({
     /** Shift+Enter / Space: toggle the cursor's entity in the multi-select set. */
     const toggleCursorSelection = (): boolean => {
       const node = cursorNode();
-      const cursorId = navigationCursorRef.current;
+      const snapshot = selectionController.getSnapshot();
+      const cursorId = snapshot.navigationCursorId;
       if (node === null || cursorId === null) return false;
-      const wasSelected = selectedNodeIdsRef.current.includes(cursorId) || selectedRef.current === cursorId;
-      selectedRef.current = cursorId;
+      const wasSelected = snapshot.panel.nodeIds.includes(cursorId) || snapshot.primaryNodeId === cursorId;
+      selectionController.addToSelection(cursorId);
       highlightRelations(host, cursorId);
       announceSelection(graphRef.current, cursorId);
       if (toggleNodeCallbackRef.current !== undefined) toggleNodeCallbackRef.current(node);
       else clickCallbackRef.current?.(node);
-      setNavigationAnnouncement(wasSelected
+      selectionController.announce(wasSelected
         ? t('architecture.nav.deselected', {
             defaultValue: '{{label}} removed from the selection',
             label: node.label,
@@ -3438,7 +3371,7 @@ export function PlantUmlGraph({
       return true;
     };
 
-    if (navigationActiveRef.current) {
+    if (selectionController.getSnapshot().navigationActive) {
       switch (event.key) {
         case 'ArrowUp':
           event.preventDefault();
@@ -3498,7 +3431,7 @@ export function PlantUmlGraph({
             return;
           }
           if (event.altKey) {
-            const drillId = navigationCursorRef.current;
+            const drillId = selectionController.getSnapshot().navigationCursorId;
             if (drillId === null || drillId.startsWith(PACKAGE_NAV_PREFIX)) return;
             event.preventDefault();
             drillInto(drillId);
@@ -3556,19 +3489,19 @@ export function PlantUmlGraph({
     if (event.altKey) return;
     switch (event.key) {
       case 'ArrowLeft':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollLeft -= KEYBOARD_PAN_STEP;
         break;
       case 'ArrowRight':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollLeft += KEYBOARD_PAN_STEP;
         break;
       case 'ArrowUp':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollTop -= KEYBOARD_PAN_STEP;
         break;
       case 'ArrowDown':
-        if (navigationActiveRef.current) return;
+        if (selectionController.getSnapshot().navigationActive) return;
         host.scrollTop += KEYBOARD_PAN_STEP;
         break;
       case '+':
@@ -3599,12 +3532,12 @@ export function PlantUmlGraph({
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) return;
-    if (!navigationActive) {
+    if (!selectionSnapshot.navigationActive) {
       clearNavigationFocus(host);
       return;
     }
     paintCurrentNavigationItem(host);
-  }, [drawn, drawnRevision, navigationActive, navigationCursorId]);
+  }, [drawn, drawnRevision, selectionSnapshot.navigationActive, selectionSnapshot.navigationCursorId]);
 
   const viewLabel = view.kind === 'overview'
     ? t('architecture.plantuml.overview', { defaultValue: 'Overview' })
@@ -3645,14 +3578,15 @@ export function PlantUmlGraph({
   // The explicit drill command is offered only for a touch selection that has
   // not already opened its own view: a desktop click navigated on its own, and
   // a selection whose neighbourhood is on screen has nothing left to drill.
-  const selectedPrefix = selectedId !== null && selectedId.startsWith(GROUP_PREFIX)
-    ? selectedId.slice(GROUP_PREFIX.length)
+  const drillNodeId = selectionSnapshot.drillNodeId;
+  const selectedPrefix = drillNodeId !== null && drillNodeId.startsWith(GROUP_PREFIX)
+    ? drillNodeId.slice(GROUP_PREFIX.length)
     : null;
-  const selectionAlreadyOpen = selectedId === null
+  const selectionAlreadyOpen = drillNodeId === null
     || (selectedPrefix !== null
       ? view.kind === 'group' && view.prefix === selectedPrefix
-      : view.kind === 'neighborhood' && view.entityId === selectedId);
-  const canDrill = selectedByTouch && selectedId !== null && !selectionAlreadyOpen;
+      : view.kind === 'neighborhood' && view.entityId === drillNodeId);
+  const canDrill = selectionSnapshot.selectedByTouch && drillNodeId !== null && !selectionAlreadyOpen;
 
   const zoomGroupLabel = t('architecture.plantuml.zoomGroup', { defaultValue: 'Diagram zoom' });
   /**
@@ -4015,11 +3949,11 @@ export function PlantUmlGraph({
           // The canvas is an image until the reader enters entity navigation;
           // then it is an application whose active descendant is the entity the
           // keyboard cursor stands on (the ring is drawn inside the drawing).
-          role={navigationActive ? 'application' : 'img'}
+          role={selectionSnapshot.navigationActive ? 'application' : 'img'}
           aria-label={t('architecture.graphAria', { defaultValue: 'Architecture neighbourhood graph' })}
           aria-activedescendant={
-            navigationActive && navigationCursorId !== null
-              ? navigationDomId(navigationCursorId)
+            selectionSnapshot.navigationActive && selectionSnapshot.navigationCursorId !== null
+              ? navigationDomId(selectionSnapshot.navigationCursorId)
               : undefined
           }
           // The canvas is its own keyboard target: Tab starts entity navigation
@@ -4113,7 +4047,7 @@ export function PlantUmlGraph({
           data-architecture-nav-announcer="true"
           className="sr-only"
         >
-          {navigationAnnouncement}
+          {selectionSnapshot.navigationAnnouncement}
         </span>
         {layoutStatusNodes !== null && (
           // An overlay, deliberately: a status drawn in flow would change the
@@ -4197,11 +4131,12 @@ export function PlantUmlGraph({
             }}
           />
         )}
-        {contextMenu !== null && (() => {
-          const menuNode = 'nodeId' in contextMenu
-            ? graph.nodes.find((candidate) => candidate.id === contextMenu.nodeId) ?? null
+        {selectionSnapshot.contextMenu !== null && (() => {
+          const menu = selectionSnapshot.contextMenu;
+          const menuNode = 'nodeId' in menu
+            ? graph.nodes.find((candidate) => candidate.id === menu.nodeId) ?? null
             : null;
-          const menuEdge = 'edge' in contextMenu ? contextMenu.edge : null;
+          const menuEdge = 'edge' in menu ? menu.edge : null;
           const isPinned = menuNode !== null && pinnedSet.has(menuNode.id);
           if (menuNode === null && menuEdge === null) return null;
           return (
@@ -4209,7 +4144,7 @@ export function PlantUmlGraph({
               data-architecture-context-menu="true"
               role="menu"
               aria-label={t('architecture.curation.heading', { defaultValue: 'Adjust' })}
-              style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, zIndex: 40 }}
+              style={{ position: 'absolute', left: menu.x, top: menu.y, zIndex: 40 }}
               className="flex min-w-40 flex-col rounded-lg border border-border bg-popover p-1 shadow-lg"
             >
               {menuNode !== null && (
@@ -4220,7 +4155,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-unpin={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onUnpinNode?.(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4233,7 +4168,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-pin={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onPinNode?.(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4246,7 +4181,7 @@ export function PlantUmlGraph({
                     role="menuitem"
                     data-architecture-context-remove={menuNode.id}
                     onClick={() => {
-                      setContextMenu(null);
+                      selectionController.closeContextMenu();
                       onRemoveNode?.(menuNode);
                     }}
                     className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4259,7 +4194,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-put-in-chat={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onPutNodeInChat(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4273,7 +4208,7 @@ export function PlantUmlGraph({
                       role="menuitem"
                       data-architecture-context-solo={menuNode.id}
                       onClick={() => {
-                        setContextMenu(null);
+                        selectionController.closeContextMenu();
                         onSoloNode(menuNode);
                       }}
                       className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -4289,7 +4224,7 @@ export function PlantUmlGraph({
                   role="menuitem"
                   data-architecture-context-hide={menuEdge.from}
                   onClick={() => {
-                    setContextMenu(null);
+                    selectionController.closeContextMenu();
                     onHideRelation?.(menuEdge);
                   }}
                   className="rounded px-2 py-1 text-left text-[11px] text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-primary/60"
