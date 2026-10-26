@@ -1,7 +1,7 @@
 ---
 id: gap-server-features-store-encapsulation
 title: 把 useServerFeatures 的 4 个模块级可变状态收进 ServerFeaturesStore 类
-status: ready
+status: done
 labels:
   - gap
 parent: null
