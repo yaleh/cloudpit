@@ -19,6 +19,8 @@ export {
 export type {
   ScenarioCockpitCardTarget,
   ScenarioCockpitCardsReading,
+} from '@/modules/ui-scenario/cockpitCardsSurface';
+export type {
   ScenarioCockpitReading,
   ScenarioDriveStep,
   ScenarioFocusReading,
