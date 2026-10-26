@@ -4224,6 +4224,10 @@ export function PlantUmlGraph({
                 })}
                 onClick={() => setClusterExpanded(true)}
                 data-architecture-zoom-cluster-toggle="true"
+                // The collapsed form IS the cluster's percentage reading on the
+                // portrait tier; state it under the same attribute the expanded
+                // span uses so a reading never depends on which form is shown.
+                data-architecture-zoom-cluster-level="true"
                 style={TOUCH_TARGET_STYLE}
                 className={TOOLBAR_BUTTON_CLASS}
               >

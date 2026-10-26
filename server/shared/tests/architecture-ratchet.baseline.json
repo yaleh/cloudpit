@@ -53,7 +53,7 @@
     "src/modules/architecture/ArchitectureMinimap.tsx": 868,
     "src/modules/architecture/ArchitecturePanel.tsx": 5023,
     "src/modules/architecture/graphDom.ts": 1490,
-    "src/modules/architecture/PlantUmlGraph.tsx": 4287,
+    "src/modules/architecture/PlantUmlGraph.tsx": 4291,
     "src/modules/architecture/semanticZoomLayout.ts": 1688,
     "src/modules/architecture/semanticZoomPlan.ts": 894,
     "src/modules/architecture/svgViewport.ts": 970,
