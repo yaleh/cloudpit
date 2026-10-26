@@ -31,7 +31,7 @@ extra:
 
 - AC1：`grep -n "createNoticesController" src/modules/notices/noticesController.ts` → `147:export function createNoticesController({`；工厂返回 `{ subscribe, getSnapshot, refresh, dismiss, dispose }`。
 - AC2：`wc -l src/modules/notices/useNotices.ts` → `79 src/modules/notices/useNotices.ts`；`grep -c "setInterval" src/modules/notices/useNotices.ts` → `0`。
-- AC3 / DoD（真实 controller + 假 list/dismiss/clock）：`npx vitest run src/modules/notices/tests/noticesController.test.ts` → `Test Files 1 passed (1)` / `Tests 6 passed (6)`，覆盖 (a) 创建即读一次、之后每 `NOTICES_POLL_INTERVAL_MS`=15000 触发一次；(b) 首次失败→`unavailable`，随后好后失败→同一份好读数（快照 identity 不变）；(c) 409→静默重读且不报错；(d) 200 后重读；(e) dismiss 抛错→保留读数；(f) `dispose()` 后 clock.pending()=0、co令不再 poll、迟到的读数不通知。
+- AC3 / DoD（真实 controller + 假 list/dismiss/clock）：`npx vitest run src/modules/notices/tests/noticesController.test.ts` → `Test Files 1 passed (1)` / `Tests 6 passed (6)`，覆盖 (a) 创建即读一次、之后每 `NOTICES_POLL_INTERVAL_MS`=15000 触发一次；(b) 首次失败→`unavailable`，随后好后失败→同一份好读数（快照 identity 不变）；(c) 409→静默重读且不报错；(d) 200 后重读；(e) dismiss 抛错→保留读数；(f) `dispose()` 后 clock.pending()=0、clock 不再触发 poll、迟到的读数不通知。
 - AC4：`npx vitest run src/modules/notices/tests/NoticeInbox.test.tsx src/modules/notices/tests/NoticeSlot.test.tsx` → `Test Files 2 passed (2)` / `Tests 12 passed (12)`。
 - AC5：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/modules/notices` exit 0（一条 `react/refs` warning：hook 把 ports 放进 ref、只在 controller 回调里读取；该规则全仓仍为 warn）。
 
