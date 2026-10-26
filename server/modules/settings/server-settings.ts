@@ -124,13 +124,23 @@ export type InitiativeSettings = {
  * Consumed by `server/index.ts`: it gates the cockpit's WebSocket frames and its dedicated
  * HTTP surfaces, and it is the value the client's `/api/settings/features` reading reports.
  * Read once at boot, like every other knob in this file — an edit reaches the next start.
+ *
+ * `fixtureCards` SHIPS FALSE. Turning it on registers the in-memory fixture card
+ * provider, which answers `GET /api/cockpit/cards` with six example cards covering
+ * every known kind and records confirmations in memory. It exists so a later UI
+ * task can drive the cockpit in an isolated instance before the fleet adapter
+ * (the real provider) is aligned; a release never turns it on.
  */
 export type CockpitSettings = {
   enabled: boolean;
+  fixtureCards: boolean;
 };
 
 /** The shipped cockpit switch: off. Mirrored by `config/server.settings.example.json`. */
 export const DEFAULT_COCKPIT_ENABLED = false;
+
+/** The shipped fixture-cards switch: off. Fixtures exist for isolated DoD runs only. */
+export const DEFAULT_COCKPIT_FIXTURE_CARDS = false;
 
 /**
  * The public server policy a client may read without an operator's own file.
@@ -252,7 +262,10 @@ function defaultServerSettings(filePath: string): ServerSettings {
       viewEvents: { enabled: DEFAULT_VIEW_EVENTS_ENABLED, path: defaultViewEventsPath() },
     },
     initiative: { auditRatio: DEFAULT_INITIATIVE_AUDIT_RATIO },
-    cockpit: { enabled: DEFAULT_COCKPIT_ENABLED },
+    cockpit: {
+      enabled: DEFAULT_COCKPIT_ENABLED,
+      fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
+    },
     source: 'default',
     path: filePath,
     problems: [],
@@ -424,16 +437,19 @@ function readInitiative(raw: unknown, problems: string[]): InitiativeSettings {
 }
 
 /**
- * The `cockpit` block, read for its `enabled` switch only.
+ * The `cockpit` block, read for its `enabled` and `fixtureCards` switches only.
  *
  * EVERYTHING ELSE IN THE BLOCK IS IGNORED. `cockpit.counterVoice` belongs to
  * `modules/quay/counter-voice-settings.ts`; ignoring it here is what keeps the two readers
- * independent (and a `cockpit` object that carries only `counterVoice` valid). The switch
+ * independent (and a `cockpit` object that carries only `counterVoice` valid). Each switch
  * must be a real boolean: a string `"true"` is a malformed value, and the shipped default
  * (off) is the safe reading for a release that cannot decide.
  */
 function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
-  const settings: CockpitSettings = { enabled: DEFAULT_COCKPIT_ENABLED };
+  const settings: CockpitSettings = {
+    enabled: DEFAULT_COCKPIT_ENABLED,
+    fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
+  };
 
   if (raw === undefined) {
     return settings;
@@ -449,6 +465,13 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
       settings.enabled = record.enabled;
     } else {
       problems.push('`cockpit.enabled` must be a boolean');
+    }
+  }
+  if (record.fixtureCards !== undefined) {
+    if (typeof record.fixtureCards === 'boolean') {
+      settings.fixtureCards = record.fixtureCards;
+    } else {
+      problems.push('`cockpit.fixtureCards` must be a boolean');
     }
   }
   return settings;

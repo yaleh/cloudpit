@@ -4627,3 +4627,123 @@ export type ArchitectureRefreshStartResult = {
   coalesced: boolean;
   status: ArchitectureRefreshStatus;
 };
+
+// ---------------------------
+//----------------- COCKPIT CARDS ------------
+
+/**
+ * The card kinds this build knows how to render.
+ *
+ * `CockpitCard.kind` is an OPEN string, so a provider may ship a kind this build
+ * does not know: rendering looks the known ones up in a table and never branches
+ * on the provider. This union is the known set the two wire ends must agree on
+ * (`src/shared/tests/cockpitCardTypeSync.test.ts` reads it on both sides).
+ */
+export type CockpitCardKind = 'ask' | 'multi' | 'need' | 'stuck' | 'fix' | 'decision';
+
+/**
+ * Where a card is in its life. Only the PROVIDER moves a card out of `open`
+ * (the design's rule: whether a thing is over is the provider's judgement, not
+ * the cockpit's), which is why the projection filters on this field alone.
+ */
+export type CockpitCardState = 'open' | 'resolved' | 'expired';
+
+/** Where an option's recommendation came from: the assistant, the judge, or the provider. */
+export type CockpitCardOptionSource = 'assistant' | 'judge' | 'provider';
+
+/** A consequence tag on an option: the fixed-vocabulary kind plus the words shown for it. */
+export type CockpitCardTag = {
+  kind: string;
+  text: string;
+};
+
+/** One fact behind a card; `mechanical` distinguishes a fresh measurement from a judgement. */
+export type CockpitCardFact = {
+  text: string;
+  mechanical: boolean;
+  ref?: string;
+  observedAt?: string;
+};
+
+/** How one option would be executed: a DECLARED executor id plus its declared params. */
+export type CockpitCardAction = {
+  executor: string;
+  params: Record<string, unknown>;
+};
+
+/** One selectable option on a card. */
+export type CockpitCardOption = {
+  id: string;
+  label: string;
+  does: string;
+  suggested: boolean;
+  source: CockpitCardOptionSource;
+  action: CockpitCardAction;
+  why?: string;
+  warn?: string;
+  tags?: CockpitCardTag[];
+  undo?: string;
+  when?: string;
+};
+
+/** What a card is about; `uri` is the cockpit address of the subject. */
+export type CockpitCardSubject = {
+  uri: string;
+  project?: string;
+  sessionId?: string;
+  taskId?: string;
+};
+
+/** A provider-side reference the local content resolver fills in (content lives locally). */
+export type CockpitCardContentRef = {
+  resolver: string;
+  ref?: string;
+};
+
+/** The executor a free-text reply goes through; the reply text joins its params at call time. */
+export type CockpitCardOwnReply = {
+  executor: string;
+  params: Record<string, unknown>;
+};
+
+/** The conversation a card belongs to, or the project a new one would start in. */
+export type CockpitCardConversation = {
+  sessionId?: string;
+  startInProject?: string;
+};
+
+/** Whether the provider wants a system notification for this card, and its rule id. */
+export type CockpitCardNotify = {
+  system: boolean;
+  reason: string;
+};
+
+/**
+ * One thing waiting for the person, as a provider states it.
+ *
+ * The cockpit is deliberately ignorant of what a card means: `group`/`rank` are
+ * the provider's ordering, `state` is the provider's lifecycle, and `revision`
+ * advances only when content or state changes (a reminder-time refresh does not
+ * bump it, which is what keeps a focused row in place). The registry passes
+ * every field through unchanged.
+ */
+export type CockpitCard = {
+  id: string;
+  provider: string;
+  revision: number;
+  kind: CockpitCardKind | (string & {});
+  group: string;
+  rank: number;
+  state: CockpitCardState;
+  waitingSince: string;
+  surfacedAt: string;
+  subject: CockpitCardSubject;
+  facts: CockpitCardFact[];
+  options: CockpitCardOption[];
+  contentRef?: CockpitCardContentRef;
+  ask?: string;
+  situation?: string;
+  ownReply?: CockpitCardOwnReply;
+  conversation?: CockpitCardConversation;
+  notify?: CockpitCardNotify;
+};

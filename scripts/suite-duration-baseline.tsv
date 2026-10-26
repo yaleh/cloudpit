@@ -235,6 +235,11 @@
 #   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/blind-spots.test.ts`
 #   (dur=3232ms; its own new criterion; no green round contains it yet — the row also keeps the 90%
 #   coverage floor green now that the tree collects 421 server test files).
+#   and the cockpit-card-registry row by cockpit-card-provider-contract-and-registry, measured
+#   once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-registry.test.ts`
+#   (dur=2651ms; its own new criterion; no green round contains it yet — the row also keeps the 90%
+#   coverage floor green now that the tree collects 452 server test files).
 1604	server/modules/file-tree/tests/file-tree-search-index.test.ts
 5700	server/shared/tests/server-composition-startup.test.ts
 1403	server/modules/voice-realtime/tests/voice-realtime-summary.test.ts
@@ -732,3 +737,9 @@
 #   yet — the row also keeps the 90% coverage floor green now that the tree collects 451 server
 #   test files).
 3606	server/modules/database/tests/migrations-ensure-columns.test.ts
+#   and the cockpit-card-registry row by cockpit-card-provider-contract-and-registry,
+#   measured once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-registry.test.ts`
+#   (dur=2651ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 452 server test files).
+2651	server/modules/cockpit/tests/cockpit-card-registry.test.ts

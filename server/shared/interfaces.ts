@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs';
 
 import type {
   AnyRecord,
+  CockpitCard,
   FetchHistoryOptions,
   FetchHistoryResult,
   HostCloseDetail,
@@ -588,4 +589,53 @@ export interface IProviderSessionSynchronizer {
    * Parses and upserts one provider artifact file without running a full scan.
    */
   synchronizeFile(filePath: string): Promise<string | null>;
+}
+
+// ---------------------------
+//----------------- COCKPIT CARD PROVIDER INTERFACES ------------
+
+/**
+ * One source of cockpit cards.
+ *
+ * The cockpit knows nothing about what a provider means: it lists the provider's
+ * open cards, merges them under the provider's own `group`/`rank` ordering, and
+ * never filters or re-ranks them on its own. Adding a provider is one
+ * implementation plus one registration; no cockpit call site changes.
+ *
+ * `declaredExecutors` is the provider's DECLARED action set. The action channel
+ * refuses an executor id that is not declared, even when a card names it, so a
+ * typo in a card cannot reach arbitrary code.
+ */
+export interface ICockpitCardProvider {
+  /** Stable provider id; cards carry it in `CockpitCard.provider`. */
+  readonly id: string;
+
+  /**
+   * The provider's cards, in any order. The registry projects only `state:
+   * 'open'` cards and orders them by `group` then `rank`; `resolved` and
+   * `expired` cards must be returned too if the provider wants them observed,
+   * because the projection — not the provider — owns the visibility rule.
+   */
+  listCards(): Promise<CockpitCard[]> | CockpitCard[];
+
+  /**
+   * Reports that the provider's cards may have changed. Optional: a provider
+   * with no push path is polled. The returned function stops the subscription.
+   */
+  subscribe?(listener: () => void): () => void;
+
+  /** The executor ids this provider's cards may name. */
+  declaredExecutors(): readonly string[];
+}
+
+/**
+ * One action a confirmed card option can run.
+ *
+ * `execute` is called exactly once per accepted confirmation (one card
+ * revision); `params` are the option's declared params verbatim. An executor
+ * whose id is not declared by any provider is never reached.
+ */
+export interface ICockpitActionExecutor {
+  readonly id: string;
+  execute(params: Record<string, unknown>): Promise<unknown> | unknown;
 }

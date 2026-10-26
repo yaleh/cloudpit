@@ -358,9 +358,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/shared/tests/shared-utils-helpers.test.ts (449 + 1 = 450 collected
     // server test files). Then gap-database-migration-column-and-flag-helpers added its
     // criterion server/modules/database/tests/migrations-ensure-columns.test.ts
-    // (450 + 1 = 451 collected server test files). This fixture names 3 known files,
-    // so 451 - 3 = 448.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=448$/);
+    // (450 + 1 = 451 collected server test files). Then
+    // cockpit-card-provider-contract-and-registry added its criterion
+    // server/modules/cockpit/tests/cockpit-card-registry.test.ts (451 + 1 = 452 collected
+    // server test files). This fixture names 3 known files, so 452 - 3 = 449.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=449$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -419,10 +421,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // then gap-shared-utils-small-helpers-dedup added
     // server/shared/tests/shared-utils-helpers.test.ts, then
     // gap-database-migration-column-and-flag-helpers added
-    // server/modules/database/tests/migrations-ensure-columns.test.ts)
-    // — but this fixture names ONE known file, so 451 - 1 = 450 (AC2 reads 448 because its
+    // server/modules/database/tests/migrations-ensure-columns.test.ts, then
+    // cockpit-card-provider-contract-and-registry added
+    // server/modules/cockpit/tests/cockpit-card-registry.test.ts)
+    // — but this fixture names ONE known file, so 452 - 1 = 451 (AC2 reads 449 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=450$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=451$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

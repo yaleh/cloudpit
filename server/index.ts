@@ -64,7 +64,7 @@ import { locateQuayFleetCli, quayFleetRegistry, quayRoutes, quayService } from '
 // The cockpit hub's composition entry. Built below, after the chat control service it sends
 // through exists, and handed to the websocket gateway. The module itself is a leaf (it imports
 // no sibling module), which is why the two seams it needs are bound here.
-import { createCockpitModule } from './modules/cockpit/index.js';
+import { createCockpitCardsModule, createCockpitModule } from './modules/cockpit/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { loadServerSettings, createServerFeaturesRouter, settingsRoutes, type ResidentRestoreSettings } from './modules/settings/index.js';
 import {
@@ -295,6 +295,16 @@ installInitiativeAuditRatioPort({ readAuditRatio: () => serverSettings.initiativ
 // `modules/quay -> modules/settings` import (AC-394's cycle budget). Fail-closed before this
 // line: a route can never expose the cockpit by omission.
 installCockpitEnabledPort({ readEnabled: () => serverSettings.cockpit.enabled });
+
+// The cockpit's CARD module: the provider registry, the confirmation channel and the
+// thin `/api/cockpit/cards` router. Composed here for the same reason as the hub — the
+// module is a leaf, and the fixture provider is selected by the boot-time settings file's
+// `cockpit.fixtureCards` switch (shipped off; the real fleet adapter will be injected here
+// once its read seam is aligned). With the switch off the registry has no providers, so
+// the route honestly answers an empty list rather than 404.
+const cockpitCards = createCockpitCardsModule({
+    fixtureCards: serverSettings.cockpit.fixtureCards,
+});
 const queryClaude = providerRuntimeService.getRunner('claude');
 const queryCursor = providerRuntimeService.getRunner('cursor');
 const gitRoutes = createGitModule({
@@ -1748,6 +1758,11 @@ app.use('/api/quay', authenticateToken, quayRoutes);
 
 // Commands API Routes (protected)
 app.use('/api/commands', authenticateToken, commandsRoutes);
+
+// Cockpit cards (protected): the open-card projection and the one confirmation write.
+// Mounted unconditionally because an empty registry is a legitimate reading; whether any
+// provider exists is the boot-time `cockpit.fixtureCards` decision made above.
+app.use('/api/cockpit/cards', authenticateToken, cockpitCards.router);
 
 // Settings API Routes (protected)
 //
