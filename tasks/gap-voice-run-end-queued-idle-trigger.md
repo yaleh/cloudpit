@@ -2,7 +2,7 @@
 id: gap-voice-run-end-queued-idle-trigger
 title: run-end 小结/ack 只在 running→idle 触发：queued→idle（连发短消息时排队消息被消化）漏发；放宽为任意非
   idle→idle，ack 单独 gate 在真实工作产出上
-status: todo
+status: ready
 labels:
   - gap
   - voice
