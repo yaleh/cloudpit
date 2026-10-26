@@ -1,7 +1,7 @@
 ---
 id: gap-architecture-panel-chrome-layout-owner
 title: ArchitecturePanel 切片 2：dock、抽屉、浮层与顶部 chrome 布局状态收进属主
-status: ready
+status: done
 labels:
   - gap
 parent: null
