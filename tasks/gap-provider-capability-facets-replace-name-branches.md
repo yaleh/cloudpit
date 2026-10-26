@@ -45,8 +45,10 @@ extra:
 - [ ] 行为不回归（服务端）：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/websocket/tests/shell-websocket.service.test.ts server/modules/websocket/tests/shell-resume-launch-spec.test.ts server/modules/providers/tests/provider-token-usage.service.test.ts server/modules/providers/tests/sessions.service.test.ts` exit 0。
 - [ ] 新判据：同一命令追加的 `server/modules/providers/tests/provider-shell-facet.test.ts` exit 0，逐个 provider 断言 `launchCommand` 在有/无 resumeSessionId、win32/linux 下的输出与迁移前 `shell-websocket.service.ts` 的字面量一致。
 - [ ] 行为不回归（前端）：`npx vitest run src/modules/chat/tests/debug-agent-message-header-identity.test.tsx src/modules/sidebar/tests/debugAgentIdentity.test.tsx` exit 0。
-- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet HEAD -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
+- [ ] 导入环预算不变：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` exit 0，且 `git diff --quiet "$(git merge-base develop HEAD)" -- server/shared/tests/server-import-cycle-budget.baseline.json server/shared/tests/server-import-cycle-budget.test.ts` exit 0。
 - [ ] 静态检查：`npm run typecheck` exit 0；`npx oxlint server/shared server/modules/providers server/modules/websocket src/shared src/modules/provider-auth src/modules/chat/transcript` exit 0。
+
+注：上列「未改动」类判据（与 develop 的 merge-base 比较，覆盖已提交与未提交改动；对 HEAD 比较在提交后恒为空，会真空通过）。
 
 ## DoD
 
