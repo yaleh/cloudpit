@@ -72,6 +72,7 @@ import {
   type PlanRect,
   type StickyLabelCandidate,
 } from '@/modules/architecture/semanticZoomPlan';
+import { clamp } from '@/shared/utils';
 
 /** The four content tiers, from richest to sparsest. */
 export type SemanticTier = 'A' | 'B' | 'C' | 'D';
@@ -1179,11 +1180,6 @@ export function selectSemanticTier(
     ?? evaluations[evaluations.length - 1];
 }
 
-/** Clamp `value` to [low, high]. */
-function clampBetween(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
-}
-
 /**
  * Move an endpoint that is just outside a drawn frame onto the frame's
  * boundary. The renderer routes an edge to a point a marker-size away from the
@@ -1200,11 +1196,11 @@ function snapEndpointToFrame(point: PlanPoint, rect: PlanRect, tolerance = 24): 
   if (dx <= dy) {
     return {
       x: point.x < rect.x + rect.w / 2 ? rect.x : rect.x + rect.w,
-      y: clampBetween(point.y, rect.y, rect.y + rect.h),
+      y: clamp(point.y, rect.y, rect.y + rect.h),
     };
   }
   return {
-    x: clampBetween(point.x, rect.x, rect.x + rect.w),
+    x: clamp(point.x, rect.x, rect.x + rect.w),
     y: point.y < rect.y + rect.h / 2 ? rect.y : rect.y + rect.h,
   };
 }

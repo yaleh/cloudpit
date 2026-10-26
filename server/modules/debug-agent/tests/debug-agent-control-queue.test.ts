@@ -49,7 +49,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { initializeDatabase, sessionsDb } from '@/modules/database/index.js';
@@ -70,6 +70,32 @@ import {
   type DebugAgentOpenRun,
   type DebugAgentScenario,
 } from '../index.js';
+
+// ---------------------------------------------------------- pin the world ---
+//
+// This criterion is the run=turn flag OFF world. With the flag on, a resident
+// send polls for a delivery that the debug agent never writes on its first turn,
+// so the arm child's event loop drains and the probe exits non-zero before any
+// reading can be taken; the flag-on world belongs to AC-385's criterion, which
+// sets the flag in its own file. `scripts/test.sh` isolates this file with
+// `unset RESIDENT_RUN_IS_TURN`, but the goal gate runs the criterion command
+// verbatim in whatever environment the anchor inherited — it never goes through
+// test.sh — so the file has to pin the world it measures rather than trust its
+// caller. `residentRunIsTurn()` reads the flag at call time and the shipped
+// default is off (it only accepts the literal `1`), so deleting it here is the
+// off state. The `after` hook puts the caller's value back before the process
+// exits, so the pin cannot outlive this file. This is the same declaration
+// AC-231's chat-control-busy criterion makes for its own flag-off world.
+const incomingResidentRunIsTurn = process.env.RESIDENT_RUN_IS_TURN;
+delete process.env.RESIDENT_RUN_IS_TURN;
+
+after(() => {
+  if (incomingResidentRunIsTurn === undefined) {
+    delete process.env.RESIDENT_RUN_IS_TURN;
+  } else {
+    process.env.RESIDENT_RUN_IS_TURN = incomingResidentRunIsTurn;
+  }
+});
 
 // Spelled through constants so this file never becomes a second reader of the
 // gate variable: the gate criterion asserts that, outside the gate module,
