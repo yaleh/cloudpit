@@ -765,6 +765,23 @@ test.describe('live voice continuous experience (X-1..X-7)', () => {
       );
     }
 
+    // The world this file was written in: the turn-run path OFF. With `RESIDENT_RUN_IS_TURN=1` a
+    // delivery that arrives while the fixture's run is still open waits out `BUSY_RETRY_INTERVAL_MS`
+    // (2000 ms) instead of superseding the run, so every per-utterance latency in X-7 reads ~2009 ms
+    // against its ≤1000 ms bound. `playwright.config.ts` writes the key into the server's env
+    // UNCONDITIONALLY (it cannot rely on inheritance: the deployment anchor exports `1`), and
+    // publishes the value it used as `QUAY_E2E_RESIDENT_RUN_IS_TURN`. This check names the leak at
+    // boot instead of letting it degrade into a 2 s reading in X-7.
+    const residentRunIsTurn = (process.env.QUAY_E2E_RESIDENT_RUN_IS_TURN ?? '').trim();
+    if (residentRunIsTurn === '1') {
+      throw new Error(
+        'this spec measures the flag-OFF world (RESIDENT_RUN_IS_TURN unset), but the ambient value ' +
+          'leaked into the e2e server: `playwright.config.ts` must write RESIDENT_RUN_IS_TURN ' +
+          'unconditionally rather than inherit it. ' +
+          `QUAY_E2E_RESIDENT_RUN_IS_TURN was "${residentRunIsTurn}".`,
+      );
+    }
+
     const fixtureHome = process.env.QUAY_E2E_DEBUG_AGENT_HOME;
     if (!fixtureHome) throw new Error('playwright.config.ts must publish QUAY_E2E_DEBUG_AGENT_HOME');
     const upstreamPort = Number(process.env.QUAY_E2E_VOICE_REALTIME_PORT);

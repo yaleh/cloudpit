@@ -3606,6 +3606,39 @@ if (voiceRealtimeSelection) {
   process.env.QUAY_E2E_VOICE_REALTIME_EGRESS_LOG = voiceRealtimeEgressLog;
 }
 
+/**
+ * The `RESIDENT_RUN_IS_TURN` value this run's SERVER must be started with — `'1'` for the turn-run
+ * path's own criterion (`live-voice-stream-representation.spec.ts`), `''` for every other selection.
+ *
+ * A VALUE, NOT AN OMISSION, and the difference is load-bearing. `webServer.env` is MERGED onto
+ * `process.env`, so a selection that left the key out would hand the server whatever the invoking
+ * shell exported. The deployment anchor exports `RESIDENT_RUN_IS_TURN=1` (it starts the live server
+ * under `~/.config/systemd/user/claudecodeui-server.service.d/40-resident-run-is-turn.conf`), and in
+ * that environment the continuous-experience criterion (AC-361) went red at X-7 on code it was
+ * supposed to pass: `residentRunIsTurn()` reads the flag, a busy-time delivery waits out
+ * `BUSY_RETRY_INTERVAL_MS` (2000 ms) instead of superseding the run, and the per-utterance latency
+ * table reads ~2009 ms against its ≤1000 ms bound. The `''` is what makes the server's `=== '1'`
+ * test false; it is safe as an empty value because the voice server starts from an env-free root
+ * (`envFreeServerRoot`), so `server/load-env.ts` has no `.env` to backfill it from.
+ *
+ * The value is ALSO published as `QUAY_E2E_RESIDENT_RUN_IS_TURN` so a spec can assert the world it
+ * is about to measure instead of inferring it from the readings (the continuous-experience spec's
+ * preflight does exactly that). The `[e2e]` line makes selection → world mechanically readable on
+ * stdout, the same way `[e2e] server=` / `[e2e] data-dir=` are.
+ */
+const residentRunIsTurnForServer = selectedSpecFiles().includes('live-voice-stream-representation.spec.ts')
+  ? '1'
+  : '';
+// FIRST WRITER WINS, like `QUAY_E2E_DATA_DIR_OWNER` above. The selection is read off the command
+// line, and Playwright re-evaluates this file in each worker with the worker's own argv — where the
+// named file is gone and `selectedSpecFiles()` falls back to the full tree, which would compute `1`
+// for every run. The runner's evaluation is the one that owns the answer; the worker inherits it.
+if (process.env.QUAY_E2E_RESIDENT_RUN_IS_TURN_OWNER === undefined) {
+  process.env.QUAY_E2E_RESIDENT_RUN_IS_TURN_OWNER = '1';
+  process.env.QUAY_E2E_RESIDENT_RUN_IS_TURN = residentRunIsTurnForServer;
+  console.log(`[e2e] RESIDENT_RUN_IS_TURN=${residentRunIsTurnForServer}`);
+}
+
 export default defineConfig({
   testDir: './e2e',
   // The archived Silence Tail spec is excluded from the DEFAULT collection — it reds by design after the
@@ -3679,11 +3712,20 @@ export default defineConfig({
         // The turn-run path (SPEC §6) is what stamps a delivery's ORIGIN onto the run's options
         // (`DELIVERY_SOURCE_OPTION`) — and the stream-representation criterion reads exactly that
         // origin back off the activity snapshot. It is the shipped deployment setting (the live
-        // server runs with `RESIDENT_RUN_IS_TURN=1`); armed for this file's selection only, because
-        // enabling it for every voice spec would change readings those specs were written against.
-        ...(selectedSpecFiles().includes('live-voice-stream-representation.spec.ts')
-          ? { RESIDENT_RUN_IS_TURN: '1' }
-          : {}),
+        // server runs with `RESIDENT_RUN_IS_TURN=1`), and it is the ONLY selection that wants it:
+        // the continuous-experience baseline (AC-361) is written against the flag-OFF world, where a
+        // busy-time delivery supersedes the open run and completes in milliseconds. Under the flag it
+        // instead waits out `BUSY_RETRY_INTERVAL_MS` (2000 ms) and X-7 reads ~2009 ms against its
+        // ≤1000 ms bound.
+        //
+        // WRITTEN UNCONDITIONALLY, NOT ONLY WHEN ARMED. Playwright merges this `env` onto
+        // `process.env` (the `DASHSCOPE_API_KEY: ''` blank below relies on exactly that rule), so a
+        // selection that OMITS the key inherits whatever the invoking shell exported. A deployment
+        // anchor exports `RESIDENT_RUN_IS_TURN=1` (the drop-in the live server runs under), which made
+        // the AC-361 criterion red in the verifier's own environment while its code was unchanged.
+        // `''` makes the server's `=== '1'` test false and overwrites any ambient value; inheriting
+        // this setting is forbidden. See `residentRunIsTurnForServer`.
+        RESIDENT_RUN_IS_TURN: residentRunIsTurnForServer,
         // Sub-second beat and threshold, for the activity-dock criterion's selection only. The
         // shipped defaults (5000/15000) are the product's and are untouched everywhere else.
         ...(shortenActivityHeartbeat
