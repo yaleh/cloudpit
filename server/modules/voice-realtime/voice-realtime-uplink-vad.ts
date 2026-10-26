@@ -56,7 +56,12 @@
  */
 import { statSync } from 'node:fs';
 
-import { errorMessage } from '@/shared/utils.js';
+// THIS MODULE HAS EXACTLY ONE STATIC IMPORT — THE FILESYSTEM — ON PURPOSE. It is loaded on the relay's
+// frame path and must carry no load-time dependency on the server's module graph; its own criterion
+// pins that literally (`staticImports === ['node:fs']` in AC7/AC8 of the VAD task). That is why the
+// shared `errorMessage` helper is deliberately NOT imported here and the catch blocks below spell the
+// same one-line rendering inline instead. Folding this back into an import means renegotiating that
+// criterion, not merely deleting the inline form.
 
 // ── the grid contract ────────────────────────────────────────────────────────────────────────────
 
@@ -480,7 +485,7 @@ async function loadSilero(
   try {
     loaded = await loadDependency('onnxruntime-node');
   } catch (error) {
-    return { reason: `optional dependency onnxruntime-node could not be loaded: ${errorMessage(error)}` };
+    return { reason: `optional dependency onnxruntime-node could not be loaded: ${error instanceof Error ? error.message : String(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as SileroRuntime;
   if (typeof runtime.InferenceSession?.create !== 'function' || typeof runtime.Tensor !== 'function') {
@@ -498,7 +503,7 @@ async function loadSilero(
     });
     return { session, runtime };
   } catch (error) {
-    return { reason: `silero session could not be created from ${path}: ${errorMessage(error)}` };
+    return { reason: `silero session could not be created from ${path}: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -653,7 +658,7 @@ async function loadTen(
   try {
     loaded = await loadDependency('sherpa-onnx-node');
   } catch (error) {
-    return { reason: `optional dependency sherpa-onnx-node could not be loaded: ${errorMessage(error)}` };
+    return { reason: `optional dependency sherpa-onnx-node could not be loaded: ${error instanceof Error ? error.message : String(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as SherpaRuntime;
   if (typeof runtime.Vad !== 'function') {
@@ -670,7 +675,7 @@ async function loadTen(
     );
     return { vad };
   } catch (error) {
-    return { reason: `ten detector could not be created from ${path}: ${errorMessage(error)}` };
+    return { reason: `ten detector could not be created from ${path}: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -776,7 +781,7 @@ async function loadWebrtc(
   try {
     loaded = await loadDependency('webrtcvad');
   } catch (error) {
-    return { reason: `optional dependency webrtcvad could not be loaded: ${errorMessage(error)}` };
+    return { reason: `optional dependency webrtcvad could not be loaded: ${error instanceof Error ? error.message : String(error)}` };
   }
   const runtime = unwrapCommonJs(loaded) as unknown as WebrtcRuntime;
   if (typeof runtime.default !== 'function') {
@@ -789,7 +794,7 @@ async function loadWebrtc(
     );
     return { vad };
   } catch (error) {
-    return { reason: `webrtc detector could not be created: ${errorMessage(error)}` };
+    return { reason: `webrtc detector could not be created: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
