@@ -2,7 +2,7 @@
 id: gap-ac231-resident-run-flag-hermetic
 title: AC-231 判据文件自钉 RESIDENT_RUN_IS_TURN 关态：裸 goal-gate 命令在 anchor 继承该开关时仍 5/5
   绿，四条读数与取假形态不变
-status: ready
+status: done
 labels:
   - gap
   - defect
