@@ -1,7 +1,7 @@
 ---
 id: gap-workspace-header-pulse-adjacent-to-tab-strip-via-spacer
 title: 桌面标题栏：Loop Pulse 紧挨 tab 条（占位节点加贴内容收缩的 tab 容器），不进入 tab 容器
-status: todo
+status: ready
 labels:
   - gap
   - defect
