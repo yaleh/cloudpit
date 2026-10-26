@@ -137,8 +137,10 @@ DoD 的隔离实例真实浏览器读数与截图沿用上文同一实现（本�
 
 ## Blocker
 
-**2026-10-26T17:59:44.831Z — worker 未落地（exited-not-landed）**
+**2026-10-26T18:05:44.278Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/cockpit/CockpitPage.tsx 1881→1883 — 基线内读数不得上调（此基线只允许下降）
+- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
+CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
+Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：b4f8e129-3438-4c71-a620-74420589ba02
+- session_id：8ddea521-e080-4642-bc51-157c89f89b34
