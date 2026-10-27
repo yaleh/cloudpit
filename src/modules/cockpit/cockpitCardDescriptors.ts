@@ -1,4 +1,9 @@
-import type { CockpitCardKind } from '@/shared/types';
+import type { CockpitCardKind, CockpitCardVizKind } from '@/shared/types';
+
+// The viz vocabulary lives on the wire (`src/shared/types.ts`) because a provider states the
+// shape it wants; the descriptor table is the client-side authority on which kind may draw one.
+// Re-exported here so the table and its consumers keep one import site for the vocabulary.
+export type { CockpitCardVizKind } from '@/shared/types';
 
 /**
  * What the cockpit knows about a card kind without asking the provider: a translated badge and
@@ -10,9 +15,6 @@ import type { CockpitCardKind } from '@/shared/types';
  * unknown kind must draw as an ordinary card with its facts and options, never throw and never
  * lose the confirmation path. Adding a kind is one row; no provider name appears anywhere.
  */
-
-/** The small visualizations a card's A zone can draw. */
-export type CockpitCardVizKind = 'attempts' | 'steps' | 'history' | 'size' | 'parts';
 
 export type CockpitCardDescriptor = {
   /** The i18n key of the badge drawn in the card header. The kind label, translated. */

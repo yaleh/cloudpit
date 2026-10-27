@@ -3,9 +3,14 @@ import { useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { CockpitCard as CockpitCardData } from '@/shared/types';
+import type {
+  CockpitCard as CockpitCardData,
+  CockpitCardKind,
+  CockpitCardViz,
+} from '@/shared/types';
 import { i18n } from '@/modules/i18n';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
+import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
 import type { CockpitCardShown } from '@/modules/cockpit/cockpitCardController';
 import {
   confirmTargetOf,
@@ -143,6 +148,22 @@ describe('A zone: the upper body opens Details, and nothing else does', () => {
     expect(onOpenDetails).toHaveBeenCalledTimes(2);
   });
 
+  it('each of the four sub-zones requests Details exactly once', () => {
+    const onOpenDetails = vi.fn();
+    renderCard({ onOpenDetails });
+
+    const subZones = [
+      'cockpit-card-zone-a-header',
+      'cockpit-card-zone-a-question',
+      'cockpit-card-zone-a-situation',
+      'cockpit-card-zone-a-facts',
+    ];
+    subZones.forEach((testId, index) => {
+      fireEvent.click(screen.getByTestId(testId));
+      expect(onOpenDetails, `${testId} must request Details`).toHaveBeenCalledTimes(index + 1);
+    });
+  });
+
   it('draws no independent Alternatives or Details button', () => {
     renderCard();
 
@@ -176,6 +197,19 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     expect(list.lastElementChild).toBe(ownReplyItem);
     const editor = within(ownReplyItem).getByTestId('cockpit-card-own-reply-input');
     expect(editor.tagName).toBe('TEXTAREA');
+  });
+
+  it('the card, before the dropdown opens, shows the selected option’s complete explanation', () => {
+    renderCard();
+
+    // The dropdown starts closed from the Fixture's own state.
+    expect(screen.queryByTestId('cockpit-card-option-list')).toBeNull();
+    const shown = screen.getByTestId('cockpit-card-shown-option');
+    expect(shown.textContent).toContain(
+      'Remove the staging directory after the archive is verified.',
+    );
+    expect(shown.textContent).toContain('The data is already archived.');
+    expect(shown.textContent).toContain('可撤');
   });
 
   it('the trigger names the shown option, its source and its position', () => {
@@ -249,9 +283,85 @@ describe('unknown kinds', () => {
 
     expect(() => renderCard({ card })).not.toThrow();
     expect(screen.getByText('Card')).toBeTruthy();
+    // The default descriptor names no viz, so even a card that carries one draws nothing.
+    expect(cockpitCardDescriptor(card.kind).viz).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
     expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
     expect(screen.getByTestId('cockpit-card-zone-a').textContent).toContain(
       'Should the cleanup delete the staging directory?',
     );
+  });
+});
+
+describe('descriptor-driven small visualization', () => {
+  /** The reading each known kind's fixture carries, mirroring the fixture provider's cards. */
+  const VIZ_BY_KIND: Record<CockpitCardKind, CockpitCardViz> = {
+    ask: { kind: 'history', history: { yes: 4, no: 1, other: 1 } },
+    multi: { kind: 'parts', count: 2 },
+    need: { kind: 'size', size: { current: 3, total: 5 } },
+    stuck: { kind: 'attempts', count: 3 },
+    fix: { kind: 'steps', count: 2 },
+    decision: { kind: 'history', history: { yes: 1, no: 2, other: 3 } },
+  };
+  const KNOWN_KINDS: CockpitCardKind[] = ['ask', 'multi', 'need', 'stuck', 'fix', 'decision'];
+
+  it('renders the descriptor badge and a data-viz-kind equal to the descriptor for every known kind', () => {
+    for (const kind of KNOWN_KINDS) {
+      cleanup();
+      const descriptor = cockpitCardDescriptor(kind);
+      expect(descriptor.viz, `${kind} must have a descriptor viz`).not.toBeNull();
+
+      renderCard({ card: { ...CARD, kind, viz: VIZ_BY_KIND[kind] } });
+
+      expect(screen.getByTestId('cockpit-card-zone-a').textContent).toContain(
+        i18n.t(descriptor.labelKey),
+      );
+      const viz = screen.getByTestId('cockpit-card-viz');
+      expect(viz.getAttribute('data-viz-kind')).toBe(descriptor.viz);
+    }
+  });
+
+  it('draws each shape’s mechanical reading', () => {
+    const vizFor = (kind: CockpitCardKind): HTMLElement => {
+      cleanup();
+      renderCard({ card: { ...CARD, kind, viz: VIZ_BY_KIND[kind] } });
+      return screen.getByTestId('cockpit-card-viz');
+    };
+
+    const attempts = vizFor('stuck');
+    expect(attempts.querySelector('[data-viz-count]')?.getAttribute('data-viz-count')).toBe('3');
+    expect(attempts.querySelectorAll('[data-viz-dot]').length).toBe(3);
+
+    const steps = vizFor('fix');
+    expect(steps.querySelectorAll('[data-viz-step]').length).toBe(3);
+    expect(steps.querySelectorAll('[data-viz-current="true"]').length).toBe(1);
+    expect(steps.querySelector('[data-viz-current="true"]')?.getAttribute('data-viz-step')).toBe('2');
+
+    const history = vizFor('ask');
+    expect(history.querySelectorAll('[data-viz-segment]').length).toBe(3);
+    for (const key of ['yes', 'no', 'other']) {
+      expect(history.querySelector(`[data-viz-segment="${key}"]`)).toBeTruthy();
+    }
+
+    const size = vizFor('need');
+    expect(Number(size.querySelector('[data-viz-ratio]')?.getAttribute('data-viz-ratio'))).toBeCloseTo(
+      3 / 5,
+    );
+    expect(size.querySelector('[data-viz-fill="size"]')).toBeTruthy();
+
+    const parts = vizFor('multi');
+    expect(parts.querySelectorAll('[data-viz-part]').length).toBe(2);
+    expect(parts.textContent).toContain('①');
+    expect(parts.textContent).toContain('②');
+  });
+
+  it('draws nothing when the card’s viz kind disagrees with the descriptor', () => {
+    renderCard({ card: { ...CARD, kind: 'ask', viz: { kind: 'steps', count: 2 } } });
+    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
+  });
+
+  it('draws nothing when the known kind carries no viz', () => {
+    renderCard({ card: { ...CARD, kind: 'stuck' } });
+    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
   });
 });

@@ -4134,6 +4134,31 @@ export type Clock = {
 export type CockpitCardKind = 'ask' | 'multi' | 'need' | 'stuck' | 'fix' | 'decision';
 
 /**
+ * The small visualizations a card's A zone can draw. A fixed vocabulary shared with the
+ * descriptor table (`src/modules/cockpit/cockpitCardDescriptors.ts`) and with the provider that
+ * states the card, so a provider asks for a shape by name and never names a component.
+ */
+export type CockpitCardVizKind = 'attempts' | 'steps' | 'history' | 'size' | 'parts';
+
+/**
+ * The one small visualization a card asks its A zone to draw.
+ *
+ * `kind` selects the shape from the descriptor table; the other fields are that shape's reading,
+ * so the card data stays provider-agnostic. A renderer draws nothing when the card's kind does
+ * not match the descriptor's `viz`, which keeps a mislabelled provider from drawing a shape the
+ * kind does not stand for.
+ */
+export type CockpitCardViz = {
+  kind: CockpitCardVizKind;
+  /** attempts: the attempt count; steps: the 1-based current step; parts: the sub-decision count. */
+  count?: number;
+  /** history: the three non-negative weights of the stacked bar (affirmative / negative / other). */
+  history?: { yes: number; no: number; other: number };
+  /** size: a reading and its ceiling; `total` must be greater than zero. */
+  size?: { current: number; total: number };
+};
+
+/**
  * Where a card is in its life. Only the PROVIDER moves a card out of `open`
  * (the design's rule: whether a thing is over is the provider's judgement, not
  * the cockpit's), which is why the projection filters on this field alone.
@@ -4263,6 +4288,12 @@ export type CockpitCard = {
   contentUnavailable?: string;
   conversation?: CockpitCardConversation;
   notify?: CockpitCardNotify;
+  /**
+   * The optional small visualization the A zone draws, when the known kind's descriptor names
+   * one. The renderer consults the descriptor first, so this field is data, not the authority on
+   * whether a shape is allowed for the kind.
+   */
+  viz?: CockpitCardViz;
 };
 
 // ---------------------------

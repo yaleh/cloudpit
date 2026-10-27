@@ -8,6 +8,7 @@ import type {
 } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
+import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmTarget,
   CockpitCardDensity,
@@ -213,7 +214,10 @@ export default function CockpitCard({
         }}
         className="block w-full rounded-md text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
-        <div className="flex items-center justify-between gap-2">
+        <div
+          data-testid="cockpit-card-zone-a-header"
+          className="flex items-center justify-between gap-2"
+        >
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
               {t(descriptor.labelKey)}
@@ -225,18 +229,27 @@ export default function CockpitCard({
           <span aria-hidden className="shrink-0 text-muted-foreground">›</span>
         </div>
 
-        <p className={cn('mt-1 text-sm font-medium text-foreground', compact && 'line-clamp-2')}>
+        {/* The known kind's one small reading, drawn only when the descriptor allows it. */}
+        <CockpitCardViz card={card} />
+
+        <p
+          data-testid="cockpit-card-zone-a-question"
+          className={cn('mt-1 text-sm font-medium text-foreground', compact && 'line-clamp-2')}
+        >
           {question}
         </p>
 
         {card.situation !== undefined && card.situation !== card.ask && (
-          <p className={cn('mt-0.5 text-xs text-muted-foreground', compact ? 'line-clamp-1' : 'line-clamp-2')}>
+          <p
+            data-testid="cockpit-card-zone-a-situation"
+            className={cn('mt-0.5 text-xs text-muted-foreground', compact ? 'line-clamp-1' : 'line-clamp-2')}
+          >
             {card.situation}
           </p>
         )}
 
         {!compact && card.facts.length > 0 && (
-          <ul className="mt-1 space-y-0.5">
+          <ul data-testid="cockpit-card-zone-a-facts" className="mt-1 space-y-0.5">
             {card.facts.map((fact, index) => (
               <li
                 key={`${fact.text}:${index}`}

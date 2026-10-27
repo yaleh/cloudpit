@@ -109,6 +109,9 @@ export type {
 // sibling criterion can drive the same rules without a browser.
 export { default as CockpitCardList } from '@/modules/cockpit/CockpitCardList';
 export { default as CockpitCard } from '@/modules/cockpit/CockpitCard';
+// The card's small descriptor-driven reading, exported so a criterion can render one shape
+// without mounting the whole card.
+export { default as CockpitCardViz } from '@/modules/cockpit/CockpitCardViz';
 export { default as CockpitCardDetails } from '@/modules/cockpit/CockpitCardDetails';
 // The Details drawer's brief section. Exported for the same reason as the list: a sibling
 // criterion (or a scenario surface) renders it without mounting the whole cards view.

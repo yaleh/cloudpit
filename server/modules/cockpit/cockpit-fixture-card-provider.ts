@@ -110,6 +110,8 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:need', 'provide', 'Provide the credential', 'Open the secret form and continue the deploy.', true, 'assistant'),
         fixtureOption('fixture:need', 'later', 'Later', 'Leave the deploy parked.', false, 'provider'),
       ],
+      // need → size: how much of the missing input is still outstanding.
+      viz: { kind: 'size', size: { current: 3, total: 5 } },
     },
     {
       id: 'fixture:stuck',
@@ -134,6 +136,8 @@ function fixtureCards(): CockpitCard[] {
         }),
       ],
       notify: { system: true, reason: 'fleet.stuck' },
+      // stuck → attempts: how many attempts the stalled session has already made.
+      viz: { kind: 'attempts', count: 3 },
     },
     {
       id: 'fixture:fix',
@@ -153,6 +157,8 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:fix', 'apply', 'Apply the fix', 'Re-dispatch the task on the merged baseline.', true, 'assistant'),
         fixtureOption('fixture:fix', 'decline', 'Decline', 'Keep the task parked.', false, 'provider'),
       ],
+      // fix → steps: the proposed repair's position in its three-step sequence.
+      viz: { kind: 'steps', count: 2 },
     },
     {
       id: 'fixture:ask',
@@ -181,6 +187,8 @@ function fixtureCards(): CockpitCard[] {
       ],
       ownReply: { executor: FIXTURE_EXECUTOR_ID, params: { cardId: 'fixture:ask', ownReply: true } },
       conversation: { sessionId: 'fixture-session' },
+      // ask → history: how the same question has been answered before.
+      viz: { kind: 'history', history: { yes: 4, no: 1, other: 1 } },
     },
     {
       id: 'fixture:multi',
@@ -200,6 +208,8 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:multi', 'scope-small', 'Keep the scope small', 'Ship the contract without the UI.', true, 'assistant'),
         fixtureOption('fixture:multi', 'scope-full', 'Ship the full flow', 'Include the UI in the same task.', false, 'judge'),
       ],
+      // multi → parts: how many independent decisions the card holds.
+      viz: { kind: 'parts', count: 2 },
     },
     {
       id: 'fixture:decision',
@@ -219,6 +229,8 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:decision', 'stable', 'Stable', 'Release on the stable channel.', false, 'judge'),
         fixtureOption('fixture:decision', 'canary', 'Canary', 'Release to the canary channel first.', false, 'provider'),
       ],
+      // decision → history: the ruling's prior outcomes on this question.
+      viz: { kind: 'history', history: { yes: 1, no: 2, other: 3 } },
     },
     {
       id: 'fixture:resolved',
