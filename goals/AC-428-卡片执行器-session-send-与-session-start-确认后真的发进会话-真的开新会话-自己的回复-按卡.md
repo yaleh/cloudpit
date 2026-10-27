@@ -1,7 +1,7 @@
 ---
 id: AC-428
 title: 卡片执行器 session.send 与 session.start：确认后真的发进会话、真的开新会话；「自己的回复」按卡片主体给出默认执行器
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:04:32.230Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
