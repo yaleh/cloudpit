@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-settings-tabs-primitives
 title: "architecture-analysis: 5-member SCC: the settings shell (Settings.tsx)
   statically imports its five tab directories while every tab imports the
   shell's form primitives (SettingsCard"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
