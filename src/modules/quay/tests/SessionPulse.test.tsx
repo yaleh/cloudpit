@@ -279,10 +279,15 @@ function PulseHarness({
   projectId = 'proj-a',
   sessionId = 's1',
   isMobile = false,
+  compact = false,
+  onOpenQuayPanel = () => {},
 }: {
   projectId?: string;
   sessionId?: string | null;
   isMobile?: boolean;
+  /** The phone title row's 64×14 thumbnail. It changes the shape, never the click semantics. */
+  compact?: boolean;
+  onOpenQuayPanel?: () => void;
 }) {
   return (
     <header data-app-header>
@@ -290,7 +295,8 @@ function PulseHarness({
         projectId={projectId}
         sessionId={sessionId}
         isMobile={isMobile}
-        onOpenQuayPanel={() => {}}
+        compact={compact}
+        onOpenQuayPanel={onOpenQuayPanel}
       />
     </header>
   );
@@ -358,6 +364,63 @@ test('mobile is the pulse strip at any header width', async () => {
   await fireHeaderWidth(2000);
   assert.equal(trigger().getAttribute('data-variant'), 'narrow');
   assert.equal(trigger().style.width, '43px');
+});
+
+/* ── 手机 compact 形态 ────────────────────────────────────────────────── */
+
+test('compact: the phone thumbnail keeps its 64×14 shape', async () => {
+  render(<PulseHarness isMobile compact />);
+  await flush();
+
+  assert.equal(trigger().getAttribute('data-variant'), 'compact', 'the phone shape is the compact one');
+  assert.equal(trigger().style.width, '64px');
+  assert.equal(trigger().style.height, '14px');
+  // The shape must not need a measurement to resolve: compact wins over every header width.
+  await fireHeaderWidth(2000);
+  assert.equal(trigger().getAttribute('data-variant'), 'compact');
+  assert.equal(trigger().style.width, '64px');
+});
+
+test('compact: a press toggles the same popover and never switches to the Quay tab', async () => {
+  const onOpenQuayPanel = vi.fn();
+  render(<PulseHarness isMobile compact onOpenQuayPanel={onOpenQuayPanel} />);
+  await flush();
+
+  assert.equal(trigger().getAttribute('aria-haspopup'), 'dialog', 'the thumbnail opens a dialog');
+  assert.equal(trigger().getAttribute('aria-expanded'), 'false');
+
+  fireEvent.click(trigger());
+  await flush();
+  assert.ok(popover(), 'the compact trigger must render the popover');
+  assert.equal(trigger().getAttribute('aria-expanded'), 'true');
+  assert.equal(
+    onOpenQuayPanel.mock.calls.length,
+    0,
+    'opening the popover is not opening the Quay panel',
+  );
+
+  fireEvent.click(trigger());
+  await flush();
+  assert.equal(popover(), null, 'a second press closes the popover');
+  assert.equal(trigger().getAttribute('aria-expanded'), 'false');
+  assert.equal(onOpenQuayPanel.mock.calls.length, 0);
+});
+
+test('compact: the popover’s footer button is the one press that opens the full Quay panel', async () => {
+  const onOpenQuayPanel = vi.fn();
+  render(<PulseHarness isMobile compact onOpenQuayPanel={onOpenQuayPanel} />);
+  await flush();
+  await openPopover();
+
+  const openPanel = document.querySelector('[data-testid="quay-pulse-open-panel"]') as HTMLElement | null;
+  assert.ok(openPanel, 'the open popover must offer the way into the full panel');
+  assert.equal(onOpenQuayPanel.mock.calls.length, 0, 'premise: merely opening the popover did not switch');
+
+  await act(async () => {
+    fireEvent.click(openPanel);
+  });
+  assert.equal(onOpenQuayPanel.mock.calls.length, 1, 'the footer button switches the tab exactly once');
+  assert.equal(popover(), null, 'opening the full panel dismisses the popover');
 });
 
 /* ── 常态与点击态 ─────────────────────────────────────────────────────── */

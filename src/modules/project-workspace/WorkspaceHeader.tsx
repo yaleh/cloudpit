@@ -186,8 +186,10 @@ export default function WorkspaceHeader({
   // Stable identity so the memoized pulse subtree is not re-rendered by an unrelated header
   // render (the trigger's own 30 s poll already never reaches this component).
   const openQuayPanel = useCallback(() => setActiveTab('quay'), [setActiveTab]);
-  // ONE trigger, two placements: the desktop right row keeps the popover-bearing control, while
-  // the phone's title block draws the 64×14 thumbnail that opens the Quay view itself.
+  // ONE trigger, two placements: the desktop right row keeps the popover-bearing control, and
+  // the phone's title block draws the same control as a 64×14 in-flight thumbnail. Placement and
+  // size differ; the press opens the same popover in both, whose footer button is the way into
+  // the full Quay view.
   const sessionPulse = shouldShowQuayTab ? (
     <SessionPulse
       projectId={selectedProject.projectId}

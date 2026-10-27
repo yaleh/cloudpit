@@ -25,8 +25,8 @@ import SessionPulsePopover from '@/modules/quay/SessionPulsePopover';
 import { useSessionPulse, useSessionPulseWindow } from '@/modules/quay/hooks/useSessionPulse';
 
 /**
- * The title bar's Loop pulse entry: a mini gantt (desktop) or pulse strip (narrow) that opens
- * the session's task/goal popover.
+ * The title bar's Loop pulse entry: a mini gantt (desktop), pulse strip (narrow) or 64×14
+ * thumbnail (the phone title row) that opens the session's task/goal popover.
  *
  * Used by `WorkspaceHeader` only, and only for a project whose listing carries `hasQuayConfig`.
  * The trigger's reading comes from the lanes-only endpoint, polled here inside the memoized
@@ -138,9 +138,10 @@ type SessionPulseProps = {
   /** Switches the workspace to the Quay tab. Passed in because quay must not import project-workspace. */
   onOpenQuayPanel: () => void;
   /**
-   * The phone title row's 64×14 thumbnail. It opens the full Quay panel on press instead of the
-   * popover: at 14 px tall there is no room to present a floating panel, and the design asks
-   * this shape to be the door to the panel itself.
+   * The phone title row's 64×14 in-flight thumbnail. Compact decides the trigger's SIZE and
+   * SHAPE only (64×14, `rounded-sm`); its click semantics are identical to every other variant —
+   * it toggles the popover. The way into the full Quay view is the popover's own footer button,
+   * not the thumbnail.
    */
   compact?: boolean;
 };
@@ -227,10 +228,12 @@ function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel, compact
         // The window the trigger's poll and the popover's chart share, exposed as a reading so
         // a test can see the trigger follow a selection made in the popover.
         data-window-hours={windowHours}
-        // The compact shape opens the Quay view itself, not a dialog, so it claims no popup.
-        {...(compact ? {} : { 'aria-haspopup': 'dialog' as const, 'aria-expanded': isOpen })}
+        // Every shape, compact included, opens the same dialog: the variant never changes what a
+        // press DOES, only how large the trigger is drawn.
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         aria-label={t('quayPulse.triggerLabel')}
-        onClick={() => (compact ? onOpenQuayPanel() : setIsOpen((open) => !open))}
+        onClick={() => setIsOpen((open) => !open)}
         style={{
           width:
             variant === 'compact'
@@ -254,7 +257,7 @@ function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel, compact
         <PulseMiniGantt gantt={reading.gantt} degraded={lanesUnavailable} />
       </button>
 
-      {!compact && isOpen && (
+      {isOpen && (
         <SessionPulsePopover
           projectId={projectId}
           sessionId={sessionId}

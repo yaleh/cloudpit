@@ -460,3 +460,72 @@ test('desktop: Escape closes the open quay pulse popover without aborting the tu
   );
   view.unmount();
 });
+
+/**
+ * The phone shape of the same contract. The 64×14 compact thumbnail opens the SAME popover (it
+ * no longer jumps straight to the Quay tab), so Escape while a turn runs must close the dialog
+ * and leave the turn alive here too — the guard reads `role="dialog"`, not the trigger's shape.
+ */
+test('mobile compact: Escape closes the open quay pulse popover without aborting the turn', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 });
+  Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 844 });
+
+  const view = render(
+    <>
+      <header data-app-header>
+        <SessionPulse
+          projectId={PROJECT.projectId}
+          sessionId={SESSION_ID}
+          isMobile
+          compact
+          onOpenQuayPanel={() => undefined}
+        />
+      </header>
+      <ChatInterface
+        isActive
+        selectedProject={PROJECT}
+        selectedSession={null}
+        ws={null}
+        sendMessage={() => undefined}
+      />
+    </>,
+  );
+
+  const pulseTrigger = view.container.querySelector('[data-testid="quay-pulse-trigger"]') as HTMLButtonElement | null;
+  assert.ok(pulseTrigger, 'premise: the phone header must render the compact pulse trigger');
+  assert.equal(pulseTrigger.getAttribute('data-variant'), 'compact');
+
+  fireEvent.click(pulseTrigger);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.ok(
+    document.querySelector('[data-testid="quay-pulse-popover"]'),
+    'premise: pressing the compact thumbnail must open the popover',
+  );
+
+  const textarea = view.container.querySelector('textarea');
+  assert.ok(textarea, 'premise: the real composer must draw its textarea');
+  textarea.focus();
+  assert.equal(document.activeElement, textarea, 'premise: focus is in the composer textarea');
+
+  fireEvent.keyDown(document, { key: 'Escape' });
+
+  assert.equal(
+    state.aborts,
+    0,
+    `Escape must close the popover, not abort the turn; it reached the abort handler ${state.aborts} time(s)`,
+  );
+  assert.equal(
+    document.querySelector('[data-testid="quay-pulse-popover"]'),
+    null,
+    'the open popover must consume the key and close itself',
+  );
+  assert.equal(
+    document.activeElement,
+    pulseTrigger,
+    'closing the popover must return focus to the thumbnail',
+  );
+  view.unmount();
+});
