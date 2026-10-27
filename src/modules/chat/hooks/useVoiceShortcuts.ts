@@ -26,17 +26,32 @@ export type UseVoiceShortcutsOptions = {
   toggleDictation: () => void;
   /** Enters Live Voice, or leaves it when it is the mode on screen. */
   toggleLiveVoice: () => void;
+  /** Stops the running dictation and submits what was heard. */
+  stopAndSendDictation: () => void;
+  /** Clears the composer's draft, behind the same guard Escape uses. */
+  clearInput: () => void;
   /** Whether dictation is available right now. */
   isDictationAvailable: () => boolean;
   /** Whether Live Voice is available right now. */
   isLiveVoiceAvailable: () => boolean;
+  /** Whether dictation is listening right now. */
+  isDictationRecording: () => boolean;
+  /** Whether Live Voice is the mode on screen right now. */
+  isLiveVoiceActive: () => boolean;
+  /** Whether clearing the draft is allowed right now. */
+  isClearAvailable: () => boolean;
 };
 
 export function useVoiceShortcuts({
   toggleDictation,
   toggleLiveVoice,
+  stopAndSendDictation,
+  clearInput,
   isDictationAvailable,
   isLiveVoiceAvailable,
+  isDictationRecording,
+  isLiveVoiceActive,
+  isClearAvailable,
 }: UseVoiceShortcutsOptions): VoiceShortcutSnapshot {
   const controller = useMemo(
     () => createVoiceShortcutController({
@@ -64,10 +79,26 @@ export function useVoiceShortcuts({
     controller.setCommands({
       toggleDictation,
       toggleLiveVoice,
+      stopAndSendDictation,
+      clearInput,
       isDictationAvailable,
       isLiveVoiceAvailable,
+      isDictationRecording,
+      isLiveVoiceActive,
+      isClearAvailable,
     });
-  }, [controller, isDictationAvailable, isLiveVoiceAvailable, toggleDictation, toggleLiveVoice]);
+  }, [
+    controller,
+    clearInput,
+    isClearAvailable,
+    isDictationAvailable,
+    isDictationRecording,
+    isLiveVoiceActive,
+    isLiveVoiceAvailable,
+    stopAndSendDictation,
+    toggleDictation,
+    toggleLiveVoice,
+  ]);
 
   // One document listener for the life of the pane; unmounting it ends the binding.
   useEffect(() => {

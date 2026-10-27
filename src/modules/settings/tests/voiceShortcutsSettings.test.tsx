@@ -157,3 +157,69 @@ test('an ordinary combination carries no warning', () => {
   capture(view, 'voice-shortcut-dictation', { code: 'KeyD', ctrlKey: true, altKey: true });
   assert.equal(view.queryByTestId('voice-shortcut-dictation-conflict'), null);
 });
+
+test('the send-on-stop and cross-surface-cancel options persist through the preference store', async () => {
+  const view = render(<VoiceSettingsTab />);
+
+  const sendOnStop = view.getByRole('switch', { name: 'Send when stopped by shortcut' }) as HTMLButtonElement;
+  const crossCancel = view.getByRole('switch', { name: 'Other voice key cancels' }) as HTMLButtonElement;
+  assert.equal(sendOnStop.getAttribute('aria-checked'), 'false', 'both options start off');
+  assert.equal(crossCancel.getAttribute('aria-checked'), 'false');
+
+  fireEvent.click(sendOnStop);
+  fireEvent.click(crossCancel);
+
+  assert.equal(sendOnStop.getAttribute('aria-checked'), 'true');
+  assert.equal(crossCancel.getAttribute('aria-checked'), 'true');
+  assert.equal(readStoredVoiceShortcuts().dictationSendOnStop, true);
+  assert.equal(readStoredVoiceShortcuts().crossSurfaceCancel, true);
+
+  await waitFor(
+    () => assert.ok(savePreferences.mock.calls.length > 0, 'the settings were never sent to the server'),
+    { timeout: 4_000 },
+  );
+  const sent = savePreferences.mock.calls[savePreferences.mock.calls.length - 1][0] as Record<string, unknown>;
+  const stored = sent.voiceShortcuts as { dictationSendOnStop: boolean; crossSurfaceCancel: boolean };
+  assert.equal(stored.dictationSendOnStop, true);
+  assert.equal(stored.crossSurfaceCancel, true);
+});
+
+test('the clear binding is captured, shown and cleared like the others', () => {
+  const view = render(<VoiceSettingsTab />);
+
+  const control = view.getByTestId('voice-shortcut-clear-input-capture');
+  assert.equal(control.textContent, 'Not set');
+  assert.equal(view.queryByTestId('voice-shortcut-clear-input-clear'), null);
+
+  capture(view, 'voice-shortcut-clear-input', { code: 'KeyK', ctrlKey: true, altKey: true });
+  assert.equal(view.getByTestId('voice-shortcut-clear-input-capture').textContent, 'Ctrl+Alt+K');
+  assert.deepEqual(readStoredVoiceShortcuts().clearInputChord, {
+    code: 'KeyK',
+    ctrl: true,
+    alt: true,
+    shift: false,
+    meta: false,
+  });
+
+  fireEvent.click(view.getByTestId('voice-shortcut-clear-input-clear'));
+  assert.equal(view.getByTestId('voice-shortcut-clear-input-capture').textContent, 'Not set');
+  assert.equal(readStoredVoiceShortcuts().clearInputChord, null);
+});
+
+test('a repeated chord across any two of the three bindings shows the duplicate warning', () => {
+  const view = render(<VoiceSettingsTab />);
+
+  // No duplication yet.
+  capture(view, 'voice-shortcut-dictation', { code: 'KeyD', ctrlKey: true, altKey: true });
+  assert.equal(view.queryByTestId('voice-shortcuts-duplicate'), null);
+
+  // The clear binding repeats the dictation binding: the controller gives the
+  // press to dictation, so the form says so instead of showing a dead mapping.
+  capture(view, 'voice-shortcut-clear-input', { code: 'KeyD', ctrlKey: true, altKey: true });
+  const warning = view.getByTestId('voice-shortcuts-duplicate');
+  assert.match(warning.textContent ?? '', /Only Dictation, then Live Voice, then Clear can fire/);
+
+  // Changing it away clears the warning.
+  capture(view, 'voice-shortcut-clear-input', { code: 'KeyK', ctrlKey: true, altKey: true });
+  assert.equal(view.queryByTestId('voice-shortcuts-duplicate'), null);
+});

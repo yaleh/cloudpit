@@ -51,11 +51,14 @@ const keyEvent = (overrides: Partial<Parameters<typeof chordFromKeyEvent>[0]> = 
   ...overrides,
 });
 
-test('a fresh install starts with the feature off and nothing bound', () => {
+test('a fresh install starts with the feature off, nothing bound, and both options off', () => {
   assert.deepEqual(readStoredVoiceShortcuts(), {
     enabled: false,
     dictationChord: null,
     liveVoiceChord: null,
+    dictationSendOnStop: false,
+    crossSurfaceCancel: false,
+    clearInputChord: null,
   });
   assert.deepEqual(DEFAULT_VOICE_SHORTCUTS, readStoredVoiceShortcuts());
 });
@@ -65,6 +68,9 @@ test('a stored blob is normalized: booleans coerced, unknown fields dropped', ()
     enabled: 'true',
     dictationChord: { code: 'KeyD', ctrl: true, alt: false, shift: false, meta: false },
     liveVoiceChord: { code: 'KeyL', ctrl: false, alt: true, shift: false, meta: false, extra: 1 },
+    dictationSendOnStop: 'true',
+    crossSurfaceCancel: false,
+    clearInputChord: { code: 'KeyK', ctrl: true, alt: false, shift: false, meta: false },
     surprise: 'ignored',
   });
 
@@ -72,7 +78,34 @@ test('a stored blob is normalized: booleans coerced, unknown fields dropped', ()
     enabled: true,
     dictationChord: { code: 'KeyD', ctrl: true, alt: false, shift: false, meta: false },
     liveVoiceChord: { code: 'KeyL', ctrl: false, alt: true, shift: false, meta: false },
+    dictationSendOnStop: true,
+    crossSurfaceCancel: false,
+    clearInputChord: { code: 'KeyK', ctrl: true, alt: false, shift: false, meta: false },
   });
+});
+
+test('the three new fields fall back to their defaults when absent or unreadable', () => {
+  // An older build's blob predates all three fields: it must read as "both
+  // options off, no clear binding" rather than throwing on the next keystroke.
+  const legacy = normalizeVoiceShortcuts({
+    enabled: true,
+    dictationChord: { code: 'KeyD' },
+    liveVoiceChord: null,
+  });
+  assert.equal(legacy.dictationSendOnStop, false);
+  assert.equal(legacy.crossSurfaceCancel, false);
+  assert.equal(legacy.clearInputChord, null);
+
+  // A hand-edited row: the string booleans coerce, and a clear binding that
+  // names a bare modifier is dropped like any other malformed chord.
+  const edited = normalizeVoiceShortcuts({
+    dictationSendOnStop: 'false',
+    crossSurfaceCancel: 'true',
+    clearInputChord: { code: 'ShiftLeft', ctrl: true },
+  });
+  assert.equal(edited.dictationSendOnStop, false);
+  assert.equal(edited.crossSurfaceCancel, true, 'a stored string "true" is still a choice');
+  assert.equal(edited.clearInputChord, null, 'a modifier cannot be the clear binding key');
 });
 
 test('a malformed value cannot escape normalization', () => {
@@ -94,6 +127,9 @@ test('writing through the store reads back the same blob', () => {
     enabled: true,
     dictationChord: chord({ ctrl: true }),
     liveVoiceChord: chord({ code: 'F13' }),
+    dictationSendOnStop: true,
+    crossSurfaceCancel: true,
+    clearInputChord: chord({ code: 'KeyK', ctrl: true }),
   };
   writeStoredVoiceShortcuts(shortcuts);
   assert.deepEqual(readStoredVoiceShortcuts(), shortcuts);

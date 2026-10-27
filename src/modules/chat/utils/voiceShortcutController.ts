@@ -18,9 +18,20 @@ import { matchesChord, type VoiceShortcuts } from '@/shared/voiceShortcuts';
  * - A matched binding is routed to its own command, and only when that surface is
  *   available; the event is prevented only when something was actually done.
  *
- * Dictation is checked before Live Voice. If a user binds the same keys to both,
- * dictation wins and the settings form shows the duplicate warning — silently
- * firing two microphone modes from one key would be worse than a stated tie.
+ * The three bindings are routed in a fixed priority — dictation, then Live Voice,
+ * then clear. If a user binds the same keys to more than one, the earlier route
+ * wins and the settings form shows the duplicate warning; silently firing two
+ * microphone modes (or clearing the box a voice mode would then fill) from one
+ * key would be worse than a stated tie.
+ *
+ * Two options change what a press does:
+ * - `dictationSendOnStop` makes the dictation key, pressed while dictation is
+ *   recording, stop AND submit rather than merely stop.
+ * - `crossSurfaceCancel` makes one surface's key act as a cancel while the other
+ *   surface is active: the Live Voice key while dictating stops the dictation
+ *   without sending and does not enter Live Voice; the dictation key while in
+ *   Live Voice leaves it, carrying the unheard backlog to the composer while the
+ *   turn keeps running.
  *
  * Consumers: `useVoiceShortcuts` (the React binding) and its criterion.
  */
@@ -29,6 +40,10 @@ import { matchesChord, type VoiceShortcuts } from '@/shared/voiceShortcuts';
 export type DictationToggleRegistration = {
   /** The composer's current toggle; it reads the draft and the caret at press time. */
   toggle: () => void;
+  /** Stops the running dictation and submits what was heard (the send-on-stop path). */
+  stopAndSend: () => void;
+  /** Whether dictation is listening right now, as opposed to merely reachable. */
+  recording: boolean;
   /** Whether the voice input surface is on and reachable right now. */
   available: boolean;
 };
@@ -39,10 +54,20 @@ export type VoiceShortcutCommands = {
   toggleDictation: () => void;
   /** Enters Live Voice, or leaves it when it is the mode on screen. */
   toggleLiveVoice: () => void;
+  /** Stops the running dictation AND sends what was heard. */
+  stopAndSendDictation: () => void;
+  /** Clears the composer's draft, exactly as the footer's ✕ and Escape do. */
+  clearInput: () => void;
   /** Whether dictation may start or stop right now. */
   isDictationAvailable: () => boolean;
   /** Whether Live Voice may be entered or left right now. */
   isLiveVoiceAvailable: () => boolean;
+  /** Whether dictation is listening right now. */
+  isDictationRecording: () => boolean;
+  /** Whether Live Voice is the mode currently on screen. */
+  isLiveVoiceActive: () => boolean;
+  /** Whether clearing the draft is allowed right now (the Escape guard's own condition). */
+  isClearAvailable: () => boolean;
 };
 
 /** What the React binding renders from. */
@@ -83,8 +108,13 @@ function floatingLayerIsOpen(): boolean {
 const NO_COMMANDS: VoiceShortcutCommands = {
   toggleDictation: () => undefined,
   toggleLiveVoice: () => undefined,
+  stopAndSendDictation: () => undefined,
+  clearInput: () => undefined,
   isDictationAvailable: () => false,
   isLiveVoiceAvailable: () => false,
+  isDictationRecording: () => false,
+  isLiveVoiceActive: () => false,
+  isClearAvailable: () => false,
 };
 
 /**
@@ -97,7 +127,11 @@ export function createVoiceShortcutController(deps: VoiceShortcutControllerDeps)
 
   const activeNow = (): boolean => {
     const shortcuts = deps.readShortcuts();
-    return shortcuts.enabled && (shortcuts.dictationChord !== null || shortcuts.liveVoiceChord !== null);
+    return shortcuts.enabled && (
+      shortcuts.dictationChord !== null
+      || shortcuts.liveVoiceChord !== null
+      || shortcuts.clearInputChord !== null
+    );
   };
 
   const store = createExternalStore<VoiceShortcutSnapshot>({ active: activeNow() });
@@ -119,19 +153,54 @@ export function createVoiceShortcutController(deps: VoiceShortcutControllerDeps)
     if (!shortcuts.enabled) return;
     if (floatingLayerIsOpen()) return;
 
-    const { dictationChord, liveVoiceChord } = shortcuts;
+    const {
+      dictationChord,
+      liveVoiceChord,
+      clearInputChord,
+      crossSurfaceCancel,
+      dictationSendOnStop,
+    } = shortcuts;
 
     if (dictationChord !== null && matchesChord(event, dictationChord)) {
+      // In Live Voice the composer is gone, so the dictation surface is not
+      // "available" — the cross-surface cancel is what this press means there.
+      if (crossSurfaceCancel && commands.isLiveVoiceActive()) {
+        event.preventDefault();
+        commands.toggleLiveVoice();
+        return;
+      }
       if (!commands.isDictationAvailable()) return;
       event.preventDefault();
+      // The key was chosen as "talk, then send": a press that stops a running
+      // listen submits it. A press that starts one still starts.
+      if (dictationSendOnStop && commands.isDictationRecording()) {
+        commands.stopAndSendDictation();
+        return;
+      }
       commands.toggleDictation();
       return;
     }
 
     if (liveVoiceChord !== null && matchesChord(event, liveVoiceChord)) {
+      // The cancel arm ends the dictation WITHOUT sending and never enters
+      // Live Voice — the press means "stop this", not "switch modes".
+      if (crossSurfaceCancel && commands.isDictationRecording()) {
+        event.preventDefault();
+        commands.toggleDictation();
+        return;
+      }
       if (!commands.isLiveVoiceAvailable()) return;
       event.preventDefault();
       commands.toggleLiveVoice();
+      return;
+    }
+
+    if (clearInputChord !== null && matchesChord(event, clearInputChord)) {
+      // The Escape guard is the gate: a running turn, a dock turn, or an open
+      // menu keeps the key, so a clear shortcut can never dismiss those.
+      if (!commands.isClearAvailable()) return;
+      event.preventDefault();
+      commands.clearInput();
     }
   };
 

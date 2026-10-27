@@ -124,12 +124,21 @@ export function VoiceShortcutsSection() {
     writeStoredVoiceShortcuts(next);
   };
 
-  // One key cannot drive two surfaces: the controller gives dictation the press,
-  // so say that here instead of letting the second binding look functional.
-  const duplicate = shortcuts.dictationChord !== null
-    && shortcuts.liveVoiceChord !== null
-    && sameChord(shortcuts.dictationChord, shortcuts.liveVoiceChord);
+  // One key cannot drive two routes: the controller routes a press in a fixed
+  // priority, so say that here instead of letting the later binding look
+  // functional.
+  const boundChords = [shortcuts.dictationChord, shortcuts.liveVoiceChord, shortcuts.clearInputChord]
+    .filter((chord): chord is VoiceShortcutChord => chord !== null);
+  const duplicate = boundChords.some((chord, index) => (
+    boundChords.slice(index + 1).some((other) => sameChord(chord, other))
+  ));
   const enabledLabel = t('voiceSettings.shortcutsEnable', { defaultValue: 'Enable voice shortcuts' });
+  const sendOnStopLabel = t('voiceSettings.shortcutsSendOnStop', {
+    defaultValue: 'Send when stopped by shortcut',
+  });
+  const crossCancelLabel = t('voiceSettings.shortcutsCrossCancel', {
+    defaultValue: 'Other voice key cancels',
+  });
 
   return (
     <SettingsSection
@@ -167,11 +176,49 @@ export function VoiceShortcutsSection() {
           onChange={(liveVoiceChord) => commit({ ...shortcuts, liveVoiceChord })}
           testId="voice-shortcut-live-voice"
         />
+        <ShortcutCapture
+          label={t('voiceSettings.shortcutsClearInput', { defaultValue: 'Clear the composer' })}
+          chord={shortcuts.clearInputChord}
+          onChange={(clearInputChord) => commit({ ...shortcuts, clearInputChord })}
+          testId="voice-shortcut-clear-input"
+        />
+
+        <div className="flex items-center justify-between rounded-lg border border-border p-3">
+          <div className="pr-3">
+            <div className="text-sm font-medium text-foreground">{sendOnStopLabel}</div>
+            <div className="text-xs text-muted-foreground">
+              {t('voiceSettings.shortcutsSendOnStopDescription', {
+                defaultValue: 'Stopping dictation with its key sends what was heard. The microphone button still only stops.',
+              })}
+            </div>
+          </div>
+          <SettingsToggle
+            checked={shortcuts.dictationSendOnStop}
+            onChange={(dictationSendOnStop) => commit({ ...shortcuts, dictationSendOnStop })}
+            ariaLabel={sendOnStopLabel}
+          />
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border border-border p-3">
+          <div className="pr-3">
+            <div className="text-sm font-medium text-foreground">{crossCancelLabel}</div>
+            <div className="text-xs text-muted-foreground">
+              {t('voiceSettings.shortcutsCrossCancelDescription', {
+                defaultValue: 'While dictating, the Live Voice key stops recording without sending; in Live Voice, the dictation key leaves it.',
+              })}
+            </div>
+          </div>
+          <SettingsToggle
+            checked={shortcuts.crossSurfaceCancel}
+            onChange={(crossSurfaceCancel) => commit({ ...shortcuts, crossSurfaceCancel })}
+            ariaLabel={crossCancelLabel}
+          />
+        </div>
 
         {duplicate && (
           <p data-testid="voice-shortcuts-duplicate" className="text-xs text-destructive">
             {t('voiceSettings.shortcutsDuplicate', {
-              defaultValue: 'Dictation and Live Voice use the same keys. Dictation wins, so change one of them.',
+              defaultValue: 'Two shortcuts use the same keys. Only Dictation, then Live Voice, then Clear can fire — change one of them.',
             })}
           </p>
         )}

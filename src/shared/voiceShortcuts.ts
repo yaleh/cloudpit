@@ -2,8 +2,9 @@ import { readUserPreference, writeUserPreference } from '@/shared/userSettings';
 import type { UserPreferenceKey } from '@/shared/userSettings';
 
 /**
- * The user's keyboard bindings for the two voice surfaces: dictation (the
- * composer's microphone) and Live Voice (the continuous realtime conversation).
+ * The user's keyboard bindings for the two voice surfaces — dictation (the
+ * composer's microphone) and Live Voice (the continuous realtime conversation) —
+ * plus an optional key that clears the composer's draft.
  *
  * The bindings are matched on `KeyboardEvent.code` — the PHYSICAL key — plus the
  * four modifier booleans, so the same finger position keeps working across
@@ -32,7 +33,7 @@ export type VoiceShortcutChord = {
   meta: boolean;
 };
 
-/** The stored blob: the master switch and one binding per voice surface. */
+/** The stored blob: the master switch, one binding per voice surface, and their options. */
 export type VoiceShortcuts = {
   /** Whether any binding may fire. Off by default so no key is taken silently. */
   enabled: boolean;
@@ -40,6 +41,27 @@ export type VoiceShortcuts = {
   dictationChord: VoiceShortcutChord | null;
   /** Toggles Live Voice; null while the user has not bound one. */
   liveVoiceChord: VoiceShortcutChord | null;
+  /**
+   * When true, stopping dictation with its own shortcut submits what was heard
+   * instead of leaving it in the box. It applies ONLY to the shortcut: the
+   * on-screen microphone button and the silence auto-stop keep their own
+   * behaviour, because the user chose the key as a "talk, then send" gesture.
+   */
+  dictationSendOnStop: boolean;
+  /**
+   * When true, one surface's shortcut pressed while the OTHER surface is active
+   * cancels it instead of being ignored: the Live Voice key while dictating
+   * stops the dictation without sending and does not enter Live Voice, and the
+   * dictation key while in Live Voice leaves Live Voice (its unheard backlog
+   * returns to the composer, the turn keeps running).
+   */
+  crossSurfaceCancel: boolean;
+  /**
+   * Clears the composer's draft (the same action as the footer's ✕ and Escape);
+   * null while the user has not bound one. It has the lowest routing priority
+   * of the three bindings.
+   */
+  clearInputChord: VoiceShortcutChord | null;
 };
 
 /** How risky a binding is: a reserved key, a merely awkward one, or neither. */
@@ -50,6 +72,9 @@ export const DEFAULT_VOICE_SHORTCUTS: VoiceShortcuts = {
   enabled: false,
   dictationChord: null,
   liveVoiceChord: null,
+  dictationSendOnStop: false,
+  crossSurfaceCancel: false,
+  clearInputChord: null,
 };
 
 /**
@@ -127,6 +152,15 @@ export function normalizeVoiceShortcuts(value: unknown): VoiceShortcuts {
     enabled: parseBoolean(value.enabled, DEFAULT_VOICE_SHORTCUTS.enabled),
     dictationChord: normalizeChord(value.dictationChord),
     liveVoiceChord: normalizeChord(value.liveVoiceChord),
+    dictationSendOnStop: parseBoolean(
+      value.dictationSendOnStop,
+      DEFAULT_VOICE_SHORTCUTS.dictationSendOnStop,
+    ),
+    crossSurfaceCancel: parseBoolean(
+      value.crossSurfaceCancel,
+      DEFAULT_VOICE_SHORTCUTS.crossSurfaceCancel,
+    ),
+    clearInputChord: normalizeChord(value.clearInputChord),
   };
 }
 
