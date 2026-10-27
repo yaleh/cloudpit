@@ -2,7 +2,7 @@
 id: gap-cockpit-live-cards-session-link-confirmability-and-titles
 title: 驾驶舱真实卡片四处缺口：Details 从 subject.sessionId 推出原会话链接；未声明执行器的选项禁用确认并说明原因；显示
   contentUnavailable；无 ask 时标题用任务名或首条事实代替 quay:// 地址
-status: todo
+status: ready
 labels:
   - gap
   - defect
