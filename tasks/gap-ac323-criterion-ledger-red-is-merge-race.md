@@ -3,7 +3,7 @@ id: gap-ac323-criterion-ledger-red-is-merge-race
 title: AC-323 判据台账尾部红是 merge race：修复 23cbd70b2（09:18:29+08）只提交在 task 分支，主检出到
   09:34:30 才 ff 进含修复的树；gate 于 09:32 前后从主检出启动、读到修复前 spec（Location 1142 = 修复前行号，18
   例 vs 19 例）——当前树 CMD1 19 passed + 375px 腿 1 passed，verification-only 归因入档，不重新实现
-status: todo
+status: ready
 labels:
   - gap
 parent: null
