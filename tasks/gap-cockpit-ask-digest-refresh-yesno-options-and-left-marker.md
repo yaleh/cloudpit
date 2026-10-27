@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-ask-digest-refresh-yesno-options-and-left-marker
 title: 驾驶舱提问卡三处小缺口：存为「未启用」的提问摘要在启用后读取时重算；是/否题生成「是 / 否」两个选项；左侧已打开同一会话时卡片标「已在左侧打开」
-status: ready
+status: done
 labels:
   - gap
   - defect
