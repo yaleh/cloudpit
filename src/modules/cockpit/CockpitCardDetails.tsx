@@ -33,6 +33,19 @@ export type CockpitCardDetailsProps = {
   brief?: CockpitBriefState;
   /** Re-reads a failed brief; the drawer's retry button calls it. */
   onRetryBrief?: () => void;
+  /**
+   * The PC column's conversation link: open the conversation on the LEFT (in place of the
+   * anchor's default full-page navigation) so the column decides whether it must also collapse.
+   * Absent keeps the page variant's plain link.
+   */
+  onOpenConversation?: (sessionId: string) => void;
+  /** The card whose conversation is already open on the left; draw the marker instead of the link. */
+  openedInSession?: boolean;
+  /**
+   * Pushed inside the column instead of floating over the page: fills its host, drops the card
+   * chrome and the close button (the list's back button returns).
+   */
+  inline?: boolean;
 };
 
 function waitingText(t: TFunction, now: number, waitingSince: string): string {
@@ -71,6 +84,9 @@ export default function CockpitCardDetails({
   onStartConversation,
   brief,
   onRetryBrief,
+  onOpenConversation,
+  openedInSession = false,
+  inline = false,
 }: CockpitCardDetailsProps) {
   const { t } = useTranslation();
   const descriptor = cockpitCardDescriptor(card.kind);
@@ -81,7 +97,13 @@ export default function CockpitCardDetails({
     <aside
       data-testid="cockpit-card-details"
       data-cockpit-card-details-id={card.id}
-      className="flex max-h-[90vh] w-full flex-col overflow-auto rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xl"
+      data-cockpit-card-details-inline={inline ? 'true' : 'false'}
+      className={cn(
+        'flex flex-col overflow-auto text-card-foreground',
+        inline
+          ? 'min-h-0 flex-1'
+          : 'max-h-[90vh] w-full rounded-xl border border-border bg-card p-3 shadow-xl',
+      )}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
@@ -95,14 +117,16 @@ export default function CockpitCardDetails({
             {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
           </span>
         </span>
-        <button
-          type="button"
-          data-testid="cockpit-card-details-close"
-          onClick={onClose}
-          className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent"
-        >
-          {t('cockpit.cardDetailsClose')}
-        </button>
+        {!inline && (
+          <button
+            type="button"
+            data-testid="cockpit-card-details-close"
+            onClick={onClose}
+            className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent"
+          >
+            {t('cockpit.cardDetailsClose')}
+          </button>
+        )}
       </div>
 
       <p className="mt-2 text-sm font-medium text-foreground">
@@ -186,10 +210,27 @@ export default function CockpitCardDetails({
       )}
 
       <Section title={t('cockpit.cardDetailsConversation')}>
-        {sessionId !== undefined ? (
+        {sessionId !== undefined && openedInSession ? (
+          <p
+            data-testid="cockpit-card-opened-in-session"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            {t('cockpit.columnOpenedInSession')}
+          </p>
+        ) : sessionId !== undefined ? (
           <a
             data-testid="cockpit-card-conversation-link"
             href={`/session/${encodeURIComponent(sessionId)}`}
+            onClick={
+              onOpenConversation === undefined
+                ? undefined
+                : (event) => {
+                    // The column opens the conversation in place (left side) and owns what
+                    // happens to the column afterwards; a full page load would lose that.
+                    event.preventDefault();
+                    onOpenConversation(sessionId);
+                  }
+            }
             className="text-xs font-medium text-primary hover:underline"
           >
             {t('cockpit.cardDetailsOpenConversation', { sessionId })}

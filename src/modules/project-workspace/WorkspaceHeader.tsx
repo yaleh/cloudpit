@@ -6,6 +6,7 @@ import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import type { AppTab, Project, ProjectSession } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { SessionPulse } from '@/modules/quay';
+import { CockpitHeaderButton } from '@/modules/cockpit';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
 import WorkspaceTabs, { CollapsedWorkspaceSelector } from '@/modules/project-workspace/WorkspaceTabs';
 import type { WorkspaceTabLabelMode } from '@/modules/project-workspace/WorkspaceTabs';
@@ -298,6 +299,10 @@ export default function WorkspaceHeader({
             )}
           </div>
         </div>
+        {/* The cockpit column's entry point, in the same control size and border as the
+            `⋯` menu it sits beside. It draws nothing below 900 px or without a column
+            binding, so the phone header and isolated header tests are unchanged. */}
+        <CockpitHeaderButton />
         <WorkspaceMenu />
         </>
       )}

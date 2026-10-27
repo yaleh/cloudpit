@@ -149,3 +149,32 @@ export type {
   CockpitCardsBinding,
   CockpitCardsDepsOverride,
 } from '@/modules/cockpit/hooks/useCockpitCards';
+// The PC right column: the frame controller, the column itself, the header's count button, and
+// the one binding the three read. The workspace shell mounts the provider and the column; the
+// header draws the button; the sidebar's mode switch asks the same binding whether the column is
+// open. Exported through the barrel so none of them deep-imports the cockpit's files.
+export {
+  cockpitColumnLayoutFor,
+  createCockpitColumnController,
+  COCKPIT_COLUMN_DEFAULT_WIDTH,
+  COCKPIT_COLUMN_MAX_WIDTH,
+  COCKPIT_COLUMN_MIN_WIDTH,
+  COCKPIT_COLUMN_OVERLAY_MIN_WIDTH,
+  COCKPIT_COLUMN_SQUEEZE_MIN_WIDTH,
+  COCKPIT_COLUMN_STORAGE_KEY,
+} from '@/modules/cockpit/cockpitColumnController';
+export type {
+  CockpitColumnController,
+  CockpitColumnControllerDeps,
+  CockpitColumnLayout,
+  CockpitColumnSnapshot,
+  CockpitColumnStorage,
+} from '@/modules/cockpit/cockpitColumnController';
+export {
+  CockpitColumnContext,
+  useCockpitColumn,
+  useCockpitColumnContext,
+} from '@/modules/cockpit/hooks/useCockpitColumn';
+export type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
+export { default as CockpitColumn, CockpitColumnProvider } from '@/modules/cockpit/CockpitColumn';
+export { default as CockpitHeaderButton } from '@/modules/cockpit/CockpitHeaderButton';

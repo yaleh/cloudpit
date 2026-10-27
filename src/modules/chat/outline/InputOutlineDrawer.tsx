@@ -18,6 +18,12 @@ type InputOutlineDrawerProps = {
  * Rendered by ChatInterface (desktop and mobile) as a right-edge drawer listing the
  * session's user inputs; picking one jumps the transcript to it. The handle,
  * panel and backdrop follow the retired quick-settings drawer.
+ *
+ * ANCHORED TO THE SESSION AREA, NOT THE WINDOW. `ChatInterface` is the session area and is
+ * `relative`, so the panel, the backdrop and the handle are `absolute`: they end at the session
+ * area's right edge, which is where the PC cockpit column begins. A window-fixed drawer would
+ * slide under the column (and the column's cards would sit on top of it), which is exactly the
+ * overlap the PC model rules out.
  */
 export default function InputOutlineDrawer({ entries, isMobile, onJump }: InputOutlineDrawerProps) {
   const { t } = useTranslation('chat');
@@ -41,14 +47,16 @@ export default function InputOutlineDrawer({ entries, isMobile, onJump }: InputO
         isOpen={isOpen}
         isMobile={isMobile}
         isDragging={isDragging}
-        style={handleStyle}
+        // Inline `position` overrides the handle's own `fixed` class: every other placement
+        // rule (the open/closed offset, the drag transform) is still the handle's.
+        style={{ ...handleStyle, position: 'absolute' }}
         onClick={handleToggleFromHandle}
         onMouseDown={startDrag}
         onTouchStart={startDrag}
       />
 
       <div
-        className={`fixed right-0 top-0 z-[9999] h-full w-64 max-w-[85vw] transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`absolute right-0 top-0 z-[9999] h-full w-64 max-w-[85vw] transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         aria-hidden={!isOpen}
         data-input-outline-panel
       >
@@ -87,7 +95,7 @@ export default function InputOutlineDrawer({ entries, isMobile, onJump }: InputO
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm transition-opacity duration-150 ease-out"
+          className="absolute inset-0 z-[9998] bg-background/80 backdrop-blur-sm transition-opacity duration-150 ease-out"
           onClick={() => setIsOpen(false)}
         />
       )}

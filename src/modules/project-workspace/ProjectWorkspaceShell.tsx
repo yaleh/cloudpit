@@ -6,6 +6,7 @@ import type { ProjectWorkspaceShellProps } from '@/shared/types';
 import ProjectCommandPalette from '@/modules/project-workspace/ProjectCommandPalette';
 import ProjectMainRegion from '@/modules/project-workspace/ProjectMainRegion';
 import ProjectSidebarRegion from '@/modules/project-workspace/ProjectSidebarRegion';
+import { CockpitColumnProvider } from '@/modules/cockpit';
 
 /** Rendered by ProjectWorkspaceRoute to lay out the workspace sidebar, main region and global overlays. */
 function ProjectWorkspaceShell({
@@ -25,18 +26,23 @@ function ProjectWorkspaceShell({
           common ancestor of the chat tab and the top bar. */}
       <TranscriptExportProvider>
         <ProjectEffects navigate={navigate} />
-        <ProjectSidebarRegion isMobile={isMobile} />
+        {/* One column binding for the whole session page: the sidebar's mode switch, the
+            header's count button and the right column all read it from here. The provider is
+            inert while the server has the cockpit switched off. */}
+        <CockpitColumnProvider>
+          <ProjectSidebarRegion isMobile={isMobile} />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <ProjectMainRegion
-            isMobile={isMobile}
-            ws={ws}
-            sendMessage={sendMessage}
-            navigate={navigate}
-          />
-        </div>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ProjectMainRegion
+              isMobile={isMobile}
+              ws={ws}
+              sendMessage={sendMessage}
+              navigate={navigate}
+            />
+          </div>
 
-        <ProjectCommandPalette />
+          <ProjectCommandPalette />
+        </CockpitColumnProvider>
       </TranscriptExportProvider>
     </div>
   );

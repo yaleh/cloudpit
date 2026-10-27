@@ -96,5 +96,7 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
     return () => controller.stop();
   }, [controller]);
 
-  return { snapshot, controller };
+  // Stable identity: the column's provider hands this value down through a context, and a fresh
+  // object on every render would re-render every consumer of an unchanged card reading.
+  return useMemo(() => ({ snapshot, controller }), [snapshot, controller]);
 }

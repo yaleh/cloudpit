@@ -8,6 +8,7 @@ import { StandaloneShell } from '@/modules/standalone-shell';
 import { GitPanel } from '@/modules/git-panel';
 import { PluginTabContent } from '@/modules/plugins';
 import { BrowserUsePanel, useBrowserUseEnabled } from '@/modules/browser-use';
+import { CockpitColumn } from '@/modules/cockpit';
 import { usePaletteOpsRegister } from '@/modules/command-palette';
 import { TaskMasterPanel, useTaskMasterProjectSync, useTasksSettings } from '@/modules/task-master';
 import { isQuayTabVisible, QuayPanel, useEnsureQuayTabVisible, useQuayStatus } from '@/modules/quay';
@@ -482,6 +483,11 @@ function WorkspaceMain({
           projectPath={selectedProject.path}
           fillSpace={activeTab === 'files'}
         />
+
+        {/* The PC cockpit column sits at the row's right edge, outside the header, so expanding
+            it squeezes the session content (1460+) or overlays it (900–1279) without shrinking
+            the header. It draws nothing on phone width or while collapsed. */}
+        <CockpitColumn />
       </div>
     </div>
   );

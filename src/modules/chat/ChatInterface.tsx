@@ -1101,7 +1101,7 @@ function ChatInterface({
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="relative flex h-full min-h-0 flex-col">
         {uiNavigate.prompt && (
           <UiNavigatePrompt
             requester={uiNavigate.prompt.requester}
