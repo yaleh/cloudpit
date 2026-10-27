@@ -21,6 +21,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CockpitCard, SessionAskDecisionReading } from '@/shared/types.js';
+import {
+  createSessionAskDecisionDigest,
+  createSessionAskDecisionReader,
+  formatSessionUri,
+  type ObservedObject,
+  type ObservationStore,
+} from '@/modules/observation/index.js';
 
 import { createCockpitCardRegistry } from '../cockpit-card-registry.js';
 import { COCKPIT_FLEET_ASK_OPTION_EXECUTOR } from '../cockpit-fleet-card-projection.js';
@@ -404,4 +411,116 @@ test('AC-432: the read port passes the resolved-history filters through', async 
   assert.deepEqual(calls, [
     ['cockpit', 'cards', '--json', '--include-resolved', '--since', since],
   ]);
+});
+
+test('AC: a stored disabled-tier reading is repaired on read, so the card carries its question and 是/否', async () => {
+  const objects = new Map<string, ObservedObject>();
+  const store = {
+    writeRevision(input: Parameters<ObservationStore['writeRevision']>[0]): ObservedObject {
+      const object: ObservedObject = {
+        uri: input.uri,
+        kind: input.kind,
+        title: input.title,
+        status: input.status,
+        digest: input.digest ?? {},
+        blindSpots: [],
+        revision: (objects.get(input.uri)?.revision ?? 0) + 1,
+        updatedAt: 1_800_000_000_000,
+        provenance: {
+          producer: input.provenance.producer,
+          tier: input.provenance.tier,
+          evaluatedAt: input.provenance.evaluatedAt ?? 1_800_000_000_000,
+        },
+      };
+      objects.set(input.uri, object);
+      return object;
+    },
+    getObject: (uri: string) => objects.get(uri) ?? null,
+  } as unknown as ObservationStore;
+
+  store.writeRevision({
+    uri: formatSessionUri('sess-ask'),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askDecision: { state: 'skipped', reason: '未启用 observation.sessionDigest（提问决策摘要）' },
+    },
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: 1_800_000_000_000 },
+  });
+
+  const transcript =
+    [
+      { type: 'user', uuid: 'u1', message: { role: 'user', content: [{ type: 'text', text: '释放 profile' }] } },
+      {
+        type: 'assistant',
+        uuid: 'm-7',
+        message: { role: 'assistant', content: [{ type: 'text', text: '是否要发送 browser_close 释放 MCP 浏览器 profile？' }] },
+      },
+    ]
+      .map((row) => JSON.stringify(row))
+      .join('\n') + '\n';
+
+  const settings = {
+    enabled: true,
+    configuredEnabled: true,
+    model: 'stub-model',
+    maxPerHour: 6,
+    minTurnChars: 0,
+    apiKeyFile: '',
+    protocol: 'anthropic' as const,
+    baseUrl: 'http://stub.invalid',
+    authScheme: 'bearer' as const,
+    disableThinking: true,
+    timeoutMs: 1_000,
+    maxOutputTokens: 800,
+    temperature: 0.2,
+    apiKey: 'stub-key',
+    source: 'file' as const,
+    path: null,
+    problems: [],
+  };
+  let calls = 0;
+  const reader = createSessionAskDecisionReader({
+    store,
+    readSettings: () => settings,
+    summarize: createSessionAskDecisionDigest({
+      readSettings: () => settings,
+      complete: async () => {
+        calls += 1;
+        return {
+          text: JSON.stringify({
+            ask: '是否要发送 browser_close 释放 profile？',
+            situation: 'MCP 浏览器 profile 仍被占用。',
+            incomplete: false,
+            recommendedOptionId: null,
+            options: [
+              { id: 'yes', label: '是', does: '发送 browser_close。', tags: [{ kind: 'consequence', text: '释放资源' }], source: 'assistant' },
+              { id: 'no', label: '否', does: '保持占用。', tags: [{ kind: 'consequence', text: '保持现状' }], source: 'assistant' },
+            ],
+          }),
+          inputTokens: 10,
+          outputTokens: 5,
+        };
+      },
+    }),
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/sess-ask.jsonl' }),
+    readTranscript: async () => transcript,
+    now: () => 1_800_000_000_000,
+  });
+
+  // The first read starts the background repair; the next card read sees the repaired digest.
+  reader.read('sess-ask');
+  await reader.settled();
+
+  const fleet = created({ readSessionAsk: () => reader.read('sess-ask') });
+  const ask = byId(await fleet.provider.listCards(), 'att-ask-1');
+
+  assert.equal(calls, 1, 'the read repaired the digest with one model call');
+  assert.equal(ask.contentUnavailable, undefined, 'the card is no longer marked not-ready');
+  assert.equal(ask.ask, '是否要发送 browser_close 释放 profile？');
+  assert.match(ask.situation ?? '', /MCP 浏览器 profile/);
+  assert.deepEqual(ask.options.map((option) => option.label), ['是', '否']);
+  assert.deepEqual(ask.options.map((option) => option.suggested), [false, false]);
 });

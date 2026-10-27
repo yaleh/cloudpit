@@ -53,6 +53,13 @@ export type CockpitCardDetailsProps = {
   /** The card whose conversation is already open on the left; draw the marker instead of the link. */
   openedInSession?: boolean;
   /**
+   * The session the left pane currently shows, supplied by the PC column from the route. When it
+   * equals the card's own conversation session, the card is already open on the left even though
+   * it was not opened from this card — draw the same marker instead of the link. The page/phone
+   * variant passes nothing, so its link never changes.
+   */
+  currentSessionId?: string | null;
+  /**
    * Pushed inside the column instead of floating over the page: fills its host, drops the card
    * chrome and the close button (the list's back button returns).
    */
@@ -99,6 +106,7 @@ export default function CockpitCardDetails({
   onRequestConfirm,
   onOpenConversation,
   openedInSession = false,
+  currentSessionId = null,
   inline = false,
 }: CockpitCardDetailsProps) {
   const { t } = useTranslation();
@@ -110,6 +118,11 @@ export default function CockpitCardDetails({
   const sessionId =
     card.conversation === undefined ? card.subject.sessionId : card.conversation.sessionId;
   const startProject = card.conversation?.startInProject ?? card.subject.project;
+  // Two ways a card's conversation is "already on the left": it was opened from this card, or
+  // the page is already parked on that session (for example it was opened from the sidebar).
+  // The second reading is the column's route param; nothing is marked when it is absent.
+  const conversationOnLeft =
+    openedInSession || (currentSessionId !== null && currentSessionId === sessionId);
   // 「在 Quay 中打开该任务」. The cockpit has no deep link that also selects one task, so the
   // honest destination is the project's board — the page where the task is listed. Without a
   // project there is no board to name, and the cockpit's own cards list is the fallback.
@@ -254,7 +267,7 @@ export default function CockpitCardDetails({
       )}
 
       <Section title={t('cockpit.cardDetailsConversation')}>
-        {sessionId !== undefined && openedInSession ? (
+        {sessionId !== undefined && conversationOnLeft ? (
           <p
             data-testid="cockpit-card-opened-in-session"
             className="text-xs font-medium text-muted-foreground"

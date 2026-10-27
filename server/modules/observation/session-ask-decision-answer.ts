@@ -111,6 +111,46 @@ const RECOMMENDATION_CUE =
   /(?:^|[^不])(?:建议|推荐|倾向(?:于)?|我会选|我选|不妨)|I (?:recommend|suggest)|I'd (?:pick|choose|go with)/i;
 
 /**
+ * A yes/no question in the assistant's own words.
+ *
+ * Deliberately narrow: only the shapes this repo's sessions actually ask in — 「是否要…」,
+ * 「要不要…」, 「要我…吗」, 「Should I…?」 — trigger the two-option synthesis. A multi-choice
+ * question (「先补测试还是先改实现？」) matches nothing here and is therefore never rewritten.
+ */
+const YES_NO_QUESTION =
+  /(?:是否|要不要|需不需要|用不用|能不能|可不可以|该不该|会不会|有没有|是不是)|(?:吗|么)\s*[?？]?\s*$|\b(?:should|shall|can|could|may|would|will|do|does|is|are|did)\b[^?？]*[?？]/i;
+
+/** The two options a yes/no question gets when the assistant listed none of its own. */
+const YES_NO_OPTIONS: ParsedAskAnswer['options'] = [
+  {
+    id: 'yes',
+    label: '是',
+    does: '确认按助手的提议执行。',
+    tags: [{ kind: 'consequence', text: '继续推进' }],
+    source: 'assistant',
+  },
+  {
+    id: 'no',
+    label: '否',
+    does: '不按助手的提议执行，保持现状。',
+    tags: [{ kind: 'consequence', text: '保持现状' }],
+    source: 'assistant',
+  },
+];
+
+/**
+ * Adds the two yes/no options when the question is yes/no-shaped AND the assistant listed none.
+ *
+ * The generated options carry no suggestion: a recommendation is only ever claimed from the
+ * model's own `recommendedOptionId` (which the parser only accepts when it names a listed
+ * option), so the worst case here is a missed suggestion, never a fabricated one.
+ */
+function withYesNoOptions(parsed: ParsedAskAnswer, assistantText: string): ParsedAskAnswer['options'] {
+  if (parsed.options.length > 0) return parsed.options;
+  return YES_NO_QUESTION.test(assistantText.trim()) ? YES_NO_OPTIONS : parsed.options;
+}
+
+/**
  * Applies the three rules to one parsed answer and returns the reading the digest carries.
  *
  * The recommendation is accepted only when BOTH signals agree: the assistant's own text carries
@@ -125,7 +165,7 @@ export function buildAskDecision(
 ): SessionAskDecisionReading {
   const recommendedId =
     parsed.incomplete || !RECOMMENDATION_CUE.test(assistantText) ? null : parsed.recommendedOptionId;
-  const options: SessionAskDecisionOption[] = parsed.options.map((option) => {
+  const options: SessionAskDecisionOption[] = withYesNoOptions(parsed, assistantText).map((option) => {
     const suggested = option.id === recommendedId;
     return {
       id: option.id,
@@ -154,6 +194,7 @@ export const SYSTEM_PROMPT = [
   '- ask：把助手最后一条消息里的提问重述成一个问句，保留原文的限定条件；不要整段照抄。',
   '- situation：回答这个问题需要知道的情境（在做什么、卡在哪、已试过什么），只写原文有的事实。',
   '- options：助手原文用编号或项目符号列出若干选择时，必须为每一项给出一条 option（label 用原文的选项名）；原文没有列出选择才用空数组 []。does 是选它会发生什么，tags 是后果标签（kind 用 consequence / risk / cost / benefit）。',
+  '- 是/否提问：当助手最后一条消息是「是否要…」「要不要…」「要我…吗」「Should I…?」这类只能答是或否的问题、且原文没有列出选项时，给出两个 option：id 分别为 "yes"（label 「是」）和 "no"（label 「否」），各写一句 does 与一个 consequence 标签。',
   '- recommendedOptionId：仅当原文明确推荐了某个选项时填它的 id；原文没有推荐就填 null。',
   '- incomplete：仅当这个问题依赖更早的上下文，而那些内容不在给出的对话里时填 true。',
 ].join('\n');

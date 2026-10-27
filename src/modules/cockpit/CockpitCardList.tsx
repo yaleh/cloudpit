@@ -47,6 +47,12 @@ export type CockpitCardListProps = {
   onOpenConversation?: (card: CockpitCardData, sessionId: string) => void;
   /** The card currently opened on the left (the column marks it; the page passes nothing). */
   openedCardId?: string | null;
+  /**
+   * The session the left pane currently shows, read from the route by the column. Details marks
+   * a card whose `conversation.sessionId` equals it as already open. Passed only by the column:
+   * the phone/page variant leaves it null, so its link is unchanged.
+   */
+  currentSessionId?: string | null;
   /** The column's back button; defaults to closing the Details stack entry. */
   onBack?: () => void;
 };
@@ -71,6 +77,7 @@ function CockpitCardListBound({
   variant = 'page',
   onOpenConversation,
   openedCardId = null,
+  currentSessionId = null,
   onBack,
 }: CockpitCardListProps & { binding: CockpitCardsBinding }) {
   const { t } = useTranslation();
@@ -197,6 +204,7 @@ function CockpitCardListBound({
             target={snapshot.targets[detailsCard.id] ?? null}
             onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
             openedInSession={openedCardId === detailsCard.id}
+            currentSessionId={currentSessionId}
             onOpenConversation={(sessionId: string) => onOpenConversation?.(detailsCard, sessionId)}
             onStartConversation={(card: CockpitCardData) =>
               setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')

@@ -25,7 +25,16 @@ import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
 import type { ObservedObject, ObservationStore } from '../observation-store.js';
-import { createSessionAskDecisionDigest, readSessionAsk } from '../session-ask-decision-digest.js';
+import { formatSessionUri } from '../observation-uri.js';
+import {
+  createSessionAskDecisionDigest,
+  readSessionAsk,
+  type SessionAskDecisionDigest,
+} from '../session-ask-decision-digest.js';
+import {
+  createSessionAskDecisionReader,
+  SESSION_ASK_DECISION_LIMIT_REASON,
+} from '../session-ask-decision-reader.js';
 import { createSessionDigestProducer } from '../session-digest.producer.js';
 import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
@@ -441,4 +450,258 @@ test('AC-423: readSessionAsk derives the ask identity and the answered span from
   assert.equal(reading.answered?.messageId, 'u2');
   assert.match(reading.context, /\[用户\] 开始/);
   assert.match(reading.context, /第二问？/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The read-time repair of a digest stored while the tier was switched off
+// ---------------------------------------------------------------------------------------------
+
+/** The exact reason the summariser stores when `observation.sessionDigest` is off. */
+const DISABLED_SKIP_REASON = '未启用 observation.sessionDigest（提问决策摘要）';
+
+/** A memory-backed store: only the two members the reader touches are needed. */
+function createMemoryStore(): { store: ObservationStore; objects: Map<string, ObservedObject> } {
+  const objects = new Map<string, ObservedObject>();
+  const store = {
+    writeRevision(input: Parameters<ObservationStore['writeRevision']>[0]): ObservedObject {
+      const object: ObservedObject = {
+        uri: input.uri,
+        kind: input.kind,
+        title: input.title,
+        status: input.status,
+        digest: input.digest ?? {},
+        blindSpots: [],
+        revision: (objects.get(input.uri)?.revision ?? 0) + 1,
+        updatedAt: CLOCK,
+        provenance: {
+          producer: input.provenance.producer,
+          tier: input.provenance.tier,
+          evaluatedAt: input.provenance.evaluatedAt ?? CLOCK,
+        },
+      };
+      objects.set(input.uri, object);
+      return object;
+    },
+    getObject: (uri: string) => objects.get(uri) ?? null,
+  } as unknown as ObservationStore;
+  return { store, objects };
+}
+
+/** The turn the stale digest belongs to: one ask, no answer yet. */
+const YES_NO_TRANSCRIPT = transcript([
+  { role: 'user', id: 'u1', text: '释放浏览器 profile' },
+  {
+    role: 'assistant',
+    id: 'a1',
+    text: '是否要经 SendMessage 向会话发送 browser_close 以释放 MCP 浏览器 profile？',
+  },
+]);
+
+/** The model's restatement of that ask: two options, no recommendation in the original. */
+const YES_NO_ANSWER = {
+  ask: '是否要发送 browser_close 释放浏览器 profile？',
+  situation: 'MCP 浏览器 profile 仍被占用。',
+  incomplete: false,
+  recommendedOptionId: null,
+  options: [
+    { id: 'yes', label: '是', does: '发送 browser_close 释放 profile。', tags: [{ kind: 'consequence', text: '释放资源' }], source: 'assistant' },
+    { id: 'no', label: '否', does: '保持 profile 占用。', tags: [{ kind: 'consequence', text: '保持现状' }], source: 'assistant' },
+  ],
+};
+
+function seedSkipped(store: ObservationStore): void {
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention', reason: '本轮以提问结束，等你回复' },
+    digest: { activity: 'waiting', askDecision: { state: 'skipped', reason: DISABLED_SKIP_REASON } },
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+}
+
+/** A reader over a memory store and a stub completion; `requests` records every model call. */
+function readerOver(
+  store: ObservationStore,
+  options: {
+    settings?: SessionDigestLlmSettings;
+    answer?: string;
+    requests?: LlmCompletionRequest[];
+  } = {},
+): ReturnType<typeof createSessionAskDecisionReader> {
+  const settings = options.settings ?? STUB_SETTINGS;
+  const requests = options.requests ?? [];
+  return createSessionAskDecisionReader({
+    store,
+    readSettings: () => settings,
+    summarize: createSessionAskDecisionDigest({
+      readSettings: () => settings,
+      complete: async (request) => {
+        requests.push(request);
+        return completion(options.answer ?? JSON.stringify(YES_NO_ANSWER));
+      },
+    }),
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => YES_NO_TRANSCRIPT,
+    now: () => CLOCK,
+  });
+}
+
+test('read-time repair: a disabled-tier reading is recomputed once after the switch is enabled', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, { requests });
+
+  // The first read still answers the stored reading; the repair runs in the background.
+  assert.equal(reader.read(SESSION_ID)?.state, 'skipped');
+  await reader.settled();
+
+  const repaired = reader.read(SESSION_ID);
+  assert.equal(repaired?.state, 'evaluated');
+  assert.equal(requests.length, 1, 'the repair makes exactly one model call');
+  const stored = objects.get(formatSessionUri(SESSION_ID))?.digest.askDecision as SessionAskDecisionReading;
+  assert.equal(stored.state, 'evaluated', 'the repaired reading is written back to the digest');
+  assert.equal(reader.read(SESSION_ID)?.state, 'evaluated');
+  await reader.settled();
+  assert.equal(requests.length, 1, 'the same askId is never repaired twice');
+});
+
+test('read-time repair: with the setting still off no summariser call is made and nothing is written', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  // A raw summariser that ALWAYS answers, so the reader's own enabled check is what must stop
+  // the repair. Wrapping the real summariser here would let ITS enabled check hide a missing
+  // guard in the reader (both would answer `skipped`, so the test could not tell them apart).
+  const attempts: Parameters<SessionAskDecisionDigest['summarize']>[0][] = [];
+  const reader = createSessionAskDecisionReader({
+    store,
+    readSettings: () => ({ ...STUB_SETTINGS, enabled: false, configuredEnabled: false }),
+    summarize: {
+      async summarize(input) {
+        attempts.push(input);
+        return {
+          state: 'evaluated',
+          inputTokens: 1,
+          outputTokens: 1,
+          askId: input.askId,
+          revision: input.revision,
+          ask: '不该生成的问题',
+          situation: '不该生成的情境',
+          options: [],
+          incomplete: false,
+        };
+      },
+    },
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => YES_NO_TRANSCRIPT,
+    now: () => CLOCK,
+  });
+
+  assert.equal(reader.read(SESSION_ID)?.state, 'skipped');
+  await reader.settled();
+  assert.equal(attempts.length, 0, 'the disabled tier must not start a repair');
+  const stored = objects.get(formatSessionUri(SESSION_ID))?.digest.askDecision as SessionAskDecisionReading;
+  assert.equal(stored.state, 'skipped', 'nothing is written while the tier is off');
+  assert.equal(stored.state === 'skipped' ? stored.reason : '', DISABLED_SKIP_REASON);
+});
+
+test('read-time repair: an exhausted hourly ceiling keeps the stored reading and names the limit', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    settings: { ...STUB_SETTINGS, maxPerHour: 0 },
+    requests,
+  });
+
+  const reading = reader.read(SESSION_ID);
+  assert.equal(reading?.state, 'skipped');
+  assert.equal(reading?.state === 'skipped' ? reading.reason : '', SESSION_ASK_DECISION_LIMIT_REASON);
+  await reader.settled();
+  assert.equal(requests.length, 0, 'the ceiling refuses the call before the model is reached');
+  const stored = objects.get(formatSessionUri(SESSION_ID))?.digest.askDecision as SessionAskDecisionReading;
+  assert.equal(stored.state, 'skipped');
+  assert.equal(stored.state === 'skipped' ? stored.reason : '', DISABLED_SKIP_REASON, 'the stored reading is untouched');
+});
+
+test('read-time repair: a failed recompute is remembered, not retried on every read', async () => {
+  const { store } = createMemoryStore();
+  seedSkipped(store);
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, { requests, answer: '这不是 JSON。' });
+
+  assert.equal(reader.read(SESSION_ID)?.state, 'skipped');
+  await reader.settled();
+  assert.equal(requests.length, 1);
+  const failed = reader.read(SESSION_ID);
+  assert.equal(failed?.state, 'unevaluated', 'the failure is written back as the honest reading');
+  await reader.settled();
+  assert.equal(requests.length, 1, 'a recorded failure must not be retried for the same ask');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Yes/no questions get two options
+// ---------------------------------------------------------------------------------------------
+
+test('yes/no: a yes/no question with no listed options gets 是/否 and no suggestion without a cue', async () => {
+  const summariser = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () =>
+      completion(
+        JSON.stringify({
+          ask: '是否要关闭浏览器释放 profile？',
+          situation: 'profile 仍被占用。',
+          incomplete: false,
+          recommendedOptionId: null,
+          options: [],
+        }),
+      ),
+  });
+
+  const reading = await summariser.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText: '是否要关闭浏览器释放 profile？',
+    context: '[助手] 是否要关闭浏览器释放 profile？',
+  });
+
+  assert.equal(reading.state, 'evaluated');
+  if (reading.state !== 'evaluated') return;
+  assert.deepEqual(
+    reading.options.map((option) => ({ id: option.id, label: option.label, suggested: option.suggested })),
+    [
+      { id: 'yes', label: '是', suggested: false },
+      { id: 'no', label: '否', suggested: false },
+    ],
+    'the two synthesized options are 是/否 and neither is suggested',
+  );
+  assert.deepEqual(reading.options.map((option) => option.source), ['assistant', 'assistant']);
+  assert.ok(reading.options.every((option) => option.tags.length > 0), 'each option carries a consequence tag');
+});
+
+test('yes/no: a recommendation in the assistant text marks 是 and sources it from the assistant', async () => {
+  const summariser = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () => completion(JSON.stringify({ ...YES_NO_ANSWER, recommendedOptionId: 'yes' })),
+  });
+
+  const reading = await summariser.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText: '是否先关闭浏览器释放 profile？我建议先关闭。',
+    context: '[助手] 是否先关闭浏览器释放 profile？我建议先关闭。',
+  });
+
+  assert.equal(reading.state, 'evaluated');
+  if (reading.state !== 'evaluated') return;
+  const yes = reading.options.find((option) => option.id === 'yes');
+  const no = reading.options.find((option) => option.id === 'no');
+  assert.equal(yes?.suggested, true);
+  assert.equal(yes?.source, 'assistant');
+  assert.equal(no?.suggested, false);
 });

@@ -78,6 +78,17 @@ export type {
   SessionAskReading,
   SessionAskSummaryInput,
 } from './session-ask-decision-digest.js';
+// consumer: the cockpit fleet wiring's `readSessionAsk` seam. The reader answers the stored T1
+// digest and repairs a reading that was stored while the tier was still disabled; keeping the
+// repair behind this barrel is what lets the cockpit stay a pure reader.
+export {
+  createSessionAskDecisionReader,
+  SESSION_ASK_DECISION_LIMIT_REASON,
+} from './session-ask-decision-reader.js';
+export type {
+  SessionAskDecisionReader,
+  SessionAskDecisionReaderDeps,
+} from './session-ask-decision-reader.js';
 // consumer: the composition root, which refreshes each fleet-registered project on the quay
 // snapshot's TTL and on task-status transitions; and `observation-wall-ui`, which renders the
 // five layers. The criterion builds its own producer over an injected clock and readers.

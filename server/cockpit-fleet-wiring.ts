@@ -14,19 +14,22 @@
  * message in the span (a re-ask keeps that id and bumps `revision`); the fleet's contentRef
  * names the current asking message. Requiring an exact message match would therefore report
  * "content not ready" for every re-ask. The reader answers the session's latest digest and the
- * provider states whether it was usable.
+ * provider states whether it was usable. That reader also repairs a digest stored while the
+ * tier was switched off, so the cockpit itself never decides whether content is stale.
  *
  * Consumers: `server/index.ts`, which passes the provider to `createCockpitCardsModule`.
  */
-import { isRecord } from '@/shared/utils.js';
 import type { SessionAskDecisionReading } from '@/shared/types.js';
 
 import {
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
 } from './modules/cockpit/index.js';
-import type { ObservationStore } from './modules/observation/index.js';
-import { createObservationStore, formatSessionUri } from './modules/observation/index.js';
+import {
+  createObservationStore,
+  createSessionAskDecisionReader,
+  type SessionAskDecisionReader,
+} from './modules/observation/index.js';
 import { createQuayFleetRunner, locateQuayFleetCli } from './modules/quay/index.js';
 
 /** The settings-file reading this seam consumes; `server/index.ts` supplies it. */
@@ -38,27 +41,18 @@ export type CockpitFleetWiringOptions = {
 };
 
 /**
- * Reads one session's T1 ask digest from the observation store.
+ * Reads one session's T1 ask digest through the observation layer's reader.
  *
- * The three reading states are passed through so the provider can name the exact reason content
- * is not ready; anything outside the stored union is treated as absent rather than trusted.
+ * The reader owns both halves: the stored reading (the three states passed through so the
+ * provider can name exactly why content is not ready) and the read-time repair of a reading
+ * stored while the tier was switched off. The cockpit therefore decides nothing here.
  */
 function readAskDecision(
-  store: ObservationStore,
+  reader: SessionAskDecisionReader,
   sessionId: string,
   _messageId: string,
 ): SessionAskDecisionReading | null {
-  if (sessionId === '') return null;
-  const reading = store.getObject(formatSessionUri(sessionId))?.digest.askDecision;
-  if (!isRecord(reading)) return null;
-  if (
-    reading.state === 'evaluated' ||
-    reading.state === 'skipped' ||
-    reading.state === 'unevaluated'
-  ) {
-    return reading as unknown as SessionAskDecisionReading;
-  }
-  return null;
+  return reader.read(sessionId);
 }
 
 /**
@@ -72,6 +66,9 @@ export function createCockpitFleetProvider(
 ): CockpitFleetCardProvider {
   const run = createQuayFleetRunner({ resolveBinPath: () => locateQuayFleetCli().binPath });
   const store = createObservationStore();
+  // One reader per provider instance: its in-flight guard, attempted set and sliding hour are
+  // exactly the state that makes "one repair per ask" hold across successive card reads.
+  const askReader = createSessionAskDecisionReader({ store });
 
   return createCockpitFleetCardProvider({
     enabled: options.enabled,
@@ -97,6 +94,6 @@ export function createCockpitFleetProvider(
         ...(answer.error === undefined ? {} : { error: answer.error }),
       };
     },
-    readSessionAsk: (sessionId, messageId) => readAskDecision(store, sessionId, messageId),
+    readSessionAsk: (sessionId, messageId) => readAskDecision(askReader, sessionId, messageId),
   });
 }

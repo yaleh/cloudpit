@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Clock, CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
@@ -237,6 +238,7 @@ describe('expanded', () => {
 
 describe('the column title', () => {
   it('names the waiting count and the rescue-group count by group, not by provider', async () => {
+
     const f = await fixture({ cardCount: 3, rescueCount: 1, expanded: true });
     render(
       <TestBinding fixture={f}>
@@ -347,5 +349,45 @@ describe('the header badge', () => {
       </TestBinding>,
     );
     expect(screen.queryByTestId('cockpit-header-button')).toBeNull();
+  });
+});
+
+/** Renders the column under a route whose `sessionId` is what the left pane shows. */
+function renderAtSession(f: Fixture, sessionId: string) {
+  return render(
+    <MemoryRouter initialEntries={[`/session/${sessionId}`]}>
+      <Routes>
+        <Route
+          path="/session/:sessionId"
+          element={
+            <TestBinding fixture={f}>
+              <CockpitColumn />
+            </TestBinding>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('the already-open-on-the-left marker', () => {
+  it('marks a card whose conversation is the route session instead of rendering the link', async () => {
+    const f = await fixture({ expanded: true });
+    renderAtSession(f, 'session-1');
+
+    act(() => f.cards.openDetails('c1'));
+
+    expect(screen.getByTestId('cockpit-card-opened-in-session')).toBeTruthy();
+    expect(screen.queryByTestId('cockpit-card-conversation-link')).toBeNull();
+  });
+
+  it('renders the link when the route session is a different conversation', async () => {
+    const f = await fixture({ expanded: true });
+    renderAtSession(f, 'session-2');
+
+    act(() => f.cards.openDetails('c1'));
+
+    expect(screen.getByTestId('cockpit-card-conversation-link')).toBeTruthy();
+    expect(screen.queryByTestId('cockpit-card-opened-in-session')).toBeNull();
   });
 });

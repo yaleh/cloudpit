@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { Gauge, PanelRightClose } from 'lucide-react';
 
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
@@ -116,6 +117,10 @@ export default function CockpitColumn() {
 function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
   const { t } = useTranslation();
   const { snapshot, controller, cards } = binding;
+  // THE ROUTE OWNS "WHICH CONVERSATION IS ON THE LEFT". The card components never read the
+  // router: the column reads the one route param and hands it to the list, which gives it to
+  // Details. On any non-session route (or outside a Router in a criterion) this is undefined.
+  const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const [text, setText] = useState('');
   // The rescue group is a GROUP (`card.group`), never a provider branch: the count answers
   // 「how many of these are the rescue ones」 for whatever providers are currently answering.
@@ -217,6 +222,7 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
         binding={cards}
         variant="column"
         openedCardId={snapshot.openedCardId}
+        currentSessionId={currentSessionId ?? null}
         onOpenConversation={(card, sessionId) => controller.openConversation(card.id, sessionId)}
         onBack={() => cards.controller.closeDetails()}
       />
