@@ -2,7 +2,7 @@
 id: gap-restart-refuses-client-server-build-skew
 title: 重启前拒绝前后端构建不一致：dist/build-info.json 与 dist-server/build-info.json 的 gitSha
   不同就不重启（共享检查脚本 + restart-server-detached.sh 与延迟重启脚本都调用），部署面板显示不一致
-status: todo
+status: ready
 labels:
   - gap
   - defect
