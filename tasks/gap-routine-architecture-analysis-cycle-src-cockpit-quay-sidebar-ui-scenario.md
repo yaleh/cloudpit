@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-cockpit-quay-sidebar-ui-scenario
 title: "architecture-analysis: 5-package SCC (cockpit, cockpit/hooks, quay,
   sidebar, ui-scenario) closed by 13 cross-package import sites: sidebar imports
   the cockpit barrel for WatchPinTo"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
