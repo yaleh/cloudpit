@@ -1,7 +1,7 @@
 ---
 id: AC-424
 title: 驾驶舱 controller：单一确认绑定当前选项、自己的回复同一路径、无推荐不默认、Escape 不处理
-status: draft
+status: active
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts
@@ -13,4 +13,15 @@ expect: React 之外的驾驶舱 controller（create 工厂，依赖经注入）
   不存在。
 origin: 本会话 2026-10-26 至 10-27 手机与 PC 交互模型（INTERACTION-PRINCIPLES.md 第 9、14 条与
   G、H 节）；frontend-module-standards 要求业务规则与状态机放在 React 之外的 controller。
+activatedAt: 2026-10-27T02:51:34.294Z
+statusLog:
+  - at: 2026-10-27T02:51:34.294Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:51:34.293Z
 ---
