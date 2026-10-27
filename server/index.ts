@@ -19,6 +19,7 @@ import { installConnectedClientsPort } from '@/shared/ports/connected-clients.po
 import { installInitiativeAuditRatioPort } from '@/shared/ports/initiative-audit-ratio.port.js';
 import { installProjectsSessionFetchPort } from '@/shared/ports/projects-session-fetch.port.js';
 import { installProviderRegistryPort } from '@/shared/ports/provider-registry.port.js';
+import { installSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 import { installSessionBroadcastPort } from '@/shared/ports/session-broadcast.port.js';
 import { installVoiceLexiconPort } from '@/shared/ports/voice-lexicon.port.js';
 import { installVoiceRulesPort } from '@/shared/ports/voice-rules.port.js';
@@ -112,7 +113,7 @@ import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from '
 // cockpit records focus/send events, and the reply-suggestions ledger's observer
 // mirrors the chip events. The shadow predictor inside it writes to the same
 // stream and to nothing else.
-import { contextEvents } from './modules/context-events/index.js';
+import { contextEvents, createSessionAskEventWriter } from './modules/context-events/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
@@ -297,6 +298,16 @@ installInitiativeAuditRatioPort({ readAuditRatio: () => serverSettings.initiativ
 // `modules/quay -> modules/settings` import (AC-394's cycle budget). Fail-closed before this
 // line: a route can never expose the cockpit by omission.
 installCockpitEnabledPort({ readEnabled: () => serverSettings.cockpit.enabled });
+// The observation layer's `session.asking` / `session.answered` rows go to the host-level
+// context-event stream. The observation producer is built at module load, before this line,
+// so it reads the port at write time: an uninstalled port writes nothing. While the installed
+// fleet schema is still v0 the writer refuses both kinds (`invalid-kind`) and the adapter only
+// counts them — installing the v1 release makes them land with no further CloudCLI change.
+installSessionAskEventWriterPort(
+    createSessionAskEventWriter({
+        record: (draft) => contextEvents.record(draft),
+    }),
+);
 
 // The cockpit's CARD module is built BELOW, after the one chat control service it sends
 // through exists: its two content executors are bound to that service in

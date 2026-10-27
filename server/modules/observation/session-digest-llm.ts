@@ -37,6 +37,8 @@ import {
   type LlmCompletionRequest,
 } from '@/modules/llm-gateway/index.js';
 import { createReplySuggestionsUsageLog } from '@/modules/reply-suggestions/index.js';
+import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
+import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 
 import type { ObservedObject, ObservationStore } from './observation-store.js';
 import { createObservationStore } from './observation-store.js';
@@ -383,14 +385,30 @@ function defaultSettingsSource(): ReturnType<typeof createSessionDigestLlmSettin
  */
 const processObservationStore = createObservationStore();
 
+/**
+ * The write-time bridge to the context-event stream.
+ *
+ * The producer is constructed here at module load, before `server/index.ts` installs the
+ * real adapter, so the port is read on every write rather than captured. An uninstalled port
+ * means "no stream to address", which is exactly the pre-composition reading; the real
+ * adapter counts a rejected row (a v0 fleet answers `invalid-kind`) instead of throwing.
+ */
+const sessionAskEventWriter: ISessionAskEventWriter = {
+  write(event) {
+    readSessionAskEventWriterPort()?.write(event);
+  },
+};
+
 export const sessionDigestProducer: SessionDigestProducer = createSessionDigestLlmTier({
   deterministic: createSessionDigestProducer({
     store: processObservationStore,
     // The T1 decision digest rides the deterministic turn-end: it reads the same transcript and
     // attaches `askDecision` before the tier's own revision is written (which spreads the field
-    // through unchanged). The event writer stays unbound until quay-fleet's stream schema carries
-    // `session.asking` / `session.answered` (待外部).
+    // through unchanged). The event writer goes through the shared port: the composition root
+    // installs the context-event adapter, and until the installed fleet schema is v1 the two
+    // kinds are counted as `invalid-kind` rather than written.
     summarizeAsk: createSessionAskDecisionDigest({ readSettings: () => defaultSettingsSource().read() }),
+    eventWriter: sessionAskEventWriter,
   }),
   store: processObservationStore,
   readSettings: () => defaultSettingsSource().read(),

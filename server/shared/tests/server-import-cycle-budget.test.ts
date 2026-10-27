@@ -202,10 +202,13 @@ const CYCLE_GROUPS: readonly string[][] = [
  * new-directory leaf rule from reading that edge as a stray.
  * A SEVENTH ENTRY WAS ADDED, by `context-event-stream-and-shadow-predictor` (2026-10-24), under
  * the same escape hatch: `modules/context-events` is the context-ledger feature directory. It
- * imports node builtins and itself only; the fleet installation (for the schema document), the
- * chat-control/cockpit recording seams and the reply-suggestions ledger tap are all wired by
- * `server/index.ts`. `modules/quay/quay.module.ts` reads its status for the fleet-summary
- * response, which is the one known inbound edge registering this directory sanctions.
+ * imports node builtins, `server/shared/**` and itself only (the `ISessionAskEventWriter` /
+ * `SessionAskEvent` types arrived with `observation-session-ask-event-writer-wiring`; a shared
+ * type import is not a sibling-feature edge and the port the adapter is installed on lives in
+ * `shared/ports`); the fleet installation (for the schema document), the chat-control/cockpit
+ * recording seams and the reply-suggestions ledger tap are all wired by `server/index.ts`.
+ * `modules/quay/quay.module.ts` reads its status for the fleet-summary response, which is the one
+ * known inbound edge registering this directory sanctions.
  * AN EIGHTH ENTRY WAS ADDED, by `observation-session-digest-llm-tier` (2026-10-24), under the
  * same escape hatch: `modules/reply-suggestions` landed earlier as a pure leaf (its only
  * inbound edge was the composition root's mount), so it had never needed a manifest entry.

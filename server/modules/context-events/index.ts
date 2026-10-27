@@ -24,6 +24,7 @@ export {
   CLOUDCLI_CONTEXT_EVENT_KINDS,
   CONTEXT_EVENT_MAX_LINE_BYTES,
   createContextEventWriter,
+  createSessionAskEventWriter,
 } from './context-event-writer.js';
 export type {
   AppendContextEventResult,
@@ -31,6 +32,12 @@ export type {
   ContextEventDraft,
   ContextEventWriter,
   ContextEventWriterStatus,
+  SessionAnsweredEventData,
+  SessionAskingEventData,
+  SessionAskContextEventDraft,
+  SessionAskEventRecord,
+  SessionAskEventWriter,
+  SessionAskEventWriterStatus,
 } from './context-event-writer.js';
 // consumer: shadow-prediction-report.mjs (through a JSON dump), and the classifier criterion
 export { classifyUtterance, LADDER_BASELINE, UTTERANCE_CLASSES } from './utterance-classifier.js';
