@@ -68,12 +68,12 @@ expect 逐句对照：
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0（AC-425 判据），且该文件覆盖 expect 的每一句：头部、问题、情境、事实四个子区域分别点按各请求一次打开 Details；卡片上没有名为 Alternatives/Details 的按钮；下拉每一项显示 `does` 与后果标签，末项是带 `textarea` 的「自己的回复」；未展开时 `cockpit-card-shown-option` 含选中项的完整 `does`；确认条标签带选项名；不可逆选项 `data-irreversible="true"` 且带警示样式；每个已知 kind 渲染描述表徽标与 `data-viz-kind` 等于该 kind 的 `descriptor.viz`；未知 kind 渲染默认徽标、无 `cockpit-card-viz` 且不抛错。
-- [ ] 假形态各自变红并还原：删掉 `ShownOptionExplanation` ⇒ 选中说明用例红；让 viz 渲染忽略 `descriptor.viz`/`card.viz` ⇒ viz 用例红；在卡片上加一个独立的 Details 按钮 ⇒ 无独立按钮用例红。每条改完即还原。
-- [ ] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（两份 shared/types.ts 的 `CockpitCardVizKind` 成员与 `CockpitCardViz` 字段集一致）。
-- [ ] `npx vitest run src/modules/cockpit/tests` 退出 0，既有用例数不减少。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；两份 types.ts 的行数按基线 note 的 RECORDED CHANGE 格式按实测值重录并写明理由。
-- [ ] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0（AC-425 判据），且该文件覆盖 expect 的每一句：头部、问题、情境、事实四个子区域分别点按各请求一次打开 Details；卡片上没有名为 Alternatives/Details 的按钮；下拉每一项显示 `does` 与后果标签，末项是带 `textarea` 的「自己的回复」；未展开时 `cockpit-card-shown-option` 含选中项的完整 `does`；确认条标签带选项名；不可逆选项 `data-irreversible="true"` 且带警示样式；每个已知 kind 渲染描述表徽标与 `data-viz-kind` 等于该 kind 的 `descriptor.viz`；未知 kind 渲染默认徽标、无 `cockpit-card-viz` 且不抛错。
+- [x] 假形态各自变红并还原：删掉 `ShownOptionExplanation` ⇒ 选中说明用例红；让 viz 渲染忽略 `descriptor.viz`/`card.viz` ⇒ viz 用例红；在卡片上加一个独立的 Details 按钮 ⇒ 无独立按钮用例红。每条改完即还原。
+- [x] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（两份 shared/types.ts 的 `CockpitCardVizKind` 成员与 `CockpitCardViz` 字段集一致）。
+- [x] `npx vitest run src/modules/cockpit/tests` 退出 0，既有用例数不减少。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；两份 types.ts 的行数按基线 note 的 RECORDED CHANGE 格式按实测值重录并写明理由。
+- [x] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
@@ -94,3 +94,17 @@ expect 逐句对照：
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - server/modules/cockpit/cockpit-fixture-card-provider.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Completion Notes
+
+实现与判据（2026-10-27）：
+
+- AC-425 判据：`npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` → 15 passed（原 9）。
+- 假形态（各自变红后已还原）：删掉 `ShownOptionExplanation` → `Unable to find ... cockpit-card-shown-option`；让 viz 忽略 `descriptor.viz`/`card.viz` 一致性 → `draws nothing when the card's viz kind disagrees with the descriptor` 红；加独立 `Details` 按钮 → `button named Details` 红。
+- TypeSync：`npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` → 6 passed。
+- 模块套件：`npx vitest run src/modules/cockpit/tests` → 18 files / 244 passed（既有用例数未减少）。
+- Ratchet：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6 pass；两条 RECORDED CHANGE 已按实测 `server/shared/types.ts` 5081→5112、`src/shared/types.ts` 4503→4534 重录。
+- `npm run typecheck`、`npm run lint` 均 exit 0（lint 仅既有 warning）。
+- 浏览器 DoD（隔离实例 + Vite dev，390/1280，`cockpit.fixtureCards` 与 `cockpit.enabled`）：`tmp/dod-viz/report.json`；截图 `tmp/dod-viz/390-fixture-need.png`（size ratio=0.6）、`390-fixture-stuck.png`（attempts 3 圆点）、`390-fixture-fix.png`（steps 当前=2）、`390-fixture-ask.png`、`390-fixture-decision.png`（history 三段）、`390-fixture-multi.png`（parts ①②），以及同名 `1280-*` 六张与 `390-/1280-cockpit-cards.png`。每张卡的 `data-viz-kind` 等于其 descriptor.viz。
+- 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-confirm.json --out tmp/ui-scenario-cards` → passed（6 steps，3580ms，5 checkpoints）；报告 `tmp/ui-scenario-cards/report.json`，检查点 `tmp/ui-scenario-cards/step-{1..5}-*.png`。
+- 该轴仍暗,理由:本任务 delta 是卡片 A 区小可视化的前端渲染与判据，未改变模块依赖图或目标层关系，L_G 无可计读数；L_D 亦无文档产物可计。
