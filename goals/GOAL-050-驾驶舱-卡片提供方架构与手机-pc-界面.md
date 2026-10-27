@@ -32,7 +32,11 @@ origin: 本会话 2026-10-26 至 10-27
 - AC-430 手机 header 与驾驶舱页
 - AC-431 简报渲染
 
-待 quay-fleet 读口与事件 schema 落地后补入：fleet 提供方适配器、真实事件写入、指令开会话。
+第三批（对接 quay-fleet；fleet 侧任务 fleet-cockpit-card-read-port、fleet-context-schema-session-ask-events、fleet-cockpit-rescue-actions 已在 quay-fleet 仓库立项）：
+- AC-432 quay-fleet 卡片提供方
+- AC-433 会话提问事件真实写入 context 事件流
+
+待 fleet 处置动作落地后补入：fleet 处置执行器、指令开会话。
 
 ## 非目标
 
