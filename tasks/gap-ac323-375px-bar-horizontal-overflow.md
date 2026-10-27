@@ -14,7 +14,7 @@ goal_ac: AC-323
 ---
 ## Proposal
 
-（去重 / 粒度）<!-- dedup-ref --> 声明 `goal_ac: AC-323` 的 10 个任务全部是 `done`（`gap-live-voice-composer-embedded-acceptance-spec`、8 个 `gap-ac323-*`、以及 `gap-voice-realtime-composer-embedded-spec-red-under-default-segmented-mode`），仓内没有 todo/ready/needs-human 任务认领 AC-323 ⇒ 本任务为新案，不是重复。`task-granularity-advice --root <主检出> --touches src/modules/chat/outline/InputOutlineDrawer.tsx --touches src/modules/chat/ChatInterface.tsx --touches src/modules/project-workspace/WorkspaceMain.tsx --touches e2e/voice-realtime-upload-fixture.spec.ts` 报 `peers: []`、`mentions: []`。相关但机制不同的在办任务 `cockpit-mobile-header-and-page`（ready）只排 header 行内控件，Touches 不重叠，本任务不并入。
+<!-- dedup-ref --> （去重 / 粒度）声明 `goal_ac: AC-323` 的 10 个任务全部是 `done`（`gap-live-voice-composer-embedded-acceptance-spec`、8 个 `gap-ac323-*`、以及 `gap-voice-realtime-composer-embedded-spec-red-under-default-segmented-mode`），仓内没有 todo/ready/needs-human 任务认领 AC-323 ⇒ 本任务为新案，不是重复。`task-granularity-advice --root <主检出> --touches src/modules/chat/outline/InputOutlineDrawer.tsx --touches src/modules/chat/ChatInterface.tsx --touches src/modules/project-workspace/WorkspaceMain.tsx --touches e2e/voice-realtime-upload-fixture.spec.ts` 报 `peers: []`、`mentions: []`。相关但机制不同的在办任务 `cockpit-mobile-header-and-page`（ready）只排 header 行内控件，Touches 不重叠，本任务不并入。
 
 ### 现象（2026-10-27 本轮直接重跑判据，不是台账尾巴）
 
