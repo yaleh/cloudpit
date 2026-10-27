@@ -6,7 +6,7 @@ import type { TFunction } from 'i18next';
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import { useSessionActivityEntry } from '@/shared/context/SessionProtectionContext';
-import { WatchPinToggle, formatSessionUri } from '@/modules/cockpit';
+import { WatchPinToggle, formatSessionUri } from '@/modules/cockpit/contract';
 import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { presentSessionActivity } from '@/modules/sidebar/utils/sessionActivityPresentation';

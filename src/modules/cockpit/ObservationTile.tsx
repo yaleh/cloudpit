@@ -6,7 +6,6 @@ import type {
   ObservationStatusState,
   ObservationWallEntry,
 } from '@/modules/cockpit/hooks/useObservationWall';
-import { useObservationPin } from '@/modules/cockpit/hooks/useObservationWall';
 
 /**
  * One object on the observation wall.
@@ -269,45 +268,9 @@ export default function ObservationTile({
 /**
  * 「钉到观察墙 / 取消」 for one object, used by the sidebar's project and session rows.
  *
- * It lives here, not in the sidebar, because the pin cache and the API are the observation
- * module's. It reads the shared cache (no request on mount — a sidebar has one row per
- * project/session and must not fan out HTTP), and writes through the same route the wall does,
- * so the row and the wall cannot disagree after a toggle.
+ * The implementation lives in the cockpit's leaf contract, not here: the sidebar renders the
+ * same button, and reaching it through this package would close the cockpit ↔ sidebar package
+ * cycle. Re-exported so the cockpit's own barrel and tests keep one import path.
  */
-export function WatchPinToggle({
-  uri,
-  className,
-  testId = 'observation-watch-toggle',
-}: {
-  uri: string;
-  className?: string;
-  testId?: string;
-}) {
-  const { t } = useTranslation();
-  const { pinned, pending, toggle } = useObservationPin(uri);
-  const label = pinned ? t('cockpit.observationUnpin') : t('cockpit.observationPin');
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        void toggle();
-      }}
-      disabled={pending}
-      title={label}
-      aria-label={label}
-      aria-pressed={pinned}
-      className={cn(
-        'flex min-h-11 min-w-11 items-center justify-center rounded text-xs text-muted-foreground',
-        'hover:bg-accent disabled:opacity-50 sm:min-h-0 sm:min-w-0 sm:h-6 sm:w-6',
-        className,
-      )}
-      data-testid={testId}
-      data-observation-uri={uri}
-      data-pinned={pinned ? 'true' : 'false'}
-    >
-      {/* A star is the same affordance the sidebar already uses for "keep this". */}
-      <span aria-hidden>{pinned ? '★' : '☆'}</span>
-    </button>
-  );
-}
+export { WatchPinToggle } from '@/modules/cockpit/contract';
+

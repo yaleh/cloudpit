@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Gauge, PanelRightClose } from 'lucide-react';
 
@@ -7,6 +7,7 @@ import { cn } from '@/shared/utils';
 import CockpitCardList from '@/modules/cockpit/CockpitCardList';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
 import type { CockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import { CockpitColumnVisibilityContext } from '@/modules/cockpit/contract';
 import { useCockpitHub } from '@/modules/cockpit/hooks/useCockpitHub';
 import { useCockpitPushToTalk } from '@/modules/cockpit/hooks/useCockpitPushToTalk';
 import {
@@ -47,8 +48,19 @@ export function CockpitColumnProvider({ children }: { children: ReactNode }) {
 function CockpitColumnBoundary({ children }: { children: ReactNode }) {
   const binding = useCockpitColumn();
   useCockpitColumnKeys(binding.controller);
+  // The sidebar's mode switch reads only "is the column on screen"; it cannot import this
+  // binding without closing the sidebar ↔ cockpit package cycle. The narrow context is fed
+  // from the SAME snapshot the rest of the column reads, so the two surfaces cannot disagree.
+  const visibility = useMemo(
+    () => ({ layout: binding.snapshot.layout, expanded: binding.snapshot.expanded }),
+    [binding.snapshot.layout, binding.snapshot.expanded],
+  );
   return (
-    <CockpitColumnContext.Provider value={binding}>{children}</CockpitColumnContext.Provider>
+    <CockpitColumnContext.Provider value={binding}>
+      <CockpitColumnVisibilityContext.Provider value={visibility}>
+        {children}
+      </CockpitColumnVisibilityContext.Provider>
+    </CockpitColumnContext.Provider>
   );
 }
 

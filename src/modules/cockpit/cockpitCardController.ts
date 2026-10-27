@@ -2,10 +2,14 @@ import type {
   Clock,
   CockpitBriefResponse,
   CockpitCard,
-  CockpitCardKind,
   CockpitCardOption,
 } from '@/shared/types';
 import { createBoundedLru, createExternalStore, defaultClock } from '@/shared/utils';
+import type {
+  CockpitCardDensity,
+  CockpitCardReading,
+  CockpitCardTypeFilter,
+} from '@/modules/cockpit/contract';
 
 /**
  * The cockpit card list's model: cards, filters, density, the Details stack, the option each
@@ -36,10 +40,11 @@ import { createBoundedLru, createExternalStore, defaultClock } from '@/shared/ut
  */
 
 /** The list's two densities: the full card and the one-line-compact shape. */
-export type CockpitCardDensity = 'cards' | 'compact';
-
-/** The type filter: every kind, or one of the known kinds. */
-export type CockpitCardTypeFilter = 'all' | CockpitCardKind;
+export type {
+  CockpitCardDensity,
+  CockpitCardReading,
+  CockpitCardTypeFilter,
+} from '@/modules/cockpit/contract';
 
 /** What one card currently displays in its option area. */
 export type CockpitCardShown =
@@ -228,23 +233,6 @@ export type CockpitCardController = {
   cancelConfirm: () => boolean;
   /** Handles one key; returns whether the cockpit consumed it. Escape is never consumed. */
   handleKey: (key: string) => boolean;
-};
-
-/** The one line the card list publishes for the scenario runner. */
-export type CockpitCardReading = {
-  visibleCardIds: string[];
-  selectedCardId: string | null;
-  density: CockpitCardDensity;
-  typeFilter: CockpitCardTypeFilter;
-  projectFilter: string | null;
-  detailsOpenCardId: string | null;
-  cards: Array<{
-    id: string;
-    shownOptionId: string | null;
-    ownReply: boolean;
-    confirmOptionId: string | null;
-    confirmLabel: string | null;
-  }>;
 };
 
 const initialState: CockpitCardControllerSnapshot = {

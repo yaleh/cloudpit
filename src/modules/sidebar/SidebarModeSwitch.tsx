@@ -9,8 +9,8 @@ import {
   cockpitViewPath,
   readCockpitReturnPath,
   rememberCockpitReturnPath,
-  useCockpitColumnContext,
-} from '@/modules/cockpit';
+  useCockpitColumnVisibility,
+} from '@/modules/cockpit/contract';
 import { useFleetAttention } from '@/modules/sidebar/hooks/useFleetAttention';
 import type { FleetAttentionReading } from '@/modules/sidebar/hooks/useFleetAttention';
 
@@ -304,7 +304,7 @@ export default function SidebarModeSwitch({
 }: SidebarModeSwitchProps) {
   const attention = useFleetAttention();
   const inRouter = useInRouterContext();
-  const column = useCockpitColumnContext();
+  const column = useCockpitColumnVisibility();
   // Loading is treated as off: rendering and then removing the switch would flash exactly the
   // control a disabled release promises not to show.
   const { cockpitEnabled } = useServerFeatures();
@@ -316,11 +316,7 @@ export default function SidebarModeSwitch({
   // header button) replaces this switch. While the column is collapsed the page must stay
   // identical to today's session page — including this switch — so it is hidden only for as
   // long as the column is actually open. A phone width has no column and keeps the switch.
-  if (
-    column !== null &&
-    column.snapshot.layout !== 'hidden' &&
-    column.snapshot.expanded
-  ) {
+  if (column !== null && column.layout !== 'hidden' && column.expanded) {
     return null;
   }
   return inRouter ? (
