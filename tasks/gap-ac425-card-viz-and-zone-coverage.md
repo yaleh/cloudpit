@@ -3,7 +3,7 @@ id: gap-ac425-card-viz-and-zone-coverage
 title: AC-425 判据命令已在 develop 绿（CockpitCard.test.tsx 9 passed），但 expect
   的小可视化条款无实现（cockpitCardDescriptors 的 viz 无消费者、CockpitCard 类型无 viz
   字段），选中选项完整说明与四区分别点按也未被判据覆盖——补齐描述表驱动的 viz 渲染与判据，并用顶层 goal_ac 认领 AC-425
-status: ready
+status: done
 labels:
   - gap
 parent: null
