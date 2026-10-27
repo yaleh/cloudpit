@@ -1,13 +1,16 @@
 /**
  * The cockpit's read path into one session's T1 ask digest — and the repair of a digest that
- * was stored while the tier was still switched off.
+ * was stored before the current suggestion rules held.
  *
- * WHY IT EXISTS. The tier wrote `{ state: 'skipped', reason: '未启用 …' }` for every asking turn
- * that arrived before `observation.sessionDigest` was enabled, and only that session's NEXT turn
- * recomputes it. A person who enables the setting therefore keeps reading 「提问决策摘要未启用」 on
- * cards that are still open. This reader detects exactly that stale reading on the first read
- * after the setting is enabled, recomputes it from the session's last assistant message, and
- * writes the result back through the observation store.
+ * TWO STALE SHAPES ARE REPAIRED ON READ, through one mechanism:
+ *
+ *   1. A digest stored while the tier was still switched off (`{ state: 'skipped', reason:
+ *      '未启用 …' }`). Only that session's NEXT turn recomputes it, so a person who enables the
+ *      setting keeps reading 「提问决策摘要未启用」 on cards that are still open.
+ *   2. A digest evaluated under the old rule that only the assistant's own recommendation may be
+ *      suggested. An `evaluated` reading with options, `incomplete: false` and NO suggested
+ *      option is recomputed ONCE so the same call's judge can supply the missing default; the
+ *      recompute carries the judge's reason onto the suggested option.
  *
  * IT IS A REPAIR, NOT A SECOND PRODUCER. The read itself stays synchronous (the card projection
  * calls it in a loop), so the recompute is started in the background and the caller keeps the
@@ -17,12 +20,13 @@
  * CALLS ARE BOUNDED. One attempt per `<sessionId>:<askId>` — a failed attempt is remembered too,
  * so a broken gateway is not retried on every poll. The per-process sliding hour honours the
  * tier's own `maxPerHour`; once it is spent the stale reading is left untouched and the read
- * answers 「本轮未生成（限额）」.
+ * answers 「本轮未生成（限额）」 (the disabled-tier shape) or keeps the stored reading (a digest
+ * that is complete but has no default).
  *
  * FAILURE IS VISIBLE. Every recompute that cannot reach the model writes an `unevaluated`
  * reading naming WHY (no transcript, no ask in the transcript, the transcript read threw), so
- * the card says 「提问决策摘要不可用：重算失败…」 instead of keeping the stale 「未启用」 line
- * forever. The failure and the hourly-limit readings carry different sentences on purpose.
+ * the card says 「提问决策摘要不可用：重算失败…」 instead of keeping the stale line forever. The
+ * failure and the hourly-limit readings carry different sentences on purpose.
  *
  * THE ASK IS LOCATED BY THE CARD'S MESSAGE ID. `read()` passes the fleet's `contentRef.messageId`
  * through to `readSessionAsk`, so a card whose conversation moved on (the live quay card named a
@@ -102,9 +106,9 @@ export type SessionAskDecisionReaderDeps = {
 /** The read surface the cockpit's content seam consumes. */
 export type SessionAskDecisionReader = {
   /**
-   * The stored reading, or null; starts a background repair when it is a disabled-tier skip.
-   * `messageId` is the asking message the card names; without it the repair follows the
-   * transcript's last assistant message.
+   * The stored reading, or null; starts a background repair when it is a disabled-tier skip or
+   * a complete digest stored without any suggested option. `messageId` is the asking message the
+   * card names; without it the repair follows the transcript's last assistant message.
    */
   read(sessionId: string, messageId?: string): SessionAskDecisionReading | null;
   /** Resolves once every repair started so far has settled (used by the criterion and the DoD). */
@@ -222,11 +226,18 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
     });
   };
 
-  /** Recomputes one session's skipped reading and writes the result back; never rejects. */
-  const repair = async (sessionId: string, messageId: string): Promise<void> => {
+  /**
+   * Recomputes one stale reading and writes the result back; never rejects.
+   *
+   * `expectedAskId` is set only for the missing-default repair: the stored reading already names
+   * the ask, so a transcript that no longer carries THAT ask may not overwrite a valid digest
+   * with a different turn's content.
+   */
+  const repair = async (sessionId: string, messageId: string, expectedAskId?: string): Promise<void> => {
     try {
       const resolved = resolveSession(sessionId);
       if (resolved === null) {
+        if (expectedAskId !== undefined) attempted.add(expectedAskId);
         writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
         return;
       }
@@ -238,6 +249,7 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
         raw = await findTranscript(resolved.providerSessionId);
       }
       if (raw === null || raw.trim() === '') {
+        if (expectedAskId !== undefined) attempted.add(expectedAskId);
         writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
         return;
       }
@@ -245,6 +257,12 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       const askReading = readSessionAsk(raw, sessionId, messageId);
       const ask = askReading.current;
       if (ask === null) {
+        if (expectedAskId !== undefined) attempted.add(expectedAskId);
+        writeFailure(sessionId, SESSION_ASK_DECISION_ASK_MISSING_REASON);
+        return;
+      }
+      if (expectedAskId !== undefined && ask.askId !== expectedAskId) {
+        attempted.add(expectedAskId);
         writeFailure(sessionId, SESSION_ASK_DECISION_ASK_MISSING_REASON);
         return;
       }
@@ -282,6 +300,7 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
     } catch (failure) {
       // A repair must never fail the card read it was started from — but the failure is a
       // reading, not silence: this is the branch that used to leave 「未启用」 on screen.
+      if (expectedAskId !== undefined) attempted.add(expectedAskId);
       writeFailure(
         sessionId,
         `重算失败：读取转写失败（${failure instanceof Error ? failure.message : String(failure)}）`,
@@ -295,20 +314,33 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       const object = store.getObject(formatSessionUri(sessionId));
       const reading = storedReading(object);
       if (reading === null) return null;
-      if (reading.state !== 'skipped' || !reading.reason.includes(DISABLED_REASON_TOKEN)) return reading;
+
+      // The two stale shapes this reader repairs: a disabled-tier skip, and a complete digest
+      // stored before the judge could supply a default.
+      const disabledSkip = reading.state === 'skipped' && reading.reason.includes(DISABLED_REASON_TOKEN);
+      const missingDefault =
+        reading.state === 'evaluated' &&
+        reading.options.length > 0 &&
+        reading.incomplete === false &&
+        !reading.options.some((option) => option.suggested);
+      if (!disabledSkip && !missingDefault) return reading;
 
       const settings = readSettings();
       if (!settings.enabled) return reading;
 
       // The hourly ceiling is answered synchronously: the stored reading is left untouched and
-      // the caller is told why this round produced nothing.
+      // the caller is told why this round produced nothing (the disabled shape) or simply keeps
+      // its valid content (the missing-default shape).
       if (callsInTheLastHour(now()) >= settings.maxPerHour) {
-        return { state: 'skipped', reason: SESSION_ASK_DECISION_LIMIT_REASON };
+        return disabledSkip ? { state: 'skipped', reason: SESSION_ASK_DECISION_LIMIT_REASON } : reading;
       }
 
-      const key = `${sessionId}\u0000${messageId}`;
+      const expectedAskId = missingDefault && reading.state === 'evaluated' ? reading.askId : undefined;
+      if (expectedAskId !== undefined && attempted.has(expectedAskId)) return reading;
+
+      const key = `${sessionId}\u0000${messageId}\u0000${expectedAskId === undefined ? 'disabled' : 'default'}`;
       if (!inflight.has(key)) {
-        const started = repair(sessionId, messageId);
+        const started = repair(sessionId, messageId, expectedAskId);
         inflight.set(key, started);
         void started.then(() => {
           if (inflight.get(key) === started) inflight.delete(key);

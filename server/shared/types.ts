@@ -5103,8 +5103,10 @@ export type CockpitBriefResponse = {
  *
  * This is the subset of `CockpitCardOption` the observation layer fills on its own: `id`,
  * `label` and `does` restate the assistant's own words, `tags` are consequence labels, and
- * `source` records where the option came from. `suggested` is true for exactly one option when
- * — and only when — the assistant's original text recommends it.
+ * `source` records where the option came from. `suggested` is true for exactly one option: the
+ * assistant's own recommendation when its text carries one (`source: 'assistant'`), otherwise
+ * the judge's pick from the SAME summarising call (`source: 'judge'`). `why` carries the judge's
+ * one-line reason and is present exactly on a judge-sourced suggestion.
  */
 export type SessionAskDecisionOption = {
   id: string;
@@ -5113,6 +5115,8 @@ export type SessionAskDecisionOption = {
   tags: CockpitCardTag[];
   suggested: boolean;
   source: CockpitCardOptionSource;
+  /** The judge's one-line reason; present only on the judge-sourced suggestion. */
+  why?: string;
 };
 
 /**
@@ -5123,7 +5127,7 @@ export type SessionAskDecisionOption = {
  * the user answers keeps the same `askId`, bumps `revision`, and names the new message in the
  * event. `ask`/`situation`/`options` are the model's restatement of the assistant's own words —
  * semantic content, never a verbatim excerpt. `incomplete` is true when the question depends on
- * context outside the turns that were sent; an incomplete digest never claims a recommendation.
+ * context outside the turns that were sent; an incomplete digest never claims a suggestion.
  */
 export type SessionAskDecision = {
   askId: string;

@@ -1,22 +1,32 @@
 /**
- * The model-answer half of the T1 decision digest: the prompt, the shape parser, and the three
+ * The model-answer half of the T1 decision digest: the prompt, the shape parser, and the
  * normalisation rules that keep a suggestion honest.
  *
  * Split from `session-ask-decision-digest.ts` by concern: that file reads the transcript and owns
  * the call, this one owns what an acceptable answer IS. Everything here is pure — no client, no
  * clock, no filesystem — so the criteria can drive each rule without a model.
  *
+ * THE SUGGESTION HAS TWO SOURCES, IN PRIORITY ORDER. The assistant's own recommendation wins when
+ * its text carries a cue AND the model named that option (`source: 'assistant'`). When it does
+ * not, the judge — the same call, a second field pair in the same JSON answer — picks the most
+ * likely option and states one line of why (`source: 'judge'`). The judge never overrides the
+ * assistant and never labels its own pick as the assistant's.
+ *
  * Consumers: `session-ask-decision-digest.ts` (the summariser's one call) and
- * `tests/session-ask-decision-digest.test.ts`.
+ * `tests/session-ask-decision-digest.test.ts`, `tests/session-ask-judge-default.test.ts`.
  */
 import type { SessionAskDecisionOption, SessionAskDecisionReading } from '@/shared/types.js';
 
-/** The model's answer before the three rules are applied. */
+/** The model's answer before the normalisation rules are applied. */
 export type ParsedAskAnswer = {
   ask: string;
   situation: string;
   incomplete: boolean;
   recommendedOptionId: string | null;
+  /** The judge's pick from the SAME answer; null when the model omitted it or it named nothing. */
+  judgeOptionId: string | null;
+  /** The judge's one-line reason; null when absent. A pick without a reason is not a judge. */
+  judgeReason: string | null;
   options: Array<{
     id: string;
     label: string;
@@ -99,7 +109,23 @@ export function parseAskDecisionAnswer(text: string): ParsedAskAnswer {
     recommendedOptionId = rawRecommended;
   }
 
-  return { ask, situation, incomplete: record.incomplete, recommendedOptionId, options };
+  // THE JUDGE IS OPTIONAL AND TOLERANT. An older model (or one that skipped the field) leaves both
+  // values null, and the digest then simply has no judge suggestion. A pick that names no listed
+  // option — including the yes/no ids the caller synthesises AFTER parsing — is ignored here and
+  // resolved against the final option list in `buildAskDecision`; a pick without a reason is not
+  // a judge at all, because the reason is what the card shows.
+  const judgeOptionId = nonEmpty(record.judgeOptionId);
+  const judgeReason = nonEmpty(record.judgeReason);
+
+  return {
+    ask,
+    situation,
+    incomplete: record.incomplete,
+    recommendedOptionId,
+    judgeOptionId,
+    judgeReason,
+    options,
+  };
 }
 
 /**
@@ -141,9 +167,10 @@ const YES_NO_OPTIONS: ParsedAskAnswer['options'] = [
 /**
  * Adds the two yes/no options when the question is yes/no-shaped AND the assistant listed none.
  *
- * The generated options carry no suggestion: a recommendation is only ever claimed from the
- * model's own `recommendedOptionId` (which the parser only accepts when it names a listed
- * option), so the worst case here is a missed suggestion, never a fabricated one.
+ * The generated options carry no suggestion of their own: the suggestion is applied afterwards,
+ * either from the assistant's cue + the model's `recommendedOptionId`, or from the judge's
+ * `judgeOptionId` (which may name `yes`/`no`). The worst case is a missed suggestion, never a
+ * fabricated one.
  */
 function withYesNoOptions(parsed: ParsedAskAnswer, assistantText: string): ParsedAskAnswer['options'] {
   if (parsed.options.length > 0) return parsed.options;
@@ -151,11 +178,17 @@ function withYesNoOptions(parsed: ParsedAskAnswer, assistantText: string): Parse
 }
 
 /**
- * Applies the three rules to one parsed answer and returns the reading the digest carries.
+ * Applies the suggestion rules to one parsed answer and returns the reading the digest carries.
  *
- * The recommendation is accepted only when BOTH signals agree: the assistant's own text carries
- * a cue AND the model named an existing option. `incomplete` clears every suggestion either way,
- * which is the "we do not know enough to advise" reading rather than a guessed one.
+ * PRIORITY. The assistant's own recommendation is accepted only when BOTH signals agree: the
+ * assistant's text carries a cue AND the model named an existing option. When that does not hold
+ * (no cue, or the cue named nothing), the judge's pick becomes the suggestion — but only when it
+ * names one of the final options and carries a reason, and only when the digest is complete. The
+ * judge therefore never overrides the assistant, and its option is sourced `judge` rather than
+ * `assistant`.
+ *
+ * `incomplete` clears every suggestion either way, which is the "we do not know enough to advise"
+ * reading rather than a guessed one.
  */
 export function buildAskDecision(
   parsed: ParsedAskAnswer,
@@ -163,17 +196,32 @@ export function buildAskDecision(
   assistantText: string,
   usage: { inputTokens: number | null; outputTokens: number | null },
 ): SessionAskDecisionReading {
-  const recommendedId =
+  const options = withYesNoOptions(parsed, assistantText);
+  const assistantRecommendedId =
     parsed.incomplete || !RECOMMENDATION_CUE.test(assistantText) ? null : parsed.recommendedOptionId;
-  const options: SessionAskDecisionOption[] = withYesNoOptions(parsed, assistantText).map((option) => {
-    const suggested = option.id === recommendedId;
+  const assistantSuggestion =
+    assistantRecommendedId !== null && options.some((option) => option.id === assistantRecommendedId)
+      ? assistantRecommendedId
+      : null;
+  const judgeSuggestion =
+    assistantSuggestion === null && !parsed.incomplete && parsed.judgeReason !== null
+      ? (options.find((option) => option.id === parsed.judgeOptionId)?.id ?? null)
+      : null;
+  const suggestedId = assistantSuggestion ?? judgeSuggestion;
+  const suggestedSource: SessionAskDecisionOption['source'] =
+    assistantSuggestion === null ? 'judge' : 'assistant';
+  const judgeWhy = assistantSuggestion === null && judgeSuggestion !== null ? parsed.judgeReason : null;
+
+  const readingOptions: SessionAskDecisionOption[] = options.map((option) => {
+    const suggested = option.id === suggestedId;
     return {
       id: option.id,
       label: option.label,
       does: option.does,
       tags: option.tags,
       suggested,
-      source: suggested ? 'assistant' : option.source,
+      source: suggested ? suggestedSource : option.source,
+      ...(suggested && judgeWhy !== null ? { why: judgeWhy } : {}),
     };
   });
   return {
@@ -181,7 +229,7 @@ export function buildAskDecision(
     ...identity,
     ask: parsed.ask,
     situation: parsed.situation,
-    options,
+    options: readingOptions,
     incomplete: parsed.incomplete,
     ...usage,
   };
@@ -190,11 +238,13 @@ export function buildAskDecision(
 /** The system instruction: JSON only, restate rather than copy, never invent. */
 export const SYSTEM_PROMPT = [
   '你在为驾驶舱生成「会话提问」的结构化决策摘要。只依据给出的对话原文；原文没有的不要补。',
-  '只输出 JSON：{"ask":"…","situation":"…","incomplete":false,"recommendedOptionId":null,"options":[{"id":"…","label":"…","does":"…","tags":[{"kind":"consequence","text":"…"}],"source":"assistant"}]}',
+  '只输出 JSON：{"ask":"…","situation":"…","incomplete":false,"recommendedOptionId":null,"judgeOptionId":null,"judgeReason":null,"options":[{"id":"…","label":"…","does":"…","tags":[{"kind":"consequence","text":"…"}],"source":"assistant"}]}',
   '- ask：把助手最后一条消息里的提问重述成一个问句，保留原文的限定条件；不要整段照抄。',
   '- situation：回答这个问题需要知道的情境（在做什么、卡在哪、已试过什么），只写原文有的事实。',
   '- options：助手原文用编号或项目符号列出若干选择时，必须为每一项给出一条 option（label 用原文的选项名）；原文没有列出选择才用空数组 []。does 是选它会发生什么，tags 是后果标签（kind 用 consequence / risk / cost / benefit）。',
   '- 是/否提问：当助手最后一条消息是「是否要…」「要不要…」「要我…吗」「Should I…?」这类只能答是或否的问题、且原文没有列出选项时，给出两个 option：id 分别为 "yes"（label 「是」）和 "no"（label 「否」），各写一句 does 与一个 consequence 标签。',
-  '- recommendedOptionId：仅当原文明确推荐了某个选项时填它的 id；原文没有推荐就填 null。',
+  '- recommendedOptionId：仅当助手原文明确推荐了某个选项时填它的 id；原文没有推荐就填 null。',
+  '- judgeOptionId：当原文没有明确推荐时，从 options 里挑出最可能被选的一项填它的 id（是/否题填 "yes" 或 "no"）；原文已有明确推荐时必须填 null，不得覆盖助手的推荐。',
+  '- judgeReason：judgeOptionId 非 null 时，用一句话说明为什么选它（依据原文的事实）；judgeOptionId 为 null 时也填 null。',
   '- incomplete：仅当这个问题依赖更早的上下文，而那些内容不在给出的对话里时填 true。',
 ].join('\n');

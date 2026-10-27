@@ -29,8 +29,9 @@ import type {
  *   the person's own reply is a third kind of target on the same path.
  * - TWO PRESSES, ONE REQUEST. A first press only opens the confirm card. The request leaves on
  *   the confirm card's own button, exactly once; cancelling sends nothing.
- * - NO SUGGESTION, NO DEFAULT. A provider that marks no option `suggested` leaves the card
- *   showing nothing and its confirmation unavailable. The cockpit never invents a default.
+ * - NO SUGGESTION, NO DEFAULT. The card shows the one option the provider marked `suggested`,
+ *   whatever its source (`assistant`, `judge` or `provider`). Only a card where the provider
+ *   marks nothing shows nothing and confirms nothing. The cockpit never invents a default.
  * - NUMBER KEYS ONLY SELECT OPTIONS. `1`–`9` change the selected card's shown option and never
  *   move the selection; Escape is never handled (it aborts a conversation turn elsewhere).
  * - A NEW REVISION UPDATES IN PLACE. Re-reading replaces card content by id, keeps the
@@ -315,9 +316,10 @@ export function shownOptionOf(
 }
 
 /**
- * The option a card shows when the person has not chosen one: the provider's suggested
- * option, or nothing at all. `null` is the important answer — the cockpit never promotes the
- * first option to a default the provider did not recommend.
+ * The option a card shows when the person has not chosen one: the one option marked `suggested`,
+ * regardless of whether the recommendation came from the assistant or the judge, or nothing at
+ * all. `null` is the important answer — the cockpit never promotes the first option to a default
+ * the provider did not recommend.
  */
 export function defaultShownOption(card: CockpitCard): CockpitCardShown | null {
   const suggested = card.options.find((option) => option.suggested);

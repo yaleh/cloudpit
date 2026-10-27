@@ -392,6 +392,35 @@ describe('no suggestion, no default', () => {
     expect(await h.controller.confirm()).toBe(false);
     expect(h.requests).toHaveLength(0);
   });
+
+  it('a judge-sourced suggested option IS the default and confirms only through the confirm card', async () => {
+    const h = harness([
+      card('c1', {
+        options: [
+          option('one', 'One'),
+          option('two', 'Two', {
+            suggested: true,
+            source: 'judge',
+            why: 'The judge says this is the least risky next step.',
+          }),
+        ],
+      }),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.shown.c1).toEqual({ kind: 'option', optionId: 'two' });
+    expect(defaultShownOption(snapshot.cards[0])).toEqual({ kind: 'option', optionId: 'two' });
+    expect(snapshot.targets.c1).toMatchObject({ optionId: 'two', label: 'Two', disabled: false });
+
+    // A judge suggestion is only a preselection: the first press opens the confirm card.
+    expect(h.controller.requestConfirm()).toBe(true);
+    expect(h.requests).toHaveLength(0);
+    expect(h.snapshot().pendingConfirm?.optionId).toBe('two');
+
+    expect(await h.controller.confirm()).toBe(true);
+    expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'two' }]);
+  });
 });
 
 describe('keys', () => {

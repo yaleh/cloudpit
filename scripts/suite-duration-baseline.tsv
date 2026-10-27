@@ -783,3 +783,9 @@
 #   (dur=2673ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 459 server test files).
 2673	server/modules/cockpit/tests/cockpit-fleet-executor.test.ts
+#   and the session-ask-judge-default row by gap-cockpit-ask-cards-judge-default-suggestion,
+#   measured once on 2026-10-28 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-judge-default.test.ts`
+#   (dur=3541ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 461 server test files).
+3541	server/modules/observation/tests/session-ask-judge-default.test.ts

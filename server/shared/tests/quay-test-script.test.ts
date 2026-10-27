@@ -378,9 +378,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (458 + 1 = 459 collected server test files). Then
     // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added its criterion
     // server/modules/quay/tests/quay-suite-fanin-reader.test.ts
-    // (459 + 1 = 460 collected server test files). This fixture names 3 known files, so
-    // 460 - 3 = 457.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=457$/);
+    // (459 + 1 = 460 collected server test files). Then
+    // gap-cockpit-ask-cards-judge-default-suggestion added its criterion
+    // server/modules/observation/tests/session-ask-judge-default.test.ts
+    // (460 + 1 = 461 collected server test files). This fixture names 3 known files, so
+    // 461 - 3 = 458.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=458$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -429,7 +432,7 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 459 files on this tree (gap-architecture-ratchet-census
+    // Same collection as AC2 — 461 files on this tree (gap-architecture-ratchet-census
     // added server/shared/tests/architecture-ratchet.test.ts, then
     // gap-codex-transcript-format-shared-helpers added
     // server/modules/providers/tests/codex-transcript-format.test.ts, then
@@ -454,10 +457,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // cockpit-fleet-rescue-executors added
     // server/modules/cockpit/tests/cockpit-fleet-executor.test.ts, then
     // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added
-    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts)
-    // — but this fixture names ONE known file, so 460 - 1 = 459 (AC2 reads 457 because its
+    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts), then
+    // gap-cockpit-ask-cards-judge-default-suggestion added
+    // server/modules/observation/tests/session-ask-judge-default.test.ts)
+    // — but this fixture names ONE known file, so 461 - 1 = 460 (AC2 reads 458 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=459$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=460$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

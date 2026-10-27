@@ -348,6 +348,58 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     expect(trigger.textContent).toContain('1 of 2');
   });
 
+  it('shows a judge-sourced default with its ○ marker and the judge’s reason', () => {
+    const judgeWhy = 'The archive is verified, so deletion is the low-risk next step.';
+    const judgeCard: CockpitCardData = {
+      ...CARD,
+      options: [
+        {
+          ...CARD.options[0],
+          suggested: true,
+          source: 'judge',
+          why: judgeWhy,
+        },
+        { ...CARD.options[1], suggested: false },
+      ],
+    };
+    renderCard({ card: judgeCard });
+
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
+    expect(trigger.textContent).toContain('Delete staging');
+    expect(trigger.textContent).toContain('suggested');
+    expect(trigger.textContent).toContain('○ judge');
+    expect(trigger.getAttribute('data-source')).toBe('judge');
+    expect(trigger.getAttribute('data-suggested')).toBe('true');
+
+    const shown = screen.getByTestId('cockpit-card-shown-option');
+    expect(shown.getAttribute('data-source')).toBe('judge');
+    expect(shown.textContent).toContain('Remove the staging directory after the archive is verified.');
+    expect(screen.getByTestId('cockpit-card-shown-option-why').textContent).toBe(judgeWhy);
+
+    // The judge suggestion is a preselection: the confirm bar is bound to it.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
+  });
+
+  it('shows no default when no option of any source is suggested', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        options: [
+          { ...CARD.options[0], suggested: false, source: 'provider' },
+          { ...CARD.options[1], suggested: false },
+        ],
+      },
+    });
+
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
+    expect(trigger.textContent).toContain('Choose an option');
+    expect(trigger.textContent).not.toContain('suggested');
+    expect(screen.queryByTestId('cockpit-card-shown-option')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm-empty').textContent).toContain(
+      'Choose an option, then confirm',
+    );
+  });
+
   it('draws the consequence tags with their descriptor glyphs', () => {
     renderCard();
     fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));

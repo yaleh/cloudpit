@@ -118,10 +118,17 @@ function OptionTags({ option }: { option: CockpitCardOption }) {
 /** The full explanation of the option a card currently shows, outside the open dropdown. */
 function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
   return (
-    <div data-testid="cockpit-card-shown-option" className="mt-1.5 rounded-md bg-muted/50 px-2 py-1.5">
+    <div
+      data-testid="cockpit-card-shown-option"
+      data-source={option.source}
+      data-suggested={option.suggested ? 'true' : 'false'}
+      className="mt-1.5 rounded-md bg-muted/50 px-2 py-1.5"
+    >
       <p className="text-xs text-foreground">{option.does}</p>
       {option.why !== undefined && (
-        <p className="mt-1 text-[11px] text-muted-foreground">{option.why}</p>
+        <p data-testid="cockpit-card-shown-option-why" className="mt-1 text-[11px] text-muted-foreground">
+          {option.why}
+        </p>
       )}
       {option.warn !== undefined && (
         <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{option.warn}</p>
@@ -380,6 +387,8 @@ export default function CockpitCard({
           <button
             type="button"
             data-testid="cockpit-card-option-trigger"
+            data-source={shownOption?.source ?? null}
+            data-suggested={shownOption?.suggested === true ? 'true' : 'false'}
             aria-expanded={dropdownOpen}
             onClick={onToggleDropdown}
             className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-left text-xs hover:bg-accent"

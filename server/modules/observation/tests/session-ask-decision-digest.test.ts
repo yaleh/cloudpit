@@ -3,7 +3,8 @@
  *
  * The fixture transcripts cover the five shapes the criterion names:
  *   · an assistant that recommends one option;
- *   · an assistant that recommends nothing (the model's suggestion is normalised away);
+ *   · an assistant that recommends nothing (the model's recommendation is normalised away and
+ *     the same call's judge supplies the default — `source: 'judge'`);
  *   · a question whose context is not in the sent turns (`incomplete`, no suggestion);
  *   · a re-ask before the user answered (same askId, revision increments);
  *   · a stored digest whose `askingYou` excerpt lags a turn (the restatement follows the LAST
@@ -222,17 +223,20 @@ test('AC-423: a recommended option is the only suggested one, sourced from the a
   assert.deepEqual(suggested[0]?.tags, [{ kind: 'consequence', text: '更快看到修复' }]);
 });
 
-test('AC-423: no recommendation cue in the original means no option is suggested', async () => {
+test('AC-423: when the original text recommends nothing the judge supplies the suggestion', async () => {
   const raw = transcript([
     { role: 'user', id: 'u1', text: '给我两个选择' },
     { role: 'assistant', id: 'a1', text: '你可以选：\n1. 方案 A\n2. 方案 B' },
   ]);
-  // The model TRIES to recommend A; the original text does not, so the rule must clear it.
+  // The model TRIES to recommend A; the original text does not, so the assistant recommendation
+  // rule must clear it — and the SAME answer's judge supplies the default instead.
   const answer = {
     ask: '方案 A 和方案 B，你想选哪一个？',
     situation: '两个方案二选一。',
     incomplete: false,
     recommendedOptionId: 'a',
+    judgeOptionId: 'b',
+    judgeReason: '方案 B 与对话里刚验证过的做法一致。',
     options: [
       { id: 'a', label: '方案 A', does: '走方案 A', tags: [], source: 'assistant' },
       { id: 'b', label: '方案 B', does: '走方案 B', tags: [], source: 'assistant' },
@@ -254,11 +258,11 @@ test('AC-423: no recommendation cue in the original means no option is suggested
 
   assert.equal(reading.state, 'evaluated');
   if (reading.state !== 'evaluated') return;
-  assert.deepEqual(
-    reading.options.map((option) => option.suggested),
-    [false, false],
-    'no cue in the assistant text means nothing may be suggested',
-  );
+  const suggested = reading.options.filter((option) => option.suggested);
+  assert.equal(suggested.length, 1, 'the judge fills exactly one default');
+  assert.equal(suggested[0]?.id, 'b', 'the assistant cue was absent, so the judge pick is the default');
+  assert.equal(suggested[0]?.source, 'judge', 'the judge never labels its pick as the assistant’s');
+  assert.equal(suggested[0]?.why, answer.judgeReason);
 });
 
 test('AC-423: a question missing its context is incomplete and suggests nothing', async () => {
@@ -800,7 +804,7 @@ test('read-time repair: a transcript in another project’s encoded directory is
 // Yes/no questions get two options
 // ---------------------------------------------------------------------------------------------
 
-test('yes/no: a yes/no question with no listed options gets 是/否 and no suggestion without a cue', async () => {
+test('yes/no: a yes/no question with no listed options gets 是/否 and the judge’s pick is the default', async () => {
   const summariser = createSessionAskDecisionDigest({
     readSettings: () => STUB_SETTINGS,
     complete: async () =>
@@ -810,6 +814,8 @@ test('yes/no: a yes/no question with no listed options gets 是/否 and no sugge
           situation: 'profile 仍被占用。',
           incomplete: false,
           recommendedOptionId: null,
+          judgeOptionId: 'yes',
+          judgeReason: '释放 profile 才能让下一个会话启动浏览器。',
           options: [],
         }),
       ),
@@ -829,12 +835,13 @@ test('yes/no: a yes/no question with no listed options gets 是/否 and no sugge
   assert.deepEqual(
     reading.options.map((option) => ({ id: option.id, label: option.label, suggested: option.suggested })),
     [
-      { id: 'yes', label: '是', suggested: false },
+      { id: 'yes', label: '是', suggested: true },
       { id: 'no', label: '否', suggested: false },
     ],
-    'the two synthesized options are 是/否 and neither is suggested',
+    'the two synthesized options are 是/否, and the judge picks one of them',
   );
-  assert.deepEqual(reading.options.map((option) => option.source), ['assistant', 'assistant']);
+  assert.deepEqual(reading.options.map((option) => option.source), ['judge', 'assistant']);
+  assert.equal(reading.options[0]?.why, '释放 profile 才能让下一个会话启动浏览器。');
   assert.ok(reading.options.every((option) => option.tags.length > 0), 'each option carries a consequence tag');
 });
 

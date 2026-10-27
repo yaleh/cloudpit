@@ -298,6 +298,7 @@ function evaluated(options: {
   suggested: boolean;
   source: 'assistant' | 'judge' | 'provider';
   incomplete?: boolean;
+  why?: string;
 }): SessionAskDecisionReading {
   return {
     state: 'evaluated',
@@ -315,6 +316,7 @@ function evaluated(options: {
         tags: [{ kind: 'undo', text: '可撤' }],
         suggested: options.suggested,
         source: options.source,
+        ...(options.why === undefined ? {} : { why: options.why }),
       },
       {
         id: 'keep',
@@ -355,20 +357,22 @@ test('AC-432: a session-ask card is filled from the digest, and its options are 
   assert.equal(fleet.provider.declaredExecutors().includes(COCKPIT_FLEET_ASK_OPTION_EXECUTOR), false);
 });
 
-test('AC-432: with no assistant recommendation the session-ask card sets no default option', async () => {
-  // The digest's judge MAY name a preferred option; only the assistant's own words make a
-  // default, so this reading must still reach the card with nothing suggested.
+test('AC-432 / AC-434: a judge recommendation is the session-ask card’s default too, with its reason', async () => {
+  // The assistant's own recommendation is not present, so the observation layer marked the
+  // judge's pick. The projection passes that decision through — any source's suggested option is
+  // the default — and carries the judge's one-line reason so the card can show it.
+  const judgeReason = 'The archive is verified, so deletion is the low-risk next step.';
   const fleet = created({
     readSessionAsk: () =>
-      evaluated({ suggested: true, source: 'judge' }),
+      evaluated({ suggested: true, source: 'judge', why: judgeReason }),
   });
   const ask = byId(await fleet.provider.listCards(), 'att-ask-1');
-  assert.deepEqual(
-    ask.options.filter((option) => option.suggested),
-    [],
-    'a judge recommendation is not the assistant recommendation',
-  );
+  const suggested = ask.options.filter((option) => option.suggested);
+  assert.deepEqual(suggested.map((option) => option.id), ['delete'], 'the judge pick is the default');
+  assert.equal(suggested[0]?.source, 'judge');
+  assert.equal(suggested[0]?.why, judgeReason);
   assert.equal(ask.contentUnavailable, undefined);
+  assert.equal(optionById(ask, 'keep').suggested, false);
 });
 
 test('AC-432: a missing or incomplete digest keeps the card visible, marked not ready, with no default', async () => {

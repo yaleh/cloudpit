@@ -15,9 +15,11 @@
  *      and reports `skippedLines` in its diagnostic.
  *   2. The projection INVENTIONS NOTHING. Fleet fields pass through verbatim; the only local
  *      additions are the session-ask content (`ask`, `situation`, content options) and the
- *      `contentUnavailable` reason when that content is not ready. A session-ask default
- *      option is the assistant's OWN recommendation (`source: 'assistant'`) and nothing else:
- *      when the digest names no such option, no option is suggested.
+ *      `contentUnavailable` reason when that content is not ready. A session-ask default option
+ *      is whichever content option the observation layer marked `suggested` — the assistant's
+ *      own recommendation (`source: 'assistant'`) or, when it gave none, the same call's judge
+ *      pick (`source: 'judge'`, with its `why`). The projection passes that decision through but
+ *      never invents one: no marked option means no default.
  *
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
@@ -197,19 +199,25 @@ function mapContentRef(raw: unknown): ContentAddress | null {
   };
 }
 
-/** One content option, with the E1 rule applied: only an assistant recommendation is suggested. */
+/**
+ * One content option. The observation layer already decided WHICH option is the default and
+ * whether it came from the assistant or the judge; this projection only bounds it to one and
+ * passes the judge's `why` through so the card can show the reason.
+ */
 function contentOption(
   raw: SessionAskDecisionOption,
   cardId: string,
   askId: string,
   allowSuggestion: boolean,
 ): CockpitCardOption {
+  const why = raw.why?.trim() ?? '';
   return {
     id: raw.id,
     label: raw.label,
     does: raw.does,
-    suggested: allowSuggestion && raw.suggested === true && raw.source === 'assistant',
+    suggested: allowSuggestion && raw.suggested === true,
     source: raw.source,
+    ...(why === '' ? {} : { why }),
     tags: raw.tags.map((tag) => ({ kind: tag.kind, text: tag.text })),
     action: {
       executor: COCKPIT_FLEET_ASK_OPTION_EXECUTOR,
@@ -228,7 +236,8 @@ function withoutSuggestion(options: readonly CockpitCardOption[]): CockpitCardOp
  *
  * A missing, skipped, unreadable or incomplete digest leaves the card visible with
  * `contentUnavailable` and NO default option. A ready digest fills `ask`/`situation` and
- * appends its options; at most one is suggested, and only when its `source` is `assistant`.
+ * appends its options; at most one is suggested, whichever source (assistant or judge) the
+ * observation layer marked.
  */
 function withSessionAskContent(
   card: CockpitCard,
@@ -261,7 +270,7 @@ function withSessionAskContent(
 
   let suggestionUsed = false;
   const contentOptions = reading.options.map((option) => {
-    const allowSuggestion = !suggestionUsed && option.suggested === true && option.source === 'assistant';
+    const allowSuggestion = !suggestionUsed && option.suggested === true;
     if (allowSuggestion) suggestionUsed = true;
     return contentOption(option, card.id, reading.askId, allowSuggestion);
   });
