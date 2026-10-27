@@ -1,11 +1,18 @@
 ---
 id: GOAL-050
 title: 驾驶舱：卡片提供方架构与手机 / PC 界面
-status: draft
+status: active
 kind: goal
 origin: 本会话 2026-10-26 至 10-27
   驾驶舱重设计（docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md、CARD-PROVIDERS.md）；用户确定驾驶舱只放等我处理的卡片，PC
   为会话页右侧常驻可收起列，手机为独立页。
+activatedAt: 2026-10-27T02:57:09.245Z
+statusLog:
+  - at: 2026-10-27T02:57:09.245Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准：调整正文（推后项移入非目标）后激活
 ---
 ## 背景
 
