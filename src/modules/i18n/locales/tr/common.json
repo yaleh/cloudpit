@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "Onaylanacak bir şey yok",
     "cardIrreversible": "Geri alınamaz",
     "cardWaitingFor": "{{duration}} bekliyor",
+    "cardSessionWaiting": "Oturum {{id}} yanıtınızı bekliyor",
     "cardFilterType": "Tür",
     "cardFilterAll": "Tümü",
     "cardFilterProject": "Proje",

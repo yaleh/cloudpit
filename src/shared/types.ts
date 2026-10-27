@@ -4201,6 +4201,14 @@ export type CockpitCardOption = {
   tags?: CockpitCardTag[];
   undo?: string;
   when?: string;
+  /**
+   * Whether this option can be confirmed. The registry sets it to `false` when the option's
+   * `action.executor` is not in the declared-executor union; the option stays readable and
+   * selectable, but its confirm bar is disabled. Absent means the option is confirmable.
+   */
+  confirmable?: boolean;
+  /** Why the option cannot be confirmed; present exactly when `confirmable` is `false`. */
+  confirmableReason?: string;
 };
 
 /** What a card is about; `uri` is the cockpit address of the subject. */

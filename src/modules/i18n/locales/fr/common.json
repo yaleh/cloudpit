@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "Rien à confirmer",
     "cardIrreversible": "Irréversible",
     "cardWaitingFor": "en attente depuis {{duration}}",
+    "cardSessionWaiting": "La session {{id}} attend votre réponse",
     "cardFilterType": "Type",
     "cardFilterAll": "Toutes",
     "cardFilterProject": "Projet",

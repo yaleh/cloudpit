@@ -12,6 +12,9 @@
           "fixture:need",
           "fixture:stuck",
           "fixture:fix",
+          "fixture:session-only",
+          "fixture:undeclared",
+          "fixture:content-unavailable",
           "fixture:ask",
           "fixture:multi",
           "fixture:decision"
@@ -61,6 +64,9 @@
           "fixture:need",
           "fixture:stuck",
           "fixture:fix",
+          "fixture:session-only",
+          "fixture:undeclared",
+          "fixture:content-unavailable",
           "fixture:ask",
           "fixture:multi",
           "fixture:decision"

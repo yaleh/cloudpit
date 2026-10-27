@@ -182,6 +182,42 @@ describe('one confirmation, bound to the shown option', () => {
   });
 });
 
+describe('an option whose executor is not declared is not confirmable', () => {
+  it('disables the target, states why and sends nothing', async () => {
+    const h = harness([
+      card('c1', {
+        options: [
+          option('one', 'One', {
+            suggested: true,
+            confirmable: false,
+            confirmableReason: '执行器 fleet.redispatch 尚未接入',
+            action: { executor: 'fleet.redispatch', params: {} },
+          }),
+        ],
+      }),
+    ]);
+    await h.controller.load();
+
+    expect(h.snapshot().targets.c1).toMatchObject({
+      optionId: 'one',
+      disabled: true,
+      disabledReason: '执行器 fleet.redispatch 尚未接入',
+    });
+    expect(h.controller.requestConfirm()).toBe(false);
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(await h.controller.confirm()).toBe(false);
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('leaves a confirmable option enabled with no reason', async () => {
+    const h = harness([card('c1')]);
+    await h.controller.load();
+
+    expect(h.snapshot().targets.c1).toMatchObject({ disabled: false, disabledReason: null });
+    expect(h.controller.requestConfirm()).toBe(true);
+  });
+});
+
 describe('the confirm card gates the one request', () => {
   it('the first press only opens the confirm card; the second sends exactly once', async () => {
     const h = harness([card('c1')]);

@@ -1056,6 +1056,7 @@
     "cardConfirmNoOption": "Tidak ada yang dikonfirmasi",
     "cardIrreversible": "Tidak dapat dibatalkan",
     "cardWaitingFor": "menunggu {{duration}}",
+    "cardSessionWaiting": "Sesi {{id}} menunggu jawaban Anda",
     "cardFilterType": "Jenis",
     "cardFilterAll": "Semua",
     "cardFilterProject": "Proyek",

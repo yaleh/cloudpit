@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "沒有可確認的選項",
     "cardIrreversible": "不可逆",
     "cardWaitingFor": "已等待 {{duration}}",
+    "cardSessionWaiting": "工作階段 {{id}} 正在等你回答",
     "cardFilterType": "類型",
     "cardFilterAll": "全部",
     "cardFilterProject": "專案",
