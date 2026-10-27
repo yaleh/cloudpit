@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import type { CockpitBriefResponse, CockpitCard } from '@/shared/types';
@@ -49,6 +49,13 @@ export type CockpitCardsDepsOverride = Partial<CockpitCardControllerDeps>;
 export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): CockpitCardsBinding {
   const { fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent } = overrides;
   const navigate = useNavigate();
+  // `navigate` changes identity when the route changes; keeping it in a ref keeps the controller
+  // — and therefore the selection and the Details stack — alive across a navigation. A controller
+  // rebuilt on every route change would silently reset the card the person was reading.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
   const deps = useMemo<CockpitCardControllerDeps>(
     () => ({
       fetchCards:
@@ -75,13 +82,13 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
         onEvent ??
         ((event: CockpitCardControllerEvent) => {
           if (event.type === 'sessionStarted') {
-            navigate(`/session/${encodeURIComponent(event.sessionId)}`);
+            navigateRef.current(`/session/${encodeURIComponent(event.sessionId)}`);
           }
         }),
       ...(clock === undefined ? {} : { clock }),
       ...(refreshIntervalMs === undefined ? {} : { refreshIntervalMs }),
     }),
-    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent, navigate],
+    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent],
   );
 
   const controller = useMemo(() => createCockpitCardController(deps), [deps]);

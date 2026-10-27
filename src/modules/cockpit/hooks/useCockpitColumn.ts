@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
@@ -40,16 +40,23 @@ export function useCockpitColumnContext(): CockpitColumnBinding | null {
 export function useCockpitColumn(): CockpitColumnBinding {
   const cards = useCockpitCards();
   const navigate = useNavigate();
+  // The router's `navigate` changes identity on a route change. Holding it in a ref keeps this
+  // controller — the frame, the "opened on the left" marker and the overlay auto-collapse — alive
+  // across the very navigation a conversation link performs.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
 
   const controller = useMemo(
     () =>
       createCockpitColumnController({
         cards: cards.controller,
         openSession: (sessionId: string) => {
-          navigate(`/session/${encodeURIComponent(sessionId)}`);
+          navigateRef.current(`/session/${encodeURIComponent(sessionId)}`);
         },
       }),
-    [cards.controller, navigate],
+    [cards.controller],
   );
 
   const snapshot = useSyncExternalStore(
