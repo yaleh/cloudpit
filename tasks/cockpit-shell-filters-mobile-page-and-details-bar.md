@@ -2,7 +2,7 @@
 id: cockpit-shell-filters-mobile-page-and-details-bar
 title: 驾驶舱外壳对齐效果图：带计数的类型过滤胶囊与项目胶囊、列标题「N waiting for you · M
   stuck」、手机卡片页去掉旧部署条与项目条、Details 底部常驻确认条与「在 Quay 中打开任务」、输入框提示语如实
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
