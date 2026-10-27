@@ -18,7 +18,13 @@
  *      project gets `session.start` opening a new conversation in it, and a card
  *      with neither carries `ownReplyUnavailable` with the readable reason. This
  *      is a default for a field the provider left empty, not a judgement about
- *      the card: a provider that states `ownReply` always wins.
+ *      the card: a provider that states `ownReply` always wins;
+ *   6. where a provider declared no `conversation` while its subject names a
+ *      session, fill `conversation = { sessionId }` (the same content-default
+ *      principle); a provider that states `conversation` always wins;
+ *   7. mark each option whose executor no provider declared as `confirmable: false`
+ *      with a readable reason. The option stays readable and selectable; only its
+ *      confirmation is refused, matching the action channel's own guard.
  *
  * The action channel reads the same projection (`getCard`), so a confirmation can
  * only act on a card the registry currently shows, and the provider's declared
@@ -146,6 +152,52 @@ function applyOwnReplyDefault(card: CockpitCard): CockpitCard {
   return { ...card, ownReplyUnavailable: OWN_REPLY_UNAVAILABLE_REASON };
 }
 
+/**
+ * The content default for a card whose provider declared no `conversation`.
+ *
+ * The subject names the conversation; the card's own `conversation` field is what the Details
+ * drawer links to. A card whose subject names a session therefore gets `{ sessionId }`, and a
+ * provider that states `conversation` itself always wins — this is a default for an empty field,
+ * not a reinterpretation of the provider's answer.
+ */
+function applyConversationDefault(card: CockpitCard): CockpitCard {
+  if (card.conversation !== undefined) return card;
+  const sessionId = card.subject.sessionId?.trim() ?? '';
+  if (sessionId === '') return card;
+  return { ...card, conversation: { sessionId } };
+}
+
+/** The reason an option is not confirmable: its executor is not declared by any provider. */
+export function undeclaredExecutorReason(executor: string): string {
+  return `执行器 ${executor} 尚未接入`;
+}
+
+/**
+ * Marks every option whose executor no provider declared as unconfirmable.
+ *
+ * The action channel refuses such an option (`EXECUTOR_NOT_DECLARED`); stating that up front is
+ * what lets the UI disable the confirm bar and explain why, instead of letting the person press a
+ * button that is guaranteed to fail. The option itself stays readable and selectable.
+ */
+function applyOptionConfirmability(
+  card: CockpitCard,
+  declared: ReadonlySet<string>,
+): CockpitCard {
+  if (card.options.every((option) => declared.has(option.action.executor))) return card;
+  return {
+    ...card,
+    options: card.options.map((option) =>
+      declared.has(option.action.executor)
+        ? option
+        : {
+            ...option,
+            confirmable: false,
+            confirmableReason: undeclaredExecutorReason(option.action.executor),
+          },
+    ),
+  };
+}
+
 /** Builds a registry over the providers already known (more may be registered later). */
 export function createCockpitCardRegistry(
   providers: readonly ICockpitCardProvider[] = [],
@@ -166,21 +218,6 @@ export function createCockpitCardRegistry(
 
   for (const provider of providers) register(provider);
 
-  const listCards = async (): Promise<CockpitCard[]> => {
-    const perProvider = await Promise.all(
-      registered.map(async (provider) => {
-        const cards = await provider.listCards();
-        // The ONE visibility rule: the provider's own state. Nothing about a
-        // card's kind, project, age or content hides it here.
-        return cards.filter((card) => card.state === 'open');
-      }),
-    );
-    return perProvider.flat().sort(compareByProviderOrder).map(applyOwnReplyDefault);
-  };
-
-  const getCard = async (cardId: string): Promise<CockpitCard | null> =>
-    (await listCards()).find((card) => card.id === cardId) ?? null;
-
   const declaredExecutors = (): ReadonlySet<string> => {
     // The two built-in executors are CloudCLI's own content defaults; no provider
     // declares them, yet every card whose subject names a session/project reaches
@@ -195,6 +232,27 @@ export function createCockpitCardRegistry(
     }
     return ids;
   };
+
+  const listCards = async (): Promise<CockpitCard[]> => {
+    const perProvider = await Promise.all(
+      registered.map(async (provider) => {
+        const cards = await provider.listCards();
+        // The ONE visibility rule: the provider's own state. Nothing about a
+        // card's kind, project, age or content hides it here.
+        return cards.filter((card) => card.state === 'open');
+      }),
+    );
+    const declared = declaredExecutors();
+    return perProvider
+      .flat()
+      .sort(compareByProviderOrder)
+      .map(applyOwnReplyDefault)
+      .map(applyConversationDefault)
+      .map((card) => applyOptionConfirmability(card, declared));
+  };
+
+  const getCard = async (cardId: string): Promise<CockpitCard | null> =>
+    (await listCards()).find((card) => card.id === cardId) ?? null;
 
   const subscribe = (listener: () => void): (() => void) => {
     listeners.add(listener);

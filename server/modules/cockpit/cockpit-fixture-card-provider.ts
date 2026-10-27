@@ -233,6 +233,78 @@ function fixtureCards(): CockpitCard[] {
       viz: { kind: 'history', history: { yes: 1, no: 2, other: 3 } },
     },
     {
+      // A card whose subject names a session but which declares no `conversation`: the
+      // registry's content default is what gives the Details drawer a link to it.
+      id: 'fixture:session-only',
+      provider: 'fixture',
+      revision: 1,
+      kind: 'ask',
+      group: 'rescue',
+      rank: 4,
+      state: 'open',
+      waitingSince: '2026-10-27T00:00:30.000Z',
+      surfacedAt: '2026-10-27T00:00:32.000Z',
+      subject: { uri: 'cloudcli://fixture/session-only', sessionId: 'dbbf1404-0000-4000-8000-000000000001' },
+      facts: [{ text: 'the session has one unresolved question', mechanical: true }],
+      options: [],
+    },
+    {
+      // An option whose executor no provider declares: readable and selectable, but its
+      // confirmation is refused. The second option uses the declared fixture executor, so the
+      // card has both an unconfirmable and a confirmable option.
+      id: 'fixture:undeclared',
+      provider: 'fixture',
+      revision: 1,
+      kind: 'stuck',
+      group: 'rescue',
+      rank: 5,
+      state: 'open',
+      waitingSince: '2026-10-27T00:00:20.000Z',
+      surfacedAt: '2026-10-27T00:00:22.000Z',
+      subject: { uri: 'cloudcli://fixture/undeclared', project: 'fixture-project' },
+      ask: 'This rescue needs a disposal executor that is not connected yet.',
+      situation: 'The fleet disposal executors arrive in a later task; the option stays readable.',
+      facts: [{ text: 'executor fleet.redispatch is not declared', mechanical: true }],
+      options: [
+        {
+          id: 'redispatch',
+          label: 'Re-dispatch',
+          does: 'Re-dispatch the blocked task on the merged baseline.',
+          suggested: true,
+          source: 'assistant',
+          action: {
+            executor: 'fleet.redispatch',
+            params: { cardId: 'fixture:undeclared', optionId: 'redispatch' },
+          },
+        },
+        fixtureOption(
+          'fixture:undeclared',
+          'hold',
+          'Hold',
+          'Keep the card open without dispatching anything.',
+          false,
+          'provider',
+        ),
+      ],
+    },
+    {
+      // A session-ask card whose local content could not be filled: the reason is drawn in the
+      // card's situation position, and the title names the session instead of the machine URI.
+      id: 'fixture:content-unavailable',
+      provider: 'fixture',
+      revision: 1,
+      kind: 'ask',
+      group: 'rescue',
+      rank: 6,
+      state: 'open',
+      waitingSince: '2026-10-27T00:00:10.000Z',
+      surfacedAt: '2026-10-27T00:00:12.000Z',
+      subject: { uri: 'cloudcli://fixture/content-unavailable', sessionId: '4c9e2a17-0000-4000-8000-000000000002' },
+      contentUnavailable: '提问决策摘要未启用：未启用 observation.sessionDigest（提问决策摘要）',
+      facts: [],
+      options: [],
+    },
+    {
       id: 'fixture:resolved',
       provider: 'fixture',
       revision: 3,

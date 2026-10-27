@@ -1,4 +1,6 @@
-import type { CockpitCardKind, CockpitCardVizKind } from '@/shared/types';
+import type { TFunction } from 'i18next';
+
+import type { CockpitCard, CockpitCardKind, CockpitCardVizKind } from '@/shared/types';
 
 // The viz vocabulary lives on the wire (`src/shared/types.ts`) because a provider states the
 // shape it wants; the descriptor table is the client-side authority on which kind may draw one.
@@ -58,4 +60,37 @@ export function cockpitCardDescriptor(kind: string): CockpitCardDescriptor {
     return DEFAULT_COCKPIT_CARD_DESCRIPTOR;
   }
   return DESCRIPTORS[kind as CockpitCardKind];
+}
+
+/** The short session reading used in the waiting title: the first eight id characters. */
+function shortSessionId(sessionId: string): string {
+  return sessionId.slice(0, 8);
+}
+
+/**
+ * The card's headline, derived from its content rather than from the provider.
+ *
+ * A card always states an `ask` when its content was resolved. When it did not, the fallback
+ * chain names what the card is about in a person's words — the session it is waiting on, the
+ * task it concerns, the first measured fact — and only then the machine URI. The session copy
+ * is the one case where the card is ABOUT the conversation: a session-ask card whose content
+ * could not be filled says which session is waiting instead of showing `quay://…`.
+ *
+ * Used by `CockpitCard` (the list row) and `CockpitCardDetails` (the drawer heading).
+ */
+export function cockpitCardTitle(card: CockpitCard, t: TFunction): string {
+  if (card.ask !== undefined && card.ask.trim() !== '') return card.ask;
+
+  const sessionId = card.subject.sessionId?.trim() ?? '';
+  if (card.contentUnavailable !== undefined && sessionId !== '') {
+    return t('cockpit.cardSessionWaiting', { id: shortSessionId(sessionId) });
+  }
+
+  const taskId = card.subject.taskId?.trim() ?? '';
+  if (taskId !== '') return taskId;
+
+  const firstFact = card.facts[0]?.text.trim() ?? '';
+  if (firstFact !== '') return firstFact;
+
+  return card.subject.uri;
 }

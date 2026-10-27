@@ -476,6 +476,7 @@ describe('every locale carries the cockpit copy', () => {
       'cardConfirmNoOption',
       'cardIrreversible',
       'cardWaitingFor',
+      'cardSessionWaiting',
       'cardFilterType',
       'cardFilterAll',
       'cardFilterProject',
@@ -509,6 +510,7 @@ describe('every locale carries the cockpit copy', () => {
     expect(placeholders(reference.cardOptionPosition)).toEqual(['k', 'n']);
     expect(placeholders(reference.cardConfirm)).toEqual(['label']);
     expect(placeholders(reference.cardWaitingFor)).toEqual(['duration']);
+    expect(placeholders(reference.cardSessionWaiting)).toEqual(['id']);
     expect(placeholders(reference.cardError)).toEqual(['reason']);
     expect(placeholders(reference.cardConfirmBody)).toEqual(['label']);
     expect(placeholders(reference.cardConfirmDone)).toEqual(['executor']);

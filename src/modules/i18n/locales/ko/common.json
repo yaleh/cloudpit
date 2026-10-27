@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "확인할 항목 없음",
     "cardIrreversible": "되돌릴 수 없음",
     "cardWaitingFor": "{{duration}} 대기 중",
+    "cardSessionWaiting": "세션 {{id}}이(가) 답변을 기다리고 있습니다",
     "cardFilterType": "유형",
     "cardFilterAll": "전체",
     "cardFilterProject": "프로젝트",

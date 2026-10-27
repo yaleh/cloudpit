@@ -943,6 +943,7 @@
     "cardConfirmNoOption": "Nichts zu bestätigen",
     "cardIrreversible": "Unumkehrbar",
     "cardWaitingFor": "wartet {{duration}}",
+    "cardSessionWaiting": "Sitzung {{id}} wartet auf deine Antwort",
     "cardFilterType": "Typ",
     "cardFilterAll": "Alle",
     "cardFilterProject": "Projekt",

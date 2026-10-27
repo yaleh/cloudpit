@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
+import { cockpitCardDescriptor, cockpitCardTitle } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
 import type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
 
@@ -90,7 +90,12 @@ export default function CockpitCardDetails({
 }: CockpitCardDetailsProps) {
   const { t } = useTranslation();
   const descriptor = cockpitCardDescriptor(card.kind);
-  const sessionId = card.conversation?.sessionId;
+  // The server projection fills `conversation` from the subject; the fallback keeps the link
+  // for a card read before that projection ran (and for a criterion that states only the subject).
+  // A provider that states `conversation` itself stays authoritative: the subject is only used
+  // when the provider said nothing.
+  const sessionId =
+    card.conversation === undefined ? card.subject.sessionId : card.conversation.sessionId;
   const startProject = card.conversation?.startInProject ?? card.subject.project;
 
   return (
@@ -129,9 +134,15 @@ export default function CockpitCardDetails({
         )}
       </div>
 
-      <p className="mt-2 text-sm font-medium text-foreground">
-        {card.ask ?? card.situation ?? card.subject.uri}
-      </p>
+      <p className="mt-2 text-sm font-medium text-foreground">{cockpitCardTitle(card, t)}</p>
+      {card.contentUnavailable !== undefined && (
+        <p
+          data-testid="cockpit-card-details-content-unavailable"
+          className="mt-1 text-xs text-muted-foreground"
+        >
+          {card.contentUnavailable}
+        </p>
+      )}
       <p className="mt-1 text-[11px] text-muted-foreground">
         {[card.subject.project, card.subject.taskId, card.subject.sessionId]
           .filter((part): part is string => part !== undefined && part !== '')
