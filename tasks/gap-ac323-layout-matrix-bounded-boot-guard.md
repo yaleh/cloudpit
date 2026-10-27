@@ -84,12 +84,12 @@ Error: element(s) not found
 
 ## AC
 
-- [ ] AC1 预热在首次导航之前真实生效：`e2e/mobile-workspace-composer-layout.spec.ts` 里有 `warmClientStartup`（或等价命名）的定义与调用，调用点在 `test.beforeAll` 内、`bootstrapAuth` 之前；逐 URL 带 deadline，非 200 / 超时按 url 指名抛错。验证：`grep -n "warmClientStartup" e2e/mobile-workspace-composer-layout.spec.ts` 同时命中定义行与 beforeAll 调用行，且 `npm run typecheck` exit 0。
-- [ ] AC2 每一处初始导航都走同一个有界探针：`grep -n "page\.goto(" e2e/mobile-workspace-composer-layout.spec.ts` 的每一行都落在探针函数体内部，函数体外没有裸 `page.goto(`；探针耗尽预算时抛出的错误携带页面文本与 `requestfailed` URL 列表。验证：`grep -n` 输出逐行落界 + `grep -n "requestfailed" e2e/mobile-workspace-composer-layout.spec.ts` 非空 + `npm run typecheck` exit 0。
-- [ ] AC3 有界失败实测：把探针的登录页落点临时指向一个不可能存在的 sentinel 后，`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g "@320 idle"` 在 **≤60s** 内以非零退出，错误文本带页面文本与探针名；`git checkout -- e2e/mobile-workspace-composer-layout.spec.ts` 还原后同一命令回绿。两次的 `echo $?` 与 wall time 一并登记。
-- [ ] AC4 第三条腿连续绿：还原后在净检出上连续 ≥3 次 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` 全部 exit 0，逐次登记 `6 passed` 与 wall time；每一次的 READING 行齐全（@320/@360/@390/@767/@768/@1280 共 6 格）。
-- [ ] AC5 AC-323 判据整链 exit 0（判据本体，命令逐字不改）：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`，登记 exit code、总 wall time 与 `git rev-parse HEAD^{tree}`。
-- [ ] AC6 判定面未变：`git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts | grep -c "^-.*expect("` 为 0；该 diff 内没有新增 `retries` / `test.skip` / `page.route(` / `reuseExistingServer`；`git diff develop -- playwright.config.ts package.json` 为空；`goals/**` 一个字节未动。以上命令的逐字输出入档。
+- [x] AC1 预热在首次导航之前真实生效：`e2e/mobile-workspace-composer-layout.spec.ts` 里有 `warmClientStartup`（或等价命名）的定义与调用，调用点在 `test.beforeAll` 内、`bootstrapAuth` 之前；逐 URL 带 deadline，非 200 / 超时按 url 指名抛错。验证：`grep -n "warmClientStartup" e2e/mobile-workspace-composer-layout.spec.ts` 同时命中定义行与 beforeAll 调用行，且 `npm run typecheck` exit 0。
+- [x] AC2 每一处初始导航都走同一个有界探针：`grep -n "page\.goto(" e2e/mobile-workspace-composer-layout.spec.ts` 的每一行都落在探针函数体内部，函数体外没有裸 `page.goto(`；探针耗尽预算时抛出的错误携带页面文本与 `requestfailed` URL 列表。验证：`grep -n` 输出逐行落界 + `grep -n "requestfailed" e2e/mobile-workspace-composer-layout.spec.ts` 非空 + `npm run typecheck` exit 0。
+- [x] AC3 有界失败实测：把探针的登录页落点临时指向一个不可能存在的 sentinel 后，`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g "@320 idle"` 在 **≤60s** 内以非零退出，错误文本带页面文本与探针名；`git checkout -- e2e/mobile-workspace-composer-layout.spec.ts` 还原后同一命令回绿。两次的 `echo $?` 与 wall time 一并登记。
+- [x] AC4 第三条腿连续绿：还原后在净检出上连续 ≥3 次 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` 全部 exit 0，逐次登记 `6 passed` 与 wall time；每一次的 READING 行齐全（@320/@360/@390/@767/@768/@1280 共 6 格）。
+- [x] AC5 AC-323 判据整链 exit 0（判据本体，命令逐字不改）：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`，登记 exit code、总 wall time 与 `git rev-parse HEAD^{tree}`。
+- [x] AC6 判定面未变：`git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts | grep -c "^-.*expect("` 为 0；该 diff 内没有新增 `retries` / `test.skip` / `page.route(` / `reuseExistingServer`；`git diff develop -- playwright.config.ts package.json` 为空；`goals/**` 一个字节未动。以上命令的逐字输出入档。
 
 ## DoD
 
@@ -98,6 +98,20 @@ Error: element(s) not found
 - ⛔ 不得用改断言 / skip / `retries` / 改判据命令换绿；6 个 idle 格及其余格 `expect` 一字未改由 AC6 机械证明。
 - 完成记录必须写明：本仓修掉的是**响应方式**（一次瞬时的模块加载中断 → 无界 30s 等待 → beforeAll 整文件记红，改为有界重放 → 要么落到 document，要么带页面文本与失败请求列表大声红）；触发源（宿主层 `net::ERR_NETWORK_CHANGED`）不在本仓可控范围内，因此这条判据的稳定性依赖守卫，不依赖触发源消失。
 - 若 AC4 / AC5 在净检出上也稳定红（即判据在产品面为假），本条必须停手上报：置 `needs-human` 并写明失败的格与读数 —— 不得把环境红写成产品绿，也不得据此改断言。
+
+## 完成记录
+
+响应方式已换：一次瞬时的模块加载中断不再被等成 30s 超时。`e2e/mobile-workspace-composer-layout.spec.ts` 现在在任何页面之前做有界预热（`warmClientStartup`，`test.beforeAll` 首行、`bootstrapAuth` 之前），并让文件里唯一的 `page.goto(` 走 `navigateBounded`（有界落点探针 + 预算内重放 + 耗尽时携带页面文本与 `requestfailed` URL 列表大声抛错）。`settleComposer` 的既有有界 reload 循环保留。触发源（宿主层 `net::ERR_NETWORK_CHANGED`）不在本仓可控范围，因此这条判据的稳定性依赖守卫，不依赖触发源消失。
+
+读数（worktree `/data/home/yale/work/claudecodeui-worktrees/gap-ac323-layout-matrix-bounded-boot-guard`，实现提交 `070986725`，tree `79a476adf2c64d86c1e0ca2b0f685860488b9fc5`）：
+
+- AC1/AC2：`grep -n "warmClientStartup"` → 310（定义）/ 969（`test.beforeAll` 内调用，早于 `bootstrapAuth`）；`grep -n "page\.goto("` → 仅 442，在 `navigateBounded` 函数体内；`grep -n "requestfailed"` → 394；`npm run typecheck` exit 0，另用独立 strict tsc 对 spec 本身 exit 0。
+- AC3 有界失败：把 `ACCOUNT_FORM_PROBE` 临时指向 `#e2e-account-form-probe-that-does-not-exist` 后，`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g "@320 idle"` → exit 1，wall 24.072s（≤60s）；错误文本逐字含 `the account form (#e2e-account-form-probe-that-does-not-exist) never rendered ... the page shows "" ... failed requests: <none>`。`git checkout -- e2e/mobile-workspace-composer-layout.spec.ts` 还原后同一命令 → exit 0，wall 14.41s，`1 passed (13.6s)`，READING @320 行齐全（header=45px padTop=6px footer=302/302 h-overflow=0 h=57px sameRow=true tablists=0 innerWidth=320）。
+- AC4 三连绿（`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`，逐次）：#1 exit 0 / wall 27.24s / `6 passed (26.4s)`；#2 exit 0 / wall 25.79s / `6 passed (25.0s)`；#3 exit 0 / wall 25.66s / `6 passed (24.8s)`。每次 READING 行 6 条，@320/@360/@390/@767/@768/@1280 全齐且 h-overflow=0、sameRow=true。
+- AC5 判据整链（命令逐字不改）：leg1 `npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` exit 0（`19 passed (2.8m)`）；leg2 `npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` exit 0（`Test Files 22 passed`，`Tests 218 passed`）；leg3 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` exit 0（`6 passed (25.9s)`）。总 wall 201s，tree `79a476adf2c64d86c1e0ca2b0f685860488b9fc5`。
+- AC6：`git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts | grep -c "^-.*expect("` = 0；该 diff 内无新增 `retries` / `test.skip` / `page.route(` / `reuseExistingServer`；`git diff develop -- playwright.config.ts package.json` 0 行；`git diff develop -- goals/` 0 行。
+
+该轴仍暗,理由:本任务是 e2e 启动守卫回灌，不涉及架构层读数，无度量轴数可报。
 
 ## Touches
 
