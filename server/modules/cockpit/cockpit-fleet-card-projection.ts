@@ -42,9 +42,10 @@ const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';
 /**
  * The executor a locally-derived ask option names.
  *
- * It is deliberately NOT declared by the provider (fleet's disposal actions land in a later
- * task), so the option is readable and selecting it reaches the confirmation channel's
- * `EXECUTOR_NOT_DECLARED` refusal with a readable reason instead of running something.
+ * It is deliberately NOT declared by the provider (the provider declares exactly what
+ * `rescue executors --json` answered), so the option is readable and selecting it reaches the
+ * confirmation channel's `EXECUTOR_NOT_DECLARED` refusal with a readable reason instead of
+ * running something.
  */
 export const COCKPIT_FLEET_ASK_OPTION_EXECUTOR = 'fleet.cockpit.session-ask-option';
 
