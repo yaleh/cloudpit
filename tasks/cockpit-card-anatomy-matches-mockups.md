@@ -2,7 +2,7 @@
 id: cockpit-card-anatomy-matches-mockups
 title: 驾驶舱卡片解剖对齐效果图：头部行（彩色类型标·项目·主体名·相对时间·负荷）、情境行、事实胶囊、viz
   小图、选项标签图标语义、黑色确认条加说明行、无推荐时一行提示；紧凑模式做成真紧凑
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
