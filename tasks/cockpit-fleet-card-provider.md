@@ -32,11 +32,11 @@ goal_ac: AC-432
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0（AC-432 判据）：CLI 运行函数注入为桩，返回按上面输出形状写的 JSONL 夹具（至少含 rescue 与 ruling 各一、open 与 resolved 各一、一张会话提问卡、一个坏行）；覆盖字段透传、TTL 内只调一次 CLI、CLI 缺失与退出非 0 返回空列表与原因、坏行跳过不影响其它卡、会话提问卡有推荐 / 无推荐 / 摘要缺失三种补全结果、开关关闭时不调用 CLI。
-- [ ] 假形态各自变红：去掉缓存每次取卡都调 CLI ⇒ 用例红；会话提问卡在助手没有推荐时标出 suggested ⇒ 用例红；一个坏行让整批解析失败 ⇒ 用例红。每个假形态改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-registry.test.ts` 退出 0（既有用例不减）。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 均退出 0。
-- [ ] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0（AC-432 判据）：CLI 运行函数注入为桩，返回按上面输出形状写的 JSONL 夹具（至少含 rescue 与 ruling 各一、open 与 resolved 各一、一张会话提问卡、一个坏行）；覆盖字段透传、TTL 内只调一次 CLI、CLI 缺失与退出非 0 返回空列表与原因、坏行跳过不影响其它卡、会话提问卡有推荐 / 无推荐 / 摘要缺失三种补全结果、开关关闭时不调用 CLI。
+- [x] 假形态各自变红：去掉缓存每次取卡都调 CLI ⇒ 用例红；会话提问卡在助手没有推荐时标出 suggested ⇒ 用例红；一个坏行让整批解析失败 ⇒ 用例红。每个假形态改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-registry.test.ts` 退出 0（既有用例不减）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 均退出 0。
+- [x] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
@@ -46,10 +46,26 @@ goal_ac: AC-432
 
 实例用毕 `scripts/isolated-instance.sh stop`。
 
+## ADR-007
+
+该轴仍暗,理由:本轮只新增卡片提供方的代码与判据，未运行 archguard 的全量分析，L_D/L_G 没有本轮可记的量化读数，沿用 develop 的 census 基线。
+
+## Evidence
+
+- AC-1：`npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` → tests 9 / pass 9 / fail 0，exit 0。
+- 假形态（每个改完即还原）：去掉缓存 ⇒ TTL 用例红「a second read inside 5 s must not spawn the CLI again」；去掉「只有助手推荐」的两道 `source === 'assistant'` 守卫 ⇒ 无推荐用例红「a judge recommendation is not the assistant recommendation」；坏行改为整批失败 ⇒ 坏行用例红「the bad line must not fail the batch」。
+- AC-3：`cockpit-card-registry.test.ts` → tests 7 / pass 7，exit 0（既有用例未减）。
+- AC-4：`server-import-cycle-budget.test.ts` → 11/11；`architecture-ratchet.test.ts` → 6/6；均 exit 0。`server/index.ts` 2788→2797、两份 `types.ts` 各 +7 已在基线 note 按 RECORDED CHANGE 格式记录。
+- AC-5：`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning，改动文件 0 warning）。
+- DoD（隔离实例，`cockpit.fleetCards.enabled=true`，settings 由脚本生成后补上该块并用同一组 env 重启同一 dist-server）：`GET /api/cockpit/cards` → HTTP 200，卡片顺序 `att-rescue-41,att-ask-43,att-ruling-42`（resolved 卡被 registry 过滤）；diagnostics `{"provider":"quay-fleet","ok":true,"reason":"1 malformed card line(s) skipped","cards":4,"skippedLines":1,"cached":false}`。
+- 会话提问卡 `att-ask-43`：ask「下一步要我查哪一项？」；options 三条 `budget-breach` / `d3-drill` / `useful-rate-direction`，`suggested` 全为 false，`source` 依次 assistant / assistant / provider；无 `contentUnavailable`（摘要补全成功），选项执行器均为 `fleet.cockpit.session-ask-option`（未注册，确认应报未声明执行器）。对照会话 `1d38c52e-a5d4-4e91-abb9-4c6b4286de9f` 最后一条助手消息（uuid `ce85f4b0-8c77-40bf-9a19-be0f1f84cdc1`）：「要不要我：**(a)** 挖一下 budget breach 是哪个时段、哪波推送超的；**(b)** 查 D3 drill 为什么 false？…useful-rate 那条得你定方向」——助手没有在 (a)/(b) 中推荐，故卡片不设默认选项。
+- 真实 CLI：`quay-fleet cockpit cards --json` → exit 2，stderr 首行 `quay-fleet: unknown command 'cockpit'`（本机安装版本 a348d55 尚无 cockpit 动词）。同一隔离实例改用真实 CLI 取卡：`{"cards":[],"diagnostics":[{"provider":"quay-fleet","ok":false,"reason":"quay-fleet: unknown command 'cockpit'","cards":0,"skippedLines":0,"cached":false}]}`。真实 CLI 读数待 quay-fleet `fleet-cockpit-card-read-port` 落地后补测（待外部）。
+
 ## Touches
 
 - tasks/cockpit-fleet-card-provider.md
 - server/modules/cockpit/cockpit-fleet-card-provider.ts (new)
+- server/modules/cockpit/cockpit-fleet-card-projection.ts (new)
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts (new)
 - server/modules/cockpit/cockpit.module.ts
 - server/modules/cockpit/cockpit-card-registry.ts
@@ -57,6 +73,7 @@ goal_ac: AC-432
 - server/cockpit-fleet-wiring.ts (new)
 - server/index.ts
 - server/modules/settings/server-settings.ts
+- server/modules/quay/index.ts
 - server/modules/observation/index.ts
 - server/shared/interfaces.ts
 - server/shared/types.ts
