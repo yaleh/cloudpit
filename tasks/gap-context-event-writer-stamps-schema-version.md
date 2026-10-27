@@ -3,7 +3,7 @@ id: gap-context-event-writer-stamps-schema-version
 title: context 事件写入器按 fleet schema 的 version 打 row.v：去掉硬编码的
   CONTEXT_EVENT_VERSION = 0，schema 升到 v1 后写出的行仍是 v0，违反 fleet「写入方必须 v ===
   version」
-status: todo
+status: ready
 labels:
   - gap
   - defect
