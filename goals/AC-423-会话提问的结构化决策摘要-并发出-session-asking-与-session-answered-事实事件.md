@@ -1,7 +1,7 @@
 ---
 id: AC-423
 title: 会话提问的结构化决策摘要，并发出 session.asking 与 session.answered 事实事件
-status: draft
+status: active
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -15,4 +15,15 @@ expect: 以夹具转写与桩掉的 LLM
   不存在。
 origin: 本会话 2026-10-26 实测：观察层会话摘要 conclusion 只是上一条消息的逐字摘录（tier
   deterministic），多数会话没有情境，列表无法支持判断；用户确定事实与内容由 CloudCLI 提供、语义由 quay-fleet 提供。
+activatedAt: 2026-10-27T02:50:54.126Z
+statusLog:
+  - at: 2026-10-27T02:50:54.126Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:50:54.126Z
 ---
