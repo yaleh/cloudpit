@@ -28,16 +28,30 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/chat/tests/voiceShortcutController.test.ts` 退出 0：覆盖 `event.code`+修饰键匹配、忽略 `repeat`/`defaultPrevented`、`enabled=false` 不派发、浮层打开不派发、命令按绑定路由到 toggleDictation/toggleLiveVoice。
-- [ ] `npx vitest run src/shared/tests/voiceShortcuts.test.ts` 退出 0：覆盖默认值、规约、`canonicalChord`/`matchesChord`、冲突等级判定。
-- [ ] `npx vitest run src/modules/settings/tests/voiceShortcutsSettings.test.tsx` 退出 0：覆盖总开关持久化、key-capture 显示与清除、高危键告警渲染。
-- [ ] `npm run typecheck` 退出 0。
-- [ ] `npx oxlint src/shared/voiceShortcuts.ts src/modules/chat/utils/voiceShortcutController.ts src/modules/chat/hooks/useVoiceShortcuts.ts src/modules/chat/tests/voiceShortcutController.test.ts src/shared/tests/voiceShortcuts.test.ts src/modules/settings/tests/voiceShortcutsSettings.test.tsx` 退出 0。
+- [x] `npx vitest run src/modules/chat/tests/voiceShortcutController.test.ts` 退出 0：覆盖 `event.code`+修饰键匹配、忽略 `repeat`/`defaultPrevented`、`enabled=false` 不派发、浮层打开不派发、命令按绑定路由到 toggleDictation/toggleLiveVoice。
+- [x] `npx vitest run src/shared/tests/voiceShortcuts.test.ts` 退出 0：覆盖默认值、规约、`canonicalChord`/`matchesChord`、冲突等级判定。
+- [x] `npx vitest run src/modules/settings/tests/voiceShortcutsSettings.test.tsx` 退出 0：覆盖总开关持久化、key-capture 显示与清除、高危键告警渲染。
+- [x] `npm run typecheck` 退出 0。
+- [x] `npx oxlint src/shared/voiceShortcuts.ts src/modules/chat/utils/voiceShortcutController.ts src/modules/chat/hooks/useVoiceShortcuts.ts src/modules/chat/tests/voiceShortcutController.test.ts src/shared/tests/voiceShortcuts.test.ts src/modules/settings/tests/voiceShortcutsSettings.test.tsx` 退出 0。
 
 ## DoD
 
-- [ ] MCP 浏览器真实页面实操并截图存 `tmp/`：Settings → Voice → 快捷键小节开启总开关、为听写与 live voice 各捕获一键；composer 按听写键开/关听写麦克风、按 live voice 键进/出 Live Voice；截图贴回任务。
-- [ ] 存在可用场景时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 并贴 JSON 报告与检查点截图；无匹配场景则在本项注明「无可用场景」。
+- [x] MCP 浏览器真实页面实操并截图存 `tmp/`：Settings → Voice → 快捷键小节开启总开关、为听写与 live voice 各捕获一键；composer 按听写键开/关听写麦克风、按 live voice 键进/出 Live Voice；截图贴回任务。
+  - 无 MCP 浏览器工具可用（ToolSearch `browser`/`playwright` 无匹配），按 shared-lessons 用一次性 Playwright spec 等价路径：真实 `server/index.ts` + Vite client + Chromium，隔离 data dir，账号经 `/api/auth/register` + `/api/user/complete-onboarding` 创建，会话经 `/api/debug-agent/scenarios` 布种；spec 与 `playwright.config.ts` 的两处临时登记已删除/还原，未进提交。
+  - 截图（worktree 内，`tmp/` 已 gitignore）：`tmp/voice-shortcut-dod/01-settings-shortcuts-off.png`、`02-settings-shortcuts-bound.png`、`03-dictation-recording.png`、`04-dictation-idle.png`、`05-live-voice-on.png`、`06-live-voice-off.png`；读数 `tmp/voice-shortcut-dod/report.json`。
+  - 读数：capture 显示 `Ctrl+Alt+D` / `Ctrl+Alt+L`，总开关 `aria-checked=true`；听写键按下后 `voice-input-button` 的 `aria-label` = `Stop recording`，再按一次回 `Voice input`；live voice 键按下后 `voice-realtime-bar` 可见，再按一次 bar 计数 0 且 `.chat-composer-shell` 回来。
+- [x] 存在可用场景时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 并贴 JSON 报告与检查点截图；无匹配场景则在本项注明「无可用场景」。
+  - 无可用场景：`scripts/ui-scenario.mjs` 的 `open` 词表只有 `quay-panel`/`session`/`cockpit`/`cockpit-cards`，没有进入 Settings → Voice 快捷键小节的 opener，故本项不适用；视觉与实际交互由上面的一次性 Playwright spec 覆盖。
+
+## Evidence
+
+- `npx vitest run src/modules/chat/tests/voiceShortcutController.test.ts` → 10 passed。
+- `npx vitest run src/shared/tests/voiceShortcuts.test.ts` → 8 passed。
+- `npx vitest run src/modules/settings/tests/voiceShortcutsSettings.test.tsx` → 5 passed。
+- `npm run typecheck` → exit 0（tsconfig + server + scripts 三段）。
+- `npx oxlint <六个文件>` → exit 0。
+- UI 探针：`1 passed (13.1s)`，console 只有资源 403/404/400（假语音端点与无 realtime 凭据），无 `pageerror`。
+- 该轴仍暗,理由:本任务只新增自包含前端模块与接线，未运行 archguard 依赖/图分析，无新增跨模块叶子边可读数。
 
 ## Touches
 
