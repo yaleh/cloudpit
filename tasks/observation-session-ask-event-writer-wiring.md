@@ -31,17 +31,34 @@ goal_ac: AC-433
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/session-ask-event-writer.test.ts` 退出 0（AC-433 判据）：在临时目录写三份 schema（v1 含两个 kind；v0 不含；缺失），分别驱动「提问然后回答」；v1 时两种事件各落盘恰好一行且字段齐全、askId 格式正确；v0 时返回 invalid-kind、不落盘、不抛；缺失时 schema-unavailable、不落盘；同一提问重复触发不重复落盘。
-- [ ] 假形态各自变红：v0 schema 下仍落盘 ⇒ 用例红；写入失败抛到观察层 ⇒ 用例红。每个假形态改完即还原。
-- [ ] 现有判据不退：`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/production-wiring.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 均退出 0。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 均退出 0。
-- [ ] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/session-ask-event-writer.test.ts` 退出 0（AC-433 判据）：在临时目录写三份 schema（v1 含两个 kind；v0 不含；缺失），分别驱动「提问然后回答」；v1 时两种事件各落盘恰好一行且字段齐全、askId 格式正确；v0 时返回 invalid-kind、不落盘、不抛；缺失时 schema-unavailable、不落盘；同一提问重复触发不重复落盘。
+- [x] 假形态各自变红：v0 schema 下仍落盘 ⇒ 用例红；写入失败抛到观察层 ⇒ 用例红。每个假形态改完即还原。
+- [x] 现有判据不退：`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/production-wiring.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 均退出 0。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 均退出 0。
+- [x] `npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
 在隔离实例里，把实例的 quay-fleet home 指向一个临时目录，放一份 v0 schema（复制当前 fleet 安装里的那份）：在一个复制来的会话上让助手以提问结束、再回答一次，读写入器状态，贴出两次 `invalid-kind` 计数且事件目录没有新行。再把临时目录里的 schema 换成加了这两个 kind 的 v1 副本（只在临时目录里改，不动真实 fleet 安装），重复一次，贴出事件目录新增的两行原文。真实 fleet 安装升到 v1 之后的线上落盘在 quay-fleet 的 `fleet-context-schema-session-ask-events` 落地后复核（待外部）
 
 实例用毕 `scripts/isolated-instance.sh stop`。
+
+## DoD 实测（2026-10-27）
+
+隔离实例：`HOME=/tmp/obs-ask-dod/home`（其中的 `.quay-fleet` 是临时 fleet home，release `v0test` 的 `bin/quay-fleet` 指向它），`ISOLATED_INSTANCE_SOURCE_DB` 指向复制库，会话 `44db366f-1f6f-4595-90b9-a0e519e9cc71` 的 `jsonl_path` 改指本次的临时 transcript；provider CLI 用 PATH 上的 stub，两轮 `chat.send` 各以 `complete` 结束。
+
+- v0（复制自 `/data/home/yale/.quay-fleet/releases/a348d55/config/context-event.schema.v0.json`）：
+  - `GET /api/quay/fleet-summary` 的 `contextEvents`：`{"state":"ok","schemaPath":"/tmp/obs-ask-dod/home/.quay-fleet/releases/v0test/config/context-event.schema.v0.json","eventsDir":"/tmp/obs-ask-dod/home/.quay-fleet/context/events","writes":3,"rejected":2}`；
+  - 服务日志：`[session-ask-events] invalid-kind: "session.asking" is not a kind in the installed fleet schema`（适配器每种原因只记一次）；
+  - 事件目录当天文件只有 `utterance,utterance,shadow.prediction` 三行，没有 `session.asking` / `session.answered`；两次提问事件都被拒，`rejected` 由第一轮的 1 到第二轮的 2。
+- v1（只把临时目录里的 schema 换成 version 0→1 并加两个 cloudcli kind，真实 fleet 未动）：重启后 `contextEvents` 为 `{"state":"ok","writes":5,"rejected":0}`，日志无 rejection；事件目录新增两行原文：
+  - `{"v":0,"id":"01M5XKSHEA35D7F46JWA7EN5D8","at":"2026-10-27T02:42:22.794Z","source":"cloudcli","kind":"session.asking","project":"/data/home/yale/work/quay","session":"44db366f-1f6f-4595-90b9-a0e519e9cc71","refs":["a1"],"data":{"askId":"44db366f-1f6f-4595-90b9-a0e519e9cc71:a1","messageId":"a1","revision":1,"contentRef":{"resolver":"cloudcli.session-ask","sessionId":"44db366f-1f6f-4595-90b9-a0e519e9cc71","messageId":"a1"}}}`
+  - `{"v":0,"id":"01M5XKSMN004WH0F29MYBBFRE0","at":"2026-10-27T02:42:26.080Z","source":"cloudcli","kind":"session.answered","project":"/data/home/yale/work/quay","session":"44db366f-1f6f-4595-90b9-a0e519e9cc71","data":{"askId":"44db366f-1f6f-4595-90b9-a0e519e9cc71:a1","messageId":"u2"}}`
+- 真实 fleet 安装未改动（`a348d55` 的 schema 仍是 v0，无 `session.asking`），实例已 `scripts/isolated-instance.sh stop`（`running:false`）。
+
+## ADR-007 暗轴
+
+该轴仍暗,理由:所装 quay-fleet 仍是 v0 schema，`session.asking`/`session.answered` 只计入 `invalid-kind`、不落盘，线上落盘要等 `fleet-context-schema-session-ask-events` 把 v1 装到真实 fleet 之后才有读数（外部依赖，非本任务的失败）。
 
 ## Touches
 
