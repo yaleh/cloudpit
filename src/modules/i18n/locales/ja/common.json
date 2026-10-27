@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "確認する項目がありません",
     "cardIrreversible": "取り消せません",
     "cardWaitingFor": "{{duration}} 待機中",
+    "cardSessionWaiting": "セッション {{id}} が回答を待っています",
     "cardFilterType": "種類",
     "cardFilterAll": "すべて",
     "cardFilterProject": "プロジェクト",

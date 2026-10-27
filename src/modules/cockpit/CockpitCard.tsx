@@ -7,7 +7,7 @@ import type {
   CockpitCardOptionSource,
 } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
+import { cockpitCardDescriptor, cockpitCardTitle } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmTarget,
@@ -166,7 +166,7 @@ export default function CockpitCard({
   const showingOwnReply = shown?.kind === 'ownReply';
   const compact = density === 'compact';
   const ownReplyAvailable = card.ownReply !== undefined;
-  const question = card.ask ?? card.situation ?? card.subject.uri;
+  const question = cockpitCardTitle(card, t);
 
   const shownLabel = showingOwnReply
     ? t('cockpit.cardWriteOwn')
@@ -238,6 +238,20 @@ export default function CockpitCard({
         >
           {question}
         </p>
+
+        {/* Why the local content resolver could not fill this card: drawn where the missing
+            situation would have been, so the card never reads as an unexplained blank. */}
+        {card.contentUnavailable !== undefined && (
+          <p
+            data-testid="cockpit-card-content-unavailable"
+            className={cn(
+              'mt-0.5 text-xs text-muted-foreground',
+              compact ? 'line-clamp-1' : 'line-clamp-2',
+            )}
+          >
+            {card.contentUnavailable}
+          </p>
+        )}
 
         {card.situation !== undefined && card.situation !== card.ask && (
           <p
@@ -391,6 +405,14 @@ export default function CockpitCard({
             {target?.irreversible === true && <span aria-hidden>⚠</span>}
             <span className="truncate">{confirmLabel}</span>
           </button>
+          {target !== null && target.disabledReason !== null && (
+            <p
+              data-testid="cockpit-card-confirm-disabled-reason"
+              className="mt-0.5 text-[10px] text-muted-foreground"
+            >
+              {target.disabledReason}
+            </p>
+          )}
           {target?.irreversible === true && (
             <p className="mt-0.5 text-[10px] text-amber-700 dark:text-amber-300">
               {t('cockpit.cardIrreversible')}

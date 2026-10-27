@@ -10,6 +10,7 @@ import type {
 } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
+import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
 import type { CockpitCardShown } from '@/modules/cockpit/cockpitCardController';
 import {
@@ -274,6 +275,119 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     const confirm = screen.getByTestId('cockpit-card-confirm');
     expect(confirm.textContent).toContain('Nothing to confirm');
     expect(confirm.hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('confirmability, missing content and the title fallback', () => {
+  it('disables the bar and states why when the shown option’s executor is not declared', () => {
+    const onRequestConfirm = vi.fn();
+    const card: CockpitCardData = {
+      ...CARD,
+      options: [
+        {
+          ...CARD.options[0],
+          action: { executor: 'fleet.redispatch', params: {} },
+          confirmable: false,
+          confirmableReason: '执行器 fleet.redispatch 尚未接入',
+        },
+      ],
+    };
+    renderCard({ card, onRequestConfirm });
+
+    const confirm = screen.getByTestId('cockpit-card-confirm');
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('cockpit-card-confirm-disabled-reason').textContent).toContain(
+      'fleet.redispatch',
+    );
+    fireEvent.click(confirm);
+    expect(onRequestConfirm).not.toHaveBeenCalled();
+  });
+
+  it('draws the content-unavailable reason instead of leaving the situation blank', () => {
+    const reason = '提问决策摘要未启用：未启用 observation.sessionDigest（提问决策摘要）';
+    renderCard({
+      card: { ...CARD, ask: undefined, situation: undefined, contentUnavailable: reason },
+    });
+
+    expect(screen.getByTestId('cockpit-card-content-unavailable').textContent).toBe(reason);
+  });
+
+  it('falls back from an empty ask to the task name, the first fact and finally the uri', () => {
+    const base: CockpitCardData = {
+      ...CARD,
+      ask: undefined,
+      situation: undefined,
+      facts: [],
+      subject: { uri: 'quay://quay/task/example' },
+    };
+    const titleOf = (card: CockpitCardData): string | null => {
+      const view = renderCard({ card });
+      const title = screen.getByTestId('cockpit-card-zone-a-question').textContent;
+      view.unmount();
+      return title;
+    };
+
+    expect(titleOf({ ...base, subject: { uri: 'quay://quay/task/x', taskId: 'gap-routine-x' } })).toBe(
+      'gap-routine-x',
+    );
+    expect(
+      titleOf({ ...base, facts: [{ text: 'the first measured fact', mechanical: true }] }),
+    ).toBe('the first measured fact');
+    expect(titleOf(base)).toBe('quay://quay/task/example');
+  });
+
+  it('names the waiting session when a session-ask card’s content is not ready', () => {
+    const view = renderCard({
+      card: {
+        ...CARD,
+        ask: undefined,
+        situation: undefined,
+        facts: [],
+        subject: { uri: 'quay://quay/board', sessionId: 'dbbf1404-aaaa-bbbb' },
+        contentUnavailable: '提问决策摘要尚未生成',
+      },
+    });
+
+    expect(screen.getByTestId('cockpit-card-zone-a-question').textContent).toBe(
+      'Session dbbf1404 is waiting for your answer',
+    );
+    view.unmount();
+  });
+
+  it('Details renders the original conversation link from a subject-only session card', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails
+          card={{
+            ...CARD,
+            conversation: undefined,
+            subject: { uri: 'quay://quay/task/x', sessionId: 'sess-42' },
+          }}
+          now={NOW}
+          onClose={() => undefined}
+        />
+      </I18nextProvider>,
+    );
+
+    const link = screen.getByTestId('cockpit-card-conversation-link');
+    expect(link.getAttribute('href')).toBe('/session/sess-42');
+    expect(screen.queryByText(i18n.t('cockpit.cardDetailsNoConversation'))).toBeNull();
+  });
+
+  it('Details draws the content-unavailable reason', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails
+          card={{ ...CARD, contentUnavailable: '提问决策摘要不完整，未设默认选项' }}
+          now={NOW}
+          onClose={() => undefined}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('cockpit-card-details-content-unavailable').textContent).toContain(
+      '提问决策摘要不完整',
+    );
   });
 });
 

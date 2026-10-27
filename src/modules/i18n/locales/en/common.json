@@ -1064,6 +1064,7 @@
     "cardConfirmNoOption": "Nothing to confirm",
     "cardIrreversible": "Irreversible",
     "cardWaitingFor": "waiting {{duration}}",
+    "cardSessionWaiting": "Session {{id}} is waiting for your answer",
     "cardFilterType": "Type",
     "cardFilterAll": "All",
     "cardFilterProject": "Project",

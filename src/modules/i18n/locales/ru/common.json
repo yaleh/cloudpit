@@ -943,6 +943,7 @@
     "cardConfirmNoOption": "Нечего подтверждать",
     "cardIrreversible": "Необратимо",
     "cardWaitingFor": "ожидает {{duration}}",
+    "cardSessionWaiting": "Сеанс {{id}} ждёт вашего ответа",
     "cardFilterType": "Тип",
     "cardFilterAll": "Все",
     "cardFilterProject": "Проект",

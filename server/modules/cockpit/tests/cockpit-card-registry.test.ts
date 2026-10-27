@@ -177,6 +177,76 @@ test('a second provider is one class plus one register; its cards appear', async
   assert.ok(registry.declaredExecutors().has('second.run'), 'the declared set is the union of the providers');
 });
 
+test('a subject naming a session fills conversation when the provider declared none', async () => {
+  const registry = createCockpitCardRegistry([
+    new StaticCardProvider('test', [
+      makeCard({
+        id: 'session-only',
+        subject: { uri: 'cloudcli://test/session-only', sessionId: 'session-42' },
+      }),
+    ]),
+  ]);
+
+  const card = (await registry.listCards())[0];
+  assert.deepEqual(
+    card.conversation,
+    { sessionId: 'session-42' },
+    'a card whose subject names a session must carry the conversation its Details drawer links to',
+  );
+});
+
+test('a provider-declared conversation is never overwritten by the subject default', async () => {
+  const registry = createCockpitCardRegistry([
+    new StaticCardProvider('test', [
+      makeCard({
+        id: 'declared',
+        subject: { uri: 'cloudcli://test/declared', sessionId: 'session-42' },
+        conversation: { startInProject: '/repos/p1' },
+      }),
+    ]),
+  ]);
+
+  const card = (await registry.listCards())[0];
+  assert.deepEqual(
+    card.conversation,
+    { startInProject: '/repos/p1' },
+    'a provider that states conversation always wins over the subject default',
+  );
+});
+
+test('an option whose executor no provider declared is marked unconfirmable with the id', async () => {
+  const registry = createCockpitCardRegistry([
+    new StaticCardProvider(
+      'test',
+      [
+        makeCard({
+          id: 'fleet-option',
+          options: [
+            makeOption({ id: 'redispatch', executorId: 'fleet.redispatch', params: {} }),
+            makeOption({ id: 'hold', executorId: 'test.run', params: {} }),
+          ],
+        }),
+      ],
+      ['test.run'],
+    ),
+  ]);
+
+  const card = (await registry.listCards())[0];
+  const redispatch = card.options.find((option) => option.id === 'redispatch');
+  const hold = card.options.find((option) => option.id === 'hold');
+  assert.equal(redispatch?.confirmable, false, 'an undeclared executor must not be confirmable');
+  assert.match(
+    redispatch?.confirmableReason ?? '',
+    /fleet\.redispatch/,
+    'the reason must name the undeclared executor',
+  );
+  assert.notEqual(
+    hold?.confirmable,
+    false,
+    'an option whose executor IS declared must stay confirmable',
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Action channel
 // ---------------------------------------------------------------------------
@@ -295,6 +365,9 @@ const EXPECTED_FIXTURE_ORDER = [
   'fixture:need',
   'fixture:stuck',
   'fixture:fix',
+  'fixture:session-only',
+  'fixture:undeclared',
+  'fixture:content-unavailable',
   'fixture:ask',
   'fixture:multi',
   'fixture:decision',
@@ -311,8 +384,10 @@ test('the cockpit.fixtureCards switch decides whether fixtures are served', asyn
     await off.stop();
   }
 
-  // (b) on → six fixture cards in group/rank order, covering every known kind,
-  // with at least one recommendation and at least one card that has none.
+  // (b) on → nine fixture cards in group/rank order, covering every known kind,
+  // with at least one recommendation and at least one card that has none. Three of them
+  // carry the DoD's gaps as data: a subject-only session link, an undeclared-executor
+  // option and a contentUnavailable reason.
   const onModule = createCockpitCardsModule({ fixtureCards: true });
   const on = await listen(createApp(onModule.router));
   try {
@@ -336,6 +411,25 @@ test('the cockpit.fixtureCards switch decides whether fixtures are served', asyn
     assert.ok(
       body.cards.some((card) => card.options.length > 0 && card.options.every((option) => !option.suggested)),
       'the fixture must include a card with no recommendation',
+    );
+
+    // The three DoD fixtures: the subject-derived conversation link, the undeclared
+    // executor's disabled confirmation, and the content-unavailable reason.
+    const sessionOnly = body.cards.find((card) => card.id === 'fixture:session-only');
+    assert.deepEqual(
+      sessionOnly?.conversation,
+      { sessionId: 'dbbf1404-0000-4000-8000-000000000001' },
+      'the session-only fixture must project its conversation from the subject',
+    );
+    const undeclared = body.cards
+      .find((card) => card.id === 'fixture:undeclared')
+      ?.options.find((option) => option.id === 'redispatch');
+    assert.equal(undeclared?.confirmable, false);
+    assert.match(undeclared?.confirmableReason ?? '', /fleet\.redispatch/);
+    const unavailable = body.cards.find((card) => card.id === 'fixture:content-unavailable');
+    assert.ok(
+      (unavailable?.contentUnavailable ?? '').includes('observation.sessionDigest'),
+      'the content-unavailable fixture must carry the readable reason',
     );
 
     // (c) confirm a recommended option, then re-send the now-stale revision.

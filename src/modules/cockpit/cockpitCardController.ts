@@ -75,8 +75,10 @@ export type CockpitCardConfirmTarget = {
   label: string;
   /** True when the option carries a warning tag (or its own `warn`): draws the warning style. */
   irreversible: boolean;
-  /** A target exists but may not be sent yet (an own reply with no text). */
+  /** A target exists but may not be sent yet (an own reply with no text, an undeclared executor). */
   disabled: boolean;
+  /** Why the target is disabled, drawn on the confirm bar; `null` when it can be sent. */
+  disabledReason: string | null;
 };
 
 /** One confirmation request's transport fields, matching `POST /api/cockpit/cards/confirm`. */
@@ -295,6 +297,7 @@ export function confirmTargetOf(
   if (shown === undefined) return null;
   if (shown.kind === 'ownReply') {
     const replyText = ownReply ?? '';
+    const empty = replyText.trim() === '';
     return {
       cardId: card.id,
       revision: card.revision,
@@ -302,11 +305,17 @@ export function confirmTargetOf(
       replyText,
       label: replyText.trim(),
       irreversible: false,
-      disabled: replyText.trim() === '',
+      disabled: empty,
+      // An empty draft is the only own-reply gate; the bar names it through its disabled state.
+      disabledReason: null,
     };
   }
   const option = shownOptionOf(card, shown);
   if (option === null) return null;
+  // An option whose executor no provider declared stays readable and selectable, but its
+  // confirmation is refused by the server; the bar states that up front instead of inviting
+  // a press that is guaranteed to fail.
+  const confirmable = option.confirmable !== false;
   return {
     cardId: card.id,
     revision: card.revision,
@@ -314,7 +323,10 @@ export function confirmTargetOf(
     replyText: null,
     label: option.label,
     irreversible: isIrreversibleOption(option),
-    disabled: false,
+    disabled: !confirmable,
+    disabledReason: confirmable
+      ? null
+      : (option.confirmableReason ?? option.action.executor),
   };
 }
 

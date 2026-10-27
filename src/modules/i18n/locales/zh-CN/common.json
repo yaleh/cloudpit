@@ -973,6 +973,7 @@
     "cardConfirmNoOption": "没有可确认的选项",
     "cardIrreversible": "不可逆",
     "cardWaitingFor": "已等待 {{duration}}",
+    "cardSessionWaiting": "会话 {{id}} 在等你回答",
     "cardFilterType": "类型",
     "cardFilterAll": "全部",
     "cardFilterProject": "项目",
