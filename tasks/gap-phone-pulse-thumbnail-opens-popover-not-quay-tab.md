@@ -26,13 +26,13 @@ extra:
 
 ## AC
 
-- [ ] 点击行为：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；新增用例：`isMobile` 且 `compact` 时点击触发器会渲染 `[data-testid="quay-pulse-popover"]`，再点关闭；触发器点击本身不调用 `onOpenQuayPanel`；触发器带 `aria-haspopup="dialog"` 且 `aria-expanded` 随开关在 `false`、`true` 间切换。
-- [ ] 进入完整面板：同一测试文件含用例：compact 下打开 popover 后点击 `[data-testid="quay-pulse-open-panel"]`，`onOpenQuayPanel` 恰被调用一次。
-- [ ] 外形不变：同一测试文件含用例：compact 形态的触发器宽 64px、高 14px，`data-variant` 为 `compact`；`npx vitest run src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` exit 0，且该文件原有用例（含缩略图位置与尺寸那条）一条不少。
-- [ ] 手机点击：`src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` 新增用例：手机宽度渲染 header，点击缩略图后出现 popover，popover 的定位在 header 底边之下（`top` 不小于 header 的 bottom），关闭后焦点回到缩略图。
-- [ ] 关闭行为：`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0；手机 compact 下 popover 打开时按 Escape 只关闭 popover，不触发会话中止，与桌面一致。
-- [ ] 注释同步：`git grep -n "opens the Quay view\|opens the full Quay panel" -- src/modules/quay/SessionPulse.tsx src/modules/project-workspace/WorkspaceHeader.tsx` 无输出。
-- [ ] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace` exit 0。
+- [x] 点击行为：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` exit 0；新增用例：`isMobile` 且 `compact` 时点击触发器会渲染 `[data-testid="quay-pulse-popover"]`，再点关闭；触发器点击本身不调用 `onOpenQuayPanel`；触发器带 `aria-haspopup="dialog"` 且 `aria-expanded` 随开关在 `false`、`true` 间切换。
+- [x] 进入完整面板：同一测试文件含用例：compact 下打开 popover 后点击 `[data-testid="quay-pulse-open-panel"]`，`onOpenQuayPanel` 恰被调用一次。
+- [x] 外形不变：同一测试文件含用例：compact 形态的触发器宽 64px、高 14px，`data-variant` 为 `compact`；`npx vitest run src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` exit 0，且该文件原有用例（含缩略图位置与尺寸那条）一条不少。
+- [x] 手机点击：`src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` 新增用例：手机宽度渲染 header，点击缩略图后出现 popover，popover 的定位在 header 底边之下（`top` 不小于 header 的 bottom），关闭后焦点回到缩略图。
+- [x] 关闭行为：`npx vitest run src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx` exit 0；手机 compact 下 popover 打开时按 Escape 只关闭 popover，不触发会话中止，与桌面一致。
+- [x] 注释同步：`git grep -n "opens the Quay view\|opens the full Quay panel" -- src/modules/quay/SessionPulse.tsx src/modules/project-workspace/WorkspaceHeader.tsx` 无输出。
+- [x] 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint src/modules/quay src/modules/project-workspace` exit 0。
 
 ## DoD
 
@@ -46,3 +46,21 @@ extra:
 - src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx
 - src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx
 - tasks/gap-phone-pulse-thumbnail-opens-popover-not-quay-tab.md
+
+## 验证记录
+
+- 用例：`npx vitest run src/modules/quay/tests/SessionPulse.test.tsx` → 35 passed；`…/mobileHeaderCockpitEntry.test.tsx` → 8 passed（原 7 条 + 新增 1 条）；`…/chatInterfaceEscapeAbort.test.tsx` → 3 passed。
+- 静态检查：`npx tsc --noEmit -p tsconfig.json` exit 0；`npx oxlint src/modules/quay src/modules/project-workspace` exit 0（仅既有 warning）。
+- 注释同步：`git grep -n "opens the Quay view\|opens the full Quay panel" -- src/modules/quay/SessionPulse.tsx src/modules/project-workspace/WorkspaceHeader.tsx` 无输出（exit 1）。
+- DoD 实页（本会话无 MCP 浏览器，改用一次性 Playwright `tmp/dod-phone-pulse.cjs`）：隔离实例 `scripts/isolated-instance.sh start` → `:3181`，`ok:true`、`resident_restore_started:0`；Vite dev `:5195`；隔离 `HOME=/data/scratch/yale/dod-phone-pulse/home`（符号链接真实 `~/.claude`、`~/.claude.json`、`~/.quay-fleet`）。因 768px 以下侧栏移出画布，每腿先在 1440 宽度选项目/会话，再 resize 到该腿视口（响应式路径）。报告 `tmp/dod-phone-pulse/report.json`。
+  - 手机 390×844 浅色（`tmp/dod-phone-pulse/phone-chat-before.png`、`phone-popover-light.png`）：缩略图 `data-variant=compact`、64×14、位于 (150, 23.75)，`aria-haspopup=dialog`、`aria-expanded` false→true；popover (x=8, y=49, w=374, h=774)，header 高 45 ⇒ popover top 49 ≥ header bottom 45；计数带可见（`Project Tasks done 1172 / superseded 21 / ready 2 … This session · 26 tasks · 3 goals`），in-flight 列表 2 行且任务自身带 mentioned 标记。
+  - 进入完整面板（`phone-quay-tab.png`）：点 `quay-pulse-open-panel` 后 `quay-panel-loaded` 可见，popover 计数 0（已关闭）。
+  - 返回会话（`phone-chat-after.png`）：缩略图仍为 compact 64×14、位置 (150, 23.75)，与点击前一致。
+  - 手机深色（`phone-popover-dark.png`）：`darkClass=true`，几何与浅色一致，计数带/in-flight 可见。
+  - 桌面 1440×900（`desktop-popover.png`）：缩略图为 `wide` 110×32；点击后 popover (x=430.5, y=61, w=868, h=760)，计数带与 in-flight 可见，桌面未退。
+- 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/quay-wall-focus-pin-utter.json --base-url http://127.0.0.1:5195 --project claudecodeui --session "quay 项目的 in-flight 甘特图"` → exit 0，`ok:true`，6 步、5938ms、2 个检查点；报告 `tmp/dod-scenario/report.json` 与 `step-1-open-quay-panel.png`、`step-6-expect.png`。
+- 说明：`AC-430` 的 `expect`/说明若仍写「点按打开完整 Quay 面板」，按 Proposal 未修改，留待用户决定。
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只收回手机 compact 缩略图的点击语义（改为打开既有 popover）并同步注释与用例，没有 L_D/L_G 探针或读数可记
