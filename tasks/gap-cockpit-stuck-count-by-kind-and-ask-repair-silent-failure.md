@@ -2,7 +2,7 @@
 id: gap-cockpit-stuck-count-by-kind-and-ask-repair-silent-failure
 title: 驾驶舱两处：列标题「stuck」按 kind 计数（现按 group 把会话提问也算成 stuck）；查清 quay
   项目提问卡重算后仍显示「未启用」的原因（限额还是转写定位失败）并让失败原因可见
-status: ready
+status: done
 labels:
   - gap
   - defect
