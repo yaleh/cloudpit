@@ -38,11 +38,11 @@ Error: strict mode violation: getByRole('switch', { name: 'Enable voice' }) reso
 
 ## AC
 
-- [ ] `grep -n "getByRole('switch', { name: 'Enable voice', exact: true })" e2e/voice-dashscope-written.spec.ts` 至少命中 `rereadHealth` 那一行；且 `grep -c "name: 'Enable voice' }" e2e/voice-dashscope-written.spec.ts` 为 0（同文件不再残留会被新开关撞名的裸名开关定位）。
-- [ ] `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，输出 `2 passed`，且不含 `did not run` / `strict mode violation`（written 与 refusal 两条腿都真跑绿）。
-- [ ] 该次运行的 stdout 同时给出原判据的读数：`x-voice-provider=dashscope-omni`、`aliyuncs=0`（或 `aliyuncs-ledger` 为空）、composer 的值等于信封里的书面指令、refusal 腿 `draft-kept=true`——证明只改了定位，判据本体仍按原期望读取。
-- [ ] 假形态未被削弱：`grep -c "expect(leg.aliyuncsLedger).toEqual(\[\])" e2e/voice-dashscope-written.spec.ts` ≥ 2（written 与 refusal 各一条），且下面那条 diff 限制保证这些断言与文案未被改写——前端若改为忽略 proxy-only 直连，判据仍必须红。
-- [ ] 改动只落在定位表达式：`git diff -U0 -- e2e/voice-dashscope-written.spec.ts | grep -E '^[+-][^+-]'` 的每一条都含 `getByRole`，没有 `expect(`、期望文案、拦截路由或产品源码改动。
+- [x] `grep -n "getByRole('switch', { name: 'Enable voice', exact: true })" e2e/voice-dashscope-written.spec.ts` 至少命中 `rereadHealth` 那一行；且 `grep -c "name: 'Enable voice' }" e2e/voice-dashscope-written.spec.ts` 为 0（同文件不再残留会被新开关撞名的裸名开关定位）。
+- [x] `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，输出 `2 passed`，且不含 `did not run` / `strict mode violation`（written 与 refusal 两条腿都真跑绿）。
+- [x] 该次运行的 stdout 同时给出原判据的读数：`x-voice-provider=dashscope-omni`、`aliyuncs=0`（或 `aliyuncs-ledger` 为空）、composer 的值等于信封里的书面指令、refusal 腿 `draft-kept=true`——证明只改了定位，判据本体仍按原期望读取。
+- [x] 假形态未被削弱：`grep -c "expect(leg.aliyuncsLedger).toEqual(\[\])" e2e/voice-dashscope-written.spec.ts` ≥ 2（written 与 refusal 各一条），且下面那条 diff 限制保证这些断言与文案未被改写——前端若改为忽略 proxy-only 直连，判据仍必须红。
+- [x] 改动只落在定位表达式：`git diff -U0 -- e2e/voice-dashscope-written.spec.ts | grep -E '^[+-][^+-]'` 的每一条都含 `getByRole`，没有 `expect(`、期望文案、拦截路由或产品源码改动。
 
 ## DoD
 
@@ -50,6 +50,29 @@ Error: strict mode violation: getByRole('switch', { name: 'Enable voice' }) reso
 - 失败路径可分辨：若精确化后仍有第二条定位被新开关撞名，必须把该定位一起收紧并在任务 Notes 里点名是哪一条；不得靠增加 `.first()`、`waitForTimeout` 或放宽断言来掩盖二义。
 - 不发散到产品源码：本任务不新增产品行为、不改文案与 i18n 键；若在复跑中发现产品侧确实另有回归（例如代理头或草稿保留），在任务 Notes 里写明并另立条目，不夹带进本 diff。
 - 判据通过后由 gate / lifecycle 正常判定，不手写 done。
+
+## Notes
+
+**改动**：`e2e/voice-dashscope-written.spec.ts:844`（`rereadHealth` 内的唯一 switch 定位）由 `getByRole('switch', { name: 'Enable voice' })` 收紧为 `getByRole('switch', { name: 'Enable voice', exact: true })`。diff 仅此一行；`git diff -U0` 的两条变更行都含 `getByRole`，无 `expect(`、期望文案、拦截路由或产品源码改动。
+
+**同一文件其余角色定位已逐一核对，没有被新开关撞名**：`getByRole('button', …)` 的 `Create Account` / `Next` / `Complete Setup` / 工作区行 / `Settings`（已 exact）/ `Voice`（已 exact）/ `Voice input` / `Stop recording` 都限定 role 为 `button`，而新开关的 role 是 `switch`，故不构成二义；`getByRole('switch', …)` 全文件仅第 844 行一处。未使用 `.first()`、`waitForTimeout` 或放宽断言。
+
+**DoD 实跑读数**（worktree `gap-ac142-enable-voice-switch-exact-locator`，`npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"`，exit=0）：
+
+```
+[voice-dashscope] leg=written flags={"voiceDebug":"0","voiceTrim":"off"}
+proxy=1 x-voice-provider=dashscope-omni aliyuncs=0 composer-len=67
+[voice-dashscope] leg=refusal flags={"voiceDebug":"0","voiceTrim":"off"}
+draft-kept=true posts=1 aliyuncs-refusal=0
+  2 passed (18.8s)
+```
+
+`composer-len=67` 即信封里的 `WRITTEN_INSTRUCTION`（`draft the paragraph as one written instruction for the coding agent`）的长度，`expect(composer(page)).toHaveValue(WRITTEN_INSTRUCTION)` 同轮通过；无 `did not run`、无 `strict mode violation`。
+
+**ADR-007 暗轴记录**
+
+- L_D 该轴仍暗,理由:本任务只收紧 e2e 判据里的一处开关定位表达式,不改任何领域数据通路/数据结构,没有可读的领域数据轴读数。
+- L_G 该轴仍暗,理由:本任务不新增 goal 判据;验证读数就是本任务自己的 AC 与上面两条 Playwright 腿的日志。
 
 ## Touches
 
