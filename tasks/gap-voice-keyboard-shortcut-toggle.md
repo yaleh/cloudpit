@@ -68,3 +68,11 @@ extra:
 - src/modules/settings/tests/voiceShortcutsSettings.test.tsx (new)
 - server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-voice-keyboard-shortcut-toggle.md
+
+## Blocker
+
+**2026-10-27T09:18:12.178Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat/ChatInterface.tsx 1395→1443 — 基线内读数不得上调（此基线只允许下降）
+- run_id：wk-prod-anchor
+- session_id：ed609762-10c5-42e7-a54d-0721a6be3caf
