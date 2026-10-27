@@ -4209,6 +4209,21 @@ export type QuayFanInSummary = {
 };
 
 /**
+ * How one Tests / Fan-in reading was obtained, reported beside the reading itself.
+ *
+ * The four carrier states are quay's own (`quay suite` / `quay driver log` publish them), passed
+ * through untouched. The last two are this side's: `verb-unavailable` is the honest reading of an
+ * older pinned CLI that does not have the verb at all, and `failed` is a body that came back but
+ * could not be read as the documented document. Neither is ever drawn as "no records" — a failed
+ * read is not an empty history.
+ */
+export type QuayCarrierReading = {
+  state: 'ok' | 'absent' | 'unreadable' | 'empty-writer-zero-records' | 'verb-unavailable' | 'failed';
+  /** Why the reading is what it is, or `null` when the state needs no explanation. */
+  reason: string | null;
+};
+
+/**
  * One live obstruction as the pulse strip's blocked row draws it, read from the task store.
  *
  * The group is keyed by the NORMALISED failure signature (digits replaced with `#`), never by
@@ -4520,6 +4535,15 @@ export type QuaySnapshot = {
   tests: QuayTestsSummary;
   /** Fan-in card: recent mechanical fan-in attempts, read from `.quay/worker-outcome.jsonl`. */
   fanIn: QuayFanInSummary;
+  /**
+   * How the two readings above were obtained. OPTIONAL and nullable so an older cached snapshot
+   * reads as "not reported": absent is never "ok", because a snapshot written before this field
+   * carried no carrier reading to report.
+   */
+  carrierReadings?: {
+    suite: QuayCarrierReading;
+    fanIn: QuayCarrierReading;
+  };
   /**
    * Pulse strip's blocked row: the live obstructions in this project's task store, merged by
    * failure signature (see `QuayBlockerSummary`). OPTIONAL and nullable so an older backend /
