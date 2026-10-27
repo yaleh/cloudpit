@@ -2,7 +2,7 @@
 id: cockpit-mobile-header-and-page
 title: 手机 header 与驾驶舱页：单行 45px，标题后「R ▾」（绿 / 灰）、项目名后 Quay in-flight 图、右侧 tab ▾ ·
   ⋯ · 驾驶舱按钮（gauge + 红底角标），驾驶舱卡片页返回保持原位
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
