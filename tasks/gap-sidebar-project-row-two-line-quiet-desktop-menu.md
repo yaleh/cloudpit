@@ -1,7 +1,7 @@
 ---
 id: gap-sidebar-project-row-two-line-quiet-desktop-menu
 title: 项目行两行化与降噪：删路径行、全零计数隐藏、quay 图标只在非 idle 时出现、桌面端操作收进悬停 ⋯ 菜单（含右键）、删除文案缩短（手机端同步）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
