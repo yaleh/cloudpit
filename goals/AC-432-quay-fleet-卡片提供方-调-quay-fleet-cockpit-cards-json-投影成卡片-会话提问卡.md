@@ -1,7 +1,7 @@
 ---
 id: AC-432
 title: quay-fleet 卡片提供方：调 quay-fleet cockpit cards --json 投影成卡片，会话提问卡本地补全内容，默认选项只取助手推荐
-status: draft
+status: active
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -19,4 +19,15 @@ expect: 以注入的 CLI 运行函数（返回 JSONL 夹具，形状照 quay-fle
 origin: 本会话 2026-10-27：quay-fleet 已立 fleet-cockpit-card-read-port（读口 quay-fleet
   cockpit cards --json，每行一张 CockpitCard，provider 为 quay-fleet，subject.project
   恒有值，session-ask 卡带 contentRef cloudcli.session-ask）；E1 结论默认选项只取助手推荐。
+activatedAt: 2026-10-27T02:55:59.626Z
+statusLog:
+  - at: 2026-10-27T02:55:59.626Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:55:59.626Z
 ---
