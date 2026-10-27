@@ -1,7 +1,7 @@
 ---
 id: gap-phone-pulse-thumbnail-opens-popover-not-quay-tab
 title: 手机 header 的 64×14 in-flight 缩略图：点击恢复为打开 popover，不再直接切到 Quay tab
-status: ready
+status: done
 labels:
   - gap
   - defect
