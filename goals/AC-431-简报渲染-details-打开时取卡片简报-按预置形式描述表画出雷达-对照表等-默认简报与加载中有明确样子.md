@@ -1,7 +1,7 @@
 ---
 id: AC-431
 title: 简报渲染：Details 打开时取卡片简报，按预置形式描述表画出雷达、对照表等，默认简报与加载中有明确样子
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run src/modules/cockpit/tests/CockpitBriefView.test.tsx
@@ -21,6 +21,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:05:05.031Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
