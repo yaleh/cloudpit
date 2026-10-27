@@ -5,7 +5,7 @@ import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
 import { IS_PLATFORM } from '@/shared/utils';
 import { DiscordIcon } from '@/shared/ui';
 import { useVersionCheck } from '@/shared/hooks/useVersionCheck';
-import PremiumFeatureCard from '@/modules/settings/PremiumFeatureCard';
+import PremiumFeatureCard from '@/modules/settings/ui/PremiumFeatureCard';
 
 const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
 const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';

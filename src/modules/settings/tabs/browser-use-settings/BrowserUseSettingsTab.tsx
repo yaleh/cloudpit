@@ -4,10 +4,10 @@ import { Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/shared/ui';
 import { api, readApiJson, ApiRequestError } from '@/shared/api';
-import SettingsCard from '@/modules/settings/SettingsCard';
-import SettingsRow from '@/modules/settings/SettingsRow';
-import SettingsSection from '@/modules/settings/SettingsSection';
-import SettingsToggle from '@/modules/settings/SettingsToggle';
+import SettingsCard from '@/modules/settings/ui/SettingsCard';
+import SettingsRow from '@/modules/settings/ui/SettingsRow';
+import SettingsSection from '@/modules/settings/ui/SettingsSection';
+import SettingsToggle from '@/modules/settings/ui/SettingsToggle';
 
 type BrowserUseSettings = {
   enabled: boolean;

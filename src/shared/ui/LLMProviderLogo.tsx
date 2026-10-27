@@ -1,6 +1,6 @@
-import { resolveProviderDescriptor } from '@/shared/constants';
 import type { LLMProvider } from '@/shared/types';
 import ClaudeLogo from '@/shared/ui/ClaudeLogo';
+import { resolveProviderLogo } from '@/shared/ui/providerLogos';
 
 type LLMProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -44,9 +44,8 @@ export function LLMProviderLogo({
   provider = 'claude',
   className = 'w-5 h-5',
 }: LLMProviderLogoProps) {
-  const descriptor = resolveProviderDescriptor(provider);
-  if (descriptor) {
-    const Logo = descriptor.logo;
+  const Logo = resolveProviderLogo(provider);
+  if (Logo) {
     return <Logo className={className} />;
   }
 
