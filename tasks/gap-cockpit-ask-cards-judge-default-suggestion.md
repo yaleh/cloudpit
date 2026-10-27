@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-cards-judge-default-suggestion
 title: 会话提问卡恢复缺省建议：助手没推荐时由 T1 摘要同一次调用的判官补一项（source=judge，附理由，○
   标记），已存的无缺省摘要读取时补算一次；controller 与卡片把 judge 来源同样作为缺省显示
-status: ready
+status: done
 labels:
   - gap
   - defect
