@@ -11,20 +11,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *
  * A non-empty selection is recorded after it has held still for
  * {@link SELECTION_SETTLE_MS}: dragging across a long answer emits a stream of
- * `selectionchange` events, and each would otherwise re-render the strip. A
- * collapsed or out-of-transcript selection clears the state at once — there is no
- * cost to reacting to it, and a stale chip must disappear the moment the highlight
- * does. Repeated events that produce the same text do not update state at all.
+ * `selectionchange` events, and each would otherwise re-render the strip. Outside a
+ * pointer gesture, a collapsed or out-of-transcript selection clears the state at
+ * once — there is no cost to reacting to it, and a stale chip must disappear the
+ * moment the highlight does. Repeated events that produce the same text do not
+ * update state at all.
  *
- * A pointer gesture that starts in the transcript holds the chip back until it ends.
- * The quoted chip can make the composer one line taller, which shrinks the
- * transcript and moves the text under a cursor that has not moved: the browser then
- * recomputes the selection endpoints and the passage the user dragged out changes.
- * So while the button is still down (`pointerdown` inside the transcript, until
- * `pointerup` / `pointercancel` / `blur`) a live selection is neither settled nor
- * committed; the release itself is the settle, so it is read at once. Empty,
- * collapsed and out-of-transcript selections still clear immediately, and the
- * keyboard path (no `pointerdown`) keeps the ordinary debounce.
+ * A pointer gesture that starts in the transcript holds the chip completely still
+ * until it ends. The quoted chip can make the composer one line taller, which
+ * shrinks the transcript and moves the text under a cursor that has not moved: the
+ * browser then recomputes the selection endpoints and the passage the user dragged
+ * out changes. The press itself also collapses the previous range before the new one
+ * exists, so reacting to that collapse would drop the chip, move the text the user is
+ * about to drag, and bring it back on release. So while the button is still down
+ * (`pointerdown` inside the transcript, until `pointerup` / `pointercancel` / `blur`)
+ * nothing is committed in either direction — neither a live selection nor its
+ * disappearance. The release itself is the settle: it reads the selection once, so
+ * the chip either updates to the new passage or (for a click, an out-of-transcript
+ * selection, a too-short one) clears exactly once. The keyboard path (no
+ * `pointerdown`) keeps the ordinary debounce and the immediate clear.
  *
  * Consumers: `ChatInterface` (which owns the transcript) hands the text to the
  * composer as the quoted chip's source.
@@ -137,7 +142,19 @@ export function useTranscriptSelection({
     };
 
     const onSelectionChange = () => {
-      // A collapsed/empty/foreign selection has no text to settle on: clear at once.
+      // The pointer is still down inside the transcript: commit nothing, in either
+      // direction. A live selection must not settle (the chip would resize the
+      // composer and the browser would recompute the selection under the stationary
+      // cursor), and a collapsed/short/out-of-transcript one must not clear either —
+      // the press itself collapses the previous range before the new one exists, so
+      // clearing here would drop the old chip and move the text the user is about to
+      // drag. The release below reads the selection and settles it exactly once.
+      if (pointerGestureRef.current) {
+        cancelTimer();
+        return;
+      }
+      // Outside a gesture a collapsed/empty/foreign selection has no text to settle
+      // on: clear at once.
       const selection = window.getSelection?.();
       const hasLiveTranscriptSelection = Boolean(
         selection
@@ -150,13 +167,6 @@ export function useTranscriptSelection({
       if (!hasLiveTranscriptSelection) {
         cancelTimer();
         readSelection();
-        return;
-      }
-      // The pointer is still down inside the transcript: do not settle yet. The chip
-      // would resize the composer and the browser would recompute the selection
-      // under the stationary cursor. The release below reads it instead.
-      if (pointerGestureRef.current) {
-        cancelTimer();
         return;
       }
       cancelTimer();

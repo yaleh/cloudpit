@@ -196,7 +196,7 @@ describe('useTranscriptSelection', () => {
     assert.equal(result.current.selectionText, '这是一段足够长的');
   });
 
-  it('clears a collapsed selection at once mid-gesture, and never flushes it on release', () => {
+  it('keeps the old chip while a mid-gesture selection collapses, and clears it only on release', () => {
     const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
     const { result } = renderSelection();
 
@@ -214,12 +214,99 @@ describe('useTranscriptSelection', () => {
     });
     assert.equal(result.current.selectionText, '这是一段足够长的', 'the mid-gesture selection is not committed');
 
-    // Collapsing the selection clears the old chip immediately — pointer still down.
+    // The press collapses the previous range before a new one exists. The chip must
+    // survive that: clearing here would move the text under the stationary cursor.
     act(() => selectRange(textNode, 3, 3));
-    assert.equal(result.current.selectionText, null, 'a collapsed selection clears without waiting for release');
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'a collapsed selection does not clear mid-gesture');
 
     act(() => pointer(window, 'pointerup'));
-    assert.equal(result.current.selectionText, null, 'releasing a collapsed selection stays null');
+    assert.equal(result.current.selectionText, null, 'the release is where a collapsed selection clears');
+  });
+
+  it('swaps the chip for a new passage on release after collapsing mid-gesture', () => {
+    const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const { result } = renderSelection();
+
+    selectRange(textNode, 0, 8);
+    settle();
+    assert.equal(result.current.selectionText, '这是一段足够长的');
+
+    act(() => {
+      pointer(region, 'pointerdown');
+      // `mousedown` collapses the old range before the drag produces a new one.
+      selectRange(textNode, 3, 3);
+    });
+    // Many settle windows later the button is still down, and the chip must still be
+    // the old passage — neither cleared by the collapse nor updated by anything else.
+    act(() => {
+      vi.advanceTimersByTime(SETTLE_MS * 10);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'the collapse mid-gesture must not clear the chip');
+
+    // The drag settles on a different passage; the release reads it at once.
+    act(() => selectRange(textNode, 4, 12));
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, '足够长的助手回答', 'the release swaps in the new passage immediately');
+  });
+
+  it('clears the chip on release for a click, a foreign selection and a short one', () => {
+    const { region, textNode } = makeRegion('这是一段足够长的助手回答文字');
+    const composer = makeRegion('输入框里的字', false);
+    const { result } = renderSelection();
+
+    const recordOldPassage = () => {
+      act(() => selectRange(textNode, 0, 8));
+      settle();
+      assert.equal(result.current.selectionText, '这是一段足够长的');
+    };
+
+    // A click that collapses the selection: cleared when the button comes up, not before.
+    recordOldPassage();
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 3, 3);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'the collapse itself does not clear');
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, null, 'a click clears the chip on release');
+
+    // A drag that ends outside the transcript.
+    recordOldPassage();
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(composer.textNode, 0, 5);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'an out-of-transcript drag does not clear mid-gesture');
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, null, 'an out-of-transcript selection clears on release');
+
+    // A drag shorter than MIN_SELECTION_CHARS.
+    recordOldPassage();
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 0, 3);
+    });
+    assert.equal(result.current.selectionText, '这是一段足够长的', 'a short drag does not clear mid-gesture');
+    act(() => pointer(window, 'pointerup'));
+    assert.equal(result.current.selectionText, null, 'a too-short selection clears on release');
+
+    // A cancelled gesture under a collapsed selection.
+    recordOldPassage();
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 3, 3);
+    });
+    act(() => pointer(window, 'pointercancel'));
+    assert.equal(result.current.selectionText, null, 'pointercancel clears a collapsed selection');
+
+    // A window blur with no pointerup at all, under a collapsed selection.
+    recordOldPassage();
+    act(() => {
+      pointer(region, 'pointerdown');
+      selectRange(textNode, 3, 3);
+    });
+    act(() => pointer(window, 'blur'));
+    assert.equal(result.current.selectionText, null, 'blur clears a collapsed selection');
   });
 
   it('ends the gesture and flushes the selection on pointercancel and on window blur', () => {
