@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-src-shared-root-ui
 title: "architecture-analysis: src/shared root, ui, hooks and context form a
   4-package SCC whose only root->subdir edge is PROVIDER_DESCRIPTORS carrying
   four React logo components out of c"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
