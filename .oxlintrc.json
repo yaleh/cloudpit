@@ -138,6 +138,14 @@
         "mode": "folder"
       },
       {
+        // The cockpit's leaf contract: the address grammar, the observation URI/pin surface and
+        // the card reading that non-cockpit modules (sidebar, ui-scenario) consume. It imports
+        // only src/shared and React, never another feature module.
+        "type": "frontend-leaf-contract",
+        "pattern": "src/modules/cockpit/contract",
+        "mode": "folder"
+      },
+      {
         "type": "frontend-module",
         "pattern": "src/modules/*",
         "mode": "folder",
@@ -279,7 +287,16 @@
                 "message": "Cross-module imports must go through that module's barrel file (src/modules/<module>/index.ts)."
               },
               {
+                "to": { "type": "frontend-leaf-contract" },
+                "disallow": { "to": { "internalPath": "**" } },
+                "message": "Imports of the cockpit's leaf contract must go through src/modules/cockpit/contract/index.ts."
+              },
+              {
                 "to": { "type": "frontend-module" },
+                "allow": { "to": { "internalPath": ["index", "index.{ts,tsx}"] } }
+              },
+              {
+                "to": { "type": "frontend-leaf-contract" },
                 "allow": { "to": { "internalPath": ["index", "index.{ts,tsx}"] } }
               }
             ]

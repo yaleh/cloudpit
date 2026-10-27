@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '@/shared/api';
 import { useWebSocketOptional } from '@/shared/context/WebSocketContext';
-import { createExternalStore } from '@/shared/utils';
+import {
+  OBSERVATION_BASE,
+  observationPinnedUris,
+  primeObservationPins,
+  setObservationWatch,
+  toggleObservationPin,
+  useObservationPin,
+} from '@/modules/cockpit/contract';
 
 /**
  * The observation wall's client half.
@@ -93,8 +100,6 @@ export type ObservationSelfReading = {
   lastRunAt: number | null;
 };
 
-const OBSERVATION_BASE = '/api/observation';
-
 /** The wall as the page reads it: a discriminated union, so a failed read is never drawn empty. */
 export type ObservationWallView =
   | { status: 'loading' }
@@ -122,15 +127,6 @@ export async function markObservationSeen(uri: string, revision: number): Promis
     method: 'POST',
     body: JSON.stringify({ uri, revision }),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-}
-
-/** `PUT | DELETE /api/observation/watch/:uri` — pins or unpins one object. */
-export async function setObservationWatch(uri: string, watched: boolean): Promise<void> {
-  const response = await authenticatedFetch(
-    `${OBSERVATION_BASE}/watch/${encodeURIComponent(uri)}`,
-    { method: watched ? 'PUT' : 'DELETE' },
-  );
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
@@ -167,77 +163,15 @@ export function deriveSelfReading(
   };
 }
 
-// ── The shared pin cache ─────────────────────────────────────────────────────
-//
-// A sidebar row and a wall tile both render "pinned / not pinned" for the same URI. Two
-// independent reads would be two truths; a module-level cache is the one truth, written by the
-// wall read and by every successful toggle, and subscribed to by `useObservationPin`.
-//
-// It is deliberately a CACHE, not a fetcher: a row mounts in a sidebar that knows nothing about
-// the observation API, and mounting must not fire an HTTP request per row. The cache is filled
-// by the cockpit's wall read (which the person opens to use the wall at all) and by writes the
-// person performs here.
-
-/**
- * The one pinned-URI set every sidebar row and wall tile reads. Replaced with a
- * new set on every change so a reader's snapshot identity tracks the change.
- */
-const pinStore = createExternalStore<ReadonlySet<string>>(new Set());
-
-function publishPins(next: ReadonlySet<string>): void {
-  pinStore.set(next);
-}
-
-/** Replaces the cache from a wall read. Consumers not mentioned by the read are left alone. */
-export function primeObservationPins(wall: ObservationWall): void {
-  // Only the entries the server returned are known; a pinned object that did not fit the cap
-  // is still pinned but is not in `entries`, so the read adds rather than replaces. An unpin
-  // performed here is what removes an entry, and it publishes its own update.
-  const next = new Set(pinStore.getSnapshot());
-  for (const entry of wall.entries) {
-    if (entry.pinned) next.add(entry.object.uri);
-  }
-  publishPins(next);
-}
-
-/** The pinned set as the last read/write left it. Exported for tests and the sidebar rows. */
-export function observationPinnedUris(): ReadonlySet<string> {
-  return pinStore.getSnapshot();
-}
-
-const subscribePins = pinStore.subscribe;
-
-/** Pins or unpins one object and updates the shared cache on success. */
-export async function toggleObservationPin(uri: string, watched: boolean): Promise<void> {
-  await setObservationWatch(uri, watched);
-  const next = new Set(pinStore.getSnapshot());
-  if (watched) next.add(uri);
-  else next.delete(uri);
-  publishPins(next);
-}
-
-/** What a sidebar row sees for one URI. Rendering reads the cache; toggling writes it. */
-export function useObservationPin(uri: string): {
-  pinned: boolean;
-  pending: boolean;
-  toggle: () => Promise<void>;
-} {
-  const pinned = useSyncExternalStore(
-    subscribePins,
-    () => pinStore.getSnapshot().has(uri),
-    () => false,
-  );
-  const [pending, setPending] = useState(false);
-  const toggle = useCallback(async () => {
-    setPending(true);
-    try {
-      await toggleObservationPin(uri, !pinStore.getSnapshot().has(uri));
-    } finally {
-      setPending(false);
-    }
-  }, [uri]);
-  return { pinned, pending, toggle };
-}
+// The pin cache lives in the cockpit's leaf contract (contract/observationPin) so the sidebar
+// rows and the wall button read one store without importing this package's barrel. Re-exported
+// here because the cockpit's page and barrel already import these from this module.
+export {
+  observationPinnedUris,
+  setObservationWatch,
+  toggleObservationPin,
+  useObservationPin,
+};
 
 // ── The wall hook ───────────────────────────────────────────────────────────
 

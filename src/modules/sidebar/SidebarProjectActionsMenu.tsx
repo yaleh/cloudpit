@@ -5,7 +5,7 @@ import { useInRouterContext, useNavigate } from 'react-router-dom';
 import { ActionMenu } from '@/shared/ui';
 import type { ActionMenuItem } from '@/shared/ui/ActionMenu';
 import type { Project } from '@/shared/types';
-import { cockpitViewPath, formatProjectUri, useObservationPin } from '@/modules/cockpit';
+import { cockpitViewPath, formatProjectUri, useObservationPin } from '@/modules/cockpit/contract';
 
 export type SidebarProjectActionsMenuProps = {
   project: Project;

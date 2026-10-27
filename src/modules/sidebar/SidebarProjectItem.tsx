@@ -7,7 +7,7 @@ import { useHref, useInRouterContext } from 'react-router-dom';
 import { Button } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { LLMProvider, MCPServerStatus, Project, ProjectSession, QuayFleetTaskCounts, SessionWithProvider } from '@/shared/types';
-import { WatchPinToggle, cockpitViewPath, formatProjectUri } from '@/modules/cockpit';
+import { WatchPinToggle, cockpitViewPath, formatProjectUri } from '@/modules/cockpit/contract';
 import { getQuayIndicatorStatus, getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
 import QuayIndicator from '@/modules/sidebar/QuayIndicator';
