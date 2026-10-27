@@ -1,7 +1,7 @@
 ---
 id: gap-voice-shortcut-options
 title: voice 快捷键扩展：停止后即发（仅快捷键）+ 跨面取消 + 清空输入框映射
-status: todo
+status: ready
 labels:
   - gap
 parent: null
