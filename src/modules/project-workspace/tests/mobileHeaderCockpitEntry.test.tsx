@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, act } from '@testing-library/react';
 import i18next from 'i18next';
 import type { ReactNode } from 'react';
 import { initReactI18next } from 'react-i18next';
@@ -35,7 +35,8 @@ import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
  * The three things that can silently regress are all readings, not intentions: the resident entry
  * must be a ONE-LETTER `R` that says running/stopped with COLOUR (running green, stopped gray, no
  * dot) and still opens the same Resident panel; the Quay thumbnail must sit AFTER the project name
- * at its compact size and open the Quay view; and the cockpit entry must be the third control in
+ * at its compact size and open the session popover (its footer button is the way into the Quay
+ * view); and the cockpit entry must be the third control in
  * the right-hand row, sized and bordered like the `⋯` beside it, with the provider's open-card
  * count as its badge (0 → faded and no badge, >99 → `99+`) and `/cockpit?view=cards` behind it.
  *
@@ -119,9 +120,13 @@ vi.mock('@/shared/hooks/useSessionHosts', async (importOriginal) => {
 });
 
 // The pulse trigger polls the lanes endpoint; these cases are about its placement and shape.
+// The popover's own one-shot reads are stubbed at the same seam: pressing the thumbnail now opens
+// the popover on the phone too, so those hooks must exist for the dialog to render.
 vi.mock('@/modules/quay/hooks/useSessionPulse', () => ({
   useSessionPulse: () => ({ gantt: null, loading: false, unavailable: false }),
   useSessionPulseWindow: () => ({ windowHours: 6, setWindowHours: () => {} }),
+  useSessionMentions: () => ({ status: 'idle' }),
+  useSessionSnapshot: () => ({ status: 'idle' }),
 }));
 
 vi.mock('@/modules/plugins', () => ({
@@ -367,6 +372,45 @@ test('phone: the Quay in-flight thumbnail follows the project name at 64×14', a
     headerElement().children[0].contains(trigger),
     'the thumbnail belongs to the title block, not the right-hand action row',
   );
+});
+
+test('phone: pressing the Quay thumbnail opens the popover below the header, and closing returns focus', async () => {
+  const binding = await columnBinding(1);
+  render(<Header binding={binding} isMobile />);
+
+  const trigger = document.querySelector<HTMLElement>('[data-testid="quay-pulse-trigger"]');
+  assert.ok(trigger, 'the phone header must draw the Quay thumbnail');
+  assert.equal(trigger.getAttribute('aria-haspopup'), 'dialog', 'the thumbnail opens a dialog on the phone');
+
+  // The popover's geometry comes from the header's live rect, which jsdom leaves at zero.
+  const HEADER_BOTTOM = 56;
+  headerElement().getBoundingClientRect = () => ({
+    x: 0, y: 0, width: 390, height: HEADER_BOTTOM, top: 0, right: 390,
+    bottom: HEADER_BOTTOM, left: 0, toJSON: () => ({}),
+  }) as DOMRect;
+
+  fireEvent.click(trigger);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const panel = document.querySelector<HTMLElement>('[data-testid="quay-pulse-popover"]');
+  assert.ok(panel, 'pressing the compact thumbnail must open the popover');
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+  assert.ok(
+    parseFloat(panel.style.top) >= HEADER_BOTTOM,
+    `the popover must sit below the header's bottom: top=${panel.style.top}, bottom=${HEADER_BOTTOM}`,
+  );
+
+  // Closing returns focus to the thumbnail, exactly as the desktop shape does.
+  fireEvent.mouseDown(document.body);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.equal(document.querySelector('[data-testid="quay-pulse-popover"]'), null, 'an outside press closes it');
+  assert.equal(document.activeElement, trigger, 'focus returns to the thumbnail');
 });
 
 test('phone: the right-hand row is tab ▾, ⋯, cockpit — the cockpit in the menu’s own box', async () => {
