@@ -99,7 +99,8 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:03:00.000Z',
       surfacedAt: '2026-10-27T00:03:05.000Z',
-      subject: { uri: 'cloudcli://fixture/need', project: 'fixture-project' },
+      subject: { uri: 'cloudcli://fixture/need', project: 'fixture-project', title: 'Deploy credential' },
+      load: 2,
       ask: 'The deploy step needs a credential only you can provide.',
       situation: 'The build is waiting on a secret that is not in the environment.',
       facts: [
@@ -110,8 +111,6 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:need', 'provide', 'Provide the credential', 'Open the secret form and continue the deploy.', true, 'assistant'),
         fixtureOption('fixture:need', 'later', 'Later', 'Leave the deploy parked.', false, 'provider'),
       ],
-      // need → size: how much of the missing input is still outstanding.
-      viz: { kind: 'size', size: { current: 3, total: 5 } },
     },
     {
       id: 'fixture:stuck',
@@ -123,7 +122,13 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:02:00.000Z',
       surfacedAt: '2026-10-27T00:02:04.000Z',
-      subject: { uri: 'cloudcli://fixture/stuck', project: 'fixture-project', sessionId: 'fixture-session' },
+      subject: {
+        uri: 'cloudcli://fixture/stuck',
+        project: 'fixture-project',
+        sessionId: 'fixture-session',
+        title: 'Blocked on the fan-in suite',
+      },
+      load: 3,
       ask: 'This session has made no progress for 12 minutes.',
       situation: 'The last two turns ended without a tool call or a file change.',
       facts: [{ text: 'no activity since 00:01:58', mechanical: true }],
@@ -132,12 +137,21 @@ function fixtureCards(): CockpitCard[] {
           tags: [{ kind: 'undo', text: '可撤' }],
         }),
         fixtureOption('fixture:stuck', 'park', 'Park it', 'Stop the session and keep the transcript.', false, 'provider', {
-          tags: [{ kind: 'warn', text: '不可逆' }],
+          tags: [{ kind: 'irreversible', text: '不可逆' }],
         }),
       ],
       notify: { system: true, reason: 'fleet.stuck' },
-      // stuck → attempts: how many attempts the stalled session has already made.
-      viz: { kind: 'attempts', count: 3 },
+      // stuck → attempts: the dots of what has already been tried, newest first on the wire.
+      viz: {
+        kind: 'attempts',
+        cap: 5,
+        items: [
+          { at: '2026-10-27T00:02:40.000Z', outcome: 'running' },
+          { at: '2026-10-27T00:01:30.000Z', outcome: 'failed' },
+          { at: '2026-10-27T00:00:20.000Z', outcome: 'failed' },
+          { at: '2026-10-26T23:58:10.000Z', outcome: 'landed' },
+        ],
+      },
     },
     {
       id: 'fixture:fix',
@@ -149,7 +163,12 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:01:00.000Z',
       surfacedAt: '2026-10-27T00:01:06.000Z',
-      subject: { uri: 'cloudcli://fixture/fix', project: 'fixture-project', taskId: 'fixture-task' },
+      subject: {
+        uri: 'cloudcli://fixture/fix',
+        project: 'fixture-project',
+        taskId: 'fixture-task',
+        title: 'Re-dispatch after the blocker landed',
+      },
       ask: 'The blocked task has a proposed unblock.',
       situation: 'Re-dispatch is suggested after the blocking task landed.',
       facts: [{ text: 'blocker merged 4 minutes ago', mechanical: true }],
@@ -157,8 +176,15 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:fix', 'apply', 'Apply the fix', 'Re-dispatch the task on the merged baseline.', true, 'assistant'),
         fixtureOption('fixture:fix', 'decline', 'Decline', 'Keep the task parked.', false, 'provider'),
       ],
-      // fix → steps: the proposed repair's position in its three-step sequence.
-      viz: { kind: 'steps', count: 2 },
+      // fix → attempts: the repair's own attempts, newest first on the wire.
+      viz: {
+        kind: 'attempts',
+        cap: 5,
+        items: [
+          { at: '2026-10-27T00:00:55.000Z', outcome: 'pending' },
+          { at: '2026-10-26T23:59:00.000Z', outcome: 'failed' },
+        ],
+      },
     },
     {
       id: 'fixture:ask',
@@ -170,7 +196,13 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:06:00.000Z',
       surfacedAt: '2026-10-27T00:06:03.000Z',
-      subject: { uri: 'cloudcli://fixture/ask', project: 'fixture-project', sessionId: 'fixture-session' },
+      subject: {
+        uri: 'cloudcli://fixture/ask',
+        project: 'fixture-project',
+        sessionId: 'fixture-session',
+        title: 'Cleanup the staging directory',
+      },
+      load: 1,
       contentRef: { resolver: 'cloudcli.session-ask', ref: 'fixture-session' },
       ask: 'Should the cleanup delete the staging directory?',
       situation: 'The run left 1.2 GB in staging and the transcript is already archived.',
@@ -181,14 +213,16 @@ function fixtureCards(): CockpitCard[] {
       options: [
         fixtureOption('fixture:ask', 'delete', 'Delete staging', 'Remove the staging directory after the archive is verified.', true, 'assistant', {
           why: 'The data is already archived.',
-          tags: [{ kind: 'undo', text: '可撤' }],
+          tags: [
+            { kind: 'undo', text: '可撤' },
+            { kind: 'cost', text: '约 1 分钟' },
+            { kind: 'fit', text: '适合：磁盘贴边时' },
+          ],
         }),
         fixtureOption('fixture:ask', 'keep', 'Keep staging', 'Leave the directory for a later inspection.', false, 'provider'),
       ],
       ownReply: { executor: FIXTURE_EXECUTOR_ID, params: { cardId: 'fixture:ask', ownReply: true } },
       conversation: { sessionId: 'fixture-session' },
-      // ask → history: how the same question has been answered before.
-      viz: { kind: 'history', history: { yes: 4, no: 1, other: 1 } },
     },
     {
       id: 'fixture:multi',
@@ -200,7 +234,7 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:05:00.000Z',
       surfacedAt: '2026-10-27T00:05:02.000Z',
-      subject: { uri: 'cloudcli://fixture/multi', project: 'fixture-project' },
+      subject: { uri: 'cloudcli://fixture/multi', project: 'fixture-project', title: 'Two decisions in one report' },
       ask: 'Two independent decisions are waiting in this report.',
       situation: 'One choice is about scope, the other about the notification channel.',
       facts: [{ text: '2 sub-decisions extracted', mechanical: true }],
@@ -208,8 +242,6 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:multi', 'scope-small', 'Keep the scope small', 'Ship the contract without the UI.', true, 'assistant'),
         fixtureOption('fixture:multi', 'scope-full', 'Ship the full flow', 'Include the UI in the same task.', false, 'judge'),
       ],
-      // multi → parts: how many independent decisions the card holds.
-      viz: { kind: 'parts', count: 2 },
     },
     {
       id: 'fixture:decision',
@@ -221,7 +253,7 @@ function fixtureCards(): CockpitCard[] {
       state: 'open',
       waitingSince: '2026-10-27T00:04:00.000Z',
       surfacedAt: '2026-10-27T00:04:05.000Z',
-      subject: { uri: 'cloudcli://fixture/decision', project: 'fixture-project' },
+      subject: { uri: 'cloudcli://fixture/decision', project: 'fixture-project', title: 'Release channel' },
       ask: 'Which release channel should this build use?',
       situation: 'No assistant recommendation was extracted for this ruling.',
       facts: [{ text: 'no recommended option', mechanical: true }],
@@ -229,8 +261,6 @@ function fixtureCards(): CockpitCard[] {
         fixtureOption('fixture:decision', 'stable', 'Stable', 'Release on the stable channel.', false, 'judge'),
         fixtureOption('fixture:decision', 'canary', 'Canary', 'Release to the canary channel first.', false, 'provider'),
       ],
-      // decision → history: the ruling's prior outcomes on this question.
-      viz: { kind: 'history', history: { yes: 1, no: 2, other: 3 } },
     },
     {
       // A card whose subject names a session but which declares no `conversation`: the

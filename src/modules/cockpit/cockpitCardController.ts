@@ -282,10 +282,15 @@ export function defaultShownOption(card: CockpitCard): CockpitCardShown | null {
 
 /**
  * Whether choosing this option is irreversible, read from the contract's own vocabulary: a
- * `warn` tag or the option's own `warn` sentence. Nothing here branches on a kind or provider.
+ * `warn` sentence or a consequence tag. Both the current tag name (`irreversible`) and the
+ * pre-vocabulary one (`warn`) count, so an older provider's card keeps the warning style.
+ * Nothing here branches on a kind or provider.
  */
 export function isIrreversibleOption(option: CockpitCardOption): boolean {
-  return option.warn !== undefined || (option.tags ?? []).some((tag) => tag.kind === 'warn');
+  return (
+    option.warn !== undefined ||
+    (option.tags ?? []).some((tag) => tag.kind === 'irreversible' || tag.kind === 'warn')
+  );
 }
 
 /** The confirm target a shown reading resolves to, or `null` when there is nothing to confirm. */

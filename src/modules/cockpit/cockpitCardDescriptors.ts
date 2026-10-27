@@ -1,6 +1,11 @@
 import type { TFunction } from 'i18next';
 
-import type { CockpitCard, CockpitCardKind, CockpitCardVizKind } from '@/shared/types';
+import type {
+  CockpitCard,
+  CockpitCardKind,
+  CockpitCardOptionSource,
+  CockpitCardVizKind,
+} from '@/shared/types';
 
 // The viz vocabulary lives on the wire (`src/shared/types.ts`) because a provider states the
 // shape it wants; the descriptor table is the client-side authority on which kind may draw one.
@@ -8,43 +13,73 @@ import type { CockpitCard, CockpitCardKind, CockpitCardVizKind } from '@/shared/
 export type { CockpitCardVizKind } from '@/shared/types';
 
 /**
- * What the cockpit knows about a card kind without asking the provider: a translated badge and
- * the one small visualization the card's A zone may draw.
+ * What the cockpit knows about a card kind without asking the provider: the short badge drawn in
+ * the header with its scarce colour, and the one small visualization the card's A zone may draw.
  *
  * WHY A TABLE AND NOT A BRANCH. `CockpitCard.kind` is an open string, so a provider may ship a
  * kind this build has never heard of. Rendering looks the kind up here and falls back to
  * {@link DEFAULT_COCKPIT_CARD_DESCRIPTOR} — the fallback is the point, not an afterthought: an
  * unknown kind must draw as an ordinary card with its facts and options, never throw and never
  * lose the confirmation path. Adding a kind is one row; no provider name appears anywhere.
+ *
+ * COLOUR IS SCARCE (INTERACTION-PRINCIPLES D.11): a tone is drawn on the kind badge only. The
+ * irreversible confirmation style is the other colour user, and it is not a kind.
  */
+
+/** The scarce colour vocabulary the badge draws with. */
+export type CockpitCardTone = 'ask' | 'multi' | 'need' | 'stuck' | 'fix' | 'decision' | 'other';
 
 export type CockpitCardDescriptor = {
   /** The i18n key of the badge drawn in the card header. The kind label, translated. */
   labelKey: string;
+  /** The i18n key of the short uppercase type mark (ASK, STK, FIX…) in the header. */
+  badgeKey: string;
+  /** Which scarce tone the badge wears. */
+  tone: CockpitCardTone;
   /** The small visualization this kind draws, or `null` when it draws none. */
   viz: CockpitCardVizKind | null;
 };
 
-/** Every kind this build renders, each with the reading it is best summarized by. */
-const DESCRIPTORS: Record<CockpitCardKind, CockpitCardDescriptor> = {
-  // A ruling with history: the same question has been asked before, and that history is the
-  // most useful thing to show beside it.
-  ask: { labelKey: 'cockpit.cardKindAsk', viz: 'history' },
-  // Several independent decisions in one card: the useful reading is how many parts it holds.
-  multi: { labelKey: 'cockpit.cardKindMulti', viz: 'parts' },
-  // Something the person must supply: the reading is how much is missing.
-  need: { labelKey: 'cockpit.cardKindNeed', viz: 'size' },
-  // A stalled session: the reading is how many attempts it has already made.
-  stuck: { labelKey: 'cockpit.cardKindStuck', viz: 'attempts' },
-  // A proposed repair: the reading is the steps it would take.
-  fix: { labelKey: 'cockpit.cardKindFix', viz: 'steps' },
-  // A choice among release/market options: the same question's history is the useful reading.
-  decision: { labelKey: 'cockpit.cardKindDecision', viz: 'history' },
+/**
+ * The badge's colour classes, one static entry per tone so Tailwind keeps every class.
+ * Light and dark variants are paired; only the badge (and the irreversible bar) use colour.
+ */
+const TONE_CLASSES: Record<CockpitCardTone, string> = {
+  ask: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+  multi: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+  need: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200',
+  stuck: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+  fix: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
+  decision: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+  other: 'bg-muted text-muted-foreground',
 };
 
-/** The shape an unknown kind draws: a plain card, no badge text beyond the generic label, no viz. */
+/** The badge's colour classes for a tone. */
+export function cockpitCardToneClass(tone: CockpitCardTone): string {
+  return TONE_CLASSES[tone];
+}
+
+/**
+ * Every kind this build renders, each with the reading it is best summarized by.
+ *
+ * The visualization vocabulary is deliberately narrow: only a stalled session and a proposed
+ * repair carry an `attempts` reading (the dots of what has already been tried). The other kinds
+ * draw none — a reading the provider did not state is not invented here.
+ */
+const DESCRIPTORS: Record<CockpitCardKind, CockpitCardDescriptor> = {
+  ask: { labelKey: 'cockpit.cardKindAsk', badgeKey: 'cockpit.cardBadgeAsk', tone: 'ask', viz: null },
+  multi: { labelKey: 'cockpit.cardKindMulti', badgeKey: 'cockpit.cardBadgeMulti', tone: 'multi', viz: null },
+  need: { labelKey: 'cockpit.cardKindNeed', badgeKey: 'cockpit.cardBadgeNeed', tone: 'need', viz: null },
+  stuck: { labelKey: 'cockpit.cardKindStuck', badgeKey: 'cockpit.cardBadgeStuck', tone: 'stuck', viz: 'attempts' },
+  fix: { labelKey: 'cockpit.cardKindFix', badgeKey: 'cockpit.cardBadgeFix', tone: 'fix', viz: 'attempts' },
+  decision: { labelKey: 'cockpit.cardKindDecision', badgeKey: 'cockpit.cardBadgeDecision', tone: 'decision', viz: null },
+};
+
+/** The shape an unknown kind draws: a plain card, a generic badge, no viz. */
 export const DEFAULT_COCKPIT_CARD_DESCRIPTOR: CockpitCardDescriptor = {
   labelKey: 'cockpit.cardKindOther',
+  badgeKey: 'cockpit.cardBadgeOther',
+  tone: 'other',
   viz: null,
 };
 
@@ -62,9 +97,56 @@ export function cockpitCardDescriptor(kind: string): CockpitCardDescriptor {
   return DESCRIPTORS[kind as CockpitCardKind];
 }
 
+/**
+ * Where an option's recommendation came from, as the row states it (D.13, D.14): the assistant's
+ * own recommendation is the mechanical default (●), a judge's is a suggestion (○), and a
+ * provider-stated option carries no marker because it is neither.
+ */
+export const COCKPIT_SOURCE_LABEL_KEY: Record<CockpitCardOptionSource, string> = {
+  assistant: 'cockpit.cardSourceAssistant',
+  judge: 'cockpit.cardSourceJudge',
+  provider: 'cockpit.cardSourceProvider',
+};
+
+/**
+ * The glyph an option's consequence tag draws, by the tag's fixed-vocabulary kind.
+ *
+ * The table is the authority so no component branches on a tag string. A kind this build does
+ * not know (including `fit`, whose own text is the word 「适合」) draws no glyph: the provider's
+ * text stays readable as it is.
+ */
+const TAG_ICONS: Record<string, string> = {
+  undo: '↺',
+  cost: '◷',
+  irreversible: '⚠',
+  // The pre-vocabulary name for an irreversible consequence; kept so an older provider's cards
+  // still carry the warning glyph.
+  warn: '⚠',
+};
+
+/** The glyph for a tag kind, or `null` when the kind draws none. */
+export function cockpitTagIcon(kind: string): string | null {
+  return Object.prototype.hasOwnProperty.call(TAG_ICONS, kind) ? TAG_ICONS[kind] : null;
+}
+
 /** The short session reading used in the waiting title: the first eight id characters. */
 function shortSessionId(sessionId: string): string {
   return sessionId.slice(0, 8);
+}
+
+/**
+ * The name of the thing the card is about, for the header: the subject's own title when a
+ * provider stated one, else the task id, else the shortened session id. `null` when the subject
+ * names none of them — the header then simply omits it.
+ */
+export function cockpitCardSubjectName(card: CockpitCard): string | null {
+  const title = card.subject.title?.trim() ?? '';
+  if (title !== '') return title;
+  const taskId = card.subject.taskId?.trim() ?? '';
+  if (taskId !== '') return taskId;
+  const sessionId = card.subject.sessionId?.trim() ?? '';
+  if (sessionId !== '') return shortSessionId(sessionId);
+  return null;
 }
 
 /**

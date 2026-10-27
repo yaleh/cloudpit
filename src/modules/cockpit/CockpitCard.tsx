@@ -1,13 +1,16 @@
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
-import type {
-  CockpitCard as CockpitCardData,
-  CockpitCardOption,
-  CockpitCardOptionSource,
-} from '@/shared/types';
+import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { cockpitCardDescriptor, cockpitCardTitle } from '@/modules/cockpit/cockpitCardDescriptors';
+import {
+  COCKPIT_SOURCE_LABEL_KEY,
+  cockpitCardDescriptor,
+  cockpitCardSubjectName,
+  cockpitCardTitle,
+  cockpitCardToneClass,
+  cockpitTagIcon,
+} from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmTarget,
@@ -19,59 +22,73 @@ import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
 /**
  * One cockpit card, drawn as the three touch zones the design names:
  *
- *   A — header, question, situation, facts: a tap opens the Details drawer. There is no separate
- *       Details button, because the whole upper body IS the affordance (the `›` is the hint).
+ *   A — header, question, situation, facts, viz: a tap opens the Details drawer. There is no
+ *       separate Details button, because the whole upper body IS the affordance (the `›` is the
+ *       hint).
  *   B — the option dropdown: the trigger names the currently shown option, its source and
  *       `k of n`; the open list explains every option in rich text and ends with the person's own
  *       reply editor.
  *   C — the one confirm bar: its label carries the shown option's name and it only opens the
  *       confirm card. Nothing is sent from here.
  *
+ * THE HEADER IS THE CARD'S ANATOMY (INTERACTION-PRINCIPLES F.18): the coloured kind mark, the
+ * project, the subject's name, its age, the three-cell load reading and the `›`. Every one of
+ * those is data the provider stated; a field the card does not carry is simply not drawn, and the
+ * component never branches on the provider or on the kind beyond the descriptor table.
+ *
  * The component is presentational: every reading and every command comes from
  * `createCockpitCardController`, so "switching the shown option switches the confirm target" is
  * a property of the state, not of this file's event wiring.
  */
 
-const SOURCE_LABEL_KEY: Record<CockpitCardOptionSource, string> = {
-  assistant: 'cockpit.cardSourceAssistant',
-  judge: 'cockpit.cardSourceJudge',
-  provider: 'cockpit.cardSourceProvider',
-};
-
-export type CockpitCardProps = {
-  card: CockpitCardData;
-  /** The controller's clock reading, for the waiting duration. */
-  now: number;
-  /** The option (or own reply) the card currently shows; `undefined` means the controller has no reading. */
-  shown: CockpitCardShown | undefined;
-  /** The current confirm target derived from `shown`; `null` when the card has nothing to confirm. */
-  target: CockpitCardConfirmTarget | null;
-  ownReply: string;
-  dropdownOpen: boolean;
-  selected: boolean;
-  density: CockpitCardDensity;
-  onSelect: () => void;
-  onOpenDetails: () => void;
-  onToggleDropdown: () => void;
-  onShowOption: (optionId: string) => void;
-  onShowOwnReply: () => void;
-  onOwnReplyChange: (text: string) => void;
-  onRequestConfirm: () => void;
-};
-
-/** `waiting 12m` — the card's age, read through the cockpit's existing relative-time copy. */
-function waitingText(t: TFunction, now: number, waitingSince: string): string {
+/** `9h` / `18m` / `3d` — the header's compact age, read through the cockpit's own copy. */
+function ageText(t: TFunction, now: number, waitingSince: string): string {
   const since = Date.parse(waitingSince);
   const milliseconds = Number.isNaN(since) ? 0 : Math.max(0, now - since);
   const minutes = Math.floor(milliseconds / 60_000);
-  if (minutes < 1) return t('cockpit.observationJustNow');
-  if (minutes < 60) return t('cockpit.observationMinutesAgo', { n: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t('cockpit.observationHoursAgo', { n: hours });
-  return t('cockpit.observationDaysAgo', { n: Math.floor(hours / 24) });
+  if (minutes < 1) return t('cockpit.cardAgeNow');
+  if (minutes < 60) return t('cockpit.cardAgeMinutes', { n: minutes });
+  const hours = minutes / 60;
+  if (hours < 24) {
+    const rounded = Math.round(hours * 10) / 10;
+    return t('cockpit.cardAgeHours', {
+      n: Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1),
+    });
+  }
+  return t('cockpit.cardAgeDays', { n: Math.floor(hours / 24) });
 }
 
-/** The consequence tags of one option, warning tags drawn in the irreversible colour. */
+/**
+ * The three-cell decision-weight reading. Only the provider's own `load` fills it; the reading is
+ * a count of filled cells out of three, and `0` draws three empty cells because the provider DID
+ * state a weight (absence is the only "draw nothing").
+ */
+function LoadCells({ level, label }: { level: number; label: string }) {
+  const filled = Math.min(3, Math.max(0, Math.floor(level)));
+  return (
+    <span
+      data-testid="cockpit-card-load"
+      data-load={filled}
+      aria-label={label}
+      className="flex shrink-0 items-center gap-[3px]"
+    >
+      {[1, 2, 3].map((cell) => (
+        <span
+          key={cell}
+          data-load-cell={cell}
+          data-filled={cell <= filled ? 'true' : 'false'}
+          aria-hidden
+          className={cn(
+            'h-2.5 w-[3px] rounded-sm',
+            cell <= filled ? 'bg-foreground' : 'bg-muted-foreground/25',
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The consequence tags of one option: the descriptor's glyph plus the provider's words. */
 function OptionTags({ option }: { option: CockpitCardOption }) {
   const tags = option.tags ?? [];
   if (tags.length === 0) return null;
@@ -83,11 +100,14 @@ function OptionTags({ option }: { option: CockpitCardOption }) {
           data-tag-kind={tag.kind}
           className={cn(
             'rounded-full px-1.5 py-0.5 text-[11px]',
-            tag.kind === 'warn'
+            cockpitTagIcon(tag.kind) === '⚠'
               ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
               : 'bg-muted text-muted-foreground',
           )}
         >
+          {cockpitTagIcon(tag.kind) !== null && (
+            <span aria-hidden>{cockpitTagIcon(tag.kind)} </span>
+          )}
           {tag.text}
         </span>
       ))}
@@ -109,6 +129,9 @@ function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
       <OptionTags option={option} />
       {option.undo !== undefined && (
         <p className="mt-1 text-[11px] text-muted-foreground">{option.undo}</p>
+      )}
+      {option.when !== undefined && (
+        <p className="mt-1 text-[11px] text-muted-foreground">{option.when}</p>
       )}
     </div>
   );
@@ -143,6 +166,27 @@ function OwnReplyEditor({
   );
 }
 
+export type CockpitCardProps = {
+  card: CockpitCardData;
+  /** The controller's clock reading, for the waiting duration. */
+  now: number;
+  /** The option (or own reply) the card currently shows; `undefined` means the controller has no reading. */
+  shown: CockpitCardShown | undefined;
+  /** The current confirm target derived from `shown`; `null` when the card has nothing to confirm. */
+  target: CockpitCardConfirmTarget | null;
+  ownReply: string;
+  dropdownOpen: boolean;
+  selected: boolean;
+  density: CockpitCardDensity;
+  onSelect: () => void;
+  onOpenDetails: () => void;
+  onToggleDropdown: () => void;
+  onShowOption: (optionId: string) => void;
+  onShowOwnReply: () => void;
+  onOwnReplyChange: (text: string) => void;
+  onRequestConfirm: () => void;
+};
+
 export default function CockpitCard({
   card,
   now,
@@ -167,11 +211,14 @@ export default function CockpitCard({
   const compact = density === 'compact';
   const ownReplyAvailable = card.ownReply !== undefined;
   const question = cockpitCardTitle(card, t);
+  const subjectName = cockpitCardSubjectName(card);
+  const project = card.subject.project?.trim() ?? '';
 
   const shownLabel = showingOwnReply
     ? t('cockpit.cardWriteOwn')
     : (shownOption?.label ?? t('cockpit.cardChooseOption'));
-  const shownSource = shownOption === null ? null : t(SOURCE_LABEL_KEY[shownOption.source] ?? 'cockpit.cardSourceProvider');
+  const shownSource =
+    shownOption === null ? null : t(COCKPIT_SOURCE_LABEL_KEY[shownOption.source] ?? 'cockpit.cardSourceProvider');
   const shownPosition =
     shownOption === null
       ? null
@@ -214,23 +261,54 @@ export default function CockpitCard({
         }}
         className="block w-full rounded-md text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
+        {/* The header row: kind mark · project · subject name · age · load · ›. */}
         <div
           data-testid="cockpit-card-zone-a-header"
-          className="flex items-center justify-between gap-2"
+          className="flex items-center gap-1.5"
         >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {t(descriptor.labelKey)}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
-            </span>
+          <span
+            data-testid="cockpit-card-kind-badge"
+            data-kind={card.kind}
+            data-tone={descriptor.tone}
+            title={t(descriptor.labelKey)}
+            className={cn(
+              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+              cockpitCardToneClass(descriptor.tone),
+            )}
+          >
+            {t(descriptor.badgeKey)}
           </span>
+          {project !== '' && (
+            <span
+              data-testid="cockpit-card-project"
+              className="shrink-0 text-[12px] font-medium text-foreground"
+            >
+              {project}
+            </span>
+          )}
+          {subjectName !== null && (
+            <span
+              data-testid="cockpit-card-subject"
+              className="min-w-0 truncate text-[12px] text-muted-foreground"
+            >
+              <span aria-hidden>· </span>
+              {subjectName}
+            </span>
+          )}
+          <span
+            data-testid="cockpit-card-age"
+            className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
+          >
+            {ageText(t, now, card.waitingSince)}
+          </span>
+          {card.load !== undefined && (
+            <LoadCells
+              level={card.load}
+              label={t('cockpit.cardLoadLabel', { n: Math.min(3, Math.max(0, Math.floor(card.load))) })}
+            />
+          )}
           <span aria-hidden className="shrink-0 text-muted-foreground">›</span>
         </div>
-
-        {/* The known kind's one small reading, drawn only when the descriptor allows it. */}
-        <CockpitCardViz card={card} />
 
         <p
           data-testid="cockpit-card-zone-a-question"
@@ -262,22 +340,41 @@ export default function CockpitCard({
           </p>
         )}
 
-        {!compact && card.facts.length > 0 && (
-          <ul data-testid="cockpit-card-zone-a-facts" className="mt-1 space-y-0.5">
-            {card.facts.map((fact, index) => (
-              <li
-                key={`${fact.text}:${index}`}
-                className="flex items-start gap-1 text-[11px] text-muted-foreground"
+        {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. The full
+            fact text is always in Details. Compact mode keeps the card to three lines, so it
+            draws neither. */}
+        {!compact && (card.facts.length > 0 || card.viz !== undefined) && (
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            {card.facts.length > 0 && (
+              <div
+                data-testid="cockpit-card-zone-a-facts"
+                className="flex min-w-0 flex-wrap items-center gap-1"
               >
-                <span aria-hidden className="mt-1 h-1 w-1 shrink-0 rounded-full bg-current" />
-                <span className={cn(fact.mechanical ? '' : 'italic')}>{fact.text}</span>
-              </li>
-            ))}
-          </ul>
+                {card.facts.map((fact, index) => (
+                  <span
+                    key={`${fact.text}:${index}`}
+                    data-testid="cockpit-card-fact"
+                    data-mechanical={fact.mechanical ? 'true' : 'false'}
+                    title={fact.text}
+                    className="max-w-[16rem] truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                  >
+                    <span aria-hidden className="mr-0.5">{fact.mechanical ? '●' : '○'}</span>
+                    {fact.text}
+                  </span>
+                ))}
+              </div>
+            )}
+            <span className="ml-auto shrink-0">
+              <CockpitCardViz card={card} />
+            </span>
+          </div>
         )}
       </div>
 
-      <div className={cn(compact ? 'mt-1.5 flex items-start gap-2' : 'mt-2 space-y-2')}>
+      <div
+        data-testid="cockpit-card-controls"
+        className={cn(compact ? 'mt-1.5 flex items-start gap-2' : 'mt-2 space-y-2')}
+      >
         {/* B zone: one dropdown whose last item is the person's own reply. */}
         <div className={cn('min-w-0', compact ? 'flex-1' : '')} data-testid="cockpit-card-options">
           <button
@@ -304,8 +401,12 @@ export default function CockpitCard({
             <span aria-hidden className="shrink-0 text-muted-foreground">▾</span>
           </button>
 
-          {!dropdownOpen && shownOption !== null && <ShownOptionExplanation option={shownOption} />}
-          {!dropdownOpen && showingOwnReply && ownReplyAvailable && (
+          {/* The full explanation belongs to the Cards density; Compact stays three lines, so the
+              description lives only in the open dropdown and in Details. */}
+          {!compact && !dropdownOpen && shownOption !== null && (
+            <ShownOptionExplanation option={shownOption} />
+          )}
+          {!compact && !dropdownOpen && showingOwnReply && ownReplyAvailable && (
             <OwnReplyEditor
               value={ownReply}
               onChange={onOwnReplyChange}
@@ -342,7 +443,7 @@ export default function CockpitCard({
                         </span>
                       )}
                       <span className="text-[10px] text-muted-foreground">
-                        {t(SOURCE_LABEL_KEY[option.source] ?? 'cockpit.cardSourceProvider')}
+                        {t(COCKPIT_SOURCE_LABEL_KEY[option.source] ?? 'cockpit.cardSourceProvider')}
                       </span>
                     </span>
                     <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
@@ -387,36 +488,63 @@ export default function CockpitCard({
           )}
         </div>
 
-        {/* C zone: one confirm bar, bound to the shown option, opening the confirm card only. */}
+        {/* C zone: one confirm bar, bound to the shown option, opening the confirm card only.
+            With no recommendation there is nothing to bind, so the card draws one quiet line
+            instead of a full-width button that looks pressable and does nothing. */}
         <div className={cn(compact ? 'shrink-0' : '')}>
-          <button
-            type="button"
-            data-testid="cockpit-card-confirm"
-            data-irreversible={target?.irreversible === true ? 'true' : 'false'}
-            disabled={target === null || target.disabled}
-            onClick={onRequestConfirm}
-            className={cn(
-              'flex w-full items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50',
-              target?.irreversible === true
-                ? 'border border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                : 'bg-primary text-primary-foreground',
-            )}
-          >
-            {target?.irreversible === true && <span aria-hidden>⚠</span>}
-            <span className="truncate">{confirmLabel}</span>
-          </button>
-          {target !== null && target.disabledReason !== null && (
+          {target === null ? (
             <p
-              data-testid="cockpit-card-confirm-disabled-reason"
-              className="mt-0.5 text-[10px] text-muted-foreground"
+              data-testid="cockpit-card-confirm-empty"
+              className={cn(
+                'text-[11px] text-muted-foreground',
+                compact ? 'w-20 self-center text-center leading-tight' : 'rounded-md border border-dashed border-border px-2 py-2 text-center',
+              )}
             >
-              {target.disabledReason}
+              {t('cockpit.cardChooseThenConfirm')}
             </p>
-          )}
-          {target?.irreversible === true && (
-            <p className="mt-0.5 text-[10px] text-amber-700 dark:text-amber-300">
-              {t('cockpit.cardIrreversible')}
-            </p>
+          ) : (
+            <>
+              <button
+                type="button"
+                data-testid="cockpit-card-confirm"
+                data-irreversible={target.irreversible === true ? 'true' : 'false'}
+                disabled={target.disabled}
+                onClick={onRequestConfirm}
+                className={cn(
+                  'flex items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50',
+                  compact ? 'w-auto' : 'w-full',
+                  target.irreversible === true
+                    ? 'border border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                    : 'bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
+                )}
+              >
+                {target.irreversible === true && <span aria-hidden>⚠</span>}
+                <span className="truncate">
+                  {compact ? t('cockpit.cardConfirmShort') : confirmLabel}
+                </span>
+              </button>
+              {!compact && (
+                <p
+                  data-testid="cockpit-card-confirm-hint"
+                  className="mt-1 text-center text-[10px] text-muted-foreground"
+                >
+                  {t('cockpit.cardConfirmHint')}
+                </p>
+              )}
+              {target.disabledReason !== null && (
+                <p
+                  data-testid="cockpit-card-confirm-disabled-reason"
+                  className="mt-0.5 text-[10px] text-muted-foreground"
+                >
+                  {target.disabledReason}
+                </p>
+              )}
+              {target.irreversible === true && (
+                <p className="mt-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                  {t('cockpit.cardIrreversible')}
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
