@@ -82,6 +82,29 @@ function useCockpitColumnKeys(controller: CockpitColumnController): void {
 
 const INPUT_ROLES = ['input'] as const;
 
+/**
+ * The session column's frame: the session area — its header, views and composer — and the PC
+ * column as SIBLINGS of one full-height row. Used by the project-workspace module
+ * (`WorkspaceMain`).
+ *
+ * WHY THE COLUMN CANNOT LIVE INSIDE THE SESSION CONTENT. A column mounted inside the content row
+ * starts below the session header: it is shorter than the page and the header still spans the
+ * width the column occupies. As a sibling of the whole session area the column runs from the top
+ * of the page to the bottom, the header shrinks to the column's left edge, and the overlay layout
+ * covers the session from the page top too. Collapsed the column renders nothing, so the row has
+ * exactly the old session area as its only child and the page is unchanged.
+ */
+export function CockpitColumnRegion({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-0 w-full" data-workspace-session-layout>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-workspace-session-area>
+        {children}
+      </div>
+      <CockpitColumn />
+    </div>
+  );
+}
+
 export default function CockpitColumn() {
   const binding = useCockpitColumnContext();
   if (binding === null) return null;

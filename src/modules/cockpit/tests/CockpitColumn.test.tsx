@@ -1,11 +1,11 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Clock, CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitColumn from '@/modules/cockpit/CockpitColumn';
+import CockpitColumn, { CockpitColumnRegion } from '@/modules/cockpit/CockpitColumn';
 import CockpitHeaderButton from '@/modules/cockpit/CockpitHeaderButton';
 import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
@@ -226,6 +226,54 @@ describe('expanded', () => {
     expect(f.column.getSnapshot().openedSessionId).toBe('session-1');
     expect(f.column.getSnapshot().expanded).toBe(true);
     expect(screen.getByTestId('cockpit-card-opened-in-session')).toBeTruthy();
+  });
+});
+
+describe('the session layout', () => {
+  it('places the squeeze column beside the whole session area, not inside its content', async () => {
+    const f = await fixture({ expanded: true });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumnRegion>
+          <header data-testid="session-header">header</header>
+          <div data-testid="session-content">content</div>
+        </CockpitColumnRegion>
+      </TestBinding>,
+    );
+
+    const column = screen.getByTestId('cockpit-column');
+    const header = screen.getByTestId('session-header');
+    const content = screen.getByTestId('session-content');
+    const sessionArea = header.closest<HTMLElement>('[data-workspace-session-area]');
+    expect(sessionArea).not.toBeNull();
+    // The session area owns the header AND the content, but the column is its SIBLING: a column
+    // inside the area would start below the header and the header would keep its full width.
+    expect(sessionArea!.contains(content)).toBe(true);
+    expect(sessionArea!.contains(column)).toBe(false);
+    expect(column.parentElement).toBe(sessionArea!.parentElement);
+  });
+
+  it('draws the column’s own title row, whose collapse button drives the header button', async () => {
+    const f = await fixture({ expanded: true });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumnRegion>
+          <CockpitHeaderButton />
+        </CockpitColumnRegion>
+      </TestBinding>,
+    );
+
+    const column = screen.getByTestId('cockpit-column');
+    expect(within(column).getByText('Cockpit')).toBeTruthy();
+    expect(within(column).getByTestId('cockpit-column-count').textContent).toContain('2');
+    expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(within(column).getByTestId('cockpit-column-collapse'));
+
+    // ONE state: the column is gone and the header button reads the same collapse.
+    expect(f.column.getSnapshot().expanded).toBe(false);
+    expect(screen.queryByTestId('cockpit-column')).toBeNull();
+    expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('false');
   });
 });
 

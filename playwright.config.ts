@@ -3021,6 +3021,10 @@ const DEBUG_AGENT_SPEC_FILES: readonly string[] = [
   // The spec writes `.quay/config.yml` and the `.archguard` cache itself, so this entry is the only
   // fixture channel it uses.
   'workspace-tabs-fit.spec.ts',
+  // The PC column's page geometry: it needs one real session whose page has the header, the chat
+  // view and the composer the column is laid out against. The workspace and the scenario are the
+  // only fixture channel it uses; the cockpit itself is enabled by the COCKPIT_SPEC_FILES entry.
+  'cockpit-column-layout.spec.ts',
 ];
 const debugAgentFixtureHome = selectedSpecFiles().some((file) => DEBUG_AGENT_SPEC_FILES.includes(file))
   ? path.join(dataDir, 'debug-agent-home')
@@ -3054,6 +3058,7 @@ const architectureRefreshSelection = selectedSpecFiles().includes('architecture-
  * shipped default itself is pinned by the server settings criterion.
  */
 const COCKPIT_SPEC_FILES = [
+  'cockpit-column-layout.spec.ts',
   'cockpit-observation-wall.spec.ts',
   'cockpit-phone-narrow.spec.ts',
   'cockpit-remote.spec.ts',

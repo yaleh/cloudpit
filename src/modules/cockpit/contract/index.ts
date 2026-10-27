@@ -47,6 +47,7 @@ export type {
 } from '@/modules/cockpit/contract/cardReading';
 export {
   CockpitColumnVisibilityContext,
+  cockpitColumnCoversSession,
   useCockpitColumnVisibility,
 } from '@/modules/cockpit/contract/columnVisibility';
 export type { CockpitColumnVisibility } from '@/modules/cockpit/contract/columnVisibility';

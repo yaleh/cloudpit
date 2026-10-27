@@ -179,5 +179,9 @@ export {
   useCockpitColumnContext,
 } from '@/modules/cockpit/hooks/useCockpitColumn';
 export type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
-export { default as CockpitColumn, CockpitColumnProvider } from '@/modules/cockpit/CockpitColumn';
+export {
+  default as CockpitColumn,
+  CockpitColumnProvider,
+  CockpitColumnRegion,
+} from '@/modules/cockpit/CockpitColumn';
 export { default as CockpitHeaderButton } from '@/modules/cockpit/CockpitHeaderButton';

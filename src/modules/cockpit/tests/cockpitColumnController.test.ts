@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Clock, CockpitCard, CockpitCardOption } from '@/shared/types';
 import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import { cockpitColumnCoversSession } from '@/modules/cockpit/contract';
 import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
 import type {
   CockpitColumnController,
@@ -145,6 +146,29 @@ describe('the three layouts and their exact edges', () => {
 
     column.setViewportWidth(1440);
     expect(column.getSnapshot().expanded).toBe(true);
+  });
+});
+
+describe('yielding the session edge to an open overlay column', () => {
+  // The chat module's input-outline handle yields only while the column COVERS the session area.
+  // Fed from the controller's own snapshot, so this is the reading the drawer consumes — not a
+  // second derivation of the layout boundaries.
+  it('reads true only for an expanded overlay, never for squeeze, hidden or closed', async () => {
+    const overlay = await columnHarness({ viewportWidth: 1100, storage: null });
+    expect(cockpitColumnCoversSession(overlay.column.getSnapshot())).toBe(false);
+    overlay.column.setExpanded(true);
+    expect(cockpitColumnCoversSession(overlay.column.getSnapshot())).toBe(true);
+
+    const squeeze = await columnHarness({ viewportWidth: 1440, storage: null });
+    squeeze.column.setExpanded(true);
+    expect(cockpitColumnCoversSession(squeeze.column.getSnapshot())).toBe(false);
+
+    const hidden = await columnHarness({ viewportWidth: 800, storage: null });
+    hidden.column.setExpanded(true);
+    expect(cockpitColumnCoversSession(hidden.column.getSnapshot())).toBe(false);
+
+    // No provider (a chat surface rendered alone) shows the handle: absence is not "covered".
+    expect(cockpitColumnCoversSession(null)).toBe(false);
   });
 });
 

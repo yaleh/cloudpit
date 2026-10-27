@@ -2,6 +2,10 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListOrdered } from 'lucide-react';
 
+import {
+  cockpitColumnCoversSession,
+  useCockpitColumnVisibility,
+} from '@/modules/cockpit/contract';
 import InputOutlineHandle from '@/modules/chat/outline/InputOutlineHandle';
 import { useOutlineHandleDrag } from '@/modules/chat/outline/useOutlineHandleDrag';
 import type { InputOutlineEntry } from '@/modules/chat/outline/useInputOutline';
@@ -29,6 +33,10 @@ export default function InputOutlineDrawer({ entries, isMobile, onJump }: InputO
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
   const { isDragging, handleStyle, startDrag, consumeSuppressedClick } = useOutlineHandleDrag({ isMobile });
+  // The overlay cockpit column is `fixed` over the session area's right edge, which is exactly
+  // where this handle lives: while it covers the session the handle would paint on top of the
+  // column's cards. It yields (and the drawer's own toggle is unavailable) until the column closes.
+  const coveredByCockpitColumn = cockpitColumnCoversSession(useCockpitColumnVisibility());
 
   const handleToggleFromHandle = useCallback(() => {
     // A drag that ends over the handle still fires a click; it must not toggle.
@@ -43,17 +51,19 @@ export default function InputOutlineDrawer({ entries, isMobile, onJump }: InputO
 
   return (
     <>
-      <InputOutlineHandle
-        isOpen={isOpen}
-        isMobile={isMobile}
-        isDragging={isDragging}
-        // Inline `position` overrides the handle's own `fixed` class: every other placement
-        // rule (the open/closed offset, the drag transform) is still the handle's.
-        style={{ ...handleStyle, position: 'absolute' }}
-        onClick={handleToggleFromHandle}
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-      />
+      {!coveredByCockpitColumn && (
+        <InputOutlineHandle
+          isOpen={isOpen}
+          isMobile={isMobile}
+          isDragging={isDragging}
+          // Inline `position` overrides the handle's own `fixed` class: every other placement
+          // rule (the open/closed offset, the drag transform) is still the handle's.
+          style={{ ...handleStyle, position: 'absolute' }}
+          onClick={handleToggleFromHandle}
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+        />
+      )}
 
       {/* THE CLIP LAYER. Closed, the panel is `right-0` + `translate-x-full`, so its 256px hang
           sits past the session area's right edge — and `overflow: hidden` on the session column

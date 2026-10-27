@@ -8,7 +8,7 @@ import { StandaloneShell } from '@/modules/standalone-shell';
 import { GitPanel } from '@/modules/git-panel';
 import { PluginTabContent } from '@/modules/plugins';
 import { BrowserUsePanel, useBrowserUseEnabled } from '@/modules/browser-use';
-import { CockpitColumn } from '@/modules/cockpit';
+import { CockpitColumnRegion } from '@/modules/cockpit';
 import { usePaletteOpsRegister } from '@/modules/command-palette';
 import { TaskMasterPanel, useTaskMasterProjectSync, useTasksSettings } from '@/modules/task-master';
 import { isQuayTabVisible, QuayPanel, useEnsureQuayTabVisible, useQuayStatus } from '@/modules/quay';
@@ -303,7 +303,11 @@ function WorkspaceMain({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // The PC column is a sibling of the WHOLE session area (header + views + composer), not of the
+    // content row: that is what lets it run from the top of the page to the bottom while the
+    // session header shrinks to its left edge. Collapsed, it renders nothing, so this row has the
+    // old session area as its only child and the page is byte-for-byte the old layout.
+    <CockpitColumnRegion>
       <WorkspaceHeader
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -483,13 +487,8 @@ function WorkspaceMain({
           projectPath={selectedProject.path}
           fillSpace={activeTab === 'files'}
         />
-
-        {/* The PC cockpit column sits at the row's right edge, outside the header, so expanding
-            it squeezes the session content (1460+) or overlays it (900–1279) without shrinking
-            the header. It draws nothing on phone width or while collapsed. */}
-        <CockpitColumn />
       </div>
-    </div>
+    </CockpitColumnRegion>
   );
 }
 

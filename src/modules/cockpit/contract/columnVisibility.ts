@@ -26,3 +26,16 @@ export const CockpitColumnVisibilityContext =
 export function useCockpitColumnVisibility(): CockpitColumnVisibility | null {
   return useContext(CockpitColumnVisibilityContext);
 }
+
+/**
+ * True while the column COVERS the session area — the overlay layout, expanded — as opposed to
+ * sitting beside it (squeeze) or not existing (hidden). Used by the chat module's input-outline
+ * drawer: its edge handle is anchored to the session area's right edge, which the overlay layout
+ * paints over, so the handle yields while the column covers it and comes back when it closes.
+ *
+ * Kept here, beside the context, so the reading is the controller's own snapshot rather than a
+ * second derivation in the component that yields.
+ */
+export function cockpitColumnCoversSession(column: CockpitColumnVisibility | null): boolean {
+  return column !== null && column.layout === 'overlay' && column.expanded;
+}
