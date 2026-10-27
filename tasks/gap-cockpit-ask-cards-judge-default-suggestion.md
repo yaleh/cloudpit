@@ -12,6 +12,8 @@ children: []
 extra:
   schema: execution
 goal_ac: AC-434
+depends_on:
+  - gap-cockpit-stuck-count-by-kind-and-ask-repair-silent-failure
 ---
 ## Proposal
 
