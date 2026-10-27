@@ -10,6 +10,8 @@ parent: null
 children: []
 extra:
   schema: execution
+depends_on:
+  - cockpit-shell-filters-mobile-page-and-details-bar
 ---
 ## Proposal
 
