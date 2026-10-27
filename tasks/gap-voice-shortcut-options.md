@@ -74,3 +74,11 @@ extra:
 ## ADR-007 dark axis
 
 该轴仍暗,理由:本任务只改快捷键路由与设置持久化，接入的是既有 `/api/voice/transcribe` 与既有的 live voice 会话，没有新增或改变任何模型调用路径，无法读出 L_D/L_G 量值。
+
+## Blocker
+
+**2026-10-27T14:29:57.893Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat/ChatInterface.tsx 1443→1477 — 基线内读数不得上调（此基线只允许下降）
+- run_id：wk-prod-anchor
+- session_id：277cb63a-6b6b-4b47-9deb-6a9606fa03e0
