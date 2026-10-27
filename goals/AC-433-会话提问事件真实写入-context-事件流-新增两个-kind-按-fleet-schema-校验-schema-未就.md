@@ -1,7 +1,7 @@
 ---
 id: AC-433
 title: 会话提问事件真实写入 context 事件流：新增两个 kind，按 fleet schema 校验，schema 未就绪时只记录不报错
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -25,6 +25,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:05:13.378Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
