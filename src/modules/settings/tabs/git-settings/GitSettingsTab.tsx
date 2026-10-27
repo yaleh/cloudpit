@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 
 import { useGitSettings } from '@/modules/settings/hooks/useGitSettings';
 import { Button, Input } from '@/shared/ui';
-import SettingsCard from '@/modules/settings/SettingsCard';
-import SettingsSection from '@/modules/settings/SettingsSection';
+import SettingsCard from '@/modules/settings/ui/SettingsCard';
+import SettingsSection from '@/modules/settings/ui/SettingsSection';
 
 /** Rendered by Settings for the "git" tab, configuring the commit identity and git preferences. */
 export default function GitSettingsTab() {

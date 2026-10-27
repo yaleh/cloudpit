@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { clientAsrProviderId } from '@shared/asr/asrRegistry';
 
 import { useVoiceClientAsrStatus } from '@/shared/hooks/useVoiceClientAsrStatus';
-import SettingsSection from '@/modules/settings/SettingsSection';
-import SettingsToggle from '@/modules/settings/SettingsToggle';
+import SettingsSection from '@/modules/settings/ui/SettingsSection';
+import SettingsToggle from '@/modules/settings/ui/SettingsToggle';
 import { api } from '@/shared/api';
 import { cn } from '@/shared/utils';
 import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPreferencesContext';
