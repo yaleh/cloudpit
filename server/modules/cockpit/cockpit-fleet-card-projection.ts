@@ -21,8 +21,6 @@
  *
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
-import { isRecord } from '@/shared/utils.js';
-import { COCKPIT_FLEET_LOG_EXECUTOR_ID } from './cockpit-fleet-executor.js';
 import type {
   CockpitCard,
   CockpitCardAction,
@@ -35,6 +33,9 @@ import type {
   SessionAskDecisionOption,
   SessionAskDecisionReading,
 } from '@/shared/types.js';
+import { isRecord } from '@/shared/utils.js';
+
+import { COCKPIT_FLEET_LOG_EXECUTOR_ID } from './cockpit-fleet-executor.js';
 
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
 const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';
