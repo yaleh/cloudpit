@@ -36,6 +36,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
+import type { SessionAskEvent } from '@/shared/types.js';
+
 /** The v0 envelope version. The fleet schema pins this value. */
 export const CONTEXT_EVENT_VERSION = 0;
 
@@ -65,6 +68,11 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   'correction',
   'shadow.prediction',
   'shadow.prediction.outcome',
+  // quay-fleet's context-event schema v1 adds the two session-ask kinds. Until the
+  // installed release ships that document the writer refuses them as `invalid-kind`
+  // (a counted, non-throwing reading) and starts landing them the moment v1 is installed.
+  'session.asking',
+  'session.answered',
 ] as const;
 
 /** The kinds this producer may write. */
@@ -80,6 +88,49 @@ export type ContextEventDraft = {
   /** Injected by criteria that need a deterministic date. Production omits it. */
   at?: string;
 };
+
+/**
+ * The `data` payload of a `session.asking` row, as quay-fleet's v1 schema states it.
+ *
+ * `askId` is `<sessionId>:<assistantMessageId>` — the identity the fleet dedups on — and
+ * `contentRef` names the CloudCLI resolver a fleet consumer can call to read the question.
+ */
+export type SessionAskingEventData = {
+  askId: string;
+  messageId: string;
+  contentRef?: {
+    resolver: 'cloudcli.session-ask';
+    sessionId: string;
+    messageId: string;
+  };
+  revision?: number;
+};
+
+/** The `data` payload of a `session.answered` row: the ask it answers, plus the user message. */
+export type SessionAnsweredEventData = {
+  askId: string;
+  messageId?: string;
+};
+
+/**
+ * A session-ask event as a draft: the two kinds with their `data` shape pinned, so the
+ * observation adapter cannot hand the stream a mistyped payload.
+ */
+export type SessionAskContextEventDraft =
+  | {
+      kind: 'session.asking';
+      session: string;
+      project?: string | null;
+      refs?: readonly string[];
+      data: SessionAskingEventData;
+    }
+  | {
+      kind: 'session.answered';
+      session: string;
+      project?: string | null;
+      refs?: readonly string[];
+      data: SessionAnsweredEventData;
+    };
 
 /** One complete line, after the writer has added the envelope. */
 export type ContextEvent = {
@@ -361,6 +412,31 @@ function validateNode(value: unknown, node: SchemaNode, at: string): string[] {
   return failures;
 }
 
+/**
+ * The kind set a schema document states, or `null` when it states none.
+ *
+ * The fleet ships two shapes across releases: earlier documents are a plain JSON-Schema
+ * (`properties.kind.enum`), while the shared descriptive document lists `kinds` as an
+ * object keyed by kind. Reading BOTH is what makes the v0→v1 transition observable in the
+ * writer: with v0 installed the two session-ask kinds are absent, so an append is refused
+ * as `invalid-kind` instead of being written into a stream whose contract does not carry
+ * them. A document that names no kinds at all leaves the constant's typo guard as the only
+ * gate (rather than rejecting every event).
+ */
+function schemaKindSet(node: SchemaNode): Set<string> | null {
+  const kinds = (node as { kinds?: unknown }).kinds;
+  if (kinds !== null && typeof kinds === 'object' && !Array.isArray(kinds)) {
+    const names = Object.keys(kinds as Record<string, unknown>);
+    if (names.length > 0) return new Set(names);
+  }
+  const enumValues = node.properties?.kind?.enum;
+  if (Array.isArray(enumValues)) {
+    const names = enumValues.filter((value): value is string => typeof value === 'string');
+    if (names.length > 0) return new Set(names);
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Truncation: the 16 KB ceiling is enforced on the assembled line
 // ---------------------------------------------------------------------------
@@ -511,6 +587,19 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
       return { ok: false, reason: 'schema-unavailable', detail: schemaError ?? 'schema unavailable' };
     }
 
+    // The document is the contract, not the constant: a kind the installed schema does
+    // not carry is refused (and counted) rather than written. That is what makes a v0
+    // fleet reject `session.asking`/`session.answered` while a v1 fleet accepts them.
+    const schemaKinds = schemaKindSet(node);
+    if (schemaKinds !== null && !schemaKinds.has(draft.kind)) {
+      rejected += 1;
+      return {
+        ok: false,
+        reason: 'invalid-kind',
+        detail: `"${draft.kind}" is not a kind in the installed fleet schema`,
+      };
+    }
+
     const at = draft.at ?? new Date(now()).toISOString();
     const event: ContextEvent = {
       v: CONTEXT_EVENT_VERSION,
@@ -570,5 +659,112 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
     schemaPath: attemptedSchemaPath,
     append,
     status,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The session-ask adapter: observation events in, the shared stream out
+// ---------------------------------------------------------------------------
+
+/**
+ * The append seam the adapter writes through. Production passes
+ * `contextEvents.record`; a criterion passes its own recorder so no fleet install is needed.
+ */
+export type SessionAskEventRecord = (draft: ContextEventDraft) => Promise<AppendContextEventResult | null>;
+
+/** The adapter's reading: how many events landed, and why the rest did not. */
+export type SessionAskEventWriterStatus = {
+  /** Events the stream accepted (one line each). */
+  written: number;
+  /** Events the stream refused, threw on, or swallowed. Never thrown to the caller. */
+  rejected: number;
+  /** Rejections keyed by the writer's reason (`invalid-kind`, `schema-unavailable`, …). */
+  rejectedByReason: Record<string, number>;
+};
+
+/**
+ * The concrete adapter the composition root installs on the session-ask port.
+ *
+ * It implements {@link ISessionAskEventWriter} (whose `write` returns void and is the only
+ * verb the observation producer knows) and adds the two readings a criterion and an operator
+ * need: the counters, and a `settled()` promise because the underlying append is async while
+ * the observation seam is fire-and-forget.
+ */
+export type SessionAskEventWriter = ISessionAskEventWriter & {
+  status(): SessionAskEventWriterStatus;
+  /** Resolves once every append started so far has settled. Criteria and shutdown only. */
+  settled(): Promise<void>;
+};
+
+/** Turns one observation-layer event into the stream draft; the shapes already agree. */
+function toSessionAskDraft(event: SessionAskEvent): ContextEventDraft {
+  return {
+    kind: event.kind,
+    session: event.session,
+    project: event.project,
+    ...(event.refs === undefined ? {} : { refs: event.refs }),
+    at: event.at,
+    data: event.data,
+  };
+}
+
+/**
+ * Builds the adapter that carries `session.asking` / `session.answered` to the context stream.
+ *
+ * FAILURE NEVER REACHES THE OBSERVATION LAYER. `record` may reject, throw synchronously, or
+ * answer a non-`ok` result (a v0 fleet answers `invalid-kind`, an absent install answers
+ * `schema-unavailable`); every one of those is counted and logged ONCE per reason, and
+ * `write` returns normally. The observation producer already swallows a throwing writer, but
+ * the counter is what makes the pre-v1 period readable instead of silent.
+ */
+export function createSessionAskEventWriter(options: {
+  record: SessionAskEventRecord;
+  /** Debug sink for the first rejection of each reason; defaults to `console.debug`. */
+  log?: (line: string) => void;
+}): SessionAskEventWriter {
+  const log = options.log ?? ((line: string) => console.debug(line));
+  let written = 0;
+  let rejected = 0;
+  const rejectedByReason: Record<string, number> = {};
+  const loggedReasons = new Set<string>();
+  let tail: Promise<void> = Promise.resolve();
+
+  const logOnce = (reason: string, detail: string): void => {
+    if (loggedReasons.has(reason)) return;
+    loggedReasons.add(reason);
+    log(`[session-ask-events] ${reason}: ${detail}`);
+  };
+
+  const append = async (event: SessionAskEvent): Promise<void> => {
+    try {
+      const result = await options.record(toSessionAskDraft(event));
+      if (result !== null && result.ok) {
+        written += 1;
+        return;
+      }
+      const reason = result === null ? 'write-failed' : result.reason;
+      const detail = result === null ? 'the context event stream swallowed the append' : result.detail;
+      rejected += 1;
+      rejectedByReason[reason] = (rejectedByReason[reason] ?? 0) + 1;
+      logOnce(reason, detail);
+    } catch (failure) {
+      rejected += 1;
+      rejectedByReason['write-failed'] = (rejectedByReason['write-failed'] ?? 0) + 1;
+      logOnce('write-failed', failure instanceof Error ? failure.message : String(failure));
+    }
+  };
+
+  return {
+    write(event) {
+      // The chain never stays rejected: one refused append must not wedge the next.
+      try {
+        tail = tail.then(() => append(event), () => undefined);
+      } catch {
+        // `then` itself cannot throw here, but the observation layer must never learn it if
+        // it somehow did — the chat turn is not the evidence stream's failure.
+      }
+    },
+    status: () => ({ written, rejected, rejectedByReason: { ...rejectedByReason } }),
+    settled: () => tail.then(() => undefined),
   };
 }

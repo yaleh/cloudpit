@@ -648,9 +648,13 @@ export interface ICockpitActionExecutor {
  * The write seam for the observation layer's `session.asking` / `session.answered` events.
  *
  * The observation producer states the event; the host-level context-event writer is the real
- * implementation once quay-fleet's schema carries these two kinds (待外部). Criteria inject an
- * in-memory writer, which is why the seam is an interface rather than the concrete writer: a
- * producer must be exercisable without a fleet install.
+ * implementation. Production binds it through `shared/ports/session-ask-events.port.ts` (the
+ * composition root installs the context-events adapter, the process producer reads the port at
+ * write time), so the observation directory never imports the context-events feature module.
+ * Criteria inject an in-memory writer, which is why the seam is an interface rather than the
+ * concrete writer: a producer must be exercisable without a fleet install. While the installed
+ * fleet schema is still v0 the adapter counts the rejected rows (`invalid-kind`) instead of
+ * throwing; the v1 schema makes them land with no further producer change.
  */
 export interface ISessionAskEventWriter {
   /** Appends one event. Throwing is the writer's business; the producer catches and swallows. */

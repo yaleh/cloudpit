@@ -765,3 +765,9 @@
 #   (dur=2729ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 456 server test files).
 2729	server/modules/cockpit/tests/cockpit-session-executors.test.ts
+#   and the session-ask-event-writer row by observation-session-ask-event-writer-wiring, measured
+#   once on 2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/session-ask-event-writer.test.ts`
+#   (dur=4180ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 457 server test files).
+4180	server/modules/context-events/tests/session-ask-event-writer.test.ts

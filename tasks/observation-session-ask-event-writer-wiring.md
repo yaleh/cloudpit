@@ -2,7 +2,7 @@
 id: observation-session-ask-event-writer-wiring
 title: 会话提问事件接上真实 context 事件写入器：CLOUDCLI_CONTEXT_EVENT_KINDS 加 session.asking /
   session.answered，按 fleet schema 校验，schema 未升到 v1 前只记录不报错
-status: ready
+status: done
 labels:
   - feature
   - cockpit
