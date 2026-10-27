@@ -52,7 +52,7 @@ goal_ac: AC-429
 
 - 挂载位置：`WorkspaceMain.tsx` 的内容行（`ProjectWorkspaceShell` 之内、`EditorSidebar` 之后）右侧挂 `CockpitColumn`；`WorkspaceHeader.tsx` 的桌面分支在 `WorkspaceMenu`（`⋯`）之前挂 `CockpitHeaderButton`；`ProjectWorkspaceShell.tsx` 用 `CockpitColumnProvider` 提供唯一的一份 card + column binding，header 按钮、列与侧栏模式切换共读同一快照，不各自轮询。
 - 侧栏模式切换：列展开时隐藏，收起时保留。这样「收起时与现在的会话页完全一致」，而 `cockpit-mode-switch` 场景（1280 宽、列收起）仍走产品原有的切换路径。
-- 会话链接：点卡片会话链接导航到 `/session/<id>`；挤压式保持展开，覆盖式自动收起。会话页目前没有按消息 id 定位的能力（没有可用的 message-id 深链/滚动高亮入口），因此只打开会话，不做滚动与高亮。
+- 会话链接：点卡片会话链接导航到 `/session/<id>`；挤压式保持展开，覆盖式自动收起。会话页目前没有按消息 id 定位的能力（`jumpToMessage` 只接输入大纲的页内跳转，没有 URL/消息 id 的深链入口），因此只打开会话，不做滚动与高亮。
 - 列内 Details：`CockpitCardList` 的 `column` 变体把 Details 推入列内并带返回按钮；`page` 变体仍是原来的浮层，`/cockpit?view=cards` 行为不变。两者共用同一个 card controller。
 - 列底部输入框：挂载既有 `CockpitInput`，只把提交接到既有的 `utterance` 事件；未新增「指令开会话」的行为。
 - 键盘归属：两个输入框都没有焦点时 `↑ ↓ ← → 1–9 E Enter Backspace` 归列；任一可编辑元素有焦点时一个也不处理；`Escape` 永不处理。
@@ -75,7 +75,10 @@ DoD（隔离实例 + 一次性 Playwright；本会话没有可用的 MCP 浏览�
 - 1100：`overlay`，列左缘 700、会话区右缘 1100（覆盖不挤压，`1100-overlay-expanded.png`）；点会话链接后 URL 切到 `/session/fixture-session` 且列自动收起（`1100-after-conversation-link.png`）。
 - 800：无列、无 header 按钮（即使存储里写着展开）（`800.png`）。
 - 键盘：点会话空白处后 `↓` 选中从 `fixture:ask` 变为 `fixture:multi`，`2` 使显示选项变为 `scope-full`（`1440-keyboard.png`）；聚焦会话输入框后 `2` 输入框值变为 `"2"`，驾驶舱读数（选中/显示选项）不变（`1440-keyboard-focused-input.png`）。
-- 场景运行器：`cockpit-cards-confirm.json` 6 steps 通过（报告 `tmp/cockpit-dod/scenario-cards.json`，checkpoint 在 `tmp/cockpit-dod/scenario-cards/`）；`cockpit-mode-switch.json` 3 steps 通过（`tmp/cockpit-dod/scenario-mode-switch.json`，checkpoint 在 `tmp/cockpit-dod/scenario-mode-switch/`）。
+- 「收起时与未改动的会话页一致」的读法：本实例只有一个构建，没有第二份未改动构建可做像素对照；证据是收起时 DOM 里没有 `cockpit-column`、会话区右缘到窗口边（1151px 全是会话），加上 `CockpitColumn.test.tsx` 用「挂列（收起）与不挂列」两次渲染的 `innerHTML` 逐字相等。
+- 场景运行器 JSON（完整报告见文件，下列为 `name/ok/durationMs/steps` 摘要）：
+  `cockpit-cards-confirm`：`{"name":"cockpit-cards-confirm","ok":true,"durationMs":8221,"steps":[{"step":1,"ok":true},{"step":2,"ok":true},{"step":3,"ok":true},{"step":4,"ok":true},{"step":5,"ok":true},{"step":6,"ok":true}]}`（`tmp/cockpit-dod/scenario-cards.json`，checkpoint 在 `tmp/cockpit-dod/scenario-cards/`）。
+  `cockpit-mode-switch`：`{"name":"cockpit-mode-switch","ok":true,"durationMs":4267,"steps":[{"step":1,"ok":true},{"step":2,"ok":true},{"step":3,"ok":true}]}`（`tmp/cockpit-dod/scenario-mode-switch.json`，checkpoint 在 `tmp/cockpit-dod/scenario-mode-switch/`）。
 
 L_D 该轴仍暗，理由：本任务是 PC 右侧列的外壳与交互，不新增领域数据能力；浏览器 DoD 读到的卡片全部来自 fixture provider 的演示数据，不是真实领域读数。
 
