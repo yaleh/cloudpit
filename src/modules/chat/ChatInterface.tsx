@@ -601,37 +601,6 @@ function ChatInterface({
   const registerDictationToggle = useCallback((registration: DictationToggleRegistration | null) => {
     dictationRegistration.current = registration;
   }, []);
-  const toggleDictation = useCallback(() => {
-    dictationRegistration.current?.toggle();
-  }, []);
-  const isDictationAvailable = useCallback(
-    () => dictationRegistration.current?.available === true,
-    [],
-  );
-
-  /**
-   * One key for both directions of Live Voice: a press enters the mode, and a
-   * press while the mode is on screen leaves it. Read against `composerMode`
-   * rather than `voiceModeSession` because that is the value the pane renders.
-   */
-  const toggleLiveVoice = useCallback(() => {
-    if (composerMode === 'voice') {
-      exitVoiceMode();
-      return;
-    }
-    void enterVoiceMode();
-  }, [composerMode, enterVoiceMode, exitVoiceMode]);
-  /** The entry's own guard: an allocation already in flight must not be started twice. */
-  const isLiveVoiceAvailable = useCallback(() => !voiceEntryAllocating, [voiceEntryAllocating]);
-
-  // The keyboard bindings the user stored in Voice settings, wired to the same
-  // two entry points the on-screen controls use.
-  useVoiceShortcuts({
-    toggleDictation,
-    toggleLiveVoice,
-    isDictationAvailable,
-    isLiveVoiceAvailable,
-  });
 
   // A tap whose allocation is still in flight when the pane goes away would otherwise leave the
   // prewarmed microphone running with no owner. Once capture has started the hook owns the source
@@ -911,6 +880,71 @@ function ChatInterface({
     }
     exitVoiceMode();
   }, [voice.captions, voice.deliveries, voice.pendingMessage, setInput, exitVoiceMode]);
+
+  const toggleDictation = useCallback(() => {
+    dictationRegistration.current?.toggle();
+  }, []);
+  const stopAndSendDictation = useCallback(() => {
+    dictationRegistration.current?.stopAndSend();
+  }, []);
+  const isDictationAvailable = useCallback(
+    () => dictationRegistration.current?.available === true,
+    [],
+  );
+  const isDictationRecording = useCallback(
+    () => dictationRegistration.current?.recording === true,
+    [],
+  );
+
+  /**
+   * One key for both directions of Live Voice: a press enters the mode, and a
+   * press while the mode is on screen leaves it. Read against `composerMode`
+   * rather than `voiceModeSession` because that is the value the pane renders.
+   *
+   * Leaving goes through `handleVoiceExit`, the same path the bar's own exit
+   * uses: the unheard backlog returns to the composer and only the mode (and
+   * with it the microphone connection) ends — the run keeps going.
+   */
+  const toggleLiveVoice = useCallback(() => {
+    if (composerMode === 'voice') {
+      handleVoiceExit();
+      return;
+    }
+    void enterVoiceMode();
+  }, [composerMode, enterVoiceMode, handleVoiceExit]);
+  /** The entry's own guard: an allocation already in flight must not be started twice. */
+  const isLiveVoiceAvailable = useCallback(() => !voiceEntryAllocating, [voiceEntryAllocating]);
+  const isLiveVoiceActive = useCallback(() => composerMode === 'voice', [composerMode]);
+
+  /**
+   * The Escape guard's own condition, read from the pane: the composer is the
+   * mode on screen, there is a draft to clear, no turn is running, the dock
+   * shows no turn, and no slash/file menu is open. A clear shortcut must not be
+   * a second, laxer way to dismiss any of those.
+   */
+  const isClearAvailable = useCallback(
+    () => composerMode === 'text'
+      && input !== ''
+      && !isProcessing
+      && !isDockTurnShown
+      && !showCommandMenu
+      && !showFileDropdown,
+    [composerMode, input, isProcessing, isDockTurnShown, showCommandMenu, showFileDropdown],
+  );
+
+  // The keyboard bindings the user stored in Voice settings, wired to the same
+  // entry points the on-screen controls use.
+  useVoiceShortcuts({
+    toggleDictation,
+    toggleLiveVoice,
+    stopAndSendDictation,
+    clearInput: handleClearInput,
+    isDictationAvailable,
+    isLiveVoiceAvailable,
+    isDictationRecording,
+    isLiveVoiceActive,
+    isClearAvailable,
+  });
 
   // On WebSocket reconnect, request a bounded persisted-tail sync (deferred
   // while Chat is hidden), then re-subscribe — the
