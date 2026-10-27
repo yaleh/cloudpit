@@ -30,18 +30,47 @@ extra:
 
 ## AC
 
-- [ ] 适配：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-suite-fanin-reader.test.ts` exit 0；用例以 2026-10-28 实测的两份真实输出为夹具（放在 `server/modules/quay/tests/fixtures/`），断言适配后的 `tests.current`、`tests.recentRounds`、`fanIn.recent` 与现有形状一致；`mechanical_fan_in` 缺失的 attempt 不进 `fanIn.recent`；`lockAcquireEpoch`、`lockReleaseEpoch` 取自嵌套路径。
-- [ ] 单位：同一测试文件含用例：动词给出 ISO 的 `finishedAt` 时，适配后的 `QuaySuiteState.finishedAt` 是对应的 epoch 秒整数；`finishedAt` 缺失或不可解析时为 `null`，不是 `0` 也不是 `NaN`。
-- [ ] 降级：同一测试文件含用例：动词不存在（非零退出且无输出）、输出不是 JSON、缺少 `current`/`rounds`/`attempts` 键，三种情况的 `carrierReadings` 分别为 `verb-unavailable`/`failed`，`tests` 与 `fanIn` 不含伪造的空记录；`carrier.state` 为 `absent`、`unreadable`、`empty-writer-zero-records` 时原样透传。
-- [ ] 白名单：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` exit 0；新增用例：两条新 argv 被允许，同一动词的其它组合（`--limit 301`、缺 `--json`、`driver log --kind promotion`）被拒绝；原有的白名单用例一条不少。
-- [ ] 无重复 spawn：同一测试文件含用例：同一项目在 TTL 内先取 snapshot 再取 fleet summary，`suite` 与 `driver log` 各只被调用一次。
-- [ ] 不再直读：`git grep -nE "full-suite-state|verification-round|worker-outcome|readCurrentSuiteState|QUAY_(SUITE_STATE|ROUND_HISTORY|WORKER_OUTCOME)_FILE" -- server/modules/quay ':!server/modules/quay/tests'` 无输出；`git grep -n "readCarrierFileTail" -- server/modules/quay ':!server/modules/quay/tests'` 无输出，或仅剩与这三个文件无关的调用并在 DoD 里逐条说明。
-- [ ] 形状安全：`git diff -U0 -- server/shared/types.ts src/shared/types.ts` 不含对 `QuayTestsSummary`、`QuayFanInSummary`、`QuaySuiteState`、`QuayDriverSummary` 的改动，只新增可选的 `carrierReadings` 与 `QuayCarrierReading`；`npx vitest run src/modules/quay/tests/QuayPanel.test.tsx` exit 0，新增用例：读数不是 `ok` 时 Tests 与 Fan-in 卡写出读数与原因，且不显示「No fan-in attempts recorded」之类的空态文案。
-- [ ] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0，`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint server/modules/quay server/shared src/modules/quay` exit 0。
+- [x] 适配：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-suite-fanin-reader.test.ts` exit 0；用例以 2026-10-28 实测的两份真实输出为夹具（放在 `server/modules/quay/tests/fixtures/`），断言适配后的 `tests.current`、`tests.recentRounds`、`fanIn.recent` 与现有形状一致；`mechanical_fan_in` 缺失的 attempt 不进 `fanIn.recent`；`lockAcquireEpoch`、`lockReleaseEpoch` 取自嵌套路径。
+- [x] 单位：同一测试文件含用例：动词给出 ISO 的 `finishedAt` 时，适配后的 `QuaySuiteState.finishedAt` 是对应的 epoch 秒整数；`finishedAt` 缺失或不可解析时为 `null`，不是 `0` 也不是 `NaN`。
+- [x] 降级：同一测试文件含用例：动词不存在（非零退出且无输出）、输出不是 JSON、缺少 `current`/`rounds`/`attempts` 键，三种情况的 `carrierReadings` 分别为 `verb-unavailable`/`failed`，`tests` 与 `fanIn` 不含伪造的空记录；`carrier.state` 为 `absent`、`unreadable`、`empty-writer-zero-records` 时原样透传。
+- [x] 白名单：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay.service.test.ts` exit 0；新增用例：两条新 argv 被允许，同一动词的其它组合（`--limit 301`、缺 `--json`、`driver log --kind promotion`）被拒绝；原有的白名单用例一条不少。
+- [x] 无重复 spawn：同一测试文件含用例：同一项目在 TTL 内先取 snapshot 再取 fleet summary，`suite` 与 `driver log` 各只被调用一次。
+- [x] 不再直读：`git grep -nE "full-suite-state|verification-round|worker-outcome|readCurrentSuiteState|QUAY_(SUITE_STATE|ROUND_HISTORY|WORKER_OUTCOME)_FILE" -- server/modules/quay ':!server/modules/quay/tests'` 无输出；`git grep -n "readCarrierFileTail" -- server/modules/quay ':!server/modules/quay/tests'` 无输出，或仅剩与这三个文件无关的调用并在 DoD 里逐条说明。
+- [x] 形状安全：`git diff -U0 -- server/shared/types.ts src/shared/types.ts` 不含对 `QuayTestsSummary`、`QuayFanInSummary`、`QuaySuiteState`、`QuayDriverSummary` 的改动，只新增可选的 `carrierReadings` 与 `QuayCarrierReading`；`npx vitest run src/modules/quay/tests/QuayPanel.test.tsx` exit 0，新增用例：读数不是 `ok` 时 Tests 与 Fan-in 卡写出读数与原因，且不显示「No fan-in attempts recorded」之类的空态文案。
+- [x] 静态检查：`npx tsc --noEmit -p server/tsconfig.json` exit 0，`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint server/modules/quay server/shared src/modules/quay` exit 0。
 
 ## DoD
 
 在真实机器上，用已构建的服务器代码（不重启 live 服务）对本项目调用 snapshot，贴出：`tests.current.state`、最近一轮的 `round`/`pass`/`fail`，与同一时刻直接运行 `quay suite --json --limit 3` 的读数一致；`fanIn.recent` 的第一条与 `quay driver log --kind worker --json --limit 5` 里最近一条 `mechanical_fan_in` 的 `outcome` 与锁时刻一致；`carrierReadings.suite` 与 `.fanIn` 均为 `ok`。对一个钉着旧版 quay 的项目（quay-fleet，0.19.0）调用 snapshot，贴出 `carrierReadings` 为 `verb-unavailable` 且 Tests、Fan-in 卡写出原因。贴出改动前后 snapshot 的耗时对比，并说明 `suite --limit 300` 在 quay 侧读取约 89MB 的账本，该成本由 quay 承担、不再由 CloudCLI 承担。部署（构建与服务重启）由用户执行。
+
+## DoD 读数（2026-10-28，本 worktree 构建的 dist-server，未重启 live 服务）
+
+入口：`/data/home/yale/work/claudecodeui` → quay 0.24.0（user scope）；`/data/home/yale/work/quay-fleet` → 0.19.0（project scope）。
+
+直接运行动词（cwd = 主 checkout）：
+- `quay suite --json --limit 300`：0.49s / 50,998 字节；`current.state=green`，`finishedAt=2026-10-27T17:22:53.000Z`，`rounds[0]={round:1684,pass:811,fail:0,durationMs:332682,state:green}`，`carrier.state=ok`。
+- `quay driver log --kind worker --json --limit 300`：0.11s / 458,207 字节；`status=ok`；最近一条带 `mechanical_fan_in` 的 attempt 是 `cockpit-card-anatomy-matches-mockups`，`outcome=landed`，`lockAcquireEpoch=1793116665`，`lockReleaseEpoch=1793117034`。
+
+本分支构建的 snapshot（`getQuaySnapshot('self', { forceRefresh: true })`）：
+- `tests.current` 与上面 `suite.current` 逐字一致；`finishedAt=1793121773`（epoch 秒）。
+- `tests.recentRounds[0]={round:1684,pass:811,fail:0,durationMs:332682,state:green,tests:null}`：round/pass/fail 与直接运行一致；`tests` 为 `null`，因为动词文档不提供该计数，未伪造 0。
+- `fanIn.recent` 最后一条 `{task:gap-cockpit-ask-digest-refresh-yesno-options-and-left-marker,outcome:landed,lockAcquireEpoch:1793121417,lockReleaseEpoch:1793121775}`，与 driver log 中该任务 `mechanical_fan_in` 的 outcome 和两个锁时刻一致。
+- `carrierReadings={suite:{state:ok,reason:null},fanIn:{state:ok,reason:null}}`。
+- TTL 内重复取同项目 snapshot：0ms、`cached:true`；随后 `getFleetSummary()` 复用同一份读数（未第二次 spawn 这两个动词）。
+
+钉着旧版 quay 的项目（quay-fleet，0.19.0）：
+- `carrierReadings.suite={state:verb-unavailable,reason:"quay exited with a non-zero status: Command failed: .../quay/0.19.0/bin/quay suite --json --limit 300"}`；`tests.current=null`、`tests.recentRounds=[]`，没有伪造记录。
+- `carrierReadings.fanIn={state:ok}`：0.19.0 已有 `driver log --kind worker --json`，Fan-in 是真读数（如实记录，未硬算成不可用）。
+- 面板表现：Tests 卡写 `verb-unavailable — <reason>` 且不画 "No suite running" / "No suite rounds recorded"；Fan-in 卡照常画时间线。该行为由 `QuayPanel.test.tsx` 新增用例断言（读数非 `ok` 时写出 state 与 reason，三条空态文案都不在 DOM）。
+- 页面实拍：本 worktree 没有可用的隔离页面实例（DoD 明确部署由用户执行），本次未做浏览器截图；UI 腿以组件测试 + 上面的真实 snapshot 读数为准。
+
+耗时对比（同一进程内交替 `forceRefresh`，主 checkout 项目，3 轮）：
+- develop 构建：1298 / 1274 / 2228 ms。
+- 本分支构建：1409 / 1287 / 1280 ms。
+- 两者相当（约 1.3s，差异在噪声内）。原先 CloudCLI 本地读的三份载体实测为：`verification-round.jsonl` 120,333,710 字节、`worker-outcome.jsonl` 6,214,727 字节、`full-suite-state.json` 414 字节；现在 CloudCLI 不再打开它们。quay 侧 `suite` 自己报告 `carrier.rounds={bytesRead:1310720,exhausted:false}`，即它在自己进程内做有界尾部读取——成本归 quay，不再由 CloudCLI 承担（账本实测 120MB，不是 Proposal 里写的 89MB）。
+- 附带读数：develop 构建的 `tests.recentRounds[0]` 是 `round=1385（2026-10-22T17:04:37Z）`，同一时刻动词给的是 `round=1684（2026-10-27T17:17:16Z）`——旧的有界尾部读取读到的不是最新一轮；切到动词后一致。
+
+- 该轴仍暗,理由:本任务只把 Tests/Fan-in 的取数从本地载体文件切到 quay 只读动词，未新增模块边界或文档，本轮未取 archguard 读数。
 
 ## Touches
 
