@@ -1,7 +1,7 @@
 ---
 id: AC-430
 title: 手机 header 与驾驶舱页：单行 45px，标题后 R 下拉、项目名后 Quay 图、右侧 tab · ⋯ · 驾驶舱按钮，驾驶舱页返回保持原位
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run
@@ -21,6 +21,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:05:02.010Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
