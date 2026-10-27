@@ -22,6 +22,7 @@
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
 import { isRecord } from '@/shared/utils.js';
+import { COCKPIT_FLEET_LOG_EXECUTOR_ID } from './cockpit-fleet-executor.js';
 import type {
   CockpitCard,
   CockpitCardAction,
@@ -272,6 +273,33 @@ function withSessionAskContent(
   };
 }
 
+/**
+ * The provider's own-reply declaration for a card that names NO session.
+ *
+ * A fleet card without `subject.sessionId` is about something (a task, a project, an attention
+ * entry), not a conversation, so the person's own words are recorded with `fleet.log` rather
+ * than sent anywhere. This is a PROVIDER declaration: it wins over the registry's content
+ * default (which would try to start a conversation in `subject.project`). A card that names a
+ * session is left alone, so the registry's `session.send` default applies unchanged.
+ *
+ * The params carry only the addressing fields the card actually has; `text` is joined by the
+ * action channel at confirmation time (the channel, not this projection, knows the typed text).
+ */
+function withFleetOwnReply(card: CockpitCard): CockpitCard {
+  if (card.ownReply !== undefined) return card;
+  if ((card.subject.sessionId ?? '').trim() !== '') return card;
+
+  const params: Record<string, unknown> = { attentionId: card.id };
+  const taskId = (card.subject.taskId ?? '').trim();
+  const projectId = (card.subject.project ?? '').trim();
+  if (taskId !== '') params.taskId = taskId;
+  if (projectId !== '') params.projectId = projectId;
+  return {
+    ...card,
+    ownReply: { executor: COCKPIT_FLEET_LOG_EXECUTOR_ID, params },
+  };
+}
+
 /** One JSONL object as a card, or `null` when it is missing a field the contract requires. */
 function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): CockpitCard | null {
   if (!isRecord(raw)) return null;
@@ -327,9 +355,11 @@ function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): Cockp
     ...(notify === undefined ? {} : { notify }),
   };
 
-  return content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
-    ? withSessionAskContent(card, content, readSessionAsk)
-    : card;
+  const projected =
+    content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
+      ? withSessionAskContent(card, content, readSessionAsk)
+      : card;
+  return withFleetOwnReply(projected);
 }
 
 /** Builds a projection over the one outside reading it needs. */

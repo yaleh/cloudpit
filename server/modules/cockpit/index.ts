@@ -18,6 +18,7 @@ export type {
   CockpitCardActions,
   CockpitCardConfirmRequest,
   CockpitCardConfirmResult,
+  CockpitExecutorResolver,
 } from '@/modules/cockpit/cockpit-card-actions.js';
 export { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 export type {
@@ -32,15 +33,32 @@ export {
   COCKPIT_FLEET_PROVIDER_ID,
   createCockpitFleetCardProvider,
   DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+  DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS,
 } from '@/modules/cockpit/cockpit-fleet-card-provider.js';
 export type {
   CockpitFleetCardProvider,
   CockpitFleetCardProviderDeps,
-  CockpitFleetCommandResult,
   CockpitFleetReadOptions,
 } from '@/modules/cockpit/cockpit-fleet-card-provider.js';
 export { COCKPIT_FLEET_ASK_OPTION_EXECUTOR } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 export type { CockpitFleetContentReader } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
+// The fleet disposal executors: the declaration port (`rescue executors --json`) and one
+// executor per declaration. The composition root binds the real child runner; the provider reads
+// the declarations and resolves an implementation only after the registry reports it declared.
+export {
+  COCKPIT_FLEET_EXECUTORS_ARGS,
+  COCKPIT_FLEET_LOG_EXECUTOR_ID,
+  CockpitFleetExecutor,
+  createCockpitFleetExecutors,
+  readCockpitFleetExecutors,
+} from '@/modules/cockpit/cockpit-fleet-executor.js';
+export type {
+  CockpitFleetCommandResult,
+  CockpitFleetExecutorDeclaration,
+  CockpitFleetExecutorDeps,
+  CockpitFleetExecutorParam,
+  CockpitFleetExecutorReading,
+} from '@/modules/cockpit/cockpit-fleet-executor.js';
 export { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
 export type {
   CockpitFixtureCardProvider,
