@@ -1,7 +1,7 @@
 ---
 id: GOAL-050
 title: 驾驶舱：卡片提供方架构与手机 / PC 界面
-status: active
+status: achieved
 kind: goal
 origin: 本会话 2026-10-26 至 10-27
   驾驶舱重设计（docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md、CARD-PROVIDERS.md）；用户确定驾驶舱只放等我处理的卡片，PC
@@ -23,6 +23,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 2026-10-28 用户：缺省建议偏离原设计（助手无推荐时判官应补位），退回 active 以修正 AC-423/AC-424 并新增判据
+  - at: 2026-10-27T22:49:59.516Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: all ACs achieved + sufficiency covered"
 ---
 ## 背景
 
