@@ -284,7 +284,12 @@ test.describe('the Conversations feed under a saved session-name rule', () => {
 
   test('a session that arrives matching a saved rule never enters the feed, and one that does not arrives', async () => {
     // The rule is entered through the sidebar's own editor and saved through the app's own PUT.
-    await projectRow().getByTitle('Session filter…').click();
+    // The editor is reached the way the row offers it now: hover the row, open its ⋯ menu, pick
+    // the session-filter item.
+    const row = projectRow();
+    await row.hover();
+    await row.locator('[data-testid="project-actions-menu"] button[aria-haspopup="menu"]').click();
+    await page.getByRole('menuitem', { name: 'Session filter…' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(`Session filter · ${path.basename(workspace)}`);

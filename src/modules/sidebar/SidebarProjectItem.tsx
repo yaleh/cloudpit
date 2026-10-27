@@ -1,13 +1,10 @@
-import { memo, useEffect, useRef } from 'react';
-import type { MouseEvent } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, LayoutDashboard, ListFilter, Star, Trash2, X } from 'lucide-react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, Star, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { useHref, useInRouterContext } from 'react-router-dom';
 
 import { Button } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { LLMProvider, MCPServerStatus, Project, ProjectSession, QuayFleetTaskCounts, SessionWithProvider } from '@/shared/types';
-import { WatchPinToggle, cockpitViewPath, formatProjectUri } from '@/modules/cockpit/contract';
 import { getQuayIndicatorStatus, getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
 import QuayIndicator from '@/modules/sidebar/QuayIndicator';
@@ -16,7 +13,7 @@ import SidebarProjectSessions from '@/modules/sidebar/SidebarProjectSessions';
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useFleetAttention } from '@/modules/sidebar/hooks/useFleetAttention';
-import { useFleetTaskCounts } from '@/modules/sidebar/hooks/useFleetTaskCounts';
+import { useFleetProjectDriverState, useFleetTaskCounts } from '@/modules/sidebar/hooks/useFleetTaskCounts';
 
 /**
  * Props for one project row. Exported for the module's tests, which render the real row
@@ -58,6 +55,12 @@ export type SidebarProjectItemProps = {
   onNewSession: (project: Project) => void;
   /** Resolved for this row so toggling one project's flag leaves other rows' memo boundary intact. */
   isShowingHiddenSessions: boolean;
+  /**
+   * Whether the first line must also show the full path. True only for the two cases the path
+   * disambiguates: another rendered project shares this display name, or the display name is
+   * not the path's last segment (a renamed project). Computed once by SidebarProjectList.
+   */
+  showPathOnName?: boolean;
   onToggleShowHidden?: (projectId: string) => void;
   onEditSessionFilter?: (project: Project, seedSessionName?: string) => void;
   onStartEditingSession: (projectId: string, sessionId: string, initialName: string) => void;
@@ -71,78 +74,22 @@ const getSessionCountDisplay = (project: Project, sessions: SessionWithProvider[
   return String(total);
 };
 
-type CockpitProjectLinkProps = {
-  /** The project's quay-fleet registry id — the project segment this board link addresses. */
-  fleetProjectId: string;
-  /** Compact-card sizing (`h-8 w-8`) versus the desktop row's `h-6 w-6`. */
-  compact: boolean;
-  label: string;
-  onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
-  /** Layout-only additions; the desktop row reveals its action group on hover. */
-  className?: string;
-};
-
-/** The anchor itself, shared by the routed and plain branches so the two cannot drift. */
-function CockpitProjectAnchor({
-  href,
-  fleetProjectId,
-  compact,
-  label,
-  onNavigate,
-  className,
-}: CockpitProjectLinkProps & { href: string }) {
-  return (
-    <a
-      href={href}
-      onClick={onNavigate}
-      title={label}
-      aria-label={label}
-      data-testid="cockpit-project-link"
-      data-cockpit-project={fleetProjectId}
-      className={cn(
-        'flex items-center justify-center rounded border border-border bg-muted/30 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-        compact ? 'h-8 w-8 rounded-lg' : 'h-6 w-6',
-        className,
-      )}
-    >
-      <LayoutDashboard className={compact ? 'h-4 w-4' : 'h-3 w-3'} aria-hidden />
-    </a>
-  );
-}
-
-function RoutedCockpitProjectLink(props: CockpitProjectLinkProps) {
-  const href = useHref(
-    cockpitViewPath({ type: 'board', project: props.fleetProjectId }),
-  );
-  return <CockpitProjectAnchor {...props} href={href} />;
-}
-
 /**
- * 「在驾驶舱中查看」 for one row: a real link to the project's board, shown only when
- * quay-fleet registers the project (an unregistered project has no addressable board).
- * Split from the row because `useHref` needs a router, and the row is also rendered in unit
- * tests that mount no router.
- */
-function CockpitProjectLink(props: CockpitProjectLinkProps) {
-  const inRouter = useInRouterContext();
-  return inRouter ? (
-    <RoutedCockpitProjectLink {...props} />
-  ) : (
-    <CockpitProjectAnchor
-      {...props}
-      href={cockpitViewPath({ type: 'board', project: props.fleetProjectId })}
-    />
-  );
-}
-
-/**
- * A project row's task badge: the todo / ready / needs-human counts from the shared
- * fleet summary. Defined here because `SidebarProjectItem` is its only consumer. The
- * `data-*` attributes carry exactly the numbers the chips show, so a test can compare
- * the rendered row with the endpoint's reading instead of parsing styled text.
+ * A project row's task badge: the non-zero todo / ready / needs-human counts from the shared
+ * fleet summary. Defined here because `SidebarProjectItem` is its only consumer.
+ *
+ * A zero count is noise — most projects are `0 0 0` and needs-human is the number that asks for
+ * a person — so a zero bucket draws nothing and an all-zero reading draws no badge at all. The
+ * `data-*` attributes still carry all three real readings (zeros included) whenever the badge
+ * exists, so a test can compare the rendered row with the endpoint instead of styled text.
  */
 function ProjectTaskCountsBadge({ counts, className }: { counts: QuayFleetTaskCounts; className?: string }) {
   const label = `${counts.todo} todo, ${counts.ready} ready, ${counts.needsHuman} needs-human`;
+  const hasAnyCount = counts.todo > 0 || counts.ready > 0 || counts.needsHuman > 0;
+
+  if (!hasAnyCount) {
+    return null;
+  }
 
   return (
     <span
@@ -157,18 +104,25 @@ function ProjectTaskCountsBadge({ counts, className }: { counts: QuayFleetTaskCo
       aria-label={label}
       title={label}
     >
-      <span className="inline-flex items-center gap-0.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" aria-hidden />
-        {counts.todo}
-      </span>
-      <span className="inline-flex items-center gap-0.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400" aria-hidden />
-        {counts.ready}
-      </span>
-      <span className="inline-flex items-center gap-0.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400" aria-hidden />
-        {counts.needsHuman}
-      </span>
+      {counts.todo > 0 && (
+        <span className="inline-flex items-center gap-0.5" data-task-count="todo">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" aria-hidden />
+          <span>{counts.todo}</span>
+        </span>
+      )}
+      {counts.ready > 0 && (
+        <span className="inline-flex items-center gap-0.5" data-task-count="ready">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400" aria-hidden />
+          <span>{counts.ready}</span>
+        </span>
+      )}
+      {counts.needsHuman > 0 && (
+        <span className="inline-flex items-center gap-0.5" data-task-count="needs-human">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400" aria-hidden />
+          {/* The one bucket that asks for a person carries the emphasis. */}
+          <span className="font-medium text-amber-600 dark:text-amber-400">{counts.needsHuman}</span>
+        </span>
+      )}
     </span>
   );
 }
@@ -207,6 +161,7 @@ function SidebarProjectItem({
   attentionSessionIds,
   onNewSession,
   isShowingHiddenSessions,
+  showPathOnName = false,
   onToggleShowHidden,
   onEditSessionFilter,
   onStartEditingSession,
@@ -221,7 +176,16 @@ function SidebarProjectItem({
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
-  const quayStatus = getQuayIndicatorStatus(project, null);
+  // The driver reading is the fleet summary's own `driver.state` for this project. A project the
+  // summary does not list has NO reading: the row draws nothing rather than inventing `idle` or
+  // `unavailable`. Only the three states that ask for attention ever paint an icon.
+  const fleetDriverState = useFleetProjectDriverState(project.projectId);
+  const quayStatus = project.hasQuayConfig && fleetDriverState !== null
+    ? getQuayIndicatorStatus(project, { driver: { state: fleetDriverState } })
+    : null;
+  const showQuayIndicator = quayStatus === 'running'
+    || quayStatus === 'stale'
+    || quayStatus === 'unavailable';
   // Task counts come from the shared fleet summary. Non-quay projects never render the
   // badge, so their row is unchanged even though the shared read covers the whole fleet.
   const fleetTaskCounts = useFleetTaskCounts(project.projectId);
@@ -233,8 +197,10 @@ function SidebarProjectItem({
   // boot-time switch is on; the task counts and Quay indicator above are not cockpit surfaces.
   const { cockpitEnabled } = useServerFeatures();
   const fleetProjectId = attention.fleetProjectIdByProject.get(project.projectId) ?? null;
-  const cockpitLinkLabel = t('common:cockpit.openProject', 'View in cockpit');
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
+  // The desktop ⋯ menu is controlled: the trigger and the row's right-click are two entry
+  // points into one menu, and the trigger must stay painted while the menu is open.
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isEditing || !mobileRenameInputRef.current) {
@@ -346,9 +312,23 @@ function SidebarProjectItem({
                   />
                 ) : (
                   <>
-                    <h3 className="truncate text-sm font-normal text-foreground" title={project.displayName}>
-                      {project.displayName}
-                    </h3>
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      <h3
+                        className="min-w-0 truncate text-sm font-normal text-foreground"
+                        data-testid="project-row-name"
+                        title={project.fullPath}
+                      >
+                        {project.displayName}
+                      </h3>
+                      {showPathOnName && (
+                        <span
+                          className="min-w-0 truncate text-xs text-muted-foreground opacity-60"
+                          title={project.fullPath}
+                        >
+                          {project.fullPath}
+                        </span>
+                      )}
+                    </div>
                     {/*
                       The second line never wraps: at 320 the middle column is ~160px, so the
                       activity icon is dropped first and the session count truncates after it.
@@ -362,12 +342,14 @@ function SidebarProjectItem({
                       {showTaskCounts && fleetTaskCounts && (
                         <ProjectTaskCountsBadge counts={fleetTaskCounts} className="flex-shrink-0" />
                       )}
-                      <QuayIndicator
-                        hasQuayConfig={Boolean(project.hasQuayConfig)}
-                        status={quayStatus}
-                        size="xs"
-                        className="hidden flex-shrink-0 min-[360px]:inline-flex"
-                      />
+                      {showQuayIndicator && quayStatus !== null && (
+                        <QuayIndicator
+                          hasQuayConfig={Boolean(project.hasQuayConfig)}
+                          status={quayStatus}
+                          size="xs"
+                          className="hidden h-4 w-4 flex-shrink-0 p-0 min-[360px]:inline-flex"
+                        />
+                      )}
                       {tasksEnabled && (
                         <TaskIndicator
                           status={taskStatus}
@@ -446,6 +428,8 @@ function SidebarProjectItem({
         {!isCompact && (
         <Button
           variant="ghost"
+          data-testid="sidebar-project-row"
+          data-project-id={project.projectId}
           className={cn(
             'sticky top-0 z-10 flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
             isSelected
@@ -458,9 +442,17 @@ function SidebarProjectItem({
               'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
           )}
           onClick={selectAndToggleProject}
+          // The row's second entry point into the same menu: right-click prevents the browser
+          // menu and opens the project actions anchored at the ⋯ trigger.
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDesktopMenuOpen(true);
+          }}
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div
+              data-testid="project-star-toggle"
               className={cn(
                 'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
                 isStarred
@@ -482,7 +474,7 @@ function SidebarProjectItem({
                 )}
               />
             </div>
-            <div className="min-w-0 flex-1 text-left">
+            <div className="min-w-0 flex-1 text-left" data-testid="project-row-text">
               {isEditing ? (
                 <div className="space-y-1">
                   <input
@@ -506,29 +498,42 @@ function SidebarProjectItem({
                   </div>
                 </div>
               ) : (
-                <div>
-                  <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
-                    {project.displayName}
-                  </div>
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground">
-                    <span>{sessionCountDisplay}</span>
-                    <QuayIndicator
-                      hasQuayConfig={Boolean(project.hasQuayConfig)}
-                      status={quayStatus}
-                      size="xs"
-                      className="flex-shrink-0"
-                    />
-                    {showTaskCounts && fleetTaskCounts && (
-                      <ProjectTaskCountsBadge counts={fleetTaskCounts} className="flex-shrink-0" />
-                    )}
-                    {project.fullPath !== project.displayName && (
-                      <span className="opacity-60" title={project.fullPath}>
-                        {' - '}
-                        {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
+                <>
+                  <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span
+                      className="min-w-0 truncate text-sm font-normal text-foreground"
+                      data-testid="project-row-name"
+                      title={project.fullPath}
+                    >
+                      {project.displayName}
+                    </span>
+                    {showPathOnName && (
+                      <span
+                        className="min-w-0 truncate text-xs text-muted-foreground opacity-60"
+                        title={project.fullPath}
+                      >
+                        {project.fullPath}
                       </span>
                     )}
                   </div>
-                </div>
+                  <div
+                    className="flex min-w-0 items-center gap-x-1 overflow-hidden whitespace-nowrap text-xs text-muted-foreground"
+                    data-testid="project-row-meta"
+                  >
+                    <span className="min-w-0 truncate">{sessionCountDisplay}</span>
+                    {showQuayIndicator && quayStatus !== null && (
+                      <QuayIndicator
+                        hasQuayConfig={Boolean(project.hasQuayConfig)}
+                        status={quayStatus}
+                        size="xs"
+                        className="h-4 w-4 flex-shrink-0 p-0"
+                      />
+                    )}
+                    {showTaskCounts && fleetTaskCounts && (
+                      <ProjectTaskCountsBadge counts={fleetTaskCounts} className="flex-shrink-0" />
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -557,59 +562,44 @@ function SidebarProjectItem({
               </>
             ) : (
               <>
-                {onEditSessionFilter && (
-                  <div
-                    className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEditSessionFilter(project);
-                    }}
-                    title={t('sessionFilter.menuItem')}
-                  >
-                    <ListFilter className="h-3 w-3" />
-                  </div>
-                )}
+                {/*
+                  Every project action lives behind this one trigger. The trigger itself is quiet
+                  until the row is hovered, something inside it is focused (keyboard Tab), or the
+                  menu is open — the same three conditions the compact row's always-on trigger
+                  does not need. Stopping propagation on the wrapper covers both the trigger and
+                  the portalled menu items (React events follow the React tree through a portal).
+                */}
                 <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingProject(project);
-                  }}
-                  title={t('tooltips.renameProject')}
+                  className="flex items-center"
+                  data-testid="project-actions-menu"
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <Edit3 className="h-3 w-3" />
-                </div>
-                {cockpitEnabled && fleetProjectId !== null && (
-                  <WatchPinToggle
-                    uri={formatProjectUri(fleetProjectId)}
-                    testId="cockpit-project-watch-toggle"
-                    className="touch:opacity-100 opacity-0 transition-opacity group-hover:opacity-100"
-                  />
-                )}
-                {cockpitEnabled && fleetProjectId !== null && (
-                  <CockpitProjectLink
-                    compact={false}
+                  <SidebarProjectActionsMenu
+                    project={project}
+                    cockpitEnabled={cockpitEnabled}
                     fleetProjectId={fleetProjectId}
-                    label={cockpitLinkLabel}
-                    onNavigate={(event) => event.stopPropagation()}
-                    className="touch:opacity-100 opacity-0 transition-opacity group-hover:opacity-100"
+                    onStartEditingProject={onStartEditingProject}
+                    onEditSessionFilter={onEditSessionFilter}
+                    onDeleteProject={onDeleteProject}
+                    t={t}
+                    open={desktopMenuOpen}
+                    onOpenChange={setDesktopMenuOpen}
+                    triggerClassName={cn(
+                      'h-6 w-6 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 group-focus-within:opacity-100',
+                      desktopMenuOpen && 'opacity-100',
+                    )}
                   />
-                )}
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteProject(project);
-                  }}
-                  title={t('tooltips.deleteProject')}
-                >
-                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
                 </div>
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-                )}
+                <div
+                  className="flex h-6 w-6 items-center justify-center"
+                  data-testid="project-expand-indicator"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+                  )}
+                </div>
               </>
             )}
           </div>

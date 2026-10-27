@@ -5,6 +5,7 @@ import { useInRouterContext, useNavigate } from 'react-router-dom';
 import { ActionMenu } from '@/shared/ui';
 import type { ActionMenuItem } from '@/shared/ui/ActionMenu';
 import type { Project } from '@/shared/types';
+import { cn } from '@/shared/utils';
 import { cockpitViewPath, formatProjectUri, useObservationPin } from '@/modules/cockpit/contract';
 
 export type SidebarProjectActionsMenuProps = {
@@ -18,6 +19,12 @@ export type SidebarProjectActionsMenuProps = {
   onEditSessionFilter?: (project: Project, seedSessionName?: string) => void;
   onDeleteProject: (project: Project) => void;
   t: TFunction;
+  /** Controlled open state, for the desktop row's second entry point (right-click). */
+  open?: boolean;
+  /** Reported whenever the menu opens or closes, so the row can keep its ⋯ trigger painted. */
+  onOpenChange?: (open: boolean) => void;
+  /** Trigger sizing/visibility; the desktop row keeps it quiet until hover/focus/open. */
+  triggerClassName?: string;
 };
 
 type MenuBodyProps = SidebarProjectActionsMenuProps & {
@@ -49,6 +56,9 @@ function SidebarProjectActionsMenuBody({
   onDeleteProject,
   onOpenCockpit,
   t,
+  open,
+  onOpenChange,
+  triggerClassName,
 }: MenuBodyProps) {
   // A project the fleet does not register has no addressable board, and the pin addresses the
   // object the board shows; both cockpit items therefore share one condition.
@@ -112,9 +122,14 @@ function SidebarProjectActionsMenuBody({
       portal
       variant="ghost"
       size="icon"
-      triggerClassName="h-8 w-8 text-muted-foreground hover:bg-muted"
+      triggerClassName={cn(
+        'h-8 w-8 text-muted-foreground hover:bg-muted',
+        triggerClassName,
+      )}
       menuClassName="w-[240px] rounded-xl p-1.5 shadow-xl"
       items={items}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   );
 }

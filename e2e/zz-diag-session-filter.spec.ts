@@ -352,14 +352,18 @@ test.describe('session name filter in a real browser', () => {
   };
 
   /**
-   * Opens the rule editor for the project under test. The sidebar renders one filter control per project, so
-   * the click has to be scoped to this project's own row: an unscoped `.first()` picks whichever project the
-   * sidebar happens to render first, which is a property of the fixture set and its name sort rather than of
-   * this spec. Whichever control the click lands on, the editor names its project — so the assertion below
-   * fails here, where the cause is legible, instead of surfacing downstream as a preview count.
+   * Opens the rule editor for the project under test. The row's session-filter action now lives
+   * in the project's ⋯ menu, so the click has to be scoped to this project's own row: an unscoped
+   * `.first()` picks whichever project the sidebar happens to render first, which is a property
+   * of the fixture set and its name sort rather than of this spec. Whichever row the click lands
+   * on, the editor names its project — so the assertion below fails here, where the cause is
+   * legible, instead of surfacing downstream as a preview count.
    */
   const openFilterEditor = async () => {
-    await projectRow().getByTitle('Session filter…').click();
+    const row = projectRow();
+    await row.hover();
+    await row.locator('[data-testid="project-actions-menu"] button[aria-haspopup="menu"]').click();
+    await page.getByRole('menuitem', { name: 'Session filter…' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(`Session filter · ${path.basename(workspace)}`);

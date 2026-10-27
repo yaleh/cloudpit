@@ -36,6 +36,13 @@ type ActionMenuProps = {
   iconOnly?: boolean;
   portal?: boolean;
   header?: React.ReactNode;
+  /**
+   * Controlled open state. When supplied, the menu's open/closed state is whatever the caller
+   * says, so a second entry point (the project row's right-click) can open the same menu the
+   * trigger owns. Omit it and the menu keeps its own state, exactly as before — every existing
+   * caller is uncontrolled and unaffected.
+   */
+  open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -55,9 +62,15 @@ export function ActionMenu({
   iconOnly = false,
   portal = false,
   header,
+  open,
   onOpenChange,
 }: ActionMenuProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
+  // `open === undefined` is the historical uncontrolled mode; every caller before the project
+  // row's right-click entry used it. A controlled menu reads `open` and reports through
+  // `onOpenChange`, never writing its own state.
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isOpen = isControlled ? open : internalOpen;
   const [portalPosition, setPortalPosition] = React.useState<{ top: number; left: number } | null>(null);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -70,13 +83,15 @@ export function ActionMenu({
   const wasOpenRef = React.useRef(false);
   const menuId = React.useId();
 
-  const setMenuOpen = React.useCallback((open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
+  const setMenuOpen = React.useCallback((next: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(next);
+    }
+    if (!next) {
       setPortalPosition(null);
     }
-    onOpenChange?.(open);
-  }, [onOpenChange]);
+    onOpenChange?.(next);
+  }, [isControlled, onOpenChange]);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -199,26 +214,41 @@ export function ActionMenu({
     item.onSelect();
   };
 
+  const placePortalMenu = React.useCallback(() => {
+    if (!portal || !triggerRef.current) {
+      return;
+    }
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const menuWidth = 260;
+    const estimatedHeight = (header ? 52 : 0)
+      + items.reduce((height, item) => height + (item.description ? 58 : 40) + (item.showDividerBefore ? 9 : 0), 12);
+    setPortalPosition({
+      top: rect.bottom + 6 + estimatedHeight <= window.innerHeight - 8
+        ? rect.bottom + 6
+        : Math.max(8, rect.top - estimatedHeight - 6),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
+  }, [portal, header, items]);
+
   const toggleMenu = () => {
     if (isOpen) {
       setMenuOpen(false);
       return;
     }
 
-    if (portal && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const menuWidth = 260;
-      const estimatedHeight = (header ? 52 : 0)
-        + items.reduce((height, item) => height + (item.description ? 58 : 40) + (item.showDividerBefore ? 9 : 0), 12);
-      setPortalPosition({
-        top: rect.bottom + 6 + estimatedHeight <= window.innerHeight - 8
-          ? rect.bottom + 6
-          : Math.max(8, rect.top - estimatedHeight - 6),
-        left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
-      });
-    }
+    placePortalMenu();
     setMenuOpen(true);
   };
+
+  // A controlled menu can be opened without going through the trigger (the project row's
+  // right-click calls `onOpenChange` itself), so its portal has no position yet. Place it as
+  // soon as the trigger is measurable; the guard keeps this from re-running while open.
+  React.useEffect(() => {
+    if (isControlled && isOpen && portal && portalPosition === null) {
+      placePortalMenu();
+    }
+  }, [isControlled, isOpen, portal, portalPosition, placePortalMenu]);
 
   const menu = isOpen && (!portal || portalPosition) && (
     <div
