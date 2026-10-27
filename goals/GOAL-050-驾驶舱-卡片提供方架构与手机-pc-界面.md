@@ -30,7 +30,7 @@ statusLog:
 
 重设计后的模型：驾驶舱 = 等我处理的卡片。卡片显示问题、情境、事实与默认选项的完整说明；一个选项下拉（富文本，末项为自己的回复）；一个确认，始终经确认卡。PC 为会话页右侧常驻可收起列（header 右侧带计数按钮），手机为独立页。驾驶舱在本项目内封装；卡死、救援、等待、通知、结束等开发语义由 quay-fleet 提供；将来可接入别的卡片提供方。设计见 `docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md` 与 `CARD-PROVIDERS.md`。
 
-2026-10-27 实验结论：会话提问的判官达不到自动执行的精度（E1），默认选项只取助手自己的推荐；卡片简报用网关单次生成可行（E2），已产品化。
+2026-10-27 实验结论：会话提问的判官达不到自动执行的精度（E1），缺省建议优先取助手自己的推荐、助手没推荐时由判官补位（只作建议，2026-10-28 修正）；卡片简报用网关单次生成可行（E2），已产品化。
 
 quay-fleet 侧的配套任务在其仓库：`fleet-cockpit-card-read-port`、`fleet-context-schema-session-ask-events`、`fleet-cockpit-rescue-actions`；quay 仓库：`gap-develop-red-set-writer`。
 
@@ -49,14 +49,14 @@ quay-fleet 侧的配套任务在其仓库：`fleet-cockpit-card-read-port`、`fl
 - AC-431 简报渲染
 - AC-432 quay-fleet 卡片提供方
 - AC-433 会话提问事件真实写入 context 事件流
+- AC-434 每张会话提问卡都有缺省建议（助手推荐优先，判官补位，不自动执行）
 
 ## 非目标
 
 - 不在 CloudCLI 里判定卡死、救援、等待时长、通知与事项结束；这些由提供方给出。
 - 不写 quay-fleet 的文件；fleet 适配器只读它的读口。
 - 悬停预览、批量确认。
-- 会话提问自动作答（E1 否决）。
-- fleet 处置执行器（挂起、重派、停放、登记）：依赖 quay-fleet 的救援动作任务，另立后续目标。
+- 会话提问自动作答（E1 否决）；判官补位的缺省建议也只作建议，始终经确认卡。
 - 驾驶舱输入框的指令开会话（「在 X 项目开个会话做 Y」）：属于驾驶舱指令能力，另立后续目标。
 - 旧驾驶舱视图（首页、Observation wall、All projects、侧栏模式切换）的清理与其测试改写：另立后续目标。
 - 线上接通（重新构建、重启服务、打开 `cockpit.fleetCards.enabled`）是运维动作，不算本目标的判据。
