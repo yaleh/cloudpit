@@ -2,7 +2,7 @@
 id: gap-quay-tests-fanin-read-via-suite-verb-and-driver-log
 title: Quay snapshot 的 Tests 与 Fan-in 改由 quay CLI（quay suite、driver log）提供，删除对
   .quay/ 内部文件的直接读取
-status: todo
+status: ready
 labels:
   - gap
 parent: null
