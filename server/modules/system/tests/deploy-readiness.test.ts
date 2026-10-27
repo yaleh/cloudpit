@@ -202,6 +202,33 @@ test('AC1: no fingerprint at all reads as unknown (a tsx dev instance has none)'
   });
 });
 
+test('AC4: a client/server build sha mismatch reads as buildSkew and keeps both shas', async () => {
+  await withTempRoot(async (root) => {
+    const serverSha = 'd'.repeat(40);
+    const clientSha = 'c'.repeat(40);
+    const { service } = createService(root, {
+      runningSha: 'a'.repeat(40),
+      builtSha: serverSha,
+      clientSha,
+      headSha: serverSha,
+    });
+
+    const reading = await service.readReadiness();
+    assert.equal(reading.buildSkew, true);
+    assert.equal(reading.builtSha, serverSha);
+    assert.equal(reading.clientBuiltSha, clientSha);
+  });
+});
+
+test('AC4: equal client/server build shas read as no buildSkew', async () => {
+  await withTempRoot(async (root) => {
+    const { service } = createService(root);
+    const reading = await service.readReadiness();
+    assert.equal(reading.buildSkew, false);
+    assert.equal(reading.builtSha, reading.clientBuiltSha);
+  });
+});
+
 test('task ids are read from the two subject conventions the task store uses', () => {
   assert.equal(taskIdFromSubject('tasks: cockpit-x task_write by cli:1'), 'cockpit-x');
   assert.equal(

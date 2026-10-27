@@ -887,6 +887,7 @@
     "deployPendingBuild": "{{n}} Änderungen noch nicht gebaut",
     "deployPendingBuildOne": "{{n}} Änderung noch nicht gebaut",
     "deployBuiltPendingRestart": "Gebaut – Neustart zum Anwenden",
+    "deployBuildSkew": "Frontend- und Server-Build weichen voneinander ab (Frontend {{client}}, Server {{server}})",
     "deployBuilding": "Wird gebaut…",
     "deployRestarting": "Wird neu gestartet…",
     "deployUnknown": "Bereitstellungsstatus unbekannt",

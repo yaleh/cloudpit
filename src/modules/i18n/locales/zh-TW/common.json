@@ -917,6 +917,7 @@
     "deployPendingBuild": "{{n}} 個變更尚未建置",
     "deployPendingBuildOne": "{{n}} 個變更尚未建置",
     "deployBuiltPendingRestart": "已建置，待重新啟動",
+    "deployBuildSkew": "前端與伺服器端建置不一致（前端 {{client}}，伺服器端 {{server}}）",
     "deployBuilding": "建置中…",
     "deployRestarting": "重新啟動中…",
     "deployUnknown": "部署狀態未知",

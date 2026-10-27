@@ -887,6 +887,7 @@
     "deployPendingBuild": "{{n}} изменений ещё не собрано",
     "deployPendingBuildOne": "{{n}} изменение ещё не собрано",
     "deployBuiltPendingRestart": "Собрано — перезапустите для применения",
+    "deployBuildSkew": "Сборки фронтенда и сервера различаются (фронтенд {{client}}, сервер {{server}})",
     "deployBuilding": "Сборка…",
     "deployRestarting": "Перезапуск…",
     "deployUnknown": "Состояние развёртывания неизвестно",

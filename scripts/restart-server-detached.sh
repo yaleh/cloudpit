@@ -19,28 +19,41 @@
 # SAFETY: every check that can refuse happens BEFORE the stop. If the start fails after the stop it
 # retries once, and the verdict says plainly whether the server is serving.
 #
-# USAGE  restart-server-detached.sh [--dry-run] [--delay SECONDS]
+# USAGE  restart-server-detached.sh [--dry-run] [--delay SECONDS] [--allow-build-skew]
 #   --dry-run  preflight only; touches nothing
 #   --delay N  wait N seconds inside the detached unit before stopping (time to end the caller's turn)
+#   --allow-build-skew  override the build-consistency preflight (recorded in the log with a reason)
+#
+# BUILD-SKEW PREFLIGHT: before anything is stopped, `scripts/build-skew-check.mjs` compares
+# dist/build-info.json (browser bundle) with dist-server/build-info.json (server build). A restart
+# applies whatever is on disk, so a skew would serve a new frontend against an old server — the
+# 2026-10-27 incident, where a fresh client called routes the old server did not have and the SPA
+# fallback answered `index.html`. Not `same` (skew or a missing record) refuses the restart and
+# names both readings plus the fix (`npm run build`). `--allow-build-skew` is the explicit escape
+# hatch; it logs the reason, taken from QUAY_ALLOW_BUILD_SKEW_REASON when set.
+#
 # LOG    ~/.ccui-restart/restart-unit.log  (tail it; the VERDICT block is the last thing written)
 #
 # Test seams (the defaults are production): QUAY_SERVER_UNIT, QUAY_RESTART_PORT, QUAY_RESTART_LOG_DIR,
-# QUAY_RESTART_HEALTH_PATH.
+# QUAY_RESTART_HEALTH_PATH, QUAY_UNIT_DIR, QUAY_BUILD_INFO_ROOT (the app root whose dist/ and
+# dist-server/ build-info records are compared; defaults to this checkout).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNIT="${QUAY_SERVER_UNIT:-claudecodeui-server}"
+BUILD_INFO_ROOT="${QUAY_BUILD_INFO_ROOT:-$ROOT}"
 PORT="${QUAY_RESTART_PORT:-3001}"
 HEALTH_PATH="${QUAY_RESTART_HEALTH_PATH:-/health}"
 RUN_DIR="${QUAY_RESTART_LOG_DIR:-$HOME/.ccui-restart}"
 LOG="$RUN_DIR/restart-unit.log"
 SERVER_LOG="${QUAY_SERVER_LOG:-$ROOT/server.log}"
 
-MODE=launch DRY=no DELAY=0 RUN_ID="" OLD_PID="" OLD_SINCE="" OFFSET=0
+MODE=launch DRY=no DELAY=0 RUN_ID="" OLD_PID="" OLD_SINCE="" OFFSET=0 ALLOW_BUILD_SKEW=no
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=yes ;;
     --delay)   shift; DELAY="${1:-0}" ;;
+    --allow-build-skew) ALLOW_BUILD_SKEW=yes ;;
     --exec)    MODE=exec ;;
     --run-id)  shift; RUN_ID="${1:-}" ;;
     --old-pid) shift; OLD_PID="${1:-}" ;;
@@ -123,6 +136,29 @@ die() { log "REFUSED: $*  — the running service was left untouched."; exit 1; 
 log "=== restart requested dry_run=$DRY delay=${DELAY}s unit=$UNIT port=$PORT ==="
 
 # preflight: everything that can refuse, before anything is stopped
+#
+# The build-consistency reading is FIRST and is the only check that runs on the refusal path:
+# a skewed tree must be refused without touching systemctl at all (the criterion asserts this).
+[ -f "$ROOT/scripts/build-skew-check.mjs" ] || die "$ROOT/scripts/build-skew-check.mjs missing — cannot verify the two builds agree"
+command -v node >/dev/null 2>&1 || die "no node on PATH to run scripts/build-skew-check.mjs"
+SKEW_OUT="$(node "$ROOT/scripts/build-skew-check.mjs" --root "$BUILD_INFO_ROOT" 2>&1)"
+SKEW_RC=$?
+case "$SKEW_RC" in
+  0)
+    log "build-skew preflight: $SKEW_OUT"
+    ;;
+  1|2)
+    if [ "$ALLOW_BUILD_SKEW" = yes ]; then
+      log "build-skew OVERRIDE (--allow-build-skew, reason: ${QUAY_ALLOW_BUILD_SKEW_REASON:-operator override}): $SKEW_OUT"
+    else
+      die "build-skew preflight: $SKEW_OUT"
+    fi
+    ;;
+  *)
+    die "build-skew preflight could not produce a reading (exit $SKEW_RC): $SKEW_OUT"
+    ;;
+esac
+
 command -v systemd-run >/dev/null || die "no systemd-run"
 systemd-run --user --scope --quiet true >/dev/null 2>&1 || die "no usable systemd user manager"
 [ -f "$ROOT/scripts/serve-scoped.sh" ] || die "$ROOT/scripts/serve-scoped.sh missing"

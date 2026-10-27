@@ -917,6 +917,7 @@
     "deployPendingBuild": "{{n}} modifiche non ancora compilate",
     "deployPendingBuildOne": "{{n}} modifica non ancora compilata",
     "deployBuiltPendingRestart": "Compilato — riavvia per applicare",
+    "deployBuildSkew": "Le build del frontend e del server non coincidono (frontend {{client}}, server {{server}})",
     "deployBuilding": "Compilazione…",
     "deployRestarting": "Riavvio…",
     "deployUnknown": "Stato della distribuzione sconosciuto",

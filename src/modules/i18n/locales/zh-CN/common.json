@@ -917,6 +917,7 @@
     "deployPendingBuild": "{{n}} 个变更尚未构建",
     "deployPendingBuildOne": "{{n}} 个变更尚未构建",
     "deployBuiltPendingRestart": "已构建，待重启",
+    "deployBuildSkew": "前端与服务端构建不一致（前端 {{client}}，服务端 {{server}}）",
     "deployBuilding": "构建中…",
     "deployRestarting": "重启中…",
     "deployUnknown": "部署状态未知",

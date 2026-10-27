@@ -917,6 +917,7 @@
     "deployPendingBuild": "아직 빌드되지 않은 변경 사항 {{n}}개",
     "deployPendingBuildOne": "아직 빌드되지 않은 변경 사항 {{n}}개",
     "deployBuiltPendingRestart": "빌드됨 — 적용하려면 재시작",
+    "deployBuildSkew": "프런트엔드와 서버 빌드가 일치하지 않습니다 (프런트엔드 {{client}}, 서버 {{server}})",
     "deployBuilding": "빌드 중…",
     "deployRestarting": "재시작 중…",
     "deployUnknown": "배포 상태를 알 수 없습니다",

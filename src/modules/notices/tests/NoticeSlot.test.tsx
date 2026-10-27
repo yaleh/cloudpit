@@ -50,6 +50,7 @@ function readiness(overrides: Partial<DeployReadinessReading> = {}): DeployReadi
     builtSha: 'a'.repeat(40),
     clientBuiltSha: 'a'.repeat(40),
     headSha: 'b'.repeat(40),
+    buildSkew: false,
     pendingCommits: [{ sha: 'b'.repeat(40), subject: 'src: confirm', taskId: 'task-x' }],
     lastDeploy: null,
     failure: null,

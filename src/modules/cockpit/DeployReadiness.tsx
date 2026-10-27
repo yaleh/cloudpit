@@ -58,6 +58,11 @@ export type DeployReadinessReading = {
   builtSha: string | null;
   clientBuiltSha: string | null;
   headSha: string | null;
+  /**
+   * The browser bundle and the server build on disk name different commits. A restart applies
+   * both, so this is shown on its own line instead of being folded into the pending-build count.
+   */
+  buildSkew: boolean;
   pendingCommits: DeployCommitReading[];
   lastDeploy: DeployLastDeployReading | null;
   failure: DeployFailureReading | null;
@@ -250,7 +255,9 @@ export default function DeployReadiness({
     return null;
   }
 
-  const statusLabel = (() => {
+  // A skewed pair is the one reading that must not be summarised as 「N changes not yet built」:
+  // it is not a pending build, it is two builds that disagree, and a restart would apply both.
+  const statusSentence = (() => {
     switch (reading.status) {
       case 'fresh':
         return t('cockpit.deployFresh');
@@ -269,7 +276,18 @@ export default function DeployReadiness({
     }
   })();
 
-  const canDeploy = reading.status === 'pending-build' || reading.status === 'built-pending-restart';
+  const statusLabel = reading.buildSkew
+    ? t('cockpit.deployBuildSkew', {
+        client: shortSha(reading.clientBuiltSha),
+        server: shortSha(reading.builtSha),
+      })
+    : statusSentence;
+
+  // A skew is fixable by the same one action (the deploy path runs the full `npm run build`), so
+  // the strip must offer it even when the classification does not read as pending-build.
+  const canDeploy = reading.buildSkew
+    || reading.status === 'pending-build'
+    || reading.status === 'built-pending-restart';
 
   const lastDeployLine = reading.lastDeploy === null
     ? null
@@ -288,6 +306,7 @@ export default function DeployReadiness({
     <section
       data-testid="deploy-readiness"
       data-status={reading.status}
+      data-build-skew={reading.buildSkew ? 'true' : 'false'}
       className="relative flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-xs"
       aria-label={t('cockpit.deployStatus')}
     >

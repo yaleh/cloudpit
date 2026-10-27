@@ -72,6 +72,13 @@ export type DeployReadinessReading = {
   builtSha: string | null;
   clientBuiltSha: string | null;
   headSha: string | null;
+  /**
+   * Whether the browser bundle and the server build on disk name different commits. A restart
+   * applies both, so a skewed pair serves a new frontend against an old server — the
+   * 2026-10-27 incident, where the fresh client called routes the old server did not have and the
+   * SPA fallback answered `index.html`. False when either record is unreadable (nothing to compare).
+   */
+  buildSkew: boolean;
   pendingCommits: DeployCommit[];
   lastDeploy: DeployLastDeploy | null;
   failure: DeployFailure | null;
@@ -308,6 +315,8 @@ export function createDeployReadinessService(dependencies: DeployReadinessDepend
       builtSha,
       clientBuiltSha,
       headSha,
+      // Only two readable records can disagree; a missing side is a build question, not a skew.
+      buildSkew: builtSha !== null && clientBuiltSha !== null && builtSha !== clientBuiltSha,
       lastDeploy: state?.lastDeploy ?? null,
       failure: failure ?? state?.failure ?? null,
       checkedAt: new Date(dependencies.now()).toISOString(),

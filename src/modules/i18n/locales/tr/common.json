@@ -917,6 +917,7 @@
     "deployPendingBuild": "{{n}} değişiklik henüz derlenmedi",
     "deployPendingBuildOne": "{{n}} değişiklik henüz derlenmedi",
     "deployBuiltPendingRestart": "Derlendi — uygulamak için yeniden başlat",
+    "deployBuildSkew": "Ön uç ve sunucu derlemeleri farklı (ön uç {{client}}, sunucu {{server}})",
     "deployBuilding": "Derleniyor…",
     "deployRestarting": "Yeniden başlatılıyor…",
     "deployUnknown": "Dağıtım durumu bilinmiyor",

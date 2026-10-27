@@ -34,6 +34,7 @@ function reading(overrides: Partial<DeployReadinessReading> = {}): DeployReadine
     builtSha: HEAD_SHA,
     clientBuiltSha: null,
     headSha: HEAD_SHA,
+    buildSkew: false,
     pendingCommits: [],
     lastDeploy: null,
     failure: null,

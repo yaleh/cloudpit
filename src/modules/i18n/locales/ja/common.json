@@ -917,6 +917,7 @@
     "deployPendingBuild": "未ビルドの変更が {{n}} 件あります",
     "deployPendingBuildOne": "未ビルドの変更が {{n}} 件あります",
     "deployBuiltPendingRestart": "ビルド済み — 適用するには再起動",
+    "deployBuildSkew": "フロントエンドとサーバーのビルドが一致しません（フロントエンド {{client}}、サーバー {{server}}）",
     "deployBuilding": "ビルド中…",
     "deployRestarting": "再起動中…",
     "deployUnknown": "デプロイ状態が不明です",

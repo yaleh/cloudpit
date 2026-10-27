@@ -361,6 +361,7 @@ describe('every locale carries the cockpit copy', () => {
       'deployPendingBuild',
       'deployPendingBuildOne',
       'deployBuiltPendingRestart',
+      'deployBuildSkew',
       'deployBuilding',
       'deployRestarting',
       'deployUnknown',
@@ -387,6 +388,7 @@ describe('every locale carries the cockpit copy', () => {
     }
     expect(placeholders(reference.deployPendingBuild)).toEqual(['n']);
     expect(placeholders(reference.deployPendingBuildOne)).toEqual(['n']);
+    expect(placeholders(reference.deployBuildSkew)).toEqual(['client', 'server']);
     expect(placeholders(reference.deployCommitTask)).toEqual(['task']);
     expect(placeholders(reference.deployLastOk)).toEqual(['sha', 'time']);
     expect(placeholders(reference.deployLastFailed)).toEqual(['sha']);

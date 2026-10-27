@@ -35,6 +35,7 @@ function reading(overrides: Partial<DeployReadinessReading> = {}): DeployReadine
     builtSha: 'a'.repeat(40),
     clientBuiltSha: 'a'.repeat(40),
     headSha: 'a'.repeat(40),
+    buildSkew: false,
     pendingCommits: [],
     lastDeploy: null,
     failure: null,
@@ -83,6 +84,29 @@ describe('deployment status copy and actions', () => {
     const line = await screen.findByTestId('deploy-status');
     expect(line.textContent).toBe(copy);
     expect(screen.queryByTestId('deploy-action') !== null).toBe(actionable);
+  });
+
+  it('a build skew names both sides instead of counting pending commits, and offers the full build', async () => {
+    renderStrip({
+      value: reading({
+        // The server is already at HEAD, so the generic classification would say `fresh`;
+        // the skew must still be the sentence the operator reads, and the action must be offered.
+        status: 'fresh',
+        builtSha: 'd'.repeat(40),
+        clientBuiltSha: 'c'.repeat(40),
+        headSha: 'd'.repeat(40),
+        buildSkew: true,
+        pendingCommits: [],
+      }),
+    });
+
+    const strip = await screen.findByTestId('deploy-readiness');
+    expect(strip.getAttribute('data-build-skew')).toBe('true');
+    const line = screen.getByTestId('deploy-status');
+    expect(line.textContent).toContain('Frontend and server builds differ');
+    expect(line.textContent).toContain('ccccccc');
+    expect(line.textContent).toContain('ddddddd');
+    expect(screen.getByTestId('deploy-action')).toBeTruthy();
   });
 
   it('pending-build counts the source commits and draws the action', async () => {

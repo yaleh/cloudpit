@@ -1008,6 +1008,7 @@
     "deployPendingBuild": "{{n}} changes not yet built",
     "deployPendingBuildOne": "{{n}} change not yet built",
     "deployBuiltPendingRestart": "Built — restart to apply",
+    "deployBuildSkew": "Frontend and server builds differ (frontend {{client}}, server {{server}})",
     "deployBuilding": "Building…",
     "deployRestarting": "Restarting…",
     "deployUnknown": "Deployment status unknown",

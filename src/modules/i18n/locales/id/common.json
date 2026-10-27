@@ -1000,6 +1000,7 @@
     "deployPendingBuild": "{{n}} perubahan belum dibangun",
     "deployPendingBuildOne": "{{n}} perubahan belum dibangun",
     "deployBuiltPendingRestart": "Sudah dibangun — mulai ulang untuk menerapkan",
+    "deployBuildSkew": "Build frontend dan server berbeda (frontend {{client}}, server {{server}})",
     "deployBuilding": "Sedang membangun…",
     "deployRestarting": "Sedang memulai ulang…",
     "deployUnknown": "Status penyebaran tidak diketahui",
