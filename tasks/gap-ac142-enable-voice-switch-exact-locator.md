@@ -3,7 +3,7 @@ id: gap-ac142-enable-voice-switch-exact-locator
 title: AC-142 判据被语音快捷键新开关的名称前缀撞成二义：`Enable voice` 同时命中 `Enable voice shortcuts`
   ⇒ strict mode violation，written 腿红、refusal
   腿未跑；把设置页启用开关的定位收紧为精确名，让两条腿都真跑绿，断言与产品读取零改动
-status: todo
+status: ready
 labels:
   - gap
   - defect
