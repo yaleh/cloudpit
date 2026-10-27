@@ -25,12 +25,12 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import express from 'express';
@@ -76,6 +76,39 @@ const HOST_SENTINEL = 'sk-host-sentinel-must-not-leak';
 const ROUND_TIMEOUT_MS = 45_000;
 /** How long the process is given to leave after stdin EOF — the close route's own window. */
 const EXIT_TIMEOUT_MS = 20_000;
+
+/**
+ * How many launches one round is given before the criterion gives up on it.
+ *
+ * The retry this bounds covers one premise only: that the CLI process came up
+ * at all. Under load it can die with `Claude Code process exited with code 1`
+ * before serving the round, which makes a *launch* fail — not a reading. The
+ * gate ledger records exactly that shape (same treeSha pass then fail), and the
+ * sibling title-mirror criterion already retries a session's first turn
+ * (`BOOT_ATTEMPTS = 3` there); this is the same bound for the same reason.
+ *
+ * `CLAUDE_RESIDENT_LAUNCH_ATTEMPTS` exists so the injected fault below can
+ * prove the retry is load-bearing: `0` means one attempt and no retry, i.e.
+ * the same loop with its second iteration removed.
+ */
+const CONFIGURED_LAUNCH_ATTEMPTS = process.env.CLAUDE_RESIDENT_LAUNCH_ATTEMPTS;
+const PARSED_LAUNCH_ATTEMPTS = CONFIGURED_LAUNCH_ATTEMPTS === undefined ? 3 : Number(CONFIGURED_LAUNCH_ATTEMPTS);
+const LAUNCH_ATTEMPTS =
+  Number.isFinite(PARSED_LAUNCH_ATTEMPTS) && PARSED_LAUNCH_ATTEMPTS >= 0
+    ? Math.floor(PARSED_LAUNCH_ATTEMPTS)
+    : 3;
+/** How long the failed attempt's run is given to settle before the round is retried. */
+const LAUNCH_SETTLE_TIMEOUT_MS = 5_000;
+
+/**
+ * Whether the deterministic launch fault is armed for this process.
+ *
+ * It makes the *first* CLI launch fail the way a loaded host's does and leaves
+ * every later launch real, so a retry has something to recover and the rest of
+ * the file runs against the actual binary.
+ */
+const FAIL_FIRST_LAUNCH = process.env.CLAUDE_RESIDENT_FAIL_FIRST_LAUNCH === '1';
+let launchFault: { directory: string; previousCliPath: string | undefined } | null = null;
 
 /**
  * The process-level budget, and the whole point of it being process-level.
@@ -324,11 +357,28 @@ function isProcessAlive(pid: number | null): boolean {
   return state !== null && state !== 'Z' && state !== 'X';
 }
 
-/** The live host serving this criterion's session, as the manager reports it. */
-function liveResidentReading(): HostReading {
-  const host = sessionHostManager
+/**
+ * The live host serving this criterion's session, or undefined when there is
+ * none — either not started yet, or already gone.
+ *
+ * The non-asserting half exists for the launch retry below, which has to ask
+ * the question before it decides whether an attempt became a round; the
+ * asserting reader stays the one every leg grades through.
+ */
+function liveResidentHost() {
+  return sessionHostManager
     .snapshot()
     .find((candidate) => candidate.state !== 'closed' && candidate.bindings.has(SESSION_ID));
+}
+
+/** Whether a live host serves this criterion's session right now. */
+function hasLiveResidentHost(): boolean {
+  return liveResidentHost() !== undefined;
+}
+
+/** The live host serving this criterion's session, as the manager reports it. */
+function liveResidentReading(): HostReading {
+  const host = liveResidentHost();
   assert.ok(host, `no live host serves session "${SESSION_ID}"`);
   return { hostId: host.hostId, pid: host.pid, alive: isProcessAlive(host.pid) };
 }
@@ -434,6 +484,112 @@ async function sendRound(socket: FakeSocket, content: string, cwd: string): Prom
   return completesOf(socket).at(-1) as Record<string, unknown>;
 }
 
+/** Quotes one string for /bin/sh. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * Arms the deterministic launch fault, once for this process.
+ *
+ * `CLAUDE_RESIDENT_FAIL_FIRST_LAUNCH=1` points the production executable
+ * resolution (`resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH)`)
+ * at a one-shot wrapper instead of the real CLI. Its first invocation prints
+ * the CLI's own early-exit line and exits 1 — the transient the gate ledger
+ * records under load — and every later invocation execs the real binary. One
+ * launch fails; every other launch in the file is the real CLI, so the fault
+ * recovers exactly once rather than standing in for every turn.
+ */
+async function installLaunchFault(): Promise<void> {
+  if (!FAIL_FIRST_LAUNCH || launchFault) {
+    return;
+  }
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'claude-resident-launch-fault-'));
+  const realCli = process.env.CLAUDE_CLI_PATH || 'claude';
+  const marker = path.join(directory, 'first-launch-failed');
+  const scriptPath = path.join(directory, 'claude');
+  const script = [
+    '#!/bin/sh',
+    '# One-shot launch fault for the AC-161 criterion: the first launch dies the',
+    '# way a loaded host\'s does, every later launch is the real CLI.',
+    `if [ ! -f ${shellQuote(marker)} ]; then`,
+    `  : > ${shellQuote(marker)}`,
+    "  echo 'Claude Code process exited with code 1' >&2",
+    '  exit 1',
+    'fi',
+    `exec ${shellQuote(realCli)} "$@"`,
+    '',
+  ].join('\n');
+  await writeFile(scriptPath, script);
+  await chmod(scriptPath, 0o755);
+  launchFault = { directory, previousCliPath: process.env.CLAUDE_CLI_PATH };
+  process.env.CLAUDE_CLI_PATH = scriptPath;
+}
+
+after(async () => {
+  if (!launchFault) {
+    return;
+  }
+  if (launchFault.previousCliPath === undefined) {
+    delete process.env.CLAUDE_CLI_PATH;
+  } else {
+    process.env.CLAUDE_CLI_PATH = launchFault.previousCliPath;
+  }
+  await rm(launchFault.directory, { recursive: true, force: true });
+});
+
+/**
+ * Sends one round, giving a launch that never came up a bounded number of
+ * fresh attempts.
+ *
+ * The retry covers the launch premise and nothing else. An attempt whose
+ * terminal frame says the run did not exit cleanly AND that left no live host
+ * behind never served a turn — the process died before it could — so the round
+ * is sent again on a fresh host instead of being graded. Two shapes are handed
+ * back untouched: a round that completed (`exitCode === 0`) is returned even if
+ * the host is gone by the time the leg reads it (that is a reading the criterion
+ * is about, not a launch failure), and a non-zero exit with a live host is the
+ * round's own failure, which the leg's existing assertions must judge.
+ *
+ * The failed attempt's frames are dropped: the round counters below count
+ * delivered rounds, and a launch that never was a round must not move them.
+ * The attempt is printed instead, so the retry itself is a visible reading.
+ */
+async function sendResidentRound(
+  socket: FakeSocket,
+  content: string,
+  cwd: string,
+): Promise<Record<string, unknown>> {
+  const attempts = Math.max(1, LAUNCH_ATTEMPTS);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const framesBefore = socket.frames.length;
+    const complete = await sendRound(socket, content, cwd);
+    const hostUp = hasLiveResidentHost();
+    if (complete.exitCode === 0 || hostUp) {
+      return complete;
+    }
+    socket.frames.splice(framesBefore);
+    if (attempt < attempts) {
+      await waitFor(
+        () => chatRunRegistry.getRun(SESSION_ID)?.status !== 'running',
+        LAUNCH_SETTLE_TIMEOUT_MS,
+        'the failed launch attempt to settle before the retry',
+      );
+      console.log(
+        `[resident] launch retry round="${content}" attempt=${attempt} ` +
+          `exitCode=${String(complete.exitCode)} hostUp=${hostUp}`,
+      );
+      continue;
+    }
+    // Out of attempts: the premise itself failed. State it through the reading
+    // the criterion already names, so the red is "no live host" rather than a
+    // later assertion about a round that never ran.
+    liveResidentReading();
+    return complete;
+  }
+  throw new Error('unreachable: every launch attempt returned without a complete');
+}
+
 /**
  * The harness every leg runs inside: temp database, temp Claude config, mock
  * endpoint, and the production dispatch.
@@ -446,6 +602,7 @@ async function withResidentHarness(
   mock: MockAnthropic,
   run: (context: { socket: FakeSocket; cwd: string; closeBaseUrl: string }) => Promise<void>,
 ): Promise<void> {
+  await installLaunchFault();
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'claude-resident-process-'));
   const saved = new Map<string, string | undefined>(
     ['DATABASE_PATH', 'CLAUDE_CONFIG_DIR', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY']
@@ -548,7 +705,7 @@ test('(a) three real chat.send rounds on one resident host: same pid, same hostI
 
       for (const content of ['round one', 'round two', 'round three']) {
         const roundStart = completesOf(socket).length;
-        const complete = await sendRound(socket, content, cwd);
+        const complete = await sendResidentRound(socket, content, cwd);
         completesPerRound.push(completesOf(socket).length - roundStart);
         assert.strictEqual(complete.aborted, false, `"${content}" completed rather than aborting`);
         assert.strictEqual(complete.exitCode, 0, `"${content}" exited cleanly`);
@@ -595,14 +752,18 @@ test('(b) abort mid-round-2 interrupts the turn; the process survives and round 
   const mock = await startMockAnthropic();
   try {
     await withResidentHarness(mock, async ({ socket, cwd }) => {
-      const first = await sendRound(socket, 'round one', cwd);
+      const first = await sendResidentRound(socket, 'round one', cwd);
       assert.strictEqual(first.aborted, false, 'round one completed on its own');
       const beforeAbort = liveResidentReading();
 
       // Hold the next reply, then send. The turn is now in flight with nothing
       // to answer it, so the abort below lands mid-turn by construction.
       mock.hold();
-      const secondRound = sendRound(socket, 'round two', cwd);
+      const secondRound = sendResidentRound(socket, 'round two', cwd);
+      // The wait below can give up before this settles; a retried launch may
+      // also reject after the test has already failed. Neither is this test's
+      // reading, so the promise is marked handled and awaited where it belongs.
+      secondRound.catch(() => undefined);
       await waitFor(
         () => roundRequests(mock.received, 2).length >= 1,
         ROUND_TIMEOUT_MS,
@@ -626,7 +787,7 @@ test('(b) abort mid-round-2 interrupts the turn; the process survives and round 
       const afterAbort = liveResidentReading();
       assertProcessSurvivesAbort(beforeAbort, afterAbort);
 
-      const third = await sendRound(socket, 'round three', cwd);
+      const third = await sendResidentRound(socket, 'round three', cwd);
       assert.strictEqual(third.aborted, false, 'round three completed on its own');
       const afterThird = liveResidentReading();
 
@@ -645,7 +806,7 @@ test('(c) POST /api/session-hosts/:sessionId/close ends the process by stdin EOF
   const mock = await startMockAnthropic();
   try {
     await withResidentHarness(mock, async ({ socket, cwd, closeBaseUrl }) => {
-      const complete = await sendRound(socket, 'round one', cwd);
+      const complete = await sendResidentRound(socket, 'round one', cwd);
       assert.strictEqual(complete.aborted, false, 'the round completed before the close');
       const opened = liveResidentReading();
       assert.ok(opened.alive, 'the resident process is running before the close');
@@ -689,7 +850,7 @@ test('(d) per-round --resume re-spawn makes the shared pid reading go red', { ti
       // process and has to start one, which is what `--resume` re-spawning is.
       const readings: HostReading[] = [];
       for (const content of ['round one', 'round two', 'round three']) {
-        const complete = await sendRound(socket, content, cwd);
+        const complete = await sendResidentRound(socket, content, cwd);
         assert.strictEqual(complete.aborted, false, `"${content}" completed`);
         readings.push(liveResidentReading());
         const host = sessionHostManager
@@ -720,7 +881,7 @@ test('(e) aborting by ending the process makes the survival reading go red', { t
   const mock = await startMockAnthropic();
   try {
     await withResidentHarness(mock, async ({ socket, cwd }) => {
-      const first = await sendRound(socket, 'round one', cwd);
+      const first = await sendResidentRound(socket, 'round one', cwd);
       assert.strictEqual(first.aborted, false, 'round one completed on its own');
       const before = liveResidentReading();
 
