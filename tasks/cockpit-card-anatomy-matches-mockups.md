@@ -32,6 +32,7 @@ depends_on:
 
 - `src/modules/cockpit/cockpitCardDescriptors.ts`：kind → 类型标文字、颜色（效果图的色系；颜色只用于类型标与危险态）；tag kind → 图标（undo ↺、cost ◷、irreversible ⚠、fit 适合、其它原样）；source → 「● from assistant / ○ judge / provider」。
 - `src/modules/cockpit/CockpitCard.tsx`：头部行（类型标 · `subject.project` · 主体名〔taskId 或会话标题，截断〕· 相对时间〔紧凑格式 9h、3d〕· 负荷格〔有 `load` 时〕· ›）；情境行；事实胶囊（`mechanical` 决定 ● / ○，过长截断，完整内容进 Details）；`viz` 存在时渲染 `CockpitCardViz`，否则不占位；选项框按描述表渲染标签；确认条改黑色实心 + 说明行，不可逆为警示样式；没有推荐时不画大按钮，改为下拉旁一行「选一个选项后确认」。
+- `viz` 的形状（quay-fleet 会话 2026-10-27 确定，任务 `fleet-cockpit-rescue-card-content` 交付；只有 stuck、fix 卡带，其余 kind 不给，CloudCLI 不画）：`{ kind: "attempts", cap: 5, items: [{ at: <iso>, outcome: "landed" | "failed" | "running" | "pending" }] }`，items 按 at 新→旧，最多 cap 条。渲染为一排圆点：landed 绿、failed 红、running 动态、pending 虚线；顺序按效果图从旧到新左→右排列（即把 items 反转后画）。共享类型两侧补 `CockpitCardViz` 的 attempts 形状并由 `src/shared/tests/cockpitCardTypeSync.test.ts` 钉住；未知 viz kind 不画、不报错。fleet 同时会把 `facts` 收短为一句一条，长原文放 `ref` 或 Details；渲染端对超长事实截断为胶囊、完整文本进 Details。
 - 紧凑模式：问题最多两行、情境一行，选项下拉与 Confirm 同一行，选项说明框不展开（选中选项后也不展开，详情进 Details）。
 - 新文案进所有语言的 `common.json`。
 
@@ -57,6 +58,9 @@ depends_on:
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - src/modules/cockpit/tests/cockpitCardController.test.ts
+- server/shared/types.ts
+- src/shared/types.ts
+- src/shared/tests/cockpitCardTypeSync.test.ts
 - server/modules/cockpit/cockpit-fixture-card-provider.ts
 - src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts
 - src/modules/chat/tests/inlineQuoteChip.test.tsx
