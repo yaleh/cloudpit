@@ -193,6 +193,43 @@ test('the fork callback reaches the rows that render the fork action', () => {
   assert.equal(recordedProjectRowProps[0].onForkSession, onForkSession);
 });
 
+test('the path is shown on the name line only when it disambiguates', () => {
+  // Two projects share a display name, one was renamed away from its folder name, and one is
+  // ordinary. Only the first three need the path; the computation is the list's, not the row's.
+  const renamedAway = { ...makeProject('renamed-a', []), displayName: 'Custom name', fullPath: '/tmp/actual-folder' };
+  const duplicateOne = { ...makeProject('dup-1', []), displayName: 'duplicate' };
+  const duplicateTwo = { ...makeProject('dup-2', []), displayName: 'duplicate' };
+  const ordinary = makeProject('ordinary', []);
+
+  render(React.createElement(SidebarProjectList, {
+    ...listProps(null),
+    projects: [renamedAway, duplicateOne, duplicateTwo, ordinary],
+    filteredProjects: [renamedAway, duplicateOne, duplicateTwo, ordinary],
+  }));
+
+  assert.deepEqual(
+    recordedProjectRowProps.map(({ showPathOnName }) => showPathOnName),
+    [true, true, true, false],
+    `a path-only-when-needed reading must be [true, true, true, false]; read ${JSON.stringify(
+      recordedProjectRowProps.map(({ showPathOnName }) => showPathOnName),
+    )}`,
+  );
+});
+
+test('the disambiguation reading is a primitive, so it does not break a sibling row\'s memo', () => {
+  const props = listProps(null);
+  const { rerender } = render(React.createElement(SidebarProjectList, props));
+  const [firstA, firstB] = recordedProjectRowProps;
+
+  // A fresh `filteredProjects` array on every render is the caller's normal shape; the row must
+  // still be handed the same boolean, or the memo cannot bail.
+  rerender(React.createElement(SidebarProjectList, listProps(null)));
+  const [, , secondA, secondB] = recordedProjectRowProps;
+
+  assert.deepEqual(changedProps(firstA, secondA), []);
+  assert.deepEqual(changedProps(firstB, secondB), []);
+});
+
 const sessionsProps = (sessionRenameId: string | null, sessionRenameDraft: string) => ({
   project: PROJECT_A,
   isExpanded: true,

@@ -6,6 +6,12 @@ import SidebarProjectItem from '@/modules/sidebar/SidebarProjectItem';
 import SidebarProjectsState from '@/modules/sidebar/SidebarProjectsState';
 
 
+/** Last path segment, for the "display name is not the folder name" disambiguation test. */
+const lastPathSegment = (fullPath: string): string => {
+  const segments = fullPath.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] ?? fullPath;
+};
+
 /** Rendered by SidebarContent to list the filtered projects, delegating each row to SidebarProjectItem. */
 export default function SidebarProjectList({
   projects,
@@ -65,6 +71,18 @@ export default function SidebarProjectList({
 
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
+  // The path is only worth a slot on the name line when it disambiguates: another rendered
+  // project shares this display name, or the display name is not the path's last segment (a
+  // renamed project). Computed once over the rendered set — the row never scans its siblings.
+  // Only booleans are passed down, so re-rendering the list does not break a row's memo.
+  const renderCountByName = new Map<string, number>();
+  for (const project of filteredProjects) {
+    renderCountByName.set(project.displayName, (renderCountByName.get(project.displayName) ?? 0) + 1);
+  }
+  const needsPathOnName = (project: (typeof filteredProjects)[number]): boolean =>
+    (renderCountByName.get(project.displayName) ?? 0) > 1
+    || lastPathSegment(project.fullPath) !== project.displayName;
+
   return (
       <div className="pb-safe-area-inset-bottom md:space-y-1">
         {!showProjects
@@ -119,6 +137,7 @@ export default function SidebarProjectList({
                 attentionSessionIds={attentionSessionIds}
                 onNewSession={onNewSession}
                 isShowingHiddenSessions={showHiddenProjectIds?.has(project.projectId) ?? false}
+                showPathOnName={needsPathOnName(project)}
                 onToggleShowHidden={onToggleShowHidden}
                 onEditSessionFilter={onEditSessionFilter}
                 onStartEditingSession={onStartEditingSession}

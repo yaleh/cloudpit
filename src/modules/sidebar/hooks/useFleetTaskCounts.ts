@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { api } from '@/shared/api';
-import type { QuayFleetCliState, QuayFleetSummary, QuayFleetTaskCounts } from '@/shared/types';
+import type { QuayDriverState, QuayFleetCliState, QuayFleetSummary, QuayFleetTaskCounts } from '@/shared/types';
 import { createExternalStore } from '@/shared/utils';
 
 /**
@@ -25,6 +25,12 @@ export type FleetSummarySnapshot = {
   status: 'loading' | 'loaded' | 'error';
   /** projectId → task counts; the identity changes only when a load publishes a reading. */
   countsByProject: ReadonlyMap<string, QuayFleetTaskCounts>;
+  /**
+   * projectId → driver state from the SAME fleet entry. A project the summary does not list has
+   * no entry here, which the row reads as "no reading" (draw nothing) rather than inventing
+   * `unavailable`; an older server that omits `driver` also leaves no entry.
+   */
+  driverStateByProject: ReadonlyMap<string, QuayDriverState>;
   /** projectId → quay-fleet registry id, only for projects the fleet actually registered. */
   fleetProjectIdByProject: ReadonlyMap<string, string>;
   /** The sum of `needsHuman` over every registered project, for the mode switch's badge. */
@@ -38,6 +44,7 @@ export type FleetSummarySnapshot = {
 const EMPTY_SNAPSHOT: FleetSummarySnapshot = {
   status: 'loading',
   countsByProject: new Map(),
+  driverStateByProject: new Map(),
   fleetProjectIdByProject: new Map(),
   needsHumanTotal: 0,
   fleetState: null,
@@ -97,10 +104,23 @@ const load = (): Promise<void> => {
       }
       const summary = (await response.json()) as QuayFleetSummary;
       const countsByProject = new Map<string, QuayFleetTaskCounts>();
+      const driverStateByProject = new Map<string, QuayDriverState>();
       const fleetProjectIdByProject = new Map<string, string>();
       let needsHumanTotal = 0;
       for (const project of summary.projects ?? []) {
         countsByProject.set(project.projectId, project.tasks);
+        // Only a state the server actually reported becomes a reading. An older server (or an
+        // entry that omits `driver`) leaves the project without one, so the row draws nothing
+        // instead of claiming a state this client never observed.
+        const driverState = project.driver?.state;
+        if (
+          driverState === 'running'
+          || driverState === 'stale'
+          || driverState === 'idle'
+          || driverState === 'unavailable'
+        ) {
+          driverStateByProject.set(project.projectId, driverState);
+        }
         const fleetProjectId = project.fleetProjectId ?? null;
         if (fleetProjectId !== null) {
           // Only REGISTERED projects count towards the cockpit badge: an unregistered project
@@ -112,6 +132,7 @@ const load = (): Promise<void> => {
       publish({
         status: 'loaded',
         countsByProject,
+        driverStateByProject,
         fleetProjectIdByProject,
         needsHumanTotal,
         // An older server omits `fleet`; that is not the same as "the CLI is missing", so the
@@ -178,4 +199,17 @@ export function useFleetSummaryReading(): FleetSummarySnapshot {
 export function useFleetTaskCounts(projectId: string): QuayFleetTaskCounts | null {
   const reading = useFleetSummaryReading();
   return reading.countsByProject.get(projectId) ?? null;
+}
+
+/**
+ * One project's driver state from the same shared fleet reading, or `null` when the summary
+ * does not list the project (or the server did not report a driver).
+ *
+ * Consumers: `SidebarProjectItem`, which draws its quay indicator only for `running`, `stale`
+ * and `unavailable` — `idle` and a missing reading are quiet. Shares the single fleet request
+ * with `useFleetTaskCounts`.
+ */
+export function useFleetProjectDriverState(projectId: string): QuayDriverState | null {
+  const reading = useFleetSummaryReading();
+  return reading.driverStateByProject.get(projectId) ?? null;
 }
