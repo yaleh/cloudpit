@@ -1,0 +1,56 @@
+{
+  "current": {
+    "state": "green",
+    "runner": "inner",
+    "startedAt": "2026-10-27T17:17:12.815Z",
+    "runId": "mfi-gap-cockpit-ask-digest-refresh-yesno-options-and-left-marker-1793121417523-a48dcb",
+    "scope": "worktree",
+    "reason": null,
+    "finishedAt": "2026-10-27T17:22:53.000Z",
+    "durationMs": 340283,
+    "laneCount": 128,
+    "commit": "cf84fd9276f6862cf56a3ca313c4a402c4ddf908",
+    "taskId": "gap-cockpit-ask-digest-refresh-yesno-options-and-left-marker"
+  },
+  "rounds": [
+    {
+      "round": 1684,
+      "startedAt": "2026-10-27T17:17:16.615Z",
+      "durationMs": 332682,
+      "pass": 811,
+      "fail": 0,
+      "state": "green"
+    },
+    {
+      "round": 1683,
+      "startedAt": "2026-10-27T17:02:23.932Z",
+      "durationMs": 331046,
+      "pass": 811,
+      "fail": 0,
+      "state": "green"
+    },
+    {
+      "round": 1682,
+      "startedAt": "2026-10-27T16:26:57.772Z",
+      "durationMs": 342148,
+      "pass": 811,
+      "fail": 0,
+      "state": "green"
+    }
+  ],
+  "carrier": {
+    "state": "ok",
+    "reason": null,
+    "suiteState": {
+      "state": "ok",
+      "reason": null
+    },
+    "rounds": {
+      "state": "ok",
+      "reason": null,
+      "bytesRead": 1310720,
+      "exhausted": false
+    }
+  },
+  "evaluated": true
+}

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type {
+  QuayCarrierReading,
   QuayDriverState,
   QuayFleetCliState,
   QuayListItem,
@@ -446,96 +447,151 @@ function StageGoals({ goals }: { goals: QuaySnapshot['goals'] }) {
   );
 }
 
+/**
+ * States a carrier reading that is not `ok`, in place of the card's empty-state text.
+ *
+ * "no records" and "could not read the records" are different facts: drawing the empty state
+ * for a missing verb or a failed read would claim the project has no history. The state word is
+ * quay's own (`absent` / `unreadable` / `empty-writer-zero-records`) or this side's
+ * (`verb-unavailable` / `failed`), and the reason is whatever the verb or the adapter gave.
+ */
+function CarrierReadingLine({ reading, testId }: { reading?: QuayCarrierReading; testId: string }) {
+  if (!reading || reading.state === 'ok') {
+    return null;
+  }
+
+  return (
+    <p className="text-xs text-muted-foreground" data-testid={testId}>
+      {reading.state}
+      {reading.reason ? ` — ${reading.reason}` : ''}
+    </p>
+  );
+}
+
 /** Tests card: the current suite reading plus a timeline of the recent history rounds over the panel's shared window. */
-function TestsCard({ tests, window }: { tests: QuaySnapshot['tests']; window: QuayTimelineWindow }) {
+function TestsCard({
+  tests,
+  window,
+  reading,
+}: {
+  tests: QuaySnapshot['tests'];
+  window: QuayTimelineWindow;
+  reading?: QuayCarrierReading;
+}) {
   const current = tests?.current ?? null;
   // The range mapping is shared with the cockpit's pulse strip (`timelineMapping.ts`), so the
   // tab and the cockpit cannot place a round differently.
   const ranges = testsTimelineRanges(tests);
+  // A reading that is not `ok` is not an empty history: state it (and why) instead of drawing
+  // "No suite running" / "No suite rounds recorded", which would be a claim about the project.
+  const carrierUnread = reading !== undefined && reading.state !== 'ok';
 
   return (
     <section data-testid="quay-panel-tests">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tests</h3>
-      {current ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="quay-panel-tests-current">
-          <span className={cn('h-2 w-2 shrink-0 rounded-full', STATE_DOT_CLASSES[current.state] ?? DEFAULT_DOT_CLASS)} />
-          <span className="font-medium text-foreground">{current.state}</span>
-          {current.runner && <span className="text-muted-foreground">· {current.runner}</span>}
-          {current.scope && <span className="text-muted-foreground">· {current.scope}</span>}
-          {current.laneCount !== null && <span className="text-muted-foreground">· {current.laneCount} lanes</span>}
-          {current.durationMs !== null && <span className="text-muted-foreground">· {formatDuration(current.durationMs)}</span>}
-          {current.commit && (
-            <span className="font-mono text-[11px] text-muted-foreground" data-testid="quay-panel-tests-current-commit">
-              {current.commit.slice(0, 7)}
-            </span>
-          )}
-          {current.taskId && (
-            <span className="flex min-w-0 items-center gap-1 text-[11px]" data-testid="quay-panel-tests-current-task">
-              {/* The suite reading is a *historical* record of the last run, not a live
-                  task pointer — it can name a task that finished long ago. The label
-                  says so, so the bare id cannot be read as "what is running now". */}
-              <span
-                className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground"
-                data-testid="quay-panel-tests-current-task-label"
-              >
-                last suite
-              </span>
-              <span className="min-w-0 truncate font-mono text-muted-foreground" title={current.taskId}>
-                {current.taskId}
-              </span>
-            </span>
-          )}
-        </div>
+      {carrierUnread ? (
+        <CarrierReadingLine reading={reading} testId="quay-panel-tests-carrier" />
       ) : (
-        <p className="text-xs text-muted-foreground" data-testid="quay-panel-tests-current-empty">
-          No suite running
-        </p>
+        <>
+          {current ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="quay-panel-tests-current">
+              <span className={cn('h-2 w-2 shrink-0 rounded-full', STATE_DOT_CLASSES[current.state] ?? DEFAULT_DOT_CLASS)} />
+              <span className="font-medium text-foreground">{current.state}</span>
+              {current.runner && <span className="text-muted-foreground">· {current.runner}</span>}
+              {current.scope && <span className="text-muted-foreground">· {current.scope}</span>}
+              {current.laneCount !== null && <span className="text-muted-foreground">· {current.laneCount} lanes</span>}
+              {current.durationMs !== null && <span className="text-muted-foreground">· {formatDuration(current.durationMs)}</span>}
+              {current.commit && (
+                <span className="font-mono text-[11px] text-muted-foreground" data-testid="quay-panel-tests-current-commit">
+                  {current.commit.slice(0, 7)}
+                </span>
+              )}
+              {current.taskId && (
+                <span className="flex min-w-0 items-center gap-1 text-[11px]" data-testid="quay-panel-tests-current-task">
+                  {/* The suite reading is a *historical* record of the last run, not a live
+                      task pointer — it can name a task that finished long ago. The label
+                      says so, so the bare id cannot be read as "what is running now". */}
+                  <span
+                    className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground"
+                    data-testid="quay-panel-tests-current-task-label"
+                  >
+                    last suite
+                  </span>
+                  <span className="min-w-0 truncate font-mono text-muted-foreground" title={current.taskId}>
+                    {current.taskId}
+                  </span>
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground" data-testid="quay-panel-tests-current-empty">
+              No suite running
+            </p>
+          )}
+          <div className="mt-2">
+            <TimelineBar
+              ranges={ranges}
+              window={window}
+              emptyText="No suite rounds recorded."
+              testId="quay-panel-tests-timeline"
+            />
+          </div>
+        </>
       )}
-      <div className="mt-2">
-        <TimelineBar
-          ranges={ranges}
-          window={window}
-          emptyText="No suite rounds recorded."
-          testId="quay-panel-tests-timeline"
-        />
-      </div>
     </section>
   );
 }
 
 /** Fan-in card: a timeline of recent lock windows over the panel's shared window, plus the last five task/outcome rows. */
-function FanInCard({ fanIn, window }: { fanIn: QuaySnapshot['fanIn']; window: QuayTimelineWindow }) {
+function FanInCard({
+  fanIn,
+  window,
+  reading,
+}: {
+  fanIn: QuaySnapshot['fanIn'];
+  window: QuayTimelineWindow;
+  reading?: QuayCarrierReading;
+}) {
   const attempts = fanIn?.recent ?? [];
   // The range mapping is shared with the cockpit's pulse strip (`timelineMapping.ts`); the
   // carrier stores lock epochs in Unix seconds and that module converts them.
   const ranges = fanInTimelineRanges(fanIn);
   // Newest first for the text list, even though the timeline reads left to right.
   const recentAttempts = attempts.slice(-5).reverse();
+  // A reading that is not `ok` is not "no attempts": state it (and why) instead of drawing the
+  // empty-state text, which would claim the project has never run fan-in.
+  const carrierUnread = reading !== undefined && reading.state !== 'ok';
 
   return (
     <section data-testid="quay-panel-fanin">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fan-in</h3>
-      <TimelineBar
-        ranges={ranges}
-        window={window}
-        emptyText="No fan-in attempts recorded."
-        testId="quay-panel-fanin-timeline"
-      />
-      {recentAttempts.length > 0 && (
-        <ul className="mt-2 space-y-1" data-testid="quay-panel-fanin-list">
-          {recentAttempts.map((attempt, index) => (
-            <li
-              key={`${attempt.task}-${index}`}
-              className="flex items-center gap-2 rounded border border-border/40 px-2 py-1 text-xs"
-              data-testid="quay-panel-fanin-row"
-            >
-              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground" title={attempt.task}>
-                {attempt.task}
-              </span>
-              <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{attempt.outcome}</span>
-            </li>
-          ))}
-        </ul>
+      {carrierUnread ? (
+        <CarrierReadingLine reading={reading} testId="quay-panel-fanin-carrier" />
+      ) : (
+        <>
+          <TimelineBar
+            ranges={ranges}
+            window={window}
+            emptyText="No fan-in attempts recorded."
+            testId="quay-panel-fanin-timeline"
+          />
+          {recentAttempts.length > 0 && (
+            <ul className="mt-2 space-y-1" data-testid="quay-panel-fanin-list">
+              {recentAttempts.map((attempt, index) => (
+                <li
+                  key={`${attempt.task}-${index}`}
+                  className="flex items-center gap-2 rounded border border-border/40 px-2 py-1 text-xs"
+                  data-testid="quay-panel-fanin-row"
+                >
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground" title={attempt.task}>
+                    {attempt.task}
+                  </span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{attempt.outcome}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </section>
   );
@@ -1004,8 +1060,8 @@ function LoadedQuayPanel({
             onWindowChange={onWindowChange}
             refreshing={ganttRefreshing}
           />
-          <TestsCard tests={snapshot.tests} window={timelineWindow} />
-          <FanInCard fanIn={snapshot.fanIn} window={timelineWindow} />
+          <TestsCard tests={snapshot.tests} window={timelineWindow} reading={snapshot.carrierReadings?.suite} />
+          <FanInCard fanIn={snapshot.fanIn} window={timelineWindow} reading={snapshot.carrierReadings?.fanIn} />
         </div>
 
         {sessionId !== undefined && (

@@ -10,8 +10,6 @@ import {
   createQuayService,
   isReadOnlyQuayCommand,
   normalizeGanttWindowHours,
-  readCarrierFileTail,
-  readCurrentSuiteState,
   readGanttLanes,
   type QuayCommandResult,
   type QuayCommandRunner,
@@ -83,6 +81,9 @@ function serverStateCarrier(services: unknown[] = [{ name: 'web', host: '172.28.
 const EXPECTED_SNAPSHOT_COMMANDS = [
   'adr list --json',
   'config validate --json',
+  // The Tests and Fan-in readings now come from quay's own verbs (0.24.0), not from parsing
+  // the project's `.quay/` carrier files here.
+  'driver log --kind worker --json --limit 300',
   'driver status --kind worker --json',
   'goal list --json',
   // The Loop pulse card's lanes. `lanes` is the read-only verb that merges in-flight runs with
@@ -91,6 +92,7 @@ const EXPECTED_SNAPSHOT_COMMANDS = [
   // on purpose: quay's dispatcher eats the token after the verb as a sub-command (see
   // `QUAY_LANES_PREFIX`), so a window written first would never reach the flag parser.
   'lanes --json --window-hours 3',
+  'suite --json --limit 300',
   'task list --json',
 ];
 
@@ -711,146 +713,98 @@ test('recent rows carry updatedAt as an ISO-8601 string, and the ranking is that
   ]);
 });
 
-test('readCarrierFileTail keeps only the last N records and reads a bounded tail window, not the whole file', async () => {
-  // ~1.4 MB of records; a whole-file read would be the very thing this reader exists to avoid.
-  const lines = Array.from({ length: 100_000 }, (_line, index) => JSON.stringify({ round: index }));
-  const content = `${lines.join('\n')}\n`;
-  const reads: Array<{ position: number; length: number }> = [];
-  const reader = createFileReader({
-    size: async () => content.length,
-    readChunk: async (_filePath, position, length) => {
-      reads.push({ position, length });
-      return content.slice(position, position + length);
-    },
-  });
-
-  const records = await readCarrierFileTail(reader, '/workspace/history.jsonl', 10);
-
-  assert.deepEqual(
-    records.map((record) => (record as { round: number }).round),
-    [99_990, 99_991, 99_992, 99_993, 99_994, 99_995, 99_996, 99_997, 99_998, 99_999],
-  );
-  assert.equal(reads.length, 1, 'one 64 KiB window already holds more than ten lines');
-  assert.ok(reads[0].length <= 64 * 1024, `read ${reads[0].length} bytes, expected <= 64 KiB`);
-  assert.ok(reads[0].length < content.length / 10, 'the tail read must be a small fraction of the file');
-});
-
-test('readCarrierFileTail skips malformed lines instead of failing the whole read', async () => {
-  const content = `${JSON.stringify({ round: 1 })}\nnot json at all\n${JSON.stringify({ round: 3 })}\n`;
-  const reader = createFileReader({
-    size: async () => content.length,
-    readChunk: async (_filePath, position, length) => content.slice(position, position + length),
-  });
-
-  assert.deepEqual(await readCarrierFileTail(reader, '/workspace/history.jsonl', 10), [{ round: 1 }, { round: 3 }]);
-});
-
-test('readCurrentSuiteState returns the projected reading, and null for a missing or unparseable file', async () => {
-  const present = createFileReader({
-    readText: async () => JSON.stringify({ state: 'red', laneCount: 3 }),
-  });
-  assert.deepEqual(await readCurrentSuiteState(present, '/workspace/full-suite-state.json'), {
-    state: 'red',
-    runner: null,
-    scope: null,
-    startedAt: null,
-    finishedAt: null,
-    durationMs: null,
-    laneCount: 3,
-    commit: null,
-    taskId: null,
-    runId: null,
-  });
-
-  const garbage = createFileReader({ readText: async () => '{ not json' });
-  assert.equal(await readCurrentSuiteState(garbage, '/workspace/full-suite-state.json'), null);
-
-  const noState = createFileReader({ readText: async () => JSON.stringify({ laneCount: 3 }) });
-  assert.equal(await readCurrentSuiteState(noState, '/workspace/full-suite-state.json'), null);
-
-  // The default reader throws (file absent): a normal "nothing running" state, never an error.
-  assert.equal(await readCurrentSuiteState(createFileReader(), '/workspace/full-suite-state.json'), null);
-});
+// The bounded-tail reader and the suite-state projector that used to live in this service are
+// gone: the Tests and Fan-in readings are now taken through quay's `suite` / `driver log` verbs
+// (see `quay-suite-fanin-reader.test.ts`), and this service no longer parses those carriers.
+// `readLastCarrierRecord` still streams the worker-round heartbeat's tail, which the in-flight
+// cases below exercise end to end.
 
 test('getQuaySnapshot projects the Tests and Fan-in cards and drops the heavy round detail', async () => {
-  const roundContent = `${[
-    JSON.stringify({
-      round: 7,
-      startedAt: '2026-10-03T01:00:00.000Z',
-      durationMs: 12_000,
-      pass: 4,
-      fail: 1,
-      tests: 5,
-      state: 'red',
-      perFile: [{ file: 'a.test.ts', detail: 'x'.repeat(5_000) }],
-    }),
-    JSON.stringify({
-      round: 8,
-      startedAt: '2026-10-03T02:00:00.000Z',
-      durationMs: 9_000,
-      pass: 5,
-      fail: 0,
-      tests: 5,
+  // The two documents the reader relays. The heavy `perFile` detail the old carrier carried is
+  // absent from the verb's document by design, and an attempt without `mechanical_fan_in` is
+  // dropped rather than projected as an empty row.
+  const suiteDocument = {
+    current: {
       state: 'green',
-      perFile: [],
-    }),
-  ].join('\n')}\n`;
-  const outcomeContent = `${[
-    JSON.stringify({
-      task: 'gap-a',
-      mechanical_fan_in: { outcome: 'landed', lockAcquireEpoch: 1_791_003_441, lockReleaseEpoch: 1_791_003_657 },
-    }),
-    // No mechanical_fan_in block: the task never reached fan-in, so it is filtered out.
-    JSON.stringify({ task: 'gap-b' }),
-    JSON.stringify({
-      task: 'gap-c',
-      mechanical_fan_in: { outcome: 'failed', lockAcquireEpoch: 1_791_010_000, lockReleaseEpoch: null },
-    }),
-  ].join('\n')}\n`;
-
-  const reader = createFileReader({
-    size: async (filePath) => {
-      if (filePath.endsWith('verification-round.jsonl')) return roundContent.length;
-      if (filePath.endsWith('worker-outcome.jsonl')) return outcomeContent.length;
-      return null;
+      runner: 'inner',
+      scope: 'worktree',
+      startedAt: '2026-10-03T06:58:14.072Z',
+      // ISO in the verb's output; the adapter converts it back to the epoch SECONDS the
+      // `QuaySuiteState` contract has always carried.
+      finishedAt: '2026-10-03T07:01:30.890Z',
+      durationMs: 196_837,
+      laneCount: 127,
+      commit: '8ae18cf39e1ec22b62bc3312532340eefd8677d2',
+      taskId: 'gap-x',
+      runId: 'r1',
     },
-    readChunk: async (filePath, position, length) => {
-      const content = filePath.endsWith('verification-round.jsonl') ? roundContent : outcomeContent;
-      return content.slice(position, position + length);
+    rounds: [
+      {
+        round: 7,
+        startedAt: '2026-10-03T01:00:00.000Z',
+        durationMs: 12_000,
+        pass: 4,
+        fail: 1,
+        state: 'red',
+        perFile: [{ file: 'a.test.ts', detail: 'x'.repeat(5_000) }],
+      },
+      {
+        round: 8,
+        startedAt: '2026-10-03T02:00:00.000Z',
+        durationMs: 9_000,
+        pass: 5,
+        fail: 0,
+        state: 'green',
+        perFile: [],
+      },
+    ],
+    carrier: {
+      state: 'ok',
+      reason: null,
+      suiteState: { state: 'ok', reason: null },
+      rounds: { state: 'ok', reason: null, bytesRead: 4096, exhausted: false },
     },
-    readText: async (filePath) => {
-      if (filePath.endsWith('full-suite-state.json')) {
-        return JSON.stringify({
-          state: 'green',
-          runner: 'inner',
-          scope: 'worktree',
-          startedAt: '2026-10-03T06:58:14.072Z',
-          finishedAt: 1_791_010_890,
-          durationMs: 196_837,
-          laneCount: 127,
-          commit: '8ae18cf39e1ec22b62bc3312532340eefd8677d2',
-          taskId: 'gap-x',
-          runId: 'r1',
-        });
-      }
-      throw new Error('ENOENT');
-    },
-  });
+    evaluated: true,
+  };
+  const driverLogDocument = {
+    attempts: [
+      {
+        task: 'gap-a',
+        mechanical_fan_in: { outcome: 'landed', lockAcquireEpoch: 1_791_003_441, lockReleaseEpoch: 1_791_003_657 },
+      },
+      // No mechanical_fan_in block: the task never reached fan-in, so it is filtered out.
+      { task: 'gap-b' },
+      {
+        task: 'gap-c',
+        mechanical_fan_in: { outcome: 'failed', lockAcquireEpoch: 1_791_010_000, lockReleaseEpoch: null },
+      },
+    ],
+    status: 'ok',
+    reason: null,
+  };
 
   const service = createQuayService(createDependencies({
-    readFile: reader,
-    runCommand: async (_cwd, args): Promise<QuayCommandResult> => ({
-      ok: true,
-      code: 0,
-      stdout: args.join(' ') === 'goal list --json'
-        ? JSON.stringify([
-            { id: 'GOAL-1', status: 'achieved', updatedAt: 2 },
-            { id: 'GOAL-2', status: 'active', updatedAt: 1 },
-            { id: 'GOAL-3', status: 'active', updatedAt: 3 },
-          ])
-        : '[]',
-      stderr: '',
-    }),
+    runCommand: async (_cwd, args): Promise<QuayCommandResult> => {
+      const key = args.join(' ');
+      if (key === 'suite --json --limit 300') {
+        return { ok: true, code: 0, stdout: JSON.stringify(suiteDocument), stderr: '' };
+      }
+      if (key === 'driver log --kind worker --json --limit 300') {
+        return { ok: true, code: 0, stdout: JSON.stringify(driverLogDocument), stderr: '' };
+      }
+      return {
+        ok: true,
+        code: 0,
+        stdout: key === 'goal list --json'
+          ? JSON.stringify([
+              { id: 'GOAL-1', status: 'achieved', updatedAt: 2 },
+              { id: 'GOAL-2', status: 'active', updatedAt: 1 },
+              { id: 'GOAL-3', status: 'active', updatedAt: 3 },
+            ])
+          : '[]',
+        stderr: '',
+      };
+    },
   }));
 
   const snapshot = await service.getQuaySnapshot('project-1');
@@ -869,8 +823,9 @@ test('getQuaySnapshot projects the Tests and Fan-in cards and drops the heavy ro
     runId: 'r1',
   });
   assert.deepEqual(snapshot.tests.recentRounds, [
-    { round: 7, startedAt: '2026-10-03T01:00:00.000Z', durationMs: 12_000, pass: 4, fail: 1, tests: 5, state: 'red' },
-    { round: 8, startedAt: '2026-10-03T02:00:00.000Z', durationMs: 9_000, pass: 5, fail: 0, tests: 5, state: 'green' },
+    // `quay suite`'s rounds carry no `tests` count; the shape keeps the field as `null`.
+    { round: 7, startedAt: '2026-10-03T01:00:00.000Z', durationMs: 12_000, pass: 4, fail: 1, tests: null, state: 'red' },
+    { round: 8, startedAt: '2026-10-03T02:00:00.000Z', durationMs: 9_000, pass: 5, fail: 0, tests: null, state: 'green' },
   ]);
   assert.equal('perFile' in (snapshot.tests.recentRounds[0] as object), false, 'the heavy per-file detail must be dropped');
 
@@ -879,12 +834,104 @@ test('getQuaySnapshot projects the Tests and Fan-in cards and drops the heavy ro
     { task: 'gap-c', outcome: 'failed', lockAcquireEpoch: 1_791_010_000, lockReleaseEpoch: null },
   ]);
 
+  // Both verbs answered with `ok` carriers, so the panel draws the readings rather than a
+  // "failed to read" line.
+  assert.deepEqual(snapshot.carrierReadings, {
+    suite: { state: 'ok', reason: null },
+    fanIn: { state: 'ok', reason: null },
+  });
+
   // Stage goals breakdown groups by status and orders the recent rows newest first.
   assert.deepEqual(snapshot.goals?.breakdown.byStatus, { achieved: 1, active: 2 });
   assert.deepEqual(snapshot.goals?.breakdown.recent.map((goal) => goal.id), ['GOAL-3', 'GOAL-1', 'GOAL-2']);
 
-  // Missing carrier files are a normal empty reading, never a warning.
+  // A failed/absent carrier reading is reported through `carrierReadings`, never as a warning.
   assert.deepEqual(snapshot.warnings, []);
+});
+
+test('the Tests and Fan-in read verbs are whitelisted, and only their exact argv', async () => {
+  const spawned: string[] = [];
+  const service = createQuayService(createDependencies({
+    runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
+      spawned.push(args.join(' '));
+      return { ok: true, code: 0, stdout: '{}', stderr: '' };
+    },
+  }));
+
+  for (const args of [
+    ['suite', '--json', '--limit', '300'],
+    ['driver', 'log', '--kind', 'worker', '--json', '--limit', '300'],
+  ]) {
+    assert.equal(isReadOnlyQuayCommand(args), true, `${args.join(' ')} must be whitelisted`);
+    const result = await service.runQuayCommand(PROJECT_PATH, args);
+    assert.equal(result.ok, true);
+  }
+  assert.deepEqual(spawned, [
+    'suite --json --limit 300',
+    'driver log --kind worker --json --limit 300',
+  ]);
+
+  const refused = [
+    // The window is part of the reading: another limit is another command, not this one.
+    ['suite', '--json', '--limit', '301'],
+    ['suite', '--json', '--limit'],
+    // Without `--json` the verb prints its human-readable form.
+    ['suite', '--limit', '300'],
+    ['suite', '--json', '--limit', '300', '--since', '2026-10-01T00:00:00Z'],
+    // Another driver kind is a different log, not a flag on this one.
+    ['driver', 'log', '--kind', 'promotion', '--json', '--limit', '300'],
+    ['driver', 'log', '--kind', 'worker', '--limit', '300'],
+    ['driver', 'log', '--json', '--kind', 'worker', '--limit', '300'],
+    ['driver', '--json', '--limit', '300'],
+  ];
+  for (const args of refused) {
+    assert.equal(isReadOnlyQuayCommand(args), false, `${args.join(' ')} must not be whitelisted`);
+    const denied = await service.runQuayCommand(PROJECT_PATH, args);
+    assert.equal(denied.ok, false, `expected refusal for: ${args.join(' ')}`);
+    assert.match(denied.error ?? '', /whitelist/);
+  }
+  assert.equal(spawned.length, 2, 'only the two exact verb argv may reach the subprocess runner');
+});
+
+test('one project’s Tests / Fan-in reading is spawned once for the snapshot and the fleet summary', async () => {
+  const seen: string[] = [];
+  const service = createQuayService(createDependencies({
+    // The fleet summary only considers projects with a `.quay/config.yml`.
+    fileExists: () => true,
+    listProjects: () => [{ projectId: 'project-1', projectPath: PROJECT_PATH }],
+    runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
+      const key = args.join(' ');
+      seen.push(key);
+      if (key === 'suite --json --limit 300') {
+        return {
+          ok: true,
+          code: 0,
+          stdout: JSON.stringify({ current: null, rounds: [], carrier: { state: 'absent', reason: 'no suite state yet' } }),
+          stderr: '',
+        };
+      }
+      if (key === 'driver log --kind worker --json --limit 300') {
+        return {
+          ok: true,
+          code: 0,
+          stdout: JSON.stringify({ attempts: [], status: 'absent', reason: 'no worker history yet' }),
+          stderr: '',
+        };
+      }
+      return { ok: true, code: 0, stdout: '[]', stderr: '' };
+    },
+  }));
+
+  const snapshot = await service.getQuaySnapshot('project-1');
+  assert.ok(snapshot);
+  const fleet = await service.getFleetSummary();
+  assert.equal(fleet.projects.length, 1);
+
+  const count = (command: string) => seen.filter((entry) => entry === command).length;
+  // The snapshot cached the pair; the fleet summary's pulse row served the same reading
+  // inside the TTL instead of spawning a second pair.
+  assert.equal(count('suite --json --limit 300'), 1);
+  assert.equal(count('driver log --kind worker --json --limit 300'), 1);
 });
 
 // --------------------------- in-flight tasks (gap-cloudcli-quay-snapshot-inflight-tasks) ---------------------------

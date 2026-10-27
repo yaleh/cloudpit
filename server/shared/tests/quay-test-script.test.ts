@@ -375,9 +375,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // criterion server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
     // (457 + 1 = 458 collected server test files). Then cockpit-fleet-rescue-executors added its
     // criterion server/modules/cockpit/tests/cockpit-fleet-executor.test.ts
-    // (458 + 1 = 459 collected server test files). This fixture names 3 known files, so
-    // 459 - 3 = 456.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=456$/);
+    // (458 + 1 = 459 collected server test files). Then
+    // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added its criterion
+    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts
+    // (459 + 1 = 460 collected server test files). This fixture names 3 known files, so
+    // 460 - 3 = 457.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=457$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -449,10 +452,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // cockpit-fleet-card-provider added
     // server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts, then
     // cockpit-fleet-rescue-executors added
-    // server/modules/cockpit/tests/cockpit-fleet-executor.test.ts)
-    // — but this fixture names ONE known file, so 459 - 1 = 458 (AC2 reads 456 because its
+    // server/modules/cockpit/tests/cockpit-fleet-executor.test.ts, then
+    // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added
+    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts)
+    // — but this fixture names ONE known file, so 460 - 1 = 459 (AC2 reads 457 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=458$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=459$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -41,6 +41,12 @@ import {
 } from './quay-uri-resolve.js';
 import type { QuayFleetAvailability, QuayFleetProjectIdResolver } from './quay-fleet-project-id.js';
 import { locateQuayFleetCli } from './quay-fleet-locator.js';
+import {
+  QUAY_FAN_IN_READ_COMMAND,
+  QUAY_SUITE_READ_COMMAND,
+  readQuaySuiteAndFanIn,
+  type QuaySuiteFanInReading,
+} from './quay-suite-fanin-reader.js';
 
 export type {
   QuayAdrCounts,
@@ -133,12 +139,13 @@ export type QuayCommandRunner = (
 ) => Promise<QuayCommandResult>;
 
 /**
- * The injected read-only filesystem boundary for quay's carrier files (the suite
- * state and the two JSONL histories). It exposes only byte-range and whole-file
- * *reads*, so the panel can never write through it, and every path is joined
- * under the project root by the service rather than accepted from a request. The
- * byte-range read is what lets `readCarrierFileTail` stream a bounded window from
- * the end of a multi-megabyte history instead of materialising the whole file.
+ * The injected read-only filesystem boundary for the project's `.quay/` carriers that are
+ * still read locally (the worker-round heartbeat, the dashboard's `server.json`, drain flags
+ * and the task store). It exposes only byte-range and whole-file *reads*, so the panel can
+ * never write through it, and every path is joined under the project root by the service
+ * rather than accepted from a request. The byte-range read is what lets
+ * `readLastCarrierRecord` stream a bounded window from the end of an append-only history
+ * instead of materialising the whole file.
  */
 export type QuayFileReader = {
   /** Byte length of the file, or `null` when it does not exist or cannot be stat-ed. */
@@ -476,7 +483,7 @@ export type QuayLanesReading = {
  * keeps it again at the object boundary.
  *
  * The collector relays the verb's output verbatim: `quay lanes` merges quay's live telemetry
- * with its worker-outcome history and packs the result onto the fixed five lanes using quay's
+ * with its worker outcome history and packs the result onto the fixed five lanes using quay's
  * OWN kernel, so there is no second implementation of that algorithm here to drift from the
  * one the dashboard's "Loop pulse" card plots.
  */
@@ -602,9 +609,15 @@ export const QUAY_READ_ONLY_COMMANDS: readonly (readonly string[])[] = [
   ['task', 'list', '--json', '--no-body'],
   ['goal', 'list', '--json'],
   ['adr', 'list', '--json'],
+  // The Tests and Fan-in cards' readings. quay 0.24.0 publishes both as bounded JSON from its
+  // own readers, so CloudCLI no longer parses `.quay/` carrier files itself. Exact-match entries
+  // (no prefix rule): the window is part of the reading, and any other flag combination is
+  // refused before a child is spawned.
+  QUAY_SUITE_READ_COMMAND,
+  QUAY_FAN_IN_READ_COMMAND,
   ...QUAY_DRIVER_KINDS.map((kind) => ['driver', 'status', '--kind', kind, '--json']),
   // The Loop pulse gantt's packed lanes, printed by quay's own read-only `lanes` verb — which
-  // merges quay's live telemetry with its worker-outcome history and packs the result onto the
+  // merges quay's live telemetry with its worker outcome history and packs the result onto the
   // fixed five lanes itself, so this service neither merges nor packs. The window is an enum,
   // so each offered value is its own exact-match entry rather than a prefix rule: the
   // whitelist stays an equality check, and a stray window can never widen the read.
@@ -1329,10 +1342,6 @@ function readUpdatedAtEpochMs(value: unknown): number | null {
   return Number.isNaN(new Date(epochMs).getTime()) ? null : epochMs;
 }
 
-/** Carrier files read under the project's `.quay/` directory by the Tests and Fan-in cards. */
-const QUAY_SUITE_STATE_FILE = 'full-suite-state.json';
-const QUAY_ROUND_HISTORY_FILE = 'verification-round.jsonl';
-const QUAY_WORKER_OUTCOME_FILE = 'worker-outcome.jsonl';
 /**
  * The worker driver's per-round heartbeat carrier. `quay serve`'s Live card reads this
  * same file for "which task is running"; this service reads its newest record only to supply
@@ -1340,17 +1349,6 @@ const QUAY_WORKER_OUTCOME_FILE = 'worker-outcome.jsonl';
  * of the task set the `lanes` reading already names.
  */
 const QUAY_WORKER_ROUND_FILE = 'worker-round.jsonl';
-
-/**
- * How many carrier records one pulse reading keeps.
- *
- * 300 is sized from the strip's widest window: 72h held 216 fan-in attempts on this workspace
- * when the reading was designed, and the round history is a similar order (197). The Quay
- * panel's own cards keep ten rows; the strip needs the window's real density, or its "how
- * active is this project" reading would be capped at the last ten attempts regardless of the
- * selected window.
- */
-const QUAY_PULSE_HISTORY_LIMIT = 300;
 
 /**
  * Where the native task store keeps one file per task, relative to the project root.
@@ -1423,42 +1421,13 @@ async function readCarrierTailLines(
 }
 
 /**
- * Streams the last `maxLines` newline-delimited JSON records out of a carrier
- * file without materialising the whole file: it reads a bounded byte window from
- * the end through the injected reader and, when that window holds too few
- * complete lines, doubles the window and re-reads. A 16 MB round history
- * therefore costs a few hundred KB of reads rather than 16 MB, and the read is a
- * byte-range read rather than a whole-file `readFile`.
- *
- * Malformed lines (a torn tail, a non-JSON record) are skipped, so a partially
- * written file degrades to fewer rows instead of failing the whole snapshot.
- */
-export async function readCarrierFileTail(
-  reader: QuayFileReader,
-  filePath: string,
-  maxLines: number,
-): Promise<unknown[]> {
-  const lines = await readCarrierTailLines(reader, filePath, maxLines);
-  return lines
-    .slice(-maxLines)
-    .flatMap((line) => {
-      try {
-        return [JSON.parse(line) as unknown];
-      } catch {
-        return [];
-      }
-    });
-}
-
-/**
  * Reads the LAST parseable JSONL record from a carrier file's tail, or `null` when the
  * file is absent/empty or carries no parseable record at all.
  *
- * Used for the round heartbeat carrier, where only the newest record matters — so,
- * unlike {@link readCarrierFileTail}, the caller wants "the most recent readable row"
- * rather than a fixed-size history. A malformed trailing line (a torn append) is skipped
- * in favour of the previous parseable record in the same bounded window instead of
- * blanking the reading.
+ * Used for the round heartbeat carrier, where only the newest record matters — the caller
+ * wants "the most recent readable row" rather than a history. A malformed trailing line (a
+ * torn append) is skipped in favour of the previous parseable record in the same bounded
+ * window instead of blanking the reading.
  */
 async function readLastCarrierRecord(reader: QuayFileReader, filePath: string): Promise<unknown | null> {
   const lines = await readCarrierTailLines(reader, filePath, 1);
@@ -1538,96 +1507,6 @@ function parseTaskFile(text: string): QuayTaskFileReading {
 function isLiveTaskStatus(value: unknown): boolean {
   const status = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return status !== 'done' && status !== 'superseded';
-}
-
-/** Projects a parsed `full-suite-state.json` body; `null` when it carries no usable `state` string. */
-function summarizeSuiteState(value: unknown): QuaySuiteState | null {  const record = asRecord(value);
-  const state = record ? readNullableString(record.state) : null;
-  if (!record || !state) {
-    return null;
-  }
-
-  return {
-    state,
-    runner: readNullableString(record.runner),
-    scope: readNullableString(record.scope),
-    startedAt: readNullableString(record.startedAt),
-    finishedAt: readNullableNumber(record.finishedAt),
-    durationMs: readNullableNumber(record.durationMs),
-    laneCount: readNullableNumber(record.laneCount),
-    commit: readNullableString(record.commit),
-    taskId: readNullableString(record.taskId),
-    runId: readNullableString(record.runId),
-  };
-}
-
-/**
- * Reads `.quay/full-suite-state.json` and projects it to the Tests card's
- * "current" reading. A missing or unparseable file reads as `null` — the same
- * "nothing is running" state as a dashboard with no suite — so it is never
- * recorded as a warning.
- */
-export async function readCurrentSuiteState(
-  reader: QuayFileReader,
-  filePath: string,
-): Promise<QuaySuiteState | null> {
-  let text: string;
-  try {
-    text = await reader.readText(filePath);
-  } catch {
-    return null;
-  }
-
-  try {
-    return summarizeSuiteState(JSON.parse(text) as unknown);
-  } catch {
-    return null;
-  }
-}
-
-/** Projects round-history records to the panel's summary; the heavy `perFile` detail is deliberately dropped. */
-function summarizeTestRounds(value: unknown): QuayTestRoundSummary[] {
-  return asArray(value).flatMap((item) => {
-    const record = asRecord(item);
-    const state = record ? readNullableString(record.state) : null;
-    if (!record || !state) {
-      return [];
-    }
-
-    return [
-      {
-        round: readCount(record.round),
-        startedAt: readNullableString(record.startedAt),
-        durationMs: readNullableNumber(record.durationMs),
-        pass: readNullableNumber(record.pass),
-        fail: readNullableNumber(record.fail),
-        tests: readNullableNumber(record.tests),
-        state,
-      },
-    ];
-  });
-}
-
-/** Keeps only the tasks whose outcome record carries a `mechanical_fan_in` block, projected to the Fan-in card's fields. */
-function summarizeFanInAttempts(value: unknown): QuayFanInAttemptSummary[] {
-  return asArray(value).flatMap((item) => {
-    const record = asRecord(item);
-    const fanIn = record ? asRecord(record.mechanical_fan_in) : null;
-    const task = record ? readNullableString(record.task) : null;
-    const outcome = fanIn ? readNullableString(fanIn.outcome) : null;
-    if (!task || !outcome) {
-      return [];
-    }
-
-    return [
-      {
-        task,
-        outcome,
-        lockAcquireEpoch: readNullableNumber(fanIn?.lockAcquireEpoch),
-        lockReleaseEpoch: readNullableNumber(fanIn?.lockReleaseEpoch),
-      },
-    ];
-  });
 }
 
 /**
@@ -2035,6 +1914,43 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   const ganttCache = new Map<string, { expiresAt: number; gantt: QuayGanttLanes | null; unavailable: QuayGanttUnavailableReason | null }>();
   const inFlightGantt = new Map<string, Promise<{ gantt: QuayGanttLanes | null; unavailable: QuayGanttUnavailableReason | null }>>();
 
+  // The Tests / Fan-in reading comes from two read-only verbs. It is cached HERE, keyed by
+  // project path, because the Tier-2 snapshot and the fleet summary's pulse row ask for the
+  // SAME reading — one project shown in the panel and in a cockpit tile must not spawn the
+  // pair twice inside one TTL. The pair is cached together (never per verb) so the two cards
+  // always describe the same instant.
+  const suiteFanInCache = new Map<string, { expiresAt: number; reading: QuaySuiteFanInReading }>();
+  const inFlightSuiteFanIn = new Map<string, Promise<QuaySuiteFanInReading>>();
+
+  const readSuiteFanIn = (projectPath: string, forceRefresh = false): Promise<QuaySuiteFanInReading> => {
+    if (!forceRefresh) {
+      const cached = suiteFanInCache.get(projectPath);
+      if (cached && cached.expiresAt > dependencies.now()) {
+        return Promise.resolve(cached.reading);
+      }
+    }
+
+    const pending = inFlightSuiteFanIn.get(projectPath);
+    if (pending) {
+      return pending;
+    }
+
+    const promise = readQuaySuiteAndFanIn(runQuayCommand, projectPath)
+      .then((reading) => {
+        suiteFanInCache.set(projectPath, {
+          expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
+          reading,
+        });
+        return reading;
+      })
+      .finally(() => {
+        inFlightSuiteFanIn.delete(projectPath);
+      });
+
+    inFlightSuiteFanIn.set(projectPath, promise);
+    return promise;
+  };
+
   /**
    * The CloudCLI project id → fleet registry id join. A composition without a fleet answers
    * `null` for every project — the honest "nothing is registered here" reading that makes the
@@ -2425,6 +2341,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     projectId: string,
     projectPath: string,
     windowHours: number = DEFAULT_QUAY_GANTT_WINDOW_HOURS,
+    forceRefresh: boolean = false,
   ): Promise<QuaySnapshot> => {
     const warnings: string[] = [];
     const quayDir = path.join(projectPath, '.quay');
@@ -2471,18 +2388,17 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     // Every section is independent of every other, so they are gathered in ONE parallel
     // pass: the cold path then costs the slowest single read instead of their sum. That
     // sum was the defect — six strictly serial `await`s over a 2.5k-task store put ~9.5 s
-    // in front of a panel open, while the slowest single read is ~3 s. The carrier reads
-    // (Tests, Fan-in, dashboard) sit under the trusted project root, never a request path;
-    // a missing file there is a normal empty reading and never a warning.
+    // in front of a panel open, while the slowest single read is ~3 s. The local carrier
+    // reads (worker-round, dashboard) sit under the trusted project root, never a request
+    // path; a missing file there is a normal empty reading and never a warning. The Tests /
+    // Fan-in pair is two more read-only children, spawned concurrently here.
     const [
       tasksRead,
       goalsRead,
       adrsRead,
       driverRead,
       configRead,
-      currentSuite,
-      recentRoundRecords,
-      fanInRecords,
+      suiteFanIn,
       workerRoundRecord,
       dashboardUrl,
       ganttRead,
@@ -2492,20 +2408,10 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       readJson(['adr', 'list', '--json']),
       readJson(['driver', 'status', '--kind', 'worker', '--json']),
       readJson(['config', 'validate', '--json']),
-      readCurrentSuiteState(dependencies.readFile, path.join(quayDir, QUAY_SUITE_STATE_FILE)),
-      readCarrierFileTail(
-        dependencies.readFile,
-        path.join(quayDir, QUAY_ROUND_HISTORY_FILE),
-        // The pulse strip reads the same rounds over a 6/24/72h window, so the snapshot keeps
-        // the window's density rather than the cards' ten rows. The cards slice what they show;
-        // the strip would undercount activity if handed only ten.
-        QUAY_PULSE_HISTORY_LIMIT,
-      ),
-      readCarrierFileTail(
-        dependencies.readFile,
-        path.join(quayDir, QUAY_WORKER_OUTCOME_FILE),
-        QUAY_PULSE_HISTORY_LIMIT,
-      ),
+      // The Tests and Fan-in cards are one reading in two projections, taken through quay's
+      // own `suite` / `driver log` verbs (never by parsing the carrier files here). The pair
+      // is shared with the fleet summary's pulse row through `readSuiteFanIn`.
+      readSuiteFanIn(projectPath, forceRefresh),
       readLastCarrierRecord(dependencies.readFile, path.join(quayDir, QUAY_WORKER_ROUND_FILE)),
       readDashboardUrl(projectPath),
       collectGantt(projectPath, windowHours),
@@ -2522,11 +2428,6 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     if (entrypointResolution?.warning) {
       warnings.push(entrypointResolution.warning);
     }
-
-    // The fan-in attempts feed the Fan-in card. (The in-flight tasks' `phase` no longer
-    // derives from them: it is read off the same `lanes` document as the Loop pulse gantt,
-    // so the card and the chart can never disagree — see `summarizeInFlightTasks`.)
-    const fanInAttempts = summarizeFanInAttempts(fanInRecords);
 
     // The pulse strip's blocked row. `depends_on` is absent from the CLI document, so the
     // unfinished tasks' store files supply the impact edges; `null` (task list unread) stays
@@ -2556,8 +2457,11 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       goals: summarizeGoals(goalsRead.value),
       adrs: summarizeAdrs(adrsRead.value),
       configIssues: summarizeConfigIssues(configRead.value),
-      tests: { current: currentSuite, recentRounds: summarizeTestRounds(recentRoundRecords) },
-      fanIn: { recent: fanInAttempts },
+      // The two card readings, adapted to the existing shapes by the reader. `carrierReadings`
+      // says HOW they were obtained, so a missing verb is never drawn as an empty history.
+      tests: suiteFanIn.tests,
+      fanIn: suiteFanIn.fanIn,
+      carrierReadings: suiteFanIn.carrierReadings,
       blockers,
       // The In-flight card and the Loop pulse gantt are two projections of ONE reading:
       // `ganttRead.gantt`, the `lanes` document relayed by `collectGantt`. Deriving the card
@@ -2592,9 +2496,10 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     projectId: string,
     projectPath: string,
     windowHours: number = DEFAULT_QUAY_GANTT_WINDOW_HOURS,
+    forceRefresh: boolean = false,
   ): Promise<QuaySnapshot> => {
     if (windowHours !== DEFAULT_QUAY_GANTT_WINDOW_HOURS) {
-      return collectSnapshot(projectId, projectPath, windowHours);
+      return collectSnapshot(projectId, projectPath, windowHours, forceRefresh);
     }
 
     const pending = inFlightSnapshots.get(projectId);
@@ -2602,7 +2507,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       return pending;
     }
 
-    const promise = collectSnapshot(projectId, projectPath, windowHours)
+    const promise = collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
       .then((snapshot) => {
         snapshotCache.set(projectId, {
           expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
@@ -2759,7 +2664,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       }
     }
 
-    return loadSnapshot(projectId, projectPath, windowHours);
+    return loadSnapshot(projectId, projectPath, windowHours, options.forceRefresh === true);
   };
 
   /**
@@ -2855,17 +2760,15 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     try {
       const quayDir = path.join(candidate.projectPath, '.quay');
       // The pulse rows ride this project load (and therefore its TTL entry) rather than a
-      // separate request: one cockpit tile needs one consistent reading, and the carriers are
-      // local files while `lanes` is one extra read-only child. `generatedAt` below is the
-      // single clock all four rows share.
+      // separate request: one cockpit tile needs one consistent reading, and the local carrier
+      // reads are files while `lanes` and the Tests / Fan-in pair are read-only children.
+      // `generatedAt` below is the single clock all four rows share.
       const [
         tasksRead,
         driverRead,
         fleetProjectId,
         ganttRead,
-        currentSuite,
-        recentRoundRecords,
-        fanInRecords,
+        suiteFanIn,
         workerRoundRecord,
       ] = await Promise.all([
         runQuayCommand(candidate.projectPath, QUAY_FLEET_TASKS_COMMAND),
@@ -2876,17 +2779,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
         // The strip plots in-flight rows from the live intervals of this lane set; its window is
         // irrelevant to them (an in-flight run ends at `now`), so the default is reused.
         collectGantt(candidate.projectPath, DEFAULT_QUAY_GANTT_WINDOW_HOURS),
-        readCurrentSuiteState(dependencies.readFile, path.join(quayDir, QUAY_SUITE_STATE_FILE)),
-        readCarrierFileTail(
-          dependencies.readFile,
-          path.join(quayDir, QUAY_ROUND_HISTORY_FILE),
-          QUAY_PULSE_HISTORY_LIMIT,
-        ),
-        readCarrierFileTail(
-          dependencies.readFile,
-          path.join(quayDir, QUAY_WORKER_OUTCOME_FILE),
-          QUAY_PULSE_HISTORY_LIMIT,
-        ),
+        // The SAME reading the Tier-2 snapshot uses, through the shared TTL cache: a project
+        // open in the panel and drawn in a cockpit tile costs one pair of verbs, not two.
+        readSuiteFanIn(candidate.projectPath),
         readLastCarrierRecord(dependencies.readFile, path.join(quayDir, QUAY_WORKER_ROUND_FILE)),
       ]);
 
@@ -2934,11 +2829,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
           generatedAt: new Date(dependencies.now()).toISOString(),
           inFlight: summarizeInFlightTasks(ganttRead.gantt, workerRoundRecord),
           gantt: ganttRead.gantt,
-          tests: {
-            current: currentSuite,
-            recentRounds: summarizeTestRounds(recentRoundRecords),
-          },
-          fanIn: { recent: summarizeFanInAttempts(fanInRecords) },
+          tests: suiteFanIn.tests,
+          fanIn: suiteFanIn.fanIn,
           blockers,
         },
         cached: false,

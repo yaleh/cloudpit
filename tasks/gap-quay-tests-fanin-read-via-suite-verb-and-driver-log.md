@@ -2,7 +2,7 @@
 id: gap-quay-tests-fanin-read-via-suite-verb-and-driver-log
 title: Quay snapshot 的 Tests 与 Fan-in 改由 quay CLI（quay suite、driver log）提供，删除对
   .quay/ 内部文件的直接读取
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -72,6 +72,17 @@ extra:
 
 - 该轴仍暗,理由:本任务只把 Tests/Fan-in 的取数从本地载体文件切到 quay 只读动词，未新增模块边界或文档，本轮未取 archguard 读数。
 
+## 本轮修复（2026-10-28，worker 第二轮）
+
+上一轮 exited-not-landed 的两个红都是本任务引入的真红（机械 delta-relatedness 的 UNRELATED 是误判：两条判据都不直接 import 本任务的文件，但都数整个仓库的读数）：
+
+- `server/shared/tests/architecture-ratchet.test.ts`：本任务让三个基线内文件变长——`server/shared/types.ts` 5144→5168、`src/shared/types.ts` 4566→4590（两侧手抄的 `QuayCarrierReading` + `carrierReadings`），`src/modules/quay/QuayPanel.tsx` 1120→1176（`CarrierReadingLine` 与两张卡的非 ok 分支）。按基线 note 自带的 AC-394 RECORDED CHANGE 格式按实测值重录这三条并写明为何增加是本改动的诚实形态；其余条目一个未动（本轮读数只有下降项）。
+- `server/shared/tests/quay-test-script.test.ts`：该判据把「收集到的 server 测试文件数」写成字面量。本任务新增 `server/modules/quay/tests/quay-suite-fanin-reader.test.ts` 使其 459→460，故 `known=3 unknown=456→457`、`known=1 unknown=458→459`，注释同步记录是本任务加的这条文件。
+
+复验（均在本 worktree 内，develop 已再次合入）：
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6 pass / 0 fail（AC1–AC5 + duplicates 全绿）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → 14 pass / 0 fail。
+
 ## Touches
 
 - server/modules/quay/quay-suite-fanin-reader.ts (new)
@@ -85,4 +96,6 @@ extra:
 - src/shared/types.ts
 - src/modules/quay/QuayPanel.tsx
 - src/modules/quay/tests/QuayPanel.test.tsx
+- server/shared/tests/architecture-ratchet.baseline.json
+- server/shared/tests/quay-test-script.test.ts
 - tasks/gap-quay-tests-fanin-read-via-suite-verb-and-driver-log.md

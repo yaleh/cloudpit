@@ -373,6 +373,39 @@ test('QuayPanel renders empty states for the Stage goals, Tests and Fan-in cards
   assert.equal(container.querySelector('[data-testid="quay-panel-fanin-row"]'), null);
 });
 
+test('QuayPanel states a non-ok Tests / Fan-in carrier reading instead of an empty history', () => {
+  // The backend reports HOW the reading was obtained. A missing verb (an older pinned quay) or
+  // a failed read is not "this project has no history": the cards must say so, and the
+  // empty-state text must not be drawn (it would be a claim about the project).
+  const unreadSnapshot: QuaySnapshot = {
+    ...SNAPSHOT,
+    tests: { current: null, recentRounds: [] },
+    fanIn: { recent: [] },
+    carrierReadings: {
+      suite: { state: 'verb-unavailable', reason: 'error: unknown command: suite' },
+      fanIn: { state: 'failed', reason: 'quay driver log returned output that is not JSON' },
+    },
+  };
+  const { getByTestId, queryByTestId, container } = renderView({ status: 'loaded', snapshot: unreadSnapshot }, null);
+
+  const testsCarrier = getByTestId('quay-panel-tests-carrier').textContent ?? '';
+  assert.match(testsCarrier, /verb-unavailable/);
+  assert.match(testsCarrier, /unknown command/);
+
+  const fanInCarrier = getByTestId('quay-panel-fanin-carrier').textContent ?? '';
+  assert.match(fanInCarrier, /failed/);
+  assert.match(fanInCarrier, /not JSON/);
+
+  // No empty-state claim, and no empty timeline behind it.
+  assert.equal(queryByTestId('quay-panel-tests-current-empty'), null);
+  assert.equal(queryByTestId('quay-panel-tests-timeline'), null);
+  assert.equal(queryByTestId('quay-panel-fanin-timeline'), null);
+  const text = container.textContent ?? '';
+  assert.equal(text.includes('No suite running'), false);
+  assert.equal(text.includes('No suite rounds recorded'), false);
+  assert.equal(text.includes('No fan-in attempts recorded'), false);
+});
+
 /*
  * In-flight card (gap-quay-panel-inflight-task-display): before this card the panel's only
  * "activity" signals were the Driver badge (which names no task) and the Tests card's
