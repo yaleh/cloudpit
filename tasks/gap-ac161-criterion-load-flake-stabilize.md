@@ -1,7 +1,7 @@
 ---
 id: gap-ac161-criterion-load-flake-stabilize
 title: AC-161 判据在宿主负载下假红：claude-resident-process.test.ts 的假形态臂读不到活宿主，让判据稳定跑绿（载重读数一条不动）
-status: todo
+status: ready
 labels:
   - gap
   - defect
