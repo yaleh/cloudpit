@@ -3,7 +3,7 @@ id: cockpit-card-brief-rendering
 title: 驾驶舱简报渲染：Details 打开时取 GET /api/cockpit/cards/:id/brief，按预置形式描述表画出
   radar、compare-table、diffstat、checklist、timeline、graph、callout；简报线上类型进共享类型并由
   TypeSync 钉住
-status: ready
+status: done
 labels:
   - feature
   - cockpit
