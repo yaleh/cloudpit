@@ -186,11 +186,14 @@ export default function WorkspaceHeader({
   // Stable identity so the memoized pulse subtree is not re-rendered by an unrelated header
   // render (the trigger's own 30 s poll already never reaches this component).
   const openQuayPanel = useCallback(() => setActiveTab('quay'), [setActiveTab]);
+  // ONE trigger, two placements: the desktop right row keeps the popover-bearing control, while
+  // the phone's title block draws the 64×14 thumbnail that opens the Quay view itself.
   const sessionPulse = shouldShowQuayTab ? (
     <SessionPulse
       projectId={selectedProject.projectId}
       sessionId={selectedSession?.id ?? null}
       isMobile={isMobile}
+      compact={isMobile}
       onOpenQuayPanel={openQuayPanel}
     />
   ) : null;
@@ -216,12 +219,16 @@ export default function WorkspaceHeader({
           shouldShowTasksTab={shouldShowTasksTab}
           shouldShowQuayTab={shouldShowQuayTab}
           shouldShowArchitectureTab={shouldShowArchitectureTab}
+          isMobile={isMobile}
+          quayPulse={isMobile ? sessionPulse : null}
         />
       </div>
 
       {isMobile ? (
+        // The phone row's order is fixed and its width is a budget: the workspace picker, the
+        // `⋯` menu, then the cockpit entry (the same 32×32 box and border as the menu). The Quay
+        // thumbnail that used to lead this row now sits under the title, after the project name.
         <div className="flex flex-shrink-0 items-center gap-1">
-          {sessionPulse}
           <CollapsedWorkspaceSelector
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -232,6 +239,7 @@ export default function WorkspaceHeader({
             isResidentSession={isResidentSession}
           />
           <WorkspaceMenu />
+          <CockpitHeaderButton variant="page" />
         </div>
       ) : (
         <>

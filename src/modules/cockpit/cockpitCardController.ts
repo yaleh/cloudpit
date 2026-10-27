@@ -99,6 +99,26 @@ export type CockpitCardControllerEvent = {
   sessionId: string;
 };
 
+/**
+ * What the cards page leaves behind when its route unmounts, and reads back when it returns.
+ *
+ * WHY A SEAM AND NOT COMPONENT STATE. The page is a ROUTE: opening a card's conversation unmounts
+ * it, and coming back mounts a new controller. The rule this type carries is "the person returns
+ * to the card they were reading, at the scroll offset they left", so the memory has to outlive
+ * one controller. Injecting it also makes the round trip provable without a browser.
+ */
+export type CockpitCardMemoryState = {
+  selectedCardId: string | null;
+  /** The list's `scrollTop`, in CSS pixels. */
+  scrollPosition: number;
+};
+
+/** The two verbs the controller needs from a memory; a test passes a plain object. */
+export type CockpitCardMemory = {
+  read: () => CockpitCardMemoryState | null;
+  write: (state: CockpitCardMemoryState) => void;
+};
+
 /** The controller's two transports and its clock; a criterion binds all three. */
 export type CockpitCardControllerDeps = {
   /** Reads every open card, in the provider's order. */
@@ -114,6 +134,11 @@ export type CockpitCardControllerDeps = {
   fetchBrief?: (cardId: string) => Promise<CockpitBriefResponse>;
   /** The only clock; defaults to the browser's. */
   clock?: Clock;
+  /**
+   * Where the selection and scroll offset survive a route change. Absent means the list starts
+   * fresh; the page's binding supplies a tab-scoped store.
+   */
+  remember?: CockpitCardMemory;
   /**
    * How often to re-read in the background while started. `0` disables polling, which is what
    * a criterion uses; the hook keeps the default so another display's change arrives.
@@ -142,6 +167,8 @@ export type CockpitCardControllerSnapshot = {
   projectFilter: string | null;
   density: CockpitCardDensity;
   selectedCardId: string | null;
+  /** The scroll offset the list last reported, restored when the page is mounted again. */
+  scrollPosition: number;
   /** The card the list should keep at the top of the viewport across re-reads. */
   anchorCardId: string | null;
   /** The Details stack, oldest first; the last entry is the open drawer. */
@@ -179,6 +206,8 @@ export type CockpitCardController = {
   /** Reads every card and replaces the list in place. */
   load: () => Promise<void>;
   selectCard: (cardId: string) => void;
+  /** Records the list's scroll offset, so returning to the page restores it. */
+  setScrollPosition: (position: number) => void;
   setAnchor: (cardId: string | null) => void;
   setTypeFilter: (filter: CockpitCardTypeFilter) => void;
   setProjectFilter: (project: string | null) => void;
@@ -228,6 +257,7 @@ const initialState: CockpitCardControllerSnapshot = {
   projectFilter: null,
   density: 'cards',
   selectedCardId: null,
+  scrollPosition: 0,
   anchorCardId: null,
   detailsStack: [],
   shown: {},
@@ -350,6 +380,30 @@ function targetsOf(
   return targets;
 }
 
+/**
+ * The remembered state, or `null` for "nothing usable". A disabled/unreadable store is not a
+ * failure the card page may show: it just starts at the top.
+ */
+function readMemory(memory: CockpitCardMemory | undefined): CockpitCardMemoryState | null {
+  if (memory === undefined) return null;
+  try {
+    const state = memory.read();
+    if (state === null) return null;
+    return {
+      selectedCardId:
+        typeof state.selectedCardId === 'string' && state.selectedCardId.trim() !== ''
+          ? state.selectedCardId
+          : null,
+      scrollPosition:
+        typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
+          ? Math.max(0, state.scrollPosition)
+          : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** A failure rendered as a sentence without leaking a stack trace into the stage. */
 function failureMessage(failure: unknown): string {
   if (failure instanceof Error && failure.message.trim() !== '') return failure.message;
@@ -452,7 +506,15 @@ export function createCockpitCardController(
 ): CockpitCardController {
   const clock = deps.clock ?? defaultClock;
   const refreshIntervalMs = Math.max(0, deps.refreshIntervalMs ?? 20_000);
-  const store = createExternalStore<CockpitCardControllerSnapshot>(initialState);
+  const remembered = readMemory(deps.remember);
+  const store = createExternalStore<CockpitCardControllerSnapshot>({
+    ...initialState,
+    scrollPosition: remembered?.scrollPosition ?? 0,
+  });
+  // The selected card from the previous visit. It cannot seed the snapshot directly: `normalize`
+  // only keeps a selection whose card is visible, and at construction no card has been read yet.
+  // It is applied on the first successful read instead, where the card list can be checked.
+  let pendingSelection = remembered?.selectedCardId ?? null;
 
   let started = false;
   let disposed = false;
@@ -466,6 +528,24 @@ export function createCockpitCardController(
     store.update((previous) => normalize({ ...previous, ...patch }, clock.now()));
   };
 
+  /**
+   * Leaves the current selection and scroll offset for the next visit. A memory that refuses the
+   * write (quota, privacy mode, a test stub) is not a card-page failure: the page still works,
+   * it only starts at the top next time.
+   */
+  const writeMemory = (): void => {
+    if (deps.remember === undefined) return;
+    const snapshot = store.getSnapshot();
+    try {
+      deps.remember.write({
+        selectedCardId: snapshot.selectedCardId,
+        scrollPosition: snapshot.scrollPosition,
+      });
+    } catch {
+      // See above: remembering is an enhancement, never a precondition.
+    }
+  };
+
   const read = async (): Promise<void> => {
     if (disposed) return;
     if (inFlightRead !== null) return inFlightRead;
@@ -477,6 +557,16 @@ export function createCockpitCardController(
         const cards = await deps.fetchCards();
         if (disposed) return;
         commit({ status: 'loaded', error: null, cards: [...cards] });
+        // `normalize` has just fallen back to the first visible card, because at construction
+        // there was no card list to check the remembered selection against. Now there is one:
+        // restore it once, and only if the card is still on the list and matches the filters.
+        if (pendingSelection !== null) {
+          const rememberedCardId = pendingSelection;
+          pendingSelection = null;
+          if (store.getSnapshot().visibleCards.some((card) => card.id === rememberedCardId)) {
+            commit({ selectedCardId: rememberedCardId });
+          }
+        }
       } catch (failure) {
         if (disposed) return;
         commit({ status: 'error', error: failureMessage(failure) });
@@ -675,6 +765,10 @@ export function createCockpitCardController(
     start,
     stop,
     dispose: () => {
+      if (disposed) return;
+      // The last reading leaves with the page, so a route change that skips the unmount-time
+      // scroll report still returns to the card the person was on.
+      writeMemory();
       disposed = true;
       stop();
     },
@@ -682,7 +776,18 @@ export function createCockpitCardController(
     selectCard: (cardId) => {
       const snapshot = store.getSnapshot();
       if (!snapshot.visibleCards.some((card) => card.id === cardId)) return;
+      if (snapshot.selectedCardId === cardId) return;
       commit({ selectedCardId: cardId });
+      writeMemory();
+    },
+    setScrollPosition: (position) => {
+      if (!Number.isFinite(position)) return;
+      const next = Math.max(0, position);
+      // Scroll reports arrive once per animation frame; an unchanged offset is not a change and
+      // must not write the (synchronous) memory store again.
+      if (next === store.getSnapshot().scrollPosition) return;
+      commit({ scrollPosition: next });
+      writeMemory();
     },
     setAnchor: (cardId) => commit({ anchorCardId: cardId }),
     setTypeFilter: (filter) => commit({ typeFilter: filter }),

@@ -41,6 +41,9 @@ export const PULSE_TRIGGER_WIDE_WIDTH_PX = 110;
 export const PULSE_TRIGGER_NARROW_WIDTH_PX = 43;
 /** The trigger's height at every width, matching the header's other controls. */
 export const PULSE_TRIGGER_HEIGHT_PX = 32;
+/** The phone title row's compact trigger: an in-flight thumbnail, not a control-sized button. */
+export const PULSE_TRIGGER_COMPACT_WIDTH_PX = 64;
+export const PULSE_TRIGGER_COMPACT_HEIGHT_PX = 14;
 
 const HOUR_MS = 3_600_000;
 
@@ -134,9 +137,15 @@ type SessionPulseProps = {
   isMobile: boolean;
   /** Switches the workspace to the Quay tab. Passed in because quay must not import project-workspace. */
   onOpenQuayPanel: () => void;
+  /**
+   * The phone title row's 64×14 thumbnail. It opens the full Quay panel on press instead of the
+   * popover: at 14 px tall there is no room to present a floating panel, and the design asks
+   * this shape to be the door to the panel itself.
+   */
+  compact?: boolean;
 };
 
-type PulseTriggerVariant = 'wide' | 'narrow';
+type PulseTriggerVariant = 'wide' | 'narrow' | 'compact';
 
 /**
  * Reads the width of the header this trigger lives in and resolves the trigger's shape.
@@ -145,7 +154,7 @@ type PulseTriggerVariant = 'wide' | 'narrow';
  * is narrower than the window, and the mini gantt must yield to the pulse strip exactly when the
  * header itself gets tight.
  */
-function usePulseTriggerVariant(isMobile: boolean): {
+function usePulseTriggerVariant(isMobile: boolean, compact: boolean): {
   rootRef: RefObject<HTMLButtonElement>;
   variant: PulseTriggerVariant;
 } {
@@ -173,9 +182,11 @@ function usePulseTriggerVariant(isMobile: boolean): {
     return () => observer.disconnect();
   }, []);
 
-  const variant: PulseTriggerVariant = !isMobile && headerWidth >= PULSE_TRIGGER_WIDE_MIN_HEADER_WIDTH_PX
-    ? 'wide'
-    : 'narrow';
+  const variant: PulseTriggerVariant = compact
+    ? 'compact'
+    : !isMobile && headerWidth >= PULSE_TRIGGER_WIDE_MIN_HEADER_WIDTH_PX
+      ? 'wide'
+      : 'narrow';
   return { rootRef, variant };
 }
 
@@ -183,9 +194,9 @@ function usePulseTriggerVariant(isMobile: boolean): {
  * The title bar's quay entry point. Rendered by `WorkspaceHeader` for a `hasQuayConfig` project;
  * the trigger polls the lanes reading and opens `SessionPulsePopover`.
  */
-function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel }: SessionPulseProps) {
+function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel, compact = false }: SessionPulseProps) {
   const { t } = useTranslation();
-  const { rootRef, variant } = usePulseTriggerVariant(isMobile);
+  const { rootRef, variant } = usePulseTriggerVariant(isMobile, compact);
   const { windowHours, setWindowHours } = useSessionPulseWindow(projectId);
   const reading = useSessionPulse(projectId, true, windowHours);
   // Whether the popover is open. Essential state: the trigger owns `aria-expanded`, the popover's
@@ -216,16 +227,22 @@ function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel }: Sessi
         // The window the trigger's poll and the popover's chart share, exposed as a reading so
         // a test can see the trigger follow a selection made in the popover.
         data-window-hours={windowHours}
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
+        // The compact shape opens the Quay view itself, not a dialog, so it claims no popup.
+        {...(compact ? {} : { 'aria-haspopup': 'dialog' as const, 'aria-expanded': isOpen })}
         aria-label={t('quayPulse.triggerLabel')}
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => (compact ? onOpenQuayPanel() : setIsOpen((open) => !open))}
         style={{
-          width: variant === 'wide' ? PULSE_TRIGGER_WIDE_WIDTH_PX : PULSE_TRIGGER_NARROW_WIDTH_PX,
-          height: PULSE_TRIGGER_HEIGHT_PX,
+          width:
+            variant === 'compact'
+              ? PULSE_TRIGGER_COMPACT_WIDTH_PX
+              : variant === 'wide'
+                ? PULSE_TRIGGER_WIDE_WIDTH_PX
+                : PULSE_TRIGGER_NARROW_WIDTH_PX,
+          height: variant === 'compact' ? PULSE_TRIGGER_COMPACT_HEIGHT_PX : PULSE_TRIGGER_HEIGHT_PX,
         }}
         className={cn(
-          'relative flex shrink-0 items-center justify-center overflow-hidden rounded-md outline-none transition-colors',
+          'relative flex shrink-0 items-center justify-center overflow-hidden outline-none transition-colors',
+          variant === 'compact' ? 'rounded-sm' : 'rounded-md',
           // No border and no resting fill: the control sits inside the title bar rather than on
           // top of it. The open state is the same accent the header's other toggles use.
           isOpen
@@ -237,7 +254,7 @@ function SessionPulse({ projectId, sessionId, isMobile, onOpenQuayPanel }: Sessi
         <PulseMiniGantt gantt={reading.gantt} degraded={lanesUnavailable} />
       </button>
 
-      {isOpen && (
+      {!compact && isOpen && (
         <SessionPulsePopover
           projectId={projectId}
           sessionId={sessionId}

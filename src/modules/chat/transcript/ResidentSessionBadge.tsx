@@ -49,17 +49,22 @@ const BADGE_STATE_BY_PROCESS_STATE: Record<ResidentProcessState, BadgeState> = {
  */
 function BadgeDot({ state }: { state: BadgeState }) {
   if (state === 'exited') {
-    return <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-red-500" aria-hidden="true" />;
+    return <AlertTriangle data-resident-badge-dot="exited" className="h-2.5 w-2.5 shrink-0 text-red-500" aria-hidden="true" />;
   }
 
   if (state === 'unknown') {
     return (
-      <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full border border-dashed border-amber-500" />
+      <span
+        data-resident-badge-dot="unknown"
+        aria-hidden="true"
+        className="h-1.5 w-1.5 shrink-0 rounded-full border border-dashed border-amber-500"
+      />
     );
   }
 
   return (
     <span
+      data-resident-badge-dot={state}
       aria-hidden="true"
       className={
         state === 'running'
@@ -73,10 +78,10 @@ function BadgeDot({ state }: { state: BadgeState }) {
 /**
  * The "this is a resident session" pill, and the door to the resident process's own facts.
  *
- * Used by project-workspace's WorkspaceTitle, on the line under the session title and to the right
- * of the project name, because that is where a user looks for "what is this session" and the one
- * place that is the same on every viewport. It renders nothing for a session that is not stored
- * `resident`.
+ * Used by project-workspace's WorkspaceTitle: desktop draws the `pill` on the line under the
+ * session title and to the right of the project name; the phone draws the `letter` variant after
+ * the title itself, where the old pill no longer fits. It renders nothing for a session that is
+ * not stored `resident`.
  *
  * It replaces the arrow on the activity dock. The dock was the only thing that could open the facts,
  * so it had to stay on screen between turns, in the message flow on a phone — and a panel that opens
@@ -85,7 +90,23 @@ function BadgeDot({ state }: { state: BadgeState }) {
  * lives in the header, outside the transcript, and the panel is a portal anchored under it, so
  * opening it moves nothing and nothing can clip it.
  */
-export default function ResidentSessionBadge({ sessionId }: { sessionId: string | null }) {
+/**
+ * Which shape the pill draws.
+ *
+ * `pill` is the original `● Resident ▾` label. `letter` is the phone header's `R ▾` button: it
+ * takes one character instead of a word so the title keeps most of its width, drops the dot, and
+ * says `running` or `stopped` with its colour instead. Both open the same panel through the
+ * same state — the variant changes the trigger's drawing, not its behaviour.
+ */
+export type ResidentSessionBadgeVariant = 'pill' | 'letter';
+
+export default function ResidentSessionBadge({
+  sessionId,
+  variant = 'pill',
+}: {
+  sessionId: string | null;
+  variant?: ResidentSessionBadgeVariant;
+}) {
   const { t } = useTranslation('chat');
   const { snapshot, error } = useSessionHosts();
   // Whether the facts panel is showing. It cannot be derived: it is a disclosure the user opens and
@@ -198,6 +219,7 @@ export default function ResidentSessionBadge({ sessionId }: { sessionId: string 
         ref={triggerRef}
         type="button"
         data-resident-badge={badgeState}
+        data-resident-badge-variant={variant}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
@@ -210,21 +232,35 @@ export default function ResidentSessionBadge({ sessionId }: { sessionId: string 
         // overflow. The hit area is 24px (WCAG 2.5.8) by an invisible extension upward and to the left
         // only: the title block scrolls horizontally, so anything this pill paints past its right or
         // bottom edge would become scrollable overflow of that container.
-        className={`relative inline-flex h-3.5 shrink-0 items-center gap-1 rounded-full border px-1.5 text-[11px] leading-none transition-colors before:absolute before:-left-2 before:-top-2.5 before:bottom-0 before:right-0 hover:bg-accent/60 ${
+        className={`relative inline-flex h-3.5 shrink-0 items-center gap-1 border text-[11px] leading-none transition-colors before:absolute before:-left-2 before:-top-2.5 before:bottom-0 before:right-0 hover:bg-accent/60 ${
+          variant === 'letter' ? 'rounded px-1' : 'rounded-full px-1.5'
+        } ${
           badgeState === 'exited'
             ? 'border-red-500/40 text-red-600 dark:text-red-400'
-            : 'border-border/60 text-muted-foreground'
+            : badgeState === 'running'
+              ? variant === 'letter'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : 'border-border/60 text-muted-foreground'
+              : 'border-border/60 text-muted-foreground'
         }`}
       >
-        <BadgeDot state={badgeState} />
-        <span>{label}</span>
-        {heldTaskCount > 0 && (
-          <span
-            data-resident-badge-task-count={heldTaskCount}
-            className="rounded-full bg-muted px-1 tabular-nums"
-          >
-            {t('resident.backgroundTasks.count', { n: heldTaskCount, defaultValue: '{{n}} tasks' })}
-          </span>
+        {variant === 'letter' ? (
+          // No dot: at this width the colour IS the state reading, and a dot beside one letter
+          // would spend half the trigger restating it.
+          <span aria-hidden="true">R</span>
+        ) : (
+          <>
+            <BadgeDot state={badgeState} />
+            <span>{label}</span>
+            {heldTaskCount > 0 && (
+              <span
+                data-resident-badge-task-count={heldTaskCount}
+                className="rounded-full bg-muted px-1 tabular-nums"
+              >
+                {t('resident.backgroundTasks.count', { n: heldTaskCount, defaultValue: '{{n}} tasks' })}
+              </span>
+            )}
+          </>
         )}
         <ChevronDown className={`h-2.5 w-2.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>

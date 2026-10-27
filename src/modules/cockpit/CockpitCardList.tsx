@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 
@@ -76,6 +76,29 @@ function CockpitCardListBound({
   const { t } = useTranslation();
   const { snapshot, controller } = binding;
   const [startIntentProject, setStartIntentProject] = useState<string | null>(null);
+  // The page's own scroll container. Only the `page` variant owns the offset: the column keeps
+  // its own layout (and its Details is pushed inside), so reporting its scroll there would write
+  // the column's position into the reading the phone page restores.
+  const scrollRef = useRef<HTMLElement>(null);
+  // Restored once, and only after the first successful read: before the cards exist the section
+  // has no height to scroll, so an earlier write would be clamped to 0.
+  const scrollRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (variant !== 'page' || scrollRestoredRef.current) return;
+    if (snapshot.status !== 'loaded') return;
+    const element = scrollRef.current;
+    if (element === null) return;
+    scrollRestoredRef.current = true;
+    if (snapshot.scrollPosition > 0) element.scrollTop = snapshot.scrollPosition;
+  }, [snapshot.scrollPosition, snapshot.status, variant]);
+
+  /** Every scroll event persists the offset in the controller's memory (see `CockpitCardMemory`). */
+  const handleScroll = (): void => {
+    if (variant !== 'page') return;
+    const element = scrollRef.current;
+    if (element !== null) controller.setScrollPosition(element.scrollTop);
+  };
 
   // Number keys select options; Escape is deliberately absent (it aborts a running turn
   // elsewhere in the app, and the cockpit must never swallow it). Keys typed into a field belong
@@ -117,6 +140,8 @@ function CockpitCardListBound({
 
   return (
     <section
+      ref={scrollRef}
+      onScroll={handleScroll}
       data-testid="cockpit-card-list"
       data-cockpit-cards={JSON.stringify(reading)}
       data-cockpit-card-list-variant={variant}

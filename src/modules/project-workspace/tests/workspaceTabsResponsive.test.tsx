@@ -592,8 +592,16 @@ test('mobile header keeps its pre-change child order and renders no spacer', () 
     'the desktop-only spacer must not render on mobile',
   );
   assert.ok(
+    children[0].querySelector('[data-testid="quay-pulse-trigger"]'),
+    // AC-430 moved the pulse out of the action row: it is now the in-flight thumbnail after the
+    // project name in the title block (the old Resident pill position), so the phone's right-hand
+    // row is picker + menu + cockpit entry only.
+    'the title block must carry the pulse trigger, after the project name',
+  );
+  assert.equal(
     children[1].querySelector('[data-testid="quay-pulse-trigger"]'),
-    'the mobile action row must still carry the pulse trigger',
+    null,
+    'the mobile action row must no longer carry the pulse trigger',
   );
   assert.ok(
     children[1].querySelector('[data-workspace-tab][aria-haspopup="dialog"]'),
