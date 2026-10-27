@@ -1,7 +1,7 @@
 ---
 id: AC-422
 title: 卡片线上类型两侧一致：server 与 src 的 CockpitCard 由 TypeSync 判据钉住
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:03:38.064Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
