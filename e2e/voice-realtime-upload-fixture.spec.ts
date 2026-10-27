@@ -715,6 +715,106 @@ async function armScenario(api: APIRequestContext, projectPath: string, scenario
 }
 
 // ---------------------------------------------------------------------------------------------
+// Horizontal overflow — AC-323's 375px reading, taken as an assertion rather than assumed.
+// ---------------------------------------------------------------------------------------------
+
+/** One box on the bar's ancestor path, as the page reports it. */
+type HorizontalBox = {
+  label: string;
+  overflowX: string;
+  scrollLeft: number;
+  scrollWidth: number;
+  clientWidth: number;
+};
+
+/** What the 375px/390px legs assert: the bar's box plus every container that could scroll it away. */
+type HorizontalOverflowReading = {
+  viewportWidth: number;
+  documentClientWidth: number;
+  documentScrollWidth: number;
+  bar: { x: number; width: number } | null;
+  ancestors: HorizontalBox[];
+  offenders: string[];
+};
+
+/**
+ * AC-323 at the narrow widths: WHERE the bar's box is, and whether anything on the path from the bar
+ * to the document holds horizontal scroll.
+ *
+ * The past defect was not the bar being wide: the closed InputOutline panel is `absolute right-0
+ * translate-x-full`, so it hangs 256px past the session area's right edge. The session container
+ * clipped it visually but still counted it in its scrollable overflow, and a scroll-into-view during
+ * the Live Voice gesture moved the WHOLE session (bar at x = -139) to reveal it. `box.x >= 0` alone
+ * cannot say that, and cannot say which container did it — this reading names every ancestor and its
+ * numbers, so a regression fails with the container's name in the message instead of a bare negative.
+ *
+ * `offenders` is every ancestor whose content is wider than its client box. The bar's own chain has
+ * no intentional horizontal scroller: the transcript scrolls VERTICALLY (`.chat-messages-pane` has
+ * `overflow-y-auto`, overflow-x visible, and a bar-width box), and the composer's chips row is not on
+ * this path — the bar replaces the textarea inside `[data-chat-composer]`. If a future layout adds a
+ * legitimate `overflow-x-auto` ancestor, it has to be named here deliberately rather than silently
+ * ignored.
+ */
+async function readHorizontalOverflow(page: Page): Promise<HorizontalOverflowReading> {
+  return page.evaluate(() => {
+    const labelOf = (element: Element): string => {
+      const testId = element.getAttribute('data-testid');
+      if (testId) return `[data-testid="${testId}"]`;
+      for (const attribute of ['data-chat-composer', 'data-input-outline-panel']) {
+        if (element.hasAttribute(attribute)) return `[${attribute}]`;
+      }
+      const classes = typeof element.className === 'string'
+        ? element.className.trim().split(/\s+/).slice(0, 4).join('.')
+        : '';
+      return classes ? `${element.tagName.toLowerCase()}.${classes}` : element.tagName.toLowerCase();
+    };
+    const bar = document.querySelector('[data-testid="voice-realtime-bar"]');
+    const ancestors: Array<{
+      label: string;
+      overflowX: string;
+      scrollLeft: number;
+      scrollWidth: number;
+      clientWidth: number;
+    }> = [];
+    for (let element: Element | null = bar; element; element = element.parentElement) {
+      const style = getComputedStyle(element);
+      ancestors.push({
+        label: labelOf(element),
+        overflowX: style.overflowX,
+        scrollLeft: element.scrollLeft,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      });
+    }
+    const box = bar?.getBoundingClientRect() ?? null;
+    return {
+      viewportWidth: window.innerWidth,
+      documentClientWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      // `left` is the border box the test's `boundingBox()` reports for this element: no border, no
+      // page zoom in these legs, so the two agree.
+      bar: box ? { x: box.left, width: box.width } : null,
+      ancestors,
+      // A scroll container is only an offender when it is a SCROLLER with hidden content: `overflow-x:
+      // visible` boxes report scrollWidth === clientWidth in Chromium, so they never appear here.
+      offenders: ancestors
+        .filter((entry) => entry.clientWidth > 0 && entry.scrollWidth > entry.clientWidth + 1)
+        .map((entry) => `${entry.label} scrollWidth=${entry.scrollWidth} clientWidth=${entry.clientWidth} scrollLeft=${entry.scrollLeft} overflow-x=${entry.overflowX}`),
+    };
+  });
+}
+
+/** The assertion half of {@link readHorizontalOverflow}: the reading fails the case, not just prints. */
+function expectNoHorizontalOverflow(reading: HorizontalOverflowReading, where: string): void {
+  const detail = JSON.stringify(reading);
+  expect(reading.bar, `${where}: the voice bar must have a box; reading=${detail}`).not.toBeNull();
+  expect(reading.bar!.x, `${where}: the bar must start inside the viewport; reading=${detail}`).toBeGreaterThanOrEqual(0);
+  expect(reading.bar!.x + reading.bar!.width, `${where}: the bar must end inside the viewport; reading=${detail}`).toBeLessThanOrEqual(reading.viewportWidth + 1);
+  expect(reading.documentScrollWidth, `${where}: the document must not scroll horizontally; reading=${detail}`).toBeLessThanOrEqual(reading.viewportWidth);
+  expect(reading.offenders, `${where}: no container on the bar's path may hold horizontal scroll; reading=${detail}`).toEqual([]);
+}
+
+// ---------------------------------------------------------------------------------------------
 // The control.
 // ---------------------------------------------------------------------------------------------
 
@@ -1150,6 +1250,12 @@ test.describe('voice realtime upload fixture', () => {
     // AC1/AC2 at 375px: the bar is on screen, within the viewport, and the
     // composer is not — one input at a time, at this width too.
     const bar = page.getByTestId('voice-realtime-bar');
+    // AC1/AC5: the reading that names WHY a negative x happens — every ancestor's scroll numbers,
+    // and the document's own scrollWidth — asserted, not merely printed. Logged so a red run's
+    // report carries the numbers the completion record quotes.
+    const overflowReading = await readHorizontalOverflow(page);
+    console.log(`[ac323-375-overflow] ${JSON.stringify(overflowReading)}`);
+    expectNoHorizontalOverflow(overflowReading, '375px Live Voice');
     const box = await bar.boundingBox();
     if (!box) await explain(page, 'the voice bar had no box at 375px');
     expect(box!.width).toBeGreaterThan(0);
@@ -1200,6 +1306,25 @@ test.describe('voice realtime upload fixture', () => {
       .toBeGreaterThanOrEqual(2);
 
     expect(await mediaCallCount(page)).toBe(0);
+  });
+
+  // AC5's second width. 375px is where the defect was measured, but the overhang is viewport
+  // independent (the closed panel is a fixed 256px), so a second narrow width is the cheap check
+  // that the fix is the layout's and not a coincidental fit at exactly 375. No upload gesture here:
+  // the reading is about where the bar is and what the ancestor chain can scroll.
+  test('390px: the bar stays inside the viewport with no horizontal overflow', async () => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(COMPOSER_TEXTAREA)).toBeVisible({ timeout: 30_000 });
+
+    await enterLiveVoice(page);
+    const reading = await readHorizontalOverflow(page);
+    console.log(`[ac323-390-overflow] ${JSON.stringify(reading)}`);
+    expectNoHorizontalOverflow(reading, '390px Live Voice');
+
+    await page.getByTestId('voice-realtime-end').click();
+    await expect(page.getByTestId('voice-realtime-bar')).toHaveCount(0);
+    await expect(page.locator(COMPOSER_TEXTAREA)).toBeVisible({ timeout: 15_000 });
   });
 
   test('words heard and relayed verbatim appear once in the transcript, not as a caption AND a message', async () => {
