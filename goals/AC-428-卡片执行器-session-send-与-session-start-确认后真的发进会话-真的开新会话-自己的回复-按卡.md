@@ -1,7 +1,7 @@
 ---
 id: AC-428
 title: 卡片执行器 session.send 与 session.start：确认后真的发进会话、真的开新会话；「自己的回复」按卡片主体给出默认执行器
-status: draft
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -15,4 +15,20 @@ expect: 以注入的发送与建会话函数：确认一个绑定 session.send
   不存在。
 origin: 本会话 2026-10-27：K1 只交付了夹具执行器，确认后什么都不会真的发生；K5 实测「自己的回复」只在提供方声明 ownReply
   的卡片上出现，与用户确认的「下拉末项一律是自己的回复」不符。用户同意先立不依赖 fleet 的第二批任务。
+activatedAt: 2026-10-27T02:53:40.552Z
+statusLog:
+  - at: 2026-10-27T02:53:40.552Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:04:32.230Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:53:40.552Z
 ---
