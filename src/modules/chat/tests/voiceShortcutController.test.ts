@@ -192,6 +192,30 @@ test('a role="dialog" layer is guarded the same way', () => {
   assert.equal(h.calls.live, 0);
 });
 
+test('the suggestion chips listbox is not a floating layer', () => {
+  const h = harness(shortcuts({ liveVoiceChord: chord({ code: 'KeyL', ctrl: true }) }));
+
+  layer = document.createElement('div');
+  layer.setAttribute('role', 'listbox');
+  layer.setAttribute('data-suggestion-layout', 'wrap');
+  document.body.appendChild(layer);
+
+  const event = h.press({ code: 'KeyL', ctrlKey: true });
+  assert.equal(h.calls.live, 1, 'the inline chips must not swallow a bound key');
+  assert.equal(event.prevented, true);
+});
+
+test('a plain listbox layer is still guarded', () => {
+  const h = harness(shortcuts({ liveVoiceChord: chord({ code: 'KeyL', ctrl: true }) }));
+
+  layer = document.createElement('div');
+  layer.setAttribute('role', 'listbox');
+  document.body.appendChild(layer);
+
+  h.press({ code: 'KeyL', ctrlKey: true });
+  assert.equal(h.calls.live, 0, 'a real dropdown listbox stays a floating layer');
+});
+
 test('an unavailable surface does not consume its key', () => {
   const h = harness(shortcuts({
     dictationChord: chord({ code: 'KeyD', ctrl: true }),

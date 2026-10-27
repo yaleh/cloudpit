@@ -65,9 +65,14 @@ export type VoiceShortcutControllerDeps = {
  * The first three roles are `ChatInterface`'s Escape guard contract. The last two
  * cover the app's Settings dialog, whose root is a `.modal-backdrop` without a
  * `dialog` role — the exact layer in which the key-capture form lives.
+ *
+ * The composer's suggestion chips are a `role="listbox"` too, but they are an
+ * inline part of the empty composer, not a floating layer — a session whose chips
+ * are showing must not lose its bindings. The chips carry `data-suggestion-layout`,
+ * which is how this selector tells them apart from a real dropdown listbox.
  */
 const OPEN_LAYER_SELECTOR =
-  '[role="dialog"],[role="menu"],[role="listbox"],[aria-modal="true"],.modal-backdrop';
+  '[role="dialog"],[role="menu"],[role="listbox"]:not([data-suggestion-layout]),[aria-modal="true"],.modal-backdrop';
 
 /** True while any of the app's floating layers is mounted. */
 function floatingLayerIsOpen(): boolean {
