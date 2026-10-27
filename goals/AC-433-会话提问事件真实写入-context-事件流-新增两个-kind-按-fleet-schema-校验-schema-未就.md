@@ -1,7 +1,7 @@
 ---
 id: AC-433
 title: 会话提问事件真实写入 context 事件流：新增两个 kind，按 fleet schema 校验，schema 未就绪时只记录不报错
-status: draft
+status: active
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,4 +18,15 @@ origin: 本会话 2026-10-27：observation-session-ask-decision-digest 已交付
   session.asking 与 session.answered 的注入点，生产组合里写入器未绑定；quay-fleet 已立
   fleet-context-schema-session-ask-events，schema 将从 version 0 升到 1 并加入这两个
   kind（producer 为 cloudcli）。
+activatedAt: 2026-10-27T02:56:48.279Z
+statusLog:
+  - at: 2026-10-27T02:56:48.279Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:56:48.279Z
 ---
