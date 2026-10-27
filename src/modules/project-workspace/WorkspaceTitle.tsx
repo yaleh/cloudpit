@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { LLMProviderLogo } from '@/shared/ui';
@@ -15,6 +16,14 @@ type WorkspaceTitleProps = {
   shouldShowQuayTab?: boolean;
   /** Optional, absent means "no architecture tab", the same contract as `shouldShowQuayTab`. */
   shouldShowArchitectureTab?: boolean;
+  /**
+   * The phone layout moves the two compact controls into the title block: the `R ▾` resident
+   * button after the title, and the Quay thumbnail after the project name. Absent (desktop) keeps
+   * both in their original places — the pill under the project name and the pulse in the right row.
+   */
+  isMobile?: boolean;
+  /** The compact Quay pulse trigger, drawn after the project name on a phone. */
+  quayPulse?: ReactNode;
 };
 
 function getTabTitle(
@@ -66,6 +75,8 @@ export default function WorkspaceTitle({
   shouldShowTasksTab,
   shouldShowQuayTab = false,
   shouldShowArchitectureTab = false,
+  isMobile = false,
+  quayPulse = null,
 }: WorkspaceTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -88,29 +99,51 @@ export default function WorkspaceTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
-            <h2 title={getSessionTitle(selectedSession)} className="truncate text-sm font-semibold leading-tight text-foreground">
-              {getSessionTitle(selectedSession)}
-            </h2>
-            {/* The project name and, beside it, the resident pill. Both are 11px so the line is one
-                line tall whether or not the pill is there; the name gives way first when the row is
-                narrow, because the pill is the part that is a control. Keyed by session so a switch
-                to another session closes the pill's panel rather than carrying it over. */}
+            {/* The phone puts the resident entry AFTER the title — a one-letter `R ▾` — because the
+                pill cost the title ~40 px of a 155 px line. The title shrinks instead, which the
+                design accepts; the button never shrinks. Keyed by session so a switch to another
+                session closes the panel rather than carrying it over. */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h2
+                title={getSessionTitle(selectedSession)}
+                className="min-w-0 flex-1 truncate text-sm font-semibold leading-tight text-foreground"
+              >
+                {getSessionTitle(selectedSession)}
+              </h2>
+              {isMobile && (
+                <ResidentSessionBadge
+                  key={selectedSession.id}
+                  sessionId={selectedSession.id}
+                  variant="letter"
+                />
+              )}
+            </div>
+            {/* The project name and, beside it, the one control that used to share this line: the
+                resident pill on desktop, the Quay thumbnail on a phone (its old pill position).
+                Both are 11px so the line is one line tall; the name gives way first when the row is
+                narrow, because the control is the part that is a control. */}
             <div className="flex min-w-0 items-center gap-1.5">
               <div className="min-w-0 truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
-              <ResidentSessionBadge key={selectedSession.id} sessionId={selectedSession.id} />
+              {isMobile ? quayPulse : <ResidentSessionBadge key={selectedSession.id} sessionId={selectedSession.id} />}
             </div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">
             <h2 className="text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
-            <div className="truncate text-xs leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="min-w-0 truncate text-xs leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+              {isMobile && quayPulse}
+            </div>
           </div>
         ) : (
           <div className="min-w-0">
             <h2 className="text-sm font-semibold leading-tight text-foreground">
               {getTabTitle(activeTab, shouldShowTasksTab, shouldShowQuayTab, shouldShowArchitectureTab, t, pluginDisplayName)}
             </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="min-w-0 truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+              {isMobile && quayPulse}
+            </div>
           </div>
         )}
       </div>

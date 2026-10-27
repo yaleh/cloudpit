@@ -15,6 +15,8 @@ import type {
   CockpitCardControllerDeps,
   CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
+  CockpitCardMemory,
+  CockpitCardMemoryState,
 } from '@/modules/cockpit/cockpitCardController';
 
 /**
@@ -447,6 +449,73 @@ describe('filters keep provider order', () => {
     h.controller.setProjectFilter('p2');
     expect(h.snapshot().visibleCards.map((candidate) => candidate.id)).toEqual(['fix', 'stuck']);
     expect(h.snapshot().selectedCardId).toBe('fix');
+  });
+});
+
+describe('the card page returns to where it was', () => {
+  /** The route memory a mounted page leaves behind; a plain object proves the seam. */
+  function memoryHarness(): { remember: CockpitCardMemory; state: () => CockpitCardMemoryState | null } {
+    let state: CockpitCardMemoryState | null = null;
+    return {
+      remember: {
+        read: () => state,
+        write: (next) => {
+          state = { ...next };
+        },
+      },
+      state: () => state,
+    };
+  }
+
+  it('restores the selected card and the recorded scroll offset on the next visit', async () => {
+    const memory = memoryHarness();
+    const cards = [card('a'), card('b', { rank: 2 }), card('c', { rank: 3 })];
+
+    // First visit: the person opens the page, selects the third card and scrolls down.
+    const first = harness(cards, { remember: memory.remember });
+    await first.controller.load();
+    first.controller.selectCard('c');
+    first.controller.setScrollPosition(420);
+    expect(memory.state()).toEqual({ selectedCardId: 'c', scrollPosition: 420 });
+    // The route unmounts on the way to a conversation.
+    first.controller.dispose();
+
+    // Back on the page: a NEW controller, as the route remounts one.
+    const second = harness(cards, { remember: memory.remember });
+    // The offset is known before the first read; the selection waits for the card list, which
+    // does not exist yet (`normalize` cannot keep a selection it cannot see).
+    expect(second.snapshot().scrollPosition).toBe(420);
+    expect(second.snapshot().selectedCardId).toBeNull();
+
+    await second.controller.load();
+    expect(second.snapshot().selectedCardId).toBe('c');
+    expect(second.snapshot().scrollPosition).toBe(420);
+  });
+
+  it('does not resurrect a remembered card the filters no longer show', async () => {
+    const memory = memoryHarness();
+    memory.remember.write({ selectedCardId: 'gone', scrollPosition: 90 });
+
+    const h = harness([card('a'), card('b', { rank: 2 })], { remember: memory.remember });
+    await h.controller.load();
+
+    expect(h.snapshot().selectedCardId).toBe('a');
+    expect(h.snapshot().scrollPosition).toBe(90);
+  });
+
+  it('starts at the top when the memory cannot be read', async () => {
+    const h = harness([card('a')], {
+      remember: {
+        read: () => {
+          throw new Error('storage is blocked');
+        },
+        write: () => undefined,
+      },
+    });
+    await h.controller.load();
+
+    expect(h.snapshot().scrollPosition).toBe(0);
+    expect(h.snapshot().selectedCardId).toBe('a');
   });
 });
 
