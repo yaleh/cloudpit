@@ -1,7 +1,7 @@
 ---
 id: AC-434
 title: 每张会话提问卡都有缺省建议：助手原文推荐优先（source=assistant），助手没推荐时由同一次摘要调用的判官补一项（source=judge，附理由），不自动执行
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -20,4 +20,10 @@ origin: 2026-10-28 用户在手机上发现每张卡都停在「Choose an option
   报告建议：默认优先助手推荐，判官只在助手没给推荐时补一条 source=judge 的建议，不进入自动档；K3 与 AC-424
   实现时误写为「无推荐不设默认」。
 activatedAt: 2026-10-27T22:19:40.275Z
+statusLog:
+  - at: 2026-10-27T22:47:47.953Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 ---
