@@ -58,6 +58,11 @@ extra:
 - [x] 存在可用场景时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 并贴 JSON 报告与检查点截图；无匹配场景则在本项注明「无可用场景」。
   - 无可用场景：`e2e/scenarios/` 下只有 `cockpit-cards-confirm.json`、`cockpit-mode-switch.json`、`quay-wall-focus-pin-utter.json` 三个 cockpit 场景，均不覆盖语音快捷键；未伪造场景。
 
+## Evidence
+
+- 2026-10-27（round 2，修上一轮 suite-red）：`server/shared/tests/architecture-ratchet.baseline.json` 走上限基线自带的 RECORDED CHANGE 通道，记录本任务接线的两个 oversize 读数：`src/modules/chat/ChatInterface.tsx` 1443→1477、`src/modules/chat/composer/ChatComposer.tsx` 1628→1633，理由写进该文件 `note`（新增的 `stopAndSendDictation`/`isDictationRecording`/`isLiveVoiceActive`/`isClearAvailable` 四个面板级读数和 `stopAndSend`+`recording` 注册就是本任务的交付接线；这些事实只有 pane 读得到，React-free controller 读不到）。单独重跑 `bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → `tests 6 / pass 6 / fail 0`（未上调任何其他读数；该轮 note 里 `cockpitCardController.ts`、`server/index.ts`、`smallHelperCopies` 只有「可下调基线」提示）。上一轮 fan-in 日志只留下首行，本地重跑确认同轮实际有两条 oversize 违规，ChatComposer 是日志里看不到的第二条。
+- 同轮复跑 AC 的窄测试全部仍绿：controller `17 passed`、shared `9 passed`、settings `8 passed`，`npm run typecheck` 退出 0，`npx oxlint …` 退出 0（仅两条既有 tailwind 警告）。
+
 ## Touches
 
 - src/shared/voiceShortcuts.ts
@@ -69,6 +74,7 @@ extra:
 - src/modules/chat/composer/ChatComposer.tsx
 - src/modules/settings/tabs/VoiceShortcutsSection.tsx
 - src/modules/settings/tests/voiceShortcutsSettings.test.tsx
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-voice-shortcut-options.md
 
 ## ADR-007 dark axis
