@@ -2,7 +2,7 @@
 id: gap-transcript-selection-clear-waits-for-pointer-release
 title: Transcript 选区：指针按下期间也不清除旧的 quoted chip，松手后再一次性读取（避免 mousedown 折叠旧选区导致
   chip 消失、高度抖动）
-status: ready
+status: done
 labels:
   - gap
   - defect
