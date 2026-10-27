@@ -708,9 +708,14 @@ export default function ChatComposer({
   // the availability changes, so a stale closure is never what the key reaches.
   useEffect(() => {
     if (!registerDictationToggle) return undefined;
-    registerDictationToggle({ toggle: handleVoiceToggle, available: voiceAvailable });
+    registerDictationToggle({
+      toggle: handleVoiceToggle,
+      stopAndSend: () => voiceStop({ send: true }),
+      recording: voiceState === 'recording',
+      available: voiceAvailable,
+    });
     return () => registerDictationToggle(null);
-  }, [registerDictationToggle, handleVoiceToggle, voiceAvailable]);
+  }, [registerDictationToggle, handleVoiceToggle, voiceState, voiceStop, voiceAvailable]);
 
   // The composer's stop entry reads the same liveness the dock does: a greyed
   // submit and a greyed dock control are one story about one unreachable server,

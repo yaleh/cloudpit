@@ -28,6 +28,9 @@ const shortcuts = (overrides: Partial<VoiceShortcuts> = {}): VoiceShortcuts => (
   enabled: true,
   dictationChord: null,
   liveVoiceChord: null,
+  dictationSendOnStop: false,
+  crossSurfaceCancel: false,
+  clearInputChord: null,
   ...overrides,
 });
 
@@ -36,8 +39,14 @@ function harness(initial: VoiceShortcuts = shortcuts()) {
   let attached = 0;
   let detached = 0;
   let stored = initial;
-  const calls = { dictation: 0, live: 0 };
-  const available = { dictation: true, live: true };
+  const calls = { dictation: 0, live: 0, stopAndSend: 0, clear: 0 };
+  const available = {
+    dictation: true,
+    live: true,
+    recording: false,
+    liveActive: false,
+    clear: true,
+  };
 
   const controller = createVoiceShortcutController({
     addKeydown: (handler) => {
@@ -58,8 +67,17 @@ function harness(initial: VoiceShortcuts = shortcuts()) {
     toggleLiveVoice: () => {
       calls.live += 1;
     },
+    stopAndSendDictation: () => {
+      calls.stopAndSend += 1;
+    },
+    clearInput: () => {
+      calls.clear += 1;
+    },
     isDictationAvailable: () => available.dictation,
     isLiveVoiceAvailable: () => available.live,
+    isDictationRecording: () => available.recording,
+    isLiveVoiceActive: () => available.liveActive,
+    isClearAvailable: () => available.clear,
   });
   controller.start();
 
@@ -161,7 +179,7 @@ test('the master switch turns every binding off', () => {
 
   h.press({ code: 'KeyD', ctrlKey: true });
   h.press({ code: 'KeyL', ctrlKey: true });
-  assert.deepEqual(h.calls, { dictation: 0, live: 0 });
+  assert.deepEqual(h.calls, { dictation: 0, live: 0, stopAndSend: 0, clear: 0 });
 });
 
 test('no dispatch while a floating layer is open', () => {
@@ -226,7 +244,7 @@ test('an unavailable surface does not consume its key', () => {
 
   const dictation = h.press({ code: 'KeyD', ctrlKey: true });
   const live = h.press({ code: 'KeyL', ctrlKey: true });
-  assert.deepEqual(h.calls, { dictation: 0, live: 0 });
+  assert.deepEqual(h.calls, { dictation: 0, live: 0, stopAndSend: 0, clear: 0 });
   assert.equal(dictation.prevented, false);
   assert.equal(live.prevented, false);
 });
@@ -238,7 +256,134 @@ test('dictation wins when both surfaces are bound to the same keys', () => {
   }));
 
   h.press({ code: 'KeyD', ctrlKey: true });
-  assert.deepEqual(h.calls, { dictation: 1, live: 0 });
+  assert.deepEqual(h.calls, { dictation: 1, live: 0, stopAndSend: 0, clear: 0 });
+});
+
+test('cross-surface cancel: the dictation key leaves Live Voice instead of toggling dictation', () => {
+  const h = harness(shortcuts({
+    crossSurfaceCancel: true,
+    dictationChord: chord({ code: 'KeyD', ctrl: true }),
+  }));
+  // Live Voice is on screen, so the composer's dictation surface is gone.
+  h.available.liveActive = true;
+  h.available.dictation = false;
+
+  const event = h.press({ code: 'KeyD', ctrlKey: true });
+
+  assert.equal(h.calls.live, 1, 'the press leaves Live Voice through the mode toggle');
+  assert.equal(h.calls.dictation + h.calls.stopAndSend, 0, 'no dictation is started');
+  assert.equal(event.prevented, true, 'the press is claimed as a cancel');
+
+  // Without the option the same state means "dictation is unavailable": the
+  // key belongs to nobody and is not swallowed.
+  const plain = harness(shortcuts({
+    crossSurfaceCancel: false,
+    dictationChord: chord({ code: 'KeyD', ctrl: true }),
+  }));
+  plain.available.liveActive = true;
+  plain.available.dictation = false;
+
+  const unclaimed = plain.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(plain.calls, { dictation: 0, live: 0, stopAndSend: 0, clear: 0 });
+  assert.equal(unclaimed.prevented, false);
+});
+
+test('cross-surface cancel: the Live Voice key stops dictation without sending and never enters Live Voice', () => {
+  const h = harness(shortcuts({
+    crossSurfaceCancel: true,
+    // Send-on-stop is on to prove the cancel path is its own route: a cancel
+    // stops the listen, it does not submit what was heard.
+    dictationSendOnStop: true,
+    liveVoiceChord: chord({ code: 'KeyL', ctrl: true }),
+  }));
+  h.available.recording = true;
+
+  const event = h.press({ code: 'KeyL', ctrlKey: true });
+
+  assert.equal(h.calls.dictation, 1, 'the dictation toggle stops the running listen');
+  assert.equal(h.calls.live, 0, 'Live Voice is not entered');
+  assert.equal(h.calls.stopAndSend, 0, 'a cancel never sends');
+  assert.equal(event.prevented, true);
+
+  // Without the option the same press is the ordinary Live Voice entry.
+  const plain = harness(shortcuts({
+    crossSurfaceCancel: false,
+    liveVoiceChord: chord({ code: 'KeyL', ctrl: true }),
+  }));
+  plain.available.recording = true;
+  plain.press({ code: 'KeyL', ctrlKey: true });
+  assert.deepEqual(plain.calls, { dictation: 0, live: 1, stopAndSend: 0, clear: 0 });
+});
+
+test('send-on-stop makes the dictation key submit a running listen, and only a running one', () => {
+  const h = harness(shortcuts({
+    dictationSendOnStop: true,
+    dictationChord: chord({ code: 'KeyD', ctrl: true }),
+  }));
+
+  h.available.recording = false;
+  h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 0, stopAndSend: 0, clear: 0 }, 'starting is still a start');
+
+  h.available.recording = true;
+  h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 0, stopAndSend: 1, clear: 0 }, 'stopping submits instead');
+
+  // Off by default: the same recording press is an ordinary stop.
+  const plain = harness(shortcuts({
+    dictationChord: chord({ code: 'KeyD', ctrl: true }),
+  }));
+  plain.available.recording = true;
+  plain.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(plain.calls, { dictation: 1, live: 0, stopAndSend: 0, clear: 0 });
+});
+
+test('the clear binding routes to clearInput only while the Escape guard allows it', () => {
+  const h = harness(shortcuts({ clearInputChord: chord({ code: 'KeyK', ctrl: true }) }));
+
+  const cleared = h.press({ code: 'KeyK', ctrlKey: true });
+  assert.equal(h.calls.clear, 1);
+  assert.equal(cleared.prevented, true);
+
+  // A running turn, a dock turn, or an open menu closes the guard; the key is
+  // then not ours to act on (and not swallowed).
+  h.available.clear = false;
+  const blocked = h.press({ code: 'KeyK', ctrlKey: true });
+  assert.equal(h.calls.clear, 1, 'the blocked press clears nothing');
+  assert.equal(blocked.prevented, false);
+});
+
+test('the three routes are ordered dictation, then Live Voice, then clear', () => {
+  const sameKey = chord({ code: 'KeyD', ctrl: true });
+  const h = harness(shortcuts({
+    dictationChord: sameKey,
+    liveVoiceChord: sameKey,
+    clearInputChord: sameKey,
+  }));
+
+  h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 0, stopAndSend: 0, clear: 0 });
+
+  // The first matching binding OWNS the press: an unavailable dictation does
+  // not silently fall through to Live Voice or to clear (the same rule the
+  // two-surface controller already had).
+  h.available.dictation = false;
+  const unclaimed = h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 0, stopAndSend: 0, clear: 0 });
+  assert.equal(unclaimed.prevented, false, 'nothing acted, so the key is not swallowed');
+
+  // With dictation unbound the same chord belongs to Live Voice…
+  h.setShortcuts(shortcuts({
+    liveVoiceChord: sameKey,
+    clearInputChord: sameKey,
+  }));
+  h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 1, stopAndSend: 0, clear: 0 });
+
+  // …and with Live Voice unbound too, to clear.
+  h.setShortcuts(shortcuts({ clearInputChord: sameKey }));
+  h.press({ code: 'KeyD', ctrlKey: true });
+  assert.deepEqual(h.calls, { dictation: 1, live: 1, stopAndSend: 0, clear: 1 });
 });
 
 test('start is idempotent and stop detaches exactly once', () => {
@@ -262,4 +407,8 @@ test('the snapshot reports whether the feature is armed, and follows a stored ch
   h.setShortcuts(shortcuts({ enabled: true, dictationChord: null, liveVoiceChord: null }));
   h.controller.refresh();
   assert.equal(h.controller.getSnapshot().active, false, 'on but nothing bound is not armed');
+
+  h.setShortcuts(shortcuts({ enabled: true, clearInputChord: chord({ code: 'KeyK', ctrl: true }) }));
+  h.controller.refresh();
+  assert.equal(h.controller.getSnapshot().active, true, 'a clear-only binding still arms the feature');
 });
