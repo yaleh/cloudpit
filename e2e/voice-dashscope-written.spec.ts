@@ -841,7 +841,7 @@ const awaitConfigWrite = async (leg: Leg, field: string, value: string): Promise
  * upload routes on is published by that read and by nothing else.
  */
 const rereadHealth = async (page: Page) => {
-  const voiceSwitch = page.getByRole('switch', { name: 'Enable voice' });
+  const voiceSwitch = page.getByRole('switch', { name: 'Enable voice', exact: true });
   await expect(voiceSwitch).toHaveAttribute('aria-checked', 'true');
   await voiceSwitch.click();
   await expect(voiceSwitch).toHaveAttribute('aria-checked', 'false');
