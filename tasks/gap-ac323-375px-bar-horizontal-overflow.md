@@ -71,14 +71,14 @@ AC-323 于 `2026-10-26T08:44:45.369Z` 仍是 pass，今天 `00:42:06.613Z` 也 p
 
 ## AC
 
-- [ ] **AC1 读数归因落档**：在 375 用例进入 Live Voice 后读到 `document.documentElement.scrollWidth / innerWidth` 与栏每个祖先的 `scrollLeft / scrollWidth / clientWidth`，完成记录点名真正的 scroller 及数值；`grep -c "scrollWidth" e2e/voice-realtime-upload-fixture.spec.ts` ≥ 2，且该读数作为断言（不是只打印）。
-- [ ] **AC2 375 用例确定性绿**：`npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "375px: the same injection gesture works with the bar inside the viewport"` 连跑 5 次，5/5 exit 0；每次贴 `1 passed`。
-- [ ] **AC3 整份 spec 绿**：`npx playwright test e2e/voice-realtime-upload-fixture.spec.ts` exit 0、0 failed，通过用例数不少于本轮红跑的 `12 passed`（若因 serial 首红少跑，修后必须整份跑）。
-- [ ] **AC4 判据三条命令绿**：按 AC-323 `criterion` 原样依次跑三条命令，全部 exit 0；贴 CMD1 的 `N passed`、CMD2 的 `Test Files / Tests`、CMD3 的 `N passed` 原文与 wall time。
-- [ ] **AC5 产品面修复可检**：375（并加测 390）宽度进入 Live Voice 后，`bar.boundingBox()` 的 `x >= 0` 且 `x + width <= viewport+1`；`document.documentElement.scrollWidth <= window.innerWidth`；栏的祖先链上无 `scrollWidth > clientWidth` 的容器（或只有完成记录里点名的既有横向滚动例外）。
-- [ ] **AC6 抽屉行为不退**：`npx vitest run src/modules/chat/tests/outlineHandleClamp.test.tsx src/modules/chat/tests/outlineHandleTouch.test.tsx src/modules/chat/voice-realtime src/modules/cockpit/tests` exit 0，既有用例数不减少；浏览器里 375px 点手柄仍能开/关抽屉并跳到一个条目（DoD 截图）。
-- [ ] **AC7 取假形态红**：临时把修复撤掉（或把面板改回无裁剪的 `absolute right-0 translate-x-full`）⇒ 新加的横向溢出断言在 375 用例里红（并记录 `scrollWidth`/`scrollLeft` 读数）；恢复后同命令绿。
-- [ ] **AC8 隔离性**：`git diff --stat develop HEAD` 只含 `src/modules/chat/outline/InputOutlineDrawer.tsx`（以及确有必要的 `src/modules/chat/ChatInterface.tsx` / `src/modules/project-workspace/WorkspaceMain.tsx`）、`e2e/voice-realtime-upload-fixture.spec.ts`、本任务文件；无 `goals/`、无 `src/modules/cockpit/` 源码改动。假形态恢复后 `git status --porcelain` 对这些路径为空。
+- [x] **AC1 读数归因落档**：在 375 用例进入 Live Voice 后读到 `document.documentElement.scrollWidth / innerWidth` 与栏每个祖先的 `scrollLeft / scrollWidth / clientWidth`，完成记录点名真正的 scroller 及数值；`grep -c "scrollWidth" e2e/voice-realtime-upload-fixture.spec.ts` ≥ 2，且该读数作为断言（不是只打印）。
+- [x] **AC2 375 用例确定性绿**：`npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "375px: the same injection gesture works with the bar inside the viewport"` 连跑 5 次，5/5 exit 0；每次贴 `1 passed`。
+- [x] **AC3 整份 spec 绿**：`npx playwright test e2e/voice-realtime-upload-fixture.spec.ts` exit 0、0 failed，通过用例数不少于本轮红跑的 `12 passed`（若因 serial 首红少跑，修后必须整份跑）。
+- [x] **AC4 判据三条命令绿**：按 AC-323 `criterion` 原样依次跑三条命令，全部 exit 0；贴 CMD1 的 `N passed`、CMD2 的 `Test Files / Tests`、CMD3 的 `N passed` 原文与 wall time。
+- [x] **AC5 产品面修复可检**：375（并加测 390）宽度进入 Live Voice 后，`bar.boundingBox()` 的 `x >= 0` 且 `x + width <= viewport+1`；`document.documentElement.scrollWidth <= window.innerWidth`；栏的祖先链上无 `scrollWidth > clientWidth` 的容器（或只有完成记录里点名的既有横向滚动例外）。
+- [x] **AC6 抽屉行为不退**：`npx vitest run src/modules/chat/tests/outlineHandleClamp.test.tsx src/modules/chat/tests/outlineHandleTouch.test.tsx src/modules/chat/voice-realtime src/modules/cockpit/tests` exit 0，既有用例数不减少；浏览器里 375px 点手柄仍能开/关抽屉并跳到一个条目（DoD 截图）。
+- [x] **AC7 取假形态红**：临时把修复撤掉（或把面板改回无裁剪的 `absolute right-0 translate-x-full`）⇒ 新加的横向溢出断言在 375 用例里红（并记录 `scrollWidth`/`scrollLeft` 读数）；恢复后同命令绿。
+- [x] **AC8 隔离性**：`git diff --stat develop HEAD` 只含 `src/modules/chat/outline/InputOutlineDrawer.tsx`（以及确有必要的 `src/modules/chat/ChatInterface.tsx` / `src/modules/project-workspace/WorkspaceMain.tsx`）、`e2e/voice-realtime-upload-fixture.spec.ts`、本任务文件；无 `goals/`、无 `src/modules/cockpit/` 源码改动。假形态恢复后 `git status --porcelain` 对这些路径为空。
 
 ## DoD
 
@@ -88,6 +88,122 @@ AC-323 于 `2026-10-26T08:44:45.369Z` 仍是 pass，今天 `00:42:06.613Z` 也 p
 - 本仓 `e2e/scenarios/` 下没有 Live Voice 场景（已核）：在完成记录写明「无可用场景」，并用上面的浏览器读数 + e2e 代替；若有新增适配场景则跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴 JSON。
 - 取假形态：撤掉修复 ⇒ 新断言红并记录读数；恢复 ⇒ 三条命令与 5/5 复绿。原始输出留档。
 - 不放水：`box.x >= 0`、`box.x + width <= 376`、`composer hidden` 等断言原样；不删/跳过用例；不以「断言前清零 scrollLeft」代替产品面消除溢出；不改判据文本与 goal 记录。
+
+## Evidence（完成记录 · 2026-10-27）
+
+### 归因读数（AC1 / AC5：先取证，后改代码）
+
+375 用例进入 Live Voice 后，新增的 `readHorizontalOverflow(page)` 读 document 与「栏 → html」整条祖先链，
+该读数作为断言（失败信息带容器名与全部数值）。修复撤掉（develop 版抽屉）时的红跑原文
+（`tmp/ac323/false-form-375.log`）：
+
+- `documentElement.scrollWidth=375 / innerWidth=375`，栏 `x=-139 width=359`；
+- **真正的 scroller**：`div.flex.min-h-0.min-w-[200px].flex-col`（WorkspaceMain 的会话列，
+  `overflow-x:hidden`）`scrollLeft=147 scrollWidth=631 clientWidth=375`。
+  631 − 375 = 256，正好是闭合面板 `w-64` 的悬出量；147 是本次 scroll-into-view 的落点，
+  栏的 x = 8（composer 内边距）− 147 = −139；
+- 带余量但 `overflow-x:visible` 的两层：`div.relative.flex.h-full.min-h-0`（ChatInterface 根）与
+  `div.h-full.block`（会话 tab 容器），均 `scrollWidth=631 clientWidth=375 scrollLeft=0`；
+- `html`/`body` 均 `scrollWidth=375 overflow-x:hidden` ⇒ 文档没有横滚，被横滚的是会话列，不是 window。
+
+修复后同读数：`documentScrollWidth=375/375`，栏 `x=8 width=359`，祖先链 `offenders=[]`，
+会话列 `scrollLeft=0 scrollWidth=375 clientWidth=375`。
+
+### 产品面修复
+
+`InputOutlineDrawer` 的闭合面板（`absolute right-0 translate-x-full`，悬出 256px）与打开时的遮罩现在包在
+`absolute inset-0 overflow-hidden pointer-events-none` 的裁剪层里（`data-input-outline-clip`），面板与遮罩各自
+`pointer-events-auto`。面板的包含块变成裁剪层，悬出部分被裁剪在会话区内，不再进入任何祖先的 scrollable
+overflow；裁剪层保持 `absolute`（不回 `fixed`：抽屉仍止于会话区右缘，不钻到 PC 驾驶舱列下面），自身无
+z-index/transform（面板 `z-[9999]` 仍压在 composer 之上）。滑入/滑出动画、遮罩、手柄拖动、条目跳转均未改动。
+
+### 判据面加固
+
+`e2e/voice-realtime-upload-fixture.spec.ts` 新增 `readHorizontalOverflow` / `expectNoHorizontalOverflow`
+（`grep -c "scrollWidth" e2e/voice-realtime-upload-fixture.spec.ts` = 8）。375 用例在 `enterLiveVoice` 后立刻断言：
+document `scrollWidth <= innerWidth`、栏 `x >= 0` 且 `x + width <= viewport + 1`、祖先链无
+`scrollWidth > clientWidth + 1`；新增 390px 用例做同一读数。原有 `expect(box!.x).toBeGreaterThanOrEqual(0)`、
+`box.x + box.width <= 376`、`composer hidden` 一字未改，未删除/跳过任何用例。
+
+### AC2 375 用例 5/5（合并 develop 后重跑）
+
+`tmp/ac323/postmerge-375-run-{1..5}.log`：
+`run 1 exit=0 wall=38s / 1 passed (36.6s)`；`run 2 exit=0 wall=40s / 1 passed (39.2s)`；
+`run 3 exit=0 wall=34s / 1 passed (33.8s)`；`run 4 exit=0 wall=31s / 1 passed (29.8s)`；
+`run 5 exit=0 wall=38s / 1 passed (37.0s)`。
+修复后、合并前同一 5 连跑亦全绿（`tmp/ac323/375-run-{1..5}.log`，wall 33/36/33/40/39s）。
+
+### AC3 整份 spec
+
+`npx playwright test e2e/voice-realtime-upload-fixture.spec.ts` → exit 0，`8 passed (1.2m)`
+（`tmp/ac323/postmerge-full-spec.log`；合并前同命令 exit 0 `8 passed (1.3m)`）。
+⚠️ 立案引用的 `12 passed` 是 AC-323 CMD1 **三文件一次调用**的合计（红跑 `1 failed / 5 did not run / 12 passed`），
+本文件全量只有 8 个用例（原 7 + 本任务新增 390px 1 个），单文件不可能到 12；本 AC 的实质（整份跑、0 failed、
+无跳过）已满足，按真实读数记录。
+
+### AC4 AC-323 三条命令（原样，修复后合并前；日志 `tmp/ac323/cmd{1,2,3}.log`）
+
+- CMD1 `npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit 0，`19 passed (3.1m)`，wall 186s。
+- CMD2 `npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit 0，`Test Files 22 passed (22)` / `Tests 218 passed (218)`，wall 8s。
+- CMD3 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 0，`6 passed (33.9s)`，wall 36s。
+
+合并 develop（`d43534747`，含 `cockpit-mobile-header-and-page` 落地）后，在干净的 worktree 上再跑真实
+`quay goal gate AC-323`（非 dry-run）：`verdict: "pass"`，`event.id c40935d5-9882-4538-b34c-9d4a4a6b43b1`，
+`timestamp 2026-10-27T01:26:38.799Z`，`timeoutMs 480000`，`evaluationRoot=<本 worktree>`，
+`treeSha 801146314658e159e636606291de1e34dc324444`，wall 206s；该 gate 由 CMD1/CMD2/CMD3 原样执行得出，
+AC-323 台账尾随之翻 pass。合并前另有一次 pass：event `df5e7c33-6bf7-478c-82ba-700f5ae8e4d9`，treeSha `724c1573…`。
+
+### AC5 375 + 390 产品面读数
+
+- e2e（合并后）：375 `viewportWidth=375 documentScrollWidth=375 bar={x:8,width:359}`、offenders=[]；
+  390 `viewportWidth=390 documentScrollWidth=390 bar={x:8,width:374}`、offenders=[]。
+- 隔离实例（`scripts/isolated-instance.sh start`，`resident_restore_started:0`，port 5671；无 MCP 浏览器，
+  按项目备忘用一次性 Playwright driver 驱动真实页面）：375 进入 Live Voice 前 `doc 375/375`、offenders=[]；
+  进入后 `bar={x:8,width:359,height:64}`、`doc 375/375`、offenders=[]、composerHidden=true。390 进入前
+  `doc 390/390`；进入后 `bar={x:8,width:374,height:64}`、`doc 390/390`、offenders=[]。
+  截图 `tmp/ac323/browser/{375,390}-{before,live-voice}.png`。
+
+### AC6 抽屉行为不退
+
+`npx vitest run src/modules/chat/tests/outlineHandleClamp.test.tsx src/modules/chat/tests/outlineHandleTouch.test.tsx src/modules/chat/voice-realtime src/modules/cockpit/tests`
+→ exit 0，`Test Files 41 passed (41)` / `Tests 442 passed (442)`。浏览器 375px：点手柄打开抽屉
+（panel `x=119 width=256`，doc 375/375，offenders=[]），点第一个条目后 panel 关闭、transcript `scrollTop 203→23`、
+目标行 `[data-message-anchor-id=26fbcf7a-…]` 在视口内（top=34 bottom=702）；再点手柄位置关闭抽屉
+（panel `aria-hidden=true`，x=375 完全移出，doc 375/375）。390px 同流程：`scrollTop 155→0`，目标行在视口内。
+截图 `tmp/ac323/browser/{375,390}-drawer-{open,jump,closed}.png`。
+说明：抽屉打开时遮罩（`z-[9998]`）盖在 `z-50` 的手柄之上是**既有**层叠（本次 diff 未改这两个 z 值），
+Playwright strict click 因此判定遮罩拦截；按用户在屏幕上点手柄的位置点击，由遮罩的 `onClick` 关掉抽屉，
+读数确认关闭——用户可见行为就是「点手柄位置关闭抽屉」。
+
+### AC7 取假形态
+
+把 `InputOutlineDrawer.tsx` 换回 develop 版（无裁剪层、`absolute right-0 translate-x-full`）⇒ 375 用例 exit 1，
+新断言 `the bar must start inside the viewport` 红，读数 `bar={x:-139,width:359}`、会话列
+`scrollWidth=631 clientWidth=375 scrollLeft=147`、`offenders` 列出上述三层（`tmp/ac323/false-form-375.log`）。
+恢复修复文件后同命令 exit 0 `1 passed (28.1s)`（`tmp/ac323/restored-375.log`）。
+
+### AC8 隔离性
+
+合并后 `git diff --stat develop HEAD` 只有
+`e2e/voice-realtime-upload-fixture.spec.ts`（+125）与 `src/modules/chat/outline/InputOutlineDrawer.tsx`（+99/−41）；
+无 `goals/`、无 `src/modules/cockpit/` 源码改动；假形态恢复后 `git status --porcelain` 为空。
+
+### 场景运行器
+
+`e2e/scenarios/` 下没有 Live Voice 场景（现有 `cockpit-cards-confirm.json`、`cockpit-mode-switch.json`、
+`quay-wall-focus-pin-utter.json`）⇒ **无可用场景**；按 AGENTS.md 用上面的 e2e 判据 + 隔离实例浏览器读数与
+截图代替，未新增场景。
+
+### 轴读数（ADR-007）
+
+- L_D: 该轴仍暗,理由:本任务只改会话区抽屉的横向裁剪与 375/390px 判据，没有新增领域数据或文档比例读数
+- L_G: 该轴仍暗,理由:目标层读数由 AC-323 的 goal gate（本轮 verdict=pass）承担，本任务不另立目标层指标
+
+### 边界核对
+
+`box.x >= 0`、`box.x + width <= 376`、`composer hidden` 等既有断言原样；未删除/跳过任何用例；未用
+「断言前清零 scrollLeft」代替产品面消除溢出；未改 `goals/AC-323-…md` 的 criterion/expect/timeoutMs，
+未改 GOAL-035，未重开 GOAL-033。
 
 ## Touches
 
