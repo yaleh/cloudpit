@@ -11,10 +11,6 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
-import ClaudeLogo from '@/shared/ui/ClaudeLogo';
-import CodexLogo from '@/shared/ui/CodexLogo';
-import CursorLogo from '@/shared/ui/CursorLogo';
-import OpenCodeLogo from '@/shared/ui/OpenCodeLogo';
 import type {
   FileStatusCode,
   LLMProvider,
@@ -238,11 +234,16 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
 /**
  * Everything the UI needs to render one provider's identity.
  *
- * This is the frontend half of the capability seam: the provider login modal,
- * the shared provider mark and the transcript header all read this table
- * instead of each holding its own `provider === '…'` chain. Adding a provider
- * means adding a row here (and its locale copy), not editing every surface
- * that names a provider.
+ * This is the frontend half of the capability seam: the provider login modal
+ * and the transcript header read this table instead of each holding their own
+ * `provider === '…'` chain. Adding a provider means adding a row here (and its
+ * locale copy), not editing every surface that names a provider.
+ *
+ * The provider's mark is the one field that does not live here: it is a React
+ * component, and keeping the components in the UI package is what stops this
+ * root module from importing `src/shared/ui`. `src/shared/ui/providerLogos.ts`
+ * holds the matching `PROVIDER_LOGOS` table, keyed by the same `LLMProvider`
+ * ids; a new provider adds one row in each table.
  *
  * The table is keyed by `LLMProvider` on purpose: the union is the closed set
  * of selectable providers, and an id outside it (the debug agent's runtime id)
@@ -259,8 +260,6 @@ export type ProviderDescriptor = {
   loginCommand: string;
   /** Login command for the hosted platform, when it differs from `loginCommand`. */
   platformLoginCommand?: string;
-  /** The provider's mark, rendered by the shared `LLMProviderLogo`. */
-  logo: ComponentType<{ className?: string }>;
   /** i18n leaf under the `chat` namespace for a transcript header's provider name. */
   messageLabelKey: string;
   /** Copy to use when a locale has no value for `messageLabelKey`. */
@@ -275,7 +274,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     displayName: 'Claude',
     loginTitle: 'Claude CLI Login',
     loginCommand: 'claude --dangerously-skip-permissions /login',
-    logo: ClaudeLogo,
     messageLabelKey: 'messageTypes.claude',
     stripsProposedPlanEnvelope: false,
   },
@@ -283,7 +281,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     displayName: 'Cursor',
     loginTitle: 'Cursor CLI Login',
     loginCommand: 'cursor-agent login',
-    logo: CursorLogo,
     messageLabelKey: 'messageTypes.cursor',
     stripsProposedPlanEnvelope: false,
   },
@@ -292,7 +289,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginTitle: 'Codex CLI Login',
     loginCommand: 'codex login',
     platformLoginCommand: 'codex login --device-auth',
-    logo: CodexLogo,
     messageLabelKey: 'messageTypes.codex',
     stripsProposedPlanEnvelope: true,
   },
@@ -300,7 +296,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     displayName: 'OpenCode',
     loginTitle: 'OpenCode CLI Login',
     loginCommand: 'opencode auth login',
-    logo: OpenCodeLogo,
     messageLabelKey: 'messageTypes.opencode',
     messageLabelDefault: 'OpenCode',
     stripsProposedPlanEnvelope: false,
