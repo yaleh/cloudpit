@@ -4762,6 +4762,13 @@ export type CockpitCard = {
    * absent. A provider that declares `ownReply` itself never gets this field.
    */
   ownReplyUnavailable?: string;
+  /**
+   * Why the local content resolver could not fill this card: its digest is missing, switched
+   * off, unreadable or incomplete. Set only by a provider that resolved a `contentRef`; its
+   * presence means the card's `ask`/`situation`/options are the provider's alone and no option
+   * is a default. A card whose content was fully filled carries no such field.
+   */
+  contentUnavailable?: string;
   conversation?: CockpitCardConversation;
   notify?: CockpitCardNotify;
 };

@@ -38,6 +38,37 @@ import {
   COCKPIT_SESSION_START_EXECUTOR_ID,
 } from './cockpit-session-start.executor.js';
 
+/**
+ * One provider's own account of its last card read.
+ *
+ * A provider that needs no outside world (a fixture) has nothing to explain and implements no
+ * diagnostics; an adapter over a child process does. The route reports these beside the cards
+ * so an empty list is distinguishable from a failed or switched-off read. This type lives here
+ * rather than in `shared/types.ts` because it is server-side operator information, not part of
+ * the card wire contract the browser renders.
+ */
+export type CockpitCardProviderDiagnostic = {
+  readonly provider: string;
+  /** Whether the provider's last read produced cards without an error. */
+  readonly ok: boolean;
+  /** Why the read could not produce cards (or why the provider is off), when that is known. */
+  readonly reason: string | null;
+  /** How many cards the last read produced. */
+  readonly cards: number;
+  /** How many malformed lines the last read skipped. */
+  readonly skippedLines: number;
+  /** Whether this reading was served from the provider's cache. */
+  readonly cached: boolean;
+};
+
+/**
+ * A provider that can explain its last read. The capability is optional so a provider with no
+ * outside world (the fixture) can ignore it, and the registry discovers it structurally.
+ */
+export type ICockpitCardProviderWithDiagnostics = ICockpitCardProvider & {
+  diagnostics(): readonly CockpitCardProviderDiagnostic[];
+};
+
 /** The registry's public surface. */
 export type CockpitCardRegistry = {
   /** Adds a provider; registering the same object twice is a no-op. */
@@ -50,7 +81,16 @@ export type CockpitCardRegistry = {
   getCard(cardId: string): Promise<CockpitCard | null>;
   /** Reports changes any provider pushes. The returned function stops the subscription. */
   subscribe(listener: () => void): () => void;
+  /** Every registered provider's own last-read account, in registration order. */
+  diagnostics(): readonly CockpitCardProviderDiagnostic[];
 };
+
+/** Whether a provider opted into explaining its reads. */
+function hasDiagnostics(
+  provider: ICockpitCardProvider,
+): provider is ICockpitCardProviderWithDiagnostics {
+  return typeof (provider as Partial<ICockpitCardProviderWithDiagnostics>).diagnostics === 'function';
+}
 
 /**
  * The provider order is the fallback for two cards with the same group AND rank:
@@ -163,5 +203,14 @@ export function createCockpitCardRegistry(
     };
   };
 
-  return { register, listCards, declaredExecutors, getCard, subscribe };
+  const diagnostics = (): readonly CockpitCardProviderDiagnostic[] => {
+    const rows: CockpitCardProviderDiagnostic[] = [];
+    for (const provider of registered) {
+      if (!hasDiagnostics(provider)) continue;
+      rows.push(...provider.diagnostics());
+    }
+    return rows;
+  };
+
+  return { register, listCards, declaredExecutors, getCard, subscribe, diagnostics };
 }

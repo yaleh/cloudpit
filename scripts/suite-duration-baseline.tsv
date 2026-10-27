@@ -771,3 +771,9 @@
 #   (dur=4180ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 457 server test files).
 4180	server/modules/context-events/tests/session-ask-event-writer.test.ts
+#   and the cockpit-fleet-card-provider row by cockpit-fleet-card-provider, measured once on
+#   2026-10-27 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts`
+#   (dur=2885ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 458 server test files).
+2885	server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts

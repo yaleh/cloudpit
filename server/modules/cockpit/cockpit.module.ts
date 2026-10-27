@@ -208,7 +208,12 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
 
   const router = express.Router();
   router.get('/', (_req, res, next) => {
-    registry.listCards().then((cards) => res.json({ cards }), next);
+    registry.listCards().then((cards) => {
+      const diagnostics = registry.diagnostics();
+      // The field is omitted when no provider has anything to explain, so a bare deployment's
+      // response keeps the exact `{ cards }` shape its callers already read.
+      res.json(diagnostics.length === 0 ? { cards } : { cards, diagnostics });
+    }, next);
   });
   router.get('/:id/brief', (req, res, next) => {
     registry.getCard(req.params.id).then(async (card) => {

@@ -20,7 +20,27 @@ export type {
   CockpitCardConfirmResult,
 } from '@/modules/cockpit/cockpit-card-actions.js';
 export { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-export type { CockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
+export type {
+  CockpitCardProviderDiagnostic,
+  CockpitCardRegistry,
+  ICockpitCardProviderWithDiagnostics,
+} from '@/modules/cockpit/cockpit-card-registry.js';
+// The quay-fleet card provider: the fleet read port projected into the card contract, plus the
+// session-ask content completion. Its CLI and digest readings are injected by the composition
+// root (`server/cockpit-fleet-wiring.ts`), which is what keeps this module a leaf.
+export {
+  COCKPIT_FLEET_PROVIDER_ID,
+  createCockpitFleetCardProvider,
+  DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+} from '@/modules/cockpit/cockpit-fleet-card-provider.js';
+export type {
+  CockpitFleetCardProvider,
+  CockpitFleetCardProviderDeps,
+  CockpitFleetCommandResult,
+  CockpitFleetReadOptions,
+} from '@/modules/cockpit/cockpit-fleet-card-provider.js';
+export { COCKPIT_FLEET_ASK_OPTION_EXECUTOR } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
+export type { CockpitFleetContentReader } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 export { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
 export type {
   CockpitFixtureCardProvider,

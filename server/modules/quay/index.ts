@@ -29,6 +29,15 @@ export {
 // uri-resolve, service) keep reaching the deep path, which stays module-private. Exported here
 // because cross-module access goes through the module's index, never an internal file.
 export { locateQuayFleetCli } from './quay-fleet-locator.js';
+// createQuayFleetRunner: the "resolve the binary → fixed miss reading → execute" seam. The
+// cockpit's fleet card provider lives in a leaf module and cannot import this module, so the
+// composition root (`server/cockpit-fleet-wiring.ts`) binds the real runner there.
+export { createQuayFleetRunner } from './quay-fleet-cli.js';
+export type {
+  QuayFleetCommandResult,
+  QuayFleetRunner,
+  QuayFleetRunnerOptions,
+} from './quay-fleet-cli.js';
 // createQuayInitiatives: the composition seam the initiative/decision-queue criterion drives
 // with an injected exec, and the factory a test uses to read a temp fleet home without a CLI.
 export {

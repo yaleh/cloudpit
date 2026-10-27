@@ -371,9 +371,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (455 + 1 = 456 collected server test files). Then
     // observation-session-ask-event-writer-wiring added its criterion
     // server/modules/context-events/tests/session-ask-event-writer.test.ts
-    // (456 + 1 = 457 collected server test files). This fixture names 3 known files, so
-    // 457 - 3 = 454.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=454$/);
+    // (456 + 1 = 457 collected server test files). Then cockpit-fleet-card-provider added its
+    // criterion server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
+    // (457 + 1 = 458 collected server test files). This fixture names 3 known files, so
+    // 458 - 3 = 455.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=455$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -422,7 +424,7 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 455 files on this tree (gap-architecture-ratchet-census
+    // Same collection as AC2 — 458 files on this tree (gap-architecture-ratchet-census
     // added server/shared/tests/architecture-ratchet.test.ts, then
     // gap-codex-transcript-format-shared-helpers added
     // server/modules/providers/tests/codex-transcript-format.test.ts, then
@@ -441,10 +443,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // cockpit-card-session-executors added
     // server/modules/cockpit/tests/cockpit-session-executors.test.ts, then
     // observation-session-ask-event-writer-wiring added
-    // server/modules/context-events/tests/session-ask-event-writer.test.ts)
-    // — but this fixture names ONE known file, so 457 - 1 = 456 (AC2 reads 454 because its
+    // server/modules/context-events/tests/session-ask-event-writer.test.ts, then
+    // cockpit-fleet-card-provider added
+    // server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts)
+    // — but this fixture names ONE known file, so 458 - 1 = 457 (AC2 reads 455 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=456$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=457$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -68,6 +68,7 @@ import { locateQuayFleetCli, quayFleetRegistry, quayRoutes, quayService } from '
 import { createCockpitCardsModule, createCockpitModule } from './modules/cockpit/index.js';
 import { createCockpitBriefDeps } from './cockpit-brief-wiring.js';
 import { createCockpitCardExecutors } from './cockpit-executors-wiring.js';
+import { createCockpitFleetProvider } from './cockpit-fleet-wiring.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { loadServerSettings, createServerFeaturesRouter, settingsRoutes, type ResidentRestoreSettings } from './modules/settings/index.js';
 import {
@@ -348,11 +349,19 @@ const chatControl = createChatControlService({
 });
 
 // The cockpit's CARD module: the registry, the confirmation channel, the two content executors
-// (`session.send` / `session.start`) and the thin `/api/cockpit/cards` router. Its executors are
-// bound to the SAME `chatControl` above, so confirming a card opens no second send path.
+// (`session.send` / `session.start`), the quay-fleet provider and the thin
+// `/api/cockpit/cards` router. Its executors are bound to the SAME `chatControl` above, so
+// confirming a card opens no second send path; the fleet provider's CLI and digest readings are
+// bound in `cockpit-fleet-wiring.ts` so the leaf module imports no sibling.
 const cockpitCards = createCockpitCardsModule({
     fixtureCards: serverSettings.cockpit.fixtureCards,
     fixtureSubject: serverSettings.cockpit.fixtureSubject,
+    providers: [
+        createCockpitFleetProvider({
+            enabled: serverSettings.cockpit.fleetCards.enabled,
+            ttlMs: serverSettings.cockpit.fleetCards.ttlMs,
+        }).provider,
+    ],
     executors: createCockpitCardExecutors({ control: chatControl }),
     briefDeps: createCockpitBriefDeps(),
 });

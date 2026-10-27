@@ -142,6 +142,20 @@ export type CockpitSettings = {
    * Empty (the shipped value) leaves the fixture subjects untouched.
    */
   fixtureSubject: CockpitFixtureSubject;
+  /**
+   * The quay-fleet card provider's switch and cache window.
+   *
+   * `enabled` SHIPS FALSE and is switched on at the online cutover; with it off the provider
+   * runs no `quay-fleet` child process and reports why on the card route's diagnostic.
+   * `ttlMs` is the short read cache: repeated card polls inside the window run the CLI once.
+   */
+  fleetCards: CockpitFleetCardsSettings;
+};
+
+/** The quay-fleet card provider's server-level policy. */
+export type CockpitFleetCardsSettings = {
+  enabled: boolean;
+  ttlMs: number;
 };
 
 /** The shipped cockpit switch: off. Mirrored by `config/server.settings.example.json`. */
@@ -149,6 +163,12 @@ export const DEFAULT_COCKPIT_ENABLED = false;
 
 /** The shipped fixture-cards switch: off. Fixtures exist for isolated DoD runs only. */
 export const DEFAULT_COCKPIT_FIXTURE_CARDS = false;
+
+/** The shipped quay-fleet provider switch: off until the online cutover turns it on. */
+export const DEFAULT_COCKPIT_FLEET_CARDS_ENABLED = false;
+
+/** The shipped fleet card cache window; repeated polls inside it run the CLI once. */
+export const DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS = 5_000;
 
 /**
  * The public server policy a client may read without an operator's own file.
@@ -274,6 +294,10 @@ function defaultServerSettings(filePath: string): ServerSettings {
       enabled: DEFAULT_COCKPIT_ENABLED,
       fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
       fixtureSubject: {},
+      fleetCards: {
+        enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
+        ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+      },
     },
     source: 'default',
     path: filePath,
@@ -464,6 +488,10 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
     enabled: DEFAULT_COCKPIT_ENABLED,
     fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
     fixtureSubject: {},
+    fleetCards: {
+      enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
+      ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+    },
   };
 
   if (raw === undefined) {
@@ -491,6 +519,42 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
   }
   if (record.fixtureSubject !== undefined) {
     settings.fixtureSubject = readFixtureSubject(record.fixtureSubject, problems);
+  }
+  if (record.fleetCards !== undefined) {
+    settings.fleetCards = readFleetCards(record.fleetCards, problems);
+  }
+  return settings;
+}
+
+/**
+ * Reads the quay-fleet provider's switch and cache window, field by field over the shipped
+ * defaults. `enabled` must be a real boolean (a string is malformed, and off is the safe
+ * reading); `ttlMs` must be a positive integer. A malformed field falls back on its own and
+ * is reported, so a typo in the window cannot silently switch the provider off.
+ */
+function readFleetCards(raw: unknown, problems: string[]): CockpitFleetCardsSettings {
+  const settings: CockpitFleetCardsSettings = {
+    enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
+    ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+  };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    problems.push('`cockpit.fleetCards` must be a JSON object');
+    return settings;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.enabled !== undefined) {
+    if (typeof record.enabled === 'boolean') {
+      settings.enabled = record.enabled;
+    } else {
+      problems.push('`cockpit.fleetCards.enabled` must be a boolean');
+    }
+  }
+  if (record.ttlMs !== undefined) {
+    if (isPositiveInteger(record.ttlMs)) {
+      settings.ttlMs = record.ttlMs;
+    } else {
+      problems.push('`cockpit.fleetCards.ttlMs` must be a positive integer');
+    }
   }
   return settings;
 }
