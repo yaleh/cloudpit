@@ -1,6 +1,7 @@
 ---
 id: AC-424
-title: 驾驶舱 controller：单一确认绑定当前选项、自己的回复同一路径、无推荐不默认、Escape 不处理
+title: 驾驶舱 controller：单一确认绑定当前选项、自己的回复同一路径、提供方标为 suggested 的一项（含 judge
+  来源）即缺省、Escape 不处理
 status: achieved
 kind: criterion
 goal: GOAL-050
