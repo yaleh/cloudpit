@@ -16,6 +16,7 @@ import { cn } from '@/shared/utils';
 import { useActivityFreshness } from '@/modules/chat/hooks/useActivityFreshness';
 import { useVoiceInput, type VoiceCaptureEngine } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
+import type { DictationToggleRegistration } from '@/modules/chat/utils/voiceShortcutController';
 import { useSendOnEnter } from '@/modules/chat/hooks/useSendOnEnter';
 import { useComposerCompactTier } from '@/modules/chat/hooks/useComposerCompactTier';
 import { loadProjectFileIndex } from '@/modules/file-tree';
@@ -166,6 +167,15 @@ type ChatComposerProps = {
    */
   onVoiceListeningStart?: (cursor: number) => void;
   /**
+   * Registers this render's dictation toggle with the pane that owns the voice
+   * keyboard shortcut, together with whether voice input is available.
+   *
+   * The shortcut must go through the same handler the mic button uses — that
+   * handler reads the caret and the draft at press time — so the pane cannot call
+   * the hook's `toggle` directly. `null` on unmount says the composer is gone.
+   */
+  registerDictationToggle?: (registration: DictationToggleRegistration | null) => void;
+  /**
    * The interval of the box that the open listen's committed text occupies, or null.
    *
    * Handed back by the state layer that tracks the insertion range, because the overlay paints the
@@ -315,6 +325,7 @@ export default function ChatComposer({
   input,
   onVoiceTranscript,
   onVoiceListeningStart,
+  registerDictationToggle,
   voiceRange,
   onLiveVoice,
   liveVoiceDisabled,
@@ -689,6 +700,17 @@ export default function ChatComposer({
     }
     voiceToggle();
   }, [voiceToggle, voiceState, onVoiceListeningStart, textareaRef, input]);
+
+  // ONE PRESS, TWO ENTRIES. The mic button and the pane's keyboard binding must
+  // reach the same handler: `handleVoiceToggle` is the only thing that reads the
+  // caret and the draft at the moment a listen starts, and a second copy of that
+  // logic in the pane would drift from it. Re-registered whenever the handler or
+  // the availability changes, so a stale closure is never what the key reaches.
+  useEffect(() => {
+    if (!registerDictationToggle) return undefined;
+    registerDictationToggle({ toggle: handleVoiceToggle, available: voiceAvailable });
+    return () => registerDictationToggle(null);
+  }, [registerDictationToggle, handleVoiceToggle, voiceAvailable]);
 
   // The composer's stop entry reads the same liveness the dock does: a greyed
   // submit and a greyed dock control are one story about one unreachable server,
