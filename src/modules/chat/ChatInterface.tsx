@@ -24,6 +24,8 @@ import { useInputOutline } from '@/modules/chat/outline/useInputOutline';
 import InputOutlineDrawer from '@/modules/chat/outline/InputOutlineDrawer';
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
+import { useVoiceShortcuts } from '@/modules/chat/hooks/useVoiceShortcuts';
+import type { DictationToggleRegistration } from '@/modules/chat/utils/voiceShortcutController';
 import { useActivityDockTurn } from '@/modules/chat/hooks/useActivityDockTurn';
 import { useTranscriptSelection } from '@/modules/chat/hooks/useTranscriptSelection';
 import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
@@ -585,6 +587,51 @@ function ChatInterface({
     permissionMode,
   ]);
   const exitVoiceMode = useCallback(() => setVoiceModeSession(null), []);
+
+  /**
+   * The composer's current dictation toggle, registered by the composer.
+   *
+   * A ref rather than a lifted callback because the composer re-creates its
+   * handler on every draft/caret change; the pane only ever needs the latest one
+   * at the instant a bound key is pressed. Registered and cleared by the composer
+   * itself, so leaving text mode (where the composer unmounts) also retires the
+   * shortcut rather than calling into a gone component.
+   */
+  const dictationRegistration = useRef<DictationToggleRegistration | null>(null);
+  const registerDictationToggle = useCallback((registration: DictationToggleRegistration | null) => {
+    dictationRegistration.current = registration;
+  }, []);
+  const toggleDictation = useCallback(() => {
+    dictationRegistration.current?.toggle();
+  }, []);
+  const isDictationAvailable = useCallback(
+    () => dictationRegistration.current?.available === true,
+    [],
+  );
+
+  /**
+   * One key for both directions of Live Voice: a press enters the mode, and a
+   * press while the mode is on screen leaves it. Read against `composerMode`
+   * rather than `voiceModeSession` because that is the value the pane renders.
+   */
+  const toggleLiveVoice = useCallback(() => {
+    if (composerMode === 'voice') {
+      exitVoiceMode();
+      return;
+    }
+    void enterVoiceMode();
+  }, [composerMode, enterVoiceMode, exitVoiceMode]);
+  /** The entry's own guard: an allocation already in flight must not be started twice. */
+  const isLiveVoiceAvailable = useCallback(() => !voiceEntryAllocating, [voiceEntryAllocating]);
+
+  // The keyboard bindings the user stored in Voice settings, wired to the same
+  // two entry points the on-screen controls use.
+  useVoiceShortcuts({
+    toggleDictation,
+    toggleLiveVoice,
+    isDictationAvailable,
+    isLiveVoiceAvailable,
+  });
 
   // A tap whose allocation is still in flight when the pane goes away would otherwise leave the
   // prewarmed microphone running with no owner. Once capture has started the hook owns the source
@@ -1353,6 +1400,7 @@ function ChatInterface({
           input={input}
           onVoiceTranscript={handleVoiceTranscript}
           onVoiceListeningStart={handleVoiceListeningStart}
+          registerDictationToggle={registerDictationToggle}
           voiceRange={voiceRange}
           contextMessages={visibleMessages}
           scope={draftScope}

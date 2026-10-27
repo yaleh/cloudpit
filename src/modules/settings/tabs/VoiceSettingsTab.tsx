@@ -7,6 +7,7 @@ import { clientAsrProviderId } from '@shared/asr/asrRegistry';
 import { useVoiceClientAsrStatus } from '@/shared/hooks/useVoiceClientAsrStatus';
 import SettingsSection from '@/modules/settings/ui/SettingsSection';
 import SettingsToggle from '@/modules/settings/ui/SettingsToggle';
+import { VoiceShortcutsSection } from '@/modules/settings/tabs/VoiceShortcutsSection';
 import { api } from '@/shared/api';
 import { cn } from '@/shared/utils';
 import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPreferencesContext';
@@ -227,6 +228,10 @@ export default function VoiceSettingsTab() {
           />
         </div>
       </SettingsSection>
+
+      {/* The key bindings belong to both halves of Voice, so they sit above the
+          tab split rather than inside one of them. */}
+      {voiceEnabled && <VoiceShortcutsSection />}
 
       {voiceEnabled && (
         // Two halves with different owners: Voice Input configures the recogniser/read-aloud backend,

@@ -1,7 +1,7 @@
 ---
 id: gap-voice-keyboard-shortcut-toggle
 title: voice 键盘快捷键 toggle：可配置键映射同键开关 voice input（听写）与 live voice
-status: ready
+status: done
 labels:
   - gap
 parent: null
