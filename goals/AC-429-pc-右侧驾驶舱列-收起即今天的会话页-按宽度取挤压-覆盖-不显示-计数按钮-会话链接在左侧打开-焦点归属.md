@@ -1,7 +1,7 @@
 ---
 id: AC-429
 title: PC 右侧驾驶舱列：收起即今天的会话页，按宽度取挤压 / 覆盖 / 不显示，计数按钮，会话链接在左侧打开，焦点归属
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run src/modules/cockpit/tests/cockpitColumnController.test.ts
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: claude-session-摄像头与阻塞项驾驶舱
     reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+  - at: 2026-10-27T03:04:35.081Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
