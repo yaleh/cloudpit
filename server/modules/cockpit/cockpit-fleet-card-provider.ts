@@ -25,6 +25,7 @@
 import type { ICockpitCardProvider } from '@/shared/interfaces.js';
 import type { CockpitCard, SessionAskDecisionReading } from '@/shared/types.js';
 
+import type { CockpitExecutorResolver } from './cockpit-card-actions.js';
 import type {
   CockpitCardProviderDiagnostic,
   ICockpitCardProviderWithDiagnostics,
@@ -33,6 +34,13 @@ import {
   createCockpitFleetProjection,
   type CockpitFleetContentReader,
 } from './cockpit-fleet-card-projection.js';
+import {
+  COCKPIT_FLEET_EXECUTORS_ARGS,
+  CockpitFleetExecutor,
+  readCockpitFleetExecutors,
+  type CockpitFleetCommandResult,
+  type CockpitFleetExecutorReading,
+} from './cockpit-fleet-executor.js';
 
 /** This adapter's stable provider id; every projected card carries it. */
 export const COCKPIT_FLEET_PROVIDER_ID = 'quay-fleet';
@@ -40,18 +48,18 @@ export const COCKPIT_FLEET_PROVIDER_ID = 'quay-fleet';
 /** The shipped read cache window. `cockpit.fleetCards.ttlMs` overrides it per boot. */
 export const DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS = 5_000;
 
+/**
+ * The longest an executor declaration is trusted. The set changes only when the fleet is
+ * installed/upgraded, so a one-hour window keeps the startup read while making a refresh at most
+ * hourly — not once per card poll.
+ */
+export const DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS = 3_600_000;
+
 /** The fleet read port's argv, before the optional filters. */
 const BASE_ARGS = ['cockpit', 'cards', '--json'] as const;
 
-/** What one `runCards` call answered; the child seam's own classification reduced to this. */
-export type CockpitFleetCommandResult = {
-  /** `0` for success; the child's status, or `null` when it never ran. */
-  exitCode: number | null;
-  stdout: string;
-  stderr: string;
-  /** Why the child could not be run, when the seam knows (a missing binary, a timeout). */
-  error?: string;
-};
+/** What one child call answered; defined beside the executor and re-exported for this seam. */
+export type { CockpitFleetCommandResult } from './cockpit-fleet-executor.js';
 
 /** Optional filters from the fleet read port; the registry calls the no-argument form. */
 export type CockpitFleetReadOptions = {
@@ -63,22 +71,36 @@ export type CockpitFleetReadOptions = {
   since?: string;
 };
 
-/** Everything the provider needs from outside; both readings are injected. */
+/** Everything the provider needs from outside; every reading is injected. */
 export type CockpitFleetCardProviderDeps = {
   runCards(args: readonly string[]): Promise<CockpitFleetCommandResult>;
+  /**
+   * The executor declaration port (`rescue executors --json`) and the executor runner. One
+   * function serves both because both are the same child seam; omitted only by a criterion that
+   * does not exercise disposal (the reading then says so).
+   */
+  runExecutors?(args: readonly string[]): Promise<CockpitFleetCommandResult>;
   /** The observation layer's T1 digest for one session/message pair; `null` when absent. */
   readSessionAsk: CockpitFleetContentReader;
   /** The settings switch; defaults to true for a direct construction. */
   enabled?: boolean;
   /** Cache window; `0` disables caching. Defaults to {@link DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS}. */
   ttlMs?: number;
-  /** Clock seam so a criterion can advance past the TTL without sleeping. */
+  /**
+   * The executor-declaration window; `0` re-reads on every card-cache miss. Defaults to one
+   * hour ({@link DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS}).
+   */
+  executorTtlMs?: number;
+  /** Clock seam so a criterion can advance past either TTL without sleeping. */
   now?: () => number;
 };
 
 /** The provider plus the diagnosis of its last read. */
 export type CockpitFleetCardProvider = {
-  provider: ICockpitCardProvider;
+  provider: ICockpitCardProvider & {
+    /** Resolved lazily from the CURRENT declaration reading (see the module doc). */
+    resolveExecutor: CockpitExecutorResolver;
+  };
   /**
    * The same read the provider exposes, with the port's optional filters. The card contract's
    * `listCards()` takes no arguments, so resolved-history reads are a fleet-specific entry
@@ -87,6 +109,12 @@ export type CockpitFleetCardProvider = {
   listCards(options?: CockpitFleetReadOptions): Promise<CockpitCard[]>;
   /** One entry, always: what the most recent `listCards` read (or why it did not). */
   diagnostics(): readonly CockpitCardProviderDiagnostic[];
+  /**
+   * The current executor declaration reading, awaiting a stale read. The cockpit's card route
+   * does not surface this (its diagnostic describes the card read); the fleet wiring and the
+   * criterion read it to explain an empty `declaredExecutors()`.
+   */
+  executorReading(): Promise<CockpitFleetExecutorReading>;
 };
 
 /** One TTL entry: the batch and the diagnosis it produced. */
@@ -144,9 +172,67 @@ export function createCockpitFleetCardProvider(
 ): CockpitFleetCardProvider {
   const enabled = deps.enabled ?? true;
   const ttlMs = deps.ttlMs ?? DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS;
+  const executorTtlMs = deps.executorTtlMs ?? DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS;
   const now = deps.now ?? Date.now;
   const projection = createCockpitFleetProjection({ readSessionAsk: deps.readSessionAsk });
   const cache = new Map<string, CacheEntry>();
+
+  // The executor declaration is a SECOND reading with its own, much longer window. It is kept
+  // here (not on the module) so two providers in one process are independent, and it is read
+  // lazily: the constructor starts the first read, a card-cache miss refreshes it once hourly.
+  const runExecutors: CockpitFleetCardProviderDeps['runExecutors'] = deps.runExecutors;
+  let executorState: CockpitFleetExecutorReading & { at: number; read: boolean } = {
+    declarations: [],
+    reason: enabled ? 'rescue executors have not been read yet' : 'cockpit.fleetCards.enabled is off',
+    at: 0,
+    read: false,
+  };
+  let executorRead: Promise<CockpitFleetExecutorReading> | null = null;
+
+  const readExecutors = (): Promise<CockpitFleetExecutorReading> => {
+    if (executorRead !== null) return executorRead;
+    const at = now();
+    executorRead = (async () => {
+      let reading: CockpitFleetExecutorReading;
+      if (runExecutors === undefined) {
+        reading = {
+          declarations: [],
+          reason: 'no quay-fleet executor runner was injected',
+        };
+      } else {
+        try {
+          reading = readCockpitFleetExecutors(await runExecutors(COCKPIT_FLEET_EXECUTORS_ARGS));
+        } catch (failure) {
+          reading = {
+            declarations: [],
+            reason: `quay-fleet rescue executors failed: ${
+              failure instanceof Error ? failure.message : String(failure)
+            }`,
+          };
+        }
+      }
+      executorState = { ...reading, at, read: true };
+      return reading;
+    })().finally(() => {
+      executorRead = null;
+    });
+    return executorRead;
+  };
+
+  const ensureExecutors = async (): Promise<CockpitFleetExecutorReading> => {
+    if (!enabled) {
+      return { declarations: [], reason: 'cockpit.fleetCards.enabled is off' };
+    }
+    if (executorState.read && now() - executorState.at < executorTtlMs) {
+      return { declarations: executorState.declarations, reason: executorState.reason };
+    }
+    return readExecutors();
+  };
+
+  // `启动时`: the first declaration read starts with the provider, not with the first confirm.
+  // It never rejects (failures are readings), so no unhandled rejection can escape.
+  void ensureExecutors();
+
   let last: CockpitCardProviderDiagnostic = {
     provider: COCKPIT_FLEET_PROVIDER_ID,
     ok: false,
@@ -178,7 +264,8 @@ export function createCockpitFleetCardProvider(
       return cached.cards.map((card) => structuredClone(card));
     }
 
-    const result = await deps.runCards(args);
+    // A card-cache miss is also the executor-declaration refresh point (at most hourly).
+    const [result] = await Promise.all([deps.runCards(args), ensureExecutors()]);
     if (result.exitCode !== 0 || result.error !== undefined) {
       last = {
         provider: COCKPIT_FLEET_PROVIDER_ID,
@@ -208,17 +295,40 @@ export function createCockpitFleetCardProvider(
     return projected.cards.map((card) => structuredClone(card));
   };
 
+  // The declaration set is what makes every disposal option CONFIRMABLE: the action channel
+  // refuses an executor no provider declared, and this is the provider's statement of the fleet's
+  // surface. An empty set means the CLI did not answer (the reason rides on `executorReading`).
+  const declaredExecutors = (): readonly string[] =>
+    executorState.declarations.map((declaration) => declaration.id);
+
+  // The implementation is resolved LAZILY, because the declaration arrives after construction
+  // (the CLI is an async child). The cockpit module discovers this capability structurally from
+  // the provider object it registers; the action channel asks it only for an id it just found
+  // declared, so an undeclared id never reaches here.
+  const resolveExecutor: CockpitExecutorResolver = async (id) => {
+    const reading = await ensureExecutors();
+    const declaration = reading.declarations.find((entry) => entry.id === id);
+    if (declaration === undefined || runExecutors === undefined) return null;
+    return new CockpitFleetExecutor(declaration, { runFleet: runExecutors });
+  };
+
   // The diagnostic rides ON the provider, not only on this wrapper: the registry discovers the
   // capability structurally from the object it registers, and `server/index.ts` registers the
   // provider. Keeping it here is what lets `/api/cockpit/cards` explain an empty list.
-  const provider: ICockpitCardProviderWithDiagnostics = {
+  const provider: ICockpitCardProviderWithDiagnostics & {
+    resolveExecutor: CockpitExecutorResolver;
+  } = {
     id: COCKPIT_FLEET_PROVIDER_ID,
     listCards,
-    // Fleet disposal executors are delivered by a later task. Declaring none is what makes a
-    // card option readable but its confirmation refuse with a readable "not declared" reason.
-    declaredExecutors: () => [],
+    declaredExecutors,
+    resolveExecutor,
     diagnostics: () => [last],
   };
 
-  return { provider, listCards, diagnostics: () => provider.diagnostics() };
+  return {
+    provider,
+    listCards,
+    diagnostics: () => provider.diagnostics(),
+    executorReading: () => ensureExecutors(),
+  };
 }

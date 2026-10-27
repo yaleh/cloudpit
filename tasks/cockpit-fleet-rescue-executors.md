@@ -2,7 +2,7 @@
 id: cockpit-fleet-rescue-executors
 title: 驾驶舱 fleet 处置执行器适配：从 quay-fleet rescue executors --json 读声明集，确认时调
   quay-fleet rescue exec，退出码 0/2/3 映射为成功/拒绝；fleet 卡的「自己的回复」走 fleet.log
-status: ready
+status: done
 labels:
   - feature
   - cockpit

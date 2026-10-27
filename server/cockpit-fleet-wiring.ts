@@ -85,6 +85,18 @@ export function createCockpitFleetProvider(
         ...(answer.error === undefined ? {} : { error: answer.error }),
       };
     },
+    // The SAME child seam reads the executor declarations and runs them: `rescue executors
+    // --json` and `rescue exec`. Keeping one runner means the locator and its failure wording
+    // cannot drift between the read and the write surface.
+    runExecutors: async (args) => {
+      const answer = await run(args);
+      return {
+        exitCode: answer.ok ? 0 : answer.code,
+        stdout: answer.stdout,
+        stderr: answer.stderr,
+        ...(answer.error === undefined ? {} : { error: answer.error }),
+      };
+    },
     readSessionAsk: (sessionId, messageId) => readAskDecision(store, sessionId, messageId),
   });
 }

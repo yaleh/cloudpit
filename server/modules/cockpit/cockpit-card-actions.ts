@@ -46,6 +46,18 @@ export type CockpitCardConfirmResult = {
   result: unknown;
 };
 
+/**
+ * A late-bound executor lookup.
+ *
+ * Some declared executors cannot exist at composition time: the quay-fleet declaration set is an
+ * async child read, so its implementations are instantiated on the first confirmation that names
+ * one. The resolver is asked ONLY for an id the registry has just reported as declared, so it can
+ * never widen what a card may reach.
+ */
+export type CockpitExecutorResolver = (
+  id: string,
+) => Promise<ICockpitActionExecutor | null> | ICockpitActionExecutor | null;
+
 /** The action channel's public surface. */
 export type CockpitCardActions = {
   confirm(request: unknown): Promise<CockpitCardConfirmResult>;
@@ -136,6 +148,8 @@ function resolveAction(card: CockpitCard, request: ParsedConfirmRequest): Cockpi
 export function createCockpitCardActions(deps: {
   registry: CockpitCardRegistry;
   executors: readonly ICockpitActionExecutor[];
+  /** Optional late binding for executors whose declarations arrive after construction. */
+  resolveExecutor?: CockpitExecutorResolver;
 }): CockpitCardActions {
   const executors = new Map(deps.executors.map((executor) => [executor.id, executor]));
   // `(provider, card id, revision)`: one accepted confirmation per revision.
@@ -167,7 +181,12 @@ export function createCockpitCardActions(deps: {
         { code: 'EXECUTOR_NOT_DECLARED', statusCode: 400 },
       );
     }
-    const executor = executors.get(action.executor);
+    let executor = executors.get(action.executor);
+    if (executor === undefined && deps.resolveExecutor !== undefined) {
+      // The declared check above already passed, so a late binding may only name THIS id; one
+      // that still has no implementation is the same unavailable failure as before.
+      executor = (await deps.resolveExecutor(action.executor)) ?? undefined;
+    }
     if (executor === undefined) {
       throw new AppError(`declared executor ${action.executor} has no implementation`, {
         code: 'EXECUTOR_UNAVAILABLE',

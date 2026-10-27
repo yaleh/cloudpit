@@ -11,7 +11,10 @@
 import express, { type Router } from 'express';
 
 import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-import type { CockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
+import type {
+  CockpitCardActions,
+  CockpitExecutorResolver,
+} from '@/modules/cockpit/cockpit-card-actions.js';
 import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import type { CockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
@@ -70,6 +73,26 @@ export type CockpitCardsModuleDeps = {
    */
   briefDeps?: CockpitBriefDeps;
 };
+
+/**
+ * A provider that can also hand back the implementations for the executors it DECLARES.
+ *
+ * The quay-fleet declaration set is an async child read, so its executors cannot exist when this
+ * module is constructed. Such a provider states the capability structurally (the same discovery
+ * shape as `diagnostics()`); the action channel asks it only for an id the registry already
+ * reported as declared.
+ */
+type ICockpitExecutorResolverProvider = {
+  resolveExecutor(id: string): ReturnType<CockpitExecutorResolver>;
+};
+
+function hasExecutorResolver(
+  provider: ICockpitCardProvider,
+): provider is ICockpitCardProvider & ICockpitExecutorResolverProvider {
+  return (
+    typeof (provider as Partial<ICockpitExecutorResolverProvider>).resolveExecutor === 'function'
+  );
+}
 
 /** The card module's readings: the registry, the action channel, and its thin router. */
 export type CockpitCardsModule = {
@@ -203,7 +226,24 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   }
 
   const registry = createCockpitCardRegistry(providers);
-  const actions = createCockpitCardActions({ registry, executors });
+  // Late-bound implementations: only providers that opted into the capability are asked, and the
+  // action channel asks only after its own declared-executor check.
+  const resolverProviders = providers.filter(hasExecutorResolver);
+  const resolveExecutor: CockpitExecutorResolver | undefined =
+    resolverProviders.length === 0
+      ? undefined
+      : async (id) => {
+          for (const provider of resolverProviders) {
+            const found = await provider.resolveExecutor(id);
+            if (found !== null) return found;
+          }
+          return null;
+        };
+  const actions = createCockpitCardActions({
+    registry,
+    executors,
+    ...(resolveExecutor === undefined ? {} : { resolveExecutor }),
+  });
   const brief = createCockpitBriefService(deps.briefDeps ?? {});
 
   const router = express.Router();
