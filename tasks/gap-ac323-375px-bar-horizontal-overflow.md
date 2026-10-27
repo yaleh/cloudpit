@@ -2,7 +2,7 @@
 id: gap-ac323-375px-bar-horizontal-overflow
 title: 恢复 AC-323 判据绿：375px 进入 Live Voice 后会话区横向滚 139px、栏左缘读到 -139（闭合
   InputOutline 抽屉的 translate-x-full 悬出被算进 scrollWidth；06300c8f2 起）
-status: ready
+status: done
 labels:
   - gap
   - defect
