@@ -3,7 +3,7 @@ id: gap-ac323-layout-matrix-bounded-boot-guard
 title: AC-323 判据第三条腿红：mobile-workspace-composer-layout 的启动阶段无界——一次宿主级
   net::ERR_NETWORK_CHANGED 整批打断 42 个在途模块请求后登录页永不出现，beforeAll 的 30s 等待把 6 个 idle
   格全记红；e2e 家族既有的「有界预热 + 有界启动探针」未回灌到这份 spec
-status: ready
+status: done
 labels:
   - gap
   - defect
