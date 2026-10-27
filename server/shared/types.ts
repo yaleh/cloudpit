@@ -4648,6 +4648,15 @@ export type CockpitCardKind = 'ask' | 'multi' | 'need' | 'stuck' | 'fix' | 'deci
  */
 export type CockpitCardVizKind = 'attempts' | 'steps' | 'history' | 'size' | 'parts';
 
+/** How one attempt in the `attempts` reading ended (or is still going). */
+export type CockpitCardVizOutcome = 'landed' | 'failed' | 'running' | 'pending';
+
+/** One attempt the `attempts` reading draws as a dot: when it started and how it ended. */
+export type CockpitCardVizAttempt = {
+  at: string;
+  outcome: CockpitCardVizOutcome;
+};
+
 /**
  * The one small visualization a card asks its A zone to draw.
  *
@@ -4658,8 +4667,12 @@ export type CockpitCardVizKind = 'attempts' | 'steps' | 'history' | 'size' | 'pa
  */
 export type CockpitCardViz = {
   kind: CockpitCardVizKind;
-  /** attempts: the attempt count; steps: the 1-based current step; parts: the sub-decision count. */
+  /** attempts (legacy scalar reading), steps: the 1-based current step; parts: the sub-decision count. */
   count?: number;
+  /** attempts: the most dots the row may draw; the provider caps its own list at this too. */
+  cap?: number;
+  /** attempts: the attempts, NEWEST first; the renderer reverses them to draw old → new. */
+  items?: CockpitCardVizAttempt[];
   /** history: the three non-negative weights of the stacked bar (affirmative / negative / other). */
   history?: { yes: number; no: number; other: number };
   /** size: a reading and its ceiling; `total` must be greater than zero. */
@@ -4725,6 +4738,12 @@ export type CockpitCardSubject = {
   project?: string;
   sessionId?: string;
   taskId?: string;
+  /**
+   * The subject's display name — the conversation's title or the task's title — for the
+   * card header. A provider that can only address the subject leaves it out; the header then
+   * falls back to `taskId` and, last, to the shortened session id.
+   */
+  title?: string;
 };
 
 /** A provider-side reference the local content resolver fills in (content lives locally). */
@@ -4804,6 +4823,11 @@ export type CockpitCard = {
   contentUnavailable?: string;
   conversation?: CockpitCardConversation;
   notify?: CockpitCardNotify;
+  /**
+   * The decision weight the header's three-cell load reading draws, 0–3 (0 = no weight).
+   * Absent means the provider stated none, and the header draws no cells at all.
+   */
+  load?: number;
   /**
    * The optional small visualization the A zone draws, when the known kind's descriptor names
    * one. The renderer consults the descriptor first, so this field is data, not the authority on

@@ -138,6 +138,8 @@ const ROWS: readonly SyncRow[] = [
   // payload a provider attaches to a card. Both ends must agree or a provider's shape draws
   // nothing in a browser that cannot name it.
   { typeName: 'CockpitCardVizKind', reader: 'union' },
+  { typeName: 'CockpitCardVizOutcome', reader: 'union' },
+  { typeName: 'CockpitCardVizAttempt', reader: 'object' },
   { typeName: 'CockpitCardViz', reader: 'object' },
   { typeName: 'CockpitCardState', reader: 'union' },
   { typeName: 'CockpitCardOptionSource', reader: 'union' },

@@ -19,6 +19,18 @@ import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors'
 /** The circled numerals the `parts` shape draws. Past ten, the plain 1-based index is used. */
 const PART_NUMERALS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
 
+/**
+ * The dot each attempt outcome draws. Landed and failed are the two settled readings; running is
+ * the live one (and pulses); pending is an outline, because nothing has been tried there yet.
+ * An outcome this build does not know draws a neutral dot rather than nothing.
+ */
+const OUTCOME_DOT_CLASS: Record<string, string> = {
+  landed: 'bg-emerald-500',
+  failed: 'bg-rose-500',
+  running: 'animate-pulse bg-sky-500',
+  pending: 'border border-dashed border-current bg-transparent',
+};
+
 /** A finite, non-negative whole number, or `fallback` when the provider's reading is unusable. */
 function wholeReading(value: number | undefined, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
@@ -29,6 +41,30 @@ function wholeReading(value: number | undefined, fallback: number): number {
 function VizShape({ viz }: { viz: CockpitCardVizData }) {
   switch (viz.kind) {
     case 'attempts': {
+      // The current reading: one dot per attempt, old → new left to right. The provider sends
+      // newest first, so the list is reversed here; `cap` bounds how many are drawn.
+      if (viz.items !== undefined) {
+        const items = viz.items;
+        const cap = viz.cap === undefined ? items.length : wholeReading(viz.cap, items.length);
+        const drawn = items.slice(0, cap).reverse();
+        return (
+          <span className="flex items-center gap-0.5">
+            {drawn.map((item, index) => (
+              <span
+                key={`${item.at}:${index}`}
+                data-viz-dot="attempt"
+                data-viz-outcome={item.outcome}
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  OUTCOME_DOT_CLASS[item.outcome] ?? 'bg-muted',
+                )}
+              />
+            ))}
+          </span>
+        );
+      }
+      // A provider that only stated the scalar count still draws its dots, without per-attempt
+      // outcomes: the older wire shape is data this build can read, not an error.
       const count = wholeReading(viz.count, 0);
       return (
         <>

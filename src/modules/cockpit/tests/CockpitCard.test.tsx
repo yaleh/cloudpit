@@ -11,8 +11,14 @@ import type {
 import { i18n } from '@/modules/i18n';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
 import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
-import type { CockpitCardShown } from '@/modules/cockpit/cockpitCardController';
+import {
+  cockpitCardDescriptor,
+  cockpitTagIcon,
+} from '@/modules/cockpit/cockpitCardDescriptors';
+import type {
+  CockpitCardDensity,
+  CockpitCardShown,
+} from '@/modules/cockpit/cockpitCardController';
 import {
   confirmTargetOf,
   defaultShownOption,
@@ -39,12 +45,18 @@ const CARD: CockpitCardData = {
   state: 'open',
   waitingSince: '2026-10-27T00:06:00.000Z',
   surfacedAt: '2026-10-27T00:06:03.000Z',
-  subject: { uri: 'cloudcli://fixture/ask', project: 'fixture-project', sessionId: 'fixture-session' },
+  subject: {
+    uri: 'cloudcli://fixture/ask',
+    project: 'fixture-project',
+    sessionId: 'fixture-session',
+    title: 'Cleanup the staging directory',
+  },
+  load: 2,
   ask: 'Should the cleanup delete the staging directory?',
   situation: 'The run left 1.2 GB in staging.',
   facts: [
     { text: 'staging holds 1.2 GB', mechanical: true },
-    { text: 'transcript archived', mechanical: true },
+    { text: 'transcript archived', mechanical: false },
   ],
   options: [
     {
@@ -55,7 +67,10 @@ const CARD: CockpitCardData = {
       source: 'assistant',
       action: { executor: 'fixture.record', params: { optionId: 'delete' } },
       why: 'The data is already archived.',
-      tags: [{ kind: 'undo', text: '可撤' }],
+      tags: [
+        { kind: 'undo', text: '可撤' },
+        { kind: 'cost', text: '约 1 分钟' },
+      ],
     },
     {
       id: 'park',
@@ -64,7 +79,7 @@ const CARD: CockpitCardData = {
       suggested: false,
       source: 'provider',
       action: { executor: 'fixture.record', params: { optionId: 'park' } },
-      tags: [{ kind: 'warn', text: '不可逆' }],
+      tags: [{ kind: 'irreversible', text: '不可逆' }],
     },
   ],
   ownReply: { executor: 'fixture.record', params: { cardId: 'fixture:ask' } },
@@ -73,12 +88,13 @@ const CARD: CockpitCardData = {
 
 type FixtureProps = {
   card: CockpitCardData;
+  density?: CockpitCardDensity;
   onOpenDetails: () => void;
   onRequestConfirm: () => void;
 };
 
 /** The card with just enough local state to exercise its own controls. */
-function Fixture({ card, onOpenDetails, onRequestConfirm }: FixtureProps) {
+function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm }: FixtureProps) {
   const [shown, setShown] = useState<CockpitCardShown | undefined>(
     defaultShownOption(card) ?? undefined,
   );
@@ -95,7 +111,7 @@ function Fixture({ card, onOpenDetails, onRequestConfirm }: FixtureProps) {
       ownReply={ownReply}
       dropdownOpen={dropdownOpen}
       selected
-      density="cards"
+      density={density}
       onSelect={() => undefined}
       onOpenDetails={onOpenDetails}
       onToggleDropdown={() => setDropdownOpen((open) => !open)}
@@ -115,16 +131,23 @@ function Fixture({ card, onOpenDetails, onRequestConfirm }: FixtureProps) {
 
 function renderCard({
   card = CARD,
+  density = 'cards',
   onOpenDetails = vi.fn(),
   onRequestConfirm = vi.fn(),
 }: {
   card?: CockpitCardData;
+  density?: CockpitCardDensity;
   onOpenDetails?: () => void;
   onRequestConfirm?: () => void;
 } = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <Fixture card={card} onOpenDetails={onOpenDetails} onRequestConfirm={onRequestConfirm} />
+      <Fixture
+        card={card}
+        density={density}
+        onOpenDetails={onOpenDetails}
+        onRequestConfirm={onRequestConfirm}
+      />
     </I18nextProvider>,
   );
 }
@@ -177,6 +200,108 @@ describe('A zone: the upper body opens Details, and nothing else does', () => {
   });
 });
 
+describe('the header row: kind mark, project, subject name, age and load', () => {
+  it('names the project, the subject and the compact age', () => {
+    renderCard();
+
+    expect(screen.getByTestId('cockpit-card-kind-badge').textContent).toBe('ASK');
+    expect(screen.getByTestId('cockpit-card-project').textContent).toBe('fixture-project');
+    expect(screen.getByTestId('cockpit-card-subject').textContent).toContain(
+      'Cleanup the staging directory',
+    );
+    expect(screen.getByTestId('cockpit-card-age').textContent).toBe('4m');
+  });
+
+  it('draws the three-cell load reading only when the card states one', () => {
+    renderCard();
+
+    const load = screen.getByTestId('cockpit-card-load');
+    expect(load.getAttribute('data-load')).toBe('2');
+    const cells = [...load.querySelectorAll('[data-load-cell]')];
+    expect(cells.length).toBe(3);
+    expect(cells.filter((cell) => cell.getAttribute('data-filled') === 'true').length).toBe(2);
+
+    cleanup();
+    renderCard({ card: { ...CARD, load: undefined } });
+    expect(screen.queryByTestId('cockpit-card-load')).toBeNull();
+  });
+
+  it('falls back from the subject title to the task id and then the shortened session id', () => {
+    const subjectNameOf = (subject: CockpitCardData['subject']): string | null => {
+      cleanup();
+      renderCard({ card: { ...CARD, subject } });
+      const node = screen.queryByTestId('cockpit-card-subject');
+      return node === null ? null : node.textContent;
+    };
+
+    expect(subjectNameOf({ uri: 'u', project: 'p', taskId: 'gap-routine-x' })).toContain(
+      'gap-routine-x',
+    );
+    expect(subjectNameOf({ uri: 'u', project: 'p', sessionId: 'dbbf1404-aaaa-bbbb' })).toContain(
+      'dbbf1404',
+    );
+    expect(subjectNameOf({ uri: 'u', project: 'p' })).toBeNull();
+  });
+});
+
+describe('facts and the small visualization', () => {
+  it('marks a mechanical fact with ● and a judgement fact with ○', () => {
+    renderCard();
+
+    const facts = screen.getAllByTestId('cockpit-card-fact');
+    expect(facts.length).toBe(2);
+    expect(facts[0].getAttribute('data-mechanical')).toBe('true');
+    expect(facts[0].textContent).toContain('●');
+    expect(facts[0].textContent).toContain('staging holds 1.2 GB');
+    expect(facts[1].getAttribute('data-mechanical')).toBe('false');
+    expect(facts[1].textContent).toContain('○');
+  });
+
+  it('draws the attempts reading with one dot per attempt, old → new and capped', () => {
+    const stuck: CockpitCardData = {
+      ...CARD,
+      kind: 'stuck',
+      viz: {
+        kind: 'attempts',
+        cap: 3,
+        // Newest first on the wire; the row draws the three newest, reversed.
+        items: [
+          { at: '2026-10-27T00:04:00.000Z', outcome: 'running' },
+          { at: '2026-10-27T00:03:00.000Z', outcome: 'failed' },
+          { at: '2026-10-27T00:02:00.000Z', outcome: 'landed' },
+          { at: '2026-10-27T00:01:00.000Z', outcome: 'pending' },
+        ],
+      },
+    };
+    renderCard({ card: stuck });
+
+    const viz = screen.getByTestId('cockpit-card-viz');
+    expect(viz.getAttribute('data-viz-kind')).toBe('attempts');
+    const outcomes = [...viz.querySelectorAll('[data-viz-dot]')].map((dot) =>
+      dot.getAttribute('data-viz-outcome'),
+    );
+    expect(outcomes).toEqual(['landed', 'failed', 'running']);
+  });
+
+  it('keeps the scalar attempts reading readable', () => {
+    renderCard({ card: { ...CARD, kind: 'stuck', viz: { kind: 'attempts', count: 2 } } });
+
+    const viz = screen.getByTestId('cockpit-card-viz');
+    expect(viz.querySelector('[data-viz-count]')?.getAttribute('data-viz-count')).toBe('2');
+    expect(viz.querySelectorAll('[data-viz-dot]').length).toBe(2);
+  });
+
+  it('draws nothing when the card carries no viz', () => {
+    renderCard();
+    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
+  });
+
+  it('draws nothing when the card’s viz kind disagrees with the descriptor', () => {
+    renderCard({ card: { ...CARD, kind: 'stuck', viz: { kind: 'steps', count: 2 } } });
+    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
+  });
+});
+
 describe('B zone: one dropdown, rich-text options, own reply last', () => {
   it('explains every option in rich text and ends with the reply editor', () => {
     renderCard();
@@ -219,8 +344,42 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     const trigger = screen.getByTestId('cockpit-card-option-trigger');
     expect(trigger.textContent).toContain('Delete staging');
     expect(trigger.textContent).toContain('suggested');
-    expect(trigger.textContent).toContain('Assistant');
+    expect(trigger.textContent).toContain('● from assistant');
     expect(trigger.textContent).toContain('1 of 2');
+  });
+
+  it('draws the consequence tags with their descriptor glyphs', () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+
+    const list = screen.getByTestId('cockpit-card-option-list');
+    const undo = within(list).getByText('可撤');
+    expect(undo.closest('[data-tag-kind]')?.getAttribute('data-tag-kind')).toBe('undo');
+    expect(undo.textContent).toBe('↺ 可撤');
+
+    const cost = within(list).getByText('约 1 分钟');
+    expect(cost.textContent).toBe('◷ 约 1 分钟');
+
+    const irreversible = within(list).getByText('不可逆');
+    expect(irreversible.textContent).toBe('⚠ 不可逆');
+  });
+
+  it('an unknown tag kind keeps the provider’s words and draws no glyph', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        options: [
+          {
+            ...CARD.options[0],
+            tags: [{ kind: 'mystery-kind', text: '未定义的后果' }],
+          },
+        ],
+      },
+    });
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+
+    expect(screen.getByText('未定义的后果').textContent).toBe('未定义的后果');
+    expect(cockpitTagIcon('mystery-kind')).toBeNull();
   });
 });
 
@@ -244,12 +403,16 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('a reversible option carries no irreversible styling', () => {
+  it('a reversible option carries the solid bar and the one-line hint', () => {
     renderCard();
 
     const confirm = screen.getByTestId('cockpit-card-confirm');
     expect(confirm.getAttribute('data-irreversible')).toBe('false');
     expect(confirm.className).not.toContain('border-amber-500');
+    expect(confirm.className).toContain('bg-neutral-950');
+    expect(screen.getByTestId('cockpit-card-confirm-hint').textContent).toBe(
+      'opens the confirm card — nothing is sent yet',
+    );
     expect(screen.queryByText('Irreversible')).toBeNull();
   });
 
@@ -265,16 +428,59 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     expect(confirm.hasAttribute('disabled')).toBe(false);
   });
 
-  it('with no suggested option the bar has nothing to confirm and is disabled', () => {
+  it('with no recommendation draws one quiet line instead of a full-width button', () => {
     const card: CockpitCardData = {
       ...CARD,
       options: CARD.options.map((option) => ({ ...option, suggested: false })),
     };
     renderCard({ card });
 
+    expect(screen.queryByTestId('cockpit-card-confirm')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm-empty').textContent).toBe(
+      'Choose an option, then confirm',
+    );
+  });
+
+  it('the quiet line gives way to the bar once an option is chosen', () => {
+    const card: CockpitCardData = {
+      ...CARD,
+      options: CARD.options.map((option) => ({ ...option, suggested: false })),
+    };
+    renderCard({ card });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+
+    expect(screen.queryByTestId('cockpit-card-confirm-empty')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Park it');
+  });
+});
+
+describe('compact density: three lines per card', () => {
+  it('omits the shown-option explanation but still offers the dropdown and Confirm', () => {
+    renderCard({ density: 'compact' });
+
+    expect(screen.queryByTestId('cockpit-card-shown-option')).toBeNull();
+    // The compact card draws no fact pills either: the question and one situation line only.
+    expect(screen.queryByTestId('cockpit-card-zone-a-facts')).toBeNull();
+
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
     const confirm = screen.getByTestId('cockpit-card-confirm');
-    expect(confirm.textContent).toContain('Nothing to confirm');
-    expect(confirm.hasAttribute('disabled')).toBe(true);
+    expect(confirm.textContent).toBe('Confirm');
+
+    const row = trigger.closest('[data-testid="cockpit-card-controls"]');
+    expect(row).not.toBeNull();
+    expect(confirm.closest('[data-testid="cockpit-card-controls"]')).toBe(row);
+    expect(row?.className).toContain('flex');
+    expect(confirm.className).toContain('w-auto');
+    expect(screen.queryByTestId('cockpit-card-confirm-hint')).toBeNull();
+  });
+
+  it('keeps the own-reply editor out of the compact body but keeps it in the open list', () => {
+    renderCard({ density: 'compact' });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    expect(screen.getByTestId('cockpit-card-own-reply-input')).toBeTruthy();
   });
 });
 
@@ -393,10 +599,14 @@ describe('confirmability, missing content and the title fallback', () => {
 
 describe('unknown kinds', () => {
   it('renders the default descriptor without throwing and keeps the options usable', () => {
-    const card: CockpitCardData = { ...CARD, kind: 'kind-this-build-does-not-know' };
+    const card: CockpitCardData = {
+      ...CARD,
+      kind: 'kind-this-build-does-not-know',
+      viz: { kind: 'attempts', count: 2 },
+    };
 
     expect(() => renderCard({ card })).not.toThrow();
-    expect(screen.getByText('Card')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-kind-badge').textContent).toBe('CARD');
     // The default descriptor names no viz, so even a card that carries one draws nothing.
     expect(cockpitCardDescriptor(card.kind).viz).toBeNull();
     expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
@@ -408,74 +618,46 @@ describe('unknown kinds', () => {
 });
 
 describe('descriptor-driven small visualization', () => {
-  /** The reading each known kind's fixture carries, mirroring the fixture provider's cards. */
-  const VIZ_BY_KIND: Record<CockpitCardKind, CockpitCardViz> = {
-    ask: { kind: 'history', history: { yes: 4, no: 1, other: 1 } },
-    multi: { kind: 'parts', count: 2 },
-    need: { kind: 'size', size: { current: 3, total: 5 } },
-    stuck: { kind: 'attempts', count: 3 },
-    fix: { kind: 'steps', count: 2 },
-    decision: { kind: 'history', history: { yes: 1, no: 2, other: 3 } },
+  /** The reading the kinds that draw a viz carry, mirroring the fixture provider's cards. */
+  const ATTEMPTS: CockpitCardViz = {
+    kind: 'attempts',
+    cap: 5,
+    items: [
+      { at: '2026-10-27T00:02:40.000Z', outcome: 'running' },
+      { at: '2026-10-27T00:01:30.000Z', outcome: 'failed' },
+    ],
   };
   const KNOWN_KINDS: CockpitCardKind[] = ['ask', 'multi', 'need', 'stuck', 'fix', 'decision'];
+  const VIZ_KINDS: CockpitCardKind[] = ['stuck', 'fix'];
 
-  it('renders the descriptor badge and a data-viz-kind equal to the descriptor for every known kind', () => {
+  it('draws the descriptor badge for every known kind, and a viz only where the descriptor names one', () => {
     for (const kind of KNOWN_KINDS) {
       cleanup();
       const descriptor = cockpitCardDescriptor(kind);
-      expect(descriptor.viz, `${kind} must have a descriptor viz`).not.toBeNull();
 
-      renderCard({ card: { ...CARD, kind, viz: VIZ_BY_KIND[kind] } });
+      renderCard({ card: { ...CARD, kind, viz: ATTEMPTS } });
 
-      expect(screen.getByTestId('cockpit-card-zone-a').textContent).toContain(
-        i18n.t(descriptor.labelKey),
+      expect(screen.getByTestId('cockpit-card-kind-badge').textContent).toBe(
+        i18n.t(descriptor.badgeKey),
       );
-      const viz = screen.getByTestId('cockpit-card-viz');
-      expect(viz.getAttribute('data-viz-kind')).toBe(descriptor.viz);
+      if (VIZ_KINDS.includes(kind)) {
+        const viz = screen.getByTestId('cockpit-card-viz');
+        expect(viz.getAttribute('data-viz-kind')).toBe(descriptor.viz);
+      } else {
+        expect(descriptor.viz).toBeNull();
+        expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
+      }
     }
   });
+});
 
-  it('draws each shape’s mechanical reading', () => {
-    const vizFor = (kind: CockpitCardKind): HTMLElement => {
-      cleanup();
-      renderCard({ card: { ...CARD, kind, viz: VIZ_BY_KIND[kind] } });
-      return screen.getByTestId('cockpit-card-viz');
-    };
+describe('provider-agnostic rendering', () => {
+  it('renders the same card the same way whatever the provider field says', () => {
+    const first = renderCard({ card: { ...CARD, provider: 'fixture' } });
+    const fixtureHtml = first.container.innerHTML;
+    first.unmount();
 
-    const attempts = vizFor('stuck');
-    expect(attempts.querySelector('[data-viz-count]')?.getAttribute('data-viz-count')).toBe('3');
-    expect(attempts.querySelectorAll('[data-viz-dot]').length).toBe(3);
-
-    const steps = vizFor('fix');
-    expect(steps.querySelectorAll('[data-viz-step]').length).toBe(3);
-    expect(steps.querySelectorAll('[data-viz-current="true"]').length).toBe(1);
-    expect(steps.querySelector('[data-viz-current="true"]')?.getAttribute('data-viz-step')).toBe('2');
-
-    const history = vizFor('ask');
-    expect(history.querySelectorAll('[data-viz-segment]').length).toBe(3);
-    for (const key of ['yes', 'no', 'other']) {
-      expect(history.querySelector(`[data-viz-segment="${key}"]`)).toBeTruthy();
-    }
-
-    const size = vizFor('need');
-    expect(Number(size.querySelector('[data-viz-ratio]')?.getAttribute('data-viz-ratio'))).toBeCloseTo(
-      3 / 5,
-    );
-    expect(size.querySelector('[data-viz-fill="size"]')).toBeTruthy();
-
-    const parts = vizFor('multi');
-    expect(parts.querySelectorAll('[data-viz-part]').length).toBe(2);
-    expect(parts.textContent).toContain('①');
-    expect(parts.textContent).toContain('②');
-  });
-
-  it('draws nothing when the card’s viz kind disagrees with the descriptor', () => {
-    renderCard({ card: { ...CARD, kind: 'ask', viz: { kind: 'steps', count: 2 } } });
-    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
-  });
-
-  it('draws nothing when the known kind carries no viz', () => {
-    renderCard({ card: { ...CARD, kind: 'stuck' } });
-    expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
+    const second = renderCard({ card: { ...CARD, provider: 'quay-fleet' } });
+    expect(second.container.innerHTML).toBe(fixtureHtml);
   });
 });
