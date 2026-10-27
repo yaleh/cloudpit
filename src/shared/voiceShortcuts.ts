@@ -65,7 +65,7 @@ export const DEFAULT_VOICE_SHORTCUTS: VoiceShortcuts = {
 const VOICE_SHORTCUTS_PREFERENCE_KEY = 'voiceShortcuts' as unknown as UserPreferenceKey;
 
 /** The keys that only ever act as modifiers, so they cannot end a chord themselves. */
-const MODIFIER_CODES = new Set([
+const MODIFIER_CODES: readonly string[] = [
   'ShiftLeft',
   'ShiftRight',
   'ControlLeft',
@@ -77,7 +77,7 @@ const MODIFIER_CODES = new Set([
   'CapsLock',
   'NumLock',
   'ScrollLock',
-]);
+];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -102,7 +102,7 @@ function normalizeChord(value: unknown): VoiceShortcutChord | null {
   if (!isRecord(value)) return null;
 
   const code = typeof value.code === 'string' ? value.code.trim() : '';
-  if (!code || MODIFIER_CODES.has(code)) return null;
+  if (!code || MODIFIER_CODES.includes(code)) return null;
 
   return {
     code,
@@ -199,7 +199,7 @@ export type VoiceShortcutKeyEvent = Pick<
  * returning null lets the capture form keep waiting for the real key.
  */
 export function chordFromKeyEvent(event: VoiceShortcutKeyEvent): VoiceShortcutChord | null {
-  if (!event.code || MODIFIER_CODES.has(event.code)) return null;
+  if (!event.code || MODIFIER_CODES.includes(event.code)) return null;
   return {
     code: event.code,
     ctrl: event.ctrlKey,
@@ -237,7 +237,7 @@ const TYPING_KEY = /^(Key[A-Z]|Digit\d|Numpad\d)$/;
 const FUNCTION_KEY = /^F(\d{1,2})$/;
 
 /** Keys that already mean something to the page or the browser on their own. */
-const BARE_RESERVED_CODES = new Set([
+const BARE_RESERVED_CODES: readonly string[] = [
   'Escape',
   'Tab',
   'Enter',
@@ -253,7 +253,7 @@ const BARE_RESERVED_CODES = new Set([
   'ArrowDown',
   'ArrowLeft',
   'ArrowRight',
-]);
+];
 
 /**
  * The keys a Ctrl/Meta combination already claims.
@@ -262,7 +262,7 @@ const BARE_RESERVED_CODES = new Set([
  * clipboard, devtools) — taking one leaves the user unable to do something they
  * could do before, so the settings form warns instead of silently rebinding it.
  */
-const CTRL_RESERVED_CODES = new Set([
+const CTRL_RESERVED_CODES: readonly string[] = [
   'KeyA',
   'KeyC',
   'KeyD',
@@ -286,7 +286,7 @@ const CTRL_RESERVED_CODES = new Set([
   'F5',
   'F11',
   'F12',
-]);
+];
 
 /**
  * How risky a binding is, for the warning the settings form draws under it.
@@ -301,7 +301,7 @@ export function shortcutConflictLevel(chord: VoiceShortcutChord): VoiceShortcutC
   const bare = !chord.ctrl && !chord.alt && !chord.meta;
 
   if (bare) {
-    if (TYPING_KEY.test(chord.code) || BARE_RESERVED_CODES.has(chord.code)) return 'high';
+    if (TYPING_KEY.test(chord.code) || BARE_RESERVED_CODES.includes(chord.code)) return 'high';
     const fn = FUNCTION_KEY.exec(chord.code);
     if (fn !== null) {
       const number = Number(fn[1]);
@@ -319,7 +319,7 @@ export function shortcutConflictLevel(chord: VoiceShortcutChord): VoiceShortcutC
     if (chord.alt) {
       return chord.code === 'F4' ? 'high' : 'none';
     }
-    if (CTRL_RESERVED_CODES.has(chord.code)) return 'high';
+    if (CTRL_RESERVED_CODES.includes(chord.code)) return 'high';
     // The input-method switch and the OS launcher both live here.
     if (chord.code === 'Space') return 'high';
     return 'none';
