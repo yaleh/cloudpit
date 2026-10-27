@@ -51,6 +51,7 @@ extra:
 - `npm run typecheck` → exit 0（tsconfig + server + scripts 三段）。
 - `npx oxlint <六个文件>` → exit 0。
 - UI 探针：`1 passed (13.1s)`，console 只有资源 403/404/400（假语音端点与无 realtime 凭据），无 `pageerror`。
+- ratchet 修复轮（2026-10-27，exited-not-landed 后）：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → exit 0。上轮 fan-in 的首行只报了 ChatInterface；本地整跑暴露 4 条真实违规，均已修——`ChatInterface.tsx` 1395→1443 与 `ChatComposer.tsx` 1606→1628 是本任务接线，按 AC-394 RECORDED CHANGE 记入 `architecture-ratchet.baseline.json` 的 note；`VoiceSettingsTab.tsx` 把快捷键小节抽到新文件 `VoiceShortcutsSection.tsx` 后 836→673（回到 800 行硬线以下）；`src/shared/voiceShortcuts.ts` 三处模块级 `new Set` 改 `readonly string[]`（moduleMutableState 3→0）。复跑三文件 vitest → 23 passed（8+10+5）；`npm run typecheck` → exit 0；`npx oxlint` 十个文件 → exit 0（仅 ChatComposer 既有 `react(refs)` warning）。
 - 该轴仍暗,理由:本任务只新增自包含前端模块与接线，未运行 archguard 依赖/图分析，无新增跨模块叶子边可读数。
 
 ## Touches
@@ -63,5 +64,7 @@ extra:
 - src/modules/chat/ChatInterface.tsx
 - src/modules/chat/composer/ChatComposer.tsx
 - src/modules/settings/tabs/VoiceSettingsTab.tsx
+- src/modules/settings/tabs/VoiceShortcutsSection.tsx (new)
 - src/modules/settings/tests/voiceShortcutsSettings.test.tsx (new)
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-voice-keyboard-shortcut-toggle.md
