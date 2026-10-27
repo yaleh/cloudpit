@@ -72,12 +72,12 @@ trace 在 `.cache/quay-e2e-tmp/quay-e2e-tusb4s/test-results/voice-realtime-uploa
 
 ## AC
 
-- [ ] AC1 三条判据命令在净 worktree 里**逐字各跑一次**，均 exit 0；贴 CMD1 `19 passed`、CMD2 `Test Files / Tests`、CMD3 `6 passed` 原文与 wall time；CMD1 通过用例数须为 **19**（不是红跑的 18）。
-- [ ] AC2 375px 腿单独连跑 **3 次，3/3 exit 0**，每次贴 `1 passed` 原文与 `[ac323-375-overflow]` 读数（`bar.x >= 0`、`documentScrollWidth <= 375`、`offenders=[]`）。
-- [ ] AC3 ancestry 证据机械入档：`git merge-base --is-ancestor 23cbd70b2 f20fd027c; echo $?` → 非 0，`… dd9db6a3c` / `… develop` / `… HEAD` → 0；`git show f20fd027c:e2e/voice-realtime-upload-fixture.spec.ts | grep -n "375px: the same injection gesture"` → `1142`，HEAD 同 grep → `1242`；`git show f20fd027c:src/modules/chat/outline/InputOutlineDrawer.tsx | grep -c data-input-outline-clip` → `0`，HEAD → `1`；`git diff --stat 801146314658e159e636606291de1e34dc324444 9cc37c5111e86c97c2e2e2763db9f662943012af` 只列 `tasks/gap-ac323-375px-bar-horizontal-overflow.md`。命令与逐字输出入档。
-- [ ] AC4 台账逐字入档：`.quay/gate-events.jsonl` 里 `item_id=AC-323`、`gate=goal` 的末四拍（`01:28:21.886Z` pass tree `67ec3785…`；`01:31:03.901Z` fail 同树；`01:34:37.100Z` fail tree `9cc37c5…`）及其逐字理由、`evaluationRoot`；`git reflog` 的 `09:34:30 +0800` ff 与 `09:27:25 +0800` 两条记录；复算证据时刻比 ff 晚 `7.1s`。
-- [ ] AC5 承重面未被本条触碰：`git diff --name-only develop...HEAD -- src server goals scripts e2e` **为空**；`git diff --stat develop -- e2e/voice-realtime-upload-fixture.spec.ts src/modules/chat/outline/InputOutlineDrawer.tsx` 为空；`git status --porcelain` 与本条开工快照逐字相同（⛔ 未 stash / 未 `git checkout --` / 未编辑任何 `src/**`、`goals/**`、`e2e/**`）。
-- [ ] AC6 如实登记：完成记录逐字写明「**被提交的树满足 AC-323**（净树三条命令 exit 0）」「台账红尾是主检出 ff 落地晚于 gate 启动的 merge race，红跑读的是修复前 spec（`Location 1142`、18 例、`data-input-outline-clip` 计数 0）」与残留假设；⛔ 不得用单测读数替代判据本体；若净树判据为红，本条必须停手上报 `needs-human` 并写明「归因不成立，应按缺陷任务重立」。
+- [x] AC1 三条判据命令在净 worktree 里**逐字各跑一次**，均 exit 0；贴 CMD1 `19 passed`、CMD2 `Test Files / Tests`、CMD3 `6 passed` 原文与 wall time；CMD1 通过用例数须为 **19**（不是红跑的 18）。
+- [x] AC2 375px 腿单独连跑 **3 次，3/3 exit 0**，每次贴 `1 passed` 原文与 `[ac323-375-overflow]` 读数（`bar.x >= 0`、`documentScrollWidth <= 375`、`offenders=[]`）。
+- [x] AC3 ancestry 证据机械入档：`git merge-base --is-ancestor 23cbd70b2 f20fd027c; echo $?` → 非 0，`… dd9db6a3c` / `… develop` / `… HEAD` → 0；`git show f20fd027c:e2e/voice-realtime-upload-fixture.spec.ts | grep -n "375px: the same injection gesture"` → `1142`，HEAD 同 grep → `1242`；`git show f20fd027c:src/modules/chat/outline/InputOutlineDrawer.tsx | grep -c data-input-outline-clip` → `0`，HEAD → `1`；`git diff --stat 801146314658e159e636606291de1e34dc324444 9cc37c5111e86c97c2e2e2763db9f662943012af` 只列 `tasks/gap-ac323-375px-bar-horizontal-overflow.md`。命令与逐字输出入档。
+- [x] AC4 台账逐字入档：`.quay/gate-events.jsonl` 里 `item_id=AC-323`、`gate=goal` 的末四拍（`01:28:21.886Z` pass tree `67ec3785…`；`01:31:03.901Z` fail 同树；`01:34:37.100Z` fail tree `9cc37c5…`）及其逐字理由、`evaluationRoot`；`git reflog` 的 `09:34:30 +0800` ff 与 `09:27:25 +0800` 两条记录；复算证据时刻比 ff 晚 `7.1s`。
+- [x] AC5 承重面未被本条触碰：`git diff --name-only develop...HEAD -- src server goals scripts e2e` **为空**；`git diff --stat develop -- e2e/voice-realtime-upload-fixture.spec.ts src/modules/chat/outline/InputOutlineDrawer.tsx` 为空；`git status --porcelain` 与本条开工快照逐字相同（⛔ 未 stash / 未 `git checkout --` / 未编辑任何 `src/**`、`goals/**`、`e2e/**`）。
+- [x] AC6 如实登记：完成记录逐字写明「**被提交的树满足 AC-323**（净树三条命令 exit 0）」「台账红尾是主检出 ff 落地晚于 gate 启动的 merge race，红跑读的是修复前 spec（`Location 1142`、18 例、`data-input-outline-clip` 计数 0）」与残留假设；⛔ 不得用单测读数替代判据本体；若净树判据为红，本条必须停手上报 `needs-human` 并写明「归因不成立，应按缺陷任务重立」。
 
 ## DoD
 
@@ -87,6 +87,133 @@ trace 在 `.cache/quay-e2e-tmp/quay-e2e-tusb4s/test-results/voice-realtime-uploa
 - 完成记录明确写出判法：「修复 `23cbd70b2` 有效；台账 fail 尾部是机械 fan-in 的 ff 与门禁测量之间的竞态」，并给出残留未钉死假设。
 - 交付物只动 `tasks/<本条 id>.md`：判据、实现、`goals/`、`e2e/`、工作树一个字节未动。
 - 若净树直跑为**红**：置 `needs-human`，写明「判据在净检出上也是红的，本条归因不成立，应按缺陷任务重立」——⛔ 不得把环境红写成产品绿，也不得据此改断言或删/跳过用例。
+
+## 完成记录（verification-only，2026-10-27）
+
+工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-ac323-criterion-ledger-red-is-merge-race`（branch `task/gap-ac323-criterion-ledger-red-is-merge-race`，起点 = `develop` `424f205d527e3d70d52226bcac1b43b71d7c3032`，开工 `git status --porcelain` 为空）。本条未改任何 `src/**`、`server/**`、`goals/**`、`scripts/**`、`e2e/**` 字节。
+
+### 判法（逐字）
+
+**修复 `23cbd70b2` 有效；台账 fail 尾部是机械 fan-in 的 ff 与门禁测量之间的竞态。** 被提交的树满足 AC-323（净树三条命令 exit 0，门禁 `verdict: "pass"`）；红跑读的是修复前 spec（`Location 1142`、18 例、`data-input-outline-clip` 计数 0）。
+
+### AC1 三条判据命令逐字各跑一次（净 worktree）
+
+| 命令 | exit | wall |
+|---|---|---|
+| CMD1 `npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` | 0 | 171s |
+| CMD2 `npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` | 0 | 5s |
+| CMD3 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` | 0 | 27s |
+
+原文：
+
+- CMD1 → `19 passed (2.8m)`（红跑为 18 例：`12 passed + 5 did not run + 1 failed`）。
+- CMD2 → `Test Files  22 passed (22)` / `Tests  218 passed (218)` / `Duration  3.75s`。
+- CMD3 → `6 passed (26.3s)`。
+
+### AC2 375px 腿单独连跑 3 次
+
+| run | exit | wall | 原文 | `[ac323-375-overflow]` 读数 |
+|---|---|---|---|---|
+| 1 | 0 | 29s | `1 passed (28.5s)` | viewportWidth=375, documentClientWidth=375, documentScrollWidth=375, bar.x=8, bar.width=359, offenders=[] |
+| 2 | 0 | 29s | `1 passed (28.1s)` | viewportWidth=375, documentClientWidth=375, documentScrollWidth=375, bar.x=8, bar.width=359, offenders=[] |
+| 3 | 0 | 30s | `1 passed (28.7s)` | viewportWidth=375, documentClientWidth=375, documentScrollWidth=375, bar.x=8, bar.width=359, offenders=[] |
+
+3/3 exit 0；`bar.x = 8 >= 0`；`documentScrollWidth = 375 <= 375`；`offenders = []`。
+
+### AC3 ancestry 机械读数
+
+```
+$ for ref in f20fd027c dd9db6a3c develop HEAD; do git merge-base --is-ancestor 23cbd70b2 $ref; echo "$ref -> $?"; done
+f20fd027c -> 1
+dd9db6a3c -> 0
+develop -> 0
+HEAD -> 0
+
+$ git show f20fd027c:e2e/voice-realtime-upload-fixture.spec.ts | grep -n "375px: the same injection gesture"
+1142:  test('375px: the same injection gesture works with the bar inside the viewport', async () => {
+$ git show HEAD:e2e/voice-realtime-upload-fixture.spec.ts | grep -n "375px: the same injection gesture"
+1242:  test('375px: the same injection gesture works with the bar inside the viewport', async () => {
+
+$ git show f20fd027c:src/modules/chat/outline/InputOutlineDrawer.tsx | grep -c data-input-outline-clip
+0
+$ git show HEAD:src/modules/chat/outline/InputOutlineDrawer.tsx | grep -c data-input-outline-clip
+1
+
+$ git diff --stat 801146314658e159e636606291de1e34dc324444 9cc37c5111e86c97c2e2e2763db9f662943012af
+ tasks/gap-ac323-375px-bar-horizontal-overflow.md | 134 +++++++++++++++++++++--
+ 1 file changed, 125 insertions(+), 9 deletions(-)
+```
+
+修复提交 `23cbd70b2` 时刻 `2026-10-27 09:18:29 +0800`（`chat: clip the closed InputOutline drawer inside the session area (AC-323 375px)`）；主检出 ff 到含修复的树是 `09:34:30 +0800`（`dd9db6a3c`），晚约 16 分钟。
+
+### AC4 台账逐字
+
+主检出 `.quay/gate-events.jsonl`，`item_id=AC-323`、`gate=goal`、`evaluationRoot=/data/home/yale/work/claudecodeui`：
+
+- `694b626e-fc1b-4c64-acf1-c7b6dd3359f8` `2026-10-27T01:28:21.886Z` pass，`treeSha=67ec37850a9c9137df52d6f58b16b3a55dea4a7e`，reason `acceptance passed (exit 0)`。
+- `72cdf191-27c6-4690-8aba-8940612bef5f` `2026-10-27T01:31:03.901Z` fail，同一 `treeSha=67ec3785…`，reason 尾段 `2 failed e2e/voice-realtime-composer-embedded.spec.ts:1133:3 … e2e/voice-realtime-upload-fixture.spec.ts:1142:3 … 9 did not run / 7 passed (54.4s)`。
+- `7f4da326-d724-4514-8c36-3ac5cb3bb0f5` `2026-10-27T01:34:37.100Z` fail，`treeSha=9cc37c5111e86c97c2e2e2763db9f662943012af`，reason 尾段 `1 failed e2e/voice-realtime-upload-fixture.spec.ts:1142:3 … 5 did not run / 12 passed (2.1m)`。
+
+`git reflog`：
+
+```
+dd9db6a3c HEAD@{2026-10-27 09:34:30 +0800}: merge develop: Fast-forward
+f20fd027c HEAD@{2026-10-27 09:27:25 +0800}: commit: tasks: gap-ac323-375px-bar-horizontal-overflow task_write by cli:2324460
+```
+
+复算：`01:34:37.100Z − 01:34:30Z = 7.1s`。证据落档时刻比 ff 晚 7.1s，而该跑 `2.1m` 在 ff 前约 2 分钟已开始 ⇒ 被测树是 pre-fix 的 `f20fd027c`/`67ec3785`；`treeSha` 只是落档时刻的树。
+
+### DoD 净检出真实 `quay goal gate AC-323`（非 `--dry-run`）
+
+`cd <worktree> && quay goal gate AC-323`，wall 203s，exit 0，逐字：
+
+```
+{
+  "id": "AC-323",
+  "verdict": "pass",
+  "reason": "acceptance passed (exit 0)",
+  "timeoutMs": 480000,
+  "timestamp": "2026-10-27T01:54:33.461Z",
+  "dryRun": false,
+  "event": {
+    "id": "59a711be-0741-4e69-a383-0783bfec2f4d",
+    "item_id": "AC-323", "gate": "goal", "actor": "goal-cli",
+    "verdict": "pass",
+    "timestamp": "2026-10-27T01:54:33.461Z",
+    "payload": {
+      "reason": "acceptance passed (exit 0)",
+      "evaluationRoot": "/data/home/yale/work/claudecodeui-worktrees/gap-ac323-criterion-ledger-red-is-merge-race",
+      "treeSha": "b3d055a4714bb79cf9a2e8ee123f9c0ef5501742"
+    }
+  }
+}
+```
+
+同一时刻主检出 `.quay/gate-events.jsonl` 另记 `1489534f-b111-48db-bb43-a4326700e2ca` `2026-10-27T01:54:38.578Z` pass、`evaluationRoot=/data/home/yale/work/claudecodeui`、同 `treeSha=b3d055a4…`——同一源码树的独立复读。
+
+### AC5 承重面读数
+
+```
+$ git diff --name-only develop...HEAD -- src server goals scripts e2e
+(空)
+$ git diff --stat develop -- e2e/voice-realtime-upload-fixture.spec.ts src/modules/chat/outline/InputOutlineDrawer.tsx
+(空)
+$ git status --porcelain
+(空)
+```
+
+⛔ 未 stash、未 `git checkout --`、未编辑任何 `src/**`、`goals/**`、`e2e/**`。
+
+### 残留未钉死假设
+
+1. 红跑没有留下 config evaluation 时刻的直接日志；「启动早于 ff」由 `2.1m` wall time、ff 时刻、证据时刻、修复前行号与 18 vs 19 例共同推出。
+2. 主检出在 `01:28:21.886Z` 曾于同一 pre-fix 树 `67ec3785` 上 pass、`01:31:03.901Z` 同树 fail ⇒ 修复前的红是竞态性的；本条只用它证明「红拍被测树是 pre-fix」，不把那一次 pass 当作修复有效的证据。
+3. 本条只做归因与复测；AC-323 的语义（双入口、紧凑栏、断线重连）仍由该 AC 的原判据覆盖，本条不复述、不另立断言、不改判据。
+4. 本条运行期间主机 load average ≈ 62（128 核）；判据在 480s 预算内 203s 完成，但并发负载下的瞬态时序不能由本条排除。
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本条是 verification-only 归因入档，只提交 `tasks/<id>.md`；未新增文档、未改模块依赖图，L_D 与 L_G 两轴都没有可测读数。
 
 ## Touches
 
