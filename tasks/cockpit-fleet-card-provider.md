@@ -2,7 +2,7 @@
 id: cockpit-fleet-card-provider
 title: 驾驶舱 quay-fleet 卡片提供方（K2）：经组合根注入的 CLI 调 quay-fleet cockpit cards
   --json，投影成 CockpitCard；会话提问卡由本地决策摘要补全内容，默认选项只取助手推荐
-status: todo
+status: ready
 labels:
   - feature
   - cockpit
