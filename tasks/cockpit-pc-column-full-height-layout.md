@@ -1,7 +1,7 @@
 ---
 id: cockpit-pc-column-full-height-layout
 title: PC 驾驶舱列满高：列与「会话 header + 会话内容」平级、从页面顶到底；会话 header（tab 等）只占左侧；覆盖式抽屉打开时输入大纲把手让位
-status: ready
+status: done
 labels:
   - gap
   - cockpit
