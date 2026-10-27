@@ -1,7 +1,7 @@
 ---
 id: AC-429
 title: PC 右侧驾驶舱列：收起即今天的会话页，按宽度取挤压 / 覆盖 / 不显示，计数按钮，会话链接在左侧打开，焦点归属
-status: draft
+status: active
 kind: criterion
 goal: GOAL-050
 criterion: npx vitest run src/modules/cockpit/tests/cockpitColumnController.test.ts
@@ -15,4 +15,15 @@ expect: React 之外的驾驶舱列 controller：宽度不小于 1280 为挤压�
 origin: 本会话 2026-10-26 至 10-27 用户确认的 PC 模型（INTERACTION-PRINCIPLES.md H
   节）：驾驶舱为右侧常驻、可收起的列，收起时与现会话页一致；入口是 header
   右侧带计数的按钮；中等宽度用覆盖式抽屉；语音与键盘按焦点归属，都无焦点时给驾驶舱。
+activatedAt: 2026-10-27T02:53:59.629Z
+statusLog:
+  - at: 2026-10-27T02:53:59.629Z
+    from: draft
+    to: active
+    actor: claude-session-摄像头与阻塞项驾驶舱
+    reason: 用户 2026-10-27 批准激活 GOAL-050（调整正文后）
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-27T02:53:59.629Z
 ---
