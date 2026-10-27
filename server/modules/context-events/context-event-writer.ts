@@ -3,18 +3,22 @@
  * `~/.quay-fleet/context/events/<YYYY-MM-DD>.jsonl` stream.
  *
  * WHAT THIS OWNS. One append-only file per UTC day, one JSON object per line, and
- * the v0 envelope every producer shares:
+ * the envelope every producer shares:
  *
- *   { v: 0, id: <ULID>, at: <ISO>, source: 'cloudcli', kind, project?, session?,
- *     refs?: [uri], data: { … } }
+ *   { v: <schema version>, id: <ULID>, at: <ISO>, source: 'cloudcli', kind,
+ *     project?, session?, refs?: [uri], data: { … } }
  *
- * The authoritative shape is quay-fleet's `config/context-event.schema.v0.json`,
- * read from the installed release (the same install the quay-fleet CLI locator
- * resolves). This writer validates against THAT document rather than against a
- * second copy of the contract — a copy here would drift the moment the fleet
- * ships v1. The document is read lazily and cached; while it is unavailable the
- * writer reports `schema-unavailable` and writes nothing, which is the honest
- * reading for "the fleet is not installed (or predates the schema)".
+ * The authoritative shape is quay-fleet's `config/context-event.schema.v0.json`
+ * (the FILE name is historical; its `version` field is what now moves), read from
+ * the installed release (the same install the quay-fleet CLI locator resolves).
+ * This writer validates against THAT document rather than against a second copy
+ * of the contract — a copy here would drift the moment the fleet ships v1. The
+ * row's `v` is that document's `version`: fleet's contract lets a READER accept
+ * older rows, but a WRITER must mint `row.v === schema.version`. The document is
+ * read lazily and cached; while it is unavailable — or it states no non-negative
+ * integer `version` — the writer reports `schema-unavailable` and writes nothing,
+ * which is the honest reading for "the fleet is not installed (or predates the
+ * schema)" and for "this document cannot be minted against".
  *
  * WRITE DISCIPLINE. The whole line is assembled in memory, then written with ONE
  * `write(2)` on a handle opened `O_APPEND`. Two writers in two processes can
@@ -38,9 +42,6 @@ import path from 'node:path';
 
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskEvent } from '@/shared/types.js';
-
-/** The v0 envelope version. The fleet schema pins this value. */
-export const CONTEXT_EVENT_VERSION = 0;
 
 /** The only `source` this writer may mint: this process is the CloudCLI producer. */
 export const CONTEXT_EVENT_SOURCE = 'cloudcli';
@@ -70,7 +71,8 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   'shadow.prediction.outcome',
   // quay-fleet's context-event schema v1 adds the two session-ask kinds. Until the
   // installed release ships that document the writer refuses them as `invalid-kind`
-  // (a counted, non-throwing reading) and starts landing them the moment v1 is installed.
+  // (a counted, non-throwing reading) and starts landing them — stamped with that
+  // document's `version` — the moment v1 is installed.
   'session.asking',
   'session.answered',
 ] as const;
@@ -296,6 +298,11 @@ export function resolveContextEventSchemaPath(options: {
  * never relax one this reader enforces).
  */
 type SchemaNode = {
+  /**
+   * The fleet document's version. The writer mints `row.v` from this value, so a
+   * document that does not state a usable version is treated as unreadable.
+   */
+  version?: unknown;
   type?: string;
   required?: readonly string[];
   properties?: Record<string, SchemaNode>;
@@ -410,6 +417,18 @@ function validateNode(value: unknown, node: SchemaNode, at: string): string[] {
     if (branches.length > 0 && matches !== 1) failures.push(`${at} must match exactly one oneOf branch`);
   }
   return failures;
+}
+
+/**
+ * Reads a schema document's `version`, the value every row this writer mints must
+ * carry. Only a non-negative integer is mintable: anything else (absent, a string,
+ * a fraction, a negative) is a document the writer cannot stamp against, so it is
+ * reported as unreadable rather than guessed at.
+ */
+function readSchemaVersion(node: SchemaNode): number | null {
+  return typeof node.version === 'number' && Number.isInteger(node.version) && node.version >= 0
+    ? node.version
+    : null;
 }
 
 /**
@@ -531,7 +550,7 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
     explicitSchemaPath ?? resolveContextEventSchemaPath({ homeDir, ...(options.env === undefined ? {} : { env: options.env }) });
   const attemptedSchemaPath = discoveredSchemaPath;
 
-  let schema: SchemaNode | null = null;
+  let loaded: { node: SchemaNode; version: number } | null = null;
   let schemaError: string | null = null;
   let lastSchemaAttempt = Number.NEGATIVE_INFINITY;
   let writes = 0;
@@ -539,8 +558,8 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
   let directoryReady = false;
 
   /** Reads and parses the schema once; a missing/malformed document is a reading, not a throw. */
-  const loadSchema = (): SchemaNode | null => {
-    if (schema !== null) return schema;
+  const loadSchema = (): { node: SchemaNode; version: number } | null => {
+    if (loaded !== null) return loaded;
     if (attemptedSchemaPath === null) {
       schemaError = 'no installed quay-fleet release carries config/context-event.schema.v0.json';
       return null;
@@ -554,9 +573,13 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
       const parsed = JSON.parse(io.readFileSync(attemptedSchemaPath, 'utf8')) as unknown;
       const node = asSchemaNode(parsed);
       if (node === null) throw new Error('schema document is not an object');
-      schema = node;
+      // The document's own `version` is the only legal `row.v`. A document that
+      // does not state a non-negative integer is as unusable as a missing one.
+      const version = readSchemaVersion(node);
+      if (version === null) throw new Error('schema document does not state a non-negative integer `version`');
+      loaded = { node, version };
       schemaError = null;
-      return schema;
+      return loaded;
     } catch (error) {
       schemaError = `schema unavailable at ${attemptedSchemaPath}: ${error instanceof Error ? error.message : String(error)}`;
       return null;
@@ -564,10 +587,10 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
   };
 
   const status = (): ContextEventWriterStatus => {
-    const loaded = schema !== null;
+    const isLoaded = loaded !== null;
     return {
-      state: loaded ? 'ok' : 'schema-unavailable',
-      reason: loaded ? null : schemaError ?? 'schema has not been read yet',
+      state: isLoaded ? 'ok' : 'schema-unavailable',
+      reason: isLoaded ? null : schemaError ?? 'schema has not been read yet',
       schemaPath: attemptedSchemaPath,
       eventsDir,
       writes,
@@ -580,12 +603,13 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
       rejected += 1;
       return { ok: false, reason: 'invalid-kind', detail: `"${draft.kind}" is not a CloudCLI-produced kind` };
     }
-    const node = loadSchema();
-    if (node === null) {
+    const document = loadSchema();
+    if (document === null) {
       // Zero writes while the schema is unavailable — the stream's shape is the
       // fleet's document, and writing an unvalidated guess would poison it.
       return { ok: false, reason: 'schema-unavailable', detail: schemaError ?? 'schema unavailable' };
     }
+    const { node, version } = document;
 
     // The document is the contract, not the constant: a kind the installed schema does
     // not carry is refused (and counted) rather than written. That is what makes a v0
@@ -602,7 +626,7 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
 
     const at = draft.at ?? new Date(now()).toISOString();
     const event: ContextEvent = {
-      v: CONTEXT_EVENT_VERSION,
+      v: version,
       id: newId(Date.parse(at)),
       at,
       source: CONTEXT_EVENT_SOURCE,

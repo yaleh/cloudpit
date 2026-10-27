@@ -13,7 +13,10 @@
  *   (d) a missing schema document reads `schema-unavailable` and performs ZERO
  *       writes (the append is a value, not a throw);
  *   (e) fifty concurrent appends land as exactly fifty parseable lines — the
- *       O_APPEND single-write half of the discipline.
+ *       O_APPEND single-write half of the discipline;
+ *   (f) `row.v` is the schema document's own `version` — 1 when it says 1, 0 when
+ *       it says 0 — and a document whose `version` is absent or negative is
+ *       unreadable: `schema-unavailable`, zero writes, no throw.
  */
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -27,45 +30,57 @@ import {
 } from '@/modules/context-events/index.js';
 
 /** The schema the fleet ships; this fixture states the same envelope keywords. */
-const FIXTURE_SCHEMA = {
-  $schema: 'https://json-schema.org/draft/2020-12/schema',
-  type: 'object',
-  required: ['v', 'id', 'at', 'source', 'kind', 'data'],
-  properties: {
-    v: { const: 0 },
-    id: { type: 'string', pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' },
-    at: { type: 'string' },
-    source: { const: 'cloudcli' },
-    kind: {
-      enum: [
-        'utterance',
-        'chip.shown',
-        'chip.picked',
-        'chip.redrawn',
-        'focus',
-        'reference.resolved',
-        'send.previewed',
-        'send.confirmed',
-        'send.cancelled',
-        'build.completed',
-        'service.restarted',
-        'correction',
-        'shadow.prediction',
-        'shadow.prediction.outcome',
-      ],
+function fixtureSchema(version: number): Record<string, unknown> {
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    // The writer mints `row.v` from this value, so each fixture pins its own.
+    version,
+    type: 'object',
+    required: ['v', 'id', 'at', 'source', 'kind', 'data'],
+    properties: {
+      v: { const: version },
+      id: { type: 'string', pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' },
+      at: { type: 'string' },
+      source: { const: 'cloudcli' },
+      kind: {
+        enum: [
+          'utterance',
+          'chip.shown',
+          'chip.picked',
+          'chip.redrawn',
+          'focus',
+          'reference.resolved',
+          'send.previewed',
+          'send.confirmed',
+          'send.cancelled',
+          'build.completed',
+          'service.restarted',
+          'correction',
+          'shadow.prediction',
+          'shadow.prediction.outcome',
+        ],
+      },
+      project: { type: 'string' },
+      session: { type: 'string' },
+      refs: { type: 'array', items: { type: 'string' } },
+      data: {
+        type: 'object',
+        // The writer may only carry the keys this fixture permits, which is what
+        // gives (b) an invalid event the writer cannot otherwise avoid producing.
+        additionalProperties: false,
+        properties: { text: { type: 'string' } },
+      },
     },
-    project: { type: 'string' },
-    session: { type: 'string' },
-    refs: { type: 'array', items: { type: 'string' } },
-    data: {
-      type: 'object',
-      // The writer may only carry the keys this fixture permits, which is what
-      // gives (b) an invalid event the writer cannot otherwise avoid producing.
-      additionalProperties: false,
-      properties: { text: { type: 'string' } },
-    },
-  },
-};
+  };
+}
+
+const FIXTURE_SCHEMA = fixtureSchema(0);
+
+/** The same document with its `version` keyword removed (the unreadable reading). */
+function schemaWithoutVersion(): Record<string, unknown> {
+  const { version: _version, ...rest } = fixtureSchema(0);
+  return rest;
+}
 
 const DAY = '2026-10-24';
 const AT = `${DAY}T12:00:00.000Z`;
@@ -79,7 +94,7 @@ async function readDay(eventsDir: string): Promise<string[]> {
 /** One isolated HOME with a fixture schema; the caller supplies the reader. */
 async function withFixtureHome(
   run: (context: { homeDir: string; eventsDir: string; schemaPath: string }) => Promise<void>,
-  options: { schema?: boolean } = {},
+  options: { schema?: boolean; document?: Record<string, unknown> } = {},
 ): Promise<void> {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'context-writer-'));
   const eventsDir = path.join(homeDir, '.quay-fleet', 'context', 'events');
@@ -87,7 +102,7 @@ async function withFixtureHome(
   try {
     if (options.schema !== false) {
       await mkdir(path.dirname(schemaPath), { recursive: true });
-      await writeFile(schemaPath, JSON.stringify(FIXTURE_SCHEMA), 'utf8');
+      await writeFile(schemaPath, JSON.stringify(options.document ?? FIXTURE_SCHEMA), 'utf8');
     }
     await run({ homeDir, eventsDir, schemaPath });
   } finally {
@@ -193,4 +208,83 @@ test('AC1 (e): fifty concurrent appends land as exactly fifty parseable lines', 
     assert.equal(ids.size, 50, 'each line carries its own ULID');
     console.log(`AC1(e) lines=${lines.length} unique_ids=${ids.size}`);
   });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (f) `row.v` comes from the schema document, never a constant in this tree
+// ---------------------------------------------------------------------------------------------
+
+test('AC1 (f): a document whose version is 1 mints rows with v === 1', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const result = await writer.append({ kind: 'utterance', at: AT, data: { text: 'schema v1' } });
+      assert.equal(result.ok, true);
+
+      const lines = await readDay(eventsDir);
+      assert.equal(lines.length, 1);
+      const event = JSON.parse(lines[0]) as { v: number };
+      assert.equal(event.v, 1, 'the writer must stamp the schema document version');
+      assert.equal(writer.status().state, 'ok');
+      console.log(`AC1(f/v1) schema_version=1 row_v=${event.v}`);
+    },
+    { document: fixtureSchema(1) },
+  );
+});
+
+test('AC1 (f): a document whose version is 0 mints rows with v === 0', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const result = await writer.append({ kind: 'utterance', at: AT, data: { text: 'schema v0' } });
+      assert.equal(result.ok, true);
+
+      const lines = await readDay(eventsDir);
+      const event = JSON.parse(lines[0]) as { v: number };
+      assert.equal(event.v, 0);
+      console.log(`AC1(f/v0) schema_version=0 row_v=${event.v}`);
+    },
+    { document: fixtureSchema(0) },
+  );
+});
+
+test('AC1 (f): a document without version is unreadable — no write, no throw', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const result = await writer.append({ kind: 'utterance', at: AT, data: { text: 'no version' } });
+      assert.equal(result.ok, false, 'an unstampable document must not be written against');
+      if (!result.ok) {
+        assert.equal(result.reason, 'schema-unavailable');
+        assert.match(result.detail, /version/);
+      }
+      const status = writer.status();
+      assert.equal(status.state, 'schema-unavailable');
+      assert.match(status.reason ?? '', /version/);
+      assert.equal(status.writes, 0);
+      await assert.rejects(readFile(path.join(eventsDir, `${DAY}.jsonl`), 'utf8'), 'no file may be created');
+      console.log(`AC1(f/missing) state=${status.state} writes=${status.writes} reason=${status.reason}`);
+    },
+    { document: schemaWithoutVersion() },
+  );
+});
+
+test('AC1 (f): a document with a negative version is unreadable — no write, no throw', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const result = await writer.append({ kind: 'utterance', at: AT, data: { text: 'negative version' } });
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.reason, 'schema-unavailable');
+        assert.match(result.detail, /version/);
+      }
+      const status = writer.status();
+      assert.equal(status.state, 'schema-unavailable');
+      assert.equal(status.writes, 0);
+      await assert.rejects(readFile(path.join(eventsDir, `${DAY}.jsonl`), 'utf8'), 'no file may be created');
+      console.log(`AC1(f/negative) state=${status.state} writes=${status.writes} reason=${status.reason}`);
+    },
+    { document: fixtureSchema(-1) },
+  );
 });

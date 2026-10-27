@@ -275,9 +275,10 @@ test('AC-433 v1: one asking and one answered row land, each exactly once and com
     assert.ok(asking, 'the asking row must be on the stream');
     assert.ok(answered, 'the answered row must be on the stream');
 
-    // The envelope the writer minted.
+    // The envelope the writer minted. `v` is the installed document's own version,
+    // so a v1 document stamps 1 (the writer no longer pins v0).
     for (const row of [asking, answered]) {
-      assert.equal(row.v, 0);
+      assert.equal(row.v, 1);
       assert.equal(row.source, 'cloudcli');
       assert.match(String(row.id), /^[0-9A-HJKMNP-TV-Z]{26}$/, 'the id is a ULID');
       assert.equal(typeof row.at, 'string');
