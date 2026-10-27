@@ -110,45 +110,119 @@ function renderContext(rows: TranscriptRow[], promptIndexes: number[]): string {
   return context.length > CONTEXT_MAX_CHARS ? context.slice(context.length - CONTEXT_MAX_CHARS) : context;
 }
 
+/** The indexes of the transcript's real user prompts, in order. */
+function promptIndexesOf(rows: TranscriptRow[]): number[] {
+  return rows.map((row, index) => (isUserPromptRow(row) ? index : -1)).filter((index) => index >= 0);
+}
+
+/**
+ * The ask ending at `endIndex`: its identity, its revision and the message whose words are
+ * restated. The ask exists only when the last assistant message at or before `endIndex` is
+ * itself asking — a later, non-asking assistant message means that turn already moved on.
+ */
+function askEndingAt(
+  rows: TranscriptRow[],
+  sessionId: string,
+  endIndex: number,
+): SessionAskReading['current'] {
+  let lastAssistantIndex = -1;
+  for (let index = Math.min(endIndex, rows.length - 1); index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row !== undefined && transcriptRowRole(row) === 'assistant' && transcriptRowText(row) !== '') {
+      lastAssistantIndex = index;
+      break;
+    }
+  }
+  if (lastAssistantIndex < 0) return null;
+  const assistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
+  if (!analyzeAsking(assistantText).isAsking) return null;
+
+  // The ask span starts after the last user prompt before the asking message; a re-ask keeps the
+  // span's FIRST asking id and bumps the revision.
+  const promptIndexes = promptIndexesOf(rows.slice(0, lastAssistantIndex + 1));
+  const spanStart = (promptIndexes.at(-1) ?? -1) + 1;
+  const asks = askingRows(rows.slice(spanStart, lastAssistantIndex + 1));
+  if (asks.length === 0) return null;
+
+  return {
+    askId: `${sessionId}:${asks[0]?.messageId ?? ''}`,
+    messageId: transcriptRowMessageId(rows[lastAssistantIndex] ?? {}),
+    revision: asks.length,
+    assistantText,
+  };
+}
+
+/** The previous ask the last user prompt at or before `endIndex` answers. */
+function answeredEndingAt(
+  rows: TranscriptRow[],
+  sessionId: string,
+  endIndex: number,
+): SessionAskReading['answered'] {
+  const promptIndexes = promptIndexesOf(rows.slice(0, endIndex + 1));
+  const answerIndex = promptIndexes.at(-1);
+  const previousIndex = promptIndexes.at(-2);
+  if (answerIndex === undefined || previousIndex === undefined) return null;
+  const previousAsks = askingRows(rows.slice(previousIndex + 1, answerIndex));
+  const userMessageId = transcriptRowMessageId(rows[answerIndex] ?? {});
+  if (previousAsks.length === 0 || userMessageId === '') return null;
+  return { askId: `${sessionId}:${previousAsks[0]?.messageId ?? ''}`, messageId: userMessageId };
+}
+
 /**
  * Reads one transcript's ask identity and the bounded context the summariser is given.
  *
  * `askId` is `<sessionId>:<first asking message since the last user prompt>`; `revision` counts
  * the asking messages in that span, so a re-ask before the answer keeps the id and bumps the
- * revision. The answered reading mirrors the rule on the span before the last user prompt.
+ * revision. Without `messageId` the reading follows the transcript's LAST assistant message.
+ *
+ * WITH `messageId` THE ASK IS LOCATED BY ID. quay-fleet names the assistant message its
+ * session-ask card is about; by the time the cockpit reads that card the conversation may have
+ * moved on, so requiring the LAST message to be asking leaves the card unresolved forever (the
+ * live quay card's named message was twenty turns behind the transcript's end). The named
+ * message is the ask; the context stops at it, so the model is shown the turns around the ask
+ * rather than the transcript's tail.
  */
-export function readSessionAsk(raw: string, sessionId: string): SessionAskReading {
+export function readSessionAsk(raw: string, sessionId: string, messageId = ''): SessionAskReading {
   const rows = parseTranscriptRows(raw);
-  const promptIndexes = rows.map((row, index) => (isUserPromptRow(row) ? index : -1)).filter((index) => index >= 0);
-  const currentRows = rows.slice((promptIndexes.at(-1) ?? -1) + 1);
+  const allPromptIndexes = promptIndexesOf(rows);
 
-  const currentAsks = askingRows(currentRows);
-  const lastAssistant = [...currentRows]
-    .reverse()
-    .find((row) => transcriptRowRole(row) === 'assistant' && transcriptRowText(row) !== '');
-  const lastAssistantIsAsking = lastAssistant !== undefined && askingRows([lastAssistant]).length > 0;
-  const current =
-    lastAssistantIsAsking && currentAsks.length > 0
-      ? {
-          askId: `${sessionId}:${currentAsks[0]?.messageId ?? ''}`,
-          messageId: transcriptRowMessageId(lastAssistant),
-          revision: currentAsks.length,
-          assistantText: transcriptRowText(lastAssistant),
-        }
-      : null;
-
-  const answerIndex = promptIndexes.at(-1);
-  const previousIndex = promptIndexes.at(-2);
-  let answered: SessionAskReading['answered'] = null;
-  if (answerIndex !== undefined && previousIndex !== undefined) {
-    const previousAsks = askingRows(rows.slice(previousIndex + 1, answerIndex));
-    const userMessageId = transcriptRowMessageId(rows[answerIndex] ?? {});
-    if (previousAsks.length > 0 && userMessageId !== '') {
-      answered = { askId: `${sessionId}:${previousAsks[0]?.messageId ?? ''}`, messageId: userMessageId };
+  if (messageId !== '') {
+    let namedIndex = -1;
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index];
+      if (
+        row !== undefined &&
+        transcriptRowRole(row) === 'assistant' &&
+        transcriptRowText(row) !== '' &&
+        transcriptRowMessageId(row) === messageId
+      ) {
+        namedIndex = index;
+        break;
+      }
     }
+    if (namedIndex < 0) {
+      return {
+        current: null,
+        answered: answeredEndingAt(rows, sessionId, rows.length - 1),
+        context: renderContext(rows, allPromptIndexes),
+      };
+    }
+    const visibleRows = rows.slice(0, namedIndex + 1);
+    return {
+      current: askEndingAt(rows, sessionId, namedIndex),
+      answered: answeredEndingAt(rows, sessionId, namedIndex),
+      context: renderContext(
+        visibleRows,
+        allPromptIndexes.filter((index) => index <= namedIndex),
+      ),
+    };
   }
 
-  return { current, answered, context: renderContext(rows, promptIndexes) };
+  return {
+    current: askEndingAt(rows, sessionId, rows.length - 1),
+    answered: answeredEndingAt(rows, sessionId, rows.length - 1),
+    context: renderContext(rows, allPromptIndexes),
+  };
 }
 
 /** The one prompt: recent turns, then the message whose question is being restated. */

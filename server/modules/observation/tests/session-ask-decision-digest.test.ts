@@ -18,6 +18,9 @@
  *     server/modules/observation/tests/session-ask-decision-digest.test.ts
  */
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import type { LlmCompletion, LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
@@ -33,7 +36,9 @@ import {
 } from '../session-ask-decision-digest.js';
 import {
   createSessionAskDecisionReader,
+  SESSION_ASK_DECISION_ASK_MISSING_REASON,
   SESSION_ASK_DECISION_LIMIT_REASON,
+  SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
 } from '../session-ask-decision-reader.js';
 import { createSessionDigestProducer } from '../session-digest.producer.js';
 import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
@@ -527,6 +532,13 @@ function readerOver(
     settings?: SessionDigestLlmSettings;
     answer?: string;
     requests?: LlmCompletionRequest[];
+    resolveSession?: (sessionId: string) => {
+      title: string;
+      jsonlPath: string | null;
+      providerSessionId?: string | null;
+    } | null;
+    readTranscript?: (jsonlPath: string) => Promise<string | null>;
+    claudeProjectsRoot?: string;
   } = {},
 ): ReturnType<typeof createSessionAskDecisionReader> {
   const settings = options.settings ?? STUB_SETTINGS;
@@ -541,10 +553,24 @@ function readerOver(
         return completion(options.answer ?? JSON.stringify(YES_NO_ANSWER));
       },
     }),
-    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
-    readTranscript: async () => YES_NO_TRANSCRIPT,
+    resolveSession:
+      options.resolveSession ??
+      (() => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' })),
+    readTranscript: options.readTranscript ?? (async () => YES_NO_TRANSCRIPT),
+    ...(options.claudeProjectsRoot === undefined
+      ? {}
+      : { claudeProjectsRoot: options.claudeProjectsRoot }),
     now: () => CLOCK,
   });
+}
+
+/** The digest the reader wrote back, or `undefined` when nothing was written. */
+function storedAskDecision(
+  objects: Map<string, ObservedObject>,
+): SessionAskDecisionReading | undefined {
+  return objects.get(formatSessionUri(SESSION_ID))?.digest.askDecision as
+    | SessionAskDecisionReading
+    | undefined;
 }
 
 test('read-time repair: a disabled-tier reading is recomputed once after the switch is enabled', async () => {
@@ -638,6 +664,136 @@ test('read-time repair: a failed recompute is remembered, not retried on every r
   assert.equal(failed?.state, 'unevaluated', 'the failure is written back as the honest reading');
   await reader.settled();
   assert.equal(requests.length, 1, 'a recorded failure must not be retried for the same ask');
+});
+
+test('read-time repair: a missing transcript writes the failure reason, never the stale disabled skip', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  const reader = readerOver(store, {
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/missing.jsonl' }),
+    readTranscript: async () => null,
+  });
+
+  assert.equal(reader.read(SESSION_ID)?.state, 'skipped', 'the first frame still answers the stored reading');
+  await reader.settled();
+
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'unevaluated');
+  assert.equal(stored?.state === 'unevaluated' ? stored.reason : '', SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
+  assert.equal(stored?.state === 'unevaluated' ? stored.reason.includes('未启用') : true, false);
+  assert.equal(reader.read(SESSION_ID)?.state, 'unevaluated', 'the failure is what the card now reads');
+});
+
+test('read-time repair: a transcript read that throws writes that failure, not silence', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  const reader = readerOver(store, {
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/unreadable.jsonl' }),
+    readTranscript: async () => {
+      throw new Error('EACCES: permission denied');
+    },
+  });
+
+  reader.read(SESSION_ID);
+  await reader.settled();
+
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'unevaluated');
+  const reason = stored?.state === 'unevaluated' ? stored.reason : '';
+  assert.match(reason, /重算失败/);
+  assert.match(reason, /EACCES/, 'the failure names the cause instead of being swallowed');
+  assert.equal(reason.includes('未启用'), false);
+});
+
+test('read-time repair: a transcript without the card’s ask writes its own reason, distinct from the limit', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  // The transcript ends on a statement, and the card names a message that is not in it.
+  const statement = transcript([
+    { role: 'user', id: 'u1', text: '继续' },
+    { role: 'assistant', id: 'a1', text: '已经跑完了，状态如下。' },
+  ]);
+  const reader = readerOver(store, {
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => statement,
+  });
+
+  reader.read(SESSION_ID, 'missing-message');
+  await reader.settled();
+
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'unevaluated');
+  const reason = stored?.state === 'unevaluated' ? stored.reason : '';
+  assert.equal(reason, SESSION_ASK_DECISION_ASK_MISSING_REASON);
+  assert.notEqual(SESSION_ASK_DECISION_ASK_MISSING_REASON, SESSION_ASK_DECISION_LIMIT_REASON);
+  assert.notEqual(SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON, SESSION_ASK_DECISION_LIMIT_REASON);
+  assert.notEqual(SESSION_ASK_DECISION_ASK_MISSING_REASON, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
+});
+
+test('read-time repair: the card’s message id locates the ask when the transcript has moved on', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  // THE LIVE QUAY SHAPE: the asking message is twenty turns behind the transcript's end, whose
+  // last assistant message is a status statement. A session-last-message walk finds no ask.
+  const movedOn = transcript([
+    { role: 'user', id: 'u1', text: '开始吧' },
+    { role: 'assistant', id: 'a1', text: '要我先跑测试吗？' },
+    { role: 'user', id: 'u2', text: '先跑吧' },
+    { role: 'assistant', id: 'a2', text: '已经跑完了，状态如下。' },
+  ]);
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => movedOn,
+  });
+
+  // Without the message id there is no current ask: the last assistant message is a statement.
+  assert.equal(readSessionAsk(movedOn, SESSION_ID).current, null);
+
+  reader.read(SESSION_ID, 'a1');
+  await reader.settled();
+
+  assert.equal(requests.length, 1, 'the named ask is recomputed');
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'evaluated');
+  if (stored?.state !== 'evaluated') return;
+  assert.equal(stored.askId, `${SESSION_ID}:a1`);
+  // The context stops at the ask, so the model is not shown the later turn as "the question".
+  const prompt = requests[0]?.user ?? '';
+  assert.match(prompt, /要我先跑测试吗？/);
+  assert.equal(prompt.includes('已经跑完了'), false);
+});
+
+test('read-time repair: a transcript in another project’s encoded directory is located by provider id', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+
+  const root = await mkdtemp(join(tmpdir(), 'ask-reader-'));
+  const quayProjectDir = join(root, '-data-home-yale-work-quay');
+  await mkdir(quayProjectDir, { recursive: true });
+  const providerSessionId = '03a388ed-5590-4da3-afd0-9f79086eb026';
+  await writeFile(join(quayProjectDir, `${providerSessionId}.jsonl`), YES_NO_TRANSCRIPT, 'utf8');
+
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    claudeProjectsRoot: root,
+    // The stored path names the WRONG project's encoded directory (as a row indexed from a
+    // different project would), so only the provider-id lookup can find the transcript.
+    resolveSession: () => ({
+      title: '会话：浏览器 profile',
+      jsonlPath: join(root, '-data-home-yale-work-claudecodeui', `${providerSessionId}.jsonl`),
+      providerSessionId,
+    }),
+  });
+
+  reader.read(SESSION_ID);
+  await reader.settled();
+
+  assert.equal(requests.length, 1, 'the cross-project transcript was found and recomputed');
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'evaluated');
 });
 
 // ---------------------------------------------------------------------------------------------

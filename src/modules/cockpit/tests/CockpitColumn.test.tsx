@@ -59,12 +59,12 @@ function option(id: string, suggested = false): CockpitCardOption {
   };
 }
 
-function card(id: string, group = 'test'): CockpitCardData {
+function card(id: string, group = 'test', kind: CockpitCardData['kind'] = 'ask'): CockpitCardData {
   return {
     id,
     provider: 'test',
     revision: 1,
-    kind: 'ask',
+    kind,
     group,
     rank: 1,
     state: 'open',
@@ -87,6 +87,8 @@ async function fixture(options: {
   cardCount?: number;
   /** How many of the cards belong to the rescue group (the rest are an ordinary group). */
   rescueCount?: number;
+  /** One kind per card, in provider order; omitted cards are `ask`. */
+  kinds?: readonly CockpitCardData['kind'][];
   viewportWidth?: number;
   expanded?: boolean;
 } = {}): Promise<Fixture> {
@@ -95,7 +97,11 @@ async function fixture(options: {
   const cards = createCockpitCardController({
     fetchCards: async () =>
       Array.from({ length: count }, (_, index) =>
-        card(`c${index + 1}`, index < rescueCount ? 'rescue' : 'test'),
+        card(
+          `c${index + 1}`,
+          index < rescueCount ? 'rescue' : 'test',
+          options.kinds?.[index] ?? 'ask',
+        ),
       ),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
@@ -237,22 +243,53 @@ describe('expanded', () => {
 });
 
 describe('the column title', () => {
-  it('names the waiting count and the rescue-group count by group, not by provider', async () => {
-
-    const f = await fixture({ cardCount: 3, rescueCount: 1, expanded: true });
+  it('counts stuck cards by kind, so a rescue-group question is not called stuck', async () => {
+    // The live shape: quay-fleet files every session-ask card in the rescue GROUP, while its
+    // kind is `ask`/`need`/`decision`. Counting `card.group === 'rescue'` would read 7 stuck.
+    const f = await fixture({
+      cardCount: 7,
+      rescueCount: 7,
+      kinds: ['ask', 'ask', 'ask', 'ask', 'ask', 'need', 'decision'],
+      expanded: true,
+    });
     render(
       <TestBinding fixture={f}>
         <CockpitColumn />
       </TestBinding>,
     );
 
-    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('3 waiting for you');
-    // The rescue reading counts `card.group === 'rescue'`; the fixture's other two cards sit in
-    // an ordinary group, so a provider-shaped count would read 3 or 0 here instead of 1.
-    expect(screen.getByTestId('cockpit-column-rescue-count').textContent).toBe('1 stuck');
+    expect(f.cards.getSnapshot().typeCounts.stuck ?? 0).toBe(0);
+    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('7 waiting for you');
+    expect(screen.queryByTestId('cockpit-column-stuck-count')).toBeNull();
+    const title = screen.getByTestId('cockpit-column-title').textContent ?? '';
+    expect(title).not.toContain('stuck');
   });
 
-  it('reads zero when no card is in the rescue group', async () => {
+  it('shows the stuck segment only when stuck cards exist, with the controller’s own count', async () => {
+    const f = await fixture({
+      cardCount: 5,
+      // Every card is in the rescue group, but only two are kind `stuck`: a group-shaped count
+      // would read 5, the kind count reads 2.
+      rescueCount: 5,
+      kinds: ['ask', 'stuck', 'need', 'stuck', 'decision'],
+      expanded: true,
+    });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    const controllerCount = f.cards.getSnapshot().typeCounts.stuck ?? 0;
+    expect(controllerCount).toBe(2);
+    expect(screen.getByTestId('cockpit-column-stuck-count').textContent).toBe(
+      `${controllerCount} stuck`,
+    );
+    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('5 waiting for you');
+    expect(screen.getByTestId('cockpit-column-title').textContent).toContain('· 2 stuck');
+  });
+
+  it('reads zero when no card is of kind stuck', async () => {
     const f = await fixture({ cardCount: 2, expanded: true });
     render(
       <TestBinding fixture={f}>
@@ -260,7 +297,8 @@ describe('the column title', () => {
       </TestBinding>,
     );
 
-    expect(screen.getByTestId('cockpit-column-rescue-count').textContent).toBe('0 stuck');
+    expect(screen.queryByTestId('cockpit-column-stuck-count')).toBeNull();
+    expect(screen.getByTestId('cockpit-column-title').textContent).not.toContain('stuck');
   });
 });
 

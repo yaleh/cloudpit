@@ -50,9 +50,12 @@ export type CockpitFleetWiringOptions = {
 function readAskDecision(
   reader: SessionAskDecisionReader,
   sessionId: string,
-  _messageId: string,
+  messageId: string,
 ): SessionAskDecisionReading | null {
-  return reader.read(sessionId);
+  // The fleet's contentRef names the assistant message this card is about. Pass it through: by
+  // the time a card is read the conversation may have advanced past that message, and a reader
+  // that only looked at the session's LAST message would never find the ask.
+  return reader.read(sessionId, messageId);
 }
 
 /**

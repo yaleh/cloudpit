@@ -122,9 +122,11 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
   // Details. On any non-session route (or outside a Router in a criterion) this is undefined.
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const [text, setText] = useState('');
-  // The rescue group is a GROUP (`card.group`), never a provider branch: the count answers
-  // 「how many of these are the rescue ones」 for whatever providers are currently answering.
-  const rescueCount = cards.snapshot.cards.filter((card) => card.group === 'rescue').length;
+  // THE TITLE COUNTS BY KIND, from the SAME reading the mobile type chips use. `group` is the
+  // provider's ordering decision and is not the card's type: quay-fleet files session-ask cards
+  // in the rescue group, so a group-shaped count called five questions "stuck". `typeCounts` is
+  // the card controller's chips' count, so the title and the chips cannot disagree.
+  const stuckCount = cards.snapshot.typeCounts.stuck ?? 0;
   const hub = useCockpitHub({ roles: INPUT_ROLES });
   const pushToTalk = useCockpitPushToTalk({
     onTranscript: (transcript: string) => {
@@ -189,7 +191,10 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
         />
       )}
 
-      <div className="flex flex-shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5">
+      <div
+        data-testid="cockpit-column-title"
+        className="flex flex-shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5"
+      >
         <Gauge className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
         <span className="min-w-0 truncate text-sm font-medium text-foreground">
           {t('cockpit.columnTitle')}
@@ -200,12 +205,22 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
         >
           {t('cockpit.columnWaitingCount', { n: snapshot.openCount })}
         </span>
-        <span
-          data-testid="cockpit-column-rescue-count"
-          className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
-        >
-          {t('cockpit.columnRescueCount', { n: rescueCount })}
-        </span>
+        {/* The stuck segment appears only when there ARE stuck cards: a "0 stuck" beside the
+            waiting count reads as a second, contradictory tally. Its words are the locale's
+            existing `columnRescueCount` sentence ("{{n}} stuck"). */}
+        {stuckCount > 0 && (
+          <>
+            <span aria-hidden className="-mx-1 flex-shrink-0 text-[11px] text-muted-foreground">
+              {' · '}
+            </span>
+            <span
+              data-testid="cockpit-column-stuck-count"
+              className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
+            >
+              {t('cockpit.columnRescueCount', { n: stuckCount })}
+            </span>
+          </>
+        )}
         <button
           type="button"
           data-testid="cockpit-column-collapse"
