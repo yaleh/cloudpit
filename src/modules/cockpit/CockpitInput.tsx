@@ -96,6 +96,15 @@ export default function CockpitInput({
           // the same floor the mic and send buttons carry.
           className="min-h-[44px]"
         />
+        {/* THE SCOPE NOTE. The box sits inside the cockpit page and, in the PC column, right
+            beside a conversation; the sentence is what keeps a phrase from being read as a chat
+            message to that conversation. It states the destination, not a new capability. */}
+        <p
+          data-testid="cockpit-input-scope-note"
+          className="px-1 pb-0.5 text-[11px] text-muted-foreground"
+        >
+          {t('cockpit.intentScopeNote')}
+        </p>
       </PromptInputBody>
       <PromptInputFooter className="py-1 sm:py-2">
         {/* The push-to-talk hint is coaching, not a control: on a phone the dock's height is the

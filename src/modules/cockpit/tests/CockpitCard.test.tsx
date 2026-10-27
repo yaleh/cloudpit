@@ -651,6 +651,75 @@ describe('descriptor-driven small visualization', () => {
   });
 });
 
+describe('Details: the persistent confirm bar and the Quay task link', () => {
+  function renderDetails(
+    card: CockpitCardData,
+    target: ReturnType<typeof confirmTargetOf>,
+    onRequestConfirm = vi.fn(),
+  ) {
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails
+          card={card}
+          now={NOW}
+          onClose={() => undefined}
+          target={target}
+          onRequestConfirm={onRequestConfirm}
+        />
+      </I18nextProvider>,
+    );
+  }
+
+  it('draws the bottom bar bound to the card’s current option and requests that confirmation', () => {
+    // The target is the controller’s own derivation from the shown option — the same function
+    // the card bar and the confirm path use, never a label the test placed on the drawer.
+    const target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, '');
+    const onRequestConfirm = vi.fn();
+    renderDetails(CARD, target, onRequestConfirm);
+
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.textContent).toContain('Delete staging');
+    fireEvent.click(bar);
+    expect(onRequestConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows the shown option: switching it switches the bar’s label and warning', () => {
+    const shown: CockpitCardShown = { kind: 'option', optionId: 'park' };
+    renderDetails(CARD, confirmTargetOf(CARD, shown, ''));
+
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.textContent).toContain('Park it');
+    expect(bar.getAttribute('data-irreversible')).toBe('true');
+  });
+
+  it('draws no bar when the card has nothing to confirm', () => {
+    renderDetails(CARD, confirmTargetOf(CARD, undefined, ''));
+    expect(screen.queryByTestId('cockpit-card-details-confirm-bar')).toBeNull();
+  });
+
+  it('links a task card to its project’s Quay board, and only a task card has the link', () => {
+    const taskCard: CockpitCardData = {
+      ...CARD,
+      subject: {
+        uri: 'quay://quay/task/gap-routine-x',
+        project: 'proj-7',
+        taskId: 'gap-routine-x',
+      },
+    };
+    renderDetails(taskCard, null);
+
+    const link = screen.getByTestId('cockpit-card-open-in-quay');
+    expect(link.textContent).toBe('Open in Quay');
+    expect(link.getAttribute('href')).toBe('/cockpit?view=board&project=proj-7');
+    expect(link.getAttribute('data-task-id')).toBe('gap-routine-x');
+
+    cleanup();
+    renderDetails(CARD, null);
+    expect(screen.queryByTestId('cockpit-card-open-in-quay')).toBeNull();
+  });
+});
+
 describe('provider-agnostic rendering', () => {
   it('renders the same card the same way whatever the provider field says', () => {
     const first = renderCard({ card: { ...CARD, provider: 'fixture' } });

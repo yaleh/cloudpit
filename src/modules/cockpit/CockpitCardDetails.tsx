@@ -6,7 +6,11 @@ import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor, cockpitCardTitle } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
-import type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
+import type {
+  CockpitBriefState,
+  CockpitCardConfirmTarget,
+} from '@/modules/cockpit/cockpitCardController';
+import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
 
 /**
  * The Details drawer a tap on a card's A zone opens: the full question, the situation and its
@@ -33,6 +37,13 @@ export type CockpitCardDetailsProps = {
   brief?: CockpitBriefState;
   /** Re-reads a failed brief; the drawer's retry button calls it. */
   onRetryBrief?: () => void;
+  /**
+   * The card's confirm target (what its SHOWN option resolves to), drawn as the persistent bottom
+   * bar. Absent or `null` means the card offers nothing to confirm, so no bar is drawn.
+   */
+  target?: CockpitCardConfirmTarget | null;
+  /** The bar's press: opens the same confirm card the card's own bar opens. */
+  onRequestConfirm?: () => void;
   /**
    * The PC column's conversation link: open the conversation on the LEFT (in place of the
    * anchor's default full-page navigation) so the column decides whether it must also collapse.
@@ -84,6 +95,8 @@ export default function CockpitCardDetails({
   onStartConversation,
   brief,
   onRetryBrief,
+  target,
+  onRequestConfirm,
   onOpenConversation,
   openedInSession = false,
   inline = false,
@@ -97,6 +110,15 @@ export default function CockpitCardDetails({
   const sessionId =
     card.conversation === undefined ? card.subject.sessionId : card.conversation.sessionId;
   const startProject = card.conversation?.startInProject ?? card.subject.project;
+  // 「在 Quay 中打开该任务」. The cockpit has no deep link that also selects one task, so the
+  // honest destination is the project's board — the page where the task is listed. Without a
+  // project there is no board to name, and the cockpit's own cards list is the fallback.
+  const quayHref =
+    card.subject.taskId === undefined
+      ? null
+      : card.subject.project !== undefined && card.subject.project.trim() !== ''
+        ? cockpitViewPath({ type: 'board', project: card.subject.project })
+        : COCKPIT_PATH;
 
   return (
     <aside
@@ -148,6 +170,17 @@ export default function CockpitCardDetails({
           .filter((part): part is string => part !== undefined && part !== '')
           .join(' · ')}
       </p>
+
+      {quayHref !== null && (
+        <a
+          data-testid="cockpit-card-open-in-quay"
+          data-task-id={card.subject.taskId}
+          href={quayHref}
+          className="mt-1 self-start text-xs font-medium text-primary hover:underline"
+        >
+          {t('cockpit.cardDetailsOpenInQuay')}
+        </a>
+      )}
 
       {card.situation !== undefined && (
         <Section title={t('cockpit.cardDetailsSituation')}>
@@ -259,6 +292,44 @@ export default function CockpitCardDetails({
           <p className="text-xs text-muted-foreground">{t('cockpit.cardDetailsNoConversation')}</p>
         )}
       </Section>
+
+      {/*
+        THE PERSISTENT CONFIRM BAR. It is bound to the SAME target the card's own bar is bound to
+        (the card's currently shown option), and its press opens the same confirm card — Details
+        is a longer reading of one card, not a second confirmation path. `sticky bottom-0` keeps
+        it in view while the drawer's body scrolls.
+      */}
+      {target !== undefined && target !== null && (
+        <div
+          data-testid="cockpit-card-details-confirm-bar"
+          className="sticky bottom-0 mt-3 border-t border-border bg-card pt-2"
+        >
+          <button
+            type="button"
+            data-testid="cockpit-card-details-confirm"
+            data-irreversible={target.irreversible ? 'true' : 'false'}
+            disabled={target.disabled || onRequestConfirm === undefined}
+            onClick={() => onRequestConfirm?.()}
+            className={cn(
+              'w-full rounded-md px-2 py-1.5 text-xs font-medium disabled:opacity-50',
+              target.irreversible
+                ? 'border border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+                : 'bg-primary text-primary-foreground',
+            )}
+          >
+            {t('cockpit.cardConfirm', { label: target.label })}
+          </button>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t('cockpit.cardConfirmHint')}</p>
+          {target.disabled && target.disabledReason !== null && (
+            <p
+              data-testid="cockpit-card-details-confirm-disabled-reason"
+              className="mt-1 text-[11px] text-destructive"
+            >
+              {target.disabledReason}
+            </p>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

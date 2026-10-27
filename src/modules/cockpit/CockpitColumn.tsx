@@ -117,6 +117,9 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
   const { t } = useTranslation();
   const { snapshot, controller, cards } = binding;
   const [text, setText] = useState('');
+  // The rescue group is a GROUP (`card.group`), never a provider branch: the count answers
+  // 「how many of these are the rescue ones」 for whatever providers are currently answering.
+  const rescueCount = cards.snapshot.cards.filter((card) => card.group === 'rescue').length;
   const hub = useCockpitHub({ roles: INPUT_ROLES });
   const pushToTalk = useCockpitPushToTalk({
     onTranscript: (transcript: string) => {
@@ -190,7 +193,13 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
           data-testid="cockpit-column-count"
           className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
         >
-          {t('cockpit.columnOpenCount', { n: snapshot.openCount })}
+          {t('cockpit.columnWaitingCount', { n: snapshot.openCount })}
+        </span>
+        <span
+          data-testid="cockpit-column-rescue-count"
+          className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
+        >
+          {t('cockpit.columnRescueCount', { n: rescueCount })}
         </span>
         <button
           type="button"

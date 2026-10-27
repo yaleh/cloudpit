@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { api } from '@/shared/api';
+import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { cn } from '@/shared/utils';
 import type {
   CockpitHubView,
@@ -515,6 +516,16 @@ export default function CockpitPage() {
    * page renders the URL rather than keeping a second copy of the hub's view.
    */
   const view: CockpitView = urlView;
+
+  /**
+   * THE PHONE'S CARDS SHELL. Below the mobile breakpoint, `view=cards` is a page of its own: the
+   * header, the count, the filter chips, the cards and the input. The deploy strip, the project
+   * strip and the Focus row are the WALL/FLEET/BOARD navigation chrome; on a phone they consumed
+   * the first screen and pushed the filters below the fold. They stay exactly where they were on
+   * every other view and on a wide screen. `trackPWA: false` — only the width decides this tier.
+   */
+  const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const phoneCards = isMobile && view.type === 'cards';
 
   // The initiative view's reading (GET /api/quay/initiatives). It is fetched only while that
   // view is showing; its four states are drawn by the view so a fleet that cannot answer is
@@ -1462,17 +1473,22 @@ export default function CockpitPage() {
       {/* The deployment reading is chrome, not a view: it stays put across the wall, the fleet,
           the initiatives and every project stage, the same way the header does. The compact form
           was retired with the chat page's strip — the notices module's slot owns the interrupts,
-          and this status panel stays permanent and unaffected by dismissals. */}
-      <div className="border-b border-border/40 px-4 py-2">
-        <DeployReadiness />
-      </div>
+          and this status panel stays permanent and unaffected by dismissals. On the phone's
+          cards page it is navigation chrome the cards page does not use, so it is not drawn. */}
+      {!phoneCards && (
+        <div className="border-b border-border/40 px-4 py-2">
+          <DeployReadiness />
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/*
           On a phone the strip becomes a horizontal row above the stage: the same two view
           switches and the same project list, without a fixed 12rem column that would push the
-          single-column wall into horizontal overflow.
+          single-column wall into horizontal overflow. On the phone's cards page the strip is
+          not drawn at all: the card list's own project drawer is the project control there.
         */}
+        {!phoneCards && (
         <div className="relative flex w-full shrink-0 flex-col md:min-h-0 md:w-48">
         <aside
           className="flex w-full flex-row gap-1 overflow-x-auto border-b border-border/40 p-2 snap-x snap-mandatory [mask-image:linear-gradient(to_right,black_85%,transparent)] md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:p-3 md:snap-none md:[mask-image:none]"
@@ -1583,6 +1599,7 @@ export default function CockpitPage() {
           className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent md:hidden"
         />
         </div>
+        )}
 
         {view.type === 'initiatives' ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden" data-testid="cockpit-initiatives-stage">
@@ -1681,12 +1698,14 @@ export default function CockpitPage() {
             storage handle. `quay://…`, first-frame timings and device ids are diagnostics and
             live behind `?debug=1` below.
           */}
+          {!phoneCards && (
           <span className="truncate" data-testid="cockpit-focus">
             {t('cockpit.focus')}: {focusedHumanLabel ?? t('cockpit.noFocus')}
             {/* A fleet tile's readable name is its ordinal AND its project; naming only the
                 ordinal leaves 「Focus: ①」 as vague as 「none」. */}
             {view.type === 'fleet' && focusedProjectName !== null && ` · ${focusedProjectName}`}
           </span>
+          )}
           {view.type === 'fleet' && focusObject === null && attentionProject !== null && (
             <span
               className="font-medium text-amber-700 dark:text-amber-300"

@@ -126,6 +126,26 @@ export type CockpitCardMemory = {
   write: (state: CockpitCardMemoryState) => void;
 };
 
+/**
+ * The two filter readings the card page keeps PER DEVICE, not per tab.
+ *
+ * The route memory above belongs to one tab (coming back from a conversation should land where
+ * the person left). A filter is a preference: the same person filtering to their projects on a
+ * phone expects that choice on the next visit, and a second window must read the same one. That
+ * is why this is a separate seam with its own storage — local, not session.
+ */
+export type CockpitCardFilters = {
+  typeFilter: CockpitCardTypeFilter;
+  /** The selected projects; an empty set means every project. */
+  projectFilters: readonly string[];
+};
+
+/** The two verbs the controller needs from the filter memory; a test passes a plain object. */
+export type CockpitCardFilterMemory = {
+  read: () => CockpitCardFilters | null;
+  write: (state: CockpitCardFilters) => void;
+};
+
 /** The controller's two transports and its clock; a criterion binds all three. */
 export type CockpitCardControllerDeps = {
   /** Reads every open card, in the provider's order. */
@@ -146,6 +166,11 @@ export type CockpitCardControllerDeps = {
    * fresh; the page's binding supplies a tab-scoped store.
    */
   remember?: CockpitCardMemory;
+  /**
+   * Where the type/project filters survive a reload. Absent means every visit starts unfiltered;
+   * the page's binding supplies a device-scoped store.
+   */
+  rememberFilters?: CockpitCardFilterMemory;
   /**
    * How often to re-read in the background while started. `0` disables polling, which is what
    * a criterion uses; the hook keeps the default so another display's change arrives.
@@ -171,7 +196,18 @@ export type CockpitCardControllerSnapshot = {
   /** The project names the cards carry, sorted; the filter's options. */
   projects: readonly string[];
   typeFilter: CockpitCardTypeFilter;
+  /** The projects whose cards are shown; empty means every project. */
+  projectFilters: readonly string[];
+  /**
+   * The single-project compatibility reading of {@link projectFilters}: the one project when
+   * exactly one is selected, `null` when none or several. The published card reading predates
+   * multi-select and still carries one id-or-null field.
+   */
   projectFilter: string | null;
+  /** Cards per type under the PROJECT filter, keyed by kind plus `all`; the chips' counts. */
+  typeCounts: Readonly<Record<string, number>>;
+  /** Cards per project under the TYPE filter; the drawer's counts. */
+  projectCounts: Readonly<Record<string, number>>;
   density: CockpitCardDensity;
   selectedCardId: string | null;
   /** The scroll offset the list last reported, restored when the page is mounted again. */
@@ -217,7 +253,12 @@ export type CockpitCardController = {
   setScrollPosition: (position: number) => void;
   setAnchor: (cardId: string | null) => void;
   setTypeFilter: (filter: CockpitCardTypeFilter) => void;
+  /** Replaces the project selection with one project (or clears it) — the single-select shim. */
   setProjectFilter: (project: string | null) => void;
+  /** Adds or removes one project from the multi-select drawer's set. */
+  toggleProjectFilter: (project: string) => void;
+  /** Clears every project filter (「All projects」). */
+  clearProjectFilters: () => void;
   setDensity: (density: CockpitCardDensity) => void;
   openDetails: (cardId: string) => void;
   /** Reads one card's brief once per (card, revision); a failed read may be retried. */
@@ -244,7 +285,10 @@ const initialState: CockpitCardControllerSnapshot = {
   visibleCards: [],
   projects: [],
   typeFilter: 'all',
+  projectFilters: [],
   projectFilter: null,
+  typeCounts: {},
+  projectCounts: {},
   density: 'cards',
   selectedCardId: null,
   scrollPosition: 0,
@@ -349,17 +393,96 @@ export function startedSessionIdOf(executor: string, result: unknown): string | 
   return typeof sessionId === 'string' && sessionId.trim() !== '' ? sessionId : null;
 }
 
+/** The types a card kind can be filtered to, in the order the chips list them. */
+const KNOWN_CARD_KINDS = ['need', 'stuck', 'fix', 'ask', 'multi', 'decision'] as const;
+
+/** True when the card names one of the selected projects (an empty set matches everything). */
+function matchesProjectFilters(
+  card: CockpitCard,
+  projectFilters: readonly string[],
+): boolean {
+  if (projectFilters.length === 0) return true;
+  return card.subject.project !== undefined && projectFilters.includes(card.subject.project);
+}
+
 /** Applies the type and project filters, preserving provider order. */
 function visibleCardsOf(
   cards: readonly CockpitCard[],
   typeFilter: CockpitCardTypeFilter,
-  projectFilter: string | null,
+  projectFilters: readonly string[],
 ): readonly CockpitCard[] {
   return cards.filter((card) => {
     if (typeFilter !== 'all' && card.kind !== typeFilter) return false;
-    if (projectFilter !== null && card.subject.project !== projectFilter) return false;
-    return true;
+    return matchesProjectFilters(card, projectFilters);
   });
+}
+
+/**
+ * The counts on the type chips: every card that survives the PROJECT filter, grouped by kind
+ * (plus `all`). A chip's number therefore answers 「how many of this type would I see」 under the
+ * projects currently selected, which is what pressing it shows.
+ */
+function typeCountsOf(
+  cards: readonly CockpitCard[],
+  projectFilters: readonly string[],
+): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = { all: 0 };
+  for (const card of cards) {
+    if (!matchesProjectFilters(card, projectFilters)) continue;
+    counts.all += 1;
+    counts[card.kind] = (counts[card.kind] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** The counts on the project drawer's rows: every card that survives the TYPE filter. */
+function projectCountsOf(
+  cards: readonly CockpitCard[],
+  typeFilter: CockpitCardTypeFilter,
+): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const card of cards) {
+    if (typeFilter !== 'all' && card.kind !== typeFilter) continue;
+    const project = card.subject.project;
+    if (project === undefined || project.trim() === '') continue;
+    counts[project] = (counts[project] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Deduplicates a stored project selection and drops empty entries; order is the person's. */
+function normalizeProjectFilters(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  const projects: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue;
+    const project = entry.trim();
+    if (project !== '' && !projects.includes(project)) projects.push(project);
+  }
+  return projects;
+}
+
+/**
+ * The stored filter selection, or `null` for "nothing usable". A blocked or malformed store is
+ * not a card-page failure: the next visit simply starts unfiltered.
+ */
+function readFilterMemory(
+  memory: CockpitCardFilterMemory | undefined,
+): CockpitCardFilters | null {
+  if (memory === undefined) return null;
+  try {
+    const state = memory.read();
+    if (state === null) return null;
+    const typeFilter = (KNOWN_CARD_KINDS as readonly string[]).includes(state.typeFilter)
+      ? state.typeFilter
+      : 'all';
+    return {
+      typeFilter: typeFilter as CockpitCardTypeFilter,
+      projectFilters: normalizeProjectFilters(state.projectFilters),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Every distinct project a card names, sorted; a card with no project adds nothing. */
@@ -430,7 +553,8 @@ function normalize(
 ): CockpitCardControllerSnapshot {
   const cards = next.cards;
   const byId = new Map(cards.map((card) => [card.id, card]));
-  const visibleCards = visibleCardsOf(cards, next.typeFilter, next.projectFilter);
+  const projectFilters = normalizeProjectFilters(next.projectFilters);
+  const visibleCards = visibleCardsOf(cards, next.typeFilter, projectFilters);
   const visibleIds = new Set(visibleCards.map((card) => card.id));
 
   // Every card gets a shown reading when it first arrives: the provider's suggested option, or
@@ -489,7 +613,12 @@ function normalize(
     ...next,
     cards,
     visibleCards,
+    projectFilters,
+    // The single-value compatibility reading: one selected project, or `null` for "none/many".
+    projectFilter: projectFilters.length === 1 ? projectFilters[0] : null,
     projects: projectsOf(cards),
+    typeCounts: typeCountsOf(cards, projectFilters),
+    projectCounts: projectCountsOf(cards, next.typeFilter),
     shown,
     ownReplies,
     briefs,
@@ -512,9 +641,18 @@ export function createCockpitCardController(
   const clock = deps.clock ?? defaultClock;
   const refreshIntervalMs = Math.max(0, deps.refreshIntervalMs ?? 20_000);
   const remembered = readMemory(deps.remember);
+  const rememberedFilters = readFilterMemory(deps.rememberFilters);
   const store = createExternalStore<CockpitCardControllerSnapshot>({
     ...initialState,
     scrollPosition: remembered?.scrollPosition ?? 0,
+    // The filter memory seeds the snapshot directly, unlike the route selection: a filter needs
+    // no card list to be usable, so applying it on the first read would flash the unfiltered list.
+    typeFilter: rememberedFilters?.typeFilter ?? initialState.typeFilter,
+    projectFilters: rememberedFilters?.projectFilters ?? [],
+    projectFilter:
+      rememberedFilters !== null && rememberedFilters.projectFilters.length === 1
+        ? rememberedFilters.projectFilters[0]!
+        : null,
   });
   // The selected card from the previous visit. It cannot seed the snapshot directly: `normalize`
   // only keeps a selection whose card is visible, and at construction no card has been read yet.
@@ -548,6 +686,21 @@ export function createCockpitCardController(
       });
     } catch {
       // See above: remembering is an enhancement, never a precondition.
+    }
+  };
+
+  /** Leaves the filters for the next visit on this device; a refusing store changes nothing. */
+  const writeFilters = (): void => {
+    const memory = deps.rememberFilters;
+    if (memory === undefined) return;
+    const snapshot = store.getSnapshot();
+    try {
+      memory.write({
+        typeFilter: snapshot.typeFilter,
+        projectFilters: [...snapshot.projectFilters],
+      });
+    } catch {
+      // The page still filters for this visit; only the preference did not stick.
     }
   };
 
@@ -795,8 +948,26 @@ export function createCockpitCardController(
       writeMemory();
     },
     setAnchor: (cardId) => commit({ anchorCardId: cardId }),
-    setTypeFilter: (filter) => commit({ typeFilter: filter }),
-    setProjectFilter: (project) => commit({ projectFilter: project }),
+    setTypeFilter: (filter) => {
+      commit({ typeFilter: filter });
+      writeFilters();
+    },
+    setProjectFilter: (project) => {
+      commit({ projectFilters: project === null ? [] : [project] });
+      writeFilters();
+    },
+    toggleProjectFilter: (project) => {
+      const current = store.getSnapshot().projectFilters;
+      const next = current.includes(project)
+        ? current.filter((candidate) => candidate !== project)
+        : [...current, project];
+      commit({ projectFilters: next });
+      writeFilters();
+    },
+    clearProjectFilters: () => {
+      commit({ projectFilters: [] });
+      writeFilters();
+    },
     setDensity: (density) => commit({ density }),
     openDetails: (cardId) => {
       const snapshot = store.getSnapshot();

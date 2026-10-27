@@ -15,6 +15,8 @@ import type {
   CockpitCardControllerDeps,
   CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
+  CockpitCardFilterMemory,
+  CockpitCardFilters,
   CockpitCardMemory,
   CockpitCardMemoryState,
 } from '@/modules/cockpit/cockpitCardController';
@@ -552,6 +554,159 @@ describe('the card page returns to where it was', () => {
 
     expect(h.snapshot().scrollPosition).toBe(0);
     expect(h.snapshot().selectedCardId).toBe('a');
+  });
+});
+
+describe('the type chips count what the project filter leaves', () => {
+  /** Four open cards: two asks (p1/p2), one fix (p2) and one stuck card (p1). */
+  function fourCards(): CockpitCard[] {
+    return [
+      card('a1', { kind: 'ask', rank: 1 }),
+      card('a2', {
+        kind: 'ask',
+        rank: 2,
+        subject: { uri: 'cloudcli://test/a2', project: 'p2' },
+      }),
+      card('f1', {
+        kind: 'fix',
+        rank: 3,
+        subject: { uri: 'cloudcli://test/f1', project: 'p2' },
+      }),
+      card('s1', {
+        kind: 'stuck',
+        rank: 4,
+        subject: { uri: 'cloudcli://test/s1', project: 'p1' },
+      }),
+    ];
+  }
+
+  it('counts each type over the open cards that survive the project selection', async () => {
+    const h = harness(fourCards());
+    await h.controller.load();
+
+    // No project selection: every open card counts, per type.
+    expect(h.snapshot().typeCounts).toMatchObject({ all: 4, ask: 2, fix: 1, stuck: 1 });
+
+    // One project: only its cards remain, so the chips must fall to its counts.
+    h.controller.toggleProjectFilter('p2');
+    expect(h.snapshot().typeCounts).toMatchObject({ all: 2, ask: 1, fix: 1 });
+    // The chip number IS the number of cards that type would show.
+    for (const kind of ['ask', 'fix', 'stuck'] as const) {
+      const visibleOfKind = h.snapshot().visibleCards.filter(
+        (candidate) => candidate.kind === kind,
+      ).length;
+      expect(h.snapshot().typeCounts[kind] ?? 0, kind).toBe(visibleOfKind);
+    }
+
+    // A second project is a union of both selections, not a replacement.
+    h.controller.toggleProjectFilter('p1');
+    expect(h.snapshot().projectFilters).toEqual(['p2', 'p1']);
+    expect(h.snapshot().typeCounts.all).toBe(4);
+
+    // Clearing returns to every project.
+    h.controller.clearProjectFilters();
+    expect(h.snapshot().projectFilters).toEqual([]);
+    expect(h.snapshot().visibleCards).toHaveLength(4);
+  });
+
+  it('counts each project over the cards the type filter leaves', async () => {
+    const h = harness(fourCards());
+    await h.controller.load();
+
+    h.controller.setTypeFilter('ask');
+    expect(h.snapshot().projectCounts).toEqual({ p1: 1, p2: 1 });
+
+    h.controller.setTypeFilter('fix');
+    expect(h.snapshot().projectCounts).toEqual({ p2: 1 });
+  });
+});
+
+describe('the project selection is remembered per device', () => {
+  /** The device-scoped store a browser would supply; a plain object proves the seam. */
+  function filterMemoryHarness(): {
+    memory: CockpitCardFilterMemory;
+    state: () => CockpitCardFilters | null;
+  } {
+    let state: CockpitCardFilters | null = null;
+    return {
+      memory: {
+        read: () => state,
+        write: (next) => {
+          state = { typeFilter: next.typeFilter, projectFilters: [...next.projectFilters] };
+        },
+      },
+      state: () => state,
+    };
+  }
+
+  const CARDS = [
+    card('a', { rank: 1 }),
+    card('b', { rank: 2, subject: { uri: 'cloudcli://test/b', project: 'p2' } }),
+    card('c', { rank: 3, subject: { uri: 'cloudcli://test/c', project: 'p3' } }),
+  ];
+
+  it('restores a multi-project selection on a rebuilt controller', async () => {
+    const memory = filterMemoryHarness();
+
+    const first = harness(CARDS, { rememberFilters: memory.memory });
+    await first.controller.load();
+    first.controller.toggleProjectFilter('p2');
+    first.controller.toggleProjectFilter('p3');
+
+    expect(first.snapshot().projectFilters).toEqual(['p2', 'p3']);
+    expect(first.snapshot().visibleCards.map((candidate) => candidate.id)).toEqual(['b', 'c']);
+    expect(memory.state()).toEqual({ typeFilter: 'all', projectFilters: ['p2', 'p3'] });
+    first.controller.dispose();
+
+    // A new controller, as a reload mounts: the filter is known BEFORE the first read because
+    // it needs no card list to be applied.
+    const second = harness(CARDS, { rememberFilters: memory.memory });
+    expect(second.snapshot().projectFilters).toEqual(['p2', 'p3']);
+    await second.controller.load();
+    expect(second.snapshot().visibleCards.map((candidate) => candidate.id)).toEqual(['b', 'c']);
+
+    // Removing one project, and clearing, both persist.
+    second.controller.toggleProjectFilter('p2');
+    expect(memory.state()).toEqual({ typeFilter: 'all', projectFilters: ['p3'] });
+    second.controller.clearProjectFilters();
+    expect(memory.state()).toEqual({ typeFilter: 'all', projectFilters: [] });
+  });
+
+  it('persists the type filter and starts unfiltered when the memory cannot be read', async () => {
+    const memory = filterMemoryHarness();
+    const h = harness(CARDS, { rememberFilters: memory.memory });
+    await h.controller.load();
+
+    h.controller.setTypeFilter('ask');
+    expect(memory.state()).toEqual({ typeFilter: 'ask', projectFilters: [] });
+
+    const blocked = harness(CARDS, {
+      rememberFilters: {
+        read: () => {
+          throw new Error('storage is blocked');
+        },
+        write: () => undefined,
+      },
+    });
+    expect(blocked.snapshot().typeFilter).toBe('all');
+    expect(blocked.snapshot().projectFilters).toEqual([]);
+    await blocked.controller.load();
+    expect(blocked.snapshot().visibleCards).toHaveLength(3);
+  });
+
+  it('the single-project shim replaces the whole set', async () => {
+    const memory = filterMemoryHarness();
+    const h = harness(CARDS, { rememberFilters: memory.memory });
+    await h.controller.load();
+
+    h.controller.setProjectFilter('p2');
+    expect(h.snapshot().projectFilters).toEqual(['p2']);
+    expect(h.snapshot().projectFilter).toBe('p2');
+    expect(memory.state()).toEqual({ typeFilter: 'all', projectFilters: ['p2'] });
+
+    h.controller.setProjectFilter(null);
+    expect(h.snapshot().projectFilters).toEqual([]);
+    expect(h.snapshot().projectFilter).toBeNull();
   });
 });
 

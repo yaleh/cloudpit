@@ -76,6 +76,9 @@ function CockpitCardListBound({
   const { t } = useTranslation();
   const { snapshot, controller } = binding;
   const [startIntentProject, setStartIntentProject] = useState<string | null>(null);
+  // The project drawer is open/closed state, not a filter: it is a transient overlay the person
+  // dismisses, so it has no reason to outlive the visit (the selection itself is persisted).
+  const [projectDrawerOpen, setProjectDrawerOpen] = useState(false);
   // The page's own scroll container. Only the `page` variant owns the offset: the column keeps
   // its own layout (and its Details is pushed inside), so reporting its scroll there would write
   // the column's position into the reading the phone page restores.
@@ -138,6 +141,25 @@ function CockpitCardListBound({
     controller.closeDetails();
   };
 
+  // The type chips, in the order the list draws them. Each carries the count of cards that would
+  // remain under the CURRENT PROJECT selection, so pressing a chip never promises a number the
+  // list then does not show.
+  const typeChips: { value: CockpitCardTypeFilter; label: string }[] = [
+    { value: 'all', label: t('cockpit.cardFilterAll') },
+    ...KNOWN_KINDS.map((kind) => ({
+      value: kind as CockpitCardTypeFilter,
+      label: t(cockpitCardDescriptor(kind).labelKey),
+    })),
+  ];
+  // The project chip names the selection: one project by name, a count when several, or
+  // 「All projects」 when none. The drawer, not the chip, is where the set is changed.
+  const projectChipLabel =
+    snapshot.projectFilters.length === 0
+      ? t('cockpit.cardFilterAllProjects')
+      : snapshot.projectFilters.length === 1
+        ? snapshot.projectFilters[0]!
+        : t('cockpit.cardFilterSelectedCount', { n: snapshot.projectFilters.length });
+
   return (
     <section
       ref={scrollRef}
@@ -172,6 +194,8 @@ function CockpitCardListBound({
             brief={snapshot.briefs[detailsCard.id]}
             onRetryBrief={() => controller.loadBrief(detailsCard.id)}
             onClose={closeDetails}
+            target={snapshot.targets[detailsCard.id] ?? null}
+            onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
             openedInSession={openedCardId === detailsCard.id}
             onOpenConversation={(sessionId: string) => onOpenConversation?.(detailsCard, sessionId)}
             onStartConversation={(card: CockpitCardData) =>
@@ -182,43 +206,67 @@ function CockpitCardListBound({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 pb-2">
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <span>{t('cockpit.cardFilterType')}</span>
-              <select
-                data-testid="cockpit-card-filter-type"
-                value={snapshot.typeFilter}
-                onChange={(event) =>
-                  controller.setTypeFilter(event.target.value as CockpitCardTypeFilter)
-                }
-                className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
-              >
-                <option value="all">{t('cockpit.cardFilterAll')}</option>
-                {KNOWN_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {t(cockpitCardDescriptor(kind).labelKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/*
+              THE TYPE CHIPS. A horizontally scrollable row rather than a dropdown: the counts are
+              the point (a person reads what is waiting per type before choosing), and a closed
+              select shows none of them. The chip carries the count as its own number, so it is
+              readable both by eye and by a test that reads the chip.
+            */}
+            <div
+              role="group"
+              aria-label={t('cockpit.cardFilterType')}
+              data-testid="cockpit-card-filter-types"
+              className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto"
+            >
+              {typeChips.map((chip) => {
+                const active = snapshot.typeFilter === chip.value;
+                const count = snapshot.typeCounts[chip.value] ?? 0;
+                return (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    data-testid={`cockpit-card-filter-type-${chip.value}`}
+                    data-count={count}
+                    aria-pressed={active}
+                    onClick={() => controller.setTypeFilter(chip.value)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs',
+                      active
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:bg-accent',
+                    )}
+                  >
+                    <span>{chip.label}</span>
+                    <span
+                      data-testid={`cockpit-card-filter-count-${chip.value}`}
+                      className="tabular-nums text-[11px] opacity-80"
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <span>{t('cockpit.cardFilterProject')}</span>
-              <select
-                data-testid="cockpit-card-filter-project"
-                value={snapshot.projectFilter ?? ''}
-                onChange={(event) =>
-                  controller.setProjectFilter(event.target.value === '' ? null : event.target.value)
-                }
-                className="max-w-40 rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
-              >
-                <option value="">{t('cockpit.cardFilterAllProjects')}</option>
-                {snapshot.projects.map((project) => (
-                  <option key={project} value={project}>
-                    {project}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* The project chip opens the multi-select drawer; it never filters on its own. */}
+            <button
+              type="button"
+              data-testid="cockpit-card-filter-project"
+              aria-haspopup="dialog"
+              aria-expanded={projectDrawerOpen}
+              onClick={() => setProjectDrawerOpen((open) => !open)}
+              className={cn(
+                'flex min-w-0 max-w-44 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs',
+                snapshot.projectFilters.length > 0
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:bg-accent',
+              )}
+            >
+              <span className="truncate">{projectChipLabel}</span>
+              <span aria-hidden className="text-[10px]">
+                ▾
+              </span>
+            </button>
 
             <div className="ml-auto flex items-center gap-1" role="group" aria-label={t('cockpit.cardsView')}>
               <button
@@ -251,6 +299,65 @@ function CockpitCardListBound({
               </button>
             </div>
           </div>
+
+          {/*
+            THE PROJECT DRAWER. A bottom sheet on a phone and a centred card on a wide screen:
+            one dialog, positioned by breakpoint. Each row is a checkbox, so the set is built
+            without closing the sheet, and the count beside a project is what the TYPE filter
+            would leave there. 「Show N items」 states what the list behind it will draw.
+          */}
+          {projectDrawerOpen && (
+            <div
+              data-testid="cockpit-card-project-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('cockpit.cardFilterProjectsTitle')}
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-2 sm:items-center"
+            >
+              <div className="flex max-h-[80vh] w-full max-w-sm flex-col rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xl">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {t('cockpit.cardFilterProjectsTitle')}
+                  </p>
+                  <button
+                    type="button"
+                    data-testid="cockpit-card-project-clear"
+                    onClick={() => controller.clearProjectFilters()}
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    {t('cockpit.cardFilterClear')}
+                  </button>
+                </div>
+                <ul className="mt-2 min-h-0 flex-1 overflow-y-auto">
+                  {snapshot.projects.map((project) => (
+                    <li key={project}>
+                      <label className="flex items-center gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-accent">
+                        <input
+                          type="checkbox"
+                          data-testid={`cockpit-card-project-option-${project}`}
+                          checked={snapshot.projectFilters.includes(project)}
+                          onChange={() => controller.toggleProjectFilter(project)}
+                          className="h-4 w-4"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-foreground">{project}</span>
+                        <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">
+                          {snapshot.projectCounts[project] ?? 0}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  data-testid="cockpit-card-project-done"
+                  onClick={() => setProjectDrawerOpen(false)}
+                  className="mt-2 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground"
+                >
+                  {t('cockpit.cardFilterShow', { n: snapshot.visibleCards.length })}
+                </button>
+              </div>
+            </div>
+          )}
 
           {snapshot.status === 'error' && snapshot.error !== null && (
             <p role="alert" data-testid="cockpit-card-error" className="pb-2 text-xs text-destructive">
@@ -328,6 +435,8 @@ function CockpitCardListBound({
                 brief={snapshot.briefs[detailsCard.id]}
                 onRetryBrief={() => controller.loadBrief(detailsCard.id)}
                 onClose={() => controller.closeDetails()}
+                target={snapshot.targets[detailsCard.id] ?? null}
+                onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
                 onOpenConversation={
                   onOpenConversation === undefined
                     ? undefined

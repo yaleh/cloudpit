@@ -58,13 +58,13 @@ function option(id: string, suggested = false): CockpitCardOption {
   };
 }
 
-function card(id: string): CockpitCardData {
+function card(id: string, group = 'test'): CockpitCardData {
   return {
     id,
     provider: 'test',
     revision: 1,
     kind: 'ask',
-    group: 'test',
+    group,
     rank: 1,
     state: 'open',
     waitingSince: '2026-10-27T00:00:00.000Z',
@@ -84,12 +84,18 @@ type Fixture = {
 
 async function fixture(options: {
   cardCount?: number;
+  /** How many of the cards belong to the rescue group (the rest are an ordinary group). */
+  rescueCount?: number;
   viewportWidth?: number;
   expanded?: boolean;
 } = {}): Promise<Fixture> {
   const count = options.cardCount ?? 2;
+  const rescueCount = options.rescueCount ?? 0;
   const cards = createCockpitCardController({
-    fetchCards: async () => Array.from({ length: count }, (_, index) => card(`c${index + 1}`)),
+    fetchCards: async () =>
+      Array.from({ length: count }, (_, index) =>
+        card(`c${index + 1}`, index < rescueCount ? 'rescue' : 'test'),
+      ),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,
@@ -226,6 +232,33 @@ describe('expanded', () => {
     expect(f.column.getSnapshot().openedSessionId).toBe('session-1');
     expect(f.column.getSnapshot().expanded).toBe(true);
     expect(screen.getByTestId('cockpit-card-opened-in-session')).toBeTruthy();
+  });
+});
+
+describe('the column title', () => {
+  it('names the waiting count and the rescue-group count by group, not by provider', async () => {
+    const f = await fixture({ cardCount: 3, rescueCount: 1, expanded: true });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('3 waiting for you');
+    // The rescue reading counts `card.group === 'rescue'`; the fixture's other two cards sit in
+    // an ordinary group, so a provider-shaped count would read 3 or 0 here instead of 1.
+    expect(screen.getByTestId('cockpit-column-rescue-count').textContent).toBe('1 stuck');
+  });
+
+  it('reads zero when no card is in the rescue group', async () => {
+    const f = await fixture({ cardCount: 2, expanded: true });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    expect(screen.getByTestId('cockpit-column-rescue-count').textContent).toBe('0 stuck');
   });
 });
 

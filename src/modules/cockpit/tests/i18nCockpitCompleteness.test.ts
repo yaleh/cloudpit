@@ -562,6 +562,35 @@ describe('every locale carries the cockpit copy', () => {
     expect(reference.briefRadarLegend).toContain('○');
   });
 
+  // The mobile cards shell and its Details drawer added copy of their own: the column's two
+  // count sentences, the project drawer's four labels, the task link and the input's scope
+  // note. Naming them keeps a rename from being "covered" by the generic loop while every
+  // locale silently falls back to English — and the count-bearing sentences keep `n`.
+  it('covers the cards shell, the project drawer and the input scope note', () => {
+    const required = [
+      'columnWaitingCount',
+      'columnRescueCount',
+      'cardFilterProjectsTitle',
+      'cardFilterClear',
+      'cardFilterShow',
+      'cardFilterSelectedCount',
+      'cardDetailsOpenInQuay',
+      'intentScopeNote',
+    ];
+    for (const key of required) {
+      expect(typeof reference[key], `cockpit.${key}`).toBe('string');
+      expect(reference[key].trim().length, `cockpit.${key}`).toBeGreaterThan(0);
+    }
+    for (const key of [
+      'columnWaitingCount',
+      'columnRescueCount',
+      'cardFilterShow',
+      'cardFilterSelectedCount',
+    ]) {
+      expect(placeholders(reference[key]), `cockpit.${key}`).toEqual(['n']);
+    }
+  });
+
   // Positive control: the same checker must reject a missing block, a blank value, a key-copied
   // value and a dropped placeholder. Without this the green above could not go red.
   it('rejects a missing, blank, key-copied or placeholder-dropping block (positive control)', () => {

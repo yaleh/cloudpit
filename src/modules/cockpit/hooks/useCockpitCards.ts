@@ -10,9 +10,12 @@ import type {
   CockpitCardControllerDeps,
   CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
+  CockpitCardFilterMemory,
+  CockpitCardFilters,
   CockpitCardMemory,
   CockpitCardMemoryState,
 } from '@/modules/cockpit/cockpitCardController';
+import type { CockpitCardTypeFilter } from '@/modules/cockpit/contract';
 
 /**
  * The React binding for `createCockpitCardController`.
@@ -52,6 +55,9 @@ export type CockpitCardsDepsOverride = Partial<CockpitCardControllerDeps>;
 
 /** Tab-scoped: the reading is where THIS tab was, not a preference that outlives it. */
 const CARD_MEMORY_STORAGE_KEY = 'cockpit.cards.memory.v1';
+
+/** Device-scoped: a filter is a preference, so it outlives the tab and the session. */
+const CARD_FILTER_STORAGE_KEY = 'cockpit.cards.filters.v1';
 
 /**
  * The card page's route memory, backed by `sessionStorage`.
@@ -93,6 +99,48 @@ export function createSessionCockpitCardMemory(): CockpitCardMemory {
   };
 }
 
+/**
+ * The card page's filter memory, backed by `localStorage`.
+ *
+ * A filter is a device preference, not a route reading: the person who narrowed the list to
+ * their projects on a phone expects that choice on the next visit, and a second window on the
+ * same device must read the same one. Session storage would lose both facts. The values are
+ * re-validated by the controller, so a hand-edited store degrades to "unfiltered" rather than
+ * filtering on a project that never existed.
+ */
+export function createLocalCockpitCardFilterMemory(): CockpitCardFilterMemory {
+  return {
+    read: () => {
+      if (typeof window === 'undefined') return null;
+      try {
+        const stored = window.localStorage.getItem(CARD_FILTER_STORAGE_KEY);
+        if (stored === null) return null;
+        const parsed: unknown = JSON.parse(stored);
+        if (typeof parsed !== 'object' || parsed === null) return null;
+        const state = parsed as Partial<CockpitCardFilters>;
+        return {
+          typeFilter: (typeof state.typeFilter === 'string'
+            ? state.typeFilter
+            : 'all') as CockpitCardTypeFilter,
+          projectFilters: Array.isArray(state.projectFilters)
+            ? state.projectFilters.filter((entry): entry is string => typeof entry === 'string')
+            : [],
+        };
+      } catch {
+        return null;
+      }
+    },
+    write: (state) => {
+      if (typeof window === 'undefined') return;
+      try {
+        window.localStorage.setItem(CARD_FILTER_STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // A blocked storage area still filters for this visit; only the preference did not stick.
+      }
+    },
+  };
+}
+
 export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): CockpitCardsBinding {
   const {
     fetchCards,
@@ -102,12 +150,15 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
     refreshIntervalMs,
     onEvent,
     remember: rememberOverride,
+    rememberFilters: rememberFiltersOverride,
   } = overrides;
   const navigate = useNavigate();
   // One store per mounted binding: a fresh object every render would rebuild the controller (and
   // the deps memo), which would discard the selection and the Details stack on every paint.
   const sessionMemory = useMemo(() => createSessionCockpitCardMemory(), []);
+  const deviceFilters = useMemo(() => createLocalCockpitCardFilterMemory(), []);
   const remember = rememberOverride ?? sessionMemory;
+  const rememberFilters = rememberFiltersOverride ?? deviceFilters;
   // `navigate` changes identity when the route changes; keeping it in a ref keeps the controller
   // — and therefore the selection and the Details stack — alive across a navigation. A controller
   // rebuilt on every route change would silently reset the card the person was reading.
@@ -149,8 +200,10 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
       // Where the selection and scroll offset survive the route unmounting: this tab's storage,
       // unless the caller brought its own (a criterion passes a plain object).
       remember,
+      // The filters survive the reload, not just the route: they live in this device's storage.
+      rememberFilters,
     }),
-    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent, remember],
+    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent, remember, rememberFilters],
   );
 
   const controller = useMemo(() => createCockpitCardController(deps), [deps]);
