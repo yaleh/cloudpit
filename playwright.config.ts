@@ -3025,6 +3025,10 @@ const DEBUG_AGENT_SPEC_FILES: readonly string[] = [
   // view and the composer the column is laid out against. The workspace and the scenario are the
   // only fixture channel it uses; the cockpit itself is enabled by the COCKPIT_SPEC_FILES entry.
   'cockpit-column-layout.spec.ts',
+  // The in-place confirmation criterion: the same real-session seam (the PC leg opens the column
+  // from a session page) plus the cockpit's fixture cards, which the settings block below turns on
+  // for this selection only.
+  'cockpit-inline-confirm.spec.ts',
 ];
 const debugAgentFixtureHome = selectedSpecFiles().some((file) => DEBUG_AGENT_SPEC_FILES.includes(file))
   ? path.join(dataDir, 'debug-agent-home')
@@ -3059,6 +3063,7 @@ const architectureRefreshSelection = selectedSpecFiles().includes('architecture-
  */
 const COCKPIT_SPEC_FILES = [
   'cockpit-column-layout.spec.ts',
+  'cockpit-inline-confirm.spec.ts',
   'cockpit-observation-wall.spec.ts',
   'cockpit-phone-narrow.spec.ts',
   'cockpit-remote.spec.ts',
@@ -3066,6 +3071,13 @@ const COCKPIT_SPEC_FILES = [
   'ui-scenario-runner.spec.ts',
 ];
 const cockpitSelection = selectedSpecFiles().some((file) => COCKPIT_SPEC_FILES.includes(file));
+/**
+ * The in-place confirmation criterion reads the SERVER's fixture cards (their two-step confirm and
+ * the `fixture.record` executor's running total), so its server must register them. The switch is
+ * boot-static and ships off; only this selection turns it on, and every other cockpit selection
+ * keeps the shipped card sources.
+ */
+const cockpitFixtureCardsSelection = selectedSpecFiles().includes('cockpit-inline-confirm.spec.ts');
 /**
  * Whether this run needs its own server settings file at all. ONE file carries both blocks:
  * a full-tree run selects the architecture and cockpit specs together, and two separate
@@ -3200,7 +3212,14 @@ if (runServerSettingsSelection && isDataDirOwner) {
   fs.writeFileSync(
     ARCHITECTURE_REFRESH_SETTINGS,
     `${JSON.stringify({
-      ...(cockpitSelection ? { cockpit: { enabled: true } } : {}),
+      ...(cockpitSelection
+        ? {
+            cockpit: {
+              enabled: true,
+              ...(cockpitFixtureCardsSelection ? { fixtureCards: true } : {}),
+            },
+          }
+        : {}),
       ...(architectureRefreshSelection
         ? {
             architecture: {

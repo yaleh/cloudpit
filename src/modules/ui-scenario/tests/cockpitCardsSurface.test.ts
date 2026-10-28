@@ -180,8 +180,8 @@ function renderCards(): { surface: ScenarioSurface; ledger: ClickLedger; contain
 /**
  * Crosses one task boundary, which is where React 18 commits a discrete event's update.
  *
- * Used only to observe the half-open state of a confirmation — the panel between its opening
- * press and the send `settle` performs.
+ * Used only to observe the half-open state of a confirmation — the card's own bar between its
+ * opening press and the second press `settle` performs.
  */
 function nextTask(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -330,14 +330,15 @@ test('AC1: the five drive verbs press the page controls and the reading follows'
   assert.ok(ledger.clicks.includes('cockpit-card-own-reply-trigger'));
   assert.ok(ledger.inputs.includes('cockpit-card-own-reply-input'));
 
-  // ── confirm: the bar's first press opens the panel, the panel's send leaves the request ──
+  // ── confirm: the same bar's button pressed twice, in place ───────────────────────────────
+  const pressesBefore = ledger.clicks.filter((id) => id === 'cockpit-card-confirm').length;
   surface.drive({ 'cockpitCard.confirm': 'fixture:need' });
   // The bar's press is committed in React's microtask; one task boundary lets the card show.
   await nextTask();
   assert.equal(
     surface.read().cockpit.cards?.confirmOpenCardId,
     'fixture:need',
-    'the first press opened the confirm card',
+    'the first press turned the card\'s own bar into its confirm state',
   );
   await surface.settle();
   assert.equal(surface.read().cockpit.cards?.confirmOpenCardId, null, 'the request answered');
@@ -347,8 +348,16 @@ test('AC1: the five drive verbs press the page controls and the reading follows'
     revision: 1,
     replyText: 'Keep it one more day.',
   });
-  assert.ok(ledger.clicks.includes('cockpit-card-confirm'));
-  assert.ok(ledger.clicks.includes('cockpit-card-confirm-send'));
+  assert.equal(
+    ledger.clicks.filter((id) => id === 'cockpit-card-confirm').length - pressesBefore,
+    2,
+    'the same confirm button was pressed twice — once to open the state, once to send',
+  );
+  assert.equal(
+    ledger.clicks.includes('cockpit-card-confirm-send'),
+    false,
+    'no separate send control exists: the bar sends from its own button',
+  );
 });
 
 test('AC1: with the runtime lock closed the surface is not mounted', () => {

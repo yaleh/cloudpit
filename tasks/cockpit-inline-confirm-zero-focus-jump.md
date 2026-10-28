@@ -2,7 +2,7 @@
 id: cockpit-inline-confirm-zero-focus-jump
 title: 驾驶舱确认改为原地两步：点 Confirm 后确认条原地变成「将发送…」+「确认发送 / 取消」，「确认发送」占原 Confirm
   按钮同一位置（两次点击距离 0），约 6 秒无操作或换选项、卡片更新即退回；去掉固定在窗口底部的确认框；结果原地显示
-status: ready
+status: done
 labels:
   - gap
   - cockpit
@@ -32,12 +32,12 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例：requestConfirm 后 6 秒（注入时钟）未确认 ⇒ pendingConfirm 为 null 且发送次数 0；确认状态中切换显示的选项、或卡片 revision 变化、或选中别的卡 ⇒ 退回且不发送；两次确认之间只发送一次；Enter 两次 ⇒ 发送一次。
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：确认状态在卡片自身的确认条内渲染（「确认发送」与原 Confirm 是同一个按钮元素或同一容器内同一位置）；页面上不存在 `cockpit-card-confirm-panel`，也不存在任何 `position: fixed` 的确认面板；不可逆选项在确认状态显示 ⚠；失败原因渲染在确认条内。
-- [ ] 新增 `e2e/cockpit-inline-confirm.spec.ts`，`npx playwright test e2e/cockpit-inline-confirm.spec.ts` 退出 0：用夹具卡片，在 1440×900（PC 列）与 390×844（手机卡片页）两种视口，读取点击前 Confirm 按钮的 `getBoundingClientRect()` 中心点，点击后读取「确认发送」按钮中心点，两者距离为 0（容差 1px）；点击「确认发送」后夹具执行器记录恰好多一条；另一张夹具卡进入确认状态后等待超过退回时间，读数退回且执行器记录不增加。失败时打印两次中心点坐标。
-- [ ] 场景运行器判据不退：`npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/ui-scenario/tests/scenarioSurface.test.ts` 退出 0。
-- [ ] 假形态变红：恢复固定在底部的确认框 ⇒ e2e 距离断言红；确认状态中切换选项仍保留 pendingConfirm ⇒ controller 用例红。改完即还原。
-- [ ] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0，既有用例数不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例：requestConfirm 后 6 秒（注入时钟）未确认 ⇒ pendingConfirm 为 null 且发送次数 0；确认状态中切换显示的选项、或卡片 revision 变化、或选中别的卡 ⇒ 退回且不发送；两次确认之间只发送一次；Enter 两次 ⇒ 发送一次。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：确认状态在卡片自身的确认条内渲染（「确认发送」与原 Confirm 是同一个按钮元素或同一容器内同一位置）；页面上不存在 `cockpit-card-confirm-panel`，也不存在任何 `position: fixed` 的确认面板；不可逆选项在确认状态显示 ⚠；失败原因渲染在确认条内。
+- [x] 新增 `e2e/cockpit-inline-confirm.spec.ts`，`npx playwright test e2e/cockpit-inline-confirm.spec.ts` 退出 0：用夹具卡片，在 1440×900（PC 列）与 390×844（手机卡片页）两种视口，读取点击前 Confirm 按钮的 `getBoundingClientRect()` 中心点，点击后读取「确认发送」按钮中心点，两者距离为 0（容差 1px）；点击「确认发送」后夹具执行器记录恰好多一条；另一张夹具卡进入确认状态后等待超过退回时间，读数退回且执行器记录不增加。失败时打印两次中心点坐标。
+- [x] 场景运行器判据不退：`npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/ui-scenario/tests/scenarioSurface.test.ts` 退出 0。
+- [x] 假形态变红：恢复固定在底部的确认框 ⇒ e2e 距离断言红；确认状态中切换选项仍保留 pendingConfirm ⇒ controller 用例红。改完即还原。
+- [x] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0，既有用例数不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
 
 ## DoD
 
@@ -48,6 +48,10 @@ extra:
 3. 让一张夹具卡进入确认状态后不操作，等待超过退回时间，截图已退回，贴出执行器记录未增加。
 
 截图存 `tmp/`，并与用户反馈的截图（确认框在窗口左下）对照说明。场景运行器 `node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-confirm.json …` 贴出 JSON 报告。⛔ 不在线上实例点击任何确认。实例用毕 `scripts/isolated-instance.sh stop`。
+
+## ADR-007
+
+该轴仍暗,理由:本任务只把确认从窗口底部的固定弹框改成确认条原地两步，判据是两次按压的像素距离与自动退回行为，没有本轮可记的 L_D/L_G 量化读数。
 
 ## Touches
 

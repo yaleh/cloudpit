@@ -44,6 +44,42 @@ const FAKE_CLOCK: Clock = {
   now: () => NOW,
 };
 
+/**
+ * A clock whose timers only fire when the test advances them.
+ *
+ * The confirm state's retreat is a rule about TIME, not about a component: it is armed on this
+ * clock, so a criterion states "six seconds passed" by calling `advance` and observes the reading
+ * — no `vi.useFakeTimers` and no React in the loop.
+ */
+function manualClock(): Clock & { advance: (milliseconds: number) => void; armed: () => number } {
+  let now = NOW;
+  let nextHandle = 1;
+  const timers = new Map<number, { at: number; run: () => void }>();
+  return {
+    setTimeout: (callback, milliseconds) => {
+      const handle = nextHandle++;
+      timers.set(handle, { at: now + milliseconds, run: callback });
+      return handle;
+    },
+    clearTimeout: (handle) => {
+      timers.delete(handle as number);
+    },
+    setInterval: () => nextHandle++,
+    clearInterval: () => undefined,
+    now: () => now,
+    advance: (milliseconds) => {
+      now += milliseconds;
+      for (const [handle, timer] of [...timers]) {
+        if (timer.at <= now) {
+          timers.delete(handle);
+          timer.run();
+        }
+      }
+    },
+    armed: () => timers.size,
+  };
+}
+
 function option(
   id: string,
   label: string,
@@ -165,6 +201,7 @@ describe('one confirmation, bound to the shown option', () => {
 
     h.controller.showOption('c1', 'two');
     expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.requests).toHaveLength(0);
   });
 
   it('marks an irreversible option from the contract’s warn vocabulary', async () => {
@@ -271,6 +308,99 @@ describe('the confirm card gates the one request', () => {
 
     expect(h.reads).toBeGreaterThan(readsAfterLoad);
     expect(h.snapshot().lastOutcome).toMatchObject({ ok: true, executor: 'test.exec' });
+  });
+});
+
+describe('the confirm state is in place and retreats by itself', () => {
+  it('retreats after the six-second window with no second press, sending nothing', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+
+    expect(h.controller.requestConfirm()).toBe(true);
+    expect(h.snapshot().pendingConfirm).not.toBeNull();
+
+    // One millisecond short of the window the state is still open: the retreat is a deadline,
+    // not a guess, and the person's second press still has its full time.
+    clock.advance(5_999);
+    expect(h.snapshot().pendingConfirm).not.toBeNull();
+
+    clock.advance(1);
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.requests).toHaveLength(0);
+    // With the state gone the bar is idle again: a press would open it anew, not send.
+    expect(await h.controller.confirm()).toBe(false);
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('disarms the retreat when the second press sends, and never sends twice', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(true);
+    expect(clock.armed()).toBe(0);
+
+    clock.advance(6_000);
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.requests).toHaveLength(1);
+  });
+
+  it('retreats when another card is selected, so the second press cannot land on it', async () => {
+    const h = harness([card('c1'), card('c2', { rank: 2 })]);
+    await h.controller.load();
+    h.controller.selectCard('c1');
+    expect(h.controller.requestConfirm()).toBe(true);
+
+    h.controller.selectCard('c2');
+
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('keeps the state when the selection is re-affirmed on the same card', async () => {
+    const h = harness([card('c1')]);
+    await h.controller.load();
+    expect(h.controller.requestConfirm()).toBe(true);
+
+    h.controller.selectCard('c1');
+
+    expect(h.snapshot().pendingConfirm).not.toBeNull();
+  });
+
+  it('Enter twice is one send: the same key opens the state and sends from it', async () => {
+    const h = harness([card('c1')]);
+    await h.controller.load();
+    h.controller.selectCard('c1');
+
+    expect(h.controller.handleKey('Enter')).toBe(true);
+    expect(h.snapshot().pendingConfirm).not.toBeNull();
+    expect(h.requests).toHaveLength(0);
+
+    expect(h.controller.handleKey('Enter')).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.snapshot().confirming).toBe(false);
+  });
+
+  it('a held Enter after the send opens the state again instead of sending twice', async () => {
+    const h = harness([card('c1')]);
+    await h.controller.load();
+    h.controller.selectCard('c1');
+
+    h.controller.handleKey('Enter');
+    h.controller.handleKey('Enter');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const requestsAfterSend = h.requests.length;
+
+    h.controller.handleKey('Enter');
+
+    expect(requestsAfterSend).toBe(1);
+    expect(h.snapshot().pendingConfirm).not.toBeNull();
+    expect(h.requests).toHaveLength(1);
   });
 });
 

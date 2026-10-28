@@ -17,8 +17,8 @@ import type {
  *
  * WHY IT IS A CONTROLLER AND NOT COMPONENT STATE. Every rule here is a decision, not a
  * rendering detail: which option a card shows by default, what a confirmation is bound to,
- * whether the first press only opens the confirm card, whether a key press may change the
- * selection, and what survives a re-read. Those rules have to be provable without a browser,
+ * whether the first press only opens the in-place confirm state, whether a key press may change
+ * the selection, and what survives a re-read. Those rules have to be provable without a browser,
  * so the controller takes its clock and its two transports through an injected seam and
  * publishes one immutable snapshot. `useCockpitCards` is only the React binding.
  *
@@ -27,8 +27,10 @@ import type {
  * - ONE CONFIRMATION PER CARD, BOUND TO THE SHOWN OPTION. The confirm bar's target is derived
  *   from the shown option, so switching the option switches the target with no second write;
  *   the person's own reply is a third kind of target on the same path.
- * - TWO PRESSES, ONE REQUEST. A first press only opens the confirm card. The request leaves on
- *   the confirm card's own button, exactly once; cancelling sends nothing.
+ * - TWO PRESSES, ONE REQUEST, IN PLACE. A first press only turns the card's own confirm bar into
+ *   the confirm state (the same button, in the same place). The request leaves on that button's
+ *   second press, exactly once; cancelling — or the ~6 s retreat — sends nothing. The state also
+ *   retreats when the shown option, the card revision or the selection moves away from it.
  * - NO SUGGESTION, NO DEFAULT. The card shows the one option the provider marked `suggested`,
  *   whatever its source (`assistant`, `judge` or `provider`). Only a card where the provider
  *   marks nothing shows nothing and confirms nothing. The cockpit never invents a default.
@@ -63,7 +65,7 @@ export type CockpitBriefState =
   | { status: 'ready'; cardRevision: number; response: CockpitBriefResponse }
   | { status: 'error'; cardRevision: number; message: string };
 
-/** The confirmation the bar (and, once opened, the confirm card) is bound to. */
+/** The confirmation the bar is bound to; when it is pending, that bar draws the confirm state. */
 export type CockpitCardConfirmTarget = {
   cardId: string;
   /** The card revision the confirmation would send; the server refuses a stale one. */
@@ -227,7 +229,7 @@ export type CockpitCardControllerSnapshot = {
   briefs: Readonly<Record<string, CockpitBriefState>>;
   /** The confirm bar target derived from each card's shown option; absent when unavailable. */
   targets: Readonly<Record<string, CockpitCardConfirmTarget>>;
-  /** The open confirm card: set by the first press, cleared by send or cancel. */
+  /** The pending confirmation: set by the first press, cleared by send, cancel or the retreat. */
   pendingConfirm: CockpitCardConfirmTarget | null;
   /** True while the one confirmation request is in flight. */
   confirming: boolean;
@@ -269,11 +271,11 @@ export type CockpitCardController = {
   showOption: (cardId: string, optionId: string) => void;
   showOwnReply: (cardId: string) => void;
   setOwnReply: (cardId: string, text: string) => void;
-  /** The first press: opens the confirm card. `true` when a target was available. */
+  /** The first press: opens the in-place confirm state. `true` when a target was available. */
   requestConfirm: (cardId?: string) => boolean;
   /** The second press: sends the pending confirmation exactly once. */
   confirm: () => Promise<boolean>;
-  /** Closes the confirm card without sending. `true` when one was open. */
+  /** Closes the confirm state without sending. `true` when one was open. */
   cancelConfirm: () => boolean;
   /** Handles one key; returns whether the cockpit consumed it. Escape is never consumed. */
   handleKey: (key: string) => boolean;
@@ -394,6 +396,16 @@ export function startedSessionIdOf(executor: string, result: unknown): string | 
   const sessionId = (result as { sessionId?: unknown }).sessionId;
   return typeof sessionId === 'string' && sessionId.trim() !== '' ? sessionId : null;
 }
+
+/**
+ * How long the in-place confirm state waits for its second press.
+ *
+ * The confirm state replaces the card's own bar, so it stays visible only while the person is
+ * still looking at the card they pressed: roughly six seconds without a second press and it
+ * retreats, sending nothing. The delay goes through the injected clock (never a component timer),
+ * which is what lets a criterion drive it without sleeping.
+ */
+const CONFIRM_RETREAT_MS = 6_000;
 
 /** The types a card kind can be filtered to, in the order the chips list them. */
 const KNOWN_CARD_KINDS = ['need', 'stuck', 'fix', 'ask', 'multi', 'decision'] as const;
@@ -546,7 +558,7 @@ function failureMessage(failure: unknown): string {
  *
  *   - a removed card drops its shown option, draft, dropdown and Details entry;
  *   - the selection and the anchor fall back only when their card is no longer visible;
- *   - the confirm card closes when its card is gone or its revision moved (a stale revision
+ *   - the confirm state closes when its card is gone or its revision moved (a stale revision
  *     would be refused by the server, so leaving it open would invite a guaranteed failure).
  */
 function normalize(
@@ -666,11 +678,39 @@ export function createCockpitCardController(
   let timer: unknown = null;
   let inFlightRead: Promise<void> | null = null;
   let confirming = false;
+  /** The confirm state's retreat timer, armed by `requestConfirm` on the injected clock. */
+  let confirmRetreatTimer: unknown = null;
+
+  /** Disarms the retreat; called whenever no confirm state is open any more. */
+  const clearConfirmRetreat = (): void => {
+    if (confirmRetreatTimer === null) return;
+    clock.clearTimeout(confirmRetreatTimer);
+    confirmRetreatTimer = null;
+  };
+
+  /**
+   * Arms the one retreat for the confirm state that is opening now.
+   *
+   * Only a new `requestConfirm` re-arms it. Every way the state can close — the second press, a
+   * cancel, an option switch, a revision, another selection — closes it through `commit`, which
+   * disarms this timer from the one place that can see the state is gone.
+   */
+  const armConfirmRetreat = (): void => {
+    clearConfirmRetreat();
+    confirmRetreatTimer = clock.setTimeout(() => {
+      confirmRetreatTimer = null;
+      if (disposed || store.getSnapshot().pendingConfirm === null) return;
+      commit({ pendingConfirm: null });
+    }, CONFIRM_RETREAT_MS);
+  };
 
   /** The one write path: patch the snapshot, normalize it, publish. */
   const commit = (patch: Partial<CockpitCardControllerSnapshot>): void => {
     if (disposed) return;
     store.update((previous) => normalize({ ...previous, ...patch }, clock.now()));
+    // `normalize` may also close the state (a vanished card, a moved revision), so the check is
+    // on the committed snapshot rather than on `patch`.
+    if (store.getSnapshot().pendingConfirm === null) clearConfirmRetreat();
   };
 
   /**
@@ -762,7 +802,7 @@ export function createCockpitCardController(
   const showReading = (cardId: string, shown: CockpitCardShown): void => {
     const card = store.getSnapshot().cards.find((candidate) => candidate.id === cardId);
     if (card === undefined) return;
-    // Changing what is shown changes what would be confirmed: an open confirm card for this
+    // Changing what is shown changes what would be confirmed: an open confirm state for this
     // card no longer names the person's current choice, so it closes rather than sending it.
     const pending = store.getSnapshot().pendingConfirm;
     commit({
@@ -855,9 +895,13 @@ export function createCockpitCardController(
     const snapshot = store.getSnapshot();
     const targetId = cardId ?? snapshot.selectedCardId;
     if (targetId === null) return false;
+    // A request already in flight owns the confirm state: reopening it under the running request
+    // would let the first answer close a state the person opened for something else.
+    if (confirming) return false;
     const target = snapshot.targets[targetId];
     if (target === undefined || target.disabled) return false;
     commit({ pendingConfirm: target, lastOutcome: null });
+    armConfirmRetreat();
     return true;
   };
 
@@ -907,6 +951,14 @@ export function createCockpitCardController(
 
   const handleKey = (key: string): boolean => {
     if (key === 'Escape') return false;
+    // Enter is the whole gesture in one key: with nothing pending it opens the in-place confirm
+    // state on the selected card; with the confirm state open it sends — the same key, twice.
+    // Escape stays untouched above: it aborts a running turn elsewhere in the app.
+    if (key === 'Enter') {
+      if (store.getSnapshot().pendingConfirm === null) return requestConfirm();
+      void confirm();
+      return true;
+    }
     const match = /^([1-9])$/.exec(key);
     if (match === null) return false;
     const snapshot = store.getSnapshot();
@@ -929,6 +981,7 @@ export function createCockpitCardController(
       // The last reading leaves with the page, so a route change that skips the unmount-time
       // scroll report still returns to the card the person was on.
       writeMemory();
+      clearConfirmRetreat();
       disposed = true;
       stop();
     },
@@ -937,7 +990,13 @@ export function createCockpitCardController(
       const snapshot = store.getSnapshot();
       if (!snapshot.visibleCards.some((card) => card.id === cardId)) return;
       if (snapshot.selectedCardId === cardId) return;
-      commit({ selectedCardId: cardId });
+      const pending = snapshot.pendingConfirm;
+      commit({
+        selectedCardId: cardId,
+        // Selecting another card is one of the stated retreats: the confirm state belongs to the
+        // card the person was looking at, and the second press must not land on a card they left.
+        ...(pending !== null && pending.cardId !== cardId ? { pendingConfirm: null } : {}),
+      });
       writeMemory();
     },
     setScrollPosition: (position) => {

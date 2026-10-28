@@ -12,8 +12,10 @@ import {
   cockpitCardTitle,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
+import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCard';
 import type {
   CockpitBriefState,
+  CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
 } from '@/modules/cockpit/cockpitCardController';
 import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
@@ -48,8 +50,18 @@ export type CockpitCardDetailsProps = {
    * bar. Absent or `null` means the card offers nothing to confirm, so no bar is drawn.
    */
   target?: CockpitCardConfirmTarget | null;
-  /** The bar's press: opens the same confirm card the card's own bar opens. */
+  /** The bar's first press: opens the in-place confirm state the card's own bar opens. */
   onRequestConfirm?: () => void;
+  /** True when this card's confirmation is pending — the bar draws the confirm state in place. */
+  confirmPending?: boolean;
+  /** True while that confirmation's request is in flight. */
+  confirming?: boolean;
+  /** The last confirmation answer for this card, drawn inside this bar. */
+  confirmOutcome?: CockpitCardConfirmOutcome | null;
+  /** The second press: sends the pending confirmation from the same button. */
+  onConfirm?: () => void;
+  /** Leaves the confirm state without sending. */
+  onCancelConfirm?: () => void;
   /**
    * The PC column's conversation link: open the conversation on the LEFT (in place of the
    * anchor's default full-page navigation) so the column decides whether it must also collapse.
@@ -123,6 +135,11 @@ export default function CockpitCardDetails({
   onRetryBrief,
   target,
   onRequestConfirm,
+  confirmPending = false,
+  confirming = false,
+  confirmOutcome = null,
+  onConfirm,
+  onCancelConfirm,
   onOpenConversation,
   openedInSession = false,
   currentSessionId = null,
@@ -425,45 +442,26 @@ export default function CockpitCardDetails({
 
       {/*
         THE PERSISTENT CONFIRM BAR. It is bound to the SAME target the card's own bar is bound to
-        (the card's currently shown option), and its press opens the same confirm card — Details
-        is a longer reading of one card, not a second confirmation path. `sticky bottom-0` keeps
-        it in view while the drawer's body scrolls.
+        (the card's currently shown option), and its press opens the same in-place confirm state —
+        Details is a longer reading of one card, not a second confirmation path. `sticky bottom-0`
+        keeps it in view while the drawer's body scrolls. The bar itself is the card's shared
+        `CockpitCardConfirmBar`: one action, one control, one style.
       */}
       {target !== undefined && target !== null && (
-        <div
-          data-testid="cockpit-card-details-confirm-bar"
+        <CockpitCardConfirmBar
+          barTestId="cockpit-card-details-confirm-bar"
+          testId="cockpit-card-details-confirm"
+          cardId={card.id}
+          target={target}
+          idleLabel={t('cockpit.cardConfirm', { label: target.label })}
+          pending={confirmPending}
+          confirming={confirming}
+          outcome={confirmOutcome}
           className="sticky bottom-0 mt-3 border-t border-border bg-card pt-2"
-        >
-          <button
-            type="button"
-            data-testid="cockpit-card-details-confirm"
-            data-irreversible={target.irreversible ? 'true' : 'false'}
-            disabled={target.disabled || onRequestConfirm === undefined}
-            onClick={() => onRequestConfirm?.()}
-            className={cn(
-              // THE SAME BUTTON as the card's own bar: the drawer repeats the card's action, so
-              // it must not restyle it. Irreversible stays the amber warning arm; the ordinary
-              // arm is the black solid both the mockup and the card use (`bg-primary` was the
-              // blue outlier this parity test pins out).
-              'flex items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50',
-              'w-full',
-              target.irreversible
-                ? 'border border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                : 'bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
-            )}
-          >
-            {t('cockpit.cardConfirm', { label: target.label })}
-          </button>
-          <p className="mt-1 text-[11px] text-muted-foreground">{t('cockpit.cardConfirmHint')}</p>
-          {target.disabled && target.disabledReason !== null && (
-            <p
-              data-testid="cockpit-card-details-confirm-disabled-reason"
-              className="mt-1 text-[11px] text-destructive"
-            >
-              {target.disabledReason}
-            </p>
-          )}
-        </div>
+          onRequestConfirm={() => onRequestConfirm?.()}
+          onConfirm={onConfirm}
+          onCancelConfirm={onCancelConfirm}
+        />
       )}
     </aside>
   );
