@@ -126,7 +126,7 @@ function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
       data-testid="cockpit-card-shown-option"
       data-source={option.source}
       data-suggested={option.suggested ? 'true' : 'false'}
-      className="mt-1.5 rounded-md bg-muted/50 px-2 py-1.5"
+      className="border-t border-border bg-muted/50 px-2 py-1.5"
     >
       <p className="text-xs text-foreground">{option.does}</p>
       {option.why !== undefined && (
@@ -571,37 +571,45 @@ export default function CockpitCard({
       >
         {/* B zone: one dropdown whose last item is the person's own reply. */}
         <div className={cn('min-w-0', compact ? 'flex-1' : '')} data-testid="cockpit-card-options">
-          <button
-            type="button"
-            data-testid="cockpit-card-option-trigger"
-            data-source={shownOption?.source ?? null}
-            data-suggested={shownOption?.suggested === true ? 'true' : 'false'}
-            aria-expanded={dropdownOpen}
-            onClick={onToggleDropdown}
-            className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-left text-xs hover:bg-accent"
+          {/* The trigger and the shown option's explanation are ONE bordered box: the frame owns
+              the only border and rounding, so the explanation reads as part of the selected
+              option rather than as a second, parallel option. */}
+          <div
+            data-testid="cockpit-card-option-frame"
+            className="overflow-hidden rounded-md border border-border"
           >
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate font-medium text-foreground">{shownLabel}</span>
-              {shownOption?.suggested === true && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                  {t('cockpit.cardSuggested')}
-                </span>
-              )}
-              {shownSource !== null && (
-                <span className="shrink-0 text-[10px] text-muted-foreground">{shownSource}</span>
-              )}
-              {shownPosition !== null && (
-                <span className="shrink-0 text-[10px] text-muted-foreground">{shownPosition}</span>
-              )}
-            </span>
-            <span aria-hidden className="shrink-0 text-muted-foreground">▾</span>
-          </button>
+            <button
+              type="button"
+              data-testid="cockpit-card-option-trigger"
+              data-source={shownOption?.source ?? null}
+              data-suggested={shownOption?.suggested === true ? 'true' : 'false'}
+              aria-expanded={dropdownOpen}
+              onClick={onToggleDropdown}
+              className="flex w-full items-center justify-between gap-2 bg-background px-2 py-1.5 text-left text-xs hover:bg-accent"
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-medium text-foreground">{shownLabel}</span>
+                {shownOption?.suggested === true && (
+                  <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                    {t('cockpit.cardSuggested')}
+                  </span>
+                )}
+                {shownSource !== null && (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{shownSource}</span>
+                )}
+                {shownPosition !== null && (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{shownPosition}</span>
+                )}
+              </span>
+              <span aria-hidden className="shrink-0 text-muted-foreground">▾</span>
+            </button>
 
-          {/* The full explanation belongs to the Cards density; Compact stays three lines, so the
-              description lives only in the open dropdown and in Details. */}
-          {!compact && !dropdownOpen && shownOption !== null && (
-            <ShownOptionExplanation option={shownOption} />
-          )}
+            {/* The full explanation belongs to the Cards density; Compact stays three lines, so
+                the description lives only in the open dropdown and in Details. */}
+            {!compact && !dropdownOpen && shownOption !== null && (
+              <ShownOptionExplanation option={shownOption} />
+            )}
+          </div>
           {!compact && !dropdownOpen && showingOwnReply && ownReplyAvailable && (
             <OwnReplyEditor
               value={ownReply}

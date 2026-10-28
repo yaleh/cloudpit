@@ -477,6 +477,59 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     expect(trigger.textContent).toContain('1 of 2');
   });
 
+  it('draws the trigger and the shown explanation as ONE framed box', () => {
+    renderCard();
+
+    const frame = screen.getByTestId('cockpit-card-option-frame');
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
+    const explanation = screen.getByTestId('cockpit-card-shown-option');
+
+    // The frame is the only element of this block that carries the border and the rounding, and
+    // both the trigger and the explanation live inside it — one selected option, not two boxes.
+    expect(frame.contains(trigger)).toBe(true);
+    expect(frame.contains(explanation)).toBe(true);
+    expect(frame.className).toContain('border');
+    expect(frame.className).toContain('rounded-md');
+    expect(trigger.className).not.toContain('rounded-md');
+    expect(trigger.className).not.toContain('border-border');
+    expect(explanation.className).not.toContain('rounded-md');
+    expect(explanation.className).not.toContain('mt-1.5');
+    expect(explanation.className).toContain('border-t');
+  });
+
+  it('keeps the open list out of the frame and draws no explanation then', () => {
+    renderCard();
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    const frame = screen.getByTestId('cockpit-card-option-frame');
+    expect(screen.getByTestId('cockpit-card-option-list')).toBeTruthy();
+    expect(frame.contains(screen.getByTestId('cockpit-card-option-list'))).toBe(false);
+    expect(screen.queryByTestId('cockpit-card-shown-option')).toBeNull();
+  });
+
+  it('draws no explanation in Compact density', () => {
+    renderCard({ density: 'compact' });
+
+    expect(screen.queryByTestId('cockpit-card-shown-option')).toBeNull();
+    const frame = screen.getByTestId('cockpit-card-option-frame');
+    expect(frame.contains(screen.getByTestId('cockpit-card-option-trigger'))).toBe(true);
+  });
+
+  it('frames only the trigger when the person’s own reply is shown', () => {
+    renderCard();
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-own-reply-trigger'));
+    // Close the dropdown: the reply editor is the body's own control, outside the frame.
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+
+    const frame = screen.getByTestId('cockpit-card-option-frame');
+    expect(screen.queryByTestId('cockpit-card-shown-option')).toBeNull();
+    expect(frame.children.length).toBe(1);
+    expect(frame.firstElementChild).toBe(screen.getByTestId('cockpit-card-option-trigger'));
+    expect(screen.getByTestId('cockpit-card-own-reply-input')).toBeTruthy();
+  });
+
   it('shows a judge-sourced default with its ○ marker and the judge’s reason', () => {
     const judgeWhy = 'The archive is verified, so deletion is the low-risk next step.';
     const judgeCard: CockpitCardData = {
