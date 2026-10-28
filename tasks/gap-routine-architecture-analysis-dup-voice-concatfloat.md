@@ -36,15 +36,33 @@ Export `concatFloat` from `src/modules/chat/utils/voice/voiceSegments.ts` and im
 - statement: 修复后 `<none>` 不再以同一 subject 复发（同 concept_key 的后续记录数应为 0）
 - recorded_at: 2026-10-28T17:24:11.918Z
 
+## 处置结论
+处置：**修掉**。finding 记录的两处重复 `concatFloat` 已消除：
+
+- 唯一实现：`src/modules/chat/utils/voice/voiceSegments.ts` 导出 `concatFloat`；`grep -rn "function concatFloat" src/` 在本次实现后只命中该一处。
+- 两个原站点改为导入：`src/modules/chat/hooks/useVoiceInput.ts`（no-VAD whole-buffer 路径）与 `src/modules/chat/utils/voice/voiceLiveSegmenter.ts`（whole-buffer pass）。
+- 行为等价：函数体逐字保留（累加总长度 → 依次 `out.set`），仅参数名与所在模块变化。
+
+实跑读数（worktree `gap-routine-architecture-analysis-dup-voice-concatfloat`）：
+- `grep -rn "function concatFloat" src/` → 1 处（`voiceSegments.ts:133`）。
+- `tsc --noEmit -p tsconfig.json` → 退出码 0。
+- `oxlint` 三个改动文件 → 退出码 0（仅既有 warning，无新增）。
+- `vitest run src/modules/chat/utils/tests/voiceSegments.test.ts src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts` → `2 passed`，`36 passed | 1 skipped`，退出码 0。
+- finding 复核：`.quay/routine-findings.jsonl:48` 存在 `findingId:"dup-voice-concatfloat"`、`runId:"architecture-analysis-1793208251918"`、`verdict:"confirmed"`，与本任务载体记录一致。
+
+- L_D 该轴仍暗,理由:本任务只把一处重复实现收敛为单一定义，不新增领域数据能力，没有可读的领域数据轴读数。
+- L_G 该轴仍暗,理由:本任务不改变识别文本与生成行为，重构前后同一音频的转写路径不变，没有生成质量轴读数。
+
 ## AC
-- [ ] `.quay/routine-findings.jsonl` 中 finding `dup-voice-concatfloat`（routine `architecture-analysis`，runId `architecture-analysis-1793208251918`）所描述的问题被复核并处置
-- [ ] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
+- [x] `.quay/routine-findings.jsonl` 中 finding `dup-voice-concatfloat`（routine `architecture-analysis`，runId `architecture-analysis-1793208251918`）所描述的问题被复核并处置
+- [x] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
 
 ## DoD
-- [ ] 上面的判据实跑通过
-- [ ] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
+- [x] 上面的判据实跑通过
+- [x] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
 
 ## Touches
 - `src/modules/chat/hooks/useVoiceInput.ts`
 - `src/modules/chat/utils/voice/voiceLiveSegmenter.ts`
+- `src/modules/chat/utils/voice/voiceSegments.ts`
 - `tasks/gap-routine-architecture-analysis-dup-voice-concatfloat.md`
