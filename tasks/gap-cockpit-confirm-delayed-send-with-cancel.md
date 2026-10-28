@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-confirm-delayed-send-with-cancel
 title: 驾驶舱确认改为「点一次、5 秒倒计时后发送、倒计时内可点同一按钮取消」；warn/irreversible 选项保留二次确认；去掉确认条上方的冗余提示行
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
