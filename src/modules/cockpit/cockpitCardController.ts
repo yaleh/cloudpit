@@ -27,10 +27,12 @@ import type {
  * - ONE CONFIRMATION PER CARD, BOUND TO THE SHOWN OPTION. The confirm bar's target is derived
  *   from the shown option, so switching the option switches the target with no second write;
  *   the person's own reply is a third kind of target on the same path.
- * - TWO PRESSES, ONE REQUEST, IN PLACE. A first press only turns the card's own confirm bar into
- *   the confirm state (the same button, in the same place). The request leaves on that button's
- *   second press, exactly once; cancelling — or the ~6 s retreat — sends nothing. The state also
- *   retreats when the shown option, the card revision or the selection moves away from it.
+ * - TWO KINDS OF CONFIRMATION, BOUND TO THE SHOWN OPTION. A reversible option is ONE press: a
+ *   five-second countdown runs on the injected clock, fires the request exactly once, and the
+ *   same button cancels it while it runs. Switching the shown option, moving the revision or
+ *   selecting another card cancels it without sending. An irreversible option keeps the
+ *   in-place two-press state: the first press opens it, the second sends, and the ~6 s retreat
+ *   sends nothing. Both states replace the card's own bar in the same element and place.
  * - NO SUGGESTION, NO DEFAULT. The card shows the one option the provider marked `suggested`,
  *   whatever its source (`assistant`, `judge` or `provider`). Only a card where the provider
  *   marks nothing shows nothing and confirms nothing. The cockpit never invents a default.
@@ -68,6 +70,26 @@ export type CockpitBriefState =
   | { status: 'loading'; cardRevision: number }
   | { status: 'ready'; cardRevision: number; response: CockpitBriefResponse }
   | { status: 'error'; cardRevision: number; message: string };
+
+/**
+ * The delayed send a normal option's confirmation is counting down.
+ *
+ * A reversible confirmation is ONE press: the request leaves when the countdown fires, and the
+ * same button cancels it while it runs. The countdown carries the card and the revision it would
+ * send (a revision move invalidates it, exactly like a pending confirmation) plus both clock
+ * readings the button needs — the deadline for the seconds it states, and the start for the
+ * progress fill. Times are read from the injected clock; the component writes no timer.
+ */
+export type CockpitCardSendCountdown = {
+  /** The card whose confirmation will be sent. */
+  cardId: string;
+  /** The card revision the send names; a revision change cancels the countdown. */
+  revision: number;
+  /** The clock reading the countdown started at (the progress fill's zero). */
+  startedAt: number;
+  /** The clock reading the send fires at. */
+  firesAt: number;
+};
 
 /** The confirmation the bar is bound to; when it is pending, that bar draws the confirm state. */
 export type CockpitCardConfirmTarget = {
@@ -239,10 +261,27 @@ export type CockpitCardControllerSnapshot = {
   situationExpanded: Readonly<Record<string, number>>;
   /** The confirm bar target derived from each card's shown option; absent when unavailable. */
   targets: Readonly<Record<string, CockpitCardConfirmTarget>>;
-  /** The pending confirmation: set by the first press, cleared by send, cancel or the retreat. */
+  /**
+   * The irreversible option's two-step confirmation: set by the first press, cleared by send,
+   * cancel or the ~6 s retreat. A REVERSIBLE option never appears here — its first press starts
+   * {@link sendCountdown} instead.
+   */
   pendingConfirm: CockpitCardConfirmTarget | null;
+  /**
+   * The reversible option's delayed send: the card, its revision and the deadline. The same
+   * button cancels it while it runs; the countdown survives `stop()` so a route change still
+   * sends.
+   */
+  sendCountdown: CockpitCardSendCountdown | null;
   /** True while the one confirmation request is in flight. */
   confirming: boolean;
+  /**
+   * The card whose confirmation request is in flight, or `null`. The boolean above says a request
+   * is running; this says WHICH bar keeps its countdown/confirm state while it does, so the send
+   * that starts when the countdown expires is still drawn on the same button instead of the bar
+   * briefly falling back to its idle label.
+   */
+  confirmingCardId: string | null;
   /** The last confirmation's answer, for the list's one-line echo. */
   lastOutcome: CockpitCardConfirmOutcome | null;
   /** The controller's clock reading at the last commit; the waiting-time renderer uses it. */
@@ -285,9 +324,9 @@ export type CockpitCardController = {
   setOwnReply: (cardId: string, text: string) => void;
   /** The first press: opens the in-place confirm state. `true` when a target was available. */
   requestConfirm: (cardId?: string) => boolean;
-  /** The second press: sends the pending confirmation exactly once. */
+  /** Sends an irreversible option's pending confirmation exactly once (the second press). */
   confirm: () => Promise<boolean>;
-  /** Closes the confirm state without sending. `true` when one was open. */
+  /** Cancels either the irreversible confirm state or a running countdown, sending nothing. */
   cancelConfirm: () => boolean;
   /** Handles one key; returns whether the cockpit consumed it. Escape is never consumed. */
   handleKey: (key: string) => boolean;
@@ -316,7 +355,9 @@ const initialState: CockpitCardControllerSnapshot = {
   situationExpanded: {},
   targets: {},
   pendingConfirm: null,
+  sendCountdown: null,
   confirming: false,
+  confirmingCardId: null,
   lastOutcome: null,
   now: 0,
 };
@@ -419,6 +460,25 @@ export function startedSessionIdOf(executor: string, result: unknown): string | 
  * which is what lets a criterion drive it without sleeping.
  */
 const CONFIRM_RETREAT_MS = 6_000;
+
+/**
+ * How long a reversible option waits before it sends.
+ *
+ * The first press starts this countdown and the request leaves when it expires; the same button
+ * cancels it while it runs. Five seconds is long enough to catch a mis-press and short enough
+ * that the person who pressed once is not left wondering. A refresh or a closed tab kills the
+ * browser timer (nothing is sent); a route change does NOT — `stop()` deliberately leaves it
+ * armed, so leaving the page after pressing still sends.
+ */
+const DELAYED_SEND_MS = 5_000;
+
+/**
+ * How often the countdown re-publishes `now` while it runs.
+ *
+ * The seconds and the progress fill are read from the injected clock, so the snapshot has to move
+ * for the button to count down. A quarter second keeps the fill smooth without a render per frame.
+ */
+const SEND_COUNTDOWN_TICK_MS = 250;
 
 /** The types a card kind can be filtered to, in the order the chips list them. */
 const KNOWN_CARD_KINDS = ['need', 'stuck', 'fix', 'ask', 'multi', 'decision'] as const;
@@ -643,6 +703,20 @@ function normalize(
     const card = byId.get(pendingConfirm.cardId);
     if (card === undefined || card.revision !== pendingConfirm.revision) pendingConfirm = null;
   }
+  // A running send belongs to the revision it was started on: a removed card or a moved revision
+  // cancels it, exactly like the pending confirmation above. (A shown-option switch is cancelled
+  // by the command that switches it; this is the re-read's half of the same rule.)
+  let sendCountdown = next.sendCountdown;
+  if (sendCountdown !== null) {
+    const card = byId.get(sendCountdown.cardId);
+    if (card === undefined || card.revision !== sendCountdown.revision) sendCountdown = null;
+  }
+  // A request in flight names its card only while that card still exists; a removed card leaves
+  // nothing to draw the answer on.
+  const confirmingCardId =
+    next.confirmingCardId !== null && byId.has(next.confirmingCardId)
+      ? next.confirmingCardId
+      : null;
 
   return {
     ...next,
@@ -664,6 +738,8 @@ function normalize(
     openDropdownCardId,
     targets,
     pendingConfirm,
+    sendCountdown,
+    confirmingCardId,
     now,
   };
 }
@@ -700,14 +776,29 @@ export function createCockpitCardController(
   let timer: unknown = null;
   let inFlightRead: Promise<void> | null = null;
   let confirming = false;
-  /** The confirm state's retreat timer, armed by `requestConfirm` on the injected clock. */
+  /** The irreversible confirm state's retreat timer, armed by `requestConfirm` on the clock. */
   let confirmRetreatTimer: unknown = null;
+  /** The reversible countdown's send deadline and its UI tick, both on the injected clock. */
+  let sendCountdownTimer: unknown = null;
+  let sendCountdownTicker: unknown = null;
 
   /** Disarms the retreat; called whenever no confirm state is open any more. */
   const clearConfirmRetreat = (): void => {
     if (confirmRetreatTimer === null) return;
     clock.clearTimeout(confirmRetreatTimer);
     confirmRetreatTimer = null;
+  };
+
+  /** Disarms a running countdown's send and its tick; called when the countdown leaves. */
+  const clearSendCountdownTimers = (): void => {
+    if (sendCountdownTimer !== null) {
+      clock.clearTimeout(sendCountdownTimer);
+      sendCountdownTimer = null;
+    }
+    if (sendCountdownTicker !== null) {
+      clock.clearInterval(sendCountdownTicker);
+      sendCountdownTicker = null;
+    }
   };
 
   /**
@@ -733,6 +824,14 @@ export function createCockpitCardController(
     // `normalize` may also close the state (a vanished card, a moved revision), so the check is
     // on the committed snapshot rather than on `patch`.
     if (store.getSnapshot().pendingConfirm === null) clearConfirmRetreat();
+    if (store.getSnapshot().sendCountdown === null) clearSendCountdownTimers();
+  };
+
+  /** Closes a running countdown without sending: cancelling and every retreat share this path. */
+  const cancelSendCountdown = (): boolean => {
+    if (store.getSnapshot().sendCountdown === null) return false;
+    commit({ sendCountdown: null });
+    return true;
   };
 
   /**
@@ -819,18 +918,24 @@ export function createCockpitCardController(
       clock.clearInterval(timer);
       timer = null;
     }
+    // DELIBERATELY NOT the send countdown. The page is a route: leaving it calls this method, and
+    // a confirmation the person already started must still leave. Only `dispose` (the controller
+    // being thrown away) disarms it.
   };
 
   const showReading = (cardId: string, shown: CockpitCardShown): void => {
     const card = store.getSnapshot().cards.find((candidate) => candidate.id === cardId);
     if (card === undefined) return;
-    // Changing what is shown changes what would be confirmed: an open confirm state for this
-    // card no longer names the person's current choice, so it closes rather than sending it.
+    // Changing what is shown changes what would be confirmed: an open confirm state or a running
+    // countdown for this card no longer names the person's current choice, so it closes rather
+    // than sending it.
     const pending = store.getSnapshot().pendingConfirm;
+    const countdown = store.getSnapshot().sendCountdown;
     commit({
       shown: { ...store.getSnapshot().shown, [cardId]: shown },
       openDropdownCardId: null,
       ...(pending !== null && pending.cardId === cardId ? { pendingConfirm: null } : {}),
+      ...(countdown !== null && countdown.cardId === cardId ? { sendCountdown: null } : {}),
     });
   };
 
@@ -913,6 +1018,55 @@ export function createCockpitCardController(
     })();
   };
 
+  /**
+   * Starts the reversible option's countdown.
+   *
+   * The deadline and the UI tick both live on the injected clock: the timeout is the send, the
+   * interval only re-publishes `now` so the button's seconds and fill move. Arming happens AFTER
+   * the state is committed, so `commit`'s "no countdown ⇒ clear the timers" rule cannot cancel the
+   * countdown it just published.
+   */
+  const startSendCountdown = (target: CockpitCardConfirmTarget): void => {
+    clearSendCountdownTimers();
+    const startedAt = clock.now();
+    commit({
+      sendCountdown: {
+        cardId: target.cardId,
+        revision: target.revision,
+        startedAt,
+        firesAt: startedAt + DELAYED_SEND_MS,
+      },
+      lastOutcome: null,
+    });
+    sendCountdownTicker = clock.setInterval(() => {
+      if (store.getSnapshot().sendCountdown === null) return;
+      commit({});
+    }, SEND_COUNTDOWN_TICK_MS);
+    sendCountdownTimer = clock.setTimeout(() => {
+      sendCountdownTimer = null;
+      fireSendCountdown();
+    }, DELAYED_SEND_MS);
+  };
+
+  /**
+   * The countdown's deadline: closes the countdown and sends exactly once.
+   *
+   * The target is re-read from the committed snapshot rather than captured, so a countdown whose
+   * card left the list, whose revision moved or whose option became unconfirmable sends nothing.
+   * `commit({ sendCountdown: null })` disarms the tick through the same rule every other exit uses.
+   */
+  const fireSendCountdown = (): void => {
+    if (disposed) return;
+    const snapshot = store.getSnapshot();
+    const countdown = snapshot.sendCountdown;
+    if (countdown === null) return;
+    clearSendCountdownTimers();
+    const target = snapshot.targets[countdown.cardId];
+    commit({ sendCountdown: null });
+    if (target === undefined || target.revision !== countdown.revision || target.disabled) return;
+    void send(target);
+  };
+
   const requestConfirm = (cardId?: string): boolean => {
     const snapshot = store.getSnapshot();
     const targetId = cardId ?? snapshot.selectedCardId;
@@ -920,18 +1074,29 @@ export function createCockpitCardController(
     // A request already in flight owns the confirm state: reopening it under the running request
     // would let the first answer close a state the person opened for something else.
     if (confirming) return false;
+    // One countdown at a time: a second one would arm a second timer nobody can see or cancel.
+    if (snapshot.sendCountdown !== null) return false;
     const target = snapshot.targets[targetId];
     if (target === undefined || target.disabled) return false;
-    commit({ pendingConfirm: target, lastOutcome: null });
-    armConfirmRetreat();
+    // The warning options keep the two-press confirmation: the person must press again, on the
+    // same button, within the retreat window. Everything else sends once the countdown expires.
+    if (target.irreversible) {
+      commit({ pendingConfirm: target, lastOutcome: null });
+      armConfirmRetreat();
+      return true;
+    }
+    startSendCountdown(target);
     return true;
   };
 
-  const confirm = async (): Promise<boolean> => {
-    const pending = store.getSnapshot().pendingConfirm;
-    if (pending === null || confirming) return false;
+  /**
+   * The one request path: the irreversible state's second press and the countdown's deadline
+   * both arrive here, and exactly one of them can be in flight at a time (`confirming`).
+   */
+  const send = async (pending: CockpitCardConfirmTarget): Promise<boolean> => {
+    if (confirming) return false;
     confirming = true;
-    commit({ confirming: true });
+    commit({ confirming: true, confirmingCardId: pending.cardId });
     const request: CockpitCardConfirmRequest = {
       cardId: pending.cardId,
       revision: pending.revision,
@@ -955,7 +1120,7 @@ export function createCockpitCardController(
       commit({ pendingConfirm: null, lastOutcome: outcome });
     } finally {
       confirming = false;
-      commit({ confirming: false });
+      commit({ confirming: false, confirmingCardId: null });
     }
     if (outcome.ok) {
       commit({ pendingConfirm: null, lastOutcome: outcome });
@@ -971,13 +1136,23 @@ export function createCockpitCardController(
     return outcome.ok;
   };
 
+  /** The irreversible option's second press; a reversible option sends from the countdown. */
+  const confirm = async (): Promise<boolean> => {
+    const pending = store.getSnapshot().pendingConfirm;
+    if (pending === null || confirming) return false;
+    return send(pending);
+  };
+
   const handleKey = (key: string): boolean => {
     if (key === 'Escape') return false;
-    // Enter is the whole gesture in one key: with nothing pending it opens the in-place confirm
-    // state on the selected card; with the confirm state open it sends — the same key, twice.
-    // Escape stays untouched above: it aborts a running turn elsewhere in the app.
+    // Enter is the whole gesture in one key: with nothing pending it starts the confirmation on
+    // the selected card; during the countdown it CANCELS rather than sending early; on an
+    // irreversible option's pending state it sends. Escape stays untouched above: it aborts a
+    // running turn elsewhere in the app.
     if (key === 'Enter') {
-      if (store.getSnapshot().pendingConfirm === null) return requestConfirm();
+      const snapshot = store.getSnapshot();
+      if (snapshot.sendCountdown !== null) return cancelSendCountdown();
+      if (snapshot.pendingConfirm === null) return requestConfirm();
       void confirm();
       return true;
     }
@@ -1004,6 +1179,9 @@ export function createCockpitCardController(
       // scroll report still returns to the card the person was on.
       writeMemory();
       clearConfirmRetreat();
+      // A running countdown is disarmed only here: `stop` leaves it armed on purpose, because a
+      // route change calls `stop` and the press must still send.
+      clearSendCountdownTimers();
       disposed = true;
       stop();
     },
@@ -1013,11 +1191,15 @@ export function createCockpitCardController(
       if (!snapshot.visibleCards.some((card) => card.id === cardId)) return;
       if (snapshot.selectedCardId === cardId) return;
       const pending = snapshot.pendingConfirm;
+      const countdown = snapshot.sendCountdown;
       commit({
         selectedCardId: cardId,
         // Selecting another card is one of the stated retreats: the confirm state belongs to the
         // card the person was looking at, and the second press must not land on a card they left.
         ...(pending !== null && pending.cardId !== cardId ? { pendingConfirm: null } : {}),
+        // The same rule for a running countdown: moving the selection to another card takes the
+        // person away from the button that could still cancel it, so it must not fire unseen.
+        ...(countdown !== null && countdown.cardId !== cardId ? { sendCountdown: null } : {}),
       });
       writeMemory();
     },
@@ -1092,15 +1274,23 @@ export function createCockpitCardController(
       const card = snapshot.cards.find((candidate) => candidate.id === cardId);
       if (card === undefined || card.ownReply === undefined) return;
       const pending = snapshot.pendingConfirm;
+      const countdown = snapshot.sendCountdown;
       commit({
         ownReplies: { ...snapshot.ownReplies, [cardId]: text },
         shown: { ...snapshot.shown, [cardId]: { kind: 'ownReply' } },
         ...(pending !== null && pending.cardId === cardId ? { pendingConfirm: null } : {}),
+        // The countdown sends the reading it was started on; editing that reading replaces it, so
+        // the running timer would send text the person has already changed.
+        ...(countdown !== null && countdown.cardId === cardId ? { sendCountdown: null } : {}),
       });
     },
     requestConfirm,
     confirm,
     cancelConfirm: () => {
+      // Once the request has left it cannot be taken back: the button is disabled and the answer
+      // — success or failure — stands. Reporting `false` says 「nothing was cancelled」.
+      if (confirming) return false;
+      if (cancelSendCountdown()) return true;
       if (store.getSnapshot().pendingConfirm === null) return false;
       commit({ pendingConfirm: null });
       return true;

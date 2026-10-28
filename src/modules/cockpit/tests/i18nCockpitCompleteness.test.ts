@@ -489,6 +489,7 @@ describe('every locale carries the cockpit copy', () => {
       'cardError',
       'cardConfirmBody',
       'cardConfirmIrreversible',
+      'cardConfirmCountdown',
       'cardConfirmSend',
       'cardConfirmSending',
       'cardConfirmSent',
@@ -515,6 +516,16 @@ describe('every locale carries the cockpit copy', () => {
     expect(placeholders(reference.cardSessionWaiting)).toEqual(['id']);
     expect(placeholders(reference.cardError)).toEqual(['reason']);
     expect(placeholders(reference.cardConfirmBody)).toEqual(['label']);
+    expect(placeholders(reference.cardConfirmCountdown)).toEqual(['seconds']);
+    // The idle confirm bar draws no hint row any more: its copy key must be GONE from every
+    // bundle, not merely unreferenced. A leftover key would let a reintroduced hint render
+    // without a translation review.
+    for (const file of bundleFiles) {
+      expect(
+        Object.prototype.hasOwnProperty.call(readBundle(file).cockpit ?? {}, 'cardConfirmHint'),
+        `${file}: cockpit.cardConfirmHint was removed with the hint row`,
+      ).toBe(false);
+    }
     expect(placeholders(reference.cardConfirmFailed)).toEqual(['reason']);
     expect(placeholders(reference.cardStartConversationEcho)).toEqual(['project']);
     expect(placeholders(reference.cardDetailsOpenConversation)).toEqual(['sessionId']);

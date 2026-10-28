@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { cn } from '@/shared/utils';
+import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
   cockpitCardDescriptor,
@@ -19,6 +20,7 @@ import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
   CockpitCardDensity,
+  CockpitCardSendCountdown,
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
 import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
@@ -190,159 +192,6 @@ function OwnReplyEditor({
   );
 }
 
-/**
- * The one confirm bar, used by this card's C zone and by `CockpitCardDetails`' persistent bottom
- * bar — the drawer repeats the card's action, so it must draw the same control, not a lookalike.
- *
- * THE SEND BUTTON IS THE SAME ELEMENT IN BOTH STATES, IN THE SAME BOX. The first press only
- * switches this button's label and handler (open → send); the explanation of what will be sent
- * lives in a caption row ABOVE it, in a one-line slot that exists in the idle state too (holding
- * the idle hint). That is what makes the second press land on the same pixel the first one did:
- * no dialog appears, nothing above the button changes height, and the caret never has to travel.
- * (A compact bar has no second line in its idle state, so its pending caption floats above the
- * button rather than entering the flow.)
- *
- * The confirm state is declared on the bar (`data-confirm-pending` + `data-card-id`), which is
- * the reading the scenario surface joins — there is deliberately no confirm panel anywhere else.
- */
-export type CockpitCardConfirmBarProps = {
-  /** The bar container's testid; it carries `data-confirm-pending`/`data-card-id` for the reader. */
-  barTestId: string;
-  /** The action button's testid — the SAME element in the idle and confirm states. */
-  testId: string;
-  /** The card this bar confirms; published on the bar for the scenario surface's reading. */
-  cardId: string;
-  target: CockpitCardConfirmTarget;
-  /** What the idle button says (the card and the drawer word it the same way). */
-  idleLabel: string;
-  /** The compact density's bar: keeps the idle state to one line and draws no hint. */
-  compact?: boolean;
-  /** True when this card is the controller's pending confirmation. */
-  pending?: boolean;
-  /** True while that confirmation's request is in flight. */
-  confirming?: boolean;
-  /** The last answer for this card, drawn inside this bar; `null` when there is none. */
-  outcome?: CockpitCardConfirmOutcome | null;
-  /** Extra classes for the bar's own frame (the drawer's sticky bottom bar). */
-  className?: string;
-  onRequestConfirm: () => void;
-  onConfirm?: () => void;
-  onCancelConfirm?: () => void;
-};
-
-export function CockpitCardConfirmBar({
-  barTestId,
-  testId,
-  cardId,
-  target,
-  idleLabel,
-  compact = false,
-  pending = false,
-  confirming = false,
-  outcome = null,
-  className,
-  onRequestConfirm,
-  onConfirm,
-  onCancelConfirm,
-}: CockpitCardConfirmBarProps) {
-  const { t } = useTranslation();
-  const sendLabel = confirming ? t('cockpit.cardConfirmSending') : t('cockpit.cardConfirmSend');
-  return (
-    <div
-      data-testid={barTestId}
-      data-card-id={cardId}
-      data-confirm-pending={pending ? 'true' : 'false'}
-      className={cn('relative', className)}
-    >
-      {/* The caption row: the idle hint, or what the second press will send. On a full-width bar
-          the row is in flow in BOTH states and the same height in both, so the button below never
-          moves between them. A compact bar has no room for a second line, so its pending caption
-          floats ABOVE the button (`absolute bottom-full`) instead of pushing it down — the box the
-          second press lands on is identical either way. */}
-      {(!compact || pending) && (
-        <div
-          className={cn(
-            'flex h-5 items-center justify-between gap-2 text-[10px] leading-none text-muted-foreground',
-            compact ? 'absolute bottom-full left-0 right-0 z-10 bg-card' : '',
-          )}
-        >
-          {pending ? (
-            <>
-              <span data-testid={`${testId}-message`} className="min-w-0 flex-1 truncate text-left">
-                {t('cockpit.cardConfirmBody', { label: target.label })}
-                {target.irreversible && (
-                  <span
-                    data-testid={`${testId}-warning`}
-                    className="text-amber-700 dark:text-amber-300"
-                  >
-                    {' '}⚠ {t('cockpit.cardConfirmIrreversible')}
-                  </span>
-                )}
-              </span>
-              <button
-                type="button"
-                data-testid={`${testId}-cancel`}
-                onClick={() => onCancelConfirm?.()}
-                className="h-5 shrink-0 rounded px-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-              >
-                {t('cockpit.cardConfirmCancel')}
-              </button>
-            </>
-          ) : (
-            <span data-testid={`${testId}-hint`} className="min-w-0 truncate">
-              {t('cockpit.cardConfirmHint')}
-            </span>
-          )}
-        </div>
-      )}
-
-      <button
-        type="button"
-        data-testid={testId}
-        data-irreversible={target.irreversible === true ? 'true' : 'false'}
-        data-confirm-mode={pending ? 'send' : 'open'}
-        disabled={target.disabled || (pending && confirming)}
-        onClick={pending ? () => onConfirm?.() : onRequestConfirm}
-        className={cn(
-          'flex items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50',
-          compact ? 'w-auto' : 'w-full',
-          target.irreversible === true
-            ? 'border border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-            : 'bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
-        )}
-      >
-        {target.irreversible === true && <span aria-hidden>⚠</span>}
-        <span className="truncate">{pending ? sendLabel : idleLabel}</span>
-      </button>
-
-      {outcome !== null && (
-        <p
-          role={outcome.ok ? 'status' : 'alert'}
-          data-testid={`${testId}-outcome`}
-          data-ok={outcome.ok ? 'true' : 'false'}
-          className={cn(
-            'mt-1 text-[10px]',
-            outcome.ok ? 'text-muted-foreground' : 'text-destructive',
-          )}
-        >
-          {outcome.ok
-            ? t('cockpit.cardConfirmSent')
-            : t('cockpit.cardConfirmFailed', { reason: outcome.message })}
-        </p>
-      )}
-
-      {target.disabled && target.disabledReason !== null && (
-        <p
-          data-testid={`${testId}-disabled-reason`}
-          className="mt-0.5 text-[10px] text-muted-foreground"
-        >
-          {target.disabledReason}
-        </p>
-      )}
-    </div>
-  );
-}
-
 export type CockpitCardProps = {
   card: CockpitCardData;
   /** The controller's clock reading, for the waiting duration. */
@@ -372,6 +221,8 @@ export type CockpitCardProps = {
   onRequestConfirm: () => void;
   /** True when THIS card's confirmation is pending — the bar draws the confirm state. */
   confirmPending?: boolean;
+  /** This card's running delayed send, or `null`; its seconds are read against `now`. */
+  sendCountdown?: CockpitCardSendCountdown | null;
   /** True while that confirmation's request is in flight. */
   confirming?: boolean;
   /** The last confirmation answer for THIS card, drawn in its own bar. */
@@ -401,6 +252,7 @@ export default function CockpitCard({
   onOwnReplyChange,
   onRequestConfirm,
   confirmPending = false,
+  sendCountdown = null,
   confirming = false,
   outcome = null,
   onConfirm,
@@ -753,7 +605,9 @@ export default function CockpitCard({
                 idleLabel={compact ? t('cockpit.cardConfirmShort') : confirmLabel}
                 compact={compact}
                 pending={confirmPending}
+                countdown={sendCountdown}
                 confirming={confirming}
+                now={now}
                 outcome={outcome}
                 className={compact ? 'max-w-[12rem]' : undefined}
                 onRequestConfirm={onRequestConfirm}

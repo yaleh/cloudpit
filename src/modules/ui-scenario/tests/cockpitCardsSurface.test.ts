@@ -181,7 +181,7 @@ function renderCards(): { surface: ScenarioSurface; ledger: ClickLedger; contain
  * Crosses one task boundary, which is where React 18 commits a discrete event's update.
  *
  * Used only to observe the half-open state of a confirmation — the card's own bar between its
- * opening press and the second press `settle` performs.
+ * opening press and the countdown's send (or `settle`'s second press for an irreversible option).
  */
 function nextTask(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -330,7 +330,7 @@ test('AC1: the five drive verbs press the page controls and the reading follows'
   assert.ok(ledger.clicks.includes('cockpit-card-own-reply-trigger'));
   assert.ok(ledger.inputs.includes('cockpit-card-own-reply-input'));
 
-  // ── confirm: the same bar's button pressed twice, in place ───────────────────────────────
+  // ── confirm: one press starts the countdown on the bar's own button ─────────────────────────
   const pressesBefore = ledger.clicks.filter((id) => id === 'cockpit-card-confirm').length;
   surface.drive({ 'cockpitCard.confirm': 'fixture:need' });
   // The bar's press is committed in React's microtask; one task boundary lets the card show.
@@ -338,25 +338,34 @@ test('AC1: the five drive verbs press the page controls and the reading follows'
   assert.equal(
     surface.read().cockpit.cards?.confirmOpenCardId,
     'fixture:need',
-    'the first press turned the card\'s own bar into its confirm state',
+    'the first press turned the card\'s own bar into its countdown state',
   );
-  await surface.settle();
-  assert.equal(surface.read().cockpit.cards?.confirmOpenCardId, null, 'the request answered');
-  assert.equal(apiMock.cockpitConfirmCard.mock.calls.length, 1);
-  assert.deepEqual(apiMock.cockpitConfirmCard.mock.calls[0]?.[0], {
-    cardId: 'fixture:need',
-    revision: 1,
-    replyText: 'Keep it one more day.',
-  });
+  const countdownButton = document.querySelector<HTMLButtonElement>(
+    '[data-testid="cockpit-card-confirm"]',
+  );
+  assert.equal(countdownButton?.getAttribute('data-confirm-mode'), 'cancel');
   assert.equal(
     ledger.clicks.filter((id) => id === 'cockpit-card-confirm').length - pressesBefore,
-    2,
-    'the same confirm button was pressed twice — once to open the state, once to send',
+    1,
+    'a reversible option takes ONE press: the same button turns into the countdown, no send control',
   );
+  // Cancel instead of waiting out the five seconds: a case here must stay inside the case budget
+  // (scripts/test-timeout-margin-check.sh). The send-on-expiry path is pinned by the controller
+  // cases under an injected clock and by the scenario/e2e runs, which drive the real 5 s.
+  // The continuation `drive` left behind is deliberately not awaited: with the countdown
+  // cancelled there is no pending bar, and `settle` would wait out its own control timeout.
+  countdownButton?.click();
+  await nextTask();
+  assert.equal(
+    surface.read().cockpit.cards?.confirmOpenCardId,
+    null,
+    'the same button cancelled the countdown',
+  );
+  assert.equal(apiMock.cockpitConfirmCard.mock.calls.length, 0, 'cancel before the deadline sends nothing');
   assert.equal(
     ledger.clicks.includes('cockpit-card-confirm-send'),
     false,
-    'no separate send control exists: the bar sends from its own button',
+    'no separate send control exists: the bar cancels in place',
   );
 });
 

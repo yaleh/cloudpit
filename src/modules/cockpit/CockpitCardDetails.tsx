@@ -12,11 +12,12 @@ import {
   cockpitCardTitle,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
-import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCard';
+import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
+  CockpitCardSendCountdown,
 } from '@/modules/cockpit/cockpitCardController';
 import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
 
@@ -54,6 +55,8 @@ export type CockpitCardDetailsProps = {
   onRequestConfirm?: () => void;
   /** True when this card's confirmation is pending — the bar draws the confirm state in place. */
   confirmPending?: boolean;
+  /** This card's running delayed send, or `null`; the bar reads its seconds against `now`. */
+  sendCountdown?: CockpitCardSendCountdown | null;
   /** True while that confirmation's request is in flight. */
   confirming?: boolean;
   /** The last confirmation answer for this card, drawn inside this bar. */
@@ -136,6 +139,7 @@ export default function CockpitCardDetails({
   target,
   onRequestConfirm,
   confirmPending = false,
+  sendCountdown = null,
   confirming = false,
   confirmOutcome = null,
   onConfirm,
@@ -455,7 +459,9 @@ export default function CockpitCardDetails({
           target={target}
           idleLabel={t('cockpit.cardConfirm', { label: target.label })}
           pending={confirmPending}
+          countdown={sendCountdown}
           confirming={confirming}
+          now={now}
           outcome={confirmOutcome}
           className="sticky bottom-0 mt-3 border-t border-border bg-card pt-2"
           onRequestConfirm={() => onRequestConfirm?.()}

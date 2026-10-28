@@ -285,7 +285,8 @@ describe('keyboard ownership', () => {
     expect(cards.getSnapshot().shown.c1).toEqual({ kind: 'option', optionId: 'one' });
 
     expect(column.handleKey('Enter')).toBe(true);
-    expect(cards.getSnapshot().pendingConfirm?.cardId).toBe('c1');
+    // A reversible option's Enter starts the delayed send, so the reading is the countdown.
+    expect(cards.getSnapshot().sendCountdown?.cardId).toBe('c1');
 
     cards.cancelConfirm();
     expect(column.handleKey('e')).toBe(true);

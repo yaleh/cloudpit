@@ -1060,7 +1060,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "bobot keputusan {{n}} dari 3",
-    "cardConfirmHint": "mengubah bilah ini menjadi status konfirmasi — belum ada yang dikirim",
+    "cardConfirmCountdown": "Mengirim dalam {{seconds}} dtk · ketuk untuk batal",
     "cardChooseThenConfirm": "Pilih opsi, lalu konfirmasi",
     "cardConfirmShort": "Konfirmasi",
     "cardChooseOption": "Pilih opsi",

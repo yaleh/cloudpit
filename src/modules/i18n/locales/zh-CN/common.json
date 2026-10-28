@@ -977,7 +977,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "决策重量 {{n}} / 3",
-    "cardConfirmHint": "把这条确认栏切换为确认状态 — 尚未发送任何内容",
+    "cardConfirmCountdown": "正在发送 · 点击取消（{{seconds}} s）",
     "cardChooseThenConfirm": "选一个选项后确认",
     "cardConfirmShort": "确认",
     "cardChooseOption": "选择一项",

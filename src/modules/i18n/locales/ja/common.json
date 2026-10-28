@@ -977,7 +977,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "判断の重み {{n}} / 3",
-    "cardConfirmHint": "このバーを確認状態に切り替えます — まだ何も送信されません",
+    "cardConfirmCountdown": "{{seconds}} 秒後に送信 · タップでキャンセル",
     "cardChooseThenConfirm": "オプションを選んでから確認",
     "cardConfirmShort": "確認",
     "cardChooseOption": "オプションを選択",

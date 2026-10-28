@@ -114,6 +114,31 @@ function card(id: string, overrides: Partial<CockpitCard> = {}): CockpitCard {
   };
 }
 
+/**
+ * A card whose suggested option is irreversible, so it keeps the two-press confirmation.
+ *
+ * The delayed-send legs below use the plain `card()` (a reversible option); the two-press legs
+ * use this one. That split IS the contract: a `warn`/`irreversible` option never enters the
+ * countdown.
+ */
+function irreversibleCard(id = 'c1', overrides: Partial<CockpitCard> = {}): CockpitCard {
+  return card(id, {
+    options: [
+      option('one', 'One', {
+        suggested: true,
+        tags: [{ kind: 'irreversible', text: 'cannot be undone' }],
+      }),
+      option('two', 'Two'),
+    ],
+    ...overrides,
+  });
+}
+
+/** Lets the promise chain a confirmation starts run to its next await (and the read after it). */
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 type Harness = {
   controller: CockpitCardController;
   /** The confirmation requests the transport actually received, in order. */
@@ -189,18 +214,25 @@ describe('one confirmation, bound to the shown option', () => {
     expect(h.requests).toHaveLength(0);
 
     expect(h.controller.requestConfirm()).toBe(true);
-    expect(h.snapshot().pendingConfirm?.label).toBe('Two');
+    // A reversible option's first press is a countdown, not a pending second press.
+    expect(h.snapshot().sendCountdown).toMatchObject({ cardId: 'c1', revision: 1 });
+    expect(h.snapshot().targets.c1?.label).toBe('Two');
   });
 
-  it('closes an open confirm card when the shown option changes under it', async () => {
-    const h = harness([card('c1')]);
+  it('cancels a running countdown when the shown option changes under it', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
     await h.controller.load();
 
     expect(h.controller.requestConfirm()).toBe(true);
-    expect(h.snapshot().pendingConfirm).toMatchObject({ optionId: 'one' });
+    expect(h.snapshot().sendCountdown).toMatchObject({ cardId: 'c1' });
 
     h.controller.showOption('c1', 'two');
+    expect(h.snapshot().sendCountdown).toBeNull();
     expect(h.snapshot().pendingConfirm).toBeNull();
+
+    clock.advance(5_000);
+    await flushMicrotasks();
     expect(h.requests).toHaveLength(0);
   });
 
@@ -259,12 +291,15 @@ describe('an option whose executor is not declared is not confirmable', () => {
 
 describe('the confirm card gates the one request', () => {
   it('the first press only opens the confirm card; the second sends exactly once', async () => {
-    const h = harness([card('c1')]);
+    // An irreversible option is the one that keeps the two-press confirmation.
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
 
     expect(h.controller.requestConfirm()).toBe(true);
     // Opening the confirm card is not a send.
     expect(h.requests).toHaveLength(0);
+    // Nor is it a countdown: the warning option never sends by itself.
+    expect(h.snapshot().sendCountdown).toBeNull();
 
     expect(await h.controller.confirm()).toBe(true);
     expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
@@ -276,7 +311,7 @@ describe('the confirm card gates the one request', () => {
   });
 
   it('two concurrent confirmations produce one request', async () => {
-    const h = harness([card('c1')]);
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
     h.controller.requestConfirm();
 
@@ -287,7 +322,7 @@ describe('the confirm card gates the one request', () => {
   });
 
   it('cancel sends nothing and closes the confirm card', async () => {
-    const h = harness([card('c1')]);
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
 
     h.controller.requestConfirm();
@@ -299,7 +334,7 @@ describe('the confirm card gates the one request', () => {
   });
 
   it('re-reads after a confirmation so the provider’s new revision lands in place', async () => {
-    const h = harness([card('c1'), card('c2', { rank: 2 })]);
+    const h = harness([irreversibleCard(), card('c2', { rank: 2 })]);
     await h.controller.load();
     const readsAfterLoad = h.reads;
 
@@ -314,7 +349,8 @@ describe('the confirm card gates the one request', () => {
 describe('the confirm state is in place and retreats by itself', () => {
   it('retreats after the six-second window with no second press, sending nothing', async () => {
     const clock = manualClock();
-    const h = harness([card('c1')], { clock });
+    // The retreat belongs to the irreversible option; a reversible one counts down instead.
+    const h = harness([irreversibleCard()], { clock });
     await h.controller.load();
 
     expect(h.controller.requestConfirm()).toBe(true);
@@ -335,7 +371,7 @@ describe('the confirm state is in place and retreats by itself', () => {
 
   it('disarms the retreat when the second press sends, and never sends twice', async () => {
     const clock = manualClock();
-    const h = harness([card('c1')], { clock });
+    const h = harness([irreversibleCard()], { clock });
     await h.controller.load();
 
     h.controller.requestConfirm();
@@ -348,7 +384,7 @@ describe('the confirm state is in place and retreats by itself', () => {
   });
 
   it('retreats when another card is selected, so the second press cannot land on it', async () => {
-    const h = harness([card('c1'), card('c2', { rank: 2 })]);
+    const h = harness([irreversibleCard(), card('c2', { rank: 2 })]);
     await h.controller.load();
     h.controller.selectCard('c1');
     expect(h.controller.requestConfirm()).toBe(true);
@@ -360,7 +396,7 @@ describe('the confirm state is in place and retreats by itself', () => {
   });
 
   it('keeps the state when the selection is re-affirmed on the same card', async () => {
-    const h = harness([card('c1')]);
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
     expect(h.controller.requestConfirm()).toBe(true);
 
@@ -370,7 +406,7 @@ describe('the confirm state is in place and retreats by itself', () => {
   });
 
   it('Enter twice is one send: the same key opens the state and sends from it', async () => {
-    const h = harness([card('c1')]);
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
     h.controller.selectCard('c1');
 
@@ -387,7 +423,7 @@ describe('the confirm state is in place and retreats by itself', () => {
   });
 
   it('a held Enter after the send opens the state again instead of sending twice', async () => {
-    const h = harness([card('c1')]);
+    const h = harness([irreversibleCard()]);
     await h.controller.load();
     h.controller.selectCard('c1');
 
@@ -404,10 +440,182 @@ describe('the confirm state is in place and retreats by itself', () => {
   });
 });
 
+describe('a reversible option sends after a five-second countdown', () => {
+  it('sends nothing at 4.9 seconds and exactly once at the fifth', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+
+    expect(h.controller.requestConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toMatchObject({
+      cardId: 'c1',
+      revision: 1,
+      startedAt: NOW,
+      firesAt: NOW + 5_000,
+    });
+    expect(h.snapshot().pendingConfirm).toBeNull();
+
+    clock.advance(4_900);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+    expect(h.snapshot().confirming).toBe(false);
+
+    clock.advance(100);
+    await flushMicrotasks();
+    expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
+    expect(h.snapshot().sendCountdown).toBeNull();
+  });
+
+  it('cancelConfirm inside the countdown sends nothing, and the expired clock still sends nothing', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(h.controller.cancelConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toBeNull();
+
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+    // Nothing is left to cancel either.
+    expect(h.controller.cancelConfirm()).toBe(false);
+  });
+
+  it('cancels when the card’s revision moves under the countdown', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+    h.controller.requestConfirm();
+
+    h.setCards([card('c1', { revision: 2 })]);
+    await h.controller.load();
+
+    expect(h.snapshot().sendCountdown).toBeNull();
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('cancels when another card is selected', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1'), card('c2', { rank: 2 })], { clock });
+    await h.controller.load();
+    h.controller.selectCard('c1');
+    h.controller.requestConfirm();
+
+    h.controller.selectCard('c2');
+
+    expect(h.snapshot().sendCountdown).toBeNull();
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('Enter during the countdown cancels instead of sending early', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+    h.controller.selectCard('c1');
+
+    expect(h.controller.handleKey('Enter')).toBe(true);
+    expect(h.snapshot().sendCountdown).not.toBeNull();
+    expect(h.requests).toHaveLength(0);
+
+    expect(h.controller.handleKey('Enter')).toBe(true);
+    expect(h.snapshot().sendCountdown).toBeNull();
+
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it('a request already in flight cannot be cancelled, and it is not undone', async () => {
+    const clock = manualClock();
+    const sent: CockpitCardConfirmRequest[] = [];
+    let release: (() => void) | undefined;
+    const h = harness([card('c1')], {
+      clock,
+      confirm: (request) => {
+        sent.push(request);
+        return new Promise((resolve) => {
+          release = () => resolve({ executor: 'test.exec', result: { ok: true } });
+        });
+      },
+    });
+    await h.controller.load();
+    h.controller.requestConfirm();
+
+    clock.advance(5_000);
+    expect(sent).toHaveLength(1);
+    expect(h.snapshot().confirming).toBe(true);
+    // The bar that was counting down keeps drawing this card while the request runs.
+    expect(h.snapshot().confirmingCardId).toBe('c1');
+
+    expect(h.controller.cancelConfirm()).toBe(false);
+    expect(h.snapshot().confirming).toBe(true);
+
+    release?.();
+    await flushMicrotasks();
+    expect(sent).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
+    expect(h.snapshot().lastOutcome).toMatchObject({ ok: true });
+    expect(h.snapshot().confirming).toBe(false);
+    expect(h.snapshot().confirmingCardId).toBeNull();
+  });
+
+  it('the person’s own reply goes through the countdown too', async () => {
+    const clock = manualClock();
+    const h = harness(
+      [card('c1', { ownReply: { executor: 'reply.exec', params: { cardId: 'c1' } } })],
+      { clock },
+    );
+    await h.controller.load();
+    h.controller.setOwnReply('c1', 'ship it after the archive check');
+
+    expect(h.controller.requestConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toMatchObject({ cardId: 'c1' });
+
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toEqual([
+      { cardId: 'c1', revision: 1, replyText: 'ship it after the archive check' },
+    ]);
+  });
+
+  it('still sends after stop(): leaving the page is not a cancel', async () => {
+    const clock = manualClock();
+    const h = harness([card('c1')], { clock });
+    await h.controller.load();
+    h.controller.requestConfirm();
+
+    // A route change runs the page effect's cleanup, which only calls `stop`.
+    h.controller.stop();
+    expect(h.snapshot().sendCountdown).not.toBeNull();
+
+    clock.advance(5_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(1);
+  });
+
+  it('an irreversible option never enters the countdown', async () => {
+    const clock = manualClock();
+    const h = harness([irreversibleCard()], { clock });
+    await h.controller.load();
+
+    expect(h.controller.requestConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toBeNull();
+    expect(h.snapshot().pendingConfirm).toMatchObject({ optionId: 'one' });
+
+    clock.advance(6_000);
+    await flushMicrotasks();
+    expect(h.requests).toHaveLength(0);
+  });
+});
+
 describe('a started conversation is announced', () => {
   it('emits sessionStarted with the new session id when the executor is session.start', async () => {
     const events: CockpitCardControllerEvent[] = [];
-    const h = harness([card('c1')], {
+    const h = harness([irreversibleCard()], {
       confirm: async () => ({
         executor: 'session.start',
         result: { sessionId: 'new-42', projectPath: '/repos/p1' },
@@ -424,7 +632,7 @@ describe('a started conversation is announced', () => {
 
   it('says nothing for any other executor, even one whose answer names a session', async () => {
     const events: CockpitCardControllerEvent[] = [];
-    const h = harness([card('c1')], {
+    const h = harness([irreversibleCard()], {
       confirm: async () => ({
         executor: 'test.exec',
         result: { sessionId: 'not-a-start' },
@@ -441,7 +649,7 @@ describe('a started conversation is announced', () => {
 
   it('says nothing when a failed confirmation answers', async () => {
     const events: CockpitCardControllerEvent[] = [];
-    const h = harness([card('c1')], {
+    const h = harness([irreversibleCard()], {
       confirm: async () => {
         throw new Error('refused');
       },
@@ -459,11 +667,15 @@ describe('a started conversation is announced', () => {
 
 describe('the person’s own reply shares the confirmation path', () => {
   it('a drafted reply becomes the target and sends replyText, never an optionId', async () => {
-    const h = harness([
-      card('c1', {
-        ownReply: { executor: 'reply.exec', params: { cardId: 'c1' } },
-      }),
-    ]);
+    const clock = manualClock();
+    const h = harness(
+      [
+        card('c1', {
+          ownReply: { executor: 'reply.exec', params: { cardId: 'c1' } },
+        }),
+      ],
+      { clock },
+    );
     await h.controller.load();
 
     h.controller.setOwnReply('c1', 'ship it after the archive check');
@@ -475,8 +687,10 @@ describe('the person’s own reply shares the confirmation path', () => {
       disabled: false,
     });
 
+    // The reply is a reversible reading: it sends when the countdown expires.
     expect(h.controller.requestConfirm()).toBe(true);
-    expect(await h.controller.confirm()).toBe(true);
+    clock.advance(5_000);
+    await flushMicrotasks();
     expect(h.requests).toEqual([
       { cardId: 'c1', revision: 1, replyText: 'ship it after the archive check' },
     ]);
@@ -523,19 +737,23 @@ describe('no suggestion, no default', () => {
     expect(h.requests).toHaveLength(0);
   });
 
-  it('a judge-sourced suggested option IS the default and confirms only through the confirm card', async () => {
-    const h = harness([
-      card('c1', {
-        options: [
-          option('one', 'One'),
-          option('two', 'Two', {
-            suggested: true,
-            source: 'judge',
-            why: 'The judge says this is the least risky next step.',
-          }),
-        ],
-      }),
-    ]);
+  it('a judge-sourced suggested option IS the default and confirms only through the confirm bar', async () => {
+    const clock = manualClock();
+    const h = harness(
+      [
+        card('c1', {
+          options: [
+            option('one', 'One'),
+            option('two', 'Two', {
+              suggested: true,
+              source: 'judge',
+              why: 'The judge says this is the least risky next step.',
+            }),
+          ],
+        }),
+      ],
+      { clock },
+    );
     await h.controller.load();
 
     const snapshot = h.snapshot();
@@ -543,12 +761,13 @@ describe('no suggestion, no default', () => {
     expect(defaultShownOption(snapshot.cards[0])).toEqual({ kind: 'option', optionId: 'two' });
     expect(snapshot.targets.c1).toMatchObject({ optionId: 'two', label: 'Two', disabled: false });
 
-    // A judge suggestion is only a preselection: the first press opens the confirm card.
+    // A judge suggestion is only a preselection: the first press opens the bar's countdown.
     expect(h.controller.requestConfirm()).toBe(true);
     expect(h.requests).toHaveLength(0);
-    expect(h.snapshot().pendingConfirm?.optionId).toBe('two');
+    expect(h.snapshot().sendCountdown).toMatchObject({ cardId: 'c1' });
 
-    expect(await h.controller.confirm()).toBe(true);
+    clock.advance(5_000);
+    await flushMicrotasks();
     expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'two' }]);
   });
 });
@@ -604,7 +823,7 @@ describe('a new revision updates in place', () => {
   });
 
   it('closes a confirm card whose revision moved, instead of sending a stale revision', async () => {
-    const a = card('a');
+    const a = irreversibleCard('a');
     const h = harness([a]);
     await h.controller.load();
     expect(h.controller.requestConfirm()).toBe(true);

@@ -157,8 +157,16 @@ function CockpitCardListBound({
   const detailsInsideColumn = variant === 'column' && detailsCard !== null;
   // The confirm state belongs to ONE card, and every bar that card has (the card's own, and the
   // Details drawer's — a longer reading of the same card) draws it. A bar of another card stays
-  // in its idle state, and the outcome is drawn only by the card that asked.
-  const pendingCardId = snapshot.pendingConfirm?.cardId ?? null;
+  // in its idle state, and the outcome is drawn only by the card that asked. A running delayed
+  // send and an in-flight request name their card too: the bar must keep drawing the same state
+  // — countdown, then 「sending」 — instead of flashing back to its idle label between them.
+  const countdownFor = (cardId: string) =>
+    snapshot.sendCountdown !== null && snapshot.sendCountdown.cardId === cardId
+      ? snapshot.sendCountdown
+      : null;
+  const pendingCardId =
+    snapshot.pendingConfirm?.cardId ?? snapshot.sendCountdown?.cardId ?? snapshot.confirmingCardId;
+  const confirmingCardId = snapshot.confirmingCardId;
   const outcomeFor = (cardId: string) =>
     snapshot.lastOutcome !== null && snapshot.lastOutcome.cardId === cardId
       ? snapshot.lastOutcome
@@ -227,7 +235,8 @@ function CockpitCardListBound({
             target={snapshot.targets[detailsCard.id] ?? null}
             onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
             confirmPending={pendingCardId === detailsCard.id}
-            confirming={snapshot.confirming}
+            sendCountdown={countdownFor(detailsCard.id)}
+            confirming={confirmingCardId === detailsCard.id}
             confirmOutcome={outcomeFor(detailsCard.id)}
             onConfirm={() => void controller.confirm()}
             onCancelConfirm={() => controller.cancelConfirm()}
@@ -441,7 +450,8 @@ function CockpitCardListBound({
                 onOwnReplyChange={(text) => controller.setOwnReply(card.id, text)}
                 onRequestConfirm={() => controller.requestConfirm(card.id)}
                 confirmPending={pendingCardId === card.id}
-                confirming={snapshot.confirming}
+                sendCountdown={countdownFor(card.id)}
+                confirming={confirmingCardId === card.id}
                 outcome={outcomeFor(card.id)}
                 onConfirm={() => void controller.confirm()}
                 onCancelConfirm={() => controller.cancelConfirm()}
@@ -471,7 +481,8 @@ function CockpitCardListBound({
                 target={snapshot.targets[detailsCard.id] ?? null}
                 onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
                 confirmPending={pendingCardId === detailsCard.id}
-                confirming={snapshot.confirming}
+                sendCountdown={countdownFor(detailsCard.id)}
+                confirming={confirmingCardId === detailsCard.id}
                 confirmOutcome={outcomeFor(detailsCard.id)}
                 onConfirm={() => void controller.confirm()}
                 onCancelConfirm={() => controller.cancelConfirm()}

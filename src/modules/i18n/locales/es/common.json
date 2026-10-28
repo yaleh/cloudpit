@@ -977,7 +977,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "peso de la decisión {{n}} de 3",
-    "cardConfirmHint": "convierte esta barra en su estado de confirmación: todavía no se envía nada",
+    "cardConfirmCountdown": "Enviando en {{seconds}} s · toca para cancelar",
     "cardChooseThenConfirm": "Elige una opción y confirma",
     "cardConfirmShort": "Confirmar",
     "cardChooseOption": "Elegir una opción",

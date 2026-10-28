@@ -977,7 +977,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "karar ağırlığı {{n}} / 3",
-    "cardConfirmHint": "bu çubuğu onay durumuna geçirir — henüz hiçbir şey gönderilmedi",
+    "cardConfirmCountdown": "{{seconds}} sn içinde gönderilecek · iptal için dokun",
     "cardChooseThenConfirm": "Bir seçenek seçin, sonra onaylayın",
     "cardConfirmShort": "Onayla",
     "cardChooseOption": "Bir seçenek seç",

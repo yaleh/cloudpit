@@ -947,7 +947,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "Entscheidungsgewicht {{n}} von 3",
-    "cardConfirmHint": "macht diese Leiste zur Bestätigung – noch wird nichts gesendet",
+    "cardConfirmCountdown": "Senden in {{seconds}} s · zum Abbrechen tippen",
     "cardChooseThenConfirm": "Option wählen, dann bestätigen",
     "cardConfirmShort": "Bestätigen",
     "cardChooseOption": "Option wählen",

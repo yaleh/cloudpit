@@ -1068,7 +1068,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "decision weight {{n}} of 3",
-    "cardConfirmHint": "turns this bar into its confirm state — nothing is sent yet",
+    "cardConfirmCountdown": "Sending in {{seconds}}s · tap to cancel",
     "cardChooseThenConfirm": "Choose an option, then confirm",
     "cardConfirmShort": "Confirm",
     "cardChooseOption": "Choose an option",

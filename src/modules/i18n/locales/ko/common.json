@@ -977,7 +977,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "결정 무게 {{n}} / 3",
-    "cardConfirmHint": "이 막대를 확인 상태로 바꿉니다 — 아직 아무것도 전송되지 않습니다",
+    "cardConfirmCountdown": "{{seconds}}초 후 전송 · 탭하여 취소",
     "cardChooseThenConfirm": "옵션을 고른 뒤 확인하세요",
     "cardConfirmShort": "확인",
     "cardChooseOption": "옵션 선택",

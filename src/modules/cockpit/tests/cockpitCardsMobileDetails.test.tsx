@@ -216,6 +216,15 @@ const CARD: CockpitCard = {
   conversation: { sessionId: 'fixture-session' },
 };
 
+/** The same card whose only option carries the irreversible tag: the two-press arm. */
+const IRREVERSIBLE_CARD: CockpitCard = {
+  ...CARD,
+  options: CARD.options.map((option) => ({
+    ...option,
+    tags: [{ kind: 'irreversible', text: '不可逆' }],
+  })),
+};
+
 /** The server's answer when `cockpit.brief.enabled` is off: HTTP 200, a fallback document. */
 const BRIEF_DISABLED: CockpitBriefResponse = {
   cardId: CARD.id,
@@ -386,23 +395,62 @@ describe('the phone Details sheet', () => {
     expect(detailsButton.className).not.toContain('bg-primary');
   });
 
-  it('turns the drawer’s bar into its confirm state in place, with no dialog over the sheet', async () => {
+  it('turns the drawer’s bar into its countdown in place, and the same button cancels it', async () => {
     await openPhoneDetails();
 
     const before = screen.getByTestId('cockpit-card-details-confirm');
     expect(before.getAttribute('data-confirm-mode')).toBe('open');
+    // The idle bar is the button alone: no hint row above it any more.
+    expect(screen.queryByTestId('cockpit-card-details-confirm-hint')).toBeNull();
     fireEvent.click(before);
 
     // The SAME button, in the SAME bar: the sheet does not grow a second send control, and no
-    // fixed panel is mounted at the page's bottom edge.
-    const pending = screen.getByTestId('cockpit-card-details-confirm');
-    expect(pending).toBe(before);
-    expect(pending.getAttribute('data-confirm-mode')).toBe('send');
+    // fixed panel is mounted at the page's bottom edge. One press starts the countdown.
+    const counting = screen.getByTestId('cockpit-card-details-confirm');
+    expect(counting).toBe(before);
+    expect(counting.getAttribute('data-confirm-mode')).toBe('cancel');
+    expect(counting.getAttribute('data-confirm-seconds')).toBe('5');
     expect(
       screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
     ).toBe('true');
+    expect(screen.queryByTestId('cockpit-card-details-confirm-message')).toBeNull();
     expect(screen.queryByTestId('cockpit-card-confirm-panel')).toBeNull();
     expect(document.querySelector('[data-testid="cockpit-card-confirm-panel"]')).toBeNull();
+    expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
+
+    // Pressing it again cancels the send, still without a request.
+    fireEvent.click(counting);
+    expect(screen.getByTestId('cockpit-card-details-confirm').getAttribute('data-confirm-mode')).toBe(
+      'open',
+    );
+    expect(
+      screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
+    ).toBe('false');
+    expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
+  });
+
+  it('sends an irreversible option from the same button, with its warning floating above', async () => {
+    // The warning options keep the two-press confirmation: that arm needs a card whose option is
+    // tagged irreversible, so it is seeded before the page reads its cards.
+    apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [IRREVERSIBLE_CARD] }));
+    restoreViewport = setViewportWidth(390);
+    renderCockpit('/cockpit?view=cards');
+    const card = await screen.findByTestId('cockpit-card-fixture:ask');
+    fireEvent.click(within(card).getByTestId('cockpit-card-zone-a'));
+    await screen.findByTestId('cockpit-card-details');
+
+    const before = screen.getByTestId('cockpit-card-details-confirm');
+    fireEvent.click(before);
+
+    const pending = screen.getByTestId('cockpit-card-details-confirm');
+    expect(pending).toBe(before);
+    expect(pending.getAttribute('data-confirm-mode')).toBe('send');
+    expect(pending.hasAttribute('data-confirm-seconds')).toBe(false);
+    const warning = screen.getByTestId('cockpit-card-details-confirm-warning');
+    expect(warning.textContent).toContain('⚠');
+    expect(
+      screen.getByTestId('cockpit-card-details-confirm-message').parentElement?.className,
+    ).toContain('bottom-full');
     expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
 
     fireEvent.click(pending);

@@ -18,6 +18,7 @@ import {
 import type {
   CockpitCardConfirmOutcome,
   CockpitCardDensity,
+  CockpitCardSendCountdown,
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
 import {
@@ -94,10 +95,25 @@ type FixtureProps = {
   onRequestConfirm: () => void;
   /** Stands in for the transport: the answer is drawn in the bar, exactly as the controller's is. */
   send?: () => CockpitCardConfirmOutcome;
+  /** The controller's clock reading; the countdown's seconds are derived from it. */
+  now?: number;
+  /** Seeds a running countdown, for the states a click alone cannot reach at a chosen instant. */
+  initialCountdown?: CockpitCardSendCountdown | null;
+  /** Forces the in-flight reading, which is otherwise too short for a render to observe. */
+  forceConfirming?: boolean;
 };
 
 /** The card with just enough local state to exercise its own controls. */
-function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, send }: FixtureProps) {
+function Fixture({
+  card,
+  density = 'cards',
+  onOpenDetails,
+  onRequestConfirm,
+  send,
+  now = NOW,
+  initialCountdown = null,
+  forceConfirming = false,
+}: FixtureProps) {
   const [shown, setShown] = useState<CockpitCardShown | undefined>(
     defaultShownOption(card) ?? undefined,
   );
@@ -106,17 +122,20 @@ function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, sen
   // The controller owns the situation's expansion (by card id and revision); the fixture keeps
   // the one boolean so the card's own control is exercised through real state.
   const [situationExpanded, setSituationExpanded] = useState(false);
-  // The three readings the controller publishes around one confirmation. They live here so the
-  // component's in-place behaviour is exercised through real state, not a prop the test toggles.
+  // The readings the controller publishes around one confirmation. A reversible option gets a
+  // COUNTDOWN (no pending second press); an irreversible one gets `pending`. The fixture mirrors
+  // the controller's branch so the component's in-place behaviour is exercised through real state.
   const [pending, setPending] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [countdown, setCountdown] = useState<CockpitCardSendCountdown | null>(initialCountdown);
+  const [sending, setSending] = useState(false);
   const [outcome, setOutcome] = useState<CockpitCardConfirmOutcome | null>(null);
   const target = confirmTargetOf(card, shown, ownReply);
+  const confirming = forceConfirming || sending;
 
   return (
     <CockpitCard
       card={card}
-      now={NOW}
+      now={now}
       shown={shown}
       target={target}
       ownReply={ownReply}
@@ -134,26 +153,42 @@ function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, sen
         // The controller retreats on an option switch; the fixture mirrors that rule so the
         // in-place state is never drawn for an option that is no longer shown.
         setPending(false);
+        setCountdown(null);
       }}
       onShowOwnReply={() => setShown({ kind: 'ownReply' })}
       onOwnReplyChange={(text) => {
         setOwnReply(text);
         setShown({ kind: 'ownReply' });
+        setCountdown(null);
       }}
       confirmPending={pending}
+      sendCountdown={countdown}
       confirming={confirming}
       outcome={outcome}
       onRequestConfirm={() => {
         onRequestConfirm();
-        setPending(true);
         setOutcome(null);
+        if (target === null) return;
+        if (target.irreversible) {
+          setPending(true);
+          return;
+        }
+        setCountdown({
+          cardId: card.id,
+          revision: card.revision,
+          startedAt: now,
+          firesAt: now + 5_000,
+        });
       }}
-      onCancelConfirm={() => setPending(false)}
+      onCancelConfirm={() => {
+        setPending(false);
+        setCountdown(null);
+      }}
       onConfirm={() => {
         if (send === undefined) return;
-        setConfirming(true);
+        setSending(true);
         const answer = send();
-        setConfirming(false);
+        setSending(false);
         setPending(false);
         setOutcome(answer);
       }}
@@ -167,12 +202,18 @@ function renderCard({
   onOpenDetails = vi.fn(),
   onRequestConfirm = vi.fn(),
   send,
+  now = NOW,
+  initialCountdown = null,
+  forceConfirming = false,
 }: {
   card?: CockpitCardData;
   density?: CockpitCardDensity;
   onOpenDetails?: () => void;
   onRequestConfirm?: () => void;
   send?: () => CockpitCardConfirmOutcome;
+  now?: number;
+  initialCountdown?: CockpitCardSendCountdown | null;
+  forceConfirming?: boolean;
 } = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
@@ -182,6 +223,9 @@ function renderCard({
         onOpenDetails={onOpenDetails}
         onRequestConfirm={onRequestConfirm}
         send={send}
+        now={now}
+        initialCountdown={initialCountdown}
+        forceConfirming={forceConfirming}
       />
     </I18nextProvider>,
   );
@@ -637,16 +681,16 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('a reversible option carries the solid bar and the one-line hint', () => {
+  it('a reversible option carries the solid bar and draws no hint row', () => {
     renderCard();
 
     const confirm = screen.getByTestId('cockpit-card-confirm');
     expect(confirm.getAttribute('data-irreversible')).toBe('false');
     expect(confirm.className).not.toContain('border-amber-500');
     expect(confirm.className).toContain('bg-neutral-950');
-    expect(screen.getByTestId('cockpit-card-confirm-hint').textContent).toBe(
-      'turns this bar into its confirm state — nothing is sent yet',
-    );
+    // The idle bar is the button alone: the old one-line hint was redundant with it.
+    expect(screen.queryByTestId('cockpit-card-confirm-hint')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-message')).toBeNull();
     expect(screen.queryByText('Irreversible')).toBeNull();
   });
 
@@ -691,7 +735,7 @@ describe('C zone: one confirm bar bound to the shown option', () => {
 });
 
 describe('the confirm state is drawn in place, inside the card’s own bar', () => {
-  it('the same button opens the state and sends from it, and no dialog is drawn', () => {
+  it('a reversible option’s one press becomes a countdown on the same button, and cancels there', () => {
     const onRequestConfirm = vi.fn();
     const send = vi.fn(() => ({
       ok: true as const,
@@ -705,30 +749,99 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
     expect(before.getAttribute('data-confirm-mode')).toBe('open');
     fireEvent.click(before);
 
-    // The SAME element — not a second button somewhere else on the page.
-    const after = screen.getByTestId('cockpit-card-confirm');
-    expect(after).toBe(before);
-    expect(after.getAttribute('data-confirm-mode')).toBe('send');
-    expect(after.textContent).toBe('Confirm and send');
+    // The SAME element, in the same place: mode `cancel`, the seconds on the label, the fill
+    // underneath. No explanation row exists in this state either.
+    const counting = screen.getByTestId('cockpit-card-confirm');
+    expect(counting).toBe(before);
+    expect(counting.getAttribute('data-confirm-mode')).toBe('cancel');
+    expect(counting.getAttribute('data-confirm-seconds')).toBe('5');
+    expect(counting.textContent).toContain('Sending in 5s · tap to cancel');
     expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('true');
-    expect(screen.getByTestId('cockpit-card-confirm-message').textContent).toContain(
-      'This sends “Delete staging” once.',
-    );
-
-    // Nothing is mounted at the window's bottom: the panel this task removes is gone, and the
-    // bar that draws the state is the card's own.
-    expect(screen.queryByTestId('cockpit-card-confirm-panel')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm-progress').getAttribute('data-progress')).toBe('0.000');
+    expect(screen.queryByTestId('cockpit-card-confirm-message')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-hint')).toBeNull();
+    expect(onRequestConfirm).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(0);
+    // Nothing is mounted at the window's bottom: the bar that draws the state is the card's own.
     expect(document.querySelector('[data-testid="cockpit-card-confirm-panel"]')).toBeNull();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    // Pressing the SAME button cancels: back to idle, and nothing was sent.
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+    expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-confirm-mode')).toBe('open');
+    expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('false');
+    expect(send).toHaveBeenCalledTimes(0);
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('the countdown’s seconds and fill follow the injected clock', () => {
+    const countdown: CockpitCardSendCountdown = {
+      cardId: 'fixture:ask',
+      revision: 1,
+      startedAt: NOW,
+      firesAt: NOW + 5_000,
+    };
+    // Two seconds in: three whole seconds remain and the fill is two fifths of the way.
+    renderCard({ now: NOW + 2_000, initialCountdown: countdown });
+
+    const button = screen.getByTestId('cockpit-card-confirm');
+    expect(button.getAttribute('data-confirm-mode')).toBe('cancel');
+    expect(button.getAttribute('data-confirm-seconds')).toBe('3');
+    expect(button.textContent).toContain('Sending in 3s · tap to cancel');
+    expect(
+      Number(screen.getByTestId('cockpit-card-confirm-progress').getAttribute('data-progress')),
+    ).toBeCloseTo(0.4, 3);
+
+    cleanup();
+    // At the deadline the same reading is 「0 s」 and a full fill — it never wraps to 5 again.
+    renderCard({ now: NOW + 5_000, initialCountdown: countdown });
+    expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-confirm-seconds')).toBe('0');
+    expect(screen.getByTestId('cockpit-card-confirm-progress').getAttribute('data-progress')).toBe('1.000');
+  });
+
+  it('a reversible option’s countdown draws no warning row for zero seconds of its life', () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+    expect(screen.queryByTestId('cockpit-card-confirm-message')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-warning')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-cancel')).toBeNull();
+  });
+
+  it('an irreversible option keeps the two presses, and sends on the second', () => {
+    const onRequestConfirm = vi.fn();
+    const send = vi.fn(() => ({
+      ok: true as const,
+      cardId: 'fixture:ask',
+      executor: 'fixture.record',
+      result: {},
+    }));
+    renderCard({ onRequestConfirm, send });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+
+    const before = screen.getByTestId('cockpit-card-confirm');
+    expect(before.getAttribute('data-confirm-mode')).toBe('open');
+    fireEvent.click(before);
+
+    const pending = screen.getByTestId('cockpit-card-confirm');
+    expect(pending).toBe(before);
+    expect(pending.getAttribute('data-confirm-mode')).toBe('send');
+    expect(pending.textContent).toContain('Confirm and send');
+    // Still no countdown: the warning option is confirmed by a person, not by a timer.
+    expect(pending.hasAttribute('data-confirm-seconds')).toBe(false);
+    expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('true');
+    expect(screen.getByTestId('cockpit-card-confirm-message').textContent).toContain(
+      'This sends “Park it” once.',
+    );
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(send).toHaveBeenCalledTimes(0);
 
     fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
     expect(send).toHaveBeenCalledTimes(1);
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('false');
-    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
-    // Success is reported in the same bar: the sent sentence, then the card returns to idle.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Park it');
     const outcome = screen.getByTestId('cockpit-card-confirm-outcome');
     expect(outcome.getAttribute('role')).toBe('status');
     expect(outcome.getAttribute('data-ok')).toBe('true');
@@ -755,6 +868,8 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
       send: () => ({ ok: false, cardId: 'fixture:ask', message: 'gateway answered 502' }),
     });
 
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
     fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
     fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
 
@@ -772,24 +887,53 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
 
     const confirm = screen.getByTestId('cockpit-card-confirm');
     fireEvent.click(confirm);
-    fireEvent.click(screen.getByTestId('cockpit-card-confirm-cancel'));
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
 
     expect(screen.getByTestId('cockpit-card-confirm')).toBe(confirm);
     expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-confirm-mode')).toBe('open');
     expect(send).toHaveBeenCalledTimes(0);
   });
 
-  it('the compact bar floats its caption instead of pushing the button down', () => {
-    // Compact density keeps the button's own box: the pending caption is drawn above it,
-    // absolutely, so the second press lands on the same pixel as the first.
-    renderCard({ density: 'compact' });
+  it('the irreversible bar floats its caption instead of pushing the button down', () => {
+    // The warning row is drawn ABOVE the button, absolutely, so the second press lands on the
+    // same pixel as the first — and the idle bar never reserves that row.
+    renderCard();
+    expect(screen.queryByTestId('cockpit-card-confirm-message')).toBeNull();
 
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
     fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
 
     const caption = screen.getByTestId('cockpit-card-confirm-message').parentElement;
     expect(caption?.className).toContain('absolute');
     expect(caption?.className).toContain('bottom-full');
+  });
+
+  it('the compact bar keeps its one line in both flows', () => {
+    renderCard({ density: 'compact' });
+    expect(screen.queryByTestId('cockpit-card-confirm-hint')).toBeNull();
     expect(screen.getByTestId('cockpit-card-confirm').className).toContain('w-auto');
+
+    // A compact irreversible option still floats the warning caption above its button.
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+    const caption = screen.getByTestId('cockpit-card-confirm-message').parentElement;
+    expect(caption?.className).toContain('bottom-full');
+    expect(screen.getByTestId('cockpit-card-confirm').className).toContain('w-auto');
+  });
+
+  it('disables the button while the request is in flight', () => {
+    // The in-flight reading is too short for a render to catch from a click alone, so it is
+    // forced here; the bar is the unit under test.
+    renderCard({ initialCountdown: null, forceConfirming: true, density: 'compact' });
+
+    const button = screen.getByTestId('cockpit-card-confirm');
+    expect(button.getAttribute('data-confirm-mode')).toBe('send');
+    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.textContent).toBe('Sending…');
+    // The send is not reversible, so the bar offers no cancel control while it runs.
+    expect(screen.queryByTestId('cockpit-card-confirm-cancel')).toBeNull();
   });
 });
 
@@ -1065,6 +1209,7 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
     onRequestConfirm = vi.fn(),
     confirmState: {
       pending?: boolean;
+      countdown?: CockpitCardSendCountdown | null;
       confirming?: boolean;
       outcome?: CockpitCardConfirmOutcome | null;
       onConfirm?: () => void;
@@ -1080,6 +1225,7 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
           target={target}
           onRequestConfirm={onRequestConfirm}
           confirmPending={confirmState.pending ?? false}
+          sendCountdown={confirmState.countdown ?? null}
           confirming={confirmState.confirming ?? false}
           confirmOutcome={confirmState.outcome ?? null}
           onConfirm={confirmState.onConfirm}
@@ -1118,7 +1264,9 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
   });
 
   it('turns its own bar into the confirm state in place, sending from the same button', () => {
-    const target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, '');
+    // The two-press state belongs to the irreversible option, exactly as it does on the card.
+    const parkShown: CockpitCardShown = { kind: 'option', optionId: 'park' };
+    const target = confirmTargetOf(CARD, parkShown, '');
     const onConfirm = vi.fn();
     const onCancelConfirm = vi.fn();
     renderDetails(CARD, target, vi.fn(), {
@@ -1143,6 +1291,26 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
     fireEvent.click(bar);
     expect(onConfirm).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId('cockpit-card-details-confirm-cancel'));
+    expect(onCancelConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws the same countdown state the card’s own bar draws, and cancels from it', () => {
+    const target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, '');
+    const onCancelConfirm = vi.fn();
+    renderDetails(CARD, target, vi.fn(), {
+      countdown: { cardId: CARD.id, revision: 1, startedAt: NOW - 2_000, firesAt: NOW + 3_000 },
+      onCancelConfirm,
+    });
+
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.getAttribute('data-confirm-mode')).toBe('cancel');
+    expect(bar.getAttribute('data-confirm-seconds')).toBe('3');
+    expect(bar.textContent).toContain('Sending in 3s · tap to cancel');
+    // The countdown needs no explanation row either: the label and fill are the whole reading.
+    expect(screen.queryByTestId('cockpit-card-details-confirm-message')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending')).toBe('true');
+
+    fireEvent.click(bar);
     expect(onCancelConfirm).toHaveBeenCalledTimes(1);
   });
 

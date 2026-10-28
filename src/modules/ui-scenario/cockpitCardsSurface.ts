@@ -339,12 +339,19 @@ export function startWritingCardOwnReply(cardId: string, text: string): CardCont
 }
 
 /**
- * Requests a confirmation and sends it: the same bar's button is pressed twice.
+ * Requests a confirmation and waits for it to leave: the bar's button is pressed, then the SEND
+ * happens on its own.
  *
- * The first press turns the card's own confirm bar into its confirm state IN PLACE — the button
- * keeps its element and position and only changes label/handler — and the second press on that
- * same button leaves the request. Nothing is drawn at list level, so there is no sibling panel to
- * find; the verb simply presses the control twice, exactly as a person confirming does.
+ * The first press turns the card's own confirm bar into one of two states IN PLACE — the button
+ * keeps its element and position and only changes label/handler:
+ *
+ *   - A REVERSIBLE option starts the five second countdown (`data-confirm-mode="cancel"`); the
+ *     verb presses nothing else and `settle` waits until the countdown expires and the request
+ *     answers.
+ *   - An IRREVERSIBLE option turns the button into 「confirm and send」 (`data-confirm-mode="send"`);
+ *     the verb presses that SAME button again, exactly as a person confirming does.
+ *
+ * Nothing is drawn at list level, so there is no sibling panel to find.
  *
  * Returns `null` when the card is absent, or when its bar is absent or disabled — the card has
  * nothing to confirm, so no request may be synthesized.
@@ -364,8 +371,9 @@ export function startConfirmingCard(cardId: string): CardContinuation | null {
     if (pending === null) {
       return;
     }
-    // The SAME button: the card's own bar swaps its label and handler in place, so the second
-    // press that sends is the same element the first press turned.
+    // The SAME button: the card's own bar swaps its label and handler in place. Only the
+    // irreversible state still needs a second press; a running countdown sends (or is cancelled)
+    // by itself, so this verb leaves it alone.
     const send = controlWithTestId(card, 'cockpit-card-confirm');
     if (
       send !== null

@@ -947,7 +947,7 @@
     "cardAgeHours": "{{n}}h",
     "cardAgeDays": "{{n}}d",
     "cardLoadLabel": "вес решения {{n}} из 3",
-    "cardConfirmHint": "переводит эту панель в состояние подтверждения — пока ничего не отправлено",
+    "cardConfirmCountdown": "Отправка через {{seconds}} с · нажмите, чтобы отменить",
     "cardChooseThenConfirm": "Выберите вариант, затем подтвердите",
     "cardConfirmShort": "Подтвердить",
     "cardChooseOption": "Выбрать вариант",
