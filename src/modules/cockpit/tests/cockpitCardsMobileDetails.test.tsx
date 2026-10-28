@@ -81,6 +81,7 @@ const apiMock = vi.hoisted(() => ({
   observationFetch: vi.fn(),
   cockpitCards: vi.fn(),
   cockpitCardBrief: vi.fn(),
+  cockpitConfirmCard: vi.fn(),
   system: { deployReadiness: vi.fn() },
 }));
 
@@ -296,6 +297,7 @@ beforeEach(async () => {
   apiMock.observationFetch.mockReset();
   apiMock.cockpitCards.mockReset();
   apiMock.cockpitCardBrief.mockReset();
+  apiMock.cockpitConfirmCard.mockReset();
   apiMock.system.deployReadiness.mockReset();
   readApiJsonMock.mockClear();
 
@@ -306,6 +308,15 @@ beforeEach(async () => {
   );
   apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [CARD] }));
   apiMock.cockpitCardBrief.mockResolvedValue(okResponse(BRIEF_DISABLED));
+  apiMock.cockpitConfirmCard.mockResolvedValue(
+    okResponse({
+      ok: true,
+      cardId: 'fixture:ask',
+      executor: 'fixture.record',
+      params: {},
+      result: { total: 1 },
+    }),
+  );
   apiMock.system.deployReadiness.mockResolvedValue(okResponse(DEPLOY_READING));
 });
 
@@ -373,6 +384,43 @@ describe('the phone Details sheet', () => {
     expect(detailsButton.className).toBe(cardButton.className);
     expect(detailsButton.className).toContain('bg-neutral-950');
     expect(detailsButton.className).not.toContain('bg-primary');
+  });
+
+  it('turns the drawer’s bar into its confirm state in place, with no dialog over the sheet', async () => {
+    await openPhoneDetails();
+
+    const before = screen.getByTestId('cockpit-card-details-confirm');
+    expect(before.getAttribute('data-confirm-mode')).toBe('open');
+    fireEvent.click(before);
+
+    // The SAME button, in the SAME bar: the sheet does not grow a second send control, and no
+    // fixed panel is mounted at the page's bottom edge.
+    const pending = screen.getByTestId('cockpit-card-details-confirm');
+    expect(pending).toBe(before);
+    expect(pending.getAttribute('data-confirm-mode')).toBe('send');
+    expect(
+      screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
+    ).toBe('true');
+    expect(screen.queryByTestId('cockpit-card-confirm-panel')).toBeNull();
+    expect(document.querySelector('[data-testid="cockpit-card-confirm-panel"]')).toBeNull();
+    expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
+
+    fireEvent.click(pending);
+    await waitFor(() => expect(apiMock.cockpitConfirmCard).toHaveBeenCalledTimes(1));
+    expect(apiMock.cockpitConfirmCard.mock.calls[0]?.[0]).toEqual({
+      cardId: 'fixture:ask',
+      revision: 1,
+      optionId: 'delete',
+    });
+
+    // Success is reported inside the bar, and the bar returns to its idle label.
+    await waitFor(() =>
+      expect(screen.getByTestId('cockpit-card-details-confirm-outcome').textContent).toBe('Sent ✓'),
+    );
+    expect(
+      screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
+    ).toBe('false');
+    expect(screen.getByTestId('cockpit-card-details-confirm').textContent).toContain('Delete staging');
   });
 
   it('quotes the assistant’s own words with the link back into the session', async () => {

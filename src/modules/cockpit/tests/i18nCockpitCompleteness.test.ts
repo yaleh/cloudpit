@@ -453,7 +453,7 @@ describe('every locale carries the cockpit copy', () => {
   // single confirm bar and its confirm card, and the Details drawer's conversation section.
   // Naming them here keeps a rename from being "covered" by the generic loop while every locale
   // silently falls back to English — and the count/naming sentences keep their placeholders.
-  it('covers the cards view, its confirm card and its Details drawer', () => {
+  it('covers the cards view, its in-place confirm state and its Details drawer', () => {
     const required = [
       'cardsView',
       'cardKindAsk',
@@ -485,12 +485,12 @@ describe('every locale carries the cockpit copy', () => {
       'cardDensityCompact',
       'cardEmpty',
       'cardError',
-      'cardConfirmTitle',
       'cardConfirmBody',
       'cardConfirmIrreversible',
       'cardConfirmSend',
+      'cardConfirmSending',
+      'cardConfirmSent',
       'cardConfirmCancel',
-      'cardConfirmDone',
       'cardConfirmFailed',
       'cardStartConversationEcho',
       'cardDetailsTitle',
@@ -513,7 +513,6 @@ describe('every locale carries the cockpit copy', () => {
     expect(placeholders(reference.cardSessionWaiting)).toEqual(['id']);
     expect(placeholders(reference.cardError)).toEqual(['reason']);
     expect(placeholders(reference.cardConfirmBody)).toEqual(['label']);
-    expect(placeholders(reference.cardConfirmDone)).toEqual(['executor']);
     expect(placeholders(reference.cardConfirmFailed)).toEqual(['reason']);
     expect(placeholders(reference.cardStartConversationEcho)).toEqual(['project']);
     expect(placeholders(reference.cardDetailsOpenConversation)).toEqual(['sessionId']);

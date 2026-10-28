@@ -10,9 +10,10 @@
  *
  * THE READING IS THE LIST'S OWN DECLARATION. `CockpitCardReading` is what `cockpit-card-ui-core`
  * publishes — visible ids in order, the selection, each card's shown option and confirm target,
- * and the open Details card. The open CONFIRM card is a sibling panel the list draws, naming its
- * card in `data-card-id`; joining that declaration here reads the page rather than inferring "a
- * confirmation is open" from a class or a rendered sentence.
+ * and the open Details card. The open CONFIRM state is not a separate panel: a card's own confirm
+ * bar (or the Details drawer's bar for the same card) draws it in place and marks itself with
+ * `data-confirm-pending="true"` plus `data-card-id`, so joining that bar reads the page rather
+ * than inferring "a confirmation is open" from a class or a rendered sentence.
  *
  * THE CARDS ARE DRIVEN THROUGH THE CONTROLS A PERSON PRESSES. The `cockpitCard.*` verbs locate the
  * card's own buttons and textarea and dispatch the same events a press/typing produces; they never
@@ -21,7 +22,7 @@
  * leave the page's real state where it was.
  *
  * A card step IS TWO PRESSES. React 18 commits a discrete event's update after the handler
- * returns, so the option button / own-reply editor / confirm card a first press renders does not
+ * returns, so the option button / own-reply editor / confirm state a first press renders does not
  * exist yet in `drive`. `drive` presses the trigger and hands the rest to `settle`, which the
  * runner awaits after every step ({@link settleCardStep}). Both halves are still real DOM presses.
  */
@@ -36,9 +37,9 @@ export type ScenarioCockpitCardTarget = {
   cardId: string;
 };
 
-/** The cards view's reading: the list's own declaration plus the open confirm card. */
+/** The cards view's reading: the list's own declaration plus the card in its confirm state. */
 export type ScenarioCockpitCardsReading = CockpitCardReading & {
-  /** The card whose confirm panel is open, or `null` when no confirmation is open. */
+  /** The card whose confirm bar is in its confirm state, or `null` when none is. */
   confirmOpenCardId: string | null;
 };
 
@@ -111,18 +112,19 @@ function parseCardsReading(raw: string | null): CockpitCardReading | null {
 }
 
 /**
- * The card whose confirm panel is open, read from the panel's own `data-card-id`.
+ * The card whose confirm bar is in its confirm state, read from that bar's own `data-card-id`.
  *
  * WHY THIS IS NOT IN THE ATTRIBUTE: `data-cockpit-cards` describes the list's cards, and the
- * open confirm card is a sibling panel the list draws (one at a time). It carries its card id
- * for exactly this kind of consumer, so this joins the two declarations the page already draws.
+ * confirm state is a property of ONE card's bar (the card's own, or the Details drawer's for the
+ * same card) rather than of the list. The bar carries its card id and `data-confirm-pending` for
+ * exactly this kind of consumer, so this joins the two declarations the page already draws.
  */
 function readConfirmOpenCardId(): string | null {
   if (typeof document === 'undefined') {
     return null;
   }
-  const panel = document.querySelector('[data-testid="cockpit-card-confirm-panel"]');
-  return panel instanceof HTMLElement ? panel.getAttribute('data-card-id') : null;
+  const bar = document.querySelector('[data-confirm-pending="true"]');
+  return bar instanceof HTMLElement ? bar.getAttribute('data-card-id') : null;
 }
 
 /** Reads the cards list the page drew, or `null` when its declaration is absent or malformed. */
@@ -267,14 +269,13 @@ async function waitForControlToLeave(
   }
 }
 
-/** The confirm card currently open for `cardId`, or `null`. */
-function confirmPanelFor(cardId: string): HTMLElement | null {
-  const root = cardsRoot();
-  if (root === null) {
+/** The confirm bar currently in its confirm state for `cardId`, or `null`. */
+function pendingBarFor(cardId: string): HTMLElement | null {
+  if (typeof document === 'undefined') {
     return null;
   }
   for (const candidate of Array.from(
-    root.querySelectorAll('[data-testid="cockpit-card-confirm-panel"]'),
+    document.querySelectorAll('[data-confirm-pending="true"]'),
   )) {
     if (candidate instanceof HTMLElement && candidate.getAttribute('data-card-id') === cardId) {
       return candidate;
@@ -283,13 +284,13 @@ function confirmPanelFor(cardId: string): HTMLElement | null {
   return null;
 }
 
-/** Polls for the confirm card `cardId` opens; `null` when the press did not open one. */
-async function waitForConfirmPanel(cardId: string): Promise<HTMLElement | null> {
+/** Polls for the bar `cardId` turned into its confirm state; `null` when the press did not. */
+async function waitForPendingBar(cardId: string): Promise<HTMLElement | null> {
   const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
   for (;;) {
-    const panel = confirmPanelFor(cardId);
-    if (panel !== null) {
-      return panel;
+    const bar = pendingBarFor(cardId);
+    if (bar !== null) {
+      return bar;
     }
     if (Date.now() >= deadline) {
       return null;
@@ -338,12 +339,15 @@ export function startWritingCardOwnReply(cardId: string, text: string): CardCont
 }
 
 /**
- * Requests a confirmation and sends it: the confirm bar's first press opens the confirm card,
- * and the card's own send button is the one that leaves the request.
+ * Requests a confirmation and sends it: the same bar's button is pressed twice.
+ *
+ * The first press turns the card's own confirm bar into its confirm state IN PLACE — the button
+ * keeps its element and position and only changes label/handler — and the second press on that
+ * same button leaves the request. Nothing is drawn at list level, so there is no sibling panel to
+ * find; the verb simply presses the control twice, exactly as a person confirming does.
  *
  * Returns `null` when the card is absent, or when its bar is absent or disabled — the card has
- * nothing to confirm, so no request may be synthesized. The panel is rendered as a sibling of the
- * cards and matched by its `data-card-id`, so a second card's panel is never pressed by mistake.
+ * nothing to confirm, so no request may be synthesized.
  */
 export function startConfirmingCard(cardId: string): CardContinuation | null {
   const card = cardElement(cardId);
@@ -356,9 +360,19 @@ export function startConfirmingCard(cardId: string): CardContinuation | null {
   }
   press(bar);
   return async () => {
-    const panel = await waitForConfirmPanel(cardId);
-    if (panel !== null) {
-      press(controlWithTestId(panel, 'cockpit-card-confirm-send'));
+    const pending = await waitForPendingBar(cardId);
+    if (pending === null) {
+      return;
+    }
+    // The SAME button: the card's own bar swaps its label and handler in place, so the second
+    // press that sends is the same element the first press turned.
+    const send = controlWithTestId(card, 'cockpit-card-confirm');
+    if (
+      send !== null
+      && send.getAttribute('data-confirm-mode') === 'send'
+      && !(send instanceof HTMLButtonElement && send.disabled)
+    ) {
+      press(send);
     }
     await waitForConfirmToSettle();
   };
@@ -374,18 +388,18 @@ export function openCardDetails(cardId: string): boolean {
 const CONFIRM_SETTLE_TIMEOUT_MS = 15_000;
 
 /**
- * Waits until no confirm panel is open.
+ * Waits until no confirm bar is in its confirm state.
  *
- * The panel is the visible half of one confirmation: it opens on the first press and closes when
- * the request answers (success or failure). Nothing is in flight when no panel is open, so the
- * wait costs one DOM query in the common case.
+ * The pending bar is the visible half of one confirmation: it appears on the first press and
+ * leaves when the request answers (success or failure) or the retreat clears it. Nothing is in
+ * flight once no bar is pending, so the wait costs one DOM query in the common case.
  */
 async function waitForConfirmToSettle(): Promise<void> {
   if (typeof document === 'undefined') {
     return;
   }
   const deadline = Date.now() + CONFIRM_SETTLE_TIMEOUT_MS;
-  while (document.querySelector('[data-testid="cockpit-card-confirm-panel"]') !== null) {
+  while (document.querySelector('[data-confirm-pending="true"]') !== null) {
     if (Date.now() >= deadline) {
       return;
     }

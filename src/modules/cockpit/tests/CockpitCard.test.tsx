@@ -16,6 +16,7 @@ import {
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import type {
+  CockpitCardConfirmOutcome,
   CockpitCardDensity,
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
@@ -91,15 +92,22 @@ type FixtureProps = {
   density?: CockpitCardDensity;
   onOpenDetails: () => void;
   onRequestConfirm: () => void;
+  /** Stands in for the transport: the answer is drawn in the bar, exactly as the controller's is. */
+  send?: () => CockpitCardConfirmOutcome;
 };
 
 /** The card with just enough local state to exercise its own controls. */
-function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm }: FixtureProps) {
+function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, send }: FixtureProps) {
   const [shown, setShown] = useState<CockpitCardShown | undefined>(
     defaultShownOption(card) ?? undefined,
   );
   const [ownReply, setOwnReply] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // The three readings the controller publishes around one confirmation. They live here so the
+  // component's in-place behaviour is exercised through real state, not a prop the test toggles.
+  const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [outcome, setOutcome] = useState<CockpitCardConfirmOutcome | null>(null);
   const target = confirmTargetOf(card, shown, ownReply);
 
   return (
@@ -118,13 +126,32 @@ function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm }: F
       onShowOption={(optionId) => {
         setShown({ kind: 'option', optionId });
         setDropdownOpen(false);
+        // The controller retreats on an option switch; the fixture mirrors that rule so the
+        // in-place state is never drawn for an option that is no longer shown.
+        setPending(false);
       }}
       onShowOwnReply={() => setShown({ kind: 'ownReply' })}
       onOwnReplyChange={(text) => {
         setOwnReply(text);
         setShown({ kind: 'ownReply' });
       }}
-      onRequestConfirm={onRequestConfirm}
+      confirmPending={pending}
+      confirming={confirming}
+      outcome={outcome}
+      onRequestConfirm={() => {
+        onRequestConfirm();
+        setPending(true);
+        setOutcome(null);
+      }}
+      onCancelConfirm={() => setPending(false)}
+      onConfirm={() => {
+        if (send === undefined) return;
+        setConfirming(true);
+        const answer = send();
+        setConfirming(false);
+        setPending(false);
+        setOutcome(answer);
+      }}
     />
   );
 }
@@ -134,11 +161,13 @@ function renderCard({
   density = 'cards',
   onOpenDetails = vi.fn(),
   onRequestConfirm = vi.fn(),
+  send,
 }: {
   card?: CockpitCardData;
   density?: CockpitCardDensity;
   onOpenDetails?: () => void;
   onRequestConfirm?: () => void;
+  send?: () => CockpitCardConfirmOutcome;
 } = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
@@ -147,6 +176,7 @@ function renderCard({
         density={density}
         onOpenDetails={onOpenDetails}
         onRequestConfirm={onRequestConfirm}
+        send={send}
       />
     </I18nextProvider>,
   );
@@ -557,7 +587,7 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     expect(confirm.className).not.toContain('border-amber-500');
     expect(confirm.className).toContain('bg-neutral-950');
     expect(screen.getByTestId('cockpit-card-confirm-hint').textContent).toBe(
-      'opens the confirm card — nothing is sent yet',
+      'turns this bar into its confirm state — nothing is sent yet',
     );
     expect(screen.queryByText('Irreversible')).toBeNull();
   });
@@ -599,6 +629,109 @@ describe('C zone: one confirm bar bound to the shown option', () => {
 
     expect(screen.queryByTestId('cockpit-card-confirm-empty')).toBeNull();
     expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Park it');
+  });
+});
+
+describe('the confirm state is drawn in place, inside the card’s own bar', () => {
+  it('the same button opens the state and sends from it, and no dialog is drawn', () => {
+    const onRequestConfirm = vi.fn();
+    const send = vi.fn(() => ({
+      ok: true as const,
+      cardId: 'fixture:ask',
+      executor: 'fixture.record',
+      result: {},
+    }));
+    renderCard({ onRequestConfirm, send });
+
+    const before = screen.getByTestId('cockpit-card-confirm');
+    expect(before.getAttribute('data-confirm-mode')).toBe('open');
+    fireEvent.click(before);
+
+    // The SAME element — not a second button somewhere else on the page.
+    const after = screen.getByTestId('cockpit-card-confirm');
+    expect(after).toBe(before);
+    expect(after.getAttribute('data-confirm-mode')).toBe('send');
+    expect(after.textContent).toBe('Confirm and send');
+    expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('true');
+    expect(screen.getByTestId('cockpit-card-confirm-message').textContent).toContain(
+      'This sends “Delete staging” once.',
+    );
+
+    // Nothing is mounted at the window's bottom: the panel this task removes is gone, and the
+    // bar that draws the state is the card's own.
+    expect(screen.queryByTestId('cockpit-card-confirm-panel')).toBeNull();
+    expect(document.querySelector('[data-testid="cockpit-card-confirm-panel"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(onRequestConfirm).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(0);
+
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(onRequestConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('false');
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
+    // Success is reported in the same bar: the sent sentence, then the card returns to idle.
+    const outcome = screen.getByTestId('cockpit-card-confirm-outcome');
+    expect(outcome.getAttribute('role')).toBe('status');
+    expect(outcome.getAttribute('data-ok')).toBe('true');
+    expect(outcome.textContent).toBe('Sent ✓');
+  });
+
+  it('draws ⚠ and the consequence inside the bar for an irreversible option', () => {
+    renderCard();
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+
+    const warning = screen.getByTestId('cockpit-card-confirm-warning');
+    expect(warning.textContent).toContain('⚠');
+    expect(warning.textContent).toContain('This action cannot be undone.');
+    expect(
+      screen.getByTestId('cockpit-card-confirm-warning').closest('[data-testid="cockpit-card-confirm-bar"]'),
+    ).not.toBeNull();
+  });
+
+  it('draws a failed confirmation’s reason inside the bar, not elsewhere on the page', () => {
+    renderCard({
+      send: () => ({ ok: false, cardId: 'fixture:ask', message: 'gateway answered 502' }),
+    });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+
+    const outcome = screen.getByTestId('cockpit-card-confirm-outcome');
+    expect(outcome.getAttribute('role')).toBe('alert');
+    expect(outcome.getAttribute('data-ok')).toBe('false');
+    expect(outcome.textContent).toContain('gateway answered 502');
+    expect(outcome.closest('[data-testid="cockpit-card-confirm-bar"]')).not.toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-confirm-mode')).toBe('open');
+  });
+
+  it('cancel leaves the state without sending and the bar stays in the same element', () => {
+    const send = vi.fn(() => ({ ok: true as const, cardId: 'fixture:ask', executor: 'x', result: {} }));
+    renderCard({ send });
+
+    const confirm = screen.getByTestId('cockpit-card-confirm');
+    fireEvent.click(confirm);
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm-cancel'));
+
+    expect(screen.getByTestId('cockpit-card-confirm')).toBe(confirm);
+    expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-confirm-mode')).toBe('open');
+    expect(send).toHaveBeenCalledTimes(0);
+  });
+
+  it('the compact bar floats its caption instead of pushing the button down', () => {
+    // Compact density keeps the button's own box: the pending caption is drawn above it,
+    // absolutely, so the second press lands on the same pixel as the first.
+    renderCard({ density: 'compact' });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+
+    const caption = screen.getByTestId('cockpit-card-confirm-message').parentElement;
+    expect(caption?.className).toContain('absolute');
+    expect(caption?.className).toContain('bottom-full');
+    expect(screen.getByTestId('cockpit-card-confirm').className).toContain('w-auto');
   });
 });
 
@@ -802,6 +935,13 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
     card: CockpitCardData,
     target: ReturnType<typeof confirmTargetOf>,
     onRequestConfirm = vi.fn(),
+    confirmState: {
+      pending?: boolean;
+      confirming?: boolean;
+      outcome?: CockpitCardConfirmOutcome | null;
+      onConfirm?: () => void;
+      onCancelConfirm?: () => void;
+    } = {},
   ) {
     return render(
       <I18nextProvider i18n={i18n}>
@@ -811,6 +951,11 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
           onClose={() => undefined}
           target={target}
           onRequestConfirm={onRequestConfirm}
+          confirmPending={confirmState.pending ?? false}
+          confirming={confirmState.confirming ?? false}
+          confirmOutcome={confirmState.outcome ?? null}
+          onConfirm={confirmState.onConfirm}
+          onCancelConfirm={confirmState.onCancelConfirm}
         />
       </I18nextProvider>,
     );
@@ -842,6 +987,44 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
   it('draws no bar when the card has nothing to confirm', () => {
     renderDetails(CARD, confirmTargetOf(CARD, undefined, ''));
     expect(screen.queryByTestId('cockpit-card-details-confirm-bar')).toBeNull();
+  });
+
+  it('turns its own bar into the confirm state in place, sending from the same button', () => {
+    const target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, '');
+    const onConfirm = vi.fn();
+    const onCancelConfirm = vi.fn();
+    renderDetails(CARD, target, vi.fn(), {
+      pending: true,
+      confirming: false,
+      outcome: { ok: false, cardId: CARD.id, message: 'gateway answered 502' },
+      onConfirm,
+      onCancelConfirm,
+    });
+
+    // The drawer is a longer reading of the SAME card, so it draws the same state on its own
+    // bar — never a second dialog over the page.
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.getAttribute('data-confirm-mode')).toBe('send');
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending')).toBe('true');
+    expect(screen.getByTestId('cockpit-card-details-confirm-outcome').textContent).toContain(
+      'gateway answered 502',
+    );
+    expect(document.querySelector('[data-testid="cockpit-card-confirm-panel"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    fireEvent.click(bar);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('cockpit-card-details-confirm-cancel'));
+    expect(onCancelConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('words the send state with the same copy the card’s own bar uses', () => {
+    const target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, '');
+    renderDetails(CARD, target, vi.fn(), { pending: true, confirming: true });
+
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.textContent).toBe('Sending…');
+    expect(bar.hasAttribute('disabled')).toBe(true);
   });
 
   it('links a task card to its project’s Quay board, and only a task card has the link', () => {

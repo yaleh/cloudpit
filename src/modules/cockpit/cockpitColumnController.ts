@@ -19,7 +19,8 @@ import type { CockpitCardController } from '@/modules/cockpit/cockpitCardControl
  *
  * KEY OWNERSHIP IS DECIDED HERE, NOT IN A COMPONENT. When neither of the two input boxes has
  * focus, keys belong to the column: `↑`/`↓` move the selection, `←`/`→` and `1`–`9` change the
- * shown option, `E` writes the person's own reply, `Enter` opens the confirm card, `Backspace`
+ * shown option, `E` writes the person's own reply, `Enter` is the confirm state's two presses
+ * (open it in place, then send from the same bar), `Backspace`
  * goes back / closes. `Escape` is never consumed — it aborts a running turn elsewhere in the
  * app. An editable target (the session composer, the cockpit input) ends the handler, so a
  * keystroke can never land in both places.
@@ -380,8 +381,10 @@ export function createCockpitColumnController(
 
       if (key === 'Enter') {
         if (selectedId === null) return false;
-        // The first press is always the confirm card, never an executor write.
-        return deps.cards.requestConfirm(selectedId);
+        // Enter is the same key twice: the first press turns the selected card's bar into its
+        // confirm state, the second sends from that same bar. The card controller owns that
+        // machine, so the column forwards the key rather than deciding which press it is here.
+        return deps.cards.handleKey('Enter');
       }
 
       if (key === 'Backspace') {

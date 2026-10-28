@@ -14,14 +14,16 @@ import { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
 
 /**
- * The cards view's container: filters and density at the top, the card list, the one confirm
- * card and the Details drawer.
+ * The cards view's container: filters and density at the top, the card list and the Details
+ * drawer. The confirmation is NOT drawn here: a pending confirmation turns the card's own bar
+ * (or the drawer's) into its confirm state in place, so no dialog is mounted at the list level.
  *
  * IT IS A CONTAINER, NOT A SECOND MODEL. Every reading comes from a card binding (the page's own
  * `useCockpitCards`, or the column's shared one), and every command is one of that controller's.
  * The root publishes `data-cockpit-cards` — the same reading a scenario runner would otherwise
  * infer from the DOM — so visible order, selection, each card's shown option and confirm target,
- * and whether Details is open are all machine-readable.
+ * and whether Details is open are all machine-readable. The pending confirm state is published
+ * by the bar that draws it (`data-confirm-pending` + `data-card-id`), not by this container.
  *
  * TWO VARIANTS, ONE LIST. `page` is `/cockpit?view=cards`: the Details drawer floats over the
  * page and the list owns the global number keys. `column` is the PC right column: Details is
@@ -131,6 +133,16 @@ function CockpitCardListBound({
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
           return;
         }
+        // Enter on a focused control belongs to that control's own activation (the confirm
+        // button turns its own state, a card's zone opens Details). Consuming it here as well
+        // would make one press do two things — and the second press would send what the first
+        // had just opened.
+        if (
+          event.key === 'Enter'
+          && target.closest('button, a[href], [role="button"], [role="radio"]') !== null
+        ) {
+          return;
+        }
       }
       if (controller.handleKey(event.key)) event.preventDefault();
     };
@@ -142,8 +154,15 @@ function CockpitCardListBound({
   const detailsCardId = reading.detailsOpenCardId;
   const detailsCard =
     detailsCardId === null ? null : snapshot.cards.find((card) => card.id === detailsCardId) ?? null;
-  const pending = snapshot.pendingConfirm;
   const detailsInsideColumn = variant === 'column' && detailsCard !== null;
+  // The confirm state belongs to ONE card, and every bar that card has (the card's own, and the
+  // Details drawer's — a longer reading of the same card) draws it. A bar of another card stays
+  // in its idle state, and the outcome is drawn only by the card that asked.
+  const pendingCardId = snapshot.pendingConfirm?.cardId ?? null;
+  const outcomeFor = (cardId: string) =>
+    snapshot.lastOutcome !== null && snapshot.lastOutcome.cardId === cardId
+      ? snapshot.lastOutcome
+      : null;
   const closeDetails = (): void => {
     if (onBack !== undefined) {
       onBack();
@@ -207,6 +226,11 @@ function CockpitCardListBound({
             onClose={closeDetails}
             target={snapshot.targets[detailsCard.id] ?? null}
             onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
+            confirmPending={pendingCardId === detailsCard.id}
+            confirming={snapshot.confirming}
+            confirmOutcome={outcomeFor(detailsCard.id)}
+            onConfirm={() => void controller.confirm()}
+            onCancelConfirm={() => controller.cancelConfirm()}
             openedInSession={openedCardId === detailsCard.id}
             currentSessionId={currentSessionId}
             onOpenConversation={(sessionId: string) => onOpenConversation?.(detailsCard, sessionId)}
@@ -377,22 +401,6 @@ function CockpitCardListBound({
             </p>
           )}
 
-          {snapshot.lastOutcome !== null && (
-            <p
-              role={snapshot.lastOutcome.ok ? 'status' : 'alert'}
-              data-testid="cockpit-card-outcome"
-              data-ok={snapshot.lastOutcome.ok ? 'true' : 'false'}
-              className={cn(
-                'pb-2 text-xs',
-                snapshot.lastOutcome.ok ? 'text-muted-foreground' : 'text-destructive',
-              )}
-            >
-              {snapshot.lastOutcome.ok
-                ? t('cockpit.cardConfirmDone', { executor: snapshot.lastOutcome.executor })
-                : t('cockpit.cardConfirmFailed', { reason: snapshot.lastOutcome.message })}
-            </p>
-          )}
-
           {startIntentProject !== null && (
             <p
               role="status"
@@ -430,6 +438,11 @@ function CockpitCardListBound({
                 onShowOwnReply={() => controller.showOwnReply(card.id)}
                 onOwnReplyChange={(text) => controller.setOwnReply(card.id, text)}
                 onRequestConfirm={() => controller.requestConfirm(card.id)}
+                confirmPending={pendingCardId === card.id}
+                confirming={snapshot.confirming}
+                outcome={outcomeFor(card.id)}
+                onConfirm={() => void controller.confirm()}
+                onCancelConfirm={() => controller.cancelConfirm()}
               />
             ))}
           </div>
@@ -455,6 +468,11 @@ function CockpitCardListBound({
                 onClose={() => controller.closeDetails()}
                 target={snapshot.targets[detailsCard.id] ?? null}
                 onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
+                confirmPending={pendingCardId === detailsCard.id}
+                confirming={snapshot.confirming}
+                confirmOutcome={outcomeFor(detailsCard.id)}
+                onConfirm={() => void controller.confirm()}
+                onCancelConfirm={() => controller.cancelConfirm()}
                 onOpenConversation={
                   onOpenConversation === undefined
                     ? undefined
@@ -470,47 +488,6 @@ function CockpitCardListBound({
         </>
       )}
 
-      {pending !== null && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cockpit-card-confirm-title"
-          data-testid="cockpit-card-confirm-panel"
-          data-card-id={pending.cardId}
-          className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xl"
-        >
-          <p id="cockpit-card-confirm-title" className="text-sm font-semibold text-foreground">
-            {t('cockpit.cardConfirmTitle')}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t('cockpit.cardConfirmBody', { label: pending.label })}
-          </p>
-          {pending.irreversible && (
-            <p data-testid="cockpit-card-confirm-warning" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-              ⚠ {t('cockpit.cardConfirmIrreversible')}
-            </p>
-          )}
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              type="button"
-              data-testid="cockpit-card-confirm-cancel"
-              onClick={() => controller.cancelConfirm()}
-              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-            >
-              {t('cockpit.cardConfirmCancel')}
-            </button>
-            <button
-              type="button"
-              data-testid="cockpit-card-confirm-send"
-              disabled={snapshot.confirming}
-              onClick={() => void controller.confirm()}
-              className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {t('cockpit.cardConfirmSend')}
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
