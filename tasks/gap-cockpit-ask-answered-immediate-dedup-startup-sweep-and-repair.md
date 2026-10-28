@@ -73,3 +73,11 @@ L_D=0 条退化读数（跨历史补发重复行 0 条；第二次用户发言�
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
 - server/shared/tests/server-import-cycle-budget.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Blocker
+
+**2026-10-28T08:35:17.675Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/4，剩余未勾 4）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：5c29171d-33a1-4918-8e01-6a2b1d0fc8ed
