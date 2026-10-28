@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-voice-concatfloat
 title: "architecture-analysis: Identical Float32Array concatenation helper (11
   lines, 86 tokens) implemented in the chat hook and in the voice util tier; the
   util tier already owns `voiceS"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
