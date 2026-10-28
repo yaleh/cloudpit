@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "Tüm projeler",
     "cardDensityCards": "Kartlar",
     "cardDensityCompact": "Kompakt",
+    "cardSituationExpand": "Daha fazla göster",
+    "cardSituationCollapse": "Daha az göster",
     "cardEmpty": "Bekleyen kart yok.",
     "cardError": "Kartlar okunamadı: {{reason}}",
     "cardConfirmBody": "Bu, “{{label}}” öğesini bir kez gönderir.",

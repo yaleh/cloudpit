@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "모든 프로젝트",
     "cardDensityCards": "카드",
     "cardDensityCompact": "간단히",
+    "cardSituationExpand": "더 보기",
+    "cardSituationCollapse": "접기",
     "cardEmpty": "대기 중인 카드가 없습니다.",
     "cardError": "카드를 읽을 수 없습니다: {{reason}}",
     "cardConfirmBody": "“{{label}}”을(를) 한 번 전송합니다.",

@@ -1084,6 +1084,8 @@
     "cardFilterAllProjects": "Semua proyek",
     "cardDensityCards": "Kartu",
     "cardDensityCompact": "Ringkas",
+    "cardSituationExpand": "Tampilkan lebih banyak",
+    "cardSituationCollapse": "Tampilkan lebih sedikit",
     "cardEmpty": "Tidak ada kartu yang menunggu.",
     "cardError": "Kartu tidak dapat dibaca: {{reason}}",
     "cardConfirmBody": "Ini mengirim “{{label}}” sekali.",

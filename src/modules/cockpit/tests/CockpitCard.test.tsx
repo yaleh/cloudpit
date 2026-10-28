@@ -103,6 +103,9 @@ function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, sen
   );
   const [ownReply, setOwnReply] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // The controller owns the situation's expansion (by card id and revision); the fixture keeps
+  // the one boolean so the card's own control is exercised through real state.
+  const [situationExpanded, setSituationExpanded] = useState(false);
   // The three readings the controller publishes around one confirmation. They live here so the
   // component's in-place behaviour is exercised through real state, not a prop the test toggles.
   const [pending, setPending] = useState(false);
@@ -120,6 +123,8 @@ function Fixture({ card, density = 'cards', onOpenDetails, onRequestConfirm, sen
       dropdownOpen={dropdownOpen}
       selected
       density={density}
+      situationExpanded={situationExpanded}
+      onToggleSituationExpanded={() => setSituationExpanded((expanded) => !expanded)}
       onSelect={() => undefined}
       onOpenDetails={onOpenDetails}
       onToggleDropdown={() => setDropdownOpen((open) => !open)}
@@ -732,6 +737,76 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
     expect(caption?.className).toContain('absolute');
     expect(caption?.className).toContain('bottom-full');
     expect(screen.getByTestId('cockpit-card-confirm').className).toContain('w-auto');
+  });
+});
+
+describe('Cards mode: the situation is decision evidence, not a two-line teaser', () => {
+  /** Twelve real lines: the shape a provider's long situation reaches once the preview matters. */
+  const LONG_SITUATION = Array.from(
+    { length: 12 },
+    (_, index) => `Line ${index + 1}: the measured detail this decision rests on.`,
+  ).join('\n');
+
+  it('draws a short situation in full, with no line clamp and no expand control', () => {
+    renderCard();
+
+    const situation = screen.getByTestId('cockpit-card-zone-a-situation');
+    expect(situation.textContent).toBe(CARD.situation);
+    expect(situation.className).not.toContain('line-clamp');
+    expect(situation.getAttribute('data-clamped')).toBe('false');
+    expect(screen.queryByTestId('cockpit-card-situation-toggle')).toBeNull();
+  });
+
+  it('draws the content-unavailable reason in full in Cards mode', () => {
+    const reason =
+      '提问决策摘要未启用：未启用 observation.sessionDigest（提问决策摘要），因此这张卡片没有可读的情境。';
+    renderCard({ card: { ...CARD, situation: undefined, contentUnavailable: reason } });
+
+    const unavailable = screen.getByTestId('cockpit-card-content-unavailable');
+    expect(unavailable.textContent).toBe(reason);
+    expect(unavailable.className).not.toContain('line-clamp');
+  });
+
+  it('previews twelve lines at six, then expands in place without opening Details', () => {
+    const onOpenDetails = vi.fn();
+    renderCard({ card: { ...CARD, situation: LONG_SITUATION }, onOpenDetails });
+
+    const situation = screen.getByTestId('cockpit-card-zone-a-situation');
+    expect(situation.className).toContain('line-clamp-6');
+    expect(situation.getAttribute('data-clamped')).toBe('true');
+    expect(situation.textContent).toBe(LONG_SITUATION);
+
+    const toggle = screen.getByTestId('cockpit-card-situation-toggle');
+    expect(toggle.textContent).toBe('Show more');
+    expect(toggle.getAttribute('data-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    // The in-place control must not reach zone A's Details handler.
+    fireEvent.click(toggle);
+    expect(onOpenDetails).not.toHaveBeenCalled();
+
+    const expanded = screen.getByTestId('cockpit-card-zone-a-situation');
+    expect(expanded.className).not.toContain('line-clamp');
+    expect(expanded.getAttribute('data-clamped')).toBe('false');
+    expect(expanded.textContent).toBe(LONG_SITUATION);
+    const collapse = screen.getByTestId('cockpit-card-situation-toggle');
+    expect(collapse.textContent).toBe('Show less');
+    expect(collapse.getAttribute('data-expanded')).toBe('true');
+    expect(collapse.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(collapse);
+    expect(screen.getByTestId('cockpit-card-zone-a-situation').className).toContain('line-clamp-6');
+    expect(screen.getByTestId('cockpit-card-situation-toggle').textContent).toBe('Show more');
+    expect(onOpenDetails).not.toHaveBeenCalled();
+  });
+
+  it('keeps one clamped line in Compact and offers no in-place expansion', () => {
+    renderCard({ card: { ...CARD, situation: LONG_SITUATION }, density: 'compact' });
+
+    const situation = screen.getByTestId('cockpit-card-zone-a-situation');
+    expect(situation.className).toContain('line-clamp-1');
+    expect(situation.className).not.toContain('line-clamp-6');
+    expect(screen.queryByTestId('cockpit-card-situation-toggle')).toBeNull();
   });
 });
 

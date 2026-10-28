@@ -1092,6 +1092,8 @@
     "cardFilterAllProjects": "All projects",
     "cardDensityCards": "Cards",
     "cardDensityCompact": "Compact",
+    "cardSituationExpand": "Show more",
+    "cardSituationCollapse": "Show less",
     "cardEmpty": "No cards are waiting.",
     "cardError": "Could not read the cards: {{reason}}",
     "cardConfirmBody": "This sends “{{label}}” once.",

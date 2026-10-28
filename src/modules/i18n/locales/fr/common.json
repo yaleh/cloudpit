@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "Tous les projets",
     "cardDensityCards": "Cartes",
     "cardDensityCompact": "Compact",
+    "cardSituationExpand": "Afficher plus",
+    "cardSituationCollapse": "Afficher moins",
     "cardEmpty": "Aucune carte en attente.",
     "cardError": "Impossible de lire les cartes : {{reason}}",
     "cardConfirmBody": "Ceci envoie « {{label}} » une fois.",

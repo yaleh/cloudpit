@@ -38,6 +38,10 @@ import type {
  *   move the selection; Escape is never handled (it aborts a conversation turn elsewhere).
  * - A NEW REVISION UPDATES IN PLACE. Re-reading replaces card content by id, keeps the
  *   selected card and the scroll anchor, and keeps every card's position in provider order.
+ * - AN EXPANDED SITUATION BELONGS TO ITS REVISION. The inline expand control is a reading of one
+ *   situation, so it is recorded with the card id AND the revision it was opened at; a re-read
+ *   that moves the revision drops it, because the new situation would otherwise be drawn full
+ *   height without the person asking for it.
  *
  * Consumers: `useCockpitCards` (the React binding) and `cockpitCardController.test.ts`.
  */
@@ -227,6 +231,12 @@ export type CockpitCardControllerSnapshot = {
   openDropdownCardId: string | null;
   /** Each card's brief reading; absent means "never asked for". */
   briefs: Readonly<Record<string, CockpitBriefState>>;
+  /**
+   * Each card whose over-long situation is expanded in place (Cards density), mapped to the card
+   * REVISION it was expanded at. The revision is the reset key: new content is a new situation,
+   * so an expansion opened for the old one does not carry over.
+   */
+  situationExpanded: Readonly<Record<string, number>>;
   /** The confirm bar target derived from each card's shown option; absent when unavailable. */
   targets: Readonly<Record<string, CockpitCardConfirmTarget>>;
   /** The pending confirmation: set by the first press, cleared by send, cancel or the retreat. */
@@ -268,6 +278,8 @@ export type CockpitCardController = {
   loadBrief: (cardId: string) => void;
   closeDetails: () => void;
   openDropdown: (cardId: string | null) => void;
+  /** Expands or collapses one card's over-long situation in place (Cards density). */
+  toggleSituationExpanded: (cardId: string) => void;
   showOption: (cardId: string, optionId: string) => void;
   showOwnReply: (cardId: string) => void;
   setOwnReply: (cardId: string, text: string) => void;
@@ -301,6 +313,7 @@ const initialState: CockpitCardControllerSnapshot = {
   ownReplies: {},
   openDropdownCardId: null,
   briefs: {},
+  situationExpanded: {},
   targets: {},
   pendingConfirm: null,
   confirming: false,
@@ -602,6 +615,14 @@ function normalize(
     }
   }
 
+  // An expansion belongs to the situation it was opened on: a removed card drops it, and a card
+  // whose revision moved drops it too (the re-read brought different content).
+  const situationExpanded: Record<string, number> = {};
+  for (const [cardId, revision] of Object.entries(next.situationExpanded)) {
+    const card = byId.get(cardId);
+    if (card !== undefined && card.revision === revision) situationExpanded[cardId] = revision;
+  }
+
   const selectedCardId =
     next.selectedCardId !== null && visibleIds.has(next.selectedCardId)
       ? next.selectedCardId
@@ -636,6 +657,7 @@ function normalize(
     shown,
     ownReplies,
     briefs,
+    situationExpanded,
     selectedCardId,
     anchorCardId,
     detailsStack,
@@ -1030,6 +1052,15 @@ export function createCockpitCardController(
       writeFilters();
     },
     setDensity: (density) => commit({ density }),
+    toggleSituationExpanded: (cardId) => {
+      const snapshot = store.getSnapshot();
+      const card = snapshot.cards.find((candidate) => candidate.id === cardId);
+      if (card === undefined) return;
+      const next = { ...snapshot.situationExpanded };
+      if (next[cardId] === card.revision) delete next[cardId];
+      else next[cardId] = card.revision;
+      commit({ situationExpanded: next });
+    },
     openDetails: (cardId) => {
       const snapshot = store.getSnapshot();
       if (!snapshot.cards.some((card) => card.id === cardId)) return;

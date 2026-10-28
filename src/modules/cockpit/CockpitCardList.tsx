@@ -429,6 +429,8 @@ function CockpitCardListBound({
                 dropdownOpen={snapshot.openDropdownCardId === card.id}
                 selected={snapshot.selectedCardId === card.id}
                 density={snapshot.density}
+                situationExpanded={snapshot.situationExpanded[card.id] === card.revision}
+                onToggleSituationExpanded={() => controller.toggleSituationExpanded(card.id)}
                 onSelect={() => controller.selectCard(card.id)}
                 onOpenDetails={() => controller.openDetails(card.id)}
                 onToggleDropdown={() =>
