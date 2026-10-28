@@ -28,11 +28,11 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0，新增用例（Cards 密度、下拉关闭、选中一个带说明的选项）：存在 `cockpit-card-option-frame`，且 `cockpit-card-option-trigger` 与 `cockpit-card-shown-option` 都是它的后代；外框的 class 含 `border` 与 `rounded-md`；触发器与说明块的 class 都不含 `rounded-md`，触发器的 class 不含 `border-border`，说明块的 class 不含 `mt-1.5` 且含 `border-t`；既有用例（含 `cockpit-card-shown-option-why` 读数）数量不减少。
-- [ ] 同一文件新增用例：下拉展开时 `cockpit-card-option-list` 仍渲染、`cockpit-card-shown-option` 不渲染（与现状一致）；Compact 密度下不渲染 `cockpit-card-shown-option`；选「自己的回复」时外框只含触发器。
-- [ ] `npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0（场景运行器语义面按 `cockpit-card-option-trigger` 读数，不受影响）。
-- [ ] 假形态变红：把说明块改回 `mt-1.5 rounded-md`（两个独立框），第一条里的新用例红；把外框拿掉，同一用例红。改完即还原。
-- [ ] `npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0（`CockpitCard.tsx` 不得越过 oversize 地板）。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0，新增用例（Cards 密度、下拉关闭、选中一个带说明的选项）：存在 `cockpit-card-option-frame`，且 `cockpit-card-option-trigger` 与 `cockpit-card-shown-option` 都是它的后代；外框的 class 含 `border` 与 `rounded-md`；触发器与说明块的 class 都不含 `rounded-md`，触发器的 class 不含 `border-border`，说明块的 class 不含 `mt-1.5` 且含 `border-t`；既有用例（含 `cockpit-card-shown-option-why` 读数）数量不减少。
+- [x] 同一文件新增用例：下拉展开时 `cockpit-card-option-list` 仍渲染、`cockpit-card-shown-option` 不渲染（与现状一致）；Compact 密度下不渲染 `cockpit-card-shown-option`；选「自己的回复」时外框只含触发器。
+- [x] `npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0（场景运行器语义面按 `cockpit-card-option-trigger` 读数，不受影响）。
+- [x] 假形态变红：把说明块改回 `mt-1.5 rounded-md`（两个独立框），第一条里的新用例红；把外框拿掉，同一用例红。改完即还原。
+- [x] `npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0（`CockpitCard.tsx` 不得越过 oversize 地板）。
 
 ## DoD
 
