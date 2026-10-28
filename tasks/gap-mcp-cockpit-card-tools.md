@@ -333,11 +333,3 @@ oauth-consent-page.test.ts            ℹ tests 16 / pass 16 / fail 0
 npm run typecheck                     exit 0
 npm run lint                          exit 0（仅 warning，无 ': error '）
 ```
-
-## Blocker
-
-**2026-10-28T08:15:10.178Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/index.ts 2805→2815 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：ade6b7c0-7010-4f65-b578-d4d46a31bed5
