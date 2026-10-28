@@ -869,6 +869,50 @@ describe('the project selection is remembered per device', () => {
   });
 });
 
+describe('the over-long situation’s inline expansion is per card and per revision', () => {
+  it('records the expansion by card id and toggles it back', async () => {
+    const h = harness([card('a'), card('b', { rank: 2 })]);
+    await h.controller.load();
+    expect(h.snapshot().situationExpanded).toEqual({});
+
+    h.controller.toggleSituationExpanded('a');
+    expect(h.snapshot().situationExpanded).toEqual({ a: 1 });
+
+    // A second card expands independently: one card's control never moves another's.
+    h.controller.toggleSituationExpanded('b');
+    expect(h.snapshot().situationExpanded).toEqual({ a: 1, b: 1 });
+
+    h.controller.toggleSituationExpanded('a');
+    expect(h.snapshot().situationExpanded).toEqual({ b: 1 });
+  });
+
+  it('resets the expansion when the card’s revision moves, and keeps it on a same-revision read', async () => {
+    const h = harness([card('a')]);
+    await h.controller.load();
+    h.controller.toggleSituationExpanded('a');
+    expect(h.snapshot().situationExpanded).toEqual({ a: 1 });
+
+    // A re-read of the same revision is the same situation: the expansion stays.
+    await h.controller.load();
+    expect(h.snapshot().situationExpanded).toEqual({ a: 1 });
+
+    // New content is a new situation: the old expansion is dropped, not drawn over it.
+    h.setCards([card('a', { revision: 2 })]);
+    await h.controller.load();
+    expect(h.snapshot().situationExpanded).toEqual({});
+  });
+
+  it('drops an expansion whose card has left the list', async () => {
+    const h = harness([card('a'), card('b', { rank: 2 })]);
+    await h.controller.load();
+    h.controller.toggleSituationExpanded('b');
+
+    h.setCards([card('a')]);
+    await h.controller.load();
+    expect(h.snapshot().situationExpanded).toEqual({});
+  });
+});
+
 describe('read failures are stated, not swallowed', () => {
   it('records the read failure and keeps the last known cards', async () => {
     const h = harness([card('c1')]);

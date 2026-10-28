@@ -22,10 +22,11 @@ import { readFile } from 'node:fs/promises';
 
 import { observationDb, sessionsDb } from '@/modules/database/index.js';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
+import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 import type { SessionUserTurnEvent } from '@/shared/ports/session-user-turn.port.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
-import { formatSessionUri } from './observation-uri.js';
+import { formatSessionUri, parseObservationUri } from './observation-uri.js';
 import { createObservationStore, type ObservedObject, type ObservationStore } from './observation-store.js';
 import { readSessionAsk, readSessionAsks, type SessionAskDecisionDigest } from './session-ask-decision-digest.js';
 import { buildSessionDigest, type SessionDigest } from './session-digest.js';
@@ -67,18 +68,48 @@ export type SessionDigestProducerDeps = {
   readTranscript?: (jsonlPath: string) => Promise<string | null>;
   /** Whether anyone pinned this object. Defaults to the observation watch entries. */
   isObserved?: (uri: string) => boolean;
+  /**
+   * The session ids a startup sweep may inspect. Defaults to every session object the observation
+   * DB holds (`observationDb.listObjects()`), read once at sweep time.
+   */
+  listObservedSessionIds?: () => string[];
+  /** How long the sweep pauses between sessions; a rate limit on a boot-time scan. Defaults to 25 ms. */
+  sweepDelayMs?: number;
+  /** Where the sweep states its counts. Defaults to `console.log`. */
+  log?: (message: string) => void;
   /** The clock stamped onto the write. Defaults to `Date.now`. */
   now?: () => number;
+};
+
+/** What one startup sweep did: sessions that still named an unfinished ask, and answers stated. */
+export type SessionAskSweepSummary = {
+  /** Sessions whose persisted ledger still carried at least one unfinished ask. */
+  sessions: number;
+  /** `session.answered` rows this pass stated. */
+  answered: number;
 };
 
 /** The producer's one verb. */
 export type SessionDigestProducer = {
   handleTurnEnd(event: SessionTurnEndEvent): Promise<ObservedObject | null>;
   /**
-   * States `session.answered` for every ask the transcript shows a later user message for,
-   * without waiting for the assistant's turn to end. Fire-and-forget: never rejects.
+   * States `session.answered` for every ask the session's ledger still names as unfinished,
+   * without waiting for the assistant's turn to end and without reading the transcript. The send
+   * is the answer's fact; the port's message id is carried when the sender knows it. Fire-and-
+   * forget: never rejects.
    */
   handleUserTurn(event: SessionUserTurnEvent): Promise<void>;
+};
+
+/** A producer that can also run the boot-time backfill over every session with an open ask. */
+export type SessionAskSweepableProducer = SessionDigestProducer & {
+  /**
+   * One pass over the observation DB's sessions: for each ledger that still names an unfinished
+   * ask, state `session.answered` when the transcript shows a later user message. Rate-limited,
+   * never rejects, and answers/logs how many sessions it inspected and how many answers it
+   * stated.
+   */
+  sweepOpenAsks(): Promise<SessionAskSweepSummary>;
 };
 
 /**
@@ -141,15 +172,52 @@ async function defaultReadTranscript(jsonlPath: string): Promise<string | null> 
   }
 }
 
+/**
+ * The process-wide event writer, read through the port on every write.
+ *
+ * The producer is constructed at module load, before `server/index.ts` installs the fleet
+ * adapter, so the writer cannot be captured. An uninstalled port writes nothing — the correct
+ * reading for a process with no evidence stream.
+ */
+const portEventWriter: ISessionAskEventWriter = {
+  write(event) {
+    readSessionAskEventWriterPort()?.write(event);
+  },
+};
+
+/** Every session object the observation DB currently holds, as app session ids. */
+function defaultListObservedSessionIds(): string[] {
+  const ids: string[] = [];
+  for (const row of observationDb.listObjects()) {
+    if (row.kind !== 'session') continue;
+    const parsed = parseObservationUri(row.uri);
+    if (parsed !== null && parsed.kind === 'session') ids.push(parsed.id);
+  }
+  return ids;
+}
+
+/** The boot-time sweep's pause between sessions: enough to keep a large DB from a hot loop. */
+const DEFAULT_SWEEP_DELAY_MS = 25;
+
+/** Waits `ms`; `0` resolves on the next tick so a test sweep still yields. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Builds the producer over its injected world. */
-export function createSessionDigestProducer(deps: SessionDigestProducerDeps): SessionDigestProducer {
+export function createSessionDigestProducer(deps: SessionDigestProducerDeps): SessionAskSweepableProducer {
   const store = deps.store;
   const resolveSession = deps.resolveSession ?? defaultResolveSession;
   const readTranscript = deps.readTranscript ?? defaultReadTranscript;
   const isObserved = deps.isObserved ?? ((uri: string) => observationDb.listWatchUserIds(uri).length > 0);
+  const listObservedSessionIds = deps.listObservedSessionIds ?? defaultListObservedSessionIds;
+  const sweepDelayMs = deps.sweepDelayMs ?? DEFAULT_SWEEP_DELAY_MS;
+  const log = deps.log ?? ((message: string) => console.log(message));
   const now = deps.now ?? (() => Date.now());
   const summarizeAsk = deps.summarizeAsk;
-  const eventWriter = deps.eventWriter;
+  // The port bridge is the default so the process-wide sweep (built here, not by the LLM tier)
+  // reaches the installed evidence stream without a second composition seam.
+  const eventWriter = deps.eventWriter ?? portEventWriter;
 
   /**
    * The asks/answers already stated in this process, so a repeated turn-end does not re-emit.
@@ -162,7 +230,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
   const emittedEvents = new Set<string>();
   /** States one event once per process; answers whether it was actually written. */
   const emitOnce = (key: string, event: SessionAskEvent): boolean => {
-    if (eventWriter === undefined || emittedEvents.has(key)) return false;
+    if (emittedEvents.has(key)) return false;
     emittedEvents.add(key);
     try {
       // The chat path must not learn that the evidence stream failed.
@@ -171,6 +239,68 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
       // A rejected event is the writer's reading to publish, not the turn's failure.
     }
     return true;
+  };
+
+  /**
+   * Persists the ledger without touching any other digest field.
+   *
+   * This is the cross-process record: a restart between stating an answer and the next turn-end
+   * must not state it again, and the "unfinished" set must survive so the startup sweep can find
+   * it. A revision with no delta keeps the wall's "what changed" reading quiet.
+   */
+  const persistLedger = (uri: string, previous: ObservedObject, ledger: SessionAskEventLedger): void => {
+    store.writeRevision({
+      uri,
+      kind: 'session',
+      title: previous.title,
+      status: previous.status,
+      digest: { ...previous.digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger },
+      deltaItems: [],
+      provenance: {
+        producer: SESSION_DIGEST_PRODUCER,
+        tier: 'deterministic',
+        evaluatedAt: now(),
+      },
+    });
+  };
+
+  /**
+   * States `session.answered` for every ledger entry the transcript now shows an answer for.
+   *
+   * `pendingIds` is the ONLY candidate set: an ask is backfilled because THIS session's ledger
+   * still names it as unfinished, never merely because the transcript contains a later prompt.
+   * That is the cross-history dedup — a transcript with fifty answered rounds states nothing for
+   * asks the ledger already resolved (or never stated). Answers how many rows were stated.
+   */
+  const stateSettledPending = (
+    scan: ReturnType<typeof readSessionAsks>,
+    ledger: SessionAskEventLedger,
+    pendingIds: Set<string>,
+    event: { sessionId: string; projectPath: string; at: string },
+  ): number => {
+    let stated = 0;
+    for (const settled of scan.settled) {
+      if (!pendingIds.has(settled.askId)) continue;
+      if (ledger.answered.includes(settled.askId)) continue;
+      if (
+        emitOnce(`answered:${settled.askId}`, {
+          kind: 'session.answered',
+          session: event.sessionId,
+          project: event.projectPath,
+          at: event.at,
+          data: { askId: settled.askId, messageId: settled.answerMessageId },
+        })
+      ) {
+        ledger.answered.push(settled.askId);
+        stated += 1;
+      }
+    }
+    return stated;
+  };
+
+  /** Drops resolved entries so the persisted "unfinished" set means exactly that. */
+  const dropAnsweredPending = (ledger: SessionAskEventLedger): void => {
+    ledger.pending = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
   };
 
   /**
@@ -215,47 +345,40 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
         // No revision means no ask was ever stated for this session — nothing to resolve.
         const previous = store.getObject(uri);
         if (previous === null) return;
-        const raw = resolved.jsonlPath === null ? null : await readTranscript(resolved.jsonlPath);
-        // The user's row may not be on disk yet; the turn-end path retries then.
-        if (raw === null) return;
 
-        const scan = readSessionAsks(raw, event.appSessionId);
+        // THE SEND IS THE ANSWER'S FACT. Do not read the transcript: the provider process has
+        // been told to append the user's row, but that write is asynchronous and demonstrably
+        // lags the send (the live 07:10 answer was dropped for exactly this reason). The ledger
+        // names the asks that are still open; the new message ends every one of them.
         const ledger = readSessionAskEventLedger(previous.digest);
+        const unfinished = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
+        if (unfinished.length === 0) return;
+
         const at = new Date(now()).toISOString();
+        // The send path knows no transcript id; an adapter that does supplies it. An absent id is
+        // stated as the empty string rather than inventing one.
+        const answerMessageId = event.messageId ?? '';
         let stated = false;
-        for (const settled of scan.settled) {
-          if (ledger.answered.includes(settled.askId)) continue;
+        for (const entry of unfinished) {
           if (
-            emitOnce(`answered:${settled.askId}`, {
+            emitOnce(`answered:${entry.askId}`, {
               kind: 'session.answered',
               session: event.appSessionId,
               project: resolved.projectPath,
               at,
-              data: { askId: settled.askId, messageId: settled.answerMessageId },
+              data: { askId: entry.askId, messageId: answerMessageId },
             })
           ) {
-            ledger.answered.push(settled.askId);
+            ledger.answered.push(entry.askId);
             stated = true;
           }
         }
         if (!stated) return;
 
-        ledger.pending = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
+        dropAnsweredPending(ledger);
         // Persist the answer now: a restart between this send and the next turn-end must not
-        // re-state it. A revision with no delta keeps the wall's "what changed" reading quiet.
-        store.writeRevision({
-          uri,
-          kind: 'session',
-          title: previous.title,
-          status: previous.status,
-          digest: { ...previous.digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger },
-          deltaItems: [],
-          provenance: {
-            producer: SESSION_DIGEST_PRODUCER,
-            tier: 'deterministic',
-            evaluatedAt: now(),
-          },
-        });
+        // re-state it, and the resolved asks must never be backfilled again.
+        persistLedger(uri, previous, ledger);
       } catch {
         // A user message must never fail because the observation layer could not read it.
       }
@@ -286,24 +409,17 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
           const ledger = readSessionAskEventLedger(store.getObject(uri)?.digest);
           const at = new Date(event.completedAt || now()).toISOString();
 
-          // EVERY ask the transcript shows a later user message for is stated — not only the
-          // one the final prompt answered. This is what resolves asks that were separated by
-          // several rounds, or answered while the process was restarting. The persisted ledger
-          // makes it idempotent: an askId already stated is never stated again.
-          for (const settled of scan.settled) {
-            if (ledger.answered.includes(settled.askId)) continue;
-            if (
-              emitOnce(`answered:${settled.askId}`, {
-                kind: 'session.answered',
-                session: event.appSessionId,
-                project: resolved.projectPath,
-                at,
-                data: { askId: settled.askId, messageId: settled.answerMessageId },
-              })
-            ) {
-              ledger.answered.push(settled.askId);
-            }
-          }
+          // Every ask this session's ledger still names as UNFINISHED and the transcript now
+          // shows a later user message for is stated. The pending set is the gate, not the
+          // transcript: a transcript carrying dozens of old answered rounds must not backfill
+          // them again (the live bug wrote ~70 duplicate `session.answered` rows for exactly
+          // that reason). The persisted ledger keeps the gate stable across restarts.
+          const pendingIds = new Set(ledger.pending.map((entry) => entry.askId));
+          stateSettledPending(scan, ledger, pendingIds, {
+            sessionId: event.appSessionId,
+            projectPath: resolved.projectPath,
+            at,
+          });
 
           const current = ask.current;
           if (current !== null) {
@@ -365,7 +481,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
 
           // An answered ask is no longer pending, and the ledger rides with the digest so the
           // NEXT process (after a restart) reads it back instead of re-emitting.
-          ledger.pending = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
+          dropAnsweredPending(ledger);
           digest = { ...digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger } as SessionDigest;
 
           const observed = isObserved(uri);
@@ -415,6 +531,57 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
         return null;
       }
     },
+
+    async sweepOpenAsks() {
+      const summary: SessionAskSweepSummary = { sessions: 0, answered: 0 };
+      let sessionIds: string[];
+      try {
+        sessionIds = listObservedSessionIds();
+      } catch {
+        return summary;
+      }
+
+      for (const sessionId of sessionIds) {
+        try {
+          const uri = formatSessionUri(sessionId);
+          const previous = store.getObject(uri);
+          if (previous === null) continue;
+          const ledger = readSessionAskEventLedger(previous.digest);
+          // Only a ledger that still names an unfinished ask is swept; a quiet session with a
+          // long resolved history costs nothing.
+          if (ledger.pending.length === 0) continue;
+          summary.sessions += 1;
+
+          const resolved = resolveSession(sessionId);
+          if (resolved === null) continue;
+          const raw = resolved.jsonlPath === null ? null : await readTranscript(resolved.jsonlPath);
+          if (raw === null) continue;
+
+          const scan = readSessionAsks(raw, sessionId);
+          const pendingIds = new Set(ledger.pending.map((entry) => entry.askId));
+          const stated = stateSettledPending(scan, ledger, pendingIds, {
+            sessionId,
+            projectPath: resolved.projectPath,
+            at: new Date(now()).toISOString(),
+          });
+          if (stated === 0) continue;
+
+          dropAnsweredPending(ledger);
+          persistLedger(uri, previous, ledger);
+          summary.answered += stated;
+        } catch {
+          // One unreadable session never aborts the boot-time pass.
+        }
+        if (sweepDelayMs > 0) await sleep(sweepDelayMs);
+      }
+
+      // The count is the DoD's reading: how many sessions still had an open ask, and how many
+      // answers this pass stated for them.
+      log(
+        `[observation.sessionDigest] 启动补扫: 检查 ${summary.sessions} 个有未结束提问的会话，补发 ${summary.answered} 条 session.answered`,
+      );
+      return summary;
+    },
   };
 }
 
@@ -426,5 +593,19 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
  * composition. The wall reads revisions from the database, so the write is complete without it.
  */
 export const sessionDigestProducer = createSessionDigestProducer({
+  store: createObservationStore(),
+});
+
+/**
+ * The process-wide boot-time sweeper.
+ *
+ * A separate instance from {@link sessionDigestProducer} on purpose: the LLM tier wraps that one
+ * and the sweep needs only the deterministic backfill (an answered event, never a model call).
+ * The store is the same DB, so the ledger the sweep writes is the one the live producer reads.
+ *
+ * Consumers: `server/index.ts`, which starts one pass after `initializeDatabase()` and does not
+ * await it.
+ */
+export const sessionAskSweeper: SessionAskSweepableProducer = createSessionDigestProducer({
   store: createObservationStore(),
 });

@@ -130,7 +130,23 @@ function fixtureCards(): CockpitCard[] {
       },
       load: 3,
       ask: 'This session has made no progress for 12 minutes.',
-      situation: 'The last two turns ended without a tool call or a file change.',
+      // A twelve-line situation, written as twelve provider lines so the Cards preview is twelve
+      // rendered lines at every width: six shown, six behind the in-place expand control. (Each line
+      // stays under one card width, so wrapping does not change the count between phone and desktop.)
+      situation: [
+        'First attempt: missing dependency in the worktree.',
+        'Second attempt: typecheck, then the same lock.',
+        'Third attempt: aborted before writing a single line.',
+        'Three rounds recorded the same blocked tool call.',
+        'That is a retry loop, not a slow build.',
+        'The task still holds its branch and its worktree.',
+        'Nothing is merged and the working tree is clean.',
+        'A nudge for the next step is the low-risk option.',
+        'Parking keeps the transcript; branch stays unlanded.',
+        'If the lock is held, the nudge repeats the failure.',
+        'Read the attempt log before choosing.',
+        'No file has changed since the last recorded round.',
+      ].join('\n'),
       facts: [{ text: 'no activity since 00:01:58', mechanical: true }],
       options: [
         fixtureOption('fixture:stuck', 'resume', 'Resume with a nudge', 'Send one message asking for the next concrete step.', true, 'judge', {
@@ -205,7 +221,10 @@ function fixtureCards(): CockpitCard[] {
       load: 1,
       contentRef: { resolver: 'cloudcli.session-ask', ref: 'fixture-session' },
       ask: 'Should the cleanup delete the staging directory?',
-      situation: 'The run left 1.2 GB in staging and the transcript is already archived.',
+      // Roughly three lines at a phone width: the Cards density draws it in full, so the DoD can
+      // read a situation that the old two-line clamp would have truncated.
+      situation:
+        'The run left 1.2 GB in staging after the export finished, and the transcript is already archived. The archive was verified twice, so nothing in staging is unique any more.',
       // The verbatim fragment the phone's Details sheet quotes; the fixture states it directly
       // rather than running a T1 digest, so the drawer's quote section has something to draw.
       assistantQuote: '归档已经校验过了，staging 里的 1.2 GB 只是残留。',

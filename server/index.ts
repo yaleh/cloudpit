@@ -107,7 +107,7 @@ import {
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { createArchitectureModule } from './modules/architecture/index.js';
-import { createObservationModule, sessionDigestProducer } from './modules/observation/index.js';
+import { createObservationModule, sessionAskSweeper, sessionDigestProducer } from './modules/observation/index.js';
 import { createLiaisonModule, createFileLiaisonStore, createQuayFleetRunner } from './modules/liaison/index.js';
 import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from './modules/reply-suggestions/index.js';
 // The host-level context event stream (context-event-stream-and-shadow-predictor).
@@ -2591,6 +2591,18 @@ async function startServer() {
         // created and crash the whole boot. Mounting the gateway (above) still
         // arms no timer and needs no database; only this startup point does.
         startMcpAuditRetention();
+
+        // The ask ledger's boot-time pass. A restart can leave an ask that was stated before it
+        // and answered while no turn-end ran; no later message may ever touch that session, so
+        // nothing else would resolve it. Started after `initializeDatabase()` (the observation
+        // store reads the same DB) and NOT awaited: the sweep is rate-limited internally and must
+        // never sit on the boot path.
+        void sessionAskSweeper.sweepOpenAsks().catch((error: unknown) => {
+            console.warn(
+                '[WARN] Session ask startup sweep failed:',
+                error instanceof Error ? error.message : error,
+            );
+        });
 
         // Configure Web Push (VAPID keys)
         configureWebPush();

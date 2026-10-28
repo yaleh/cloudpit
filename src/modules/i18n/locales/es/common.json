@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "Todos los proyectos",
     "cardDensityCards": "Tarjetas",
     "cardDensityCompact": "Compacto",
+    "cardSituationExpand": "Mostrar más",
+    "cardSituationCollapse": "Mostrar menos",
     "cardEmpty": "No hay tarjetas en espera.",
     "cardError": "No se pudieron leer las tarjetas: {{reason}}",
     "cardConfirmBody": "Esto envía «{{label}}» una vez.",

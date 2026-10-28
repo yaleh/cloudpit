@@ -24,7 +24,7 @@ import type { ClientStartupEvidence } from './support/client-startup-warmup';
  * is armed, because the project listing reads them per request.
  *
  * THE SECOND CASE drives the same header at 1024 with the plugin tabs installed, where the
- * strip cannot fit and the `>` fallback has to reach the last tab. The plugin manifests are
+ * strip cannot fit and the overflow menu has to keep every hidden view reachable by name. The plugin manifests are
  * written into this run's isolated HOME before any page exists: the registry scans the
  * directory per request, so both cases list them, and their labels are what push the
  * full-label width past a 1280 header's room in the first place.
@@ -234,15 +234,17 @@ async function openWorkspacePage(
   await page.goto(`/session/${sessionId}`, { waitUntil: 'domcontentloaded', timeout: 20_000 }).catch(() => undefined);
   await awaitClientMounted(page, '[role="tablist"]', 30_000, startupEvidence);
   // Both carriers are read per request, so this waits for the listing that makes both tabs
-  // exist rather than assuming the deep-link copy already carried them.
+  // exist rather than assuming the deep-link copy already carried them. "Exist" is read off the
+  // off-screen measuring copy, which lists every view: at a narrow viewport the lowest-priority
+  // views sit behind the overflow menu and are not on the strip itself.
   await expect(
-    page.locator('[role="tab"][data-workspace-tab="quay"]'),
+    page.locator('[data-workspace-tab-measure="quay"]'),
     'the seeded workspace carries .quay/config.yml, so the Quay tab must be offered',
-  ).toBeVisible({ timeout: 20_000 });
+  ).toBeAttached({ timeout: 20_000 });
   await expect(
-    page.locator('[role="tab"][data-workspace-tab="architecture"]'),
+    page.locator('[data-workspace-tab-measure="architecture"]'),
     'the seeded workspace carries an .archguard cache, so the Architecture tab must be offered',
-  ).toBeVisible({ timeout: 20_000 });
+  ).toBeAttached({ timeout: 20_000 });
   return { context, page };
 }
 
@@ -259,7 +261,10 @@ type HeaderReading = {
   pulseWidth: number | null;
   /** The header's own width: the pulse trigger's breakpoint is measured against this, not the viewport. */
   headerWidth: number | null;
-  scrollRightButton: boolean;
+  /** Whether the strip offers its "More views" overflow menu. */
+  overflowTrigger: boolean;
+  /** Every view the strip knows, from the off-screen measuring copy: on the strip or in the menu. */
+  allIds: string[];
   titleWidth: number | null;
   tablistWidth: number;
   tabs: {
@@ -293,7 +298,9 @@ const readHeader = (page: Page): Promise<HeaderReading> =>
       spacerWidth: spacer === null ? null : spacer.getBoundingClientRect().width,
       pulseWidth: pulse === null ? null : pulse.getBoundingClientRect().width,
       headerWidth: header === null ? null : header.getBoundingClientRect().width,
-      scrollRightButton: document.querySelector('[aria-label*="Scroll tabs right"]') !== null,
+      overflowTrigger: document.querySelector('[aria-label="More views"]') !== null,
+      allIds: Array.from(document.querySelectorAll<HTMLElement>('[data-workspace-tab-measure]'))
+        .map((pill) => pill.getAttribute('data-workspace-tab-measure') ?? ''),
       titleWidth: titleBlock === null ? null : titleBlock.getBoundingClientRect().width,
       tablistWidth: tablist.getBoundingClientRect().width,
       tabs: Array.from(tablist.querySelectorAll<HTMLElement>('[role="tab"]')).map((tab) => {
@@ -313,13 +320,13 @@ const readHeader = (page: Page): Promise<HeaderReading> =>
   });
 
 /** Waits until the mode and the tab boxes hold still for a beat, then answers the reading. */
-async function settleViewport(page: Page, expectedMode?: 'full' | 'icon'): Promise<HeaderReading> {
+async function settleViewport(page: Page, expectedMode?: string): Promise<HeaderReading> {
   const deadline = Date.now() + 8_000;
   let reading = await readHeader(page);
   let signature = '';
   let stableSince = Date.now();
   while (Date.now() < deadline) {
-    const nextSignature = `${reading.mode}|${reading.scrollRightButton}|`
+    const nextSignature = `${reading.mode}|${reading.overflowTrigger}|`
       + reading.tabs.map((tab) => `${tab.id}:${tab.width.toFixed(1)}`).join(',');
     if (nextSignature !== signature) {
       signature = nextSignature;
@@ -337,9 +344,9 @@ async function settleViewport(page: Page, expectedMode?: 'full' | 'icon'): Promi
  * What the adjacency criterion measures, in one round trip.
  *
  * `gap` is the header's own computed column gap — the distance the flex row leaves between any
- * two of its children. The two distances that matter are from the Loop Pulse trigger's right edge
- * to (a) the tablist's left edge when the strip fits, and (b) the tab container's left edge when
- * it overflows and the tabs scroll inside the container.
+ * two of its children. The distance that matters is from the Loop Pulse trigger's right edge to
+ * the tablist's left edge; the tab container has no resting padding at desktop, so it is also
+ * the container's left edge, whether or not the strip has an overflow menu.
  */
 type AdjacencyReading = {
   gap: number;
@@ -350,7 +357,7 @@ type AdjacencyReading = {
   roomRight: number | null;
   viewportWidth: number;
   mode: string | null;
-  scrollRightButton: boolean;
+  overflowTrigger: boolean;
 };
 
 const readAdjacency = (page: Page): Promise<AdjacencyReading> =>
@@ -374,7 +381,7 @@ const readAdjacency = (page: Page): Promise<AdjacencyReading> =>
       roomRight: roomRect === null ? null : roomRect.right,
       viewportWidth: window.innerWidth,
       mode: tablist.getAttribute('data-workspace-tabs-mode'),
-      scrollRightButton: document.querySelector('[aria-label*="Scroll tabs right"]') !== null,
+      overflowTrigger: document.querySelector('[aria-label="More views"]') !== null,
     };
   });
 
@@ -388,7 +395,7 @@ function printReading(label: string, reading: HeaderReading): void {
       + `scroll=[${reading.scroll.left.toFixed(1)},${reading.scroll.right.toFixed(1)}] `
       + `room=${reading.roomWidth === null ? '<none>' : reading.roomWidth.toFixed(1)} `
       + `title=${reading.titleWidth === null ? '<none>' : reading.titleWidth.toFixed(1)} `
-      + `arrow=${reading.scrollRightButton} `
+      + `overflow=${reading.overflowTrigger} `
       + `tabs=${JSON.stringify(reading.tabs.map((tab) => ({
         id: tab.id,
         box: [Number(tab.left.toFixed(1)), Number(tab.right.toFixed(1))],
@@ -411,22 +418,24 @@ test('every built-in tab fits at 1280/1440/1920 with Quay and Architecture right
       printReading('fit', reading);
 
       const ids = reading.tabs.map((tab) => tab.id);
-      expect(ids[0], `the first tab must be Chat; got ${JSON.stringify(ids)}`).toBe('chat');
-      expect(ids[1], `Quay must follow Chat directly; got ${JSON.stringify(ids)}`).toBe('quay');
-      expect(ids[2], `Architecture must follow Quay directly; got ${JSON.stringify(ids)}`).toBe('architecture');
-      const firstPlugin = reading.tabs.findIndex((tab) => tab.plugin);
-      expect(firstPlugin, `the plugin tabs must follow the built-ins; got ${JSON.stringify(ids)}`).toBeGreaterThan(0);
-      expect(
-        ids[firstPlugin - 1],
-        `Shell must be the last built-in tab, directly before the plugin group; got ${JSON.stringify(ids)}`,
-      ).toBe('shell');
+      // The off-screen copy lists every view in display order; the strip shows a subsequence of it.
+      expect(reading.allIds.slice(0, 3), 'display order: Chat, Quay, Architecture first').toEqual(['chat', 'quay', 'architecture']);
+      const shown = reading.allIds.filter((id) => ids.includes(id));
+      expect(ids, `the strip must keep display order; got ${JSON.stringify(ids)}`).toEqual(shown);
 
+      // Every view is either on the strip or in the overflow menu: nothing is scrolled away.
       expect(
-        reading.scrollRightButton,
-        `at ${viewport.width}px every tab must fit, so the right scroll arrow must not render; got ${JSON.stringify(reading.tabs)}`,
-      ).toBe(false);
+        reading.tabs.length > 0 && reading.allIds.length >= reading.tabs.length,
+        `the strip can only show views it knows; visible ${JSON.stringify(ids)} of ${JSON.stringify(reading.allIds)}`,
+      ).toBe(true);
+      expect(
+        reading.overflowTrigger,
+        `at ${viewport.width}px the overflow menu must exist exactly when some view is off the strip; `
+          + `visible ${reading.tabs.length} of ${reading.allIds.length}`,
+      ).toBe(reading.tabs.length < reading.allIds.length);
+      expect(ids, `Chat is the highest-priority tab and must stay on the strip at ${viewport.width}px`).toContain('chat');
 
-      for (const tab of reading.tabs.filter((candidate) => !candidate.plugin)) {
+      for (const tab of reading.tabs) {
         expect(tab.left, `"${tab.id}" must start inside the strip at ${viewport.width}px`).toBeGreaterThanOrEqual(reading.scroll.left - 1);
         expect(tab.right, `"${tab.id}" must end inside the strip at ${viewport.width}px`).toBeLessThanOrEqual(reading.scroll.right + 1);
         expect(tab.left, `"${tab.id}" must start inside the viewport at ${viewport.width}px`).toBeGreaterThanOrEqual(0);
@@ -440,8 +449,8 @@ test('every built-in tab fits at 1280/1440/1920 with Quay and Architecture right
 
     expect(
       readings.get(1280)?.mode,
-      'the 1280 header must drop to icon-only labels',
-    ).toBe('icon');
+      'the 1280 header cannot spell every name',
+    ).not.toBe('full');
     expect(
       readings.get(1920)?.mode,
       'the 1920 header must have room for full labels',
@@ -451,50 +460,42 @@ test('every built-in tab fits at 1280/1440/1920 with Quay and Architecture right
   }
 });
 
-test('at 1024 with plugins the overflow arrow still reaches the last tab and the title block stays at 16rem', async ({ browser }) => {
+test('at 1024 with plugins the overflow menu names every hidden view and the title block stays at 16rem', async ({ browser }) => {
   test.setTimeout(120_000);
 
   const { context, page } = await openWorkspacePage(browser, OVERFLOW_VIEWPORT);
   try {
-    const reading = await settleViewport(page, 'icon');
+    const reading = await settleViewport(page, 'overflow');
     printReading('overflow', reading);
 
-    const pluginTabs = reading.tabs.filter((tab) => tab.plugin);
     expect(
-      pluginTabs.length,
-      `the installed plugin tabs must be listed; got ${JSON.stringify(reading.tabs.map((tab) => tab.id))}`,
+      reading.allIds.filter((id) => id.startsWith('plugin:')).length,
+      `the installed plugin tabs must be listed; got ${JSON.stringify(reading.allIds)}`,
     ).toBeGreaterThanOrEqual(2);
-
+    expect(reading.mode, 'at 1024 with plugin tabs the strip cannot hold every tab').toBe('overflow');
+    expect(reading.overflowTrigger, 'an overflowing strip must offer the menu').toBe(true);
     expect(
-      reading.scrollRightButton,
-      'at 1024 with plugin tabs the strip must overflow, so the right arrow must render',
-    ).toBe(true);
+      await page.locator('[aria-label*="Scroll tabs"]').count(),
+      'the strip no longer scrolls, so it must not draw scroll arrows',
+    ).toBe(0);
     expect(
       reading.titleWidth ?? Number.POSITIVE_INFINITY,
       'the title block must be capped at 16rem (256px)',
     ).toBeLessThanOrEqual(TITLE_BLOCK_MAX_PX);
 
-    const lastTab = reading.tabs[reading.tabs.length - 1];
-    expect(lastTab.plugin, 'the last tab must be a plugin tab').toBe(true);
-
-    await page.locator('[aria-label*="Scroll tabs right"]').click();
-    await expect
-      .poll(
-        async () => {
-          const after = await readHeader(page);
-          const last = after.tabs[after.tabs.length - 1];
-          return last.left >= after.scroll.left - 1 && last.right <= after.scroll.right + 1;
-        },
-        {
-          timeout: 8_000,
-          message: 'the right arrow must scroll the last tab fully into the strip',
-        },
-      )
-      .toBe(true);
-
+    await page.locator('[aria-label="More views"]').click();
+    const items = page.locator('[role="menu"] [role="menuitem"]');
+    await expect(items, 'the menu lists exactly the views that left the strip').toHaveCount(reading.allIds.length - reading.tabs.length);
     await page.locator('header[data-app-header]').screenshot({
       path: path.join('tmp', 'workspace-tabs-fit-1024-plugins.png'),
     });
+
+    // The last view is a plugin: choosing it from the menu must activate it.
+    await items.last().click();
+    await expect(
+      page.locator('[role="tab"][aria-selected="true"]'),
+      'the view chosen from the menu must become the active tab on the strip',
+    ).toHaveAttribute('data-workspace-tab', /^plugin:/);
   } finally {
     await context.close();
   }
@@ -507,10 +508,10 @@ const ADJACENCY_VIEWPORTS = [1200, 1440, 1920] as const;
 
 /**
  * The Loop Pulse trigger is the header's own flex child immediately before the tab container, so
- * the visible distance from its right edge to the strip's left edge is the header's gap. In the
- * fit regime the container is content-sized and the scroll container has no resting padding, so
- * the tablist's outer box IS the container's left edge; measuring the tablist here would catch a
- * regression that reintroduced padding between the two.
+ * the visible distance from its right edge to the strip's left edge is the header's gap. The
+ * container is content-sized and has no resting padding at desktop, so the tablist's outer box
+ * IS the container's left edge; measuring the tablist here would catch a regression that
+ * reintroduced padding between the two.
  */
 test('the pulse trigger sits one header gap before the tablist at 1200/1440/1920', async ({ browser }) => {
   test.setTimeout(120_000);
@@ -522,7 +523,7 @@ test('the pulse trigger sits one header gap before the tablist at 1200/1440/1920
       printReading('adjacency', settled);
       const reading = await readAdjacency(page);
       console.log(
-        `${TAG} adjacency width=${width} gap=${reading.gap} mode=${reading.mode} arrow=${reading.scrollRightButton} `
+        `${TAG} adjacency width=${width} gap=${reading.gap} mode=${reading.mode} overflow=${reading.overflowTrigger} `
           + `pulseRight=${reading.pulseRight.toFixed(1)} tablistLeft=${reading.tablistLeft.toFixed(1)} `
           + `distance=${(reading.tablistLeft - reading.pulseRight).toFixed(1)}`,
       );
@@ -531,11 +532,6 @@ test('the pulse trigger sits one header gap before the tablist at 1200/1440/1920
         Math.abs(reading.gap - DESKTOP_HEADER_GAP_PX),
         `the desktop header gap must be ${DESKTOP_HEADER_GAP_PX}px at ${width}px; got ${reading.gap}`,
       ).toBeLessThanOrEqual(0.5);
-      expect(
-        reading.scrollRightButton,
-        `at ${width}px the strip must be in the fit regime (no scroll arrow) for the tablist's left edge to be the strip's edge`,
-      ).toBe(false);
-
       const distance = reading.tablistLeft - reading.pulseRight;
       expect(
         Math.abs(distance - reading.gap),
@@ -553,26 +549,26 @@ test('the pulse trigger sits one header gap before the tablist at 1200/1440/1920
 });
 
 /**
- * The overflow regime is the other half: once the strip cannot fit, the container is clipped to
- * the available width and the tabs scroll inside it. The pulse must still be exactly one header
- * gap from the CONTAINER (the strip's scroll padding lives inside it, for the arrows), and the
- * container itself must stay inside the viewport rather than being pushed off the right edge.
+ * The overflow regime is the other half: once the strip cannot hold every tab, the lowest-priority
+ * ones move into the menu and the strip is sized to what is left. The pulse must still be exactly
+ * one header gap from the container, and the container must stay inside the viewport rather than
+ * being pushed off the right edge.
  */
 test('in the overflow regime the pulse trigger stays one header gap from the tab container', async ({ browser }) => {
   test.setTimeout(120_000);
   const { context, page } = await openWorkspacePage(browser, OVERFLOW_VIEWPORT);
   try {
-    const settled = await settleViewport(page, 'icon');
+    const settled = await settleViewport(page, 'overflow');
     printReading('overflow-adjacency', settled);
     const reading = await readAdjacency(page);
     console.log(
-      `${TAG} overflow-adjacency gap=${reading.gap} mode=${reading.mode} arrow=${reading.scrollRightButton} `
+      `${TAG} overflow-adjacency gap=${reading.gap} mode=${reading.mode} overflow=${reading.overflowTrigger} `
         + `pulseRight=${reading.pulseRight.toFixed(1)} roomLeft=${reading.roomLeft?.toFixed(1)} `
         + `roomRight=${reading.roomRight?.toFixed(1)} tablistLeft=${reading.tablistLeft.toFixed(1)} `
-        + `viewport=${reading.viewportWidth}`,
+        + `tablistRight=${reading.tablistRight.toFixed(1)} viewport=${reading.viewportWidth}`,
     );
 
-    expect(reading.scrollRightButton, 'the narrow viewport must overflow the strip so the right arrow renders').toBe(true);
+    expect(reading.overflowTrigger, 'the narrow viewport must overflow the strip so the menu renders').toBe(true);
     expect(reading.roomLeft, 'the tab container must be in the document').not.toBeNull();
     const distance = (reading.roomLeft ?? Number.NaN) - reading.pulseRight;
     expect(
@@ -585,8 +581,11 @@ test('in the overflow regime the pulse trigger stays one header gap from the tab
       reading.roomRight ?? Number.POSITIVE_INFINITY,
       `the tab container must stay inside the viewport (${reading.viewportWidth}px), not be pushed off the right edge`,
     ).toBeLessThanOrEqual(reading.viewportWidth + 1);
+    expect(
+      reading.tablistRight,
+      'the strip, menu trigger included, must fit the room the planner gave it',
+    ).toBeLessThanOrEqual((reading.roomRight ?? Number.POSITIVE_INFINITY) + 1);
     expect(reading.tablistLeft, 'the tablist must start inside the viewport').toBeGreaterThanOrEqual(0);
-    expect(reading.tablistLeft, 'the tablist must not start past the viewport').toBeLessThan(reading.viewportWidth);
 
     await page.locator('header[data-app-header]').screenshot({
       path: path.join('tmp', 'workspace-tabs-adjacency-overflow.png'),
@@ -602,27 +601,30 @@ test('in the overflow regime the pulse trigger stays one header gap from the tab
  * The grid the switch-point criterion is measured on: 10 px steps across the whole desktop range.
  *
  * It has to hold BOTH switches the header makes on its own: the Loop Pulse trigger's 43→110 px
- * shape (its breakpoint is a 960 px HEADER, not a viewport) and the tab strip's icon↔full label
- * mode. A coarse grid would let a shifted switch hide between two samples, so the step is 10 px
- * — the criterion's own tolerance is 1 px against a recorded baseline taken on this same grid.
+ * shape (its breakpoint is a 960 px HEADER, not a viewport) and the tab strip's layout levels
+ * (overflow → icon → partial → full). A coarse grid would let a shifted switch hide between two
+ * samples, so the step is 10 px.
  */
 const SCAN_WIDTHS: readonly number[] = Array.from({ length: 127 }, (_, index) => 800 + index * 10);
 
 /**
- * The two switch widths this fixture produced BEFORE the header's spacer change.
+ * Where the two switches sat BEFORE the strip learned to degrade in levels.
  *
  * MEASURED 2026-10-26 on this exact grid (10 px steps, 800–2060, plugin tabs installed), against
- * the pre-change `WorkspaceHeader` on `develop`:
- *   - label mode: icon at 1640, full at 1650  → `LABEL_MODE_FULL_AT` is the first FULL sample.
+ * the two-mode `WorkspaceHeader` on `develop`:
+ *   - label mode: icon at 1640, full at 1650  → the first FULL sample.
  *   - pulse shape: 43 px at 1280, 110 px at 1290 → `PULSE_WIDE_AT` is the first 110 px sample.
  *
- * The adjacency change moves width between the grow spacer and the tab container but leaves their
- * SUM — the decision's input — untouched, so neither switch may move. The pulse switch is the
- * trigger's own header-width breakpoint (960 px of header CONTENT, which is why it lands at a
- * 1290 px viewport) and is recorded here as the control arm: it must not move either.
+ * The "every name spelled" boundary is the same arithmetic as before (strip width + 4 px slack),
+ * so the first FULL sample may only move by the 12 px upgrade margin and one grid step. The pulse
+ * switch is the control arm: it is the trigger's own header-width breakpoint and must not move.
  */
-const BASELINE_LABEL_MODE_FULL_AT_PX = 1650;
+const BASELINE_FULL_AT_PX = 1650;
+const FULL_AT_TOLERANCE_PX = 40;
 const BASELINE_PULSE_WIDE_AT_PX = 1290;
+
+/** How much of the strip a level shows; a wider header can only move UP this ladder. */
+const MODE_RANK: Readonly<Record<string, number>> = { overflow: 0, icon: 1, partial: 2, full: 3 };
 
 type ScanRow = {
   width: number;
@@ -644,7 +646,7 @@ function transitionsOf<T>(rows: readonly ScanRow[], key: (row: ScanRow) => T): T
   return out;
 }
 
-test('scan: label-mode and pulse-shape switch points stay on the recorded baseline', async ({ browser }) => {
+test('scan: the strip climbs its levels with width and the pulse-shape switch stays on the baseline', async ({ browser }) => {
   test.setTimeout(300_000);
   const { context, page } = await openWorkspacePage(browser, { width: SCAN_WIDTHS[0], height: 900 });
   try {
@@ -666,53 +668,39 @@ test('scan: label-mode and pulse-shape switch points stay on the recorded baseli
     console.log(`${TAG} scan pulse-switches=${JSON.stringify(pulseSwitches)}`);
     console.log(`${TAG} scan rows=${JSON.stringify(rows)}`);
 
-    // The scan is only meaningful if both switches are inside it.
-    const labelSwitch = modeSwitches.find((transition) => transition.to === 'full');
     const pulseSwitch = pulseSwitches.find((transition) => transition.to === 110);
-    expect(labelSwitch, `the tab-label switch must be inside the scan grid; got ${JSON.stringify(modeSwitches)}`).toBeTruthy();
     expect(pulseSwitch, `the pulse-shape switch must be inside the scan grid; got ${JSON.stringify(pulseSwitches)}`).toBeTruthy();
-
-    // Exactly one switch of each across the whole grid: neither signal may flip back and forth.
-    expect(
-      modeSwitches.length,
-      `the label mode must switch exactly once across 800–2060 px; got ${JSON.stringify(modeSwitches)}`,
-    ).toBe(1);
     expect(
       pulseSwitches.length,
       `the pulse shape must switch exactly once across 800–2060 px; got ${JSON.stringify(pulseSwitches)}`,
     ).toBe(1);
-
-    // Against the pre-change baseline, on the same grid and fixture (1 px tolerance; the grid
-    // itself is 10 px, so a moved switch shows up as a different sample).
-    const labelDelta = Math.abs((labelSwitch?.at ?? -1) - BASELINE_LABEL_MODE_FULL_AT_PX);
     expect(
-      labelDelta,
-      `the full-label switch must stay at ${BASELINE_LABEL_MODE_FULL_AT_PX}px (±1); it moved to ${labelSwitch?.at}px`,
-    ).toBeLessThanOrEqual(1);
-    const pulseDelta = Math.abs((pulseSwitch?.at ?? -1) - BASELINE_PULSE_WIDE_AT_PX);
-    expect(
-      pulseDelta,
+      Math.abs((pulseSwitch?.at ?? -1) - BASELINE_PULSE_WIDE_AT_PX),
       `the pulse-shape switch is the control arm and must stay at ${BASELINE_PULSE_WIDE_AT_PX}px (±1); it moved to ${pulseSwitch?.at}px`,
     ).toBeLessThanOrEqual(1);
 
-    // ±20 px around the label-mode switch: one boundary, and no mode flips on either side.
-    const around = rows.filter((row) => Math.abs(row.width - BASELINE_LABEL_MODE_FULL_AT_PX) <= 20);
-    expect(around.map((row) => row.width), 'the scan grid must cover ±20 px around the switch').toEqual([
-      BASELINE_LABEL_MODE_FULL_AT_PX - 20,
-      BASELINE_LABEL_MODE_FULL_AT_PX - 10,
-      BASELINE_LABEL_MODE_FULL_AT_PX,
-      BASELINE_LABEL_MODE_FULL_AT_PX + 10,
-      BASELINE_LABEL_MODE_FULL_AT_PX + 20,
-    ]);
-    for (const row of around) {
-      const expected = row.width >= BASELINE_LABEL_MODE_FULL_AT_PX ? 'full' : 'icon';
+    // Every level is a known one, the narrowest sample is the overflow level and the widest is full.
+    for (const row of rows) expect(MODE_RANK[row.mode ?? ''], `unknown mode "${row.mode}" at ${row.width}px`).toBeDefined();
+    expect(rows[0].mode, 'the narrowest desktop sample must overflow').toBe('overflow');
+    expect(rows[rows.length - 1].mode, 'the widest sample must spell every name').toBe('full');
+
+    // A wider header can only show more. The one legitimate step DOWN is the pulse trigger growing
+    // from 43 to 110 px, which takes 67 px of room from the strip at that very width.
+    for (const transition of modeSwitches) {
+      const rose = MODE_RANK[transition.to ?? ''] > MODE_RANK[transition.from ?? ''];
       expect(
-        row.mode,
-        `at ${row.width}px, within ±20 px of the ${BASELINE_LABEL_MODE_FULL_AT_PX}px switch, the mode must be ${expected}; got ${row.mode}`,
-      ).toBe(expected);
+        rose || transition.at === pulseSwitch?.at,
+        `at ${transition.at}px the mode went ${transition.from} → ${transition.to}; it may only fall at the pulse switch (${pulseSwitch?.at}px)`,
+      ).toBe(true);
     }
+
+    // The "every name spelled" boundary stays where the two-mode strip had it.
+    const fullAt = rows.find((row) => row.mode === 'full')?.width ?? -1;
+    expect(
+      Math.abs(fullAt - BASELINE_FULL_AT_PX),
+      `the first full-label sample must stay within ${FULL_AT_TOLERANCE_PX}px of ${BASELINE_FULL_AT_PX}px; it is ${fullAt}px`,
+    ).toBeLessThanOrEqual(FULL_AT_TOLERANCE_PX);
   } finally {
     await context.close();
   }
 });
-

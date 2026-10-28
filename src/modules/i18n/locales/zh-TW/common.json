@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "全部專案",
     "cardDensityCards": "卡片",
     "cardDensityCompact": "緊湊",
+    "cardSituationExpand": "展開",
+    "cardSituationCollapse": "收起",
     "cardEmpty": "沒有等待處理的卡片。",
     "cardError": "無法讀取卡片：{{reason}}",
     "cardConfirmBody": "這將傳送一次「{{label}}」。",

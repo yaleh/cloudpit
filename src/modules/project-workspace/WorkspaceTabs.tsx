@@ -1,31 +1,24 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Activity, Network, MonitorPlay, ChevronDown, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Activity, Network, MonitorPlay, ChevronDown, MoreHorizontal, type LucideIcon } from 'lucide-react';
 import { Fragment, useId, useState } from 'react';
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Dialog, DialogContent, DialogTitle, DialogTrigger, Tooltip, PillBar, Pill } from '@/shared/ui';
+import { ActionMenu, Dialog, DialogContent, DialogTitle, DialogTrigger, Tooltip, PillBar, Pill } from '@/shared/ui';
+import type { ActionMenuItem } from '@/shared/ui/ActionMenu';
 import type { AppTab } from '@/shared/types';
 import { usePlugins,PluginIcon } from '@/modules/plugins';
-
-/**
- * How much of each tab's text the desktop pill bar draws.
- *
- * `full` spells every tab's name; `icon` keeps the name only on the active tab and leaves the
- * rest as icons. `WorkspaceHeader` picks between them from the measured room it has, so the
- * strip stops depending on a viewport breakpoint that knows nothing about how wide the title,
- * the pulse strip and the plugins make this particular header.
- */
-export type WorkspaceTabLabelMode = 'full' | 'icon';
+import type { WorkspaceTabPlan } from '@/modules/project-workspace/utils/workspaceTabPlan';
 
 type WorkspaceTabsProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   /**
-   * Which label mode the desktop strip draws in. Optional with `full` as the meaning of
-   * absent, so a caller that renders the strip on its own (a layout test, an isolated shell)
-   * keeps the historical full-label shape.
+   * Which tabs spell their name and which sit behind the overflow menu, as `WorkspaceHeader`
+   * decided from the measured room. Optional with "every tab visible, every name spelled" as the
+   * meaning of absent, so a caller that renders the strip on its own (a layout test, an isolated
+   * shell) keeps the historical full-label shape.
    */
-  labelMode?: WorkspaceTabLabelMode;
+  plan?: WorkspaceTabPlan;
   shouldShowTasksTab: boolean;
   /** Optional so a caller that only knows about Tasks/Browser keeps compiling; absent means "no Quay tab". */
   shouldShowQuayTab?: boolean;
@@ -229,11 +222,11 @@ function WorkspaceTabIcon({ tab, strokeWidth }: { tab: WorkspaceTabDefinition; s
   return <tab.icon className={BUILT_IN_ICON_CLASS} strokeWidth={strokeWidth} />;
 }
 
-/** Rendered by WorkspaceHeader on desktop as the scrollable horizontal workspace tab bar. */
+/** Rendered by WorkspaceHeader on desktop as the workspace tab strip: tabs that do not fit move to its overflow menu. */
 export default function WorkspaceTabs({
   activeTab,
   setActiveTab,
-  labelMode = 'full',
+  plan,
   shouldShowTasksTab,
   shouldShowQuayTab = false,
   shouldShowArchitectureTab = false,
@@ -245,6 +238,21 @@ export default function WorkspaceTabs({
   // The sentence the disabled Shell tab points at. Read here so the `title` and the
   // notice element WorkspaceMain renders cannot disagree: both are this key.
   const residentShellNotice = t('tabs.shellResidentDisabled');
+
+  // Absent plan = the historical shape: nothing overflows and every tab spells its name.
+  const overflowIds = new Set(plan?.overflowIds ?? []);
+  const labelledIds = plan ? new Set(plan.labelledIds) : null;
+  const visibleTabs = tabs.filter((tab) => !overflowIds.has(tab.id));
+  const overflowTabs = tabs.filter((tab) => overflowIds.has(tab.id));
+  const overflowItems: ActionMenuItem[] = overflowTabs.map((tab) => ({
+    key: tab.id,
+    label: tab.label,
+    icon: tab.kind === 'builtin' ? tab.icon : undefined,
+    // The same closure the pill and the mobile row apply: a resident session's Shell stays listed
+    // but cannot be opened, and says why through the notice the workspace renders.
+    disabled: isResidentSession && tab.id === 'shell',
+    onSelect: () => setActiveTab(tab.id),
+  }));
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const tabList = event.currentTarget.closest('[role="tablist"]');
@@ -270,20 +278,21 @@ export default function WorkspaceTabs({
       <PillBar
         role="tablist"
         aria-label={t('tabs.views', { defaultValue: 'Workspace views' })}
-        data-workspace-tabs-mode={labelMode}
+        data-workspace-tabs-mode={plan?.level ?? 'full'}
         className="min-w-max border border-border/40 bg-muted/50 shadow-inner shadow-black/[0.025] dark:shadow-black/10"
       >
-        {tabs.map((tab, index) => {
+        {visibleTabs.map((tab, index) => {
           const isActive = tab.id === activeTab;
-          // The active tab always spells its name, in either mode; every other tab spells it
-          // only in the full mode. The same fact decides the tooltip: the bubble is for a tab
-          // whose word is NOT on screen, so full mode renders none and the active tab never
-          // has one.
-          const labelVisible = isActive || labelMode === 'full';
+          // The active tab always spells its name; every other tab spells it only when the plan
+          // labels it. The same fact decides the tooltip: the bubble is for a tab whose word is
+          // NOT on screen, so a labelled tab renders none and the active tab never has one.
+          const labelVisible = isActive || labelledIds === null || labelledIds.has(tab.id);
+          // The plugin divider sits where the built-in group ends, however many tabs left the strip.
+          const startsPluginGroup = tab.kind === 'plugin' && index > 0 && visibleTabs[index - 1].kind === 'builtin';
 
           return (
             <Fragment key={`${tab.id}-${index}`}>
-              {index === builtInCount && tabs.length > builtInCount && (
+              {startsPluginGroup && (
                 <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
               )}
               <Tooltip content={labelVisible ? undefined : tab.label} position="bottom">
@@ -319,6 +328,20 @@ export default function WorkspaceTabs({
             </Fragment>
           );
         })}
+        {/* The tabs that no longer fit, all named. Outside the tablist's tab semantics (a menu
+            button, not a tab), so arrow-key navigation walks the visible tabs only. */}
+        {overflowItems.length > 0 && (
+          <ActionMenu
+            label={t('tabs.moreViews', { defaultValue: 'More views' })}
+            items={overflowItems}
+            icon={MoreHorizontal}
+            iconOnly
+            portal
+            variant="ghost"
+            size="icon"
+            triggerClassName="h-8 w-[34px] shrink-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
+          />
+        )}
       </PillBar>
 
       {/*
@@ -353,7 +376,7 @@ export default function WorkspaceTabs({
               className={shellTabState(isResidentSession, tab.id, residentShellNotice).className}
             >
               <WorkspaceTabIcon tab={tab} />
-              <span className="truncate md:max-w-36">{tab.label}</span>
+              <span data-workspace-tab-measure-label={tab.id} className="truncate md:max-w-36">{tab.label}</span>
             </Pill>
           </Fragment>
         ))}
@@ -409,21 +432,18 @@ export function CollapsedWorkspaceSelector({
         dialog that is not open.
       */}
       <DialogTrigger
-        // In a quay project the pulse strip beside this control needs the room, so the visible
-        // text is dropped there and the accessible name carries the active view. A project
-        // without the pulse strip has nothing to make room for, so it keeps naming the view on
-        // screen. Both shapes keep `aria-label` as their accessible name.
+        // The visible text always names the active view: the Quay pulse strip lives under the
+        // title on a phone, so it no longer competes with this control for the row, and a
+        // control that shows only an icon leaves the user guessing which view they are in.
         aria-label={activeTabDefinition.label}
         aria-haspopup="dialog"
         aria-expanded={isPickerOpen}
         data-workspace-tab={activeTabDefinition.id}
         aria-current="true"
-        className={`flex h-8 min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
-          shouldShowQuayTab ? '' : 'max-w-[8rem]'
-        }`}
+        className="flex h-8 min-w-0 max-w-[8rem] shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/50 px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
       >
         <WorkspaceTabIcon tab={activeTabDefinition} strokeWidth={2} />
-        {!shouldShowQuayTab && <span className="min-w-0 truncate">{activeTabDefinition.label}</span>}
+        <span className="min-w-0 truncate">{activeTabDefinition.label}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       </DialogTrigger>
 
