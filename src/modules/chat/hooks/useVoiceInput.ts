@@ -10,6 +10,7 @@ import {
   type LiveSegment,
 } from '@/modules/chat/utils/voice/voiceLiveSegmenter';
 import {
+  concatFloat,
   reassembleText,
   runSegmentPipeline,
   type ReassemblyPart,
@@ -390,19 +391,6 @@ function concatInt16(chunks: Int16Array[]): Uint8Array {
     }
   }
   return bytes;
-}
-
-/** Concatenates float sample views into one buffer, for the whole-buffer (no-VAD) segment. */
-function concatFloat(chunks: Float32Array[]): Float32Array {
-  let total = 0;
-  for (const chunk of chunks) total += chunk.length;
-  const out = new Float32Array(total);
-  let at = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, at);
-    at += chunk.length;
-  }
-  return out;
 }
 
 /**

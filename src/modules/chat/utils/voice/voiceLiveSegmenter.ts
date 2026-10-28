@@ -56,6 +56,7 @@
 
 import { downsampleVoice, UPLOAD_SAMPLE_RATE } from '@/shared/audioDecode';
 import { frameRms, type VadEvent } from '@/shared/voiceEndpoint';
+import { concatFloat } from '@/modules/chat/utils/voice/voiceSegments';
 
 /**
  * The shortest speech a segment may carry *before a pause ends it*. Below this the pause is
@@ -243,19 +244,6 @@ function encodeWavPcm16(samples: Float32Array, sampleRate: number): Uint8Array {
     view.setInt16(44 + i * 2, Math.round(clamped * 32_767), true);
   }
   return bytes;
-}
-
-/** Concatenate sample views into one buffer. */
-function concatFloat(parts: Float32Array[]): Float32Array {
-  let total = 0;
-  for (const p of parts) total += p.length;
-  const out = new Float32Array(total);
-  let at = 0;
-  for (const p of parts) {
-    out.set(p, at);
-    at += p.length;
-  }
-  return out;
 }
 
 /**

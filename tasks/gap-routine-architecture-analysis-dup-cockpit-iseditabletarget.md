@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-cockpit-iseditabletarget
 title: "architecture-analysis: Byte-identical keyboard-target predicate (10
   lines) duplicated inside the same module — the two call sites and the module's
   own parent<->hooks cycle are the "
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
