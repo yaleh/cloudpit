@@ -13,6 +13,7 @@ import {
   cockpitFactShortForm,
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
+import CockpitCardSituation from '@/modules/cockpit/CockpitCardSituation';
 import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmOutcome,
@@ -59,34 +60,6 @@ function ageText(t: TFunction, now: number, waitingSince: string): string {
     });
   }
   return t('cockpit.cardAgeDays', { n: Math.floor(hours / 24) });
-}
-
-/** How many lines of a situation the Cards density draws before its inline expand control. */
-const SITUATION_PREVIEW_LINES = 6;
-
-/** The width of one card line, in Latin-glyph units (a CJK glyph is charged two). */
-const SITUATION_LINE_UNITS = 56;
-
-/**
- * Whether a situation must be previewed instead of drawn in full.
- *
- * DECIDED FROM THE TEXT, NOT FROM MEASURED HEIGHT. A criterion runs under jsdom, where every
- * element has zero height, so a measured-overflow test would green there without proving the
- * browser case. Counting explicit lines and wrapping each at a conservative phone-width line
- * gives the same answer in both places. The estimate is deliberately pessimistic: drawing the
- * expand control on a card that would just have fitted is harmless, while letting one provider's
- * paragraph push the confirm bar arbitrarily far down is the defect this control prevents.
- */
-function situationRunsLong(text: string): boolean {
-  let lines = 0;
-  for (const line of text.split('\n')) {
-    let units = 0;
-    for (const char of line) {
-      units += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 2 : 1;
-    }
-    lines += Math.max(1, Math.ceil(units / SITUATION_LINE_UNITS));
-  }
-  return lines > SITUATION_PREVIEW_LINES;
 }
 
 /**
@@ -438,17 +411,7 @@ export default function CockpitCard({
   const shownOption = shownOptionOf(card, shown);
   const showingOwnReply = shown?.kind === 'ownReply';
   const compact = density === 'compact';
-  // The situation is the card's decision evidence, so Cards draws all of it; a provider that
-  // writes more than the preview may fit keeps its text behind one in-place expand control
-  // instead of the old hard two-line truncation. Compact keeps its one-line shape.
-  const situation =
-    card.situation !== undefined && card.situation !== card.ask ? card.situation : null;
-  const situationPreview =
-    situation !== null &&
-    !compact &&
-    onToggleSituationExpanded !== undefined &&
-    situationRunsLong(situation);
-  const situationClamped = situationPreview && !situationExpanded;
+  const situation = card.situation !== card.ask ? card.situation ?? null : null;
   const ownReplyAvailable = card.ownReply !== undefined;
   // A fact already stated by the situation is not drawn twice; Details still lists every fact.
   const facts = cockpitCardFactsBeyondSituation(card);
@@ -559,57 +522,15 @@ export default function CockpitCard({
           {question}
         </p>
 
-        {/* Why the local content resolver could not fill this card: drawn where the missing
-            situation would have been, so the card never reads as an unexplained blank. In Cards
-            the reason is decision evidence too, so it is never line-clamped there. */}
-        {card.contentUnavailable !== undefined && (
-          <p
-            data-testid="cockpit-card-content-unavailable"
-            className={cn(
-              'mt-0.5 text-xs text-muted-foreground',
-              compact && 'line-clamp-1',
-            )}
-          >
-            {card.contentUnavailable}
-          </p>
-        )}
-
-        {situation !== null && (
-          <>
-            <p
-              data-testid="cockpit-card-zone-a-situation"
-              data-clamped={situationClamped ? 'true' : 'false'}
-              // `whitespace-pre-line` keeps provider line breaks: a situation written as several
-              // lines is read as several lines, and the six-line preview then counts real lines.
-              className={cn(
-                'mt-0.5 whitespace-pre-line text-xs text-muted-foreground',
-                compact ? 'line-clamp-1' : situationClamped && 'line-clamp-6',
-              )}
-            >
-              {situation}
-            </p>
-            {situationPreview && (
-              <button
-                type="button"
-                data-testid="cockpit-card-situation-toggle"
-                data-expanded={situationExpanded ? 'true' : 'false'}
-                aria-expanded={situationExpanded}
-                // The control lives inside zone A, so both its click and its Enter/Space
-                // activation must stop before the zone's Details handler.
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleSituationExpanded?.();
-                }}
-                onKeyDown={(event) => event.stopPropagation()}
-                className="mt-0.5 block rounded px-1 text-[11px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-              >
-                {situationExpanded
-                  ? t('cockpit.cardSituationCollapse')
-                  : t('cockpit.cardSituationExpand')}
-              </button>
-            )}
-          </>
-        )}
+        {/* The situation is the card's decision evidence, so Cards draws all of it (with an
+            in-place expand control for one that runs long); Compact keeps its one-line shape. */}
+        <CockpitCardSituation
+          situation={situation}
+          contentUnavailable={card.contentUnavailable}
+          compact={compact}
+          expanded={situationExpanded}
+          onToggleExpanded={onToggleSituationExpanded}
+        />
 
         {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. A pill is
             a SHORT FORM: the sentence it abbreviates stays in `title` and, untruncated, in Details;
