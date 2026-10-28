@@ -25,6 +25,16 @@
 export type SessionUserTurnEvent = {
   /** The app-level session id the user's message was sent to. */
   appSessionId: string;
+  /**
+   * The transcript id of the user's message, when the sender knows it.
+   *
+   * The send is admitted before the provider process writes the row, so the ordinary send path
+   * cannot name it and leaves this absent. The observation producer still treats the send as the
+   * answer's fact — the `session.answered` row then carries an empty message id rather than
+   * waiting for a transcript that may lag — and an adapter that DOES know the id (a replay, a
+   * test) supplies it here.
+   */
+  messageId?: string;
 };
 
 /** The installed listener shape. */

@@ -749,6 +749,8 @@ export function createChatControlService(deps: ChatControlDependencies) {
 
     // The accepted message answers an outstanding ask; stamped at send time so the observation
     // layer states `session.answered` without waiting for turn end (fire-and-forget, never throws).
+    // No transcript message id exists at this point — the provider process writes that row after
+    // the send is admitted — so the port states the session alone and the event's id stays empty.
     try {
       readSessionUserTurnPort()?.onUserTurn({ appSessionId: input.sessionId });
     } catch {

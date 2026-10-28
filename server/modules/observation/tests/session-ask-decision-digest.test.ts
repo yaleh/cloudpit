@@ -36,6 +36,7 @@ import {
   createSessionAskDecisionDigest,
   readSessionAsk,
   readSessionAsks,
+  SESSION_ASK_OUTPUT_UNUSABLE_REASON,
   type SessionAskDecisionDigest,
 } from '../session-ask-decision-digest.js';
 import {
@@ -111,7 +112,8 @@ type Harness = {
   events: SessionAskEvent[];
   requests: LlmCompletionRequest[];
   turnEnd: () => Promise<ObservedObject | null>;
-  userTurn: () => Promise<void>;
+  userTurn: (messageId?: string) => Promise<void>;
+  sweep: () => ReturnType<ReturnType<typeof createSessionDigestProducer>['sweepOpenAsks']>;
 };
 
 /**
@@ -123,7 +125,12 @@ type Harness = {
  */
 function createHarness(
   answer: string | ((request: LlmCompletionRequest) => string),
-  options: { objects?: Map<string, ObservedObject> } = {},
+  options: {
+    objects?: Map<string, ObservedObject>;
+    listObservedSessionIds?: () => string[];
+    log?: (message: string) => void;
+    sweepDelayMs?: number;
+  } = {},
 ): Harness {
   let raw = '';
   const writes: ObservedObject[] = [];
@@ -177,6 +184,11 @@ function createHarness(
     now: () => CLOCK,
     summarizeAsk,
     eventWriter,
+    ...(options.listObservedSessionIds === undefined
+      ? {}
+      : { listObservedSessionIds: options.listObservedSessionIds }),
+    ...(options.log === undefined ? {} : { log: options.log }),
+    ...(options.sweepDelayMs === undefined ? {} : { sweepDelayMs: options.sweepDelayMs }),
   });
 
   return {
@@ -195,7 +207,12 @@ function createHarness(
         completedAt: CLOCK,
         error: null,
       }),
-    userTurn: () => producer.handleUserTurn({ appSessionId: SESSION_ID }),
+    userTurn: (messageId) =>
+      producer.handleUserTurn({
+        appSessionId: SESSION_ID,
+        ...(messageId === undefined ? {} : { messageId }),
+      }),
+    sweep: () => producer.sweepOpenAsks(),
   };
 }
 
@@ -684,6 +701,100 @@ test('read-time repair: a failed recompute is remembered, not retried on every r
   assert.equal(requests.length, 1, 'a recorded failure must not be retried for the same ask');
 });
 
+test('read-time repair: a stored 「模型输出不可用」 failure is recomputed once', async () => {
+  const { store, objects } = createMemoryStore();
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention', reason: '本轮以提问结束，等你回复' },
+    digest: {
+      activity: 'waiting',
+      askDecision: {
+        state: 'unevaluated',
+        reason: `${SESSION_ASK_OUTPUT_UNUSABLE_REASON}：模型输出不是合法 JSON`,
+      },
+    },
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, { requests });
+
+  // The first frame still answers the stored failure; the repair runs in the background.
+  const first = reader.read(SESSION_ID, 'a1');
+  assert.equal(first?.state, 'unevaluated');
+  await reader.settled();
+
+  const repaired = storedAskDecision(objects);
+  assert.equal(repaired?.state, 'evaluated', 'the old model-output failure is recomputed');
+  assert.equal(requests.length, 1, 'the repair makes exactly one model call');
+  assert.equal(
+    repaired?.state === 'evaluated' ? typeof repaired.quote : 'missing',
+    'string',
+    'the recomputed reading carries the assistant quote',
+  );
+
+  // The stored evaluated reading no longer matches the stale predicate: a second read is free.
+  assert.equal(reader.read(SESSION_ID, 'a1')?.state, 'evaluated');
+  await reader.settled();
+  assert.equal(requests.length, 1, 'a second read does not call the model again');
+});
+
+test('read-time repair: an evaluated reading without the assistant quote is recomputed once', async () => {
+  const { store, objects } = createMemoryStore();
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askDecision: {
+        state: 'evaluated',
+        inputTokens: 1,
+        outputTokens: 1,
+        askId: `${SESSION_ID}:a1`,
+        revision: 1,
+        ask: '是否要发送 browser_close 释放浏览器 profile？',
+        situation: 'MCP 浏览器 profile 仍被占用。',
+        options: [
+          {
+            id: 'yes',
+            label: '是',
+            does: '发送 browser_close 释放 profile。',
+            tags: [],
+            suggested: true,
+            source: 'assistant',
+          },
+          { id: 'no', label: '否', does: '保持 profile 占用。', tags: [], suggested: false, source: 'assistant' },
+        ],
+        incomplete: false,
+      },
+    },
+    provenance: { producer: 'session-digest', tier: 'llm', evaluatedAt: CLOCK },
+  });
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, { requests });
+
+  const first = reader.read(SESSION_ID, 'a1');
+  assert.equal(first?.state, 'evaluated');
+  assert.equal(first?.state === 'evaluated' ? first.quote : 'unexpected', undefined, 'the stored reading predates the quote field');
+  await reader.settled();
+
+  const repaired = storedAskDecision(objects);
+  assert.equal(repaired?.state, 'evaluated');
+  assert.equal(
+    repaired?.state === 'evaluated' ? typeof repaired.quote : 'missing',
+    'string',
+    'the quote is filled by the one recompute',
+  );
+  assert.equal(requests.length, 1);
+
+  assert.equal(reader.read(SESSION_ID, 'a1')?.state, 'evaluated');
+  await reader.settled();
+  assert.equal(requests.length, 1, 'a second read does not call the model again');
+});
+
 test('read-time repair: a missing transcript writes the failure reason, never the stale disabled skip', async () => {
   const { store, objects } = createMemoryStore();
   seedSkipped(store);
@@ -887,8 +998,33 @@ test('yes/no: a recommendation in the assistant text marks 是 and sources it fr
 // Reliable session.answered: every answered ask, across rounds and across restarts, exactly once
 // ---------------------------------------------------------------------------------------------
 
-test('answered: two asks separated by rounds are BOTH stated by one turn-end', async () => {
-  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+test('answered: two asks the ledger still marks unfinished are BOTH stated by one turn-end', async () => {
+  // The ledger is what a restart leaves behind: both asks were stated (`pending`) before the
+  // process stopped, and the transcript now shows both answered. The single turn-end resolves
+  // both — not only the ask the final prompt answered.
+  const objects = new Map<string, ObservedObject>();
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [],
+        asking: [`${SESSION_ID}:a1:1`, `${SESSION_ID}:a3:1`],
+        pending: [
+          { askId: `${SESSION_ID}:a1`, messageId: 'a1' },
+          { askId: `${SESSION_ID}:a3`, messageId: 'a3' },
+        ],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
   harness.setTranscript(
     transcript([
       { role: 'user', id: 'u1', text: '开始' },
@@ -902,8 +1038,6 @@ test('answered: two asks separated by rounds are BOTH stated by one turn-end', a
     ]),
   );
 
-  // ONE turn-end over a transcript that already contains both answers. The old single-answer
-  // reading stated only the ask the FINAL prompt answered, so the earlier ask stayed open.
   await harness.turnEnd();
 
   const answered = harness.events
@@ -917,6 +1051,26 @@ test('answered: two asks separated by rounds are BOTH stated by one turn-end', a
 
 test('answered: a fresh producer over the same store backfills the ask answered across the restart', async () => {
   const objects = new Map<string, ObservedObject>();
+  // a1 was stated as asking by the turn that ended ON a1 (before this transcript's tail), so
+  // its ledger entry is the persisted "unfinished" fact — the only thing a restart cannot lose.
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [],
+        asking: [`${SESSION_ID}:a1:1`],
+        pending: [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
 
   // Before the restart: the first ask is answered and the second is left open.
   const before = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
@@ -969,6 +1123,18 @@ test('answered: a user message states the answer immediately, and the next turn-
   );
   await harness.turnEnd();
 
+  // The provider process has NOT written the user's row yet: the transcript still ends on the
+  // asking message. The send alone is the answer's fact, so the answer is stated now — the
+  // transcript is never consulted on this path.
+  await harness.userTurn('u2');
+  const afterSend = harness.events.filter((event) => event.kind === 'session.answered');
+  assert.deepEqual(
+    afterSend.map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a1`, messageId: 'u2' }],
+  );
+
+  // The turn-end that follows (with the row now on disk) must not state the same answer again,
+  // and a second send has no unfinished ask left to answer.
   harness.setTranscript(
     transcript([
       { role: 'user', id: 'u1', text: '开始' },
@@ -977,20 +1143,141 @@ test('answered: a user message states the answer immediately, and the next turn-
       { role: 'assistant', id: 'a2', text: '补好了。' },
     ]),
   );
+  await harness.turnEnd();
+  await harness.userTurn('u3');
+  assert.equal(harness.events.filter((event) => event.kind === 'session.answered').length, 1);
+});
 
-  // The send path reports the user message; the answer is stated WITHOUT waiting for turn-end.
-  await harness.userTurn();
-  const afterSend = harness.events.filter((event) => event.kind === 'session.answered');
-  assert.deepEqual(
-    afterSend.map((event) => event.data),
-    [{ askId: `${SESSION_ID}:a1`, messageId: 'u2' }],
+test('answered: backfill re-states NOTHING the ledger already answered or never marked unfinished', async () => {
+  // THE LIVE SHAPE: one turn over a transcript carrying many old answered rounds wrote ~70
+  // duplicate `session.answered` rows. Only the ledger's unfinished ask may be backfilled.
+  const objects = new Map<string, ObservedObject>();
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [`${SESSION_ID}:a1`],
+        asking: [`${SESSION_ID}:a1:1`, `${SESSION_ID}:a3:1`, `${SESSION_ID}:a5:1`],
+        // a3 is the one still open; a1 was answered before, a5 was never stated as pending
+        // (an old digest, or an ask this process never saw).
+        pending: [{ askId: `${SESSION_ID}:a3`, messageId: 'a3' }],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '第一问：要不要先补测试？' },
+      { role: 'user', id: 'u2', text: '先补测试' },
+      { role: 'assistant', id: 'a2', text: '好，已经补上。' },
+      { role: 'user', id: 'u3', text: '还有别的吗' },
+      { role: 'assistant', id: 'a3', text: '第二问：先改实现可以吗？' },
+      { role: 'user', id: 'u4', text: '可以' },
+      { role: 'assistant', id: 'a4', text: '开始改实现。' },
+      { role: 'user', id: 'u5', text: '再问一个问题' },
+      { role: 'assistant', id: 'a5', text: '第三问：要不要先提交？' },
+      { role: 'user', id: 'u6', text: '提交' },
+      { role: 'assistant', id: 'a6', text: '已提交。' },
+    ]),
   );
 
-  // The turn-end that follows must not state the same answer again (neither the in-process set
-  // nor the persisted ledger permits it).
   await harness.turnEnd();
-  await harness.userTurn();
-  assert.equal(harness.events.filter((event) => event.kind === 'session.answered').length, 1);
+
+  const answered = harness.events.filter((event) => event.kind === 'session.answered');
+  assert.deepEqual(
+    answered.map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a3`, messageId: 'u4' }],
+    'exactly the one ledger-unfinished ask is backfilled; a1 (answered) and a5 (never pending) are not',
+  );
+  assert.equal(answered.length, 1, 'the backfill count equals the unfinished count');
+});
+
+test('answered: the startup sweep backfills only sessions whose transcript shows the answer', async () => {
+  const SESSION_A = 'ask-sweep-a';
+  const SESSION_B = 'ask-sweep-b';
+  const SESSION_QUIET = 'ask-sweep-quiet';
+  const { store } = createMemoryStore();
+  const transcripts = new Map<string, string>([
+    // A: the open ask was answered while no turn-end ran.
+    [
+      SESSION_A,
+      transcript([
+        { role: 'user', id: 'u1', text: '开始' },
+        { role: 'assistant', id: 'a1', text: '要不要先补测试？' },
+        { role: 'user', id: 'u2', text: '先补测试' },
+        { role: 'assistant', id: 'a2', text: '补好了。' },
+      ]),
+    ],
+    // B: the ask is still open — no later user message anywhere in the transcript.
+    [
+      SESSION_B,
+      transcript([
+        { role: 'user', id: 'u1', text: '开始' },
+        { role: 'assistant', id: 'b1', text: '要我先跑测试吗？' },
+      ]),
+    ],
+  ]);
+  const seed = (sessionId: string, pending: Array<{ askId: string; messageId: string }>): void => {
+    store.writeRevision({
+      uri: formatSessionUri(sessionId),
+      kind: 'session',
+      title: sessionId,
+      status: { state: 'attention' },
+      digest: { activity: 'waiting', askEvents: { answered: [], asking: [], pending } },
+      provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+    });
+  };
+  seed(SESSION_A, [{ askId: `${SESSION_A}:a1`, messageId: 'a1' }]);
+  seed(SESSION_B, [{ askId: `${SESSION_B}:b1`, messageId: 'b1' }]);
+  // A session with no unfinished ask is not swept (and is not counted as inspected).
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_QUIET),
+    kind: 'session',
+    title: SESSION_QUIET,
+    status: { state: 'ok' },
+    digest: { activity: 'idle', askEvents: { answered: [], asking: [], pending: [] } },
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+
+  const events: SessionAskEvent[] = [];
+  const logs: string[] = [];
+  const producer = createSessionDigestProducer({
+    store,
+    resolveSession: (sessionId) => ({ title: sessionId, projectPath: PROJECT_PATH, jsonlPath: `/tmp/${sessionId}.jsonl` }),
+    readTranscript: async (jsonlPath) => transcripts.get(jsonlPath.split('/').at(-1)?.replace('.jsonl', '') ?? '') ?? null,
+    isObserved: () => true,
+    now: () => CLOCK,
+    eventWriter: { write: (event) => events.push(event) },
+    listObservedSessionIds: () => [SESSION_A, SESSION_B, SESSION_QUIET],
+    sweepDelayMs: 0,
+    log: (message) => logs.push(message),
+  });
+
+  const summary = await producer.sweepOpenAsks();
+
+  assert.deepEqual(summary, { sessions: 2, answered: 1 }, 'two sessions still had an open ask; one answer was stated');
+  assert.deepEqual(
+    events.filter((event) => event.kind === 'session.answered').map((event) => ({ session: event.session, data: event.data })),
+    [{ session: SESSION_A, data: { askId: `${SESSION_A}:a1`, messageId: 'u2' } }],
+    'only the session whose transcript carries a later user message is backfilled',
+  );
+  assert.equal(logs.length, 1, 'the sweep states one count line');
+  assert.match(logs[0] ?? '', /检查 2 个有未结束提问的会话/);
+  assert.match(logs[0] ?? '', /补发 1 条/);
+
+  // A second boot pass has nothing left for A; B is still open and still unanswered.
+  const again = await producer.sweepOpenAsks();
+  assert.deepEqual(again, { sessions: 1, answered: 0 });
+  assert.equal(events.filter((event) => event.kind === 'session.answered').length, 1, 'no answer is stated twice');
 });
 
 test('answered: readSessionAsks names every answered span and the tail ask', () => {

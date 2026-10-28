@@ -59,6 +59,15 @@ export type SessionAskReading = {
 /** How much of the assistant's own words a card quote carries. */
 export const ASSISTANT_QUOTE_MAX_CHARS = 200;
 
+/**
+ * The reason prefix a model-output parse failure carries.
+ *
+ * The reader uses this token to find digests stored before the digest's output ceiling was
+ * raised (`模型输出不可用：…`) and recompute them once. It lives beside the code that writes the
+ * reason so the two cannot drift into a repair that never matches.
+ */
+export const SESSION_ASK_OUTPUT_UNUSABLE_REASON = '模型输出不可用';
+
 /** One asking turn as a transcript-wide scan states it. */
 export type TranscriptAsk = {
   /** `<sessionId>:<first asking message id in the span>` — the fleet's dedup key. */
@@ -401,7 +410,7 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
         debugLog(
           `[observation.sessionDigest] 提问摘要解析失败: ${reason}; 原始输出头部=${JSON.stringify(head)}; 尾部=${JSON.stringify(tail)}`,
         );
-        return { state: 'unevaluated', reason: `模型输出不可用：${reason}` };
+        return { state: 'unevaluated', reason: `${SESSION_ASK_OUTPUT_UNUSABLE_REASON}：${reason}` };
       }
 
       const reading = buildAskDecision(parsed, { askId: input.askId, revision: input.revision }, input.assistantText, {

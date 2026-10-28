@@ -46,9 +46,11 @@ export type { ObservationKind, ObservationUri } from './observation-uri.js';
 // producer once per terminal run event; the criterion can build its own instance over an
 // injected clock and transcript reader. `sessionDigestProducer` is the COMPOSED producer: the
 // deterministic write, then the bounded LLM tier, so the registry keeps calling one verb.
-export { createSessionDigestProducer, SESSION_DIGEST_PRODUCER } from './session-digest.producer.js';
+export { createSessionDigestProducer, SESSION_DIGEST_PRODUCER, sessionAskSweeper } from './session-digest.producer.js';
 export type {
   SessionAskEventLedger,
+  SessionAskSweepSummary,
+  SessionAskSweepableProducer,
   SessionDigestProducer,
   SessionDigestProducerDeps,
   SessionTurnEndEvent,
