@@ -31,12 +31,12 @@ depends_on:
 | 未确认收到 | 本地，发出满 2 分钟仍无回执 | 原位琥珀色提示「fleet 未确认收到 · 2 分钟无回执」+「重发」；说明重发只重发反馈，不重做动作 |
 | 已关闭 | 条目关闭 | 卡片从读数里消失，本地叠加随之清掉 |
 
-回执协议（本任务按此实现，并把同一段发给 fleet 对齐；字段名以 fleet 声明的 executor 为准，若改名按它的声明跟随）：
+回执协议（2026-10-28 fleet 已定形，见其回复；fleet 侧任务 `fleet-cockpit-feedback-receipt`，以它声明的 executor 为准）：
 
-1. 确认后先执行卡片动作（`session.start` / `session.send` / provider 自己的 executor），成功后生成 `feedbackId`，调用 provider 声明的反馈 executor（fleet：`fleet.feedback`），参数：`attentionId`、`revision`、`feedbackId`、`optionId` 或 `ownReply` + `text`、`suggested`、`source`、`outcome`（`executor`、`ok`、`sessionId?`、`deliveryId?`）。
+1. 确认后先执行卡片动作（`session.start` / `session.send` / provider 自己的 executor），成功后生成 `feedbackId`，调用 provider 声明的反馈 executor（fleet：`fleet.feedback`），参数：`attentionId`*、`revision`*（int）、`feedbackId`*（幂等键：同一 id 重放返回同一 receipt、不重复记）、`optionId` 与 `ownReply`（string，自写回复原文）二选一、`text`、`suggested`（bool）、`source`（assistant|judge|provider）、`outcome`（`executor`、`ok`、`sessionId?`、`deliveryId?`）。
 2. 服务端持久记下叠加 `{cardId, revision, feedbackId, optionId, label, sentAt, outcome}`（CloudCLI 自己的库，按 backend-module-standards 收进带生命周期的对象），刷新、换设备都在。
-3. provider 在卡片上回显 `receipt: { feedbackId, at, disposition: 'closed' | 'kept' | 'rejected', reason? }`。读卡时：卡片不在 open 读数里 ⇒ 叠加清掉；`receipt.feedbackId` 等于本地的 ⇒ 叠加清掉，`kept` 显示 provider 给的处置（例如「已挂起」），`rejected` 回到待处理并显示原因。
-4. 发出满 2 分钟仍没有回执 ⇒ 「未确认收到」；「重发」只用同一 `feedbackId` 重发第 3 步的反馈。provider 没声明反馈 executor 时，「重发」禁用并写明原因，卡片仍只在条目关闭时消失。
+3. 回执 `receipt: { feedbackId, at, disposition: 'closed' | 'kept' | 'rejected', reason? }` 由反馈 executor 在**返回结果**里给出（fleet：`result.receipt`；`closed` = 条目以关闭原因 `feedback` 关闭，`kept` = 记下反馈但不关（如挂起），`rejected` = 未知 attentionId / 未知 optionId / `stale-revision`）。收到匹配的回执 ⇒ 叠加清掉：`closed` 时卡片按下一次读数消失（读数仍带着它时保持「已发出」直到读数不再含它），`kept` 显示处置（例如「已挂起」），`rejected` 回到待处理并显示原因。provider 若也在卡片上回显 `receipt`，同样按 `feedbackId` 匹配处理；卡片不在 open 读数里 ⇒ 叠加清掉。
+4. 反馈调用失败或超时、且发出满 2 分钟仍没有回执 ⇒ 「未确认收到」；「重发」只用同一 `feedbackId` 重发第 1 步的反馈（fleet 幂等，返回同一 receipt）。provider 没声明反馈 executor 时，「重发」禁用并写明原因，卡片仍只在条目关闭时消失。
 5. 会话提问卡同一模型：反馈是发进原会话的回复，同样调用反馈 executor（fleet 同时会从 `session.answered` 关闭条目，以先到者为准）。
 
 夹具 provider 同步实现反馈 executor 与 `receipt` 回显（可配置延迟、`kept`、`rejected`、不回执），用来在隔离实例里覆盖每个状态。头部计数写成「N 张，其中 M 张等 fleet 确认」。
@@ -47,7 +47,7 @@ depends_on:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 退出 0：动作成功后恰好调用一次反馈 executor，参数含 `feedbackId`、`revision`、`optionId`/`ownReply`、`outcome.sessionId`；动作失败时不调用反馈、不建叠加；叠加持久（重建 store 后仍读到）；读到卡片消失或 `receipt.feedbackId` 匹配时叠加清掉；`rejected` 清叠加并带回原因；重发复用同一 `feedbackId` 且不重做动作；provider 未声明反馈 executor 时重发返回明确的不可用原因。
+- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 退出 0：动作成功后恰好调用一次反馈 executor，参数含 `feedbackId`、`revision`、`optionId`/`ownReply`、`outcome.sessionId`；动作失败时不调用反馈、不建叠加；叠加持久（重建 store 后仍读到）；反馈结果里的 `receipt.feedbackId` 匹配、卡片读数里回显的 `receipt` 匹配、或卡片不在读数里时叠加清掉；`closed` 回执而读数仍含该卡时保持「已发出」；`rejected` 清叠加并带回原因；重发复用同一 `feedbackId` 且不重做动作；provider 未声明反馈 executor 时重发返回明确的不可用原因。
 - [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` 退出 0（注入时钟）：已发出卡片原位不动（卡片顺序与 id 列表与发出前相同）、选项与确认锁住；第 120 秒前不出现重发，第 120 秒出现；收到匹配回执后回到 provider 读数所示状态；头部计数读数正确。
 - [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx`、`npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts`、`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（`receipt` 字段两端同步；新文案进全部 locale）。
 - [ ] 假形态变红：叠加改为按 `revision` 变化就清掉（而不是按回执/条目关闭）⇒ 「回执到达才清」用例红；把卡片排到末尾 ⇒ 「原位不动」用例红；改完即还原。
