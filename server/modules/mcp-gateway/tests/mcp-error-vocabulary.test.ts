@@ -64,6 +64,7 @@ import ts from 'typescript';
 import type { TurnState } from '@/modules/providers/index.js';
 
 import type {
+  McpCockpitToolDeps,
   McpErrorCode,
   McpGatewayToolName,
   McpReadToolDeps,
@@ -508,6 +509,11 @@ async function startGateway(scopes: readonly string[]): Promise<Mount> {
     readTools,
     writeTools,
     residentTools,
+    // gap-mcp-cockpit-card-tools: the four cockpit names register through their
+    // own bag. No probe in this file calls one — this sweep reads each tool's
+    // DECLARED code set off `tools/list`, and the cockpit tools' own criterion
+    // drives their handlers — so the bag is the empty placeholder.
+    cockpitTools: {} as unknown as McpCockpitToolDeps,
     resolveDeps,
     selfTarget,
   });

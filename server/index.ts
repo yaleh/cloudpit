@@ -2394,6 +2394,16 @@ const mcpGateway = mountMcpGateway(
             background: mcpSessionBackgroundDeps,
             approvals: mcpApprovalsDeps,
         },
+        // The cockpit card tools (gap-mcp-cockpit-card-tools). The deps are the
+        // card module's OWN members, taken whole from the one instance built above
+        // for the HTTP face: the same registry the UI lists, the same action
+        // channel `/api/cockpit/cards/confirm` calls, and the same `briefForCard`
+        // the `/brief` route answers with. No second reading path exists.
+        cockpitTools: {
+            registry: cockpitCards.registry,
+            actions: cockpitCards.actions,
+            briefForCard: cockpitCards.briefForCard,
+        },
         // AC-303: a SUCCESSFUL external write call pushes the token's owner a
         // notification through the EXISTING notification path (no new setting or
         // channel). The production assembly reads the OAuth client / session rows

@@ -84,6 +84,7 @@ import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { McpStage3ReadToolName } from './mcp-gateway.read-tools.js';
 import type { McpStage6ResidentToolName } from './mcp-gateway.resident-tools.js';
 import type { McpStage4WriteToolName } from './mcp-gateway.write-tools.js';
+import type { McpCockpitToolName } from './mcp-cockpit-tools.js';
 
 /**
  * Every tool name the gateway can register, derived from the three tables so a
@@ -118,7 +119,12 @@ export type McpGatewayToolName =
   // either table).
   | 'draft_get'
   | 'draft_set'
-  | 'draft_submit';
+  | 'draft_submit'
+  // gap-mcp-cockpit-card-tools: the cockpit's four tools, registered through
+  // their own deps bag (`McpGatewayDeps.cockpitTools`) rather than by growing a
+  // tool table — the three reads share `cloudcli:read` while the confirm carries
+  // its own scope, so they cannot share a table row either.
+  | McpCockpitToolName;
 
 /**
  * The annotation every registered tool declares, keyed by tool name.
@@ -231,6 +237,23 @@ export const MCP_TOOL_ANNOTATIONS: Record<McpGatewayToolName, ToolAnnotations> =
   // opens — a provider agent starts. A repeat finds the draft cleared and is
   // refused rather than adding a second turn, so it is not idempotent.
   draft_submit: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+
+  // -- cockpit card tools (gap-mcp-cockpit-card-tools) ------------------------
+  // The three reads answer from the card registry (and, for the brief, the card
+  // brief service): nothing is stored by the call itself, and a repeat over an
+  // unchanged registry reads the same cards. `cockpit_card_brief` may run the
+  // brief service, whose cache/ledger are the service's own derived state — the
+  // same reading `quay_snapshot`'s refresh carries, so it stays a read.
+  cockpit_cards: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  cockpit_card: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  cockpit_card_brief: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  // Confirming runs the option's DECLARED executor, a generic dispatcher that
+  // can send into a session, start one, or apply a fleet disposal (which can
+  // park/hold work) — so the world opens and the call is marked destructive:
+  // the conservative side, where an extra confirmation costs a prompt and a
+  // missing one loses work. A repeat of the same (card, revision) finds the
+  // accepted ledger and executes nothing further, so it is idempotent.
+  cockpit_card_confirm: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
 };
 
 /**

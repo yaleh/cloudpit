@@ -36,7 +36,7 @@ import { AppError } from '@/shared/utils.js';
 const OWNER_ID = 1;
 
 /**
- * The seven issuable scopes written out literally, so a source change that adds
+ * The eight issuable scopes written out literally, so a source change that adds
  * `cloudcli:admin` (or drops a scope) is caught here rather than silently
  * changing what the criterion expects.
  */
@@ -52,6 +52,10 @@ const VOCABULARY = [
   // gap-ui-visible-context-extended-fields: appended after navigate for the same
   // reason — every positional read in the gateway keeps its index.
   'cloudcli:selection',
+  // gap-mcp-cockpit-card-tools: the confirm scope for cockpit cards, appended
+  // LAST for the same positional reason. There is no `cloudcli:cockpit:read`:
+  // the three cockpit read tools use `cloudcli:read`.
+  'cloudcli:cockpit:act',
 ] as const;
 
 /** A non-empty subset request and the unique scopes it must resolve to. */
@@ -230,7 +234,7 @@ async function withSettingsServer(run: (harness: Harness) => Promise<void>): Pro
   }
 }
 
-test('(vocabulary) ACCESS_TOKEN_SCOPES is exactly the seven issuable scopes, admin absent', () => {
+test('(vocabulary) ACCESS_TOKEN_SCOPES is exactly the eight issuable scopes, admin absent', () => {
   assert.deepEqual([...ACCESS_TOKEN_SCOPES], [...VOCABULARY]);
   assert.equal((ACCESS_TOKEN_SCOPES as readonly string[]).includes('cloudcli:admin'), false);
   console.log(`(vocabulary) ACCESS_TOKEN_SCOPES = ${JSON.stringify(ACCESS_TOKEN_SCOPES)}`);

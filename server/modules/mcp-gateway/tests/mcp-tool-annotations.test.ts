@@ -25,8 +25,9 @@
  *   (b) every listed tool's annotations deep-equal the table, and deep-equal what
  *       `readMcpToolAnnotations` answers for the same name;
  *   (c) the read-only set is exactly the seven stage-3 read tools plus
- *       `approvals_list` and `draft_get`, and every write/control tool is NOT
- *       marked read-only (AC2/AC3 — the mislabel this task exists to prevent);
+ *       `approvals_list`, `draft_get` and the three cockpit reads, and every
+ *       write/control tool — `cockpit_card_confirm` included — is NOT marked
+ *       read-only (AC2/AC3 — the mislabel this task exists to prevent);
  *   (d) `session_interrupt` / `session_close` / `session_cancel_queued` /
  *       `session_background` / `draft_set` are destructive, while `session_send` /
  *       `session_create` / `session_reconfigure` / `draft_submit` are not (AC3/AC4);
@@ -57,6 +58,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type {
+  McpCockpitToolDeps,
   McpGatewayToolName,
   McpReadToolDeps,
   McpResidentToolDeps,
@@ -118,6 +120,10 @@ const authorizeWithPrincipal: RequestHandler = (_req, res, next) => {
 const readTools = { draft: {} } as unknown as McpReadToolDeps;
 const writeTools = { draft: {} } as unknown as McpWriteToolDeps;
 const residentTools = { reconfigure: {}, background: {}, approvals: {} } as unknown as McpResidentToolDeps;
+// gap-mcp-cockpit-card-tools: the cockpit's four names register through their own
+// bag. `tools/list` never enters a handler, so the three members are the empty
+// placeholder — their presence alone installs all four names.
+const cockpitTools = {} as unknown as McpCockpitToolDeps;
 
 // --------------------------- HTTP: a node:http based fetch ---------------------------
 
@@ -182,6 +188,7 @@ async function withGateway(run: (client: Client) => Promise<void>): Promise<void
     readTools,
     writeTools,
     residentTools,
+    cockpitTools,
   });
 
   const server = app.listen(0, '127.0.0.1');
@@ -239,7 +246,7 @@ test('(a)(b) tools/list carries exactly the annotated table, annotations verbati
   }
 });
 
-test('(c) the read-only set is the seven read tools plus approvals_list and draft_get; no write tool is read-only', async () => {
+test('(c) the read-only set is the read tools plus approvals_list and draft_get; no write tool is read-only', async () => {
   const listed = await listRegisteredTools();
   const readOnly = listed.tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name).sort();
 
@@ -247,9 +254,17 @@ test('(c) the read-only set is the seven read tools plus approvals_list and draf
   // `draft_get` joins the read-only set without being a frozen `MCP_STAGE3_READ_TOOLS`
   // name: its `cloudcli:read` scope is a permission fact, not a table membership
   // (gap-mcp-draft-get-set-submit), exactly as `approvals_list` reads with a read
-  // scope while living in the resident table.
-  const expectedReadOnly = [...readToolNames, 'approvals_list', 'draft_get'].sort();
-  assert.deepEqual(readOnly, expectedReadOnly, 'exactly the read tools, approvals_list and draft_get may be read-only');
+  // scope while living in the resident table. The three cockpit reads likewise
+  // live in their own bag under `cloudcli:read` (gap-mcp-cockpit-card-tools).
+  const expectedReadOnly = [
+    ...readToolNames,
+    'approvals_list',
+    'draft_get',
+    'cockpit_cards',
+    'cockpit_card',
+    'cockpit_card_brief',
+  ].sort();
+  assert.deepEqual(readOnly, expectedReadOnly, 'exactly the read tools, approvals_list, draft_get and the cockpit reads may be read-only');
 
   const writes = [
     ...MCP_STAGE4_WRITE_TOOLS.map((tool) => tool.name),
@@ -259,6 +274,7 @@ test('(c) the read-only set is the seven read tools plus approvals_list and draf
     'approval_answer',
     'draft_set',
     'draft_submit',
+    'cockpit_card_confirm',
   ];
   for (const name of writes) {
     assert.equal(

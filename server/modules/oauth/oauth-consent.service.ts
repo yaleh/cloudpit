@@ -43,6 +43,12 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // gap-ui-visible-context-extended-fields: the first scope that exposes the
   // user's own content — the text they have selected in a session transcript.
   'cloudcli:selection': 'Read the text you have selected in a session transcript',
+  // gap-mcp-cockpit-card-tools: confirming a cockpit card runs the option's
+  // declared executor. That is a generic dispatcher, so the honest worst case is
+  // stated rather than softened — it can send a message to a session, start a
+  // new one, or apply a fleet disposal, and the first two can run commands.
+  'cloudcli:cockpit:act':
+    'Confirm cockpit cards: may send messages or start sessions (those sessions run commands), or apply a fleet disposition',
 };
 
 /** Which of the consent screen's two groups a scope is filed under. */
@@ -53,7 +59,14 @@ export type ConsentScopeGroup = 'read' | 'write';
  * consent namespace's `scopes.risk.*` strings, so the screen renders a
  * translated badge rather than the server sending English prose.
  */
-export type ConsentScopeRisk = 'sessionSend' | 'sessionCreate' | 'sessionControl' | 'approve' | 'navigate' | 'selection';
+export type ConsentScopeRisk =
+  | 'sessionSend'
+  | 'sessionCreate'
+  | 'sessionControl'
+  | 'approve'
+  | 'navigate'
+  | 'selection'
+  | 'cockpitAct';
 
 /**
  * The risk code for each state-changing scope, keyed by scope id. The read scope
@@ -68,6 +81,9 @@ const SCOPE_RISK: Record<string, ConsentScopeRisk> = {
   // gap-ui-visible-context-extended-fields: carries content, so it is not the
   // pinned read scope and the screen badges it like the other non-read scopes.
   'cloudcli:selection': 'selection',
+  // gap-mcp-cockpit-card-tools: the card's executor may send a message, start a
+  // session (both run commands) or apply a fleet disposition.
+  'cloudcli:cockpit:act': 'cockpitAct',
 };
 
 /** One scope as the consent screen renders it, and as `GET /context` returns it. */

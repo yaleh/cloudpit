@@ -116,7 +116,20 @@ const APPROVE_SCOPE = 'cloudcli:approve';
 // gap-ui-visible-context-extended-fields: the appended content scope, offered by
 // the consent screen since it maps the whole ACCESS_TOKEN_SCOPES vocabulary.
 const SELECTION_SCOPE = 'cloudcli:selection';
-const VOCABULARY = [READ_SCOPE, WRITE_SCOPE, CREATE_SCOPE, CONTROL_SCOPE, APPROVE_SCOPE, NAVIGATE_SCOPE, SELECTION_SCOPE];
+// gap-mcp-cockpit-card-tools: the appended confirm scope. It is a WRITE scope —
+// confirming a card runs the option's declared executor — so leg (c) requires it
+// to carry a `write` group and a non-empty risk badge, which it does.
+const COCKPIT_ACT_SCOPE = 'cloudcli:cockpit:act';
+const VOCABULARY = [
+  READ_SCOPE,
+  WRITE_SCOPE,
+  CREATE_SCOPE,
+  CONTROL_SCOPE,
+  APPROVE_SCOPE,
+  NAVIGATE_SCOPE,
+  SELECTION_SCOPE,
+  COCKPIT_ACT_SCOPE,
+];
 const USER_ID = 1;
 const OWNER = 'owner';
 /**

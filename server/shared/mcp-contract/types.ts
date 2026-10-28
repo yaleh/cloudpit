@@ -89,4 +89,11 @@ export const ACCESS_TOKEN_SCOPES = [
   // grade more sensitive than an id. Appended LAST so every earlier positional
   // read keeps its index (the array is read by position in places).
   'cloudcli:selection',
+  // gap-mcp-cockpit-card-tools: lets a token CONFIRM a cockpit card, which runs
+  // the card's declared executor — a generic dispatcher over `session.send` /
+  // `session.start` / the fleet disposal verbs. Appended LAST so every earlier
+  // positional read keeps its index. The three cockpit READ tools deliberately
+  // use `cloudcli:read` instead: `session_read` already returns raw transcripts
+  // under that scope, and a card is a bounded summary of them.
+  'cloudcli:cockpit:act',
 ] as const;

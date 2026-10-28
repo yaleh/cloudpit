@@ -99,6 +99,17 @@ export type CockpitCardsModule = {
   registry: CockpitCardRegistry;
   actions: CockpitCardActions;
   router: Router;
+  /**
+   * One card's BriefSpec (or the deterministic fallback), or `null` when no open
+   * card carries that id. This is the SAME body `GET /api/cockpit/cards/:id/brief`
+   * answers, extracted so the MCP gateway's `cockpit_card_brief` tool reads the
+   * one generation path instead of a second copy — fixture briefs, the
+   * unsupported-content fallback and the service's cache/ledger included.
+   *
+   * Consumers: the card router (below) and `server/index.ts`, which hands it to
+   * `createMcpGatewayModule` as `cockpitTools.briefForCard`.
+   */
+  briefForCard(cardId: string): Promise<CockpitBriefResponse | null>;
 };
 
 /** The session a `cloudcli.session-ask` content ref names; `ref` is `sessionId[#messageId]`. */
@@ -246,6 +257,23 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   });
   const brief = createCockpitBriefService(deps.briefDeps ?? {});
 
+  /**
+   * The brief reading for one card id, shared by the HTTP route and the MCP
+   * gateway's `cockpit_card_brief` tool. `null` means "no open card with this
+   * id"; every other outcome is a response — a fixture card's fixed brief, the
+   * deterministic unsupported-content fallback, or the service's generated one.
+   */
+  const briefForCard = async (cardId: string): Promise<CockpitBriefResponse | null> => {
+    const card = await registry.getCard(cardId);
+    if (card === null) return null;
+    // Fixture cards answer a fixed, gateway-free brief so a real page can draw every preset.
+    const fixtureBrief = fixtureBriefFor?.(card) ?? null;
+    if (fixtureBrief !== null) return fixtureBrief;
+    const target = briefTarget(card);
+    if (target === null) return toBriefResponse(unsupportedBrief(card));
+    return toBriefResponse(await brief.briefFor({ cardId: card.id, ...target }));
+  };
+
   const router = express.Router();
   router.get('/', (_req, res, next) => {
     registry.listCards().then((cards) => {
@@ -256,28 +284,17 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
     }, next);
   });
   router.get('/:id/brief', (req, res, next) => {
-    registry.getCard(req.params.id).then(async (card) => {
-      if (card === null) {
+    briefForCard(req.params.id).then((response) => {
+      if (response === null) {
         res.status(404).json({ error: 'card-not-found', cardId: req.params.id });
         return;
       }
-      // Fixture cards answer a fixed, gateway-free brief so a real page can draw every preset.
-      const fixtureBrief = fixtureBriefFor?.(card) ?? null;
-      if (fixtureBrief !== null) {
-        res.json(fixtureBrief);
-        return;
-      }
-      const target = briefTarget(card);
-      if (target === null) {
-        res.json(toBriefResponse(unsupportedBrief(card)));
-        return;
-      }
-      res.json(toBriefResponse(await brief.briefFor({ cardId: card.id, ...target })));
+      res.json(response);
     }, next);
   });
   router.post('/confirm', (req, res, next) => {
     actions.confirm(req.body).then((result) => res.json(result), next);
   });
 
-  return { registry, actions, router };
+  return { registry, actions, router, briefForCard };
 }

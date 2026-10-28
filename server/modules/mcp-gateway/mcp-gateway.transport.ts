@@ -33,6 +33,8 @@ import { createMcpAuthMiddleware, readMcpPrincipal } from './mcp-gateway.auth.js
 import type { McpOauthSeam, McpPrincipal } from './mcp-gateway.auth.js';
 import { MCP_GATEWAY_PATH, readMcpGatewayGate } from './mcp-gateway.gate.js';
 import { createMcpLoopbackGuard } from './mcp-gateway.loopback.js';
+import { registerMcpCockpitTools } from './mcp-cockpit-tools.js';
+import type { McpCockpitToolDeps, McpCockpitToolSeam } from './mcp-cockpit-tools.js';
 import { registerMcpReadTools } from './mcp-gateway.read-tools.js';
 import type { McpReadToolDeps, McpReadToolSeam, McpRunningRun, McpRunSummary } from './mcp-gateway.read-tools.js';
 import { registerMcpResidentTools } from './mcp-gateway.resident-tools.js';
@@ -131,6 +133,7 @@ function createMcpServer(
   readTools: McpReadToolDeps | undefined,
   writeTools: McpWriteToolDeps | undefined,
   residentTools: McpResidentToolDeps | undefined,
+  cockpitTools: McpCockpitToolDeps | undefined,
   resolveDeps: McpResolveDeps | undefined,
   selfTarget: SelfTargetDeps | undefined,
   writeNotifications: McpWriteNotification | undefined
@@ -143,7 +146,7 @@ function createMcpServer(
     installMcpCallDispatcher(server);
     return server;
   }
-  if (!readTools && !writeTools && !residentTools) {
+  if (!readTools && !writeTools && !residentTools && !cockpitTools) {
     server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [] }));
     return server;
   }
@@ -261,6 +264,23 @@ function createMcpServer(
     registerMcpResidentTools(register, residentTools);
   }
 
+  if (cockpitTools) {
+    // The cockpit card tools (gap-mcp-cockpit-card-tools): three reads under
+    // `cloudcli:read` and one confirm under `cloudcli:cockpit:act`. They take no
+    // caller identity — the audit row already names the token — so the seam
+    // forwards only the arguments to the thin adapter bodies.
+    const register: McpCockpitToolSeam = (registration) =>
+      audited(
+        registration.name,
+        registration.description,
+        registration.requiredScope,
+        registration.inputSchema,
+        undefined,
+        (args) => registration.handler(args),
+      );
+    registerMcpCockpitTools(register, cockpitTools);
+  }
+
   // AC-288: replace the SDK's `tools/call` handler with the audited dispatcher,
   // now that every read / write / resident tool is registered. Installed last so
   // the registry is complete; the SDK handler would otherwise answer a bad
@@ -287,6 +307,7 @@ function attachTransport(
   readTools: McpReadToolDeps | undefined,
   writeTools: McpWriteToolDeps | undefined,
   residentTools: McpResidentToolDeps | undefined,
+  cockpitTools: McpCockpitToolDeps | undefined,
   resolveDeps: McpResolveDeps | undefined,
   selfTarget: SelfTargetDeps | undefined,
   writeNotifications: McpWriteNotification | undefined
@@ -302,6 +323,7 @@ function attachTransport(
       readTools,
       writeTools,
       residentTools,
+      cockpitTools,
       resolveDeps,
       selfTarget,
       writeNotifications,
@@ -428,6 +450,16 @@ export type McpGatewayDeps = {
    */
   residentTools?: McpResidentToolDeps;
   /**
+   * The cockpit card tools' deps (gap-mcp-cockpit-card-tools): the card module's
+   * OWN registry, action channel and brief reader, handed over whole by
+   * `server/index.ts` (which calls `createCockpitCardsModule` once for the HTTP
+   * face). Supplying it registers `cockpit_cards` / `cockpit_card` /
+   * `cockpit_card_brief` (`cloudcli:read`) and `cockpit_card_confirm`
+   * (`cloudcli:cockpit:act`) through the SAME audited seam as every other tool.
+   * Absent keeps a mount without a cockpit registering exactly what it did.
+   */
+  cockpitTools?: McpCockpitToolDeps;
+  /**
    * The active project/session entries AC-246's target gate resolves a
    * `project` / `session` argument against. Supplying it turns on the gate for
    * every tool this mount registers: the reference is rewritten to an id before
@@ -491,6 +523,7 @@ export function mountMcpGateway(app: Express, deps: McpGatewayDeps = {}): McpGat
     deps.readTools,
     deps.writeTools,
     deps.residentTools,
+    deps.cockpitTools,
     deps.resolveDeps,
     deps.selfTarget,
     deps.writeNotifications
@@ -519,6 +552,13 @@ export type McpGatewayModuleDeps = {
   resolveDeps?: McpGatewayDeps['resolveDeps'];
   selfTarget?: McpGatewayDeps['selfTarget'];
   residentTools?: McpGatewayDeps['residentTools'];
+  /**
+   * The cockpit card tools' deps (gap-mcp-cockpit-card-tools). Flows straight
+   * through to the mount; `server/index.ts` derives it from the one
+   * `createCockpitCardsModule` instance it already builds, so the MCP face and
+   * the HTTP face read one registry, one action channel and one brief path.
+   */
+  cockpitTools?: McpGatewayDeps['cockpitTools'];
   /** AC-303's write-call notification seam; flows straight through to the mount. */
   writeNotifications?: McpGatewayDeps['writeNotifications'];
   /** The single chat control service every front end shares (AC-233/AC-253). */

@@ -227,6 +227,23 @@ export const MCP_TOOL_ERROR_CODES: Record<McpGatewayToolName, readonly McpErrorC
   // `RUN_IN_PROGRESS`) and the draft is empty (`DRAFT_EMPTY`, thrown BEFORE any
   // run is started).
   draft_submit: [...WRAPPER_CODES, ...SESSION_TARGET_CODES, 'SESSION_BUSY', 'DRAFT_EMPTY'],
+
+  // -- cockpit card tools (gap-mcp-cockpit-card-tools) -----------------------
+  // None of the four takes a `project` / `session` reference, so AC-246's target
+  // gate adds nothing. Each row is the wrapper's own three codes: the card
+  // module's refusals are SERVICE codes forwarded unchanged — `CARD_NOT_FOUND`
+  // from the registry, and the action channel's `REVISION_CONFLICT` /
+  // `INVALID_REQUEST` / `EXECUTOR_NOT_DECLARED` / `EXECUTOR_UNAVAILABLE` /
+  // `ALREADY_CONFIRMED` — which the translation in `mcp-cockpit-tools.ts`
+  // re-throws as an `McpToolError` carrying that same code and sentence. They are
+  // deliberately NOT listed here: this table is the subset of
+  // `MCP_ERROR_CODES` each tool's GATEWAY-side branch can mint, and a forwarded
+  // service code passes through `toMcpErrorResult` untouched by design (see this
+  // file's header).
+  cockpit_cards: [...WRAPPER_CODES],
+  cockpit_card: [...WRAPPER_CODES],
+  cockpit_card_brief: [...WRAPPER_CODES],
+  cockpit_card_confirm: [...WRAPPER_CODES],
 };
 
 /**
