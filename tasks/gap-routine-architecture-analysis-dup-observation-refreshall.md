@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-observation-refreshall
 title: "architecture-analysis: The same `refreshAll` method (accumulate non-null
   ObservedObject results over a target list) is implemented twice in two sibling
   producers of the same packag"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
