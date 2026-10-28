@@ -199,6 +199,7 @@ const CARD: CockpitCard = {
   load: 2,
   ask: 'Should the cleanup delete the staging directory?',
   situation: '对话里只有“继续”，没有 diff 内容。',
+  assistantQuote: '继续',
   facts: [{ text: 'staging holds 1.2 GB', mechanical: true }],
   options: [
     {
@@ -346,6 +347,32 @@ describe('the phone Details sheet', () => {
     fireEvent(handle, new MouseEvent('pointerup', { bubbles: true, clientY: 200 }));
 
     await waitFor(() => expect(screen.queryByTestId('cockpit-card-details')).toBeNull());
+  });
+
+  it('keeps the title row below the drag handle in the same sticky header', async () => {
+    await openPhoneDetails();
+
+    const handle = screen.getByTestId('cockpit-card-details-drag-handle');
+    const titleRow = screen.getByTestId('cockpit-card-details-title-row');
+
+    // The defect was the sticky handle scrolling OVER a non-sticky title. Sharing one sticky
+    // parent is the mechanism that makes that impossible.
+    expect(titleRow.parentElement).toBe(handle.parentElement);
+    expect(handle.parentElement?.className).toContain('sticky');
+    expect(handle.compareDocumentPosition(titleRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('draws the Details confirm bar with the card’s own styling', async () => {
+    await openPhoneDetails();
+
+    const cardButton = screen.getByTestId('cockpit-card-confirm');
+    const detailsButton = screen.getByTestId('cockpit-card-details-confirm');
+
+    // One action, one style: the drawer must not draw the card's confirmation as a blue
+    // primary button while the card itself draws a black solid one.
+    expect(detailsButton.className).toBe(cardButton.className);
+    expect(detailsButton.className).toContain('bg-neutral-950');
+    expect(detailsButton.className).not.toContain('bg-primary');
   });
 
   it('quotes the assistant’s own words with the link back into the session', async () => {

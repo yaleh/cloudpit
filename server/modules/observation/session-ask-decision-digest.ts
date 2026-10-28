@@ -56,6 +56,55 @@ export type SessionAskReading = {
   context: string;
 };
 
+/** How much of the assistant's own words a card quote carries. */
+export const ASSISTANT_QUOTE_MAX_CHARS = 200;
+
+/** One asking turn as a transcript-wide scan states it. */
+export type TranscriptAsk = {
+  /** `<sessionId>:<first asking message id in the span>` — the fleet's dedup key. */
+  askId: string;
+  /** The assistant message that asked first in this span. */
+  messageId: string;
+  /** How many asking messages the span contains (a re-ask bumps it). */
+  revision: number;
+  /** The last asking message's own text. */
+  assistantText: string;
+};
+
+/**
+ * Everything one transcript says about its asks, old and current.
+ *
+ * `settled` names every ask a LATER user prompt answered, oldest first, so a single turn-end
+ * can state the answer for all of them — not only the one the final prompt answered. `current`
+ * is the open ask in the transcript's tail span, or null when that span ends on a statement.
+ */
+export type SessionAskTranscriptScan = {
+  settled: Array<{ askId: string; answerMessageId: string }>;
+  current: TranscriptAsk | null;
+};
+
+/**
+ * The assistant's own words from the paragraph its question lives in.
+ *
+ * The T1 digest restates the question; the card also shows one short verbatim fragment so the
+ * reader can see the assistant's tone and qualifications for themselves. The paragraph that
+ * carries the question (or the last non-empty paragraph) is used, with hard line breaks folded
+ * and the length capped — the quote is an excerpt, never the whole message.
+ */
+export function assistantQuoteOf(assistantText: string): string | null {
+  const paragraphs = assistantText
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s+/g, ' ').trim())
+    .filter((paragraph) => paragraph !== '');
+  if (paragraphs.length === 0) return null;
+  const questionParagraph =
+    [...paragraphs].reverse().find((paragraph) => /[?？]/.test(paragraph)) ?? paragraphs.at(-1);
+  if (questionParagraph === undefined) return null;
+  return questionParagraph.length > ASSISTANT_QUOTE_MAX_CHARS
+    ? `${questionParagraph.slice(0, ASSISTANT_QUOTE_MAX_CHARS)}…`
+    : questionParagraph;
+}
+
 /** One digest call's input: the recent turns plus the last assistant message they end on. */
 export type SessionAskSummaryInput = {
   sessionId: string;
@@ -81,6 +130,11 @@ export type SessionAskDecisionDigestDeps = {
   readSettings?: () => SessionDigestLlmSettings;
   /** The completion seam. Defaults to the gateway leaf client. */
   complete?: (request: LlmCompletionRequest) => Promise<LlmCompletion>;
+  /**
+   * The debug sink for a failed parse. The raw output's head/tail is written HERE — never into
+   * the reading's `reason`, which is what the card shows. Defaults to `console.warn`.
+   */
+  debugLog?: (message: string) => void;
 };
 
 /** The asking messages among `rows`, oldest first, with rows that carry no id dropped. */
@@ -225,6 +279,66 @@ export function readSessionAsk(raw: string, sessionId: string, messageId = ''): 
   };
 }
 
+/**
+ * Scans the WHOLE transcript for asks and answers, not only the final turn.
+ *
+ * The single-ask reading above answers "what is being asked right now and what did the last
+ * prompt answer". That is enough to state one event per turn, but a session that asked twice
+ * between two user messages, or one whose answer arrived while the process was restarting,
+ * leaves older asks unresolved forever. This scan groups rows into the spans between user
+ * prompts: every span that asked has an identity, and every span followed by another prompt has
+ * an answer. The tail span, when it ends on an asking message, is the open ask.
+ */
+export function readSessionAsks(raw: string, sessionId: string): SessionAskTranscriptScan {
+  const rows = parseTranscriptRows(raw);
+  const promptIndexes = promptIndexesOf(rows);
+  const settled: Array<{ askId: string; answerMessageId: string }> = [];
+  let current: TranscriptAsk | null = null;
+
+  // `promptIndexes` are the boundaries: span i runs from just after prompt i-1 to just before
+  // prompt i. The last span runs to the transcript's end. This also covers a transcript whose
+  // first row is already an assistant message.
+  for (let index = 0; index <= promptIndexes.length; index += 1) {
+    const start = index === 0 ? 0 : (promptIndexes[index - 1] ?? -1) + 1;
+    const answerPrompt = promptIndexes[index];
+    const end = answerPrompt === undefined ? rows.length - 1 : answerPrompt - 1;
+    if (end < start) continue;
+    const asks = askingRows(rows.slice(start, end + 1));
+    if (asks.length === 0) continue;
+    const first = asks[0];
+    if (first === undefined) continue;
+    const askId = `${sessionId}:${first.messageId}`;
+
+    if (answerPrompt !== undefined) {
+      const answerMessageId = transcriptRowMessageId(rows[answerPrompt] ?? {});
+      if (answerMessageId !== '') settled.push({ askId, answerMessageId });
+      continue;
+    }
+
+    // The tail span: the ask is still open only when the span's LAST assistant message is the
+    // asking one; a later non-asking assistant message means that turn moved on.
+    let lastAssistantIndex = -1;
+    for (let rowIndex = end; rowIndex >= start; rowIndex -= 1) {
+      const row = rows[rowIndex];
+      if (row !== undefined && transcriptRowRole(row) === 'assistant' && transcriptRowText(row) !== '') {
+        lastAssistantIndex = rowIndex;
+        break;
+      }
+    }
+    if (lastAssistantIndex < 0) continue;
+    const lastAssistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
+    if (!analyzeAsking(lastAssistantText).isAsking) continue;
+    current = {
+      askId,
+      messageId: transcriptRowMessageId(rows[lastAssistantIndex] ?? {}),
+      revision: asks.length,
+      assistantText: lastAssistantText,
+    };
+  }
+
+  return { settled, current };
+}
+
 /** The one prompt: recent turns, then the message whose question is being restated. */
 function buildUserPrompt(input: SessionAskSummaryInput): string {
   return [
@@ -247,6 +361,7 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
   const settingsSource = createSessionDigestLlmSettingsSource();
   const readSettings = deps.readSettings ?? (() => settingsSource.read());
   const complete = deps.complete ?? completeLlm;
+  const debugLog = deps.debugLog ?? ((message: string) => console.warn(message));
 
   return {
     async summarize(input) {
@@ -278,13 +393,23 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
       try {
         parsed = parseAskDecisionAnswer(completion.text);
       } catch (failure) {
-        return { state: 'unevaluated', reason: `模型输出不可用：${failure instanceof Error ? failure.message : String(failure)}` };
+        const reason = failure instanceof Error ? failure.message : String(failure);
+        // The raw output is for the operator's log only: the card's reason stays a readable
+        // diagnosis, and a half-written answer never becomes the question.
+        const head = completion.text.slice(0, 240).replace(/\s+/g, ' ').trim();
+        const tail = completion.text.slice(-240).replace(/\s+/g, ' ').trim();
+        debugLog(
+          `[observation.sessionDigest] 提问摘要解析失败: ${reason}; 原始输出头部=${JSON.stringify(head)}; 尾部=${JSON.stringify(tail)}`,
+        );
+        return { state: 'unevaluated', reason: `模型输出不可用：${reason}` };
       }
 
-      return buildAskDecision(parsed, { askId: input.askId, revision: input.revision }, input.assistantText, {
+      const reading = buildAskDecision(parsed, { askId: input.askId, revision: input.revision }, input.assistantText, {
         inputTokens: completion.inputTokens,
         outputTokens: completion.outputTokens,
       });
+      const quote = assistantQuoteOf(input.assistantText);
+      return quote === null ? reading : { ...reading, quote };
     },
   };
 }

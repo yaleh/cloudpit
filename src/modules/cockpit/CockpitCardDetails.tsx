@@ -138,7 +138,9 @@ export default function CockpitCardDetails({
   // reading. Details is where the facts keep their FULL text, so only the repetition is dropped.
   const facts = cockpitCardFactsBeyondSituation(card);
   // The assistant's own words, only where the design asks for them (the phone drawer's quote).
-  const assistantQuote = drawer ? cockpitAssistantQuote(card) : null;
+  // The digest's verbatim fragment wins; older cards (or providers that state only the restated
+  // question) fall back to the quoted phrase inside `situation`/`ask`.
+  const assistantQuote = drawer ? (card.assistantQuote ?? cockpitAssistantQuote(card)) : null;
   // The server projection fills `conversation` from the subject; the fallback keeps the link
   // for a card read before that projection ran (and for a criterion that states only the subject).
   // A provider that states `conversation` itself stays authoritative: the subject is only used
@@ -169,6 +171,39 @@ export default function CockpitCardDetails({
     && brief.status !== 'idle'
     && !(brief.status === 'ready' && brief.response.status === 'fallback' && brief.response.reason === 'disabled');
 
+  // The title row. On the phone it lives INSIDE the same sticky header as the drag handle, so
+  // the handle can never scroll over and cover it: the two move together as one block.
+  const titleRow = (
+    <div
+      data-testid="cockpit-card-details-title-row"
+      className={cn('flex items-center justify-between gap-2', drawer ? 'px-3 pb-1 pt-1' : '')}
+    >
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {t(descriptor.labelKey)}
+        </span>
+        <span className="truncate text-xs font-semibold text-foreground">
+          {t('cockpit.cardDetailsTitle')}
+        </span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
+        </span>
+      </span>
+      {/* The phone's sheet carries no Close button: its title bar is the drag handle, and a
+          downward swipe is the dismissal the mockup shows. */}
+      {!inline && !drawer && (
+        <button
+          type="button"
+          data-testid="cockpit-card-details-close"
+          onClick={onClose}
+          className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent"
+        >
+          {t('cockpit.cardDetailsClose')}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <aside
       data-testid="cockpit-card-details"
@@ -184,56 +219,38 @@ export default function CockpitCardDetails({
             : 'max-h-[90vh] w-full rounded-xl border border-border bg-card p-3 shadow-xl',
       )}
     >
-      {drawer && (
-        <button
-          type="button"
-          data-testid="cockpit-card-details-drag-handle"
-          aria-label={t('cockpit.cardDetailsClose')}
-          // A tap on the handle is the same dismissal as a downward swipe: the handle is the
-          // sheet's only chrome, so it must not be an inert strip.
-          onClick={onClose}
-          onPointerDown={(event) => {
-            swipeStartY.current = event.clientY;
-          }}
-          onPointerUp={(event) => {
-            const start = swipeStartY.current;
-            swipeStartY.current = null;
-            if (start !== null && event.clientY - start >= DRAWER_CLOSE_SWIPE_PX) onClose();
-          }}
-          onPointerCancel={() => {
-            swipeStartY.current = null;
-          }}
-          className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 flex touch-none justify-center rounded-t-2xl bg-card pb-1 pt-1.5"
+      {drawer ? (
+        <div
+          data-testid="cockpit-card-details-header"
+          className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 bg-card"
         >
-          <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/40" />
-        </button>
-      )}
-
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {t(descriptor.labelKey)}
-          </span>
-          <span className="truncate text-xs font-semibold text-foreground">
-            {t('cockpit.cardDetailsTitle')}
-          </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">
-            {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
-          </span>
-        </span>
-        {/* The phone's sheet carries no Close button: its title bar is the drag handle, and a
-            downward swipe is the dismissal the mockup shows. */}
-        {!inline && !drawer && (
           <button
             type="button"
-            data-testid="cockpit-card-details-close"
+            data-testid="cockpit-card-details-drag-handle"
+            aria-label={t('cockpit.cardDetailsClose')}
+            // A tap on the handle is the same dismissal as a downward swipe: the handle is the
+            // sheet's only chrome, so it must not be an inert strip.
             onClick={onClose}
-            className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent"
+            onPointerDown={(event) => {
+              swipeStartY.current = event.clientY;
+            }}
+            onPointerUp={(event) => {
+              const start = swipeStartY.current;
+              swipeStartY.current = null;
+              if (start !== null && event.clientY - start >= DRAWER_CLOSE_SWIPE_PX) onClose();
+            }}
+            onPointerCancel={() => {
+              swipeStartY.current = null;
+            }}
+            className="flex w-full touch-none justify-center rounded-t-2xl bg-card pb-1 pt-1.5"
           >
-            {t('cockpit.cardDetailsClose')}
+            <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/40" />
           </button>
-        )}
-      </div>
+          {titleRow}
+        </div>
+      ) : (
+        titleRow
+      )}
 
       <p className="mt-2 text-sm font-medium text-foreground">{cockpitCardTitle(card, t)}</p>
       {card.contentUnavailable !== undefined && (
@@ -424,10 +441,15 @@ export default function CockpitCardDetails({
             disabled={target.disabled || onRequestConfirm === undefined}
             onClick={() => onRequestConfirm?.()}
             className={cn(
-              'w-full rounded-md px-2 py-1.5 text-xs font-medium disabled:opacity-50',
+              // THE SAME BUTTON as the card's own bar: the drawer repeats the card's action, so
+              // it must not restyle it. Irreversible stays the amber warning arm; the ordinary
+              // arm is the black solid both the mockup and the card use (`bg-primary` was the
+              // blue outlier this parity test pins out).
+              'flex items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50',
+              'w-full',
               target.irreversible
-                ? 'border border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
-                : 'bg-primary text-primary-foreground',
+                ? 'border border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
             )}
           >
             {t('cockpit.cardConfirm', { label: target.label })}

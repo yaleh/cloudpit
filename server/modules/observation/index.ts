@@ -48,10 +48,12 @@ export type { ObservationKind, ObservationUri } from './observation-uri.js';
 // deterministic write, then the bounded LLM tier, so the registry keeps calling one verb.
 export { createSessionDigestProducer, SESSION_DIGEST_PRODUCER } from './session-digest.producer.js';
 export type {
+  SessionAskEventLedger,
   SessionDigestProducer,
   SessionDigestProducerDeps,
   SessionTurnEndEvent,
 } from './session-digest.producer.js';
+export { readSessionAskEventLedger, SESSION_ASK_EVENTS_DIGEST_KEY } from './session-digest.producer.js';
 // consumer: the run registry, which keeps calling ONE producer per terminal run event; the
 // composed value there is the deterministic write plus the bounded LLM tier. The tier's
 // factory, constants and settings helper stay out of the barrel: the tier criterion imports
@@ -68,8 +70,11 @@ export type {
 // and attaches the T1 decision digest; the cockpit's ContentResolver task will read the digest
 // through this same barrel once it lands.
 export {
+  assistantQuoteOf,
+  ASSISTANT_QUOTE_MAX_CHARS,
   createSessionAskDecisionDigest,
   readSessionAsk,
+  readSessionAsks,
   SESSION_ASK_CONTEXT_TURNS,
 } from './session-ask-decision-digest.js';
 export type {
@@ -77,6 +82,8 @@ export type {
   SessionAskDecisionDigestDeps,
   SessionAskReading,
   SessionAskSummaryInput,
+  SessionAskTranscriptScan,
+  TranscriptAsk,
 } from './session-ask-decision-digest.js';
 // consumer: the cockpit fleet wiring's `readSessionAsk` seam. The reader answers the stored T1
 // digest and repairs a reading that was stored while the tier was still disabled; keeping the

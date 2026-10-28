@@ -4830,6 +4830,12 @@ export type CockpitCard = {
   contentRef?: CockpitCardContentRef;
   ask?: string;
   situation?: string;
+  /**
+   * One short verbatim fragment of the assistant's own words, projected from the ask digest.
+   * The phone's Details drawer quotes it above the facts. Optional: a card whose digest predates
+   * the field (or a provider that never asked) simply has no quote.
+   */
+  assistantQuote?: string;
   ownReply?: CockpitCardOwnReply;
   /**
    * Why the cockpit could not derive a default own-reply executor for this card: its
@@ -5136,6 +5142,12 @@ export type SessionAskDecision = {
   situation: string;
   options: SessionAskDecisionOption[];
   incomplete: boolean;
+  /**
+   * One short VERBATIM fragment of the assistant's asking message (the question's paragraph,
+   * length-capped). The card shows it as a quote beside the restated question; it is optional
+   * because digests written before this field existed carry none.
+   */
+  quote?: string;
 };
 
 /**

@@ -22,11 +22,12 @@ import { readFile } from 'node:fs/promises';
 
 import { observationDb, sessionsDb } from '@/modules/database/index.js';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
+import type { SessionUserTurnEvent } from '@/shared/ports/session-user-turn.port.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
 import { formatSessionUri } from './observation-uri.js';
 import { createObservationStore, type ObservedObject, type ObservationStore } from './observation-store.js';
-import { readSessionAsk, type SessionAskDecisionDigest } from './session-ask-decision-digest.js';
+import { readSessionAsk, readSessionAsks, type SessionAskDecisionDigest } from './session-ask-decision-digest.js';
 import { buildSessionDigest, type SessionDigest } from './session-digest.js';
 
 /** The producer name every digest revision is stamped with. */
@@ -73,7 +74,52 @@ export type SessionDigestProducerDeps = {
 /** The producer's one verb. */
 export type SessionDigestProducer = {
   handleTurnEnd(event: SessionTurnEndEvent): Promise<ObservedObject | null>;
+  /**
+   * States `session.answered` for every ask the transcript shows a later user message for,
+   * without waiting for the assistant's turn to end. Fire-and-forget: never rejects.
+   */
+  handleUserTurn(event: SessionUserTurnEvent): Promise<void>;
 };
+
+/**
+ * The ask-event ledger carried in a session digest (`digest.askEvents`).
+ *
+ * It is the persistence the old in-memory set lacked. `answered` is the set of askIds whose
+ * `session.answered` was already stated, `asking` the `<askId>:<revision>` keys already stated,
+ * and `pending` the asks stated but not yet answered. The next process reads it back from the
+ * store, so a restart neither re-states an old answer nor loses a pending ask. A re-ask before
+ * the answer keeps one `pending` entry (its askId is stable) and bumps `revision`.
+ */
+export type SessionAskEventLedger = {
+  answered: string[];
+  asking: string[];
+  pending: Array<{ askId: string; messageId: string }>;
+};
+
+/** The digest key carrying {@link SessionAskEventLedger}; opaquely ignored by card readers. */
+export const SESSION_ASK_EVENTS_DIGEST_KEY = 'askEvents';
+
+/** Reads the ledger out of a stored digest, tolerating anything older or malformed. */
+export function readSessionAskEventLedger(digest: unknown): SessionAskEventLedger {
+  const empty: SessionAskEventLedger = { answered: [], asking: [], pending: [] };
+  if (digest === null || typeof digest !== 'object' || Array.isArray(digest)) return empty;
+  const raw = (digest as Record<string, unknown>)[SESSION_ASK_EVENTS_DIGEST_KEY];
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return empty;
+  const record = raw as Record<string, unknown>;
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item !== '') : [];
+  const pending: Array<{ askId: string; messageId: string }> = [];
+  if (Array.isArray(record.pending)) {
+    for (const entry of record.pending) {
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      const item = entry as Record<string, unknown>;
+      if (typeof item.askId === 'string' && item.askId !== '' && typeof item.messageId === 'string') {
+        pending.push({ askId: item.askId, messageId: item.messageId });
+      }
+    }
+  }
+  return { answered: strings(record.answered), asking: strings(record.asking), pending };
+}
 
 function defaultResolveSession(
   appSessionId: string,
@@ -108,13 +154,15 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
   /**
    * The asks/answers already stated in this process, so a repeated turn-end does not re-emit.
    *
-   * Keyed by askId+revision (an ask) and askId+user message id (an answer): a new turn has a new
-   * first-asking message id, so its key differs and it is never suppressed by an older turn.
-   * In-process only — the stream is at-least-once, and the fleet dedups by its own dedupKey.
+   * Keyed by askId (an answer) and askId+revision (an ask): a new turn has a new first-asking
+   * message id, so its key differs and it is never suppressed by an older turn. In-process only;
+   * the CROSS-process record is the digest's ask ledger ({@link SessionAskEventLedger}), which is
+   * what survives a restart.
    */
   const emittedEvents = new Set<string>();
-  const emitOnce = (key: string, event: SessionAskEvent): void => {
-    if (eventWriter === undefined || emittedEvents.has(key)) return;
+  /** States one event once per process; answers whether it was actually written. */
+  const emitOnce = (key: string, event: SessionAskEvent): boolean => {
+    if (eventWriter === undefined || emittedEvents.has(key)) return false;
     emittedEvents.add(key);
     try {
       // The chat path must not learn that the evidence stream failed.
@@ -122,6 +170,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
     } catch {
       // A rejected event is the writer's reading to publish, not the turn's failure.
     }
+    return true;
   };
 
   /**
@@ -158,6 +207,60 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
   };
 
   return {
+    async handleUserTurn(event) {
+      try {
+        const resolved = resolveSession(event.appSessionId);
+        if (resolved === null) return;
+        const uri = formatSessionUri(event.appSessionId);
+        // No revision means no ask was ever stated for this session — nothing to resolve.
+        const previous = store.getObject(uri);
+        if (previous === null) return;
+        const raw = resolved.jsonlPath === null ? null : await readTranscript(resolved.jsonlPath);
+        // The user's row may not be on disk yet; the turn-end path retries then.
+        if (raw === null) return;
+
+        const scan = readSessionAsks(raw, event.appSessionId);
+        const ledger = readSessionAskEventLedger(previous.digest);
+        const at = new Date(now()).toISOString();
+        let stated = false;
+        for (const settled of scan.settled) {
+          if (ledger.answered.includes(settled.askId)) continue;
+          if (
+            emitOnce(`answered:${settled.askId}`, {
+              kind: 'session.answered',
+              session: event.appSessionId,
+              project: resolved.projectPath,
+              at,
+              data: { askId: settled.askId, messageId: settled.answerMessageId },
+            })
+          ) {
+            ledger.answered.push(settled.askId);
+            stated = true;
+          }
+        }
+        if (!stated) return;
+
+        ledger.pending = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
+        // Persist the answer now: a restart between this send and the next turn-end must not
+        // re-state it. A revision with no delta keeps the wall's "what changed" reading quiet.
+        store.writeRevision({
+          uri,
+          kind: 'session',
+          title: previous.title,
+          status: previous.status,
+          digest: { ...previous.digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger },
+          deltaItems: [],
+          provenance: {
+            producer: SESSION_DIGEST_PRODUCER,
+            tier: 'deterministic',
+            evaluatedAt: now(),
+          },
+        });
+      } catch {
+        // A user message must never fail because the observation layer could not read it.
+      }
+    },
+
     async handleTurnEnd(event) {
       try {
         const resolved = resolveSession(event.appSessionId);
@@ -179,36 +282,61 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
         if (result.state === 'evaluated') {
           let digest = result.digest;
           const ask = readSessionAsk(raw ?? '', event.appSessionId);
+          const scan = readSessionAsks(raw ?? '', event.appSessionId);
+          const ledger = readSessionAskEventLedger(store.getObject(uri)?.digest);
           const at = new Date(event.completedAt || now()).toISOString();
 
-          // The answer precedes the question chronologically, so it is stated first.
-          if (ask.answered !== null) {
-            emitOnce(`answered:${ask.answered.askId}:${ask.answered.messageId}`, {
-              kind: 'session.answered',
-              session: event.appSessionId,
-              project: resolved.projectPath,
-              at,
-              data: { askId: ask.answered.askId, messageId: ask.answered.messageId },
-            });
+          // EVERY ask the transcript shows a later user message for is stated — not only the
+          // one the final prompt answered. This is what resolves asks that were separated by
+          // several rounds, or answered while the process was restarting. The persisted ledger
+          // makes it idempotent: an askId already stated is never stated again.
+          for (const settled of scan.settled) {
+            if (ledger.answered.includes(settled.askId)) continue;
+            if (
+              emitOnce(`answered:${settled.askId}`, {
+                kind: 'session.answered',
+                session: event.appSessionId,
+                project: resolved.projectPath,
+                at,
+                data: { askId: settled.askId, messageId: settled.answerMessageId },
+              })
+            ) {
+              ledger.answered.push(settled.askId);
+            }
           }
-          if (ask.current !== null) {
-            emitOnce(`asking:${ask.current.askId}:${ask.current.revision}`, {
-              kind: 'session.asking',
-              session: event.appSessionId,
-              project: resolved.projectPath,
-              at,
-              refs: [ask.current.messageId],
-              data: {
-                askId: ask.current.askId,
-                messageId: ask.current.messageId,
-                revision: ask.current.revision,
-                contentRef: {
-                  resolver: 'cloudcli.session-ask',
-                  sessionId: event.appSessionId,
-                  messageId: ask.current.messageId,
-                },
-              },
-            });
+
+          const current = ask.current;
+          if (current !== null) {
+            const askingKey = `${current.askId}:${current.revision}`;
+            if (ledger.asking.includes(askingKey) === false) {
+              if (
+                emitOnce(`asking:${askingKey}`, {
+                  kind: 'session.asking',
+                  session: event.appSessionId,
+                  project: resolved.projectPath,
+                  at,
+                  refs: [current.messageId],
+                  data: {
+                    askId: current.askId,
+                    messageId: current.messageId,
+                    revision: current.revision,
+                    contentRef: {
+                      resolver: 'cloudcli.session-ask',
+                      sessionId: event.appSessionId,
+                      messageId: current.messageId,
+                    },
+                  },
+                })
+              ) {
+                ledger.asking.push(askingKey);
+              }
+            }
+            if (
+              ledger.answered.includes(current.askId) === false &&
+              ledger.pending.some((entry) => entry.askId === current.askId) === false
+            ) {
+              ledger.pending.push({ askId: current.askId, messageId: current.messageId });
+            }
 
             if (summarizeAsk !== undefined) {
               try {
@@ -217,9 +345,9 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
                   askDecision: await summarizeAsk.summarize({
                     sessionId: event.appSessionId,
                     sessionTitle: resolved.title,
-                    askId: ask.current.askId,
-                    revision: ask.current.revision,
-                    assistantText: ask.current.assistantText,
+                    askId: current.askId,
+                    revision: current.revision,
+                    assistantText: current.assistantText,
                     context: ask.context,
                   }),
                 };
@@ -234,6 +362,11 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
               }
             }
           }
+
+          // An answered ask is no longer pending, and the ledger rides with the digest so the
+          // NEXT process (after a restart) reads it back instead of re-emitting.
+          ledger.pending = ledger.pending.filter((entry) => ledger.answered.includes(entry.askId) === false);
+          digest = { ...digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger } as SessionDigest;
 
           const observed = isObserved(uri);
           // An idle, unwatched turn is exactly the traffic the wall does not need.

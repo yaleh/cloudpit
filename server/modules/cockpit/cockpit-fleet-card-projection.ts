@@ -285,6 +285,7 @@ function withSessionAskContent(
     ...card,
     ...(reading.ask === '' ? {} : { ask: reading.ask }),
     ...(reading.situation === '' ? {} : { situation: reading.situation }),
+    ...(reading.quote === undefined || reading.quote === '' ? {} : { assistantQuote: reading.quote }),
     options: [...options, ...contentOptions.filter((option) => !existing.has(option.id))],
   };
 }

@@ -4322,6 +4322,12 @@ export type CockpitCard = {
   contentRef?: CockpitCardContentRef;
   ask?: string;
   situation?: string;
+  /**
+   * One short verbatim fragment of the assistant's own words, projected from the ask digest.
+   * The phone's Details drawer quotes it above the facts. Optional: a card whose digest predates
+   * the field (or a provider that never asked) simply has no quote.
+   */
+  assistantQuote?: string;
   ownReply?: CockpitCardOwnReply;
   /**
    * Why the cockpit could not derive a default own-reply executor for this card: its

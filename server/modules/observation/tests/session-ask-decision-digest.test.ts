@@ -19,20 +19,23 @@
  *     server/modules/observation/tests/session-ask-decision-digest.test.ts
  */
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import type { LlmCompletion, LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
+import { ApiCredential, createReplySuggestionsSettingsSource } from '@/modules/reply-suggestions/index.js';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
 import type { ObservedObject, ObservationStore } from '../observation-store.js';
 import { formatSessionUri } from '../observation-uri.js';
 import {
+  assistantQuoteOf,
   createSessionAskDecisionDigest,
   readSessionAsk,
+  readSessionAsks,
   type SessionAskDecisionDigest,
 } from '../session-ask-decision-digest.js';
 import {
@@ -42,7 +45,7 @@ import {
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
 } from '../session-ask-decision-reader.js';
 import { createSessionDigestProducer } from '../session-digest.producer.js';
-import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
+import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
 const CLOCK = 1_800_000_000_000;
 const SESSION_ID = 'ask-session';
@@ -108,15 +111,25 @@ type Harness = {
   events: SessionAskEvent[];
   requests: LlmCompletionRequest[];
   turnEnd: () => Promise<ObservedObject | null>;
+  userTurn: () => Promise<void>;
 };
 
-/** Builds a producer whose world is entirely in memory. */
-function createHarness(answer: string | ((request: LlmCompletionRequest) => string)): Harness {
+/**
+ * Builds a producer whose world is entirely in memory.
+ *
+ * `objects` is injectable so a criterion can build a SECOND producer over the FIRST one's store —
+ * that is how a process restart is simulated: the in-memory emitted set is gone, but the ledger
+ * persisted in the digest survives.
+ */
+function createHarness(
+  answer: string | ((request: LlmCompletionRequest) => string),
+  options: { objects?: Map<string, ObservedObject> } = {},
+): Harness {
   let raw = '';
   const writes: ObservedObject[] = [];
   const events: SessionAskEvent[] = [];
   const requests: LlmCompletionRequest[] = [];
-  const objects = new Map<string, ObservedObject>();
+  const objects = options.objects ?? new Map<string, ObservedObject>();
 
   const store = {
     writeRevision(input: Parameters<ObservationStore['writeRevision']>[0]): ObservedObject {
@@ -182,6 +195,7 @@ function createHarness(answer: string | ((request: LlmCompletionRequest) => stri
         completedAt: CLOCK,
         error: null,
       }),
+    userTurn: () => producer.handleUserTurn({ appSessionId: SESSION_ID }),
   };
 }
 
@@ -867,4 +881,221 @@ test('yes/no: a recommendation in the assistant text marks 是 and sources it fr
   assert.equal(yes?.suggested, true);
   assert.equal(yes?.source, 'assistant');
   assert.equal(no?.suggested, false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Reliable session.answered: every answered ask, across rounds and across restarts, exactly once
+// ---------------------------------------------------------------------------------------------
+
+test('answered: two asks separated by rounds are BOTH stated by one turn-end', async () => {
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '第一问：要不要先补测试？' },
+      { role: 'user', id: 'u2', text: '先补测试' },
+      { role: 'assistant', id: 'a2', text: '好，已经补上。' },
+      { role: 'user', id: 'u3', text: '还有别的吗' },
+      { role: 'assistant', id: 'a3', text: '第二问：先改实现可以吗？' },
+      { role: 'user', id: 'u4', text: '可以' },
+      { role: 'assistant', id: 'a4', text: '开始改实现。' },
+    ]),
+  );
+
+  // ONE turn-end over a transcript that already contains both answers. The old single-answer
+  // reading stated only the ask the FINAL prompt answered, so the earlier ask stayed open.
+  await harness.turnEnd();
+
+  const answered = harness.events
+    .filter((event) => event.kind === 'session.answered')
+    .map((event) => event.data);
+  assert.deepEqual(answered, [
+    { askId: `${SESSION_ID}:a1`, messageId: 'u2' },
+    { askId: `${SESSION_ID}:a3`, messageId: 'u4' },
+  ]);
+});
+
+test('answered: a fresh producer over the same store backfills the ask answered across the restart', async () => {
+  const objects = new Map<string, ObservedObject>();
+
+  // Before the restart: the first ask is answered and the second is left open.
+  const before = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  before.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '第一问：要不要先补测试？' },
+      { role: 'user', id: 'u2', text: '先补测试' },
+      { role: 'assistant', id: 'a2', text: '第二问：先改实现可以吗？' },
+    ]),
+  );
+  await before.turnEnd();
+  assert.deepEqual(
+    before.events.filter((event) => event.kind === 'session.answered').map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a1`, messageId: 'u2' }],
+  );
+  assert.equal(before.events.filter((event) => event.kind === 'session.asking').length, 1);
+
+  // The process restarts (new producer, no in-memory emitted set). While it was down the second
+  // ask was answered and a later round closed the turn. The first turn-end after the restart must
+  // state that answer — and must NOT re-state the first one: only the digest's persisted ledger
+  // remembers it, which is exactly the reading a memory-only askId set loses.
+  const after = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  after.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '第一问：要不要先补测试？' },
+      { role: 'user', id: 'u2', text: '先补测试' },
+      { role: 'assistant', id: 'a2', text: '第二问：先改实现可以吗？' },
+      { role: 'user', id: 'u3', text: '可以' },
+      { role: 'assistant', id: 'a3', text: '开始改实现。' },
+    ]),
+  );
+  await after.turnEnd();
+
+  const answered = after.events.filter((event) => event.kind === 'session.answered');
+  assert.deepEqual(
+    answered.map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a2`, messageId: 'u3' }],
+  );
+});
+
+test('answered: a user message states the answer immediately, and the next turn-end does not repeat it', async () => {
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '要不要先补测试？' },
+    ]),
+  );
+  await harness.turnEnd();
+
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '要不要先补测试？' },
+      { role: 'user', id: 'u2', text: '先补测试' },
+      { role: 'assistant', id: 'a2', text: '补好了。' },
+    ]),
+  );
+
+  // The send path reports the user message; the answer is stated WITHOUT waiting for turn-end.
+  await harness.userTurn();
+  const afterSend = harness.events.filter((event) => event.kind === 'session.answered');
+  assert.deepEqual(
+    afterSend.map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a1`, messageId: 'u2' }],
+  );
+
+  // The turn-end that follows must not state the same answer again (neither the in-process set
+  // nor the persisted ledger permits it).
+  await harness.turnEnd();
+  await harness.userTurn();
+  assert.equal(harness.events.filter((event) => event.kind === 'session.answered').length, 1);
+});
+
+test('answered: readSessionAsks names every answered span and the tail ask', () => {
+  const scan = readSessionAsks(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '第一问？' },
+      { role: 'user', id: 'u2', text: '答' },
+      { role: 'assistant', id: 'a2', text: '第二问？' },
+    ]),
+    SESSION_ID,
+  );
+
+  assert.deepEqual(scan.settled, [{ askId: `${SESSION_ID}:a1`, answerMessageId: 'u2' }]);
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a2`);
+  assert.equal(scan.current?.revision, 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The ask digest's JSON contract: its own output ceiling, fences, and a loud truncation
+// ---------------------------------------------------------------------------------------------
+
+test('the ask digest uses observation.sessionDigest.maxOutputTokens, not the reply-suggestions 400', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'session-ask-settings-'));
+  try {
+    const keyPath = join(directory, 'key.txt');
+    await writeFile(keyPath, 'sk-test-key\n', { encoding: 'utf8', mode: 0o600 });
+    const replyPath = join(directory, 'reply.json');
+    await writeFile(
+      replyPath,
+      JSON.stringify({ enabled: true, baseUrl: 'http://gw.local', model: 'reply-model', apiKeyFile: keyPath, maxOutputTokens: 400 }),
+      'utf8',
+    );
+    const serverPath = join(directory, 'server.json');
+    // The block deliberately says nothing about maxOutputTokens.
+    await writeFile(serverPath, JSON.stringify({ observation: { sessionDigest: { enabled: true, model: 'digest-model' } } }), 'utf8');
+
+    const source = createSessionDigestLlmSettingsSource({
+      settingsPath: serverPath,
+      homeDir: directory,
+      replySource: createReplySuggestionsSettingsSource({ settingsPath: replyPath, homeDir: directory }),
+    });
+    const reading = source.read();
+    assert.equal(reading.maxOutputTokens, 1200, 'the digest tier has its own default, not the reply ceiling');
+    assert.notEqual(reading.maxOutputTokens, 400);
+
+    // An explicit knob still wins.
+    await writeFile(
+      serverPath,
+      JSON.stringify({ observation: { sessionDigest: { enabled: true, model: 'digest-model', maxOutputTokens: 2000 } } }),
+      'utf8',
+    );
+    assert.equal(source.read().maxOutputTokens, 2000);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a fenced JSON answer is parsed, and a truncated one is an unreadable reading with a debug log', async () => {
+  const fenced = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () => completion('```json\n' + JSON.stringify(RECOMMENDED_ANSWER) + '\n```'),
+  });
+  const fencedReading = await fenced.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText: '先补测试还是先改实现？',
+    context: '[助手] 先补测试还是先改实现？',
+  });
+  assert.equal(fencedReading.state, 'evaluated');
+
+  const logs: string[] = [];
+  const truncatedText = '{"ask":"先补测试还是先改实现？","situation":"二选一","incomplete":false,"options":[{"id":"a","label":"先补测';
+  const truncated = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () => completion(truncatedText),
+    debugLog: (message) => logs.push(message),
+  });
+  const truncatedReading = await truncated.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText: '先补测试还是先改实现？',
+    context: '[助手] 先补测试还是先改实现？',
+  });
+
+  assert.equal(truncatedReading.state, 'unevaluated');
+  if (truncatedReading.state !== 'unevaluated') return;
+  assert.match(truncatedReading.reason, /模型输出.*JSON/, 'the reason is a readable diagnosis');
+  assert.equal(truncatedReading.reason.includes('原始输出'), false, 'the raw output stays out of the card');
+  assert.equal(logs.length, 1, 'one debug line names the failure');
+  assert.match(logs[0] ?? '', /原始输出头部=/);
+  assert.match(logs[0] ?? '', /先补测试还是先改实现/, 'the head of the raw output is logged');
+});
+
+test('assistantQuoteOf keeps the question paragraph and caps the quote', () => {
+  assert.equal(
+    assistantQuoteOf('先说背景。\n\n是否要重启服务？重启会中断当前会话。'),
+    '是否要重启服务？重启会中断当前会话。',
+  );
+  assert.equal(assistantQuoteOf('没有问句的一段。'), '没有问句的一段。');
+  assert.equal(assistantQuoteOf(''), null);
+  const long = `${'很长的段落'.repeat(100)}？`;
+  assert.ok((assistantQuoteOf(long) ?? '').length <= 201, 'the quote is capped');
 });

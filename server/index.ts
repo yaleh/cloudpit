@@ -21,6 +21,7 @@ import { installProjectsSessionFetchPort } from '@/shared/ports/projects-session
 import { installProviderRegistryPort } from '@/shared/ports/provider-registry.port.js';
 import { installSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 import { installSessionBroadcastPort } from '@/shared/ports/session-broadcast.port.js';
+import { installSessionUserTurnPort } from '@/shared/ports/session-user-turn.port.js';
 import { installVoiceLexiconPort } from '@/shared/ports/voice-lexicon.port.js';
 import { installVoiceRulesPort } from '@/shared/ports/voice-rules.port.js';
 import {
@@ -106,7 +107,7 @@ import {
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { createArchitectureModule } from './modules/architecture/index.js';
-import { createObservationModule } from './modules/observation/index.js';
+import { createObservationModule, sessionDigestProducer } from './modules/observation/index.js';
 import { createLiaisonModule, createFileLiaisonStore, createQuayFleetRunner } from './modules/liaison/index.js';
 import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from './modules/reply-suggestions/index.js';
 // The host-level context event stream (context-event-stream-and-shadow-predictor).
@@ -309,6 +310,13 @@ installSessionAskEventWriterPort(
         record: (draft) => contextEvents.record(draft),
     }),
 );
+// Every accepted user message is reported here, so an outstanding ask's `session.answered` is
+// stated at the answer rather than only at turn end; the listener is fire-and-forget.
+installSessionUserTurnPort({
+    onUserTurn: (event) => {
+        void sessionDigestProducer.handleUserTurn(event);
+    },
+});
 
 // The cockpit's CARD module is built BELOW, after the one chat control service it sends
 // through exists: its two content executors are bound to that service in

@@ -364,7 +364,14 @@ export function createSessionDigestLlmTier(deps: SessionDigestLlmTierDeps): Sess
     }
   }
 
-  return { handleTurnEnd };
+  return {
+    handleTurnEnd,
+    // The user-message path resolves answers only; the semantic tiers are a turn-end concern.
+    // Failures are already swallowed by the deterministic producer.
+    async handleUserTurn(event) {
+      await deps.deterministic.handleUserTurn(event);
+    },
+  };
 }
 
 /** The one settings reading the process-wide producer uses (mtime-cached inside the source). */

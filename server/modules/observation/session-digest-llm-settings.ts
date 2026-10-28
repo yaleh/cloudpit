@@ -60,6 +60,13 @@ const DEFAULT_SESSION_DIGEST = {
   maxPerHour: 6,
   minTurnChars: 200,
   apiKeyFile: '',
+  /**
+   * The digest tier's OWN output ceiling. It must NOT inherit the reply-suggestions 400: a full
+   * ask decision (restated question, situation, every option with implications, consequence
+   * tags, and the judge's pick + reason) overruns that ceiling and the JSON is truncated mid
+   * string. 1200 measured enough for the live quay asks; the knob stays editable per deployment.
+   */
+  maxOutputTokens: 1200,
 } as const;
 
 /** One reading of the tier settings, with every gateway field resolved to a concrete value. */
@@ -128,6 +135,10 @@ function buildReading(
     block === null
       ? DEFAULT_SESSION_DIGEST.apiKeyFile
       : readString(block, 'apiKeyFile', DEFAULT_SESSION_DIGEST.apiKeyFile, problems);
+  const maxOutputTokens =
+    block === null
+      ? DEFAULT_SESSION_DIGEST.maxOutputTokens
+      : readInteger(block, 'maxOutputTokens', DEFAULT_SESSION_DIGEST.maxOutputTokens, { minimum: 1, maximum: 100000 }, problems);
 
   const model = blockModel.trim() === '' ? reply.upstream.model : blockModel.trim();
   // The reply-suggestions key is an opaque credential; this module keeps its own
@@ -146,7 +157,7 @@ function buildReading(
     authScheme: reply.upstream.authScheme,
     disableThinking: reply.upstream.disableThinking,
     timeoutMs: reply.upstream.timeoutMs,
-    maxOutputTokens: reply.generation.maxOutputTokens,
+    maxOutputTokens,
     temperature: reply.generation.temperature,
     apiKey,
     source: context.source,

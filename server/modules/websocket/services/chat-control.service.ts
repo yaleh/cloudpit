@@ -11,6 +11,7 @@ import {
 } from '@/modules/websocket/services/chat-websocket.service.js';
 import type { ProviderRuntimeGateway } from '@/modules/websocket/services/chat-websocket.service.js';
 import { isRunIdCompatWindowOpen } from '@/shared/types.js';
+import { readSessionUserTurnPort } from '@/shared/ports/session-user-turn.port.js';
 import type {
   AnyRecord,
   ChatRunSource,
@@ -744,6 +745,14 @@ export function createChatControlService(deps: ChatControlDependencies) {
       } catch {
         // The stream is an observation, not part of the send's contract.
       }
+    }
+
+    // The accepted message answers an outstanding ask; stamped at send time so the observation
+    // layer states `session.answered` without waiting for turn end (fire-and-forget, never throws).
+    try {
+      readSessionUserTurnPort()?.onUserTurn({ appSessionId: input.sessionId });
+    } catch {
+      // Observation is not part of the send's contract.
     }
 
     // The delivery this send was accepted as (SPEC §8.1). A resident session's
