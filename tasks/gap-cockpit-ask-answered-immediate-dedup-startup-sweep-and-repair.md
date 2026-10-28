@@ -30,10 +30,10 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：用户消息端口触发时转写尚未包含该消息 ⇒ 最新的未结束 askId 仍立即发出 answered；同一 askId 在第二次端口触发与随后的 turn-end 都不再重发；账本里已有 answered 的历史 askId 在补发时一条也不重发（补发条数恰等于未结束的条数）；启动补扫对「有未结束提问且转写里其后已有用户消息」的会话补发、对没有的会话不发；读取器对「模型输出不可用」与「缺原话字段」的旧读数各补算一次、第二次读取不再调用。
-- [ ] 假形态变红：用户消息端口改回按转写判断 ⇒ 第一条用例红；去掉跨历史去重 ⇒ 补发条数用例红。改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0（既有用例不减）。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：用户消息端口触发时转写尚未包含该消息 ⇒ 最新的未结束 askId 仍立即发出 answered；同一 askId 在第二次端口触发与随后的 turn-end 都不再重发；账本里已有 answered 的历史 askId 在补发时一条也不重发（补发条数恰等于未结束的条数）；启动补扫对「有未结束提问且转写里其后已有用户消息」的会话补发、对没有的会话不发；读取器对「模型输出不可用」与「缺原话字段」的旧读数各补算一次、第二次读取不再调用。
+- [x] 假形态变红：用户消息端口改回按转写判断 ⇒ 第一条用例红；去掉跨历史去重 ⇒ 补发条数用例红。改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0（既有用例不减）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
@@ -45,6 +45,19 @@ extra:
 4. 对 `dbbf1404-7c68-40f6-a709-342c1fc158ce` 的旧失败读数请求两次卡片读口，贴出第二次的问题、选项与缺省；对一张旧卡打开手机 Details，截图显示助手原话引用与「in session」链接，存 `tmp/`。
 
 实例用毕 `scripts/isolated-instance.sh stop`。
+
+## ADR-007 暗轴记录
+
+L_G=4 条落地读数（用户发言即 answered、跨历史去重、启动补扫、「模型输出不可用」与缺原话两类旧读数各重算一次），每条都有可复跑的判据与隔离实例读数。
+
+L_D=0 条退化读数（跨历史补发重复行 0 条；第二次用户发言后该会话 answered 行数不变）。
+
+## 完成记录（2026-10-28）
+
+- 实现提交：`238648b41`，9 个文件、+621/−90。
+- 判据：`session-ask-decision-digest.test.ts` 30/30、`cockpit-fleet-card-provider.test.ts` 11/11、`server-import-cycle-budget.test.ts` 11/11、`architecture-ratchet.test.ts` 6/6；`npm run typecheck` 与 `npm run lint`（仅既有 warning）退出 0。
+- 假形态：用户消息端口改回按转写判断 ⇒ 立即 answered 用例红（29/30）；turn-end 补发改成以全量 settled 为候选集 ⇒ 去重条数用例红（实际多出 a5）。
+- 隔离实例 DoD（复制库 + 临时 HOME，`~/.quay-fleet` 为副本、事件写临时目录）：asking `2026-10-28T08:31:02.976Z` → 发送 `08:31:10.712Z` → answered `08:31:10.725Z`（13 ms，该轮仍在跑）；再发一条后该会话 answered 仍为 1 行；启动日志 `启动补扫: 检查 3 个有未结束提问的会话，补发 4 条 session.answered`；`dbbf1404` 第一读为旧失败、无选项/原话，第二读重算为「是/否」且缺省「是」并带原话；手机 Details 截图 `tmp/dod-details-mobile.png`、`tmp/dod-details-mobile-drawer.png`（390×844，显示原话与 in session 链接 `/session/b32559b2-…`）。
 
 ## Touches
 
