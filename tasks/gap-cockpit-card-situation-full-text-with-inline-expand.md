@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-situation-full-text-with-inline-expand
 title: 驾驶舱卡片情境不再截成 2 行：普通卡片模式完整显示情境与内容未就绪原因，超过约 6 行时卡片内原地「展开」（不跳 Details）；紧凑模式保留截断
-status: ready
+status: done
 labels:
   - gap
   - cockpit
