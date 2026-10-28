@@ -13,6 +13,7 @@ import {
   cockpitFactShortForm,
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
+import CockpitCardSituation from '@/modules/cockpit/CockpitCardSituation';
 import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmOutcome,
@@ -354,6 +355,13 @@ export type CockpitCardProps = {
   dropdownOpen: boolean;
   selected: boolean;
   density: CockpitCardDensity;
+  /**
+   * True when this card's over-long situation is expanded past the six-line preview. The
+   * controller owns the state; the card only draws it, so a re-read's reset is one rule.
+   */
+  situationExpanded?: boolean;
+  /** Toggles that expansion (the inline control); absent means the card draws no control. */
+  onToggleSituationExpanded?: () => void;
   onSelect: () => void;
   onOpenDetails: () => void;
   onToggleDropdown: () => void;
@@ -383,6 +391,8 @@ export default function CockpitCard({
   dropdownOpen,
   selected,
   density,
+  situationExpanded = false,
+  onToggleSituationExpanded,
   onSelect,
   onOpenDetails,
   onToggleDropdown,
@@ -401,6 +411,7 @@ export default function CockpitCard({
   const shownOption = shownOptionOf(card, shown);
   const showingOwnReply = shown?.kind === 'ownReply';
   const compact = density === 'compact';
+  const situation = card.situation !== card.ask ? card.situation ?? null : null;
   const ownReplyAvailable = card.ownReply !== undefined;
   // A fact already stated by the situation is not drawn twice; Details still lists every fact.
   const facts = cockpitCardFactsBeyondSituation(card);
@@ -511,28 +522,15 @@ export default function CockpitCard({
           {question}
         </p>
 
-        {/* Why the local content resolver could not fill this card: drawn where the missing
-            situation would have been, so the card never reads as an unexplained blank. */}
-        {card.contentUnavailable !== undefined && (
-          <p
-            data-testid="cockpit-card-content-unavailable"
-            className={cn(
-              'mt-0.5 text-xs text-muted-foreground',
-              compact ? 'line-clamp-1' : 'line-clamp-2',
-            )}
-          >
-            {card.contentUnavailable}
-          </p>
-        )}
-
-        {card.situation !== undefined && card.situation !== card.ask && (
-          <p
-            data-testid="cockpit-card-zone-a-situation"
-            className={cn('mt-0.5 text-xs text-muted-foreground', compact ? 'line-clamp-1' : 'line-clamp-2')}
-          >
-            {card.situation}
-          </p>
-        )}
+        {/* The situation is the card's decision evidence, so Cards draws all of it (with an
+            in-place expand control for one that runs long); Compact keeps its one-line shape. */}
+        <CockpitCardSituation
+          situation={situation}
+          contentUnavailable={card.contentUnavailable}
+          compact={compact}
+          expanded={situationExpanded}
+          onToggleExpanded={onToggleSituationExpanded}
+        />
 
         {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. A pill is
             a SHORT FORM: the sentence it abbreviates stays in `title` and, untruncated, in Details;

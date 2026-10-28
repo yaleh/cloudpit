@@ -483,6 +483,8 @@ describe('every locale carries the cockpit copy', () => {
       'cardFilterAllProjects',
       'cardDensityCards',
       'cardDensityCompact',
+      'cardSituationExpand',
+      'cardSituationCollapse',
       'cardEmpty',
       'cardError',
       'cardConfirmBody',

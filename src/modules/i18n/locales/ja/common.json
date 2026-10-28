@@ -1001,6 +1001,8 @@
     "cardFilterAllProjects": "すべてのプロジェクト",
     "cardDensityCards": "カード",
     "cardDensityCompact": "コンパクト",
+    "cardSituationExpand": "展開する",
+    "cardSituationCollapse": "折りたたむ",
     "cardEmpty": "待機中のカードはありません。",
     "cardError": "カードを読み取れませんでした: {{reason}}",
     "cardConfirmBody": "「{{label}}」を一度だけ送信します。",

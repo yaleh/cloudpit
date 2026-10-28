@@ -971,6 +971,8 @@
     "cardFilterAllProjects": "Все проекты",
     "cardDensityCards": "Карточки",
     "cardDensityCompact": "Компактно",
+    "cardSituationExpand": "Показать больше",
+    "cardSituationCollapse": "Показать меньше",
     "cardEmpty": "Нет ожидающих карточек.",
     "cardError": "Не удалось прочитать карточки: {{reason}}",
     "cardConfirmBody": "Это отправит «{{label}}» один раз.",

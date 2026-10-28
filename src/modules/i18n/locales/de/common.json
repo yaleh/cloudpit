@@ -971,6 +971,8 @@
     "cardFilterAllProjects": "Alle Projekte",
     "cardDensityCards": "Karten",
     "cardDensityCompact": "Kompakt",
+    "cardSituationExpand": "Mehr anzeigen",
+    "cardSituationCollapse": "Weniger anzeigen",
     "cardEmpty": "Keine Karten warten.",
     "cardError": "Karten konnten nicht gelesen werden: {{reason}}",
     "cardConfirmBody": "Dies sendet „{{label}}“ einmal.",
