@@ -113,6 +113,24 @@ L_G 该轴仍暗，理由：同上；验证读数就是 DoD 里的逐宽度卡�
 
 ADR-007：`classifyDarkAxisRecord` 对当前正文读作 `DISCLAIMED`（`L_D 该轴仍暗,理由:…`）。
 
+### 补测（2026-10-29）：开启驾驶舱的隔离实例上补做「Pin to wall」与场景运行器
+
+上文 DoD 记下的两处没做到（Pin to wall 两个请求 404、`cockpit-mode-switch` 第 2 步超时）都因隔离实例启动时驾驶舱是关的。本节是在**开启驾驶舱**的隔离实例上的补测读数；在 MCP 浏览器（Playwright MCP）里实际操作，不是一次性脚本。
+
+**实例**：`scripts/isolated-instance.sh start`（端口 3177、副本库、residentRestore 关闭）拿到副本库与令牌后，因为 `cockpit.enabled` 是启动时读一次的开关，停掉脚本起的 node，把 `$STATE_DIR/server.settings.json` 改成 `{"residentRestore":{"enabled":false},"cockpit":{"enabled":true}}`，再手工起 `node dist-server/server/index.js`，环境为 `SERVER_PORT=3177 HOST=127.0.0.1 DATABASE_PATH=<副本库> SERVER_SETTINGS_PATH=<该文件> CLAUDE_SESSION_SCOPE_SWEEP=off QUAY_FLEET_BIN=/data/home/yale/work/quay-fleet/bin/quay-fleet.mjs HOME=/tmp/ii-cockpit-home`（`.claude`、`.claude.json`、`.quay-fleet` 为指向真实目录的符号链接，`.cloudcli` 为空目录）。读数：`GET /api/settings/features` → `{"cockpit":{"enabled":true}}`；`GET /api/observation/wall` → 200（上次实例为 404）；`GET /api/quay/fleet-summary` 里 quay-fleet、claudecodeui、quay 等项目带真实 `fleetProjectId`，driver 读数为 `running`；server.log 无 `resident-restore` 行（未恢复任何会话）。收尾 `scripts/isolated-instance.sh stop` → `{"ok":true,"residual_scopes":"","port_still_serving":false}`，`ss` 查 3177 与 5199 均无监听，`claudecodeui-session-411167-*` scope 0 条。
+
+**Pin to wall（1280×800，MCP 浏览器）**：悬停 archguard 行 → 点 `Project options for archguard`（`⋯`）→ 菜单 5 项，依次 `Rename project (F2)`、`Session filter…`、`View in cockpit`、`Pin to wall`、`Remove project (Delete)`（删除项在分隔线之后，缩短后的文案单行）。点 `Pin to wall`：网络请求 `PUT /api/observation/watch/quay%3A%2F%2Farchguard%2Fboard` → 200；菜单项变为 `Unpin`；隔离库 `observation_watch_entries` 读到 `('1','quay://archguard/board', 1793205358376)`。点 `Unpin`：`DELETE /api/observation/watch/quay://archguard/board` → 200；该表读回空；再次打开菜单项回到 `Pin to wall`。**未验证的一点**：`/api/observation/wall` 响应只含 12 个条目、`collapsedCount` 为 16，被钉的看板没有出现在这 12 个里，所以「被钉对象出现在墙上」这一条没有读到，只验证了服务端持久化与菜单状态往返。
+
+**View in cockpit**：点该项后 URL 变为 `http://127.0.0.1:3177/cockpit?view=board&project=archguard`，页面标题行读到 `Board · archguard`。
+
+**场景运行器**：起 Vite dev（`CI=true SERVER_PORT=3177 node node_modules/vite/bin/vite.js --port 5199 --host 127.0.0.1`，代理到上述实例），`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-mode-switch.json --base-url http://127.0.0.1:5199 --auth-token <令牌> --project archguard --session 'archguard 使用问题讨论' --out tmp/scenario-out2` → 退出码 0，stderr 末行 `ui-scenario: passed (3 steps, 11244ms, 3 checkpoint(s))`，报告 `ok:true`、`failedStep:null`。逐步读数：① `open:session` → route `/session/d4f4233b-aae6-4047-9825-13206bb7cd53`，cockpit.view `null`；② `open:cockpit` → route `/cockpit?view=board&project=archguard`，cockpit.view `board`；③ `open:session` → 回到同一个 `/session/d4f4233b-aae6-4047-9825-13206bb7cd53`，cockpit.view `null`。各步 `failures` 均为空。上一次超时的 `[data-mode-switch-link="cockpit"]` 这次出现了。未运行 `quay-wall-focus-pin-utter.json`（quay 面板与 ASR 接缝，与项目行无关）。
+
+**行内读数（与 AC 里的 quay 图标规则一致）**：本实例侧栏里 quay-dogfood-goal030 显示琥珀色 `AlertTriangle`（stale），quay、quay-fleet、archguard 等显示绿色 `Zap`（running），计数只显示非零圆点（如 quay `2 / 1`）；这是 fleet-summary 的真实 driver 读数，不是桩。
+
+**截图（本机路径；`tmp/` 被 git 忽略，只在这台机器上有）**：`tmp/cockpit-dod-1280-hover.png`（悬停出现 `⋯`）、`tmp/cockpit-dod-1280-menu.png`（5 项菜单，含 `Pin to wall`）、`tmp/cockpit-dod-1280-after-pin.png`（点 Pin 之后）、`tmp/cockpit-dod-1280-menu-unpin.png`（菜单项为 `Unpin`）、`tmp/cockpit-dod-1280-view-in-cockpit.png`（跳到 board 视图）；场景运行器的 `tmp/scenario-out2/report.json` 与 `step-1-open-session.png`、`step-2-open-cockpit.png`、`step-3-open-session.png`。
+
+**旁注（与本任务无关，只记不处理）**：① 驾驶舱开启时侧栏顶部的 `CloudCLI` 标题被模式切换挤成 `Clo…`（见 `cockpit-dod-1280-menu.png`）。② `scripts/isolated-instance.sh` 不隔离 HOME：它起的 server 启动时会把真实 `~/.cloudcli/local-server.json` 改写成指向隔离端口，停止时把它删掉。这次手工起 node 时先踩到了，已把该文件手工恢复为生产的 pid/端口，之后改用独立 HOME；脚本本身未改。
+
 ## Touches
 
 - src/modules/sidebar/SidebarProjectItem.tsx
