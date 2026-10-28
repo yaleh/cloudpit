@@ -47,11 +47,11 @@ depends_on:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 退出 0：动作成功后恰好调用一次反馈 executor，参数含 `feedbackId`、`revision`（整数）、`optionId` 或 `ownReply: true` + `text`、`outcome.sessionId`；动作失败时不调用反馈、不建叠加；叠加持久（重建 store 后仍读到）；反馈结果里的 `receipt.feedbackId` 匹配、卡片读数里回显的 `receipt` 匹配、或卡片不在读数里时叠加清掉；`closed` 回执而读数仍含该卡时保持「已发出」；`rejected` 清叠加并带回原因；重发复用同一 `feedbackId` 且不重做动作；provider 未声明反馈 executor 时重发返回明确的不可用原因。
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` 退出 0（注入时钟）：已发出卡片原位不动（卡片顺序与 id 列表与发出前相同）、选项与确认锁住；第 120 秒前不出现重发，第 120 秒出现；收到匹配回执后回到 provider 读数所示状态；头部计数读数正确。
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx`、`npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts`、`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（`receipt` 字段两端同步；新文案进全部 locale）。
-- [ ] 假形态变红：叠加改为按 `revision` 变化就清掉（而不是按回执/条目关闭）⇒ 「回执到达才清」用例红；把卡片排到末尾 ⇒ 「原位不动」用例红；改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 退出 0：动作成功后恰好调用一次反馈 executor，参数含 `feedbackId`、`revision`（整数）、`optionId` 或 `ownReply: true` + `text`、`outcome.sessionId`；动作失败时不调用反馈、不建叠加；叠加持久（重建 store 后仍读到）；反馈结果里的 `receipt.feedbackId` 匹配、卡片读数里回显的 `receipt` 匹配、或卡片不在读数里时叠加清掉；`closed` 回执而读数仍含该卡时保持「已发出」；`rejected` 清叠加并带回原因；重发复用同一 `feedbackId` 且不重做动作；provider 未声明反馈 executor 时重发返回明确的不可用原因。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` 退出 0（注入时钟）：已发出卡片原位不动（卡片顺序与 id 列表与发出前相同）、选项与确认锁住；第 120 秒前不出现重发，第 120 秒出现；收到匹配回执后回到 provider 读数所示状态；头部计数读数正确。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx`、`npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts`、`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（`receipt` 字段两端同步；新文案进全部 locale）。
+- [x] 假形态变红：叠加改为按 `revision` 变化就清掉（而不是按回执/条目关闭）⇒ 「回执到达才清」用例红；把卡片排到末尾 ⇒ 「原位不动」用例红；改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
@@ -63,6 +63,29 @@ depends_on:
 4. 发出后刷新页面，截图叠加仍在。
 
 实例用毕 `scripts/isolated-instance.sh stop`。
+
+## Verification
+
+2026-10-28，worktree `/data/home/yale/work/claudecodeui-worktrees/gap-cockpit-card-feedback-receipt-lifecycle`（分支 `task/gap-cockpit-card-feedback-receipt-lifecycle`），实现提交 `4af36cb6c`。
+
+- **AC1**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` ⇒ `tests 12 / pass 12 / fail 0`。12 条用例逐条对上本 AC 的分句：协议参数（`attentionId`、整数 `revision`、`feedbackId`、`optionId` 或 `ownReply: true` + `text`、`suggested`、`source`、`outcome.sessionId/deliveryId`）、动作失败不调反馈不建叠加、重建 store 仍读到、`closed` 且读数仍含该卡保持「已发出」、原位不动、revision 变化不清、卡片回显 kept 回执清叠加、别的 `feedbackId` 什么都不动、rejected 清叠加带原因、重发同 `feedbackId` 且动作只执行一次、无反馈 executor 时给明确不可用原因。
+- **AC2**：`npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` ⇒ `5 passed`。注入时钟连 repeating interval 一起实现（控制器的 1 秒 feedback tick 是真跑的，不是被绕过）：原位与 id 顺序不变、选项与确认锁住（`disabledReason` = `FEEDBACK_LOCKED_REASON`）、119 999ms 不可重发 / 120 000ms 可重发、kept 回执回到 provider 读数、头部计数。
+- **AC3**：`CockpitCard.test.tsx` ⇒ `71 passed`；`cockpitCardTypeSync.test.ts` + `i18nCockpitCompleteness.test.ts` ⇒ `20 passed`（五个新类型的 `receipt`/`feedback`/`feedbackNotice` 两端字段一致；12 个 locale 的 `cockpit` 块键集与 `{{}}` 占位符集一致）。
+- **AC4**：两个假形态各改一次、跑红、还原。① 叠加改为「revision 变化就清」⇒ `✖ a revision change alone never clears the overlay`；② `applyCards` 把带叠加的卡片排到末尾 ⇒ `✖ a sent card keeps its place in the reading (原位不动)…` 与 `✖ a closed receipt keeps 「已发出」…` 两条红。诚实说明：②在客户端用例上不会红——客户端没有排序规则，排序只发生在服务端读数里，所以「原位不动」的承重腿是服务端那条。
+- **AC5**：`cockpit-fleet-card-provider.test.ts` 11 pass、`server-import-cycle-budget.test.ts` 11 pass、`architecture-ratchet.test.ts` 6 pass；`npm run typecheck` 退出 0；`npm run lint` 退出 0（`LINT_EXIT:0`，输出只有既有 warning）。ratchet 的五处 oversize 上调与新增文件的判据修复都按 RECORDED CHANGE 记进 `architecture-ratchet.baseline.json`（2026-10-28 段），手工改基线而**不**跑 `ARCHITECTURE_RATCHET_WRITE_BASELINE=1`——生成器会把 `note` 重置成 `BASELINE_NOTE`，既有 RECORDED CHANGE 段会全丢。
+
+### DoD（隔离实例 + 一次性 Playwright）
+
+实例由 `scripts/isolated-instance.sh` 起（`residentRestore.enabled=false`、`CLAUDE_SESSION_SCOPE_SWEEP=off`，启动后读日志确认 `started=0`），HOME 指向临时目录 `/tmp/gap-feedback-home`，⛔ 未触碰真实 `~/.quay-fleet`；只点夹具卡片。会话里没有 MCP 浏览器工具，按「没 MCP 浏览器时用一次性 Playwright spec」用 `tmp/dod-feedback.mjs` 驱动真实页面（`/cockpit?view=cards`），截图在 `tmp/cockpit-feedback-dod/`。
+
+1. `mode: closed` + `delayMs: 10000`：确认「Provide the credential」⇒ `closed-pc-1-sent.png`：`data-phase=sent`，状态行 "Sent: Provide the credential · waiting for the fleet to confirm receipt"，头部 "9 cards, 1 waiting for the fleet to confirm"，卡片仍在第一位（顺序未变）⇒ 约 10 秒后 `closed-pc-2-gone.png`，卡片 detached、确认区一起消失。手机宽 390 同一路径改用 `fixture:fix` ⇒ `closed-phone-1-sent.png` / `closed-phone-2-gone.png`。
+2. `mode: none`：确认「Keep the scope small」⇒ 叠加文件 `feedbackId=c7514039-eba7-4970-b11a-20c2ae8c615b`、`sentAt=2026-10-28T15:15:20.685Z`、`revision=1`。2 分钟读数 `unconfirmed-1-two-minutes.png`：`phase=unconfirmed`、"The fleet has not confirmed · no receipt after 2 minutes"、Resend 可点；手机宽同一读数 `unconfirmed-1-two-minutes-phone.png`。改配置为 `closed` + 8 秒后点「Resend」⇒ 叠加文件 `feedbackId` **不变**、`sentAt` 变 `15:17:27.185Z`（同一幂等键重发，`revision` 仍是 1）；该页只发了 `POST /api/cockpit/cards/feedback/resend`，一个 `confirm` 请求都没有——整个 DoD 里 `confirm` 只出现过一次（`none` 腿的那次）⇒ 动作没有重做。8 秒后卡片消失、叠加清空 ⇒ `resend-1-resent.png` / `resend-2-gone.png`。
+3. `mode: kept` ⇒ `kept-1-returned.png`：`noticeKind=kept`、"The fleet received it and kept the item open"，卡片回到待处理（`phase=null`、选项与确认重新可点）。`mode: rejected`（`reason: stale-revision`）⇒ `rejected-1-returned.png`：`noticeKind=rejected`、"The fleet rejected this feedback: stale-revision"，同一张卡的选项与确认恢复可用（provider 已把 revision 前移，允许重新选）。
+4. 发出后 `page.reload()` ⇒ `reload-1-overlay-persists.png`，重载前后读数相同（`phase=sent`、同一 `feedbackId`、头部仍 "1 waiting"），叠加不只在内存里。
+
+实例用毕 `scripts/isolated-instance.sh stop` ⇒ `ok:true`、`port_still_serving:false`、`residual_scopes:""`。
+
+该轴仍暗,理由:真实 fleet 的 `fleet.feedback` 调用未在隔离实例执行，本任务只覆盖夹具 provider 的 closed/kept/rejected/none 与本地叠加/回执清理
 
 ## Touches
 
@@ -100,3 +123,9 @@ depends_on:
 - src/modules/i18n/locales/ru/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
+- server/index.ts
+- server/modules/settings/server-settings.ts
+- src/modules/cockpit/contract/cardReading.ts
+- src/modules/cockpit/hooks/useCockpitCards.ts
+- src/modules/i18n/locales/zh-TW/common.json
+- src/modules/i18n/locales/tr/common.json
