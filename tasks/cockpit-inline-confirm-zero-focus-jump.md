@@ -2,7 +2,7 @@
 id: cockpit-inline-confirm-zero-focus-jump
 title: 驾驶舱确认改为原地两步：点 Confirm 后确认条原地变成「将发送…」+「确认发送 / 取消」，「确认发送」占原 Confirm
   按钮同一位置（两次点击距离 0），约 6 秒无操作或换选项、卡片更新即退回；去掉固定在窗口底部的确认框；结果原地显示
-status: ready
+status: done
 labels:
   - gap
   - cockpit
