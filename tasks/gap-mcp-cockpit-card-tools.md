@@ -3,7 +3,7 @@ id: gap-mcp-cockpit-card-tools
 title: MCP 暴露驾驶舱卡片：cockpit_cards / cockpit_card / cockpit_card_brief 用
   cloudcli:read，cockpit_card_confirm 用新增 cloudcli:cockpit:act；复用 cockpit
   registry/action channel/brief，不重写第二套读路径
-status: ready
+status: done
 labels:
   - gap
   - cockpit
