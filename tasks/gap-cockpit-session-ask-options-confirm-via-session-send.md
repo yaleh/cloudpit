@@ -2,7 +2,7 @@
 id: gap-cockpit-session-ask-options-confirm-via-session-send
 title: 会话提问卡的选项可以确认：选项绑定 session.send，把「选项名 — 做什么」作为回复发回原会话（经确认卡），取代不可执行的占位执行器
   fleet.cockpit.session-ask-option
-status: ready
+status: done
 labels:
   - gap
   - defect
