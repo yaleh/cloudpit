@@ -48,10 +48,12 @@ depends_on:
 - tasks/gap-cockpit-card-situation-full-text-with-inline-expand.md
 - src/modules/cockpit/CockpitCard.tsx
 - src/modules/cockpit/CockpitCardList.tsx
+- src/modules/cockpit/CockpitCardSituation.tsx
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - src/modules/cockpit/tests/cockpitCardController.test.ts
 - server/modules/cockpit/cockpit-fixture-card-provider.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts
 - src/modules/chat/tests/inlineQuoteChip.test.tsx
 - src/modules/i18n/locales/de/common.json
@@ -82,3 +84,4 @@ depends_on:
   - 12 行情境（fixture:stuck，12 个 provider 行）：两档初始均 `line-clamp-6`，clientHeight=96 / scrollHeight=192，按钮「展开」`data-expanded=false`；点击后 `line-clamp` 移除，clientHeight=192（完整），按钮「收起」；Details 层计数点击前后均为 0。
   - Compact：情境 `line-clamp-1`，clientHeight=16，无展开按钮。
   - 两档 pageErrors=0、consoleErrors=0。截图：`tmp/isolated-dod/01-ask-three-lines-390.png`、`02-stuck-clamped-390.png`、`03-stuck-expanded-390.png`、`04-stuck-compact-390.png`、`02-stuck-clamped-1440.png`、`03-stuck-expanded-1440.png`、`00-cards-list-390.png`；结构化读数 `tmp/isolated-dod/report.json`；与 `tmp/cockpit-redesign/80-m-list-cards.png` 拼成的对照图 `tmp/isolated-dod/compare-cockpit-situation.png`。实例用毕已 stop，3123 端口无残留监听。
+- Ratchet 复核（本轮补，fan-in 首轮红的原因）：`architecture-ratchet.test.ts` 报两处 —— `src/modules/cockpit/CockpitCard.tsx` 845 行（基线外 > 800），以及 `src/modules/cockpit/cockpitCardController.ts` 1108→1139（基线内上调）。处置：把情境块连同 `situationRunsLong` 抽到新的模块私有组件 `src/modules/cockpit/CockpitCardSituation.tsx`（渲染结果逐字不变），`CockpitCard.tsx` 回落到 766 行（低于 develop 的 768，故不需要基线条目）；控制器新增的展开状态（按卡片 id + revision 记录）是 AC-2 要求的交付物，且该规则属于已持有卡片列表/选中/待确认的 controller，按 AC-394 的 RECORDED CHANGE 格式在 `architecture-ratchet.baseline.json` 的 note 里记录 1108→1139，不新增任何 owner。复跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6 passed / 0 failed，exit 0；`npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` → 21 files / 333 tests passed；`npm run typecheck`、`npm run lint`、`npm run build:client` 均 exit 0。
