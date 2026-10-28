@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import { canResendFeedback, feedbackPhaseOf } from '@/modules/cockpit/cockpitCardFeedback';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
   cockpitCardDescriptor,
@@ -231,6 +232,12 @@ export type CockpitCardProps = {
   onConfirm?: () => void;
   /** Leaves the confirm state without sending. */
   onCancelConfirm?: () => void;
+  /** Re-sends only the feedback after the 2-minute window (never the action). */
+  onResendFeedback?: () => void;
+  /** True while this card's feedback resend is in flight. */
+  resendingFeedback?: boolean;
+  /** The last failed resend for this card, drawn in its status block. */
+  feedbackResendError?: string | null;
 };
 
 export default function CockpitCard({
@@ -257,6 +264,9 @@ export default function CockpitCard({
   outcome = null,
   onConfirm,
   onCancelConfirm,
+  onResendFeedback,
+  resendingFeedback = false,
+  feedbackResendError = null,
 }: CockpitCardProps) {
   const { t } = useTranslation();
   const descriptor = cockpitCardDescriptor(card.kind);
@@ -289,6 +299,18 @@ export default function CockpitCard({
       : t(showingOwnReply ? 'cockpit.cardConfirmOwnReply' : 'cockpit.cardConfirm', {
           label: target.label || shownLabel,
         });
+  // The feedback lifecycle: while an overlay exists the card keeps its place (dimmed), its
+  // options and confirm bar are locked, and the only live control is the resend after 2 minutes.
+  const feedback = card.feedback;
+  const feedbackPhase = feedback === undefined ? null : feedbackPhaseOf(feedback, now);
+  const feedbackLocked = feedback !== undefined;
+  const feedbackResendable = feedback !== undefined && canResendFeedback(card, now);
+  const feedbackOutcomeLine =
+    feedback?.outcome.sessionId !== undefined
+      ? t('cockpit.cardFeedbackOutcomeSession')
+      : feedback?.outcome.deliveryId !== undefined
+        ? t('cockpit.cardFeedbackOutcomeDelivery')
+        : t('cockpit.cardFeedbackOutcomeAccepted');
 
   return (
     <article
@@ -296,8 +318,10 @@ export default function CockpitCard({
       data-cockpit-card-id={card.id}
       data-card-kind={card.kind}
       data-selected={selected ? 'true' : 'false'}
+      data-feedback-phase={feedbackPhase ?? undefined}
       className={cn(
         'rounded-xl border bg-card text-card-foreground shadow-sm',
+        feedbackLocked ? 'opacity-70' : '',
         selected ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border',
         compact ? 'px-3 py-2' : 'px-3 py-2.5',
       )}
@@ -435,9 +459,11 @@ export default function CockpitCard({
               data-testid="cockpit-card-option-trigger"
               data-source={shownOption?.source ?? null}
               data-suggested={shownOption?.suggested === true ? 'true' : 'false'}
-              aria-expanded={dropdownOpen}
-              onClick={onToggleDropdown}
-              className="flex w-full items-center justify-between gap-2 bg-background px-2 py-1.5 text-left text-xs hover:bg-accent"
+              data-locked={feedbackLocked ? 'true' : 'false'}
+              aria-expanded={!feedbackLocked && dropdownOpen}
+              disabled={feedbackLocked}
+              onClick={feedbackLocked ? undefined : onToggleDropdown}
+              className="flex w-full items-center justify-between gap-2 bg-background px-2 py-1.5 text-left text-xs hover:bg-accent disabled:cursor-default"
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate font-medium text-foreground">{shownLabel}</span>
@@ -462,7 +488,7 @@ export default function CockpitCard({
               <ShownOptionExplanation option={shownOption} />
             )}
           </div>
-          {!compact && !dropdownOpen && showingOwnReply && ownReplyAvailable && (
+          {!compact && !dropdownOpen && !feedbackLocked && showingOwnReply && ownReplyAvailable && (
             <OwnReplyEditor
               value={ownReply}
               onChange={onOwnReplyChange}
@@ -472,7 +498,7 @@ export default function CockpitCard({
             />
           )}
 
-          {dropdownOpen && (
+          {dropdownOpen && !feedbackLocked && (
             <div
               data-testid="cockpit-card-option-list"
               // The rows are a RADIO GROUP, not a list of independent toggles: exactly one of
@@ -585,6 +611,83 @@ export default function CockpitCard({
             dialog. With no recommendation there is nothing to bind, so the card draws one quiet
             line instead of a full-width button that looks pressable and does nothing. */}
         <div className={cn(compact ? 'shrink-0' : '')}>
+          {/* A kept/rejected receipt returned the card to the person; the notice says which and
+              (for a refusal) why, while the ordinary options and confirm bar are live again. */}
+          {card.feedbackNotice !== undefined && (
+            <p
+              data-testid="cockpit-card-feedback-notice"
+              data-kind={card.feedbackNotice.kind}
+              className={cn(
+                'mb-1 text-[10px]',
+                card.feedbackNotice.kind === 'rejected'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground',
+              )}
+            >
+              {card.feedbackNotice.kind === 'kept'
+                ? t('cockpit.cardFeedbackKept')
+                : t('cockpit.cardFeedbackRejected', {
+                    reason: card.feedbackNotice.reason ?? '',
+                  })}
+            </p>
+          )}
+          {/* The sent-but-unconfirmed reading, drawn ON the card so it keeps its place. The
+              options above and the confirm bar below are locked until a receipt returns it. */}
+          {feedback !== undefined && (
+            <div
+              data-testid="cockpit-card-feedback-status"
+              data-phase={feedbackPhase ?? undefined}
+              className={cn(
+                'mb-1 rounded-md border px-2 py-1.5 text-[11px]',
+                feedbackPhase === 'unconfirmed'
+                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                  : 'border-border bg-muted/40 text-muted-foreground',
+              )}
+            >
+              <p data-testid="cockpit-card-feedback-sent">
+                {t('cockpit.cardFeedbackSent', { label: feedback.label })}
+              </p>
+              <p data-testid="cockpit-card-feedback-outcome">{feedbackOutcomeLine}</p>
+              {feedbackPhase === 'unconfirmed' && (
+                <>
+                  <p data-testid="cockpit-card-feedback-unconfirmed" className="mt-1 font-medium">
+                    {t('cockpit.cardFeedbackUnconfirmed')}
+                  </p>
+                  <button
+                    type="button"
+                    data-testid="cockpit-card-feedback-resend"
+                    data-resendable={feedbackResendable ? 'true' : 'false'}
+                    disabled={!feedbackResendable || resendingFeedback}
+                    onClick={onResendFeedback}
+                    className="mt-1 rounded border border-current px-2 py-0.5 text-[11px] font-medium disabled:opacity-50"
+                  >
+                    {resendingFeedback
+                      ? t('cockpit.cardFeedbackResending')
+                      : t('cockpit.cardFeedbackResend')}
+                  </button>
+                  <p className="mt-1 text-[10px] opacity-80">
+                    {t('cockpit.cardFeedbackResendHint')}
+                  </p>
+                  {!feedback.canResend && feedback.resendUnavailableReason !== undefined && (
+                    <p data-testid="cockpit-card-feedback-resend-unavailable" className="mt-1">
+                      {t('cockpit.cardFeedbackResendUnavailable', {
+                        reason: feedback.resendUnavailableReason,
+                      })}
+                    </p>
+                  )}
+                </>
+              )}
+              {feedbackResendError !== null && (
+                <p
+                  role="alert"
+                  data-testid="cockpit-card-feedback-resend-error"
+                  className="mt-1 text-destructive"
+                >
+                  {feedbackResendError}
+                </p>
+              )}
+            </div>
+          )}
           {target === null ? (
             <p
               data-testid="cockpit-card-confirm-empty"

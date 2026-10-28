@@ -18,6 +18,9 @@ import type {
 import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import type { CockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+import type { CockpitFixtureFeedbackSettings } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
+import type { CockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
 import { createCockpitHub } from '@/modules/cockpit/cockpit-hub.service.js';
 import type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.service.js';
 import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
@@ -67,6 +70,18 @@ export type CockpitCardsModuleDeps = {
   providers?: readonly ICockpitCardProvider[];
   executors?: readonly ICockpitActionExecutor[];
   /**
+   * The fixture's feedback protocol behaviour (the DoD switches it between `closed`, `none`,
+   * `kept` and `rejected`). Honoured only together with `fixtureCards`.
+   */
+  fixtureFeedback?: Partial<CockpitFixtureFeedbackSettings>;
+  /**
+   * Where the feedback overlay persists. Omitted keeps it in memory — which is what a criterion
+   * wants; `server/index.ts` passes CloudCLI's own file so a refresh/restart keeps the overlay.
+   */
+  feedbackFilePath?: string | null;
+  /** A store the caller already built (a criterion reads it after a request). */
+  feedbackStore?: CockpitCardFeedbackStore;
+  /**
    * The brief service's seams. They live at the composition root for the same leaf reason as the
    * hub's: the module must not import the gateway, observation or database modules. Omitted in a
    * criterion or a bare boot, where the route then answers a named fallback instead of throwing.
@@ -110,6 +125,11 @@ export type CockpitCardsModule = {
    * `createMcpGatewayModule` as `cockpitTools.briefForCard`.
    */
   briefForCard(cardId: string): Promise<CockpitBriefResponse | null>;
+  /**
+   * The feedback lifecycle's store. `server/index.ts` keeps it for the shutdown flush; the MCP
+   * face does not read it (the card route already carries the merged overlay).
+   */
+  feedbackStore: CockpitCardFeedbackStore;
 };
 
 /** The session a `cloudcli.session-ask` content ref names; `ref` is `sessionId[#messageId]`. */
@@ -230,11 +250,20 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   // local means a deployment without fixture cards cannot accidentally expose a fixed brief.
   let fixtureBriefFor: ((card: CockpitCard) => CockpitBriefResponse | null) | null = null;
   if (deps.fixtureCards) {
-    const fixture = createCockpitFixtureCardProvider({ subject: deps.fixtureSubject });
+    const fixture = createCockpitFixtureCardProvider({
+      subject: deps.fixtureSubject,
+      ...(deps.fixtureFeedback === undefined ? {} : { feedback: deps.fixtureFeedback }),
+    });
     providers.push(fixture.provider);
-    executors.push(fixture.executor);
+    executors.push(fixture.executor, fixture.feedbackExecutor);
     fixtureBriefFor = fixture.brief;
   }
+
+  // The feedback overlay is CloudCLI's own lifecycle state. It is built here, once per module,
+  // so both the read route and the resend command reach the same one.
+  const feedbackStore =
+    deps.feedbackStore ??
+    createCockpitCardFeedbackStore({ filePath: deps.feedbackFilePath ?? null });
 
   const registry = createCockpitCardRegistry(providers);
   // Late-bound implementations: only providers that opted into the capability are asked, and the
@@ -253,6 +282,7 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   const actions = createCockpitCardActions({
     registry,
     executors,
+    feedbackStore,
     ...(resolveExecutor === undefined ? {} : { resolveExecutor }),
   });
   const brief = createCockpitBriefService(deps.briefDeps ?? {});
@@ -278,9 +308,13 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   router.get('/', (_req, res, next) => {
     registry.listCards().then((cards) => {
       const diagnostics = registry.diagnostics();
+      // The overlay is applied LAST and never reorders: a card the person already confirmed keeps
+      // the provider's place, gains its status reading, and leaves only when the provider's
+      // reading or a matching receipt clears it.
+      const merged = feedbackStore.applyCards(cards);
       // The field is omitted when no provider has anything to explain, so a bare deployment's
       // response keeps the exact `{ cards }` shape its callers already read.
-      res.json(diagnostics.length === 0 ? { cards } : { cards, diagnostics });
+      res.json(diagnostics.length === 0 ? { cards: merged } : { cards: merged, diagnostics });
     }, next);
   });
   router.get('/:id/brief', (req, res, next) => {
@@ -295,6 +329,11 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   router.post('/confirm', (req, res, next) => {
     actions.confirm(req.body).then((result) => res.json(result), next);
   });
+  // Re-sends ONLY the feedback: the person's 2-minute timeout produces this call, not a second
+  // confirmation. The action ledger is untouched, so the action cannot run twice.
+  router.post('/feedback/resend', (req, res, next) => {
+    actions.resendFeedback(req.body).then((result) => res.json(result), next);
+  });
 
-  return { registry, actions, router, briefForCard };
+  return { registry, actions, router, briefForCard, feedbackStore };
 }

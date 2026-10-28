@@ -30,6 +30,7 @@ import type {
   CockpitCardFact,
   CockpitCardOption,
   CockpitCardOptionSource,
+  CockpitCardReceipt,
   CockpitCardState,
   CockpitCardSubject,
   SessionAskDecisionOption,
@@ -317,6 +318,29 @@ function withFleetOwnReply(card: CockpitCard): CockpitCard {
   };
 }
 
+/**
+ * The provider's receipt, when the fleet echoes one on the item. Tolerant like every other
+ * reading: a malformed receipt is ignored (the overlay then simply waits), never fatal.
+ */
+function mapReceipt(raw: unknown): CockpitCardReceipt | null {
+  if (!isRecord(raw)) return null;
+  const feedbackId = text(raw.feedbackId);
+  const disposition = text(raw.disposition);
+  if (
+    feedbackId === '' ||
+    (disposition !== 'closed' && disposition !== 'kept' && disposition !== 'rejected')
+  ) {
+    return null;
+  }
+  const reason = text(raw.reason);
+  return {
+    feedbackId,
+    at: text(raw.at),
+    disposition,
+    ...(reason === '' ? {} : { reason }),
+  };
+}
+
 /** One JSONL object as a card, or `null` when it is missing a field the contract requires. */
 function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): CockpitCard | null {
   if (!isRecord(raw)) return null;
@@ -348,6 +372,7 @@ function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): Cockp
     notifyRaw !== null && typeof notifyRaw.system === 'boolean' && text(notifyRaw.reason) !== ''
       ? { system: notifyRaw.system, reason: text(notifyRaw.reason) }
       : undefined;
+  const receipt = mapReceipt(raw.receipt);
 
   const card: CockpitCard = {
     id,
@@ -370,6 +395,7 @@ function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): Cockp
     ...(ask === '' ? {} : { ask }),
     ...(situation === '' ? {} : { situation }),
     ...(notify === undefined ? {} : { notify }),
+    ...(receipt === null ? {} : { receipt }),
   };
 
   const projected =

@@ -143,6 +143,12 @@ export type CockpitSettings = {
    */
   fixtureSubject: CockpitFixtureSubject;
   /**
+   * How the FIXTURE provider answers the feedback protocol, for an isolated instance's DoD.
+   * `closed` settles the item after `delayMs`; `kept`/`rejected` echo a receipt; `none` answers
+   * nothing (the 「2 分钟未确认」 arm). Ignored unless `fixtureCards` is on.
+   */
+  fixtureFeedback: CockpitFixtureFeedbackKnob;
+  /**
    * The quay-fleet card provider's switch and cache window.
    *
    * `enabled` SHIPS FALSE and is switched on at the online cutover; with it off the provider
@@ -160,6 +166,17 @@ export type CockpitSettings = {
    * opening message, the same order the MCP `session_create` tool uses.
    */
   sessionStart: CockpitSessionStartSettings;
+};
+
+/**
+ * The fixture provider's feedback protocol, for an isolated instance's DoD. Structurally the
+ * same shape the cockpit fixture accepts; declared here so this settings module does not import
+ * the cockpit feature (the settings file is a lower layer than the feature it configures).
+ */
+export type CockpitFixtureFeedbackKnob = {
+  mode: 'closed' | 'kept' | 'rejected' | 'none';
+  delayMs: number;
+  reason: string;
 };
 
 /** The two preferences a card-started conversation is opened with. */
@@ -181,6 +198,13 @@ export const DEFAULT_COCKPIT_ENABLED = false;
 
 /** The shipped fixture-cards switch: off. Fixtures exist for isolated DoD runs only. */
 export const DEFAULT_COCKPIT_FIXTURE_CARDS = false;
+
+/** The shipped fixture feedback: acknowledge at once and settle the item (a full DoD arm). */
+export const DEFAULT_COCKPIT_FIXTURE_FEEDBACK: CockpitFixtureFeedbackKnob = {
+  mode: 'closed',
+  delayMs: 0,
+  reason: '',
+};
 
 /** The shipped quay-fleet provider switch: off until the online cutover turns it on. */
 export const DEFAULT_COCKPIT_FLEET_CARDS_ENABLED = false;
@@ -325,6 +349,7 @@ function defaultServerSettings(filePath: string): ServerSettings {
       enabled: DEFAULT_COCKPIT_ENABLED,
       fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
       fixtureSubject: {},
+      fixtureFeedback: { ...DEFAULT_COCKPIT_FIXTURE_FEEDBACK },
       fleetCards: {
         enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
         ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
@@ -523,6 +548,7 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
     enabled: DEFAULT_COCKPIT_ENABLED,
     fixtureCards: DEFAULT_COCKPIT_FIXTURE_CARDS,
     fixtureSubject: {},
+    fixtureFeedback: { ...DEFAULT_COCKPIT_FIXTURE_FEEDBACK },
     fleetCards: {
       enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
       ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
@@ -558,6 +584,9 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
   }
   if (record.fixtureSubject !== undefined) {
     settings.fixtureSubject = readFixtureSubject(record.fixtureSubject, problems);
+  }
+  if (record.fixtureFeedback !== undefined) {
+    settings.fixtureFeedback = readFixtureFeedback(record.fixtureFeedback, problems);
   }
   if (record.fleetCards !== undefined) {
     settings.fleetCards = readFleetCards(record.fleetCards, problems);
@@ -656,6 +685,49 @@ function readFixtureSubject(raw: unknown, problems: string[]): CockpitFixtureSub
     }
   }
   return subject;
+}
+
+/**
+ * Reads the fixture feedback knob. Each field falls back to its shipped value on its own and
+ * reports its own problem, so one typo does not discard the rest of a DoD's behaviour.
+ */
+function readFixtureFeedback(
+  raw: unknown,
+  problems: string[],
+): CockpitFixtureFeedbackKnob {
+  const settings: CockpitFixtureFeedbackKnob = { ...DEFAULT_COCKPIT_FIXTURE_FEEDBACK };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    problems.push('`cockpit.fixtureFeedback` must be a JSON object');
+    return settings;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.mode !== undefined) {
+    if (
+      record.mode === 'closed' ||
+      record.mode === 'kept' ||
+      record.mode === 'rejected' ||
+      record.mode === 'none'
+    ) {
+      settings.mode = record.mode;
+    } else {
+      problems.push('`cockpit.fixtureFeedback.mode` must be closed, kept, rejected or none');
+    }
+  }
+  if (record.delayMs !== undefined) {
+    if (typeof record.delayMs === 'number' && Number.isFinite(record.delayMs) && record.delayMs >= 0) {
+      settings.delayMs = record.delayMs;
+    } else {
+      problems.push('`cockpit.fixtureFeedback.delayMs` must be a non-negative number');
+    }
+  }
+  if (record.reason !== undefined) {
+    if (typeof record.reason === 'string') {
+      settings.reason = record.reason;
+    } else {
+      problems.push('`cockpit.fixtureFeedback.reason` must be a string');
+    }
+  }
+  return settings;
 }
 
 /** Whether the read failure was "the file is not there", the one benign case for the user copy. */

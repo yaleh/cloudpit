@@ -100,6 +100,8 @@ export type CockpitFleetCardProvider = {
   provider: ICockpitCardProvider & {
     /** Resolved lazily from the CURRENT declaration reading (see the module doc). */
     resolveExecutor: CockpitExecutorResolver;
+    /** The declaration whose action is `feedback`, or null when the fleet declares none. */
+    feedbackExecutor(): string | null;
   };
   /**
    * The same read the provider exposes, with the port's optional filters. The card contract's
@@ -315,13 +317,20 @@ export function createCockpitFleetCardProvider(
   // The diagnostic rides ON the provider, not only on this wrapper: the registry discovers the
   // capability structurally from the object it registers, and `server/index.ts` registers the
   // provider. Keeping it here is what lets `/api/cockpit/cards` explain an empty list.
+  const feedbackExecutor = (): string | null => {
+    const declaration = executorState.declarations.find((entry) => entry.action === 'feedback');
+    return declaration === undefined ? null : declaration.id;
+  };
+
   const provider: ICockpitCardProviderWithDiagnostics & {
     resolveExecutor: CockpitExecutorResolver;
+    feedbackExecutor(): string | null;
   } = {
     id: COCKPIT_FLEET_PROVIDER_ID,
     listCards,
     declaredExecutors,
     resolveExecutor,
+    feedbackExecutor,
     diagnostics: () => [last],
   };
 

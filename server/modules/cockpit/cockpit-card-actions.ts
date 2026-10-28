@@ -23,11 +23,23 @@
  * Errors are `AppError`s, so the thin route just forwards them to the server's
  * existing error middleware and a caller reads a status + a stable code.
  */
+import { randomUUID } from 'node:crypto';
+
 import { AppError } from '@/shared/utils.js';
 import type { ICockpitActionExecutor } from '@/shared/interfaces.js';
-import type { CockpitCard, CockpitCardAction } from '@/shared/types.js';
+import type {
+  CockpitCard,
+  CockpitCardAction,
+  CockpitCardFeedbackOutcome,
+  CockpitCardReceipt,
+} from '@/shared/types.js';
 
 import type { CockpitCardRegistry } from './cockpit-card-registry.js';
+import {
+  readCockpitCardReceipt,
+  type CockpitCardFeedbackStore,
+  type StoredCockpitCardFeedback,
+} from './cockpit-card-feedback-store.js';
 
 /** One confirmation's transport fields, before validation narrows them. */
 export type CockpitCardConfirmRequest = {
@@ -58,10 +70,34 @@ export type CockpitExecutorResolver = (
   id: string,
 ) => Promise<ICockpitActionExecutor | null> | ICockpitActionExecutor | null;
 
+/** What a resend answered: the same idempotency key, and the executor's own result. */
+export type CockpitCardResendResult = {
+  ok: true;
+  cardId: string;
+  /** The original feedback id; a resend NEVER mints a new one. */
+  feedbackId: string;
+  executor: string;
+  result: unknown;
+};
+
 /** The action channel's public surface. */
 export type CockpitCardActions = {
   confirm(request: unknown): Promise<CockpitCardConfirmResult>;
+  /**
+   * Re-sends ONLY the feedback call for a card whose action already ran. No option is resolved
+   * and no action executor is called; the stored params — same `feedbackId` included — go to
+   * the feedback executor verbatim.
+   */
+  resendFeedback(request: unknown): Promise<CockpitCardResendResult>;
 };
+
+/** Why a provider with no feedback executor cannot resend. */
+export const NO_FEEDBACK_EXECUTOR_REASON =
+  '该提供方没有声明反馈执行器，无法确认收到';
+
+/** Why a resend cannot run after the provider stopped declaring the original executor. */
+export const FEEDBACK_EXECUTOR_GONE_REASON =
+  '该提供方已不再声明原来的反馈执行器，无法重发';
 
 type ParsedConfirmRequest = {
   cardId: string;
@@ -139,6 +175,37 @@ function resolveAction(card: CockpitCard, request: ParsedConfirmRequest): Cockpi
   };
 }
 
+/** The `cardId` a resend body names, or an `INVALID_REQUEST`. */
+function parseResendRequest(raw: unknown): string {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw invalid('the resend body must be a JSON object');
+  }
+  const cardId = (raw as Record<string, unknown>).cardId;
+  if (typeof cardId !== 'string' || cardId.trim() === '') {
+    throw invalid('`cardId` must be a non-empty string');
+  }
+  return cardId;
+}
+
+/** One string field of an executor's answer, or undefined. */
+function resultText(result: unknown, field: string): string | undefined {
+  if (typeof result !== 'object' || result === null) return undefined;
+  const value = (result as Record<string, unknown>)[field];
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+/** The action's outcome, as the feedback protocol echoes it. */
+function feedbackOutcome(executor: string, result: unknown): CockpitCardFeedbackOutcome {
+  const sessionId = resultText(result, 'sessionId');
+  const deliveryId = resultText(result, 'deliveryId');
+  return {
+    executor,
+    ok: true,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    ...(deliveryId === undefined ? {} : { deliveryId }),
+  };
+}
+
 /**
  * Builds the action channel over a registry and the executors the composition
  * root made available. The declared set is read from the REGISTRY (the
@@ -150,8 +217,102 @@ export function createCockpitCardActions(deps: {
   executors: readonly ICockpitActionExecutor[];
   /** Optional late binding for executors whose declarations arrive after construction. */
   resolveExecutor?: CockpitExecutorResolver;
+  /**
+   * The feedback lifecycle. Absent means this channel does not deliver feedback at all (a bare
+   * criterion over the disposal channel); the module always supplies one.
+   */
+  feedbackStore?: CockpitCardFeedbackStore;
+  /** Clock seam for `sentAt`; defaults to the wall clock. */
+  now?: () => Date;
+  /** Idempotency-key seam; defaults to `randomUUID`. */
+  newFeedbackId?: () => string;
 }): CockpitCardActions {
   const executors = new Map(deps.executors.map((executor) => [executor.id, executor]));
+  const now = deps.now ?? (() => new Date());
+  const newFeedbackId = deps.newFeedbackId ?? (() => randomUUID());
+
+  const executorById = async (id: string): Promise<ICockpitActionExecutor | undefined> => {
+    const known = executors.get(id);
+    if (known !== undefined) return known;
+    return (await deps.resolveExecutor?.(id)) ?? undefined;
+  };
+
+  /**
+   * Delivers one feedback call after an action succeeded, and records the overlay.
+   *
+   * The call is made with the SAME params a resend would use, under a freshly minted
+   * `feedbackId`. A provider that declares no feedback executor still gets an overlay: the
+   * action happened, so the display must lock the card and say the feedback cannot be
+   * confirmed rather than forget the whole thing.
+   */
+  const deliverFeedback = async (params: {
+    card: CockpitCard;
+    optionId: string | null;
+    label: string;
+    suggested: boolean;
+    source: string;
+    outcome: CockpitCardFeedbackOutcome;
+    text: string | null;
+  }): Promise<CockpitCardReceipt | null> => {
+    const store = deps.feedbackStore;
+    const feedbackId = newFeedbackId();
+    const feedbackExecutor = deps.registry.feedbackExecutor(params.card.provider);
+    const feedbackParams: Record<string, unknown> = {
+      attentionId: params.card.id,
+      revision: params.card.revision,
+      feedbackId,
+      ...(params.optionId === null
+        ? { ownReply: true, text: params.text ?? '' }
+        : { optionId: params.optionId }),
+      suggested: params.suggested,
+      source: params.source,
+      outcome: params.outcome,
+    };
+    const stored: StoredCockpitCardFeedback = {
+      cardId: params.card.id,
+      provider: params.card.provider,
+      revision: params.card.revision,
+      feedbackId,
+      optionId: params.optionId,
+      label: params.label,
+      sentAt: now().toISOString(),
+      outcome: params.outcome,
+      feedbackExecutor,
+      ...(feedbackExecutor === null ? { resendUnavailableReason: NO_FEEDBACK_EXECUTOR_REASON } : {}),
+      params: feedbackParams,
+    };
+    store?.saveOverlay(stored);
+    if (feedbackExecutor === null) return null;
+
+    const implementation = await executorById(feedbackExecutor);
+    if (implementation === undefined) return null;
+    try {
+      const answer = await implementation.execute(feedbackParams);
+      const receipt = readCockpitCardReceipt(
+        typeof answer === 'object' && answer !== null
+          ? (answer as Record<string, unknown>).receipt
+          : undefined,
+      );
+      if (receipt !== null && store !== undefined) {
+        // A `closed` receipt keeps the overlay while the item is still listed; kept/rejected
+        // return the card to the person, so the overlay leaves and the notice stays.
+        if (receipt.disposition !== 'closed') store.removeOverlay(params.card.id);
+        if (receipt.disposition !== 'closed') {
+          store.recordNotice({
+            cardId: params.card.id,
+            feedbackId: receipt.feedbackId,
+            kind: receipt.disposition,
+            ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
+          });
+        }
+      }
+      return receipt;
+    } catch {
+      // The action succeeded; a feedback failure is not an action failure. The overlay stays, so
+      // the display reads 「已发出 · 等 fleet 确认」 and its resend is available after the timeout.
+      return null;
+    }
+  };
   // `(provider, card id, revision)`: one accepted confirmation per revision.
   // A provider bumps the revision when a confirmation changes the card, which is
   // what lets the same person confirm a LATER revision (re-saving their reply).
@@ -220,6 +381,24 @@ export function createCockpitCardActions(deps: {
       );
     }
 
+    // The action happened. Deliver the feedback that asks the provider to acknowledge it; this
+    // is a SECOND call, never a repeat of the action, and its failure does not undo the action.
+    if (deps.feedbackStore !== undefined) {
+      const option =
+        request.optionId === undefined
+          ? undefined
+          : card.options.find((candidate) => candidate.id === request.optionId);
+      await deliverFeedback({
+        card,
+        optionId: request.optionId ?? null,
+        label: option?.label ?? request.replyText ?? '',
+        suggested: option?.suggested === true,
+        source: option?.source ?? 'own-reply',
+        outcome: feedbackOutcome(action.executor, result),
+        text: request.replyText ?? null,
+      });
+    }
+
     return {
       ok: true,
       cardId: card.id,
@@ -229,5 +408,72 @@ export function createCockpitCardActions(deps: {
     };
   };
 
-  return { confirm };
+  /**
+   * Resends only the feedback: the stored `params` (same `feedbackId`) go to the feedback
+   * executor again. The action executor and the accepted-confirmation ledger are never touched,
+   * so a resend can never run the action twice.
+   */
+  const resendFeedback = async (raw: unknown): Promise<CockpitCardResendResult> => {
+    const cardId = parseResendRequest(raw);
+    const store = deps.feedbackStore;
+    const stored = store?.overlay(cardId) ?? null;
+    if (stored === null) {
+      throw new AppError(`no feedback is waiting for card ${cardId}`, {
+        code: 'NO_FEEDBACK_TO_RESEND',
+        statusCode: 404,
+      });
+    }
+    const unavailable = (reason: string): AppError =>
+      new AppError(reason, { code: 'FEEDBACK_UNAVAILABLE', statusCode: 400 });
+    if (stored.feedbackExecutor === null) {
+      throw unavailable(stored.resendUnavailableReason ?? NO_FEEDBACK_EXECUTOR_REASON);
+    }
+    if (!deps.registry.declaredExecutors().has(stored.feedbackExecutor)) {
+      throw unavailable(FEEDBACK_EXECUTOR_GONE_REASON);
+    }
+    const implementation = await executorById(stored.feedbackExecutor);
+    if (implementation === undefined) {
+      throw unavailable(`feedback executor ${stored.feedbackExecutor} has no implementation`);
+    }
+
+    let result: unknown;
+    try {
+      result = await implementation.execute(stored.params);
+    } catch (failure) {
+      if (failure instanceof AppError) throw failure;
+      throw new AppError(
+        `feedback executor ${stored.feedbackExecutor} failed: ${
+          failure instanceof Error ? failure.message : String(failure)
+        }`,
+        { code: 'EXECUTOR_FAILED', statusCode: 500 },
+      );
+    }
+    // The resend is a new attempt for the same feedback: the 2-minute window restarts, the id
+    // does not change.
+    store?.markResent(cardId, now().toISOString());
+    const receipt = readCockpitCardReceipt(
+      typeof result === 'object' && result !== null
+        ? (result as Record<string, unknown>).receipt
+        : undefined,
+    );
+    if (receipt !== null && receipt.disposition !== 'closed') {
+      store?.removeOverlay(cardId);
+      store?.recordNotice({
+        cardId,
+        feedbackId: receipt.feedbackId,
+        kind: receipt.disposition,
+        ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
+      });
+    }
+
+    return {
+      ok: true,
+      cardId,
+      feedbackId: stored.feedbackId,
+      executor: stored.feedbackExecutor,
+      result,
+    };
+  };
+
+  return { confirm, resendFeedback };
 }

@@ -5,6 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type {
   CockpitCard as CockpitCardData,
+  CockpitCardFeedback,
   CockpitCardKind,
   CockpitCardViz,
 } from '@/shared/types';
@@ -101,6 +102,10 @@ type FixtureProps = {
   initialCountdown?: CockpitCardSendCountdown | null;
   /** Forces the in-flight reading, which is otherwise too short for a render to observe. */
   forceConfirming?: boolean;
+  /** The feedback resend's transport, and the two readings the controller publishes around it. */
+  onResendFeedback?: () => void;
+  resendingFeedback?: boolean;
+  feedbackResendError?: string | null;
 };
 
 /** The card with just enough local state to exercise its own controls. */
@@ -113,6 +118,9 @@ function Fixture({
   now = NOW,
   initialCountdown = null,
   forceConfirming = false,
+  onResendFeedback,
+  resendingFeedback = false,
+  feedbackResendError = null,
 }: FixtureProps) {
   const [shown, setShown] = useState<CockpitCardShown | undefined>(
     defaultShownOption(card) ?? undefined,
@@ -192,6 +200,9 @@ function Fixture({
         setPending(false);
         setOutcome(answer);
       }}
+      onResendFeedback={onResendFeedback}
+      resendingFeedback={resendingFeedback}
+      feedbackResendError={feedbackResendError}
     />
   );
 }
@@ -205,6 +216,9 @@ function renderCard({
   now = NOW,
   initialCountdown = null,
   forceConfirming = false,
+  onResendFeedback,
+  resendingFeedback = false,
+  feedbackResendError = null,
 }: {
   card?: CockpitCardData;
   density?: CockpitCardDensity;
@@ -214,6 +228,9 @@ function renderCard({
   now?: number;
   initialCountdown?: CockpitCardSendCountdown | null;
   forceConfirming?: boolean;
+  onResendFeedback?: () => void;
+  resendingFeedback?: boolean;
+  feedbackResendError?: string | null;
 } = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
@@ -226,6 +243,9 @@ function renderCard({
         now={now}
         initialCountdown={initialCountdown}
         forceConfirming={forceConfirming}
+        onResendFeedback={onResendFeedback}
+        resendingFeedback={resendingFeedback}
+        feedbackResendError={feedbackResendError}
       />
     </I18nextProvider>,
   );
@@ -934,6 +954,178 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
     expect(button.textContent).toBe('Sending…');
     // The send is not reversible, so the bar offers no cancel control while it runs.
     expect(screen.queryByTestId('cockpit-card-confirm-cancel')).toBeNull();
+  });
+});
+
+describe('the feedback lifecycle: sent, unconfirmed, resent, and returned', () => {
+  const SENT_FEEDBACK: CockpitCardFeedback = {
+    cardId: 'fixture:ask',
+    revision: 1,
+    feedbackId: 'feedback-1',
+    optionId: 'delete',
+    label: 'Delete staging',
+    sentAt: new Date(NOW).toISOString(),
+    outcome: { executor: 'fixture.record', ok: true },
+    canResend: true,
+  };
+
+  it('draws a sent card in place, dimmed, with its options and confirm bar locked', () => {
+    renderCard({ card: { ...CARD, feedback: SENT_FEEDBACK } });
+
+    const article = screen.getByTestId('cockpit-card-fixture:ask');
+    expect(article.getAttribute('data-feedback-phase')).toBe('sent');
+    expect(article.className).toContain('opacity-70');
+
+    const status = screen.getByTestId('cockpit-card-feedback-status');
+    expect(status.getAttribute('data-phase')).toBe('sent');
+    expect(screen.getByTestId('cockpit-card-feedback-sent').textContent).toContain(
+      'Sent: Delete staging',
+    );
+    expect(screen.getByTestId('cockpit-card-feedback-outcome').textContent).toBe(
+      'Handed to the provider',
+    );
+
+    // Locked: no option switching, no confirmation, and a resend only after the window.
+    expect(screen.getByTestId('cockpit-card-option-trigger').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('cockpit-card-confirm').hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByTestId('cockpit-card-feedback-resend')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-feedback-unconfirmed')).toBeNull();
+  });
+
+  it('shows 未确认收到 · 重发 only once the 120-second window has passed', () => {
+    const onResendFeedback = vi.fn();
+    renderCard({
+      card: { ...CARD, feedback: SENT_FEEDBACK },
+      now: NOW + 119_999,
+      onResendFeedback,
+    });
+    expect(screen.getByTestId('cockpit-card-feedback-status').getAttribute('data-phase')).toBe(
+      'sent',
+    );
+    expect(screen.queryByTestId('cockpit-card-feedback-resend')).toBeNull();
+
+    cleanup();
+    renderCard({
+      card: { ...CARD, feedback: SENT_FEEDBACK },
+      now: NOW + 120_000,
+      onResendFeedback,
+    });
+    expect(screen.getByTestId('cockpit-card-feedback-status').getAttribute('data-phase')).toBe(
+      'unconfirmed',
+    );
+    expect(screen.getByTestId('cockpit-card-feedback-unconfirmed').textContent).toContain(
+      'The fleet has not confirmed',
+    );
+    expect(screen.getByText('Resend only resends the feedback; it does not redo the action')).toBeTruthy();
+
+    const resend = screen.getByTestId('cockpit-card-feedback-resend');
+    expect(resend.getAttribute('data-resendable')).toBe('true');
+    expect(resend.hasAttribute('disabled')).toBe(false);
+    expect(resend.textContent).toBe('Resend');
+    fireEvent.click(resend);
+    expect(onResendFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it('words the in-flight resend and keeps the button disabled', () => {
+    renderCard({
+      card: { ...CARD, feedback: SENT_FEEDBACK },
+      now: NOW + 120_000,
+      resendingFeedback: true,
+    });
+
+    const resend = screen.getByTestId('cockpit-card-feedback-resend');
+    expect(resend.textContent).toBe('Resending…');
+    expect(resend.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('states why a provider with no feedback executor cannot resend', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        feedback: {
+          ...SENT_FEEDBACK,
+          canResend: false,
+          resendUnavailableReason: '该提供方没有声明反馈执行器，无法确认收到',
+        },
+      },
+      now: NOW + 120_000,
+    });
+
+    const resend = screen.getByTestId('cockpit-card-feedback-resend');
+    expect(resend.getAttribute('data-resendable')).toBe('false');
+    expect(resend.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('cockpit-card-feedback-resend-unavailable').textContent).toContain(
+      '该提供方没有声明反馈执行器，无法确认收到',
+    );
+  });
+
+  it('draws the action’s own outcome line for a background conversation or a delivery', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        feedback: { ...SENT_FEEDBACK, outcome: { executor: 'session.start', ok: true, sessionId: 's-1' } },
+      },
+    });
+    expect(screen.getByTestId('cockpit-card-feedback-outcome').textContent).toBe(
+      'Background conversation running · open conversation ›',
+    );
+
+    cleanup();
+    renderCard({
+      card: {
+        ...CARD,
+        feedback: { ...SENT_FEEDBACK, outcome: { executor: 'session.send', ok: true, deliveryId: 'd-1' } },
+      },
+    });
+    expect(screen.getByTestId('cockpit-card-feedback-outcome').textContent).toBe(
+      'Delivered to the conversation',
+    );
+  });
+
+  it('draws a kept notice and live controls again once the receipt returns the card', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        feedbackNotice: { cardId: 'fixture:ask', feedbackId: 'feedback-1', kind: 'kept' },
+      },
+    });
+
+    const notice = screen.getByTestId('cockpit-card-feedback-notice');
+    expect(notice.getAttribute('data-kind')).toBe('kept');
+    expect(notice.textContent).toBe('The fleet received it and kept the item open');
+    expect(screen.queryByTestId('cockpit-card-feedback-status')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('draws a rejected notice with its reason', () => {
+    renderCard({
+      card: {
+        ...CARD,
+        feedbackNotice: {
+          cardId: 'fixture:ask',
+          feedbackId: 'feedback-1',
+          kind: 'rejected',
+          reason: 'stale-revision',
+        },
+      },
+    });
+
+    const notice = screen.getByTestId('cockpit-card-feedback-notice');
+    expect(notice.getAttribute('data-kind')).toBe('rejected');
+    expect(notice.textContent).toBe('The fleet rejected this feedback: stale-revision');
+    expect(screen.getByTestId('cockpit-card-confirm').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('draws a failed resend’s reason as an alert inside the status block', () => {
+    renderCard({
+      card: { ...CARD, feedback: SENT_FEEDBACK },
+      now: NOW + 120_000,
+      feedbackResendError: 'gateway answered 502',
+    });
+
+    const alert = screen.getByTestId('cockpit-card-feedback-resend-error');
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(alert.textContent).toContain('gateway answered 502');
   });
 });
 

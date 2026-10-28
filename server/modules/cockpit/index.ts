@@ -18,13 +18,20 @@ export type {
   CockpitCardActions,
   CockpitCardConfirmRequest,
   CockpitCardConfirmResult,
+  CockpitCardResendResult,
   CockpitExecutorResolver,
 } from '@/modules/cockpit/cockpit-card-actions.js';
+export { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
+export type {
+  CockpitCardFeedbackStore,
+  StoredCockpitCardFeedback,
+} from '@/modules/cockpit/cockpit-card-feedback-store.js';
 export { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 export type {
   CockpitCardProviderDiagnostic,
   CockpitCardRegistry,
   ICockpitCardProviderWithDiagnostics,
+  ICockpitCardProviderWithFeedback,
 } from '@/modules/cockpit/cockpit-card-registry.js';
 // The quay-fleet card provider: the fleet read port projected into the card contract, plus the
 // session-ask content completion. Its CLI and digest readings are injected by the composition
@@ -58,10 +65,17 @@ export type {
   CockpitFleetExecutorParam,
   CockpitFleetExecutorReading,
 } from '@/modules/cockpit/cockpit-fleet-executor.js';
-export { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+export {
+  createCockpitFixtureCardProvider,
+  DEFAULT_COCKPIT_FIXTURE_FEEDBACK,
+  FIXTURE_FEEDBACK_EXECUTOR_ID,
+} from '@/modules/cockpit/cockpit-fixture-card-provider.js';
 export type {
   CockpitFixtureCardProvider,
   CockpitFixtureConfirmation,
+  CockpitFixtureFeedbackCall,
+  CockpitFixtureFeedbackMode,
+  CockpitFixtureFeedbackSettings,
 } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
 // The two built-in content executors: `session.send` writes into the subject's
 // conversation, `session.start` opens a new one and navigates to it. They take their

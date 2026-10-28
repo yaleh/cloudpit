@@ -251,6 +251,22 @@ function CockpitCardListBound({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 pb-2">
+            {/* The header's second number: how many of the visible cards are sent and still
+                waiting for the provider's receipt. Absent at zero, so the ordinary list has no
+                extra line to read. */}
+            {reading.awaitingFeedback > 0 && (
+              <p
+                data-testid="cockpit-card-awaiting-feedback"
+                data-awaiting={reading.awaitingFeedback}
+                data-total={snapshot.visibleCards.length}
+                className="w-full text-[11px] text-muted-foreground"
+              >
+                {t('cockpit.cardAwaitingFeedback', {
+                  total: snapshot.visibleCards.length,
+                  awaiting: reading.awaitingFeedback,
+                })}
+              </p>
+            )}
             {/*
               THE TYPE CHIPS. A horizontally scrollable row rather than a dropdown: the counts are
               the point (a person reads what is waiting per type before choosing), and a closed
@@ -455,6 +471,13 @@ function CockpitCardListBound({
                 outcome={outcomeFor(card.id)}
                 onConfirm={() => void controller.confirm()}
                 onCancelConfirm={() => controller.cancelConfirm()}
+                onResendFeedback={() => void controller.resendFeedback(card.id)}
+                resendingFeedback={snapshot.resendingFeedbackCardId === card.id}
+                feedbackResendError={
+                  snapshot.feedbackResendError?.cardId === card.id
+                    ? snapshot.feedbackResendError.message
+                    : null
+                }
               />
             ))}
           </div>

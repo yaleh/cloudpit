@@ -4806,6 +4806,66 @@ export type CockpitCardNotify = {
 };
 
 /**
+ * How a provider answered the feedback it was sent after an action succeeded.
+ *
+ * `closed` means the item is settled (the card goes away); `kept` means the item is still open
+ * but the feedback was accepted; `rejected` means the feedback was refused and the item returns
+ * to the person's queue with a reason.
+ */
+export type CockpitCardReceiptDisposition = 'closed' | 'kept' | 'rejected';
+
+/** The provider's own acknowledgement that it received a feedback call. */
+export type CockpitCardReceipt = {
+  /** The `feedbackId` this receipt answers; a receipt for another one changes nothing. */
+  feedbackId: string;
+  at: string;
+  disposition: CockpitCardReceiptDisposition;
+  /** Why the feedback was kept/rejected; required reading for `rejected`. */
+  reason?: string;
+};
+
+/** What the confirmed action did, echoed to the feedback executor and back to the display. */
+export type CockpitCardFeedbackOutcome = {
+  executor: string;
+  ok: boolean;
+  /** The conversation the action ran in, when it named one. */
+  sessionId?: string;
+  /** The delivery id a `session.send` action answered with, when it had one. */
+  deliveryId?: string;
+};
+
+/**
+ * One sent-but-unacknowledged feedback call, as the display reads it.
+ *
+ * This is CloudCLI's own lifecycle state, not a provider statement: the provider only answers a
+ * receipt. The card keeps its place in the provider's order, but its options and confirmation
+ * are locked while this overlay exists (the action already ran; only the feedback may be resent).
+ */
+export type CockpitCardFeedback = {
+  cardId: string;
+  /** The revision the action was confirmed at (a later card revision does not clear this). */
+  revision: number;
+  /** The idempotency key shared by the original call and every resend. */
+  feedbackId: string;
+  optionId: string | null;
+  /** The option label (or the own reply text) the status line names. */
+  label: string;
+  sentAt: string;
+  outcome: CockpitCardFeedbackOutcome;
+  /** False when the provider declares no feedback executor; then only the reason is readable. */
+  canResend: boolean;
+  resendUnavailableReason?: string;
+};
+
+/** A receipt that returned the card to the person, kept beside it until the next confirmation. */
+export type CockpitCardFeedbackNotice = {
+  cardId: string;
+  feedbackId: string;
+  kind: 'kept' | 'rejected';
+  reason?: string;
+};
+
+/**
  * One thing waiting for the person, as a provider states it.
  *
  * The cockpit is deliberately ignorant of what a card means: `group`/`rank` are
@@ -4864,6 +4924,19 @@ export type CockpitCard = {
    * whether a shape is allowed for the kind.
    */
   viz?: CockpitCardViz;
+  /**
+   * The provider's acknowledgement of a feedback call. This is the provider's field (the fleet
+   * echoes it on the item); the cockpit's own pending overlay is `feedback`, and the two are
+   * deliberately separate: a receipt may arrive while the item is still in the reading.
+   */
+  receipt?: CockpitCardReceipt;
+  /**
+   * The cockpit's own lifecycle overlay, attached by the server while an action succeeded and
+   * no receipt has closed/returned it. Never set by a provider.
+   */
+  feedback?: CockpitCardFeedback;
+  /** A kept/rejected receipt's reading, attached while the card stays in the list. */
+  feedbackNotice?: CockpitCardFeedbackNotice;
 };
 
 // ---------------------------

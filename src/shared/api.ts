@@ -432,6 +432,13 @@ export const api = {
     replyText?: string;
   }) => post('/api/cockpit/cards/confirm', request),
   /**
+   * Re-sends ONLY the feedback for a card whose action already ran: the same `feedbackId` and
+   * params, never a second action. Answers an explicit reason when the provider declares no
+   * feedback executor.
+   */
+  cockpitResendFeedback: (cardId: string) =>
+    post('/api/cockpit/cards/feedback/resend', { cardId }),
+  /**
    * One card's brief: the BriefSpec document flattened beside its identity, status and spend.
    * A fallback is still HTTP 200 — `status` and `reason` say why no model brief was drawn, so
    * the drawer shows the reason instead of treating it as a transport failure.

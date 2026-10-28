@@ -75,6 +75,15 @@ export type ICockpitCardProviderWithDiagnostics = ICockpitCardProvider & {
   diagnostics(): readonly CockpitCardProviderDiagnostic[];
 };
 
+/**
+ * A provider that also answers the feedback protocol. Structural like `diagnostics`: a provider
+ * that has no feedback executor (the fixture before this protocol, a static test provider) does
+ * not grow a method it cannot honour.
+ */
+export type ICockpitCardProviderWithFeedback = ICockpitCardProvider & {
+  feedbackExecutor(): string | null;
+};
+
 /** The registry's public surface. */
 export type CockpitCardRegistry = {
   /** Adds a provider; registering the same object twice is a no-op. */
@@ -83,6 +92,15 @@ export type CockpitCardRegistry = {
   listCards(): Promise<CockpitCard[]>;
   /** The union of every registered provider's declared executor ids. */
   declaredExecutors(): ReadonlySet<string>;
+  /**
+   * The feedback executor a card's provider declares, or `null` when it declares none.
+   *
+   * This is a provider capability, not a card field: which id answers the feedback protocol is
+   * the same declaration set the disposal executors come from, and the registry is where a
+   * provider's statements are read. The action channel uses it only for the card's OWN provider,
+   * so one provider's feedback executor can never be called for another's card.
+   */
+  feedbackExecutor(providerId: string): string | null;
   /** One currently open card, or null. Used by the action channel. */
   getCard(cardId: string): Promise<CockpitCard | null>;
   /** Reports changes any provider pushes. The returned function stops the subscription. */
@@ -96,6 +114,15 @@ function hasDiagnostics(
   provider: ICockpitCardProvider,
 ): provider is ICockpitCardProviderWithDiagnostics {
   return typeof (provider as Partial<ICockpitCardProviderWithDiagnostics>).diagnostics === 'function';
+}
+
+/** Whether a provider opted into answering the feedback protocol. */
+function hasFeedbackExecutor(
+  provider: ICockpitCardProvider,
+): provider is ICockpitCardProviderWithFeedback {
+  return (
+    typeof (provider as Partial<ICockpitCardProviderWithFeedback>).feedbackExecutor === 'function'
+  );
 }
 
 /**
@@ -233,6 +260,15 @@ export function createCockpitCardRegistry(
     return ids;
   };
 
+  const feedbackExecutor = (providerId: string): string | null => {
+    for (const provider of registered) {
+      if (provider.id !== providerId || !hasFeedbackExecutor(provider)) continue;
+      const id = provider.feedbackExecutor();
+      return id === null || id.trim() === '' ? null : id;
+    }
+    return null;
+  };
+
   const listCards = async (): Promise<CockpitCard[]> => {
     const perProvider = await Promise.all(
       registered.map(async (provider) => {
@@ -270,5 +306,13 @@ export function createCockpitCardRegistry(
     return rows;
   };
 
-  return { register, listCards, declaredExecutors, getCard, subscribe, diagnostics };
+  return {
+    register,
+    listCards,
+    declaredExecutors,
+    feedbackExecutor,
+    getCard,
+    subscribe,
+    diagnostics,
+  };
 }

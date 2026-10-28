@@ -10,6 +10,14 @@ import type {
   CockpitCardReading,
   CockpitCardTypeFilter,
 } from '@/modules/cockpit/contract';
+import {
+  awaitingFeedbackCount,
+  canResendFeedback,
+  feedbackPhaseOf,
+  feedbackPhasesOf,
+  FEEDBACK_LOCKED_REASON,
+  type CockpitCardFeedbackPhase,
+} from '@/modules/cockpit/cockpitCardFeedback';
 
 /**
  * The cockpit card list's model: cards, filters, density, the Details stack, the option each
@@ -192,6 +200,11 @@ export type CockpitCardControllerDeps = {
    * nothing and the Details drawer keeps its other sections.
    */
   fetchBrief?: (cardId: string) => Promise<CockpitBriefResponse>;
+  /**
+   * Re-sends the feedback of a card whose action already ran. Absent means the surface cannot
+   * resend: the button then states that instead of disappearing without a reason.
+   */
+  resendFeedback?: (cardId: string) => Promise<unknown>;
   /** The only clock; defaults to the browser's. */
   clock?: Clock;
   /**
@@ -289,6 +302,18 @@ export type CockpitCardControllerSnapshot = {
   confirmingCardId: string | null;
   /** The last confirmation's answer, for the list's one-line echo. */
   lastOutcome: CockpitCardConfirmOutcome | null;
+  /**
+   * Each card with a sent-but-unconfirmed feedback, mapped to its phase at `now`. Derived in
+   * `normalize` from the card overlay and the injected clock, so the status line, the resend
+   * control and the header count read one answer.
+   */
+  feedbackPhases: Readonly<Record<string, CockpitCardFeedbackPhase>>;
+  /** How many cards are waiting for a receipt; the list header's second number. */
+  awaitingFeedback: number;
+  /** The card whose feedback resend is in flight, or `null`. */
+  resendingFeedbackCardId: string | null;
+  /** The last failed resend, drawn beside that card; cleared by the next attempt. */
+  feedbackResendError: { cardId: string; message: string } | null;
   /** The controller's clock reading at the last commit; the waiting-time renderer uses it. */
   now: number;
 };
@@ -331,6 +356,11 @@ export type CockpitCardController = {
   requestConfirm: (cardId?: string) => boolean;
   /** Sends an irreversible option's pending confirmation exactly once (the second press). */
   confirm: () => Promise<boolean>;
+  /**
+   * Re-sends ONLY the feedback after the 2-minute window; the action is never re-executed.
+   * Returns whether a resend request was made.
+   */
+  resendFeedback: (cardId: string) => Promise<boolean>;
   /** Cancels either the irreversible confirm state or a running countdown, sending nothing. */
   cancelConfirm: () => boolean;
   /** Handles one key; returns whether the cockpit consumed it. Escape is never consumed. */
@@ -364,6 +394,10 @@ const initialState: CockpitCardControllerSnapshot = {
   confirming: false,
   confirmingCardId: null,
   lastOutcome: null,
+  feedbackPhases: {},
+  awaitingFeedback: 0,
+  resendingFeedbackCardId: null,
+  feedbackResendError: null,
   now: 0,
 };
 
@@ -410,6 +444,9 @@ export function confirmTargetOf(
   if (shown.kind === 'ownReply') {
     const replyText = ownReply ?? '';
     const empty = replyText.trim() === '';
+    // A card whose feedback is awaiting a receipt already ran its action: only the feedback may
+    // be resent, so the confirm path is locked until the receipt returns it.
+    const locked = card.feedback !== undefined;
     return {
       cardId: card.id,
       revision: card.revision,
@@ -417,9 +454,8 @@ export function confirmTargetOf(
       replyText,
       label: replyText.trim(),
       irreversible: false,
-      disabled: empty,
-      // An empty draft is the only own-reply gate; the bar names it through its disabled state.
-      disabledReason: null,
+      disabled: empty || locked,
+      disabledReason: locked ? FEEDBACK_LOCKED_REASON : null,
     };
   }
   const option = shownOptionOf(card, shown);
@@ -427,7 +463,8 @@ export function confirmTargetOf(
   // An option whose executor no provider declared stays readable and selectable, but its
   // confirmation is refused by the server; the bar states that up front instead of inviting
   // a press that is guaranteed to fail.
-  const confirmable = option.confirmable !== false;
+  const locked = card.feedback !== undefined;
+  const confirmable = option.confirmable !== false && !locked;
   return {
     cardId: card.id,
     revision: card.revision,
@@ -438,7 +475,9 @@ export function confirmTargetOf(
     disabled: !confirmable,
     disabledReason: confirmable
       ? null
-      : (option.confirmableReason ?? option.action.executor),
+      : locked
+        ? FEEDBACK_LOCKED_REASON
+        : (option.confirmableReason ?? option.action.executor),
   };
 }
 
@@ -476,6 +515,12 @@ const CONFIRM_RETREAT_MS = 6_000;
  * armed, so leaving the page after pressing still sends.
  */
 const DELAYED_SEND_MS = 5_000;
+
+/**
+ * How often the feedback reading is recomputed while a card waits for a receipt. It only
+ * re-publishes `now`, so the 2-minute window and its resend appear without a provider push.
+ */
+const FEEDBACK_TICK_MS = 1_000;
 
 /**
  * How often the countdown re-publishes `now` while it runs.
@@ -702,6 +747,19 @@ function normalize(
       ? next.openDropdownCardId
       : null;
 
+  // The feedback reading is derived from the provider's list plus the overlay timestamps: a card
+  // keeps its place, and only its phase/status changes with the clock.
+  const feedbackPhases = feedbackPhasesOf(cards, now);
+  const awaitingFeedback = awaitingFeedbackCount(cards);
+  const resendingFeedbackCardId =
+    next.resendingFeedbackCardId !== null && byId.has(next.resendingFeedbackCardId)
+      ? next.resendingFeedbackCardId
+      : null;
+  const feedbackResendError =
+    next.feedbackResendError !== null && byId.has(next.feedbackResendError.cardId)
+      ? next.feedbackResendError
+      : null;
+
   const targets = targetsOf(cards, shown, ownReplies);
   let pendingConfirm = next.pendingConfirm;
   if (pendingConfirm !== null) {
@@ -745,6 +803,10 @@ function normalize(
     pendingConfirm,
     sendCountdown,
     confirmingCardId,
+    feedbackPhases,
+    awaitingFeedback,
+    resendingFeedbackCardId,
+    feedbackResendError,
     now,
   };
 }
@@ -796,6 +858,8 @@ export function createCockpitCardController(
   /** The reversible countdown's send deadline and its UI tick, both on the injected clock. */
   let sendCountdownTimer: unknown = null;
   let sendCountdownTicker: unknown = null;
+  /** The feedback reading's tick, armed only while some card is waiting for a receipt. */
+  let feedbackTicker: unknown = null;
 
   /** Disarms the retreat; called whenever no confirm state is open any more. */
   const clearConfirmRetreat = (): void => {
@@ -832,6 +896,27 @@ export function createCockpitCardController(
     }, CONFIRM_RETREAT_MS);
   };
 
+  /**
+   * Arms the one-second re-publish while any card waits for a receipt, and disarms it when none
+   * does. The resend control's appearance at 2 minutes is therefore a clock reading, not a
+   * component timer.
+   */
+  const syncFeedbackTicker = (): void => {
+    if (disposed) return;
+    if (store.getSnapshot().awaitingFeedback === 0) {
+      if (feedbackTicker !== null) {
+        clock.clearInterval(feedbackTicker);
+        feedbackTicker = null;
+      }
+      return;
+    }
+    if (feedbackTicker !== null) return;
+    feedbackTicker = clock.setInterval(() => {
+      if (disposed || store.getSnapshot().awaitingFeedback === 0) return;
+      commit({});
+    }, FEEDBACK_TICK_MS);
+  };
+
   /** The one write path: patch the snapshot, normalize it, publish. */
   const commit = (patch: Partial<CockpitCardControllerSnapshot>): void => {
     if (disposed) return;
@@ -840,6 +925,7 @@ export function createCockpitCardController(
     // on the committed snapshot rather than on `patch`.
     if (store.getSnapshot().pendingConfirm === null) clearConfirmRetreat();
     if (store.getSnapshot().sendCountdown === null) clearSendCountdownTimers();
+    syncFeedbackTicker();
   };
 
   /** Closes a running countdown without sending: cancelling and every retreat share this path. */
@@ -956,6 +1042,9 @@ export function createCockpitCardController(
   const showReading = (cardId: string, shown: CockpitCardShown): void => {
     const card = store.getSnapshot().cards.find((candidate) => candidate.id === cardId);
     if (card === undefined) return;
+    // The options are locked while the feedback is unconfirmed: changing what is shown would
+    // offer a confirmation of an action that already ran.
+    if (card.feedback !== undefined) return;
     // Changing what is shown changes what would be confirmed: an open confirm state or a running
     // countdown for this card no longer names the person's current choice, so it closes rather
     // than sending it.
@@ -1178,6 +1267,53 @@ export function createCockpitCardController(
     return send(pending);
   };
 
+  /**
+   * Resends ONLY the feedback for a card whose window passed. The action already ran, so this
+   * command never touches the confirm target, the action ledger or the card's revision; the
+   * server repeats the stored feedback call under the same `feedbackId`.
+   */
+  const resendFeedback = async (cardId: string): Promise<boolean> => {
+    if (disposed) return false;
+    const snapshot = store.getSnapshot();
+    const card = snapshot.cards.find((candidate) => candidate.id === cardId);
+    if (card?.feedback === undefined) return false;
+    if (snapshot.resendingFeedbackCardId !== null) return false;
+    // Before the window a resend is not offered; the same rule the button draws.
+    if (feedbackPhaseOf(card.feedback, clock.now()) !== 'unconfirmed') return false;
+    if (!canResendFeedback(card, clock.now())) {
+      commit({
+        feedbackResendError: {
+          cardId,
+          message:
+            card.feedback.resendUnavailableReason ?? '该提供方无法确认收到反馈',
+        },
+      });
+      return false;
+    }
+    const resend = deps.resendFeedback;
+    if (resend === undefined) {
+      commit({
+        feedbackResendError: { cardId, message: '当前界面没有配置重发通道' },
+      });
+      return false;
+    }
+
+    commit({ resendingFeedbackCardId: cardId, feedbackResendError: null });
+    try {
+      await resend(cardId);
+    } catch (failure) {
+      commit({
+        resendingFeedbackCardId: null,
+        feedbackResendError: { cardId, message: failureMessage(failure) },
+      });
+      return false;
+    }
+    // Re-read: the server refreshed `sentAt`, so the card reads 「已发出」 again (or is gone).
+    await read();
+    commit({ resendingFeedbackCardId: null });
+    return true;
+  };
+
   const handleKey = (key: string): boolean => {
     if (key === 'Escape') return false;
     // Enter is the whole gesture in one key: with nothing pending it starts the confirmation on
@@ -1217,6 +1353,10 @@ export function createCockpitCardController(
       // A running countdown is disarmed only here: `stop` leaves it armed on purpose, because a
       // route change calls `stop` and the press must still send.
       clearSendCountdownTimers();
+      if (feedbackTicker !== null) {
+        clock.clearInterval(feedbackTicker);
+        feedbackTicker = null;
+      }
       disposed = true;
       stop();
     },
@@ -1321,6 +1461,7 @@ export function createCockpitCardController(
     },
     requestConfirm,
     confirm,
+    resendFeedback,
     cancelConfirm: () => {
       // Once the request has left it cannot be taken back: the button is disabled and the answer
       // — success or failure — stands. Reporting `false` says 「nothing was cancelled」.
@@ -1349,6 +1490,10 @@ export function cockpitCardsReading(
     typeFilter: snapshot.typeFilter,
     projectFilter: snapshot.projectFilter,
     detailsOpenCardId: snapshot.detailsStack[snapshot.detailsStack.length - 1] ?? null,
+    awaitingFeedback: snapshot.visibleCards.reduce(
+      (count, card) => (card.feedback === undefined ? count : count + 1),
+      0,
+    ),
     cards: snapshot.visibleCards.map((card) => {
       const shown = snapshot.shown[card.id];
       const target = snapshot.targets[card.id];

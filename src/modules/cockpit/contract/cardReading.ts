@@ -24,6 +24,8 @@ export type CockpitCardReading = {
   typeFilter: CockpitCardTypeFilter;
   projectFilter: string | null;
   detailsOpenCardId: string | null;
+  /** How many visible cards are sent and still waiting for the provider's receipt. */
+  awaitingFeedback: number;
   cards: Array<{
     id: string;
     shownOptionId: string | null;

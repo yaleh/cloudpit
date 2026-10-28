@@ -379,6 +379,10 @@ const chatControl = createChatControlService({
 const cockpitCards = createCockpitCardsModule({
     fixtureCards: serverSettings.cockpit.fixtureCards,
     fixtureSubject: serverSettings.cockpit.fixtureSubject,
+    fixtureFeedback: serverSettings.cockpit.fixtureFeedback,
+    // The feedback overlay is CloudCLI's own lifecycle state: it survives a refresh and a
+    // restart, so a sent-but-unconfirmed action is still readable on the next boot.
+    feedbackFilePath: path.join(os.homedir(), '.cloudcli', 'cockpit-card-feedback.json'),
     providers: [
         createCockpitFleetProvider({
             enabled: serverSettings.cockpit.fleetCards.enabled,

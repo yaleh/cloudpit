@@ -168,6 +168,7 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
     fetchCards,
     confirm,
     fetchBrief,
+    resendFeedback,
     clock,
     refreshIntervalMs,
     onEvent,
@@ -200,6 +201,10 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
         fetchBrief ??
         (async (cardId: string) =>
           readApiJson<CockpitBriefResponse>(await api.cockpitCardBrief(cardId))),
+      resendFeedback:
+        resendFeedback ??
+        (async (cardId: string) =>
+          readApiJson<unknown>(await api.cockpitResendFeedback(cardId))),
       // A started conversation runs in the BACKGROUND: the default listener does not navigate.
       // A caller that supplies its own listener replaces it (and may choose to move the page).
       onEvent: onEvent ?? createCockpitCardsDefaultOnEvent(),
@@ -211,7 +216,17 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
       // The filters survive the reload, not just the route: they live in this device's storage.
       rememberFilters,
     }),
-    [fetchCards, confirm, fetchBrief, clock, refreshIntervalMs, onEvent, remember, rememberFilters],
+    [
+      fetchCards,
+      confirm,
+      fetchBrief,
+      resendFeedback,
+      clock,
+      refreshIntervalMs,
+      onEvent,
+      remember,
+      rememberFilters,
+    ],
   );
 
   const controller = useMemo(() => createCockpitCardController(deps), [deps]);

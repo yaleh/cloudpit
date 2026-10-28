@@ -31,8 +31,36 @@ import type {
 
 import { BRIEF_VERSION } from './cockpit-brief-core.js';
 
-/** The one executor this provider declares. */
+/** The action executor this provider declares. */
 const FIXTURE_EXECUTOR_ID = 'fixture.record';
+
+/** The feedback executor this provider declares. */
+export const FIXTURE_FEEDBACK_EXECUTOR_ID = 'fixture.feedback';
+
+/** How the fixture answers a feedback call, for the DoD's configurable protocol. */
+export type CockpitFixtureFeedbackMode = 'closed' | 'kept' | 'rejected' | 'none';
+
+export type CockpitFixtureFeedbackSettings = {
+  mode: CockpitFixtureFeedbackMode;
+  /** How long the receipt (or the item's closure) takes; `0` answers immediately. */
+  delayMs: number;
+  /** The reason a `kept`/`rejected` receipt carries. */
+  reason: string;
+};
+
+/** What the fixture does when the settings name no feedback behaviour: acknowledge at once. */
+export const DEFAULT_COCKPIT_FIXTURE_FEEDBACK: CockpitFixtureFeedbackSettings = {
+  mode: 'closed',
+  delayMs: 0,
+  reason: '',
+};
+
+/** One feedback call the fixture received, for a criterion or the DoD's reading. */
+export type CockpitFixtureFeedbackCall = {
+  cardId: string;
+  feedbackId: string;
+  params: Record<string, unknown>;
+};
 
 /** One confirmation the fixture executor accepted. */
 export type CockpitFixtureConfirmation = {
@@ -42,12 +70,16 @@ export type CockpitFixtureConfirmation = {
   params: Record<string, unknown>;
 };
 
-/** The fixture's four readings: the provider, its executor, its log and its brief. */
+/** The fixture's readings: the provider, its executors, its logs and its brief. */
 export type CockpitFixtureCardProvider = {
   provider: ICockpitCardProvider;
   executor: ICockpitActionExecutor;
+  /** The declared feedback executor: answers `closed`/`kept`/`rejected`/nothing per settings. */
+  feedbackExecutor: ICockpitActionExecutor;
   /** A copy of every confirmation the executor accepted, oldest first. */
   confirmations(): readonly CockpitFixtureConfirmation[];
+  /** A copy of every feedback call the feedback executor received, oldest first. */
+  feedbackCalls(): readonly CockpitFixtureFeedbackCall[];
   /**
    * The fixed brief for one fixture card, or `null` for any other provider's card. It covers all
    * seven preset block types at once so the Details drawer's rendering can be verified on a real
@@ -581,19 +613,69 @@ function withSubjectOverride(
  */
 export function createCockpitFixtureCardProvider(options: {
   subject?: CockpitFixtureSubject;
+  /**
+   * The feedback protocol's behaviour. `closed` (the default) settles the item after
+   * `delayMs`; `kept`/`rejected` echo a receipt; `none` answers nothing, which is the DoD's
+   * "no receipt at 2 minutes" arm. A `rejected` receipt advances the card's revision, so the
+   * person can choose again.
+   */
+  feedback?: Partial<CockpitFixtureFeedbackSettings>;
+  /** Clock seam; the provider reads it on every card read and feedback call. */
+  now?: () => number;
 } = {}): CockpitFixtureCardProvider {
   const cards = withSubjectOverride(fixtureCards(), options.subject);
+  const feedback: CockpitFixtureFeedbackSettings = {
+    ...DEFAULT_COCKPIT_FIXTURE_FEEDBACK,
+    ...options.feedback,
+  };
+  const now = options.now ?? Date.now;
   const records: CockpitFixtureConfirmation[] = [];
+  const feedbackCalls: CockpitFixtureFeedbackCall[] = [];
   const listeners = new Set<() => void>();
+  /** Items already closed by a `closed` receipt; the card disappears once `at` passes. */
+  const closedAt = new Map<string, number>();
+  /** Receipts that are echoed on later reads (and, for `rejected`, bump the revision once). */
+  const pendingReceipts = new Map<
+    string,
+    { at: number; feedbackId: string; disposition: 'kept' | 'rejected'; reason?: string }
+  >();
+  const receiptEchoed = new Set<string>();
 
   const changed = (): void => {
     for (const listener of listeners) listener();
   };
 
-  const provider: ICockpitCardProvider = {
+  const receiptFor = (cardId: string, at: number) => {
+    const pending = pendingReceipts.get(cardId);
+    if (pending === undefined || pending.at > at) return undefined;
+    if (pending.disposition === 'rejected' && !receiptEchoed.has(cardId)) {
+      receiptEchoed.add(cardId);
+      const card = cards.find((candidate) => candidate.id === cardId);
+      // A refusal returns the item: the next confirmation must not collide with the ledger's
+      // accepted (card, revision), so the provider states a new revision.
+      if (card !== undefined) card.revision += 1;
+    }
+    return {
+      feedbackId: pending.feedbackId,
+      at: new Date(pending.at).toISOString(),
+      disposition: pending.disposition,
+      ...(pending.reason === undefined ? {} : { reason: pending.reason }),
+    };
+  };
+
+  const provider: ICockpitCardProvider & { feedbackExecutor: () => string } = {
     id: 'fixture',
-    listCards: () => cards.map((card) => structuredClone(card)),
-    declaredExecutors: () => [FIXTURE_EXECUTOR_ID],
+    listCards: () => {
+      const at = now();
+      return cards
+        .filter((card) => (closedAt.get(card.id) ?? Number.POSITIVE_INFINITY) > at)
+        .map((card) => {
+          const receipt = receiptFor(card.id, at);
+          return { ...structuredClone(card), ...(receipt === undefined ? {} : { receipt }) };
+        });
+    },
+    declaredExecutors: () => [FIXTURE_EXECUTOR_ID, FIXTURE_FEEDBACK_EXECUTOR_ID],
+    feedbackExecutor: () => FIXTURE_FEEDBACK_EXECUTOR_ID,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -623,10 +705,48 @@ export function createCockpitFixtureCardProvider(options: {
     },
   };
 
+  /**
+   * The feedback executor. It answers the protocol's params untouched (`attentionId`,
+   * `revision`, `feedbackId`, `optionId`/`ownReply`) and schedules the configured disposition.
+   * A `none` reading records the call and answers no receipt on purpose.
+   */
+  const feedbackExecutor: ICockpitActionExecutor = {
+    id: FIXTURE_FEEDBACK_EXECUTOR_ID,
+    execute: (params) => {
+      const cardId = typeof params.attentionId === 'string' ? params.attentionId : '';
+      const feedbackId = typeof params.feedbackId === 'string' ? params.feedbackId : '';
+      feedbackCalls.push({ cardId, feedbackId, params: structuredClone(params) });
+      if (feedback.mode === 'none') {
+        return Promise.resolve({ acknowledged: false, feedbackId });
+      }
+      const at = now() + Math.max(0, feedback.delayMs);
+      const reason = feedback.reason.trim() === '' ? undefined : feedback.reason;
+      if (feedback.mode === 'closed') {
+        closedAt.set(cardId, at);
+      } else {
+        pendingReceipts.set(cardId, {
+          at,
+          feedbackId,
+          disposition: feedback.mode,
+          ...(reason === undefined ? {} : { reason }),
+        });
+      }
+      changed();
+      const echoed = receiptFor(cardId, now());
+      return Promise.resolve({
+        acknowledged: true,
+        feedbackId,
+        ...(echoed === undefined ? {} : { receipt: echoed }),
+      });
+    },
+  };
+
   return {
     provider,
     executor,
+    feedbackExecutor,
     confirmations: () => records.map((record) => structuredClone(record)),
+    feedbackCalls: () => feedbackCalls.map((call) => structuredClone(call)),
     brief: (card) => fixtureBrief(card),
   };
 }
