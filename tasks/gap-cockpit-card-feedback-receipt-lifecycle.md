@@ -85,6 +85,15 @@ depends_on:
 
 实例用毕 `scripts/isolated-instance.sh stop` ⇒ `ok:true`、`port_still_serving:false`、`residual_scopes:""`。
 
+### fan-in suite 回归修复（2026-10-28 第二轮）
+
+上一轮 exited-not-landed 的两条 suite 红都是本任务引入的，已在 worktree 内修复并复跑：
+
+- `server/modules/cockpit/tests/cockpit-card-registry.test.ts`（`an old revision must be a conflict`：404 ≠ 409）：夹具 provider 的隐式反馈默认从 `closed` + 0ms 改为 `none`——未配置时不再改变夹具卡片原有的生命周期（确认只让 revision 前移，卡片仍在读数里），旧 revision 因此仍返回 409。DoD 各臂本就显式配置 `mode`，行为不变。复跑 ⇒ `tests 10 / pass 10 / fail 0`。
+- `server/shared/tests/quay-test-script.test.ts`（`known=3 unknown=460` / `known=1 unknown=462` 钉子）：本任务新增 `server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 使收集到的 server 测试文件 463→464，两条夹具读数改为 `unknown=461` / `unknown=463`，并按既有格式把这次 +1 记进注释链。复跑 ⇒ `tests 14 / pass 14 / fail 0`。
+- 复跑本任务 AC1 用例 ⇒ `tests 12 / pass 12 / fail 0`；`npm run typecheck` 退出 0；`npm run lint` 退出 0（仅既有 warning）；`architecture-ratchet.test.ts` ⇒ `6 pass`。
+- `server/shared/tests/quay-test-script.test.ts` 因这处必要的计数钉子改动补进 `## Touches`。
+
 该轴仍暗,理由:真实 fleet 的 `fleet.feedback` 调用未在隔离实例执行，本任务只覆盖夹具 provider 的 closed/kept/rejected/none 与本地叠加/回执清理
 
 ## Touches
@@ -101,6 +110,7 @@ depends_on:
 - server/modules/cockpit/tests/cockpit-card-feedback.test.ts (new)
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
 - server/shared/types.ts
+- server/shared/tests/quay-test-script.test.ts
 - src/shared/types.ts
 - src/shared/api.ts
 - src/shared/tests/cockpitCardTypeSync.test.ts
@@ -129,3 +139,11 @@ depends_on:
 - src/modules/cockpit/hooks/useCockpitCards.ts
 - src/modules/i18n/locales/zh-TW/common.json
 - src/modules/i18n/locales/tr/common.json
+
+## Blocker
+
+**2026-10-28T15:34:51.665Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/cockpit/tests/cockpit-card-registry.test.ts:   AssertionError [ERR_ASSERTION]: an old revision must be a conflict [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/modules/cockpit/tests/cockpit-card-registry.test.ts,server/shared/tests/quay-test-script.test.ts,server/modules/cockpit/tests/cockpit-card-registry.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：4f8c0ec5-8ced-41b3-98eb-4530e9f4b34b
