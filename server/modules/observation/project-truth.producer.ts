@@ -33,6 +33,7 @@ import {
 
 import { formatProjectUri } from './observation-uri.js';
 import type { ObservedObject, ObservationStore } from './observation-store.js';
+import { refreshAllOf } from './producer-batch.js';
 import {
   buildProjectTruth,
   PROJECT_TRUTH_NOT_APPLICABLE_REASON,
@@ -308,13 +309,6 @@ export function createProjectTruthProducer(deps: ProjectTruthProducerDeps): Proj
 
   return {
     refreshProject,
-    async refreshAll(projects) {
-      const written: ObservedObject[] = [];
-      for (const project of projects) {
-        const object = await refreshProject(project);
-        if (object !== null) written.push(object);
-      }
-      return written;
-    },
+    refreshAll: (projects) => refreshAllOf(refreshProject, projects),
   };
 }

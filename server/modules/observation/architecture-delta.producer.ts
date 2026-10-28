@@ -31,6 +31,7 @@ import {
 } from './architecture-delta.js';
 import { formatArchitectureUri } from './observation-uri.js';
 import type { ObservedObject, ObservationStore } from './observation-store.js';
+import { refreshAllOf } from './producer-batch.js';
 
 /** The producer name every architecture revision is stamped with. */
 export const ARCHITECTURE_DELTA_PRODUCER = 'architecture-delta';
@@ -213,13 +214,6 @@ export function createArchitectureDeltaProducer(
 
   return {
     refreshProject,
-    async refreshAll(targets) {
-      const written: ObservedObject[] = [];
-      for (const target of targets) {
-        const object = await refreshProject(target);
-        if (object !== null) written.push(object);
-      }
-      return written;
-    },
+    refreshAll: (targets) => refreshAllOf(refreshProject, targets),
   };
 }
