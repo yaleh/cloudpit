@@ -2,7 +2,7 @@
 id: cockpit-cards-content-and-mobile-shell-match-mockups
 title: 驾驶舱卡片内容与手机外壳对齐效果图：情境与事实去重、手机 Details
   改底部抽屉并常驻确认条、简报关闭时隐藏简报区、手机顶部状态行与单行输入、下拉改单选圆圈并去掉重复的 Write your own
-status: ready
+status: done
 labels:
   - gap
   - cockpit
