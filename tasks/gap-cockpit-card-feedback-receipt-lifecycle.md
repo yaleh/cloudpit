@@ -129,3 +129,11 @@ depends_on:
 - src/modules/cockpit/hooks/useCockpitCards.ts
 - src/modules/i18n/locales/zh-TW/common.json
 - src/modules/i18n/locales/tr/common.json
+
+## Blocker
+
+**2026-10-28T15:34:51.665Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/cockpit/tests/cockpit-card-registry.test.ts:   AssertionError [ERR_ASSERTION]: an old revision must be a conflict [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/modules/cockpit/tests/cockpit-card-registry.test.ts,server/shared/tests/quay-test-script.test.ts,server/modules/cockpit/tests/cockpit-card-registry.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：4f8c0ec5-8ced-41b3-98eb-4530e9f4b34b
