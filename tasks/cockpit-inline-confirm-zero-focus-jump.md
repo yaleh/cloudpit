@@ -56,6 +56,7 @@ extra:
 - src/modules/cockpit/CockpitCardDetails.tsx
 - src/modules/cockpit/CockpitCardList.tsx
 - src/modules/cockpit/cockpitCardController.ts
+- src/modules/cockpit/cockpitColumnController.ts
 - src/modules/cockpit/hooks/useCockpitCards.ts
 - src/modules/cockpit/tests/cockpitCardController.test.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
@@ -63,6 +64,7 @@ extra:
 - src/modules/ui-scenario/cockpitCardsSurface.ts
 - src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
 - e2e/cockpit-inline-confirm.spec.ts (new)
+- playwright.config.ts
 - src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts
 - src/modules/chat/tests/inlineQuoteChip.test.tsx
 - src/modules/i18n/locales/de/common.json
