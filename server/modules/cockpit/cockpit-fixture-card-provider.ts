@@ -48,9 +48,16 @@ export type CockpitFixtureFeedbackSettings = {
   reason: string;
 };
 
-/** What the fixture does when the settings name no feedback behaviour: acknowledge at once. */
+/**
+ * What the fixture does when the caller names no feedback behaviour: answer nothing.
+ *
+ * `none` is the honest default for a provider stand-in — an unconfigured fixture must not change
+ * the card lifecycle it had before the feedback protocol (a confirmation bumps the revision and
+ * the card stays open). Every disposition is opt-in; the server's own shipped knob
+ * (`server-settings.ts`) is a separate layer and may choose differently for an isolated instance.
+ */
 export const DEFAULT_COCKPIT_FIXTURE_FEEDBACK: CockpitFixtureFeedbackSettings = {
-  mode: 'closed',
+  mode: 'none',
   delayMs: 0,
   reason: '',
 };
