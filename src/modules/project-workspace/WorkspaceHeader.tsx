@@ -1,6 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import type { AppTab, Project, ProjectSession } from '@/shared/types';
@@ -9,22 +7,10 @@ import { SessionPulse } from '@/modules/quay';
 import { CockpitHeaderButton } from '@/modules/cockpit';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
 import WorkspaceTabs, { CollapsedWorkspaceSelector } from '@/modules/project-workspace/WorkspaceTabs';
-import type { WorkspaceTabLabelMode } from '@/modules/project-workspace/WorkspaceTabs';
+import { planWorkspaceTabs, TAB_LABEL_GAP_PX } from '@/modules/project-workspace/utils/workspaceTabPlan';
+import type { WorkspaceTabMeasure, WorkspaceTabPlan } from '@/modules/project-workspace/utils/workspaceTabPlan';
 import WorkspaceMenu from '@/modules/project-workspace/WorkspaceMenu';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
-
-/**
- * Slack kept between the header's leftover width and the full-label strip's measured width.
- *
- * Before the spacer, this was 16: 12 px for the scroll container's resting `md:pl-3` padding plus
- * 4 px of rounding. The spacer is an extra flex CHILD, so the header now spends one more `gap`
- * (12 px at desktop) on it and the leftover the decision reads is 12 px smaller at every viewport.
- * Folding that 12 px into the reservation keeps the icon/full switch at exactly the viewport
- * widths it had before (`available - 4` now equals the old `available - 16`); the responsive unit
- * cases (1280 icon / 1920 full) and the e2e switch-point scan pin those widths, so this number is
- * arithmetic, not a re-tune.
- */
-const TAB_STRIP_INLINE_PADDING_PX = 4;
 
 type WorkspaceHeaderProps = {
   activeTab: AppTab;
@@ -48,8 +34,8 @@ type WorkspaceHeaderProps = {
 };
 
 /**
- * Rendered by WorkspaceMain. Desktop shows the workspace title beside the scrollable
- * tab bar; mobile keeps the same three elements on one row — menu, title, and a
+ * Rendered by WorkspaceMain. Desktop shows the workspace title beside the tab strip
+ * (names degrade by priority, then tabs move to an overflow menu); mobile keeps the same three elements on one row — menu, title, and a
  * selector for the active workspace — and moves the rest of the tab bar into that
  * selector's dialog.
  */
@@ -66,122 +52,74 @@ export default function WorkspaceHeader({
   isMobile,
   onMenuClick,
 }: WorkspaceHeaderProps) {
-  const { t } = useTranslation();
   // Read here rather than taken as a prop beside `isMobile`, which arrives threaded through
   // ProjectWorkspaceShell, ProjectMainRegion and WorkspaceMain: this header is the only consumer on
   // that path, so a prop would widen three signatures to carry one padding decision.
   const { isShortTouchViewport } = useDeviceSettings({ trackPWA: false });
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const hasOverflow = canScrollLeft || canScrollRight;
-  const [labelMode, setLabelMode] = useState<WorkspaceTabLabelMode>('full');
+  // The strip's layout as last decided from the measured room: which tabs spell their name and
+  // which sit behind the overflow menu. It is state, not derived, because the decision reads the
+  // DOM and its own previous value (the upgrade hysteresis), and null means "not measured yet".
+  const [tabPlan, setTabPlan] = useState<WorkspaceTabPlan | null>(null);
 
   /**
-   * Picks the strip's label mode from two measurements that do not depend on each other.
+   * Re-plans the strip from two measurements that do not depend on each other.
    *
-   * The strip's room is now split in two flex children: an empty grow cell
+   * The strip's room is split in two flex children: an empty grow cell
    * (`data-workspace-tabs-spacer`) that takes every pixel the header is not using, and the
    * content-sized tab container (`data-workspace-tabs-room`) next to the pulse trigger. Their
-   * SUM is the same leftover the old `flex-1` container measured: when icon mode narrows the
-   * container, the spacer grows by exactly that amount, so the reading cannot feed the decision
-   * back into its input. Measuring the container alone would lock icon mode in place; measuring
-   * the strip itself would do the same and then shrink with every mode switch.
+   * SUM is the leftover the strip may use: when a narrower layout shrinks the container, the
+   * spacer grows by exactly that amount, so the reading cannot feed the decision back into its
+   * input. Measuring the container alone would lock the narrow layout in place.
    *
-   * `natural` is the off-screen full-label copy's width, which `WorkspaceTabs` draws at every
-   * label mode. Its width therefore changes only with the tab set and the language, never with
-   * the mode on screen; a switch cannot shrink it and flip itself back.
+   * The tab widths come from the off-screen full-label copy `WorkspaceTabs` draws at every
+   * layout, so they change only with the tab set and the language, never with the layout on
+   * screen; a switch cannot shrink them and flip itself back.
    */
-  const measureLabelMode = useCallback(() => {
+  const measureTabPlan = useCallback(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
     const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
     const spacer = room?.parentElement?.querySelector<HTMLElement>('[data-workspace-tabs-spacer]') ?? null;
-    const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
     const available = (room?.clientWidth ?? 0) + (spacer?.clientWidth ?? 0);
-    const natural = measure?.scrollWidth ?? 0;
-    // 0 is "not measured yet" (jsdom, or before layout), never "no room": treating it as no
-    // room would open the header icon-only and flash to full labels once layout landed.
-    const next: WorkspaceTabLabelMode =
-      available <= 0 || natural <= 0 || available - TAB_STRIP_INLINE_PADDING_PX >= natural ? 'full' : 'icon';
-    setLabelMode((previous) => (previous === next ? previous : next));
-  }, []);
+    const tabs: WorkspaceTabMeasure[] = Array.from(
+      scroll.querySelectorAll<HTMLElement>('[data-workspace-tab-measure]'),
+    ).map((pill) => {
+      const id = pill.getAttribute('data-workspace-tab-measure') ?? '';
+      const label = pill.querySelector<HTMLElement>('[data-workspace-tab-measure-label]');
+      const fullWidth = pill.offsetWidth;
+      return { id, fullWidth, iconWidth: Math.max(0, fullWidth - (label?.offsetWidth ?? 0) - TAB_LABEL_GAP_PX) };
+    });
+    setTabPlan((previous) => {
+      const next = planWorkspaceTabs({ tabs, activeId: activeTab, available }, previous);
+      const unchanged = previous !== null
+        && previous.level === next.level
+        && previous.labelledIds.join('|') === next.labelledIds.join('|')
+        && previous.overflowIds.join('|') === next.overflowIds.join('|');
+      return unchanged ? previous : next;
+    });
+  }, [activeTab]);
 
-  // `useLayoutEffect` rather than `useEffect`: the mode has to be settled before the browser
-  // paints, or the header draws full labels and then snaps to icons.
+  // `useLayoutEffect` rather than `useEffect`: the plan has to be settled before the browser
+  // paints, or the header draws every label and then snaps to the narrower layout.
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
-    measureLabelMode();
+    measureTabPlan();
 
-    const observer = new ResizeObserver(measureLabelMode);
+    const observer = new ResizeObserver(measureTabPlan);
     observer.observe(scroll);
     const room = scroll.closest<HTMLElement>('[data-workspace-tabs-room]');
     if (room) observer.observe(room);
     // Both halves of the room reading are observed: the spacer is what grows when the container
-    // shrinks, so a viewport resize that only moves pixels between the two still re-decides.
+    // shrinks, so a viewport resize that only moves pixels between the two still re-plans.
     const spacer = room?.parentElement?.querySelector<HTMLElement>('[data-workspace-tabs-spacer]');
     if (spacer) observer.observe(spacer);
     const measure = scroll.querySelector<HTMLElement>('[data-workspace-tabs-measure]');
     if (measure) observer.observe(measure);
 
     return () => observer.disconnect();
-  }, [measureLabelMode]);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-
-    const observer = new ResizeObserver(updateScrollState);
-    observer.observe(el);
-    if (el.firstElementChild) observer.observe(el.firstElementChild);
-
-    return () => observer.disconnect();
-  }, [updateScrollState]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    const handleWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-
-      const maxScrollLeft = el.scrollWidth - el.clientWidth;
-      const canMove = event.deltaY < 0 ? el.scrollLeft > 0 : el.scrollLeft < maxScrollLeft;
-      if (!canMove) return;
-
-      event.preventDefault();
-      const lineMultiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 20 : 1;
-      el.scrollBy({ left: event.deltaY * lineMultiplier, behavior: 'auto' });
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
-  }, []);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const activeTabElement = scrollRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-      activeTabElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-      updateScrollState();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab, updateScrollState]);
-
-  const scrollTabs = (direction: -1 | 1) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: direction * Math.max(180, el.clientWidth * 0.65), behavior: 'smooth' });
-  };
+  }, [measureTabPlan]);
 
   // Stable identity so the memoized pulse subtree is not re-rendered by an unrelated header
   // render (the trigger's own 30 s poll already never reaches this component).
@@ -258,24 +196,13 @@ export default function WorkspaceHeader({
             gives it the available width and the existing scroll/arrow behaviour takes over. */}
         <div className="min-w-0 shrink" data-workspace-tabs-room="">
           <div className="relative ml-auto w-fit max-w-full">
-            {canScrollLeft && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background via-background/90 to-transparent" />
-            )}
-            <div
-              ref={scrollRef}
-              onScroll={updateScrollState}
-              className={cn(
-                // No resting horizontal padding at desktop: the room is content-sized, so any
-                // padding here would be dead space between the pulse trigger and the tab strip.
-                // The overflow padding (`md:px-9`) is still reserved for the arrows.
-                'scrollbar-hide max-w-full scroll-smooth overflow-x-auto overscroll-x-contain px-3 [-webkit-overflow-scrolling:touch]',
-                hasOverflow ? 'md:px-9' : 'md:px-0',
-              )}
-            >
+            {/* No scrolling: a tab that does not fit leaves for the strip's overflow menu, where
+                it keeps its name. The container only has to be a stable thing to measure. */}
+            <div ref={scrollRef} className="max-w-full px-3 md:px-0">
               <WorkspaceTabs
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
-                labelMode={labelMode}
+                plan={tabPlan ?? undefined}
                 shouldShowTasksTab={shouldShowTasksTab}
                 shouldShowQuayTab={shouldShowQuayTab}
                 shouldShowArchitectureTab={shouldShowArchitectureTab}
@@ -283,30 +210,6 @@ export default function WorkspaceHeader({
                 isResidentSession={isResidentSession}
               />
             </div>
-            {canScrollRight && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-background via-background/90 to-transparent" />
-            )}
-
-            {canScrollLeft && (
-              <button
-                type="button"
-                onClick={() => scrollTabs(-1)}
-                aria-label={t('navigation.scrollTabsLeft', { defaultValue: 'Scroll tabs left' })}
-                className="absolute left-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 md:flex"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            )}
-            {canScrollRight && (
-              <button
-                type="button"
-                onClick={() => scrollTabs(1)}
-                aria-label={t('navigation.scrollTabsRight', { defaultValue: 'Scroll tabs right' })}
-                className="absolute right-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 md:flex"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </div>
         {/* The cockpit column's entry point, in the same control size and border as the

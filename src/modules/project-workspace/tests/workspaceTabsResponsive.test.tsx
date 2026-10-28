@@ -27,6 +27,10 @@ import WorkspaceTabs, { RESIDENT_SHELL_NOTICE_ID } from '@/modules/project-works
  * disappeared" are exactly what a collapse of the tab bar can silently break.
  */
 
+// The width-stub cases are about the built-in strip, so they switch the plugin list off: twelve
+// probe plugins would put eighteen tabs into every hand-computed width below.
+const pluginSwitch = vi.hoisted(() => ({ off: false }));
+
 const { PLUGINS, ENABLED_PLUGIN_COUNT } = vi.hoisted(() => {
   const makePlugin = (index: number, enabled: boolean) => ({
     name: `probe-${index}`,
@@ -79,7 +83,7 @@ beforeEach(() => {
 
 vi.mock('@/modules/plugins', () => ({
   usePlugins: () => ({
-    plugins: PLUGINS,
+    plugins: pluginSwitch.off ? [] : PLUGINS,
     loading: false,
     pluginsError: null,
     refreshPlugins: async () => {},
@@ -104,7 +108,7 @@ await i18next.use(initReactI18next).init({
 });
 
 // jsdom ships no ResizeObserver, and the desktop tab strip observes its own
-// overflow to decide whether the scroll gradients and arrows are shown.
+// size to decide which tabs spell their name.
 if (typeof globalThis.ResizeObserver !== 'function') {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -240,20 +244,23 @@ const tablistParts = (): string[] => {
 };
 
 /**
- * Installs the readings the label-mode decision takes, and lets a case move them.
+ * Installs the readings the strip's layout decision takes, and lets a case move them.
  *
  * The room the header gives the strip is split across two flex children since the Loop Pulse
  * trigger moved next to the tabs: the empty grow cell (`data-workspace-tabs-spacer`) and the
  * content-sized tab container (`data-workspace-tabs-room`). The decision reads their SUM, so the
- * stub takes both. `natural` is the off-screen full-label copy; every other element reads 0, so
- * the three numbers cannot be confused with one another. `triggerResize` replays the
- * ResizeObserver notification the browser would send; `restore` puts the jsdom prototypes and the
- * global observer back.
+ * stub takes both. Every tab on the off-screen copy is `tabWidth` wide and its word `labelWidth`
+ * of that, so an icon-only tab is `tabWidth - labelWidth - 6` (the icon/word gap). The probe plugins are switched off for the
+ * duration (see `pluginSwitch`). Every other
+ * element reads 0, so the numbers cannot be confused with one another. `triggerResize` replays
+ * the ResizeObserver notification the browser would send; `restore` puts the jsdom prototypes
+ * and the global observer back.
  */
-function installStripWidthStubs(widths: { spacer: number; room: number; natural: number }): {
+function installStripWidthStubs(widths: { spacer: number; room: number; tabWidth: number; labelWidth: number }): {
   triggerResize: () => void;
   restore: () => void;
 } {
+  pluginSwitch.off = true;
   const callbacks: (() => void)[] = [];
   const OriginalResizeObserver = globalThis.ResizeObserver;
 
@@ -275,10 +282,11 @@ function installStripWidthStubs(widths: { spacer: number; room: number; natural:
       return this.hasAttribute('data-workspace-tabs-room') ? widths.room : 0;
     },
   });
-  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
     configurable: true,
     get(this: HTMLElement) {
-      return this.hasAttribute('data-workspace-tabs-measure') ? widths.natural : 0;
+      if (this.hasAttribute('data-workspace-tab-measure')) return widths.tabWidth;
+      return this.hasAttribute('data-workspace-tab-measure-label') ? widths.labelWidth : 0;
     },
   });
 
@@ -288,11 +296,15 @@ function installStripWidthStubs(widths: { spacer: number; room: number; natural:
     },
     restore: () => {
       Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');
-      Reflect.deleteProperty(HTMLElement.prototype, 'scrollWidth');
+      Reflect.deleteProperty(HTMLElement.prototype, 'offsetWidth');
+      pluginSwitch.off = false;
       globalThis.ResizeObserver = OriginalResizeObserver;
     },
   };
 }
+
+/** Six tabs of 100px (word 60px, icon-only 34px): all spelled = 618px of strip, all icons = 288px. */
+const SIX_TABS = { tabWidth: 100, labelWidth: 60 };
 
 /** The strip's current mode as the header reports it. */
 const stripMode = (): string | null =>
@@ -431,28 +443,28 @@ test('mobile dialog lists the same order as desktop', () => {
 // B2: the strip has two label modes and picks between them from the measured room. The
 // off-screen full-label copy is what makes the decision stable, so this case also reads that
 // copy across the two switches: its width and its labels must not change with the mode.
-test('tab strip drops to icon-only when the full-label width exceeds the room, and returns when it fits', () => {
-  // 200 + 300 is the same 500 px total the single `room` reading used to carry; the split is
-  // only how that total is now presented to the header.
-  const widths = { spacer: 200, room: 300, natural: 900 };
+test('tab strip drops labels in priority order when the room is short, and returns to full when it fits', () => {
+  // 200 + 300 = 500px of room for a 618px full strip: Chat (active) plus the highest-priority
+  // tabs that still fit keep their word (Chat, Files, Git, Tasks = 486px), the rest are icons.
+  const widths = { spacer: 200, room: 300, ...SIX_TABS };
   const stubs = installStripWidthStubs(widths);
 
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
 
-    assert.equal(stripMode(), 'icon', 'a 500px room for a 900px full strip must choose icon-only');
-    // Inactive tabs drop their word; the active tab keeps its own.
-    assert.ok(tabLabel('files')?.classList.contains('hidden'), 'an inactive tab must hide its label in icon mode');
-    assert.ok(!tabLabel('files')?.classList.contains('inline'), 'the inactive label must not stay inline');
-    assert.ok(tabLabel('chat')?.classList.contains('inline'), 'the active tab must keep its label in icon mode');
+    assert.equal(stripMode(), 'partial', 'a 500px room for a 618px full strip must keep some labels');
+    for (const id of ['chat', 'files', 'git', 'tasks']) {
+      assert.ok(tabLabel(id)?.classList.contains('inline'), `"${id}" ranks high enough to keep its label`);
+    }
+    for (const id of ['browser', 'shell']) {
+      assert.ok(tabLabel(id)?.classList.contains('hidden'), `"${id}" ranks last and must drop its label first`);
+    }
 
     const measure = document.querySelector('[data-workspace-tabs-measure]');
     assert.ok(measure, 'the header must render the off-screen full-label measuring copy');
-    const naturalInIconMode = (measure as HTMLElement).scrollWidth;
-    const labelsInIconMode = measure.textContent;
+    const labelsInPartialMode = measure.textContent;
 
-    // The total left for the strip grows past the natural width: the strip returns to full labels.
-    widths.spacer = 200;
+    // Room past the full strip PLUS the upgrade margin: every label returns.
     widths.room = 800;
     act(() => {
       stubs.triggerResize();
@@ -460,71 +472,85 @@ test('tab strip drops to icon-only when the full-label width exceeds the room, a
 
     assert.equal(stripMode(), 'full', 'a room wider than the full strip must return to full labels');
     for (const id of ['chat', 'files', 'git', 'browser', 'tasks', 'shell']) {
-      assert.ok(
-        tabLabel(id)?.classList.contains('inline'),
-        `every tab must show its label in full mode; "${id}" did not`,
-      );
+      assert.ok(tabLabel(id)?.classList.contains('inline'), `every tab must show its label in full mode; "${id}" did not`);
     }
-
-    // No oscillation: the natural reading is a property of the tab set and the language, not
-    // of the mode. A measure that shrank with the mode would flip back and forth.
-    assert.equal(
-      (measure as HTMLElement).scrollWidth,
-      naturalInIconMode,
-      'the natural full width must read the same in both modes',
-    );
-    assert.equal(
-      measure.textContent,
-      labelsInIconMode,
-      'the off-screen copy must keep every label in both modes',
-    );
+    // The off-screen copy is a property of the tab set and the language, not of the layout.
+    assert.equal(measure.textContent, labelsInPartialMode, 'the off-screen copy must keep every label in every layout');
   } finally {
     stubs.restore();
   }
 });
 
-// The strip's decision reads the SUM of the two flex children that now share its old room. The
-// boundary is exact: `natural + reserved` is full, one pixel less is icon. Redistributing a fixed
-// sum between the two must not change the mode — if it did, icon mode narrowing the container
-// would grow the spacer and keep choosing icon, which is the feedback loop the spacer exists to
-// prevent.
-test('the label-mode decision reads spacer + room and ignores how the same total is split', () => {
-  const NATURAL = 900;
-  const RESERVED = 4; // WorkspaceHeader's TAB_STRIP_INLINE_PADDING_PX
-  const widths = { spacer: 400, room: NATURAL + RESERVED - 400, natural: NATURAL };
+// The decision reads the SUM of the two flex children that share the strip's room. The full
+// boundary is `618 + 4px slack`; one pixel less downgrades at once, but coming back up needs a
+// further 12px margin so a window drag across the boundary does not flicker. Redistributing a
+// fixed sum between the two children must not change the layout.
+test('the layout decision reads spacer + room, downgrades at the boundary and upgrades only past a margin', () => {
+  const FULL_BOUNDARY = 618 + 4;
+  const widths = { spacer: 400, room: FULL_BOUNDARY - 400, ...SIX_TABS };
   const stubs = installStripWidthStubs(widths);
+  const resize = (total: number, spacer = widths.spacer) => {
+    widths.spacer = spacer;
+    widths.room = total - spacer;
+    act(() => {
+      stubs.triggerResize();
+    });
+  };
+
+  try {
+    render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
+    assert.equal(stripMode(), 'full', 'a room at the boundary keeps full labels');
+
+    resize(FULL_BOUNDARY - 1);
+    assert.equal(stripMode(), 'partial', 'one pixel under the boundary must downgrade immediately');
+
+    resize(FULL_BOUNDARY);
+    assert.equal(stripMode(), 'partial', 'back at the boundary the strip must hold its narrower layout (hysteresis)');
+
+    resize(FULL_BOUNDARY + 12);
+    assert.equal(stripMode(), 'full', 'with the upgrade margin the strip returns to full');
+
+    resize(FULL_BOUNDARY + 12, 100);
+    assert.equal(stripMode(), 'full', 'moving the same total between spacer and container must not change the layout');
+    resize(FULL_BOUNDARY + 12, 800);
+    assert.equal(stripMode(), 'full', 'the decision reads the sum, however it is split');
+  } finally {
+    stubs.restore();
+  }
+});
+
+// With no room for even the icons, the lowest-priority tabs leave the strip for the overflow
+// menu, where they keep their name. Nothing is scrolled away: there are no scroll arrows.
+test('tabs that do not fit even as icons move to a named overflow menu, lowest priority first', () => {
+  // 190px: the active Chat (100) + one 34px icon + the 34px overflow trigger + chrome and gaps = 180.
+  const stubs = installStripWidthStubs({ spacer: 100, room: 90, ...SIX_TABS });
 
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
 
-    assert.equal(widths.spacer + widths.room, NATURAL + RESERVED);
-    assert.equal(stripMode(), 'full', 'available = natural + the reserved slack must keep full labels');
+    assert.equal(stripMode(), 'overflow');
+    assert.deepEqual(tabIds(), ['chat', 'files'], 'the active tab and the next-highest priority stay on the strip');
+    assert.equal(document.querySelector('[aria-label="Scroll tabs right"]'), null, 'the strip must not offer scroll arrows');
 
-    // One pixel under the boundary: icon-only.
-    widths.room = NATURAL + RESERVED - 1 - widths.spacer;
-    act(() => {
-      stubs.triggerResize();
-    });
-    assert.equal(stripMode(), 'icon', 'available = natural + the reserved slack - 1 must choose icon-only');
+    const trigger = document.querySelector('[aria-haspopup="menu"]');
+    assert.ok(trigger instanceof HTMLElement, 'an overflowing strip must offer the menu trigger');
+    assert.equal(trigger.getAttribute('aria-label'), 'More views');
+    // The trigger is not a tab: keyboard navigation along the tablist must skip it.
+    assert.equal(trigger.getAttribute('role'), null);
 
-    // Back to the full boundary, then move the SAME total from the container into the spacer.
-    // The mode must not change: the two readings are one number.
-    widths.spacer = 100;
-    widths.room = NATURAL + RESERVED - 100;
-    act(() => {
-      stubs.triggerResize();
-    });
-    assert.equal(stripMode(), 'full', 'a total at the boundary must be full no matter which child holds it');
+    fireEvent.click(trigger);
+    const items = within(document.querySelector('[role="menu"]') as HTMLElement).getAllByRole('menuitem');
+    assert.deepEqual(
+      items.map((item) => (item.textContent ?? '').trim()),
+      ['Source Control', 'Browser', 'Tasks', 'Shell'],
+      'every hidden view stays reachable by its full name, in display order',
+    );
 
-    widths.spacer = 800;
-    widths.room = NATURAL + RESERVED - 800;
-    act(() => {
-      stubs.triggerResize();
-    });
+    fireEvent.click(items[3]);
     assert.equal(
-      stripMode(),
-      'full',
-      'moving 700 px from the container to the spacer must not flip the mode: the decision reads their sum',
+      document.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute('data-workspace-tab'),
+      'shell',
+      'choosing a hidden view activates it and brings it onto the strip',
     );
   } finally {
     stubs.restore();
@@ -633,19 +659,19 @@ test('tab tooltip follows the label mode, not the breakpoint', () => {
   }
   full.unmount();
 
-  const widths = { spacer: 150, room: 250, natural: 900 };
+  const widths = { spacer: 150, room: 250, ...SIX_TABS };
   const stubs = installStripWidthStubs(widths);
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
-    assert.equal(stripMode(), 'icon', 'the narrow room must choose icon-only');
+    assert.equal(stripMode(), 'partial', 'the narrow room must drop the lowest-priority labels');
 
     for (const tab of Array.from(document.querySelectorAll('[role="tab"]'))) {
       const id = tab.getAttribute('data-workspace-tab');
-      if (id === 'chat') {
+      if (id === 'chat' || id === 'files') {
         assert.equal(
           tooltipWrapped(tab),
           false,
-          'the active tab keeps its label in icon mode, so it must not render a tooltip',
+          `"${id}" keeps its label in the narrow layout, so it must not render a tooltip`,
         );
       } else {
         assert.equal(
@@ -904,48 +930,33 @@ test('shouldShowQuayTab gates the pulse trigger and its lanes read', async () =>
 // The visible label is a space trade with the pulse strip, so it exists exactly where there is no
 // pulse strip: dropping it for a non-quay project took away the only on-screen name of the view
 // for no benefit. Both shapes keep the same accessibility and tab contract.
-test('the mobile trigger shows the view name unless the quay pulse strip needs the room', () => {
-  const withoutQuay = render(<HeaderHarness isMobile />);
-  const trigger = collapsedTrigger();
-  assert.ok(trigger, `a non-quay project must render the workspace picker; button names were ${JSON.stringify(buttonNames())}`);
-  assert.equal(
-    (trigger.textContent ?? '').trim(),
-    'Chat',
-    `a non-quay project must show the active view name; it rendered "${trigger.textContent}"`,
-  );
-  const label = trigger.querySelector('span.truncate');
-  assert.ok(label, `the visible label must be a truncating span; markup was ${trigger.innerHTML.slice(0, 300)}`);
-  assert.equal((label.textContent ?? '').trim(), 'Chat');
-  assert.ok(
-    trigger.className.includes('max-w-[8rem]'),
-    `the labelled trigger must cap its width; class was "${trigger.className}"`,
-  );
-  assert.ok(accessibleName(trigger).includes('Chat'), `the trigger must name the active view; name was "${accessibleName(trigger)}"`);
-  assert.equal(trigger.getAttribute('data-workspace-tab'), 'chat');
-  assert.equal(trigger.getAttribute('aria-current'), 'true');
-  withoutQuay.unmount();
-
-  render(<HeaderHarness isMobile shouldShowQuayTab />);
-  const withQuay = collapsedTrigger();
-  assert.ok(withQuay, `a quay project must render the workspace picker; button names were ${JSON.stringify(buttonNames())}`);
-  assert.equal(
-    (withQuay.textContent ?? '').trim(),
-    '',
-    `a quay project must drop the visible text for the pulse strip; it rendered "${withQuay.textContent}"`,
-  );
-  assert.ok(accessibleName(withQuay).includes('Chat'), `the text-free picker must still name the view; name was "${accessibleName(withQuay)}"`);
-  assert.equal(withQuay.getAttribute('data-workspace-tab'), 'chat');
-  assert.equal(withQuay.getAttribute('aria-current'), 'true');
-  assert.ok(
-    !withQuay.className.includes('max-w-[8rem]'),
-    `the text-free trigger takes its own width; class was "${withQuay.className}"`,
-  );
+test('the mobile trigger always shows the active view name, with or without a quay project', () => {
+  for (const shouldShowQuayTab of [false, true]) {
+    const view = render(<HeaderHarness isMobile shouldShowQuayTab={shouldShowQuayTab} />);
+    const trigger = collapsedTrigger();
+    assert.ok(trigger, `the workspace picker must render; button names were ${JSON.stringify(buttonNames())}`);
+    assert.equal(
+      (trigger.textContent ?? '').trim(),
+      'Chat',
+      `the trigger must show the active view name (quay=${shouldShowQuayTab}); it rendered "${trigger.textContent}"`,
+    );
+    const label = trigger.querySelector('span.truncate');
+    assert.ok(label, `the visible label must be a truncating span; markup was ${trigger.innerHTML.slice(0, 300)}`);
+    assert.ok(
+      trigger.className.includes('max-w-[8rem]'),
+      `the trigger must cap its width so a long name truncates; class was "${trigger.className}"`,
+    );
+    assert.ok(accessibleName(trigger).includes('Chat'), `the trigger must name the active view; name was "${accessibleName(trigger)}"`);
+    assert.equal(trigger.getAttribute('data-workspace-tab'), 'chat');
+    assert.equal(trigger.getAttribute('aria-current'), 'true');
+    view.unmount();
+  }
 });
 
 // With a quay project the mobile row carries TWO dialog-opening controls: the pulse trigger and
-// the workspace picker. The picker lost its visible text to make room for the pulse strip, so
-// its accessible name and its tab contract are the only things identifying it now.
-test('a quay project adds the pulse trigger beside a text-free workspace picker on mobile', () => {
+// the workspace picker. The picker keeps its visible name; the `data-workspace-tab` contract
+// still tells the two apart.
+test('a quay project adds the pulse trigger beside a named workspace picker on mobile', () => {
   render(<HeaderHarness isMobile shouldShowQuayTab />);
 
   const pulse = document.querySelector('[data-testid="quay-pulse-trigger"]');
@@ -953,23 +964,19 @@ test('a quay project adds the pulse trigger beside a text-free workspace picker 
 
   const picker = collapsedTrigger();
   assert.ok(picker, `the workspace picker must still render; button names were ${JSON.stringify(buttonNames())}`);
-  assert.equal((picker.textContent ?? '').trim(), '', 'the picker renders icon + chevron, no text');
-  assert.ok(
-    accessibleName(picker).includes('Chat'),
-    `the picker must name the active view; its name was "${accessibleName(picker)}"`,
-  );
+  assert.equal((picker.textContent ?? '').trim(), 'Chat', 'the picker renders icon + name + chevron');
   assert.equal(picker.getAttribute('data-workspace-tab'), 'chat');
   assert.equal(picker.getAttribute('aria-current'), 'true');
   assert.equal(picker.getAttribute('aria-haspopup'), 'dialog');
   assert.equal(picker.getAttribute('aria-expanded'), 'false');
 
   fireEvent.click(picker);
-  assert.ok(workspaceDialog(), 'the text-free picker must still open the workspace dialog');
+  assert.ok(workspaceDialog(), 'the picker must open the workspace dialog');
   fireEvent.click(within(workspaceDialog() as HTMLElement).getByRole('button', { name: 'Files' }));
   assert.equal(document.querySelector('[aria-current="true"]')?.getAttribute('data-workspace-tab'), 'files');
 });
 
-// The label mode is now chosen from the measured room (see `installStripWidthStubs`), not
+// The layout is chosen from the measured room (see `installStripWidthStubs`), not
 // from a `matchMedia` breakpoint: the full-label copy is what the header measures, so these
 // cases drive the same two readings the component reads.
 test('tab tooltip only when the label is hidden', async () => {
@@ -985,10 +992,10 @@ test('tab tooltip only when the label is hidden', async () => {
 
   // Icon mode: only the icon is drawn, so an inactive tab earns a bubble.
   // The ACTIVE tab still spells its own name and must not get one.
-  const stubs = installStripWidthStubs({ spacer: 150, room: 250, natural: 900 });
+  const stubs = installStripWidthStubs({ spacer: 150, room: 250, ...SIX_TABS });
   try {
     render(<HeaderHarness isMobile={false} shouldShowTasksTab shouldShowBrowserTab />);
-    assert.equal(stripMode(), 'icon', 'the narrow room must choose icon-only');
+    assert.equal(stripMode(), 'partial', 'the narrow room must drop the lowest-priority labels');
     assert.equal(
       document.querySelector('[data-tooltip-container] [data-workspace-tab="chat"]'),
       null,
@@ -1014,8 +1021,8 @@ test('tab tooltip only when the label is hidden', async () => {
       'the now-active tab draws its own label instead of a bubble',
     );
     assert.ok(
-      document.querySelector('[data-tooltip-container] [data-workspace-tab="chat"]'),
-      'the tab it replaced is icon-only now and carries the bubble instead',
+      document.querySelector('[data-tooltip-container] [data-workspace-tab="files"]'),
+      'the room now spells Shell and Chat, so Files lost its label and carries the bubble instead',
     );
   } finally {
     stubs.restore();
