@@ -107,3 +107,11 @@ extra: {}
 - src/modules/cockpit/tests/cockpitCardController.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
+
+## Blocker
+
+**2026-10-28T14:42:10.132Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=91570 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793198071121 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：7332ae9f-309c-4467-aa2b-7cf428988a5f
