@@ -71,3 +71,8 @@ extra:
 - src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx
 - server/shared/tests/server-import-cycle-budget.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+- server/modules/cockpit/cockpit-fleet-card-projection.ts
+- server/modules/websocket/services/chat-control.service.ts
+- server/modules/cockpit/cockpit-fixture-card-provider.ts
+
+该轴仍暗,理由:本任务补事件发出与手机 Details 视觉，未改变模块依赖图，无 L_G 读数。
