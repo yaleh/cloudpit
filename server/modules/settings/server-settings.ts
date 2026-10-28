@@ -150,6 +150,24 @@ export type CockpitSettings = {
    * `ttlMs` is the short read cache: repeated card polls inside the window run the CLI once.
    */
   fleetCards: CockpitFleetCardsSettings;
+  /**
+   * How a card's `session.start` opens its new conversation.
+   *
+   * The cockpit starts conversations in the background — the person confirmed a card, not
+   * 「open this chat」 — so the shipped reading is a resident session under `bypassPermissions`:
+   * work keeps advancing without a window in front of it, and the first unattended Bash does
+   * not stop on a permission prompt. Both values are preferences written to the row BEFORE the
+   * opening message, the same order the MCP `session_create` tool uses.
+   */
+  sessionStart: CockpitSessionStartSettings;
+};
+
+/** The two preferences a card-started conversation is opened with. */
+export type CockpitSessionStartSettings = {
+  /** The lifecycle mode written before the first message; ships `resident`. */
+  lifecycleMode: string;
+  /** The permission mode written before the first message and carried on that send. */
+  permissionMode: string;
 };
 
 /** The quay-fleet card provider's server-level policy. */
@@ -169,6 +187,19 @@ export const DEFAULT_COCKPIT_FLEET_CARDS_ENABLED = false;
 
 /** The shipped fleet card cache window; repeated polls inside it run the CLI once. */
 export const DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS = 5_000;
+
+/** The shipped `session.start` lifecycle preference: keep the session alive between turns. */
+export const DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE = 'resident';
+
+/**
+ * The shipped `session.start` permission preference.
+ *
+ * A card-started conversation runs in the background with nobody at its window, so the
+ * shipped reading is the widest Claude permission mode. A provider that does not declare it
+ * is refused at start time (never silently downgraded): a quieter fallback would make the
+ * first tool call stall exactly where this task's bug was observed.
+ */
+export const DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE = 'bypassPermissions';
 
 /**
  * The public server policy a client may read without an operator's own file.
@@ -297,6 +328,10 @@ function defaultServerSettings(filePath: string): ServerSettings {
       fleetCards: {
         enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
         ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
+      },
+      sessionStart: {
+        lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
+        permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
       },
     },
     source: 'default',
@@ -492,6 +527,10 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
       enabled: DEFAULT_COCKPIT_FLEET_CARDS_ENABLED,
       ttlMs: DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
     },
+    sessionStart: {
+      lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
+      permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+    },
   };
 
   if (raw === undefined) {
@@ -522,6 +561,46 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
   }
   if (record.fleetCards !== undefined) {
     settings.fleetCards = readFleetCards(record.fleetCards, problems);
+  }
+  if (record.sessionStart !== undefined) {
+    settings.sessionStart = readSessionStart(record.sessionStart, problems);
+  }
+  return settings;
+}
+
+/**
+ * Reads the `cockpit.sessionStart` block, field by field over the shipped defaults.
+ *
+ * Both fields must be non-empty strings. Their VOCABULARY is not re-stated here: a lifecycle
+ * mode is checked by `sessionsService.switchSessionLifecycleMode` against the provider's own
+ * capability matrix, and a permission mode by the same matrix before the row exists. A malformed
+ * field falls back on its own and is reported, so a typo in the permission mode cannot silently
+ * turn the shipped `bypassPermissions` back on for a provider that refuses it — the problem is
+ * printed and the start is refused where the matrix is read.
+ */
+function readSessionStart(raw: unknown, problems: string[]): CockpitSessionStartSettings {
+  const settings: CockpitSessionStartSettings = {
+    lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
+    permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+  };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    problems.push('`cockpit.sessionStart` must be a JSON object');
+    return settings;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.lifecycleMode !== undefined) {
+    if (typeof record.lifecycleMode === 'string' && record.lifecycleMode.trim() !== '') {
+      settings.lifecycleMode = record.lifecycleMode.trim();
+    } else {
+      problems.push('`cockpit.sessionStart.lifecycleMode` must be a non-empty string');
+    }
+  }
+  if (record.permissionMode !== undefined) {
+    if (typeof record.permissionMode === 'string' && record.permissionMode.trim() !== '') {
+      settings.permissionMode = record.permissionMode.trim();
+    } else {
+      problems.push('`cockpit.sessionStart.permissionMode` must be a non-empty string');
+    }
   }
   return settings;
 }

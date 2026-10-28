@@ -75,6 +75,9 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   // document's `version` — the moment v1 is installed.
   'session.asking',
   'session.answered',
+  // The session-lifecycle kinds (`session-run-events.ts`). Like the ask kinds above, an
+  // installed schema that does not carry them refuses the append as `invalid-kind`.
+  'session.run.ended', 'session.closed',
 ] as const;
 
 /** The kinds this producer may write. */

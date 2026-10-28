@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
+import { readSessionRunEventWriterPort } from '@/shared/ports/session-run-events.port.js';
 import type {
   HostBindResult,
   HostCloseDetail,
@@ -769,6 +770,20 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
     if (turn?.settleGate) {
       clearImmediate(turn.settleGate);
       turn.settleGate = null;
+    }
+
+    // The fleet's `session.closed` reading: a RESIDENT host going away means that session is
+    // no longer being kept alive. A per-run host closing is the ordinary end of one turn (the
+    // registry already states `session.run.ended` for it), so it must not also state a close.
+    // The reason is the manager's own vocabulary; the adapter never throws into this path.
+    if (host.mode === 'resident') {
+      for (const appSessionId of host.bindings.keys()) {
+        readSessionRunEventWriterPort()?.write({
+          kind: 'session.closed',
+          session: appSessionId,
+          reason,
+        });
+      }
     }
 
     const driver = driverByHostId.get(hostId);

@@ -125,9 +125,13 @@ export type CockpitCardConfirmOutcome =
 
 /**
  * The one thing the controller announces rather than stores: a confirmation that OPENED a new
- * conversation. The controller does not navigate (that is the binding's job and a router is not
- * a model), but the rule that a `session.start` confirmation is immediately followed by the new
- * conversation belongs here, where the answer is read — not re-derived in the hook.
+ * conversation. The controller does not navigate (a router is not a model) and neither does the
+ * binding any more — a card-started session runs in the BACKGROUND, so moving the display into
+ * it would be the opposite of what the person asked for. What the controller does do is attach
+ * the minted id to the confirmed card as its `conversation`, so the card states 「打开会话」 the
+ * moment the answer lands (and keeps stating it across the re-read) instead of making the person
+ * hunt for the session. The announcement stays for a binding that wants to do something else
+ * with it.
  */
 export type CockpitCardControllerEvent = {
   type: 'sessionStarted';
@@ -207,8 +211,9 @@ export type CockpitCardControllerDeps = {
   refreshIntervalMs?: number;
   /**
    * Called when a confirmation answered `session.start` and named the conversation it opened.
-   * The binding navigates to it; a criterion records the event. Absent means the controller
-   * still records the outcome, only nobody is told to move.
+   * Informational only: the controller has already attached the id to the card, and the binding
+   * does NOT navigate (the session runs in the background). A criterion records the event.
+   * Absent means nobody else is told; the card's own reading is unchanged.
    */
   onEvent?: (event: CockpitCardControllerEvent) => void;
 };
@@ -770,6 +775,16 @@ export function createCockpitCardController(
   // only keeps a selection whose card is visible, and at construction no card has been read yet.
   // It is applied on the first successful read instead, where the card list can be checked.
   let pendingSelection = remembered?.selectedCardId ?? null;
+  /**
+   * The conversation each `session.start` confirmation opened, by card id.
+   *
+   * Kept BESIDE the card rather than written into `lastOutcome` only: the card's Details link
+   * reads `conversation`, and a background session that the display did not follow must still be
+   * one press away. It survives re-reads (which replace the whole list with the provider's
+   * projection) and is the reason a card that had no session before the confirmation shows
+   * 「打开会话」 after it.
+   */
+  const startedSessions = new Map<string, string>();
 
   let started = false;
   let disposed = false;
@@ -867,6 +882,21 @@ export function createCockpitCardController(
     }
   };
 
+  /**
+   * Adds the session a confirmation opened to the card that opened it.
+   *
+   * The provider's projection is authoritative for a card that already names a conversation;
+   * this only fills the gap for a card that had none when the person confirmed it. Without it
+   * the next background re-read would erase the id the answer just named, and the person who
+   * chose to stay on the cards page would lose the only link to the conversation they started.
+   */
+  const withStartedSessions = (cards: readonly CockpitCard[]): CockpitCard[] =>
+    cards.map((card) => {
+      const startedSessionId = startedSessions.get(card.id);
+      if (startedSessionId === undefined || card.conversation !== undefined) return card;
+      return { ...card, conversation: { sessionId: startedSessionId } };
+    });
+
   const read = async (): Promise<void> => {
     if (disposed) return;
     if (inFlightRead !== null) return inFlightRead;
@@ -877,7 +907,7 @@ export function createCockpitCardController(
       try {
         const cards = await deps.fetchCards();
         if (disposed) return;
-        commit({ status: 'loaded', error: null, cards: [...cards] });
+        commit({ status: 'loaded', error: null, cards: withStartedSessions(cards) });
         // `normalize` has just fallen back to the first visible card, because at construction
         // there was no card list to check the remembered selection against. Now there is one:
         // restore it once, and only if the card is still on the list and matches the filters.
@@ -1124,11 +1154,16 @@ export function createCockpitCardController(
     }
     if (outcome.ok) {
       commit({ pendingConfirm: null, lastOutcome: outcome });
-      // A `session.start` confirmation opened a conversation: announce it BEFORE the re-read so
-      // the binding's navigation is not queued behind a network round-trip. The announcement is
-      // outside the try above on purpose — a listener that throws is not a failed confirmation.
+      // A `session.start` confirmation opened a conversation: attach it to the card and announce
+      // it BEFORE the re-read, so the 「打开会话」 link is readable without waiting for a network
+      // round-trip. The announcement is outside the try above on purpose — a listener that
+      // throws is not a failed confirmation.
       const sessionId = startedSessionIdOf(outcome.executor, outcome.result);
-      if (sessionId !== null) deps.onEvent?.({ type: 'sessionStarted', sessionId });
+      if (sessionId !== null) {
+        startedSessions.set(pending.cardId, sessionId);
+        commit({ cards: withStartedSessions(store.getSnapshot().cards) });
+        deps.onEvent?.({ type: 'sessionStarted', sessionId });
+      }
       // Re-read so a provider that bumped the revision is reflected IN PLACE. The selection,
       // anchor and order are preserved by `normalize`.
       await read();

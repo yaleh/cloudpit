@@ -9,6 +9,7 @@ import {
   createCockpitCardController,
   defaultShownOption,
 } from '@/modules/cockpit/cockpitCardController';
+import { createCockpitCardsDefaultOnEvent } from '@/modules/cockpit/hooks/useCockpitCards';
 import type {
   CockpitCardConfirmRequest,
   CockpitCardController,
@@ -628,6 +629,22 @@ describe('a started conversation is announced', () => {
     expect(await h.controller.confirm()).toBe(true);
 
     expect(events).toEqual([{ type: 'sessionStarted', sessionId: 'new-42' }]);
+
+    // The display stays on the cards page, so the card itself must carry the way to the
+    // background conversation — including after the confirm's own re-read replaced the list.
+    const card = h.snapshot().cards.find((candidate) => candidate.id === irreversibleCard().id);
+    expect(card?.conversation).toEqual({ sessionId: 'new-42' });
+  });
+
+  it('the default binding listener does not navigate for a started conversation', () => {
+    // The started session runs in the background: the binding keeps the page where the person
+    // left it, and following the conversation is a deliberate press on the card's link.
+    const navigated: string[] = [];
+    const onEvent = createCockpitCardsDefaultOnEvent((path) => navigated.push(path));
+
+    onEvent({ type: 'sessionStarted', sessionId: 'new-42' });
+
+    expect(navigated).toEqual([]);
   });
 
   it('says nothing for any other executor, even one whose answer names a session', async () => {

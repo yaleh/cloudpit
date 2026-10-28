@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import type { CockpitBriefResponse, CockpitCard } from '@/shared/types';
 import { api, readApiJson } from '@/shared/api';
@@ -29,11 +28,15 @@ import type { CockpitCardTypeFilter } from '@/modules/cockpit/contract';
  * answers `{ok, cardId, executor, params, result}` or the server's error envelope, which
  * `readApiJson` turns into an `ApiRequestError` carrying the server's code and message.
  *
- * The one decision the binding does make is where a `session.start` confirmation lands: the
- * person asked to start a conversation, so the page switches to it at once (user, 2026-10-27)
- * rather than leaving them on a card that now points at a conversation they have to find. It also
- * supplies the controller's route memory — the tab-scoped store the card page leaves its
- * selection and scroll offset in — because "which storage" is a browser fact, not a list rule.
+ * The one decision it must NOT make any more is where a `session.start` confirmation lands: a
+ * card-started conversation runs in the BACKGROUND (user, 2026-10-28), so the binding stays on
+ * the cards page instead of switching into the new session. The card carries the 「打开会话」
+ * link, so following it is one deliberate press rather than an automatic move. (Before this,
+ * the default listener navigated on `sessionStarted` — see
+ * `createCockpitCardsDefaultOnEvent`, which keeps that seam stubbed and provably inert.)
+ *
+ * It also supplies the controller's route memory — the tab-scoped store the card page leaves
+ * its selection and scroll offset in — because "which storage" is a browser fact, not a list rule.
  */
 
 /** The API's confirmation answer, narrowed to what the controller records. */
@@ -141,6 +144,25 @@ export function createLocalCockpitCardFilterMemory(): CockpitCardFilterMemory {
   };
 }
 
+/**
+ * The binding's DEFAULT listener for a started conversation: it does nothing.
+ *
+ * WHY IT TAKES A NAVIGATE SEAM AT ALL. The seam is the one the binding used to call, and this
+ * factory is exported so the controller's criterion can inject a stub there and state that a
+ * `session.start` confirmation reaches the default binding with ZERO navigations. The started
+ * session runs in the background; the card's 「打开会话」 link is how a person deliberately
+ * follows it. (`void navigate` is deliberate: an unused parameter named without it would read
+ * as an oversight rather than as a kept seam.)
+ */
+export function createCockpitCardsDefaultOnEvent(
+  navigate?: (path: string) => void,
+): (event: CockpitCardControllerEvent) => void {
+  void navigate;
+  return () => {
+    // Intentionally empty — see the doc above.
+  };
+}
+
 export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): CockpitCardsBinding {
   const {
     fetchCards,
@@ -152,20 +174,12 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
     remember: rememberOverride,
     rememberFilters: rememberFiltersOverride,
   } = overrides;
-  const navigate = useNavigate();
   // One store per mounted binding: a fresh object every render would rebuild the controller (and
   // the deps memo), which would discard the selection and the Details stack on every paint.
   const sessionMemory = useMemo(() => createSessionCockpitCardMemory(), []);
   const deviceFilters = useMemo(() => createLocalCockpitCardFilterMemory(), []);
   const remember = rememberOverride ?? sessionMemory;
   const rememberFilters = rememberFiltersOverride ?? deviceFilters;
-  // `navigate` changes identity when the route changes; keeping it in a ref keeps the controller
-  // — and therefore the selection and the Details stack — alive across a navigation. A controller
-  // rebuilt on every route change would silently reset the card the person was reading.
-  const navigateRef = useRef(navigate);
-  useEffect(() => {
-    navigateRef.current = navigate;
-  }, [navigate]);
   const deps = useMemo<CockpitCardControllerDeps>(
     () => ({
       fetchCards:
@@ -186,15 +200,9 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
         fetchBrief ??
         (async (cardId: string) =>
           readApiJson<CockpitBriefResponse>(await api.cockpitCardBrief(cardId))),
-      // The cockpit's own navigation rule: a confirmation that started a conversation switches
-      // to it immediately. A caller that supplies its own listener replaces this behaviour.
-      onEvent:
-        onEvent ??
-        ((event: CockpitCardControllerEvent) => {
-          if (event.type === 'sessionStarted') {
-            navigateRef.current(`/session/${encodeURIComponent(event.sessionId)}`);
-          }
-        }),
+      // A started conversation runs in the BACKGROUND: the default listener does not navigate.
+      // A caller that supplies its own listener replaces it (and may choose to move the page).
+      onEvent: onEvent ?? createCockpitCardsDefaultOnEvent(),
       ...(clock === undefined ? {} : { clock }),
       ...(refreshIntervalMs === undefined ? {} : { refreshIntervalMs }),
       // Where the selection and scroll offset survive the route unmounting: this tab's storage,

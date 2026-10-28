@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { installChatRunRegistryPort } from '@/shared/ports/chat-run-registry.port.js';
+import {
+  readSessionRunEventWriterPort,
+  sessionRunOutcome,
+} from '@/shared/ports/session-run-events.port.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import {
   sessionDigestProducer,
@@ -573,6 +577,16 @@ export function createChatRunRegistry(options?: {
         status: run.status,
         completedAt: run.completedAt,
         error: run.lastError,
+      });
+      // The fleet's run-level reading of the same terminal frame (gap-cockpit-session-start…).
+      // The port is read lazily and its adapter never throws, so an absent fleet install or a
+      // schema that predates the kind is a counted no-write, never a failed chat turn.
+      readSessionRunEventWriterPort()?.write({
+        kind: 'session.run.ended',
+        session: run.appSessionId,
+        runId: run.runId,
+        outcome: sessionRunOutcome(run.status, run.lastError),
+        at: new Date(run.completedAt).toISOString(),
       });
       evictRunLater(run.appSessionId);
     }

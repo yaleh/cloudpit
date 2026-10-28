@@ -79,14 +79,21 @@ export {
   COCKPIT_SESSION_START_EXECUTOR_ID,
   COCKPIT_SESSION_PROVIDERS,
   CockpitSessionStartExecutor,
+  createCockpitSessionStarter,
   DEFAULT_COCKPIT_SESSION_PROVIDER,
   resolveSessionProject,
 } from '@/modules/cockpit/cockpit-session-start.executor.js';
 export type {
   CockpitProjectLookup,
+  CockpitSessionStartCapabilities,
+  CockpitSessionStartControl,
   CockpitSessionStartDeps,
+  CockpitSessionStartModels,
+  CockpitSessionStartPreferences,
   CockpitSessionStartRequest,
   CockpitSessionStartResult,
+  CockpitSessionStartSessions,
+  CockpitSessionStarterDeps,
 } from '@/modules/cockpit/cockpit-session-start.executor.js';
 // The brief service: card content in, BriefSpec (or the deterministic default) out. The
 // composition root injects its gateway/session/transcript seams; the card router calls it.

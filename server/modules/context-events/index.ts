@@ -49,6 +49,20 @@ export type { OpenSessionAsk, ReadOpenSessionAsksOptions } from './session-ask-s
 // consumer: shadow-prediction-report.mjs (through a JSON dump), and the classifier criterion
 export { classifyUtterance, LADDER_BASELINE, UTTERANCE_CLASSES } from './utterance-classifier.js';
 export type { LadderLevel, UtteranceClass } from './utterance-classifier.js';
+// consumer: the composition root installs the adapter on the session-run port; the run registry
+// and the session-host manager state the two lifecycle events through it
+export {
+  createSessionRunEventWriter,
+  sessionClosed,
+  sessionRunEnded,
+  sessionRunOutcome,
+  toSessionRunEventDraft,
+} from './session-run-events.js';
+export type {
+  SessionRunEventRecord,
+  SessionRunEventWriter,
+  SessionRunEventWriterStatus,
+} from './session-run-events.js';
 // consumer: the report's transition backfill, and the predictor criterion
 export { createShadowPredictor, SHADOW_PREDICTION_METHOD } from './shadow-predictor.js';
 export type {

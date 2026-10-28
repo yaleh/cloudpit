@@ -21,6 +21,7 @@ import { installProjectsSessionFetchPort } from '@/shared/ports/projects-session
 import { installProviderRegistryPort } from '@/shared/ports/provider-registry.port.js';
 import { installSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 import { installSessionBroadcastPort } from '@/shared/ports/session-broadcast.port.js';
+import { installSessionRunEventWriterPort } from '@/shared/ports/session-run-events.port.js';
 import { installSessionUserTurnPort } from '@/shared/ports/session-user-turn.port.js';
 import { installVoiceLexiconPort } from '@/shared/ports/voice-lexicon.port.js';
 import { installVoiceRulesPort } from '@/shared/ports/voice-rules.port.js';
@@ -115,7 +116,11 @@ import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from '
 // cockpit records focus/send events, and the reply-suggestions ledger's observer
 // mirrors the chip events. The shadow predictor inside it writes to the same
 // stream and to nothing else.
-import { contextEvents, createSessionAskEventWriter } from './modules/context-events/index.js';
+import {
+    contextEvents,
+    createSessionAskEventWriter,
+    createSessionRunEventWriter,
+} from './modules/context-events/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
@@ -310,6 +315,16 @@ installSessionAskEventWriterPort(
         record: (draft) => contextEvents.record(draft),
     }),
 );
+// The session-lifecycle rows: `session.run.ended` when a run's outcome is known (the chat run
+// registry sees the complete frame) and `session.closed` when a RESIDENT host goes away or the
+// session is deleted/archived. Those producers are module-scope singletons built before this
+// line, so the port is read at write time; an uninstalled port writes nothing, and a fleet
+// schema without these kinds refuses each append as `invalid-kind` inside the adapter.
+installSessionRunEventWriterPort(
+    createSessionRunEventWriter({
+        record: (draft) => contextEvents.record(draft),
+    }),
+);
 // Every accepted user message is reported here, so an outstanding ask's `session.answered` is
 // stated at the answer rather than only at turn end; the listener is fire-and-forget.
 installSessionUserTurnPort({
@@ -370,7 +385,10 @@ const cockpitCards = createCockpitCardsModule({
             ttlMs: serverSettings.cockpit.fleetCards.ttlMs,
         }).provider,
     ],
-    executors: createCockpitCardExecutors({ control: chatControl }),
+    executors: createCockpitCardExecutors({
+        control: chatControl,
+        sessionStart: serverSettings.cockpit.sessionStart,
+    }),
     briefDeps: createCockpitBriefDeps(),
 });
 

@@ -21,23 +21,26 @@
  * same account the platform-mode auth middleware resolves for every request. `resolveUserId`
  * is injectable so a criterion can name the sender without a database.
  */
-import { AppError } from '@/shared/utils.js';
-import type { LLMProvider } from '@/shared/types.js';
-
 import { userDb } from './modules/database/index.js';
 import {
   CockpitSessionSendExecutor,
   CockpitSessionStartExecutor,
+  createCockpitSessionStarter,
   resolveSessionProject,
   type CockpitProjectLookup,
   type CockpitSessionSendResult,
 } from './modules/cockpit/index.js';
-import { sessionsService } from './modules/providers/index.js';
+import {
+  providerCapabilitiesService,
+  providerModelsService,
+  sessionsService,
+} from './modules/providers/index.js';
 import { quayFleetProjectIds } from './modules/quay/index.js';
+import type { CockpitSessionStartSettings } from './modules/settings/index.js';
 import type { createChatControlService } from './modules/websocket/index.js';
 
-/** The one shared control service, as this wiring reads it. */
-type CockpitChatControl = Pick<ReturnType<typeof createChatControlService>, 'send'>;
+/** The one shared control service, as this wiring reads it (exported for its criterion). */
+export type CockpitChatControl = Pick<ReturnType<typeof createChatControlService>, 'send'>;
 
 /** The fleet registry join, as this wiring reads it (fleet id → registered root, or null). */
 export type CockpitFleetProjectLookup = CockpitProjectLookup;
@@ -46,8 +49,23 @@ export type CockpitFleetProjectLookup = CockpitProjectLookup;
 export type CockpitExecutorsWiring = {
   /** The process-wide chat control service (the one `server/index.ts` built). */
   control: CockpitChatControl;
-  /** The session-row writer the MCP `session_create` path also uses. */
-  sessions?: Pick<typeof sessionsService, 'createAppSession'>;
+  /**
+   * How a card-started conversation is opened: `serverSettings.cockpit.sessionStart`.
+   *
+   * REQUIRED rather than defaulted here: the one reading of the settings file lives in
+   * `server/index.ts`, and a second set of shipped defaults in this seam could disagree with
+   * the file the operator edits.
+   */
+  sessionStart: CockpitSessionStartSettings;
+  /**
+   * The session-row writer the MCP `session_create` path also uses. The lifecycle preference
+   * is stored through the same service, which refuses a mode the provider does not declare.
+   */
+  sessions?: Pick<typeof sessionsService, 'createAppSession' | 'switchSessionLifecycleMode'>;
+  /** The permission-mode writer and the catalog reader, exactly as `session_create` reads them. */
+  models?: Pick<typeof providerModelsService, 'setSessionPermissionMode'>;
+  /** The provider capability matrix; a permission mode is refused before any row is created. */
+  capabilities?: Pick<typeof providerCapabilitiesService, 'getProviderCapabilities'>;
   /** The acting user's id; defaults to the deployment's first user. */
   resolveUserId?: () => string | number | null;
   /** Fleet registry id → registered root; defaults to the real quay-fleet join. */
@@ -55,22 +73,6 @@ export type CockpitExecutorsWiring = {
   /** Whole-path override; defaults to the fleet-first rule below. */
   resolveProjectPath?: (project: string) => Promise<string>;
 };
-
-/** The refusal status a control-service code maps to; the code itself is preserved. */
-function refusalStatus(code: string): number {
-  switch (code) {
-    case 'SESSION_NOT_FOUND':
-      return 404;
-    case 'RUN_IN_PROGRESS':
-      return 409;
-    case 'FORBIDDEN':
-      return 403;
-    case 'UNSUPPORTED_PROVIDER':
-      return 400;
-    default:
-      return 502;
-  }
-}
 
 /**
  * Resolves a card's `subject.project` to an absolute project path, fleet-first.
@@ -92,6 +94,9 @@ export function createCockpitCardExecutors(
   wiring: CockpitExecutorsWiring,
 ): [CockpitSessionSendExecutor, CockpitSessionStartExecutor] {
   const sessions = wiring.sessions ?? sessionsService;
+  const models = wiring.models ?? providerModelsService;
+  const capabilities = wiring.capabilities ?? providerCapabilitiesService;
+  const { sessionStart } = wiring;
   const resolveUserId =
     wiring.resolveUserId ?? (() => userDb.getFirstUser()?.id ?? null);
   const fleet: CockpitFleetProjectLookup =
@@ -112,34 +117,18 @@ export function createCockpitCardExecutors(
       : { ok: false, code: result.code, message: result.message };
   };
 
-  const start = async (request: {
-    project: string;
-    initialMessage: string;
-    provider: LLMProvider;
-  }): Promise<{ sessionId: string; projectPath: string }> => {
-    const projectPath = await resolveProject(request.project);
-
-    // Same two steps the MCP `session_create` path walks: the row first, then the opening
-    // message through the ONE shared control service. A create that never sends would leave
-    // a row whose name quotes the reply but whose transcript never received it.
-    const created = sessions.createAppSession(
-      request.provider,
-      projectPath,
-      request.initialMessage,
-    );
-    const sent = await wiring.control.send(
-      { userId: resolveUserId(), via: 'websocket' },
-      { sessionId: created.sessionId, content: request.initialMessage },
-    );
-    if (!sent.ok) {
-      throw new AppError(sent.message, {
-        code: sent.code,
-        statusCode: refusalStatus(sent.code),
-      });
-    }
-
-    return { sessionId: created.sessionId, projectPath };
-  };
+  // The start body lives with the executor (the leaf module), which is why this seam is only
+  // the binding: the preference order, the capability refusal and the settings read are rules
+  // the cockpit owns, not composition-root knowledge. The real services are passed through.
+  const start = createCockpitSessionStarter({
+    sessions,
+    models,
+    capabilities,
+    control: wiring.control,
+    preferences: sessionStart,
+    resolveUserId,
+    resolveProjectPath: resolveProject,
+  });
 
   return [
     new CockpitSessionSendExecutor({ send }),

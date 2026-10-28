@@ -11,7 +11,12 @@ export { createSettingsService } from './settings.service.js';
 // names), read once at boot by `server/index.ts` for knobs that belong to the
 // process rather than to a user. Per-user settings stay in the settings store
 // behind the routes above; this file is the one carrier for server-wide policy.
-export { loadServerSettings, SERVER_SETTINGS_ENV } from './server-settings.js';
+export {
+  DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
+  DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+  loadServerSettings,
+  SERVER_SETTINGS_ENV,
+} from './server-settings.js';
 // createServerFeaturesRouter: mounted by the server entrypoint at
 // `/api/settings/features` to publish the server-level switches a client must know before it
 // renders an entry point (today: the cockpit). Kept as a factory so a criterion can mount it
@@ -23,6 +28,7 @@ export { createServerFeaturesRouter } from './server-features.routes.js';
 // composition root and for the resident-restore criterion, which drives the loader over files
 // it owns.
 export type {
+  CockpitSessionStartSettings,
   CockpitSettings,
   InitiativeSettings,
   ObservationSettings,

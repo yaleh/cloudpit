@@ -12,6 +12,7 @@ import { sessionHostManager } from '@/modules/session-hosts/index.js';
 import type { SessionLifecycleReading } from '@/modules/session-hosts/index.js';
 import { readChatRunRegistryPort, type ChatRunRegistryPort } from '@/shared/ports/chat-run-registry.port.js';
 import { readSessionBroadcastPort } from '@/shared/ports/session-broadcast.port.js';
+import { readSessionRunEventWriterPort } from '@/shared/ports/session-run-events.port.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
@@ -1039,6 +1040,14 @@ export const sessionsService = {
 
     if (!options.force) {
       sessionsDb.updateSessionIsArchived(sessionId, true);
+      // The fleet's `session.closed`: archiving is a person saying this conversation is done,
+      // whether or not a resident host happened to be serving it. Fire-and-forget; the adapter
+      // owns the failure path.
+      readSessionRunEventWriterPort()?.write({
+        kind: 'session.closed',
+        session: sessionId,
+        reason: 'archived',
+      });
       return {
         sessionId,
         action: 'archived',
@@ -1071,13 +1080,17 @@ export const sessionsService = {
       });
     }
 
+    readSessionRunEventWriterPort()?.write({
+      kind: 'session.closed',
+      session: sessionId,
+      reason: 'deleted',
+    });
     return {
       sessionId,
       action: 'deleted',
       deletedFromDisk: removedFromDisk,
     };
   },
-
   /**
    * Restores one archived session back into the active sidebar lists.
    */

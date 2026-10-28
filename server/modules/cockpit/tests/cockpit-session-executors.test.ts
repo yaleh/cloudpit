@@ -43,11 +43,23 @@ import {
   COCKPIT_SESSION_START_EXECUTOR_ID,
   CockpitSessionStartExecutor,
   DEFAULT_COCKPIT_SESSION_PROVIDER,
+  createCockpitSessionStarter,
   resolveSessionProject,
+  type CockpitSessionStartCapabilities,
+  type CockpitSessionStartControl,
+  type CockpitSessionStartModels,
+  type CockpitSessionStartPreferences,
   type CockpitSessionStartRequest,
+  type CockpitSessionStartSessions,
 } from '@/modules/cockpit/cockpit-session-start.executor.js';
+import { providerCapabilitiesService } from '@/modules/providers/index.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
-import type { CockpitCard, CockpitCardSubject, SessionAskDecisionReading } from '@/shared/types.js';
+import type {
+  CockpitCard,
+  CockpitCardSubject,
+  LLMProvider,
+  SessionAskDecisionReading,
+} from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
 // ---------------------------------------------------------------------------
@@ -472,4 +484,184 @@ test('every fixture card is confirmable through its derived default', async () =
     initialMessage: 'go ahead',
     provider: DEFAULT_COCKPIT_SESSION_PROVIDER,
   });
+});
+
+// ---------------------------------------------------------------------------
+// The composition wiring: how a card-started conversation is opened
+// ---------------------------------------------------------------------------
+
+/**
+ * The full capability record for `claude`, narrowed to the fields a case overrides.
+ *
+ * Built from the REAL matrix rather than a hand-written literal: the wiring reads the same
+ * record, and a stub that omitted a field would prove the wiring against a shape no provider
+ * can produce. Only the two arrays a case is about are replaced.
+ */
+function capabilitiesFor(overrides: {
+  permissionModes?: string[];
+  lifecycleModes?: Array<'per-run' | 'resident'>;
+} = {}): CockpitSessionStartCapabilities {
+  const claude = providerCapabilitiesService.getProviderCapabilities('claude');
+  return {
+    getProviderCapabilities: (provider: LLMProvider) => ({
+      ...claude,
+      provider,
+      ...(overrides.permissionModes === undefined
+        ? {}
+        : { permissionModes: overrides.permissionModes }),
+      ...(overrides.lifecycleModes === undefined
+        ? {}
+        : { lifecycleModes: overrides.lifecycleModes }),
+    }),
+  };
+}
+
+/**
+ * The start body with every outside world replaced by a recorder, plus the order it saw.
+ *
+ * `createCockpitSessionStarter` is the ONLY place the preference order is decided, so a test
+ * over the executor (which just validates and forwards) cannot see it. `order` records the four
+ * calls that matter in the sequence they happened; each call's arguments are kept beside it.
+ */
+function startWiring(input: {
+  sessionStart: CockpitSessionStartPreferences;
+  capabilities?: CockpitSessionStartCapabilities;
+}) {
+  const order: string[] = [];
+  const created: Array<{ provider: LLMProvider; projectPath: string; initialMessage: string }> = [];
+  const sessions: CockpitSessionStartSessions = {
+    createAppSession: (provider, projectPath, initialMessage) => {
+      order.push('create');
+      created.push({ provider, projectPath, initialMessage });
+      return { sessionId: 's-new' };
+    },
+    switchSessionLifecycleMode: (_provider, sessionId, mode) => {
+      order.push(`lifecycle:${mode}`);
+      return { sessionId, mode };
+    },
+  };
+  const permissionWrites: Array<{ sessionId: string; permissionMode: string }> = [];
+  const models: CockpitSessionStartModels = {
+    setSessionPermissionMode: (_provider, sessionId, permissionMode) => {
+      order.push(`permission:${permissionMode}`);
+      permissionWrites.push({ sessionId, permissionMode });
+      return { sessionId, permissionMode };
+    },
+  };
+  const sends: Array<{ sessionId: string; content: string; options?: unknown }> = [];
+  const control: CockpitSessionStartControl = {
+    send: async (_caller, sendInput) => {
+      order.push(`send:${String(sendInput.options?.permissionMode ?? 'none')}`);
+      sends.push({
+        sessionId: sendInput.sessionId,
+        content: sendInput.content,
+        ...(sendInput.options === undefined ? {} : { options: sendInput.options }),
+      });
+      return { ok: true };
+    },
+  };
+
+  const start = new CockpitSessionStartExecutor({
+    start: createCockpitSessionStarter({
+      sessions,
+      models,
+      capabilities: input.capabilities ?? capabilitiesFor(),
+      control,
+      preferences: input.sessionStart,
+      resolveUserId: () => 1,
+      resolveProjectPath: async (project) => `/repos/${project}`,
+    }),
+  });
+
+  return { start, order, created, permissionWrites, sends };
+}
+
+test('a card-started conversation is resident + bypassPermissions, both written before the first send', async () => {
+  const wiring = startWiring({
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    capabilities: capabilitiesFor(),
+  });
+
+  const answer = await wiring.start.execute({
+    project: 'proj-a',
+    initialMessage: 'ls',
+    provider: 'claude',
+  });
+
+  assert.deepEqual(answer, { sessionId: 's-new', projectPath: '/repos/proj-a' });
+  assert.deepEqual(
+    wiring.order,
+    ['create', 'permission:bypassPermissions', 'lifecycle:resident', 'send:bypassPermissions'],
+    'the row is created first, then BOTH preferences, and only then the opening send',
+  );
+  assert.deepEqual(wiring.permissionWrites, [
+    { sessionId: 's-new', permissionMode: 'bypassPermissions' },
+  ]);
+  assert.deepEqual(wiring.created, [
+    { provider: 'claude', projectPath: '/repos/proj-a', initialMessage: 'ls' },
+  ]);
+  assert.equal(wiring.sends.length, 1);
+  assert.equal(wiring.sends[0]?.sessionId, 's-new');
+  assert.equal(wiring.sends[0]?.content, 'ls');
+  assert.deepEqual(
+    wiring.sends[0]?.options,
+    { permissionMode: 'bypassPermissions' },
+    'the first run must spawn with the mode, not inherit it from a later message',
+  );
+});
+
+test('cockpit.sessionStart is obeyed: per-run + default take effect end to end', async () => {
+  const wiring = startWiring({
+    sessionStart: { lifecycleMode: 'per-run', permissionMode: 'default' },
+    capabilities: capabilitiesFor(),
+  });
+
+  await wiring.start.execute({ project: 'proj-a', initialMessage: 'hi', provider: 'claude' });
+
+  assert.deepEqual(wiring.order, [
+    'create',
+    'permission:default',
+    'lifecycle:per-run',
+    'send:default',
+  ]);
+  assert.deepEqual(wiring.permissionWrites, [{ sessionId: 's-new', permissionMode: 'default' }]);
+});
+
+test('a permission mode the provider does not support is refused with 400 and creates no row', async () => {
+  const wiring = startWiring({
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    // No provider in the shipped matrix refuses `bypassPermissions`, so the refusing matrix is
+    // stated here rather than borrowed from one of them.
+    capabilities: capabilitiesFor({ permissionModes: ['default', 'acceptEdits'] }),
+  });
+
+  await assert.rejects(
+    () =>
+      wiring.start.execute({ project: 'proj-a', initialMessage: 'hi', provider: 'claude' }),
+    (failure) =>
+      failure instanceof AppError &&
+      failure.code === 'UNSUPPORTED_PERMISSION_MODE' &&
+      failure.statusCode === 400,
+    'an unsupported mode is refused honestly instead of being silently downgraded',
+  );
+  assert.deepEqual(wiring.order, [], 'nothing is created, written or sent');
+  assert.equal(wiring.created.length, 0);
+  assert.deepEqual(wiring.permissionWrites, []);
+  assert.deepEqual(wiring.sends, []);
+});
+
+test('a provider without resident keeps its per-run default; the permission is still written first', async () => {
+  // MCP `session_create` parity: the shipped `resident` default applies only where the provider
+  // declares it. The row's own DB default (`per-run`) is what a non-resident provider keeps.
+  const wiring = startWiring({
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    capabilities: capabilitiesFor({ lifecycleModes: ['per-run'] }),
+  });
+
+  await wiring.start.execute({ project: 'proj-a', initialMessage: 'hi', provider: 'codex' });
+
+  assert.deepEqual(wiring.order, ['create', 'permission:bypassPermissions', 'send:bypassPermissions']);
+  assert.deepEqual(wiring.permissionWrites, [
+    { sessionId: 's-new', permissionMode: 'bypassPermissions' },
+  ]);
 });
