@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-cards-resolve-reliably-digest-json-and-details-polish
 title: 驾驶舱提问卡三处：回答后可靠发出 session.answered（不靠内存、跨重启补发、用户发言即发）；提问摘要「模型输出不是合法
   JSON」（疑被 400 token 上限截断）；手机 Details 视觉差异（标题被把手压住、确认条颜色、助手原话引用）
-status: todo
+status: ready
 labels:
   - gap
   - defect
