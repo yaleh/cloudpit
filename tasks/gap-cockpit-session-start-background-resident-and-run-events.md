@@ -63,6 +63,13 @@ extra: {}
 - `npm run typecheck` → exit 0；`npm run lint` → exit 0（仅既有 warning，无 error）。
 - 假形态变红（改完即还原，还原后重跑全绿）：权限写入改成 `const recorded = true;` ⇒ 第一条新用例红，实际次序 `['create','lifecycle:resident','send:bypassPermissions']` vs 期望 `['create','permission:bypassPermissions','lifecycle:resident','send:bypassPermissions']`（3 fail）；`createCockpitCardsDefaultOnEvent` 里加回 `navigate('/session/'+event.sessionId)` ⇒ 导航用例红，`expected [ '/session/new-42' ] to deeply equal []`（1 failed / 50 passed）。
 
+### 续跑轮修复记录（2026-10-28，pin 型 suite 红）
+
+- 上一轮 fan-in suite 红是确定性 pin（不是环境抖动）：本任务新增 `server/modules/context-events/tests/session-run-events.test.ts`，server 测试文件收集数 462 → 463，`server/shared/tests/quay-test-script.test.ts` 的 AC2/AC3 dispatch 计数 pin 实读 `unknown=460` / `unknown=462`（钉在 459 / 461）。
+- 已把两条 pin 移到 `unknown=460` / `unknown=462`（连同两处注释记账），并向 `scripts/suite-duration-baseline.tsv` 追加 `session-run-events` 行（实测 `duration_ms=6977`；覆盖 418/463 = 90.2%，AC7 绿）。
+- 单文件复跑：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → tests 14 / pass 14 / fail 0（duration_ms 78319）。
+- `server/shared/tests/quay-test-script.test.ts` 与 `scripts/suite-duration-baseline.tsv` 已补进 `## Touches`（anti-drift 门要求）。
+
 ### DoD 执行记录（隔离实例，真实页面 + 真实 claude CLI）
 
 隔离实例：`scripts/isolated-instance.sh`（state `tmp/isolated-instance`），settings 写入 `cockpit.enabled=true`、`cockpit.fixtureCards=true`、`cockpit.fixtureSubject.project=<worktree>`、`cockpit.sessionStart={lifecycleMode:resident,permissionMode:bypassPermissions}`；`HOME=/tmp/dod-cockpit-start/home`（`.claude`/`.claude.json` 软链真实配置供 CLI 登录，**`.quay-fleet` 是临时目录**），`QUAY_FLEET_BIN` 指向临时 release，其中 `config/context-event.schema.v0.json` 是真实 schema 的副本 + 两个新 kind；真实 `~/.quay-fleet` 全程未被写入。用一次性 Playwright（`tmp/dod-card-session-start.mjs`）驱动 `/cockpit?view=cards`，只点夹具卡 `fixture:need`（其 ownReply executor 由 registry 投影为 `session.start`）。
@@ -107,3 +114,13 @@ extra: {}
 - src/modules/cockpit/tests/cockpitCardController.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
+
+## Blocker
+
+**2026-10-28T14:42:10.132Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=91570 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793198071121 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：7332ae9f-309c-4467-aa2b-7cf428988a5f
