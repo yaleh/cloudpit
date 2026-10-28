@@ -2,8 +2,7 @@
  * The cockpit's read path into one session's T1 ask digest — and the repair of a digest that
  * was stored before the current suggestion rules held.
  *
- * FOUR STALE SHAPES ARE REPAIRED ON READ, through one mechanism:
- *
+ * FIVE STALE SHAPES ARE REPAIRED ON READ, through one mechanism:
  *   1. A digest stored while the tier was still switched off (`{ state: 'skipped', reason:
  *      '未启用 …' }`). Only that session's NEXT turn recomputes it, so a person who enables the
  *      setting keeps reading 「提问决策摘要未启用」 on cards that are still open.
@@ -16,6 +15,11 @@
  *      only the next asking turn.
  *   4. An `evaluated` digest stored before the assistant's verbatim `quote` field existed. It is
  *      recomputed once so the phone's Details drawer can show the original words.
+ *   5. A stored 「转写里找不到这次提问」 failure. That sentence was written by the OLD reader from
+ *      a transient miss (the provider had not appended the row yet) or from a stored-digest/card
+ *      ask mismatch, and remembered forever; the transcript may well carry the card's ask now.
+ *      Recomputed under the same bounded rules, so a session left with the wrong verdict heals
+ *      without waiting for its next asking turn.
  *
  * IT IS A REPAIR, NOT A SECOND PRODUCER. The read itself stays synchronous (the card projection
  * calls it in a loop), so the recompute is started in the background and the caller keeps the
@@ -128,9 +132,9 @@ export type SessionAskDecisionReaderDeps = {
 /** The read surface the cockpit's content seam consumes. */
 export type SessionAskDecisionReader = {
   /**
-   * The stored reading, or null; starts a background repair when it is a disabled-tier skip or
-   * a complete digest stored without any suggested option. `messageId` is the asking message the
-   * card names; without it the repair follows the transcript's last assistant message.
+   * The stored reading, or null; starts a bounded background repair when the stored reading is
+   * one of the stale shapes this module describes. `messageId` is the asking message the card
+   * names; without it the repair follows the transcript's last assistant message.
    */
   read(sessionId: string, messageId?: string): SessionAskDecisionReading | null;
   /** Resolves once every repair started so far has settled (used by the criterion and the DoD). */
@@ -380,8 +384,9 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
 
       // The stale shapes this reader repairs, all through the one bounded mechanism above:
       // a disabled-tier skip; an evaluated digest with no judge default; an evaluated digest
-      // stored before the assistant quote existed; and a 模型输出不可用 failure stored before the
-      // digest's output ceiling was raised.
+      // stored before the assistant quote existed; a 模型输出不可用 failure stored before the
+      // digest's output ceiling was raised; and a 「转写里找不到这次提问」 failure, which the old
+      // reader wrote from a timing miss and remembered forever.
       const disabledSkip = reading.state === 'skipped' && reading.reason.includes(DISABLED_REASON_TOKEN);
       const missingDefault =
         reading.state === 'evaluated' &&
@@ -392,7 +397,9 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
         reading.state === 'evaluated' && (typeof reading.quote !== 'string' || reading.quote.trim() === '');
       const failedOutput =
         reading.state === 'unevaluated' && reading.reason.startsWith(SESSION_ASK_OUTPUT_UNUSABLE_REASON);
-      if (!disabledSkip && !missingDefault && !missingQuote && !failedOutput) return reading;
+      const missingAsk =
+        reading.state === 'unevaluated' && reading.reason === SESSION_ASK_DECISION_ASK_MISSING_REASON;
+      if (!disabledSkip && !missingDefault && !missingQuote && !failedOutput && !missingAsk) return reading;
 
       const settings = readSettings();
       if (!settings.enabled) return reading;
@@ -407,7 +414,15 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       // An evaluated reading already names its ask, so the attempt is keyed by askId. The other
       // two shapes must identify the ask from the transcript first, so their key names the card.
       const expectedAskId = reading.state === 'evaluated' ? reading.askId : undefined;
-      const shape = disabledSkip ? 'disabled' : failedOutput ? 'output' : missingQuote ? 'quote' : 'default';
+      const shape = disabledSkip
+        ? 'disabled'
+        : failedOutput
+          ? 'output'
+          : missingAsk
+            ? 'ask-missing'
+            : missingQuote
+              ? 'quote'
+              : 'default';
       const attemptKey = expectedAskId ?? `${sessionId}\u0000${messageId}\u0000${shape}`;
       if (attempted.has(attemptKey)) return reading;
       // A temporal miss schedules itself: until the interval has elapsed the stored reading is

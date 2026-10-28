@@ -751,6 +751,38 @@ test('read-time repair: a stored 「模型输出不可用」 failure is recomput
   assert.equal(requests.length, 1, 'a second read does not call the model again');
 });
 
+test('read-time repair: a stored 「转写里找不到这次提问」 failure heals once the transcript carries the ask', async () => {
+  const { store, objects } = createMemoryStore();
+  // THE LIVE SHAPE (session 8d8a6d0d, message 710beefe): the old reader compared the stored
+  // digest's ask with the card's and, on a transient miss, wrote this permanent sentence.
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askDecision: { state: 'unevaluated', reason: SESSION_ASK_DECISION_ASK_MISSING_REASON },
+    },
+    provenance: { producer: 'session-ask-decision-reader', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, { requests });
+
+  // The first frame still answers the stored failure; the repair runs in the background.
+  assert.equal(reader.read(SESSION_ID, 'a1')?.state, 'unevaluated');
+  await reader.settled();
+
+  assert.equal(requests.length, 1, 'the stored wrong verdict is recomputed, not remembered');
+  const repaired = storedAskDecision(objects);
+  assert.equal(repaired?.state, 'evaluated');
+  assert.equal(repaired?.state === 'evaluated' ? repaired.askId : '', `${SESSION_ID}:a1`);
+
+  assert.equal(reader.read(SESSION_ID, 'a1')?.state, 'evaluated');
+  await reader.settled();
+  assert.equal(requests.length, 1, 'a second read does not call the model again');
+});
+
 test('read-time repair: an evaluated reading without the assistant quote is recomputed once', async () => {
   const { store, objects } = createMemoryStore();
   store.writeRevision({
