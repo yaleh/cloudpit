@@ -1,0 +1,184 @@
+/**
+ * Reads BACK the two session-ask kinds from the context-event stream.
+ *
+ * The writer beside this file is the CloudCLI producer's only route into
+ * `~/.quay-fleet/context/events/<day>.jsonl`. This reader is the boot-time consumer: it answers
+ * which asks this host stated as `session.asking` and never followed with `session.answered`.
+ *
+ * WHY IT EXISTS. The observation layer's ask ledger lives inside a session digest, so a session
+ * whose digest revision was never written (the LLM summary was still in flight when the process
+ * died, the session was written before the ledger existed) has no record of its open ask. The
+ * stream does: every `session.asking` row was appended when the ask was stated. Rebuilding the
+ * ledger from the stream is what makes 「未结束的提问」 independent of whether a digest write
+ * happened at all.
+ *
+ * READ-ONLY, TOLERANT, BOUNDED. It never writes a fleet file, never throws, and reads only day
+ * files inside the lookback window. Rows from another producer (`source !== 'cloudcli'`) are
+ * somebody else's facts and are ignored.
+ *
+ * Consumers: `server/modules/observation/session-digest.producer.ts` (the startup sweep's ledger
+ * rebuild) and `tests/session-ask-decision-digest.test.ts`.
+ */
+import { readdir, readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+/** The only producer whose rows this host may rebuild its own ledger from. */
+const CLOUDCLI_SOURCE = 'cloudcli';
+
+/** How far back the rebuild looks; an older ask is no longer worth a boot-time model-free pass. */
+export const DEFAULT_SESSION_ASK_LOOKBACK_DAYS = 7;
+
+const DAY_FILE = /^(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
+
+/** One ask the stream still shows open: stated, never answered. */
+export type OpenSessionAsk = {
+  /** `<sessionId>:<first asking message id>` — the fleet's dedup key. */
+  askId: string;
+  sessionId: string;
+  /** The assistant message the question came from. */
+  messageId: string;
+  /** The highest revision the stream stated for this ask. */
+  revision: number;
+  project: string;
+  /** The first `session.asking` row's timestamp, so callers can order the rebuild. */
+  askedAt: string;
+};
+
+/** What the reader needs from the world; production supplies every default. */
+export type ReadOpenSessionAsksOptions = {
+  /** The stream directory. Defaults to `~/.quay-fleet/context/events`. */
+  eventsDir?: string;
+  /** The clock the lookback window is measured from. Defaults to `Date.now`. */
+  nowMs?: number;
+  /** Days of stream to read. Defaults to {@link DEFAULT_SESSION_ASK_LOOKBACK_DAYS}. */
+  lookbackDays?: number;
+};
+
+type AskRow = { row: Record<string, unknown>; at: number };
+
+function recordOf(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function textOf(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/** Milliseconds for an ISO timestamp, or `null` when it does not parse. */
+function timeOf(value: unknown): number | null {
+  if (typeof value !== 'string' || value === '') return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** The UTC midnight of the day `ms` falls on, in milliseconds. */
+function dayStart(ms: number): number {
+  return Math.floor(ms / 86_400_000) * 86_400_000;
+}
+
+/** The day files inside the window, oldest first. A file name is the row's own day. */
+async function dayFiles(eventsDir: string, cutoffMs: number): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(eventsDir);
+  } catch {
+    return [];
+  }
+  const files: Array<{ name: string; day: number }> = [];
+  for (const name of entries) {
+    const match = DAY_FILE.exec(name);
+    if (match === null) continue;
+    const day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (!Number.isFinite(day) || day < dayStart(cutoffMs)) continue;
+    files.push({ name, day });
+  }
+  return files.sort((left, right) => left.day - right.day).map((file) => path.join(eventsDir, file.name));
+}
+
+/** Parses one day file into rows the rebuild cares about, in file order. */
+async function readDay(file: string, cutoffMs: number): Promise<AskRow[]> {
+  let raw: string;
+  try {
+    raw = await readFile(file, 'utf8');
+  } catch {
+    return [];
+  }
+  const rows: AskRow[] = [];
+  for (const line of raw.split('\n')) {
+    if (line === '') continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      // A torn last line is a write in flight, not this reader's failure.
+      continue;
+    }
+    const row = recordOf(parsed);
+    if (row === null) continue;
+    if (row.source !== CLOUDCLI_SOURCE) continue;
+    if (row.kind !== 'session.asking' && row.kind !== 'session.answered') continue;
+    const at = timeOf(row.at);
+    if (at === null || at < cutoffMs) continue;
+    const data = recordOf(row.data);
+    if (data === null || textOf(data.askId) === '') continue;
+    rows.push({ row, at });
+  }
+  return rows;
+}
+
+/**
+ * Every ask this host stated and has not answered, within the lookback window.
+ *
+ * A `session.answered` row settles its askId wherever it sits in the window: the answer may
+ * arrive in a later day file than the question, and the sweep must not re-state it.
+ */
+export async function readOpenSessionAsks(
+  options: ReadOpenSessionAsksOptions = {},
+): Promise<OpenSessionAsk[]> {
+  const nowMs = options.nowMs ?? Date.now();
+  const lookbackDays = options.lookbackDays ?? DEFAULT_SESSION_ASK_LOOKBACK_DAYS;
+  const eventsDir = options.eventsDir ?? path.join(os.homedir(), '.quay-fleet', 'context', 'events');
+  const cutoffMs = nowMs - lookbackDays * 86_400_000;
+
+  const asks = new Map<string, OpenSessionAsk>();
+  const answered = new Set<string>();
+
+  for (const file of await dayFiles(eventsDir, cutoffMs)) {
+    for (const { row, at } of await readDay(file, cutoffMs)) {
+      const data = recordOf(row.data) ?? {};
+      const askId = textOf(data.askId);
+      if (row.kind === 'session.answered') {
+        answered.add(askId);
+        continue;
+      }
+      const sessionId = textOf(row.session);
+      if (sessionId === '') continue;
+      const revision = typeof data.revision === 'number' && Number.isFinite(data.revision) ? data.revision : 1;
+      const previous = asks.get(askId);
+      if (previous === undefined) {
+        asks.set(askId, {
+          askId,
+          sessionId,
+          messageId: textOf(data.messageId),
+          revision,
+          project: textOf(row.project),
+          askedAt: new Date(at).toISOString(),
+        });
+        continue;
+      }
+      // A re-ask keeps the ask identity (and the first asking message) and bumps the revision.
+      if (revision > previous.revision) {
+        previous.revision = revision;
+        // The newest asking row is the message the latest revision names.
+        const messageId = textOf(data.messageId);
+        if (messageId !== '') previous.messageId = messageId;
+      }
+    }
+  }
+
+  return [...asks.values()]
+    .filter((ask) => answered.has(ask.askId) === false)
+    .sort((left, right) => left.askedAt.localeCompare(right.askedAt));
+}

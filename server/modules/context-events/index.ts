@@ -39,6 +39,13 @@ export type {
   SessionAskEventWriter,
   SessionAskEventWriterStatus,
 } from './context-event-writer.js';
+// consumer: the observation layer's startup sweep, which rebuilds its open-ask ledger from the
+// rows this host stated (a digest write is not the only record of an ask)
+export {
+  DEFAULT_SESSION_ASK_LOOKBACK_DAYS,
+  readOpenSessionAsks,
+} from './session-ask-stream-reader.js';
+export type { OpenSessionAsk, ReadOpenSessionAsksOptions } from './session-ask-stream-reader.js';
 // consumer: shadow-prediction-report.mjs (through a JSON dump), and the classifier criterion
 export { classifyUtterance, LADDER_BASELINE, UTTERANCE_CLASSES } from './utterance-classifier.js';
 export type { LadderLevel, UtteranceClass } from './utterance-classifier.js';

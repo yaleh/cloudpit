@@ -23,10 +23,16 @@
  * ever throws into the read path.
  *
  * CALLS ARE BOUNDED. One attempt per `<sessionId>:<askId>` — a failed attempt is remembered too,
- * so a broken gateway is not retried on every poll. The per-process sliding hour honours the
- * tier's own `maxPerHour`; once it is spent the stale reading is left untouched and the read
- * answers 「本轮未生成（限额）」 (the disabled-tier shape) or keeps the stored reading (a digest
- * that is complete but has no default).
+ * so a broken gateway is not retried on every poll. ONE EXCEPTION IS TEMPORAL: a card that names
+ * an assistant message the transcript does not carry YET (the row is appended by the provider
+ * process, which lags the turn) is 「暂不可判定」, retried at most
+ * {@link SESSION_ASK_DECISION_ASK_RETRY_LIMIT} times with a widening interval; only after that
+ * cap is the missing-ask reason written. Collapsing that timing fact into a permanent failure —
+ * and conflating it with 「the stored digest is about a different ask」 — is exactly what left
+ * 「转写里找不到这次提问」 on a live card whose transcript did contain the message. The per-process
+ * sliding hour honours the tier's own `maxPerHour`; once it is spent the stale reading is left
+ * untouched and the read answers 「本轮未生成（限额）」 (the disabled-tier shape) or keeps the stored
+ * reading (a digest that is complete but has no default).
  *
  * FAILURE IS VISIBLE. Every recompute that cannot reach the model writes an `unevaluated`
  * reading naming WHY (no transcript, no ask in the transcript, the transcript read threw), so
@@ -70,6 +76,16 @@ export const SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON = '重算失败：�
 
 /** The stated reason when the transcript exists but does not carry the card's asking message. */
 export const SESSION_ASK_DECISION_ASK_MISSING_REASON = '重算失败：转写里找不到这次提问';
+
+/**
+ * How many times a named message that the transcript does not carry yet is retried before the
+ * missing-ask reason is written. The transcript is appended by another process, so 「not there
+ * yet」 is a fact about timing: one read must not make it permanent.
+ */
+export const SESSION_ASK_DECISION_ASK_RETRY_LIMIT = 3;
+
+/** The first retry interval; each further attempt doubles it (2 s, then 4 s). */
+const ASK_RETRY_BACKOFF_MS = 2_000;
 
 /** The producer stamped on a repaired revision, so the repair is distinguishable from a turn. */
 const SESSION_ASK_DECISION_READER_PRODUCER = 'session-ask-decision-reader';
@@ -202,7 +218,20 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
 
   const inflight = new Map<string, Promise<void>>();
   const attempted = new Set<string>();
+  /** Temporal misses, keyed like the attempt: how many, and when the next try is allowed. */
+  const retries = new Map<string, { count: number; nextAt: number }>();
   const callTimes: number[] = [];
+
+  /**
+   * Counts one temporal miss (the transcript does not carry the card's message yet) and answers
+   * whether the retry cap has been reached. Below the cap NOTHING is written: 「暂不可判定」 is the
+   * absence of a reading, and the stored one stays on the card.
+   */
+  const countTemporalMiss = (attemptKey: string): boolean => {
+    const count = (retries.get(attemptKey)?.count ?? 0) + 1;
+    retries.set(attemptKey, { count, nextAt: now() + ASK_RETRY_BACKOFF_MS * 2 ** (count - 1) });
+    return count >= SESSION_ASK_DECISION_ASK_RETRY_LIMIT;
+  };
 
   /** Prunes the sliding hour and answers how many calls it still holds. */
   const callsInTheLastHour = (at: number): number => {
@@ -274,19 +303,35 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       const askReading = readSessionAsk(raw, sessionId, messageId);
       const ask = askReading.current;
       if (ask === null) {
+        // A card that names a message the transcript does not carry YET is a timing reading,
+        // not a verdict. The transcript is appended by the provider process; a recompute that
+        // runs first must leave the card alone and try again, not remember a failure forever.
+        if (messageId !== '' && askReading.namedMessageFound === false) {
+          if (countTemporalMiss(attemptKey) === false) return;
+        }
         remember();
         writeFailure(sessionId, SESSION_ASK_DECISION_ASK_MISSING_REASON);
         return;
       }
       if (expectedAskId !== undefined && ask.askId !== expectedAskId) {
-        remember();
-        writeFailure(sessionId, SESSION_ASK_DECISION_ASK_MISSING_REASON);
-        return;
+        if (messageId === '') {
+          // No card message was named and the transcript's current ask is another turn: the
+          // stored reading is valid for ITS OWN ask, so there is nothing to repair. Bound the
+          // check, but do not claim the transcript lacks an ask it plainly carries.
+          remember();
+          return;
+        }
+        // The card DID name this message, and the ask it belongs to is not the stored reading's
+        // (the digest write for that turn never happened, or the conversation moved on). The
+        // ask the card names is the one to recompute — 「转写里找不到这次提问」 would be false.
       }
       // A new turn has a new askId, so a repaired session is still eligible for its next ask.
       if (attempted.has(ask.askId)) return;
       attempted.add(ask.askId);
-      attempted.add(attemptKey);
+      // The stored ask's own key is consumed only when it IS the ask that was recomputed; a
+      // card naming another turn must not burn the stored reading's one repair.
+      if (expectedAskId === undefined || expectedAskId === ask.askId) attempted.add(attemptKey);
+      retries.delete(attemptKey);
 
       callTimes.push(now());
       const reading = await summarize.summarize({
@@ -365,6 +410,10 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       const shape = disabledSkip ? 'disabled' : failedOutput ? 'output' : missingQuote ? 'quote' : 'default';
       const attemptKey = expectedAskId ?? `${sessionId}\u0000${messageId}\u0000${shape}`;
       if (attempted.has(attemptKey)) return reading;
+      // A temporal miss schedules itself: until the interval has elapsed the stored reading is
+      // the answer (「暂不可判定」), and no second transcript read is paid for.
+      const retry = retries.get(attemptKey);
+      if (retry !== undefined && retry.nextAt > now()) return reading;
 
       const key = `${sessionId}\u0000${messageId}\u0000${shape}`;
       if (!inflight.has(key)) {

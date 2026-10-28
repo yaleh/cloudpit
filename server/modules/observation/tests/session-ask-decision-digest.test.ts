@@ -25,6 +25,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import type { LlmCompletion, LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
+import { readOpenSessionAsks, type OpenSessionAsk } from '@/modules/context-events/index.js';
 import { ApiCredential, createReplySuggestionsSettingsSource } from '@/modules/reply-suggestions/index.js';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
@@ -42,10 +43,11 @@ import {
 import {
   createSessionAskDecisionReader,
   SESSION_ASK_DECISION_ASK_MISSING_REASON,
+  SESSION_ASK_DECISION_ASK_RETRY_LIMIT,
   SESSION_ASK_DECISION_LIMIT_REASON,
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
 } from '../session-ask-decision-reader.js';
-import { createSessionDigestProducer } from '../session-digest.producer.js';
+import { createSessionDigestProducer, readSessionAskEventLedger } from '../session-digest.producer.js';
 import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
 const CLOCK = 1_800_000_000_000;
@@ -130,6 +132,10 @@ function createHarness(
     listObservedSessionIds?: () => string[];
     log?: (message: string) => void;
     sweepDelayMs?: number;
+    /** Replaces the real (stubbed-gateway) summariser; a throwing one is a failed summary. */
+    summarizeAsk?: SessionAskDecisionDigest;
+    /** Replaces the stream seam; absent means no rebuild (the sweep reads no host file). */
+    readOpenSessionAsks?: () => Promise<readonly OpenSessionAsk[]>;
   } = {},
 ): Harness {
   let raw = '';
@@ -182,11 +188,14 @@ function createHarness(
     readTranscript: async () => raw,
     isObserved: () => true,
     now: () => CLOCK,
-    summarizeAsk,
+    summarizeAsk: options.summarizeAsk ?? summarizeAsk,
     eventWriter,
     ...(options.listObservedSessionIds === undefined
       ? {}
       : { listObservedSessionIds: options.listObservedSessionIds }),
+    ...(options.readOpenSessionAsks === undefined
+      ? {}
+      : { readOpenSessionAsks: options.readOpenSessionAsks }),
     ...(options.log === undefined ? {} : { log: options.log }),
     ...(options.sweepDelayMs === undefined ? {} : { sweepDelayMs: options.sweepDelayMs }),
   });
@@ -574,6 +583,8 @@ function readerOver(
     } | null;
     readTranscript?: (jsonlPath: string) => Promise<string | null>;
     claudeProjectsRoot?: string;
+    /** The reader's clock; the temporal-retry criterion advances it between reads. */
+    now?: () => number;
   } = {},
 ): ReturnType<typeof createSessionAskDecisionReader> {
   const settings = options.settings ?? STUB_SETTINGS;
@@ -595,7 +606,7 @@ function readerOver(
     ...(options.claudeProjectsRoot === undefined
       ? {}
       : { claudeProjectsRoot: options.claudeProjectsRoot }),
-    now: () => CLOCK,
+    now: options.now ?? (() => CLOCK),
   });
 }
 
@@ -842,10 +853,22 @@ test('read-time repair: a transcript without the card’s ask writes its own rea
     { role: 'user', id: 'u1', text: '继续' },
     { role: 'assistant', id: 'a1', text: '已经跑完了，状态如下。' },
   ]);
+  let clock = CLOCK;
   const reader = readerOver(store, {
     resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
     readTranscript: async () => statement,
+    now: () => clock,
   });
+
+  // 「暂不可判定」 until the cap: the provider process may not have appended the row yet, so an
+  // early miss writes NOTHING and the stored reading stays on the card.
+  for (let attempt = 1; attempt < SESSION_ASK_DECISION_ASK_RETRY_LIMIT; attempt += 1) {
+    reader.read(SESSION_ID, 'missing-message');
+    await reader.settled();
+    const untouched = storedAskDecision(objects);
+    assert.equal(untouched?.state, 'skipped', `attempt ${attempt} must not write a verdict`);
+    clock += 60_000;
+  }
 
   reader.read(SESSION_ID, 'missing-message');
   await reader.settled();
@@ -857,6 +880,105 @@ test('read-time repair: a transcript without the card’s ask writes its own rea
   assert.notEqual(SESSION_ASK_DECISION_ASK_MISSING_REASON, SESSION_ASK_DECISION_LIMIT_REASON);
   assert.notEqual(SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON, SESSION_ASK_DECISION_LIMIT_REASON);
   assert.notEqual(SESSION_ASK_DECISION_ASK_MISSING_REASON, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
+});
+
+test('read-time repair: a transcript that has not caught up yet is 「暂不可判定」 and retried, then repaired', async () => {
+  const { store, objects } = createMemoryStore();
+  seedSkipped(store);
+  // The provider process appends the asking row asynchronously; the card can be read first.
+  let raw = transcript([
+    { role: 'user', id: 'u1', text: '继续' },
+    { role: 'assistant', id: 'a2', text: '已经跑完了，状态如下。' },
+  ]);
+  let clock = CLOCK;
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => raw,
+    now: () => clock,
+  });
+
+  reader.read(SESSION_ID, 'a1');
+  await reader.settled();
+  assert.equal(requests.length, 0, 'no model call while the row is missing');
+  assert.equal(storedAskDecision(objects)?.state, 'skipped', '暂不可判定 writes no verdict');
+
+  // A read inside the backoff interval pays for nothing at all.
+  reader.read(SESSION_ID, 'a1');
+  await reader.settled();
+  assert.equal(requests.length, 0, 'the widening interval gates the second transcript read');
+
+  // The row arrives; the next allowed read repairs the card.
+  raw = YES_NO_TRANSCRIPT;
+  clock += 60_000;
+  reader.read(SESSION_ID, 'a1');
+  await reader.settled();
+  assert.equal(requests.length, 1);
+  assert.equal(storedAskDecision(objects)?.state, 'evaluated', 'the retry, not the first miss, decides');
+});
+
+test('read-time repair: a card naming a different ask than the stored reading is recomputed, not called missing', async () => {
+  const { store, objects } = createMemoryStore();
+  // THE LIVE DEFECT (#3): the stored digest belongs to the PREVIOUS turn (a0) — its own write for
+  // the asking turn never landed — and the card names a1. The old reader compared the two askIds,
+  // reported 「转写里找不到这次提问」 and remembered it, although the transcript carried a1 all along.
+  store.writeRevision({
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：浏览器 profile',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askDecision: {
+        state: 'evaluated',
+        inputTokens: 1,
+        outputTokens: 1,
+        askId: `${SESSION_ID}:a0`,
+        revision: 1,
+        ask: '上一轮的问题',
+        situation: '上一轮的情境',
+        options: [
+          { id: 'yes', label: '是', does: '继续。', tags: [], suggested: true, source: 'assistant' },
+          { id: 'no', label: '否', does: '停下。', tags: [], suggested: false, source: 'assistant' },
+        ],
+        incomplete: false,
+        // No `quote`: the stale shape that makes this reading eligible for repair.
+      },
+    },
+    provenance: { producer: 'session-digest', tier: 'llm', evaluatedAt: CLOCK },
+  });
+  const raw = transcript([
+    { role: 'user', id: 'u0', text: '开始' },
+    { role: 'assistant', id: 'a0', text: '第一问：要不要先补测试？' },
+    { role: 'user', id: 'u1', text: '先补测试' },
+    { role: 'assistant', id: 'a1', text: '第二问：先改实现可以吗？' },
+  ]);
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' }),
+    readTranscript: async () => raw,
+  });
+
+  const first = reader.read(SESSION_ID, 'a1');
+  assert.equal(first?.state, 'evaluated', 'the frame still answers the stored reading');
+  await reader.settled();
+
+  assert.equal(requests.length, 1, 'the ask the card names is recomputed');
+  const stored = storedAskDecision(objects);
+  assert.equal(stored?.state, 'evaluated');
+  assert.equal(stored?.state === 'evaluated' ? stored.askId : '', `${SESSION_ID}:a1`);
+  assert.equal(
+    JSON.stringify(stored).includes(SESSION_ASK_DECISION_ASK_MISSING_REASON),
+    false,
+    'the transcript does carry the card’s ask: the missing-ask sentence must never be written',
+  );
+  assert.equal(
+    stored?.state === 'evaluated' ? typeof stored.quote : 'missing',
+    'string',
+    'the card’s ask is the one now stored, with the quote a fresh recompute produces',
+  );
 });
 
 test('read-time repair: the card’s message id locates the ask when the transcript has moved on', async () => {
@@ -1113,6 +1235,42 @@ test('answered: a fresh producer over the same store backfills the ask answered 
   );
 });
 
+test('answered: an ask whose summary FAILED is still in the unfinished ledger, and the next user message answers it', async () => {
+  // THE LIVE DEFECT: the asking event was stated, the T1 summary never finished (the process was
+  // restarted while the call was in flight), and because the ledger rode only on the FINAL write
+  // the ask was never recorded as unfinished — so the answer that followed could not end it.
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), {
+    summarizeAsk: {
+      async summarize() {
+        throw new Error('gateway 502');
+      },
+    },
+  });
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: '要不要先补测试？' },
+    ]),
+  );
+
+  const written = await harness.turnEnd();
+  assert.equal(harness.writes.length, 2, 'the turn is written before the model call, then enriched');
+  // The FIRST revision — the one written before the summary was even attempted — carries the
+  // ledger. That is what makes the ledger independent of the summary's outcome.
+  const ledgerBeforeSummary = readSessionAskEventLedger(harness.writes[0]?.digest);
+  assert.deepEqual(ledgerBeforeSummary.pending, [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }]);
+  assert.equal(written?.digest.askDecision !== null && typeof written?.digest.askDecision === 'object', true);
+  const decision = written?.digest.askDecision as SessionAskDecisionReading | undefined;
+  assert.equal(decision?.state, 'unevaluated', 'the failed summary is stated, not hidden');
+
+  // The person answers: the ledger — not the summary — is what states the answer.
+  await harness.userTurn('u2');
+  assert.deepEqual(
+    harness.events.filter((event) => event.kind === 'session.answered').map((event) => event.data),
+    [{ askId: `${SESSION_ID}:a1`, messageId: 'u2' }],
+  );
+});
+
 test('answered: a user message states the answer immediately, and the next turn-end does not repeat it', async () => {
   const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
   harness.setTranscript(
@@ -1264,7 +1422,11 @@ test('answered: the startup sweep backfills only sessions whose transcript shows
 
   const summary = await producer.sweepOpenAsks();
 
-  assert.deepEqual(summary, { sessions: 2, answered: 1 }, 'two sessions still had an open ask; one answer was stated');
+  assert.deepEqual(
+    summary,
+    { sessions: 2, answered: 1, rebuilt: 0 },
+    'two sessions still had an open ask; one answer was stated; no stream seam, so nothing was rebuilt',
+  );
   assert.deepEqual(
     events.filter((event) => event.kind === 'session.answered').map((event) => ({ session: event.session, data: event.data })),
     [{ session: SESSION_A, data: { askId: `${SESSION_A}:a1`, messageId: 'u2' } }],
@@ -1276,8 +1438,157 @@ test('answered: the startup sweep backfills only sessions whose transcript shows
 
   // A second boot pass has nothing left for A; B is still open and still unanswered.
   const again = await producer.sweepOpenAsks();
-  assert.deepEqual(again, { sessions: 1, answered: 0 });
+  assert.deepEqual(again, { sessions: 1, answered: 0, rebuilt: 0 });
   assert.equal(events.filter((event) => event.kind === 'session.answered').length, 1, 'no answer is stated twice');
+});
+
+test('answered: the startup sweep rebuilds the stream’s open askIds, then backfills only the answered ones', async () => {
+  const SESSION_OPEN = 'ask-stream-open';
+  const SESSION_SETTLED = 'ask-stream-settled';
+  const { store } = createMemoryStore();
+  const transcripts = new Map<string, string>([
+    [
+      SESSION_OPEN,
+      transcript([
+        { role: 'user', id: 'u1', text: '开始' },
+        { role: 'assistant', id: 'o1', text: '要我先跑测试吗？' },
+      ]),
+    ],
+    [
+      SESSION_SETTLED,
+      transcript([
+        { role: 'user', id: 'u1', text: '开始' },
+        { role: 'assistant', id: 's1', text: '要我先跑测试吗？' },
+        { role: 'user', id: 'u2', text: '先跑吧' },
+        { role: 'assistant', id: 's2', text: '跑完了。' },
+      ]),
+    ],
+  ]);
+  // The ledger was never written for either session: that is exactly the state the live restart
+  // left behind (the digest revision carrying it never completed).
+  for (const sessionId of [SESSION_OPEN, SESSION_SETTLED]) {
+    store.writeRevision({
+      uri: formatSessionUri(sessionId),
+      kind: 'session',
+      title: sessionId,
+      status: { state: 'attention' },
+      digest: { activity: 'waiting' },
+      provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+    });
+  }
+
+  const events: SessionAskEvent[] = [];
+  const logs: string[] = [];
+  const producer = createSessionDigestProducer({
+    store,
+    resolveSession: (sessionId) => ({ title: sessionId, projectPath: PROJECT_PATH, jsonlPath: `/tmp/${sessionId}.jsonl` }),
+    readTranscript: async (jsonlPath) => transcripts.get(jsonlPath.split('/').at(-1)?.replace('.jsonl', '') ?? '') ?? null,
+    isObserved: () => true,
+    now: () => CLOCK,
+    eventWriter: { write: (event) => events.push(event) },
+    listObservedSessionIds: () => [SESSION_OPEN, SESSION_SETTLED],
+    readOpenSessionAsks: async () => [
+      { askId: `${SESSION_OPEN}:o1`, sessionId: SESSION_OPEN, messageId: 'o1', revision: 1, project: PROJECT_PATH, askedAt: '2026-10-28T01:00:00.000Z' },
+      { askId: `${SESSION_SETTLED}:s1`, sessionId: SESSION_SETTLED, messageId: 's1', revision: 1, project: PROJECT_PATH, askedAt: '2026-10-28T02:00:00.000Z' },
+    ],
+    sweepDelayMs: 0,
+    log: (message) => logs.push(message),
+  });
+
+  const summary = await producer.sweepOpenAsks();
+
+  assert.deepEqual(
+    summary,
+    { sessions: 2, answered: 1, rebuilt: 2 },
+    'both old askIds are rebuilt into the ledger; only the one whose transcript shows a later user message is answered',
+  );
+  assert.deepEqual(
+    events.filter((event) => event.kind === 'session.answered').map((event) => ({ session: event.session, data: event.data })),
+    [{ session: SESSION_SETTLED, data: { askId: `${SESSION_SETTLED}:s1`, messageId: 'u2' } }],
+    'the still-open session is NOT answered: no later user message exists',
+  );
+
+  const openLedger = readSessionAskEventLedger(store.getObject(formatSessionUri(SESSION_OPEN))?.digest);
+  assert.deepEqual(openLedger.asking, [`${SESSION_OPEN}:o1:1`]);
+  assert.deepEqual(openLedger.pending, [{ askId: `${SESSION_OPEN}:o1`, messageId: 'o1' }]);
+  const settledLedger = readSessionAskEventLedger(store.getObject(formatSessionUri(SESSION_SETTLED))?.digest);
+  assert.deepEqual(settledLedger.answered, [`${SESSION_SETTLED}:s1`]);
+  assert.equal(settledLedger.pending.length, 0, 'an answered rebuilt ask is no longer unfinished');
+
+  assert.match(logs[0] ?? '', /从事件流补进 2 个旧 askId/);
+  assert.match(logs[0] ?? '', /检查 2 个有未结束提问的会话/);
+  assert.match(logs[0] ?? '', /补发 1 条/);
+
+  // A second boot pass re-reads the same stream: the settled askId is already answered and the
+  // open one is already ledgered, so neither is rebuilt or answered a second time.
+  const again = await producer.sweepOpenAsks();
+  assert.deepEqual(again, { sessions: 1, answered: 0, rebuilt: 0 });
+});
+
+test('the stream reader answers the askIds this host stated and never answered, inside the lookback window', async () => {
+  // The parser behind the rebuild, over a real directory: an answered ask, a foreign producer's
+  // ask and an ask beyond the lookback window must all stay out of the sweep's rebuild.
+  const dir = await mkdtemp(join(tmpdir(), 'ask-stream-'));
+  const row = (fields: Record<string, unknown>): string =>
+    `${JSON.stringify({ v: 1, id: 'row', source: 'cloudcli', ...fields })}\n`;
+  try {
+    await writeFile(
+      join(dir, '2026-10-28.jsonl'),
+      [
+        row({
+          at: '2026-10-28T09:00:00.000Z',
+          kind: 'session.asking',
+          project: '/repo/p',
+          session: 's-fresh',
+          data: { askId: 's-fresh:a1', messageId: 'a1', revision: 1 },
+        }),
+        row({
+          at: '2026-10-28T09:05:00.000Z',
+          kind: 'session.answered',
+          project: '/repo/p',
+          session: 's-fresh',
+          data: { askId: 's-fresh:a1', messageId: 'u1' },
+        }),
+        row({
+          at: '2026-10-28T10:00:00.000Z',
+          kind: 'session.asking',
+          project: '/repo/p',
+          session: 's-open',
+          data: { askId: 's-open:b1', messageId: 'b1', revision: 2 },
+        }),
+        row({
+          at: '2026-10-28T10:30:00.000Z',
+          kind: 'session.asking',
+          source: 'quay',
+          session: 's-other',
+          data: { askId: 's-other:c1', messageId: 'c1' },
+        }),
+      ].join(''),
+    );
+    // Eight days before the clock below: outside the seven-day window.
+    await writeFile(
+      join(dir, '2026-10-20.jsonl'),
+      row({
+        at: '2026-10-20T10:00:00.000Z',
+        kind: 'session.asking',
+        session: 's-old',
+        data: { askId: 's-old:z1', messageId: 'z1' },
+      }),
+    );
+
+    const open = await readOpenSessionAsks({
+      eventsDir: dir,
+      nowMs: Date.parse('2026-10-28T12:00:00.000Z'),
+    });
+
+    assert.deepEqual(open.map((ask) => ask.askId), ['s-open:b1']);
+    assert.equal(open[0]?.revision, 2, 'a re-ask is carried with its latest revision');
+    assert.equal(open[0]?.sessionId, 's-open');
+    assert.equal(open[0]?.messageId, 'b1');
+    assert.equal(open[0]?.project, '/repo/p');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('answered: readSessionAsks names every answered span and the tail ask', () => {

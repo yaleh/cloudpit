@@ -54,6 +54,12 @@ export type SessionAskReading = {
   answered: { askId: string; messageId: string } | null;
   /** The bounded recent-turn rendering sent to the model, oldest first. */
   context: string;
+  /**
+   * Whether a requested `messageId` was found in the transcript. Always true when no message id
+   * was requested. A caller that named a message must read `false` here as 「the transcript has
+   * not caught up yet」 — a fact about time, not a verdict about the ask.
+   */
+  namedMessageFound: boolean;
 };
 
 /** How much of the assistant's own words a card quote carries. */
@@ -268,6 +274,7 @@ export function readSessionAsk(raw: string, sessionId: string, messageId = ''): 
         current: null,
         answered: answeredEndingAt(rows, sessionId, rows.length - 1),
         context: renderContext(rows, allPromptIndexes),
+        namedMessageFound: false,
       };
     }
     const visibleRows = rows.slice(0, namedIndex + 1);
@@ -278,6 +285,7 @@ export function readSessionAsk(raw: string, sessionId: string, messageId = ''): 
         visibleRows,
         allPromptIndexes.filter((index) => index <= namedIndex),
       ),
+      namedMessageFound: true,
     };
   }
 
@@ -285,6 +293,7 @@ export function readSessionAsk(raw: string, sessionId: string, messageId = ''): 
     current: askEndingAt(rows, sessionId, rows.length - 1),
     answered: answeredEndingAt(rows, sessionId, rows.length - 1),
     context: renderContext(rows, allPromptIndexes),
+    namedMessageFound: true,
   };
 }
 

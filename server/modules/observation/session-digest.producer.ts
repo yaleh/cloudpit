@@ -20,6 +20,8 @@
  */
 import { readFile } from 'node:fs/promises';
 
+import { readOpenSessionAsks } from '@/modules/context-events/index.js';
+import type { OpenSessionAsk } from '@/modules/context-events/index.js';
 import { observationDb, sessionsDb } from '@/modules/database/index.js';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
@@ -73,6 +75,14 @@ export type SessionDigestProducerDeps = {
    * DB holds (`observationDb.listObjects()`), read once at sweep time.
    */
   listObservedSessionIds?: () => string[];
+  /**
+   * The asks this host stated and never answered, read back from the context-event stream.
+   *
+   * An absent seam means no rebuild: the sweep then sees only the ledger already persisted in
+   * the observation DB. The process-wide sweeper supplies the stream reader; the criteria
+   * supply their own (a unit test must never read the host's real stream).
+   */
+  readOpenSessionAsks?: () => Promise<readonly OpenSessionAsk[]>;
   /** How long the sweep pauses between sessions; a rate limit on a boot-time scan. Defaults to 25 ms. */
   sweepDelayMs?: number;
   /** Where the sweep states its counts. Defaults to `console.log`. */
@@ -83,10 +93,15 @@ export type SessionDigestProducerDeps = {
 
 /** What one startup sweep did: sessions that still named an unfinished ask, and answers stated. */
 export type SessionAskSweepSummary = {
-  /** Sessions whose persisted ledger still carried at least one unfinished ask. */
+  /** Sessions whose ledger still carried at least one unfinished ask when the sweep reached them. */
   sessions: number;
   /** `session.answered` rows this pass stated. */
   answered: number;
+  /**
+   * AskIds the event stream named as still open and that the persisted ledger did not carry.
+   * These are the asks whose digest revision was never written — the rebuild's own reading.
+   */
+  rebuilt: number;
 };
 
 /** The producer's one verb. */
@@ -211,6 +226,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
   const readTranscript = deps.readTranscript ?? defaultReadTranscript;
   const isObserved = deps.isObserved ?? ((uri: string) => observationDb.listWatchUserIds(uri).length > 0);
   const listObservedSessionIds = deps.listObservedSessionIds ?? defaultListObservedSessionIds;
+  const readOpenAsksFromStream = deps.readOpenSessionAsks;
   const sweepDelayMs = deps.sweepDelayMs ?? DEFAULT_SWEEP_DELAY_MS;
   const log = deps.log ?? ((message: string) => console.log(message));
   const now = deps.now ?? (() => Date.now());
@@ -453,30 +469,6 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
             ) {
               ledger.pending.push({ askId: current.askId, messageId: current.messageId });
             }
-
-            if (summarizeAsk !== undefined) {
-              try {
-                digest = {
-                  ...digest,
-                  askDecision: await summarizeAsk.summarize({
-                    sessionId: event.appSessionId,
-                    sessionTitle: resolved.title,
-                    askId: current.askId,
-                    revision: current.revision,
-                    assistantText: current.assistantText,
-                    context: ask.context,
-                  }),
-                };
-              } catch (failure) {
-                digest = {
-                  ...digest,
-                  askDecision: {
-                    state: 'unevaluated',
-                    reason: `提问摘要生成失败：${failure instanceof Error ? failure.message : String(failure)}`,
-                  } satisfies SessionAskDecisionReading,
-                };
-              }
-            }
           }
 
           // An answered ask is no longer pending, and the ledger rides with the digest so the
@@ -495,13 +487,53 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
                 ? { state: 'attention' as const, reason: '本轮以提问结束，等你回复' }
                 : { state: 'ok' as const };
 
-          return store.writeRevision({
+          // THE LEDGER IS THE TURN'S OWN FACT, so it is written BEFORE the model call. The T1
+          // summary may take minutes, fail, or never return (the process was restarted while it
+          // was in flight — the live 09:43 ask whose answered event never appeared); none of
+          // those may lose 「this session asked and nobody has answered」. The summary is a
+          // second, delta-less revision below.
+          const written = store.writeRevision({
             uri,
             kind: 'session',
             title: resolved.title,
             status,
             digest,
             deltaItems: deltaItemsFor(uri, digest),
+            provenance: {
+              producer: SESSION_DIGEST_PRODUCER,
+              tier: 'deterministic',
+              evaluatedAt: event.completedAt || now(),
+            },
+          });
+
+          if (current === null || summarizeAsk === undefined) return written;
+
+          let askDecision: SessionAskDecisionReading;
+          try {
+            askDecision = await summarizeAsk.summarize({
+              sessionId: event.appSessionId,
+              sessionTitle: resolved.title,
+              askId: current.askId,
+              revision: current.revision,
+              assistantText: current.assistantText,
+              context: ask.context,
+            });
+          } catch (failure) {
+            askDecision = {
+              state: 'unevaluated',
+              reason: `提问摘要生成失败：${failure instanceof Error ? failure.message : String(failure)}`,
+            };
+          }
+
+          // Only the digest is enriched: the turn's delta was stated by the revision above, so
+          // this one carries none (a second 「新增 1 轮」 would be a lie the wall shows twice).
+          return store.writeRevision({
+            uri,
+            kind: 'session',
+            title: resolved.title,
+            status,
+            digest: { ...written.digest, askDecision },
+            deltaItems: [],
             provenance: {
               producer: SESSION_DIGEST_PRODUCER,
               tier: 'deterministic',
@@ -533,7 +565,30 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
     },
 
     async sweepOpenAsks() {
-      const summary: SessionAskSweepSummary = { sessions: 0, answered: 0 };
+      const summary: SessionAskSweepSummary = { sessions: 0, answered: 0, rebuilt: 0 };
+
+      // THE STREAM IS THE ASK'S OWN RECORD. A session whose asking row was stated while its
+      // digest revision was never written (the T1 summary was in flight, or the ask predates
+      // the ledger) has no `pending` entry in the store at all, so the transcript pass below
+      // would never look at it. Rebuild those entries first, keyed by the session the stream
+      // names, and only for sessions this host already observes (the rebuild enriches a ledger,
+      // it does not invent session objects).
+      const openBySession = new Map<string, OpenSessionAsk[]>();
+      if (readOpenAsksFromStream !== undefined) {
+        let open: readonly OpenSessionAsk[] = [];
+        try {
+          open = await readOpenAsksFromStream();
+        } catch {
+          // An unreadable stream must not keep the transcript backfill from running.
+          open = [];
+        }
+        for (const ask of open) {
+          const list = openBySession.get(ask.sessionId);
+          if (list === undefined) openBySession.set(ask.sessionId, [ask]);
+          else list.push(ask);
+        }
+      }
+
       let sessionIds: string[];
       try {
         sessionIds = listObservedSessionIds();
@@ -547,15 +602,36 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
           const previous = store.getObject(uri);
           if (previous === null) continue;
           const ledger = readSessionAskEventLedger(previous.digest);
+
+          let rebuiltHere = 0;
+          for (const ask of openBySession.get(sessionId) ?? []) {
+            if (ledger.answered.includes(ask.askId)) continue;
+            const askingKey = `${ask.askId}:${ask.revision}`;
+            if (ledger.asking.includes(askingKey) === false) {
+              ledger.asking.push(askingKey);
+              rebuiltHere += 1;
+            }
+            if (ledger.pending.some((entry) => entry.askId === ask.askId) === false) {
+              ledger.pending.push({ askId: ask.askId, messageId: ask.messageId });
+            }
+          }
+
           // Only a ledger that still names an unfinished ask is swept; a quiet session with a
           // long resolved history costs nothing.
           if (ledger.pending.length === 0) continue;
           summary.sessions += 1;
+          summary.rebuilt += rebuiltHere;
 
           const resolved = resolveSession(sessionId);
-          if (resolved === null) continue;
+          if (resolved === null) {
+            if (rebuiltHere > 0) persistLedger(uri, previous, ledger);
+            continue;
+          }
           const raw = resolved.jsonlPath === null ? null : await readTranscript(resolved.jsonlPath);
-          if (raw === null) continue;
+          if (raw === null) {
+            if (rebuiltHere > 0) persistLedger(uri, previous, ledger);
+            continue;
+          }
 
           const scan = readSessionAsks(raw, sessionId);
           const pendingIds = new Set(ledger.pending.map((entry) => entry.askId));
@@ -564,7 +640,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
             projectPath: resolved.projectPath,
             at: new Date(now()).toISOString(),
           });
-          if (stated === 0) continue;
+          if (stated === 0 && rebuiltHere === 0) continue;
 
           dropAnsweredPending(ledger);
           persistLedger(uri, previous, ledger);
@@ -575,10 +651,10 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
         if (sweepDelayMs > 0) await sleep(sweepDelayMs);
       }
 
-      // The count is the DoD's reading: how many sessions still had an open ask, and how many
-      // answers this pass stated for them.
+      // The count is the DoD's reading: how many old askIds the stream rebuilt into the ledger,
+      // how many sessions still had an open ask, and how many answers this pass stated.
       log(
-        `[observation.sessionDigest] 启动补扫: 检查 ${summary.sessions} 个有未结束提问的会话，补发 ${summary.answered} 条 session.answered`,
+        `[observation.sessionDigest] 启动补扫: 从事件流补进 ${summary.rebuilt} 个旧 askId，检查 ${summary.sessions} 个有未结束提问的会话，补发 ${summary.answered} 条 session.answered`,
       );
       return summary;
     },
@@ -608,4 +684,6 @@ export const sessionDigestProducer = createSessionDigestProducer({
  */
 export const sessionAskSweeper: SessionAskSweepableProducer = createSessionDigestProducer({
   store: createObservationStore(),
+  // The one seam a unit test must not inherit: the sweep reads this host's own stream.
+  readOpenSessionAsks: () => readOpenSessionAsks(),
 });
