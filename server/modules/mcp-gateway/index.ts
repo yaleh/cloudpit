@@ -725,36 +725,15 @@ export type {
   McpApprovalsListInput,
 } from './mcp-approvals.js';
 
-// The cockpit card tools (gap-mcp-cockpit-card-tools): the MCP face of the card
-// system `server/modules/cockpit/` already implements. The four tools are thin
-// adapters over the card module's OWN `registry` / `actions` / `briefForCard`, so
-// there is no second reading path. `MCP_COCKPIT_TOOL_NAMES` is the one statement
-// of the four names; `MCP_COCKPIT_READ_SCOPE` / `MCP_COCKPIT_ACT_SCOPE` are the
-// scopes the registration declares (the criterion reads them back off
-// `tools/list` instead of re-typing the literals); `registerMcpCockpitTools`
-// installs them through the audited seam, called by `mcp-gateway.transport.ts`
-// when the mount carries a `cockpitTools` bag that `server/index.ts` derives from
-// `createCockpitCardsModule`. `McpCockpitToolDeps` is that bag's type — the same
-// three cockpit-module members, taken whole.
+// The cockpit card tools (gap-mcp-cockpit-card-tools): the four names, the two scopes the
+// registration declares (read back off `tools/list` by the criterion), and the deps bag
+// `server/index.ts` fills from `createCockpitCardsModule` — only what a barrel consumer reads.
 export {
-  buildCockpitCard,
-  buildCockpitCardBrief,
-  buildCockpitCardConfirm,
-  buildCockpitCards,
   MCP_COCKPIT_ACT_SCOPE,
   MCP_COCKPIT_READ_SCOPE,
   MCP_COCKPIT_TOOL_NAMES,
-  readCockpitCardConfirmInput,
-  registerMcpCockpitTools,
 } from './mcp-cockpit-tools.js';
-export type {
-  CockpitCardsPayload,
-  McpCockpitCardConfirmInput,
-  McpCockpitToolDeps,
-  McpCockpitToolName,
-  McpCockpitToolRegistration,
-  McpCockpitToolSeam,
-} from './mcp-cockpit-tools.js';
+export type { McpCockpitToolDeps } from './mcp-cockpit-tools.js';
 
 // The tool annotations (AC1–AC7). `MCP_TOOL_ANNOTATIONS` is the ONE table a
 // `tools/list` hint is written down in — every name the gateway can register,

@@ -231,6 +231,17 @@ const CYCLE_GROUPS: readonly string[][] = [
  * its inbound edges from `modules/reply-suggestions`, `modules/quay`, `modules/observation` and
  * `modules/voice-realtime` are the leaf rule's sanctioned shape — exactly why the client was
  * extracted instead of left inside a feature module.
+ * AN ELEVENTH ENTRY WAS ADDED, by `gap-mcp-cockpit-card-tools` (2026-10-28), under the same
+ * escape hatch: `modules/cockpit` is the cockpit card system's feature directory (registry,
+ * action channel, brief, fleet/fixture providers and the HTTP face). It imports only
+ * `server/shared/**` and itself — every collaborator (the brief service's seams, the provider
+ * instances and the executor declarations) is injected at the composition root — and it sits in
+ * no SCC. Until this task its only inbound edge was `server/index.ts`'s mount, i.e. the
+ * composition root rather than a `modules/**` directory, so it had never needed a manifest entry.
+ * This task's MCP face deliberately REUSES that module's `registry` / `actions` / `briefForCard`
+ * through `modules/mcp-gateway` (no second reading path), which creates the one mandated
+ * `modules -> modules/cockpit` inbound edge. Registering the leaf directory is the sanctioned
+ * shape, not a cycle and not a budget raise: G1/G2/G3 are untouched.
  */
 const MANIFEST_PIN: readonly string[] = [
   '.',
@@ -240,6 +251,7 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/auth',
   'modules/browser-use',
   'modules/cli',
+  'modules/cockpit',
   'modules/commands',
   'modules/context-events',
   'modules/database',

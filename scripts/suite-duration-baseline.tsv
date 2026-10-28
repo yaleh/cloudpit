@@ -789,3 +789,8 @@
 #   (dur=3541ms, its own new criterion; no green round contains it yet — the row also keeps the
 #   90% coverage floor green now that the tree collects 461 server test files).
 3541	server/modules/observation/tests/session-ask-judge-default.test.ts
+#   and the mcp-cockpit-tools row by gap-mcp-cockpit-card-tools, measured once on 2026-10-28 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts`
+#   (dur=9945ms, its own new criterion; the row also keeps the 90% coverage floor clear now that the
+#   tree collects 462 server test files).
+9945	server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts

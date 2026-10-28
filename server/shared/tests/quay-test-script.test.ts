@@ -381,9 +381,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (459 + 1 = 460 collected server test files). Then
     // gap-cockpit-ask-cards-judge-default-suggestion added its criterion
     // server/modules/observation/tests/session-ask-judge-default.test.ts
-    // (460 + 1 = 461 collected server test files). This fixture names 3 known files, so
-    // 461 - 3 = 458.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=458$/);
+    // (460 + 1 = 461 collected server test files). Then gap-mcp-cockpit-card-tools added its
+    // criterion server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts
+    // (461 + 1 = 462 collected server test files). This fixture names 3 known files, so
+    // 462 - 3 = 459.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=459$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -459,10 +461,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added
     // server/modules/quay/tests/quay-suite-fanin-reader.test.ts), then
     // gap-cockpit-ask-cards-judge-default-suggestion added
-    // server/modules/observation/tests/session-ask-judge-default.test.ts)
-    // — but this fixture names ONE known file, so 461 - 1 = 460 (AC2 reads 458 because its
+    // server/modules/observation/tests/session-ask-judge-default.test.ts, then
+    // gap-mcp-cockpit-card-tools added
+    // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts)
+    // — but this fixture names ONE known file, so 462 - 1 = 461 (AC2 reads 459 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=460$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=461$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
