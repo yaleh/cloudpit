@@ -1,0 +1,121 @@
+{
+  "v": 0,
+  "itemRef": "cloudcli://session/402949d9-d723-432c-8203-6613e192397b#1792986348717",
+  "headline": "起隔离实例做真实页面验证（多缩放档位下类框与 package 框无空白、无重叠）吗？",
+  "recommendation": {
+    "optionId": "a",
+    "why": [
+      "缺陷是渲染后的几何：空白与重叠只在真实排版下出现，单测 603 全绿仍不能证明它没了",
+      "不同缩放档位会切换语义层级与布局方向，只有逐档切换才覆盖到",
+      "隔离实例不碰主工作区，验证完即弃，代价可控"
+    ]
+  },
+  "options": [
+    {
+      "id": "a",
+      "label": "现在就起隔离实例验证",
+      "does": "用 MCP 浏览器加载 scripts/ui-scenario.mjs 打开同一个 mcp 类图，逐档切换缩放，截图并检查类框/package 框的空白边距与相互重叠。",
+      "consequence": [
+        { "kind": "reversible", "text": "只读验证，不落代码" },
+        { "kind": "costs", "text": "需起实例并逐档截图" }
+      ]
+    },
+    {
+      "id": "b",
+      "label": "改跑确定性布局测试",
+      "does": "不去浏览器，改为扩展 canvasLayoutContract/layoutBudget，对布局输出的框尺寸与间距做断言。",
+      "consequence": [
+        { "kind": "reversible", "text": "仅加测试文件" },
+        { "kind": "costs", "text": "不覆盖真实 CSS 与缩放档位" }
+      ]
+    },
+    {
+      "id": "c",
+      "label": "延后到下一个切片一起验",
+      "does": "本轮先收，等视口/布局切片落地后在同一个实例里一并验证。",
+      "consequence": [
+        { "kind": "no-effect", "text": "本轮不改代码" },
+        { "kind": "costs", "text": "缺陷可能在批次间潜伏" }
+      ]
+    },
+    {
+      "id": "d",
+      "label": "不验证，直接收",
+      "does": "以 603 个通过的测试作为结论，真实页面留待用户自己看。",
+      "consequence": [
+        { "kind": "no-effect", "text": "零额外动作" },
+        { "kind": "costs", "text": "视觉缺陷未被证伪" }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "kind": "probe",
+      "label": "ui-scenario.mjs 存在，可作为真实页面驱动入口",
+      "ref": "scripts/ui-scenario.mjs",
+      "observedAt": "2026-10-27T00:00:00.000Z",
+      "mechanical": true
+    },
+    {
+      "id": "e2",
+      "kind": "test",
+      "label": "vitest 603 通过、0 失败，当前改动未破坏单测",
+      "ref": "vitest run（observation digest）",
+      "observedAt": "2026-10-27T00:00:00.000Z",
+      "mechanical": true
+    },
+    {
+      "id": "e3",
+      "kind": "probe",
+      "label": "graphDom 处理宿主 padding 与 SVG 坐标换算，但只是计算，不含真实排版",
+      "ref": "src/modules/architecture/graphDom.ts:1194",
+      "observedAt": "2026-10-27T00:00:00.000Z",
+      "mechanical": true
+    },
+    {
+      "id": "e4",
+      "kind": "probe",
+      "label": "已有确定性布局测试文件可扩展，无需新框架",
+      "ref": "src/modules/architecture/tests/canvasLayoutContract.test.tsx",
+      "observedAt": "2026-10-27T00:00:00.000Z",
+      "mechanical": true
+    }
+  ],
+  "blocks": [
+    {
+      "id": "table",
+      "type": "compare-table",
+      "title": "四种走法",
+      "columns": ["a", "b", "c", "d"],
+      "rows": [
+        { "label": "起实例", "cells": { "a": "是", "b": "否", "c": "是（稍后）", "d": "否" }, "basis": "mechanical" },
+        { "label": "覆盖缩放档位", "cells": { "a": "逐档", "b": "无", "c": "逐档", "d": "无" }, "basis": "llm" },
+        { "label": "本轮产出", "cells": { "a": "截图 + 结论", "b": "测试用例", "c": "延期记录", "d": "无" }, "basis": "llm" },
+        { "label": "碰到主工作区", "cells": { "a": "否", "b": "否", "c": "否", "d": "否" }, "basis": "mechanical" }
+      ]
+    },
+    {
+      "id": "note",
+      "type": "callout",
+      "tone": "warn",
+      "text": "单测全绿说明布局函数没被改坏，不说明真实排版里类框与 package 框的空白还在不在。"
+    }
+  ],
+  "radarSemantic": {
+    "title": "后果对比",
+    "axes": [
+      { "id": "rev", "label": "可逆", "definition": "出错或反悔后能否零成本回到原状", "basis": "mechanical", "evidenceRefs": ["e1"] },
+      { "id": "evid", "label": "证据强度", "definition": "该走法能产出多少可核验的证据", "basis": "mechanical", "evidenceRefs": ["e2", "e3"] },
+      { "id": "real", "label": "真实渲染覆盖", "definition": "结论是否来自真实页面而非计算结果", "basis": "llm" },
+      { "id": "cover", "label": "缩放档位覆盖", "definition": "是否覆盖多个缩放档位与语义层级切换", "basis": "llm" },
+      { "id": "cheap", "label": "省事", "definition": "所需时间与搭建成本越低越高", "basis": "llm" }
+    ],
+    "scores": {
+      "a": { "rev": 92, "evid": 90, "real": 100, "cover": 95, "cheap": 35 },
+      "b": { "rev": 96, "evid": 65, "real": 35, "cover": 40, "cheap": 78 },
+      "c": { "rev": 98, "evid": 55, "real": 80, "cover": 70, "cheap": 82 },
+      "d": { "rev": 100, "evid": 20, "real": 0, "cover": 0, "cheap": 100 }
+    }
+  }
+}

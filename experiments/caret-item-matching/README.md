@@ -22,6 +22,14 @@
 | `annotation/` | `sample.json`（含层与自动标签）、`index.html`（盲标页）、`annotations.json`（60/60 已完成）、`ANNOTATION-RESULT.json` |
 | `VIEWPORT-RESULT.json` | 引用来源分布（21 天） |
 | `RETRIEVAL-RESULT.json` | lexical 段落找回基线 |
+| `turn-extract.mts` | 回放共用：窗口提取、段落切分、bigram/Dice |
+| `probe-export.mts` | 导出 16 回合 × 3 候选池的网关探针集 |
+| `gateway-probe.py` | 走 workers 网关测延迟、tokens、top-1/top-3 |
+| `pause-policy.py` | 按停顿生存分布评估“t0 发起”的浪费/捕获比 |
+| `selection-chip-probe.py` | 选中锚点下 40/80/160 字符上限的 chip 长度探针 |
+| `PROBE-1.md` | 探针 1 结果：延迟、费用、停顿策略 |
+| `PROBE-2.md` | 探针 2 结果：补多长、选中即生成建议的现状与实验 |
+| `EXPERIMENT-PLAN.md` | 停顿触发 + 多上下文 LLM 补全的具体实验方案 |
 | `REPORT.md` | 结论、表格、限制与下一步 |
 
 ## 运行
@@ -45,6 +53,15 @@ npx tsx --tsconfig=tsconfig.json experiments/caret-item-matching/analyze.mts
 # 场景修正：引用来源分布 / 从意见草稿找回段落
 npx tsx --tsconfig=tsconfig.json experiments/caret-item-matching/viewport-probe.mts
 npx tsx --tsconfig=tsconfig.json experiments/caret-item-matching/retrieval-probe.mts
+
+# 网关探针（key 从文件加载，不打印）
+npx tsx --tsconfig=tsconfig.json experiments/caret-item-matching/probe-export.mts
+bash -c 'set -a; source ~/.local/etc/fjdac-api-key; set +a; \
+  export ANTHROPIC_BASE_URL=$(grep -E "^export ANTHROPIC_BASE_URL=" ~/.local/bin/claude-fjdac \
+    | sed -E "s/^export ANTHROPIC_BASE_URL=\"?([^\"]+)\"?/\1/"); \
+  exec python3 -I experiments/caret-item-matching/gateway-probe.py'
+python3 -I experiments/caret-item-matching/pause-policy.py
+python3 -I experiments/caret-item-matching/selection-chip-probe.py   # 需要同样的网关环境
 ```
 
 ## 人工标注怎么跑

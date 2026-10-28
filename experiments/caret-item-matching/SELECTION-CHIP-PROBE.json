@@ -1,0 +1,509 @@
+{
+  "schema": "caret-item-matching/selection-chip-probe/1",
+  "ranAt": "2026-10-25T15:51:36Z",
+  "model": "v4.1flash",
+  "sample": {
+    "turns": 6,
+    "caps": [
+      40,
+      80,
+      160
+    ],
+    "calls": 18,
+    "wallSeconds": 6.6
+  },
+  "errors": 0,
+  "byCap": {
+    "40": {
+      "calls": 6,
+      "meanChipChars": 14.2,
+      "maxChipChars": 25,
+      "overCap": 0,
+      "meanMaxDiceToDraft": 0.001,
+      "latencyMs": {
+        "p50": 1065.4,
+        "p95": 1242.8
+      },
+      "meanInputTokens": 976.5,
+      "meanOutputTokens": 35.2
+    },
+    "80": {
+      "calls": 6,
+      "meanChipChars": 20,
+      "maxChipChars": 36,
+      "overCap": 0,
+      "meanMaxDiceToDraft": 0.015,
+      "latencyMs": {
+        "p50": 1133.5,
+        "p95": 1279.6
+      },
+      "meanInputTokens": 976.5,
+      "meanOutputTokens": 45.5
+    },
+    "160": {
+      "calls": 6,
+      "meanChipChars": 28.3,
+      "maxChipChars": 56,
+      "overCap": 0,
+      "meanMaxDiceToDraft": 0.026,
+      "latencyMs": {
+        "p50": 1186.3,
+        "p95": 1373.8
+      },
+      "meanInputTokens": 976.5,
+      "meanOutputTokens": 57.3
+    }
+  },
+  "calls": [
+    {
+      "turn": "T01",
+      "cap": 40,
+      "draft": "注意，上面这段“ 。”和再前面一句是重复的。\n\n检查。",
+      "selected": "检查一下本会话到现在为止，已经采集到的语音、已经发给 realtime 模型的语音长度以及相应的费用",
+      "ms": 833.5,
+      "usage": {
+        "input_tokens": 193,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 22,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "好，帮我查一下",
+        "先不用查了",
+        "查完发我"
+      ],
+      "lengths": [
+        7,
+        5,
+        4
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T01",
+      "cap": 80,
+      "draft": "注意，上面这段“ 。”和再前面一句是重复的。\n\n检查。",
+      "selected": "检查一下本会话到现在为止，已经采集到的语音、已经发给 realtime 模型的语音长度以及相应的费用",
+      "ms": 1133.5,
+      "usage": {
+        "input_tokens": 193,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 33,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "好，帮我查一下这三项数据",
+        "先不用查，继续聊",
+        "查吧，把语音长度和费用列出来"
+      ],
+      "lengths": [
+        12,
+        8,
+        14
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T01",
+      "cap": 160,
+      "draft": "注意，上面这段“ 。”和再前面一句是重复的。\n\n检查。",
+      "selected": "检查一下本会话到现在为止，已经采集到的语音、已经发给 realtime 模型的语音长度以及相应的费用",
+      "ms": 1186.3,
+      "usage": {
+        "input_tokens": 193,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 45,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "好，帮我查一下这三项：采集语音、发给 realtime 的长度和费用",
+        "先不用查，等会话结束再一起算",
+        "查吧，把结果直接列出来"
+      ],
+      "lengths": [
+        34,
+        14,
+        11
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T02",
+      "cap": 40,
+      "draft": "）\n\n---\n\n讨论该问题原因，并建议解决方案。",
+      "selected": "A. forced commit 之后端点不开 response（10 秒问题的直接原因",
+      "ms": 1229.9,
+      "usage": {
+        "input_tokens": 1046,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 47,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "对，forced commit 后端点不响应是根因",
+        "先修 A，10 秒兜底由 proxy 自己兜",
+        "A 确认，优先做 10 秒兜底"
+      ],
+      "lengths": [
+        25,
+        22,
+        15
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T02",
+      "cap": 80,
+      "draft": "）\n\n---\n\n讨论该问题原因，并建议解决方案。",
+      "selected": "A. forced commit 之后端点不开 response（10 秒问题的直接原因",
+      "ms": 753.0,
+      "usage": {
+        "input_tokens": 1046,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 43,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "对，forced commit 后端点不开 response 是直接原因",
+        "先修 10 秒兜底，A 这条最优先",
+        "同意，A 是根因"
+      ],
+      "lengths": [
+        36,
+        17,
+        8
+      ],
+      "maxDiceToDraft": 0.047
+    },
+    {
+      "turn": "T02",
+      "cap": 160,
+      "draft": "）\n\n---\n\n讨论该问题原因，并建议解决方案。",
+      "selected": "A. forced commit 之后端点不开 response（10 秒问题的直接原因",
+      "ms": 926.1,
+      "usage": {
+        "input_tokens": 1046,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 50,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "对，A 是直接原因，先修 10 秒兜底",
+        "同意 A，但顺序合并和 busy hold 也得一起排",
+        "A 确认，先做逐字投递兜底"
+      ],
+      "lengths": [
+        19,
+        27,
+        13
+      ],
+      "maxDiceToDraft": 0.077
+    },
+    {
+      "turn": "T03",
+      "cap": 40,
+      "draft": "。\n\n---\n\n现在这一机制有设置开关，可以方便地切换吗？我考虑在两种测试下都使用一段时间体验下。",
+      "selected": "本质张力\n这是一个在代理 seam 上无法用文本侧手段裁决的两难：\n模型会改写/纠错 ⇒ 没法靠文本匹配判断「这条 message 覆盖了哪几句」。\n补录未覆盖句 ⇒ 遇到改写就重复投递（3d2d3b2c 的失败）。\n不补 ⇒ 遇到欠投递就静默丢句（本次 764f0c7a 的失败）。\n当前 ruling 选了后者，所以「连续说多句，只投最后一句、前面全丢」是这个选择的必然结果",
+      "ms": 1242.8,
+      "usage": {
+        "input_tokens": 1137,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 43,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "那就先做①，把欠投递信号梳理出来",
+        "先查 2c1c9412 那次为什么没丢",
+        "同意，这是 ruling 的必然结果"
+      ],
+      "lengths": [
+        16,
+        19,
+        18
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T03",
+      "cap": 80,
+      "draft": "。\n\n---\n\n现在这一机制有设置开关，可以方便地切换吗？我考虑在两种测试下都使用一段时间体验下。",
+      "selected": "本质张力\n这是一个在代理 seam 上无法用文本侧手段裁决的两难：\n模型会改写/纠错 ⇒ 没法靠文本匹配判断「这条 message 覆盖了哪几句」。\n补录未覆盖句 ⇒ 遇到改写就重复投递（3d2d3b2c 的失败）。\n不补 ⇒ 遇到欠投递就静默丢句（本次 764f0c7a 的失败）。\n当前 ruling 选了后者，所以「连续说多句，只投最后一句、前面全丢」是这个选择的必然结果",
+      "ms": 1058.0,
+      "usage": {
+        "input_tokens": 1137,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 52,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "这个两难我认了，先按①做欠投递检测吧",
+        "先别改 ruling，去翻 2c1c9412 那次为什么没丢",
+        "同意，这是必然结果，不是 bug"
+      ],
+      "lengths": [
+        18,
+        30,
+        16
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T03",
+      "cap": 160,
+      "draft": "。\n\n---\n\n现在这一机制有设置开关，可以方便地切换吗？我考虑在两种测试下都使用一段时间体验下。",
+      "selected": "本质张力\n这是一个在代理 seam 上无法用文本侧手段裁决的两难：\n模型会改写/纠错 ⇒ 没法靠文本匹配判断「这条 message 覆盖了哪几句」。\n补录未覆盖句 ⇒ 遇到改写就重复投递（3d2d3b2c 的失败）。\n不补 ⇒ 遇到欠投递就静默丢句（本次 764f0c7a 的失败）。\n当前 ruling 选了后者，所以「连续说多句，只投最后一句、前面全丢」是这个选择的必然结果",
+      "ms": 1134.7,
+      "usage": {
+        "input_tokens": 1137,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 63,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "同意这个张力，但静默丢句比重复投递更糟，我倾向把 ruling 往补录那边调。",
+        "先按①做欠投递检测信号，别急着改 ruling。",
+        "对，这是 ruling 的必然结果，不是 bug。"
+      ],
+      "lengths": [
+        39,
+        24,
+        25
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T04",
+      "cap": 40,
+      "draft": "；然后按 B + C 创建任务。",
+      "selected": "先把 occupiedBy 和 sessions[] 这两个问题定下来",
+      "ms": 701.3,
+      "usage": {
+        "input_tokens": 1065,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 29,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "好，先定这两个",
+        "occupiedBy 用兜底轮询",
+        "sessions[] 变化也触发"
+      ],
+      "lengths": [
+        7,
+        16,
+        16
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T04",
+      "cap": 80,
+      "draft": "；然后按 B + C 创建任务。",
+      "selected": "先把 occupiedBy 和 sessions[] 这两个问题定下来",
+      "ms": 1279.6,
+      "usage": {
+        "input_tokens": 1065,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 52,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "先定：occupiedBy 用兜底轮询，sessions[] 变化也触发",
+        "两个都先按你倾向的来，定完直接开工",
+        "同意先定这两个，occupiedBy 走轮询"
+      ],
+      "lengths": [
+        36,
+        17,
+        22
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T04",
+      "cap": 160,
+      "draft": "；然后按 B + C 创建任务。",
+      "selected": "先把 occupiedBy 和 sessions[] 这两个问题定下来",
+      "ms": 1229.0,
+      "usage": {
+        "input_tokens": 1065,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 71,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "好，先定这两个：occupiedBy 用兜底轮询，sessions[] 变化也触发 hosts.changed。",
+        "先定 occupiedBy：我倾向兜底轮询，sessions[] 也触发，确认后我再开工。",
+        "行，先定这两个，定完再动代码。"
+      ],
+      "lengths": [
+        56,
+        45,
+        15
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T05",
+      "cap": 40,
+      "draft": "确认：按你给的方案把两个 bug 都修了。动手前先在本仓库创建一个任务，把这项工作记录下来。\n\n【关于任务】按 claudecodeui 本仓库已有的任务/工作项约定来创建（任务文件、task 目录或等效载体，你清楚仓库规范就照做）。如果仓库里没有现成约定，选一个最小、且符合 .agents/skills/backend-module-standards 的方式建，并说明理由；不要发明一整套新流程",
+      "selected": "在 withMcpAudit 组装 outputSchema 的唯一入口（mcp-gateway.audit.ts:401）集中",
+      "ms": 705.1,
+      "usage": {
+        "input_tokens": 894,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 41,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "同意，集中在一处改最省事",
+        "那就按 a' 来，别动 19 个条目",
+        "先确认 401 行是唯一入口"
+      ],
+      "lengths": [
+        12,
+        18,
+        14
+      ],
+      "maxDiceToDraft": 0.005
+    },
+    {
+      "turn": "T05",
+      "cap": 80,
+      "draft": "确认：按你给的方案把两个 bug 都修了。动手前先在本仓库创建一个任务，把这项工作记录下来。\n\n【关于任务】按 claudecodeui 本仓库已有的任务/工作项约定来创建（任务文件、task 目录或等效载体，你清楚仓库规范就照做）。如果仓库里没有现成约定，选一个最小、且符合 .agents/skills/backend-module-standards 的方式建，并说明理由；不要发明一整套新流程",
+      "selected": "在 withMcpAudit 组装 outputSchema 的唯一入口（mcp-gateway.audit.ts:401）集中",
+      "ms": 1262.4,
+      "usage": {
+        "input_tokens": 894,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 49,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "同意，就在 401 集中拼错误信封字段",
+        "这个入口集中处理可以，别散到 19 个条目",
+        "先按 a' 改，SDK 修了再回退"
+      ],
+      "lengths": [
+        19,
+        21,
+        17
+      ],
+      "maxDiceToDraft": 0.014
+    },
+    {
+      "turn": "T05",
+      "cap": 160,
+      "draft": "确认：按你给的方案把两个 bug 都修了。动手前先在本仓库创建一个任务，把这项工作记录下来。\n\n【关于任务】按 claudecodeui 本仓库已有的任务/工作项约定来创建（任务文件、task 目录或等效载体，你清楚仓库规范就照做）。如果仓库里没有现成约定，选一个最小、且符合 .agents/skills/backend-module-standards 的方式建，并说明理由；不要发明一整套新流程",
+      "selected": "在 withMcpAudit 组装 outputSchema 的唯一入口（mcp-gateway.audit.ts:401）集中",
+      "ms": 1373.8,
+      "usage": {
+        "input_tokens": 894,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 66,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "同意，就在 401 那个入口统一拼错误信封字段，别在 19 个 TOOL_BODIES 里重复",
+        "我倾向 b'：错误路径不发 structuredContent，从根上绕开校验",
+        "先按 a' 做，一处改动影响面最小"
+      ],
+      "lengths": [
+        47,
+        39,
+        17
+      ],
+      "maxDiceToDraft": 0.051
+    },
+    {
+      "turn": "T06",
+      "cap": 40,
+      "draft": "用 meta-cc 搜索本项目会话历史，找到   来源。\n\n整栈重起。\n\n用 github dist-plugin 的 0.14.0 。",
+      "selected": "QUAY_MEMORY_SLICE=quay-fleet.slice / MemoryMax=24G",
+      "ms": 1065.4,
+      "usage": {
+        "input_tokens": 884,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 29,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "那两个 env 我来补上",
+        "先别管 slice，按默认起",
+        "确认下 launcher 在哪"
+      ],
+      "lengths": [
+        12,
+        14,
+        15
+      ],
+      "maxDiceToDraft": 0.0
+    },
+    {
+      "turn": "T06",
+      "cap": 80,
+      "draft": "用 meta-cc 搜索本项目会话历史，找到   来源。\n\n整栈重起。\n\n用 github dist-plugin 的 0.14.0 。",
+      "selected": "QUAY_MEMORY_SLICE=quay-fleet.slice / MemoryMax=24G",
+      "ms": 942.8,
+      "usage": {
+        "input_tokens": 884,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 44,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "那两个 env 我按原 launcher 补上，别丢 slice",
+        "先别管 env，跑 dry-run 看 diff",
+        "env 这块你决定，我信你"
+      ],
+      "lengths": [
+        32,
+        24,
+        13
+      ],
+      "maxDiceToDraft": 0.032
+    },
+    {
+      "turn": "T06",
+      "cap": 160,
+      "draft": "用 meta-cc 搜索本项目会话历史，找到   来源。\n\n整栈重起。\n\n用 github dist-plugin 的 0.14.0 。",
+      "selected": "QUAY_MEMORY_SLICE=quay-fleet.slice / MemoryMax=24G",
+      "ms": 968.4,
+      "usage": {
+        "input_tokens": 884,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "output_tokens": 49,
+        "service_tier": "standard"
+      },
+      "chips": [
+        "那两个 env 我按原 launcher 补上，别落到默认 slice",
+        "先别管 slice，跑 dry-run 看 diff",
+        "env 的事你决定，我只要别丢 slice 归属"
+      ],
+      "lengths": [
+        35,
+        26,
+        24
+      ],
+      "maxDiceToDraft": 0.031
+    }
+  ]
+}
