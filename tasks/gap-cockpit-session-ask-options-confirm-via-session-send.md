@@ -29,11 +29,11 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：补全后的会话提问卡每个选项 `action.executor === 'session.send'`，`params.sessionId` 等于卡片 `subject.sessionId`，`params.text` 等于「label — does」（does 为空时等于 label）；投影后这些选项不带 `confirmable: false`。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-executors.test.ts` 退出 0，新增用例：确认一个会话提问卡选项 ⇒ 发送函数恰好被调用一次，目标会话与文本正确。
-- [ ] `grep -rn "session-ask-option" server src --include=*.ts --include=*.tsx` 无命中。
-- [ ] 假形态变红：把执行器改回任意未声明的 id ⇒ 第一条新用例红；改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：补全后的会话提问卡每个选项 `action.executor === 'session.send'`，`params.sessionId` 等于卡片 `subject.sessionId`，`params.text` 等于「label — does」（does 为空时等于 label）；投影后这些选项不带 `confirmable: false`。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-executors.test.ts` 退出 0，新增用例：确认一个会话提问卡选项 ⇒ 发送函数恰好被调用一次，目标会话与文本正确。
+- [x] `grep -rn "session-ask-option" server src --include=*.ts --include=*.tsx` 无命中。
+- [x] 假形态变红：把执行器改回任意未声明的 id ⇒ 第一条新用例红；改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck` 与 `npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
@@ -46,3 +46,16 @@ extra:
 - server/modules/cockpit/index.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
 - server/modules/cockpit/tests/cockpit-session-executors.test.ts
+
+## 执行记录
+
+- 实现：`contentOption()` 的 `action` 改为 `{ executor: 'session.send', params: { sessionId, text } }`；`text` 为 `<label> — <does>`，`does` 为空时只发 label。`COCKPIT_FLEET_ASK_OPTION_EXECUTOR` 常量、`server/modules/cockpit/index.ts` 的导出、以及测试里的引用全部删除；`contentOption()` 不再需要 `cardId`/`askId` 参数。
+- AC1：`npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` → tests 11 / pass 11 / fail 0。新增用例 `AC: a completed session-ask option answers its own session with 「label — does」` 断言每个选项 `action.executor === 'session.send'`、`params.sessionId === card.subject.sessionId`、`params.text` 分别为 `Delete staging — Remove the staging directory after the archive is verified.` 与 `Keep staging`（does 为空），且经 registry 后 `confirmable` 为 undefined。
+- AC2：`…cockpit-session-executors.test.ts` → tests 12 / pass 12 / fail 0。新增用例 `a session-ask card option is sent into its session exactly once, asking what the option says`：确认 `att-ask-1` 的 `delete` 选项 ⇒ 发送桩恰好收到 1 次 `{ sessionId: 'sess-ask', text: 'Delete staging — Remove the staging directory after the archive is verified.' }`，返回 `executor: 'session.send'`。
+- AC3：`grep -rn "session-ask-option" server src --include=*.ts --include=*.tsx` 无命中（exit 1）。
+- AC4：假形态：把 `contentOption()` 的 executor 改成未声明的 `'false.form.undeclared'` 后重跑第一条判据 → `pass 9 / fail 2`，新增用例与既有 session-ask 用例同时红；改完已还原，还原后 11/11 绿。
+- AC5：`architecture-ratchet.test.ts` 6/6 绿；`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）。
+- L_D 该轴仍暗,理由:本任务只把卡片选项接到既有的 session.send 执行器，不新增领域数据能力，也没有可读出的领域读数。
+- DoD（无 MCP 浏览器的等价路径：一次性 Playwright 脚本 + 场景运行器；隔离实例 `:3195`，Vite `:5195`，390×844；`QUAY_FLEET_BIN` 指向一次性桩，两张会话提问卡指向复制库里**新插入**的两个未使用会话，隔离 HOME 下运行）：缺省项确认条可用（`tmp/dod-ask-options/shots/390-1-card-list.png`），确认卡打开（`390-2-confirm-card.png`），确认后页面读数为「Confirmed — session.send ran.」（`390-3-after-confirm.png`）。`POST /api/cockpit/cards/confirm` → 200 `{"ok":true,"cardId":"dod-ask-1","executor":"session.send","params":{"sessionId":"dod-ask-session-1","text":"Delete staging — Remove the staging directory after the archive is verified."},"result":{"sent":true,"sessionId":"dod-ask-session-1",…}}`。该会话的新 provider 转写尾部出现 user 行：`{"type":"user","message":{"role":"user","content":"Delete staging — Remove the staging directory after the archive is verified."}}`。
+- DoD 场景运行器：`node scripts/ui-scenario.mjs tmp/dod-ask-options/scenario.json --base-url http://127.0.0.1:5195 …` → `passed (4 steps, 4 checkpoint(s))`，报告 `tmp/dod-ask-options/scenario-report/report.json`：第二张卡确认前 `confirmOptionId: "delete"`（缺省项可确认），切到 `Keep staging` 后 `confirmTarget {optionId:"keep",label:"Keep staging"}`，确认后 `confirmOpenCardId: null` 且两张卡仍在可见集；其会话转写尾部出现 `"Keep staging — Leave the directory for a later inspection."`。
+- 收尾：`scripts/isolated-instance.sh stop` → `ok:true`，`stopped_scopes` 为本次 server pid 下的两个 scope，`residual_scopes:""`、`port_still_serving:false`；未对线上实例或任何真实在用会话发送消息。`tmp/` 内容均未提交。
