@@ -71,6 +71,10 @@ jspm_packages/
 # the file-tree service only reads this root .gitignore and does not hard-exclude .venv.
 .venv/
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 # Optional npm cache directory
 .npm
 
