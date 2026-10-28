@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-session-start-background-resident-and-run-events
 title: 驾驶舱新开会话改为后台常驻、bypassPermissions、不跳转；补写会话这轮跑完与会话关闭两种事件
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
