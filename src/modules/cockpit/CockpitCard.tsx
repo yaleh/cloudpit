@@ -6,9 +6,11 @@ import { cn } from '@/shared/utils';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
   cockpitCardDescriptor,
+  cockpitCardFactsBeyondSituation,
   cockpitCardSubjectName,
   cockpitCardTitle,
   cockpitCardToneClass,
+  cockpitFactShortForm,
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
@@ -144,24 +146,37 @@ function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
   );
 }
 
-/** The own-reply editor: the last item of the dropdown and the card body's form when shown. */
+/**
+ * The own-reply editor: the last item of the dropdown and the card body's form when shown.
+ *
+ * ONE HEADING PER EDITOR. The dropdown's last item already heads the reply with 「Write your
+ * own」 and its radio circle, so the editor inside it draws `ariaLabel` only; the card body, which
+ * has no such heading, draws the visible `label`. Either way the textarea's accessible name is the
+ * same string.
+ */
 function OwnReplyEditor({
   value,
   onChange,
   placeholder,
   label,
+  ariaLabel,
 }: {
   value: string;
   onChange: (text: string) => void;
   placeholder: string;
-  label: string;
+  /** The visible heading; omitted where a sibling already heads the reply. */
+  label?: string;
+  ariaLabel: string;
 }) {
   return (
     <div className="mt-1.5">
       <label className="block">
-        <span className="text-[11px] font-medium text-foreground">{label}</span>
+        {label !== undefined && (
+          <span className="text-[11px] font-medium text-foreground">{label}</span>
+        )}
         <textarea
           data-testid="cockpit-card-own-reply-input"
+          aria-label={ariaLabel}
           value={value}
           placeholder={placeholder}
           rows={2}
@@ -217,6 +232,8 @@ export default function CockpitCard({
   const showingOwnReply = shown?.kind === 'ownReply';
   const compact = density === 'compact';
   const ownReplyAvailable = card.ownReply !== undefined;
+  // A fact already stated by the situation is not drawn twice; Details still lists every fact.
+  const facts = cockpitCardFactsBeyondSituation(card);
   const question = cockpitCardTitle(card, t);
   const subjectName = cockpitCardSubjectName(card);
   const project = card.subject.project?.trim() ?? '';
@@ -347,26 +364,28 @@ export default function CockpitCard({
           </p>
         )}
 
-        {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. The full
-            fact text is always in Details. Compact mode keeps the card to three lines, so it
-            draws neither. */}
-        {!compact && (card.facts.length > 0 || card.viz !== undefined) && (
+        {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. A pill is
+            a SHORT FORM: the sentence it abbreviates stays in `title` and, untruncated, in Details;
+            a fact the situation already states is not repeated here at all. Compact mode keeps the
+            card to three lines, so it draws neither. */}
+        {!compact && (facts.length > 0 || card.viz !== undefined) && (
           <div className="mt-1.5 flex items-center justify-between gap-2">
-            {card.facts.length > 0 && (
+            {facts.length > 0 && (
               <div
                 data-testid="cockpit-card-zone-a-facts"
                 className="flex min-w-0 flex-wrap items-center gap-1"
               >
-                {card.facts.map((fact, index) => (
+                {facts.map((fact, index) => (
                   <span
                     key={`${fact.text}:${index}`}
                     data-testid="cockpit-card-fact"
                     data-mechanical={fact.mechanical ? 'true' : 'false'}
+                    data-full-text={fact.text}
                     title={fact.text}
                     className="max-w-[16rem] truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
                   >
                     <span aria-hidden className="mr-0.5">{fact.mechanical ? '●' : '○'}</span>
-                    {fact.text}
+                    {cockpitFactShortForm(fact.text)}
                   </span>
                 ))}
               </div>
@@ -420,6 +439,7 @@ export default function CockpitCard({
               value={ownReply}
               onChange={onOwnReplyChange}
               label={t('cockpit.cardWriteOwn')}
+              ariaLabel={t('cockpit.cardWriteOwn')}
               placeholder={t('cockpit.cardOwnReplyPlaceholder')}
             />
           )}
@@ -427,72 +447,107 @@ export default function CockpitCard({
           {dropdownOpen && (
             <div
               data-testid="cockpit-card-option-list"
+              // The rows are a RADIO GROUP, not a list of independent toggles: exactly one of
+              // them — an option or the person's own reply — is the card's shown reading, and
+              // the filled circle says which. The group is the list itself so the own-reply item
+              // stays the list's last child (the dropdown's own ordering contract).
+              role="radiogroup"
+              aria-label={t('cockpit.cardDetailsOptions')}
               className="mt-1 max-h-80 space-y-1 overflow-auto rounded-md border border-border bg-popover p-1.5 shadow-lg"
             >
-              {card.options.map((option, index) => {
-                const isShown = shownOption?.id === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    data-testid={`cockpit-card-option-${option.id}`}
-                    aria-pressed={isShown}
-                    onClick={() => onShowOption(option.id)}
-                    className={cn(
-                      'block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent',
-                      isShown && 'bg-accent/70',
-                    )}
-                  >
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] tabular-nums text-muted-foreground">{index + 1}</span>
-                      <span className="text-xs font-medium text-foreground">{option.label}</span>
-                      {option.suggested && (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                          {t('cockpit.cardSuggested')}
+                {card.options.map((option, index) => {
+                  const isShown = shownOption?.id === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isShown}
+                      data-testid={`cockpit-card-option-${option.id}`}
+                      data-selected={isShown ? 'true' : 'false'}
+                      onClick={() => onShowOption(option.id)}
+                      className={cn(
+                        'block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent',
+                        isShown && 'bg-accent/70 ring-1 ring-primary/40',
+                      )}
+                    >
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          data-testid="cockpit-card-option-radio"
+                          data-selected={isShown ? 'true' : 'false'}
+                          aria-hidden
+                          className={cn(
+                            'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+                            isShown ? 'border-primary' : 'border-muted-foreground/40',
+                          )}
+                        >
+                          {isShown && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-[11px] tabular-nums text-muted-foreground">{index + 1}</span>
+                        <span className="text-xs font-medium text-foreground">{option.label}</span>
+                        {option.suggested && (
+                          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                            {t('cockpit.cardSuggested')}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          {t(COCKPIT_SOURCE_LABEL_KEY[option.source] ?? 'cockpit.cardSourceProvider')}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
+                      {option.why !== undefined && (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
+                      )}
+                      {option.warn !== undefined && (
+                        <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">
+                          ⚠ {option.warn}
                         </span>
                       )}
-                      <span className="text-[10px] text-muted-foreground">
-                        {t(COCKPIT_SOURCE_LABEL_KEY[option.source] ?? 'cockpit.cardSourceProvider')}
-                      </span>
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
-                    {option.why !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
-                    )}
-                    {option.warn !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">
-                        ⚠ {option.warn}
-                      </span>
-                    )}
-                    <OptionTags option={option} />
-                    {option.undo !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
-                    )}
-                  </button>
-                );
-              })}
+                      <OptionTags option={option} />
+                      {option.undo !== undefined && (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
+                      )}
+                    </button>
+                  );
+                })}
 
-              {ownReplyAvailable && (
-                <div
-                  data-testid="cockpit-card-own-reply-item"
-                  className="rounded-md border-t border-border px-2 py-1.5"
-                >
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-own-reply-trigger"
-                    onClick={onShowOwnReply}
-                    className="text-xs font-medium text-foreground hover:underline"
+                {ownReplyAvailable && (
+                  <div
+                    data-testid="cockpit-card-own-reply-item"
+                    className="rounded-md border-t border-border px-2 py-1.5"
                   >
-                    ✎ {t('cockpit.cardWriteOwn')}
-                  </button>
-                  <OwnReplyEditor
-                    value={ownReply}
-                    onChange={onOwnReplyChange}
-                    label={t('cockpit.cardWriteOwn')}
-                    placeholder={t('cockpit.cardOwnReplyPlaceholder')}
-                  />
-                </div>
-              )}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={showingOwnReply}
+                      data-testid="cockpit-card-own-reply-trigger"
+                      data-selected={showingOwnReply ? 'true' : 'false'}
+                      onClick={onShowOwnReply}
+                      className="flex w-full items-center gap-1.5 rounded-md text-left text-xs font-medium text-foreground hover:underline"
+                    >
+                      <span
+                        data-testid="cockpit-card-option-radio"
+                        data-selected={showingOwnReply ? 'true' : 'false'}
+                        aria-hidden
+                        className={cn(
+                          'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+                          showingOwnReply ? 'border-primary' : 'border-muted-foreground/40',
+                        )}
+                      >
+                        {showingOwnReply && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                      </span>
+                      <span className="truncate">✎ {t('cockpit.cardWriteOwn')}</span>
+                    </button>
+                    {/* The trigger above IS this editor's one heading; the editor itself draws
+                        only its accessible name, so 「Write your own」 appears exactly once. */}
+                    <OwnReplyEditor
+                      value={ownReply}
+                      onChange={onOwnReplyChange}
+                      ariaLabel={t('cockpit.cardWriteOwn')}
+                      placeholder={t('cockpit.cardOwnReplyPlaceholder')}
+                    />
+                  </div>
+                )}
             </div>
           )}
         </div>

@@ -1,10 +1,16 @@
 import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { cockpitCardDescriptor, cockpitCardTitle } from '@/modules/cockpit/cockpitCardDescriptors';
+import {
+  cockpitAssistantQuote,
+  cockpitCardDescriptor,
+  cockpitCardFactsBeyondSituation,
+  cockpitCardTitle,
+} from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
 import type {
   CockpitBriefState,
@@ -64,7 +70,17 @@ export type CockpitCardDetailsProps = {
    * chrome and the close button (the list's back button returns).
    */
   inline?: boolean;
+  /**
+   * The phone's bottom sheet: a full-width panel rising to ~90% of the viewport with a drag
+   * handle at its top. The layer that hosts it pins it to the bottom edge; this component only
+   * draws the sheet's own shape and the swipe-down gesture. The sheet has NO Escape handler — a
+   * phone has no Escape key, and a stray Escape must not close the drawer mid-read.
+   */
+  drawer?: boolean;
 };
+
+/** How far a downward swipe on the drawer's handle must travel before the sheet closes. */
+const DRAWER_CLOSE_SWIPE_PX = 60;
 
 function waitingText(t: TFunction, now: number, waitingSince: string): string {
   const since = Date.parse(waitingSince);
@@ -81,12 +97,15 @@ function waitingText(t: TFunction, now: number, waitingSince: string): string {
 function Section({
   title,
   children,
+  testId,
 }: {
   title: string;
   children: ReactNode;
+  /** The section's own reading hook, for a section a criterion names. */
+  testId?: string;
 }) {
   return (
-    <section className="mt-3">
+    <section data-testid={testId} className="mt-3">
       <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h3>
@@ -108,9 +127,18 @@ export default function CockpitCardDetails({
   openedInSession = false,
   currentSessionId = null,
   inline = false,
+  drawer = false,
 }: CockpitCardDetailsProps) {
   const { t } = useTranslation();
   const descriptor = cockpitCardDescriptor(card.kind);
+  // The drawer's swipe-down gesture: the pointer's y where the handle was pressed. A number
+  // rather than a boolean, because the closing distance is measured, not just "dragged at all".
+  const swipeStartY = useRef<number | null>(null);
+  // The same rule the card body uses: a fact the situation already states is not a second
+  // reading. Details is where the facts keep their FULL text, so only the repetition is dropped.
+  const facts = cockpitCardFactsBeyondSituation(card);
+  // The assistant's own words, only where the design asks for them (the phone drawer's quote).
+  const assistantQuote = drawer ? cockpitAssistantQuote(card) : null;
   // The server projection fills `conversation` from the subject; the fallback keeps the link
   // for a card read before that projection ran (and for a criterion that states only the subject).
   // A provider that states `conversation` itself stays authoritative: the subject is only used
@@ -132,19 +160,55 @@ export default function CockpitCardDetails({
       : card.subject.project !== undefined && card.subject.project.trim() !== ''
         ? cockpitViewPath({ type: 'board', project: card.subject.project })
         : COCKPIT_PATH;
+  // NO BRIEF AREA WHEN THERE IS NOTHING TO READ: idle/absent means the drawer never asked, and a
+  // `disabled` fallback means the brief feature is off — a titled 「Brief」 section whose body is
+  // "this is disabled" is chrome, not a reading. Other fallbacks (a gateway that is down, say)
+  // stay: they explain why a brief the feature DOES offer is missing.
+  const briefVisible =
+    brief !== undefined
+    && brief.status !== 'idle'
+    && !(brief.status === 'ready' && brief.response.status === 'fallback' && brief.response.reason === 'disabled');
 
   return (
     <aside
       data-testid="cockpit-card-details"
       data-cockpit-card-details-id={card.id}
       data-cockpit-card-details-inline={inline ? 'true' : 'false'}
+      data-drawer={drawer ? 'true' : 'false'}
       className={cn(
         'flex flex-col overflow-auto text-card-foreground',
         inline
           ? 'min-h-0 flex-1'
-          : 'max-h-[90vh] w-full rounded-xl border border-border bg-card p-3 shadow-xl',
+          : drawer
+            ? 'h-[90vh] max-h-[90vh] w-full rounded-t-2xl border border-b-0 border-border bg-card p-3 shadow-xl'
+            : 'max-h-[90vh] w-full rounded-xl border border-border bg-card p-3 shadow-xl',
       )}
     >
+      {drawer && (
+        <button
+          type="button"
+          data-testid="cockpit-card-details-drag-handle"
+          aria-label={t('cockpit.cardDetailsClose')}
+          // A tap on the handle is the same dismissal as a downward swipe: the handle is the
+          // sheet's only chrome, so it must not be an inert strip.
+          onClick={onClose}
+          onPointerDown={(event) => {
+            swipeStartY.current = event.clientY;
+          }}
+          onPointerUp={(event) => {
+            const start = swipeStartY.current;
+            swipeStartY.current = null;
+            if (start !== null && event.clientY - start >= DRAWER_CLOSE_SWIPE_PX) onClose();
+          }}
+          onPointerCancel={() => {
+            swipeStartY.current = null;
+          }}
+          className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 flex touch-none justify-center rounded-t-2xl bg-card pb-1 pt-1.5"
+        >
+          <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+        </button>
+      )}
+
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -157,7 +221,9 @@ export default function CockpitCardDetails({
             {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
           </span>
         </span>
-        {!inline && (
+        {/* The phone's sheet carries no Close button: its title bar is the drag handle, and a
+            downward swipe is the dismissal the mockup shows. */}
+        {!inline && !drawer && (
           <button
             type="button"
             data-testid="cockpit-card-details-close"
@@ -201,10 +267,44 @@ export default function CockpitCardDetails({
         </Section>
       )}
 
-      {card.facts.length > 0 && (
+      {/* The assistant's own words, quoted, with the way back into the session they came from.
+          Only the phone drawer draws this: a card whose summary quotes the assistant gets the
+          quote where the mockup puts it, and the session link is the one exit. */}
+      {assistantQuote !== null && (
+        <Section
+          title={t('cockpit.cardDetailsAssistantQuote')}
+          testId="cockpit-card-details-quote"
+        >
+          <blockquote
+            data-testid="cockpit-card-assistant-quote"
+            className="border-l-2 border-primary/40 pl-2 text-xs italic text-foreground"
+          >
+            {assistantQuote}
+          </blockquote>
+          {sessionId !== undefined && (
+            <a
+              data-testid="cockpit-card-quote-session-link"
+              href={`/session/${encodeURIComponent(sessionId)}`}
+              onClick={
+                onOpenConversation === undefined
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      onOpenConversation(sessionId);
+                    }
+              }
+              className="mt-1 inline-block text-[11px] font-medium text-primary hover:underline"
+            >
+              {t('cockpit.cardDetailsInSession')}
+            </a>
+          )}
+        </Section>
+      )}
+
+      {facts.length > 0 && (
         <Section title={t('cockpit.cardDetailsFacts')}>
           <ul className="space-y-0.5" data-testid="cockpit-card-details-facts">
-            {card.facts.map((fact, index) => (
+            {facts.map((fact, index) => (
               <li key={`${fact.text}:${index}`} className="flex items-start gap-1 text-xs text-foreground">
                 <span aria-hidden className={cn('mt-1.5 h-1 w-1 shrink-0 rounded-full', fact.mechanical ? 'bg-primary' : 'bg-muted-foreground')} />
                 <span className={fact.mechanical ? '' : 'italic'}>{fact.text}</span>
@@ -214,8 +314,8 @@ export default function CockpitCardDetails({
         </Section>
       )}
 
-      {brief !== undefined && brief.status !== 'idle' && (
-        <Section title={t('cockpit.briefTitle')}>
+      {briefVisible && brief !== undefined && (
+        <Section title={t('cockpit.briefTitle')} testId="cockpit-card-details-brief">
           <CockpitBriefView state={brief} onRetry={onRetryBrief} />
         </Section>
       )}

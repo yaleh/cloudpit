@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 
 import type {
   CockpitCard,
+  CockpitCardFact,
   CockpitCardKind,
   CockpitCardOptionSource,
   CockpitCardVizKind,
@@ -175,4 +176,88 @@ export function cockpitCardTitle(card: CockpitCard, t: TFunction): string {
   if (firstFact !== '') return firstFact;
 
   return card.subject.uri;
+}
+
+/* ─── Facts: the pills the card body draws ───────────────────────── */
+
+/** `a  b` and `A b` compare equal: whitespace and case are formatting, not meaning. */
+function normalizeFactText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/**
+ * The facts the card's body should draw as pills.
+ *
+ * A card's situation and its facts come from different layers of the same reading, so a fact
+ * often RESTATES the situation word for word — the fleet's 「需要人」 card carries
+ * `recovery-window-expired (6h) without landing — recorded and raised` as both its situation and
+ * its first fact. A pill repeating the sentence printed directly above it is noise, not a
+ * reading. A fact is therefore dropped when the situation already says it (equality or
+ * containment after normalisation). Every remaining fact keeps its full text in Details, which is
+ * where the untruncated reading belongs.
+ *
+ * Provider-agnostic by construction: the rule reads only the card's own stated text, never the
+ * `provider` field.
+ */
+export function cockpitCardFactsBeyondSituation(card: CockpitCard): CockpitCardFact[] {
+  const situation = normalizeFactText(card.situation ?? '');
+  if (situation === '') return card.facts;
+  return card.facts.filter((fact) => {
+    const text = normalizeFactText(fact.text);
+    return text === '' || !situation.includes(text);
+  });
+}
+
+/** The pill's character budget; the full text stays in the title attribute and in Details. */
+export const COCKPIT_FACT_PILL_MAX_CHARS = 48;
+
+/**
+ * One fact's short form for a pill: a single line, capped at
+ * {@link COCKPIT_FACT_PILL_MAX_CHARS}, cut at a word boundary and marked with an ellipsis when it
+ * was shortened. Details renders the fact's own `text` unchanged.
+ */
+export function cockpitFactShortForm(text: string): string {
+  const singleLine = text.replace(/\s+/g, ' ').trim();
+  if (singleLine.length <= COCKPIT_FACT_PILL_MAX_CHARS) return singleLine;
+  const cut = singleLine.slice(0, COCKPIT_FACT_PILL_MAX_CHARS - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  // Only break at a space when it is not so early that the pill loses most of its reading.
+  const trimmed = (lastSpace > 24 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.，、。；：]+$/, '');
+  return `${trimmed}…`;
+}
+
+/* ─── The assistant's own words inside the summary ───────────────── */
+
+/** The quote pairs the observation layer's sentence may use around quoted speech. */
+const QUOTE_PAIRS: readonly (readonly [string, string])[] = [
+  ['「', '」'],
+  ['『', '』'],
+  ['“', '”'],
+  ['"', '"'],
+];
+
+/**
+ * The assistant's original words carried by the card's summary, or `null` when it quotes none.
+ *
+ * THE WIRE HAS NO DEDICATED QUOTE FIELD (the card contract states the situation and facts only),
+ * so the summary's own convention is the reading: the observation layer writes the assistant's
+ * sentence inside a quotation pair when it restates one — `对话里只有“继续”，没有 diff 内容。`.
+ * The first quoted segment of the situation (then of the question) is therefore that sentence.
+ * A card that quotes nothing draws no quote; nothing is invented from unquoted prose.
+ *
+ * Used by `CockpitCardDetails` (the phone drawer's quote and its 「in session」 link).
+ */
+export function cockpitAssistantQuote(card: CockpitCard): string | null {
+  for (const source of [card.situation, card.ask]) {
+    if (source === undefined || source === '') continue;
+    for (const [open, close] of QUOTE_PAIRS) {
+      const start = source.indexOf(open);
+      if (start === -1) continue;
+      const end = source.indexOf(close, start + open.length);
+      if (end === -1) continue;
+      const quote = source.slice(start + open.length, end).trim();
+      if (quote !== '') return quote;
+    }
+  }
+  return null;
 }

@@ -257,6 +257,57 @@ describe('facts and the small visualization', () => {
     expect(facts[1].textContent).toContain('○');
   });
 
+  it('draws no pill for a fact the situation already states, and keeps the full text in Details', () => {
+    const repeated: CockpitCardData = {
+      ...CARD,
+      // One fact is the situation with different case, the other is a phrase the situation
+      // contains; both are the same reading printed twice, so neither becomes a pill.
+      facts: [
+        { text: 'the run left 1.2 gb in staging.', mechanical: true },
+        { text: 'in staging', mechanical: false },
+        { text: 'transcript archived', mechanical: false },
+      ],
+    };
+    renderCard({ card: repeated });
+
+    const facts = screen.getAllByTestId('cockpit-card-fact');
+    expect(facts.length).toBe(1);
+    expect(facts[0].textContent).toContain('transcript archived');
+
+    cleanup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails card={repeated} now={NOW} onClose={() => undefined} />
+      </I18nextProvider>,
+    );
+    const detailsFacts = screen.getByTestId('cockpit-card-details-facts');
+    expect(detailsFacts.textContent).toContain('transcript archived');
+    expect(detailsFacts.textContent).not.toContain('the run left 1.2 gb in staging.');
+  });
+
+  it('shrinks a long fact to a pill but keeps its whole sentence in the title and in Details', () => {
+    const longFact =
+      'a measured reading that is far too long to fit inside one pill because it keeps going and going';
+    const longCard: CockpitCardData = {
+      ...CARD,
+      facts: [{ text: longFact, mechanical: true }],
+    };
+    renderCard({ card: longCard });
+
+    const pill = screen.getByTestId('cockpit-card-fact');
+    expect(pill.textContent).not.toContain(longFact);
+    expect(pill.textContent?.trim().endsWith('…')).toBe(true);
+    expect(pill.getAttribute('title')).toBe(longFact);
+
+    cleanup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails card={longCard} now={NOW} onClose={() => undefined} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId('cockpit-card-details-facts').textContent).toContain(longFact);
+  });
+
   it('draws the attempts reading with one dot per attempt, old → new and capped', () => {
     const stuck: CockpitCardData = {
       ...CARD,
@@ -323,6 +374,49 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     expect(list.lastElementChild).toBe(ownReplyItem);
     const editor = within(ownReplyItem).getByTestId('cockpit-card-own-reply-input');
     expect(editor.tagName).toBe('TEXTAREA');
+  });
+
+  it('draws the options as a radio group and keeps the current selection marked', () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+
+    const list = screen.getByTestId('cockpit-card-option-list');
+    expect(list.getAttribute('role')).toBe('radiogroup');
+    // Two options and the person's own reply: exactly one row is the shown reading.
+    expect(within(list).getAllByRole('radio').length).toBe(3);
+    expect(within(list).getAllByTestId('cockpit-card-option-radio').length).toBe(3);
+
+    const deleteItem = within(list).getByTestId('cockpit-card-option-delete');
+    const parkItem = within(list).getByTestId('cockpit-card-option-park');
+    expect(deleteItem.getAttribute('role')).toBe('radio');
+    expect(deleteItem.getAttribute('aria-checked')).toBe('true');
+    expect(deleteItem.getAttribute('data-selected')).toBe('true');
+    expect(parkItem.getAttribute('aria-checked')).toBe('false');
+    expect(parkItem.getAttribute('data-selected')).toBe('false');
+
+    // Switching the shown option moves the selection marker with it.
+    fireEvent.click(parkItem);
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    const reopened = screen.getByTestId('cockpit-card-option-list');
+    expect(within(reopened).getByTestId('cockpit-card-option-park').getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(
+      within(reopened).getByTestId('cockpit-card-option-delete').getAttribute('data-selected'),
+    ).toBe('false');
+  });
+
+  it('heads the own-reply editor exactly once inside the dropdown', () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+
+    const list = screen.getByTestId('cockpit-card-option-list');
+    const headings = (list.textContent ?? '').split('Write your own').length - 1;
+    expect(headings).toBe(1);
+    expect(within(list).getAllByTestId('cockpit-card-own-reply-input').length).toBe(1);
+    expect(within(list).getByTestId('cockpit-card-own-reply-trigger').textContent).toContain(
+      'Write your own',
+    );
   });
 
   it('the card, before the dropdown opens, shows the selected option’s complete explanation', () => {

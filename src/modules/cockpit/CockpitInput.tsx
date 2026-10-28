@@ -2,6 +2,8 @@ import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { VoiceInputState } from '@/shared/types';
+import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
+import { cn } from '@/shared/utils';
 import {
   PromptInput,
   PromptInputBody,
@@ -67,10 +69,16 @@ export default function CockpitInput({
   textareaRef,
 }: CockpitInputProps) {
   const { t } = useTranslation();
+  // THE PHONE DOCK IS ONE LINE AND ONE ROUND MIC. On a desktop the submit button is always there
+  // (the keyboard path needs a target); on a phone it appears only once there is something to
+  // send, so the dock's resting state is the text line and the circular mic.
+  const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const sendAvailable = !isMobile || value.trim() !== '';
 
   return (
     <PromptInput
       data-testid="cockpit-input"
+      data-single-line={isMobile ? 'true' : 'false'}
       className="w-full"
       onSubmit={(event) => {
         event.preventDefault();
@@ -94,7 +102,7 @@ export default function CockpitInput({
           rows={1}
           // The dock stays one line on a phone, but its line is a touch target: 44px minimum,
           // the same floor the mic and send buttons carry.
-          className="min-h-[44px]"
+          className={cn('min-h-[44px]', isMobile && 'resize-none')}
         />
         {/* THE SCOPE NOTE. The box sits inside the cockpit page and, in the PC column, right
             beside a conversation; the sentence is what keeps a phrase from being read as a chat
@@ -117,12 +125,14 @@ export default function CockpitInput({
             state={voiceState}
             onToggle={onVoiceToggle}
             inFlight={voiceInFlight}
-            className={COCKPIT_PHONE_TOUCH_TARGET_CLASS}
+            className={cn(COCKPIT_PHONE_TOUCH_TARGET_CLASS, isMobile && 'rounded-full')}
           />
-          <PromptInputSubmit
-            aria-label={t('cockpit.intentSubmit')}
-            className={COCKPIT_PHONE_TOUCH_TARGET_CLASS}
-          />
+          {sendAvailable && (
+            <PromptInputSubmit
+              aria-label={t('cockpit.intentSubmit')}
+              className={COCKPIT_PHONE_TOUCH_TARGET_CLASS}
+            />
+          )}
         </div>
       </PromptInputFooter>
     </PromptInput>

@@ -1,0 +1,427 @@
+import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type {
+  CockpitBriefResponse,
+  CockpitCard,
+  QuayFleetSummary,
+  QuayPulseSummary,
+  QuaySnapshot,
+  QuaySuiteState,
+} from '@/shared/types';
+import { i18n } from '@/modules/i18n';
+import CockpitPage from '@/modules/cockpit/CockpitPage';
+
+/**
+ * THE PHONE'S CARDS PAGE, MATCHED TO THE MOCKUP.
+ *
+ * Four readings this file guards, all on the shipped page at 390px:
+ *
+ *   1. Details is a BOTTOM SHEET: pinned to the bottom edge, ~90% tall, with a drag handle, and
+ *      the SAME persistent confirm bar bound to the card's shown option.
+ *   2. The summary's quoted assistant sentence is drawn as a quote with the 「in session」 link
+ *      that jumps back to that conversation.
+ *   3. A brief the feature turned OFF draws NO brief area — the 「No model brief / the brief
+ *      feature is off」 block the live page showed is chrome, not a reading.
+ *   4. The phone shell's ONE status row (driver · landed · suite · deploy · todo) and the
+ *      single-line input whose send button appears only once there is something to send.
+ *
+ * The brief's other arm (a generated brief DOES draw its section) is a leg of this file: without
+ * it, a page that stopped rendering the brief everywhere would pass case 3.
+ *
+ * Only the page's transports are doubled (the hub socket and the HTTP api), the same way
+ * `cockpitCardsMobileShell.test.tsx` doubles them.
+ */
+
+const hubMock = vi.hoisted(() => {
+  const state = {
+    rev: 0,
+    view: { type: 'fleet' as const },
+    viewStack: [] as unknown[],
+    focusUri: null,
+    tray: [] as string[],
+    history: [] as string[],
+    visible: { viewUri: null, focusables: [], projects: [] },
+    pendingSend: null,
+    lastEventSource: null,
+  };
+  const listeners = new Set<(event: unknown) => void>();
+  const socket = {
+    isConnected: true,
+    sendMessage() {
+      // The page only reads hub state here; nothing this suite sends needs to change the view.
+    },
+    subscribe(listener: (event: unknown) => void) {
+      listeners.add(listener);
+      listener({ kind: 'cockpit.state', state: JSON.parse(JSON.stringify(state)) });
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  return {
+    socket,
+    reset() {
+      listeners.clear();
+      socket.isConnected = true;
+    },
+  };
+});
+
+vi.mock('@/shared/context/WebSocketContext', () => ({
+  useWebSocketOptional: () => hubMock.socket,
+  useWebSocket: () => hubMock.socket,
+}));
+
+const apiMock = vi.hoisted(() => ({
+  quayFleetSummary: vi.fn(),
+  quaySnapshot: vi.fn(),
+  observationFetch: vi.fn(),
+  cockpitCards: vi.fn(),
+  cockpitCardBrief: vi.fn(),
+  system: { deployReadiness: vi.fn() },
+}));
+
+const readApiJsonMock = vi.hoisted(() => vi.fn(async (response: { json: () => Promise<unknown> }) => response.json()));
+
+vi.mock('@/shared/api', () => ({
+  api: apiMock,
+  readApiJson: readApiJsonMock,
+  authenticatedFetch: apiMock.observationFetch,
+}));
+
+const SUITE: QuaySuiteState = {
+  state: 'green',
+  runner: 'quay',
+  scope: 'full',
+  startedAt: null,
+  finishedAt: null,
+  durationMs: 1_200,
+  laneCount: 2,
+  commit: 'abc1234',
+  taskId: null,
+  runId: null,
+};
+
+const PULSE: QuayPulseSummary = {
+  generatedAt: '2026-10-27T00:00:00.000Z',
+  inFlight: [],
+  gantt: null,
+  tests: { current: SUITE, recentRounds: [] },
+  fanIn: {
+    recent: [
+      { task: 'landed-task', outcome: 'landed', lockAcquireEpoch: null, lockReleaseEpoch: null },
+      { task: 'failed-task', outcome: 'failed', lockAcquireEpoch: null, lockReleaseEpoch: null },
+    ],
+  },
+  blockers: [],
+};
+
+const FLEET: QuayFleetSummary = {
+  projects: [
+    {
+      projectId: 'p1',
+      fleetProjectId: 'claudecodeui',
+      projectPath: '/work/claudecodeui',
+      driver: { state: 'running' },
+      tasks: { total: 4, todo: 2, ready: 1, needsHuman: 1, done: 0 },
+      pulse: PULSE,
+      cached: false,
+      error: null,
+    },
+  ],
+  generatedAt: '2026-10-27T00:00:00.000Z',
+  ttlPerProjectMs: 30000,
+  cached: false,
+};
+
+const SNAPSHOT: QuaySnapshot = {
+  projectId: 'p1',
+  projectPath: '/work/claudecodeui',
+  fleetProjectId: 'claudecodeui',
+  generatedAt: '2026-10-27T00:00:00.000Z',
+  cached: false,
+  driver: { state: 'running', alive: true, running: true, lastRecordAt: null },
+  tasks: {
+    total: 0,
+    byStatus: { ready: 0 },
+    ready: 0,
+    needsHuman: 0,
+    done: 0,
+    recent: [],
+  },
+  goals: { total: 0, achieved: 0, breakdown: { byStatus: {}, recent: [] } },
+  adrs: { total: 0, recent: [] },
+  configIssues: { total: 0, errors: 0 },
+  tests: { current: SUITE, recentRounds: [] },
+  fanIn: { recent: [] },
+  inFlight: [],
+  dashboardUrl: null,
+  warnings: [],
+};
+
+const DEPLOY_READING = {
+  status: 'fresh',
+  runningSha: 'abc1234',
+  builtSha: 'abc1234',
+  clientBuiltSha: 'abc1234',
+  headSha: 'abc1234',
+  buildSkew: false,
+  pendingCommits: [],
+  lastDeploy: null,
+  failure: null,
+  checkedAt: '2026-10-27T00:00:00.000Z',
+};
+
+/**
+ * One card whose summary QUOTES the assistant (`“继续”`) and whose conversation is
+ * `fixture-session` — the two readings the drawer's quote section needs. The suggested option is
+ * what the persistent bar must name.
+ */
+const CARD: CockpitCard = {
+  id: 'fixture:ask',
+  provider: 'fixture',
+  revision: 1,
+  kind: 'ask',
+  group: 'ruling',
+  rank: 1,
+  state: 'open',
+  waitingSince: '2026-10-27T00:00:00.000Z',
+  surfacedAt: '2026-10-27T00:00:03.000Z',
+  subject: {
+    uri: 'cloudcli://fixture/ask',
+    project: 'fixture-project',
+    sessionId: 'fixture-session',
+    title: 'Cleanup the staging directory',
+  },
+  load: 2,
+  ask: 'Should the cleanup delete the staging directory?',
+  situation: '对话里只有“继续”，没有 diff 内容。',
+  facts: [{ text: 'staging holds 1.2 GB', mechanical: true }],
+  options: [
+    {
+      id: 'delete',
+      label: 'Delete staging',
+      does: 'Remove the staging directory after the archive is verified.',
+      suggested: true,
+      source: 'assistant',
+      action: { executor: 'fixture.record', params: { optionId: 'delete' } },
+    },
+  ],
+  ownReply: { executor: 'fixture.record', params: { cardId: 'fixture:ask' } },
+  conversation: { sessionId: 'fixture-session' },
+};
+
+/** The server's answer when `cockpit.brief.enabled` is off: HTTP 200, a fallback document. */
+const BRIEF_DISABLED: CockpitBriefResponse = {
+  cardId: CARD.id,
+  sessionId: 'fixture-session',
+  askId: null,
+  revision: 1,
+  messageId: null,
+  status: 'fallback',
+  reason: 'disabled',
+  cached: false,
+  question: null,
+  rounds: 0,
+  durationMs: 0,
+  failures: [],
+  tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+  v: 1,
+  itemRef: '',
+  headline: '',
+  options: [],
+  recommendation: null,
+  evidence: [],
+  blocks: [],
+};
+
+/** The same answer when the feature IS on and a model brief was produced. */
+const BRIEF_GENERATED: CockpitBriefResponse = {
+  ...BRIEF_DISABLED,
+  status: 'generated',
+  reason: null,
+  question: CARD.ask ?? null,
+  headline: 'Deleting staging is the low-risk step.',
+};
+
+const okResponse = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+
+function renderCockpit(initialPath: string) {
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <CockpitPage />
+      </MemoryRouter>
+    </I18nextProvider>,
+  );
+}
+
+/** Sets the window width the way a phone reports it; returns the undo for `afterEach`. */
+function setViewportWidth(width: number): () => void {
+  const original = window.innerWidth;
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+  return () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
+  };
+}
+
+let restoreViewport: (() => void) | null = null;
+
+/** Renders the phone cards page and opens the fixture card's Details. */
+async function openPhoneDetails(): Promise<void> {
+  restoreViewport = setViewportWidth(390);
+  renderCockpit('/cockpit?view=cards');
+  const card = await screen.findByTestId('cockpit-card-fixture:ask');
+  fireEvent.click(within(card).getByTestId('cockpit-card-zone-a'));
+  await screen.findByTestId('cockpit-card-details');
+}
+
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
+  hubMock.reset();
+  apiMock.quayFleetSummary.mockReset();
+  apiMock.quaySnapshot.mockReset();
+  apiMock.observationFetch.mockReset();
+  apiMock.cockpitCards.mockReset();
+  apiMock.cockpitCardBrief.mockReset();
+  apiMock.system.deployReadiness.mockReset();
+  readApiJsonMock.mockClear();
+
+  apiMock.quayFleetSummary.mockResolvedValue(okResponse(FLEET));
+  apiMock.quaySnapshot.mockResolvedValue(okResponse(SNAPSHOT));
+  apiMock.observationFetch.mockResolvedValue(
+    okResponse({ entries: [], collapsedCount: 0, producers: [], self: null }),
+  );
+  apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [CARD] }));
+  apiMock.cockpitCardBrief.mockResolvedValue(okResponse(BRIEF_DISABLED));
+  apiMock.system.deployReadiness.mockResolvedValue(okResponse(DEPLOY_READING));
+});
+
+afterEach(() => {
+  restoreViewport?.();
+  restoreViewport = null;
+});
+
+describe('the phone Details sheet', () => {
+  it('opens as a bottom sheet with a drag handle and the persistent confirm bar', async () => {
+    await openPhoneDetails();
+
+    const details = screen.getByTestId('cockpit-card-details');
+    expect(details.getAttribute('data-drawer')).toBe('true');
+    expect(details.className).toContain('h-[90vh]');
+    expect(details.className).toContain('rounded-t-2xl');
+
+    const layer = screen.getByTestId('cockpit-card-details-layer');
+    expect(layer.getAttribute('data-drawer')).toBe('true');
+    expect(layer.className).toContain('items-end');
+
+    expect(screen.getByTestId('cockpit-card-details-drag-handle')).toBeTruthy();
+    // The sheet is dismissed by its handle, not by a desktop Close button.
+    expect(screen.queryByTestId('cockpit-card-details-close')).toBeNull();
+
+    // The bar is the SAME target the card shows: the suggested 「Delete staging」 option.
+    const bar = screen.getByTestId('cockpit-card-details-confirm');
+    expect(bar.textContent).toContain('Delete staging');
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
+  });
+
+  it('closes when the drag handle is swiped down', async () => {
+    await openPhoneDetails();
+
+    const handle = screen.getByTestId('cockpit-card-details-drag-handle');
+    // jsdom does not ship PointerEvent by default; a MouseEvent of the pointer type carries
+    // `clientY` into React's synthetic pointer event, which is what the handler measures.
+    fireEvent(handle, new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    fireEvent(handle, new MouseEvent('pointerup', { bubbles: true, clientY: 200 }));
+
+    await waitFor(() => expect(screen.queryByTestId('cockpit-card-details')).toBeNull());
+  });
+
+  it('quotes the assistant’s own words with the link back into the session', async () => {
+    await openPhoneDetails();
+
+    const quote = screen.getByTestId('cockpit-card-assistant-quote');
+    expect(quote.textContent).toBe('继续');
+    const link = screen.getByTestId('cockpit-card-quote-session-link');
+    expect(link.textContent).toBe('in session');
+    expect(link.getAttribute('href')).toBe('/session/fixture-session');
+  });
+});
+
+describe('the brief section', () => {
+  it('draws no brief area when the brief feature is off', async () => {
+    await openPhoneDetails();
+
+    // The read DID happen (the drawer always asks); the answer was 「disabled」.
+    await waitFor(() => expect(apiMock.cockpitCardBrief).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId('cockpit-card-details-brief')).toBeNull();
+    expect(screen.queryByTestId('cockpit-brief-fallback')).toBeNull();
+    expect(screen.queryByTestId('cockpit-brief')).toBeNull();
+  });
+
+  it('draws the brief section for a generated brief, so the gate is the status and not the section', async () => {
+    apiMock.cockpitCardBrief.mockResolvedValue(okResponse(BRIEF_GENERATED));
+    await openPhoneDetails();
+
+    const section = await screen.findByTestId('cockpit-card-details-brief');
+    expect(within(section).getByTestId('cockpit-brief').getAttribute('data-brief-status')).toBe(
+      'generated',
+    );
+  });
+});
+
+describe('the phone shell around the cards', () => {
+  it('draws one status row from the existing fleet and deploy readings', async () => {
+    restoreViewport = setViewportWidth(390);
+    renderCockpit('/cockpit?view=cards');
+
+    const status = await screen.findByTestId('cockpit-phone-status');
+    await waitFor(() => expect(screen.getByTestId('cockpit-phone-status-deploy')).toBeTruthy());
+
+    expect(within(status).getByTestId('cockpit-phone-status-driver').getAttribute('data-driver')).toBe(
+      'running',
+    );
+    // One landed fan-in attempt; the failed one is not a landing.
+    expect(within(status).getByTestId('cockpit-phone-status-landed').getAttribute('data-landed')).toBe(
+      '1',
+    );
+    const suite = within(status).getByTestId('cockpit-phone-status-suite');
+    expect(suite.getAttribute('data-suite')).toBe('green');
+    expect(suite.getAttribute('data-ok')).toBe('true');
+    const deploy = within(status).getByTestId('cockpit-phone-status-deploy');
+    expect(deploy.getAttribute('data-deploy')).toBe('fresh');
+    expect(deploy.getAttribute('data-ok')).toBe('true');
+    expect(within(status).getByTestId('cockpit-phone-status-todo').getAttribute('data-todo')).toBe('2');
+  });
+
+  it('draws a one-line input whose send button appears only when there is content', async () => {
+    restoreViewport = setViewportWidth(390);
+    renderCockpit('/cockpit?view=cards');
+
+    const form = await screen.findByTestId('cockpit-input');
+    expect(form.getAttribute('data-single-line')).toBe('true');
+    const textarea = within(form).getByRole('textbox');
+    expect(textarea.getAttribute('rows')).toBe('1');
+
+    const submitName = i18n.t('cockpit.intentSubmit');
+    expect(within(form).queryByRole('button', { name: submitName })).toBeNull();
+
+    fireEvent.change(textarea, { target: { value: 'open the board' } });
+    expect(within(form).getByRole('button', { name: submitName })).toBeTruthy();
+  });
+});

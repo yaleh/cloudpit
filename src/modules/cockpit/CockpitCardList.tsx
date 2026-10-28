@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 
 import type { CockpitCard as CockpitCardData, CockpitCardKind } from '@/shared/types';
+import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
 import type { CockpitCardTypeFilter } from '@/modules/cockpit/cockpitCardController';
@@ -81,6 +82,9 @@ function CockpitCardListBound({
   onBack,
 }: CockpitCardListProps & { binding: CockpitCardsBinding }) {
   const { t } = useTranslation();
+  // The page's Details is a bottom sheet on a phone and a centred card on a wide screen. The
+  // column variant pushes its Details inside instead, so it never asks this question.
+  const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { snapshot, controller } = binding;
   const [startIntentProject, setStartIntentProject] = useState<string | null>(null);
   // The project drawer is open/closed state, not a filter: it is a transient overlay the person
@@ -430,14 +434,20 @@ function CockpitCardListBound({
             ))}
           </div>
 
-          {/* The page variant's Details drawer: a floating layer over the cards. The column
+          {/* The page variant's Details drawer: a floating layer over the cards — a bottom sheet
+              pinned to the phone's bottom edge, a centred card on a wide screen. The column
               variant never reaches this branch — its Details is pushed in above. */}
           {detailsCard !== null && (
             <div
               data-testid="cockpit-card-details-layer"
-              className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 p-2 sm:items-center"
+              data-drawer={isMobile ? 'true' : 'false'}
+              className={cn(
+                'fixed inset-0 z-40 flex justify-center bg-black/30',
+                isMobile ? 'items-end p-0' : 'items-center p-2',
+              )}
             >
               <CockpitCardDetails
+                drawer={isMobile}
                 card={detailsCard}
                 now={snapshot.now}
                 brief={snapshot.briefs[detailsCard.id]}

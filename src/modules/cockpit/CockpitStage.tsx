@@ -1,10 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { api } from '@/shared/api';
+import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import type { QuayDriverState, QuayFocusableObject, QuayObjectUri } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { QuayPanel, PulseStrip, formatQuayUri, parseQuayUri } from '@/modules/quay';
 import type { QuayPanelView } from '@/modules/quay';
+import type { DeployStatus } from '@/modules/cockpit/DeployReadiness';
 import type { CockpitProject, CockpitView } from '@/modules/cockpit/cockpitView';
 import type {
   ObservationWallEntry,
@@ -121,6 +124,12 @@ export default function CockpitStage({
     stageRef.current?.focus();
   }, []);
 
+  // THE PHONE'S STATUS ROW. On a phone the cards page has no deploy strip, project strip or
+  // Focus row (they pushed the filters below the fold), so the four readings a person glances at
+  // live in ONE line above the list instead. It is drawn only for `view=cards` on a phone; the
+  // wall, fleet and board views keep their own chrome on every width.
+  const { isMobile } = useDeviceSettings({ trackPWA: false });
+
   return (
     <section
       ref={stageRef}
@@ -158,7 +167,10 @@ export default function CockpitStage({
           onFocusObject={onFocusObject}
         />
       ) : view.type === 'cards' ? (
-        <CockpitCardList />
+        <>
+          {isMobile && <CockpitPhoneStatus projects={projects} />}
+          <CockpitCardList />
+        </>
       ) : (
         <BoardView
           focusables={focusables}
@@ -170,6 +182,104 @@ export default function CockpitStage({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * The phone cards page's ONE status line: driver · landed · suite · deploy · todo.
+ *
+ * EVERY READING ALREADY EXISTS. The driver state, the recent fan-in landings, the suite's current
+ * state and the todo count are fields of the fleet summary the stage already holds; the deploy
+ * freshness is the same `GET /api/system/deploy-readiness` the deploy strip reads. Nothing new is
+ * asked of the server — the phone gets a compact projection of what the desktop chrome shows
+ * separately in three places.
+ *
+ * ABSENT READINGS DRAW NOTHING RATHER THAN A ZERO. A project that reported no pulse has no
+ * landing reading (not "0 landed"), and a deploy read that failed says nothing about deploy rather
+ * than claiming it is current. The todo count IS a real 0 when every project reports it.
+ *
+ * Consumers: `CockpitStage` (only in the `cards` view, only at the phone width).
+ */
+function CockpitPhoneStatus({ projects }: { projects: readonly CockpitProject[] }) {
+  const { t } = useTranslation();
+  const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const reading = (await (await api.system.deployReadiness()).json()) as {
+          status: DeployStatus;
+        };
+        if (!cancelled) setDeployStatus(reading.status);
+      } catch {
+        // A failed deploy read is 「no reading」: the row simply states no deploy cell.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const driverState: QuayDriverState =
+    projects.find((project) => project.driverState === 'running')?.driverState
+    ?? projects[0]?.driverState
+    ?? 'not-configured';
+  const pulses = projects
+    .map((project) => project.pulse)
+    .filter((pulse): pulse is NonNullable<typeof pulse> => pulse !== undefined && pulse !== null);
+  const landed = pulses.reduce(
+    (sum, pulse) => sum + pulse.fanIn.recent.filter((attempt) => attempt.outcome === 'landed').length,
+    0,
+  );
+  const suiteState = pulses
+    .map((pulse) => pulse.tests.current?.state)
+    .find((state): state is string => state !== undefined) ?? null;
+  const suiteOk = suiteState === 'green';
+  const deployOk = deployStatus === 'fresh';
+  const todo = projects.reduce((sum, project) => sum + project.tasks.todo, 0);
+
+  return (
+    <div
+      data-testid="cockpit-phone-status"
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 border-b border-border/40 px-3 py-1.5 text-[11px] text-muted-foreground"
+    >
+      <span
+        data-testid="cockpit-phone-status-driver"
+        data-driver={driverState}
+        className="font-medium text-foreground"
+      >
+        {t(DRIVER_LABEL_KEYS[driverState])}
+      </span>
+      <span aria-hidden>·</span>
+      <span data-testid="cockpit-phone-status-landed" data-landed={landed}>
+        {t('cockpit.phoneStatusLanded', { n: landed })}
+      </span>
+      <span aria-hidden>·</span>
+      <span
+        data-testid="cockpit-phone-status-suite"
+        data-suite={suiteState ?? 'none'}
+        data-ok={suiteOk ? 'true' : 'false'}
+      >
+        {t('cockpit.phoneStatusSuite', { state: suiteOk ? '✓' : '—' })}
+      </span>
+      {deployStatus !== null && (
+        <>
+          <span aria-hidden>·</span>
+          <span
+            data-testid="cockpit-phone-status-deploy"
+            data-deploy={deployStatus}
+            data-ok={deployOk ? 'true' : 'false'}
+          >
+            {t('cockpit.phoneStatusDeploy', { state: deployOk ? '✓' : '—' })}
+          </span>
+        </>
+      )}
+      <span aria-hidden>·</span>
+      <span data-testid="cockpit-phone-status-todo" data-todo={todo}>
+        {t('cockpit.phoneStatusTodo', { n: todo })}
+      </span>
+    </div>
   );
 }
 
