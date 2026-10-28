@@ -38,12 +38,12 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例（注入时钟）：普通选项 `requestConfirm` 后 4.9 秒时发送次数为 0、第 5 秒发送恰好 1 次；倒计时内 `cancelConfirm` ⇒ 发送 0 次且时钟走完仍为 0；倒计时内切换显示的选项、该卡 revision 变化、选中别的卡 ⇒ 取消且发送 0 次；倒计时内按 Enter ⇒ 取消；请求在途时 `cancelConfirm` ⇒ 返回 false 且请求不被撤销；不可逆选项 `requestConfirm` ⇒ 不进入倒计时、6 秒退回、第二次按压才发送（既有用例不减少）；自己的回复走倒计时；调用 `stop()` 之后倒计时到点仍发送 1 次。
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：空闲态与倒计时态下确认条内都不存在说明行（不渲染 `cockpit-card-confirm-hint` 与 `cockpit-card-confirm-message`）；倒计时态按钮 `data-confirm-mode="cancel"`、文案含秒数且随注入时钟递减；点击它取消并回到 `open`；请求在途按钮禁用；不可逆选项仍渲染含 ⚠ 的说明行与取消按钮；抽屉里的确认条行为与卡片一致。
-- [ ] 更新 `e2e/cockpit-inline-confirm.spec.ts`，`npx playwright test e2e/cockpit-inline-confirm.spec.ts` 退出 0：1440×900 与 390×844 两种视口下，普通夹具卡点一次后读到倒计时态，等待倒计时走完后夹具执行器记录恰好多一条；倒计时内点取消后等待超过 5 秒，执行器记录不增加；不可逆夹具卡仍是两次按压，且两次按压时按钮中心点距离为 0（容差 1px），说明行浮在按钮上方、不推动按钮；普通卡点击前后按钮中心点距离为 0。失败时打印中心点坐标。
-- [ ] 场景运行器判据不退：`npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/ui-scenario/tests/scenarioSurface.test.ts` 退出 0。
-- [ ] 假形态变红：把倒计时改回立即发送 ⇒ 控制器「4.9 秒发送 0 次」用例红；让 `stop()` 清掉倒计时 ⇒ 「卸载后仍发送」用例红；把不可逆选项也放进倒计时 ⇒ 不可逆用例红；把说明行恢复到空闲态 ⇒ 组件「无说明行」用例红。改完即还原。
-- [ ] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0（含 `i18nCockpitCompleteness.test.ts`，所有语言包的新键齐全、`cardConfirmHint` 已删），既有用例数量不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0（`cockpitCardController.ts` 已在基线内，新增行数需按 RECORDED CHANGE 格式记录，或等量压缩；`CockpitCard.tsx` 不得越过 800 行）。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例（注入时钟）：普通选项 `requestConfirm` 后 4.9 秒时发送次数为 0、第 5 秒发送恰好 1 次；倒计时内 `cancelConfirm` ⇒ 发送 0 次且时钟走完仍为 0；倒计时内切换显示的选项、该卡 revision 变化、选中别的卡 ⇒ 取消且发送 0 次；倒计时内按 Enter ⇒ 取消；请求在途时 `cancelConfirm` ⇒ 返回 false 且请求不被撤销；不可逆选项 `requestConfirm` ⇒ 不进入倒计时、6 秒退回、第二次按压才发送（既有用例不减少）；自己的回复走倒计时；调用 `stop()` 之后倒计时到点仍发送 1 次。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：空闲态与倒计时态下确认条内都不存在说明行（不渲染 `cockpit-card-confirm-hint` 与 `cockpit-card-confirm-message`）；倒计时态按钮 `data-confirm-mode="cancel"`、文案含秒数且随注入时钟递减；点击它取消并回到 `open`；请求在途按钮禁用；不可逆选项仍渲染含 ⚠ 的说明行与取消按钮；抽屉里的确认条行为与卡片一致。
+- [x] 更新 `e2e/cockpit-inline-confirm.spec.ts`，`npx playwright test e2e/cockpit-inline-confirm.spec.ts` 退出 0：1440×900 与 390×844 两种视口下，普通夹具卡点一次后读到倒计时态，等待倒计时走完后夹具执行器记录恰好多一条；倒计时内点取消后等待超过 5 秒，执行器记录不增加；不可逆夹具卡仍是两次按压，且两次按压时按钮中心点距离为 0（容差 1px），说明行浮在按钮上方、不推动按钮；普通卡点击前后按钮中心点距离为 0。失败时打印中心点坐标。
+- [x] 场景运行器判据不退：`npx vitest run src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts src/modules/ui-scenario/tests/scenarioSurface.test.ts` 退出 0。
+- [x] 假形态变红：把倒计时改回立即发送 ⇒ 控制器「4.9 秒发送 0 次」用例红；让 `stop()` 清掉倒计时 ⇒ 「卸载后仍发送」用例红；把不可逆选项也放进倒计时 ⇒ 不可逆用例红；把说明行恢复到空闲态 ⇒ 组件「无说明行」用例红。改完即还原。
+- [x] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0（含 `i18nCockpitCompleteness.test.ts`，所有语言包的新键齐全、`cardConfirmHint` 已删），既有用例数量不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；提交前单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0（`cockpitCardController.ts` 已在基线内，新增行数需按 RECORDED CHANGE 格式记录，或等量压缩；`CockpitCard.tsx` 不得越过 800 行）。
 
 ## DoD
 
@@ -57,6 +57,20 @@ extra:
 
 截图存 `tmp/`，并与用户反馈的截图对照说明多余的第二次确认与冗余提示行已不存在。⛔ 不在线上实例点击任何确认。实例用毕 `scripts/isolated-instance.sh stop`。
 
+## Verification
+
+执行者记录（2026-10-28；本会话没有 MCP 浏览器工具，按「不可用时用一次性 Playwright 并写明」执行：隔离实例 server 4409 + Vite dev 5199 代理，`cockpit.fixtureCards` 开；脚本 `tmp/dod-cockpit-delayed-send.mjs`，日志 `tmp/dod-delayed-send.log`）：
+
+- 判据：AC1 `cockpitCardController.test.ts` 50 passed；AC2 `CockpitCard.test.tsx` 63 + `cockpitCardsMobileDetails.test.tsx` 11 passed；AC3 `playwright test e2e/cockpit-inline-confirm.spec.ts` 2 passed；AC4 两个 ui-scenario 文件 6 passed；AC6 `src/modules/cockpit/tests` + `inlineQuoteChip` 353 passed，`typecheck` / `lint` / `build:client` 退出 0，`architecture-ratchet.test.ts` 6 passed（基线按 RECORDED CHANGE 记 1139→1329，`CockpitCard.tsx` 628 行）.
+- 假形态（改完即还原）：倒计时改立即发送 ⇒ 4.9s 用例红（`sendCountdown` 为 null）；`stop()` 清倒计时 ⇒ 卸载后发送用例红（收到 0 次）；不可逆也进倒计时 ⇒ 该用例红（`sendCountdown` 非 null）；恢复空闲提示行 ⇒ 组件「无说明行」用例红。
+- 1440×900 与 390×844 各一遍（两次读数一致）：普通卡点击一次 ⇒ `data-confirm-mode=cancel`、秒数 5→4 递减、无说明行/无 caption、按钮中心点位移 0px；点击到请求离开 5044–5047ms；`fixture.record` 恰好多一条（answer `result.total` +1，`recorded={cardId:'fixture:need',optionId:'provide'}`），随后 `Sent ✓`。
+- 取消：点击 1.5s 后点同一按钮 ⇒ 回到 `open`；再等 5.5s 后该卡 revision 未变（1440: 11→11，390: 13→13），即倒计时没有发出请求。
+- 不可逆（`fixture:stuck` 选 `Park it`）：第一次按压后 `data-confirm-mode=send`、`seconds=null`，⚠ 说明行 `position:absolute` 浮在按钮上方，两次按压中心点位移 0px；第二次按压执行器 +1。
+- 卸载后仍发送：倒计时中 SPA 切到 `/cockpit?view=wall`，等 6s 再回 `/cockpit?view=cards`；期间发出 1 个 confirm POST，`fixture:need` revision 11→12（390: 13→14）——倒计时到点仍发送，且恰好多一条。
+- 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-confirm.json …` 退出 0，6 steps / 5 checkpoints，报告 `tmp/ui-scenario-report.json`，检查点截图 `tmp/ui-scenarios/cockpit-cards-confirm/step-{1..5}-*.png`；`cockpitCard.confirm` 等真实 5s 倒计时后返回。
+- 截图：`tmp/dod-1440-{countdown,sent,cancelling,cancelled,irreversible,route-leaving,route-returned}.png` 与 `tmp/dod-390-*` 同名组。
+- 与用户反馈截图对照：反馈里「点 Confirm 之后还要再确认一次」的第二次按压已不存在——普通选项只有一次按压，随后是带秒数与进度填充的倒计时（`tmp/dod-1440-countdown.png`）；确认条上方的冗余提示行也不存在，倒计时态的全部信息只在按钮上；不可逆选项仍保留第二次按压，⚠ 说明行浮在按钮上方不推动按钮（`tmp/dod-1440-irreversible.png`）。
+
 ## ADR-007
 
 该轴仍暗,理由:本任务只改确认按钮的交互时序（倒计时、取消、卸载后发送），判据是注入时钟下的发送次数与按钮位置读数，没有本轮可记的 L_D/L_G 量化读数。
@@ -67,10 +81,12 @@ extra:
 - src/modules/cockpit/CockpitCard.tsx
 - src/modules/cockpit/CockpitCardConfirmBar.tsx (new)
 - src/modules/cockpit/CockpitCardDetails.tsx
+- src/modules/cockpit/CockpitCardList.tsx
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/cockpitCardController.test.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx
+- src/modules/cockpit/tests/cockpitColumnController.test.ts
 - src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts
 - src/modules/ui-scenario/cockpitCardsSurface.ts
 - src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
