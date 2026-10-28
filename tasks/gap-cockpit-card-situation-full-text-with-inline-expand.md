@@ -82,3 +82,11 @@ depends_on:
   - 12 行情境（fixture:stuck，12 个 provider 行）：两档初始均 `line-clamp-6`，clientHeight=96 / scrollHeight=192，按钮「展开」`data-expanded=false`；点击后 `line-clamp` 移除，clientHeight=192（完整），按钮「收起」；Details 层计数点击前后均为 0。
   - Compact：情境 `line-clamp-1`，clientHeight=16，无展开按钮。
   - 两档 pageErrors=0、consoleErrors=0。截图：`tmp/isolated-dod/01-ask-three-lines-390.png`、`02-stuck-clamped-390.png`、`03-stuck-expanded-390.png`、`04-stuck-compact-390.png`、`02-stuck-clamped-1440.png`、`03-stuck-expanded-1440.png`、`00-cards-list-390.png`；结构化读数 `tmp/isolated-dod/report.json`；与 `tmp/cockpit-redesign/80-m-list-cards.png` 拼成的对照图 `tmp/isolated-dod/compare-cockpit-situation.png`。实例用毕已 stop，3123 端口无残留监听。
+
+## Blocker
+
+**2026-10-28T08:22:30.745Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/cockpit/CockpitCard.tsx 基线外→845 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：9095be9d-e20a-4583-9e59-15e989d8852a
