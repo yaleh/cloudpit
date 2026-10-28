@@ -34,10 +34,10 @@ depends_on:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0，新增用例：Cards 模式下情境与内容未就绪原因元素不带任何 `line-clamp` 类（短文本完整渲染）；超长情境（夹具约 12 行）初始带 6 行上限并渲染「展开」按钮，点击后去掉上限、按钮变「收起」，且不触发打开 Details 的回调；Compact 模式下情境仍为 1 行截断。
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例：展开状态按卡片 id 记录，revision 变化时复位。
-- [ ] 假形态变红：把 Cards 模式的情境改回 `line-clamp-2` ⇒ 第一条用例红；改完即还原。
-- [ ] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0，既有用例数不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0，新增用例：Cards 模式下情境与内容未就绪原因元素不带任何 `line-clamp` 类（短文本完整渲染）；超长情境（夹具约 12 行）初始带 6 行上限并渲染「展开」按钮，点击后去掉上限、按钮变「收起」，且不触发打开 Details 的回调；Compact 模式下情境仍为 1 行截断。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例：展开状态按卡片 id 记录，revision 变化时复位。
+- [x] 假形态变红：把 Cards 模式的情境改回 `line-clamp-2` ⇒ 第一条用例红；改完即还原。
+- [x] `npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` 退出 0，既有用例数不减少；`npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0。
 
 ## DoD
 
@@ -47,6 +47,7 @@ depends_on:
 
 - tasks/gap-cockpit-card-situation-full-text-with-inline-expand.md
 - src/modules/cockpit/CockpitCard.tsx
+- src/modules/cockpit/CockpitCardList.tsx
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - src/modules/cockpit/tests/cockpitCardController.test.ts
@@ -65,3 +66,19 @@ depends_on:
 - src/modules/i18n/locales/tr/common.json
 - src/modules/i18n/locales/zh-CN/common.json
 - src/modules/i18n/locales/zh-TW/common.json
+
+## ADR-007
+
+该轴仍暗,理由:本任务只改驾驶舱卡片的呈现与控制器展开状态，未跑 archguard 全量分析，L_D/L_G 没有本轮可记的量化读数，沿用 develop 基线。
+
+## Evidence
+
+- AC-1：`npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` → 53 passed / 0 failed，exit 0。新增用例在 `Cards mode: the situation is decision evidence, not a two-line teaser`：短情境无 `line-clamp`、无展开按钮；contentUnavailable 在 Cards 无截断；12 行夹具初始 `line-clamp-6` + 「Show more」，点击后无上限、按钮变「Show less」，Details 回调 0 次；Compact 仍 `line-clamp-1` 且无按钮。
+- AC-2：`npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` → 41 passed / 0 failed，exit 0。按卡片 id 分别展开；同 revision 重读保留，revision 变 2 复位为空；卡片被移除时展开状态同时丢弃。
+- AC-3：假形态：把 Cards 情境类改为 `line-clamp-2` ⇒ `draws a short situation in full, with no line clamp and no expand control` 红，`AssertionError: expected '… text-muted-foreground line-clamp-2' not to contain 'line-clamp'`；还原 `situationClamped && 'line-clamp-6'` 后单跑该用例 1 passed / exit 0，工作树无残留 diff。
+- AC-4：`npx vitest run src/modules/cockpit/tests src/modules/chat/tests/inlineQuoteChip.test.tsx` → 21 files / 333 tests passed，exit 0（此前基线 21 files / 329 tests，新增 4 条）。`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）；`npm run build:client` exit 0；`npm run build:server` exit 0（夹具改动的所需构建）。
+- DoD：本会话无 MCP 浏览器，按仓库约定用一次性 Playwright（`tmp/dod-cockpit-situation.mjs`，驱动 `scripts/isolated-instance` 的 3123 实例，`cockpit.fixtureCards:true`，`userLanguage=zh-CN`）在 390×844@2 与 1440×900@1 两档实跑并截图，未点击任何确认按钮：
+  - 3 行情境（fixture:ask）：390 下 clientHeight=48 / scrollHeight=48（3 行完整），无展开按钮；1440 宽下一行完整显示，同样无按钮。
+  - 12 行情境（fixture:stuck，12 个 provider 行）：两档初始均 `line-clamp-6`，clientHeight=96 / scrollHeight=192，按钮「展开」`data-expanded=false`；点击后 `line-clamp` 移除，clientHeight=192（完整），按钮「收起」；Details 层计数点击前后均为 0。
+  - Compact：情境 `line-clamp-1`，clientHeight=16，无展开按钮。
+  - 两档 pageErrors=0、consoleErrors=0。截图：`tmp/isolated-dod/01-ask-three-lines-390.png`、`02-stuck-clamped-390.png`、`03-stuck-expanded-390.png`、`04-stuck-compact-390.png`、`02-stuck-clamped-1440.png`、`03-stuck-expanded-1440.png`、`00-cards-list-390.png`；结构化读数 `tmp/isolated-dod/report.json`；与 `tmp/cockpit-redesign/80-m-list-cards.png` 拼成的对照图 `tmp/isolated-dod/compare-cockpit-situation.png`。实例用毕已 stop，3123 端口无残留监听。
