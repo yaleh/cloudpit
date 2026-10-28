@@ -37,14 +37,30 @@ Extract to `src/shared/utils.ts` (which already hosts `clamp`) or a cockpit leaf
 - recorded_at: 2026-10-28T17:24:11.918Z
 
 ## AC
-- [ ] `.quay/routine-findings.jsonl` 中 finding `dup-cockpit-iseditabletarget`（routine `architecture-analysis`，runId `architecture-analysis-1793208251918`）所描述的问题被复核并处置
-- [ ] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
+- [x] `.quay/routine-findings.jsonl` 中 finding `dup-cockpit-iseditabletarget`（routine `architecture-analysis`，runId `architecture-analysis-1793208251918`）所描述的问题被复核并处置
+- [x] 处置结论可核：要么修掉，要么写明「已有机制在管、失败在哪一步」，⛔ 不以「已注意到」结案
 
 ## DoD
-- [ ] 上面的判据实跑通过
-- [ ] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
+- [x] 上面的判据实跑通过
+- [x] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
+
+## 处置
+复核：finding 记录存在于 `.quay/routine-findings.jsonl`（runId `architecture-analysis-1793208251918`，ts `2026-10-28T17:24:11.918Z`，verdict `confirmed`），且在 develop 起点上属实 —— 修复前 `git show develop:src/modules/cockpit/CockpitPage.tsx | grep -n 'function isEditableTarget'` 读到 `200:`，`git show develop:src/modules/cockpit/hooks/useCockpitPushToTalk.ts | grep -n 'function isEditableTarget'` 读到 `52:`，两处字节相同。
+
+处置：修掉。把谓词提取为 `src/shared/utils.ts` 的 `isEditableTarget`（前端模块标准：两个及以上文件使用的工具放 `src/shared/utils.ts`），`CockpitPage` 与 `useCockpitPushToTalk` 改为从 `@/shared/utils` 导入，两处私有副本删除。
+
+复核读数（工作树内实跑）：
+- `grep -rn "function isEditableTarget" src/` → 仅 `src/shared/utils.ts:99` 一处定义（修复前为 2 处）。
+- `npx vitest run src/shared/tests/sharedUtilsHelpers.test.ts` → 4 passed。
+- `npx vitest run src/modules/cockpit/tests/CockpitPushToTalk.test.tsx` → 5 passed。
+- `npx tsc --noEmit -p tsconfig.json` → exit 0。
+- `npx oxlint src/shared/utils.ts src/modules/cockpit/CockpitPage.tsx src/modules/cockpit/hooks/useCockpitPushToTalk.ts src/shared/tests/sharedUtilsHelpers.test.ts` → 无 error（仅既有的 warning）。
+
+该轴仍暗,理由:本任务是同一模块内键鼠目标谓词的去重提取,判据是 src/ 下定义数与两处调用点行为,没有可记的 L_D/L_G 量化读数。
 
 ## Touches
 - `src/modules/cockpit/CockpitPage.tsx`
 - `src/modules/cockpit/hooks/useCockpitPushToTalk.ts`
+- `src/shared/utils.ts`
+- `src/shared/tests/sharedUtilsHelpers.test.ts`
 - `tasks/gap-routine-architecture-analysis-dup-cockpit-iseditabletarget.md`
