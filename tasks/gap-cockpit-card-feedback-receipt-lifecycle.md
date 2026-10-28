@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-feedback-receipt-lifecycle
 title: 卡片反馈回执生命周期：确认后把反馈发给 provider，卡片原位进入「已发出、待确认」，回执到达或条目关闭才结束；2 分钟无回执显示重发
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
