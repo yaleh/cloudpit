@@ -794,3 +794,9 @@
 #   (dur=9945ms, its own new criterion; the row also keeps the 90% coverage floor clear now that the
 #   tree collects 462 server test files).
 9945	server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts
+#   and the session-run-events row by gap-cockpit-session-start-background-resident-and-run-events,
+#   measured once on 2026-10-28 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/session-run-events.test.ts`
+#   (dur=6977ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
+#   tree collects 463 server test files).
+6977	server/modules/context-events/tests/session-run-events.test.ts

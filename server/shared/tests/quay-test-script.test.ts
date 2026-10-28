@@ -383,9 +383,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/modules/observation/tests/session-ask-judge-default.test.ts
     // (460 + 1 = 461 collected server test files). Then gap-mcp-cockpit-card-tools added its
     // criterion server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts
-    // (461 + 1 = 462 collected server test files). This fixture names 3 known files, so
-    // 462 - 3 = 459.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=459$/);
+    // (461 + 1 = 462 collected server test files). Then
+    // gap-cockpit-session-start-background-resident-and-run-events added its criterion
+    // server/modules/context-events/tests/session-run-events.test.ts
+    // (462 + 1 = 463 collected server test files). This fixture names 3 known files, so
+    // 463 - 3 = 460.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=460$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -463,10 +466,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-cockpit-ask-cards-judge-default-suggestion added
     // server/modules/observation/tests/session-ask-judge-default.test.ts, then
     // gap-mcp-cockpit-card-tools added
-    // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts)
-    // — but this fixture names ONE known file, so 462 - 1 = 461 (AC2 reads 459 because its
+    // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts, then
+    // gap-cockpit-session-start-background-resident-and-run-events added
+    // server/modules/context-events/tests/session-run-events.test.ts)
+    // — but this fixture names ONE known file, so 463 - 1 = 462 (AC2 reads 460 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=461$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=462$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
