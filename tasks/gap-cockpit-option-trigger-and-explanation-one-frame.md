@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-option-trigger-and-explanation-one-frame
 title: 驾驶舱卡片：选项下拉触发器与「选项说明」合成一个带边框的整体（触发器在上、说明在下、中间只一条分隔线），不再是两个并列的灰框
-status: ready
+status: done
 labels:
   - gap
   - cockpit
