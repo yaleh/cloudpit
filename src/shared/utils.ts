@@ -88,6 +88,27 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 
 // ---------------------------
 
+//----------------- EDITABLE KEYBOARD TARGET ------------
+
+/**
+ * True when an event target owns keyboard input — a text field, a contenteditable host, or a
+ * select. A global key handler must leave the key to that element instead of acting on it.
+ * Shared by the cockpit page's arrow/Enter handling and its push-to-talk Space trigger, which
+ * previously carried byte-identical private copies of this predicate.
+ */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+// ---------------------------
+
 //----------------- NOTIFICATION SOUND ------------
 
 /** localStorage key holding the user's completion-sound preference. Private to the sound helpers. */
