@@ -40,17 +40,33 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：两次提问之间隔了两轮用户消息 ⇒ 两个 askId 都发出 answered；模拟重启（新建 producer、同一 store）后第一次 turn-end 能为重启前未结束的 askId 补发 answered；收到用户消息即发 answered（不等 turn-end）；同一 askId 不重复发。
-- [ ] 同一测试文件新增用例：桩返回被截断的 JSON ⇒ 读数为不可用且原因可读；桩返回带 ```json 围栏的合法 JSON ⇒ 解析成功；设置未给 `maxOutputTokens` 时提问摘要用自己的默认值而不是回复建议的值。
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：抽屉标题行与拖拽把手不重叠（标题在把手之下）；Details 确认条与卡片确认条使用同一样式类；有原话字段时渲染引用与会话链接。
-- [ ] 假形态变红：把 askId 集合改回只存内存 ⇒ 「重启后补发」用例红；改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：两次提问之间隔了两轮用户消息 ⇒ 两个 askId 都发出 answered；模拟重启（新建 producer、同一 store）后第一次 turn-end 能为重启前未结束的 askId 补发 answered；收到用户消息即发 answered（不等 turn-end）；同一 askId 不重复发。
+- [x] 同一测试文件新增用例：桩返回被截断的 JSON ⇒ 读数为不可用且原因可读；桩返回带 ```json 围栏的合法 JSON ⇒ 解析成功；设置未给 `maxOutputTokens` 时提问摘要用自己的默认值而不是回复建议的值。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0，新增用例：抽屉标题行与拖拽把手不重叠（标题在把手之下）；Details 确认条与卡片确认条使用同一样式类；有原话字段时渲染引用与会话链接。
+- [x] 假形态变红：把 askId 集合改回只存内存 ⇒ 「重启后补发」用例红；改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
 
 ## DoD
 
 - 用失败样本复现第 2 点：对 quay 项目会话 `dbbf1404-7c68-40f6-a709-342c1fc158ce` 的最后提问，用 workers 网关最便宜的模型（不打印密钥，网关主机打码）以旧上限与新上限各跑一次摘要，贴出旧上限的失败原因与新上限的成功输出（问题、选项、缺省）。
 - 隔离实例（复制会话库，打开 `observation.sessionDigest`，事件写入指向临时 fleet home 副本，⛔ 不写真实 `~/.quay-fleet`）：让一个复制来的会话以提问结束 ⇒ 读到 asking；重启实例 ⇒ 再向该会话发一条用户消息 ⇒ 临时事件目录里出现该 askId 的 answered，贴出两行原文。
 - 用 MCP 浏览器在 390 宽度打开一张提问卡的 Details，截图（标题不被把手压住、黑色确认条、原话引用），与 `87-m-details-top.png` 拼成对照图存 `tmp/`。⛔ 不在线上实例点击任何确认。实例用毕 `scripts/isolated-instance.sh stop`。
+
+## 验证记录
+
+合并 develop（`git merge --no-edit develop`，无冲突）后复跑：
+
+- `session-ask-decision-digest.test.ts`：26/26 通过（exit 0），含两次提问都发出 answered、跨重启补发、用户消息即发、同 askId 不重发。
+- `cockpitCardsMobileDetails.test.tsx`：9/9 通过（exit 0），含同一 sticky 头、标题在把手之下、确认条类名与卡片逐字相同、原话引用与会话链接。
+- `server-import-cycle-budget.test.ts` exit 0；`architecture-ratchet.test.ts` 6/6（exit 0）；`npm run typecheck` exit 0；`npm run lint` exit 0（403 warnings，0 error）。
+- 假形态：`readSessionAskEventLedger(undefined)` 时重启补发用例红（actual 同时含 a1、a2），还原后 26/26 绿。
+- 抗漂移 Touches 检查：`ANTI-DRIFT OK — 16 actual file(s), all within declared Touches (20 glob(s))`。
+
+DoD 1（真实 workers 网关，主机打码 `<gateway-host>:26510`，不打印密钥）：会话 `dbbf1404…` 末次提问，400 token ⇒ `unevaluated`，reason「模型输出不是合法 JSON: Expected ',' or ']' after array element … position 925」，outputTokens 400、rawTail 断在 `{"id":"opt2","label":"`；1200 token ⇒ `evaluated`，outputTokens 412，问题/选项/quote 完整。
+
+DoD 2（隔离实例、临时 fleet home 副本、未写真实 `~/.quay-fleet`）：phase A 写入 `session.asking` askId `11111111-2222-4333-8444-555555555555:a1`（05:18:11.748Z）；重启后向该会话发一条用户消息 ⇒ 同一 askId 的 `session.answered` messageId `u2`（05:18:24.034Z）。
+
+DoD 3（390px 真实浏览器）：handle 97–111、titleRow 111–140（标题在把手之下），同一 sticky parent；Details 与卡片确认条 class 逐字相同、计算色 rgb(10,10,10)；原话引用与「in session」链接 `/session/fixture-session`；对照图 `tmp/ii-dod/shots/details-compare.png`。
 
 ## Touches
 
