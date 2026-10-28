@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-answered-immediate-dedup-startup-sweep-and-repair
 title: 提问卡回答后结束的四处补强：用户发言即为当前未结束提问发 answered（不依赖转写已写入）；answered
   跨历史去重（不再一次补发几十条）；服务启动时扫所有有未结束提问的会话补发；已存的 JSON 失败与缺原话字段的旧摘要各重算一次
-status: ready
+status: done
 labels:
   - gap
   - defect
