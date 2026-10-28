@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-ledger-independent-of-digest-and-backfill
 title: 提问账本不依赖摘要成败：asking
   一发出就记进未结束账本（摘要失败也记）；启动补扫从事件流重建账本上线前的未结束提问；查清并修正「重算失败：转写里找不到这次提问」的误判，失败可有界重试
-status: todo
+status: ready
 labels:
   - gap
   - defect
