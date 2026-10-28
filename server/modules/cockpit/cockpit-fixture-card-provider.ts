@@ -206,6 +206,9 @@ function fixtureCards(): CockpitCard[] {
       contentRef: { resolver: 'cloudcli.session-ask', ref: 'fixture-session' },
       ask: 'Should the cleanup delete the staging directory?',
       situation: 'The run left 1.2 GB in staging and the transcript is already archived.',
+      // The verbatim fragment the phone's Details sheet quotes; the fixture states it directly
+      // rather than running a T1 digest, so the drawer's quote section has something to draw.
+      assistantQuote: '归档已经校验过了，staging 里的 1.2 GB 只是残留。',
       facts: [
         { text: 'staging holds 1.2 GB', mechanical: true, observedAt: '2026-10-27T00:05:58.000Z' },
         { text: 'transcript archived', mechanical: true },
