@@ -123,6 +123,26 @@ export type PipelineResult = {
 };
 
 /**
+ * Concatenates float sample views into one buffer.
+ *
+ * Shared by both capture shapes that assemble their own samples — the live segmenter's
+ * whole-buffer pass (`voiceLiveSegmenter.ts`) and the hook's no-VAD path (`useVoiceInput.ts`) —
+ * so there is one definition rather than two copies that drift. This module already owns the
+ * other Float32Array reassembly, which is why it lives here rather than beside either caller.
+ */
+export function concatFloat(chunks: Float32Array[]): Float32Array {
+  let total = 0;
+  for (const chunk of chunks) total += chunk.length;
+  const out = new Float32Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
+}
+
+/**
  * Turns the segmenter's spans into the spans that will actually be submitted.
  *
  * A segment shorter than `minSegmentSec` is merged with the next ones until the group is long
