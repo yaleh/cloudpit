@@ -2,18 +2,42 @@ import assert from 'node:assert/strict';
 
 import { describe, test } from 'vitest';
 
-import { errorMessage, isRecord } from '@/shared/utils';
+import { errorMessage, isEditableTarget, isRecord } from '@/shared/utils';
 
 /**
- * The two shared helpers the architecture and settings modules now import
+ * The shared helpers the architecture, settings and cockpit modules now import
  * instead of carrying their own copy.
  *
  * The readings below are the ones the copies disagreed about: `isRecord` must
  * reject arrays and `null` (both answer `typeof === 'object'`), and
  * `errorMessage` must keep an `Error`'s own message — including an empty one —
  * while a caller-supplied fallback is what blank messages and non-`Error`
- * throws resolve to.
+ * throws resolve to. `isEditableTarget` is the predicate the cockpit page and
+ * its push-to-talk hook each carried byte-identically — it must stay true only
+ * for elements that own keyboard input.
  */
+
+describe('isEditableTarget', () => {
+  test('accepts only elements that own keyboard input', () => {
+    const input = document.createElement('input');
+    const textarea = document.createElement('textarea');
+    const select = document.createElement('select');
+    const contentEditable = document.createElement('div');
+    // jsdom does not implement `isContentEditable`, so the branch the predicate actually reads
+    // is stubbed here; a real browser derives it from the contenteditable attribute.
+    Object.defineProperty(contentEditable, 'isContentEditable', { value: true });
+
+    assert.equal(isEditableTarget(input), true);
+    assert.equal(isEditableTarget(textarea), true);
+    assert.equal(isEditableTarget(select), true);
+    assert.equal(isEditableTarget(contentEditable), true);
+
+    assert.equal(isEditableTarget(document.createElement('button')), false);
+    assert.equal(isEditableTarget(document.createElement('div')), false);
+    assert.equal(isEditableTarget(null), false);
+    assert.equal(isEditableTarget(new EventTarget()), false, 'a non-element target cannot own a field');
+  });
+});
 
 describe('isRecord', () => {
   test('accepts object-shaped values and rejects arrays, null and primitives', () => {

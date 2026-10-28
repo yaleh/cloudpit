@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { api } from '@/shared/api';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
-import { cn } from '@/shared/utils';
+import { cn, isEditableTarget } from '@/shared/utils';
 import type {
   CockpitHubView,
   CockpitPendingSend,
@@ -192,21 +192,6 @@ const LIVENESS_TICK_MS = 30_000;
  * impurity, and module evaluation still precedes the page's first committed frame.
  */
 const PAGE_LOADED_AT = performance.now();
-
-/**
- * True when the focused element owns keyboard input. The stage must not steal arrows or Enter
- * while the cockpit's own input (or any other field) has focus.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-}
 
 /**
  * The fleet tile grid's column count at a viewport width.

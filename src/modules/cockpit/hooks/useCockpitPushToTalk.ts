@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import type { VoiceFailureReport, VoiceInputState } from '@/shared/types';
+import { isEditableTarget } from '@/shared/utils';
 import { useVoiceInput } from '@/modules/chat';
 import type { VoiceCaptureEngine } from '@/modules/chat';
 
@@ -47,18 +48,6 @@ export type CockpitPushToTalkOptions = {
   /** False suspends the Space trigger (a confirmation is open, or the stage is not ready). */
   enabled?: boolean;
 };
-
-/** True when the focused element owns keyboard input; Space belongs to it, not to the recorder. */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-}
 
 /** Reads the engine's outcome as the state the button paints. */
 export function useCockpitPushToTalk({
