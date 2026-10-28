@@ -32,6 +32,7 @@ import test from 'node:test';
 import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
 import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
+import { createCockpitFleetCardProvider } from '@/modules/cockpit/cockpit-fleet-card-provider.js';
 import {
   COCKPIT_SESSION_SEND_EXECUTOR_ID,
   CockpitSessionSendExecutor,
@@ -46,7 +47,7 @@ import {
   type CockpitSessionStartRequest,
 } from '@/modules/cockpit/cockpit-session-start.executor.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
-import type { CockpitCard, CockpitCardSubject } from '@/shared/types.js';
+import type { CockpitCard, CockpitCardSubject, SessionAskDecisionReading } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
 // ---------------------------------------------------------------------------
@@ -220,10 +221,74 @@ test('a send that never reaches its session is a not-found, not success', async 
   );
 });
 
+test('a session-ask card option is sent into its session exactly once, asking what the option says', async () => {
+  // A fleet session-ask card completes its options from the T1 digest; each option's action is
+  // the ordinary `session.send` carrying the option name and what choosing it does. Confirming
+  // one must therefore send exactly once into the card's OWN session with that text.
+  const reading: SessionAskDecisionReading = {
+    state: 'evaluated',
+    inputTokens: 120,
+    outputTokens: 40,
+    askId: 'sess-ask:m-7',
+    revision: 1,
+    ask: 'Should the staging directory be deleted?',
+    situation: 'The run left 1.2 GB in staging and the archive is already verified.',
+    options: [
+      {
+        id: 'delete',
+        label: 'Delete staging',
+        does: 'Remove the staging directory after the archive is verified.',
+        tags: [],
+        suggested: true,
+        source: 'assistant',
+      },
+    ],
+    incomplete: false,
+  };
+  const fleet = createCockpitFleetCardProvider({
+    runCards: async () => ({
+      exitCode: 0,
+      stdout: `${JSON.stringify({
+        id: 'att-ask-1',
+        provider: 'quay-fleet',
+        revision: 3,
+        kind: 'ask',
+        group: 'ruling',
+        rank: 1,
+        state: 'open',
+        waitingSince: '2026-10-27T00:01:00.000Z',
+        surfacedAt: '2026-10-27T00:01:05.000Z',
+        subject: { sessionId: 'sess-ask', uri: 'cloudcli://session/sess-ask' },
+        contentRef: { resolver: 'cloudcli.session-ask', sessionId: 'sess-ask', messageId: 'm-7' },
+        facts: [],
+        options: [],
+      })}\n`,
+      stderr: '',
+    }),
+    readSessionAsk: () => reading,
+  });
+  const registry = createCockpitCardRegistry([fleet.provider]);
+  const { executor, calls } = sendStub();
+  const actions = createCockpitCardActions({ registry, executors: [executor] });
+
+  const result = await actions.confirm({ cardId: 'att-ask-1', revision: 3, optionId: 'delete' });
+
+  assert.equal(calls.length, 1, 'one confirmed option must send exactly once');
+  assert.deepEqual(
+    calls[0],
+    {
+      sessionId: 'sess-ask',
+      text: 'Delete staging — Remove the staging directory after the archive is verified.',
+    },
+    'the send must name the card’s session and the option’s own words',
+  );
+  assert.equal(result.executor, COCKPIT_SESSION_SEND_EXECUTOR_ID);
+  assert.equal(result.params.sessionId, 'sess-ask');
+});
+
 // ---------------------------------------------------------------------------
 // session.start
 // ---------------------------------------------------------------------------
-
 test('a project-only card starts exactly one conversation and answers its new id', async () => {
   const { executor, calls } = startStub();
   const registry = createCockpitCardRegistry([

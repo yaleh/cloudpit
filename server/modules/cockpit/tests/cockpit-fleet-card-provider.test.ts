@@ -30,13 +30,13 @@ import {
 } from '@/modules/observation/index.js';
 
 import { createCockpitCardRegistry } from '../cockpit-card-registry.js';
-import { COCKPIT_FLEET_ASK_OPTION_EXECUTOR } from '../cockpit-fleet-card-projection.js';
 import {
   COCKPIT_FLEET_PROVIDER_ID,
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
   type CockpitFleetCommandResult,
 } from '../cockpit-fleet-card-provider.js';
+import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from '../cockpit-session-send.executor.js';
 
 const WAITING = '2026-10-27T00:01:00.000Z';
 const SURFACED = '2026-10-27T00:01:05.000Z';
@@ -331,7 +331,7 @@ function evaluated(options: {
   };
 }
 
-test('AC-432: a session-ask card is filled from the digest, and its options are not executable yet', async () => {
+test('AC-432: a session-ask card is filled from the digest, and its options answer in that session', async () => {
   const seen: Array<[string, string]> = [];
   const fleet = created({
     runCards: runnerReturning(FIXTURE),
@@ -353,8 +353,76 @@ test('AC-432: a session-ask card is filled from the digest, and its options are 
   assert.equal(suggested[0]?.source, 'assistant');
   assert.equal(optionById(ask, 'keep').suggested, false);
   assert.deepEqual(suggested[0]?.tags, [{ kind: 'undo', text: '可撤' }]);
-  assert.equal(suggested[0]?.action.executor, COCKPIT_FLEET_ASK_OPTION_EXECUTOR);
-  assert.equal(fleet.provider.declaredExecutors().includes(COCKPIT_FLEET_ASK_OPTION_EXECUTOR), false);
+  assert.equal(suggested[0]?.action.executor, COCKPIT_SESSION_SEND_EXECUTOR_ID);
+  assert.equal(
+    fleet.provider.declaredExecutors().includes(COCKPIT_SESSION_SEND_EXECUTOR_ID),
+    false,
+    'session.send is CloudCLI’s own content default, not a provider declaration',
+  );
+});
+
+test('AC: a completed session-ask option answers its own session with 「label — does」', async () => {
+  // Selecting an option on a session-ask card IS answering the assistant in that session: the
+  // action is the ordinary `session.send`, addressed to the card's own session, and its text is
+  // the option name plus what choosing it does. `session.send` is CloudCLI's own declared
+  // content default, so the registry must NOT mark these options unconfirmable.
+  const reading: SessionAskDecisionReading = {
+    state: 'evaluated',
+    inputTokens: 120,
+    outputTokens: 40,
+    askId: 'sess-ask:m-7',
+    revision: 1,
+    ask: 'Should the staging directory be deleted?',
+    situation: 'The archive is already verified.',
+    options: [
+      {
+        id: 'delete',
+        label: 'Delete staging',
+        does: 'Remove the staging directory after the archive is verified.',
+        tags: [],
+        suggested: true,
+        source: 'assistant',
+      },
+      {
+        id: 'keep',
+        label: 'Keep staging',
+        does: '',
+        tags: [],
+        suggested: false,
+        source: 'provider',
+      },
+    ],
+    incomplete: false,
+  };
+  const fleet = created({ readSessionAsk: () => reading });
+  const ask = byId(await createCockpitCardRegistry([fleet.provider]).listCards(), 'att-ask-1');
+
+  assert.equal(ask.subject.sessionId, 'sess-ask');
+  assert.deepEqual(
+    ask.options.map((option) => option.id),
+    ['delete', 'keep'],
+    'both digest options reach the card',
+  );
+  for (const option of ask.options) {
+    assert.equal(option.action.executor, COCKPIT_SESSION_SEND_EXECUTOR_ID, `${option.id} answers the session`);
+    assert.equal(
+      option.action.params.sessionId,
+      ask.subject.sessionId,
+      `${option.id} targets the card’s own session`,
+    );
+    assert.equal(option.confirmable, undefined, `${option.id} must stay confirmable`);
+    assert.equal('confirmableReason' in option, false, `${option.id} carries no refusal reason`);
+  }
+  assert.equal(
+    optionById(ask, 'delete').action.params.text,
+    'Delete staging — Remove the staging directory after the archive is verified.',
+    'the option name and what it does are the reply',
+  );
+  assert.equal(
+    optionById(ask, 'keep').action.params.text,
+    'Keep staging',
+    'an option with nothing to add sends its name alone',
+  );
 });
 
 test('AC-432 / AC-434: a judge recommendation is the session-ask card’s default too, with its reason', async () => {

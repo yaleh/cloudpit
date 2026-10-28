@@ -38,19 +38,10 @@ import type {
 import { isRecord } from '@/shared/utils.js';
 
 import { COCKPIT_FLEET_LOG_EXECUTOR_ID } from './cockpit-fleet-executor.js';
+import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from './cockpit-session-send.executor.js';
 
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
 const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';
-
-/**
- * The executor a locally-derived ask option names.
- *
- * It is deliberately NOT declared by the provider (the provider declares exactly what
- * `rescue executors --json` answered), so the option is readable and selecting it reaches the
- * confirmation channel's `EXECUTOR_NOT_DECLARED` refusal with a readable reason instead of
- * running something.
- */
-export const COCKPIT_FLEET_ASK_OPTION_EXECUTOR = 'fleet.cockpit.session-ask-option';
 
 /** The one reading the content completion needs: the T1 digest for a session/message pair. */
 export type CockpitFleetContentReader = (
@@ -200,14 +191,28 @@ function mapContentRef(raw: unknown): ContentAddress | null {
 }
 
 /**
+ * The text a content option sends back into its session: the option's own words, plus one line
+ * saying what choosing it does. A digest option with nothing to add sends its label alone.
+ */
+function contentOptionText(raw: SessionAskDecisionOption): string {
+  const does = raw.does.trim();
+  return does === '' ? raw.label : `${raw.label} — ${does}`;
+}
+
+/**
  * One content option. The observation layer already decided WHICH option is the default and
  * whether it came from the assistant or the judge; this projection only bounds it to one and
  * passes the judge's `why` through so the card can show the reason.
+ *
+ * SELECTING AN OPTION IS ANSWERING THE ASSISTANT, so the option's action is the ordinary
+ * `session.send` executor writing back into the very session the card is about. It stays behind
+ * the confirmation channel like every other action; the option's params carry the address and
+ * the text, and the channel passes them through verbatim. `sessionId` is non-empty here: a card
+ * with no conversation address never reaches content completion (see `withSessionAskContent`).
  */
 function contentOption(
   raw: SessionAskDecisionOption,
-  cardId: string,
-  askId: string,
+  sessionId: string,
   allowSuggestion: boolean,
 ): CockpitCardOption {
   const why = raw.why?.trim() ?? '';
@@ -220,8 +225,8 @@ function contentOption(
     ...(why === '' ? {} : { why }),
     tags: raw.tags.map((tag) => ({ kind: tag.kind, text: tag.text })),
     action: {
-      executor: COCKPIT_FLEET_ASK_OPTION_EXECUTOR,
-      params: { cardId, askId, optionId: raw.id },
+      executor: COCKPIT_SESSION_SEND_EXECUTOR_ID,
+      params: { sessionId, text: contentOptionText(raw) },
     },
   };
 }
@@ -272,7 +277,7 @@ function withSessionAskContent(
   const contentOptions = reading.options.map((option) => {
     const allowSuggestion = !suggestionUsed && option.suggested === true;
     if (allowSuggestion) suggestionUsed = true;
-    return contentOption(option, card.id, reading.askId, allowSuggestion);
+    return contentOption(option, sessionId, allowSuggestion);
   });
   const existing = new Set(options.map((option) => option.id));
 

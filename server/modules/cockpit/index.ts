@@ -40,7 +40,6 @@ export type {
   CockpitFleetCardProviderDeps,
   CockpitFleetReadOptions,
 } from '@/modules/cockpit/cockpit-fleet-card-provider.js';
-export { COCKPIT_FLEET_ASK_OPTION_EXECUTOR } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 export type { CockpitFleetContentReader } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 // The fleet disposal executors: the declaration port (`rescue executors --json`) and one
 // executor per declaration. The composition root binds the real child runner; the provider reads
