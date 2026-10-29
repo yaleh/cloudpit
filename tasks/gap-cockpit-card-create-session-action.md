@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-create-session-action
 title: Cockpit 卡片按钮直接创建会话并安全导航
-status: todo
+status: ready
 labels:
   - gap
   - feature
