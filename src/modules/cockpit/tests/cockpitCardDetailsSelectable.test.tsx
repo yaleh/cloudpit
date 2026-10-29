@@ -124,6 +124,23 @@ beforeAll(async () => {
   await i18n.changeLanguage('en');
 });
 
+describe('the drawer’s start-conversation intent', () => {
+  it('shows the recorded intent inside Details', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails
+          card={card()}
+          now={NOW}
+          onClose={() => undefined}
+          startConversationIntent="p1"
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('cockpit-card-start-intent').textContent).toContain('p1');
+  });
+});
+
 describe('the drawer’s option rows', () => {
   it('draws the suggested option as the shown row and switches it on a click', async () => {
     const { controller } = await renderDrawer();
