@@ -106,3 +106,11 @@ extra:
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
 - server/modules/observation/tests/session-ask-semantic-gate.test.ts (new)
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Blocker
+
+**2026-10-29T17:08:42.715Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=88549 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793293261671 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：a940af79-5196-4319-9d35-01d00a45b001
