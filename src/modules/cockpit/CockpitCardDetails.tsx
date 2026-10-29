@@ -45,6 +45,8 @@ export type CockpitCardDetailsProps = {
   onClose: () => void;
   /** 「就此开一个会话」 — the intent only; no conversation is created here. */
   onStartConversation?: (card: CockpitCardData) => void;
+  /** The acknowledged project intent, shown here so it stays visible above the drawer layer. */
+  startConversationIntent?: string | null;
   /** The card's brief reading; absent or idle means the drawer draws no brief section. */
   brief?: CockpitBriefState;
   /** Re-reads a failed brief; the drawer's retry button calls it. */
@@ -171,6 +173,7 @@ export default function CockpitCardDetails({
   now,
   onClose,
   onStartConversation,
+  startConversationIntent = null,
   brief,
   onRetryBrief,
   target,
@@ -618,14 +621,25 @@ export default function CockpitCardDetails({
                 {t('cockpit.cardDetailsOpenConversation', { sessionId })}
               </a>
             ) : startProject !== undefined ? (
-              <button
-                type="button"
-                data-testid="cockpit-card-start-conversation"
-                onClick={() => onStartConversation?.(card)}
-                className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-              >
-                {t('cockpit.cardDetailsStartConversation')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  data-testid="cockpit-card-start-conversation"
+                  onClick={() => onStartConversation?.(card)}
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                >
+                  {t('cockpit.cardDetailsStartConversation')}
+                </button>
+                {startConversationIntent !== null && (
+                  <p
+                    role="status"
+                    data-testid="cockpit-card-start-intent"
+                    className="mt-1 text-xs text-muted-foreground"
+                  >
+                    {t('cockpit.cardStartConversationEcho', { project: startConversationIntent })}
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-xs text-muted-foreground">{t('cockpit.cardDetailsNoConversation')}</p>
             )}

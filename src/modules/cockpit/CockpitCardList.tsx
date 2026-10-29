@@ -269,6 +269,7 @@ function CockpitCardListBound({
             onStartConversation={(card: CockpitCardData) =>
               setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')
             }
+            startConversationIntent={startIntentProject}
           />
         </div>
       ) : (
@@ -472,16 +473,6 @@ function CockpitCardListBound({
             </p>
           )}
 
-          {startIntentProject !== null && (
-            <p
-              role="status"
-              data-testid="cockpit-card-start-intent"
-              className="pb-2 text-xs text-muted-foreground"
-            >
-              {t('cockpit.cardStartConversationEcho', { project: startIntentProject })}
-            </p>
-          )}
-
           {snapshot.visibleCards.length === 0 && snapshot.status === 'loaded' && (
             <p data-testid="cockpit-card-empty" className="text-xs text-muted-foreground">
               {t('cockpit.cardEmpty')}
@@ -578,6 +569,7 @@ function CockpitCardListBound({
                 onStartConversation={(card: CockpitCardData) =>
                   setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')
                 }
+                startConversationIntent={startIntentProject}
               />
             </div>
           )}

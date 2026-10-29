@@ -831,3 +831,9 @@
 #   (dur=6229ms from two warm runs, 6229/6457, its own new criterion; the row also keeps the 90%
 #   coverage floor green now that the tree collects 468 server test files).
 6229	server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
+#   and the codex-resident-capabilities row by gap-ac442-codex-resident-capabilities,
+#   measured one file at a time on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-capabilities.test.ts`
+#   (dur=7308ms from two warm runs, 7721/7308, its own new criterion; the row also keeps the
+#   90% coverage floor green now that the tree collects 470 server test files).
+7308	server/modules/providers/tests/codex-resident-capabilities.test.ts
