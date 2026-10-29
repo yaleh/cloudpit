@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Gauge } from 'lucide-react';
 
 import { cn } from '@/shared/utils';
+import { cockpitOverlayHistoryState } from '@/modules/cockpit/CockpitOverlay';
 import { useCockpitColumnContext } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
 
@@ -17,8 +18,14 @@ import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitCol
  *
  * TWO SURFACES, ONE READING. At 900 px and wider the button opens/closes the PC column. Below
  * that the column does not exist (the phone model owns the width), so the same button is the door
- * to `/cockpit?view=cards` and keeps reading the same controller's count — the phone header is not
- * a second instrument with a second number.
+ * to the cockpit's cards view and keeps reading the same controller's count — the phone header is
+ * not a second instrument with a second number.
+ *
+ * ON A SESSION THE PHONE DOOR OPENS A LAYER, NOT A PAGE. It pushes one history entry carrying the
+ * conversation's title ({@link cockpitOverlayHistoryState}); `CockpitOverlayHost` draws the cards
+ * over the still-mounted session, and closing it pops that entry. With no session underfoot
+ * (`/`) the same control still falls back to the standalone `/cockpit?view=cards` page, which is
+ * also what a deep link opens.
  *
  * NO PROVIDER, NO BUTTON. The header also renders in isolation in tests and on screens where
  * the cockpit is switched off; with no surrounding column binding there is nothing to open, so
@@ -28,21 +35,30 @@ export type CockpitHeaderButtonVariant = 'column' | 'page';
 
 export default function CockpitHeaderButton({
   variant = 'column',
+  sessionTitle = null,
 }: {
   /**
-   * `column` (the default) is the PC entry point and keeps the pre-phone behaviour exactly: no
-   * column at this width means no button. `page` is what the phone header asks for — the cards
-   * page at `/cockpit?view=cards`.
+   * `column` (the default) is the PC entry point: it toggles the column when the column exists,
+   * and becomes the phone layer's door when the layout is `hidden` (the column has no place to
+   * draw there). `page` is what the phone header asks for explicitly.
    */
   variant?: CockpitHeaderButtonVariant;
+  /**
+   * The selected conversation's title, carried into the layer's history entry so its back bar
+   * names where the person returns to. Absent/null on a header with no session (or in an
+   * isolated render), where the button falls back to the standalone page.
+   */
+  sessionTitle?: string | null;
 } = {}) {
   const { t } = useTranslation();
   const column = useCockpitColumnContext();
 
   if (column === null) return null;
-  if (variant === 'page') return <CockpitPageButton column={column} />;
-  // Below 900 px the column does not exist; the desktop header draws no cockpit entry there.
-  if (column.snapshot.layout === 'hidden') return null;
+  if (variant === 'page' || column.snapshot.layout === 'hidden') {
+    // The phone model owns a `hidden` layout: there is no column to toggle, so the same control
+    // is the layer's door (or the standalone page when no conversation is selected).
+    return <CockpitPageButton column={column} sessionTitle={sessionTitle} />;
+  }
 
   const { snapshot, controller } = column;
   const label = snapshot.expanded
@@ -60,21 +76,45 @@ export default function CockpitHeaderButton({
 }
 
 /**
- * The phone's variant of the same control: no column to toggle, so it navigates to the cards page.
- * It reads the count from the same column binding, which keeps the card controller alive for
- * exactly this reading (see `useCockpitColumn`).
+ * The phone's variant of the same control: no column to toggle, so it opens the cards layer over
+ * the live conversation. It reads the count from the same column binding, which keeps the card
+ * controller alive for exactly this reading (see `useCockpitColumn`).
+ *
+ * THE FALLBACK IS THE OLD BEHAVIOUR, KEPT ON PURPOSE. With no `/session/:id` underfoot (the
+ * workspace root) there is no conversation to cover, so `/cockpit?view=cards` is still the right
+ * destination — and a deep link there must keep rendering the standalone page.
  */
-function CockpitPageButton({ column }: { column: CockpitColumnBinding }) {
+function CockpitPageButton({
+  column,
+  sessionTitle,
+}: {
+  column: CockpitColumnBinding;
+  sessionTitle: string | null;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { sessionId } = useParams<{ sessionId?: string }>();
   const label = t('cockpit.cardsView');
+
+  const openCockpit = (): void => {
+    if (sessionId === undefined || sessionId === '') {
+      navigate('/cockpit?view=cards');
+      return;
+    }
+    // One history entry on the SAME address: the route match (and with it the mounted workspace,
+    // its draft and its scroll position) does not change. Back, and the back bar, pop this entry.
+    navigate(`${location.pathname}${location.search}`, {
+      state: cockpitOverlayHistoryState(location.state, sessionTitle),
+    });
+  };
 
   return (
     <CockpitButton
       count={column.snapshot.openCount}
       label={label}
       pressed={false}
-      onClick={() => navigate('/cockpit?view=cards')}
+      onClick={openCockpit}
     />
   );
 }

@@ -294,8 +294,8 @@ function describeSnapshot(snapshot: Snapshot): string {
     .join(' | ');
 }
 
-async function readHosts(api: APIRequestContext): Promise<Snapshot> {
-  const response = await api.get('/api/session-hosts');
+async function readHosts(api: APIRequestContext, timeout?: number): Promise<Snapshot> {
+  const response = await api.get('/api/session-hosts', timeout === undefined ? undefined : { timeout });
   const body = await response.json().catch(() => null);
   if (!response.ok() || !body?.data) {
     throw new Error(`GET /api/session-hosts answered ${response.status()}: ${JSON.stringify(body)}`);
@@ -685,16 +685,26 @@ function recordControlPlane(body: unknown): void {
 
 /** An account this run owns, created over the API. */
 async function createAccount(api: APIRequestContext): Promise<string> {
-  const register = await api.post('/api/auth/register', { data: { username: USERNAME, password: PASSWORD } });
+  const register = await api.post('/api/auth/register', {
+    data: { username: USERNAME, password: PASSWORD },
+    timeout: SETUP_REQUEST_TIMEOUT_MS,
+  });
+  markSetupPhase('register');
   const registered = await register.json().catch(() => null);
   if (typeof registered?.token === 'string') {
     await api.post('/api/user/complete-onboarding', {
       headers: { Authorization: `Bearer ${registered.token}` },
+      timeout: SETUP_REQUEST_TIMEOUT_MS,
     });
+    markSetupPhase('complete-onboarding');
     return registered.token;
   }
 
-  const login = await api.post('/api/auth/login', { data: { username: USERNAME, password: PASSWORD } });
+  const login = await api.post('/api/auth/login', {
+    data: { username: USERNAME, password: PASSWORD },
+    timeout: SETUP_REQUEST_TIMEOUT_MS,
+  });
+  markSetupPhase('login');
   const loggedIn = await login.json().catch(() => null);
   if (typeof loggedIn?.token !== 'string') {
     throw new Error(
@@ -706,8 +716,17 @@ async function createAccount(api: APIRequestContext): Promise<string> {
 }
 
 /** Arms one scenario and returns the id the rest of this file addresses it by. */
-async function armScenario(api: APIRequestContext, projectPath: string, scenario: unknown): Promise<string> {
-  const response = await api.post('/api/debug-agent/scenarios', { data: { projectPath, scenario } });
+async function armScenario(
+  api: APIRequestContext,
+  projectPath: string,
+  scenario: unknown,
+  phase: string,
+): Promise<string> {
+  const response = await api.post('/api/debug-agent/scenarios', {
+    data: { projectPath, scenario },
+    timeout: SETUP_REQUEST_TIMEOUT_MS,
+  });
+  markSetupPhase(phase);
   const body = await response.json().catch(() => null);
   recordControlPlane(body);
   if (!response.ok()) {
@@ -761,7 +780,49 @@ async function clickClose(
   return { selector, status: response.status(), body: await response.json().catch(() => null) };
 }
 
-test.describe.configure({ mode: 'serial', timeout: 110_000 });
+/**
+ * The setup hook's own wall, and the spec's test wall.
+ *
+ * `test.describe.configure({ timeout })` reaches the tests in this group but *not* the `beforeAll` hook:
+ * the hook runs in the worker's default slot, which is the project's `timeout` (60 s in playwright.config.ts).
+ * A run that spent longer than that registering the account and arming the five scenarios died with
+ * `"beforeAll" hook timeout of 60000ms exceeded` before a single assertion — the 2026-10-29 red this task
+ * was filed from — while the same tree passed twice within six minutes. The hook therefore raises its own
+ * slot to `SETUP_BUDGET_MS` from inside the hook body.
+ *
+ * One number, four walls: this hook budget, the spec budget in `SPEC_BUDGET_MS` (playwright.config.ts), the
+ * per-test timeout below, and the spec's own elapsed check all read 240 s; AC-173's gate deadline (260 s)
+ * outlasts the watchdog that budget re-arms (240 s) by 20 s, so a crossing is written down rather than
+ * killed silently. Measured healthy rounds: `3 passed (38.5s)` and `elapsed=53157ms` over the whole
+ * invocation; the failing round had already spent ~72 s in setup with the first navigation unfinished.
+ * 240 s is >4x the healthy invocation.
+ */
+const SETUP_BUDGET_MS = 240_000;
+
+/**
+ * How long one setup request is given, before it is named as the phase that hung.
+ *
+ * The longest single request measured in a failing round was `complete-onboarding` at 38.3 s (read off that
+ * run's trace), so this leaves >2x that. A request that exceeds it fails with the `setup.phase=` line just
+ * printed above it instead of being reported a whole hook later as a wall-clock timeout naming nothing.
+ */
+const SETUP_REQUEST_TIMEOUT_MS = 90_000;
+
+/**
+ * Prints one setup phase's duration.
+ *
+ * The 13:33:30Z red was a bare hook timeout: the trace had to be unzipped and each request timed by hand to
+ * find the 38.3 s onboarding call. A `setup.phase=` line per request/stage makes the next such red say which
+ * stage it stopped in, without a trace.
+ */
+let setupPhaseStartedAt = 0;
+function markSetupPhase(name: string): void {
+  const now = Date.now();
+  console.log(`setup.phase=${name} elapsed=${now - setupPhaseStartedAt}ms`);
+  setupPhaseStartedAt = now;
+}
+
+test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
 test.describe('resident running view', () => {
   let page: Page;
@@ -774,7 +835,16 @@ test.describe('resident running view', () => {
   let idleB = '';
   let residentTurn = '';
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser }, testInfo) => {
+    // Raise this hook's own wall. `test.describe.configure` above reaches the tests, not hooks: without this
+    // line the hook keeps the project's 60 s slot and the run dies there before any assertion.
+    test.setTimeout(SETUP_BUDGET_MS);
+    // `testInfo.timeout` reports the TEST timeout (240 s from the describe.configure above), not the hook's
+    // own slot, so neither value is derived from the other. `setup.timeout` is the wall this line just set;
+    // the AC's negative control — not this line — is what proves the raise took effect.
+    console.log(`setup.timeout=${SETUP_BUDGET_MS} test.timeout=${testInfo.timeout}`);
+    setupPhaseStartedAt = Date.now();
+
     const clientUrl = test.info().project.use.baseURL;
     if (!clientUrl) throw new Error('playwright.config.ts must give this project a baseURL');
     const fixtureHome = process.env.QUAY_E2E_DEBUG_AGENT_HOME;
@@ -800,16 +870,17 @@ test.describe('resident running view', () => {
       extraHTTPHeaders: { Authorization: `Bearer ${token}` },
     });
 
-    inFlight = await armScenario(api, workspace, ARM_IN_FLIGHT);
-    control = await armScenario(api, workspace, ARM_CONTROL);
-    idleA = await armScenario(api, workspace, residentArm(TITLE_IDLE_A, 'peer-idle-a'));
-    idleB = await armScenario(api, workspace, residentArm(TITLE_IDLE_B, 'peer-idle-b'));
-    residentTurn = await armScenario(api, workspace, ARM_RESIDENT_TURN);
+    inFlight = await armScenario(api, workspace, ARM_IN_FLIGHT, 'armScenario.inFlight');
+    control = await armScenario(api, workspace, ARM_CONTROL, 'armScenario.control');
+    idleA = await armScenario(api, workspace, residentArm(TITLE_IDLE_A, 'peer-idle-a'), 'armScenario.idleA');
+    idleB = await armScenario(api, workspace, residentArm(TITLE_IDLE_B, 'peer-idle-b'), 'armScenario.idleB');
+    residentTurn = await armScenario(api, workspace, ARM_RESIDENT_TURN, 'armScenario.residentTurn');
 
     // What the sessions are stored as, before anything is started. Printed rather than assumed: the lifecycle
     // mode decides which of the two dispatch paths a turn takes, and a row stored under the other one would
     // produce a different shape than the readings below describe.
-    const armed = await readHosts(api);
+    const armed = await readHosts(api, SETUP_REQUEST_TIMEOUT_MS);
+    markSetupPhase('readHosts');
     for (const session of armed.sessions) {
       if (![inFlight, control, idleA, idleB, residentTurn].includes(session.appSessionId)) continue;
       console.log(
@@ -821,6 +892,7 @@ test.describe('resident running view', () => {
     // Before any page of this run exists, so this run's optimize/re-optimize is over before the guard's first
     // navigation — see the helper for why the cost cannot be left inside the measurement window.
     await warmClientStartup(clientUrl);
+    markSetupPhase('warmClientStartup');
 
     const context = await browser.newContext({ baseURL: clientUrl });
     await context.addInitScript(
@@ -853,8 +925,10 @@ test.describe('resident running view', () => {
       present: (budgetMs) => appears(projectRow(page, workspaceName), budgetMs),
     };
     await navigateBounded(page, projectRowLanding, 'first-load');
+    markSetupPhase('navigate');
     // The sidebar is the proof the account and the fixture project both landed.
     await revealSession(page, workspaceName, inFlight);
+    markSetupPhase('revealSession');
   });
 
   test.afterAll(async () => {
@@ -1176,6 +1250,6 @@ test.describe('resident running view', () => {
     const runStartedAt = Number(process.env.QUAY_E2E_RUN_STARTED_AT);
     const elapsed = Date.now() - runStartedAt;
     console.log(`elapsed=${elapsed}ms`);
-    expect(elapsed, 'the whole invocation, measured from the config’s own start').toBeLessThan(110_000);
+    expect(elapsed, 'the whole invocation, measured from the config’s own start').toBeLessThan(240_000);
   });
 });

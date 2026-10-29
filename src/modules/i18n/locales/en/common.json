@@ -1037,6 +1037,8 @@
     "counterVoiceSeen": "Reviewed the counter-voice",
     "counterVoiceSeenMarker": "(counter-voice reviewed)",
     "cardsView": "Cards",
+    "overlayBack": "Back to session",
+    "overlayBackToSession": "Back to session: {{title}}",
     "columnTitle": "Cockpit",
     "columnExpand": "Open the cockpit column",
     "columnCollapse": "Close the cockpit column",

@@ -2,7 +2,7 @@
 id: gap-ac442-codex-resident-capabilities
 title: AC-442 Codex 常驻 capabilities：codex 声明 resident + 实测 residentFeatures，其他
   provider 写 resident 仍被 LIFECYCLE_MODE_NOT_SUPPORTED 拒绝
-status: todo
+status: ready
 labels:
   - gap
 parent: null
@@ -72,18 +72,18 @@ goal_ac: AC-442
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-capabilities.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 5`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-resident-capabilities.test.ts'`。
-- [ ] AC2 codex 声明 resident：判据打印 `provider=codex lifecycleModes=per-run,resident multiplexedHost=false residentFeatures=<json>`；`lifecycleModes` 排序后严格等于 `['per-run','resident']`、`multiplexedHost === false`、`residentFeatures` 存在。
-- [ ] AC3 residentFeatures 按实测值：判据以 `deepEqual` 钉住 `{interruptKeepsProcess:true, liveReconfigure:['model','effort'], unattendedTurns:true, addressable:true, inputWhileBusy:true, cancelQueuedInput:true, backgroundTasks:false, authoritativeLeases:false, stopTask:false, remoteControl:false}`；完成记录里对每个字段写出 REPORT 实验编号（E1/E2/E3/E4/E5b/E6）与「未测 ⇒ false」字段的理由。
-- [ ] AC4 其他 provider 写 resident 被拒：判据打印 `provider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED status=409 stored=per-run` 与 `provider=opencode …`；两臂都抛出 `AppError` 且 `code === 'LIFECYCLE_MODE_NOT_SUPPORTED'`、`statusCode === 409`、数据库读回仍 `per-run`；正控制打印 `provider=codex stored=resident` 与 `provider=claude stored=resident` 且不抛。
-- [ ] AC5 矩阵跟随 session 而非路径：判据打印 `pathProvider=codex sessionProvider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED`，即 cursor 的 session 经 `'codex'` 路径写 resident 仍被拒绝且不落库。
-- [ ] AC6 声明由挂载的驱动承担：判据打印 `mounted=true multiplexedHost=false reverseRejected=true`；`providerRegistry.resolveProvider('codex').hostDriver` 非空、`multiplexedHost === false`、`startResidentSession` 是函数；同一断言喂给无 driver 的合成行必须 reject（反向控制可达）。
-- [ ] AC7 未实测能力必须红：判据打印 `shippingBackgroundTasks=false falsifiedBackgroundTasks=true redOnCraft=true`；`__criterion-falsify-resident-features-<pid>.ts` 的替换命中数为 **1**（0 命中视为假形态空转，判据自身失败），副本读红、shipping 读绿，`finally` 后副本不存在；`liveReconfigure` 严格等于 `['model','effort']` 且不含 `'permissionMode'`。
-- [ ] AC8 既有判据不破：`lifecycle-mode.test.ts` 的 `PER_RUN_ONLY_PROVIDERS` 已改为 `['cursor','opencode']`，disguised 臂与 (4c) 的 subject 同步改到这两个 provider；`npx tsx --tsconfig server/tsconfig.json --test <file>` 对 `server/modules/session-hosts/tests/lifecycle-mode.test.ts`、`resident-host-service.test.ts`、`resident-ondemand-start-route.test.ts`、`server/modules/providers/tests/provider-runtime.service.test.ts`、`codex-runtime.test.ts`、`server/modules/session-hosts/tests/session-host-default-wrap.test.ts` **逐个单文件**退出 0；`npm run typecheck` 退出 0。不得起无界多文件 fan-out（见 `docs/operations/process-isolation-and-memory-caps.md`）。
-- [ ] AC9 新测试文件预算：`scripts/suite-duration-baseline.tsv` 追加了本判据文件实测 `duration_ms` 一行且头部来源说明更新；`server/shared/tests/quay-test-script.test.ts` 两条 `unknown=` pin 在**最终合并树**上按 `find … | wc -l` 重算后各 +1，单文件跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；两文件都在 Touches 里。
-- [ ] AC10 假形态承重：按上文 A、B 两条各实测一次，criterion 退出 **1**，逐字红态文案写进完成记录；随后 `git checkout --` 还原，`git status --short` 只剩 Touches 列出的改动（外加 C 可选臂的还原）。
-- [ ] AC11 范围不越界：`git diff --name-only develop...HEAD` 只含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\\.provider\\.ts|codex-host-driver\\.provider\\.ts|sessions\\.service\\.ts|session-host-manager\\.service\\.ts|shared/types\\.ts'` 输出为空。
-- [ ] AC12 如实登记：完成记录写明红态基线、逐字段实测值出处、拒绝读数、path-vs-session 读数、挂载/反向控制读数、假形态 A/B 的退出码与逐字文案、baseline 行与 pin 的新值、以及未实现项（驱动挂载属 AC-441，queue/settings/approvals/background lease 属 AC-436…AC-439，E2E 属 AC-443）。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-capabilities.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 5`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-resident-capabilities.test.ts'`。
+- [x] AC2 codex 声明 resident：判据打印 `provider=codex lifecycleModes=per-run,resident multiplexedHost=false residentFeatures=<json>`；`lifecycleModes` 排序后严格等于 `['per-run','resident']`、`multiplexedHost === false`、`residentFeatures` 存在。
+- [x] AC3 residentFeatures 按实测值：判据以 `deepEqual` 钉住 `{interruptKeepsProcess:true, liveReconfigure:['model','effort'], unattendedTurns:true, addressable:true, inputWhileBusy:true, cancelQueuedInput:true, backgroundTasks:false, authoritativeLeases:false, stopTask:false, remoteControl:false}`；完成记录里对每个字段写出 REPORT 实验编号（E1/E2/E3/E4/E5b/E6）与「未测 ⇒ false」字段的理由。
+- [x] AC4 其他 provider 写 resident 被拒：判据打印 `provider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED status=409 stored=per-run` 与 `provider=opencode …`；两臂都抛出 `AppError` 且 `code === 'LIFECYCLE_MODE_NOT_SUPPORTED'`、`statusCode === 409`、数据库读回仍 `per-run`；正控制打印 `provider=codex stored=resident` 与 `provider=claude stored=resident` 且不抛。
+- [x] AC5 矩阵跟随 session 而非路径：判据打印 `pathProvider=codex sessionProvider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED`，即 cursor 的 session 经 `'codex'` 路径写 resident 仍被拒绝且不落库。
+- [x] AC6 声明由挂载的驱动承担：判据打印 `mounted=true multiplexedHost=false reverseRejected=true`；`providerRegistry.resolveProvider('codex').hostDriver` 非空、`multiplexedHost === false`、`startResidentSession` 是函数；同一断言喂给无 driver 的合成行必须 reject（反向控制可达）。
+- [x] AC7 未实测能力必须红：判据打印 `shippingBackgroundTasks=false falsifiedBackgroundTasks=true redOnCraft=true`；`__criterion-falsify-resident-features-<pid>.ts` 的替换命中数为 **1**（0 命中视为假形态空转，判据自身失败），副本读红、shipping 读绿，`finally` 后副本不存在；`liveReconfigure` 严格等于 `['model','effort']` 且不含 `'permissionMode'`。
+- [x] AC8 既有判据不破：`lifecycle-mode.test.ts` 的 `PER_RUN_ONLY_PROVIDERS` 已改为 `['cursor','opencode']`，disguised 臂与 (4c) 的 subject 同步改到这两个 provider；`npx tsx --tsconfig server/tsconfig.json --test <file>` 对 `server/modules/session-hosts/tests/lifecycle-mode.test.ts`、`resident-host-service.test.ts`、`resident-ondemand-start-route.test.ts`、`server/modules/providers/tests/provider-runtime.service.test.ts`、`codex-runtime.test.ts`、`server/modules/session-hosts/tests/session-host-default-wrap.test.ts` **逐个单文件**退出 0；`npm run typecheck` 退出 0。不得起无界多文件 fan-out（见 `docs/operations/process-isolation-and-memory-caps.md`）。
+- [x] AC9 新测试文件预算：`scripts/suite-duration-baseline.tsv` 追加了本判据文件实测 `duration_ms` 一行且头部来源说明更新；`server/shared/tests/quay-test-script.test.ts` 两条 `unknown=` pin 在**最终合并树**上按 `find … | wc -l` 重算后各 +1，单文件跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；两文件都在 Touches 里。
+- [x] AC10 假形态承重：按上文 A、B 两条各实测一次，criterion 退出 **1**，逐字红态文案写进完成记录；随后 `git checkout --` 还原，`git status --short` 只剩 Touches 列出的改动（外加 C 可选臂的还原）。
+- [x] AC11 范围不越界：`git diff --name-only develop...HEAD` 只含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\\.provider\\.ts|codex-host-driver\\.provider\\.ts|sessions\\.service\\.ts|session-host-manager\\.service\\.ts|shared/types\\.ts'` 输出为空。
+- [x] AC12 如实登记：完成记录写明红态基线、逐字段实测值出处、拒绝读数、path-vs-session 读数、挂载/反向控制读数、假形态 A/B 的退出码与逐字文案、baseline 行与 pin 的新值、以及未实现项（驱动挂载属 AC-441，queue/settings/approvals/background lease 属 AC-436…AC-439，E2E 属 AC-443）。
 
 ## DoD
 
@@ -97,3 +97,64 @@ goal_ac: AC-442
 - scripts/suite-duration-baseline.tsv (append: 新判据文件实测 duration 一行)
 - server/shared/tests/quay-test-script.test.ts (modify: 两条 unknown= pin 与来源注释)
 - tasks/gap-ac442-codex-resident-capabilities.md
+
+## 完成记录 (2026-10-29)
+
+**红态基线。** 在 `goal/GOAL-051` 基础上直跑判据命令，exit **1**，逐字：
+`Could not find 'server/modules/providers/tests/codex-resident-capabilities.test.ts'`
+（文件不存在，与 Proposal 记录一致）。
+
+**落地后判据（最终树：本任务两次提交 + merge develop 之后）。** 同命令 exit **0**，`tests 6 / pass 6 / fail 0`。
+
+**(a) codex 矩阵读数（判据原样输出）。**
+`provider=codex lifecycleModes=per-run,resident multiplexedHost=false residentFeatures={"interruptKeepsProcess":true,"liveReconfigure":["model","effort"],"unattendedTurns":true,"addressable":true,"inputWhileBusy":true,"cancelQueuedInput":true,"backgroundTasks":false,"authoritativeLeases":false,"stopTask":false,"remoteControl":false}`
+
+逐字段出处（`tmp/codex-appserver-exp-NuPHhk/REPORT.md` E1–E8，锁定 `@openai/codex 0.153.4`）：
+
+| 字段 | 值 | 出处 / 「未测 ⇒ false」理由 |
+|---|---|---|
+| interruptKeepsProcess | true | E3：`turn/interrupt` 后该 turn `status=interrupted`，app-server pid 全程不变 |
+| liveReconfigure | ['model','effort'] | E4：`thread/settings/update` 在 idle 与 active 都被接受；`turn/settings/update` 需要 `step_model_switching`（0.153.4 under development false）⇒ 不列 permissionMode |
+| unattendedTurns | true | E2：正常 `turn/completed` 后队列自动起下一 turn |
+| addressable | true | E1/E6：同一 thread id 首轮后可 resume，跨 app-server 进程仍可 resume |
+| inputWhileBusy | true | E2：`status=active` 时 `thread/queue/add` 被接受 |
+| cancelQueuedInput | true | E2：`thread/queue/delete` 删指定条目，`queue/list` 只剩另一条 |
+| backgroundTasks | false | E5b：agent 发起的后台终端未观测到；E5 的 `process/spawn` 是 client-owned，且不在 `thread/backgroundTerminals/list`。未测 ⇒ false |
+| authoritativeLeases | false | 没有 CLI 事件声明保活原因；busy 由 driver 从 turn 流推导（AC-441）。未测 ⇒ false |
+| stopTask | false | E5 的 `process/kill` 只证明 client-owned 进程可杀；resident 后台任务账本属 AC-438/439，未接线。未测 ⇒ false |
+| remoteControl | false | 未测 ⇒ false |
+
+**(b) 拒绝与正控制（判据原样输出）。**
+`provider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED status=409 stored=per-run`
+`provider=opencode code=LIFECYCLE_MODE_NOT_SUPPORTED status=409 stored=per-run`
+`provider=codex stored=resident`
+`provider=claude stored=resident`
+
+**(c) path-vs-session。** `pathProvider=codex sessionProvider=cursor code=LIFECYCLE_MODE_NOT_SUPPORTED stored=per-run`（cursor 的 session 经 codex 路径写 resident 仍被拒且不落库）。
+
+**(d) 挂载与反向控制。** `mounted=true multiplexedHost=false reverseRejected=true`：真实 registry 的 codex `hostDriver` 非空、`multiplexedHost=false`、`startResidentSession` 是函数；同一断言喂给 `{ id:'codex', hostDriver: undefined }` 被拒。
+
+**(e) 未实测能力必须红。** `shippingBackgroundTasks=false falsifiedBackgroundTasks=true redOnCraft=true`；两臂替换命中数各断言恰 1（0 命中判据自身失败）；副本 `finally` 删除并由 `access()` 断言不存在；`liveReconfigure=["model","effort"] includesPermissionMode=false`。每臂用独立副本文件名，避开 ESM 按 URL 缓存。
+
+**(f) liveReconfigure 不越界。** 严格等于 `['model','effort']`、不含 `'permissionMode'`；E4 与 `step_model_switching` 的读数写在 service 注释里。
+
+**假形态 A（从 codex lifecycleModes 去掉 'resident'）。** exit **1**；逐字：
+`AssertionError [ERR_ASSERTION]: codex must declare per-run and resident, got per-run`
+（红在 (a)；(b) 的 codex 正控制与 (e) 的 shipping 绿臂同红）。`git checkout --` 还原。
+
+**假形态 B（shipping 的 backgroundTasks: false → true）。** exit **1**；逐字：
+`AssertionError [ERR_ASSERTION]: the matrix must state exactly the measured features`
+（红在 (a) 的 deepEqual 与 (e) 的 shipping 绿臂）。`git checkout --` 还原；`git status --short` 只剩 Touches 的改动。
+
+**新测试文件预算。**
+- `scripts/suite-duration-baseline.tsv` 追加 `7308<TAB>server/modules/providers/tests/codex-resident-capabilities.test.ts`（两次 warm run 7721/7308ms），来源说明记 `measured one file at a time on 2026-10-29`；数据行 424/470 = 90.21%，守住 90% 地板。
+- `server/shared/tests/quay-test-script.test.ts` 两条 pin 在**最终合并树**按 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` = **470** 重算：`unknown=466→467`（470-3）、`unknown=468→469`（470-1）；单文件 exit 0、`pass 14 / fail 0`。
+- 两文件均在 Touches 内；anti-drift 读数：`ANTI-DRIFT OK — 5 actual file(s), all within declared Touches (6 glob(s))`。
+
+**既有判据（最终树逐个单文件）。** `lifecycle-mode.test.ts` 9/9、`resident-host-service.test.ts` 5/5、`resident-ondemand-start-route.test.ts` 4/4、`provider-runtime.service.test.ts` 9/9、`codex-runtime.test.ts` 12/12、`session-host-default-wrap.test.ts` 6/6，全部 exit 0。`npm run typecheck` exit 0。
+
+**AC11 的读数范围说明。** 工作树根在 `goal/GOAL-051`，该分支已含 AC-441 等兄弟任务代码而 develop 尚未包含，所以字面 `git diff --name-only develop...HEAD` 会带上兄弟任务已落地的文件（`codex.provider.ts` 等），这不是本条的写入。本条自己的两个提交只碰 5 个 Touches 文件（`git show --name-only ebfa6fb98 10078c38a`）；按 owner 分支 `goal/GOAL-051...HEAD` 读，禁用清单 grep 为空，anti-drift 也只认了这 5 个文件。
+
+**未实现项（按设计不在本条）。** 驱动挂载属 AC-441（已落地，本条只声明并用判据钉住）；queue / settings / approvals / background lease 属 AC-436…AC-439；E2E 属 AC-443。`codex.provider.ts` / `codex-host-driver.provider.ts` / `sessions.service.ts` / `session-host-manager.service.ts` / `shared/types.ts` 零改动。
+
+该轴仍暗,理由:本任务只改 capability 声明与判据文件，未触及模块依赖边，未运行 archguard 读数

@@ -137,6 +137,10 @@ export default function WorkspaceHeader({
       onOpenQuayPanel={openQuayPanel}
     />
   ) : null;
+  // The conversation the cockpit layer would cover, named in its back bar. Read from the same
+  // selected session the title block draws, so the two cannot disagree about which conversation
+  // is underneath. `summary` is the fallback the standalone architecture page already uses.
+  const selectedSessionTitle = selectedSession?.title ?? selectedSession?.summary ?? null;
 
   return (
     <header
@@ -179,7 +183,7 @@ export default function WorkspaceHeader({
             isResidentSession={isResidentSession}
           />
           <WorkspaceMenu />
-          <CockpitHeaderButton variant="page" />
+          <CockpitHeaderButton variant="page" sessionTitle={selectedSessionTitle} />
         </div>
       ) : (
         <>
@@ -213,9 +217,10 @@ export default function WorkspaceHeader({
           </div>
         </div>
         {/* The cockpit column's entry point, in the same control size and border as the
-            `⋯` menu it sits beside. It draws nothing below 900 px or without a column
-            binding, so the phone header and isolated header tests are unchanged. */}
-        <CockpitHeaderButton />
+            `⋯` menu it sits beside. Where the column has nowhere to draw (`hidden` layout) the
+            same button becomes the phone layer's door; without a column binding it draws
+            nothing, so isolated header tests are unchanged. */}
+        <CockpitHeaderButton sessionTitle={selectedSessionTitle} />
         <WorkspaceMenu />
         </>
       )}

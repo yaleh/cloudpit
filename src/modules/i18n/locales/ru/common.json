@@ -916,6 +916,8 @@
     "counterVoiceSeen": "Контраргумент изучен",
     "counterVoiceSeenMarker": "(контраргумент изучен)",
     "cardsView": "Карточки",
+    "overlayBack": "Назад к сессии",
+    "overlayBackToSession": "Назад к сессии: {{title}}",
     "columnTitle": "Кокпит",
     "columnExpand": "Открыть колонку кокпита",
     "columnCollapse": "Закрыть колонку кокпита",

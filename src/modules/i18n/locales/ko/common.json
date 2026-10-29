@@ -946,6 +946,8 @@
     "counterVoiceSeen": "반대 의견 확인함",
     "counterVoiceSeenMarker": "(반대 의견 확인함)",
     "cardsView": "카드",
+    "overlayBack": "세션으로 돌아가기",
+    "overlayBackToSession": "세션으로 돌아가기: {{title}}",
     "columnTitle": "콕핏",
     "columnExpand": "콕핏 열 열기",
     "columnCollapse": "콕핏 열 닫기",

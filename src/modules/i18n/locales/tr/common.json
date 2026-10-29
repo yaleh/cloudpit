@@ -946,6 +946,8 @@
     "counterVoiceSeen": "Karşı görüş incelendi",
     "counterVoiceSeenMarker": "(karşı görüş incelendi)",
     "cardsView": "Kartlar",
+    "overlayBack": "Oturuma dön",
+    "overlayBackToSession": "Oturuma dön: {{title}}",
     "columnTitle": "Kokpit",
     "columnExpand": "Kokpit sütununu aç",
     "columnCollapse": "Kokpit sütununu kapat",

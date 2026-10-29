@@ -779,9 +779,15 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // 55 s single-file default: a healthy run read `elapsed=53157ms` (boot 19147ms, main case 26.2s), and
   // the two ledger reds in the half hour around it both stopped at 55005ms with the watchdog's own
   // `crossed its own 55000ms ceiling` — the same tree and the same criterion, so the line, not the
-  // assertion, was deciding. 110_000 is > 2x that healthy wall clock and strictly below the 118000ms
+  // assertion, was deciding. 110_000 was > 2x that healthy wall clock and strictly below the 118000ms
   // gate deadline declared on AC-173, so a load-slowed run can finish and print its verdict.
-  'resident-running-view.spec.ts': 110_000,
+  // Raised to 240_000 (2026-10-29, gap-ac173-beforeall-hook-keeps-global-60s-wall): the 13:33:30Z red
+  // was `"beforeAll" hook timeout of 60000ms exceeded` — the project `timeout` is a THIRD wall, and
+  // `test.describe.configure` does not move it. The hook now raises its own slot with
+  // `test.setTimeout(SETUP_BUDGET_MS)` to this same number, and AC-173's gate deadline moved to 260_000
+  // so this watchdog (240_000) can write its crossing line before the gate kills the run. The same-tree
+  // passing rounds six minutes apart measured 38.5s and 53.2s for the whole invocation.
+  'resident-running-view.spec.ts': 240_000,
 };
 
 /**

@@ -1029,6 +1029,8 @@
     "counterVoiceSeen": "Suara kontra ditinjau",
     "counterVoiceSeenMarker": "(suara kontra ditinjau)",
     "cardsView": "Kartu",
+    "overlayBack": "Kembali ke sesi",
+    "overlayBackToSession": "Kembali ke sesi: {{title}}",
     "columnTitle": "Kokpit",
     "columnExpand": "Buka kolom kokpit",
     "columnCollapse": "Tutup kolom kokpit",

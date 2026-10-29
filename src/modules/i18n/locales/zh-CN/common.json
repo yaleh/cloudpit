@@ -946,6 +946,8 @@
     "counterVoiceSeen": "已看反方",
     "counterVoiceSeenMarker": "（已看反方）",
     "cardsView": "卡片",
+    "overlayBack": "返回会话",
+    "overlayBackToSession": "返回会话：{{title}}",
     "columnTitle": "驾驶舱",
     "columnExpand": "展开驾驶舱列",
     "columnCollapse": "收起驾驶舱列",

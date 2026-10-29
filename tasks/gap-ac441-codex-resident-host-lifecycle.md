@@ -161,17 +161,3 @@ provider=codex hostDriver=CodexHostDriver multiplexedHost=false
 3. 合并后就地重测发现 `architecture-ratchet` 的 oversize 又红：provider 由 737 行叠加 live-settings 后到 **836** 行（基线外上限 800）。把三个纯协议参数构造器（`process/spawn` / `thread/start` / `turn/start`）原样移入 `codex-host-driver.contract.ts`，provider **795** 行；纯移动，无行为变化。
 
 第三轮复跑读数（均在本工作树、单文件串行跑）：`codex-resident-lifecycle` 9 pass / 0 fail（逐字读数与上文一致）、`architecture-ratchet` 6 pass、`quay-test-script` 14 pass、`session-host-lifecycle` 7、`resident-host-service` 5、`resident-ondemand-start-route` 4、`resident-restore.service` 5、`lifecycle-mode` 9（首跑一次 `fetch failed: bad port` 环境抖动，同文件复跑 9 pass 全绿）、`codex-runtime` 12、`codex-host-driver-persistent` 5、`codex-resident-background-leases` 8、`codex-app-server-protocol` 7、`codex-host-driver-settings` 6，全部 exit 0；`npm run typecheck` exit 0；`npx oxlint server/` exit 0（仅既有 warning）；anti-drift Touches 检查 `--merge-target goal/GOAL-051`：`ANTI-DRIFT OK … 9 actual file(s), all within declared Touches`（exit 0）。`git merge --no-edit develop` 无冲突（`73e8e632a`）。AC1–AC11 仍全部成立；`task_check` 报 `acTotal=11 acChecked=11 ok=true`。上文的 468/465/467 与 737 行读数属第二轮当时状态，以本段为准。
-
-## Blocker
-
-**2026-10-29T13:45:56.874Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
-Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
-CONFLICT (content): Merge conflict in server/modules/providers/list/codex/codex-host-driver.provider.ts
-Auto-merging server/shared/tests/quay-test-script.test.ts
-CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
-Auto-merging tasks/gap-ac437-codex-resident-live-settings.md
-Automatic merge failed; fix conflicts and then commit the result.
-- run_id：wk-prod-anchor
-- session_id：2eb71b23-03f7-40cc-8952-9d712d11573b
