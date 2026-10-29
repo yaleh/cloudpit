@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-shared-asr-registry-and-providers
 title: "architecture-analysis: A 7-file SCC with 13 value-level edges:
   asrRegistry.ts imports every adapter (lines 28/36/43/48/53/60) while the
   adapters import its guard helpers (baseMimeT"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
