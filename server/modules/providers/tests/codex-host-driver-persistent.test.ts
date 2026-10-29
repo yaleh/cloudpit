@@ -367,8 +367,15 @@ test('interrupt stops the turn without killing the process (AC5)', async () => {
       aliveAfter: false,
     };
     assert.equal(await driver.interrupt(host, 'session-interrupt'), true, 'interrupt must report it stopped a turn');
-    const interrupted = driver.readSession('session-interrupt');
-    reading.interruptTurnStatus = String(interrupted.turnStatus);
+    // A driver that killed the process may not even answer for the session any
+    // more; keep the reading incomplete and let the shared assertion name it.
+    let interrupted: ReturnType<CodexHostDriver['readSession']> | null = null;
+    try {
+      interrupted = driver.readSession('session-interrupt');
+    } catch (error) {
+      console.log(`sessionAfterInterruptError=${error instanceof Error ? error.message : String(error)}`);
+    }
+    reading.interruptTurnStatus = String(interrupted?.turnStatus ?? 'missing');
     reading.afterPid = transport.pid;
     reading.aliveAfter = transport.isAlive();
     await submitPromise;
