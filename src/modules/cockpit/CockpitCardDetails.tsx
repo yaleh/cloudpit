@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -114,6 +114,24 @@ export type CockpitCardDetailsProps = {
 
 /** How far a downward swipe on the drawer's handle must travel before the sheet closes. */
 const DRAWER_CLOSE_SWIPE_PX = 60;
+
+/**
+ * The cockpit page owns the Enter key on `window` (it zooms the stage), and it calls
+ * `preventDefault()` there even when a button has focus — so a plain button's native Enter
+ * activation never fires inside the cockpit. The rows therefore activate themselves on
+ * Enter/Space and stop the event before it reaches the page handler: one press selects the row,
+ * it never also zooms the stage behind the drawer.
+ */
+function activateRowOnKey(
+  action: (() => void) | undefined,
+): (event: ReactKeyboardEvent<HTMLButtonElement>) => void {
+  return (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    action?.();
+  };
+}
 
 function waitingText(t: TFunction, now: number, waitingSince: string): string {
   const since = Date.parse(waitingSince);
@@ -414,6 +432,9 @@ export default function CockpitCardDetails({
                     aria-pressed={isShown}
                     disabled={optionsLocked}
                     onClick={optionsLocked ? undefined : () => onShowOption?.(option.id)}
+                    onKeyDown={activateRowOnKey(
+                      optionsLocked ? undefined : () => onShowOption?.(option.id),
+                    )}
                     className={cn(
                       'block w-full rounded-md border px-2 py-1.5 text-left transition-colors',
                       'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
@@ -469,6 +490,7 @@ export default function CockpitCardDetails({
                   aria-pressed={showingOwnReply}
                   disabled={optionsLocked}
                   onClick={optionsLocked ? undefined : onShowOwnReply}
+                  onKeyDown={activateRowOnKey(optionsLocked ? undefined : onShowOwnReply)}
                   className={cn(
                     'block w-full rounded-md border border-dashed px-2 py-1.5 text-left text-xs font-medium text-foreground transition-colors',
                     'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
