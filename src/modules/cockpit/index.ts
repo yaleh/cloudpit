@@ -162,18 +162,19 @@ export type {
 // header draws the button; the sidebar's mode switch asks the same binding whether the column is
 // open. Exported through the barrel so none of them deep-imports the cockpit's files.
 export {
-  cockpitColumnLayoutFor,
+  cockpitColumnFrameFor,
   createCockpitColumnController,
   COCKPIT_COLUMN_DEFAULT_WIDTH,
   COCKPIT_COLUMN_MAX_WIDTH,
+  COCKPIT_COLUMN_MIN_SESSION_WIDTH,
   COCKPIT_COLUMN_MIN_WIDTH,
   COCKPIT_COLUMN_OVERLAY_MIN_WIDTH,
-  COCKPIT_COLUMN_SQUEEZE_MIN_WIDTH,
   COCKPIT_COLUMN_STORAGE_KEY,
 } from '@/modules/cockpit/cockpitColumnController';
 export type {
   CockpitColumnController,
   CockpitColumnControllerDeps,
+  CockpitColumnFrame,
   CockpitColumnLayout,
   CockpitColumnSnapshot,
   CockpitColumnStorage,

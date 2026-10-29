@@ -5,12 +5,28 @@ import type { CockpitCardController } from '@/modules/cockpit/cockpitCardControl
 /**
  * The PC cockpit column's rules, with no React in the file.
  *
- * THREE LAYOUTS, ONE BOUNDARY EACH. A wide window shows the column beside the session and the
- * chat area gives up exactly the column's width (`squeeze`); a middle window overlays it on the
- * session area (`overlay`); a phone-width window does not mount it at all (`hidden`). The
- * boundaries are 1280 and 900 because those are the two widths the design names: below 1280 a
- * 400 px column would leave a session less than 880 px, and below 900 there is no room for the
- * column and the session to be read together.
+ * THE LAYOUT IS STATED IN THE WORKSPACE, NOT THE WINDOW. The column and the session share the
+ * layout row left over after the sidebar (and the editor panel) have taken their width, so the
+ * window is the wrong unit: at a 1440 px window with the sidebar open the row is 1151 px, and a
+ * 400 px column leaves the session 751 px — not the 1040 px the window arithmetic suggests. A
+ * layout read off `window.innerWidth` therefore squeezed the session to 591 px at a 1280 px
+ * window, which is exactly where this file used to start squeezing. The caller measures the row
+ * and hands its width in; nothing here reads the window.
+ *
+ * THREE LAYOUTS, ONE BOUNDARY EACH. The column keeps the session at least 640 px:
+ *
+ *   - `squeeze` — a width that fits above that floor sits beside the session and the session
+ *     gives up exactly the column's width. The column is never drawn wider than the floor
+ *     allows, so `workspace − width >= 640` holds for every squeeze reading.
+ *   - `overlay` — when the smallest readable column (320 px) would still push the session under
+ *     640, the column covers the session instead, from a 600 px workspace up.
+ *   - `hidden` — under 600 px of workspace the phone model owns the page and nothing mounts.
+ *
+ * The width itself is the person's choice when they have made one (a drag, remembered across
+ * mounts) and the shipped 400 px otherwise. The auto width steps DOWN to the 320 px minimum when
+ * 400 would leave the session under 640, instead of sitting on the odd remainder (at a 991 px
+ * workspace that is 320 + 671 rather than 351 + 640); a dragged width is honoured as far as the
+ * floor allows and never silently rewritten in storage.
  *
  * THE COLUMN OWNS ONLY ITS OWN FRAME. Every card reading and every card command is the card
  * controller's; this file adds the frame (layout, expanded, width), the header count, the
@@ -26,7 +42,7 @@ import type { CockpitCardController } from '@/modules/cockpit/cockpitCardControl
  * keystroke can never land in both places.
  */
 
-/** How the column meets the session area at the current viewport width. */
+/** How the column meets the session area at the current workspace width. */
 export type CockpitColumnLayout = 'squeeze' | 'overlay' | 'hidden';
 
 /** The width the column opens at, before any drag or stored value. */
@@ -35,22 +51,55 @@ export const COCKPIT_COLUMN_DEFAULT_WIDTH = 400;
 export const COCKPIT_COLUMN_MIN_WIDTH = 320;
 /** The widest the drag may make the column; above this the session is the smaller half. */
 export const COCKPIT_COLUMN_MAX_WIDTH = 720;
-/** At or above this viewport width the column squeezes the session instead of covering it. */
-export const COCKPIT_COLUMN_SQUEEZE_MIN_WIDTH = 1280;
-/** At or above this viewport width the column exists at all. */
-export const COCKPIT_COLUMN_OVERLAY_MIN_WIDTH = 900;
+/** The least the session area must keep before the column covers it instead of squeezing it. */
+export const COCKPIT_COLUMN_MIN_SESSION_WIDTH = 640;
+/** At or above this WORKSPACE width the column exists at all; below it the phone model owns. */
+export const COCKPIT_COLUMN_OVERLAY_MIN_WIDTH = 600;
 /** Per-device, per-browser memory of the expand intent and the dragged width. */
 export const COCKPIT_COLUMN_STORAGE_KEY = 'cockpit.column.v1';
 
-/** The layout a viewport width calls for. Exported so a criterion reads the same boundaries. */
-export function cockpitColumnLayoutFor(viewportWidth: number): CockpitColumnLayout {
-  if (viewportWidth >= COCKPIT_COLUMN_SQUEEZE_MIN_WIDTH) return 'squeeze';
-  if (viewportWidth >= COCKPIT_COLUMN_OVERLAY_MIN_WIDTH) return 'overlay';
-  return 'hidden';
-}
+/** One frame reading: which layout, and the width the column draws at. */
+export type CockpitColumnFrame = {
+  layout: CockpitColumnLayout;
+  width: number;
+};
 
 function clampWidth(width: number): number {
   return Math.min(COCKPIT_COLUMN_MAX_WIDTH, Math.max(COCKPIT_COLUMN_MIN_WIDTH, Math.round(width)));
+}
+
+/**
+ * The frame a workspace width and the person's preferred column width call for.
+ *
+ * Exported so a criterion reads the same rule the controller applies. `hasOwnWidth` tells the
+ * two apart: a width the person chose is clamped to what the 640 px floor allows, while the
+ * shipped default steps down to the readable minimum when 400 does not fit. Under this rule a
+ * squeeze always leaves at least `COCKPIT_COLUMN_MIN_SESSION_WIDTH`, whatever the drag did.
+ */
+export function cockpitColumnFrameFor(
+  workspaceWidth: number,
+  preferredWidth: number,
+  hasOwnWidth: boolean,
+): CockpitColumnFrame {
+  const preferred = clampWidth(preferredWidth);
+  if (!Number.isFinite(workspaceWidth) || workspaceWidth <= 0) {
+    return { layout: 'hidden', width: preferred };
+  }
+  const squeezeCap = Math.min(
+    COCKPIT_COLUMN_MAX_WIDTH,
+    workspaceWidth - COCKPIT_COLUMN_MIN_SESSION_WIDTH,
+  );
+  if (squeezeCap >= COCKPIT_COLUMN_MIN_WIDTH) {
+    if (hasOwnWidth) {
+      const width = Math.max(COCKPIT_COLUMN_MIN_WIDTH, Math.min(preferred, squeezeCap));
+      return { layout: 'squeeze', width };
+    }
+    return { layout: 'squeeze', width: preferred <= squeezeCap ? preferred : COCKPIT_COLUMN_MIN_WIDTH };
+  }
+  if (workspaceWidth >= COCKPIT_COLUMN_OVERLAY_MIN_WIDTH) {
+    return { layout: 'overlay', width: preferred };
+  }
+  return { layout: 'hidden', width: preferred };
 }
 
 /** The two storage verbs the column needs; a test passes a plain object. */
@@ -62,12 +111,14 @@ export type CockpitColumnStorage = {
 /** The immutable reading the column, its header button and the sidebar switch render. */
 export type CockpitColumnSnapshot = {
   layout: CockpitColumnLayout;
-  /** The last viewport width the column was told about. */
-  viewportWidth: number;
+  /** The width of the layout row the column shares with the session area (0 = not measured). */
+  workspaceWidth: number;
   /** Whether the column is on screen right now (`hidden` always reads false). */
   expanded: boolean;
-  /** The dragged width; the column draws at exactly this width. */
+  /** The width the column draws at: the preferred width, clamped to keep the session readable. */
   width: number;
+  /** The person's own width (a drag or a stored value), before the squeeze floor clamps it. */
+  preferredWidth: number;
   /** True between `beginResize` and `endResize`, for the handle's drag lifecycle. */
   resizing: boolean;
   /** Every open card the provider returned, filters included (the header count's source). */
@@ -99,8 +150,8 @@ type CockpitColumnCards = Pick<
 
 export type CockpitColumnControllerDeps = {
   cards: CockpitColumnCards;
-  /** Injected so a test states a viewport instead of resizing jsdom. */
-  readViewportWidth?: () => number;
+  /** Injected so a test states a workspace instead of measuring a row. The only width source. */
+  readWorkspaceWidth?: () => number;
   /** Injected so a test restores a stored frame; absent uses `localStorage` when it exists. */
   storage?: CockpitColumnStorage | null;
   /** True when a text field owns the keyboard. Defaults to reading `document.activeElement`. */
@@ -118,12 +169,12 @@ export type CockpitColumnController = {
   stop: () => void;
   /** Stops for good; later commands are no-ops. */
   dispose: () => void;
-  /** Tells the column the window width changed; the layout is derived, never set. */
-  setViewportWidth: (viewportWidth: number) => void;
-  /** Expands/collapses the column. Ignored at phone width, where it does not exist. */
+  /** Tells the column the layout row's width changed; the layout is derived, never set. */
+  setWorkspaceWidth: (workspaceWidth: number) => void;
+  /** Expands/collapses the column. Ignored where the column does not exist. */
   setExpanded: (expanded: boolean) => void;
   toggle: () => void;
-  /** Sets the dragged width and remembers it for the next mount. */
+  /** Sets the person's width and remembers it for the next mount. */
   setWidth: (width: number) => void;
   beginResize: (clientX: number) => void;
   resizeTo: (clientX: number) => void;
@@ -141,21 +192,27 @@ export type CockpitColumnController = {
 
 type StoredFrame = {
   expanded: boolean;
-  width: number;
+  /** The person's own width, or null when the shipped default still applies. */
+  width: number | null;
 };
 
 function readStoredFrame(storage: CockpitColumnStorage | null): StoredFrame {
-  const fallback: StoredFrame = { expanded: false, width: COCKPIT_COLUMN_DEFAULT_WIDTH };
+  const fallback: StoredFrame = { expanded: false, width: null };
   if (storage === null) return fallback;
   try {
     const raw = storage.getItem(COCKPIT_COLUMN_STORAGE_KEY);
     if (raw === null) return fallback;
     const parsed = JSON.parse(raw) as { expanded?: unknown; width?: unknown };
+    const stored =
+      typeof parsed.width === 'number' && Number.isFinite(parsed.width)
+        ? clampWidth(parsed.width)
+        : null;
     return {
       expanded: parsed.expanded === true,
-      width: typeof parsed.width === 'number' && Number.isFinite(parsed.width)
-        ? clampWidth(parsed.width)
-        : COCKPIT_COLUMN_DEFAULT_WIDTH,
+      // A frame persisted by the previous release always carried the default width, so a stored
+      // 400 is the shipped value, not a drag: keeping it out of the "own width" branch is what
+      // lets that install shrink to 320 where the floor demands it.
+      width: stored === null || stored === COCKPIT_COLUMN_DEFAULT_WIDTH ? null : stored,
     };
   } catch {
     // A storage-disabled browser (or corrupt JSON) starts at the shipped frame.
@@ -171,8 +228,13 @@ function defaultStorage(): CockpitColumnStorage | null {
   }
 }
 
-function defaultViewportWidth(): number {
-  return typeof window === 'undefined' ? COCKPIT_COLUMN_SQUEEZE_MIN_WIDTH : window.innerWidth;
+/**
+ * An unmeasured workspace. The column lives on a session page whose layout row reports its own
+ * width; until that reading arrives there is no workspace to lay out in, and guessing one from
+ * the window is exactly the defect this controller stopped making.
+ */
+function defaultWorkspaceWidth(): number {
+  return 0;
 }
 
 function isEditableElement(element: Element | null): boolean {
@@ -202,12 +264,15 @@ export function createCockpitColumnController(
 ): CockpitColumnController {
   const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
   const stored = readStoredFrame(storage);
-  const readViewportWidth = deps.readViewportWidth ?? defaultViewportWidth;
+  const readWorkspaceWidth = deps.readWorkspaceWidth ?? defaultWorkspaceWidth;
   const isEditableFocused = deps.isEditableFocused ?? defaultIsEditableFocused;
 
-  let viewportWidth = readViewportWidth();
+  let workspaceWidth = readWorkspaceWidth();
   let wantExpanded = stored.expanded;
-  let width = stored.width;
+  let preferredWidth = stored.width ?? COCKPIT_COLUMN_DEFAULT_WIDTH;
+  // Whether the width is the person's own (a drag or a stored non-default value) rather than the
+  // shipped default. Only the auto width is allowed to step down to the minimum on its own.
+  let hasOwnWidth = stored.width !== null;
   let resizing = false;
   let resizeOrigin: { clientX: number; width: number } | null = null;
   let openedCardId: string | null = null;
@@ -217,15 +282,16 @@ export function createCockpitColumnController(
 
   const readSnapshot = (): CockpitColumnSnapshot => {
     const cards = deps.cards.getSnapshot();
-    const layout = cockpitColumnLayoutFor(viewportWidth);
+    const frame = cockpitColumnFrameFor(workspaceWidth, preferredWidth, hasOwnWidth);
     // The card controller's own count: folded duplicates are one open question, and the filters
     // (which are the list's, not the column's) do not apply to this number.
     const openCount = cards.openCount;
     return {
-      layout,
-      viewportWidth,
-      expanded: layout === 'hidden' ? false : wantExpanded,
-      width,
+      layout: frame.layout,
+      workspaceWidth,
+      expanded: frame.layout === 'hidden' ? false : wantExpanded,
+      width: frame.width,
+      preferredWidth,
       resizing,
       openCount,
       badgeText: openCount === 0 ? '' : openCount > 99 ? '99+' : String(openCount),
@@ -246,7 +312,10 @@ export function createCockpitColumnController(
   const persist = (): void => {
     if (storage === null) return;
     try {
-      storage.setItem(COCKPIT_COLUMN_STORAGE_KEY, JSON.stringify({ expanded: wantExpanded, width }));
+      storage.setItem(
+        COCKPIT_COLUMN_STORAGE_KEY,
+        JSON.stringify({ expanded: wantExpanded, width: preferredWidth }),
+      );
     } catch {
       // A full or forbidden storage must not make the column unopenable.
     }
@@ -282,11 +351,11 @@ export function createCockpitColumnController(
         unsubscribeCards = null;
       }
     },
-    setViewportWidth: (next: number) => {
-      if (disposed || !Number.isFinite(next) || next <= 0) return;
+    setWorkspaceWidth: (next: number) => {
+      if (disposed || !Number.isFinite(next) || next < 0) return;
       const rounded = Math.round(next);
-      if (rounded === viewportWidth) return;
-      viewportWidth = rounded;
+      if (rounded === workspaceWidth) return;
+      workspaceWidth = rounded;
       commit();
     },
     setExpanded,
@@ -294,8 +363,9 @@ export function createCockpitColumnController(
     setWidth: (next: number) => {
       if (disposed || !Number.isFinite(next)) return;
       const clamped = clampWidth(next);
-      if (clamped === width) return;
-      width = clamped;
+      if (clamped === preferredWidth && hasOwnWidth) return;
+      preferredWidth = clamped;
+      hasOwnWidth = true;
       persist();
       commit();
     },
@@ -303,15 +373,18 @@ export function createCockpitColumnController(
       const snapshot = store.getSnapshot();
       if (disposed || !snapshot.expanded || snapshot.layout !== 'squeeze') return;
       resizing = true;
-      resizeOrigin = { clientX, width };
+      // The origin is the width ON SCREEN, so the frame follows the pointer from where the
+      // handle actually is — not from a preferred width the 640 px floor may have clamped.
+      resizeOrigin = { clientX, width: snapshot.width };
       commit();
     },
     resizeTo: (clientX: number) => {
       if (disposed || !resizing || resizeOrigin === null) return;
       // The column grows as the pointer moves LEFT (its handle is on its left edge).
       const next = clampWidth(resizeOrigin.width + (resizeOrigin.clientX - clientX));
-      if (next === width) return;
-      width = next;
+      if (next === preferredWidth && hasOwnWidth) return;
+      preferredWidth = next;
+      hasOwnWidth = true;
       commit();
     },
     endResize: () => {

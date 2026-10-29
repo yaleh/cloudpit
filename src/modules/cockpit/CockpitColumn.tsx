@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { Gauge, PanelRightClose } from 'lucide-react';
@@ -15,6 +15,7 @@ import {
   CockpitColumnContext,
   useCockpitColumn,
   useCockpitColumnContext,
+  useCockpitWorkspaceWidth,
 } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
 
@@ -37,7 +38,7 @@ import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitCol
  * reaches the same server hub rather than a second, local interpretation.
  */
 
-/** True while the column exists at this viewport (the phone model owns below 900 px). */
+/** Provides the one column binding; the layout itself is the controller's (workspace-driven). */
 export function CockpitColumnProvider({ children }: { children: ReactNode }) {
   const { cockpitEnabled } = useServerFeatures();
   // Loading counts as off, exactly like the sidebar switch: rendering and then removing the
@@ -94,10 +95,19 @@ const INPUT_ROLES = ['input'] as const;
  * of the page to the bottom, the header shrinks to the column's left edge, and the overlay layout
  * covers the session from the page top too. Collapsed the column renders nothing, so the row has
  * exactly the old session area as its only child and the page is unchanged.
+ *
+ * THIS ROW IS THE WORKSPACE THE LAYOUT IS STATED IN. It is measured by the column's own hook
+ * (`useCockpitWorkspaceWidth`) and its width is handed to the controller; nothing here decides a
+ * layout. Only a session page renders it, so a measured row is also the reading that says "the
+ * PC column has somewhere to live".
  */
 export function CockpitColumnRegion({ children }: { children: ReactNode }) {
+  const binding = useCockpitColumnContext();
+  // The row the column and the session share; the workspace width is read off this element.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useCockpitWorkspaceWidth(binding?.controller ?? null, rowRef);
   return (
-    <div className="flex h-full min-h-0 w-full" data-workspace-session-layout>
+    <div ref={rowRef} className="flex h-full min-h-0 w-full" data-workspace-session-layout>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-workspace-session-area>
         {children}
       </div>
@@ -166,6 +176,7 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
       data-cockpit-column-layout={snapshot.layout}
       data-cockpit-column-expanded="true"
       data-cockpit-column-width={snapshot.width}
+      data-cockpit-column-workspace={snapshot.workspaceWidth}
       style={{ width: snapshot.width }}
       className={cn(
         'flex min-h-0 flex-col border-l border-border/60 bg-background',

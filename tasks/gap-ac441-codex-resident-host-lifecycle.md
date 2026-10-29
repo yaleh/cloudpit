@@ -86,13 +86,13 @@ goal_ac: AC-441
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts (modify: turn lease、host port、startResidentSession、冷启动 run、原因读数)
-- server/modules/providers/list/codex/codex-host-driver.contract.ts (new: driver 的公开类型契约与协议读数；把 provider 从 853 行降到 737 行以过 architecture-ratchet 的 800 行 oversize 上限，provider 原样 re-export 同一表面)
+- server/modules/providers/list/codex/codex-host-driver.contract.ts (new: driver 的公开类型契约、协议读数与协议参数构造器；把 provider 从 853 行降到 737 行、并在第三轮并入 live-settings 后从 836 行降到 795 行，以过 architecture-ratchet 的 800 行 oversize 上限，provider 原样 re-export 同一类型表面)
 - server/modules/providers/list/codex/codex.provider.ts (modify: 挂载 hostDriver)
 - server/modules/providers/index.ts (modify: 导出 CodexHostDriver / CodexAppServerConnection 及两个类型，供跨模块判据经 barrel 访问)
 - server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts (new)
 - server/modules/session-hosts/tests/lifecycle-mode.test.ts (modify: per-run-only 夹具改为「codex 已挂驱动但未声明 resident」，cursor/opencode 仍无驱动)
 - scripts/suite-duration-baseline.tsv (modify: 新判据的耗时行 6229ms，保住 AC7 的 90% 覆盖下限)
-- server/shared/tests/quay-test-script.test.ts (modify: 新增一个 server 判据文件后收集数 467→468，dispatch 计数钉 464→465 / 466→467)
+- server/shared/tests/quay-test-script.test.ts (modify: 新增 server 判据文件后收集数同步；第三轮按 ac437+ac441 并集 469 把 dispatch 计数钉改为 AC2 469-3=466 / AC3 469-1=468)
 - tasks/gap-ac441-codex-resident-host-lifecycle.md
 
 ## 完成记录
@@ -151,6 +151,16 @@ provider=codex hostDriver=CodexHostDriver multiplexedHost=false
 2. `server/shared/tests/quay-test-script.test.ts` — 新增 `server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 后收集数 468，而分支上的计数钉仍是 467（`unknown=464` / `unknown=466`），且 AC7 的耗时基线覆盖 421/468 < 90%。修复：计数钉改为 `468 - 3 = 465` 与 `468 - 1 = 467`（注释里补上本条的条目），`scripts/suite-duration-baseline.tsv` 追加本判据行 `6229ms`（2026-10-29 两次热跑 6229/6457ms，原命令见行上注释），覆盖变为 422/468 = **90.17%**。两个文件都是「新增 server 判据文件必须同步」的既有惯例，已补登进 `## Touches`。
 
 复跑读数（均在本工作树、按原命令单文件跑）：`architecture-ratchet.test.ts` 6 pass / 0 fail（exit 0，oversizeFiles 不再报本条文件）；`quay-test-script.test.ts` 14 pass / 0 fail（exit 0，含 AC2/AC3/AC7）；`server-import-cycle-budget.test.ts` 11 pass、`resident-legacy-path-ratchet.test.ts` 4 pass；依赖本 driver 的判据 codex-host-driver-persistent 5、codex-resident-background-leases 8、codex-app-server-protocol 7、codex-resident-lifecycle 9、lifecycle-mode 9、session-host-lifecycle 7、resident-host-service 5、resident-ondemand-start-route 4、resident-restore.service 5、codex-runtime 12，全部 exit 0；`npm run typecheck` exit 0；`npx oxlint server/` exit 0（仅既有 warning）。
+
+**第三轮（沿用同一工作树，解决合并冲突并修复合并后棘轮；提交 `52d67d3e1`、`73e8e632a`、`095e933eb`）**
+
+第三轮从上一轮 exited-not-landed 的现场继续：工作树留有 `UU` 未合并路径，先按语义并集解决，再合并 develop。
+
+1. `codex-host-driver.provider.ts`（与 goal/GOAL-051 的 live-settings 冲突）：两侧 import / 字段 / 构造器均保留 —— contract 的协议读数与 `host` 选项、live-settings 的 `createCodexLiveSettings` 与 `settingsNotificationTimeoutMs` / `capabilityProbeTimeoutMs` 并存；`CodexHostDriverOptions` 的两条 settings 选项补进 contract.ts（类型表面仍由 provider re-export）。无行为变化。
+2. `server/shared/tests/quay-test-script.test.ts`：两侧各自把收集数从同一点 +1 到 468，合并后 ac437 与 ac441 两条判据文件同时存在，实际 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` = **469**；计数钉按并集改为 AC2 `469 - 3 = 466`、AC3 `469 - 1 = 468`（两处注释同时列出 ac437 与 ac441）。
+3. 合并后就地重测发现 `architecture-ratchet` 的 oversize 又红：provider 由 737 行叠加 live-settings 后到 **836** 行（基线外上限 800）。把三个纯协议参数构造器（`process/spawn` / `thread/start` / `turn/start`）原样移入 `codex-host-driver.contract.ts`，provider **795** 行；纯移动，无行为变化。
+
+第三轮复跑读数（均在本工作树、单文件串行跑）：`codex-resident-lifecycle` 9 pass / 0 fail（逐字读数与上文一致）、`architecture-ratchet` 6 pass、`quay-test-script` 14 pass、`session-host-lifecycle` 7、`resident-host-service` 5、`resident-ondemand-start-route` 4、`resident-restore.service` 5、`lifecycle-mode` 9（首跑一次 `fetch failed: bad port` 环境抖动，同文件复跑 9 pass 全绿）、`codex-runtime` 12、`codex-host-driver-persistent` 5、`codex-resident-background-leases` 8、`codex-app-server-protocol` 7、`codex-host-driver-settings` 6，全部 exit 0；`npm run typecheck` exit 0；`npx oxlint server/` exit 0（仅既有 warning）；anti-drift Touches 检查 `--merge-target goal/GOAL-051`：`ANTI-DRIFT OK … 9 actual file(s), all within declared Touches`（exit 0）。`git merge --no-edit develop` 无冲突（`73e8e632a`）。AC1–AC11 仍全部成立；`task_check` 报 `acTotal=11 acChecked=11 ok=true`。上文的 468/465/467 与 737 行读数属第二轮当时状态，以本段为准。
 
 ## Blocker
 

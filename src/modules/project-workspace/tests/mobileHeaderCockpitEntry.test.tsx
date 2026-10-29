@@ -206,12 +206,12 @@ function card(index: number): CockpitCardData {
 
 /**
  * The production binding's shape: a real card controller holding `openCount` cards, a real column
- * controller reading a phone-width viewport, and the value the header's context consumes.
+ * controller reading a phone-width workspace, and the value the header's context consumes.
  *
- * At 390 px the column's own layout is `hidden` — which is exactly why the phone entry is the
- * `page` variant: it survives a layout in which the PC column does not exist.
+ * At a 390 px workspace the column's own layout is `hidden` — which is exactly why the phone
+ * entry is the `page` variant: it survives a layout in which the PC column does not exist.
  */
-async function columnBinding(openCount: number, viewportWidth = 390): Promise<CockpitColumnBinding> {
+async function columnBinding(openCount: number, workspaceWidth = 390): Promise<CockpitColumnBinding> {
   const cards = createCockpitCardController({
     fetchCards: async () => Array.from({ length: openCount }, (_unused, index) => card(index + 1)),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
@@ -221,7 +221,7 @@ async function columnBinding(openCount: number, viewportWidth = 390): Promise<Co
   await cards.load();
   const column = createCockpitColumnController({
     cards,
-    readViewportWidth: () => viewportWidth,
+    readWorkspaceWidth: () => workspaceWidth,
     storage: null,
   });
   column.start();
