@@ -46,14 +46,16 @@ const PROBE = path.join(SCRIPT_DIR, 'asr-dashscope-omni-check.mjs');
  * `ERR_REQUIRE_CYCLE_MODULE`). `tsconfig.json` comes along for the same reason: the fixture is meant
  * to be loaded the way the repository is loaded, not under a hand-written approximation of it.
  *
- * The board is in the list because the probe feeds it the shipping adapter, and the registry because
- * the probe reads the contract face out of it. Neither is registered or dispatched through — the
+ * The board is in the list because the probe feeds it the shipping adapter, and the registry and the
+ * contract leaf are both there because the registry re-exports the contract and the probe reads the
+ * contract face out of the contract file. Neither is registered or dispatched through — the
  * adapter under test is not in `REGISTERED` (that is a later task) — so the fixture's registry is
  * the shipping one, copied rather than trimmed.
  */
 const SHIPPING_FILES = [
   'package.json',
   'tsconfig.json',
+  'shared/asr/asrContract.ts',
   'shared/asr/asrRegistry.ts',
   'shared/asr/asrInvariants.ts',
   'shared/asr/transcriptionWire.ts',
@@ -73,8 +75,8 @@ const SHIPPING_FILES = [
 
 /** The module under test: every mutation below but one is applied to this file. */
 const ADAPTER = 'shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts';
-/** The contract face the wire member and the degradation field live on. */
-const REGISTRY = 'shared/asr/asrRegistry.ts';
+/** The contract leaf the wire member and the degradation field live on. */
+const CONTRACT = 'shared/asr/asrContract.ts';
 /** The contract board, whose rows the probe measures the shipping adapter against. */
 const BOARD = 'shared/asr/asrInvariants.ts';
 
@@ -270,13 +272,14 @@ test('AC6: returning the raw content as the text is caught by the degradation gr
 
 test('AC8: filing an unenabled model as a refused credential is caught', (t) => {
   // THE MUTATION MOVED WITH THE IMPLEMENTATION. The mapping this case falsifies used to be a
-  // status-only function in the ADAPTER; it is now `classifyUpstreamFailure` in the registry
-  // (`shared/asr/asrRegistry.ts`), so the mutation is the one rule that tells the two 403s apart —
-  // the code string the body names. Applied to the adapter the anchor no longer exists, and a case
-  // whose anchor had drifted is a case that would fail for a reason unrelated to its claim.
+  // status-only function in the ADAPTER; it is now `classifyUpstreamFailure` in the contract leaf
+  // (`shared/asr/asrContract.ts`, re-exported by the registry), so the mutation is the one rule
+  // that tells the two 403s apart — the code string the body names. Applied to the adapter the
+  // anchor no longer exists, and a case whose anchor had drifted is a case that would fail for a
+  // reason unrelated to its claim.
   control(t, {
     name: 'a body naming an unenabled model filed as a refused credential, so the two 403s collapse onto one code',
-    file: REGISTRY,
+    file: CONTRACT,
     from: "  { token: 'AccessDenied.Unpurchased', code: 'ACCOUNT_ACCESS' },",
     to: "  { token: 'AccessDenied.Unpurchased', code: 'UNAUTHORIZED' },",
     token: 'ERROR_CODE_MISMATCH',
@@ -350,14 +353,14 @@ test('AC13: a board group that produced no readings is a failure, not a silent g
 
 // ── the contract face itself ─────────────────────────────────────────────────────────────────
 
-test('AC13: the wire member and the degradation field are read out of the registry source', (t) => {
+test('AC13: the wire member and the degradation field are read out of the contract source', (t) => {
   // Both halves are the tree's own statements rather than the probe's: the probe reads them from the
-  // registry file it discovered, and this case takes each one away in turn. Without the member the
+  // contract file it discovered, and this case takes each one away in turn. Without the member the
   // adapter's declaration has no name in the contract; without the field the degradation is a
   // behaviour nothing can select on.
   control(t, {
     name: 'a contract whose wire union does not name the new shape',
-    file: REGISTRY,
+    file: CONTRACT,
     from: "export type AsrWire = 'chat-audio' | 'inline-json' | 'multipart';",
     to: "export type AsrWire = 'inline-json' | 'multipart';",
     token: 'WIRE_MEMBER_ABSENT',
@@ -367,7 +370,7 @@ test('AC13: the wire member and the degradation field are read out of the regist
 test('AC13: a success envelope with no field for the degradation is caught', (t) => {
   control(t, {
     name: 'a success envelope that cannot say the rewrite was skipped',
-    file: REGISTRY,
+    file: CONTRACT,
     from: '    writtenFallback?: number;',
     to: '    writtenFallbackRemoved?: number;',
     token: 'META_FIELD_ABSENT',

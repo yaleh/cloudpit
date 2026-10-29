@@ -455,6 +455,13 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
         assistantText: ask.assistantText,
         context: askReading.context,
       });
+      // The semantic gate's negative verdict: this message is not a question. There is no digest
+      // to write for it; suppressing a card the fleet already received is the retraction task's
+      // job. Remember the attempt so a card that polls does not buy the same model call again.
+      if (reading.isAsking === false) {
+        remember();
+        return;
+      }
       // The switch may have been turned off while the call was in flight; keep the old reading.
       if (reading.state === 'skipped') return;
 

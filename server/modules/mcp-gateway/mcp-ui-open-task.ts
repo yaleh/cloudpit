@@ -21,7 +21,7 @@ import { z } from 'zod';
 
 import { MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpWriteToolDeps, McpWriteToolSeam } from './mcp-gateway.write-tools.js';
+import type { McpWriteToolSeam } from './mcp-write-contract.js';
 import {
   buildUiNavigation,
   createUiNavigationRateLimiter,
@@ -88,10 +88,10 @@ export type UiOpenTaskPayload = UiNavigationToolPayload;
 export type McpUiOpenTaskDeps = UiNavigationToolDeps;
 
 /** Whether the injected deps carry this tool's services, i.e. it is wired. */
-export function isUiOpenTaskWired(
-  deps: McpWriteToolDeps,
-): deps is McpWriteToolDeps & { uiOpenTask: McpUiOpenTaskDeps } {
-  return deps.uiOpenTask !== undefined;
+export function isUiOpenTaskWired<D extends object>(
+  deps: D,
+): deps is D & { uiOpenTask: McpUiOpenTaskDeps } {
+  return (deps as { uiOpenTask?: unknown }).uiOpenTask !== undefined;
 }
 
 // --------------------------- input ---------------------------

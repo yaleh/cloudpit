@@ -71,7 +71,7 @@
  * `docs/proposals/voice-dashscope-omni-written-instruction.md` §3 verbatim, not a rule invented
  * here; the module comment says so because a later reader comparing the two must find them equal.
  *
- * ENVIRONMENT NEUTRALITY, the same machine property `../../asrRegistry.ts` documents: this file is
+ * ENVIRONMENT NEUTRALITY, the same machine property `../../asrContract.ts` documents: this file is
  * compiled by BOTH compiler configurations (root: `lib: ES2020 + DOM`, `types: vite/client`;
  * server: `lib: ES2022`, NodeNext, `types: node`), so it uses no Node built-in and no ES2021+
  * library feature, and relative specifiers end in `.js`.
@@ -85,8 +85,8 @@ import type {
   AsrRequest,
   AsrResult,
   AsrWire,
-} from '../../asrRegistry.js';
-import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrRegistry.js';
+} from '../../asrContract.js';
+import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrContract.js';
 
 /**
  * The version of this frozen prompt. A value, not a derivation: it names the experiment round whose

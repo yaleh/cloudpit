@@ -70,15 +70,13 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import { formatMcpTime } from './mcp-gateway.read-tools.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import { formatMcpTime, type McpTime } from '@/shared/mcp-contract/index.js';
 import type {
   McpReadToolContext,
-  McpReadToolDeps,
   McpReadToolSeam,
   McpRunSummary,
-  McpTime,
-} from './mcp-gateway.read-tools.js';
+} from './mcp-read-contract.js';
 
 // --------------------------- limits and vocabulary ---------------------------
 
@@ -1349,8 +1347,8 @@ export type McpChangesRegistration = {
  * `MCP_TOOL_NOT_IMPLEMENTED` refusal on a mount that did not — the registered
  * name set is unchanged either way.
  */
-export function isChangesWired(deps: McpReadToolDeps): deps is McpReadToolDeps & { changes: McpChangesDeps } {
-  return deps.changes !== undefined;
+export function isChangesWired<D extends object>(deps: D): deps is D & { changes: McpChangesDeps } {
+  return (deps as { changes?: unknown }).changes !== undefined;
 }
 
 /**

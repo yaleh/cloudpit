@@ -71,7 +71,7 @@ import type { McpPendingInteraction } from './mcp-approvals.js';
 import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from './mcp-correlation-id.js';
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpApprovalReader } from './mcp-gateway.read-tools.js';
+import type { McpApprovalReader } from './mcp-read-contract.js';
 import { MCP_RUN_GET_MAX_WAIT_SECONDS } from './mcp-run-get.js';
 import type { McpRunGetDeps, RunGetPayload } from './mcp-run-get.js';
 

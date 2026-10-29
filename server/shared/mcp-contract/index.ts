@@ -39,6 +39,21 @@ export type { McpPrincipal } from './principal.js';
 // A tool's declared argument schema (AC-288).
 export type { McpToolInputSchema } from './schemas.js';
 
+// The time vocabulary every read tool renders (stage 2). Moved here from
+// `modules/mcp-gateway/mcp-gateway.read-tools.ts` so the tool modules depend
+// downward on the contract instead of importing back into the registrar.
+export type { McpTime } from './time.js';
+export { formatMcpTime, readTimeField } from './time.js';
+
+// The tool refusal code and limits that are part of the wire contract (stage 2).
+// Moved here from the gateway's read/run-get modules for the same reason.
+export {
+  MCP_RUN_GET_MAX_WAIT_SECONDS,
+  MCP_SESSION_SEARCH_DEFAULT_LIMIT,
+  MCP_SESSION_SEARCH_MAX_LIMIT,
+  MCP_TOOL_NOT_IMPLEMENTED_CODE,
+} from './tool-vocabulary.js';
+
 // The stage-2 tool-module boundary (proposal §3.3).
 export type {
   McpToolAnnotations,

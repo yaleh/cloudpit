@@ -634,10 +634,11 @@ function listFiles(root, pattern) {
 /**
  * Enter `shared/asr/` through the registry before touching an adapter module.
  *
- * The registry value-imports every adapter and the adapters value-import `baseMimeType` /
- * `declaredAcceptsMime` back out of it, so the entry order decides the outcome: registry first is fine, an
- * adapter first throws `Cannot access '<symbol>' before initialization` at module-eval time. The registry
- * is absent in a reduced tree, and then there is nothing to enter through.
+ * The registry value-imports every adapter; the adapters value-import `baseMimeType` /
+ * `declaredAcceptsMime` / `classifyUpstreamFailure` from the contract leaf, so the registry↔adapter
+ * value cycle this order was originally written for is gone. The registry-first entry is kept: it is
+ * the documented way into the seam and it still holds for a reduced tree that predates the split.
+ * The registry is absent in a reduced tree, and then there is nothing to enter through.
  *
  * @param {string} root @returns {Promise<void>}
  */
@@ -1464,21 +1465,21 @@ async function checkHints(ledger, adapter, module) {
  * @param {Ledger} ledger
  * @param {any} adapter
  * @param {any} boardModule
- * @param {string} registryPath
+ * @param {string} contractPath
  * @param {string} root
  */
-async function checkContractFace(ledger, adapter, boardModule, registryPath, root) {
-  const registrySource = readFileSync(path.join(root, registryPath), 'utf8');
+async function checkContractFace(ledger, adapter, boardModule, contractPath, root) {
+  const contractSource = readFileSync(path.join(root, contractPath), 'utf8');
   ledger.expect(
     'contract.wire-member',
-    /export type AsrWire = [^;]*'chat-audio'/.test(registrySource),
+    /export type AsrWire = [^;]*'chat-audio'/.test(contractSource),
     true,
     'WIRE_MEMBER_ABSENT',
     'the wire union has a member for this shape, so the tag the adapter declares is one the contract names rather than a value that happens to stringify',
   );
   ledger.expect(
     'contract.meta-writtenFallback',
-    /writtenFallback\??\s*:/.test(registrySource),
+    /writtenFallback\??\s*:/.test(contractSource),
     true,
     'META_FIELD_ABSENT',
     'the success envelope has a field for the degradation, which is what makes it a reading a caller can select on',
@@ -1632,6 +1633,10 @@ async function main() {
   try {
     const registryPath = findModuleBySource(root, /export function resolve\s*\(/);
     header.push(`registry-module=${registryPath ?? '<none>'}`);
+    // The types the wire union and the success envelope are declared in live in the contract leaf,
+    // which the registry re-exports; the contract face is a reading of that file's own text.
+    const contractPath = findModuleBySource(root, /export type AsrWire\s*=/);
+    header.push(`contract-module=${contractPath ?? '<none>'}`);
 
     const { module, path: adapterPath, others } = await loadShippingAdapter(root);
     adapterId = String(module.id);
@@ -1673,9 +1678,12 @@ async function main() {
       } else if (registryPath === null) {
         ledger.absent('BOARD_UNRESOLVED', 'board.registry',
           'no module under shared/asr/ exports resolve, so the contract face could not be read');
+      } else if (contractPath === null) {
+        ledger.absent('BOARD_UNRESOLVED', 'board.contract',
+          'no module under shared/asr/ declares the AsrWire union, so the contract face could not be read');
       } else {
         const board = await import(pathToFileURL(path.join(root, boardPath)).href);
-        await checkContractFace(ledger, adapter, board, registryPath, root);
+        await checkContractFace(ledger, adapter, board, contractPath, root);
       }
     }
   } catch (error) {

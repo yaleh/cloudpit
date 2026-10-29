@@ -36,8 +36,8 @@ import type {
   AsrRequest,
   AsrResult,
   AsrWire,
-} from '../../asrRegistry.js';
-import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrRegistry.js';
+} from '../../asrContract.js';
+import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrContract.js';
 import {
   audioFormatFor,
   base64Encode,

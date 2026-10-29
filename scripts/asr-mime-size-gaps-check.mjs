@@ -66,6 +66,12 @@ const FRONTEND_LANDING_MODULE = 'src/shared/asr/asrRegistry.ts';
 
 /** The four sites this probe reads, and the two compiler configurations that can load them. */
 const REGISTRY_MODULE = LANDING_MODULE;
+/**
+ * The contract leaf the registry re-exports. The `acceptsMime` gate is a definition, not a
+ * re-export, so the source reading has to look where the function lives rather than where the
+ * runtime entry point is.
+ */
+const CONTRACT_MODULE = `${LANDING}/asrContract.ts`;
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
 const ROUTES_MODULE = 'server/modules/voice/voice.routes.ts';
 const MODULE_MODULE = 'server/modules/voice/voice.module.ts';
@@ -354,7 +360,7 @@ function landingReadings(root) {
 /**
  * Where the whitelist comes from, as a SYMBOL NAME rather than a file and line (AC6).
  *
- * Read as two halves of one call: the expression the registry's rule compares its declaration
+ * Read as two halves of one call: the expression the contract's rule compares its declaration
  * against, and the expression the service passes as that declaration. A service that passed a
  * literal array would make the first half of this reading a spelling of nothing.
  */
@@ -378,7 +384,7 @@ function sourceReadings(root) {
   /** @type {string[]} */
   const failures = [];
 
-  const registry = readTreeFileOrEmpty(root, REGISTRY_MODULE);
+  const registry = readTreeFileOrEmpty(root, CONTRACT_MODULE);
   const service = readTreeFileOrEmpty(root, SERVICE_MODULE);
   const client = readTreeFileOrEmpty(root, CLIENT_API_MODULE);
   const module_ = readTreeFileOrEmpty(root, MODULE_MODULE);

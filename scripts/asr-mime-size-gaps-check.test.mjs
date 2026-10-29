@@ -37,7 +37,7 @@ import { buildFixture } from './asr-mime-size-gaps-check.mjs';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(SCRIPT_DIR, 'asr-mime-size-gaps-check.mjs');
 
-const REGISTRY_MODULE = 'shared/asr/asrRegistry.ts';
+const CONTRACT_MODULE = 'shared/asr/asrContract.ts';
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
 const CLIENT_API_MODULE = 'src/shared/api.ts';
 
@@ -102,7 +102,7 @@ test('AC1/AC9: a whitelist that refuses everything is reported by the half it br
   // code and costs no upstream call — so only the accepting half can catch it.
   patchFixtureFile(
     root,
-    REGISTRY_MODULE,
+    CONTRACT_MODULE,
     'return capabilities.acceptsMime.indexOf(base) !== -1;',
     'return false; // The fake form: the whitelist refuses every container.',
   );
@@ -125,7 +125,7 @@ test('AC2/AC9: an exact-string match is reported instead of the recorder\'s own 
   // the one that has to be read.
   patchFixtureFile(
     root,
-    REGISTRY_MODULE,
+    CONTRACT_MODULE,
     'return mimeType.split(\';\')[0].trim().toLowerCase();',
     'return mimeType.trim().toLowerCase(); // The fake form: the parameters stay on.',
   );

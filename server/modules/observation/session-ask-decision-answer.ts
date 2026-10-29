@@ -17,24 +17,37 @@
  */
 import type { SessionAskDecisionOption, SessionAskDecisionReading } from '@/shared/types.js';
 
-/** The model's answer before the normalisation rules are applied. */
-export type ParsedAskAnswer = {
-  ask: string;
-  situation: string;
-  incomplete: boolean;
-  recommendedOptionId: string | null;
-  /** The judge's pick from the SAME answer; null when the model omitted it or it named nothing. */
-  judgeOptionId: string | null;
-  /** The judge's one-line reason; null when absent. A pick without a reason is not a judge. */
-  judgeReason: string | null;
-  options: Array<{
-    id: string;
-    label: string;
-    does: string;
-    tags: Array<{ kind: string; text: string }>;
-    source: SessionAskDecisionOption['source'];
-  }>;
-};
+/**
+ * The model's answer before the normalisation rules are applied.
+ *
+ * `isAsking` is the semantic verdict this call exists to produce. A `false` answer is complete on
+ * its own — the model was told not to invent an `ask`/`situation`/`options` for a message that is
+ * not a question — so the discriminator lets the parser demand the full decision shape only when
+ * the verdict is `true`.
+ */
+export type ParsedAskAnswer =
+  | { isAsking: false }
+  | {
+      isAsking: true;
+      ask: string;
+      situation: string;
+      incomplete: boolean;
+      recommendedOptionId: string | null;
+      /** The judge's pick from the SAME answer; null when the model omitted it or it named nothing. */
+      judgeOptionId: string | null;
+      /** The judge's one-line reason; null when absent. A pick without a reason is not a judge. */
+      judgeReason: string | null;
+      options: Array<{
+        id: string;
+        label: string;
+        does: string;
+        tags: Array<{ kind: string; text: string }>;
+        source: SessionAskDecisionOption['source'];
+      }>;
+    };
+
+/** The positive arm of {@link ParsedAskAnswer}: the fields a real question's answer carries. */
+export type ParsedAskingAnswer = Extract<ParsedAskAnswer, { isAsking: true }>;
 
 /** Immutable config, not caches: a frozen array avoids the module-level mutable-state ratchet. */
 const OPTION_SOURCES: readonly SessionAskDecisionOption['source'][] = ['assistant', 'judge', 'provider'];
@@ -65,6 +78,16 @@ export function parseAskDecisionAnswer(text: string): ParsedAskAnswer {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('模型输出的 JSON 不是对象');
   const record = parsed as Record<string, unknown>;
 
+  // THE VERDICT COMES FIRST. A `false` answer needs no ask/situation/options — demanding them
+  // would make the model invent a question in order to say there is none, which is exactly the
+  // false-card defect this gate removes. An ABSENT field is the pre-gate answer shape: those
+  // answers were only ever produced for messages already read as candidates, so they mean `true`.
+  const rawIsAsking = record.isAsking;
+  if (rawIsAsking !== undefined && typeof rawIsAsking !== 'boolean') {
+    throw new Error('模型输出的 isAsking 不是布尔值');
+  }
+  if (rawIsAsking === false) return { isAsking: false };
+
   const ask = nonEmpty(record.ask);
   if (ask === null) throw new Error('模型输出缺少非空的 ask');
   const situation = nonEmpty(record.situation);
@@ -73,7 +96,7 @@ export function parseAskDecisionAnswer(text: string): ParsedAskAnswer {
   if (!Array.isArray(record.options)) throw new Error('模型输出缺少 options 数组');
 
   const seenIds = new Set<string>();
-  const options = record.options.map((raw, index): ParsedAskAnswer['options'][number] => {
+  const options = record.options.map((raw, index): ParsedAskingAnswer['options'][number] => {
     if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`options[${index}] 不是对象`);
     const option = raw as Record<string, unknown>;
     const id = nonEmpty(option.id);
@@ -118,6 +141,7 @@ export function parseAskDecisionAnswer(text: string): ParsedAskAnswer {
   const judgeReason = nonEmpty(record.judgeReason);
 
   return {
+    isAsking: true,
     ask,
     situation,
     incomplete: record.incomplete,
@@ -147,7 +171,7 @@ const YES_NO_QUESTION =
   /(?:是否|要不要|需不需要|用不用|能不能|可不可以|该不该|会不会|有没有|是不是)|(?:吗|么)\s*[?？]?\s*$|\b(?:should|shall|can|could|may|would|will|do|does|is|are|did)\b[^?？]*[?？]/i;
 
 /** The two options a yes/no question gets when the assistant listed none of its own. */
-const YES_NO_OPTIONS: ParsedAskAnswer['options'] = [
+const YES_NO_OPTIONS: ParsedAskingAnswer['options'] = [
   {
     id: 'yes',
     label: '是',
@@ -172,7 +196,7 @@ const YES_NO_OPTIONS: ParsedAskAnswer['options'] = [
  * `judgeOptionId` (which may name `yes`/`no`). The worst case is a missed suggestion, never a
  * fabricated one.
  */
-function withYesNoOptions(parsed: ParsedAskAnswer, assistantText: string): ParsedAskAnswer['options'] {
+function withYesNoOptions(parsed: ParsedAskingAnswer, assistantText: string): ParsedAskingAnswer['options'] {
   if (parsed.options.length > 0) return parsed.options;
   return YES_NO_QUESTION.test(assistantText.trim()) ? YES_NO_OPTIONS : parsed.options;
 }
@@ -191,7 +215,7 @@ function withYesNoOptions(parsed: ParsedAskAnswer, assistantText: string): Parse
  * reading rather than a guessed one.
  */
 export function buildAskDecision(
-  parsed: ParsedAskAnswer,
+  parsed: ParsedAskingAnswer,
   identity: { askId: string; revision: number },
   assistantText: string,
   usage: { inputTokens: number | null; outputTokens: number | null },
@@ -226,6 +250,7 @@ export function buildAskDecision(
   });
   return {
     state: 'evaluated',
+    isAsking: true,
     ...identity,
     ask: parsed.ask,
     situation: parsed.situation,
@@ -235,14 +260,22 @@ export function buildAskDecision(
   };
 }
 
-/** The system instruction: JSON only, restate rather than copy, never invent. */
+/** The system instruction: decide first, then JSON only, restate rather than copy, never invent. */
 export const SYSTEM_PROMPT = [
-  '你在为驾驶舱生成「会话提问」的结构化决策摘要。只依据给出的对话原文；原文没有的不要补。',
-  '只输出 JSON：{"ask":"…","situation":"…","incomplete":false,"recommendedOptionId":null,"judgeOptionId":null,"judgeReason":null,"options":[{"id":"…","label":"…","does":"…","tags":[{"kind":"consequence","text":"…"}],"source":"assistant"}]}',
-  '- ask：把助手最后一条消息里的提问重述成一个问句，保留原文的限定条件；不要整段照抄。',
+  '你在为驾驶舱判定「助手最后一条消息是否在向用户提问」，并在是提问时生成结构化决策摘要。只依据给出的对话原文；原文没有的不要补。',
+  '判定是语义判断，不看位置：决策点可能在中段，最后一段可能只是附注/免责声明。判断标准是「助手是否把某个决定交给用户、等用户回答后才能继续」。',
+  '判为提问（isAsking=true）包括：明确提出问句；或没有问号、但用「值得优先讨论的下一步 / 下一步 / 优先级」这类标题把若干可选的下一步列成编号清单，助手自己没有选定，等用户指定先做哪一项或选择方向。',
+  '判为不是提问（isAsking=false）的常见形状，即使含编号列表或问号：',
+  '  · 报告/审查/状态总结/方案说明——陈述已完成的工作、发现或结论，编号列表只是清单、证据或完整计划；',
+  '  · 指示/操作清单——告诉用户去执行什么（「你要做的：…」「回 yes 授权」「记下…」），这是命令，不是待决问题；',
+  '  · 助手已经给出自己的单一推荐或完整优先级计划（「我的建议是：先…再…」），没有把互斥选择交给用户；',
+  '  · 报告结尾的提议/推荐（「要的话我可以…」「建议先…再…」）或附注，不构成等待用户裁决的问题；只有助手明确要求用户在多个互斥选项间选择、或回答一个它自己不能决定的问题时，才判为 true。',
+  '只输出 JSON。不是提问时输出 {"isAsking":false}，不要写 ask/situation/options，绝不编造问题或选项。',
+  '是提问时输出：{"isAsking":true,"ask":"…","situation":"…","incomplete":false,"recommendedOptionId":null,"judgeOptionId":null,"judgeReason":null,"options":[{"id":"…","label":"…","does":"…","tags":[{"kind":"consequence","text":"…"}],"source":"assistant"}]}',
+  '- ask：把助手消息里真正的待决问题重述成一个问句，保留原文的限定条件；不要整段照抄。问题可能来自中段的「值得优先/下一步/是否…」清单，最后一段只是附注时也要从前面取出它。',
   '- situation：回答这个问题需要知道的情境（在做什么、卡在哪、已试过什么），只写原文有的事实。',
   '- options：助手原文用编号或项目符号列出若干选择时，必须为每一项给出一条 option（label 用原文的选项名）；原文没有列出选择才用空数组 []。does 是选它会发生什么，tags 是后果标签（kind 用 consequence / risk / cost / benefit）。',
-  '- 是/否提问：当助手最后一条消息是「是否要…」「要不要…」「要我…吗」「Should I…?」这类只能答是或否的问题、且原文没有列出选项时，给出两个 option：id 分别为 "yes"（label 「是」）和 "no"（label 「否」），各写一句 does 与一个 consequence 标签。',
+  '- 是/否提问：当助手消息是「是否要…」「要不要…」「要我…吗」「Should I…?」这类只能答是或否的问题、且原文没有列出选项时，给出两个 option：id 分别为 "yes"（label 「是」）和 "no"（label 「否」），各写一句 does 与一个 consequence 标签。',
   '- recommendedOptionId：仅当助手原文明确推荐了某个选项时填它的 id；原文没有推荐就填 null。',
   '- judgeOptionId：当原文没有明确推荐时，从 options 里挑出最可能被选的一项填它的 id（是/否题填 "yes" 或 "no"）；原文已有明确推荐时必须填 null，不得覆盖助手的推荐。',
   '- judgeReason：judgeOptionId 非 null 时，用一句话说明为什么选它（依据原文的事实）；judgeOptionId 为 null 时也填 null。',

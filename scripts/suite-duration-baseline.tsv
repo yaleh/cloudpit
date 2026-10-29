@@ -855,3 +855,9 @@
 #   (dur=3398ms from one warm run, its own new criterion; the row also keeps the 90% coverage
 #   floor green now that the tree collects 473 server test files).
 3398	server/modules/providers/tests/codex-host-driver-steer.test.ts
+#   and the session-ask-semantic-gate row by gap-cockpit-ask-semantic-gate, measured once on
+#   2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-semantic-gate.test.ts`
+#   (dur=3773ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
+#   tree collects 474 server test files).
+3773	server/modules/observation/tests/session-ask-semantic-gate.test.ts

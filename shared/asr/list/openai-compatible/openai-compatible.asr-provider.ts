@@ -16,7 +16,7 @@
  * from what it sent yesterday. The guards below (container, budget) run BEFORE the wire is
  * touched, which is the discipline the second adapter shares and the invariant board measures.
  *
- * ENVIRONMENT NEUTRALITY, the same machine property `../../asrRegistry.ts` documents: this file is
+ * ENVIRONMENT NEUTRALITY, the same machine property `../../asrContract.ts` documents: this file is
  * compiled by BOTH compiler configurations (root: `lib: ES2020 + DOM`, `types: vite/client`;
  * server: `lib: ES2022`, NodeNext, `types: node`), so it uses no Node built-in and no ES2021+
  * library feature, and every environment dependency (base URL, credential, model, transport,
@@ -32,7 +32,7 @@ import {
   type AsrInvocation,
   type AsrRequest,
   type AsrResult,
-} from '../../asrRegistry.js';
+} from '../../asrContract.js';
 import { createTranscriptionRequest, parseTranscriptionResponse } from '../../transcriptionWire.js';
 
 /** The id this provider is registered under — the id the shipped path has always been spoken of by. */

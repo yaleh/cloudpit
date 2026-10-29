@@ -5267,6 +5267,16 @@ export type SessionAskDecision = {
  * field: the producer/reader attach it as a fallback for the `skipped`/`unevaluated` states (an
  * `evaluated` reading already restates the question), and the projection caps it for display.
  * It is never presented as the model's restatement; the card's own copy marks it as the original.
+ *
+ * `isAsking` is the T1 summary's EXPLICIT semantic verdict — the one field the producer gates the
+ * `session.asking` event and the observation object on. It is:
+ *   · `true` on an `evaluated` reading (the model restated a real question);
+ *   · `false` on the `unevaluated` reading the summariser returns when the message is NOT a
+ *     question — a definitive non-ask that must produce no event and no object;
+ *   · absent/`undefined` when the tier was disabled or the call failed: the producer then falls
+ *     back to the mechanical prefilter's candidate and shows this reading's `reason` on the card,
+ *     because a briefly visible candidate is better than silently dropping a real question.
+ * Readers written before this field existed leave it absent; only a literal `false` suppresses.
  */
 export type SessionAskDecisionReading =
   | ({
@@ -5274,9 +5284,10 @@ export type SessionAskDecisionReading =
       inputTokens: number | null;
       outputTokens: number | null;
       originalAsk?: string;
+      isAsking?: boolean;
     } & SessionAskDecision)
-  | { state: 'skipped'; reason: string; originalAsk?: string }
-  | { state: 'unevaluated'; reason: string; originalAsk?: string };
+  | { state: 'skipped'; reason: string; originalAsk?: string; isAsking?: boolean }
+  | { state: 'unevaluated'; reason: string; originalAsk?: string; isAsking?: boolean };
 
 /** The two context-event kinds a session ask produces; the fleet schema pins their names. */
 export type SessionAskEventKind = 'session.asking' | 'session.answered';

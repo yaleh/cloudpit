@@ -12,6 +12,9 @@ import type {
 import { i18n } from '@/modules/i18n';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
 import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
+import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
+import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
+import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
 import {
   cockpitCardDescriptor,
   cockpitTagIcon,
@@ -1845,5 +1848,171 @@ describe('the third action: 「忽略/丢弃」 on a session-ask card', () => {
 
     fireEvent.click(screen.getByTestId('cockpit-card-dismiss-confirm'));
     expect(onConfirmDismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The three blocks `CockpitCard` composes are PURE presentational: each draws only the props it
+ * is handed and forwards its callbacks. These tests call them directly (no controller, no card
+ * state), so a block that started deriving a reading would need a card or a controller here.
+ */
+describe('presentational blocks draw precomputed props and own no state', () => {
+  const OPTIONS = {
+    card: CARD,
+    compact: false,
+    dropdownOpen: false,
+    feedbackLocked: false,
+    emptyAskContent: false,
+    conversationSessionId: 'fixture-session',
+    ownReply: '',
+    ownReplyAvailable: true,
+    shownOption: CARD.options[0],
+    showingOwnReply: false,
+    shownLabel: 'Delete staging',
+    shownSource: '● from assistant',
+    shownPosition: '1 of 2',
+    onToggleDropdown: () => undefined,
+    onShowOption: () => undefined,
+    onShowOwnReply: () => undefined,
+    onOwnReplyChange: () => undefined,
+  };
+
+  it('the header draws the props it is handed, including the load reading’s accessible name', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardHeader
+          kind="stuck"
+          descriptor={cockpitCardDescriptor('stuck')}
+          project="proj-x"
+          subjectName="subject-y"
+          age="7m"
+          load={1}
+          loadLabel="weight 1 of 3"
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('cockpit-card-kind-badge').textContent).toBe(
+      i18n.t(cockpitCardDescriptor('stuck').badgeKey),
+    );
+    expect(screen.getByTestId('cockpit-card-project').textContent).toBe('proj-x');
+    expect(screen.getByTestId('cockpit-card-subject').textContent).toContain('subject-y');
+    // The age is the prop, not a recomputation from a clock.
+    expect(screen.getByTestId('cockpit-card-age').textContent).toBe('7m');
+    const load = screen.getByTestId('cockpit-card-load');
+    expect(load.getAttribute('data-load')).toBe('1');
+    expect(load.getAttribute('aria-label')).toBe('weight 1 of 3');
+  });
+
+  it('the header draws no project, subject or load when the props say there is none', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardHeader
+          kind="ask"
+          descriptor={cockpitCardDescriptor('ask')}
+          project=""
+          subjectName={null}
+          age="4m"
+          load={undefined}
+          loadLabel=""
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByTestId('cockpit-card-project')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-subject')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-load')).toBeNull();
+  });
+
+  it('the facts row draws the facts it is handed, and its viz comes from the card prop', () => {
+    const facts = [
+      { text: 'staging holds 1.2 GB', mechanical: true },
+      { text: 'transcript archived', mechanical: false },
+    ];
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardFacts
+          card={{ ...CARD, kind: 'stuck', viz: { kind: 'attempts', count: 2 } }}
+          facts={facts}
+        />
+      </I18nextProvider>,
+    );
+
+    const pills = screen.getAllByTestId('cockpit-card-fact');
+    expect(pills.map((pill) => pill.getAttribute('data-mechanical'))).toEqual(['true', 'false']);
+    expect(pills[0].textContent).toContain('●');
+    expect(pills[1].textContent).toContain('○');
+    expect(screen.getByTestId('cockpit-card-viz')).toBeTruthy();
+  });
+
+  it('the options block draws the shown reading from props and only forwards its callbacks', () => {
+    const onToggleDropdown = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardOptions {...OPTIONS} onToggleDropdown={onToggleDropdown} />
+      </I18nextProvider>,
+    );
+
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
+    expect(trigger.textContent).toContain('Delete staging');
+    expect(trigger.textContent).toContain('● from assistant');
+    expect(trigger.textContent).toContain('1 of 2');
+    // The open/closed reading is the prop, not local state.
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+
+    fireEvent.click(trigger);
+    expect(onToggleDropdown).toHaveBeenCalledTimes(1);
+    // Clicking did not open the list: only the controller's prop can.
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('cockpit-card-option-list')).toBeNull();
+  });
+
+  it('the options list is a radio group whose checked row comes from the props', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardOptions {...OPTIONS} dropdownOpen />
+      </I18nextProvider>,
+    );
+
+    const list = screen.getByTestId('cockpit-card-option-list');
+    expect(list.getAttribute('role')).toBe('radiogroup');
+    expect(within(list).getAllByRole('radio')).toHaveLength(3);
+    expect(
+      within(list).getByTestId('cockpit-card-option-delete').getAttribute('aria-checked'),
+    ).toBe('true');
+    expect(
+      within(list).getByTestId('cockpit-card-option-park').getAttribute('aria-checked'),
+    ).toBe('false');
+  });
+
+  it('a locked or empty card draws no live option surface, exactly as the props say', () => {
+    const locked = render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardOptions {...OPTIONS} feedbackLocked />
+      </I18nextProvider>,
+    );
+    const lockedTrigger = screen.getByTestId('cockpit-card-option-trigger');
+    expect(lockedTrigger.hasAttribute('disabled')).toBe(true);
+    expect(lockedTrigger.getAttribute('aria-expanded')).toBe('false');
+    locked.unmount();
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardOptions
+          {...OPTIONS}
+          card={{ ...CARD, options: [] }}
+          emptyAskContent
+          shownOption={null}
+          shownLabel="Choose an option"
+          shownSource={null}
+          shownPosition={null}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByTestId('cockpit-card-option-trigger')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-open-conversation').getAttribute('href')).toBe(
+      '/session/fixture-session',
+    );
   });
 });

@@ -59,7 +59,11 @@ import {
   registerMcpDraftSubmitTool,
 } from './mcp-draft.js';
 import type { McpDraftDeps } from './mcp-draft.js';
-import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from './mcp-gateway.read-tools.js';
+import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
+import type {
+  McpWriteToolRegistration,
+  McpWriteToolSeam,
+} from './mcp-write-contract.js';
 import { MCP_CORRELATION_ID_DESCRIPTION } from './mcp-correlation-id.js';
 import { buildSelfTargetGuard } from './mcp-self-target.js';
 import type { SelfTargetDeps } from './mcp-self-target.js';
@@ -301,31 +305,15 @@ export type McpWriteToolDeps = McpSessionSendDeps & {
 // --------------------------- registration ---------------------------
 
 /**
- * One write tool as it is handed to the registration seam.
+ * One write tool as it is handed to the registration seam, and the seam itself.
  *
- * `outputSchema` is optional so the placeholder tools (no result schema) and
- * `session_send` (which declares one so its payload also reaches the client as
- * `structuredContent`) share one seam shape.
+ * Both moved into `mcp-write-contract.ts` (proposal stage 2) so the tool
+ * IMPLEMENTATIONS that receive them — `mcp-ui-navigation.ts`, the four `ui_*`
+ * write tools, `mcp-draft.ts` — no longer import this registrar back, which was
+ * the write half of the package's file-level cycle. Re-exported here for the
+ * package barrel and the transport, which name this module path.
  */
-export type McpWriteToolRegistration = {
-  name: string;
-  description: string;
-  requiredScope: string;
-  inputSchema: z.ZodRawShape;
-  outputSchema?: z.ZodRawShape;
-  handler: (args: Record<string, unknown>, ctx: { principal: McpPrincipal }) => unknown | Promise<unknown>;
-};
-
-/**
- * The seam `registerMcpWriteTools` installs through.
- *
- * The transport supplies one backed by AC-244's `withMcpAudit` (and, when wired,
- * AC-246's target gate), so every write tool inherits the single audit row and
- * the scope refusal without restating either. The criterion supplies a recording
- * seam, which is how it reads back the names and required scopes a registration
- * actually declared.
- */
-export type McpWriteToolSeam = (registration: McpWriteToolRegistration) => void;
+export type { McpWriteToolRegistration, McpWriteToolSeam } from './mcp-write-contract.js';
 
 /**
  * The refusal a registered-but-unowned write tool answers with. AC-250 delivers

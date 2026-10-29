@@ -59,36 +59,39 @@
 
 import { z } from 'zod';
 
+import type { McpPrincipal, McpTime, McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import {
+  formatMcpTime,
+  MCP_SESSION_SEARCH_DEFAULT_LIMIT,
+  MCP_SESSION_SEARCH_MAX_LIMIT,
+  MCP_TOOL_NOT_IMPLEMENTED_CODE,
+  readTimeField,
+} from '@/shared/mcp-contract/index.js';
 import type { HostMode, HostState, LLMProvider, NormalizedMessage, ProcessHost } from '@/shared/types.js';
 
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+import type {
+  McpApprovalReader,
+  McpHistoryPage,
+  McpMessageWindow,
+  McpOutline,
+  McpOutlineTurn,
+  McpProjectPage,
+  McpProjectSession,
+  McpProjectSessionsPage,
+  McpReadToolContext,
+  McpReadToolDepsBase,
+  McpReadToolRegistration,
+  McpReadToolSeam,
+  McpRecentSession,
+  McpRecentSessionsPage,
+  McpRunningRun,
+  McpRunSummary,
+  McpSessionLifecycle,
+  McpSessionLookupRow,
+} from './mcp-read-contract.js';
 import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from './mcp-correlation-id.js';
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import {
-  DRAFT_GET_DESCRIPTION,
-  DRAFT_GET_INPUT_SCHEMA,
-  DRAFT_GET_OUTPUT_SCHEMA,
-  DRAFT_GET_TOOL_NAME,
-  registerMcpDraftGetTool,
-} from './mcp-draft.js';
-import type { McpDraftDeps } from './mcp-draft.js';
-import { isOverviewWired, overviewOutputSchema, registerMcpOverviewTools } from './mcp-overview-tools.js';
-import type { McpActivityReader, McpOverviewDeps, McpOverviewRegistration, McpQuayRunner } from './mcp-overview-tools.js';
-import { isRunGetWired, registerMcpRunGetTool } from './mcp-run-get.js';
-import type { McpRunGetDeps, McpRunGetRegistration } from './mcp-run-get.js';
-import { isSessionSearchWired, registerMcpSessionSearchTool } from './mcp-session-search.js';
-import type { McpSessionSearchDeps, McpSessionSearchRegistration } from './mcp-session-search.js';
-import { isUiClientsListWired, registerMcpUiClientsListTool } from './mcp-ui-clients-list.js';
-import type { McpUiClientsListDeps } from './mcp-ui-clients-list.js';
-import {
-  isUiVisibleContextWired,
-  registerMcpUiSelectedTextTool,
-  registerMcpUiVisibleContextTool,
-} from './mcp-ui-visible-context.js';
-import type { McpUiVisibleContextDeps } from './mcp-ui-visible-context.js';
-import { isUiLastOpenedWired, registerMcpUiTools } from './mcp-ui-tools.js';
-import type { McpUiLastOpenedDeps, McpUiLastOpenedStore } from './mcp-ui-tools.js';
+import { overviewOutputSchema } from './mcp-tool-schemas.js';
 import {
   MCP_USAGE_STATS_DESCRIPTION,
   MCP_USAGE_STATS_INPUT_SCHEMA,
@@ -98,18 +101,12 @@ import {
 } from './mcp-usage-stats.js';
 import { toPendingInteraction } from './mcp-approvals.js';
 import type { McpApprovalPending } from './mcp-approvals.js';
-import {
-  MCP_CHANGES_INPUT_SCHEMA,
-  MCP_CHANGES_OUTPUT_SCHEMA,
-  isChangesWired,
-  registerMcpChangesTool,
-} from './mcp-changes.js';
-import type { McpChangesDeps } from './mcp-changes.js';
+import { MCP_CHANGES_INPUT_SCHEMA, MCP_CHANGES_OUTPUT_SCHEMA } from './mcp-changes.js';
 
 // --------------------------- the stage-3 tool table ---------------------------
 
 /** The scope every stage-3 read tool requires. */
-const READ_SCOPE = 'cloudcli:read';
+export const READ_SCOPE = 'cloudcli:read';
 
 /**
  * Every read tool this stage ships, with the scope a caller's token must carry.
@@ -250,343 +247,6 @@ export type McpSessionReading = {
   lastActivity: McpTime | null;
 };
 
-/**
- * The pending-approval reader `session_get` / `sessions_list` draw their
- * pending-interaction reading from.
- *
- * Structurally a single-session view of the runtime's own
- * `getPendingApprovalsForSession` — the read tools must not know whether the
- * runtime or the shared control service sits behind it, only that it answers
- * the same entries `approvals_list` does. Optional: a mount that predates this
- * reading (or a criterion exercising only the other tools) simply reports no
- * pending interaction, because this is one more injected capability rather than
- * a condition for serving the tools.
- */
-export type McpApprovalReader = {
-  pendingForSession(sessionId: string): McpApprovalPending[];
-};
-
-/**
- * The services the read tools answer from, all injected.
- *
- * Production passes the process singletons (`server/index.ts`); the criterion
- * passes the same real objects over a temp database and a host manager it drove
- * itself. Only the members a tool actually reads are declared, so a caller
- * cannot be asked for a capability nothing uses.
- */
-export type McpReadToolDeps = {
-  projects: {
-    getProjectsWithSessions(options?: {
-      skipSynchronization?: boolean;
-      sessionsLimit?: number;
-      sessionsOffset?: number;
-      includeHidden?: boolean;
-    }): Promise<ReadonlyArray<McpProjectPage>>;
-    getArchivedProjectsWithSessions(options?: {
-      skipSynchronization?: boolean;
-    }): Promise<ReadonlyArray<McpProjectPage>>;
-    getProjectSessionsPage(
-      projectId: string,
-      options?: { limit?: number; offset?: number; includeHidden?: boolean },
-    ): Promise<McpProjectSessionsPage>;
-    /**
-     * The id of the project stored at one filesystem path, or null when no
-     * project is registered there (gap-mcp-session-get-past-recents-page-and-
-     * small-envelope-defects). It resolves the `projectId` of a session read by
-     * id — the one field whose value `listRecentSessions` takes from a lookup
-     * rather than from the session row itself.
-     *
-     * REQUIRED, not optional: a mount that wires the by-id reader
-     * (`sessions.readSessionById`) cannot project that field without it, and an
-     * optional member let the production assembly replace the `projects` bag
-     * without it and read `projectId: null` for every by-id `session_get`
-     * (gap-mcp-session-get-projectid-null-under-production-gateway-assembly).
-     * Both `server/index.ts` and `createMcpGatewayModule` bind it to the project
-     * repository's `getProjectPath(...).project_id` — the same lookup
-     * `sessionsService.listRecentSessions` uses.
-     */
-    getProjectIdByPath(projectPath: string): string | null;
-  };
-  sessions: {
-    listRecentSessions(limit: number, offset: number): McpRecentSessionsPage;
-    /**
-     * One session's recents row read straight by id, or null when the id names
-     * no visible session (gap-mcp-session-get-past-recents-page-and-small-
-     * envelope-defects).
-     *
-     * `listRecentSessions` is a bounded PAGE of the recents feed, so a session
-     * older than that page is simply not in it — and `session_get` used to
-     * answer SESSION_NOT_FOUND for exactly such a session. This reader resolves
-     * one id directly, so it has no page to fall outside of. Optional so a mount
-     * that predates this task — the run-get/overview criteria, and
-     * `mcp-production-session-wiring.test.ts`, which pass the service bundle
-     * itself — stays a valid `McpReadToolDeps`; when absent, `buildSessionDetail`
-     * falls back to the recents page it has always read. `server/index.ts` binds
-     * it to the session repository's own by-id lookup; the row is projected by
-     * the gateway (`toSessionRow`), so a session read by id and the same session
-     * read in the recents list cannot disagree.
-     */
-    readSessionById?(sessionId: string): McpSessionLookupRow | null;
-    readSessionLifecycle(sessionId: string): McpSessionLifecycle | null;
-    fetchHistory(sessionId: string, options?: { limit?: number | null; offset?: number }): Promise<McpHistoryPage>;
-    fetchOutline(sessionId: string): Promise<McpOutline>;
-    fetchWindowAround(
-      sessionId: string,
-      options: { aroundId: string; before: number; after: number },
-    ): Promise<McpMessageWindow>;
-  };
-  hosts: {
-    snapshot(): ProcessHost[];
-    liveHostForSession(appSessionId: string): ProcessHost | null;
-  };
-  runs: {
-    listRunningRuns(): McpRunningRun[];
-    /**
-     * Every run the registry still holds (running plus terminal inside the
-     * retention window), as summaries. Consumed by `overview` (AC-247) to read
-     * the aborted runs; structurally satisfied by `chatRunRegistry.listRecentRuns`.
-     * Optional so a mount that never wires the overview tools (AC-240/244/245's
-     * criteria) stays a valid `McpReadToolDeps`; `isOverviewWired` requires it
-     * before the overview handlers are installed.
-     */
-    listRecentRuns?(): McpRunSummary[];
-  };
-  /**
-   * The quay command runner (AC-247). Optional so a mount that predates AC-247 —
-   * or a criterion that exercises only the five non-overview read tools — is
-   * still a valid `McpReadToolDeps`. When absent, `overview` and `quay_snapshot`
-   * keep their named `MCP_TOOL_NOT_IMPLEMENTED` refusal; when present they answer
-   * for real. `registerMcpReadTools` branches on this.
-   */
-  quay?: McpQuayRunner;
-  /** The activity store's turn-phase reader (AC-247). Optional; see `quay`. */
-  activity?: McpActivityReader;
-  /**
-   * The services `run_get` answers from (AC-248): the run registry, the activity
-   * store, the sessions history reader, and the clock/sleeper the bounded wait
-   * moves through. Optional so a mount that predates AC-248 — or a criterion
-   * that exercises the other six read tools — is still a valid
-   * `McpReadToolDeps`; when absent `run_get` keeps its named
-   * `MCP_TOOL_NOT_IMPLEMENTED` refusal, when present `registerMcpReadTools`
-   * routes the `run_get` name to {@link registerMcpRunGetTool}. `server/index.ts`
-   * assembles it from the process singletons.
-   */
-  runGet?: McpRunGetDeps;
-  /**
-   * The browser's last-opened-session pointer (gap-mcp-ui-last-opened-session):
-   * a read-only reader over the one row the provider's session-read routes write.
-   * Optional so a mount that predates this task — or a criterion that exercises
-   * the other read tools — is still a valid `McpReadToolDeps`; when absent
-   * `ui_last_opened_session` keeps its named `MCP_TOOL_NOT_IMPLEMENTED` refusal,
-   * when present `registerMcpReadTools` routes the name to
-   * {@link registerMcpUiTools}. `server/index.ts` binds it to
-   * `uiLastOpenedSessionService.readLastOpened`.
-   */
-  uiLastOpened?: McpUiLastOpenedStore;
-  /**
-   * The UI-visible-context reader (gap-mcp-ui-visible-context): the connected
-   * devices a `client` reference resolves against, and the round trip that asks
-   * them what they are showing. Optional so a mount that predates this task —
-   * or a criterion that exercises the other read tools — is still a valid
-   * `McpReadToolDeps`; when absent `ui_visible_context` keeps its named
-   * `MCP_TOOL_NOT_IMPLEMENTED` refusal, when present `registerMcpReadTools`
-   * routes the name to {@link registerMcpUiVisibleContextTool}. `server/index.ts`
-   * binds both members to the websocket module's own process-wide services.
-   */
-  uiVisibleContext?: McpUiVisibleContextDeps;
-  /**
-   * The connected-device listing (gap-mcp-ui-clients-list): the roster a
-   * `ui_clients_list` call enumerates, and the same round trip
-   * `ui_visible_context` uses for the status it reads from each device. Optional
-   * so a mount that predates this task — or a criterion that exercises the other
-   * read tools — is still a valid `McpReadToolDeps`; when absent `ui_clients_list`
-   * keeps its named `MCP_TOOL_NOT_IMPLEMENTED` refusal, when present
-   * `registerMcpReadTools` routes the name to
-   * {@link registerMcpUiClientsListTool}. `server/index.ts` binds both members to
-   * the same process-wide services `uiVisibleContext` binds above.
-   */
-  uiClientsList?: McpUiClientsListDeps;
-  /**
-   * The conversation-search engine (gap-mcp-session-search): the same scanner
-   * the session-search route calls. Optional so a mount that predates this task
-   * — or a criterion that exercises the other read tools — is still a valid
-   * `McpReadToolDeps`; when absent `session_search` keeps its named
-   * `MCP_TOOL_NOT_IMPLEMENTED` refusal, when present `registerMcpReadTools`
-   * routes the name to {@link registerMcpSessionSearchTool}. `server/index.ts`
-   * binds `search` to `sessionConversationsSearchService.search`.
-   */
-  sessionSearch?: McpSessionSearchDeps;
-  /**
-   * The per-session composer draft store (gap-mcp-draft-get-set-submit): the
-   * existing `session_drafts` repository the browser's `/api/user/drafts` routes
-   * write. Optional so a mount that predates this task — or a criterion that
-   * exercises the 12-tool stage-3 set — is still a valid `McpReadToolDeps`; when
-   * absent `draft_get` is simply NOT registered (the resident-tools precedent,
-   * not the body-table refusal: `draft_get` is not one of the stage-3 table's
-   * names and must not enlarge `tools/list` on a mount that cannot serve it),
-   * when present `registerMcpReadTools` registers it through
-   * {@link registerMcpDraftGetTool}. `server/index.ts` binds it to
-   * `sessionDraftsDb`.
-   */
-  draft?: McpDraftDeps;
-  /**
-   * The pending-approval reader `session_get` / `sessions_list` report a
-   * session's pending interaction and `awaitingUser` from
-   * (gap-mcp-pending-interaction-visibility-and-idempotent-answer). Optional:
-   * absent, a session reads `pendingInteraction: null` /
-   * `awaitingUser: false`, which is exactly the reading for a mount that has no
-   * approval source to consult. `server/index.ts` binds it to the runtime
-   * service's own pending lookup.
-   */
-  approvals?: McpApprovalReader;
-  /**
-   * The services `changes` answers from (AC-335): the incremental session reader,
-   * the run registry, the pending-approval set, the Quay CACHE reader, the
-   * project list, and the clock/process identity. Optional so a mount that
-   * predates AC-335 — or a criterion that exercises the other read tools — is
-   * still a valid `McpReadToolDeps`; when absent `changes` keeps its named
-   * `MCP_TOOL_NOT_IMPLEMENTED` refusal, when present `registerMcpReadTools`
-   * routes the name to {@link registerMcpChangesTool}. `server/index.ts`
-   * assembles it from the process singletons.
-   */
-  changes?: McpChangesDeps;
-  /** Clock seam, so every relative time is reproducible in a criterion. */
-  now: () => number;
-};
-
-/** The slice of a project row the tools read (structurally satisfied by `ProjectListItem`). */
-type McpProjectPage = {
-  projectId: string;
-  path: string;
-  displayName: string;
-  sessionMeta: { total: number };
-  sessions: ReadonlyArray<{ lastActivity?: string | null }>;
-  /** Present only on the archived listing; absent on the active one. */
-  isArchived?: boolean;
-};
-
-/** The slice of one project-page session the tools read (structurally satisfied by `SessionSummary`). */
-type McpProjectSession = {
-  id: string;
-  provider: string;
-  summary: string;
-  lastActivity?: string | null;
-};
-
-/** The slice of one recents-list row the tools read (structurally satisfied by `RecentSessionListItem`). */
-type McpRecentSession = {
-  sessionId: string;
-  provider: string;
-  projectId: string | null;
-  sessionTitle: string;
-  lastActivity: string | null;
-};
-
-/** One outline turn as the provider service returns it. */
-type McpOutlineTurn = { id: string; index: number; timestamp: string; preview: string };
-
-/** The project-sessions page the tools read (structurally satisfied by `ProjectSessionsPageApiView`). */
-type McpProjectSessionsPage = { projectId: string; sessions: ReadonlyArray<McpProjectSession> };
-
-/** The recents page the tools read (structurally satisfied by `RecentSessionsPage`). */
-type McpRecentSessionsPage = { conversations: ReadonlyArray<McpRecentSession>; total: number };
-
-/** One session's stored lifecycle preference (structurally satisfied by `SessionLifecycleReading`). */
-type McpSessionLifecycle = { provider: LLMProvider; mode: HostMode };
-
-/** A history page (structurally satisfied by `FetchHistoryResult`). */
-type McpHistoryPage = { messages: ReadonlyArray<NormalizedMessage>; total: number };
-
-/** A turn outline (structurally satisfied by `SessionTurnOutline`). */
-type McpOutline = { total: number; turns: ReadonlyArray<McpOutlineTurn> };
-
-/** A window around one message (structurally satisfied by `SessionMessageWindow`). */
-type McpMessageWindow = { messages: ReadonlyArray<NormalizedMessage>; startIndex: number; total: number };
-
-/** One live run (structurally satisfied by the chat run registry's reading). */
-export type McpRunningRun = {
-  sessionId: string;
-  provider: LLMProvider;
-  startedAt: number;
-  lastSeq: number;
-  /**
-   * AC-337: the opaque label the caller that opened this run attached, or null.
-   * OPTIONAL on this structural dep type (the registry's own reading always
-   * carries it) so a mount that predates AC-337 — every criterion that fakes a
-   * registry — stays a valid `McpReadToolDeps`; an absent reading is `undefined`,
-   * which matches no label and therefore widens nothing. Consumed by
-   * `sessions_list`'s optional `correlationId` filter.
-   */
-  correlationId?: string | null;
-};
-
-/** One tracked run's read-only summary (structurally satisfied by `ChatRunSummary`). */
-export type McpRunSummary = {
-  runId: string;
-  sessionId: string;
-  status: 'running' | 'completed' | 'aborted';
-  startedAt: number;
-  completedAt: number | null;
-};
-
-// --------------------------- time ---------------------------
-
-/** A time as every read tool reports it: both readings of the same instant. */
-export type McpTime = { relative: string; iso: string };
-
-const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
-/**
- * Renders one instant as a relative phrase beside its ISO timestamp.
- *
- * Both readings come from the SAME instant, which is the point: a client that
- * only draws "3 minutes ago" cannot tell a stale reading from a fresh one, and a
- * client that only draws the ISO forces a human to subtract. `now` is injected
- * so the relative half is exactly predictable rather than merely plausible.
- *
- * Consumers: every read tool's time field, and the criterion, which pins a
- * clock and asserts both halves verbatim.
- */
-export function formatMcpTime(ms: number, now: () => number): McpTime {
-  const elapsed = Math.max(0, now() - ms);
-  let relative: string;
-  if (elapsed < MINUTE_MS) {
-    relative = 'just now';
-  } else if (elapsed < HOUR_MS) {
-    relative = `${Math.floor(elapsed / MINUTE_MS)} minutes ago`;
-  } else if (elapsed < DAY_MS) {
-    relative = `${Math.floor(elapsed / HOUR_MS)} hours ago`;
-  } else {
-    relative = `${Math.floor(elapsed / DAY_MS)} days ago`;
-  }
-
-  return { relative, iso: new Date(ms).toISOString() };
-}
-
-/**
- * The time field for a stored timestamp, or null when the row carries none.
- *
- * The stored value is whatever a session row holds — canonical ISO for rows the
- * session repository normalized, and possibly a SQLite `YYYY-MM-DD HH:MM:SS`
- * form for one it did not. An unparseable value reads as null rather than as
- * "now", because a time field that quietly means "I do not know" is worse than
- * an absent one.
- *
- * Exported so the sibling read-tool modules render a stored stamp the SAME way:
- * `mcp-session-search.js` reads a matched message's `timestamp` and a hit's
- * `lastActivity` through this one function rather than restating the parse.
- * Consumers: every read tool's time field, and `mcp-session-search.js`.
- */
-export function readTimeField(value: string | null | undefined, now: () => number): McpTime | null {
-  if (typeof value !== 'string' || value.length === 0) {
-    return null;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : formatMcpTime(parsed, now);
-}
-
 // --------------------------- text pagination ---------------------------
 
 /** How many characters one `content` chunk carries. Characters, not bytes. */
@@ -681,8 +341,6 @@ function renderMessageLine(message: NormalizedMessage): string {
 
 // --------------------------- argument reading ---------------------------
 
-/** The JSON-RPC code a tool returns when it is registered but owned by a later task. */
-export const MCP_TOOL_NOT_IMPLEMENTED_CODE = 'MCP_TOOL_NOT_IMPLEMENTED';
 
 function requireStringArgument(args: Record<string, unknown>, key: string): string {
   const value = args[key];
@@ -732,7 +390,7 @@ type SessionRow = {
  * reads the first page, which is the same bound every other recents consumer
  * takes.
  */
-function readRecentSessionRows(deps: McpReadToolDeps): SessionRow[] {
+function readRecentSessionRows(deps: McpReadToolDepsBase): SessionRow[] {
   const page = deps.sessions.listRecentSessions(SESSION_LIST_PAGE_SIZE, 0);
   return page.conversations.map((row) => ({
     id: row.sessionId,
@@ -744,7 +402,7 @@ function readRecentSessionRows(deps: McpReadToolDeps): SessionRow[] {
 }
 
 /** The sessions of one project, as the same flat rows. */
-async function readProjectSessionRows(deps: McpReadToolDeps, projectId: string): Promise<SessionRow[]> {
+async function readProjectSessionRows(deps: McpReadToolDepsBase, projectId: string): Promise<SessionRow[]> {
   const page = await deps.projects.getProjectSessionsPage(projectId, {
     limit: SESSION_LIST_PAGE_SIZE,
     offset: 0,
@@ -760,20 +418,6 @@ async function readProjectSessionRows(deps: McpReadToolDeps, projectId: string):
 }
 
 /**
- * The slice of one stored session row the by-id reader returns (structurally
- * satisfied by the session repository's own `SessionRow`).
- */
-type McpSessionLookupRow = {
-  session_id: string;
-  provider: string;
-  project_path: string | null;
-  custom_name: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  isArchived: number;
-};
-
-/**
  * Projects one stored session row into the same flat `SessionRow` the recents
  * page produces, so a session read by id and the same session read in the
  * listing cannot disagree (gap-mcp-session-get-past-recents-page-and-small-
@@ -784,7 +428,7 @@ type McpSessionLookupRow = {
  * project id comes through the required project-path lookup, and `lastActivity`
  * is the row's own `updated_at` falling back to `created_at`.
  */
-function toSessionRow(stored: McpSessionLookupRow, deps: McpReadToolDeps): SessionRow {
+function toSessionRow(stored: McpSessionLookupRow, deps: McpReadToolDepsBase): SessionRow {
   const projectPath = stored.project_path?.trim() ? stored.project_path : null;
   return {
     id: stored.session_id,
@@ -804,7 +448,7 @@ function toSessionRow(stored: McpSessionLookupRow, deps: McpReadToolDeps): Sessi
  * which is what makes the three sets disjoint by construction rather than by
  * the fixture happening to avoid an overlap.
  */
-function toSessionReading(row: SessionRow, deps: McpReadToolDeps, running: ReadonlySet<string>): McpSessionReading {
+function toSessionReading(row: SessionRow, deps: McpReadToolDepsBase, running: ReadonlySet<string>): McpSessionReading {
   return {
     id: row.id,
     title: row.title,
@@ -835,7 +479,7 @@ function isResident(reading: McpSessionReading): boolean {
  * bodies would have to keep by hand. Consumers: `session_get`'s body table, and
  * `mcp-ui-tools.js`'s `buildUiLastOpened`.
  */
-export function buildSessionDetail(deps: McpReadToolDeps, sessionId: string) {
+export function buildSessionDetail(deps: McpReadToolDepsBase, sessionId: string) {
   // By id when the mount wires the direct reader — one row looked up, with no
   // page it could fall outside of — else the recents-page scan this tool has
   // always used for a mount that predates the reader. An archived row reads as
@@ -903,7 +547,7 @@ export function buildSessionDetail(deps: McpReadToolDeps, sessionId: string) {
 // --------------------------- tool bodies ---------------------------
 
 /** The registered body of one tool: everything except the table-owned scope. */
-type McpReadToolBody = {
+export type McpReadToolBody = {
   // AC-288: a raw shape, or a built schema carrying a constraint a raw shape
   // cannot express (`session_read`'s bounded `limit` and its `aroundId` /
   // `cursor` exclusivity). The wrapper advertises and enforces whichever it gets.
@@ -915,7 +559,7 @@ type McpReadToolBody = {
   // that predates it keeps its two-argument signature.
   handle: (
     args: Record<string, unknown>,
-    deps: McpReadToolDeps,
+    deps: McpReadToolDepsBase,
     ctx?: McpReadToolContext,
   ) => unknown | Promise<unknown>;
 };
@@ -1024,19 +668,6 @@ function notImplemented(name: McpStage3ReadToolName, owner: string): never {
 
 /** The largest page `session_read` will take. A caller asking for more is refused. */
 const MCP_SESSION_READ_MAX_LIMIT = 200;
-
-/** How many SESSIONS one `session_search` page returns when the caller names no `limit`. */
-export const MCP_SESSION_SEARCH_DEFAULT_LIMIT = 10;
-
-/**
- * The largest `limit` `session_search` accepts, in SESSIONS. It lives here — with
- * the other two read-tool bounds — because the tool's declared input schema is
- * built in this module's body table, and a schema is read at module-evaluation
- * time. `mcp-session-search.js` imports it for its own defaulting; the direction
- * that would be unsafe (this module reading a constant out of its sibling) is the
- * one this placement avoids.
- */
-export const MCP_SESSION_SEARCH_MAX_LIMIT = 50;
 
 /**
  * The declared shape of a `project` argument that accepts ONE project reference or
@@ -1201,7 +832,7 @@ const uiSelectedTextSchema = z.union([
   z.null(),
 ]);
 
-const TOOL_BODIES = {
+export const TOOL_BODIES = {
   overview: {
     // gap-mcp-cross-project-session-aggregation: `project` accepts one id or an
     // array, so a caller can read several projects' overview as one aggregate.
@@ -1563,204 +1194,26 @@ const TOOL_BODIES = {
   },
 } satisfies Record<McpStage3ReadToolName, McpReadToolBody>;
 
-// --------------------------- registration ---------------------------
-
-/** The caller identity a read handler may be handed: the transport's principal, or null. */
-export type McpReadToolContext = { principal: McpPrincipal | null };
-
-/** One read tool as it is handed to the registration seam. */
-export type McpReadToolRegistration = {
-  name: string;
-  description: string;
-  requiredScope: string;
-  /** AC-288: a raw shape, or a built schema carrying a constraint a raw shape cannot express. */
-  inputSchema: McpToolInputSchema;
-  outputSchema: z.ZodRawShape;
-  /**
-   * The behaviour. `ctx` carries the caller's principal when the transport
-   * supplies one; a tool that does not gate on caller identity simply ignores it.
-   * The read seam historically handed a handler only `args`
-   * (`(args) => unknown`), which is why `ctx` is optional: it was widened to
-   * thread `{ principal }` for the one content-bearing read tool
-   * (`ui_selected_text`), whose handler must read the caller's scopes.
-   */
-  handler: (args: Record<string, unknown>, ctx?: McpReadToolContext) => unknown | Promise<unknown>;
-};
-
-/**
- * The seam `registerMcpReadTools` installs through.
- *
- * The transport supplies one backed by AC-244's `withMcpAudit` — so every read
- * tool inherits the single audit row and the scope refusal without restating
- * either. The criterion supplies a recording seam instead, which is how it
- * reads back the names, descriptions and required scopes a registration
- * actually declared.
- */
-export type McpReadToolSeam = (registration: McpReadToolRegistration) => void;
-
-/**
- * Registers every stage-3 read tool exactly once.
- *
- * The scope comes from {@link MCP_STAGE3_READ_TOOLS} — the table is the one
- * place the pair (name, scope) is written down, and the body table is keyed by
- * the same names under a `satisfies`, so a tool added to one and not the other
- * is a type error rather than a silently missing registration.
- *
- * `overview` and `quay_snapshot` are AC-247's. When the injected deps are wired
- * with the quay runner and the activity store, those two names are registered by
- * {@link registerMcpOverviewTools} — the real handlers, with their metadata
- * passed down from this same table so the tool set stays one statement. When the
- * deps are NOT wired (AC-240/244/245's mounts), the two keep their body-table
- * refusal, so those criteria read exactly what they read before this task.
- * Either way the registered NAME SET is unchanged — this replaces handlers, it
- * does not add or rename a tool.
- *
- * `run_get` is AC-248's and follows the same routing: when `deps.runGet` is
- * supplied it is registered by `mcp-run-get.js`'s real handler, otherwise it
- * keeps the body-table refusal. `ui_last_opened_session` follows it too: when
- * `deps.uiLastOpened` is supplied it is registered by `mcp-ui-tools.js`, and
- * otherwise it keeps the body-table refusal. `ui_visible_context` follows the
- * same routing through `mcp-ui-visible-context.js` and `deps.uiVisibleContext`,
- * and `ui_clients_list` through `mcp-ui-clients-list.js` and
- * `deps.uiClientsList`. `session_search` (gap-mcp-session-search) follows the
- * same routing through `mcp-session-search.js` and `deps.sessionSearch`. The
- * registered NAME SET is the table either way.
- *
- * `changes` (gap-mcp-changes-on-demand-event-stream) follows the same routing
- * through `mcp-changes.js` and `deps.changes`.
- */
-export function registerMcpReadTools(seam: McpReadToolSeam, deps: McpReadToolDeps): void {
-  const overviewDeps: McpOverviewDeps | null = isOverviewWired(deps) ? deps : null;
-  const runGetDeps: McpRunGetDeps | null = isRunGetWired(deps) ? deps.runGet : null;
-  const uiDeps: McpUiLastOpenedDeps | null = isUiLastOpenedWired(deps) ? deps : null;
-  const visibleContextDeps: McpUiVisibleContextDeps | null = isUiVisibleContextWired(deps)
-    ? deps.uiVisibleContext
-    : null;
-  const clientsListDeps: McpUiClientsListDeps | null = isUiClientsListWired(deps) ? deps.uiClientsList : null;
-  // The session-search deps: the engine verb the caller injected, plus the
-  // outline reader derived from the SAME `sessions.fetchOutline` the
-  // `session_read` outline mode prints — so a hit's `turnIndex` and that outline
-  // agree by construction rather than by a second numbering. An injected
-  // `outlineFor` (a criterion's own seam) wins; absent it, the derivation is used.
-  const sessionSearchDeps: McpSessionSearchDeps | null = isSessionSearchWired(deps)
-    ? {
-        ...deps.sessionSearch,
-        outlineFor:
-          deps.sessionSearch.outlineFor ??
-          (async (sessionId: string) => (await deps.sessions.fetchOutline(sessionId)).turns),
-      }
-    : null;
-  const draftDeps: McpDraftDeps | null = deps.draft ?? null;
-  const changesDeps: McpChangesDeps | null = isChangesWired(deps) ? deps.changes : null;
-  const table = new Map<string, (typeof MCP_STAGE3_READ_TOOLS)[number]>(
-    MCP_STAGE3_READ_TOOLS.map((tool) => [tool.name, tool]),
-  );
-
-  /** A tool's metadata, read from the one table so a name cannot drift from its scope. */
-  const registration = (name: McpStage3ReadToolName): McpOverviewRegistration => {
-    const tool = table.get(name);
-    const body = TOOL_BODIES[name];
-    if (tool === undefined) {
-      throw new Error(`the stage-3 read table is missing "${name}"`);
-    }
-    return {
-      name: tool.name,
-      description: tool.description,
-      requiredScope: tool.requiredScope,
-      inputSchema: body.inputSchema,
-      outputSchema: body.outputSchema,
-    };
-  };
-
-  for (const tool of MCP_STAGE3_READ_TOOLS) {
-    if (overviewDeps !== null && (tool.name === 'overview' || tool.name === 'quay_snapshot')) {
-      continue;
-    }
-    if (runGetDeps !== null && tool.name === 'run_get') {
-      continue;
-    }
-    if (uiDeps !== null && tool.name === 'ui_last_opened_session') {
-      continue;
-    }
-    if (visibleContextDeps !== null && tool.name === 'ui_visible_context') {
-      continue;
-    }
-    if (visibleContextDeps !== null && tool.name === 'ui_selected_text') {
-      continue;
-    }
-    if (clientsListDeps !== null && tool.name === 'ui_clients_list') {
-      continue;
-    }
-    if (sessionSearchDeps !== null && tool.name === 'session_search') {
-      continue;
-    }
-    if (changesDeps !== null && tool.name === 'changes') {
-      continue;
-    }
-    const body = TOOL_BODIES[tool.name];
-    seam({
-      name: tool.name,
-      description: tool.description,
-      requiredScope: tool.requiredScope,
-      inputSchema: body.inputSchema,
-      outputSchema: body.outputSchema,
-      // `ctx` is threaded through so a caller-scoped body (mcp_usage_stats) can
-      // read the principal; a body that ignores it is unaffected.
-      handler: (args, ctx) => body.handle(args, deps, ctx),
-    });
-  }
-
-  if (overviewDeps !== null) {
-    registerMcpOverviewTools(seam, overviewDeps, {
-      overview: registration('overview'),
-      quaySnapshot: registration('quay_snapshot'),
-    });
-  }
-
-  if (runGetDeps !== null) {
-    const runGet: McpRunGetRegistration = registration('run_get');
-    registerMcpRunGetTool(seam, runGetDeps, runGet);
-  }
-
-  if (uiDeps !== null) {
-    registerMcpUiTools(seam, uiDeps, registration('ui_last_opened_session'));
-  }
-
-  if (visibleContextDeps !== null) {
-    registerMcpUiVisibleContextTool(seam, visibleContextDeps, registration('ui_visible_context'));
-    // The content-bearing companion: same round trip and device address, its own
-    // name and its own scope gate. Registered together so a mount that can ask
-    // the browsers exposes both readings.
-    registerMcpUiSelectedTextTool(seam, visibleContextDeps, registration('ui_selected_text'));
-  }
-
-  if (clientsListDeps !== null) {
-    registerMcpUiClientsListTool(seam, clientsListDeps, registration('ui_clients_list'));
-  }
-
-  if (sessionSearchDeps !== null) {
-    const sessionSearch: McpSessionSearchRegistration = registration('session_search');
-    registerMcpSessionSearchTool(seam, sessionSearchDeps, sessionSearch);
-  }
-
-  if (changesDeps !== null) {
-    registerMcpChangesTool(seam, changesDeps, registration('changes'));
-  }
-
-  // gap-mcp-draft-get-set-submit: a read tool registered ALONGSIDE the stage-3
-  // table rather than in it. `draft_get` reads the caller's own unsent composer
-  // text; its write halves (`draft_set` / `draft_submit`) live with the write
-  // tools, because a single tool cannot carry a read scope for one verb and a
-  // send scope for the others (the seam takes one scope per registration). The
-  // table's own size pin is untouched, which is why the name is NOT added to
-  // `MCP_STAGE3_READ_TOOLS`.
-  if (draftDeps !== null) {
-    registerMcpDraftGetTool(seam, draftDeps, {
-      name: DRAFT_GET_TOOL_NAME,
-      description: DRAFT_GET_DESCRIPTION,
-      requiredScope: READ_SCOPE,
-      inputSchema: DRAFT_GET_INPUT_SCHEMA,
-      outputSchema: DRAFT_GET_OUTPUT_SCHEMA,
-    });
-  }
-}
+// --------------------------- contract re-exports ---------------------------
+// Stage 2 moved the shared vocabulary and the deps/seam types DOWN into the
+// contract leaves (`@/shared/mcp-contract` and `./mcp-read-contract.js`) so the
+// tool modules no longer import back into this registrar. Re-exported here for
+// the module path existing consumers already use; the registrar itself now
+// lives in `./mcp-read-tools-registry.js` (which imports this module, so this
+// module must NOT import it back).
+export {
+  formatMcpTime,
+  MCP_SESSION_SEARCH_DEFAULT_LIMIT,
+  MCP_SESSION_SEARCH_MAX_LIMIT,
+  MCP_TOOL_NOT_IMPLEMENTED_CODE,
+  readTimeField,
+} from '@/shared/mcp-contract/index.js';
+export type { McpTime } from '@/shared/mcp-contract/index.js';
+export type {
+  McpApprovalReader,
+  McpReadToolContext,
+  McpReadToolRegistration,
+  McpReadToolSeam,
+  McpRunningRun,
+  McpRunSummary,
+} from './mcp-read-contract.js';

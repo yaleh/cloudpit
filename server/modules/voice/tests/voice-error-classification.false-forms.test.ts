@@ -98,7 +98,7 @@
  * per-arm `tsconfig` is `{"extends": "../../server/tsconfig.json", "include": ["./<arm>.ts"]}`, so the
  * compiler options, `lib`, `types`, `moduleResolution` and `strict` are `server/tsconfig.json`'s own
  * and only the file list differs; the unmutated arm is compiled the same way first, so a mutant red
- * cannot be a red produced by the flag set. What is NOT done is drifting the shipping registry in
+ * cannot be a red produced by the flag set. What is NOT done is drifting the shipping contract in
  * place and running `npm run typecheck`: that would put a type-invalid shipping file in front of the
  * sibling criteria's concurrent typecheck for the duration, which is the hazard the placement above
  * exists to avoid. The pair — the shipping tree green under the real `npm run typecheck` (AC7's
@@ -115,13 +115,13 @@ import test from 'node:test';
 
 import {
   collectReadings,
-  SHIPPING_REGISTRY_MODULE,
+  SHIPPING_CONTRACT_MODULE,
   SHIPPING_SERVICE_MODULE,
 } from './voice-error-classification.test.js';
 import type { CriterionOverrides } from './voice-error-classification.test.js';
 
-/** The repository root: the registry sits at `shared/asr/`, so its directory is two levels down. */
-const WORKTREE_ROOT = path.resolve(path.dirname(SHIPPING_REGISTRY_MODULE), '../..');
+/** The repository root: the contract sits at `shared/asr/`, so its directory is two levels down. */
+const WORKTREE_ROOT = path.resolve(path.dirname(SHIPPING_CONTRACT_MODULE), '../..');
 
 /** The prefix every temp copy in this repository carries, so "left behind" is a pattern, not a guess. */
 const TEMP_PREFIX = '__criterion-falsify-';
@@ -183,7 +183,7 @@ const PRE_RUN_PORCELAIN = gitStatusPorcelain();
  * How a copy of a module is made, and how the copy is mapped back to the text it was made from.
  *
  * `shippingOf(copyOf(text)) === text` is asserted for every copy before it is measured. That is the
- * attribution guard: the copies live one level deeper than the modules they copy, so the registry
+ * attribution guard: the copies live one level deeper than the modules they copy, so the contract
  * copy's `'./…'` specifiers are re-rooted, and the assertion says the re-rooting is the copy's ONLY
  * difference from the shipping text — a red can then be about the mutation and nothing else.
  */
@@ -194,7 +194,7 @@ type CopyShape = {
   shippingOf: (copy: string) => string;
 };
 
-/** The registry copy: imported as a module, so its imports are re-rooted to the repository root. */
+/** The contract copy: imported as a module, so its imports are re-rooted to the repository root. */
 const RE_ROOTED: CopyShape = {
   copyOf: (shipping) => shipping.replaceAll("from './", "from '../../shared/asr/"),
   shippingOf: (copy) => copy.replaceAll("'../../shared/asr/", "'./"),
@@ -224,8 +224,8 @@ type Expectation = {
 type MutationCase = {
   /** The case's name, used in the reading name and the temp file names. */
   name: string;
-  /** Which module is mutated: the registry (imported) or the service (its text). */
-  slot: 'registry' | 'service-text';
+  /** Which module is mutated: the contract (imported) or the service (its text). */
+  slot: 'contract' | 'service-text';
   /** The exact shipping text to replace. Required to be unique in the module. */
   anchor: string;
   /** What it is replaced with. */
@@ -251,7 +251,7 @@ const READS_THE_BODY = '  const named = extractUpstreamCode(body);';
 const CASES: readonly MutationCase[] = [
   {
     name: 'status-only',
-    slot: 'registry',
+    slot: 'contract',
     anchor: READS_THE_BODY,
     replacement:
       "  const named = extractUpstreamCode(''); // the mutation: only the status is read from here",
@@ -279,7 +279,7 @@ const CASES: readonly MutationCase[] = [
   },
   {
     name: '429-all-rate-limited',
-    slot: 'registry',
+    slot: 'contract',
     anchor: READS_THE_BODY,
     replacement:
       "  if (status === 429) return 'RATE_LIMITED'; // the mutation: every 429 is the rate limit\n" +
@@ -368,7 +368,7 @@ type ArmOutcome = {
 
 /** The override one arm drives: the mutated copy in its slot, the shipping module in the other. */
 function overridesFor(mutation: MutationCase, copyPath: string): CriterionOverrides {
-  return mutation.slot === 'registry' ? { registry: copyPath } : { serviceSource: copyPath };
+  return mutation.slot === 'contract' ? { contract: copyPath } : { serviceSource: copyPath };
 }
 
 async function measureArm(mutation: MutationCase, copyPath: string): Promise<ArmOutcome> {
@@ -420,8 +420,8 @@ function attributionMisses(mutation: MutationCase, mutant: ArmOutcome): string[]
 
 for (const mutation of CASES) {
   test(`AC6/${mutation.name}: the unmutated copy is green and the mutation reds ${mutation.family}`, async () => {
-    const source = mutation.slot === 'registry' ? SHIPPING_REGISTRY_MODULE : SHIPPING_SERVICE_MODULE;
-    const extension = mutation.slot === 'registry' ? '.ts' : '.service.txt';
+    const source = mutation.slot === 'contract' ? SHIPPING_CONTRACT_MODULE : SHIPPING_SERVICE_MODULE;
+    const extension = mutation.slot === 'contract' ? '.ts' : '.service.txt';
     const basePath = path.join(SCRATCH_DIR, `${mutation.name}-base${OWN_TEMP_SUFFIX}${extension}`);
     const mutantPath = path.join(SCRATCH_DIR, `${mutation.name}-mut${OWN_TEMP_SUFFIX}${extension}`);
 
@@ -856,12 +856,12 @@ test('AC8: deleting a union member is a compile error, under the project\'s own 
 
   mkdirSync(SCRATCH_DIR, { recursive: true });
   try {
-    const shippingText = readFileSync(SHIPPING_REGISTRY_MODULE, 'utf8');
+    const shippingText = readFileSync(SHIPPING_CONTRACT_MODULE, 'utf8');
     const anchorCount = shippingText.split(DRIFT_ANCHOR).length - 1;
-    assert.equal(anchorCount, 1, `the drift anchor occurs ${anchorCount} times in the shipping registry`);
+    assert.equal(anchorCount, 1, `the drift anchor occurs ${anchorCount} times in the shipping contract`);
 
     const driftedText = shippingText.replace(DRIFT_ANCHOR, '');
-    assert.notEqual(driftedText, shippingText, 'the drift deletion did not change the registry');
+    assert.notEqual(driftedText, shippingText, 'the drift deletion did not change the contract');
     assert.equal(
       RE_ROOTED.shippingOf(RE_ROOTED.copyOf(driftedText)),
       driftedText,
@@ -925,7 +925,7 @@ test('AC8: deleting a union member is a compile error, under the project\'s own 
     assert.equal(
       base.exitCode,
       0,
-      `the unmutated registry copy must compile under the project's own options before a mutant red ` +
+      `the unmutated contract copy must compile under the project's own options before a mutant red ` +
         `means anything; it exited ${base.exitCode} with ${firstLine(base.output)}`,
     );
     assert.equal(

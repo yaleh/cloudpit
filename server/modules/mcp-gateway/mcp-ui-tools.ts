@@ -30,9 +30,10 @@
 import { z } from 'zod';
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import { buildSessionDetail, formatMcpTime } from './mcp-gateway.read-tools.js';
-import type { McpReadToolDeps, McpReadToolSeam } from './mcp-gateway.read-tools.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import { formatMcpTime } from '@/shared/mcp-contract/index.js';
+import { buildSessionDetail } from './mcp-gateway.read-tools.js';
+import type { McpReadToolDepsBase, McpReadToolSeam } from './mcp-read-contract.js';
 
 // --------------------------- the injected pointer ---------------------------
 
@@ -61,11 +62,11 @@ export type McpUiLastOpenedStore = {
  * (`session_get`'s reading is built from them) plus the pointer store. A
  * `McpReadToolDeps` that carries `uiLastOpened` IS one of these.
  */
-export type McpUiLastOpenedDeps = McpReadToolDeps & { uiLastOpened: McpUiLastOpenedStore };
+export type McpUiLastOpenedDeps = McpReadToolDepsBase & { uiLastOpened: McpUiLastOpenedStore };
 
 /** Whether the injected deps carry the pointer reader, i.e. this tool is wired. */
-export function isUiLastOpenedWired(deps: McpReadToolDeps): deps is McpUiLastOpenedDeps {
-  return deps.uiLastOpened !== undefined;
+export function isUiLastOpenedWired<D extends object>(deps: D): deps is D & McpUiLastOpenedDeps {
+  return (deps as { uiLastOpened?: unknown }).uiLastOpened !== undefined;
 }
 
 /**

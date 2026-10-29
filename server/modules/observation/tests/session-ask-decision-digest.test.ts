@@ -56,7 +56,7 @@ import {
   readSessionAskEventLedger,
 } from '../session-digest.producer.js';
 import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
-import { analyzeAssistantAsk, buildSessionDigest } from '../session-digest.js';
+import { analyzeAssistantAsk, buildSessionDigest, prefilterAssistantAsk } from '../session-digest.js';
 
 const CLOCK = 1_800_000_000_000;
 const SESSION_ID = 'ask-session';
@@ -615,7 +615,13 @@ test('AC-423: readSessionAsk derives the ask identity and the answered span from
   assert.match(reading.context, /第二问？/);
 });
 
-test('AC: readSessionAsk and buildSessionDigest.askingYou agree on the same text', () => {
+/**
+ * The event path's `current` is now a mechanical CANDIDATE (the summary is the verdict), while
+ * `buildSessionDigest.askingYou` is the deterministic reading. For a long report containing a
+ * numbered list the two intentionally differ: the candidate reaches the summary, which rejects
+ * it. Both layers are asserted separately so neither can drift unnoticed.
+ */
+test('AC: the prefilter yields candidates, and readSessionAsk/digest share the deterministic reading', () => {
   /** `count` consecutive short numbered lines — the shape that used to read as "pick one". */
   const numbered = (count: number): string =>
     Array.from({ length: count }, (_, index) => `${index + 1}. 第${index + 1}项检查已完成`).join('\n');
@@ -624,17 +630,24 @@ test('AC: readSessionAsk and buildSessionDigest.askingYou agree on the same text
       '\n\n',
     );
 
-  const cases: Array<{ name: string; text: string; asking: boolean }> = [
-    { name: '3 行编号的长回答', text: longAnswer(3), asking: false },
-    { name: '4 行编号的长回答', text: longAnswer(4), asking: false },
-    { name: '14 行编号的长回答', text: longAnswer(14), asking: false },
-    { name: '问号在中间段落、末段是陈述', text: '这里要先确认一件事？\n\n最后的结论是改动已完成。', asking: false },
-    { name: '最后一行是问号', text: '前面做了很多。\n\n要不要现在改？', asking: true },
+  const cases: Array<{ name: string; text: string; candidate: boolean; asking: boolean }> = [
+    { name: '3 行编号的长回答', text: longAnswer(3), candidate: true, asking: false },
+    { name: '4 行编号的长回答', text: longAnswer(4), candidate: true, asking: false },
+    { name: '14 行编号的长回答', text: longAnswer(14), candidate: true, asking: false },
+    {
+      name: '问号在中间段落、末段是陈述',
+      text: '这里要先确认一件事？\n\n最后的结论是改动已完成。',
+      candidate: true,
+      asking: true,
+    },
+    { name: '最后一行是问号', text: '前面做了很多。\n\n要不要现在改？', candidate: true, asking: true },
     {
       name: '最后一段是两条短选项',
       text: '前面做了很多。\n\n你可以选一个：\n1. 继续改登录页\n2. 先补测试',
+      candidate: true,
       asking: true,
     },
+    { name: '无任何标记的纯陈述', text: '改动已经完成，测试全绿。', candidate: false, asking: false },
   ];
 
   for (const item of cases) {
@@ -647,14 +660,10 @@ test('AC: readSessionAsk and buildSessionDigest.askingYou agree on the same text
     assert.equal(result.state, 'evaluated', `${item.name}: digest 可读`);
     if (result.state !== 'evaluated') return;
 
-    assert.equal(reading.current !== null, item.asking, `${item.name}: readSessionAsk.current`);
-    assert.equal(result.digest.askingYou.isAsking, item.asking, `${item.name}: buildSessionDigest.askingYou`);
-    assert.equal(
-      reading.current !== null,
-      result.digest.askingYou.isAsking,
-      `${item.name}: 两条路径给出同一个 isAsking`,
-    );
+    assert.equal(prefilterAssistantAsk(item.text).candidate, item.candidate, `${item.name}: 机械预筛`);
     assert.equal(analyzeAssistantAsk(item.text).isAsking, item.asking, `${item.name}: 共享判定函数`);
+    assert.equal(reading.current !== null, item.candidate, `${item.name}: readSessionAsk.current 是候选`);
+    assert.equal(result.digest.askingYou.isAsking, item.asking, `${item.name}: buildSessionDigest.askingYou`);
   }
 });
 

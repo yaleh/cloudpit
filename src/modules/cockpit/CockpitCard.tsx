@@ -1,8 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
+import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
+import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
+import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
 import {
   canResendFeedback,
   feedbackOptionGone,
@@ -15,12 +18,8 @@ import {
   cockpitCardFactsBeyondSituation,
   cockpitCardSubjectName,
   cockpitCardTitle,
-  cockpitCardToneClass,
-  cockpitFactShortForm,
-  cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitCardSituation from '@/modules/cockpit/CockpitCardSituation';
-import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
 import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
@@ -54,138 +53,9 @@ import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
  * a property of the state, not of this file's event wiring.
  */
 
-/**
- * The three-cell decision-weight reading. Only the provider's own `load` fills it; the reading is
- * a count of filled cells out of three, and `0` draws three empty cells because the provider DID
- * state a weight (absence is the only "draw nothing").
- */
-function LoadCells({ level, label }: { level: number; label: string }) {
-  const filled = Math.min(3, Math.max(0, Math.floor(level)));
-  return (
-    <span
-      data-testid="cockpit-card-load"
-      data-load={filled}
-      aria-label={label}
-      className="flex shrink-0 items-center gap-[3px]"
-    >
-      {[1, 2, 3].map((cell) => (
-        <span
-          key={cell}
-          data-load-cell={cell}
-          data-filled={cell <= filled ? 'true' : 'false'}
-          aria-hidden
-          className={cn(
-            'h-2.5 w-[3px] rounded-sm',
-            cell <= filled ? 'bg-foreground' : 'bg-muted-foreground/25',
-          )}
-        />
-      ))}
-    </span>
-  );
-}
-
-/** The consequence tags of one option: the descriptor's glyph plus the provider's words. */
-function OptionTags({ option }: { option: CockpitCardOption }) {
-  const tags = option.tags ?? [];
-  if (tags.length === 0) return null;
-  return (
-    <span className="mt-1 flex flex-wrap gap-1">
-      {tags.map((tag) => (
-        <span
-          key={`${tag.kind}:${tag.text}`}
-          data-tag-kind={tag.kind}
-          className={cn(
-            'rounded-full px-1.5 py-0.5 text-[11px]',
-            cockpitTagIcon(tag.kind) === '⚠'
-              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-              : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {cockpitTagIcon(tag.kind) !== null && (
-            <span aria-hidden>{cockpitTagIcon(tag.kind)} </span>
-          )}
-          {tag.text}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/** The full explanation of the option a card currently shows, outside the open dropdown. */
-function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
-  return (
-    <div
-      data-testid="cockpit-card-shown-option"
-      data-source={option.source}
-      data-suggested={option.suggested ? 'true' : 'false'}
-      className="border-t border-border bg-muted/50 px-2 py-1.5"
-    >
-      <p className="text-xs text-foreground">{option.does}</p>
-      {option.why !== undefined && (
-        <p data-testid="cockpit-card-shown-option-why" className="mt-1 text-[11px] text-muted-foreground">
-          {option.why}
-        </p>
-      )}
-      {option.warn !== undefined && (
-        <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{option.warn}</p>
-      )}
-      <OptionTags option={option} />
-      {option.undo !== undefined && (
-        <p className="mt-1 text-[11px] text-muted-foreground">{option.undo}</p>
-      )}
-      {option.when !== undefined && (
-        <p className="mt-1 text-[11px] text-muted-foreground">{option.when}</p>
-      )}
-    </div>
-  );
-}
-
-/**
- * The own-reply editor: the last item of the dropdown, the card body's form when shown, and the
- * Details drawer's last option row.
- *
- * ONE HEADING PER EDITOR. The dropdown's last item already heads the reply with 「Write your
- * own」 and its radio circle, so the editor inside it draws `ariaLabel` only; the card body, which
- * has no such heading, draws the visible `label`. Either way the textarea's accessible name is the
- * same string. Consumers: `CockpitCard` (the dropdown and the body form) and `CockpitCardDetails`
- * (the drawer's own-reply row).
- */
-export function OwnReplyEditor({
-  value,
-  onChange,
-  placeholder,
-  label,
-  ariaLabel,
-  testId = 'cockpit-card-own-reply-input',
-}: {
-  value: string;
-  onChange: (text: string) => void;
-  placeholder: string;
-  /** The visible heading; omitted where a sibling already heads the reply. */
-  label?: string;
-  ariaLabel: string;
-  /** The reading hook. The drawer names its own copy so both editors can coexist on the page. */
-  testId?: string;
-}) {
-  return (
-    <div className="mt-1.5">
-      <label className="block">
-        {label !== undefined && (
-          <span className="text-[11px] font-medium text-foreground">{label}</span>
-        )}
-        <textarea
-          data-testid={testId}
-          aria-label={ariaLabel}
-          value={value}
-          placeholder={placeholder}
-          rows={2}
-          onChange={(event) => onChange(event.target.value)}
-          className="mt-1 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-        />
-      </label>
-    </div>
-  );
-}
+// The Details drawer draws the same own-reply editor and imports it from this file; the editor
+// itself now lives with the options block that draws it on the card.
+export { OwnReplyEditor } from '@/modules/cockpit/CockpitCardOptions';
 
 export type CockpitCardProps = {
   card: CockpitCardData;
@@ -325,6 +195,12 @@ export default function CockpitCard({
   const question = cockpitCardTitle(card, t);
   const subjectName = cockpitCardSubjectName(card);
   const project = card.subject.project?.trim() ?? '';
+  // The header draws the provider's weight; the accessible label is formatted here so the
+  // presentational block receives one already-resolved reading.
+  const loadLabel =
+    card.load === undefined
+      ? ''
+      : t('cockpit.cardLoadLabel', { n: Math.min(3, Math.max(0, Math.floor(card.load))) });
 
   const shownLabel = showingOwnReply
     ? t('cockpit.cardWriteOwn')
@@ -438,53 +314,15 @@ export default function CockpitCard({
         className="block w-full rounded-md text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
         {/* The header row: kind mark · project · subject name · age · load · ›. */}
-        <div
-          data-testid="cockpit-card-zone-a-header"
-          className="flex items-center gap-1.5"
-        >
-          <span
-            data-testid="cockpit-card-kind-badge"
-            data-kind={card.kind}
-            data-tone={descriptor.tone}
-            title={t(descriptor.labelKey)}
-            className={cn(
-              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-              cockpitCardToneClass(descriptor.tone),
-            )}
-          >
-            {t(descriptor.badgeKey)}
-          </span>
-          {project !== '' && (
-            <span
-              data-testid="cockpit-card-project"
-              className="shrink-0 text-[12px] font-medium text-foreground"
-            >
-              {project}
-            </span>
-          )}
-          {subjectName !== null && (
-            <span
-              data-testid="cockpit-card-subject"
-              className="min-w-0 truncate text-[12px] text-muted-foreground"
-            >
-              <span aria-hidden>· </span>
-              {subjectName}
-            </span>
-          )}
-          <span
-            data-testid="cockpit-card-age"
-            className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
-          >
-            {cockpitCardAge(t, now, card.waitingSince)}
-          </span>
-          {card.load !== undefined && (
-            <LoadCells
-              level={card.load}
-              label={t('cockpit.cardLoadLabel', { n: Math.min(3, Math.max(0, Math.floor(card.load))) })}
-            />
-          )}
-          <span aria-hidden className="shrink-0 text-muted-foreground">›</span>
-        </div>
+        <CockpitCardHeader
+          kind={card.kind}
+          descriptor={descriptor}
+          project={project}
+          subjectName={subjectName}
+          age={cockpitCardAge(t, now, card.waitingSince)}
+          load={card.load}
+          loadLabel={loadLabel}
+        />
 
         <p
           data-testid="cockpit-card-zone-a-question"
@@ -508,31 +346,7 @@ export default function CockpitCard({
             a fact the situation already states is not repeated here at all. Compact mode keeps the
             card to three lines, so it draws neither. */}
         {!compact && (facts.length > 0 || card.viz !== undefined) && (
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            {facts.length > 0 && (
-              <div
-                data-testid="cockpit-card-zone-a-facts"
-                className="flex min-w-0 flex-wrap items-center gap-1"
-              >
-                {facts.map((fact, index) => (
-                  <span
-                    key={`${fact.text}:${index}`}
-                    data-testid="cockpit-card-fact"
-                    data-mechanical={fact.mechanical ? 'true' : 'false'}
-                    data-full-text={fact.text}
-                    title={fact.text}
-                    className="max-w-[16rem] truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    <span aria-hidden className="mr-0.5">{fact.mechanical ? '●' : '○'}</span>
-                    {cockpitFactShortForm(fact.text)}
-                  </span>
-                ))}
-              </div>
-            )}
-            <span className="ml-auto shrink-0">
-              <CockpitCardViz card={card} />
-            </span>
-          </div>
+          <CockpitCardFacts card={card} facts={facts} />
         )}
       </div>
 
@@ -542,217 +356,25 @@ export default function CockpitCard({
       >
         {/* B zone: one dropdown whose last item is the person's own reply. A card with no
             resolved options draws neither the dropdown nor its trigger; see `emptyAskContent`. */}
-        <div className={cn('min-w-0', compact ? 'flex-1' : '')} data-testid="cockpit-card-options">
-          {emptyAskContent ? (
-            <div
-              data-testid="cockpit-card-empty-ask"
-              className="overflow-hidden rounded-md border border-dashed border-border"
-            >
-              {/* The two answers this card really has. The question and the reason are already
-                  drawn above (zone A and the situation line), so this strip adds no third copy. */}
-              {conversationSessionId !== '' && (
-                <a
-                  data-testid="cockpit-card-open-conversation"
-                  href={`/session/${encodeURIComponent(conversationSessionId)}`}
-                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-primary hover:underline"
-                >
-                  <span className="truncate">
-                    {t('cockpit.cardDetailsOpenConversation', { sessionId: conversationSessionId })}
-                  </span>
-                  <span aria-hidden className="shrink-0">›</span>
-                </a>
-              )}
-              {ownReplyAvailable && (
-                <button
-                  type="button"
-                  data-testid="cockpit-card-own-reply-trigger"
-                  data-selected={showingOwnReply ? 'true' : 'false'}
-                  aria-pressed={showingOwnReply}
-                  onClick={onShowOwnReply}
-                  className={cn(
-                    'flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent',
-                    conversationSessionId !== '' && 'border-t border-border',
-                  )}
-                >
-                  <span aria-hidden>✎</span>
-                  <span className="truncate">{t('cockpit.cardWriteOwn')}</span>
-                </button>
-              )}
-              {/* The trigger above IS this editor's one heading, the same rule the dropdown's
-                  last item follows. */}
-              {showingOwnReply && ownReplyAvailable && (
-                <div className="border-t border-border px-2 py-1.5">
-                  <OwnReplyEditor
-                    value={ownReply}
-                    onChange={onOwnReplyChange}
-                    ariaLabel={t('cockpit.cardWriteOwn')}
-                    placeholder={t('cockpit.cardOwnReplyPlaceholder')}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-          {/* The trigger and the shown option's explanation are ONE bordered box: the frame owns
-              the only border and rounding, so the explanation reads as part of the selected
-              option rather than as a second, parallel option. */}
-          <div
-            data-testid="cockpit-card-option-frame"
-            className="overflow-hidden rounded-md border border-border"
-          >
-            <button
-              type="button"
-              data-testid="cockpit-card-option-trigger"
-              data-source={shownOption?.source ?? null}
-              data-suggested={shownOption?.suggested === true ? 'true' : 'false'}
-              data-locked={feedbackLocked ? 'true' : 'false'}
-              aria-expanded={!feedbackLocked && dropdownOpen}
-              disabled={feedbackLocked}
-              onClick={feedbackLocked ? undefined : onToggleDropdown}
-              className="flex w-full items-center justify-between gap-2 bg-background px-2 py-1.5 text-left text-xs hover:bg-accent disabled:cursor-default"
-            >
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate font-medium text-foreground">{shownLabel}</span>
-                {shownOption?.suggested === true && (
-                  <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                    {t('cockpit.cardSuggested')}
-                  </span>
-                )}
-                {shownSource !== null && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{shownSource}</span>
-                )}
-                {shownPosition !== null && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{shownPosition}</span>
-                )}
-              </span>
-              <span aria-hidden className="shrink-0 text-muted-foreground">▾</span>
-            </button>
-
-            {/* The full explanation belongs to the Cards density; Compact stays three lines, so
-                the description lives only in the open dropdown and in Details. */}
-            {!compact && !dropdownOpen && shownOption !== null && (
-              <ShownOptionExplanation option={shownOption} />
-            )}
-          </div>
-          {!compact && !dropdownOpen && !feedbackLocked && showingOwnReply && ownReplyAvailable && (
-            <OwnReplyEditor
-              value={ownReply}
-              onChange={onOwnReplyChange}
-              label={t('cockpit.cardWriteOwn')}
-              ariaLabel={t('cockpit.cardWriteOwn')}
-              placeholder={t('cockpit.cardOwnReplyPlaceholder')}
-            />
-          )}
-
-          {dropdownOpen && !feedbackLocked && (
-            <div
-              data-testid="cockpit-card-option-list"
-              // The rows are a RADIO GROUP, not a list of independent toggles: exactly one of
-              // them — an option or the person's own reply — is the card's shown reading, and
-              // the filled circle says which. The group is the list itself so the own-reply item
-              // stays the list's last child (the dropdown's own ordering contract).
-              role="radiogroup"
-              aria-label={t('cockpit.cardDetailsOptions')}
-              className="mt-1 max-h-80 space-y-1 overflow-auto rounded-md border border-border bg-popover p-1.5 shadow-lg"
-            >
-                {card.options.map((option, index) => {
-                  const isShown = shownOption?.id === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={isShown}
-                      data-testid={`cockpit-card-option-${option.id}`}
-                      data-selected={isShown ? 'true' : 'false'}
-                      onClick={() => onShowOption(option.id)}
-                      className={cn(
-                        'block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent',
-                        isShown && 'bg-accent/70 ring-1 ring-primary/40',
-                      )}
-                    >
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <span
-                          data-testid="cockpit-card-option-radio"
-                          data-selected={isShown ? 'true' : 'false'}
-                          aria-hidden
-                          className={cn(
-                            'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
-                            isShown ? 'border-primary' : 'border-muted-foreground/40',
-                          )}
-                        >
-                          {isShown && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                        </span>
-                        <span className="text-[11px] tabular-nums text-muted-foreground">{index + 1}</span>
-                        <span className="text-xs font-medium text-foreground">{option.label}</span>
-                        {option.suggested && (
-                          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                            {t('cockpit.cardSuggested')}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground">
-                          {t(COCKPIT_SOURCE_LABEL_KEY[option.source] ?? 'cockpit.cardSourceProvider')}
-                        </span>
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
-                      {option.why !== undefined && (
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
-                      )}
-                      {option.warn !== undefined && (
-                        <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">
-                          ⚠ {option.warn}
-                        </span>
-                      )}
-                      <OptionTags option={option} />
-                      {option.undo !== undefined && (
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
-                      )}
-                    </button>
-                  );
-                })}
-
-                {ownReplyAvailable && (
-                  <div
-                    data-testid="cockpit-card-own-reply-item"
-                    className="rounded-md border-t border-border px-2 py-1.5"
-                  >
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={showingOwnReply}
-                      data-testid="cockpit-card-own-reply-trigger"
-                      data-selected={showingOwnReply ? 'true' : 'false'}
-                      onClick={onShowOwnReply}
-                      className="flex w-full items-center gap-1.5 rounded-md text-left text-xs font-medium text-foreground hover:underline"
-                    >
-                      <span
-                        data-testid="cockpit-card-option-radio"
-                        data-selected={showingOwnReply ? 'true' : 'false'}
-                        aria-hidden
-                        className={cn(
-                          'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
-                          showingOwnReply ? 'border-primary' : 'border-muted-foreground/40',
-                        )}
-                      >
-                        {showingOwnReply && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                      </span>
-                      <span className="truncate">✎ {t('cockpit.cardWriteOwn')}</span>
-                    </button>
-                    {/* The trigger above IS this editor's one heading; the editor itself draws
-                        only its accessible name, so 「Write your own」 appears exactly once. */}
-                    <OwnReplyEditor
-                      value={ownReply}
-                      onChange={onOwnReplyChange}
-                      ariaLabel={t('cockpit.cardWriteOwn')}
-                      placeholder={t('cockpit.cardOwnReplyPlaceholder')}
-                    />
-                  </div>
-                )}
-            </div>
-          )}
-            </>
-          )}
-        </div>
+        <CockpitCardOptions
+          card={card}
+          compact={compact}
+          dropdownOpen={dropdownOpen}
+          feedbackLocked={feedbackLocked}
+          emptyAskContent={emptyAskContent}
+          conversationSessionId={conversationSessionId}
+          ownReply={ownReply}
+          ownReplyAvailable={ownReplyAvailable}
+          shownOption={shownOption}
+          showingOwnReply={showingOwnReply}
+          shownLabel={shownLabel}
+          shownSource={shownSource}
+          shownPosition={shownPosition}
+          onToggleDropdown={onToggleDropdown}
+          onShowOption={onShowOption}
+          onShowOwnReply={onShowOwnReply}
+          onOwnReplyChange={onOwnReplyChange}
+        />
 
         {/* C zone: one confirm bar, bound to the shown option. Its first press turns the SAME
             button into 「确认发送」 in place (see `CockpitCardConfirmBar`); nothing is drawn in a

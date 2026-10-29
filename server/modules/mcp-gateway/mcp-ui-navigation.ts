@@ -33,14 +33,14 @@ import type { UiClientDevice, UiNavigationPosition, UiNavigationRecord } from '@
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from './mcp-gateway.read-tools.js';
+import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
 import type {
   McpWriteToolRegistration,
   McpWriteToolSeam,
-} from './mcp-gateway.write-tools.js';
+} from './mcp-write-contract.js';
 // The gateway's ONE principal-name resolution, shared with the write
 // notifications so the name on the bar and the name an operator sees cannot drift.
-import { resolveClientName } from './mcp-write-notification.js';
+import { resolveClientName } from './mcp-client-name.js';
 
 // --------------------------- the rate limit ---------------------------
 

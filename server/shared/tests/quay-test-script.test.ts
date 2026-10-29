@@ -416,9 +416,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (471 + 1 = 472 collected server test files). Then
     // gap-ac444-codex-resident-turn-steer added its criterion
     // server/modules/providers/tests/codex-host-driver-steer.test.ts
-    // (472 + 1 = 473 collected server test files). This fixture names 3 known files, so
-    // 473 - 3 = 470.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=470$/);
+    // (472 + 1 = 473 collected server test files). Then
+    // gap-cockpit-ask-semantic-gate added its criterion
+    // server/modules/observation/tests/session-ask-semantic-gate.test.ts
+    // (473 + 1 = 474 collected server test files). This fixture names 3 known files, so
+    // 474 - 3 = 471.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=471$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -467,7 +470,7 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     assert.equal(rv.status, 0, rv.stderr);
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 461 files on this tree (gap-architecture-ratchet-census
+    // Same collection as AC2 — 465 files on this tree (gap-architecture-ratchet-census
     // added server/shared/tests/architecture-ratchet.test.ts, then
     // gap-codex-transcript-format-shared-helpers added
     // server/modules/providers/tests/codex-transcript-format.test.ts, then
@@ -498,7 +501,7 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-mcp-cockpit-card-tools added
     // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts, then
     // gap-cockpit-session-start-background-resident-and-run-events added
-    // server/modules/context-events/tests/session-run-events.test.ts), then
+    // server/modules/context-events/tests/session-run-events.test.ts, then
     // gap-ac435-codex-resident-host-driver-persistent added
     // server/modules/providers/tests/codex-host-driver-persistent.test.ts, then
     // gap-ac439-codex-resident-background-leases added
@@ -516,10 +519,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac436-codex-resident-queue-reland added
     // server/modules/providers/tests/codex-host-driver-queue.test.ts, then
     // gap-ac444-codex-resident-turn-steer added
-    // server/modules/providers/tests/codex-host-driver-steer.test.ts
-    // — but this fixture names ONE known file, so 473 - 1 = 472 (AC2 reads 470 because its
+    // server/modules/providers/tests/codex-host-driver-steer.test.ts, then
+    // gap-cockpit-ask-semantic-gate added
+    // server/modules/observation/tests/session-ask-semantic-gate.test.ts)
+    // — but this fixture names ONE known file, so 474 - 1 = 473 (AC2 reads 471 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=472$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=473$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
