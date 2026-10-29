@@ -59,6 +59,15 @@ extra: {}
 
 该轴仍暗,理由: 本次改动是详情抽屉的交互可达性（整行可点、选中高亮、键盘激活），其取证是真实页面 DOM 读数与截图，没有可数值化的 L_D/L_G 暗轴增益可测。
 
+## Notes
+
+**2026-10-29 — suite 红的真因与处置（宿主 /tmp 污染，不是本任务 delta）**
+
+- 现象：fan-in 的 suite 红在 `server/modules/providers/tests/skills.test.ts`（`codex-root` 期望 `repo` 实得 `undefined`；opencode user skill 期望 `user` 实得 `project`），baseline A/B 判 `changed-assertion`。
+- 真因：宿主的 `/tmp/.git`（0700，属主为另一个 uid，本会话无权删除）被 `findTopmostGitRoot`（`server/shared/utils.ts`）当成「最顶层仓库根」；于是 `fs.mkdtemp(os.tmpdir())` 造出的夹具仓库多出一个祖先 `.git`，两个 provider 的 repo/user scope 全部错位。证据：`TMPDIR=<干净目录> npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/skills.test.ts` → 6/6 绿；默认 TMPDIR 下 4/6。
+- 处置：`scripts/test.sh` 的 host-env 隔离段（与既有的 live server env 隔离同一处、同一理由）新增 host temp-dir 隔离——在「自身祖先链上没有 `.git`」的可写基座上建立每次运行私有的 TMPDIR 并导出给所有子进程（node:test / vitest / playwright）；无合格基座时 fail-open 保持原行为。⛔ 不落进仓库内（`server/tsconfig` 会扫到仓库内 scratch）。`QUAY_SUITE_TMPDIR_BASE` 是测试接缝。
+- 验证：`bash scripts/test.sh server/modules/providers/tests/skills.test.ts` → 1/1 绿（同一命令未隔离时红）；`bash scripts/test.sh server/shared/tests/quay-test-script.test.ts`（runner 自身契约）→ 1/1 绿；另跑 5 个使用 `mkdtemp(os.tmpdir())` 的 server 测试全绿；`--list-files` 早退路径与正常退出后均无残留临时目录。
+
 ## Touches
 
 - tasks/gap-cockpit-details-option-selection-and-own-reply.md
@@ -80,3 +89,12 @@ extra: {}
 - src/modules/i18n/locales/ko/common.json
 - src/modules/i18n/locales/ru/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
+- scripts/test.sh
+
+## Blocker
+
+**2026-10-29T05:15:18.495Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/providers/tests/skills.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/modules/providers/tests/skills.test.ts]
+- run_id：wk-prod-anchor
+- session_id：8535f72d-5e23-483e-934b-639af1568d84
