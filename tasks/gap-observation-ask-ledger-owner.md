@@ -21,7 +21,7 @@ depends_on:
 
 - [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0，且既有 ask ledger、retraction、answered、去重、启动回放及事件-only 行为用例数量不减少。
 - [ ] 新增 `session-ask-ledger.test.ts` 针对 ledger owner 的写入、移除、retracted 记录与重复更新断言状态快照；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-ledger.test.ts` 退出 0。
-- [ ] recovery/sweep targeted tests 对启动补扫与用户回合各运行一次及重复运行，断言事件写入次数、askId/messageId 与 ledger 状态符合现有语义；对应 tsx --test 命令退出 0。
+- [ ] recovery/sweep targeted tests 对启动补扫与用户回合各运行一次及重复运行，断言事件写入次数、askId/messageId 与 ledger 状态符合现有语义；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` 退出 0。
 - [ ] producer 委托 ledger/recovery 行为且不再持有这两类状态的写入细节；`session-digest.producer.ts` 与新 owner/helper 的引用由测试断言，且 `npm run typecheck` 与 `npm run lint` 退出 0。
 
 ## DoD
