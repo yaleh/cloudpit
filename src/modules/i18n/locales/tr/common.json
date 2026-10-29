@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "Gönderildi ✓",
     "cardConfirmFailed": "Onay başarısız oldu: {{reason}}",
     "cardFeedbackSent": "Gönderildi: {{label}} · fleet onayı bekleniyor",
-    "cardFeedbackUnconfirmed": "Fleet onaylamadı · 2 dakika sonra yanıt yok",
+    "cardFeedbackUnconfirmed": "Gönderildi: {{label}} · 2 dakika sonra yanıt yok",
     "cardFeedbackResend": "Yeniden gönder",
     "cardFeedbackResending": "Yeniden gönderiliyor…",
     "cardFeedbackResendHint": "Yeniden gönder yalnızca geri bildirimi yineler, eylemi değil",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "Eksenler (● ölçülen, ○ yargılanan)",
     "briefHighMeans": "yüksek şu demek: {{definition}}",
     "briefUnknownBlock": "Bilinmeyen blok “{{type}}” — ham içeriği gösteriliyor",
-    "briefRecommended": "Önerilen: {{label}}"
+    "briefRecommended": "Önerilen: {{label}}",
+    "cardFeedbackOpenConversation": "Konuşmayı aç ›"
   },
   "replyReference": {
     "item": "{{label}}«{{excerpt}}»",

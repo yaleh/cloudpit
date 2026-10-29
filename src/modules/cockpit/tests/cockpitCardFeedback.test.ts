@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { createElement } from 'react';
+import { I18nextProvider } from 'react-i18next';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Clock, CockpitCard, CockpitCardFeedback } from '@/shared/types';
+import { i18n } from '@/modules/i18n';
+import CockpitCardView from '@/modules/cockpit/CockpitCard';
+import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
 import {
   FEEDBACK_LOCKED_REASON,
   awaitingFeedbackCount,
@@ -10,9 +16,10 @@ import {
 } from '@/modules/cockpit/cockpitCardFeedback';
 import {
   cockpitCardsReading,
+  confirmTargetOf,
   createCockpitCardController,
 } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import type { CockpitCardController, CockpitCardShown } from '@/modules/cockpit/cockpitCardController';
 
 /**
  * The card feedback lifecycle's client reading, proven with an injected clock and no React.
@@ -291,5 +298,111 @@ describe('cockpit card feedback lifecycle', () => {
     expect(feedbackPhaseOf(feedback, Date.parse(AT))).toBe('sent');
     expect(feedbackPhaseOf(feedback, Date.parse(AT) + 119_999)).toBe('sent');
     expect(feedbackPhaseOf(feedback, Date.parse(AT) + 120_000)).toBe('unconfirmed');
+  });
+});
+
+/**
+ * The card's SENT STATE as the person reads it, rendered against the real i18n bundle.
+ *
+ * These are the three readings the task's presentation fixes: a sent card has no confirm bar
+ * (the action already ran), ONE phase sentence that swaps at the injected clock's two-minute
+ * mark, and amber ONLY for a feedback call that actually failed. `now` is the same injected
+ * clock reading the component receives from the controller — nothing here waits.
+ */
+const SHOWN: CockpitCardShown = { kind: 'option', optionId: 'one' };
+
+function renderFeedbackCard(target: CockpitCard, now: number): HTMLElement {
+  const { container } = render(
+    createElement(
+      I18nextProvider,
+      { i18n },
+      createElement(CockpitCardView, {
+        card: target,
+        now,
+        shown: SHOWN,
+        target: confirmTargetOf(target, SHOWN, ''),
+        ownReply: '',
+        dropdownOpen: false,
+        selected: false,
+        density: 'cards',
+        onSelect: () => undefined,
+        onOpenDetails: () => undefined,
+        onToggleDropdown: () => undefined,
+        onShowOption: () => undefined,
+        onShowOwnReply: () => undefined,
+        onOwnReplyChange: () => undefined,
+        onRequestConfirm: () => undefined,
+      }),
+    ),
+  );
+  return container;
+}
+
+function renderFeedbackDetails(target: CockpitCard, now: number): HTMLElement {
+  const { container } = render(
+    createElement(
+      I18nextProvider,
+      { i18n },
+      createElement(CockpitCardDetails, {
+        card: target,
+        now,
+        onClose: () => undefined,
+        shown: SHOWN,
+        target: confirmTargetOf(target, SHOWN, ''),
+      }),
+    ),
+  );
+  return container;
+}
+
+describe('a sent card is one status line, not a disabled confirm bar', () => {
+  afterEach(() => cleanup());
+
+  it('draws no confirm bar on a sent card, nor in its Details variant', () => {
+    const sent = feedbackOn(card('b'));
+    renderFeedbackCard(sent, Date.parse(AT));
+    expect(screen.queryByTestId('cockpit-card-confirm')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-bar')).toBeNull();
+    cleanup();
+
+    renderFeedbackDetails(sent, Date.parse(AT));
+    expect(screen.queryByTestId('cockpit-card-details-confirm')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-details-confirm-bar')).toBeNull();
+  });
+
+  it('states the sent phase as ONE sentence and swaps it for the 2-minute reading', () => {
+    const sent = feedbackOn(card('b'));
+    renderFeedbackCard(sent, Date.parse(AT));
+    const waiting = screen.getByTestId('cockpit-card-feedback-sent');
+    expect(waiting.textContent).toContain('waiting for the fleet');
+    expect(waiting.textContent).not.toContain('no receipt after 2 minutes');
+    expect(screen.getAllByTestId('cockpit-card-feedback-sent')).toHaveLength(1);
+    cleanup();
+
+    renderFeedbackCard(sent, Date.parse(AT) + 120_000);
+    const unconfirmed = screen.getByTestId('cockpit-card-feedback-sent');
+    expect(unconfirmed.textContent).toContain('no receipt after 2 minutes');
+    expect(unconfirmed.textContent).not.toContain('waiting for the fleet');
+    expect(screen.getAllByTestId('cockpit-card-feedback-sent')).toHaveLength(1);
+  });
+
+  it('turns the status row amber ONLY for a real feedback-call failure', () => {
+    const failed = feedbackOn(card('b'), { lastError: 'fleet unreachable' });
+    renderFeedbackCard(failed, Date.parse(AT));
+    const status = screen.getByTestId('cockpit-card-feedback-status');
+    expect(status.className).toContain('amber');
+    expect(screen.getByTestId('cockpit-card-feedback-error').textContent).toBe('fleet unreachable');
+    cleanup();
+
+    // The ordinary 「2 分钟无回执」 phase is neutral: no amber, no failure reason.
+    renderFeedbackCard(feedbackOn(card('b')), Date.parse(AT) + 120_000);
+    const waiting = screen.getByTestId('cockpit-card-feedback-status');
+    expect(waiting.className).not.toContain('amber');
+    expect(screen.queryByTestId('cockpit-card-feedback-error')).toBeNull();
+  });
+
+  it('does not dim the whole card while its feedback waits', () => {
+    renderFeedbackCard(feedbackOn(card('b')), Date.parse(AT));
+    expect(screen.getByTestId('cockpit-card-b').className).not.toContain('opacity-70');
   });
 });

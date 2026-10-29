@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "已傳送 ✓",
     "cardConfirmFailed": "確認失敗：{{reason}}",
     "cardFeedbackSent": "已送出：{{label}} · 等 fleet 確認收到",
-    "cardFeedbackUnconfirmed": "fleet 未確認收到 · 2 分鐘無回執",
+    "cardFeedbackUnconfirmed": "已送出：{{label}} · 2 分鐘無回執",
     "cardFeedbackResend": "重送",
     "cardFeedbackResending": "正在重送…",
     "cardFeedbackResendHint": "重送只重送回饋，不會重做動作",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "座標軸（● 實測，○ 判斷）",
     "briefHighMeans": "高意味著：{{definition}}",
     "briefUnknownBlock": "未知區塊「{{type}}」——顯示其原始內容",
-    "briefRecommended": "推薦：{{label}}"
+    "briefRecommended": "推薦：{{label}}",
+    "cardFeedbackOpenConversation": "開啟會話 ›"
   },
   "replyReference": {
     "item": "{{label}}「{{excerpt}}」",

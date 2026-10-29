@@ -1022,12 +1022,13 @@ describe('the feedback lifecycle: sent, unconfirmed, resent, and returned', () =
     canResend: true,
   };
 
-  it('draws a sent card in place, dimmed, with its options and confirm bar locked', () => {
+  it('draws a sent card in place with its options locked and no confirm bar', () => {
     renderCard({ card: { ...CARD, feedback: SENT_FEEDBACK } });
 
     const article = screen.getByTestId('cockpit-card-fixture:ask');
     expect(article.getAttribute('data-feedback-phase')).toBe('sent');
-    expect(article.className).toContain('opacity-70');
+    // A sent card stays fully readable; only its controls are locked.
+    expect(article.className).not.toContain('opacity-70');
 
     const status = screen.getByTestId('cockpit-card-feedback-status');
     expect(status.getAttribute('data-phase')).toBe('sent');
@@ -1038,11 +1039,11 @@ describe('the feedback lifecycle: sent, unconfirmed, resent, and returned', () =
       'Handed to the provider',
     );
 
-    // Locked: no option switching, no confirmation, and a resend only after the window.
+    // Locked: no option switching, NO confirm bar at all, and a resend only after the window.
     expect(screen.getByTestId('cockpit-card-option-trigger').hasAttribute('disabled')).toBe(true);
-    expect(screen.getByTestId('cockpit-card-confirm').hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByTestId('cockpit-card-confirm')).toBeNull();
     expect(screen.queryByTestId('cockpit-card-feedback-resend')).toBeNull();
-    expect(screen.queryByTestId('cockpit-card-feedback-unconfirmed')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-feedback-resend-hint')).toBeNull();
   });
 
   it('shows 未确认收到 · 重发 only once the 120-second window has passed', () => {
@@ -1066,9 +1067,10 @@ describe('the feedback lifecycle: sent, unconfirmed, resent, and returned', () =
     expect(screen.getByTestId('cockpit-card-feedback-status').getAttribute('data-phase')).toBe(
       'unconfirmed',
     );
-    expect(screen.getByTestId('cockpit-card-feedback-unconfirmed').textContent).toContain(
-      'The fleet has not confirmed',
-    );
+    // The SAME one phase sentence swaps to the 2-minute reading; the waiting sentence is gone.
+    const phaseLine = screen.getByTestId('cockpit-card-feedback-sent');
+    expect(phaseLine.textContent).toContain('no receipt after 2 minutes');
+    expect(phaseLine.textContent).not.toContain('waiting for the fleet');
     expect(screen.getByText('Resend only resends the feedback; it does not redo the action')).toBeTruthy();
 
     const resend = screen.getByTestId('cockpit-card-feedback-resend');
@@ -1119,8 +1121,10 @@ describe('the feedback lifecycle: sent, unconfirmed, resent, and returned', () =
         feedback: { ...SENT_FEEDBACK, outcome: { executor: 'session.start', ok: true, sessionId: 's-1' } },
       },
     });
+    // The one-line row names the destination compactly; the full outcome sentence stays for a
+    // delivery (a session card has a live 「打开会话 ›」 target in the prototype).
     expect(screen.getByTestId('cockpit-card-feedback-outcome').textContent).toBe(
-      'Background conversation running · open conversation ›',
+      'Open conversation ›',
     );
 
     cleanup();

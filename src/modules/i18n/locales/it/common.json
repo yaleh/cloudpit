@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "Inviato ✓",
     "cardConfirmFailed": "La conferma non è riuscita: {{reason}}",
     "cardFeedbackSent": "Inviato: {{label}} · in attesa di conferma da fleet",
-    "cardFeedbackUnconfirmed": "Fleet non ha confermato · nessuna risposta dopo 2 minuti",
+    "cardFeedbackUnconfirmed": "Inviato: {{label}} · nessuna risposta dopo 2 minuti",
     "cardFeedbackResend": "Invia di nuovo",
     "cardFeedbackResending": "Reinvio…",
     "cardFeedbackResendHint": "Reinviare ripete solo il feedback, non l’azione",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "Assi (● misurato, ○ giudicato)",
     "briefHighMeans": "alto significa: {{definition}}",
     "briefUnknownBlock": "Blocco sconosciuto «{{type}}» — contenuto grezzo mostrato",
-    "briefRecommended": "Consigliato: {{label}}"
+    "briefRecommended": "Consigliato: {{label}}",
+    "cardFeedbackOpenConversation": "Apri conversazione ›"
   },
   "replyReference": {
     "item": "{{label}}«{{excerpt}}»",

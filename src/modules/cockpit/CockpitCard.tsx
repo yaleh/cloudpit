@@ -304,12 +304,13 @@ export default function CockpitCard({
   const feedbackPhase = feedback === undefined ? null : feedbackPhaseOf(feedback, now);
   const feedbackLocked = feedback !== undefined;
   const feedbackResendable = feedback !== undefined && canResendFeedback(card, now);
+  const feedbackFailed = feedback?.lastError !== undefined;
+  // The right side of the sent line: a card whose outcome names a conversation draws the short
+  // 「打开会话 ›」 label; otherwise it keeps the pre-existing delivery/accepted reading.
   const feedbackOutcomeLine =
-    feedback?.outcome.sessionId !== undefined
-      ? t('cockpit.cardFeedbackOutcomeSession')
-      : feedback?.outcome.deliveryId !== undefined
-        ? t('cockpit.cardFeedbackOutcomeDelivery')
-        : t('cockpit.cardFeedbackOutcomeAccepted');
+    feedback?.outcome.deliveryId !== undefined
+      ? t('cockpit.cardFeedbackOutcomeDelivery')
+      : t('cockpit.cardFeedbackOutcomeAccepted');
 
   return (
     <article
@@ -320,7 +321,8 @@ export default function CockpitCard({
       data-feedback-phase={feedbackPhase ?? undefined}
       className={cn(
         'rounded-xl border bg-card text-card-foreground shadow-sm',
-        feedbackLocked ? 'opacity-70' : '',
+        // A sent card keeps its place and stays fully readable: only its controls are locked, so
+        // the whole card must not be dimmed (the status row states the lifecycle instead).
         selected ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border',
         compact ? 'px-3 py-2' : 'px-3 py-2.5',
       )}
@@ -630,43 +632,72 @@ export default function CockpitCard({
                   })}
             </p>
           )}
-          {/* The sent-but-unconfirmed reading, drawn ON the card so it keeps its place. The
-              options above and the confirm bar below are locked until a receipt returns it. */}
+          {/* THE SENT STATE IS ONE LINE. A sent card already ran its action, so the confirm bar is
+              not drawn at all: the only live control is 「重发」 after the two-minute window, and it
+              lives in the status row's second line. The first line carries the dot, 「已发出」, the
+              chosen option and ONE phase suffix — waiting (neutral) or 「2 分钟无回执」. Amber is
+              reserved for a REAL failure: when the feedback call itself threw, `lastError` says why
+              and the row turns amber; ordinary waiting never does. */}
           {feedback !== undefined && (
             <div
               data-testid="cockpit-card-feedback-status"
               data-phase={feedbackPhase ?? undefined}
+              data-last-error={feedbackFailed ? 'true' : 'false'}
               className={cn(
-                'mb-1 rounded-md border px-2 py-1.5 text-[11px]',
-                feedbackPhase === 'unconfirmed'
-                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                  : 'border-border bg-muted/40 text-muted-foreground',
+                'mb-1 text-[11px]',
+                feedbackFailed
+                  ? 'rounded-md border border-amber-500/60 bg-amber-500/10 px-2 py-1.5 text-amber-800 dark:text-amber-200'
+                  : 'text-muted-foreground',
               )}
             >
-              <p data-testid="cockpit-card-feedback-sent">
-                {t('cockpit.cardFeedbackSent', { label: feedback.label })}
-              </p>
-              <p data-testid="cockpit-card-feedback-outcome">{feedbackOutcomeLine}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p data-testid="cockpit-card-feedback-sent" className="flex min-w-0 items-center gap-1">
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                  <span className="truncate">
+                    {t(
+                      feedbackPhase === 'unconfirmed'
+                        ? 'cockpit.cardFeedbackUnconfirmed'
+                        : 'cockpit.cardFeedbackSent',
+                      { label: feedback.label },
+                    )}
+                  </span>
+                </p>
+                <span
+                  data-testid="cockpit-card-feedback-outcome"
+                  className="shrink-0 text-primary"
+                >
+                  {feedback.outcome.sessionId === undefined
+                    ? feedbackOutcomeLine
+                    : t('cockpit.cardFeedbackOpenConversation')}
+                </span>
+              </div>
+              {feedbackFailed && (
+                <p data-testid="cockpit-card-feedback-error" className="mt-0.5 text-[10px]">
+                  {feedback.lastError}
+                </p>
+              )}
               {feedbackPhase === 'unconfirmed' && (
                 <>
-                  <p data-testid="cockpit-card-feedback-unconfirmed" className="mt-1 font-medium">
-                    {t('cockpit.cardFeedbackUnconfirmed')}
-                  </p>
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-feedback-resend"
-                    data-resendable={feedbackResendable ? 'true' : 'false'}
-                    disabled={!feedbackResendable || resendingFeedback}
-                    onClick={onResendFeedback}
-                    className="mt-1 rounded border border-current px-2 py-0.5 text-[11px] font-medium disabled:opacity-50"
-                  >
-                    {resendingFeedback
-                      ? t('cockpit.cardFeedbackResending')
-                      : t('cockpit.cardFeedbackResend')}
-                  </button>
-                  <p className="mt-1 text-[10px] opacity-80">
-                    {t('cockpit.cardFeedbackResendHint')}
-                  </p>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <p
+                      data-testid="cockpit-card-feedback-resend-hint"
+                      className="min-w-0 text-[10px] opacity-80"
+                    >
+                      {t('cockpit.cardFeedbackResendHint')}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="cockpit-card-feedback-resend"
+                      data-resendable={feedbackResendable ? 'true' : 'false'}
+                      disabled={!feedbackResendable || resendingFeedback}
+                      onClick={onResendFeedback}
+                      className="shrink-0 rounded border border-current px-2 py-0.5 text-[11px] font-medium disabled:opacity-50"
+                    >
+                      {resendingFeedback
+                        ? t('cockpit.cardFeedbackResending')
+                        : t('cockpit.cardFeedbackResend')}
+                    </button>
+                  </div>
                   {!feedback.canResend && feedback.resendUnavailableReason !== undefined && (
                     <p data-testid="cockpit-card-feedback-resend-unavailable" className="mt-1">
                       {t('cockpit.cardFeedbackResendUnavailable', {
@@ -687,7 +718,10 @@ export default function CockpitCard({
               )}
             </div>
           )}
-          {target === null ? (
+          {/* The confirm control belongs to a card that can still act. A sent card's action
+              already ran, so drawing a full-width disabled bar would put a dead control where the
+              live 「重发」 belongs. */}
+          {!feedbackLocked && (target === null ? (
             <p
               data-testid="cockpit-card-confirm-empty"
               className={cn(
@@ -722,7 +756,7 @@ export default function CockpitCard({
                 </p>
               )}
             </>
-          )}
+          ))}
         </div>
       </div>
     </article>

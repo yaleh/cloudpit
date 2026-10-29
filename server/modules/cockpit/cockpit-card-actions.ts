@@ -206,6 +206,11 @@ function feedbackOutcome(executor: string, result: unknown): CockpitCardFeedback
   };
 }
 
+/** The readable reason a failed feedback call carries to the card. */
+function feedbackFailureMessage(failure: unknown): string {
+  return failure instanceof Error ? failure.message : String(failure);
+}
+
 /**
  * Builds the action channel over a registry and the executors the composition
  * root made available. The declared set is read from the REGISTRY (the
@@ -285,7 +290,15 @@ export function createCockpitCardActions(deps: {
     if (feedbackExecutor === null) return null;
 
     const implementation = await executorById(feedbackExecutor);
-    if (implementation === undefined) return null;
+    if (implementation === undefined) {
+      // A provider that declares a feedback executor but has no implementation is a failure the
+      // person can act on (a wiring bug) — record it rather than showing an endless wait.
+      store?.markFeedbackError(
+        params.card.id,
+        `feedback executor ${feedbackExecutor} has no implementation`,
+      );
+      return null;
+    }
     try {
       const answer = await implementation.execute(feedbackParams);
       const receipt = readCockpitCardReceipt(
@@ -305,11 +318,15 @@ export function createCockpitCardActions(deps: {
             ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
           });
         }
+        // Reaching the provider with a receipt proves the earlier failure is over.
+        store.clearFeedbackError(params.card.id);
       }
       return receipt;
-    } catch {
+    } catch (failure) {
       // The action succeeded; a feedback failure is not an action failure. The overlay stays, so
       // the display reads 「已发出 · 等 fleet 确认」 and its resend is available after the timeout.
+      // The reason is recorded so the card can distinguish 「fleet unreachable」 from 「fleet slow」.
+      store?.markFeedbackError(params.card.id, feedbackFailureMessage(failure));
       return null;
     }
   };
@@ -440,11 +457,12 @@ export function createCockpitCardActions(deps: {
     try {
       result = await implementation.execute(stored.params);
     } catch (failure) {
+      // The resend is still waiting for a receipt; record why THIS attempt failed so the card
+      // does not fall back to claiming the fleet is merely slow.
+      store?.markFeedbackError(cardId, feedbackFailureMessage(failure));
       if (failure instanceof AppError) throw failure;
       throw new AppError(
-        `feedback executor ${stored.feedbackExecutor} failed: ${
-          failure instanceof Error ? failure.message : String(failure)
-        }`,
+        `feedback executor ${stored.feedbackExecutor} failed: ${feedbackFailureMessage(failure)}`,
         { code: 'EXECUTOR_FAILED', statusCode: 500 },
       );
     }

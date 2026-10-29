@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "보냄 ✓",
     "cardConfirmFailed": "확인 실패: {{reason}}",
     "cardFeedbackSent": "보냄: {{label}} · fleet 수신 확인 대기 중",
-    "cardFeedbackUnconfirmed": "fleet이 확인하지 않음 · 2분간 응답 없음",
+    "cardFeedbackUnconfirmed": "보냄: {{label}} · 2분간 응답 없음",
     "cardFeedbackResend": "다시 보내기",
     "cardFeedbackResending": "다시 보내는 중…",
     "cardFeedbackResendHint": "다시 보내기는 피드백만 재전송하며 동작은 반복하지 않습니다",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "축(● 측정, ○ 판단)",
     "briefHighMeans": "높을수록: {{definition}}",
     "briefUnknownBlock": "알 수 없는 블록 “{{type}}” — 원본 내용을 표시합니다",
-    "briefRecommended": "추천: {{label}}"
+    "briefRecommended": "추천: {{label}}",
+    "cardFeedbackOpenConversation": "대화 열기 ›"
   },
   "replyReference": {
     "item": "{{label}}「{{excerpt}}」",

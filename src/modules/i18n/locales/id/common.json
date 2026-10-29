@@ -1095,7 +1095,7 @@
     "cardConfirmSent": "Terkirim ✓",
     "cardConfirmFailed": "Konfirmasi gagal: {{reason}}",
     "cardFeedbackSent": "Terkirim: {{label}} · menunggu konfirmasi fleet",
-    "cardFeedbackUnconfirmed": "Fleet belum mengonfirmasi · tidak ada balasan setelah 2 menit",
+    "cardFeedbackUnconfirmed": "Terkirim: {{label}} · tidak ada balasan setelah 2 menit",
     "cardFeedbackResend": "Kirim ulang",
     "cardFeedbackResending": "Mengirim ulang…",
     "cardFeedbackResendHint": "Kirim ulang hanya mengulang umpan balik, bukan tindakannya",
@@ -1145,7 +1145,8 @@
     "briefRadarLegend": "Sumbu (● terukur, ○ dinilai)",
     "briefHighMeans": "tinggi berarti: {{definition}}",
     "briefUnknownBlock": "Blok tidak dikenal “{{type}}” — menampilkan konten mentahnya",
-    "briefRecommended": "Direkomendasikan: {{label}}"
+    "briefRecommended": "Direkomendasikan: {{label}}",
+    "cardFeedbackOpenConversation": "Buka percakapan ›"
   },
   "replyReference": {
     "item": "{{label}}«{{excerpt}}»",

@@ -48,6 +48,11 @@ export type StoredCockpitCardFeedback = {
   /** The executor id to call again on a resend; `null` means the provider declared none. */
   feedbackExecutor: string | null;
   resendUnavailableReason?: string;
+  /**
+   * The last feedback call's readable failure reason. Persisted so the card can still say WHY it
+   * is waiting after a server restart; a receipt or a successful resend clears it.
+   */
+  lastError?: string;
   /** The params of the ORIGINAL feedback call, resent verbatim with the same feedbackId. */
   params: Record<string, unknown>;
 };
@@ -64,6 +69,13 @@ export type CockpitCardFeedbackStore = {
   removeOverlay(cardId: string): void;
   /** Refreshes the attempt's `sentAt` after a resend, keeping the same feedbackId. */
   markResent(cardId: string, sentAt: string): void;
+  /**
+   * Records why the last feedback call failed. The overlay stays (the action already ran); the
+   * card reads the reason instead of pretending the fleet is merely slow.
+   */
+  markFeedbackError(cardId: string, message: string): void;
+  /** Clears a recorded failure after a receipt or a successful resend. */
+  clearFeedbackError(cardId: string): void;
   notice(cardId: string): CockpitCardFeedbackNotice | null;
   recordNotice(notice: CockpitCardFeedbackNotice): void;
   /**
@@ -120,6 +132,7 @@ function readOverlay(raw: unknown): StoredCockpitCardFeedback | null {
   }
   const feedbackExecutor = text(entry.feedbackExecutor);
   const resendUnavailableReason = text(entry.resendUnavailableReason);
+  const lastError = text(entry.lastError);
   return {
     cardId,
     provider,
@@ -136,6 +149,7 @@ function readOverlay(raw: unknown): StoredCockpitCardFeedback | null {
     },
     feedbackExecutor: feedbackExecutor === '' ? null : feedbackExecutor,
     ...(resendUnavailableReason === '' ? {} : { resendUnavailableReason }),
+    ...(lastError === '' ? {} : { lastError }),
     params: { ...params },
   };
 }
@@ -227,10 +241,17 @@ export function createCockpitCardFeedbackStore(options: {
     ...(stored.resendUnavailableReason === undefined
       ? {}
       : { resendUnavailableReason: stored.resendUnavailableReason }),
+    ...(stored.lastError === undefined ? {} : { lastError: stored.lastError }),
   });
 
   const applyReceipt = (stored: StoredCockpitCardFeedback, receipt: CockpitCardReceipt): void => {
     if (receipt.feedbackId !== stored.feedbackId) return;
+    // A receipt — even the `closed` one that keeps the overlay — proves the call got through, so
+    // any earlier failure reason is stale.
+    if (stored.lastError !== undefined) {
+      delete stored.lastError;
+      persist();
+    }
     // A `closed` receipt while the item is STILL in the reading means the provider has accepted
     // it but not yet removed it: the display keeps saying 「已发出」 until the card disappears.
     if (receipt.disposition === 'closed') return;
@@ -262,6 +283,21 @@ export function createCockpitCardFeedbackStore(options: {
       const found = overlays.get(cardId);
       if (found === undefined) return;
       found.sentAt = sentAt;
+      // A resend that reached the executor is the same proof a receipt is: an earlier failure is
+      // no longer the card's current reading.
+      if (found.lastError !== undefined) delete found.lastError;
+      persist();
+    },
+    markFeedbackError: (cardId, message) => {
+      const found = overlays.get(cardId);
+      if (found === undefined) return;
+      found.lastError = message;
+      persist();
+    },
+    clearFeedbackError: (cardId) => {
+      const found = overlays.get(cardId);
+      if (found === undefined || found.lastError === undefined) return;
+      delete found.lastError;
       persist();
     },
     notice: (cardId) => notices.get(cardId) ?? null,

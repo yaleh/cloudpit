@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "已发送 ✓",
     "cardConfirmFailed": "确认失败：{{reason}}",
     "cardFeedbackSent": "已发出：{{label}} · 等 fleet 确认收到",
-    "cardFeedbackUnconfirmed": "fleet 未确认收到 · 2 分钟无回执",
+    "cardFeedbackUnconfirmed": "已发出：{{label}} · 2 分钟无回执",
     "cardFeedbackResend": "重发",
     "cardFeedbackResending": "正在重发…",
     "cardFeedbackResendHint": "重发只重发反馈，不重做动作",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "坐标轴（● 实测，○ 判断）",
     "briefHighMeans": "高意味着：{{definition}}",
     "briefUnknownBlock": "未知区块「{{type}}」——显示其原始内容",
-    "briefRecommended": "推荐：{{label}}"
+    "briefRecommended": "推荐：{{label}}",
+    "cardFeedbackOpenConversation": "打开会话 ›"
   },
   "replyReference": {
     "item": "{{label}}「{{excerpt}}」",

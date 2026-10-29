@@ -1103,7 +1103,7 @@
     "cardConfirmSent": "Sent ✓",
     "cardConfirmFailed": "The confirmation failed: {{reason}}",
     "cardFeedbackSent": "Sent: {{label}} · waiting for the fleet to confirm receipt",
-    "cardFeedbackUnconfirmed": "The fleet has not confirmed · no receipt after 2 minutes",
+    "cardFeedbackUnconfirmed": "Sent: {{label}} · no receipt after 2 minutes",
     "cardFeedbackResend": "Resend",
     "cardFeedbackResending": "Resending…",
     "cardFeedbackResendHint": "Resend only resends the feedback; it does not redo the action",
@@ -1153,7 +1153,8 @@
     "briefRadarLegend": "Axes (● measured, ○ judged)",
     "briefHighMeans": "high means: {{definition}}",
     "briefUnknownBlock": "Unknown block “{{type}}” — showing its raw content",
-    "briefRecommended": "Recommended: {{label}}"
+    "briefRecommended": "Recommended: {{label}}",
+    "cardFeedbackOpenConversation": "Open conversation ›"
   },
   "replyReference": {
     "item": "{{label}}“{{excerpt}}”",

@@ -481,3 +481,90 @@ test('a provider without a feedback executor answers an explicit unavailable rea
       failure.message === NO_FEEDBACK_EXECUTOR_REASON,
   );
 });
+
+test('a thrown feedback call records lastError on the overlay, and a store rebuild still reads it', async () => {
+  const { directory, filePath } = storeFile();
+  try {
+    const provider = new MutableCardProvider([makeCard({ id: 'card-1' })]);
+    const registry = createCockpitCardRegistry([provider]);
+    const first = createCockpitCardFeedbackStore({ filePath });
+    const actions = createCockpitCardActions({
+      registry,
+      executors: [
+        actionExecutor(),
+        {
+          id: 'test.feedback',
+          execute: () => {
+            throw new Error('fleet unreachable');
+          },
+        },
+      ],
+      feedbackStore: first,
+      now: () => new Date(AT),
+      newFeedbackId: () => 'feedback-failed',
+    });
+
+    // The ACTION succeeded (the card's content is no longer confirmable), but the feedback call
+    // threw. The overlay must exist AND carry the reason — not pretend the fleet is merely slow.
+    await actions.confirm({ cardId: 'card-1', revision: 1, optionId: 'go' });
+    const stored = first.overlay('card-1');
+    assert.ok(stored, 'a failed feedback call still leaves the overlay');
+    assert.equal(stored.lastError, 'fleet unreachable');
+    first.dispose();
+
+    const rebuilt = createCockpitCardFeedbackStore({ filePath });
+    assert.equal(
+      rebuilt.overlay('card-1')?.lastError,
+      'fleet unreachable',
+      'the reason is durable, so a restart does not erase why the card is amber',
+    );
+    const listed = rebuilt.applyCards(await registry.listCards());
+    assert.equal(listed[0].feedback?.lastError, 'fleet unreachable');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a successful resend that receives a receipt clears the recorded lastError', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1' })]);
+  const registry = createCockpitCardRegistry([provider]);
+  const store = createCockpitCardFeedbackStore();
+  let calls = 0;
+  const flaky: ICockpitActionExecutor = {
+    id: 'test.feedback',
+    execute: (params) => {
+      calls += 1;
+      if (calls === 1) throw new Error('fleet unreachable');
+      // A `closed` receipt keeps the overlay (the item is still listed), so the cleared field is
+      // readable on the same stored record rather than vanishing with the overlay.
+      return {
+        acknowledged: true,
+        receipt: {
+          feedbackId: String(params.feedbackId),
+          at: AT,
+          disposition: 'closed',
+        },
+      };
+    },
+  };
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [actionExecutor(), flaky],
+    feedbackStore: store,
+    now: () => new Date(AT),
+    newFeedbackId: () => 'feedback-flaky',
+  });
+
+  await actions.confirm({ cardId: 'card-1', revision: 1, optionId: 'go' });
+  assert.equal(store.overlay('card-1')?.lastError, 'fleet unreachable');
+
+  const resent = await actions.resendFeedback({ cardId: 'card-1' });
+  assert.equal(resent.feedbackId, 'feedback-flaky');
+  assert.equal(
+    store.overlay('card-1')?.lastError,
+    undefined,
+    'a resend that reached the provider proves the earlier failure is over',
+  );
+  const listed = store.applyCards(await registry.listCards());
+  assert.equal(listed[0].feedback?.lastError, undefined);
+});

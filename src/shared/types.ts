@@ -4347,6 +4347,12 @@ export type CockpitCardFeedback = {
   /** False when the provider declares no feedback executor; then only the reason is readable. */
   canResend: boolean;
   resendUnavailableReason?: string;
+  /**
+   * The readable reason the last feedback CALL failed (the action itself succeeded). Present only
+   * while a failure is unacknowledged: a receipt or a successful resend clears it. The card draws
+   * it in amber, so the person can tell 「fleet unreachable」 from 「fleet slow」.
+   */
+  lastError?: string;
 };
 
 /** A receipt that returned the card to the person, kept beside it until the next confirmation. */

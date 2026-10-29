@@ -564,9 +564,11 @@ export default function CockpitCardDetails({
         (the card's currently shown option), and its press opens the same in-place confirm state —
         Details is a longer reading of one card, not a second confirmation path. `sticky bottom-0`
         keeps it in view while the drawer's body scrolls. The bar itself is the card's shared
-        `CockpitCardConfirmBar`: one action, one control, one style.
+        `CockpitCardConfirmBar`: one action, one control, one style. A card whose feedback is
+        already sent draws NO bar here either: its action ran, and the only live control is the
+        resend the card row offers after the window.
       */}
-      {target !== undefined && target !== null && (
+      {target !== undefined && target !== null && card.feedback === undefined && (
         <CockpitCardConfirmBar
           barTestId="cockpit-card-details-confirm-bar"
           testId="cockpit-card-details-confirm"

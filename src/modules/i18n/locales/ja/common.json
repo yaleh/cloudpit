@@ -1012,7 +1012,7 @@
     "cardConfirmSent": "送信済み ✓",
     "cardConfirmFailed": "確認に失敗しました: {{reason}}",
     "cardFeedbackSent": "送信済み：{{label}} · fleet の受信確認待ち",
-    "cardFeedbackUnconfirmed": "fleet が確認していません · 2 分間応答なし",
+    "cardFeedbackUnconfirmed": "送信済み：{{label}} · 2 分間応答なし",
     "cardFeedbackResend": "再送",
     "cardFeedbackResending": "再送中…",
     "cardFeedbackResendHint": "再送はフィードバックのみで、アクションは繰り返しません",
@@ -1062,7 +1062,8 @@
     "briefRadarLegend": "軸（● 実測、○ 判断）",
     "briefHighMeans": "高いほど：{{definition}}",
     "briefUnknownBlock": "不明なブロック「{{type}}」— 生の内容を表示しています",
-    "briefRecommended": "推奨：{{label}}"
+    "briefRecommended": "推奨：{{label}}",
+    "cardFeedbackOpenConversation": "会話を開く ›"
   },
   "replyReference": {
     "item": "{{label}}「{{excerpt}}」",
