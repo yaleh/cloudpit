@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-surface-polish
 title: 驾驶舱表面打磨：详情限宽居中、确认条不压内容、BRIEF 空态隐去、头部计数合成一行、筛选条渐隐、年龄格式统一
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
