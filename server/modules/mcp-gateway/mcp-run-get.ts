@@ -70,9 +70,9 @@ import type {
 import type { ActivityProtocolSnapshot, ChatRunLookupResult } from '@/modules/websocket/index.js';
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import { formatMcpTime } from './mcp-gateway.read-tools.js';
-import type { McpReadToolDeps, McpReadToolSeam, McpTime } from './mcp-gateway.read-tools.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import { formatMcpTime, type McpTime } from '@/shared/mcp-contract/index.js';
+import type { McpReadToolSeam } from './mcp-read-contract.js';
 
 // --------------------------- limits and vocabulary ---------------------------
 
@@ -658,8 +658,8 @@ export type McpRunGetRegistration = {
  * `MCP_TOOL_NOT_IMPLEMENTED` refusal on a mount that did not (AC-240/244/245's
  * criteria) — the registered name set is unchanged either way.
  */
-export function isRunGetWired(deps: McpReadToolDeps): deps is McpReadToolDeps & { runGet: McpRunGetDeps } {
-  return deps.runGet !== undefined;
+export function isRunGetWired<D extends object>(deps: D): deps is D & { runGet: McpRunGetDeps } {
+  return (deps as { runGet?: unknown }).runGet !== undefined;
 }
 
 /**

@@ -151,14 +151,13 @@ export {
   MCP_TEXT_CHUNK_CHARS,
   MCP_TOOL_NOT_IMPLEMENTED_CODE,
   paginateMcpText,
-  registerMcpReadTools,
 } from './mcp-gateway.read-tools.js';
-export type {
-  McpReadToolDeps,
-  McpReadToolRegistration,
-  McpReadToolSeam,
-  McpTime,
-} from './mcp-gateway.read-tools.js';
+export type { McpReadToolRegistration, McpReadToolSeam, McpTime } from './mcp-gateway.read-tools.js';
+// The REGISTRAR (and the full deps bag it reads) lives above the tool modules
+// in `mcp-read-tools-registry.js` — proposal stage 2 inverted the aggregation
+// edge so no implementation imports back into the table.
+export { registerMcpReadTools } from './mcp-read-tools-registry.js';
+export type { McpReadToolDeps } from './mcp-read-tools-registry.js';
 
 // The overview tools (AC-247). `buildOverview` answers the whole-workspace
 // reading (running / awaiting-permission / aborted sessions, resident hosts, and

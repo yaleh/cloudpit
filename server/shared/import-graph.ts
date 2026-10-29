@@ -247,6 +247,89 @@ export function scanImportGraph(sources: readonly SourceFile[], options: { inclu
   };
 }
 
+/** One FILE-level edge, flagged with which import form produced it. */
+export type FileEdge = { from: string; to: string; static: boolean; dynamic: boolean };
+
+/** One file-level scan: the package-local import graph with its SCCs. */
+export type FileGraph = {
+  files: number;
+  /** Resolved edges whose BOTH ends are in the scanned set — an out-of-set target is dropped. */
+  fileEdges: FileEdge[];
+  /** Every SCC of size ≥ 2, largest first. Acyclic input yields `[]`. */
+  nonTrivialSccs: string[][];
+};
+
+/**
+ * The FILE-level companion to {@link scanImportGraph}: same sources, same resolution, same
+ * literal-dynamic rule, but a NODE IS A FILE rather than a directory.
+ *
+ * AC-394's ratchet is directory-level, so it cannot see a cycle that stays inside one package
+ * (`cycle-mcp-gateway-intra-package-scc`: 23 files of `modules/mcp-gateway`, invisible to a
+ * cross-directory reading). This function is that reading, shared rather than copied for the
+ * same reason the directory scanner is: two scanners that can drift apart report two truths.
+ *
+ * Callers restrict the input set to the surface they mean to pin; an edge leaving that set
+ * simply has no target node and drops out, so a package-local scan answers a package-local
+ * question and nothing else.
+ */
+export function scanFileImportGraph(
+  sources: readonly SourceFile[],
+  options: { includeDynamic?: boolean } = {},
+): FileGraph {
+  const includeDynamic = options.includeDynamic ?? true;
+  const present = new Set(sources.map((source) => source.path));
+  const edgeMap = new Map<string, FileEdge>();
+
+  for (const source of sources) {
+    const sourceFile = ts.createSourceFile(source.path, source.text, ts.ScriptTarget.Latest, false, scriptKindFor(source.path));
+
+    const resolve = (specifier: string, kind: 'static' | 'dynamic'): void => {
+      if (kind === 'dynamic' && !includeDynamic) return;
+      const resolution = resolveSpecifier(specifier, source.path, present);
+      if (resolution.kind !== 'file') return;
+      if (resolution.path === source.path) return;
+      const key = `${source.path}\u0000${resolution.path}`;
+      const edge = edgeMap.get(key) ?? { from: source.path, to: resolution.path, static: false, dynamic: false };
+      if (kind === 'static') edge.static = true;
+      else edge.dynamic = true;
+      edgeMap.set(key, edge);
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isImportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        resolve(node.moduleSpecifier.text, 'static');
+      } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        resolve(node.moduleSpecifier.text, 'static');
+      } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const argument = node.arguments[0];
+        // A non-literal specifier is unknowable statically; it never becomes an edge here,
+        // exactly as in the directory scan.
+        if (argument && ts.isStringLiteral(argument)) resolve(argument.text, 'dynamic');
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+  }
+
+  const fileEdges = [...edgeMap.values()].sort(
+    (a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to),
+  );
+  const adjacency = new Map<string, string[]>();
+  for (const edge of fileEdges) {
+    const targets = adjacency.get(edge.from) ?? [];
+    targets.push(edge.to);
+    adjacency.set(edge.from, targets);
+  }
+  const sccs = strongComponents([...present].sort(), adjacency);
+
+  return {
+    files: sources.length,
+    fileEdges,
+    nonTrivialSccs: sccs.filter((component) => component.length >= 2),
+  };
+}
+
 /**
  * Every non-test `.ts`/`.tsx` under `serverDir`, path relative to it as posix. `tests/`
  * directories are pruned and `*.test.*` / `*.spec.*` files dropped, so the graph is the

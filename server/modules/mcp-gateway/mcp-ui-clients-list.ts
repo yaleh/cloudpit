@@ -47,8 +47,8 @@ import { z } from 'zod';
 import type { UiClientDevice, UiVisibleContextDevice, UiVisibleContextTab } from '@/shared/types.js';
 import type { UiStateRequestOptions } from '@/modules/websocket/index.js';
 
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import type { McpReadToolDeps, McpReadToolSeam } from './mcp-gateway.read-tools.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import type { McpReadToolSeam } from './mcp-read-contract.js';
 
 /**
  * The two readings `ui_clients_list` answers from: the connected devices and the
@@ -74,10 +74,10 @@ export type McpUiClientsListDeps = {
 };
 
 /** Whether the injected deps carry the round trip, i.e. this tool is wired. */
-export function isUiClientsListWired(
-  deps: McpReadToolDeps,
-): deps is McpReadToolDeps & { uiClientsList: McpUiClientsListDeps } {
-  return deps.uiClientsList !== undefined;
+export function isUiClientsListWired<D extends object>(
+  deps: D,
+): deps is D & { uiClientsList: McpUiClientsListDeps } {
+  return (deps as { uiClientsList?: unknown }).uiClientsList !== undefined;
 }
 
 /** One tab of a device, by identity only: what it is showing is not part of this reading. */

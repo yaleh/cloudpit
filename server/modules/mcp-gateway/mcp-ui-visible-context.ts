@@ -41,8 +41,8 @@ import type {
 import type { UiStateRequestOptions } from '@/modules/websocket/index.js';
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
-import type { McpReadToolDeps, McpReadToolSeam } from './mcp-gateway.read-tools.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
+import type { McpReadToolSeam } from './mcp-read-contract.js';
 
 /**
  * The two readings `ui_visible_context` answers from: which devices are
@@ -77,10 +77,10 @@ export type McpUiVisibleContextDeps = {
 };
 
 /** Whether the injected deps carry the round trip, i.e. this tool is wired. */
-export function isUiVisibleContextWired(
-  deps: McpReadToolDeps,
-): deps is McpReadToolDeps & { uiVisibleContext: McpUiVisibleContextDeps } {
-  return deps.uiVisibleContext !== undefined;
+export function isUiVisibleContextWired<D extends object>(
+  deps: D,
+): deps is D & { uiVisibleContext: McpUiVisibleContextDeps } {
+  return (deps as { uiVisibleContext?: unknown }).uiVisibleContext !== undefined;
 }
 
 /** The tool's arguments: an optional device reference and an optional navigation id. */

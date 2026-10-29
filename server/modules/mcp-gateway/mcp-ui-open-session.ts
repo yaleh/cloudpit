@@ -33,7 +33,7 @@ import type { UiNavigationPosition } from '@/shared/types.js';
 
 import { MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpWriteToolDeps, McpWriteToolSeam } from './mcp-gateway.write-tools.js';
+import type { McpWriteToolSeam } from './mcp-write-contract.js';
 import {
   buildUiNavigation,
   createUiNavigationRateLimiter,
@@ -117,10 +117,10 @@ export type UiOpenSessionPayload = UiNavigationToolPayload;
 export type McpUiOpenSessionDeps = UiNavigationToolDeps;
 
 /** Whether the injected deps carry this tool's services, i.e. it is wired. */
-export function isUiOpenSessionWired(
-  deps: McpWriteToolDeps,
-): deps is McpWriteToolDeps & { uiOpenSession: McpUiOpenSessionDeps } {
-  return deps.uiOpenSession !== undefined;
+export function isUiOpenSessionWired<D extends object>(
+  deps: D,
+): deps is D & { uiOpenSession: McpUiOpenSessionDeps } {
+  return (deps as { uiOpenSession?: unknown }).uiOpenSession !== undefined;
 }
 
 // --------------------------- device resolution ---------------------------
