@@ -1,7 +1,7 @@
 ---
 id: codex-cli-bump-0-166
 title: Codex CLI/SDK 升级到 0.166.0：配对精确 pin、离线协议冒烟矩阵、刷新预置模型目录并在真实 turn 验收
-status: todo
+status: ready
 labels:
   - ops
 parent: null
