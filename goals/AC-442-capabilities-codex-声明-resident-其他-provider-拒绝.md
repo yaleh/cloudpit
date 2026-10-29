@@ -11,16 +11,16 @@ expect: codex lifecycleModes 含 resident，residentFeatures
   被拒（LIFECYCLE_MODE_NOT_SUPPORTED）。假形态：matrix 声称未实测能力必须红。
 origin: GOAL-051 的 Codex 常驻方案（人 yale 2026-10-29 五条裁定）+
   tmp/codex-appserver-exp-NuPHhk/REPORT.md（锁定版 0.153.4 实测）
-activatedAt: 2026-10-29T09:30:41.610Z
+activatedAt: 2026-10-29T09:30:47.999Z
 statusLog:
-  - at: 2026-10-29T09:30:41.610Z
+  - at: 2026-10-29T09:30:47.999Z
     from: draft
     to: active
-    actor: human:yale
-    reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+    actor: goal-driver
+    reason: "triage: activate"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
-  at: 2026-10-29T09:30:41.610Z
+  at: 2026-10-29T09:30:47.999Z
 phase: pre-merge
 ---
