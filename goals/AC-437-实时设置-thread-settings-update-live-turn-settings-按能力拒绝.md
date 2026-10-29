@@ -1,7 +1,7 @@
 ---
 id: AC-437
 title: 实时设置（thread/settings/update live，turn/settings 按能力拒绝）
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -19,6 +19,11 @@ statusLog:
     to: active
     actor: human:yale
     reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+  - at: 2026-10-29T13:46:58.494Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
