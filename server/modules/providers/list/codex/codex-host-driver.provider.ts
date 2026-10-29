@@ -1,5 +1,10 @@
 import { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import {
+  createCodexBackgroundLeaseLedger,
+  type CodexBackgroundLease,
+  type CodexBackgroundLeaseLedger,
+} from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   HostCloseReason,
@@ -58,6 +63,25 @@ export type CodexHostDriverOptions = {
   launch?: CodexAppServerLaunch;
   /** Thread defaults sent to `thread/start`. */
   thread?: CodexThreadDefaults;
+  /** Clock for a background hold's `since`; the criterion injects a deterministic one. */
+  now?: () => number;
+};
+
+/**
+ * One `process/spawn` request.
+ *
+ * `processHandle` is the client's handle and is echoed on `process/exited`; the
+ * driver allocates `bg-<n>` when the caller leaves it out. The optional fields
+ * are written to the request only when the caller actually supplied them.
+ */
+export type CodexBackgroundProcessSpec = {
+  processHandle?: string;
+  command: string[];
+  cwd?: string;
+  streamStdoutStderr?: boolean;
+  streamStdin?: boolean;
+  outputBytesCap?: number;
+  timeoutMs?: number;
 };
 
 type PendingTurn = {
@@ -111,6 +135,10 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly launch: CodexAppServerLaunch;
   private readonly threadDefaults: CodexThreadDefaults;
   private readonly sessions = new Map<string, ResidentSession>();
+  /** `processHandle` holds, one map per app session (state owned by this driver). */
+  private readonly backgroundLeases: CodexBackgroundLeaseLedger;
+  /** Serial for a caller that leaves `processHandle` out; never reused by this instance. */
+  private backgroundHandleSerial = 0;
   private connection: CodexAppServerConnection | null = null;
   private host: ProcessHost | null = null;
   private sink: IProviderHostDriverSink | null = null;
@@ -121,6 +149,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       ?? ((launch) => new CodexAppServerConnection({ launch }));
     this.launch = options.launch ?? {};
     this.threadDefaults = options.thread ?? {};
+    this.backgroundLeases = createCodexBackgroundLeaseLedger({ now: options.now });
   }
 
   /** Starts the process and reports its pid on the host record. */
@@ -222,6 +251,9 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (session?.pending) {
       this.settleTurn(session, 'failed');
     }
+    // A detached binding has no reader for its holds, and the session is about to
+    // leave `sessions`; drop them here so closeHost's sweep cannot miss them.
+    this.releaseSessionLeases(appSessionId);
     this.sessions.delete(appSessionId);
   }
 
@@ -237,6 +269,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       if (session.pending) {
         this.settleTurn(session, 'failed');
       }
+      this.releaseSessionLeases(session.appSessionId);
     }
     this.sessions.clear();
     const connection = this.connection;
@@ -292,6 +325,47 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   /**
+   * Starts one client-owned background process and holds a `background-task`
+   * lease for it.
+   *
+   * The hold is recorded only after `process/spawn` succeeds: a rejected spawn
+   * must not leave a lease the manager would keep the host alive for. The lease
+   * carries the handle the caller chose (or this driver's `bg-<n>`), which is
+   * exactly what `process/exited` names when the process ends.
+   */
+  async spawnBackgroundProcess(
+    appSessionId: string,
+    spec: CodexBackgroundProcessSpec,
+  ): Promise<CodexBackgroundLease> {
+    this.requireSession(appSessionId);
+    const connection = this.requireConnection();
+    const processHandle = spec.processHandle ?? `bg-${++this.backgroundHandleSerial}`;
+    await connection.request('process/spawn', this.backgroundSpawnParams(processHandle, spec));
+    const lease = this.backgroundLeases.add(appSessionId, processHandle);
+    this.reportLeaseAdded(appSessionId, lease);
+    return lease;
+  }
+
+  /**
+   * Asks the server to kill one background process.
+   *
+   * The reply is not the end of the process: `process/spawn`'s contract reports
+   * the end as a `process/exited` notification, and only that releases the hold.
+   * A driver that dropped the lease here would read "kill sent" as "process
+   * gone" while the process may still be alive.
+   */
+  async killBackgroundProcess(appSessionId: string, processHandle: string): Promise<void> {
+    this.requireSession(appSessionId);
+    const connection = this.requireConnection();
+    await connection.request('process/kill', { processHandle });
+  }
+
+  /** The session's `background-task` holds, ordered by handle. */
+  readBackgroundLeases(appSessionId: string): CodexBackgroundLease[] {
+    return this.backgroundLeases.list(appSessionId);
+  }
+
+  /**
    * `thread/start` or `thread/resume` for this session's next turn.
    *
    * A known thread is resumed. The one recoverable failure is the zero-turn
@@ -340,6 +414,12 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   private handleNotification(method: string, params: unknown): void {
+    // Process frames carry `processHandle`, never `threadId`, so this dispatch
+    // has to run before the thread gate below or the exit would be dropped.
+    if (method === 'process/exited') {
+      this.handleProcessExited(params);
+      return;
+    }
     if (!isRecord(params) || typeof params.threadId !== 'string') {
       return;
     }
@@ -425,11 +505,90 @@ export class CodexHostDriver implements IProviderHostDriver {
       if (session.pending) {
         this.settleTurn(session, 'failed');
       }
+      // The process is gone, so every hold it represented is over. Report the
+      // removal but never re-add a survivor: there are none.
+      this.releaseSessionLeases(session.appSessionId);
     }
     const hostId = this.host?.hostId;
     if (hostId) {
       this.sink?.exited({ hostId, detail: 'error' });
     }
+  }
+
+  /**
+   * One `process/exited`: drop exactly that handle, then re-report the session's
+   * remaining holds.
+   *
+   * The manager drops a lease *by kind* (`removeLease(appSessionId, kind)`), so
+   * the only way to remove one handle without losing its siblings is: remove the
+   * kind, then re-add every survivor with its original `since`. Both steps run
+   * in this synchronous turn — an await between them would let the idle-close
+   * window observe a session that looks unheld.
+   */
+  private handleProcessExited(params: unknown): void {
+    if (!isRecord(params) || typeof params.processHandle !== 'string') {
+      return;
+    }
+    const appSessionId = this.sessionForProcess(params.processHandle);
+    if (!appSessionId) {
+      return;
+    }
+    const { released, remaining } = this.backgroundLeases.release(appSessionId, params.processHandle);
+    if (!released) {
+      // An exit for a handle this session never held: say nothing, because
+      // `leaseRemoved` would clear a sibling process's live lease.
+      return;
+    }
+    this.sink?.leaseRemoved(appSessionId, 'background-task');
+    for (const lease of remaining) {
+      this.reportLeaseAdded(appSessionId, lease);
+    }
+  }
+
+  /** Reports one `background-task` hold, carrying the ledger's `since` verbatim. */
+  private reportLeaseAdded(appSessionId: string, lease: CodexBackgroundLease): void {
+    this.sink?.leaseAdded(appSessionId, {
+      kind: 'background-task',
+      id: lease.processHandle,
+      since: lease.since,
+    });
+  }
+
+  /** Drops one session's holds, reporting the kind once when anything was held. */
+  private releaseSessionLeases(appSessionId: string): void {
+    const released = this.backgroundLeases.releaseAll(appSessionId);
+    if (released.length > 0) {
+      this.sink?.leaseRemoved(appSessionId, 'background-task');
+    }
+  }
+
+  /** Which bound session holds this process handle, if any. */
+  private sessionForProcess(processHandle: string): string | null {
+    for (const appSessionId of this.sessions.keys()) {
+      const held = this.backgroundLeases
+        .list(appSessionId)
+        .some((lease) => lease.processHandle === processHandle);
+      if (held) {
+        return appSessionId;
+      }
+    }
+    return null;
+  }
+
+  /** `process/spawn` params: the handle, the command, and only what the caller supplied. */
+  private backgroundSpawnParams(
+    processHandle: string,
+    spec: CodexBackgroundProcessSpec,
+  ): Record<string, unknown> {
+    return {
+      processHandle,
+      command: spec.command,
+      ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}),
+      ...(spec.streamStdoutStderr !== undefined ? { streamStdoutStderr: spec.streamStdoutStderr } : {}),
+      ...(spec.streamStdin !== undefined ? { streamStdin: spec.streamStdin } : {}),
+      ...(spec.outputBytesCap !== undefined ? { outputBytesCap: spec.outputBytesCap } : {}),
+      ...(spec.timeoutMs !== undefined ? { timeoutMs: spec.timeoutMs } : {}),
+    };
   }
 
   private threadParams(): Record<string, unknown> {
