@@ -122,10 +122,10 @@ const DRAWER_CLOSE_SWIPE_PX = 60;
  * fallback names why a brief the feature DOES offer is missing (a spent budget, an unreadable
  * transcript), so it keeps its section.
  */
-const SILENT_FALLBACK_REASONS: ReadonlySet<string> = new Set([
+const SILENT_FALLBACK_REASONS: readonly string[] = [
   'disabled',
   'unsupported-content',
-]);
+];
 
 /**
  * The cockpit page owns the Enter key on `window` (it zooms the stage), and it calls
@@ -268,7 +268,7 @@ export default function CockpitCardDetails({
       brief.status === 'ready'
       && brief.response.status === 'fallback'
       && brief.response.reason !== null
-      && SILENT_FALLBACK_REASONS.has(brief.response.reason)
+      && SILENT_FALLBACK_REASONS.includes(brief.response.reason)
     );
 
   // The title row. On the phone it lives INSIDE the same sticky header as the drag handle, so
