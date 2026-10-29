@@ -1,12 +1,19 @@
 ---
 id: GOAL-051
 title: Codex 常驻会话：app-server 长驻进程跨轮存活、忙时输入进队列、中止不杀进程、后台与审批与空闲重启语义明确
-status: draft
+status: active
 kind: goal
 origin: 接续 GOAL-013 非目标（Codex/Cursor/OpenCode 常驻）。人 yale 2026-10-29 五条裁定：①
   multiplexedHost 先 false；② 默认 workspace-write + never；③ 租约只用 turn +
   background-task；④ Shell 改普通终端不 resume；⑤ task pump 放 server/modules/quay/。实验读数
   tmp/codex-appserver-exp-NuPHhk/REPORT.md（锁定版 0.153.4，E1–E8）
+activatedAt: 2026-10-29T09:18:26.848Z
+statusLog:
+  - at: 2026-10-29T09:18:26.848Z
+    from: draft
+    to: active
+    actor: human:yale
+    reason: 人 yale 指令：激活 GOAL-051，开始 Codex 常驻开发
 branch: true
 ---
 ## 背景
