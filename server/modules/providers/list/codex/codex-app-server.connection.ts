@@ -258,6 +258,25 @@ export class CodexAppServerConnection {
     this.transport?.write(JSON.stringify({ jsonrpc: '2.0', method, params }));
   }
 
+  /**
+   * Answers one server-initiated request with a result.
+   *
+   * `id` is echoed verbatim — including the number `0`, which is falsy and must
+   * not be mistaken for "no id" — because the server correlates the answer by
+   * that exact value. A closed connection, a dead transport or a process that
+   * already exited writes nothing and throws nothing: there is no socket to
+   * answer on, and a request left outstanding there is dropped rather than
+   * reported as a hang.
+   */
+  respond(id: number | string, result: unknown): void {
+    this.writeServerResponse({ jsonrpc: '2.0', id, result });
+  }
+
+  /** Answers one server-initiated request with a JSON-RPC error. */
+  respondError(id: number | string, code: number, message: string): void {
+    this.writeServerResponse({ jsonrpc: '2.0', id, error: { code, message } });
+  }
+
   /** Subscribes to server notifications; returns the unsubscribe function. */
   onNotification(handler: NotificationHandler): () => void {
     this.notificationHandlers.add(handler);
@@ -402,6 +421,24 @@ export class CodexAppServerConnection {
    */
   private recordDispatchError(kind: 'notification' | 'server request', method: string, failure: unknown): void {
     this.lastDispatchErrorValue = `${kind} handler for "${method}" threw: ${errorMessage(failure)}`;
+  }
+
+  /**
+   * Writes one server-request answer when there is still a live transport.
+   *
+   * The two guards are the whole contract of {@link respond}: after our own
+   * close or a self-reported exit the connection has no socket, so the frame is
+   * dropped. `isAlive` covers a transport that died between those latches.
+   */
+  private writeServerResponse(frame: unknown): void {
+    if (this.closed || this.exitReason) {
+      return;
+    }
+    const transport = this.transport;
+    if (!transport || !transport.isAlive()) {
+      return;
+    }
+    transport.write(JSON.stringify(frame));
   }
 
   private failPending(failure: Error): void {

@@ -6,6 +6,12 @@ import {
   type CodexBackgroundLeaseLedger,
 } from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
 import {
+  createCodexApprovalBroker,
+  type CodexApprovalBroker,
+  type CodexApprovalDriverOptions,
+  type CodexResidentSessionReading,
+} from '@/modules/providers/list/codex/codex-approval-broker.js';
+import {
   backgroundSpawnParams,
   normalizeTurnStatus,
   readThreadId,
@@ -16,7 +22,6 @@ import {
   type CodexBackgroundProcessSpec,
   type CodexHostDriverOptions,
   type CodexResidentHostPort,
-  type CodexResidentSessionReading,
   type CodexThreadDefaults,
   type CodexTurnStatus,
   type PendingResidentLaunch,
@@ -32,6 +37,7 @@ import {
 } from '@/modules/providers/list/codex/codex-live-settings.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
+  AnyRecord,
   HostCloseReason,
   HostReconfigurePatch,
   HostResidentLaunch,
@@ -55,27 +61,24 @@ const DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS = 5_000;
  * app session, with thread identity, pid and an in-flight turn surviving across
  * turns.
  *
- * This file lands the primitives AC-435 and AC-441 cover — persistent thread,
- * resume after the first turn, zero-turn fallback, interrupt-without-killing,
- * the `turn` lease the session-host layer derives `busy` from, the close/unbind
- * reasons it relays, the on-demand `startResidentSession` verb, and the cold
- * start that shares that verb's launch path. Mounting on `CodexProvider` is
- * AC-441; declaring `resident` in the capability registry is AC-442. Queue,
- * live settings, approvals, background leases and restore passes belong to
- * AC-436…AC-443 beyond what the driver-side verbs here expose.
+ * Owns process lifetime, the thread's turn state and the background leases;
+ * live settings live in `codex-live-settings.ts` and every approval concern in
+ * `codex-approval-broker.ts`. Mounting on `CodexProvider` is AC-441; declaring
+ * `resident` in the capability registry is AC-442.
  *
- * Consumed by the criterion in `tests/codex-host-driver-persistent.test.ts`,
- * which injects an in-memory transport through `createConnection`.
+ * Consumed by the criteria in `tests/`, which inject an in-memory transport
+ * through `createConnection`.
  */
 
 export type {
   CodexBackgroundProcessSpec,
   CodexHostDriverOptions,
   CodexResidentHostPort,
-  CodexResidentSessionReading,
   CodexThreadDefaults,
   CodexTurnStatus,
 } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+/** The reading AC-438 widens with `threadStatus`/`activeFlags`/pending approvals. */
+export type { CodexResidentSessionReading, CodexApprovalDriverOptions };
 /** Re-exported so callers of the driver never reach into the helper module. */
 export type { CodexSettingsCapabilities, CodexTurnSettingsPatch };
 
@@ -110,12 +113,14 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly capabilityProbeTimeoutMs: number;
   /** The live-setting verbs; the waiters and the probe cache live in the helper. */
   private readonly liveSettings: CodexLiveSettings;
+  /** Owns the approval writers, pending requests, notifications and thread status. */
+  private readonly approvals: CodexApprovalBroker;
   private connection: CodexAppServerConnection | null = null;
   private host: ProcessHost | null = null;
   private sink: IProviderHostDriverSink | null = null;
   private closed = false;
 
-  constructor(options: CodexHostDriverOptions = {}) {
+  constructor(options: CodexHostDriverOptions & CodexApprovalDriverOptions = {}) {
     this.createConnection = options.createConnection
       ?? ((launch) => new CodexAppServerConnection({ launch }));
     this.launch = options.launch ?? {};
@@ -124,6 +129,12 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.settingsNotificationTimeoutMs = options.settingsNotificationTimeoutMs
       ?? DEFAULT_SETTINGS_NOTIFICATION_TIMEOUT_MS;
     this.capabilityProbeTimeoutMs = options.capabilityProbeTimeoutMs ?? DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS;
+    this.approvals = createCodexApprovalBroker({
+      sessionForThread: (threadId) => this.sessionForThread(threadId)?.appSessionId ?? null,
+      // 0 connected clients (the default) makes every approval unattended.
+      connectedClientCount: options.connectedClientCount ?? (() => 0),
+      approvalTimeoutMs: options.approvalTimeoutMs,
+    });
     this.liveSettings = createCodexLiveSettings({
       notificationTimeoutMs: this.settingsNotificationTimeoutMs,
       capabilityProbeTimeoutMs: this.capabilityProbeTimeoutMs,
@@ -134,11 +145,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   /**
    * The reason the manager last told this driver to close the host.
    *
-   * The reading AC-441's criterion uses to prove the reason relayed into the
-   * driver is the reason the manager recorded. Null means no `closeHost` was
-   * ever relayed, which is exactly the reading a process that went away on its
-   * own must keep (the manager records `exited` without asking the driver to
-   * kill anything).
+   * Null means no `closeHost` was ever relayed, which is the reading a process
+   * that went away on its own must keep.
    */
   get lastCloseReason(): HostCloseReason | null {
     return this.lastCloseReasonValue;
@@ -152,8 +160,7 @@ export class CodexHostDriver implements IProviderHostDriver {
   /** Starts the process and reports its pid on the host record. */
   async startHost(host: ProcessHost, sink: IProviderHostDriverSink): Promise<ProcessHost> {
     // `closeHost` is terminal for one process, not for this instance: the
-    // provider mounts one driver for the life of the server, so the next host
-    // it is handed starts a fresh process (the connection was dropped on close).
+    // provider mounts one driver for the life of the server.
     this.closed = false;
     this.host = host;
     this.sink = sink;
@@ -166,9 +173,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   /** Remembers the session's native thread id, when the session already has one. */
   async bind(host: ProcessHost, binding: SessionBinding): Promise<void> {
     void host;
-    // Consume the launch `startResidentSession` carried in. The manager always
-    // creates a binding with `providerSessionId: null`, so the provider-native
-    // id a restore must adopt can only come from the launch context; the
+    // Consume the launch `startResidentSession` carried in: the provider-native
+    // id a restore must adopt can only come from the launch context, and the
     // binding's own value (a caller that already knew it) still wins.
     const launch = this.pendingLaunches.get(binding.appSessionId);
     if (launch) {
@@ -200,9 +206,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     const threadId = await this.ensureThread(connection, session);
     const pending = this.beginTurn(session, threadId);
     // Reported before `turn/start` so the manager derives `busy` from the same
-    // frame that starts the work: a lease added after the write could miss the
-    // moment the turn is already running, and the quiet ceiling would stay armed
-    // across it.
+    // frame that starts the work; a lease added later could miss that moment.
     this.addTurnLease(session);
     try {
       const started = await connection.request('turn/start', turnParams(threadId, turn));
@@ -216,6 +220,9 @@ export class CodexHostDriver implements IProviderHostDriver {
       }
       this.sink?.activity(appSessionId);
       await pending.promise;
+      // Approvals still parked on this turn must be answered before the caller
+      // reads the session, or they would outlive the turn that asked for them.
+      await this.approvals.settleSession(appSessionId);
     } catch (error) {
       // A rejected `turn/start` never became a turn, so its lease must not
       // outlive the request: release it here, before rethrowing, or the host
@@ -232,8 +239,7 @@ export class CodexHostDriver implements IProviderHostDriver {
    * Stops the turn in flight with `turn/interrupt`.
    *
    * The turn is stopped at the protocol level: the process, its thread and its
-   * pid are untouched, which is the whole difference from `closeHost`. Returns
-   * false when no turn is in flight or its id is not known yet.
+   * pid are untouched, which is the difference from `closeHost`.
    */
   async interrupt(host: ProcessHost, appSessionId: string): Promise<boolean> {
     void host;
@@ -244,6 +250,9 @@ export class CodexHostDriver implements IProviderHostDriver {
     const connection = this.requireConnection();
     const pending = session.pending;
     const { threadId, activeTurnId } = session;
+    // Settle parked approvals first, while the socket is still open: an
+    // unanswered request would trade a stopped turn for a parked server.
+    await this.approvals.settleSession(appSessionId);
     await connection.request('turn/interrupt', { threadId, turnId: activeTurnId });
     if (pending) {
       await pending.promise;
@@ -257,8 +266,7 @@ export class CodexHostDriver implements IProviderHostDriver {
    *
    * Only the matching `thread/settings/updated` notification confirms the change
    * (the RPC result is `{}`); a timeout, RPC error or closed connection defers to
-   * the next turn. The process, its thread id and its in-flight turn are never
-   * touched. The matching and the bounded wait live in `codex-live-settings.ts`.
+   * the next turn. The matching and the bounded wait live in `codex-live-settings.ts`.
    */
   async reconfigure(
     host: ProcessHost,
@@ -277,9 +285,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   /**
-   * What this connection can change live. `threadSettings` is always available
-   * on a live connection; `turnSettings` needs the `step_model_switching`
-   * feature, read once per connection and cached even when the probe fails.
+   * What this connection can change live: `threadSettings` always, `turnSettings`
+   * only with the `step_model_switching` feature (probed once per connection).
    */
   async settingsCapabilities(host: ProcessHost, appSessionId: string): Promise<CodexSettingsCapabilities> {
     void appSessionId;
@@ -298,9 +305,7 @@ export class CodexHostDriver implements IProviderHostDriver {
    * capability probe says the feature is on.
    *
    * `step_model_switching` is disabled in the locked 0.153.4 build, so the
-   * refusal is a real branch rather than a missing method: nothing is sent and
-   * the caller reads `unsupported`. The true branch exists so the same verb can
-   * run once the feature is enabled.
+   * refusal is a real branch: nothing is sent and the caller reads `unsupported`.
    */
   async reconfigureTurn(
     host: ProcessHost,
@@ -327,9 +332,12 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (session?.pending) {
       this.settleTurn(session, 'failed');
     }
-    // A detached binding has no reader for its holds, and the session is about to
-    // leave `sessions`; drop them here so closeHost's sweep cannot miss them.
+    // A detached binding has no reader for its holds; drop them before the
+    // session leaves `sessions` so closeHost's sweep cannot miss them.
     this.releaseSessionLeases(appSessionId);
+    // Requests parked on this binding are answered before its writer and thread
+    // mapping are dropped, or `settleSession` could no longer name them.
+    await this.approvals.detachSession(appSessionId);
     this.sessions.delete(appSessionId);
   }
 
@@ -348,6 +356,9 @@ export class CodexHostDriver implements IProviderHostDriver {
       }
       this.releaseSessionLeases(session.appSessionId);
     }
+    // Answer while the connection still has a socket; after `close()` the answer
+    // is dropped by design and the request is no longer a hang.
+    await this.approvals.drainAndForget(this.sessions.keys());
     this.sessions.clear();
     this.pendingLaunches.clear();
     const connection = this.connection;
@@ -358,14 +369,11 @@ export class CodexHostDriver implements IProviderHostDriver {
   /**
    * Opens *this session's own* resident process, with no turn behind it.
    *
-   * The verb `provider-runtime.service.startResidentSession` and the restore
-   * pass reach. Idempotent: a session that already has a live host answers with
-   * that host rather than opening a second process, because "start" is a request
-   * for a state. A cold launch carries the provider-native id the session must
-   * adopt (from `launch.context`) into the binding `openHost` creates, so a
-   * restored conversation resumes its own thread instead of starting a new one;
-   * `launch.options` supplies the `thread/start` defaults for a session that has
-   * no id to resume.
+   * Idempotent: a session that already has a live host answers with that host
+   * rather than opening a second process. A cold launch carries the
+   * provider-native id the session must adopt (from `launch.context`) into the
+   * binding `openHost` creates, so a restored conversation resumes its own
+   * thread; `launch.options` supplies the `thread/start` defaults otherwise.
    */
   async startResidentSession(
     appSessionId: string,
@@ -406,10 +414,8 @@ export class CodexHostDriver implements IProviderHostDriver {
    * The resident turn entry (`provider-runtime.service`'s `ResidentTurnEntry`).
    *
    * Runs one turn through the same submit path and forwards the app-server
-   * frames belonging to this session's thread to the run's writer. AC-440
-   * deliberately only lets unknown frames pass without breaking the read loop;
-   * normalizing them into app message shapes is a later integration task, so
-   * this layer forwards the protocol frames it was given.
+   * frames belonging to this session's thread to the run's writer. Normalizing
+   * them into app message shapes is a later integration task (AC-440).
    */
   async run(
     appSessionId: string,
@@ -418,9 +424,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     context: ProviderRuntimeContext,
   ): Promise<unknown> {
     // Cold dispatch: the first turn of a resident session reaches the driver
-    // before any host exists. It opens the process through the same verb an
-    // on-demand start uses, so both paths share one launch decision rather than
-    // growing a second copy here.
+    // before any host exists; both paths share one launch decision.
     if (!this.host || this.closed || this.host.state === 'closed') {
       await this.startResidentSession(appSessionId, { options: turn.options ?? {}, context });
     }
@@ -432,6 +436,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       });
     }
     const session = this.requireSession(appSessionId);
+    this.approvals.recordWriter(appSessionId, writer);
     const unsubscribe = this.connection?.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
         writer.send({ method, params });
@@ -447,23 +452,20 @@ export class CodexHostDriver implements IProviderHostDriver {
 
   /** The session reading the criterion prints; also useful to a manager-side caller. */
   readSession(appSessionId: string): CodexResidentSessionReading {
-    const session = this.requireSession(appSessionId);
-    return {
-      threadId: session.threadId,
-      activeTurnId: session.activeTurnId,
-      turnStatus: session.turnStatus,
-      lastResumeError: session.lastResumeError,
-    };
+    return this.approvals.readingFor(this.requireSession(appSessionId), appSessionId);
+  }
+
+  /** The `action_required` events this driver emitted for the session, in order. */
+  readApprovalNotifications(appSessionId: string): AnyRecord[] {
+    return this.approvals.notificationsFor(appSessionId);
   }
 
   /**
    * The fail-closed reading AC-436's busy-input path will gate on: whether this
    * session's connection can serve experimental (`thread/queue/*`) calls now.
    *
-   * False for an unbound session, a connection that was never created or never
-   * finished its handshake, a closed or dead connection, and a capability that
-   * was not declared or has been refused by the server. Only a live, initialized
-   * session whose handshake opted in and was not refused reads true. This task
+   * False for an unbound session, a connection that is not live and initialized,
+   * and a capability that was not declared or has been refused. This task
    * provides and pins the reading; nothing here consumes it yet.
    */
   experimentalApiAvailable(appSessionId: string): boolean {
@@ -482,9 +484,8 @@ export class CodexHostDriver implements IProviderHostDriver {
    * lease for it.
    *
    * The hold is recorded only after `process/spawn` succeeds: a rejected spawn
-   * must not leave a lease the manager would keep the host alive for. The lease
-   * carries the handle the caller chose (or this driver's `bg-<n>`), which is
-   * exactly what `process/exited` names when the process ends.
+   * must not leave a lease. The lease carries the handle the caller chose (or
+   * this driver's `bg-<n>`), which `process/exited` names when it ends.
    */
   async spawnBackgroundProcess(
     appSessionId: string,
@@ -502,10 +503,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   /**
    * Asks the server to kill one background process.
    *
-   * The reply is not the end of the process: `process/spawn`'s contract reports
-   * the end as a `process/exited` notification, and only that releases the hold.
-   * A driver that dropped the lease here would read "kill sent" as "process
-   * gone" while the process may still be alive.
+   * The reply is not the end of the process: only the `process/exited`
+   * notification releases the hold, so the lease is kept here.
    */
   async killBackgroundProcess(appSessionId: string, processHandle: string): Promise<void> {
     this.requireSession(appSessionId);
@@ -519,12 +518,9 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   /**
-   * `thread/start` or `thread/resume` for this session's next turn.
-   *
-   * A known thread is resumed. The one recoverable failure is the zero-turn
-   * thread: it has an id but no rollout, so the server answers `no rollout
-   * found`; the driver starts a fresh thread and replaces the id. Any other
-   * resume failure is propagated.
+   * `thread/start` or `thread/resume` for this session's next turn. A known
+   * thread is resumed; the zero-turn thread (no rollout, so the server answers
+   * `no rollout found`) falls back to a fresh one, any other failure propagates.
    */
   private async ensureThread(connection: CodexAppServerConnection, session: ResidentSession): Promise<string> {
     if (session.threadId) {
@@ -573,8 +569,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       this.handleProcessExited(params);
       return;
     }
-    // The confirmation for a live settings change: it carries `threadId`, but it
-    // is not a turn frame, so it must be matched before the turn dispatch below.
+    // The live-settings confirmation carries `threadId` but is not a turn frame.
     if (method === 'thread/settings/updated') {
       this.liveSettings.handleNotification(params);
       return;
@@ -584,6 +579,9 @@ export class CodexHostDriver implements IProviderHostDriver {
     }
     const session = this.sessionForThread(params.threadId);
     if (!session) {
+      return;
+    }
+    if (this.approvals.observeNotification(session.appSessionId, method, params)) {
       return;
     }
     const turn = isRecord(params.turn) ? params.turn : {};
@@ -602,6 +600,10 @@ export class CodexHostDriver implements IProviderHostDriver {
           : normalizeTurnStatus(typeof turn.status === 'string' ? turn.status : 'completed');
       this.settleTurn(session, status, turnId);
       this.sink?.activity(session.appSessionId);
+      // A terminal turn can arrive while an approval is parked (the server
+      // failed or interrupted the turn itself); those requests must not
+      // outlive it.
+      void this.approvals.settleSession(session.appSessionId);
     }
   }
 
@@ -611,8 +613,8 @@ export class CodexHostDriver implements IProviderHostDriver {
       session.activeTurnId = turnId;
     }
     // The single settlement point, so the `turn` lease is released exactly once:
-    // a rejected `turn/start`, a terminal notification, an interrupt, an unbind,
-    // a close and a self-reported exit all arrive here.
+    // a terminal notification, an interrupt, an unbind, a close and a
+    // self-reported exit all arrive here.
     this.removeTurnLease(session);
     const pending = session.pending;
     if (!pending) {
@@ -629,10 +631,9 @@ export class CodexHostDriver implements IProviderHostDriver {
   /**
    * Reports the `turn` lease for a session that is starting one.
    *
-   * The run id is unique per turn of this instance, so a lease that somehow
-   * survived an earlier settlement cannot make the manager's replacement rule
-   * mistake this turn for that one. The removal of an unsettled lease first is
-   * the same guard, stated where the lease is taken.
+   * The run id is unique per turn of this instance, so a lease that survived an
+   * earlier settlement cannot make the manager's replacement rule mistake this
+   * turn for that one.
    */
   private addTurnLease(session: ResidentSession): void {
     this.removeTurnLease(session);
@@ -653,10 +654,9 @@ export class CodexHostDriver implements IProviderHostDriver {
   /**
    * The live host serving this session, as this driver can see it.
    *
-   * `this.host` is the record the manager handed to `startHost` and mutates; the
-   * snapshot is the fallback for a host this driver did not open itself. A closed
-   * host is never live, and this instance's own closed latch counts too: after
-   * `closeHost` the process is gone even if the record is still readable.
+   * `this.host` is the record the manager handed to `startHost`; the snapshot is
+   * the fallback for a host this driver did not open itself. A closed host — or
+   * this instance's own closed latch — is never live.
    */
   private liveHostFor(appSessionId: string): ProcessHost | null {
     const own = this.host;
@@ -699,9 +699,13 @@ export class CodexHostDriver implements IProviderHostDriver {
       });
     }
     if (!this.connection) {
-      this.connection = this.createConnection(this.launch);
-      this.connection.onNotification((method, params) => this.handleNotification(method, params));
-      this.connection.onExit((reason) => this.handleExit(reason));
+      const connection = this.createConnection(this.launch);
+      this.connection = connection;
+      connection.onNotification((method, params) => this.handleNotification(method, params));
+      // Every server request (the five approvals and the auxiliary questions) is
+      // answered from here, so none can park the process on a client.
+      this.approvals.attach(connection);
+      connection.onExit((reason) => this.handleExit(reason));
     }
     return this.connection;
   }
@@ -719,6 +723,9 @@ export class CodexHostDriver implements IProviderHostDriver {
   private handleExit(reason: string): void {
     void reason;
     this.liveSettings.settleAll();
+    // The process is gone, so its requests can never be answered: settle the
+    // waits (the writes are dropped) and forget the writers.
+    this.approvals.discardAll();
     for (const session of this.sessions.values()) {
       if (session.pending) {
         this.settleTurn(session, 'failed');
@@ -737,11 +744,9 @@ export class CodexHostDriver implements IProviderHostDriver {
    * One `process/exited`: drop exactly that handle, then re-report the session's
    * remaining holds.
    *
-   * The manager drops a lease *by kind* (`removeLease(appSessionId, kind)`), so
-   * the only way to remove one handle without losing its siblings is: remove the
-   * kind, then re-add every survivor with its original `since`. Both steps run
-   * in this synchronous turn — an await between them would let the idle-close
-   * window observe a session that looks unheld.
+   * The manager drops a lease *by kind*, so the only way to remove one handle
+   * without losing its siblings is: remove the kind, then re-add every survivor
+   * with its original `since` in the same synchronous turn.
    */
   private handleProcessExited(params: unknown): void {
     if (!isRecord(params) || typeof params.processHandle !== 'string') {
