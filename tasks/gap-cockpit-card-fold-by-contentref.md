@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-fold-by-contentref
 title: 卡片折叠按 contentRef 身份：问句缺失时不再按 session 合并不同提问
-status: ready
+status: done
 labels:
   - gap
   - cockpit
