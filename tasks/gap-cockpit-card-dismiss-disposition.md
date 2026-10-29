@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-dismiss-disposition
 title: 驾驶舱卡片「忽略/丢弃」动作：不 session.send，走 fleet.feedback dismiss（claudecodeui 侧）
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
