@@ -54,7 +54,7 @@ goal_ac: AC-438
 - [x] AC13 反向控制可达：两次 `negativeControlThrew=true`。
 - [x] AC14 Claude 面零漂移：六个名字仍从原路径导入且与共享服务同源（4 个函数对象 `===`，`requestClientToolDecision` 为函数，`TOOL_APPROVAL_TIMEOUT_MS=55000`）；三个回归与 `npm run typecheck` 均 exit 0。
 - [x] AC15 四个假形态承重：A/B/C/D 各让 criterion 退出 **1**（逐字红态见完成记录）；还原后 criterion exit 0、`git status --short` 无残留。
-- [x] AC16 范围不越界：任务自身 delta `git diff --name-only goal/GOAL-051...HEAD` 恰为 Touches 的 7 个代码文件；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动（`develop...HEAD` 读数见完成记录：该基数还含 goal 分支上先行落地的 AC-435/436/437/441 兄弟任务提交）。
+- [x] AC16 范围不越界：本任务自己写下的唯一提交 `093ec0516` 恰为 Touches 的 7 个代码文件；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动；fan-in 的 anti-drift 读数为 `ANTI-DRIFT OK — 7 actual file(s), all within declared Touches (8 glob(s))`（`develop...HEAD` 的合并后读数说明见完成记录）。
 
 ## DoD
 
@@ -190,7 +190,7 @@ npm run typecheck → exit 0（tsconfig / server/tsconfig / scripts/tsconfig 全
 npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts → exit 0（6 pass / 0 fail，driver 800 行在 OVERSIZE_LIMIT 内）
 ```
 
-**AC16 范围读数。** 任务自身 delta（相对其分支基点 `goal/GOAL-051`）恰为 7 个代码文件：
+**AC16 范围读数（合并后如实记录）。** 本任务自己写下的唯一提交是 `093ec0516`；`git show --name-only --format= 093ec0516` 恰为 7 个代码文件：
 ```
 server/modules/providers/list/claude/claude-runtime.provider.ts
 server/modules/providers/list/codex/codex-app-server.connection.ts
@@ -200,7 +200,7 @@ server/modules/providers/list/codex/codex-runtime.provider.ts
 server/modules/providers/services/approval-requests.service.ts
 server/modules/providers/tests/codex-resident-approvals.test.ts
 ```
-排除 grep 在该 delta 上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本 delta 中零改动。`git diff --name-only develop...HEAD` 会额外列出 `codex.provider.ts` 等 14 个文件——那是 goal/GOAL-051 分支在我开工前已落地的兄弟任务（AC-435/436/437/441）提交，不是本任务的改动；本任务提交后 goal 分支仍在其前，故 develop...HEAD 不是本任务的范围读数。
+排除 grep 在该提交上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本提交中零改动。按 worker brief 退出前两次 `git merge develop`（第二次为取回本次 task_write 提交）后，`git diff --name-only develop...HEAD` / `goal/GOAL-051...HEAD` 会带出分支继承的兄弟任务（AC-435/436/437/441）与 develop 上的任务文件提交（约 20 个代码文件 + 4 个 tasks/*.md），那些不是本任务写下的改动，故不作为本任务的范围读数；fan-in 的 anti-drift Touches 检查以 merge-target 计读数并通过：`ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 7 actual file(s), all within declared Touches (8 glob(s))`。
 
 **ADR-007 记录。**
 该轴仍暗,理由:本任务只落地 server 侧 Codex 审批 broker 与判据，未产生可视 UX 读数（浏览器 UI 属 AC-443）。
