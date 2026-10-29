@@ -116,6 +116,18 @@ export type CockpitCardDetailsProps = {
 const DRAWER_CLOSE_SWIPE_PX = 60;
 
 /**
+ * The fallback reasons that are diagnostics, not readings: `disabled` says the feature is off, and
+ * `unsupported-content` says the card does not point at a conversation question — both are
+ * judgements about the card or the build, not something the person deciding can use. Every other
+ * fallback names why a brief the feature DOES offer is missing (a spent budget, an unreadable
+ * transcript), so it keeps its section.
+ */
+const SILENT_FALLBACK_REASONS: ReadonlySet<string> = new Set([
+  'disabled',
+  'unsupported-content',
+]);
+
+/**
  * The cockpit page owns the Enter key on `window` (it zooms the stage), and it calls
  * `preventDefault()` there even when a button has focus — so a plain button's native Enter
  * activation never fires inside the cockpit. The rows therefore activate themselves on
@@ -246,14 +258,18 @@ export default function CockpitCardDetails({
         ? cockpitViewPath({ type: 'board', project: card.subject.project })
         : COCKPIT_PATH;
   // NO BRIEF AREA WHEN THERE IS NOTHING TO READ. Idle/absent means the drawer never asked, and a
-  // FALLBACK means the read produced no model brief — its body is the developer-facing reason
-  // (`unsupported-content`: 「this card does not point at a conversation question」), which is not a
-  // reading for the person deciding. Both hide the whole section, title included. Loading and a
-  // failed read stay: they are states of a brief the feature DOES offer.
+  // silent fallback (see `SILENT_FALLBACK_REASONS`) produced no reading — only a diagnostic about
+  // the card or the build. Both hide the whole section, title included. Loading, a failed read and
+  // a fallback that names a missing brief stay: they are states of a brief the feature DOES offer.
   const briefVisible =
     brief !== undefined
     && brief.status !== 'idle'
-    && !(brief.status === 'ready' && brief.response.status === 'fallback');
+    && !(
+      brief.status === 'ready'
+      && brief.response.status === 'fallback'
+      && brief.response.reason !== null
+      && SILENT_FALLBACK_REASONS.has(brief.response.reason)
+    );
 
   // The title row. On the phone it lives INSIDE the same sticky header as the drag handle, so
   // the handle can never scroll over and cover it: the two move together as one block.
