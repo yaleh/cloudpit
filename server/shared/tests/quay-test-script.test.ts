@@ -413,9 +413,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (470 + 1 = 471 collected server test files). Then
     // gap-ac436-codex-resident-queue-reland added its criterion
     // server/modules/providers/tests/codex-host-driver-queue.test.ts
-    // (471 + 1 = 472 collected server test files). This fixture names 3 known files, so
-    // 472 - 3 = 469.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=469$/);
+    // (471 + 1 = 472 collected server test files). Then
+    // gap-ac444-codex-resident-turn-steer added its criterion
+    // server/modules/providers/tests/codex-host-driver-steer.test.ts
+    // (472 + 1 = 473 collected server test files). This fixture names 3 known files, so
+    // 473 - 3 = 470.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=470$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -511,10 +514,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac438-codex-resident-approvals-broker added
     // server/modules/providers/tests/codex-resident-approvals.test.ts, then
     // gap-ac436-codex-resident-queue-reland added
-    // server/modules/providers/tests/codex-host-driver-queue.test.ts
-    // — but this fixture names ONE known file, so 472 - 1 = 471 (AC2 reads 469 because its
+    // server/modules/providers/tests/codex-host-driver-queue.test.ts, then
+    // gap-ac444-codex-resident-turn-steer added
+    // server/modules/providers/tests/codex-host-driver-steer.test.ts
+    // — but this fixture names ONE known file, so 473 - 1 = 472 (AC2 reads 470 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=471$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=472$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
