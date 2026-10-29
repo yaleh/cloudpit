@@ -105,6 +105,8 @@ goal_ac: AC-443
 - src/modules/shell/Shell.tsx
 - server/modules/providers/list/codex/codex-shell.provider.ts
 - server/modules/providers/list/codex/codex-app-server.connection.ts
+- server/modules/providers/list/codex/codex-resident-queue.ts
+- server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/tests/provider-shell-facet.test.ts
 - server/modules/providers/tests/codex-app-server-protocol.test.ts
 - tasks/gap-ac443-codex-resident-ui-e2e.md
