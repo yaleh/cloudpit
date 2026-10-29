@@ -562,7 +562,8 @@
       "sessionCreate": "Sitzungen erstellen (cloudcli:session:create)",
       "sessionControl": "Sitzungen steuern (cloudcli:session:control)",
       "approve": "Genehmigen (cloudcli:approve)",
-      "navigate": "Sitzung in einem Ihrer Browser öffnen (cloudcli:navigate)"
+      "navigate": "Sitzung in einem Ihrer Browser öffnen (cloudcli:navigate)",
+      "cockpitAct": "Cockpit-Karten bestätigen — kann Nachrichten senden, Sitzungen starten (die Befehle ausführen) oder Fleet-Dispositionen anwenden (cloudcli:cockpit:act)"
     },
     "oauthTokens": {
       "title": "Erweitert: OAuth-Token (schreibgeschützt)",

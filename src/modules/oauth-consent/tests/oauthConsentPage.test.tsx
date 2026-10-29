@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import i18next from 'i18next';
@@ -284,6 +285,41 @@ describe('OAuthConsentRoute', () => {
     assert.deepEqual(writeBoxes.map((box) => box.checked), [false, false, false, false, false]);
   });
 
+  test('badges a cockpit-act scope with its own risk text, not the generic fallback', async () => {
+    contextMock.mockReturnValue(
+      okJson({
+        ...CONSENT_CONTEXT,
+        scopes: [
+          {
+            scope: 'cloudcli:read',
+            description: 'read',
+            required: true,
+            writable: false,
+            group: 'read',
+            risk: null,
+          },
+          {
+            scope: 'cloudcli:cockpit:act',
+            description: 'act',
+            required: false,
+            writable: true,
+            group: 'write',
+            risk: 'cockpitAct',
+          },
+        ],
+      }),
+    );
+    render(<OAuthConsentRoute />);
+    await waitFor(() => assert.ok(screen.queryByTestId('consent-allow')));
+
+    const badge = screen.getByTestId('consent-scope-risk');
+    assert.equal(badge.getAttribute('data-risk'), 'cockpitAct');
+    // The code reaches its own localized risk text instead of falling through
+    // to the generic `scopes.other` badge.
+    assert.equal(badge.textContent, enConsent.scopes.risk.cockpitAct);
+    assert.notEqual(badge.textContent, enConsent.scopes.other);
+  });
+
   test('ticking a write scope reveals the risk warning', async () => {
     contextMock.mockReturnValue(okJson(CONSENT_CONTEXT));
     render(<OAuthConsentRoute />);
@@ -388,5 +424,31 @@ describe('OAuthConsentRoute', () => {
       !source.includes('3600'),
       'the token lifetime must come from the context endpoint, never a hardcoded literal',
     );
+  });
+});
+
+describe('consent risk vocabulary across every locale', () => {
+  const LOCALES_DIR = resolve(process.cwd(), 'src', 'modules', 'i18n', 'locales');
+
+  test('every locale carries real selection and cockpitAct risk text', () => {
+    const files = globSync('*/consent.json', { cwd: LOCALES_DIR }).sort();
+    console.log(`[AC4] consent bundles (${files.length}): ${JSON.stringify(files)}`);
+    assert.ok(files.length >= 12, `expected at least 12 consent bundles, found ${files.length}`);
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      const bundle = JSON.parse(readFileSync(resolve(LOCALES_DIR, file), 'utf8')) as {
+        scopes?: { risk?: Record<string, unknown> };
+      };
+      const risk = bundle.scopes?.risk ?? {};
+      for (const key of ['selection', 'cockpitAct'] as const) {
+        const value = risk[key];
+        if (typeof value !== 'string' || value.trim().length === 0 || value === key) {
+          offenders.push(`${file}: scopes.risk.${key} = ${JSON.stringify(value)}`);
+        }
+      }
+    }
+    console.log(`[AC4] consent risk offenders (${offenders.length}): ${JSON.stringify(offenders)}`);
+    assert.deepEqual(offenders, []);
   });
 });

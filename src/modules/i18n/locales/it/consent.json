@@ -21,7 +21,9 @@
       "sessionCreate": "Può avviare nuove sessioni",
       "sessionControl": "Può controllare le sessioni in esecuzione",
       "approve": "Può approvare chiamate agli strumenti",
-      "navigate": "Può cambiare ciò che mostra il tuo schermo"
+      "navigate": "Può cambiare ciò che mostra il tuo schermo",
+      "selection": "Può leggere il testo che selezioni nella trascrizione di una sessione",
+      "cockpitAct": "Può confermare le schede del cockpit: può inviare messaggi, avviare sessioni (che eseguono comandi) o applicare disposizioni della flotta"
     }
   },
   "writeWarning": "Questa applicazione potrà inviare, creare e controllare sessioni. Consentilo solo se ti fidi.",

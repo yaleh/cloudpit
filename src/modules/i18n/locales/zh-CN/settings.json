@@ -701,7 +701,8 @@
       "sessionCreate": "创建会话（cloudcli:session:create）",
       "sessionControl": "控制会话（cloudcli:session:control）",
       "approve": "批准（cloudcli:approve）",
-      "navigate": "在您的浏览器中打开会话（cloudcli:navigate）"
+      "navigate": "在您的浏览器中打开会话（cloudcli:navigate）",
+      "cockpitAct": "确认驾驶舱卡片——可能发消息、开新会话（会话会运行命令）或对 fleet 应用处置（cloudcli:cockpit:act）"
     },
     "oauthTokens": {
       "title": "高级：OAuth 令牌（只读）",

@@ -563,7 +563,8 @@
       "sessionCreate": "建立工作階段（cloudcli:session:create）",
       "sessionControl": "控制工作階段（cloudcli:session:control）",
       "approve": "核准（cloudcli:approve）",
-      "navigate": "在您的瀏覽器中開啟工作階段（cloudcli:navigate）"
+      "navigate": "在您的瀏覽器中開啟工作階段（cloudcli:navigate）",
+      "cockpitAct": "確認駕駛艙卡片——可能傳送訊息、開啟新工作階段（工作階段會執行命令）或對 fleet 套用處置（cloudcli:cockpit:act）"
     },
     "oauthTokens": {
       "title": "進階：OAuth 權杖（唯讀）",
