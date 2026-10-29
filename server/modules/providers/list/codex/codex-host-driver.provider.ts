@@ -6,10 +6,13 @@ import {
   type CodexBackgroundLeaseLedger,
 } from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
 import {
+  backgroundSpawnParams,
   normalizeTurnStatus,
   readThreadId,
   readTurnId,
   threadDefaultsFromLaunchOptions,
+  threadParams,
+  turnParams,
   type CodexBackgroundProcessSpec,
   type CodexHostDriverOptions,
   type CodexResidentHostPort,
@@ -202,7 +205,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     // across it.
     this.addTurnLease(session);
     try {
-      const started = await connection.request('turn/start', this.turnParams(threadId, turn));
+      const started = await connection.request('turn/start', turnParams(threadId, turn));
       const turnId = readTurnId(started);
       if (turnId) {
         pending.turnId = pending.turnId ?? turnId;
@@ -490,7 +493,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.requireSession(appSessionId);
     const connection = this.requireConnection();
     const processHandle = spec.processHandle ?? `bg-${++this.backgroundHandleSerial}`;
-    await connection.request('process/spawn', this.backgroundSpawnParams(processHandle, spec));
+    await connection.request('process/spawn', backgroundSpawnParams(processHandle, spec));
     const lease = this.backgroundLeases.add(appSessionId, processHandle);
     this.reportLeaseAdded(appSessionId, lease);
     return lease;
@@ -540,7 +543,7 @@ export class CodexHostDriver implements IProviderHostDriver {
         // Fall through: a zero-turn thread has no rollout to resume.
       }
     }
-    const started = await connection.request('thread/start', this.threadParams(session));
+    const started = await connection.request('thread/start', threadParams(this.threadDefaults, session.threadDefaults));
     const threadId = readThreadId(started);
     if (!threadId) {
       throw new AppError('Codex app-server returned a thread without an id.', {
@@ -788,49 +791,5 @@ export class CodexHostDriver implements IProviderHostDriver {
       }
     }
     return null;
-  }
-
-  /** `process/spawn` params: the handle, the command, and only what the caller supplied. */
-  private backgroundSpawnParams(
-    processHandle: string,
-    spec: CodexBackgroundProcessSpec,
-  ): Record<string, unknown> {
-    return {
-      processHandle,
-      command: spec.command,
-      ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}),
-      ...(spec.streamStdoutStderr !== undefined ? { streamStdoutStderr: spec.streamStdoutStderr } : {}),
-      ...(spec.streamStdin !== undefined ? { streamStdin: spec.streamStdin } : {}),
-      ...(spec.outputBytesCap !== undefined ? { outputBytesCap: spec.outputBytesCap } : {}),
-      ...(spec.timeoutMs !== undefined ? { timeoutMs: spec.timeoutMs } : {}),
-    };
-  }
-
-  /**
-   * `thread/start` params, with the session's launch defaults over the driver's.
-   *
-   * The constructor's `thread` option is the driver-wide default; a session
-   * opened by `startResidentSession` carries the launch bag's `cwd`/`model`
-   * instead, because those describe the session's own project and model rather
-   * than the process's. Only keys with a value are written.
-   */
-  private threadParams(session: ResidentSession): Record<string, unknown> {
-    const defaults: CodexThreadDefaults = { ...this.threadDefaults, ...session.threadDefaults };
-    return {
-      ...(defaults.cwd ? { cwd: defaults.cwd } : {}),
-      ...(defaults.model ? { model: defaults.model } : {}),
-      ...(defaults.approvalPolicy ? { approvalPolicy: defaults.approvalPolicy } : {}),
-      ...(defaults.sandbox ? { sandbox: defaults.sandbox } : {}),
-      ...(defaults.developerInstructions ? { developerInstructions: defaults.developerInstructions } : {}),
-    };
-  }
-
-  private turnParams(threadId: string, turn: HostTurnInput): Record<string, unknown> {
-    const effort = turn.options.effort;
-    return {
-      threadId,
-      input: [{ type: 'text', text: turn.command }],
-      ...(typeof effort === 'string' ? { effort } : {}),
-    };
   }
 }

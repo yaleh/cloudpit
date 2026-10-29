@@ -1,7 +1,8 @@
 /**
  * The contract of Codex's resident host driver: the shapes a caller constructs
- * or reads, the per-session state the driver keeps, and the small readers that
- * narrow app-server protocol results into them.
+ * or reads, the per-session state the driver keeps, and the small readers and
+ * request builders that turn app-server protocol results into those shapes and
+ * those shapes into `thread/*` / `turn/*` / `process/*` params.
  *
  * Split out of `codex-host-driver.provider.ts` so that file stays under the
  * architecture ratchet's 800-line ceiling for a non-test file. None of these
@@ -15,7 +16,7 @@ import type {
   CodexAppServerLaunch,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
-import type { AnyRecord } from '@/shared/types.js';
+import type { AnyRecord, HostTurnInput } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 /** The terminal and in-flight states one resident turn can be in. */
@@ -158,4 +159,52 @@ export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThread
     defaults.model = options.model;
   }
   return defaults;
+}
+
+/** `process/spawn` params: the handle, the command, and only what the caller supplied. */
+export function backgroundSpawnParams(
+  processHandle: string,
+  spec: CodexBackgroundProcessSpec,
+): Record<string, unknown> {
+  return {
+    processHandle,
+    command: spec.command,
+    ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}),
+    ...(spec.streamStdoutStderr !== undefined ? { streamStdoutStderr: spec.streamStdoutStderr } : {}),
+    ...(spec.streamStdin !== undefined ? { streamStdin: spec.streamStdin } : {}),
+    ...(spec.outputBytesCap !== undefined ? { outputBytesCap: spec.outputBytesCap } : {}),
+    ...(spec.timeoutMs !== undefined ? { timeoutMs: spec.timeoutMs } : {}),
+  };
+}
+
+/**
+ * `thread/start` params, with the session's launch defaults over the driver's.
+ *
+ * The constructor's `thread` option is the driver-wide default; a session
+ * opened by `startResidentSession` carries the launch bag's `cwd`/`model`
+ * instead, because those describe the session's own project and model rather
+ * than the process's. Only keys with a value are written.
+ */
+export function threadParams(
+  driverDefaults: CodexThreadDefaults,
+  sessionDefaults: CodexThreadDefaults,
+): Record<string, unknown> {
+  const defaults: CodexThreadDefaults = { ...driverDefaults, ...sessionDefaults };
+  return {
+    ...(defaults.cwd ? { cwd: defaults.cwd } : {}),
+    ...(defaults.model ? { model: defaults.model } : {}),
+    ...(defaults.approvalPolicy ? { approvalPolicy: defaults.approvalPolicy } : {}),
+    ...(defaults.sandbox ? { sandbox: defaults.sandbox } : {}),
+    ...(defaults.developerInstructions ? { developerInstructions: defaults.developerInstructions } : {}),
+  };
+}
+
+/** `turn/start` params: the thread, one text input, and `effort` when supplied. */
+export function turnParams(threadId: string, turn: HostTurnInput): Record<string, unknown> {
+  const effort = turn.options.effort;
+  return {
+    threadId,
+    input: [{ type: 'text', text: turn.command }],
+    ...(typeof effort === 'string' ? { effort } : {}),
+  };
 }
