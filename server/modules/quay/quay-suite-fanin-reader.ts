@@ -6,6 +6,7 @@ import type {
   QuayTestRoundSummary,
   QuayTestsSummary,
 } from '@/shared/types.js';
+import { readNullableNumber, readNullableString } from '@/shared/utils.js';
 
 /**
  * The Tests and Fan-in readings, taken through quay's own read-only verbs.
@@ -100,21 +101,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
-}
-
-function readNullableString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function readNullableNumber(value: unknown): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
-  }
-  return null;
 }
 
 function readCount(value: unknown): number {

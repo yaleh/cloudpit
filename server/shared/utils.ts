@@ -616,6 +616,36 @@ export const readOptionalString = (value: unknown): string | undefined => {
 };
 
 /**
+ * Reads a non-empty string from an untyped JSON record, or `null` for anything else.
+ *
+ * Whitespace is preserved, unlike `readOptionalString` which trims and maps empty to
+ * `undefined`: `''` and an absent field both yield `null`, while a whitespace-only value is
+ * returned as-is. Consumers: `quay.service.ts` and `quay-suite-fanin-reader.ts`.
+ */
+export function readNullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * Reads a finite number from an untyped JSON record, or `null` for absent/non-numeric values.
+ *
+ * Accepts a real number, or a string that `Number()` coerces to a finite number (surrounding
+ * whitespace is allowed; an empty/whitespace-only string is `null`). Non-finite numbers
+ * (`NaN`, `Infinity`) are rejected so they never reach a reading as `0` or `NaN`. Consumers:
+ * `quay.service.ts` and `quay-suite-fanin-reader.ts`.
+ */
+export function readNullableNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+  return null;
+}
+
+/**
  * Reads an optional string array from unknown input.
  *
  * Non-array values are ignored, and any array entries that are not strings are
