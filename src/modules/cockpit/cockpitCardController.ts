@@ -20,6 +20,7 @@ import {
   FEEDBACK_OPTION_GONE_REASON,
   type CockpitCardFeedbackPhase,
 } from '@/modules/cockpit/cockpitCardFeedback';
+import { cockpitCardDuplicateGroups } from '@/modules/cockpit/cockpitCardDuplicates';
 
 /**
  * The cockpit card list's model: cards, filters, density, the Details stack, the option each
@@ -54,6 +55,10 @@ import {
  *   situation, so it is recorded with the card id AND the revision it was opened at; a re-read
  *   that moves the revision drops it, because the new situation would otherwise be drawn full
  *   height without the person asking for it.
+ * - THE SAME QUESTION IS ONE CARD. Cards that name the same session and normalize to the same
+ *   question are folded behind the latest one (`cockpitCardDuplicates.ts`); the folded cards are
+ *   not visible, not counted and own no confirmation target until the person expands them. The
+ *   expansion is a reading keyed by the kept card id, re-derived on every read, never persisted.
  *
  * Consumers: `useCockpitCards` (the React binding) and `cockpitCardController.test.ts`.
  */
@@ -233,15 +238,39 @@ export type CockpitCardControllerDeps = {
   onEvent?: (event: CockpitCardControllerEvent) => void;
 };
 
+/**
+ * The folded duplicates behind one KEPT card.
+ *
+ * `hiddenIds` is in provider order, so an expansion draws the earlier cards where they already
+ * were; `expanded` is the only part the person controls. The reading is keyed by the kept card id
+ * and recomputed from the card list on every read — never persisted, like `openDropdownCardId`.
+ */
+export type CockpitCardDuplicatesState = {
+  hiddenIds: string[];
+  expanded: boolean;
+};
+
 /** The immutable reading the components render. */
-export type CockpitCardControllerSnapshot = {
-  status: 'idle' | 'loading' | 'loaded' | 'error';
+export type CockpitCardControllerSnapshot = {  status: 'idle' | 'loading' | 'loaded' | 'error';
   /** The last read's failure, or `null`. */
   error: string | null;
   /** Every card the provider returned, untouched and in provider order. */
   cards: readonly CockpitCard[];
-  /** The cards matching the current filters, in provider order. */
+  /**
+   * The cards the list draws, in provider order: folded duplicates removed until their kept card
+   * is expanded, when they return at their original position.
+   */
   visibleCards: readonly CockpitCard[];
+  /**
+   * Each KEPT card whose question was asked more than once, mapped to the folded cards and
+   * whether the person expanded them. A card with nothing folded has no entry.
+   */
+  duplicates: Readonly<Record<string, CockpitCardDuplicatesState>>;
+  /**
+   * How many distinct open questions the provider returned — every folded duplicate counts once,
+   * and the filters do not apply (this is the column/header's 「N waiting for you」).
+   */
+  openCount: number;
   /** The project names the cards carry, sorted; the filter's options. */
   projects: readonly string[];
   typeFilter: CockpitCardTypeFilter;
@@ -253,9 +282,9 @@ export type CockpitCardControllerSnapshot = {
    * multi-select and still carries one id-or-null field.
    */
   projectFilter: string | null;
-  /** Cards per type under the PROJECT filter, keyed by kind plus `all`; the chips' counts. */
+  /** Cards per type under the PROJECT filter and after folding, keyed by kind plus `all`. */
   typeCounts: Readonly<Record<string, number>>;
-  /** Cards per project under the TYPE filter; the drawer's counts. */
+  /** Cards per project under the TYPE filter and after folding; the drawer's counts. */
   projectCounts: Readonly<Record<string, number>>;
   density: CockpitCardDensity;
   selectedCardId: string | null;
@@ -358,6 +387,11 @@ export type CockpitCardController = {
   openDropdown: (cardId: string | null) => void;
   /** Expands or collapses one card's over-long situation in place (Cards density). */
   toggleSituationExpanded: (cardId: string) => void;
+  /**
+   * Expands or collapses the earlier cards folded behind one KEPT card, in place. A card with
+   * nothing folded has no entry in `duplicates` and nothing to toggle.
+   */
+  toggleDuplicates: (cardId: string) => void;
   showOption: (cardId: string, optionId: string) => void;
   showOwnReply: (cardId: string) => void;
   setOwnReply: (cardId: string, text: string) => void;
@@ -381,6 +415,8 @@ const initialState: CockpitCardControllerSnapshot = {
   error: null,
   cards: [],
   visibleCards: [],
+  duplicates: {},
+  openCount: 0,
   projects: [],
   typeFilter: 'all',
   projectFilters: [],
@@ -716,7 +752,29 @@ function normalize(
   const cards = next.cards;
   const byId = new Map(cards.map((card) => [card.id, card]));
   const projectFilters = normalizeProjectFilters(next.projectFilters);
-  const visibleCards = visibleCardsOf(cards, next.typeFilter, projectFilters);
+
+  // THE SAME QUESTION IS ONE CARD. The grouping is recomputed from the provider's list on every
+  // read, so a new duplicate joins the existing fold without any stored state; the only memory is
+  // whether the person expanded a fold, kept on the KEPT card's id. A fold whose kept card changed
+  // (a newer duplicate arrived) is a different group, so it starts collapsed.
+  const folds = cockpitCardDuplicateGroups(cards);
+  const foldedIds = new Set<string>();
+  const expandedIds = new Set<string>();
+  const duplicates: Record<string, CockpitCardDuplicatesState> = {};
+  for (const fold of folds) {
+    for (const cardId of fold.hidden) foldedIds.add(cardId);
+    const previous = next.duplicates[fold.keep];
+    const expanded = previous !== undefined && previous.expanded;
+    duplicates[fold.keep] = { hiddenIds: [...fold.hidden], expanded };
+    if (expanded) for (const cardId of fold.hidden) expandedIds.add(cardId);
+  }
+  // What a folded duplicate does not do: appear, count, or own a confirmation target. The KEPT
+  // cards (plus any expanded earlier card) are the list; the kept cards alone are every count.
+  const keptCards = cards.filter((card) => !foldedIds.has(card.id));
+  const drawableCards = cards.filter(
+    (card) => !foldedIds.has(card.id) || expandedIds.has(card.id),
+  );
+  const visibleCards = visibleCardsOf(drawableCards, next.typeFilter, projectFilters);
   const visibleIds = new Set(visibleCards.map((card) => card.id));
 
   // Each card's `(revision, contentRevision)` is the identity of the content its per-card state
@@ -806,7 +864,7 @@ function normalize(
       ? next.feedbackResendError
       : null;
 
-  const targets = targetsOf(cards, shown, ownReplies);
+  const targets = targetsOf(drawableCards, shown, ownReplies);
   let pendingConfirm = next.pendingConfirm;
   if (pendingConfirm !== null) {
     const card = byId.get(pendingConfirm.cardId);
@@ -831,12 +889,14 @@ function normalize(
     ...next,
     cards,
     visibleCards,
+    duplicates,
+    openCount: keptCards.length,
     projectFilters,
     // The single-value compatibility reading: one selected project, or `null` for "none/many".
     projectFilter: projectFilters.length === 1 ? projectFilters[0] : null,
     projects: projectsOf(cards),
-    typeCounts: typeCountsOf(cards, projectFilters),
-    projectCounts: projectCountsOf(cards, next.typeFilter),
+    typeCounts: typeCountsOf(keptCards, projectFilters),
+    projectCounts: projectCountsOf(keptCards, next.typeFilter),
     shown,
     ownReplies,
     briefs,
@@ -1465,6 +1525,17 @@ export function createCockpitCardController(
       if (next[cardId] === card.revision) delete next[cardId];
       else next[cardId] = card.revision;
       commit({ situationExpanded: next });
+    },
+    toggleDuplicates: (cardId) => {
+      const snapshot = store.getSnapshot();
+      const current = snapshot.duplicates[cardId];
+      if (current === undefined) return;
+      commit({
+        duplicates: {
+          ...snapshot.duplicates,
+          [cardId]: { ...current, expanded: !current.expanded },
+        },
+      });
     },
     openDetails: (cardId) => {
       const snapshot = store.getSnapshot();

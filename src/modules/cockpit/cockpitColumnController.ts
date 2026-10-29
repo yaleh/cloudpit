@@ -218,7 +218,9 @@ export function createCockpitColumnController(
   const readSnapshot = (): CockpitColumnSnapshot => {
     const cards = deps.cards.getSnapshot();
     const layout = cockpitColumnLayoutFor(viewportWidth);
-    const openCount = cards.cards.length;
+    // The card controller's own count: folded duplicates are one open question, and the filters
+    // (which are the list's, not the column's) do not apply to this number.
+    const openCount = cards.openCount;
     return {
       layout,
       viewportWidth,

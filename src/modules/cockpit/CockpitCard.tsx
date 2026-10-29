@@ -25,6 +25,7 @@ import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
   CockpitCardDensity,
+  CockpitCardDuplicatesState,
   CockpitCardSendCountdown,
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
@@ -221,6 +222,19 @@ export type CockpitCardProps = {
   situationExpanded?: boolean;
   /** Toggles that expansion (the inline control); absent means the card draws no control. */
   onToggleSituationExpanded?: () => void;
+  /**
+   * The earlier cards folded behind THIS one (the kept card), or `null`/absent when nothing was
+   * folded. The card states how many times the question was asked and offers the in-place
+   * expansion; the folded cards themselves are drawn by the list at their original positions.
+   */
+  duplicates?: CockpitCardDuplicatesState | null;
+  /**
+   * True when the folded cards carry no question at all (a session's unanswered asks), so the
+   * strip speaks about the session's count instead of naming a question.
+   */
+  duplicatesQuestionless?: boolean;
+  /** Expands or collapses the folded cards; absent means the strip states the count only. */
+  onToggleDuplicates?: () => void;
   onSelect: () => void;
   onOpenDetails: () => void;
   onToggleDropdown: () => void;
@@ -260,6 +274,9 @@ export default function CockpitCard({
   density,
   situationExpanded = false,
   onToggleSituationExpanded,
+  duplicates = null,
+  duplicatesQuestionless = false,
+  onToggleDuplicates,
   onSelect,
   onOpenDetails,
   onToggleDropdown,
@@ -357,6 +374,50 @@ export default function CockpitCard({
       onFocus={onSelect}
       onPointerDown={onSelect}
     >
+      {/*
+        THE FOLDED DUPLICATES ARE STATED ON THE KEPT CARD, not in a second list. The provider's
+        dedup key is the message id, so asking one question twice draws two identical cards; the
+        kept one says how many times it was asked and offers the earlier cards in place. The
+        folded cards themselves are rendered by the list (at their original positions) once this
+        control expands them, so this strip never doubles as a second reading of their content.
+      */}
+      {duplicates !== null && duplicates.hiddenIds.length > 0 && (
+        <div
+          data-testid="cockpit-card-duplicates"
+          data-count={duplicates.hiddenIds.length + 1}
+          data-expanded={duplicates.expanded ? 'true' : 'false'}
+          className="mb-1.5 flex items-center justify-between gap-2 rounded border border-dashed border-border bg-muted/50 px-1.5 py-1 text-[11px] text-muted-foreground"
+        >
+          <span className="min-w-0 truncate">
+            <span aria-hidden>⧉ </span>
+            {duplicatesQuestionless
+              ? t('cockpit.cardDuplicatesSession', { n: duplicates.hiddenIds.length + 1 })
+              : duplicates.expanded
+                ? t('cockpit.cardDuplicatesExpanded', {
+                    n: duplicates.hiddenIds.length + 1,
+                    hidden: duplicates.hiddenIds.length,
+                  })
+                : t('cockpit.cardDuplicates', {
+                    n: duplicates.hiddenIds.length + 1,
+                    hidden: duplicates.hiddenIds.length,
+                  })}
+          </span>
+          {onToggleDuplicates !== undefined && (
+            <button
+              type="button"
+              data-testid="cockpit-card-duplicates-toggle"
+              data-expanded={duplicates.expanded ? 'true' : 'false'}
+              onClick={onToggleDuplicates}
+              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-foreground hover:bg-accent"
+            >
+              {duplicates.expanded
+                ? t('cockpit.cardDuplicatesCollapse')
+                : t('cockpit.cardDuplicatesExpand')}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* A zone: the whole upper body opens Details. No independent Details/Alternatives button. */}
       <div
         role="button"
