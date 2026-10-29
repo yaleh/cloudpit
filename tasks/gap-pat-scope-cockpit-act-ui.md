@@ -1,7 +1,7 @@
 ---
 id: gap-pat-scope-cockpit-act-ui
 title: PAT 设置页暴露 cloudcli:cockpit:act：常量追加、12 语言 scope 与 consent 风险文案、浏览器真实签出验证
-status: todo
+status: ready
 labels:
   - gap
   - frontend
