@@ -104,8 +104,10 @@ extra: {}
 - **测试**：`session-ask-decision-digest.test.ts` 覆盖逐字比对、200000 字符不截断（含首尾各 100 字符）、同 askId+revision 重放同一字符串、空白文本省略键，以及启动补扫带 `questionText` 行的用例；`context-event-writer.test.ts` 新增 AC1(g)：9001 字 `questionText` 原样落盘（实测 27228 字节行），无 `truncated` 键。
 - **变异验证（改完即还原）**：删掉 `questionText` 展开 ⇒ 逐字用例红；改成 `slice(-4000)`（尾部截断）⇒ 长文本用例红；改成 `slice(0,4000)`（头部截断）⇒ 同样红。
 - **复跑读数**：AC1 `session-ask-decision-digest.test.ts` 41/41、AC2 `session-digest.test.ts` 10/10、AC4 `quay-test-script.test.ts` 14/14，均 exit 0；writer 判据 10/10；architecture-ratchet 6/6；`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）。
+- **上一轮那条 suite 红已复核为环境问题，与本任务 delta 无关**：`server/modules/providers/tests/skills.test.ts` 本轮再次复现同一形状（codex 作用域 `undefined !== 'repo'`、opencode `'project' !== 'user'`）。裸跑该文件（沿用宿主机 TMPDIR）仍红；`TMPDIR=/var/tmp/askqt-check` 下 6/6 全绿。根因是宿主机 `/tmp/.git` 让 `findTopmostGitRoot` 把 `os.tmpdir()` 当成仓库根。develop 的 `5a022fee4`（`scripts/test.sh` 把 TMPDIR 隔离到祖先链无 `.git` 的私有根，children 共用同一根）已在本次 pre-merge 进入本分支（`git merge-base --is-ancestor 5a022fee4 HEAD` 为真），suite 走 `scripts/test.sh` 时继承干净 TMPDIR。
 - **ratchet**：`server/shared/types.ts` 仍是 5265 行（注释改写等行数）；`server/modules/context-events/context-event-writer.ts` 797→849 成为 `oversizeFiles` 新条目，已按 RECORDED CHANGE 格式写入 `server/shared/tests/architecture-ratchet.baseline.json`。
 - 未新增 server 测试文件，测试文件计数钉子与 `scripts/suite-duration-baseline.tsv` 无需改动。
+- **pre-merge / anti-drift**：`git merge --no-edit develop` 无冲突完成；`anti-drift-touches-check.js --merge-target develop` 报 `ANTI-DRIFT OK — 6 actual file(s), all within declared Touches (8 glob(s))`。
 - L_D cloudcli-session-asking: asking_rows=3 question_text_verbatim=3/3 truncated=0 long_chars=25000 long_line_bytes=75450
 - L_G fleet-session-ask: text_entities=2 identical_pairs=1 a1_same_as_a2_sha1_16=a2fde7541f7dd4f3 a4_norm_chars=24999 a4_sha1_16=b9549649e0fa7f19
 
