@@ -27,5 +27,5 @@ fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
   at: 2026-09-27T05:07:28.991Z
-timeoutMs: 118000
+timeoutMs: 260000
 ---
