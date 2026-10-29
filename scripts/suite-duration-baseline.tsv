@@ -806,3 +806,9 @@
 #   (dur=2695ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
 #   tree collects 465 server test files).
 2695	server/modules/providers/tests/codex-host-driver-persistent.test.ts
+#   and the codex-resident-background-leases row by gap-ac439-codex-resident-background-leases,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-background-leases.test.ts`
+#   (dur=2674ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 466 server test files).
+2674	server/modules/providers/tests/codex-resident-background-leases.test.ts

@@ -392,9 +392,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (463 + 1 = 464 collected server test files). Then
     // gap-ac435-codex-resident-host-driver-persistent added its criterion
     // server/modules/providers/tests/codex-host-driver-persistent.test.ts
-    // (464 + 1 = 465 collected server test files). This fixture names 3 known files, so
-    // 465 - 3 = 462.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=462$/);
+    // (464 + 1 = 465 collected server test files). Then
+    // gap-ac439-codex-resident-background-leases added its criterion
+    // server/modules/providers/tests/codex-resident-background-leases.test.ts
+    // (465 + 1 = 466 collected server test files). This fixture names 3 known files, so
+    // 466 - 3 = 463.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=463$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -476,10 +479,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-cockpit-session-start-background-resident-and-run-events added
     // server/modules/context-events/tests/session-run-events.test.ts), then
     // gap-ac435-codex-resident-host-driver-persistent added
-    // server/modules/providers/tests/codex-host-driver-persistent.test.ts
-    // — but this fixture names ONE known file, so 465 - 1 = 464 (AC2 reads 462 because its
+    // server/modules/providers/tests/codex-host-driver-persistent.test.ts, then
+    // gap-ac439-codex-resident-background-leases added
+    // server/modules/providers/tests/codex-resident-background-leases.test.ts
+    // — but this fixture names ONE known file, so 466 - 1 = 465 (AC2 reads 463 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=464$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=465$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
