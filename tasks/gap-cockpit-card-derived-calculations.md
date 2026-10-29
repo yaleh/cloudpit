@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-derived-calculations
 title: 从 cockpit card controller 提取纯派生计算与 selector
-status: ready
+status: todo
 labels:
   - gap
 parent: null
