@@ -1,7 +1,7 @@
 ---
 id: AC-443
 title: 真实浏览器：常驻开关、忙时撤回、状态栏、Shell 普通终端
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx playwright test e2e/codex-resident-ui.spec.ts
@@ -15,6 +15,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-10-29T23:18:02.224Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
