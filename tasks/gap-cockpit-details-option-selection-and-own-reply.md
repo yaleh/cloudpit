@@ -80,3 +80,11 @@ extra: {}
 - src/modules/i18n/locales/ko/common.json
 - src/modules/i18n/locales/ru/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Blocker
+
+**2026-10-29T05:15:18.495Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/providers/tests/skills.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/modules/providers/tests/skills.test.ts]
+- run_id：wk-prod-anchor
+- session_id：8535f72d-5e23-483e-934b-639af1568d84
