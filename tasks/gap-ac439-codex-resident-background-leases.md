@@ -150,6 +150,14 @@ AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
 - merge develop 后的 anti-drift Touches 闸：`ANTI-DRIFT OK: task gap-ac439-codex-resident-background-leases — 3 actual file(s), all within declared Touches (4 glob(s))`。
 - AC11：`grep -rn 'backgroundTerminals' server/modules/providers/list/codex/` 输出为空（exit 1）；该字面只出现在 `tests/` 下的假 transport。
 
+**续跑轮 2026-10-29（suite 红修复：server 测试文件计数 pin 与 90% 覆盖率地板）**
+
+- 失败读数：fan-in 机械 suite 报 `__PERFILE__ ... server/shared/tests/quay-test-script.test.ts passed=false`（pool rc=1，isolated 复跑仍 rc=1 ⇒ 确定性红，不是负载抖动）。
+- 真因：本任务新增 `server/modules/providers/tests/codex-resident-background-leases.test.ts`，worktree 收集数 465 → **466**；该测试文件在 AC2/AC3 钉住精确 `known=3 unknown=462` / `known=1 unknown=464`（对应 465），并把 `scripts/suite-duration-baseline.tsv` 的 419 行覆盖率断言为 `>= collected*0.9`（419/466 = 89.91% < 90%）。两条腿都是「测试输入是整棵树」的移动目标，与 delta-relatedness 的 UNRELATED 提示无关。
+- 修复：两条 pin 移 `462→463`、`464→465` 并补注释记录 `gap-ac439… added its criterion … (465 + 1 = 466)`；baseline 追加本任务判据文件的实测行 `2674`（单文件 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-background-leases.test.ts` 的 `duration_ms 2674.08`），420/466 = 90.13% ≥ 90%。
+- 复验（本 worktree，修后单文件）：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → exit **0**，`tests 14 / pass 14 / fail 0`，`duration_ms 89962`。
+- 因这两个文件参与修复，已通过 task_write 把 `server/shared/tests/quay-test-script.test.ts` 与 `scripts/suite-duration-baseline.tsv` 补进 `## Touches`（anti-drift 读的是 task 文件里的 Touches）。
+
 **未实现项（非目标）**
 
 - 未挂 `codex.provider.ts` 的 `hostDriver`、未改 capabilities（AC-441/442）。
@@ -164,6 +172,8 @@ AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
 - server/modules/providers/list/codex/codex-background-lease-ledger.ts (new)
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/tests/codex-resident-background-leases.test.ts (new)
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - tasks/gap-ac439-codex-resident-background-leases.md
 
 ## Blocker
