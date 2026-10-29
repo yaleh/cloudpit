@@ -29,11 +29,11 @@ extra: {}
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx` 退出 0，用例覆盖：点击第 2 个选项行后 `controller.getSnapshot().shown[cardId] = { kind: 'option', optionId }`，且 `targets[cardId].optionId` 同步；选中行带 `border-primary` 与 `ring-1`、未选中行不带；点击「✎ 你自己的回复」后 `shown.kind === 'ownReply'` 且出现 textarea，输入后 `ownReplies[cardId]` 等于输入值；重新读数后选项消失时 `shown` 回落到默认建议项。
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 与 `npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0（详情改动不改变列表行为）。
-- [ ] 假形态变红：把选项行的点击处理删掉 ⇒ 「点击第 2 个选项」用例红；把选中态的两个 class 删掉 ⇒ 「选中行样式」用例红；改完即还原。
-- [ ] `npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（新增文案进全部十个 locale）；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；若 `src/modules/cockpit/cockpitCardController.ts`（基线 1329）增长，按 AC-394 的 RECORDED CHANGE 格式记录。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx` 退出 0，用例覆盖：点击第 2 个选项行后 `controller.getSnapshot().shown[cardId] = { kind: 'option', optionId }`，且 `targets[cardId].optionId` 同步；选中行带 `border-primary` 与 `ring-1`、未选中行不带；点击「✎ 你自己的回复」后 `shown.kind === 'ownReply'` 且出现 textarea，输入后 `ownReplies[cardId]` 等于输入值；重新读数后选项消失时 `shown` 回落到默认建议项。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 与 `npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx` 退出 0（详情改动不改变列表行为）。
+- [x] 假形态变红：把选项行的点击处理删掉 ⇒ 「点击第 2 个选项」用例红；把选中态的两个 class 删掉 ⇒ 「选中行样式」用例红；改完即还原。
+- [x] `npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（新增文案进全部十个 locale）；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；若 `src/modules/cockpit/cockpitCardController.ts`（基线 1329）增长，按 AC-394 的 RECORDED CHANGE 格式记录。
 
 ## DoD
 
@@ -44,11 +44,27 @@ extra: {}
 3. 键盘：Tab 到选项行、Enter 选中；截图或读数证明焦点可见环仍在。
 4. 手机宽（390）与 PC 宽（1600）各一组截图，存 `tmp/`；若存在可用场景，同时跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴出 JSON 报告。
 
+### DoD 读数（真实页面，夹具卡 `fixture:ask`）
+
+夹具卡选项 `delete`（suggested）、`keep`，带 `ownReply`。截图在 `tmp/cockpit-details-selectable/`：`pc-option-selected.png`、`pc-own-reply.png`、`pc-keyboard.png`、`phone-option-selected.png`、`phone-own-reply.png`。
+
+- 1600×900 与 390×844 两组读数一致：
+  - 初始 `shown[fixture:ask] = {kind:'option', optionId:'delete'}`（默认建议项）。
+  - 点 `keep` 行后 `targets[fixture:ask].optionId=keep`，详情确认条 `"Confirm · Keep staging"`，卡片自身确认条同为 `"Confirm · Keep staging"`（同一份状态）；`keep` 行 `{selected:true, ariaPressed:"true", borderPrimary:true, ring:true, hover:true}`，`delete` 行 `{selected:false, borderPrimary:false, ring:false, hover:true}`。
+  - 点「✎ 你自己的回复」后该行 `{selected:true, borderPrimary:true, ring:true, dashed:true}`，`shown` 不再指向任何 provider 选项；输入后 `ownReplies[fixture:ask]="Keep staging for one more day, then delete it."`，详情 textarea 与卡片 textarea 读数相同（一份草稿），详情确认条变为 `"Confirm · your reply"`。
+  - 键盘：Tab 落在 `cockpit-card-details-option-delete`，焦点可见环 `boxShadow` 非 `none`；按 Enter 后 `shown[fixture:ask].optionId=delete`，焦点仍在该行。
+- 未跑场景运行器：仓库内没有覆盖详情抽屉选项/自己回复的 `scripts/ui-scenario.mjs` 场景（`node scripts/ui-scenario.mjs --list` 无对应场景）。
+
+## 暗轴记录（ADR-007）
+
+该轴仍暗,理由: 本次改动是详情抽屉的交互可达性（整行可点、选中高亮、键盘激活），其取证是真实页面 DOM 读数与截图，没有可数值化的 L_D/L_G 暗轴增益可测。
+
 ## Touches
 
 - tasks/gap-cockpit-details-option-selection-and-own-reply.md
 - src/modules/cockpit/CockpitCardDetails.tsx
 - src/modules/cockpit/CockpitCard.tsx
+- src/modules/cockpit/CockpitCardList.tsx
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx (new)
 - src/modules/cockpit/tests/CockpitCard.test.tsx
