@@ -154,9 +154,14 @@ provider=codex hostDriver=CodexHostDriver multiplexedHost=false
 
 ## Blocker
 
-**2026-10-29T12:38:11.968Z — worker 未落地（exited-not-landed）**
+**2026-10-29T13:45:56.874Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→853 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
+CONFLICT (content): Merge conflict in server/modules/providers/list/codex/codex-host-driver.provider.ts
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Auto-merging tasks/gap-ac437-codex-resident-live-settings.md
+Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：751728e2-b450-49a0-a6cc-7b3b2a3755ab
-- 已在本轮的第二轮修复（见上）：provider 拆分至 737 行、计数钉与耗时基线同步 468；两条判据单文件复跑均已 exit 0。
+- session_id：2eb71b23-03f7-40cc-8952-9d712d11573b
