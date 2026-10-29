@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, type Dispatch, type SetStateActi
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/shared/api';
+import { resolveProviderDescriptor } from '@/shared/constants';
 import { ChatInterface } from '@/modules/chat';
 import { FileTree } from '@/modules/file-tree';
 import { StandaloneShell } from '@/modules/standalone-shell';
@@ -55,6 +56,14 @@ export type LifecycleModeReading = {
  * CLI and never resumes the conversation the app is holding — which is why the
  * provider is part of this reading rather than an extra state of its own.
  *
+ * What the provider's resident mode means for Shell is stated once, in its
+ * descriptor row (`residentShellClosed` in `src/shared/constants.ts`, the
+ * frontend half of the capability seam), and read here through
+ * {@link resolveProviderDescriptor}. This view names no provider and branches
+ * on none: the architecture ratchet forbids new per-provider name branches
+ * outside the provider directory, and a new provider answers this question by
+ * filling in its own descriptor row rather than by editing this function.
+ *
  * A reading for another session, or one the host listing does not know, closes
  * nothing: guessing `resident` would close a tab nobody asked to close. Exported
  * for the workspace's unit criterion, which pins the two providers' answers.
@@ -66,7 +75,7 @@ export function isShellClosedToSession(
   return reading !== null
     && reading.sessionId === selectedSessionId
     && reading.mode === 'resident'
-    && reading.provider === 'claude';
+    && resolveProviderDescriptor(reading.provider)?.residentShellClosed === true;
 }
 
 type WorkspaceMainProps = {

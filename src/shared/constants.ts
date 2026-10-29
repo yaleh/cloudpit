@@ -266,6 +266,23 @@ export type ProviderDescriptor = {
   messageLabelDefault?: string;
   /** Whether the transcript view strips a proposed-plan envelope from assistant text. */
   stripsProposedPlanEnvelope: boolean;
+  /**
+   * Whether a *resident* session of this provider keeps the workspace's Shell tab
+   * closed.
+   *
+   * Residency alone is not the rule. A resident process owns its conversation,
+   * but only some providers leave the terminal a safe entry onto it: Claude's
+   * resident host has none, so handing the user a Shell onto that process is the
+   * opposite of the mode; Codex's Shell launches the bare CLI and never resumes
+   * the held thread, so it stays an ordinary terminal (see
+   * `server/modules/providers/list/codex/codex-shell.provider.ts`).
+   *
+   * This field is why the workspace can decide the tab without naming a
+   * provider: the policy is stated once per row here, not as a branch in the
+   * view. A provider whose `lifecycleModes` never include `resident` never
+   * consults it — `false` is that provider's honest answer ("keep the tab").
+   */
+  residentShellClosed: boolean;
 };
 
 /** One row per selectable provider; see {@link ProviderDescriptor}. */
@@ -276,6 +293,8 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginCommand: 'claude --dangerously-skip-permissions /login',
     messageLabelKey: 'messageTypes.claude',
     stripsProposedPlanEnvelope: false,
+    // The resident host holds the conversation and its Shell would resume it.
+    residentShellClosed: true,
   },
   cursor: {
     displayName: 'Cursor',
@@ -283,6 +302,8 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginCommand: 'cursor-agent login',
     messageLabelKey: 'messageTypes.cursor',
     stripsProposedPlanEnvelope: false,
+    // Not resident-capable (`lifecycleModes`), so this is never consulted.
+    residentShellClosed: false,
   },
   codex: {
     displayName: 'Codex',
@@ -291,6 +312,9 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     platformLoginCommand: 'codex login --device-auth',
     messageLabelKey: 'messageTypes.codex',
     stripsProposedPlanEnvelope: true,
+    // A Codex resident session keeps an ordinary terminal: the Shell launches
+    // the bare CLI and never resumes the app-server's held thread.
+    residentShellClosed: false,
   },
   opencode: {
     displayName: 'OpenCode',
@@ -299,6 +323,8 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     messageLabelKey: 'messageTypes.opencode',
     messageLabelDefault: 'OpenCode',
     stripsProposedPlanEnvelope: false,
+    // Not resident-capable (`lifecycleModes`), so this is never consulted.
+    residentShellClosed: false,
   },
 };
 
