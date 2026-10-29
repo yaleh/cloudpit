@@ -843,3 +843,9 @@
 #   (dur=6495ms from one warm run, its own new criterion; the row also keeps the 90% coverage
 #   floor green now that the tree collects 471 server test files).
 6495	server/modules/providers/tests/codex-resident-approvals.test.ts
+#   and the codex-host-driver-queue row by gap-ac436-codex-resident-queue-reland,
+#   measured one file at a time on 2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts`
+#   (dur=8144ms from two warm runs, 8392/8144, its own new criterion; the row also keeps the 90%
+#   coverage floor green now that the tree collects 472 server test files).
+8144	server/modules/providers/tests/codex-host-driver-queue.test.ts
