@@ -800,3 +800,9 @@
 #   (dur=6977ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
 #   tree collects 463 server test files).
 6977	server/modules/context-events/tests/session-run-events.test.ts
+#   and the codex-host-driver-persistent row by gap-ac435-codex-resident-host-driver-persistent,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts`
+#   (dur=2695ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 465 server test files).
+2695	server/modules/providers/tests/codex-host-driver-persistent.test.ts
