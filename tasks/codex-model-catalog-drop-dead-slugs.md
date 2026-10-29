@@ -44,14 +44,14 @@ extra: {}
 
 ## AC
 
-- [ ] AC1 **预置目录等于打包 CLI 的可见集合**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-models.service.test.ts` 退出 0；新增用例打印 `codex-catalog OPTIONS=<4 个 slug> visible=<4 个 slug>` 且 `assert.deepEqual` 通过。完成记录贴出 tests/pass/fail 与两行读数。
-- [ ] AC2 **三个死 slug 已从目录移除**：`! grep -n "gpt-5\.5\|gpt-5\.4" server/modules/providers/list/codex/codex-models.provider.ts` 退出 0（0 命中）；完成记录贴出空读数与 `grep -c` 的 0。
-- [ ] AC3 **前端兜底是 gpt-5.6-sol**：`npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` 退出 0；新增用例在 `localStorage.clear()` 后断言 `providerModels.codex === 'gpt-5.6-sol'`。完成记录贴出 passed 数与用例名。
-- [ ] AC4 **假形态 A 必红（目录加回死项）**：临时把 `gpt-5.4` 加回 `OPTIONS` ⇒ AC1 同命令退出 1，失败信息包含该 slug 与两侧集合；抄下逐字失败行，还原后 AC1 退出 0。
-- [ ] AC5 **假形态 B 必红（兜底改回 gpt-5.4）**：临时把 `FALLBACK_DEFAULT_MODEL.codex` 改回 `'gpt-5.4'` ⇒ AC3 同命令退出 1；抄下逐字失败行，还原后 AC3 退出 0。
-- [ ] AC6 **兄弟判据无回归**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider.routes.test.ts` 各自退出 0。完成记录贴出两条 tests/pass/fail。
-- [ ] AC7 **类型与 lint**：`npm run typecheck` 与 `npm run lint` 均退出 0。
-- [ ] AC8 **Touches 与 anti-drift**：`node --no-warnings /data/home/yale/.claude/plugins/cache/quay/quay/0.24.0/scripts/dist/anti-drift-touches-check.js --task codex-model-catalog-drop-dead-slugs --worktree <worktree> --merge-target develop` 打印 `ANTI-DRIFT OK`；`git diff --name-only develop...HEAD` 只含 Touches 内文件。
+- [x] AC1 **预置目录等于打包 CLI 的可见集合**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-models.service.test.ts` 退出 0；新增用例打印 `codex-catalog OPTIONS=<4 个 slug> visible=<4 个 slug>` 且 `assert.deepEqual` 通过。完成记录贴出 tests/pass/fail 与两行读数。
+- [x] AC2 **三个死 slug 已从目录移除**：`! grep -n "gpt-5\.5\|gpt-5\.4" server/modules/providers/list/codex/codex-models.provider.ts` 退出 0（0 命中）；完成记录贴出空读数与 `grep -c` 的 0。
+- [x] AC3 **前端兜底是 gpt-5.6-sol**：`npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` 退出 0；新增用例在 `localStorage.clear()` 后断言 `providerModels.codex === 'gpt-5.6-sol'`。完成记录贴出 passed 数与用例名。
+- [x] AC4 **假形态 A 必红（目录加回死项）**：临时把 `gpt-5.4` 加回 `OPTIONS` ⇒ AC1 同命令退出 1，失败信息包含该 slug 与两侧集合；抄下逐字失败行，还原后 AC1 退出 0。
+- [x] AC5 **假形态 B 必红（兜底改回 gpt-5.4）**：临时把 `FALLBACK_DEFAULT_MODEL.codex` 改回 `'gpt-5.4'` ⇒ AC3 同命令退出 1；抄下逐字失败行，还原后 AC3 退出 0。
+- [x] AC6 **兄弟判据无回归**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider.routes.test.ts` 各自退出 0。完成记录贴出两条 tests/pass/fail。
+- [x] AC7 **类型与 lint**：`npm run typecheck` 与 `npm run lint` 均退出 0。
+- [x] AC8 **Touches 与 anti-drift**：`node --no-warnings /data/home/yale/.claude/plugins/cache/quay/quay/0.24.0/scripts/dist/anti-drift-touches-check.js --task codex-model-catalog-drop-dead-slugs --worktree <worktree> --merge-target develop` 打印 `ANTI-DRIFT OK`；`git diff --name-only develop...HEAD` 只含 Touches 内文件。
 
 ## DoD
 
@@ -62,6 +62,83 @@ extra: {}
 3. 在浏览器里 `localStorage.removeItem('codex-model')` 后重载新会话页，模型触发器显示 `GPT-5.6 Sol`（不是 `GPT-5.4`）；贴出触发器逐字文本与 `localStorage.getItem('codex-model')` 读数。
 4. 反向读数：在修复前的树（develop tip）同一路径的选择器显示 7 项且含三个死 slug；若不复跑旧树，须在完成记录里贴出立案时已记录的 7 项读数并说明未复跑的原因。
 5. 证据落盘：截图、API JSON、localStorage 读数都写进完成记录；UI 读数必须来自 MCP 浏览器的真实操作，不能用 curl 代替选择器操作。
+
+## 完成记录
+
+### 改动
+
+- `server/modules/providers/list/codex/codex-models.provider.ts`：删除 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini` 三个 `OPTIONS`，保留 `gpt-6-astra` / `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna`；`DEFAULT` 仍 `gpt-5.6-sol`。保留项字段未动。
+- `src/modules/chat/hooks/useChatProviderState.ts`：`FALLBACK_DEFAULT_MODEL.codex` `'gpt-5.4'` → `'gpt-5.6-sol'`。
+- `server/modules/providers/tests/provider-models.service.test.ts`：新增用例 `the predefined Codex catalog equals the packaged CLI account catalog`。
+- `src/modules/chat/tests/chatProviderModels.test.ts`：新增用例 `an empty codex catalog falls back to a model the packaged CLI can run`。
+- 分支 `task/codex-model-catalog-drop-dead-slugs`，实现提交 `61755859e`；收尾前已两次 `git merge --no-edit develop`（最新 develop tip `6f0283360`，只带 tasks 文件），`git merge-base --is-ancestor develop HEAD` 退出 0，工作树干净。
+
+### AC 读数
+
+AC1：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-models.service.test.ts` → exit 0，`tests 27 / pass 27 / fail 0`；用例打印：
+
+```
+codex-catalog OPTIONS=gpt-5.6-luna,gpt-5.6-sol,gpt-5.6-terra,gpt-6-astra visible=gpt-5.6-luna,gpt-5.6-sol,gpt-5.6-terra,gpt-6-astra
+```
+
+AC2：`! grep -n "gpt-5\.5\|gpt-5\.4" server/modules/providers/list/codex/codex-models.provider.ts` → exit 0，输出为空；`grep -c` → `0`。
+
+AC3：`npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` → exit 0，`Tests 6 passed (6)`；用例名 `an empty codex catalog falls back to a model the packaged CLI can run`。
+
+AC4：临时把 `gpt-5.4` 加回 `OPTIONS` → AC1 同命令 exit 1，逐字失败行：
+
+```
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
++ [ 'gpt-5.4', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6-astra' ]
+- [ 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6-astra' ]
+```
+
+还原后 AC1 再跑 exit 0、27/27。
+
+AC5：临时把 `FALLBACK_DEFAULT_MODEL.codex` 改回 `'gpt-5.4'` → AC3 同命令 exit 1，逐字失败信息：
+
+```
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
++ 'gpt-5.4'
+- 'gpt-5.6-sol'
+```
+
+还原后 AC3 再跑 exit 0、6 passed。
+
+AC6：`codex-host-driver-settings.test.ts` → exit 0，`tests 6 / pass 6 / fail 0`；`provider.routes.test.ts` → exit 0，`tests 6 / pass 6 / fail 0`。
+
+AC7：`npm run typecheck` → exit 0；`npm run lint` → exit 0。
+
+AC8：`ANTI-DRIFT OK: task codex-model-catalog-drop-dead-slugs — 4 actual file(s), all within declared Touches (5 glob(s))`；`git diff --name-only develop...HEAD` →
+
+```
+server/modules/providers/list/codex/codex-models.provider.ts
+server/modules/providers/tests/provider-models.service.test.ts
+src/modules/chat/hooks/useChatProviderState.ts
+src/modules/chat/tests/chatProviderModels.test.ts
+```
+
+（收尾合并最新 develop 后又跑了一次，读数同上。）
+
+### 实现偏离与说明（Proposal 第 3 条）
+
+Proposal 写“临时 `CODEX_HOME` 下 `debug models` 得到 310,947 字节的 4 项目录”只对**带账号凭证并成功联网刷新**的 `CODEX_HOME` 成立。实测：空的临时 `CODEX_HOME` 会回落到**打包内置目录**（517,840 字节，`visibility=list` 有 6 项，含 `gpt-5.5`、`gpt-5.2`）；把宿主 `~/.codex/auth.json` 复制进临时 `CODEX_HOME` 后联网刷新才得到 310,947 字节 / 4 项。因此测试的实现是：复制宿主 auth.json（宿主无该文件时 skip）→ 分别跑 `debug models`（刷新）与 `debug models --bundled`（内置）→ 两者可见集合相同即视为刷新失败（离线）并 skip，否则打印 `codex-catalog …` 并对刷新后的可见集合与 `CODEX_PREDEFINED_MODELS` 做 `assert.deepEqual`。AC1 的断言目标与文案未改；只是让“目录来源”在离线时可判、不产生假绿。
+
+### DoD 读数
+
+真实前端 + 真实后端：`scripts/isolated-instance.sh` 起隔离实例（真实构建产物 server，端口 3109），vite dev（5199）经 `SERVER_PORT=3109` 代理；Playwright 驱动真实页面（`tmp/codex-dod/dod.mjs`，报告 `tmp/codex-model-catalog-report.json`）。
+
+1. 选择 codex 后打开模型选择器（composer 的 `role=menu` “Select model and reasoning effort”），选项逐字为 `GPT-6 Astra / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna`，计数 `4`；菜单文本与页面 body 均无 `gpt-5.5` / `gpt-5.4`（`composerMenuMentionsDeadSlugs=false`、`pageBodyMentionsDeadSlugs=false`）。全 provider 的 “Choose a model” 对话框里的 **OpenAI 组**同样只有上述 4 项；该对话框里仍可见的 `gpt-5.5`/`gpt-5.4` 来自 Cursor / OpenCode 等其他 provider 的组与用户自定义模型，不属本任务目录。截图：`tmp/codex-model-catalog-after.png`（另存 `tmp/codex-model-catalog-fallback.png`、供应商选择器 `tmp/codex-dod/codex-provider-picker.png`）。`pageErrors=[]`。
+2. 同一实例 `GET /api/providers/codex/models` → `OPTIONS[].value = gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna`，`DEFAULT=gpt-5.6-sol`；完整响应 `tmp/codex-models-api.json`。
+3. `localStorage.removeItem('codex-model')` 后重载新会话页：触发器逐字 `GPT-5.6 Sol`，`localStorage.getItem('codex-model')` → `gpt-5.6-sol`。选择后同样读到 `triggerAfterPick=GPT-5.6 Sol`、`storedAfterPick=gpt-5.6-sol`。
+4. 反向读数：未重建旧树复跑。立案时（develop tip）同一路径的读数已记录为 7 项 `gpt-6-astra / gpt-5.6-sol / gpt-5.6-terra / gpt-5.6-luna / gpt-5.5 / gpt-5.4 / gpt-5.4-mini`；另以主检出未重建的 dist 产物与运行在 :3001 的实例 API 复核，仍返回 7 项且含三个死 slug，与立案读数一致，故未再为旧树单独起前端。不复跑原因：旧树需 checkout 到另一个 worktree 并重建前端，仅复述同一条已被主检出 dist/API 佐证的读数，成本高于信息量。
+5. 证据均在 worktree 的 `tmp/`（gitignored，不随分支提交）：`codex-model-catalog-after.png`、`codex-model-catalog-fallback.png`、`codex-model-catalog-report.json`、`codex-models-api.json`、`codex-dod/`（脚本与报告）。UI 读数全部来自真实页面操作，未用 curl 代替。
+
+### 暗轴（ADR-007）
+
+该轴仍暗,理由:本任务只删除三个死 slug 常量并改一处前端兜底字符串，未新增或移动模块与依赖，结构读数与本次缺陷无关。
 
 ## Touches
 
