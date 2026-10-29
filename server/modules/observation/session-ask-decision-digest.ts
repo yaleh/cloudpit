@@ -567,7 +567,11 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
           },
           system: SYSTEM_PROMPT,
           user: buildUserPrompt(input),
-          temperature: settings.temperature,
+          // THE VERDICT IS A GATE, NOT PROSE: the same message must read the same way on a
+          // recomputation (the reader repairs a stale `isAsking:false` on read, and a flapping
+          // verdict would emit/suppress the same ask on alternate reads). The tier's configured
+          // temperature is a chat-preference; a semantic gate samples at 0.
+          temperature: 0,
           maxOutputTokens: settings.maxOutputTokens,
         });
       } catch (failure) {
