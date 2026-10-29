@@ -27,6 +27,16 @@ export type CodexSettingsCapabilities = {
 /** The fields `turn/settings/update` accepts; only ever sent when the probe allows it. */
 export type CodexTurnSettingsPatch = { model?: string; effort?: string };
 
+/**
+ * The verdict of a live setting change, mirroring the host contract.
+ *
+ * Declared here rather than imported from `modules/providers/services/provider-runtime.service.ts`
+ * because that module already imports this directory (`codex-transcript-format.js`); a
+ * type-only import back would close a new directory cycle in the AC-394 budget ratchet.
+ * The union is structural, so the driver's value still satisfies the service's own alias.
+ */
+export type HostReconfigureOutcome = 'live' | 'next-turn' | 'unsupported';
+
 /** The connection surface these verbs need; the driver owns the connection. */
 export type CodexLiveSettingsConnection = {
   request(method: string, params: unknown, timeoutMs?: number): Promise<unknown>;

@@ -10,8 +10,8 @@ import {
   type CodexLiveSettings,
   type CodexSettingsCapabilities,
   type CodexTurnSettingsPatch,
+  type HostReconfigureOutcome,
 } from '@/modules/providers/list/codex/codex-live-settings.js';
-import type { HostReconfigureOutcome } from '@/modules/providers/services/provider-runtime.service.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   HostCloseReason,
