@@ -5249,11 +5249,11 @@ export type SessionAskEventKind = 'session.asking' | 'session.answered';
  *
  * `data` is kind-specific and stays OPEN by contract. A `session.asking` row carries
  * `askId`/`messageId`/`revision`/`contentRef` plus `questionText`: the asking message's own
- * text, TAIL-truncated to 4000 characters and omitted when the text is blank. `questionText`
+ * text, the UNTRUNCATED full text, omitted when the text is blank. `questionText`
  * exists ONLY so fleet can dedup by 「session + normalised question text」 (it hashes that text
  * into the key, falling back to the old askId key when absent). It is NOT a display field: the
  * cockpit renders the question from its own card/`contentRef` resolution, and no CloudCLI UI
- * reads `questionText`.
+ * reads `questionText`. Do NOT truncate it for size — a cut merges distinct questions into one key.
  */
 export type SessionAskEvent = {
   kind: SessionAskEventKind;

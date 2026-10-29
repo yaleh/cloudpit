@@ -76,6 +76,35 @@ function fixtureSchema(version: number): Record<string, unknown> {
 
 const FIXTURE_SCHEMA = fixtureSchema(0);
 
+/**
+ * The fixture schema widened with the `session.asking` kind and its `data` members, so the
+ * verbatim-`questionText` reading can be taken without loosening the base fixture (whose
+ * `additionalProperties: false` is what gives AC1 (b) its invalid event).
+ */
+function askingFixtureSchema(version: number): Record<string, unknown> {
+  const base = fixtureSchema(version) as {
+    properties: { kind: { enum: string[] }; data: Record<string, unknown> };
+    [key: string]: unknown;
+  };
+  return {
+    ...base,
+    properties: {
+      ...base.properties,
+      kind: { enum: [...base.properties.kind.enum, 'session.asking'] },
+      data: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          askId: { type: 'string' },
+          messageId: { type: 'string' },
+          revision: { type: 'number' },
+          questionText: { type: 'string' },
+        },
+      },
+    },
+  };
+}
+
 /** The same document with its `version` keyword removed (the unreadable reading). */
 function schemaWithoutVersion(): Record<string, unknown> {
   const { version: _version, ...rest } = fixtureSchema(0);
@@ -167,6 +196,43 @@ test('AC1 (c): a text over 16 KB is truncated, marked, and stays inside the ceil
     assert.ok(event.data.text.length < CONTEXT_EVENT_MAX_LINE_BYTES, 'the text was actually cut');
     console.log(`AC1(c) line_bytes=${Buffer.byteLength(lines[0], 'utf8')} text_chars=${event.data.text.length} truncated=${event.data.truncated}`);
   });
+});
+
+test('AC1 (g): a session.asking questionText over the ceiling is written VERBATIM and unmarked', async () => {
+  // quay-fleet hashes this text into the ask's dedup key, so a cut is not a shorter message — it
+  // is two questions sharing one key. The writer must let the line past its 16 KB bound instead.
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const questionText = `${'问'.repeat(9000)}？`;
+      assert.ok(
+        Buffer.byteLength(questionText, 'utf8') > CONTEXT_EVENT_MAX_LINE_BYTES,
+        'the fixture really is over the byte ceiling',
+      );
+      const result = await writer.append({
+        kind: 'session.asking',
+        session: 's-ask',
+        at: AT,
+        refs: ['m1'],
+        data: { askId: 's-ask:m1', messageId: 'm1', revision: 1, questionText },
+      });
+      assert.equal(result.ok, true);
+
+      const lines = await readDay(eventsDir);
+      assert.equal(lines.length, 1);
+      const event = JSON.parse(lines[0]) as { data: { questionText: string; truncated?: boolean } };
+      assert.equal(event.data.questionText, questionText, 'the verbatim questionText is NOT cut');
+      assert.equal('truncated' in event.data, false, 'an untruncated row carries no truncated marker');
+      assert.ok(
+        Buffer.byteLength(lines[0], 'utf8') > CONTEXT_EVENT_MAX_LINE_BYTES,
+        'the line deliberately exceeds the ceiling for a verbatim field',
+      );
+      console.log(
+        `AC1(g) line_bytes=${Buffer.byteLength(lines[0], 'utf8')} questionText_chars=${event.data.questionText.length}`,
+      );
+    },
+    { document: askingFixtureSchema(0) },
+  );
 });
 
 test('AC1 (d): a missing schema reads schema-unavailable and performs zero writes', async () => {

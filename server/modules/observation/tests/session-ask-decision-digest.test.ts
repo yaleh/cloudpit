@@ -51,7 +51,6 @@ import {
   buildSessionAskingData,
   createSessionDigestProducer,
   readSessionAskEventLedger,
-  SESSION_ASK_QUESTION_TEXT_MAX_CHARS,
 } from '../session-digest.producer.js';
 import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
@@ -515,11 +514,14 @@ test('the asking event states the question message verbatim as questionText', as
   assert.equal(asking.data.revision, 1);
 });
 
-test('questionText keeps the TAIL past the 4000-character cap', async () => {
-  // One character longer than the cap, ending on the question mark: only the tail can end with
-  // 「？」, so a head-keeping truncation is distinguishable from a tail-keeping one.
-  const text = `${'甲'.repeat(SESSION_ASK_QUESTION_TEXT_MAX_CHARS)}？`;
-  assert.equal(text.length, SESSION_ASK_QUESTION_TEXT_MAX_CHARS + 1);
+test('questionText is the UNTRUNCATED full message, even at 200000 characters', async () => {
+  // The head and tail are distinct sentinels, so ANY truncation — head-keeping or tail-keeping —
+  // makes this criterion red while a full pass-through keeps both ends. The message must still END
+  // on a question mark, or `analyzeAsking` never yields the asking turn in the first place.
+  const HEAD = '从'.repeat(100);
+  const TAIL = `${'问'.repeat(99)}？`;
+  const text = `${HEAD}${'中'.repeat(200_000 - 200)}${TAIL}`;
+  assert.equal(text.length, 200_000);
 
   const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
   harness.setTranscript(
@@ -533,9 +535,10 @@ test('questionText keeps the TAIL past the 4000-character cap', async () => {
   const questionText = askEvents(harness.events)[0]?.data.questionText;
 
   assert.equal(typeof questionText, 'string');
-  assert.equal((questionText as string).length, SESSION_ASK_QUESTION_TEXT_MAX_CHARS, 'the field is capped at the limit');
-  assert.equal(questionText, text.slice(-SESSION_ASK_QUESTION_TEXT_MAX_CHARS), 'the TAIL is kept');
-  assert.notEqual(questionText, text.slice(0, SESSION_ASK_QUESTION_TEXT_MAX_CHARS), 'the head is NOT what is kept');
+  assert.equal((questionText as string).length, text.length, 'questionText.length equals the original message length');
+  assert.equal((questionText as string).slice(0, 100), HEAD, 'the first 100 characters match the original');
+  assert.equal((questionText as string).slice(-100), TAIL, 'the last 100 characters match the original');
+  assert.equal(questionText, text, 'questionText is the whole message, not an excerpt');
 });
 
 test('a replay of the same askId + revision states the same questionText', async () => {
