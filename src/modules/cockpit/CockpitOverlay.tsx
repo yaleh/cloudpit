@@ -18,6 +18,13 @@ import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCard
  * and the layer is a history entry on the SAME path (see {@link cockpitOverlayHistoryState}), so
  * closing it only pops one entry. Nothing is reloaded.
  *
+ * ONE LAYER, ONE STACK ENTRY. A card's 「Open conversation」 pushes the destination on top of the
+ * layer's entry instead of replacing it, so the browser builds the stack a person expects:
+ * session A → layer → session B. Back from B therefore returns to the layer (over A, with the
+ * card controller's selection/filter/scroll still in place), and only the layer's own close pops
+ * the last entry and lands back on A. Replacing the layer's entry — the pre-stack behaviour —
+ * deleted that middle entry, so Back skipped straight to A and the card context was unreachable.
+ *
  * WHICH SESSION IT COVERS. The layer only ever covers a session address (`/session/:id`); a
  * direct `/cockpit?view=cards` has no conversation underneath and stays the standalone page
  * `CockpitRoute` already mounts, with no back bar. The back bar's title is the conversation's own
@@ -81,8 +88,9 @@ export type CockpitOverlayProps = {
   /** Pops the history entry that opened the layer (the session page is never reloaded). */
   onClose: () => void;
   /**
-   * A card's 「Open conversation」. The layer is closed and the conversation underneath switches;
-   * the cards controller's own sessionStorage memory restores the selection on the next open.
+   * A card's 「Open conversation」. Its host pushes one entry above the layer's, so Back returns
+   * to this layer before the conversation it covers; the cards controller's own memory keeps the
+   * selection/filter/scroll while the layer is off screen.
    */
   onOpenConversation?: (card: CockpitCardData, sessionId: string) => void;
   /** A criterion's settled card binding; production leaves this absent (the list binds its own). */
@@ -168,10 +176,13 @@ export function CockpitOverlayHost({ binding }: { binding?: CockpitCardsBinding 
       // Closing pops the entry the opener pushed. The session page below is the same route match
       // with the same params, so React keeps it mounted; nothing re-reads the conversation.
       onClose={() => navigate(-1)}
-      // The card's own door to a conversation: replace the layer's entry with the destination, so
-      // Back lands on the conversation the person came from rather than re-opening the layer.
+      // The card's own door to a conversation: PUSH the destination on top of the layer's entry.
+      // The stack is then A → layer → B, so the browser's Back (and the layer's own close after
+      // it) walks back exactly the way the person came: B → layer (cards, selection and scroll
+      // intact) → A. Replacing the layer's entry here would delete the middle step and make the
+      // card context unreachable.
       onOpenConversation={(_card, sessionId) =>
-        navigate(`/session/${encodeURIComponent(sessionId)}`, { replace: true })
+        navigate(`/session/${encodeURIComponent(sessionId)}`)
       }
     />
   );
