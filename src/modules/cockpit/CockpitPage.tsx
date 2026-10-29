@@ -430,16 +430,12 @@ export default function CockpitPage() {
     [fleet],
   );
 
-  // The queue the deploy strip prints as `todo N`: ready + todo, summed over the SAME project
-  // reading the cards and the project strip are drawn from — one source, not a second task
-  // read. `null` while the fleet is unknown, so the strip draws no number rather than a false 0.
+  // The queue the deploy strip prints as `todo N`: ready + todo over the SAME project reading the
+  // cards use — one source, not a second read; `null` when unknown, so no false 0 is drawn.
   const queueReading = useMemo<DeployQueueReading | null>(
     () => (fleet.status === 'loaded'
       ? projects.reduce<DeployQueueReading>(
-          (sum, project) => ({
-            ready: sum.ready + project.tasks.ready,
-            todo: sum.todo + project.tasks.todo,
-          }),
+          (sum, p) => ({ ready: sum.ready + p.tasks.ready, todo: sum.todo + p.tasks.todo }),
           { ready: 0, todo: 0 },
         )
       : null),
