@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "Bir seçenek seçin, sonra onaylayın",
     "cardChooseOption": "Bir seçenek seç",
     "cardWriteOwn": "Kendi yanıtını yaz",
+    "cardEditOption": "Düzenle",
     "cardDetailsAssistantQuote": "Asistanın söyledikleri",
     "cardDetailsInSession": "oturumda",
     "phoneStatusLanded": "tamamlanan {{n}}",

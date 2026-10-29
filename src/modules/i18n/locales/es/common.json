@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "Elige una opción y confirma",
     "cardChooseOption": "Elegir una opción",
     "cardWriteOwn": "Escribe tu propia respuesta",
+    "cardEditOption": "Editar",
     "cardDetailsAssistantQuote": "Lo que dijo el asistente",
     "cardDetailsInSession": "en la sesión",
     "phoneStatusLanded": "aterrizados {{n}}",

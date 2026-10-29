@@ -1072,6 +1072,7 @@
     "cardChooseThenConfirm": "Choose an option, then confirm",
     "cardChooseOption": "Choose an option",
     "cardWriteOwn": "Write your own",
+    "cardEditOption": "Edit",
     "cardDetailsAssistantQuote": "What the assistant said",
     "cardDetailsInSession": "in session",
     "phoneStatusLanded": "landed {{n}}",

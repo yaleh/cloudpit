@@ -4747,6 +4747,13 @@ export type CockpitCardOption = {
   undo?: string;
   when?: string;
   /**
+   * The text this option's action actually sends back into its session, for the Details
+   * drawer's 「✎ 编辑」 shortcut that copies it into the person's own reply. Absent means the
+   * option has no such text (a fleet disposal action, for example), so there is nothing to
+   * copy and the shortcut is not offered.
+   */
+  sendText?: string;
+  /**
    * Whether this option can be confirmed. The registry sets it to `false` when the option's
    * `action.executor` is not in the declared-executor union; the option stays readable and
    * selectable, but its confirm bar is disabled. Absent means the option is confirmable.

@@ -951,6 +951,7 @@
     "cardChooseThenConfirm": "Выберите вариант, затем подтвердите",
     "cardChooseOption": "Выбрать вариант",
     "cardWriteOwn": "Написать свой ответ",
+    "cardEditOption": "Изменить",
     "cardDetailsAssistantQuote": "Что сказал ассистент",
     "cardDetailsInSession": "в сессии",
     "phoneStatusLanded": "завершено {{n}}",

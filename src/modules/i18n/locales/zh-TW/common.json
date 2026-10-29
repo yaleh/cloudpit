@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "選一個選項後確認",
     "cardChooseOption": "選擇一項",
     "cardWriteOwn": "自己的回覆",
+    "cardEditOption": "編輯",
     "cardDetailsAssistantQuote": "助理原話",
     "cardDetailsInSession": "在工作階段中",
     "phoneStatusLanded": "已落地 {{n}}",

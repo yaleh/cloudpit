@@ -237,6 +237,9 @@ function contentOption(
   allowSuggestion: boolean,
 ): CockpitCardOption {
   const why = raw.why?.trim() ?? '';
+  // ONE READING OF THE SENT TEXT: the option carries it for the 「✎ 编辑」 shortcut, and the
+  // action's `text` param is the same string — never a second copy that could drift.
+  const sendText = contentOptionText(raw);
   return {
     id: raw.id,
     label: raw.label,
@@ -245,9 +248,10 @@ function contentOption(
     source: raw.source,
     ...(why === '' ? {} : { why }),
     tags: raw.tags.map((tag) => ({ kind: tag.kind, text: tag.text })),
+    sendText,
     action: {
       executor: COCKPIT_SESSION_SEND_EXECUTOR_ID,
-      params: { sessionId, text: contentOptionText(raw) },
+      params: { sessionId, text: sendText },
     },
   };
 }

@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "옵션을 고른 뒤 확인하세요",
     "cardChooseOption": "옵션 선택",
     "cardWriteOwn": "직접 답장 쓰기",
+    "cardEditOption": "편집",
     "cardDetailsAssistantQuote": "어시스턴트가 한 말",
     "cardDetailsInSession": "세션에서",
     "phoneStatusLanded": "착지 {{n}}",
