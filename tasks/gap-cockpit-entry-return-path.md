@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-entry-return-path
 title: 驾驶舱入口动作统一与回程：所有入口记录 returnPath，独立驾驶舱页的「会话」段回到进入前的会话
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
