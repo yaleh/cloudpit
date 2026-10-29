@@ -196,7 +196,9 @@ playwright.config.ts
 
 ### 反漂移
 
-见任务完成前工作树复跑：`ANTI-DRIFT OK: task gap-ac173-beforeall-hook-keeps-global-60s-wall — 4 actual file(s), all within declared Touches (4 glob(s))`（3 个实现文件 + 本任务文件；本任务文件的 self-only task_write 提交经 cherry-pick 进入本分支，故计数为 4，四个都在 Touches 内）。
+最终态复跑：`ANTI-DRIFT OK: task gap-ac173-beforeall-hook-keeps-global-60s-wall — 3 actual file(s), all within declared Touches (4 glob(s))`。
+
+开发过程中另一次复跑（本任务文件的 task_write 提交尚未被 develop 吸收时）为 `ANTI-DRIFT OK: task gap-ac173-beforeall-hook-keeps-global-60s-wall — 4 actual file(s), all within declared Touches (4 glob(s))`。计数在 3–4 之间只因 `tasks/<id>.md` 是否已经随 develop 进入本分支；两次都没有 Touches 之外的改动。
 
 ## ADR-007 暗轴
 
