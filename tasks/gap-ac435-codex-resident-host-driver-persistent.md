@@ -82,6 +82,8 @@ goal_ac: AC-435
 - server/modules/providers/list/codex/codex-app-server.connection.ts (new)
 - server/modules/providers/list/codex/codex-host-driver.provider.ts (new)
 - server/modules/providers/tests/codex-host-driver-persistent.test.ts (new)
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - tasks/gap-ac435-codex-resident-host-driver-persistent.md
 
 ## 完成记录
@@ -101,13 +103,10 @@ goal_ac: AC-435
   - 「`interrupt` 改成关闭连接/杀进程」变体：exit **1**，`fail 1`；逐字红态 `AssertionError [ERR_ASSERTION]: transport reported the process gone after interrupt`（同时打印 `sessionAfterInterruptError=No Codex resident session is bound for "session-interrupt".`）。
 - 既有契约：`codex-runtime.test.ts` + `codex-session-fork.test.ts` → `tests 14 / pass 14 / fail 0`，exit 0；`npm run typecheck` exit 0。
 - 未实现项（按任务范围留给后续）：未挂载 `CodexProvider.hostDriver`、未改 capabilities 的 `lifecycleModes`（AC-441/442）；queue / settings / approvals / background lease / restore / E2E 未做（AC-436…AC-443）；`codex.provider.ts`、`provider-capabilities.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts` 零改动。
+- 续跑轮（2026-10-29，上一轮 fan-in suite 红 → exited-not-landed 的两条 true cause，均已在本轮修掉并复量）：
+  - **本条的测试文件把 quay-test-script 的计数与地板挤红（这个 delta 确实是本条的）。** 上一轮 suite 日志 `/data/home/yale/work/claudecodeui/.quay/fan-in-suite-gap-ac435-codex-resident-host-driver-persistent~wk-prod-anchor~1793269131729-aa34a6.log` 里 `server/shared/tests/quay-test-script.test.ts` rc=1，三条腿：AC7 `baseline covers 418/465 collected files (< 90%)`（本条新增 server 判据把收集数 464→465，418/465 = 89.9%）、AC2 实读 `unknown=462` vs 钉 `461`、AC3 实读 `unknown=464` vs 钉 `463`。修法：把实测 `duration_ms` 2695 的 baseline 行追加到 `scripts/suite-duration-baseline.tsv`（419/465 = 90.11%），两条 pin 移到 `unknown=462` / `unknown=464` 并在注释里记本条。单文件复跑：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → `tests 14 / pass 14 / fail 0`，exit **0**（89.4s）。这两个文件已补进 `## Touches`。
+  - **`resident-server-restart.test.ts` 的 SIGTERM 腿超时不是本条的 delta（分支落后 develop 所致）。** 红态：`sigterm-killed killed=0 spared=1` + `Error: Timed out after 20000ms waiting for pid … to leave after SIGTERM`，在 pool 与 isolated 复跑里都复现。真因：满载 anchor 上 `ps -eo pid=,pgid=,ppid=,args=` 超过 Node `spawnSync` 默认 1 MiB，`ENOBUFS` 让 `processTable()` 返回 `[]`，`signalServiceGroup` 因此没给任何进程发信号（`killed=0`），server 从未被停掉；develop 的 `e9ba0da9a` 已修（`PS_MAX_BUFFER_BYTES = 64 MiB` + 读失败抛错而不是当「无此进程」+ AC1c 正控要求表里有本进程）。本轮 `git merge develop` 带入该修复后单文件复跑：`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/resident-server-restart.test.ts` → `tests 5 / pass 5 / fail 0`，exit **0**（46.2s，其中 `sigterm … gone-after-ms=677`）。
+  - **上一轮 `SUITE-INCOMPLETE planned=465 terminal=129 missing=338` 是这两条红的次生结果，不是独立缺陷。** 两个红文件分别耗 240s / 129s，且 test.sh 对 pool 内 flaky 的文件串行隔离复跑（上一轮还有 6 次、约 149s），合起来把 660s 的 `SUITE_MAX_RUNTIME_MS` 撑爆。修掉两条红后重算负载：baseline 419 行实测时长合计 1958254ms（32.6 min），在并发 16 下墙钟约 2.0 min，加 typecheck/lint 阶段远低于 660s 上限。
+- 上一轮 `## Blocker`（`worker 未落地`：incomplete suite 338/465）的两个 true cause 已如上述修掉并各自单文件复绿，故清除该条未落地记录。
 
 该轴仍暗,理由:本条只新增两个 codex 私有实现文件与一个判据，未改变模块依赖图，也没有可读的 ArchGuard 周期/重复度量数值。
-
-## Blocker
-
-**2026-10-29T10:35:59.464Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: incomplete suite (338/465 files) — recovery unsupported for this suite entry (no --lane-count control): node; needs a code/config fix, see plugin/scripts/worker-fan-in.ts
-- run_id：wk-prod-anchor
-- session_id：ee4bcb6e-fb77-4198-aebc-da8112ca19f7
