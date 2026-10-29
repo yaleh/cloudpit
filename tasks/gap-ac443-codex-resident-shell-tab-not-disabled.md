@@ -1,7 +1,7 @@
 ---
 id: gap-ac443-codex-resident-shell-tab-not-disabled
 title: "AC-443 leg 3: codex resident 会话的 Shell 标签不沿用 Claude 的禁用（普通终端不 resume）"
-status: ready
+status: superseded
 labels: []
 parent: null
 children: []
@@ -37,12 +37,24 @@ const shellResidentRestricted =
 
 ## AC
 
-- [ ] AC1 **leg 3 绿**：主检出 `npx playwright test e2e/codex-resident-ui.spec.ts` 三条腿全绿（leg 1/2/3 pass，fail 0）。leg 3 失败行必须不再是 `element is not enabled`（disabled shell 标签）。
-- [ ] AC2 **codex 不禁用、claude 仍禁用**：真实浏览器里 (a) codex resident 会话的 Shell 标签无 `disabled`/`aria-disabled`/`data-disabled-reason="resident"`，点击后 `[data-workspace-view="shell"]` 挂载、`[data-resident-shell-notice]` 计数 0；(b) claude resident 会话的 Shell 标签仍 `disabled`（负向控制：不是把 shell 限制整个删掉）。
+- [x] AC1 **leg 3 绿**：主检出 `npx playwright test e2e/codex-resident-ui.spec.ts` 三条腿全绿（leg 1/2/3 pass，fail 0）。leg 3 失败行必须不再是 `element is not enabled`（disabled shell 标签）。
+- [x] AC2 **codex 不禁用、claude 仍禁用**：真实浏览器里 (a) codex resident 会话的 Shell 标签无 `disabled`/`aria-disabled`/`data-disabled-reason="resident"`，点击后 `[data-workspace-view="shell"]` 挂载、`[data-resident-shell-notice]` 计数 0；(b) claude resident 会话的 Shell 标签仍 `disabled`（负向控制：不是把 shell 限制整个删掉）。
 
 ## DoD
 
 leg 3 判据绿 + AC2 的 codex/claude 双侧读数都记录（claude 侧可用既有 `e2e/resident-shell-tab.spec.ts` 佐证未回归）。`npx playwright test e2e/resident-shell-tab.spec.ts` 不因本次改动红。
+
+## Evidence
+
+- `npx playwright test e2e/codex-resident-ui.spec.ts` → `3 passed (18.6s)`，fail 0；leg 3 输出 `codex.resident.shell.closure={"disabled":null,"ariaDisabled":null,"reason":null} enabled=true` 与 `codex.resident.shell=normal`。
+- AC2(a) codex 侧：Shell 标签 `disabled`/`aria-disabled`/`data-disabled-reason` 三个属性均为 null，`isDisabled()=false`；点击后 `[data-workspace-view="shell"]` count=1，`[data-resident-shell-notice]` count=0。
+- AC2(b) claude 负向控制：`npx playwright test e2e/resident-shell-tab.spec.ts` → `1 passed (19.8s)`；resident 读数 `shellTab.disabled=true`、`shellTab.disabledReason=resident`、`shellTab.ariaDisabled=true`。
+- 抗漂移 Touches：`ANTI-DRIFT OK — 3 actual file(s), all within declared Touches (4 glob(s))`。
+- 预合并：`git merge --no-edit develop` → `Already up to date.`
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只改 WorkspaceMain 的 Shell 关闭分支并新增 e2e 判据，未新增或删除模块依赖边，架构图无变化。
 
 ## Touches
 
@@ -50,3 +62,13 @@ leg 3 判据绿 + AC2 的 codex/claude 双侧读数都记录（claude 侧可用�
 - e2e/codex-resident-ui.spec.ts
 - playwright.config.ts
 - tasks/gap-ac443-codex-resident-shell-tab-not-disabled.md
+
+## Blocker
+
+**2026-10-29T23:32:39.381Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：31b15f9e-f974-40b3-9f65-7df838716954
+
+supersede：人 yale 2026-10-30 裁定——本任务是 `gap-ac443-codex-resident-ui-e2e`（goal_ac AC-443，status ready，已由 gap-filing 立案）的窄切片，机制重复（同 Touches 的 WorkspaceMain 门槛 / codex-resident-ui spec / playwright.config）。改由 `gap-ac443-codex-resident-ui-e2e` 端到端覆盖：它的 AC5 含 WorkspaceMain 门槛，AC6 含 codex-shell.provider.ts 的 resume 收紧，AC4 用 e2e/support/codex-fake-app-server.mjs 确定性替身，无需真 OpenAI 凭据。本任务作废，不重复实现。

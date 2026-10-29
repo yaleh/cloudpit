@@ -1,7 +1,7 @@
 ---
 id: gap-ac443-codex-resident-busy-queue-e2e-infra
 title: "AC-443 leg 4: codex e2e 基建（隔离 HOME 播种 .codex）+ 忙时输入进队列可撤回腿"
-status: ready
+status: superseded
 labels: []
 parent: null
 children: []
@@ -40,3 +40,5 @@ AC-443 判据 `npx playwright test e2e/codex-resident-ui.spec.ts` 四条腿全�
 - scripts/e2e-data-dir-selection.mjs
 - server/modules/debug-agent/debug-agent.scenario.ts
 - tasks/gap-ac443-codex-resident-busy-queue-e2e-infra.md
+
+supersede：人 yale 2026-10-30 裁定——本任务是 `gap-ac443-codex-resident-ui-e2e`（goal_ac AC-443，status ready，已由 gap-filing 立案）的窄切片，机制重复（同 Touches 的 WorkspaceMain 门槛 / codex-resident-ui spec / playwright.config）。改由 `gap-ac443-codex-resident-ui-e2e` 端到端覆盖：它的 AC5 含 WorkspaceMain 门槛，AC6 含 codex-shell.provider.ts 的 resume 收紧，AC4 用 e2e/support/codex-fake-app-server.mjs 确定性替身，无需真 OpenAI 凭据。本任务作废，不重复实现。

@@ -103,6 +103,7 @@ goal_ac: AC-443
 - src/modules/project-workspace/WorkspaceHeader.tsx
 - src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - src/modules/shell/Shell.tsx
+- src/shared/constants.ts
 - server/modules/providers/list/codex/codex-shell.provider.ts
 - server/modules/providers/list/codex/codex-app-server.connection.ts
 - server/modules/providers/list/codex/codex-resident-queue.ts
@@ -285,3 +286,23 @@ src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - 常驻 codex turn 的**规范化**帧（`turn/started`/`item/completed` 等被 `ChatSessionWriter` 以 `Dropping non-normalized outbound payload` 丢掉）仍属 AC-440 的范围；本条只补了队列生命周期的 `command_lifecycle` 桥，未改归一化。
 - 常驻 codex 的发送确认仍依赖随后的 `chat_subscribed`/ServerEvent：没有归一化帧时 5s ack 截止窗内二次提交会被 `sending` 相位挡住（判据通过让首条消息走「开新会话即 ack」的路径绕开，未改产品）。
 
+
+### (m) 2026-10-30 补记 — 架构棘轮修复后复跑
+
+上一轮 exited-not-landed 的真因是 `server/shared/tests/architecture-ratchet.test.ts` 的 `providerNameBranches`：`WorkspaceMain.tsx` 原先把「常驻会话是否关闭 Shell」写成按 provider 名字比较的分支，而该文件不在棘轮基线里（基线外的文件不得新增 provider 名字分支）。修法不是放宽判据：这条 policy 改为数据——`src/shared/constants.ts` 的 `PROVIDER_DESCRIPTORS` 每行新增 `residentShellClosed`（claude=true，codex/cursor/opencode=false），`isShellClosedToSession` 经 `resolveProviderDescriptor(...)` 读它，视图里不再有 provider 名字分支；行为与判据断言均未改变。
+
+复跑读数（同一 worktree）：
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → `tests 6 / pass 6 / fail 0`，无 `providerNameBranches` 违规。
+- `npx vitest run src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx` → `22 tests passed`。
+- `npx playwright test e2e/codex-resident-ui.spec.ts` → `4 passed (23.0s)`；leg 4 读数 `shell.tab.aria-disabled=null data-disabled-reason=null aria-describedby=null notice.count=0`、`shell.launch=argv0=.../codex-fake-bin/codex args=[]`。
+- `npx playwright test e2e/resident-shell-tab.spec.ts` → `1 passed (19.3s)`（Claude 常驻仍关闭 Shell，负向对照未回归）。
+- `npm run typecheck` → exit 0（三个 tsconfig 工程）。
+
+## Blocker
+
+**2026-10-29T23:27:30.691Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: providerNameBranches src/modules/project-workspace/WorkspaceMain.tsx 基线外→1 — 基线外的文件不得新增 provider 名字分支 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：06446574-9355-4364-a427-ea680d250a06
