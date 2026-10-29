@@ -816,5 +816,12 @@
 #   measured once on 2026-10-29 with
 #   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts`
 #   (dur=2684ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
-#   tree collects 467 server test files).
+#   tree collects 467 server test files at measurement time; 468 once this row and the sibling
+#   codex-app-server-protocol row are both on the tree).
 2684	server/modules/providers/tests/codex-host-driver-settings.test.ts
+#   and the codex-app-server-protocol row by gap-ac440-codex-app-server-protocol-gate,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-app-server-protocol.test.ts`
+#   (dur=2755ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 468 server test files).
+2755	server/modules/providers/tests/codex-app-server-protocol.test.ts

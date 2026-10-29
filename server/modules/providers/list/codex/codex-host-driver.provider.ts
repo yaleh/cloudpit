@@ -369,9 +369,10 @@ export class CodexHostDriver implements IProviderHostDriver {
    * The resident turn entry (`provider-runtime.service`'s `ResidentTurnEntry`).
    *
    * Runs one turn through the same submit path and forwards the app-server
-   * frames belonging to this session's thread to the run's writer. Frame
-   * normalization into app message shapes belongs to the integration task
-   * (AC-440); this layer forwards the protocol frames it was given.
+   * frames belonging to this session's thread to the run's writer. AC-440
+   * deliberately only lets unknown frames pass without breaking the read loop;
+   * normalizing them into app message shapes is a later integration task, so
+   * this layer forwards the protocol frames it was given.
    */
   async run(
     appSessionId: string,
@@ -410,6 +411,27 @@ export class CodexHostDriver implements IProviderHostDriver {
       turnStatus: session.turnStatus,
       lastResumeError: session.lastResumeError,
     };
+  }
+
+  /**
+   * The fail-closed reading AC-436's busy-input path will gate on: whether this
+   * session's connection can serve experimental (`thread/queue/*`) calls now.
+   *
+   * False for an unbound session, a connection that was never created or never
+   * finished its handshake, a closed or dead connection, and a capability that
+   * was not declared or has been refused by the server. Only a live, initialized
+   * session whose handshake opted in and was not refused reads true. This task
+   * provides and pins the reading; nothing here consumes it yet.
+   */
+  experimentalApiAvailable(appSessionId: string): boolean {
+    if (this.closed || !this.sessions.has(appSessionId)) {
+      return false;
+    }
+    const connection = this.connection;
+    if (!connection || !connection.isInitialized || !connection.isAlive()) {
+      return false;
+    }
+    return connection.isExperimentalApiAvailable();
   }
 
   /**

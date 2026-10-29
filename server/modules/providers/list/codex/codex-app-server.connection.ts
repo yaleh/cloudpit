@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import readline from 'node:readline';
 
-import { AppError } from '@/shared/utils.js';
+import { AppError, errorMessage } from '@/shared/utils.js';
 
 /**
  * A long-lived JSON-RPC connection to one `codex app-server` process.
@@ -21,6 +21,21 @@ import { AppError } from '@/shared/utils.js';
 
 /** How long one request may wait for its reply before failing. */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * The method prefix gated behind `capabilities.experimentalApi` on the locked
+ * 0.153.4 protocol (REPORT:50, E2 line 46: `thread/queue/*` is the experimental
+ * group). Only this prefix is gated; every stable method keeps working when the
+ * capability is absent or has been refused.
+ */
+const EXPERIMENTAL_METHOD_PREFIX = 'thread/queue/';
+
+/**
+ * The server's verbatim reason when a method needs the capability it was not
+ * given: `thread/queue/add requires experimentalApi capability` (0.153.4,
+ * REPORT:50). Matched by text because the rejection's `code` is not contract.
+ */
+const EXPERIMENTAL_CAPABILITY_REJECTION = 'requires experimentalApi capability';
 
 /**
  * The byte-level transport one connection owns.
@@ -65,6 +80,16 @@ export type CodexAppServerConnectionOptions = {
   launch?: CodexAppServerLaunch;
   /** Per-request ceiling; defaults to {@link DEFAULT_REQUEST_TIMEOUT_MS}. */
   requestTimeoutMs?: number;
+  /**
+   * Whether `initialize` declares `capabilities.experimentalApi`.
+   *
+   * Defaults to `true`: `thread/queue/*` is only callable when the handshake
+   * opted in on 0.153.4, and the resident driver needs that group for AC-436's
+   * busy-input path. `false` is what the criterion uses to prove the gate is
+   * real — it makes every experimental call fail closed locally instead of
+   * writing a frame the server is guaranteed to refuse.
+   */
+  experimentalApi?: boolean;
 };
 
 type JsonRpcError = { code?: number; message?: string };
@@ -80,6 +105,8 @@ type PendingRequest = {
   resolve: (result: unknown) => void;
   reject: (failure: Error) => void;
   timer: ReturnType<typeof setTimeout> | null;
+  /** The method being awaited; names the call in the server-rejection path. */
+  method: string;
 };
 
 type NotificationHandler = (method: string, params: unknown) => void;
@@ -97,6 +124,7 @@ export class CodexAppServerConnection {
   private readonly createTransport: (launch: CodexAppServerLaunch) => CodexAppServerTransport;
   private readonly launch: CodexAppServerLaunch;
   private readonly requestTimeoutMs: number;
+  private readonly experimentalApiOptIn: boolean;
   private readonly notificationHandlers = new Set<NotificationHandler>();
   private readonly serverRequestHandlers = new Set<ServerRequestHandler>();
   private readonly exitHandlers = new Set<ExitHandler>();
@@ -106,11 +134,18 @@ export class CodexAppServerConnection {
   private initialized = false;
   private closed = false;
   private exitReason: string | null = null;
+  /** What the handshake actually declared, not the constructor option. */
+  private experimentalApiDeclaredFlag = false;
+  /** Latched once the server refuses a call for the missing capability. */
+  private experimentalApiRejectedFlag = false;
+  /** The last subscriber failure dispatch swallowed, so it is observable. */
+  private lastDispatchErrorValue: string | null = null;
 
   constructor(options: CodexAppServerConnectionOptions = {}) {
     this.createTransport = options.createTransport ?? spawnCodexAppServerTransport;
     this.launch = options.launch ?? {};
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.experimentalApiOptIn = options.experimentalApi ?? true;
   }
 
   /** The process id this connection answers to, or null before it starts. */
@@ -128,19 +163,50 @@ export class CodexAppServerConnection {
     return this.initialized;
   }
 
+  /** Whether the handshake declared `capabilities.experimentalApi`. */
+  get experimentalApiDeclared(): boolean {
+    return this.experimentalApiDeclaredFlag;
+  }
+
+  /** Whether the server refused a call for the missing capability (latched). */
+  get experimentalApiRejected(): boolean {
+    return this.experimentalApiRejectedFlag;
+  }
+
+  /** The last notification/server-request handler failure dispatch swallowed. */
+  get lastDispatchError(): string | null {
+    return this.lastDispatchErrorValue;
+  }
+
+  /**
+   * The fail-closed reading callers gate experimental calls on.
+   *
+   * False before the handshake, when the handshake did not declare the
+   * capability, and forever after the server refuses one call for it: the
+   * capability cannot appear on a live connection, so the latch never clears.
+   */
+  isExperimentalApiAvailable(): boolean {
+    return this.experimentalApiDeclaredFlag && !this.experimentalApiRejectedFlag;
+  }
+
   /** Starts the process (once) and performs the protocol handshake. */
   async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
     this.ensureTransport();
-    // `capabilities` is deliberately empty: this task's surface — thread
-    // start/resume and turn start/interrupt — is in the stable protocol. Queue
-    // and per-turn settings need `experimentalApi` and belong to AC-436/437.
+    // `thread/queue/*` is gated behind `capabilities.experimentalApi` on the
+    // locked 0.153.4 protocol (REPORT:50, E2 line 46). Declaring it here is what
+    // AC-436's queue support will stand on; omitting it is the criterion's
+    // negative arm, so the value recorded below is what was actually sent.
+    const capabilities: Record<string, unknown> = this.experimentalApiOptIn
+      ? { experimentalApi: true }
+      : {};
     await this.request('initialize', {
       clientInfo: { name: 'cloudcli', title: 'CloudCLI', version: '1' },
-      capabilities: {},
+      capabilities,
     });
+    this.experimentalApiDeclaredFlag = capabilities.experimentalApi === true;
     this.notify('initialized', {});
     this.initialized = true;
   }
@@ -161,6 +227,13 @@ export class CodexAppServerConnection {
         reject(this.unavailable('is not alive'));
         return;
       }
+      // Fail closed before a frame exists: a call the server is guaranteed to
+      // refuse must never be written, so the caller learns the capability is
+      // missing instead of paying a round trip for the same answer.
+      if (this.isExperimentalMethod(method) && !this.isExperimentalApiAvailable()) {
+        reject(this.experimentalUnavailable(method));
+        return;
+      }
       const id = this.nextRequestId++;
       const timer = setTimeout(() => {
         this.pending.delete(id);
@@ -172,7 +245,7 @@ export class CodexAppServerConnection {
       // A criterion that leaves a request deliberately unanswered must not keep
       // the test process alive for the timeout window.
       timer.unref?.();
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { resolve, reject, timer, method });
       transport.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
     });
   }
@@ -244,14 +317,27 @@ export class CodexAppServerConnection {
     if (typeof message.method === 'string') {
       // A frame carrying a method is server-initiated. With an id it is a
       // request the server expects an answer to; without one, a notification.
+      // Every handler runs in its own try/catch: a subscriber that throws must
+      // not tear down the read loop (in the real transport this frame arrives
+      // from readline's `'line'` event, so an escaping throw ends the loop and
+      // the resident process goes deaf while its pid lives on), must not starve
+      // its sibling handlers, and must not fail pending requests.
       if (message.id !== undefined) {
         for (const handler of [...this.serverRequestHandlers]) {
-          handler(message.id, message.method, message.params);
+          try {
+            handler(message.id, message.method, message.params);
+          } catch (failure) {
+            this.recordDispatchError('server request', message.method, failure);
+          }
         }
         return;
       }
       for (const handler of [...this.notificationHandlers]) {
-        handler(message.method, message.params);
+        try {
+          handler(message.method, message.params);
+        } catch (failure) {
+          this.recordDispatchError('notification', message.method, failure);
+        }
       }
       return;
     }
@@ -265,7 +351,24 @@ export class CodexAppServerConnection {
         clearTimeout(pending.timer);
       }
       if (message.error) {
-        pending.reject(new AppError(message.error.message || 'Codex app-server rejected the request.', {
+        const rpcMessage = message.error.message || 'Codex app-server rejected the request.';
+        if (isExperimentalCapabilityRejection(rpcMessage)) {
+          // The server refused a call for the capability it did not get. Latch
+          // it for every method, not just the queue group: the capability is a
+          // property of this connection, so later experimental calls fail
+          // closed locally rather than each paying a doomed round trip.
+          this.experimentalApiRejectedFlag = true;
+          pending.reject(new AppError(
+            `Codex app-server refused "${pending.method}": ${rpcMessage}`,
+            {
+              code: 'CODEX_EXPERIMENTAL_API_UNAVAILABLE',
+              statusCode: 502,
+              details: { rpcCode: message.error.code },
+            },
+          ));
+          return;
+        }
+        pending.reject(new AppError(rpcMessage, {
           code: 'CODEX_APP_SERVER_ERROR',
           statusCode: 502,
           details: { rpcCode: message.error.code },
@@ -274,6 +377,31 @@ export class CodexAppServerConnection {
       }
       pending.resolve(message.result);
     }
+  }
+
+  /** Whether this method belongs to the capability-gated experimental group. */
+  private isExperimentalMethod(method: string): boolean {
+    return method.startsWith(EXPERIMENTAL_METHOD_PREFIX);
+  }
+
+  /** The local fail-closed rejection: no frame was written for this call. */
+  private experimentalUnavailable(method: string): AppError {
+    return new AppError(
+      `Codex app-server method "${method}" requires the experimentalApi capability, `
+        + 'which this connection did not negotiate or has had refused.',
+      { code: 'CODEX_EXPERIMENTAL_API_UNAVAILABLE', statusCode: 502 },
+    );
+  }
+
+  /**
+   * Records a subscriber failure without letting it escape.
+   *
+   * The text (rather than a bare flag) is what makes the swallow observable:
+   * a criterion prints it, and an operator can see which handler and method
+   * failed while the loop kept reading frames.
+   */
+  private recordDispatchError(kind: 'notification' | 'server request', method: string, failure: unknown): void {
+    this.lastDispatchErrorValue = `${kind} handler for "${method}" threw: ${errorMessage(failure)}`;
   }
 
   private failPending(failure: Error): void {
@@ -292,6 +420,11 @@ export class CodexAppServerConnection {
       statusCode: 502,
     });
   }
+}
+
+/** Whether the server's error text is the missing-capability refusal. */
+function isExperimentalCapabilityRejection(message: string): boolean {
+  return message.includes(EXPERIMENTAL_CAPABILITY_REJECTION);
 }
 
 /**

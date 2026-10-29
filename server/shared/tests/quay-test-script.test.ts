@@ -398,9 +398,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (465 + 1 = 466 collected server test files). Then
     // gap-ac437-codex-resident-live-settings added its criterion
     // server/modules/providers/tests/codex-host-driver-settings.test.ts
-    // (466 + 1 = 467 collected server test files). This fixture names 3 known files, so
-    // 467 - 3 = 464.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=464$/);
+    // (466 + 1 = 467 collected server test files), then
+    // gap-ac440-codex-app-server-protocol-gate added its criterion
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts
+    // (467 + 1 = 468 collected server test files). This fixture names 3 known files, so
+    // 468 - 3 = 465.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=465$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -486,10 +489,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac439-codex-resident-background-leases added
     // server/modules/providers/tests/codex-resident-background-leases.test.ts, then
     // gap-ac437-codex-resident-live-settings added
-    // server/modules/providers/tests/codex-host-driver-settings.test.ts
-    // — but this fixture names ONE known file, so 467 - 1 = 466 (AC2 reads 464 because its
+    // server/modules/providers/tests/codex-host-driver-settings.test.ts, then
+    // gap-ac440-codex-app-server-protocol-gate added
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts
+    // — but this fixture names ONE known file, so 468 - 1 = 467 (AC2 reads 465 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=466$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=467$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
