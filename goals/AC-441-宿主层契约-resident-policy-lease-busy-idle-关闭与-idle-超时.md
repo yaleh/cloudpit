@@ -1,7 +1,7 @@
 ---
 id: AC-441
 title: 宿主层契约：resident-policy lease、busy/idle、关闭与 idle 超时
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -17,6 +17,11 @@ statusLog:
     to: active
     actor: human:yale
     reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+  - at: 2026-10-29T14:04:54.729Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
