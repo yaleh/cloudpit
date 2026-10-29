@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-retraction-and-ledger-backfill
 title: 撤回误发提问 + 补发 answered：retraction 覆盖事件-only ask、回放 ledger、发 asking
   必写对象、无对象也发 answered、投影本地抑制
-status: ready
+status: needs-human
 labels:
   - gap
   - cockpit
