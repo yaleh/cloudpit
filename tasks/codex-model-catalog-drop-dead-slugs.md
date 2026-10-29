@@ -1,7 +1,7 @@
 ---
 id: codex-model-catalog-drop-dead-slugs
 title: Codex 模型目录删除已下线的 gpt-5.5/gpt-5.4/gpt-5.4-mini，并把前端兜底模型改为 gpt-5.6-sol
-status: ready
+status: done
 labels:
   - defect
 parent: null
