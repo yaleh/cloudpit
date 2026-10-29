@@ -31,6 +31,15 @@
  * dropped, because a 16 KB ceiling must never turn a recorded action into a hole
  * in the stream.
  *
+ * THE ONE EXEMPTION. A `session.asking` row's `questionText` is written
+ * UNTRUNCATED and the line may therefore exceed the ceiling (see
+ * {@link SESSION_ASKING_VERBATIM_FIELDS}): quay-fleet hashes that text into the
+ * ask's dedup key, so cutting it does not shorten a message — it merges two
+ * distinct questions into one key. The fleet's schema truncation rule names
+ * `data.text` only, and its reader imposes no line-size limit, so a long asking
+ * row is readable end-to-end; this writer's ceiling is the only thing that would
+ * cut it.
+ *
  * Consumers: `context-events.module.ts` (the only writer of stream events), the
  * writer criterion `tests/context-event-writer.test.ts`, and the shadow-prediction
  * report through the files this writer produces.
@@ -109,7 +118,21 @@ export type SessionAskingEventData = {
     messageId: string;
   };
   revision?: number;
+  /**
+   * The asking message's FULL text, verbatim and untruncated — quay-fleet hashes it into the
+   * ask's dedup key, so a cut merges distinct questions. Omitted when the text is blank.
+   */
+  questionText?: string;
 };
+
+/**
+ * The `data` members a `session.asking` row carries verbatim, exempt from the line-ceiling cut.
+ *
+ * Cutting one of these would change what the row MEANS (fleet's text key covers the strict full
+ * text), not merely shorten it — so the line is allowed past {@link CONTEXT_EVENT_MAX_LINE_BYTES}
+ * when, and only when, the excess belongs to one of them.
+ */
+export const SESSION_ASKING_VERBATIM_FIELDS = ['questionText'] as const;
 
 /** The `data` payload of a `session.answered` row: the ask it answers, plus the user message. */
 export type SessionAnsweredEventData = {
@@ -489,6 +512,16 @@ function setStringSlot(root: Record<string, unknown>, slot: StringSlot, next: st
 }
 
 /**
+ * True when this string slot is one the row must keep verbatim (see
+ * {@link SESSION_ASKING_VERBATIM_FIELDS}). Only the top-level member is exempt, so a nested
+ * `questionText` of some other shape is not silently let through.
+ */
+function isVerbatimTextField(event: ContextEvent, slot: StringSlot): boolean {
+  if (event.kind !== 'session.asking') return false;
+  return slot.path.length === 1 && (SESSION_ASKING_VERBATIM_FIELDS as readonly string[]).includes(String(slot.path[0]));
+}
+
+/**
  * Truncates the longest text fields under `data` until the assembled line fits.
  *
  * The marker is `data.truncated = true`, and it is set BEFORE the first cut so a
@@ -496,12 +529,33 @@ function setStringSlot(root: Record<string, unknown>, slot: StringSlot, next: st
  * longest remaining string by at least one character, so it terminates; if no
  * string is left (a pathological non-text payload) the line is rejected instead
  * of silently exceeding the ceiling.
+ *
+ * A verbatim field (see {@link isVerbatimTextField}) is never cut. When the line
+ * cannot fit even with every other string emptied — i.e. the excess IS the
+ * verbatim field — the row is returned whole with `overCeiling` set, and the
+ * caller writes it as-is rather than cutting the one field whose exact bytes are
+ * the row's meaning.
  */
 function truncateDataToFit(
   event: ContextEvent,
-): { event: ContextEvent; line: string } | { error: string } {
+): { event: ContextEvent; line: string; overCeiling?: boolean } | { error: string } {
   let line = JSON.stringify(event);
   if (Buffer.byteLength(line, 'utf8') <= CONTEXT_EVENT_MAX_LINE_BYTES) return { event, line };
+
+  const truncatableSlots = (target: ContextEvent) =>
+    collectStringSlots(target.data)
+      .filter((slot) => slot.value.length > 0 && !isVerbatimTextField(target, slot))
+      .sort((left, right) => right.value.length - left.value.length);
+
+  // Would the row still be over the ceiling after emptying every cuttable string? Then no cut can
+  // bring it under, and the excess is the verbatim field's — write it whole, cut nothing. Gated on
+  // a verbatim field actually being present: without one, an over-long row is still refused.
+  const hasVerbatimField = collectStringSlots(event.data).some((slot) => isVerbatimTextField(event, slot));
+  const probe = JSON.parse(JSON.stringify(event)) as ContextEvent;
+  for (const slot of truncatableSlots(probe)) setStringSlot(probe.data, slot, '');
+  if (hasVerbatimField && Buffer.byteLength(JSON.stringify(probe), 'utf8') > CONTEXT_EVENT_MAX_LINE_BYTES) {
+    return { event, line, overCeiling: true };
+  }
 
   event.data = { ...event.data, truncated: true };
   for (let attempt = 0; attempt < 64; attempt += 1) {
@@ -509,12 +563,9 @@ function truncateDataToFit(
     const overflow = Buffer.byteLength(line, 'utf8') - CONTEXT_EVENT_MAX_LINE_BYTES;
     if (overflow <= 0) return { event, line };
 
-    const slots = collectStringSlots(event.data)
-      .filter((slot) => slot.value.length > 0)
-      .sort((left, right) => right.value.length - left.value.length);
-    const longest = slots[0];
+    const longest = truncatableSlots(event)[0];
     if (longest === undefined) {
-      return { error: `event is ${overflow} bytes over the line ceiling and carries no text field to truncate` };
+      return { error: `event is ${overflow} bytes over the line ceiling and carries no truncatable text field` };
     }
     // Cut in CHARACTERS, using the byte overflow as a lower bound. Multi-byte
     // text means one character may be several bytes, so the cut is deliberately
@@ -653,9 +704,10 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
     }
     const line = fitted.line;
     // One final byte check: truncation and JSON escaping are both measured in
-    // UTF-8 bytes, and the ceiling is a byte ceiling.
+    // UTF-8 bytes, and the ceiling is a byte ceiling. A row whose excess is the verbatim
+    // `questionText` was deliberately let through, so it is exempt from this check.
     const buffer = Buffer.from(`${line}\n`, 'utf8');
-    if (buffer.byteLength > CONTEXT_EVENT_MAX_LINE_BYTES + 1) {
+    if (!fitted.overCeiling && buffer.byteLength > CONTEXT_EVENT_MAX_LINE_BYTES + 1) {
       rejected += 1;
       return { ok: false, reason: 'invalid', detail: 'assembled line exceeds the 16 KB ceiling' };
     }

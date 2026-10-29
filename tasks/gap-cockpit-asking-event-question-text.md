@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-asking-event-question-text
 title: session.asking 事件补写 questionText（未截断全文、空文本不写），让 fleet 的「会话+规范化全文」去重键覆盖严格全文
-status: ready
+status: done
 labels:
   - gap
   - cockpit
