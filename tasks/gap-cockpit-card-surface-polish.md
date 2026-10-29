@@ -98,9 +98,8 @@ DoD 真实页面（任务 worktree 的 vite dev server :5199，代理运行中�
 
 ## Blocker
 
-**2026-10-29T11:58:04.920Z — worker 未落地（exited-not-landed）**
+**2026-10-29T12:38:00.726Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: __PERFILE__ duration_ms=150 src/modules/cockpit/tests/CockpitBriefView.test.tsx passed=false end_ms=1793275039199 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/cockpit/tests/CockpitBriefView.test.tsx,src/modules/cockpit/tests/CockpitBriefView.test.tsx changed=-]
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: moduleMutableState src/modules/cockpit/CockpitCardDetails.tsx 基线外→1 — 基线外的文件模块级可变状态必须为 0 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
 - run_id：wk-prod-anchor
-- session_id：44c9d053-e153-480b-83f1-2bc9414a48d6
-- 处置：本轮已修（`dab24db8b`），见「验证记录 · 回归修正」。
+- session_id：ccbff57a-cd16-442e-be8b-82c7abf06e94
