@@ -145,6 +145,71 @@ export type SessionAskEventLedger = {
 /** The digest key carrying {@link SessionAskEventLedger}; opaquely ignored by card readers. */
 export const SESSION_ASK_EVENTS_DIGEST_KEY = 'askEvents';
 
+/**
+ * The ceiling, in characters, on the `questionText` a `session.asking` row carries.
+ *
+ * THE CAP IS A CONTRACT, NOT COSMETICS. quay-fleet keys a session ask by
+ * `projectId|session-ask|<sessionId>:<sha1(normalised questionText)[:16]>`, so the key is
+ * computed over exactly the text this producer writes. The cut must therefore be
+ * DETERMINISTIC — the same askId + revision replayed must yield the same string — and it must
+ * keep the TAIL, because the question lives at the end of the assistant message.
+ *
+ * THE TRADE-OFF, STATED HONESTLY. Below this cap the fleet key covers the whole message. Above
+ * it the key covers only the last 4000 characters, so two questions that differ only BEFORE
+ * that point collapse into one key; the cockpit's same-question folding is the backstop for
+ * that case. quay-fleet accepted this trade-off on 2026-10-29. A strict full-text key would
+ * have to raise this cap and re-cut the criterion — do not grow it silently.
+ */
+export const SESSION_ASK_QUESTION_TEXT_MAX_CHARS = 4000;
+
+/**
+ * The `questionText` a `session.asking` row states, or `null` when there is no text to state.
+ *
+ * The value is the asking assistant message VERBATIM — not trimmed and not excerpted — because
+ * fleet applies the normalisation (whitespace folding, punctuation, case) itself. A
+ * whitespace-only message answers `null` so the field is OMITTED instead of written as `""`:
+ * an empty hash would make every blank ask share one key, while an omitted field makes fleet
+ * fall back to the old askId key.
+ *
+ * Consumers: {@link buildSessionAskingData} and the criterion
+ * `tests/session-ask-decision-digest.test.ts` (which pins the omission).
+ */
+export function sessionAskQuestionText(assistantText: string): string | null {
+  if (assistantText.trim() === '') return null;
+  return assistantText.length > SESSION_ASK_QUESTION_TEXT_MAX_CHARS
+    ? assistantText.slice(-SESSION_ASK_QUESTION_TEXT_MAX_CHARS)
+    : assistantText;
+}
+
+/**
+ * Assembles the `data` payload of one `session.asking` row.
+ *
+ * `askId`, `messageId`, `revision` and `contentRef` are the pre-existing shape and stay
+ * unchanged. `questionText` is the one added member: fleet uses it for the
+ * 「session + normalised question text」 dedup key and falls back to `askId` when it is absent.
+ * `data` is an OPEN object by contract, so this member needs no new enum.
+ *
+ * Consumers: `handleTurnEnd` below (the only write path) and the criterion
+ * `tests/session-ask-decision-digest.test.ts`.
+ */
+export function buildSessionAskingData(
+  sessionId: string,
+  current: { askId: string; messageId: string; revision: number; assistantText: string },
+): Record<string, unknown> {
+  const questionText = sessionAskQuestionText(current.assistantText);
+  return {
+    askId: current.askId,
+    messageId: current.messageId,
+    revision: current.revision,
+    ...(questionText === null ? {} : { questionText }),
+    contentRef: {
+      resolver: 'cloudcli.session-ask',
+      sessionId,
+      messageId: current.messageId,
+    },
+  };
+}
+
 /** Reads the ledger out of a stored digest, tolerating anything older or malformed. */
 export function readSessionAskEventLedger(digest: unknown): SessionAskEventLedger {
   const empty: SessionAskEventLedger = { answered: [], asking: [], pending: [] };
@@ -448,16 +513,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
                   project: resolved.projectPath,
                   at,
                   refs: [current.messageId],
-                  data: {
-                    askId: current.askId,
-                    messageId: current.messageId,
-                    revision: current.revision,
-                    contentRef: {
-                      resolver: 'cloudcli.session-ask',
-                      sessionId: event.appSessionId,
-                      messageId: current.messageId,
-                    },
-                  },
+                  data: buildSessionAskingData(event.appSessionId, current),
                 })
               ) {
                 ledger.asking.push(askingKey);

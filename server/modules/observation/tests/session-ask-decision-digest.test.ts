@@ -47,7 +47,12 @@ import {
   SESSION_ASK_DECISION_LIMIT_REASON,
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
 } from '../session-ask-decision-reader.js';
-import { createSessionDigestProducer, readSessionAskEventLedger } from '../session-digest.producer.js';
+import {
+  buildSessionAskingData,
+  createSessionDigestProducer,
+  readSessionAskEventLedger,
+  SESSION_ASK_QUESTION_TEXT_MAX_CHARS,
+} from '../session-digest.producer.js';
 import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
 const CLOCK = 1_800_000_000_000;
@@ -459,6 +464,7 @@ test('AC-423: one asking event per asking turn, and one answered event after the
     askId: `${SESSION_ID}:a1`,
     messageId: 'a1',
     revision: 1,
+    questionText: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。',
     contentRef: { resolver: 'cloudcli.session-ask', sessionId: SESSION_ID, messageId: 'a1' },
   });
 
@@ -479,6 +485,102 @@ test('AC-423: one asking event per asking turn, and one answered event after the
   assert.equal(answered[0]?.session, SESSION_ID);
   assert.equal(answered[0]?.project, PROJECT_PATH);
   assert.equal(askEvents(harness.events).length, 1, 'the answering turn ends on a statement');
+});
+
+// ---------------------------------------------------------------------------------------------
+// `questionText`: fleet's 「session + normalised question text」 dedup key needs the words
+// ---------------------------------------------------------------------------------------------
+
+test('the asking event states the question message verbatim as questionText', async () => {
+  const asked = '先补测试还是先改实现？我先说取舍。\n\n我建议先补测试，能先锁住行为。\n\n要按这个顺序开始吗？';
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始吧' },
+      { role: 'assistant', id: 'a1', text: asked },
+    ]),
+  );
+
+  await harness.turnEnd();
+  const asking = askEvents(harness.events)[0];
+  assert.ok(asking, 'the asking turn states one event');
+
+  // The AC compares after trimming; the field itself is the row's own text (already trimmed by
+  // the transcript reader), never an excerpt or a restatement.
+  assert.equal(typeof asking.data.questionText, 'string');
+  assert.equal((asking.data.questionText as string).trim(), asked.trim());
+  assert.equal(asking.data.questionText, asked, 'questionText is the message text verbatim');
+  assert.equal(asking.data.askId, `${SESSION_ID}:a1`, 'the pre-existing askId is unchanged');
+  assert.equal(asking.data.messageId, 'a1');
+  assert.equal(asking.data.revision, 1);
+});
+
+test('questionText keeps the TAIL past the 4000-character cap', async () => {
+  // One character longer than the cap, ending on the question mark: only the tail can end with
+  // 「？」, so a head-keeping truncation is distinguishable from a tail-keeping one.
+  const text = `${'甲'.repeat(SESSION_ASK_QUESTION_TEXT_MAX_CHARS)}？`;
+  assert.equal(text.length, SESSION_ASK_QUESTION_TEXT_MAX_CHARS + 1);
+
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  harness.setTranscript(
+    transcript([
+      { role: 'user', id: 'u1', text: '开始吧' },
+      { role: 'assistant', id: 'a1', text },
+    ]),
+  );
+
+  await harness.turnEnd();
+  const questionText = askEvents(harness.events)[0]?.data.questionText;
+
+  assert.equal(typeof questionText, 'string');
+  assert.equal((questionText as string).length, SESSION_ASK_QUESTION_TEXT_MAX_CHARS, 'the field is capped at the limit');
+  assert.equal(questionText, text.slice(-SESSION_ASK_QUESTION_TEXT_MAX_CHARS), 'the TAIL is kept');
+  assert.notEqual(questionText, text.slice(0, SESSION_ASK_QUESTION_TEXT_MAX_CHARS), 'the head is NOT what is kept');
+});
+
+test('a replay of the same askId + revision states the same questionText', async () => {
+  // Two producers over the same transcript is the replay a restart performs: the in-memory
+  // emitted set is gone, so the same ask is stated again — and fleet's text key must land on the
+  // same hash both times, which requires the string to be byte-identical.
+  const asked = '要我现在跑测试，还是先补用例？\n\n我先说结论：先跑测试。\n\n这样可以吗？';
+  const raw = transcript([
+    { role: 'user', id: 'u1', text: '开始吧' },
+    { role: 'assistant', id: 'a1', text: asked },
+  ]);
+
+  const first = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  first.setTranscript(raw);
+  await first.turnEnd();
+
+  const replay = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
+  replay.setTranscript(raw);
+  await replay.turnEnd();
+
+  const firstEvent = askEvents(first.events)[0];
+  const replayEvent = askEvents(replay.events)[0];
+  assert.equal(firstEvent?.data.askId, replayEvent?.data.askId);
+  assert.equal(firstEvent?.data.revision, replayEvent?.data.revision);
+  assert.equal(firstEvent?.data.questionText, replayEvent?.data.questionText, 'the replayed string is identical');
+});
+
+test('a blank question message omits questionText from the payload', () => {
+  // The transcript scan never yields an asking turn with blank text (`analyzeAsking` rejects it),
+  // so the omission rule is pinned at the payload builder the producer writes through: a blank
+  // text must produce NO key, never `questionText: ''` (whose hash would merge every blank ask).
+  const data = buildSessionAskingData(SESSION_ID, {
+    askId: `${SESSION_ID}:a1`,
+    messageId: 'a1',
+    revision: 1,
+    assistantText: '  \n\t ',
+  });
+
+  assert.equal('questionText' in data, false, 'blank text contributes no questionText key');
+  assert.deepEqual(data, {
+    askId: `${SESSION_ID}:a1`,
+    messageId: 'a1',
+    revision: 1,
+    contentRef: { resolver: 'cloudcli.session-ask', sessionId: SESSION_ID, messageId: 'a1' },
+  });
 });
 
 test('AC-423: readSessionAsk derives the ask identity and the answered span from the transcript', () => {
@@ -1618,6 +1720,74 @@ test('the stream reader answers the askIds this host stated and never answered, 
     assert.equal(open[0]?.sessionId, 's-open');
     assert.equal(open[0]?.messageId, 'b1');
     assert.equal(open[0]?.project, '/repo/p');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('the startup sweep rebuilds from asking rows that carry questionText, without re-stating them', async () => {
+  // A row written by the new producer carries `questionText` beside the identity fields. The
+  // rebuild only reads `askId`/`messageId`/`revision`, so the added member must change nothing:
+  // the ledger still gains the old askId, and the boot pass never re-states an asking event.
+  const sessionId = 'ask-stream-question';
+  const dir = await mkdtemp(join(tmpdir(), 'ask-stream-question-'));
+  const asked = '先跑测试还是先改实现？\n\n我建议先跑测试。';
+  try {
+    await writeFile(
+      join(dir, '2026-10-28.jsonl'),
+      `${JSON.stringify({
+        v: 1,
+        id: 'row',
+        source: 'cloudcli',
+        at: '2026-10-28T09:00:00.000Z',
+        kind: 'session.asking',
+        project: PROJECT_PATH,
+        session: sessionId,
+        data: {
+          askId: `${sessionId}:o1`,
+          messageId: 'o1',
+          revision: 1,
+          questionText: asked,
+          contentRef: { resolver: 'cloudcli.session-ask', sessionId, messageId: 'o1' },
+        },
+      })}\n`,
+    );
+
+    const { store } = createMemoryStore();
+    store.writeRevision({
+      uri: formatSessionUri(sessionId),
+      kind: 'session',
+      title: sessionId,
+      status: { state: 'attention' },
+      digest: { activity: 'waiting' },
+      provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+    });
+
+    const events: SessionAskEvent[] = [];
+    const producer = createSessionDigestProducer({
+      store,
+      resolveSession: (id) => ({ title: id, projectPath: PROJECT_PATH, jsonlPath: `/tmp/${id}.jsonl` }),
+      readTranscript: async () =>
+        transcript([
+          { role: 'user', id: 'u1', text: '开始' },
+          { role: 'assistant', id: 'o1', text: asked },
+        ]),
+      isObserved: () => true,
+      now: () => CLOCK,
+      eventWriter: { write: (event) => events.push(event) },
+      listObservedSessionIds: () => [sessionId],
+      readOpenSessionAsks: () => readOpenSessionAsks({ eventsDir: dir, nowMs: Date.parse('2026-10-28T12:00:00.000Z') }),
+      sweepDelayMs: 0,
+      log: () => undefined,
+    });
+
+    const summary = await producer.sweepOpenAsks();
+
+    assert.deepEqual(summary, { sessions: 1, answered: 0, rebuilt: 1 }, 'the row with questionText still rebuilds the open ask');
+    assert.deepEqual(events, [], 'the boot pass never re-states an asking event');
+    const ledger = readSessionAskEventLedger(store.getObject(formatSessionUri(sessionId))?.digest);
+    assert.deepEqual(ledger.asking, [`${sessionId}:o1:1`]);
+    assert.deepEqual(ledger.pending, [{ askId: `${sessionId}:o1`, messageId: 'o1' }]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
