@@ -12,7 +12,6 @@ import { reclaimDataDirs } from './scripts/e2e-data-dir-retention.mjs';
 import { resolveClientRoot } from './scripts/e2e-client-root.mjs';
 import { webServerStderrLogs, withStderrLog } from './scripts/e2e-web-server-stderr.mjs';
 import {
-  CONFIG_EVAL_STALL_ENV,
   bootDeadlineFrom,
   readConfigEvalStallMs,
   runDeadlineFrom,
