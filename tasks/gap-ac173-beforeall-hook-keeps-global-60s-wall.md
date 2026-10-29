@@ -3,7 +3,7 @@ id: gap-ac173-beforeall-hook-keeps-global-60s-wall
 title: AC-173 判据的 beforeAll 仍压着 project 的 60s 墙（describe.configure 只抬 test 不抬
   hook）：13:33:30Z 的红逐字为 "beforeAll" hook timeout of 60000ms exceeded，同树 6 分钟内
   pass/fail/pass——抬钩子墙并把钩子/用例/看门狗/闸四处预算调自洽，判据命令与断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
