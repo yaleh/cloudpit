@@ -1,7 +1,7 @@
 ---
 id: gap-ac443-codex-resident-shell-tab-not-disabled
 title: "AC-443 leg 3: codex resident 会话的 Shell 标签不沿用 Claude 的禁用（普通终端不 resume）"
-status: ready
+status: superseded
 labels: []
 parent: null
 children: []
@@ -70,3 +70,5 @@ leg 3 判据绿 + AC2 的 codex/claude 双侧读数都记录（claude 侧可用�
 - 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
 - run_id：wk-prod-anchor
 - session_id：31b15f9e-f974-40b3-9f65-7df838716954
+
+supersede：人 yale 2026-10-30 裁定——本任务是 `gap-ac443-codex-resident-ui-e2e`（goal_ac AC-443，status ready，已由 gap-filing 立案）的窄切片，机制重复（同 Touches 的 WorkspaceMain 门槛 / codex-resident-ui spec / playwright.config）。改由 `gap-ac443-codex-resident-ui-e2e` 端到端覆盖：它的 AC5 含 WorkspaceMain 门槛，AC6 含 codex-shell.provider.ts 的 resume 收紧，AC4 用 e2e/support/codex-fake-app-server.mjs 确定性替身，无需真 OpenAI 凭据。本任务作废，不重复实现。
