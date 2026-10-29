@@ -1,7 +1,7 @@
 ---
 id: AC-435
 title: 常驻进程跨轮存活、resume、中止不杀进程
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -19,6 +19,11 @@ statusLog:
     to: active
     actor: human:yale
     reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+  - at: 2026-10-29T10:55:11.547Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"

@@ -2,7 +2,7 @@
 id: gap-ac438-codex-resident-approvals-broker
 title: AC-438 Codex 常驻：五类 server request 审批 broker（permission_request
   帧、accept/decline 路由、waitingOnApproval、无人值守不挂起）
-status: todo
+status: ready
 labels:
   - gap
 parent: null

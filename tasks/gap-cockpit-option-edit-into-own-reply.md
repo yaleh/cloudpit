@@ -32,11 +32,11 @@ depends_on:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDetailsEditOption.test.tsx` 退出 0：渲染带 `sendText` 的选项时出现「✎ 编辑」按钮、无 `sendText` 的选项不出现；点击后 `ownReply` 草稿 === 该选项 `sendText`、`shown.kind === 'ownReply'`；点击后 textarea 获得焦点且 `selectionStart === selectionEnd === 文本长度`；**普通点击「✎ Write your own」后 textarea 不自动获得焦点**（document.activeElement 不是它）；`optionsLocked` 时编辑按钮 disabled 或不渲染；页面里不存在 button 嵌套 button（`document.querySelector('button button') === null`）。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：会话提问卡内容选项的 `sendText` === `label — does`（`does` 非空）或 `label`（`does` 空），且 `action.params.text === sendText`；fleet 自身 `session.start` / `fleet.*` 选项没有 `sendText` 键。
-- [ ] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（`sendText` 两端字段一致）；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（新文案进全部 locale）。
-- [ ] 假形态变红：把 `sendText` 从投影里删掉 ⇒ 第一条服务端用例红；把「普通选 own reply 不聚焦」改成无条件聚焦 ⇒ 第一条前端用例红；改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）；两个 `types.ts` 的增长按 RECORDED CHANGE 记录。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardDetailsEditOption.test.tsx` 退出 0：渲染带 `sendText` 的选项时出现「✎ 编辑」按钮、无 `sendText` 的选项不出现；点击后 `ownReply` 草稿 === 该选项 `sendText`、`shown.kind === 'ownReply'`；点击后 textarea 获得焦点且 `selectionStart === selectionEnd === 文本长度`；**普通点击「✎ Write your own」后 textarea 不自动获得焦点**（document.activeElement 不是它）；`optionsLocked` 时编辑按钮 disabled 或不渲染；页面里不存在 button 嵌套 button（`document.querySelector('button button') === null`）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：会话提问卡内容选项的 `sendText` === `label — does`（`does` 非空）或 `label`（`does` 空），且 `action.params.text === sendText`；fleet 自身 `session.start` / `fleet.*` 选项没有 `sendText` 键。
+- [x] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（`sendText` 两端字段一致）；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0（新文案进全部 locale）。
+- [x] 假形态变红：把 `sendText` 从投影里删掉 ⇒ 第一条服务端用例红；把「普通选 own reply 不聚焦」改成无条件聚焦 ⇒ 第一条前端用例红；改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）；两个 `types.ts` 的增长按 RECORDED CHANGE 记录。
 
 ## DoD
 
@@ -67,5 +67,56 @@ depends_on:
 - src/modules/i18n/locales/ja/common.json
 - src/modules/i18n/locales/ko/common.json
 - src/modules/i18n/locales/ru/common.json
+- src/modules/i18n/locales/tr/common.json
+- src/modules/i18n/locales/zh-TW/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/server-import-cycle-budget.test.ts
+
+（Touches 增补说明：`tr` 与 `zh-TW` 两个 locale 原清单漏列，但 i18n 完整性用例要求每个 locale 目录都带同一个 key，实现时一并加入。）
+
+## 实现记录
+
+- **契约**：`CockpitCardOption.sendText?: string`，两端 `types.ts` 各 +7 行同一段字段注释；TypeSync 的 object row 自动覆盖。
+- **投影**：`contentOption` 先 `const sendText = contentOptionText(raw)`，`sendText` 字段与 `action.params.text` 复用同一个字符串；fleet 选项经 `mapOption` 构造，永远不带该键。
+- **夹具**：`fixtureOption(..., sendText?)`（第 8 个可选参数）；`fixture:stuck` 的 `resume` / `park` 传入与 `action.params.text` 相同的文本。
+- **详情 UI**：`<li className="relative">`，行按钮在有快捷入口时加 `pr-14`；编辑按钮是行按钮的**兄弟**（不嵌套）。点击只做 `onOwnReplyChange(editableText)` + 置 `focusOwnReplyPending`。effect 在抽屉自己的 `<ul>` 里 `querySelector('textarea')`，`focus()` 后 `setSelectionRange(len, len)` 并清标记；普通点「自己的回复」不置标记 ⇒ 不聚焦。`optionsLocked`（已发反馈）时不渲染。
+- **文案**：12 个 locale 的 `cockpit.cardEditOption`（en `Edit` / zh-CN `编辑` / zh-TW `編輯` / de `Bearbeiten` / es `Editar` / fr `Modifier` / id `Ubah` / it `Modifica` / ja `編集` / ko `편집` / ru `Изменить` / tr `Düzenle`）。
+
+## AC 结果
+
+1. `npx vitest run src/modules/cockpit/tests/cockpitCardDetailsEditOption.test.tsx` → `Test Files 1 passed | Tests 5 passed`，退出 0。用例覆盖：只有带 `sendText` 的选项出现编辑按钮、`button button` 为 null；点击后草稿 === sendText 且 `aria-pressed` 为 own-reply 行；焦点落在 textarea 末尾（`selectionStart === selectionEnd === len`）；普通点 own-reply 行**不**聚焦；已发反馈（`optionsLocked`）时无按钮、无嵌套。
+2. `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` → `tests 14, pass 14, fail 0`，退出 0。新用例读：`deleting.sendText === 'Delete staging — Remove the staging directory after the archive is verified.'`、`keeping.sendText === 'Keep staging'`、两者 `action.params.text === sendText`；卡片上所有 `fleet.*` / `session.start` 选项 `'sendText' in option === false`。
+3. `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` → `Tests 7 passed`；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` → `Tests 14 passed`；均退出 0。
+4. 假形态（两支都已还原，`cmp` 与备份逐字节一致）：
+   - 从 `contentOption` 的返回里删掉 `sendText,` ⇒ `✖ AC: a content option carries the exact text it sends as \`sendText\`, and fleet options carry none`，`fail 1`。
+   - 把 effect 守卫 `if (!focusOwnReplyPending || !showingOwnReply) return;` 改成 `if (!showingOwnReply) return;` ⇒ `× does NOT focus the editor when the ordinary own-reply row is pressed`，`Tests 1 failed | 4 passed`。
+5. `server-import-cycle-budget.test.ts` → `tests 11, pass 11`；`architecture-ratchet.test.ts` → `tests 6, pass 6`；均退出 0。`npm run typecheck` 退出 0；`npm run lint` 退出 0（408 warnings，全部既有）。ratchet 的 RECORDED CHANGE 记在 `architecture-ratchet.baseline.json` 的 note 里：两个 `types.ts` 因同一段 7 行字段注释同步增长。
+
+## DoD 结果
+
+隔离实例：`scripts/isolated-instance.sh`（`residentRestore.enabled=false`；`cockpit.fixtureCards=true`、`fleetCards.enabled=false`、`fixtureFeedback.mode=none`；`observation.sessionDigest.enabled=false`；`HOME` 与 `QUAY_FLEET_HOME` 均指向 `/tmp/gap-opt-edit-dod` 的副本），浏览器只点 fixture 卡（脚本每次断言 `realCardsSeen === []`）。驱动脚本与 JSON 报告在 worktree `tmp/dod/`（`tmp/` 被 gitignore，不随实现提交）。
+
+1. `fixture:stuck` 详情：两个选项行右上角都有「✎ 编辑」，几何读数 `editRightInset=4, editTopInset=4`（两行一致），`nestedButtonCount=0`。点 `resume` 的编辑按钮后：
+   - `textareaValue = 'Resume with a nudge — Send one message asking for the next concrete step.'`
+   - `document.activeElement` 的 testid = `cockpit-card-details-own-reply-input`（`TEXTAREA`）
+   - `selectionStart = selectionEnd = 73`（= 全文长度）
+   - `ownReplyRowSelected = 'true'`；卡片读数 `shownOptionId=null, ownReply=true`（即 shown 已是 ownReply）
+2. 末尾键入 ` Please keep going.` 后：
+   - `textareaValue` / `confirmLabel` 同为 `'Resume with a nudge — Send one message asking for the next concrete step. Please keep going.'`（当前契约把任务里写的 `targets[cardId].label` 放在 `cards[].confirmLabel`）
+   - `confirmBarVisible=true`、`data-card-id='fixture:stuck'`、按钮文案中文 locale `确认` / 英文 locale `Confirm`
+   - **没有点确认**（`confirmBarDataCardId` 的读取在点击前，之后无 receipt）
+3. 截图（worktree `tmp/dod/`，每步一张）：
+   - 1600：`dod-1600-1-details-with-edit-buttons.png`、`dod-1600-2-copied-into-own-reply.png`、`dod-1600-3-confirm-target.png`
+   - 390：`dod-390-1-details-with-edit-buttons.png`、`dod-390-2-copied-into-own-reply.png`、`dod-390-3-confirm-target.png`
+   - 1600 英文（补 DoD 里 `Confirm` 的字面）：`dod-1600-en-*.png`
+   - 每次运行 `pageErrors=[]`。
+   场景报告（`node scripts/ui-scenario.mjs … --out tmp/dod/…`）：
+   - `e2e/scenarios/cockpit-mode-switch.json` → 绿：
+     `{"ok":true,"stepCount":3,"failedStep":null,"durationMs":3421,"steps":[{"index":1,"action":"open:session","ok":true,"failures":[]},{"index":2,"action":"open:cockpit","ok":true,"failures":[]},{"index":3,"action":"open:session","ok":true,"failures":[]}]}`
+   - `e2e/scenarios/cockpit-cards-confirm.json`（首跑，fixture 状态干净）→ steps 1–3 绿、step 4 红：
+     `{"ok":false,"stepCount":6,"failedStep":4,"durationMs":7852,"steps":[{"index":1,"ok":true},{"index":2,"ok":true},{"index":3,"ok":true},{"index":4,"ok":false,"failures":["cockpitCardConfirmTarget: expected {\"optionId\":\"later\",\"label\":\"Later\"}, read {\"optionId\":\"provide\",\"label\":\"Provide the credential\"}"]},{"index":5,"ok":true},{"index":6,"ok":true}]}`
+     这条红与本任务 diff 无关：确认后 fixture executor 会 `card.revision += 1`，controller 在 `(revision, contentRevision)` 变化时把 shown 掉回默认选项，于是 step 4 读到的 confirm target 是默认的 `provide`；场景期望它仍停在已发送的 `later`。本任务对这一段的改动只有 `fixtureOption` 多传一个 `sendText`（形参 + 两个调用点），没有动 executor / revision / controller。附带发现：确认记录持久化在 `~/.cloudcli/cockpit-card-feedback.json`，同一进程/同一 HOME 再跑一次会在 step 3 就被 `feedback` 锁住（`shownOptionId` 停在默认 `provide`）；删掉该文件并重启可复现上面的「1–3 绿、4 红」。
+
+## 读数（ADR-007）
+
+该轴仍暗,理由:本任务只把已有的 `action.params.text` 复用到一个只读字段、并在详情里把同一字符串复制进既有的 own-reply 草稿，没有新增数据通路、文档或模块依赖；L_D 与 L_G 是仓库级读数，本任务没有使它们发生变化。

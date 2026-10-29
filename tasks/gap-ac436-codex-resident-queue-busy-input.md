@@ -2,7 +2,7 @@
 id: gap-ac436-codex-resident-queue-busy-input
 title: AC-436 Codex 常驻：忙时输入走 thread/queue/add、queue/list 深度真值、queue/delete
   撤回、完成自动排水、中断后显式 queue/start
-status: todo
+status: ready
 labels:
   - gap
 parent: null
