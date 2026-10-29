@@ -62,26 +62,116 @@ goal_ac: AC-437
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 6`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-settings.test.ts'`。
-- [ ] AC2 idle 实时设置：patch `{model:'gpt-5.6-terra', effort:'medium', permissionMode:'default'}`；打印 `idleVerdict=live idleModel=… idleEffort=… idleApprovalPolicy=on-request idleSandboxType=workspaceWrite idleNotifications=1 idlePidBefore=… idlePidAfter=…`；`thread/settings/update` 的 params 同时含这四个字段，匹配的 `thread/settings/updated` 恰好 1 条，pid 前后相等。
-- [ ] AC3 active 实时设置：turn 处于 active（`turn/started` 已发、未终态）时 patch `{model:'gpt-5.6-sol', effort:'high', permissionMode:'acceptEdits'}`；打印 `activeVerdict=live activeApprovalPolicy=never activeSandboxType=workspaceWrite activeTurnIdBefore=… activeTurnIdAfter=… activePidBefore=… activePidAfter=…`；判决 `live`、turnId 未变、pid 未变。
-- [ ] AC4 通知才是确认：假 transport 先发一条不匹配的 `thread/settings/updated`（例如 `turn/start` 带出的 `effort=low`），此时打印 `settledBeforeMatch=false`；放行匹配通知后才 resolve，打印 `matchedNotification=1 staleIgnored=true`。证明 driver 不拿 RPC 的 `{}` 当确认。
-- [ ] AC5 turn 级拒绝与缓存：探测返回 `step_model_switching {enabled:false}` 时打印 `caps={threadSettings:true,turnSettings:false} turnVerdict=unsupported turnRpcCalls=0 probeCalls=1`；重复调用 `settingsCapabilities` / `reconfigureTurn` 后 `probeCalls` 仍为 1、`turn/settings/update` 帧数仍为 0。
-- [ ] AC6 fail-closed 三臂：探测 RPC 报错、`data` 缺 `step_model_switching`、条目 `enabled` 非 true（含字符串 `'true'`）三种读数下，各自打印 `arm=<name> turnSettings=false turnVerdict=unsupported turnRpcCalls=0`；三行均为 false/unsupported/0。
-- [ ] AC7 反向控制可达：测试内把伪造读数 `{threadSettings:true,turnSettings:true,turnRpcCalls:1}` 喂给“turn 级必须被拒”的断言必须 throw；把 `{verdict:'next-turn', notifications:0}` 喂给“实时设置必须 live”的断言必须 throw；各自打印判定（如 `negativeControlThrew=true`），证明判据不是恒真。
-- [ ] AC8 假形态 A 承重：让 `turnSettings` 恒 true / `reconfigureTurn` 宣称 `live` 时 criterion 退出 **1**；红态文案逐字记录。AC 的“宣称 turn/settings 已 live 必须红”由这一臂钉住。
-- [ ] AC9 假形态 B/C 承重：`reconfigure` 拿 RPC `{}` 当确认（不等通知）或 active 轮改用 `turn/settings/update` 时 criterion 退出 **1**；用重启/杀进程应用设置（pid 变化）时 criterion 退出 **1**；两次红态文案逐字记录。还原后 `git status --short` 无残留。
-- [ ] AC10 接口与类型：测试文件里 `const _conformance: IProviderHostDriver = driver`（或 `satisfies`）随 `npm run typecheck` 退出 0；打印 `multiplexedHost=false`。
-- [ ] AC11 无回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime.test.ts` 退出 0；`npm run typecheck` 退出 0。
-- [ ] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts|codex-app-server\.connection\.ts'` 输出为空。
-- [ ] AC13 如实登记：完成记录写明锁定协议版本（0.153.4）、E4 的 `thread/settings/update` 参数/结果与 `thread/settings/updated` 形状出处、`experimentalFeature/list` 真实读数（135 项、`nextCursor:null`、`step_model_switching` 逐字条目、`capabilities:{}` 下同样可用）、三个假形态的实测退出码与逐字红态文案、以及未实现项（capabilities 声明、provider 挂载、queue/approvals/background/restore/E2E）。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 6`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-settings.test.ts'`。
+- [x] AC2 idle 实时设置：patch `{model:'gpt-5.6-terra', effort:'medium', permissionMode:'default'}`；打印 `idleVerdict=live idleModel=… idleEffort=… idleApprovalPolicy=on-request idleSandboxType=workspaceWrite idleNotifications=1 idlePidBefore=… idlePidAfter=…`；`thread/settings/update` 的 params 同时含这四个字段，匹配的 `thread/settings/updated` 恰好 1 条，pid 前后相等。
+- [x] AC3 active 实时设置：turn 处于 active（`turn/started` 已发、未终态）时 patch `{model:'gpt-5.6-sol', effort:'high', permissionMode:'acceptEdits'}`；打印 `activeVerdict=live activeApprovalPolicy=never activeSandboxType=workspaceWrite activeTurnIdBefore=… activeTurnIdAfter=… activePidBefore=… activePidAfter=…`；判决 `live`、turnId 未变、pid 未变。
+- [x] AC4 通知才是确认：假 transport 先发一条不匹配的 `thread/settings/updated`（例如 `turn/start` 带出的 `effort=low`），此时打印 `settledBeforeMatch=false`；放行匹配通知后才 resolve，打印 `matchedNotification=1 staleIgnored=true`。证明 driver 不拿 RPC 的 `{}` 当确认。
+- [x] AC5 turn 级拒绝与缓存：探测返回 `step_model_switching {enabled:false}` 时打印 `caps={threadSettings:true,turnSettings:false} turnVerdict=unsupported turnRpcCalls=0 probeCalls=1`；重复调用 `settingsCapabilities` / `reconfigureTurn` 后 `probeCalls` 仍为 1、`turn/settings/update` 帧数仍为 0。
+- [x] AC6 fail-closed 三臂：探测 RPC 报错、`data` 缺 `step_model_switching`、条目 `enabled` 非 true（含字符串 `'true'`）三种读数下，各自打印 `arm=<name> turnSettings=false turnVerdict=unsupported turnRpcCalls=0`；三行均为 false/unsupported/0。
+- [x] AC7 反向控制可达：测试内把伪造读数 `{threadSettings:true,turnSettings:true,turnRpcCalls:1}` 喂给“turn 级必须被拒”的断言必须 throw；把 `{verdict:'next-turn', notifications:0}` 喂给“实时设置必须 live”的断言必须 throw；各自打印判定（如 `negativeControlThrew=true`），证明判据不是恒真。
+- [x] AC8 假形态 A 承重：让 `turnSettings` 恒 true / `reconfigureTurn` 宣称 `live` 时 criterion 退出 **1**；红态文案逐字记录。AC 的“宣称 turn/settings 已 live 必须红”由这一臂钉住。
+- [x] AC9 假形态 B/C 承重：`reconfigure` 拿 RPC `{}` 当确认（不等通知）或 active 轮改用 `turn/settings/update` 时 criterion 退出 **1**；用重启/杀进程应用设置（pid 变化）时 criterion 退出 **1**；两次红态文案逐字记录。还原后 `git status --short` 无残留。
+- [x] AC10 接口与类型：测试文件里 `const _conformance: IProviderHostDriver = driver`（或 `satisfies`）随 `npm run typecheck` 退出 0；打印 `multiplexedHost=false`。
+- [x] AC11 无回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime.test.ts` 退出 0；`npm run typecheck` 退出 0。
+- [x] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts|codex-app-server\.connection\.ts'` 输出为空。
+- [x] AC13 如实登记：完成记录写明锁定协议版本（0.153.4）、E4 的 `thread/settings/update` 参数/结果与 `thread/settings/updated` 形状出处、`experimentalFeature/list` 真实读数（135 项、`nextCursor:null`、`step_model_switching` 逐字条目、`capabilities:{}` 下同样可用）、三个假形态的实测退出码与逐字红态文案、以及未实现项（capabilities 声明、provider 挂载、queue/approvals/background/restore/E2E）。
 
 ## DoD
 
 判据在落地后的树上按原命令重跑：退出码 0 且 `fail 0`。完成记录里贴出 (a) idle 的请求四字段与通知读数、(b) active 判决/turnId/pid、(c) 不匹配通知被忽略、匹配通知才 resolve、(d) `caps`/`turnVerdict`/`turnRpcCalls`/`probeCalls`、(e) fail-closed 三臂读数、(f) 两个反向控制判定、(g) A/B/C 三个假形态的退出码与逐字红态文案、(h) `multiplexedHost=false` 与 typecheck 结果。`codex-host-driver-persistent.test.ts`、`codex-runtime.test.ts` 与 `npm run typecheck` 退出 0。改动只落在 Touches；`codex.provider.ts` / shipped capabilities / `provider-runtime.service.ts` / per-run runtime / fork client / 长驻 connection 零改动。完成后 goal driver 下一轮以 `goal_ac: AC-437` 独立复跑原 criterion 时由红翻绿；且翻绿有分辨力：宣称 turn 级设置 live 的实现变体必红，拿 RPC 当确认或用错方法的变体必红，重启/杀进程应用设置的变体必红。
 
+## 完成记录
+
+**判据重跑（完成时的树：worktree `task/gap-ac437-codex-resident-live-settings`，已 merge develop，merge commit `de4b31bb8`）**
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts` → exit **0**，`pass 6` / `fail 0`（要求 `pass >= 6`）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` → exit **0**，`pass 5` / `fail 0`。
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime.test.ts` → exit **0**，`pass 12` / `fail 0`。
+- `npm run typecheck` → exit **0**。
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → exit **0**，`pass 14` / `fail 0`（新增判据文件把 server 收集数 466→467，pin 与 duration baseline 已同步）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → exit **0**，`pass 6` / `fail 0`（driver 717 行 < 800；新 helper 无模块级可变状态）。
+- `npx oxlint` 四个改动文件 → 无输出（exit 0）。
+
+**实现**
+
+- `codex-host-driver.provider.ts`：`reconfigure` 改为真实实现（resident host + 活连接 + 有 threadId 才发 `thread/settings/update`），匹配通知与有界等待交给 sibling；`settingsCapabilities` / `reconfigureTurn` 仍作为 driver 的动词（turn 级探测 false 时零帧返回 `unsupported`）；`thread/settings/updated` 在 turn 分发前交给 helper；`handleExit` / `closeHost` 调 `settleAll`。全程不碰 `pid` / `threadId` / `activeTurnId`。
+- `codex-live-settings.ts`（new）：闭包持有 waiter 集合与 per-connection 的 `WeakMap` probe 缓存；`permissionModeSettings` 映射（default → `on-request` + workspaceWrite；acceptEdits → `never` + workspaceWrite；bypassPermissions → `never` + `{type:'dangerFullAccess'}`）；`settingsMatch` 逐字段比对（含请求里给了的 networkAccess）；`readStepModelSwitching` 只在条目 `enabled === true`（严格布尔）时为 true。文件 256 行，无模块级可变状态。
+- 采用 sibling 而不是继续堆大 driver 的理由：把实现全部放进 driver 会到 897 行，超过 `architecture-ratchet` 的 800 行上限；与 `codex-background-lease-ledger.ts`（AC-439）同一形态。新增文件已通过 task_write 补进 `## Touches`。
+
+**协议读数（锁定 `@openai/codex 0.153.4`）**
+
+- E4（`tmp/codex-appserver-exp-NuPHhk/e4-reading.json` + `e4-live-settings.jsonl`）：idle `thread/settings/update {threadId, model:'gpt-5.6-terra', effort:'medium', approvalPolicy:'on-request', sandboxPolicy:{type:'workspaceWrite',networkAccess:false,writableRoots:[]}}` 返回 `{}`，随后收到 `thread/settings/updated {threadId, threadSettings:{model, effort, approvalPolicy, sandboxPolicy:{type:'workspaceWrite',…},…}}`；`thread/read` 读到新 model/effort；active turn 期间同一方法也被接受并回通知（effort=high），pid `3602749` 前后不变。⇒ driver 只认通知，不把 RPC 的 `{}` 当确认。
+- `turn/settings/update {threadId,turnId,model,effort}` 在 E4 回 `{"code":-32600,"message":"turn settings updates require the step_model_switching feature"}`。
+- 本轮真实二进制 `experimentalFeature/list` 返回 `{data:[…135 项…], nextCursor:null}`，其中 `step_model_switching` 逐字为 `{"name":"step_model_switching","stage":"underDevelopment","displayName":null,"description":null,"announcement":null,"enabled":false,"defaultEnabled":false}`；在 `initialize` 只声明 `capabilities:{}` 时同样可用（不依赖 AC-440 的 experimentalApi 声明）。
+
+**DoD 读数**
+
+- (a) `idleVerdict=live idleModel=gpt-5.6-terra idleEffort=medium idleApprovalPolicy=on-request idleSandboxType=workspaceWrite idleNotifications=1 idlePidBefore=730437 idlePidAfter=730437`；请求 params 同时含 model/effort/approvalPolicy/sandboxPolicy。
+- (b) `activeVerdict=live activeApprovalPolicy=never activeSandboxType=workspaceWrite activeTurnIdBefore=turn-1 activeTurnIdAfter=turn-1 activePidBefore=730437 activePidAfter=730437`；active 轮仍走 `thread/settings/update`（`turn/settings/update` 帧数 0）。
+- (c) `settledBeforeMatch=false`、`matchedNotification=1 staleIgnored=true`（先发的 `effort=low` 不匹配帧被忽略，匹配帧才 resolve）。
+- (d) `caps={threadSettings:true,turnSettings:false} turnVerdict=unsupported turnRpcCalls=0 probeCalls=1`（重复 `settingsCapabilities` / `reconfigureTurn` 后 probeCalls 仍 1、`turn/settings/update` 帧数仍 0）。
+- (e) `arm=probe-error turnSettings=false turnVerdict=unsupported turnRpcCalls=0`、`arm=missing-entry turnSettings=false turnVerdict=unsupported turnRpcCalls=0`、`arm=enabled-not-true turnSettings=false turnVerdict=unsupported turnRpcCalls=0`（第三臂的 `enabled` 是字符串 `'true'`）。
+- (f) `negativeControlThrew=true falseCapabilityRejected=true deferredLiveRejected=true`。
+- (g) 三个假形态实测见下。
+- (h) `multiplexedHost=false`；`npm run typecheck` exit 0。
+
+**假形态实测（只改实现，判据文件未动；每次 `git checkout --` 还原，`git status --short` 无残留）**
+
+- A 宣称 turn 级设置已 live（`settingsCapabilities` 忽略探测恒 true）：criterion exit **1**，`pass 4` / `fail 2`，首红逐字：
+
+```
+✖ turn settings are refused and the capability probe is cached (AC5)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+    {
+      threadSettings: true,
+  +   turnSettings: true
+  -   turnSettings: false
+    }
+```
+
+- B 拿 RPC 的 `{}` 当确认（不等匹配通知）：criterion exit **1**，`pass 5` / `fail 1`，首红逐字：
+
+```
+✖ idle live settings apply on the notification, not the RPC result (AC2/AC4)
+  AssertionError [ERR_ASSERTION]: the RPC result must not settle reconfigure
+  true !== false
+```
+
+  同轮打印 `settledBeforeMatch=true`。
+
+- C 用重启/杀进程“应用”设置（pid 变化）：criterion exit **1**，`pass 4` / `fail 2`，首红逐字：
+
+```
+✖ idle live settings apply on the notification, not the RPC result (AC2/AC4)
+  AssertionError [ERR_ASSERTION]: applying a setting must not restart the process
+  730438 !== 730437
+```
+
+  同轮打印 `idlePidBefore=730437 idlePidAfter=730438`。
+
+**范围（AC12）**
+
+- 本任务自有改动集（anti-drift 的 actual-files 口径）：`git log --format= --name-only HEAD --not goal/GOAL-051 develop` 去空行去重后恰为 5 个文件：`codex-host-driver.provider.ts`、`codex-live-settings.ts`、`codex-host-driver-settings.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`；`tasks/gap-ac437-codex-resident-live-settings.md` 由 task_write 单独提交（该提交已进入 develop，故不在上面的差集里，但已声明在 Touches）。
+- anti-drift Touches 闸（merge develop 后，本 worktree 对 goal/GOAL-051）：`ANTI-DRIFT OK: task gap-ac437-codex-resident-live-settings — 5 actual file(s), all within declared Touches (6 glob(s))`。
+- ⚠️ 两次 `git merge develop` 会把 develop 的提交带进本分支，所以 `git diff --name-only e5fdb309c..HEAD` / `git diff --name-only develop...HEAD` 都会混入他人的文件；前者在 merge 前的读数是 5 个文件，merge 后不再是本任务写入的读数。AC12 字面的 `develop...HEAD` 在 goal 分支任务上还会含 goal 分支继承的 AC-435/439 基线文件（`codex-app-server.connection.ts`、`codex-host-driver-persistent.test.ts` 等）——anti-drift 工具把这条差集称为 mainline divergence，不是本任务写入（与 AC-439 完成记录同一读数）。
+- 禁改清单在本任务自有改动集上 grep 为空：`codex.provider.ts`、`provider-capabilities.service.ts`、`provider-runtime.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts`、`codex-app-server.connection.ts` 均未被本任务改动（`grep` exit 1，无输出）。
+- server 文件计数：新增判据文件把收集数 466→467；`server/shared/tests/quay-test-script.test.ts` 的 pin 移 `known=3 unknown=463→464`、`known=1 unknown=465→466`；`scripts/suite-duration-baseline.tsv` 追加本判据实测行（2684ms），覆盖率 421/467 = 90.15% ≥ 90%。
+
+**未实现项（非目标）**
+
+- 未挂 `codex.provider.ts` 的 `hostDriver`、未改 `provider-capabilities.service.ts` / `residentFeatures.liveReconfigure`（AC-441/442）。
+- 未改 `provider-runtime.service.ts`、per-run `codex-runtime.provider.ts`、fork 客户端 `codex-app-server.client.ts`、长驻连接 `codex-app-server.connection.ts`。
+- 未做 queue（AC-436）、experimentalApi 声明与未知通知放过（AC-440）、审批 broker（AC-438）、后台 lease（AC-439，已由前序任务落地）、宿主层 lease/busy-idle（AC-441）、restore/E2E（AC-443）。
+- `dangerFullAccess` 的 sandbox 形状未在 E4 实测，判据不断言（保留为诚实映射）。
+
+该轴仍暗,理由:本条是常驻设置面原语，判据为行为测试与能力探测，本轮未产生 L_D/L_G 可量化读数
+
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
+- server/modules/providers/list/codex/codex-live-settings.ts (new)
 - server/modules/providers/tests/codex-host-driver-settings.test.ts (new)
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - tasks/gap-ac437-codex-resident-live-settings.md
