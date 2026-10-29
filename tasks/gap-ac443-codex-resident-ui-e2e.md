@@ -298,6 +298,7 @@ src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - `npx playwright test e2e/codex-resident-ui.spec.ts` → `4 passed (23.0s)`；leg 4 读数 `shell.tab.aria-disabled=null data-disabled-reason=null aria-describedby=null notice.count=0`、`shell.launch=argv0=.../codex-fake-bin/codex args=[]`。
 - `npx playwright test e2e/resident-shell-tab.spec.ts` → `1 passed (19.3s)`（Claude 常驻仍关闭 Shell，负向对照未回归）。
 - `npm run typecheck` → exit 0（三个 tsconfig 工程）。
+- 合并 develop `fcc43293d` 后：`ANTI-DRIFT OK: task gap-ac443-codex-resident-ui-e2e — 13 actual file(s), all within declared Touches (15 glob(s))`；棘轮判据合并后复跑仍 `tests 6 / pass 6 / fail 0`。
 
 ## Blocker
 
