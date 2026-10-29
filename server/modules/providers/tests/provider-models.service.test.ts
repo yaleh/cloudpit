@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { copyFile, mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
+import { CODEX_PREDEFINED_MODELS } from '@/modules/providers/list/codex/codex-models.provider.js';
 import { createProviderModelsService } from '@/modules/providers/services/provider-models.service.js';
 import type {
   CustomProviderModelInput,
@@ -573,4 +579,77 @@ test('resolveResumeModel never consults provider-global state', async () => {
 
   assert.equal(model, 'gpt-5.5');
   assert.equal(providerLookups, 0);
+});
+
+/**
+ * The picker shows exactly `CODEX_PREDEFINED_MODELS`, so that curation is a
+ * claim about what the packaged CLI can run. The bundled catalog cannot judge
+ * it: it still advertises retired slugs (gpt-5.5, gpt-5.2). Only a refresh
+ * against the signed-in account narrows the catalog to the supported set, so
+ * this case reads that refresh and compares it to the curated list.
+ */
+test('the predefined Codex catalog equals the packaged CLI account catalog', async (t) => {
+  let launcher: string;
+  try {
+    launcher = createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js');
+  } catch {
+    t.skip('the packaged @openai/codex launcher is not installed');
+    return;
+  }
+
+  // The refresh needs an account auth; an empty CODEX_HOME only yields the
+  // bundled catalog. Copy just `auth.json` so the host's config.toml cannot
+  // steer the reading, and skip when there is no account to ask.
+  const hostAuthPath = path.join(os.homedir(), '.codex', 'auth.json');
+  const codexHome = await mkdtemp(path.join(os.tmpdir(), 'codex-catalog-'));
+  try {
+    try {
+      await copyFile(hostAuthPath, path.join(codexHome, 'auth.json'));
+    } catch {
+      t.skip('no Codex account auth is available to refresh the model catalog');
+      return;
+    }
+
+    type Catalog = { models: Array<{ slug: string; visibility: string }> };
+    const readCatalog = (args: string[]): Catalog | null => {
+      const result = spawnSync(process.execPath, [launcher, 'debug', ...args], {
+        encoding: 'utf8',
+        timeout: 30_000,
+        // The refreshed catalog is ~310 KiB of JSON; the 1 MiB default is too close.
+        maxBuffer: 16 * 1024 * 1024,
+        env: { ...process.env, CODEX_HOME: codexHome },
+      });
+      if (result.error || result.status !== 0) {
+        return null;
+      }
+      return JSON.parse(result.stdout) as Catalog;
+    };
+    const visibleSlugs = (catalog: Catalog): string[] => (
+      catalog.models
+        .filter((model) => model.visibility === 'list')
+        .map((model) => model.slug)
+        .sort()
+    );
+
+    const refreshed = readCatalog(['models']);
+    if (!refreshed) {
+      t.skip('the packaged CLI could not dump its model catalog');
+      return;
+    }
+    // A failed refresh silently falls back to the bundled catalog, which still
+    // lists the retired slugs. That reading says nothing about the account's
+    // supported set, so it must not be asserted against the curated one.
+    const bundled = readCatalog(['models', '--bundled']);
+    const visible = visibleSlugs(refreshed);
+    if (!bundled || visible.join(',') === visibleSlugs(bundled).join(',')) {
+      t.skip('the packaged CLI could not refresh the account model catalog');
+      return;
+    }
+
+    const offered = CODEX_PREDEFINED_MODELS.OPTIONS.map((option) => option.value).sort();
+    console.log(`codex-catalog OPTIONS=${offered.join(',')} visible=${visible.join(',')}`);
+    assert.deepEqual(offered, visible);
+  } finally {
+    await rm(codexHome, { recursive: true, force: true });
+  }
 });

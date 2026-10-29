@@ -90,6 +90,18 @@ test('a provider with no stored model falls back to its own default, not another
   );
 });
 
+test('an empty codex catalog falls back to a model the packaged CLI can run', async () => {
+  // beforeEach cleared localStorage, and the mocked `providers.models` answers
+  // `data: null`, so the catalog never arrives: the first paint shows the
+  // fallback. It must be a model the packaged CLI still offers — `gpt-5.4`
+  // returns model_not_found before the catalog replaces it.
+  const { result } = await renderProviderState();
+
+  await waitFor(() => {
+    assert.equal(result.current.providerModels.codex, 'gpt-5.6-sol');
+  });
+});
+
 test('choosing a model persists it under that provider’s key only', async () => {
   const { result } = await renderProviderState();
   await waitFor(() => {
