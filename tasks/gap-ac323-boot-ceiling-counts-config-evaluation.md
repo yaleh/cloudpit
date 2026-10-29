@@ -3,7 +3,7 @@ id: gap-ac323-boot-ceiling-counts-config-evaluation
 title: 恢复 AC-323 判据绿：e2e 看门狗把 config 求值（同步 vite-cache seed / client-root 复制 /
   server bundle）算进 40s boot ceiling，webServer 尚未 spawn 就以「端口未监听」误杀整轮 ⇒ boot 窗口改从
   config 求值末尾起算
-status: todo
+status: ready
 labels:
   - gap
   - defect
