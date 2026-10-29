@@ -37,12 +37,24 @@ const shellResidentRestricted =
 
 ## AC
 
-- [ ] AC1 **leg 3 绿**：主检出 `npx playwright test e2e/codex-resident-ui.spec.ts` 三条腿全绿（leg 1/2/3 pass，fail 0）。leg 3 失败行必须不再是 `element is not enabled`（disabled shell 标签）。
-- [ ] AC2 **codex 不禁用、claude 仍禁用**：真实浏览器里 (a) codex resident 会话的 Shell 标签无 `disabled`/`aria-disabled`/`data-disabled-reason="resident"`，点击后 `[data-workspace-view="shell"]` 挂载、`[data-resident-shell-notice]` 计数 0；(b) claude resident 会话的 Shell 标签仍 `disabled`（负向控制：不是把 shell 限制整个删掉）。
+- [x] AC1 **leg 3 绿**：主检出 `npx playwright test e2e/codex-resident-ui.spec.ts` 三条腿全绿（leg 1/2/3 pass，fail 0）。leg 3 失败行必须不再是 `element is not enabled`（disabled shell 标签）。
+- [x] AC2 **codex 不禁用、claude 仍禁用**：真实浏览器里 (a) codex resident 会话的 Shell 标签无 `disabled`/`aria-disabled`/`data-disabled-reason="resident"`，点击后 `[data-workspace-view="shell"]` 挂载、`[data-resident-shell-notice]` 计数 0；(b) claude resident 会话的 Shell 标签仍 `disabled`（负向控制：不是把 shell 限制整个删掉）。
 
 ## DoD
 
 leg 3 判据绿 + AC2 的 codex/claude 双侧读数都记录（claude 侧可用既有 `e2e/resident-shell-tab.spec.ts` 佐证未回归）。`npx playwright test e2e/resident-shell-tab.spec.ts` 不因本次改动红。
+
+## Evidence
+
+- `npx playwright test e2e/codex-resident-ui.spec.ts` → `3 passed (18.6s)`，fail 0；leg 3 输出 `codex.resident.shell.closure={"disabled":null,"ariaDisabled":null,"reason":null} enabled=true` 与 `codex.resident.shell=normal`。
+- AC2(a) codex 侧：Shell 标签 `disabled`/`aria-disabled`/`data-disabled-reason` 三个属性均为 null，`isDisabled()=false`；点击后 `[data-workspace-view="shell"]` count=1，`[data-resident-shell-notice]` count=0。
+- AC2(b) claude 负向控制：`npx playwright test e2e/resident-shell-tab.spec.ts` → `1 passed (19.8s)`；resident 读数 `shellTab.disabled=true`、`shellTab.disabledReason=resident`、`shellTab.ariaDisabled=true`。
+- 抗漂移 Touches：`ANTI-DRIFT OK — 3 actual file(s), all within declared Touches (4 glob(s))`。
+- 预合并：`git merge --no-edit develop` → `Already up to date.`
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只改 WorkspaceMain 的 Shell 关闭分支并新增 e2e 判据，未新增或删除模块依赖边，架构图无变化。
 
 ## Touches
 
