@@ -572,13 +572,7 @@ export default function CockpitCardDetails({
           testId="cockpit-card-details-confirm"
           cardId={card.id}
           target={target}
-          idleLabel={
-            showingOwnReply
-              ? target.label === ''
-                ? t('cockpit.cardConfirmNoOption')
-                : t('cockpit.cardConfirmOwnReply')
-              : t('cockpit.cardConfirm', { label: target.label })
-          }
+          showingOwnReply={showingOwnReply}
           pending={confirmPending}
           countdown={sendCountdown}
           confirming={confirming}

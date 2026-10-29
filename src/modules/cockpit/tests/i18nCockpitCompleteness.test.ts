@@ -511,7 +511,8 @@ describe('every locale carries the cockpit copy', () => {
       expect(reference[key].trim().length, `cockpit.${key}`).toBeGreaterThan(0);
     }
     expect(placeholders(reference.cardOptionPosition)).toEqual(['k', 'n']);
-    expect(placeholders(reference.cardConfirm)).toEqual(['label']);
+    expect(placeholders(reference.cardConfirm)).toEqual([]);
+    expect(placeholders(reference.cardConfirmOwnReply)).toEqual([]);
     expect(placeholders(reference.cardWaitingFor)).toEqual(['duration']);
     expect(placeholders(reference.cardSessionWaiting)).toEqual(['id']);
     expect(placeholders(reference.cardError)).toEqual(['reason']);
@@ -527,6 +528,14 @@ describe('every locale carries the cockpit copy', () => {
       ).toBe(false);
     }
     expect(placeholders(reference.cardConfirmFailed)).toEqual(['reason']);
+    // The compact and full-width bars now share the one short idle label; a separate
+    // 「Confirm」 key would let the two sources diverge again.
+    for (const file of bundleFiles) {
+      expect(
+        Object.prototype.hasOwnProperty.call(readBundle(file).cockpit ?? {}, 'cardConfirmShort'),
+        `${file}: cockpit.cardConfirmShort was folded into cardConfirm`,
+      ).toBe(false);
+    }
     expect(placeholders(reference.cardStartConversationEcho)).toEqual(['project']);
     expect(placeholders(reference.cardDetailsOpenConversation)).toEqual(['sessionId']);
   });

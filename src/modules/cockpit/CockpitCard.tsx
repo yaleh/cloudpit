@@ -298,12 +298,6 @@ export default function CockpitCard({
           k: card.options.findIndex((option) => option.id === shownOption.id) + 1,
           n: card.options.length,
         });
-  const confirmLabel =
-    target === null || (showingOwnReply && target.label === '')
-      ? t('cockpit.cardConfirmNoOption')
-      : t(showingOwnReply ? 'cockpit.cardConfirmOwnReply' : 'cockpit.cardConfirm', {
-          label: target.label || shownLabel,
-        });
   // The feedback lifecycle: while an overlay exists the card keeps its place (dimmed), its
   // options and confirm bar are locked, and the only live control is the resend after 2 minutes.
   const feedback = card.feedback;
@@ -710,7 +704,7 @@ export default function CockpitCard({
                 testId="cockpit-card-confirm"
                 cardId={card.id}
                 target={target}
-                idleLabel={compact ? t('cockpit.cardConfirmShort') : confirmLabel}
+                showingOwnReply={showingOwnReply}
                 compact={compact}
                 pending={confirmPending}
                 countdown={sendCountdown}

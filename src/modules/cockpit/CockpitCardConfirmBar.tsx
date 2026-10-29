@@ -33,8 +33,12 @@ export type CockpitCardConfirmBarProps = {
   /** The card this bar confirms; published on the bar for the scenario surface's reading. */
   cardId: string;
   target: CockpitCardConfirmTarget;
-  /** What the idle button says (the card and the drawer word it the same way). */
-  idleLabel: string;
+  /**
+   * True when the shown choice is the person's own reply rather than a listed option. The idle
+   * label does not repeat the choice: the option trigger and the Details highlight already show
+   * it, so both callers word their idle button through this one derivation.
+   */
+  showingOwnReply?: boolean;
   /** The compact density's bar: keeps the idle state to one line. */
   compact?: boolean;
   /** True when this card is the controller's irreversible pending confirmation. */
@@ -77,7 +81,7 @@ export function CockpitCardConfirmBar({
   testId,
   cardId,
   target,
-  idleLabel,
+  showingOwnReply = false,
   compact = false,
   pending = false,
   countdown = null,
@@ -95,6 +99,13 @@ export function CockpitCardConfirmBar({
   // A countdown that expired (its deadline passed before the controller's next tick) still counts
   // as counting: the send is about to leave and the button must not flash back to its idle label.
   const mode = confirming ? 'send' : counting ? 'cancel' : pending ? 'send' : 'open';
+  // The idle button never repeats the chosen option: the option trigger (card) and the highlighted
+  // rows (Details) already carry it, so one short label serves both densities and both callers.
+  // The one exception is an own reply that is still empty — there is nothing to send yet.
+  const idleLabel =
+    showingOwnReply && target.label === ''
+      ? t('cockpit.cardConfirmNoOption')
+      : t(showingOwnReply ? 'cockpit.cardConfirmOwnReply' : 'cockpit.cardConfirm');
   const label = confirming
     ? t('cockpit.cardConfirmSending')
     : counting

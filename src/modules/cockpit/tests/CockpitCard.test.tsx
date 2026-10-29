@@ -622,8 +622,9 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
     expect(shown.textContent).toContain('Remove the staging directory after the archive is verified.');
     expect(screen.getByTestId('cockpit-card-shown-option-why').textContent).toBe(judgeWhy);
 
-    // The judge suggestion is a preselection: the confirm bar is bound to it.
-    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
+    // The judge suggestion is a preselection: the confirm bar is bound to it. The button no longer
+    // repeats the option text — the trigger above already names the choice.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
   });
 
   it('shows no default when no option of any source is suggested', () => {
@@ -682,17 +683,19 @@ describe('B zone: one dropdown, rich-text options, own reply last', () => {
 });
 
 describe('C zone: one confirm bar bound to the shown option', () => {
-  it('carries the current option’s name and follows a switch', () => {
+  it('keeps one short label and follows a switch', () => {
     const onRequestConfirm = vi.fn();
     renderCard({ onRequestConfirm });
 
     const confirm = screen.getByTestId('cockpit-card-confirm');
-    expect(confirm.textContent).toContain('Delete staging');
+    expect(confirm.textContent?.trim()).toBe('Confirm');
 
     fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
     fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
 
-    expect(confirm.textContent).toContain('Park it');
+    // The bar follows the target (the solid/amber styling flips) but its text does not name it.
+    expect(confirm.textContent).toContain('Confirm');
+    expect(confirm.textContent).not.toContain('Park it');
     expect(confirm.getAttribute('data-irreversible')).toBe('true');
     expect(confirm.className).toContain('border-amber-500');
     expect(screen.getByText('Irreversible')).toBeTruthy();
@@ -722,8 +725,56 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     fireEvent.change(editor, { target: { value: 'Keep it for one more day.' } });
 
     const confirm = screen.getByTestId('cockpit-card-confirm');
-    expect(confirm.textContent).toContain('your reply');
+    expect(confirm.textContent?.trim()).toBe('Confirm');
     expect(confirm.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('keeps the idle confirm button to the short label, whatever the option text', () => {
+    // 60+ characters is the live failure case: the old 「Confirm · {{label}}」 button was cut off
+    // at 440px and did not fit a phone, while the trigger above it already names the choice.
+    const longLabel = 'Remove the staging directory only after the archive has been verified twice';
+    expect(longLabel.length).toBeGreaterThanOrEqual(60);
+    const card: CockpitCardData = {
+      ...CARD,
+      options: [{ ...CARD.options[0], label: longLabel, suggested: true }, CARD.options[1]],
+    };
+    renderCard({ card });
+
+    const confirm = screen.getByTestId('cockpit-card-confirm');
+    expect(confirm.textContent?.trim()).toBe('Confirm');
+    for (const fragment of ['Remove the staging', 'archive', 'verified twice']) {
+      expect(confirm.textContent, `the idle button leaks “${fragment}”`).not.toContain(fragment);
+    }
+    // The option's own words are not lost: the trigger still draws the whole label.
+    expect(screen.getByTestId('cockpit-card-option-trigger').textContent).toContain(longLabel);
+
+    // The person's own reply is expressed the same way: one short label, no reply echo.
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.change(screen.getByTestId('cockpit-card-own-reply-input'), {
+      target: { value: 'Keep it for one more day.' },
+    });
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
+  });
+
+  it('keeps an irreversible option’s text in the floating caption once the button is short', () => {
+    const irreversibleLabel = 'Stop the run and keep the transcript for another week';
+    const card: CockpitCardData = {
+      ...CARD,
+      options: [CARD.options[0], { ...CARD.options[1], label: irreversibleLabel }],
+    };
+    renderCard({ card });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+    fireEvent.click(screen.getByTestId('cockpit-card-confirm'));
+
+    // The button is in its send state, and the caption above it still says WHAT will be sent.
+    const pending = screen.getByTestId('cockpit-card-confirm');
+    expect(pending.getAttribute('data-confirm-mode')).toBe('send');
+    expect(pending.textContent).not.toContain(irreversibleLabel);
+    expect(screen.getByTestId('cockpit-card-confirm-message').textContent).toContain(
+      irreversibleLabel,
+    );
   });
 
   it('with no recommendation draws one quiet line instead of a full-width button', () => {
@@ -750,7 +801,9 @@ describe('C zone: one confirm bar bound to the shown option', () => {
     fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
 
     expect(screen.queryByTestId('cockpit-card-confirm-empty')).toBeNull();
-    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Park it');
+    // Park is irreversible, so the button carries its ⚠ mark; the option's own text is not in it.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Confirm');
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).not.toContain('Park it');
   });
 });
 
@@ -861,7 +914,7 @@ describe('the confirm state is drawn in place, inside the card’s own bar', () 
     expect(send).toHaveBeenCalledTimes(1);
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('cockpit-card-confirm-bar').getAttribute('data-confirm-pending')).toBe('false');
-    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Park it');
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Confirm');
     const outcome = screen.getByTestId('cockpit-card-confirm-outcome');
     expect(outcome.getAttribute('role')).toBe('status');
     expect(outcome.getAttribute('data-ok')).toBe('true');
@@ -1353,7 +1406,7 @@ describe('unknown kinds', () => {
     // The default descriptor names no viz, so even a card that carries one draws nothing.
     expect(cockpitCardDescriptor(card.kind).viz).toBeNull();
     expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
-    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Delete staging');
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
     expect(screen.getByTestId('cockpit-card-zone-a').textContent).toContain(
       'Should the cleanup delete the staging directory?',
     );
@@ -1436,17 +1489,18 @@ describe('Details: the persistent confirm bar and the Quay task link', () => {
 
     expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
     const bar = screen.getByTestId('cockpit-card-details-confirm');
-    expect(bar.textContent).toContain('Delete staging');
+    expect(bar.textContent?.trim()).toBe('Confirm');
     fireEvent.click(bar);
     expect(onRequestConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('follows the shown option: switching it switches the bar’s label and warning', () => {
+  it('follows the shown option: switching it switches the bar’s target and warning', () => {
     const shown: CockpitCardShown = { kind: 'option', optionId: 'park' };
     renderDetails(CARD, confirmTargetOf(CARD, shown, ''));
 
     const bar = screen.getByTestId('cockpit-card-details-confirm');
-    expect(bar.textContent).toContain('Park it');
+    expect(bar.textContent).toContain('Confirm');
+    expect(bar.textContent).not.toContain('Park it');
     expect(bar.getAttribute('data-irreversible')).toBe('true');
   });
 

@@ -351,9 +351,10 @@ describe('the phone Details sheet', () => {
     // The sheet is dismissed by its handle, not by a desktop Close button.
     expect(screen.queryByTestId('cockpit-card-details-close')).toBeNull();
 
-    // The bar is the SAME target the card shows: the suggested 「Delete staging」 option.
+    // The bar is bound to the SAME target the card shows, but the button carries the short label:
+    // the selected option is expressed by the highlighted rows, not by the button's text.
     const bar = screen.getByTestId('cockpit-card-details-confirm');
-    expect(bar.textContent).toContain('Delete staging');
+    expect(bar.textContent?.trim()).toBe('Confirm');
     expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
   });
 
@@ -393,6 +394,40 @@ describe('the phone Details sheet', () => {
     expect(detailsButton.className).toBe(cardButton.className);
     expect(detailsButton.className).toContain('bg-neutral-950');
     expect(detailsButton.className).not.toContain('bg-primary');
+  });
+
+  it('keeps the Details button on the short label when the shown option changes', async () => {
+    // Two reversible options: the drawer's own rows switch the bar's target, so the assertion is
+    // about the wording following the selection (and deliberately not re-stating it).
+    const twoOptionCard: CockpitCard = {
+      ...CARD,
+      options: [
+        CARD.options[0],
+        {
+          ...CARD.options[0],
+          id: 'park',
+          label: 'Park it',
+          does: 'Stop the run and keep the transcript.',
+          suggested: false,
+          source: 'provider',
+        },
+      ],
+    };
+    apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [twoOptionCard] }));
+    restoreViewport = setViewportWidth(390);
+    renderCockpit('/cockpit?view=cards');
+    const card = await screen.findByTestId('cockpit-card-fixture:ask');
+    fireEvent.click(within(card).getByTestId('cockpit-card-zone-a'));
+    await screen.findByTestId('cockpit-card-details');
+
+    const button = screen.getByTestId('cockpit-card-details-confirm');
+    expect(button.textContent?.trim()).toBe('Confirm');
+
+    fireEvent.click(screen.getByTestId('cockpit-card-details-option-park'));
+    const switched = screen.getByTestId('cockpit-card-details-confirm');
+    expect(switched).toBe(button);
+    expect(switched.textContent?.trim()).toBe('Confirm');
+    expect(switched.textContent).not.toContain('Park it');
   });
 
   it('turns the drawer’s bar into its countdown in place, and the same button cancels it', async () => {
@@ -468,7 +503,7 @@ describe('the phone Details sheet', () => {
     expect(
       screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
     ).toBe('false');
-    expect(screen.getByTestId('cockpit-card-details-confirm').textContent).toContain('Delete staging');
+    expect(screen.getByTestId('cockpit-card-details-confirm').textContent).toContain('Confirm');
   });
 
   it('quotes the assistant’s own words with the link back into the session', async () => {
