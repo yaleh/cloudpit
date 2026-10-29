@@ -53,7 +53,7 @@ extra: {}
   - 点 `keep` 行后 `targets[fixture:ask].optionId=keep`，详情确认条 `"Confirm · Keep staging"`，卡片自身确认条同为 `"Confirm · Keep staging"`（同一份状态）；`keep` 行 `{selected:true, ariaPressed:"true", borderPrimary:true, ring:true, hover:true}`，`delete` 行 `{selected:false, borderPrimary:false, ring:false, hover:true}`。
   - 点「✎ 你自己的回复」后该行 `{selected:true, borderPrimary:true, ring:true, dashed:true}`，`shown` 不再指向任何 provider 选项；输入后 `ownReplies[fixture:ask]="Keep staging for one more day, then delete it."`，详情 textarea 与卡片 textarea 读数相同（一份草稿），详情确认条变为 `"Confirm · your reply"`。
   - 键盘：Tab 落在 `cockpit-card-details-option-delete`，焦点可见环 `boxShadow` 非 `none`；按 Enter 后 `shown[fixture:ask].optionId=delete`，焦点仍在该行。
-- 未跑场景运行器：仓库内没有覆盖详情抽屉选项/自己回复的 `scripts/ui-scenario.mjs` 场景（`node scripts/ui-scenario.mjs --list` 无对应场景）。
+- 未跑场景运行器：仓库内没有任何 `*.scenario.json` 场景文件（`find` 无结果），`scripts/ui-scenario.mjs` 必须显式给场景文件，因此本任务的 DoD 以 MCP 浏览器的真实页面读数与截图取证。
 
 ## 暗轴记录（ADR-007）
 
