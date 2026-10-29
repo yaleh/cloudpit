@@ -62,3 +62,11 @@ leg 3 判据绿 + AC2 的 codex/claude 双侧读数都记录（claude 侧可用�
 - e2e/codex-resident-ui.spec.ts
 - playwright.config.ts
 - tasks/gap-ac443-codex-resident-shell-tab-not-disabled.md
+
+## Blocker
+
+**2026-10-29T23:32:39.381Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：31b15f9e-f974-40b3-9f65-7df838716954
