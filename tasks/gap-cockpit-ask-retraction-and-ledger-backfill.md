@@ -65,3 +65,11 @@ depends_on:
 - server/modules/context-events/tests/session-ask-event-writer.test.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Blocker
+
+**2026-10-29T16:18:39.185Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/8，剩余未勾 8）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：cbf2c97a-c059-42f5-9369-9284791e6f6d
