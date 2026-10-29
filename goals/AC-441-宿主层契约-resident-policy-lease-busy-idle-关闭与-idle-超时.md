@@ -10,16 +10,16 @@ expect: resident host 打开时持 resident-policy lease；turn 期间 busy、�
   idle；closeHost/unbind 原因正确；idle 超时关闭；restart restore 走 startResidentSession。
 origin: GOAL-051 的 Codex 常驻方案（人 yale 2026-10-29 五条裁定）+
   tmp/codex-appserver-exp-NuPHhk/REPORT.md（锁定版 0.153.4 实测）
-activatedAt: 2026-10-29T09:29:46.696Z
+activatedAt: 2026-10-29T09:29:49.972Z
 statusLog:
-  - at: 2026-10-29T09:29:46.696Z
+  - at: 2026-10-29T09:29:49.972Z
     from: draft
     to: active
-    actor: goal-driver
-    reason: "triage: activate"
+    actor: human:yale
+    reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
-  at: 2026-10-29T09:29:46.696Z
+  at: 2026-10-29T09:29:49.972Z
 phase: pre-merge
 ---
