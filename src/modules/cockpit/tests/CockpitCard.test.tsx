@@ -1601,3 +1601,51 @@ describe('provider-agnostic rendering', () => {
     expect(second.container.innerHTML).toBe(fixtureHtml);
   });
 });
+
+describe('a card whose own ask has no summary yet', () => {
+  /** The live 2026-10-29 empty card: an original-text fallback question and no options at all. */
+  const EMPTY: CockpitCardData = {
+    ...CARD,
+    ask: 'The run left 1.2 GB in staging. Should the staging directory be deleted first?',
+    situation: undefined,
+    contentUnavailable: '提问决策摘要不可用：这条提问的摘要尚未生成',
+    options: [],
+  };
+
+  it('draws no option dropdown and no empty confirm line, and offers the two answers it has', () => {
+    renderCard({ card: EMPTY });
+
+    // No dropdown over an empty list, and no 「Choose an option, then confirm」 promise the card
+    // cannot keep.
+    expect(screen.queryByTestId('cockpit-card-option-frame')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-option-trigger')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm-empty')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-confirm')).toBeNull();
+
+    // What remains: the fallback question, the one-line reason, the conversation, and the reply.
+    expect(screen.getByTestId('cockpit-card-zone-a-question').textContent).toContain(
+      'Should the staging directory be deleted first?',
+    );
+    expect(screen.getByTestId('cockpit-card-content-unavailable').textContent).toContain(
+      '这条提问的摘要尚未生成',
+    );
+    expect(screen.getByTestId('cockpit-card-open-conversation').getAttribute('href')).toBe(
+      '/session/fixture-session',
+    );
+    expect(screen.getByTestId('cockpit-card-own-reply-trigger').textContent).toContain(
+      'Write your own',
+    );
+  });
+
+  it('the own-reply entry opens its editor, and a typed reply brings back one confirm bar', () => {
+    renderCard({ card: EMPTY });
+
+    fireEvent.click(screen.getByTestId('cockpit-card-own-reply-trigger'));
+    const editor = screen.getByTestId('cockpit-card-own-reply-input');
+    fireEvent.change(editor, { target: { value: 'Delete it first, then re-run.' } });
+
+    expect(screen.queryByTestId('cockpit-card-confirm-empty')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-option-trigger')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Confirm');
+  });
+});

@@ -44,6 +44,26 @@ import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from './cockpit-session-send.executo
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
 const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';
 
+/**
+ * How much of the asking message's own words a card shows when its summary is missing.
+ *
+ * THIS IS THE ORIGINAL-TEXT FALLBACK, NOT THE SUMMARY. When the digest has no decision for a
+ * card's ask, the card still has to say what is being asked; the transcript's own words are
+ * used verbatim (never passed off as the model's restatement) and capped to this length. The
+ * question lives at the END of an assistant message, so the TAIL is kept and a leading `…` marks
+ * the cut — cutting the tail would behead the very sentence the person has to answer.
+ */
+export const SESSION_ASK_ORIGINAL_MAX_CHARS = 600;
+
+/** The asking message's own words, capped for the fallback question; `''` when unreadable. */
+function originalAskFallback(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed === '') return '';
+  return trimmed.length <= SESSION_ASK_ORIGINAL_MAX_CHARS
+    ? trimmed
+    : `…${trimmed.slice(trimmed.length - SESSION_ASK_ORIGINAL_MAX_CHARS)}`;
+}
+
 /** The one reading the content completion needs: the T1 digest for a session/message pair. */
 export type CockpitFleetContentReader = (
   sessionId: string,
@@ -240,10 +260,16 @@ function withoutSuggestion(options: readonly CockpitCardOption[]): CockpitCardOp
 /**
  * Folds the T1 digest into a session-ask card.
  *
- * A missing, skipped, unreadable or incomplete digest leaves the card visible with
- * `contentUnavailable` and NO default option. A ready digest fills `ask`/`situation` and
- * appends its options; at most one is suggested, whichever source (assistant or judge) the
- * observation layer marked.
+ * THE CONTENT IS THE CARD'S OWN ASK'S. The reader is handed the card's `contentRef.messageId`
+ * and answers that ask's decision; a session's other asks are not consulted, and a missing
+ * decision is never filled from the session's latest one.
+ *
+ * A missing, skipped or unreadable digest leaves the card visible with `contentUnavailable`, no
+ * model options and — when the reader could read the asking message — its verbatim words as the
+ * fallback `ask` (capped by {@link SESSION_ASK_ORIGINAL_MAX_CHARS}). A ready digest fills
+ * `ask`/`situation` and appends its options; at most one is suggested, whichever source
+ * (assistant or judge) the observation layer marked. An incomplete digest keeps the reason and
+ * no default option.
  */
 function withSessionAskContent(
   card: CockpitCard,
@@ -261,9 +287,14 @@ function withSessionAskContent(
     return { ...card, options, contentUnavailable: '提问决策摘要尚未生成' };
   }
   if (reading.state !== 'evaluated') {
+    // No digest for THIS ask. The card stays visible with the reason and, when the asking
+    // message's own words were readable, that verbatim fallback — but the model's options are
+    // absent, so the card cannot offer a choice it does not have.
+    const fallbackAsk = originalAskFallback(reading.originalAsk ?? '');
     return {
       ...card,
       options,
+      ...(fallbackAsk === '' ? {} : { ask: fallbackAsk }),
       contentUnavailable:
         reading.state === 'skipped'
           ? `提问决策摘要未启用：${reading.reason}`

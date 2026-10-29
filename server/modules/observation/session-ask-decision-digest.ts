@@ -21,6 +21,7 @@
  */
 import { completeLlm, credentialFromKey, type LlmCompletion, type LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
 import type { SessionAskDecisionReading } from '@/shared/types.js';
+import { isRecord } from '@/shared/utils.js';
 
 import {
   analyzeAsking,
@@ -64,6 +65,104 @@ export type SessionAskReading = {
 
 /** How much of the assistant's own words a card quote carries. */
 export const ASSISTANT_QUOTE_MAX_CHARS = 200;
+
+/**
+ * How many per-ask decisions one session digest keeps.
+ *
+ * A session with several open questions (the live 2026-10-29 case had three on one session)
+ * must let every card read its OWN ask, so the digest keeps a bounded history instead of one
+ * slot. Ten covers anything a person could have on screen at once while bounding the digest's
+ * JSON; beyond it the oldest ask is dropped and falls back to the transcript's own words.
+ */
+export const SESSION_ASK_DECISION_HISTORY_LIMIT = 10;
+
+/** The two digest maps the per-ask history occupies. */
+export type SessionAskDecisionHistory = {
+  askDecisions?: Record<string, SessionAskDecisionReading>;
+  askDecisionMessages?: Record<string, string>;
+};
+
+/** The stored reading when it is one of the union's three states, otherwise null. */
+function readingOf(value: unknown): SessionAskDecisionReading | null {
+  if (!isRecord(value)) return null;
+  return value.state === 'evaluated' || value.state === 'skipped' || value.state === 'unevaluated'
+    ? (value as unknown as SessionAskDecisionReading)
+    : null;
+}
+
+/**
+ * The readable per-ask history of a stored digest, validated entry by entry.
+ *
+ * A producer writes the whole digest each turn, so this is how the maps survive a turn that
+ * does not ask: the writer carries the previous revision's history forward rather than
+ * rebuilding it from the transcript (the map's order IS its recency).
+ */
+export function carryAskDecisionHistory(
+  previous: Record<string, unknown> | undefined,
+): SessionAskDecisionHistory {
+  if (previous === undefined) return {};
+  const decisions: Record<string, SessionAskDecisionReading> = {};
+  if (isRecord(previous.askDecisions)) {
+    for (const [askId, entry] of Object.entries(previous.askDecisions)) {
+      const reading = readingOf(entry);
+      if (reading !== null) decisions[askId] = reading;
+    }
+  }
+  const messages: Record<string, string> = {};
+  if (isRecord(previous.askDecisionMessages)) {
+    for (const [messageId, askId] of Object.entries(previous.askDecisionMessages)) {
+      if (typeof askId === 'string' && askId !== '') messages[messageId] = askId;
+    }
+  }
+  return Object.keys(decisions).length === 0 && Object.keys(messages).length === 0
+    ? {}
+    : { askDecisions: decisions, askDecisionMessages: messages };
+}
+
+/**
+ * Records one ask's decision in the bounded history, keyed by `askId`.
+ *
+ * `messageId` is the asking message this ask is stated under (the fleet's
+ * `contentRef.messageId` for that card), so a later card lookup resolves to this ask without
+ * re-reading the transcript. Re-recording an ask moves it to the newest position; the oldest
+ * ask beyond {@link SESSION_ASK_DECISION_HISTORY_LIMIT} is dropped with its message index.
+ *
+ * `originalAsk` is the asking message's verbatim text and is stored ONLY for a non-evaluated
+ * reading: an evaluated one already carries the model's restatement, and keeping every
+ * transcript message would multiply the digest for no reader.
+ */
+export function rememberAskDecision(
+  previous: Record<string, unknown> | undefined,
+  input: {
+    askId: string;
+    messageId: string;
+    reading: SessionAskDecisionReading;
+    originalAsk?: string;
+  },
+): Required<SessionAskDecisionHistory> {
+  const carried = carryAskDecisionHistory(previous);
+  const decisions = { ...(carried.askDecisions ?? {}) };
+  const messages = { ...(carried.askDecisionMessages ?? {}) };
+
+  // Delete before set: insertion order is recency order, and a re-recorded ask is the newest.
+  delete decisions[input.askId];
+  decisions[input.askId] =
+    input.reading.state === 'evaluated' || input.originalAsk === undefined || input.originalAsk.trim() === ''
+      ? input.reading
+      : { ...input.reading, originalAsk: input.originalAsk };
+  if (input.messageId !== '') messages[input.messageId] = input.askId;
+
+  for (const dropped of Object.keys(decisions).slice(
+    0,
+    Math.max(0, Object.keys(decisions).length - SESSION_ASK_DECISION_HISTORY_LIMIT),
+  )) {
+    delete decisions[dropped];
+    for (const [messageId, askId] of Object.entries(messages)) {
+      if (askId === dropped) delete messages[messageId];
+    }
+  }
+  return { askDecisions: decisions, askDecisionMessages: messages };
+}
 
 /**
  * The reason prefix a model-output parse failure carries.

@@ -65,8 +65,28 @@ export type SessionDigest = {
    *
    * Optional because it is written by the model tier, not read off the transcript: a turn that
    * does not ask, or a deployment that has the tier switched off, carries no such field at all.
+   *
+   * THIS IS THE LATEST ASK'S SLOT, kept for readers that ask the session rather than a card. A
+   * card is about ONE asking message, and a session can have several open asks at once, so the
+   * per-ask history below is what a card resolves; a card must never borrow this slot.
    */
   askDecision?: SessionAskDecisionReading;
+  /**
+   * Every ask this session summarized, keyed by its askId, newest last.
+   *
+   * A session can have several unanswered questions on screen at the same time (the live
+   * 2026-10-29 case had three), and each card must show ITS OWN question and options. The map is
+   * the bounded history: `SESSION_ASK_DECISION_HISTORY_LIMIT` entries, oldest dropped first.
+   * Absent on digests written before the per-ask history existed.
+   */
+  askDecisions?: Record<string, SessionAskDecisionReading>;
+  /**
+   * The asking message id each summarized ask belongs to, so a card's `contentRef.messageId`
+   * resolves to its own `askId` without reading the transcript. The producer indexes the message
+   * its `session.asking` event named, and the reader indexes the card's message on repair — a
+   * re-ask keeps the first message id as its askId but is stated under the re-ask's message.
+   */
+  askDecisionMessages?: Record<string, string>;
 };
 
 /** Either a readable digest or the reason one could not be read. */

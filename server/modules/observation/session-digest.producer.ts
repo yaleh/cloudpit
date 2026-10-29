@@ -30,7 +30,13 @@ import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.
 
 import { formatSessionUri, parseObservationUri } from './observation-uri.js';
 import { createObservationStore, type ObservedObject, type ObservationStore } from './observation-store.js';
-import { readSessionAsk, readSessionAsks, type SessionAskDecisionDigest } from './session-ask-decision-digest.js';
+import {
+  carryAskDecisionHistory,
+  readSessionAsk,
+  readSessionAsks,
+  rememberAskDecision,
+  type SessionAskDecisionDigest,
+} from './session-ask-decision-digest.js';
 import { buildSessionDigest, type SessionDigest } from './session-digest.js';
 
 /** The producer name every digest revision is stamped with. */
@@ -476,7 +482,11 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
           let digest = result.digest;
           const ask = readSessionAsk(raw ?? '', event.appSessionId);
           const scan = readSessionAsks(raw ?? '', event.appSessionId);
-          const ledger = readSessionAskEventLedger(store.getObject(uri)?.digest);
+          // The per-ask history is carried from the PREVIOUS revision, read before this turn's
+          // deterministic write replaces the object: a turn that does not ask must not erase the
+          // asks that are still open on other cards.
+          const previousDigest = store.getObject(uri)?.digest;
+          const ledger = readSessionAskEventLedger(previousDigest);
           const at = new Date(event.completedAt || now()).toISOString();
 
           // Every ask this session's ledger still names as UNFINISHED and the transcript now
@@ -519,7 +529,11 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
           // An answered ask is no longer pending, and the ledger rides with the digest so the
           // NEXT process (after a restart) reads it back instead of re-emitting.
           dropAnsweredPending(ledger);
-          digest = { ...digest, [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger } as SessionDigest;
+          digest = {
+            ...digest,
+            [SESSION_ASK_EVENTS_DIGEST_KEY]: ledger,
+            ...carryAskDecisionHistory(previousDigest),
+          } as SessionDigest;
 
           const observed = isObserved(uri);
           // An idle, unwatched turn is exactly the traffic the wall does not need.
@@ -572,12 +586,26 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
 
           // Only the digest is enriched: the turn's delta was stated by the revision above, so
           // this one carries none (a second 「新增 1 轮」 would be a lie the wall shows twice).
+          //
+          // The decision goes into the per-ask history under `current.askId`, with the asking
+          // message indexed so that card resolves to it. The legacy `askDecision` slot still
+          // names this turn's ask (readers that ask the session keep working), while a card
+          // about ANY ask resolves through the history and never borrows this slot.
           return store.writeRevision({
             uri,
             kind: 'session',
             title: resolved.title,
             status,
-            digest: { ...written.digest, askDecision },
+            digest: {
+              ...written.digest,
+              askDecision,
+              ...rememberAskDecision(written.digest, {
+                askId: current.askId,
+                messageId: current.messageId,
+                reading: askDecision,
+                originalAsk: current.assistantText,
+              }),
+            },
             deltaItems: [],
             provenance: {
               producer: SESSION_DIGEST_PRODUCER,

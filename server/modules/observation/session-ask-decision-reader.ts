@@ -49,6 +49,14 @@
  * ANOTHER project's encoded directory is found by provider session id when the stored
  * `jsonl_path` is missing or unreadable.
  *
+ * A CARD READS ITS OWN ASK, NEVER THE SESSION'S LATEST SLOT. The digest keeps a bounded per-ask
+ * history (`askDecisions`, indexed by `askDecisionMessages`); a read with a message id resolves
+ * that message to its askId and answers THAT decision. When the history has no entry the answer
+ * is 「这条提问的摘要尚未生成」 plus the asking message's verbatim words (the fallback question),
+ * and a repair fills the entry — the session slot is deliberately not consulted, because it
+ * belongs to whichever ask came last (the live defect showed an older card the newer ask's
+ * options). Reads without a message id keep the historical slot behaviour.
+ *
  * Consumers: `server/cockpit-fleet-wiring.ts` (the card provider's `readSessionAsk` seam) and
  * `tests/session-ask-decision-digest.test.ts` (which drives the repair over a memory store).
  */
@@ -64,6 +72,7 @@ import type { ObservationStore } from './observation-store.js';
 import {
   createSessionAskDecisionDigest,
   readSessionAsk,
+  rememberAskDecision,
   SESSION_ASK_OUTPUT_UNUSABLE_REASON,
   type SessionAskDecisionDigest,
 } from './session-ask-decision-digest.js';
@@ -80,6 +89,16 @@ export const SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON = '重算失败：�
 
 /** The stated reason when the transcript exists but does not carry the card's asking message. */
 export const SESSION_ASK_DECISION_ASK_MISSING_REASON = '重算失败：转写里找不到这次提问';
+
+/**
+ * The reason a card carries while the digest holds NO decision for ITS OWN ask.
+ *
+ * A session's `askDecision` slot may hold a decision for a later ask; that is not this card's
+ * summary, so the reader answers with this sentence (plus the asking message's own words when
+ * they are readable) instead of borrowing the slot. A background repair fills the ask's history
+ * entry, and the next read answers with it.
+ */
+export const SESSION_ASK_DECISION_NOT_GENERATED_REASON = '这条提问的摘要尚未生成';
 
 /**
  * How many times a named message that the transcript does not carry yet is retried before the
@@ -148,6 +167,82 @@ function storedReading(object: ReturnType<ObservationStore['getObject']>): Sessi
   if (raw.state === 'evaluated' || raw.state === 'skipped' || raw.state === 'unevaluated') {
     return raw as unknown as SessionAskDecisionReading;
   }
+  return null;
+}
+
+/**
+ * The digest's per-ask history entry for `askId`, when it is a readable reading.
+ *
+ * A digest written before the per-ask history existed carries only the legacy slot. That slot is
+ * this ask's own reading — not a borrow from another ask — exactly when it NAMES this askId
+ * (`askId` is `<sessionId>:<firstAskingMessageId>`), so the slot is read as the fallback for that
+ * one askId. A slot naming a different ask is never returned here: that is the live defect this
+ * reader exists to stop.
+ */
+function storedAskReading(digest: Record<string, unknown>, askId: string): SessionAskDecisionReading | null {
+  const decisions = isRecord(digest.askDecisions) ? digest.askDecisions : null;
+  const raw = decisions === null ? undefined : decisions[askId];
+  if (isRecord(raw) && (raw.state === 'evaluated' || raw.state === 'skipped' || raw.state === 'unevaluated')) {
+    return raw as unknown as SessionAskDecisionReading;
+  }
+  const slot = digest.askDecision;
+  if (
+    isRecord(slot) &&
+    (slot.state === 'evaluated' || slot.state === 'skipped' || slot.state === 'unevaluated') &&
+    slot.askId === askId
+  ) {
+    return slot as unknown as SessionAskDecisionReading;
+  }
+  return null;
+}
+
+/**
+ * The askId a card's `contentRef.messageId` belongs to, read from the digest alone.
+ *
+ * The producer indexes each ask under the asking message its event named, so this is a map
+ * lookup. The `<sessionId>:<messageId>` shape is checked too: it is the askId of a session's
+ * first asking message, which is also what an un-re-asked ask uses, and it covers a digest whose
+ * index entry was pruned with an older history slot.
+ */
+function askIdOfMessage(
+  digest: Record<string, unknown>,
+  sessionId: string,
+  messageId: string,
+): string | undefined {
+  if (isRecord(digest.askDecisionMessages)) {
+    const indexed = digest.askDecisionMessages[messageId];
+    if (typeof indexed === 'string' && indexed !== '') return indexed;
+  }
+  const direct = `${sessionId}:${messageId}`;
+  return storedAskReading(digest, direct) === null ? undefined : direct;
+}
+
+/**
+ * The stale shapes repaired on read. `missing` is the per-ask case: the digest carries no
+ * decision for the card's own ask, so the repair computes one (and, before that, records the
+ * asking message's verbatim words so the card can state the question meanwhile).
+ */
+type StaleShape = 'missing' | 'disabled' | 'output' | 'ask-missing' | 'quote' | 'default';
+
+/** Which repair, if any, this reading needs. `null` means it is a usable answer as it stands. */
+function staleShapeOf(reading: SessionAskDecisionReading): StaleShape | null {
+  const disabledSkip = reading.state === 'skipped' && reading.reason.includes(DISABLED_REASON_TOKEN);
+  const missingDefault =
+    reading.state === 'evaluated' &&
+    reading.options.length > 0 &&
+    reading.incomplete === false &&
+    !reading.options.some((option) => option.suggested);
+  const missingQuote =
+    reading.state === 'evaluated' && (typeof reading.quote !== 'string' || reading.quote.trim() === '');
+  const failedOutput =
+    reading.state === 'unevaluated' && reading.reason.startsWith(SESSION_ASK_OUTPUT_UNUSABLE_REASON);
+  const missingAsk =
+    reading.state === 'unevaluated' && reading.reason === SESSION_ASK_DECISION_ASK_MISSING_REASON;
+  if (disabledSkip) return 'disabled';
+  if (failedOutput) return 'output';
+  if (missingAsk) return 'ask-missing';
+  if (missingQuote) return 'quote';
+  if (missingDefault) return 'default';
   return null;
 }
 
@@ -225,6 +320,15 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
   /** Temporal misses, keyed like the attempt: how many, and when the next try is allowed. */
   const retries = new Map<string, { count: number; nextAt: number }>();
   const callTimes: number[] = [];
+  /**
+   * The asking message's own words, learned from the transcript each time a repair reads it.
+   *
+   * A card whose digest has no decision still has to state WHAT is being asked. The digest's
+   * `originalAsk` covers asks the producer summarized; this cache covers the window before a
+   * repair has written one, so the fallback question appears on the poll that follows.
+   */
+  const originals = new Map<string, string>();
+  const originalKey = (sessionId: string, messageId: string): string => `${sessionId}\u0000${messageId}`;
 
   /**
    * Counts one temporal miss (the transcript does not carry the card's message yet) and answers
@@ -337,6 +441,11 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       if (expectedAskId === undefined || expectedAskId === ask.askId) attempted.add(attemptKey);
       retries.delete(attemptKey);
 
+      // The ask is readable, so its verbatim words are cached before the model call: a card
+      // whose summary fails or is switched off can still state the question.
+      originals.set(originalKey(sessionId, messageId === '' ? ask.messageId : messageId), ask.assistantText);
+      originals.set(originalKey(sessionId, ask.messageId), ask.assistantText);
+
       callTimes.push(now());
       const reading = await summarize.summarize({
         sessionId,
@@ -351,12 +460,26 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
 
       const object = store.getObject(formatSessionUri(sessionId));
       if (object === null) return;
+      // The legacy slot names the session's LATEST ask. Repairing an older card's ask must not
+      // move that slot backwards, so the slot is written only when it has no ask of its own (a
+      // disabled skip, an unwritten failure) or when it already names the repaired ask.
+      const slot = storedReading(object);
+      const slotRelevant = slot === null || slot.state !== 'evaluated' || slot.askId === ask.askId;
       store.writeRevision({
         uri: object.uri,
         kind: 'session',
         title: object.title,
         status: object.status,
-        digest: { ...object.digest, askDecision: reading },
+        digest: {
+          ...object.digest,
+          ...(slotRelevant ? { askDecision: reading } : {}),
+          ...rememberAskDecision(object.digest, {
+            askId: ask.askId,
+            messageId: messageId !== '' ? messageId : ask.messageId,
+            reading,
+            originalAsk: ask.assistantText,
+          }),
+        },
         deltaItems: [],
         provenance: {
           producer: SESSION_ASK_DECISION_READER_PRODUCER,
@@ -375,70 +498,82 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
     }
   };
 
+  /**
+   * Answers one already-resolved reading and, when it is absent or stale, starts the bounded
+   * background repair. The answer never waits for the model: the repaired reading is what the
+   * next read sees. `shape === null` means the reading is usable as it stands.
+   */
+  const answerWithRepair = (
+    sessionId: string,
+    messageId: string,
+    answer: SessionAskDecisionReading,
+    shape: StaleShape | null,
+    expectedAskId: string | undefined,
+  ): SessionAskDecisionReading => {
+    if (shape === null) return answer;
+
+    const settings = readSettings();
+    if (!settings.enabled) return answer;
+
+    // The hourly ceiling is answered synchronously: the stored reading is left untouched and
+    // the caller is told why this round produced nothing (the disabled shape) or simply keeps
+    // its valid content (the evaluated shapes and a stored model-output failure).
+    if (callsInTheLastHour(now()) >= settings.maxPerHour) {
+      return shape === 'disabled' ? { state: 'skipped', reason: SESSION_ASK_DECISION_LIMIT_REASON } : answer;
+    }
+
+    // An askId already names the ask, so the attempt is keyed by it. The shapes that must
+    // identify the ask from the transcript first key the attempt by the card's message instead.
+    const attemptKey = expectedAskId ?? `${sessionId}\u0000${messageId}\u0000${shape}`;
+    if (attempted.has(attemptKey)) return answer;
+    // A temporal miss schedules itself: until the interval has elapsed the stored reading is
+    // the answer (「暂不可判定」), and no second transcript read is paid for.
+    const retry = retries.get(attemptKey);
+    if (retry !== undefined && retry.nextAt > now()) return answer;
+
+    const key = `${sessionId}\u0000${messageId}\u0000${shape}`;
+    if (!inflight.has(key)) {
+      const started = repair(sessionId, messageId, { attemptKey, expectedAskId });
+      inflight.set(key, started);
+      void started.then(() => {
+        if (inflight.get(key) === started) inflight.delete(key);
+      });
+    }
+    return answer;
+  };
+
   return {
     read(sessionId, messageId = '') {
       if (sessionId === '') return null;
       const object = store.getObject(formatSessionUri(sessionId));
+      if (object === null) return null;
+
+      // A CARD READS ITS OWN ASK. `contentRef.messageId` resolves to the askId the digest
+      // indexed; the session's `askDecision` slot names the LATEST ask and is never this card's
+      // answer (borrowing it is the live defect: an old card showed a newer question's
+      // options). With no decision for this ask the card answers 「摘要尚未生成」 plus the asking
+      // message's own words once the transcript — or an earlier repair — made them readable.
+      if (messageId !== '') {
+        const askId = askIdOfMessage(object.digest, sessionId, messageId);
+        const reading = askId === undefined ? null : storedAskReading(object.digest, askId);
+        if (reading !== null) {
+          const expectedAskId = reading.state === 'evaluated' ? reading.askId : askId;
+          return answerWithRepair(sessionId, messageId, reading, staleShapeOf(reading), expectedAskId);
+        }
+        const original = originals.get(originalKey(sessionId, messageId));
+        const notGenerated: SessionAskDecisionReading = {
+          state: 'unevaluated',
+          reason: SESSION_ASK_DECISION_NOT_GENERATED_REASON,
+          ...(original === undefined ? {} : { originalAsk: original }),
+        };
+        return answerWithRepair(sessionId, messageId, notGenerated, 'missing', askId);
+      }
+
+      // The legacy session read (no card message): the latest ask's slot, repaired as before.
       const reading = storedReading(object);
       if (reading === null) return null;
-
-      // The stale shapes this reader repairs, all through the one bounded mechanism above:
-      // a disabled-tier skip; an evaluated digest with no judge default; an evaluated digest
-      // stored before the assistant quote existed; a 模型输出不可用 failure stored before the
-      // digest's output ceiling was raised; and a 「转写里找不到这次提问」 failure, which the old
-      // reader wrote from a timing miss and remembered forever.
-      const disabledSkip = reading.state === 'skipped' && reading.reason.includes(DISABLED_REASON_TOKEN);
-      const missingDefault =
-        reading.state === 'evaluated' &&
-        reading.options.length > 0 &&
-        reading.incomplete === false &&
-        !reading.options.some((option) => option.suggested);
-      const missingQuote =
-        reading.state === 'evaluated' && (typeof reading.quote !== 'string' || reading.quote.trim() === '');
-      const failedOutput =
-        reading.state === 'unevaluated' && reading.reason.startsWith(SESSION_ASK_OUTPUT_UNUSABLE_REASON);
-      const missingAsk =
-        reading.state === 'unevaluated' && reading.reason === SESSION_ASK_DECISION_ASK_MISSING_REASON;
-      if (!disabledSkip && !missingDefault && !missingQuote && !failedOutput && !missingAsk) return reading;
-
-      const settings = readSettings();
-      if (!settings.enabled) return reading;
-
-      // The hourly ceiling is answered synchronously: the stored reading is left untouched and
-      // the caller is told why this round produced nothing (the disabled shape) or simply keeps
-      // its valid content (the evaluated shapes and a stored model-output failure).
-      if (callsInTheLastHour(now()) >= settings.maxPerHour) {
-        return disabledSkip ? { state: 'skipped', reason: SESSION_ASK_DECISION_LIMIT_REASON } : reading;
-      }
-
-      // An evaluated reading already names its ask, so the attempt is keyed by askId. The other
-      // two shapes must identify the ask from the transcript first, so their key names the card.
       const expectedAskId = reading.state === 'evaluated' ? reading.askId : undefined;
-      const shape = disabledSkip
-        ? 'disabled'
-        : failedOutput
-          ? 'output'
-          : missingAsk
-            ? 'ask-missing'
-            : missingQuote
-              ? 'quote'
-              : 'default';
-      const attemptKey = expectedAskId ?? `${sessionId}\u0000${messageId}\u0000${shape}`;
-      if (attempted.has(attemptKey)) return reading;
-      // A temporal miss schedules itself: until the interval has elapsed the stored reading is
-      // the answer (「暂不可判定」), and no second transcript read is paid for.
-      const retry = retries.get(attemptKey);
-      if (retry !== undefined && retry.nextAt > now()) return reading;
-
-      const key = `${sessionId}\u0000${messageId}\u0000${shape}`;
-      if (!inflight.has(key)) {
-        const started = repair(sessionId, messageId, { attemptKey, expectedAskId });
-        inflight.set(key, started);
-        void started.then(() => {
-          if (inflight.get(key) === started) inflight.delete(key);
-        });
-      }
-      return reading;
+      return answerWithRepair(sessionId, messageId, reading, staleShapeOf(reading), expectedAskId);
     },
 
     async settled() {
