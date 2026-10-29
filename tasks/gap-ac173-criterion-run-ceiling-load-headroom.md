@@ -3,7 +3,7 @@ id: gap-ac173-criterion-run-ceiling-load-headroom
 title: AC-173 判据反复撞上 55s 单 spec 运行天花板与 60s 闸 deadline 而假红（本树健康轮 elapsed=53157ms
   只剩 1843ms；同树近 30 分钟 10 拍 2 拍在 55005ms 红）：为这条三宿主真实浏览器判据声明运行预算并同步抬高记录
   deadline，判据命令与全部断言逐字不动
-status: todo
+status: ready
 labels:
   - gap
   - defect
