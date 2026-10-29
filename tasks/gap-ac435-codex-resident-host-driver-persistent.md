@@ -2,7 +2,7 @@
 id: gap-ac435-codex-resident-host-driver-persistent
 title: AC-435 Codex 常驻：长驻 app-server 跨 3 轮 threadId/pid 不变、首轮后 resume、零轮次回退
   thread/start、interrupt 不杀进程
-status: ready
+status: done
 labels:
   - gap
 parent: null
