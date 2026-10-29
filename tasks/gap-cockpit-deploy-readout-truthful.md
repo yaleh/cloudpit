@@ -2,7 +2,7 @@
 id: gap-cockpit-deploy-readout-truthful
 title: 驾驶舱部署读数如实：Last deploy 读运行中进程的构建信息、changes not yet built 与
   build-skew-check 同源、读不到时说未知
-status: ready
+status: done
 labels:
   - gap
   - cockpit
