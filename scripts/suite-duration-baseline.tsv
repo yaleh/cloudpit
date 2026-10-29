@@ -800,3 +800,9 @@
 #   (dur=6977ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
 #   tree collects 463 server test files).
 6977	server/modules/context-events/tests/session-run-events.test.ts
+#   and the session-ask-semantic-gate row by gap-cockpit-ask-semantic-gate, measured once on
+#   2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-semantic-gate.test.ts`
+#   (dur=3773ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
+#   tree collects 465 server test files).
+3773	server/modules/observation/tests/session-ask-semantic-gate.test.ts
