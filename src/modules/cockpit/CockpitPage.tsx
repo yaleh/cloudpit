@@ -36,6 +36,7 @@ import {
 import type { CockpitProject, CockpitTiming, CockpitView } from '@/modules/cockpit/cockpitView';
 import DecisionQueue from '@/modules/cockpit/DecisionQueue';
 import DeployReadiness from '@/modules/cockpit/DeployReadiness';
+import type { DeployQueueReading } from '@/modules/cockpit/DeployReadiness';
 import InitiativeView from '@/modules/cockpit/InitiativeView';
 import { useCockpitHub } from '@/modules/cockpit/hooks/useCockpitHub';
 import { useCockpitPushToTalk } from '@/modules/cockpit/hooks/useCockpitPushToTalk';
@@ -427,6 +428,22 @@ export default function CockpitPage() {
   const projects = useMemo<CockpitProject[]>(
     () => (fleet.status === 'loaded' ? fleet.projects : []),
     [fleet],
+  );
+
+  // The queue the deploy strip prints as `todo N`: ready + todo, summed over the SAME project
+  // reading the cards and the project strip are drawn from — one source, not a second task
+  // read. `null` while the fleet is unknown, so the strip draws no number rather than a false 0.
+  const queueReading = useMemo<DeployQueueReading | null>(
+    () => (fleet.status === 'loaded'
+      ? projects.reduce<DeployQueueReading>(
+          (sum, project) => ({
+            ready: sum.ready + project.tasks.ready,
+            todo: sum.todo + project.tasks.todo,
+          }),
+          { ready: 0, todo: 0 },
+        )
+      : null),
+    [fleet.status, projects],
   );
 
   // The reading the project strip's gate is drawn from. The stage gets the same two values, so
@@ -1462,7 +1479,7 @@ export default function CockpitPage() {
           cards page it is navigation chrome the cards page does not use, so it is not drawn. */}
       {!phoneCards && (
         <div className="border-b border-border/40 px-4 py-2">
-          <DeployReadiness />
+          <DeployReadiness queue={queueReading} />
         </div>
       )}
 
