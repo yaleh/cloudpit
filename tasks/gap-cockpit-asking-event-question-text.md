@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-asking-event-question-text
 title: session.asking 事件补写 questionText（原文、尾部截断 4000 字、空文本不写），供 fleet 以「会话+规范化问题文本」去重
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
