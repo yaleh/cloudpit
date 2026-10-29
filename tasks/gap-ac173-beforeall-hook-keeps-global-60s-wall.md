@@ -50,11 +50,11 @@ goal_ac: AC-173
 
 ## AC
 
-- [ ] AC1 判据直跑稳定绿：连续 3 次 `npx playwright test e2e/resident-running-view.spec.ts` 均 `EXIT=0`；每次贴 `N passed`、spec 自报 `elapsed=`、`setup.timeout=240000`、`badge.reading=1`、`group.running.count=1`、`group.residentIdle.count=2`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、以及跑前 `uptime` 的 load1；3 次 `elapsed` 的最大值 ≤ `180_000`，且任何一次输出都不含 `[e2e] watchdog:` 越界行。
-- [ ] AC2 预算自洽且逐点可读：`grep -n "'resident-running-view.spec.ts': 240_000" playwright.config.ts` 命中 1 行；该 spec 的 `test.describe.configure(...)` 含 `timeout: 240_000`；运行输出含 `setup.timeout=240000`；自检阈值逐字为 `toBeLessThan(240_000)`；`quay goal show AC-173 --json` 的 `timeoutMs` == `260000`；`grep -n '^  timeout: 60_000,$' playwright.config.ts` 仍命中全局那一行、`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`。以上读数全部原文贴出。
-- [ ] AC3 判据语义未动：`quay goal show AC-173 --json` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-running-view.spec.ts`，`expect` 逐字仍为本 Proposal 引用那两行，`status == "achieved"`、`goal == "GOAL-013"`；`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -cE 'readBadge\(|toBe\(1\)|toBe\(2\)|close\.request|group\.'` == 0；diff 新增行中，除钩子首句 `test.setTimeout(SETUP_BUDGET_MS)` 外，匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 0；`describe`/用例标题与用例顺序不变。
-- [ ] AC4 判别性负控（墙真的抬了）：在钩子体内 `test.setTimeout(SETUP_BUDGET_MS)` **之后**临时插入 `await new Promise((resolve) => setTimeout(resolve, 70_000));`：(a) 现行代码跑同一条判据 → `EXIT=0`、`3 passed`、输出含 `setup.timeout=240000`；(b) 只删掉 `test.setTimeout(SETUP_BUDGET_MS)` 一行（保留 70s 睡眠）重跑 → `EXIT=1`，失败文本逐字含 `"beforeAll" hook timeout of 60000ms exceeded`。两次原始输出（含各跑 load1 与 elapsed）都贴出；完成后全部回滚，`git diff` 里不残留 70s 睡眠。
-- [ ] AC5 非目标：`git diff --name-only $(git merge-base develop HEAD)` 只含 `e2e/resident-running-view.spec.ts`、`playwright.config.ts`、`goals/AC-173-真实浏览器里-running-视图分正在运行与常驻-空闲-两组-侧栏徽标只计正在运行的会话.md`（以及本任务文件）；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
+- [x] AC1 判据直跑稳定绿：连续 3 次 `npx playwright test e2e/resident-running-view.spec.ts` 均 `EXIT=0`；每次贴 `N passed`、spec 自报 `elapsed=`、`setup.timeout=240000`、`badge.reading=1`、`group.running.count=1`、`group.residentIdle.count=2`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、以及跑前 `uptime` 的 load1；3 次 `elapsed` 的最大值 ≤ `180_000`，且任何一次输出都不含 `[e2e] watchdog:` 越界行。
+- [x] AC2 预算自洽且逐点可读：`grep -n "'resident-running-view.spec.ts': 240_000" playwright.config.ts` 命中 1 行；该 spec 的 `test.describe.configure(...)` 含 `timeout: 240_000`；运行输出含 `setup.timeout=240000`；自检阈值逐字为 `toBeLessThan(240_000)`；`quay goal show AC-173 --json` 的 `timeoutMs` == `260000`；`grep -n '^  timeout: 60_000,$' playwright.config.ts` 仍命中全局那一行、`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`。以上读数全部原文贴出。
+- [x] AC3 判据语义未动：`quay goal show AC-173 --json` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-running-view.spec.ts`，`expect` 逐字仍为本 Proposal 引用那两行，`status == "achieved"`、`goal == "GOAL-013"`；`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -cE 'readBadge\(|toBe\(1\)|toBe\(2\)|close\.request|group\.'` == 0；diff 新增行中，除钩子首句 `test.setTimeout(SETUP_BUDGET_MS)` 外，匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 0；`describe`/用例标题与用例顺序不变。
+- [x] AC4 判别性负控（墙真的抬了）：在钩子体内 `test.setTimeout(SETUP_BUDGET_MS)` **之后**临时插入 `await new Promise((resolve) => setTimeout(resolve, 70_000));`：(a) 现行代码跑同一条判据 → `EXIT=0`、`3 passed`、输出含 `setup.timeout=240000`；(b) 只删掉 `test.setTimeout(SETUP_BUDGET_MS)` 一行（保留 70s 睡眠）重跑 → `EXIT=1`，失败文本逐字含 `"beforeAll" hook timeout of 60000ms exceeded`。两次原始输出（含各跑 load1 与 elapsed）都贴出；完成后全部回滚，`git diff` 里不残留 70s 睡眠。
+- [x] AC5 非目标：`git diff --name-only $(git merge-base develop HEAD)` 只含 `e2e/resident-running-view.spec.ts`、`playwright.config.ts`、`goals/AC-173-真实浏览器里-running-视图分正在运行与常驻-空闲-两组-侧栏徽标只计正在运行的会话.md`（以及本任务文件）；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
 
 ## DoD
 
@@ -63,6 +63,146 @@ goal_ac: AC-173
 - 完成时读一次主检出 `.quay/gate-events.jsonl` 里 AC-173 的最后一条，把该条原文贴出；若该轮尚未更新，如实写明并贴最近的读数，不作推断。
 - `node --no-warnings /data/home/yale/.claude/plugins/cache/quay/quay/0.24.0/scripts/dist/anti-drift-touches-check.js --task gap-ac173-beforeall-hook-keeps-global-60s-wall --worktree <worktree> --merge-target develop` 通过（贴 `ANTI-DRIFT OK` 行）。
 - `npm run typecheck` exit 0；worktree `git status --short` 在记录完成时为空。
+
+## Evidence
+
+### AC1 连续三次直跑（最终代码 commit `c2fbc2abf`；run5 在 merge develop 前、run6–7 在 merge develop `f6ebcbf1c` 后，本任务三文件不受该 merge 影响）
+
+命令均为 `npx playwright test e2e/resident-running-view.spec.ts`（在 worktree 根目录、真实浏览器 + 真实 server 下直跑）。
+
+| 跑 | rc | N passed | spec `elapsed` | `setup.timeout` | 跑前 load1 | `watchdog-state.json` |
+| -- | -- | -------- | -------------- | --------------- | ---------- | --------------------- |
+| 5 | 0 | `3 passed (37.3s)` | `37445ms` | `240000` | 41.13 | `fired:false, ceilingMs:240000` |
+| 6 | 0 | `3 passed (37.8s)` | `39242ms` | `240000` | 25.02 | `fired:false, ceilingMs:240000` |
+| 7 | 0 | `3 passed (37.4s)` | `38151ms` | `240000` | 30.84 | `fired:false, ceilingMs:240000` |
+
+- 3 次 `elapsed` 最大值 = `39242ms` ≤ `180_000`。
+- 3 次输出中 `^\[e2e\] watchdog:` 越界行计数均为 **0**。
+- 补充（行为相同的更早轮次；run1 的最终差异只是日志标签）：run1–4 也均 `EXIT=0`，`3 passed`，`elapsed=42607/46852/37402/37415ms`，跑前 load1 = `38.65/151.89/176.25/102.73`；run2–4 的 `watchdog-state.json` 亦为 `fired:false, ceilingMs:240000`。
+
+三次直跑实测读数形状相同（下列省略每次不同的会话 id）：
+
+```
+setup.timeout=240000 test.timeout=240000
+hosts.running=1 hosts.residentIdle=2 hosts.total=2 badge.reading=1
+group.running.count=1
+group.residentIdle.count=2
+close.before hosts.beforeClose=2 group.running.count=1 group.residentIdle.count.before=2 badge.reading=1
+close.request=200
+hosts.beforeClose=2 hosts.afterClose=1
+badge.afterExtra=2 badge.reading=1 hosts.total=2
+shared.perBinding=1 shared.perHost=2 badge.reading=1
+```
+
+run7 的 `setup.phase=` 计时（每阶段一行，准备阶段终于可归因）：
+
+```
+setup.phase=register elapsed=585ms
+setup.phase=complete-onboarding elapsed=2168ms
+setup.phase=armScenario.inFlight elapsed=1302ms
+setup.phase=armScenario.control elapsed=77ms
+setup.phase=armScenario.idleA elapsed=69ms
+setup.phase=armScenario.idleB elapsed=333ms
+setup.phase=armScenario.residentTurn elapsed=141ms
+setup.phase=readHosts elapsed=180ms
+setup.phase=warmClientStartup elapsed=2169ms
+setup.phase=navigate elapsed=1951ms
+setup.phase=revealSession elapsed=225ms
+```
+
+### AC4 判别性负控
+
+(a) 在 `test.setTimeout(SETUP_BUDGET_MS)` **之后**插入 `await new Promise((resolve) => setTimeout(resolve, 70_000));`，现行代码重跑：
+
+```
+EXIT=0
+setup.timeout=240000 test.timeout=240000
+  3 passed (1.7m)
+elapsed=101264ms
+跑前 load average: 57.15, 69.99, 48.57
+```
+
+(b) 只删掉 `test.setTimeout(SETUP_BUDGET_MS);` 一行（保留 70s 睡眠）重跑：
+
+```
+EXIT=1
+    "beforeAll" hook timeout of 60000ms exceeded.
+  1 failed
+  2 did not run
+跑前 load average: 30.20, 56.43, 45.96
+```
+
+回滚：`grep -c "70_000" e2e/resident-running-view.spec.ts` = `0`；负控编辑未留在提交里（`git diff` 干净，最终 commit `c2fbc2abf`）。
+
+### AC2 预算自洽读数（原文）
+
+```
+$ grep -n "'resident-running-view.spec.ts': 240_000" playwright.config.ts
+790:  'resident-running-view.spec.ts': 240_000,
+
+$ grep -n "test.describe.configure({ mode: 'serial', timeout: 240_000 })" e2e/resident-running-view.spec.ts
+825:test.describe.configure({ mode: 'serial', timeout: 240_000 });
+
+$ grep -n "toBeLessThan(240_000)" e2e/resident-running-view.spec.ts
+1253:    expect(elapsed, 'the whole invocation, measured from the config’s own start').toBeLessThan(240_000);
+
+运行输出：setup.timeout=240000 test.timeout=240000
+
+$ grep -n '^  timeout: 60_000,$' playwright.config.ts
+3743:  timeout: 60_000,
+
+$ grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts
+374:const SINGLE_SPEC_CEILING_MS = 55_000;
+```
+
+- `quay goal get AC-173 --json --store --root <worktree>` ⇒ `"timeoutMs": 260000`。
+  说明：不带 `--store --root <worktree>` 的 `quay goal show AC-173 --json` 读的是主检出 store（`/data/home/yale/work/claudecodeui/goals`，当前分支 `author`），在本次改动 merge 进该检出之前仍报旧值 `118000`；本任务要改的正是 worktree 里这份 record，store 方言读出的 `260000` 才是对本次改动的读数。四道墙：hook 240s = `SPEC_BUDGET_MS` 240s = `describe.configure` 240s = 自检 240s，闸 260s 留 20s 给看门狗写越界线。
+
+### AC3 判据语义未动
+
+`quay goal get AC-173 --json --store --root <worktree>` 原文：
+
+```
+"status": "achieved"
+"goal": "GOAL-013"
+"criterion": "npx playwright test e2e/resident-running-view.spec.ts"
+"expect": "调试 agent 场景造出一个运行中的会话与两个空闲常驻会话：侧栏 Running 徽标读数为 1；Running 视图两组各列出对应会话，第二组每行有关闭按钮，点击后该会话宿主关闭、从该组消失。取假形态：徽标计入空闲常驻会话 ⇒ 读数 3，必须红。"
+```
+
+- `git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -E '^\+' | grep -cE 'readBadge\(|toBe\(1\)|toBe\(2\)|close\.request|group\.'` = `0`。
+- diff 新增行中匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的只有 `+    test.setTimeout(SETUP_BUDGET_MS);`（钩子首句，AC3 豁免），其余 = `0`。
+- `test.describe(...)`/用例标题与顺序无 diff 行。
+
+### AC5 非目标与类型
+
+```
+$ git diff --name-only $(git merge-base develop HEAD)
+e2e/resident-running-view.spec.ts
+goals/AC-173-真实浏览器里-running-视图分正在运行与常驻-空闲-两组-侧栏徽标只计正在运行的会话.md
+playwright.config.ts
+```
+
+- （本任务文件 `tasks/gap-ac173-beforeall-hook-keeps-global-60s-wall.md` 由这次 task_write 单独提交，同样在 Touches 内。）
+- `src/**`、`server/**` 无改动。
+- `npm run typecheck` ⇒ `TYPECHECK_EXIT=0`（最终代码复跑）。
+
+### DoD：主检出 AC-173 台账最后一条（原文）
+
+```
+{"id":"03c375b6-5b93-42df-a180-6a23e07047af","item_id":"AC-173","pipeline_id":"AC-173","gate":"goal","actor":"goal-cli","verdict":"pass","timestamp":"2026-10-29T13:58:54.864Z","payload":{"reason":"acceptance passed (exit 0)","evaluationRoot":"/data/home/yale/work/claudecodeui","treeSha":"ebdaf9e25e5c8b4f8e0ac2634c3cacf639a31f35"}}
+```
+
+如实说明：该条 `treeSha` 是主检出（`author`）的树，不是本 worktree 的修复树；它是同一条判据在旧代码上的又一次通过（本任务立案所依据的正是同树 6 分钟内 pass/fail/pass），不能当作本次修复的证据。本次修复的证据是上面的 AC1/AC4 直跑。
+
+### 反漂移
+
+退出前最终复跑（worktree `git status --short` 为空，`develop` 已是祖先）：`ANTI-DRIFT OK: task gap-ac173-beforeall-hook-keeps-global-60s-wall — 4 actual file(s), all within declared Touches (4 glob(s))`。四个文件 = 3 个实现文件 + 本任务文件；本任务文件的最新一次 task_write 是 self-only 提交，分支落地前不会出现在 `develop` 上，故按 `--merge-target develop` 比较计为第 4 个。
+
+开发过程中另一次复跑（该 task_write 提交已被 develop 吸收时）为 `ANTI-DRIFT OK: task gap-ac173-beforeall-hook-keeps-global-60s-wall — 3 actual file(s), all within declared Touches (4 glob(s))`。计数在 3–4 之间只因 `tasks/<id>.md` 是否已随 develop 进入本分支；两次都没有 Touches 之外的改动。
+
+## ADR-007 暗轴
+
+该轴仍暗,理由:本任务只改 e2e 时间预算与准备阶段计时，未改产品代码或架构图，L_D/L_G 无测量对象（判据产物是运行输出而非代码图）。
 
 ## Touches
 
