@@ -1,7 +1,7 @@
 ---
 id: gap-ac443-codex-resident-ui-e2e
 title: AC-443 Codex 常驻真实浏览器：常驻开关、忙时队列可撤回、状态栏 resident、Shell 普通终端不 resume
-status: ready
+status: done
 labels:
   - gap
 parent: null
