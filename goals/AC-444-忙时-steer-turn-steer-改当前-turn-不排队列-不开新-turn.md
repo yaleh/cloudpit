@@ -1,7 +1,7 @@
 ---
 id: AC-444
 title: 忙时 steer：turn/steer 改当前 turn、不排队列、不开新 turn
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -25,6 +25,11 @@ statusLog:
     to: active
     actor: human:yale
     reason: 人 yale 指令：接受 AC-444
+  - at: 2026-10-29T16:43:58.381Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
