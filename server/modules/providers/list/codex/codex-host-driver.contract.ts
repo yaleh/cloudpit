@@ -60,6 +60,10 @@ export type CodexHostDriverOptions = {
   thread?: CodexThreadDefaults;
   /** Clock for a background hold's `since`; the criterion injects a deterministic one. */
   now?: () => number;
+  /** How long `reconfigure` waits for `thread/settings/updated`; the criterion injects a short one. */
+  settingsNotificationTimeoutMs?: number;
+  /** Ceiling for the one-shot `experimentalFeature/list` probe. */
+  capabilityProbeTimeoutMs?: number;
   /**
    * The session-host manager, when this driver owns resident hosts.
    *
