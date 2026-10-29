@@ -3,7 +3,7 @@ id: gap-ac439-codex-resident-background-leases
 title: AC-439 Codex 常驻：processHandle 后台 lease
   账本（process/spawn→process/exited），thread/backgroundTerminals/list 不是 client
   进程账本
-status: ready
+status: done
 labels:
   - gap
 parent: null
