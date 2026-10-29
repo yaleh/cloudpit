@@ -5,6 +5,13 @@ import {
   type CodexBackgroundLease,
   type CodexBackgroundLeaseLedger,
 } from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
+import {
+  createCodexLiveSettings,
+  type CodexLiveSettings,
+  type CodexSettingsCapabilities,
+  type CodexTurnSettingsPatch,
+} from '@/modules/providers/list/codex/codex-live-settings.js';
+import type { HostReconfigureOutcome } from '@/modules/providers/services/provider-runtime.service.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   HostCloseReason,
@@ -16,6 +23,12 @@ import type {
   SessionBinding,
 } from '@/shared/types.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
+
+/** How long `reconfigure` waits for its `thread/settings/updated` before deferring. */
+const DEFAULT_SETTINGS_NOTIFICATION_TIMEOUT_MS = 5_000;
+
+/** Ceiling for the one-shot `experimentalFeature/list` capability probe. */
+const DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * Codex's resident host driver: one long-lived `codex app-server` process per
@@ -56,6 +69,9 @@ export type CodexThreadDefaults = {
   developerInstructions?: string;
 };
 
+/** Re-exported so callers of the driver never reach into the helper module. */
+export type { CodexSettingsCapabilities, CodexTurnSettingsPatch };
+
 export type CodexHostDriverOptions = {
   /** Builds the connection; the criterion injects one over a fake transport. */
   createConnection?: (launch: CodexAppServerLaunch) => CodexAppServerConnection;
@@ -65,6 +81,10 @@ export type CodexHostDriverOptions = {
   thread?: CodexThreadDefaults;
   /** Clock for a background hold's `since`; the criterion injects a deterministic one. */
   now?: () => number;
+  /** How long `reconfigure` waits for `thread/settings/updated`; the criterion injects a short one. */
+  settingsNotificationTimeoutMs?: number;
+  /** Ceiling for the one-shot `experimentalFeature/list` probe. */
+  capabilityProbeTimeoutMs?: number;
 };
 
 /**
@@ -139,6 +159,10 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly backgroundLeases: CodexBackgroundLeaseLedger;
   /** Serial for a caller that leaves `processHandle` out; never reused by this instance. */
   private backgroundHandleSerial = 0;
+  private readonly settingsNotificationTimeoutMs: number;
+  private readonly capabilityProbeTimeoutMs: number;
+  /** The live-setting verbs; the waiters and the probe cache live in the helper. */
+  private readonly liveSettings: CodexLiveSettings;
   private connection: CodexAppServerConnection | null = null;
   private host: ProcessHost | null = null;
   private sink: IProviderHostDriverSink | null = null;
@@ -149,6 +173,13 @@ export class CodexHostDriver implements IProviderHostDriver {
       ?? ((launch) => new CodexAppServerConnection({ launch }));
     this.launch = options.launch ?? {};
     this.threadDefaults = options.thread ?? {};
+    this.settingsNotificationTimeoutMs = options.settingsNotificationTimeoutMs
+      ?? DEFAULT_SETTINGS_NOTIFICATION_TIMEOUT_MS;
+    this.capabilityProbeTimeoutMs = options.capabilityProbeTimeoutMs ?? DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS;
+    this.liveSettings = createCodexLiveSettings({
+      notificationTimeoutMs: this.settingsNotificationTimeoutMs,
+      capabilityProbeTimeoutMs: this.capabilityProbeTimeoutMs,
+    });
     this.backgroundLeases = createCodexBackgroundLeaseLedger({ now: options.now });
   }
 
@@ -231,16 +262,72 @@ export class CodexHostDriver implements IProviderHostDriver {
     return true;
   }
 
-  /** No live-setting surface is implemented in this task; changes wait for the next turn. */
+  /**
+   * Applies model/effort/permission to the live thread with
+   * `thread/settings/update`, for both an idle and an active turn.
+   *
+   * Only the matching `thread/settings/updated` notification confirms the change
+   * (the RPC result is `{}`); a timeout, RPC error or closed connection defers to
+   * the next turn. The process, its thread id and its in-flight turn are never
+   * touched. The matching and the bounded wait live in `codex-live-settings.ts`.
+   */
   async reconfigure(
     host: ProcessHost,
     appSessionId: string,
     patch: HostReconfigurePatch,
   ): Promise<'live' | 'next-turn'> {
-    void host;
+    if (host.mode !== 'resident') {
+      return 'next-turn';
+    }
+    const connection = this.liveConnection();
+    const session = this.sessions.get(appSessionId);
+    if (!connection || !session?.threadId) {
+      return 'next-turn';
+    }
+    return this.liveSettings.reconfigure(connection, session.threadId, patch);
+  }
+
+  /**
+   * What this connection can change live. `threadSettings` is always available
+   * on a live connection; `turnSettings` needs the `step_model_switching`
+   * feature, read once per connection and cached even when the probe fails.
+   */
+  async settingsCapabilities(host: ProcessHost, appSessionId: string): Promise<CodexSettingsCapabilities> {
     void appSessionId;
-    void patch;
-    return 'next-turn';
+    if (host.mode !== 'resident') {
+      return { threadSettings: false, turnSettings: false };
+    }
+    const connection = this.liveConnection();
+    if (!connection) {
+      return { threadSettings: false, turnSettings: false };
+    }
+    return this.liveSettings.capabilities(connection);
+  }
+
+  /**
+   * Applies a model/effort change to the turn in flight, but only when the
+   * capability probe says the feature is on.
+   *
+   * `step_model_switching` is disabled in the locked 0.153.4 build, so the
+   * refusal is a real branch rather than a missing method: nothing is sent and
+   * the caller reads `unsupported`. The true branch exists so the same verb can
+   * run once the feature is enabled.
+   */
+  async reconfigureTurn(
+    host: ProcessHost,
+    appSessionId: string,
+    patch: CodexTurnSettingsPatch,
+  ): Promise<HostReconfigureOutcome> {
+    const capabilities = await this.settingsCapabilities(host, appSessionId);
+    if (!capabilities.threadSettings || !capabilities.turnSettings) {
+      return 'unsupported';
+    }
+    const connection = this.liveConnection();
+    const session = this.sessions.get(appSessionId);
+    if (!connection || !session?.threadId || !session.activeTurnId) {
+      return 'next-turn';
+    }
+    return this.liveSettings.reconfigureTurn(connection, session.threadId, session.activeTurnId, patch);
   }
 
   /** Detaches the session without touching the process. */
@@ -265,6 +352,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       return;
     }
     this.closed = true;
+    this.liveSettings.settleAll();
     for (const session of this.sessions.values()) {
       if (session.pending) {
         this.settleTurn(session, 'failed');
@@ -420,6 +508,12 @@ export class CodexHostDriver implements IProviderHostDriver {
       this.handleProcessExited(params);
       return;
     }
+    // The confirmation for a live settings change: it carries `threadId`, but it
+    // is not a turn frame, so it must be matched before the turn dispatch below.
+    if (method === 'thread/settings/updated') {
+      this.liveSettings.handleNotification(params);
+      return;
+    }
     if (!isRecord(params) || typeof params.threadId !== 'string') {
       return;
     }
@@ -498,9 +592,19 @@ export class CodexHostDriver implements IProviderHostDriver {
     return this.connection;
   }
 
+  /** The connection when it can still carry a frame; null before start or after close. */
+  private liveConnection(): CodexAppServerConnection | null {
+    const connection = this.connection;
+    if (this.closed || !connection || !connection.isAlive()) {
+      return null;
+    }
+    return connection;
+  }
+
   /** The process went away on its own: settle in-flight turns and report the exit. */
   private handleExit(reason: string): void {
     void reason;
+    this.liveSettings.settleAll();
     for (const session of this.sessions.values()) {
       if (session.pending) {
         this.settleTurn(session, 'failed');
