@@ -50,8 +50,8 @@ import { z } from 'zod';
 
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpReadToolContext, McpReadToolSeam } from './mcp-gateway.read-tools.js';
-import type { McpWriteToolSeam } from './mcp-gateway.write-tools.js';
+import type { McpReadToolContext, McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpWriteToolSeam } from './mcp-write-contract.js';
 import type { McpControlCaller, McpControlSeam, McpRunReader } from './mcp-session-send.js';
 
 // --------------------------- the three tool names ---------------------------

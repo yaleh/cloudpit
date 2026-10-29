@@ -1170,11 +1170,16 @@ function extractStringLiterals(source: string): SourceLiteral[] {
  * notification a write call raises for the CloudCLI USER (title / body of an
  * in-app notification), not copy sent to the MCP caller, and it is outside
  * AC-289's field list. Translating it would change user-facing product copy in
- * a task that is about the caller-facing contract.
+ * a task that is about the caller-facing contract. `mcp-client-name.ts` carries
+ * the same user-facing labels (`PERSONAL_TOKEN_LABEL` / `OAUTH_CLIENT_LABEL`)
+ * after proposal stage 2 moved the resolver out of the notification module, so
+ * it is excluded for exactly the same reason.
  */
+const EXCLUDED_SOURCES = new Set(['mcp-write-notification.ts', 'mcp-client-name.ts']);
+
 const SCANNED_SOURCES = [
   ...readdirSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
-    .filter((entry) => entry.endsWith('.ts') && entry !== 'mcp-write-notification.ts')
+    .filter((entry) => entry.endsWith('.ts') && !EXCLUDED_SOURCES.has(entry))
     .map((entry) => path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', entry)),
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../websocket/services/chat-control.service.ts'),
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../oauth/oauth-consent.routes.ts'),

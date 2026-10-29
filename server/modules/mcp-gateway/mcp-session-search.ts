@@ -86,13 +86,10 @@
 
 import { z } from 'zod';
 
-import type { McpToolInputSchema } from './mcp-gateway.audit.js';
+import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import {
-  MCP_SESSION_SEARCH_DEFAULT_LIMIT,
-  readTimeField,
-} from './mcp-gateway.read-tools.js';
-import type { McpReadToolDeps, McpReadToolSeam, McpTime } from './mcp-gateway.read-tools.js';
+import { MCP_SESSION_SEARCH_DEFAULT_LIMIT, type McpTime, readTimeField } from '@/shared/mcp-contract/index.js';
+import type { McpReadToolSeam } from './mcp-read-contract.js';
 
 // --------------------------- engine-facing vocabulary ---------------------------
 
@@ -198,10 +195,10 @@ export type McpSessionSearchDeps = {
 };
 
 /** Whether the injected deps carry the search engine, i.e. this tool is wired. */
-export function isSessionSearchWired(
-  deps: McpReadToolDeps,
-): deps is McpReadToolDeps & { sessionSearch: McpSessionSearchDeps } {
-  return deps.sessionSearch !== undefined;
+export function isSessionSearchWired<D extends object>(
+  deps: D,
+): deps is D & { sessionSearch: McpSessionSearchDeps } {
+  return (deps as { sessionSearch?: unknown }).sessionSearch !== undefined;
 }
 
 // --------------------------- weights ---------------------------

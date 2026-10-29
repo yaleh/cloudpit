@@ -23,7 +23,7 @@ import { z } from 'zod';
 
 import { MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
 import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpWriteToolDeps, McpWriteToolSeam } from './mcp-gateway.write-tools.js';
+import type { McpWriteToolSeam } from './mcp-write-contract.js';
 import {
   buildUiNavigation,
   createUiNavigationRateLimiter,
@@ -90,10 +90,10 @@ export type UiFocusTurnPayload = UiNavigationToolPayload;
 export type McpUiFocusTurnDeps = UiNavigationToolDeps;
 
 /** Whether the injected deps carry this tool's services, i.e. it is wired. */
-export function isUiFocusTurnWired(
-  deps: McpWriteToolDeps,
-): deps is McpWriteToolDeps & { uiFocusTurn: McpUiFocusTurnDeps } {
-  return deps.uiFocusTurn !== undefined;
+export function isUiFocusTurnWired<D extends object>(
+  deps: D,
+): deps is D & { uiFocusTurn: McpUiFocusTurnDeps } {
+  return (deps as { uiFocusTurn?: unknown }).uiFocusTurn !== undefined;
 }
 
 // --------------------------- input ---------------------------

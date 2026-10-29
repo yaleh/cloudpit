@@ -85,6 +85,7 @@ import { fileURLToPath } from 'node:url';
 import {
   collectServerSources,
   isSharedDir,
+  scanFileImportGraph,
   scanImportGraph,
   type DirEdge,
   type Graph,
@@ -808,4 +809,43 @@ test('(g) pulling a real out-of-cycle directory into a real cycle reds (b); the 
   assert.ok(red.length > 0, 'fencing a real out-of-cycle directory into a real cycle must red the containment check');
   assert.ok(red.some((message) => message.includes('modules/logging')), 'the red must name the directory that was pulled in');
   assert.ok(red.some((message) => message.includes('modules/websocket')), 'the red must name the cycle it joined');
+});
+
+// ---------------------------------------------------------------------------
+// (j) the file-level companion reading: no cycle inside one package
+// ---------------------------------------------------------------------------
+
+/**
+ * `cycle-mcp-gateway-intra-package-scc` (routine `architecture-analysis`): the
+ * directory-level ratchet above cannot see a cycle whose members all live in ONE
+ * package, and `server/modules/mcp-gateway` carried a 23-file one. Proposal
+ * `docs/proposals/mcp-gateway-tool-architecture.md` stage 2 inverted the
+ * aggregation edges; this case is the committed reading that keeps them
+ * inverted, so the same cycle cannot return unobserved.
+ *
+ * The synthetic pair first proves the scanner DISCRIMINATES (a two-file cycle is
+ * reported), then the real package must report no component larger than one
+ * file, with a non-vacuity floor on the edges it actually resolved.
+ */
+test('(j) server/modules/mcp-gateway has no file-level import cycle', () => {
+  const cyclicFixture = scanFileImportGraph([
+    { path: 'pkg/a.ts', text: "import { b } from './b.js';\nexport const a = 1;\n" },
+    { path: 'pkg/b.ts', text: "import { a } from './a.js';\nexport const b = 2;\n" },
+  ]);
+  assert.deepEqual(cyclicFixture.nonTrivialSccs, [['pkg/a.ts', 'pkg/b.ts']], 'the file-level scanner must report a two-file cycle');
+
+  const acyclicFixture = scanFileImportGraph([
+    { path: 'pkg/a.ts', text: "import { b } from './b.js';\nexport const a = 1;\n" },
+    { path: 'pkg/b.ts', text: 'export const b = 2;\n' },
+  ]);
+  assert.deepEqual(acyclicFixture.nonTrivialSccs, [], 'a one-way import is not a cycle');
+
+  const PACKAGE_PREFIX = 'modules/mcp-gateway/';
+  const packageSources = sourcesOnce().filter((source) => source.path.startsWith(PACKAGE_PREFIX));
+  assert.ok(packageSources.length >= 40, `the scan must read the package's sources, found ${packageSources.length}`);
+  const fileGraph = scanFileImportGraph(packageSources, { includeDynamic: true });
+  const intraPackageEdges = fileGraph.fileEdges.filter((edge) => edge.from.startsWith(PACKAGE_PREFIX) && edge.to.startsWith(PACKAGE_PREFIX));
+  console.log(`[file-scc] files=${fileGraph.files} intraPackageEdges=${intraPackageEdges.length} sccs=${JSON.stringify(fileGraph.nonTrivialSccs)}`);
+  assert.ok(intraPackageEdges.length >= 10, `non-vacuity: the package must really import its own files, saw ${intraPackageEdges.length}`);
+  assert.deepEqual(fileGraph.nonTrivialSccs, [], 'no file in server/modules/mcp-gateway may sit in an intra-package import cycle');
 });
