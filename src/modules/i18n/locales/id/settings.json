@@ -881,7 +881,8 @@
       "sessionCreate": "Buat sesi (cloudcli:session:create)",
       "sessionControl": "Kendalikan sesi (cloudcli:session:control)",
       "approve": "Setujui (cloudcli:approve)",
-      "navigate": "Buka sesi di salah satu browser Anda (cloudcli:navigate)"
+      "navigate": "Buka sesi di salah satu browser Anda (cloudcli:navigate)",
+      "cockpitAct": "Konfirmasi kartu cockpit: dapat mengirim pesan, memulai sesi (yang menjalankan perintah), atau menerapkan disposisi fleet (cloudcli:cockpit:act)"
     },
     "oauthTokens": {
       "title": "Lanjutan: token OAuth (hanya baca)",

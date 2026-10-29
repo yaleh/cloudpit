@@ -82,6 +82,8 @@ const SCOPE_RISK_KEYS: Record<string, string> = {
   sessionControl: 'scopes.risk.sessionControl',
   approve: 'scopes.risk.approve',
   navigate: 'scopes.risk.navigate',
+  selection: 'scopes.risk.selection',
+  cockpitAct: 'scopes.risk.cockpitAct',
 };
 
 /** How a client registration arrived, as the provenance line names it. */

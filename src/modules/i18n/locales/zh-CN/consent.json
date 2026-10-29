@@ -21,7 +21,9 @@
       "sessionCreate": "可启动新会话",
       "sessionControl": "可控制运行中的会话",
       "approve": "可批准工具调用",
-      "navigate": "可改变你屏幕上的显示"
+      "navigate": "可改变你屏幕上的显示",
+      "selection": "可读取你在会话转写中选中的文本",
+      "cockpitAct": "可确认驾驶舱卡片，可能发消息、开新会话（会运行命令）或应用 fleet 处置"
     }
   },
   "writeWarning": "此应用将能够发送、创建和控制会话。只有信任它时才允许。",

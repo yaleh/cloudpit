@@ -21,7 +21,9 @@
       "sessionCreate": "Dapat memulai sesi baru",
       "sessionControl": "Dapat mengendalikan sesi yang berjalan",
       "approve": "Dapat menyetujui panggilan alat",
-      "navigate": "Dapat mengubah tampilan layar Anda"
+      "navigate": "Dapat mengubah tampilan layar Anda",
+      "selection": "Dapat membaca teks yang Anda pilih di transkrip sesi",
+      "cockpitAct": "Dapat mengonfirmasi kartu cockpit: dapat mengirim pesan, memulai sesi (yang menjalankan perintah), atau menerapkan disposisi fleet"
     }
   },
   "writeWarning": "Aplikasi ini dapat mengirim, membuat, dan mengendalikan sesi. Izinkan hanya jika Anda memercayainya.",
