@@ -219,8 +219,58 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // which is how Codex's own IDE clients do it.
     supportsMessageEditing: true,
     supportsSessionForking: true,
-    lifecycleModes: ['per-run'],
+    // `resident` is the app-server protocol: one process per session held
+    // across turns, driven by `codex-host-driver.provider.ts` (AC-441). It is
+    // stated here only because that driver really serves the mode.
+    lifecycleModes: ['per-run', 'resident'],
+    // One conversation per app-server process — the same reading the driver's
+    // own field states (`CodexHostDriver.multiplexedHost`), per yale's ruling
+    // that one session owns one app-server.
     multiplexedHost: false,
+    // What the locked `@openai/codex 0.153.4` app-server was measured to do
+    // (`tmp/codex-appserver-exp-NuPHhk/REPORT.md` E1–E8, 2026-10-29). Each
+    // measured entry names the experiment that produced it. A verb no
+    // experiment reached stays `false` — the same "unmeasured means
+    // unsupported" discipline the claude row follows, so an untested verb is
+    // never mistaken for one the driver carries.
+    residentFeatures: {
+      // E3: after `turn/interrupt` the turn reads `interrupted` and the
+      // app-server pid is unchanged for the whole run.
+      interruptKeepsProcess: true, // E3
+      // E4: `thread/settings/update` is accepted both idle and active and
+      // answers `thread/settings/updated`. `turn/settings/update` needs
+      // `step_model_switching`, which 0.153.4 reports as "under development:
+      // false", so `permissionMode` is NOT listed: E4 never measured an online
+      // `permissionMode → (approvalPolicy, sandboxPolicy)` mapping (that is
+      // AC-437's subject).
+      liveReconfigure: ['model', 'effort'], // E4
+      // E2: after a normal `turn/completed` the next queued turn starts with
+      // no client action.
+      unattendedTurns: true, // E2
+      // E1/E6: the same thread id resumes after the first turn and still
+      // resumes across app-server processes.
+      addressable: true, // E1, E6
+      // E2: `thread/queue/add` is accepted while `status=active`.
+      inputWhileBusy: true, // E2
+      // E2: `thread/queue/delete` removes one named entry and `queue/list`
+      // then shows only the other one.
+      cancelQueuedInput: true, // E2
+      // E5b: an agent-initiated background terminal was never observed. E5's
+      // `process/spawn` is client-owned and does not appear in
+      // `thread/backgroundTerminals/list`. Unmeasured ⇒ false.
+      backgroundTasks: false, // E5b: unmeasured ⇒ false
+      // No CLI event declares why a resident app-server is held alive; the
+      // busy state is derived by the driver from the turn stream (AC-441).
+      // Unmeasured ⇒ false.
+      authoritativeLeases: false, // unmeasured: no CLI liveness event ⇒ false
+      // E5's `process/kill` only proves a client-owned process can be killed.
+      // The resident background-task ledger lands in AC-438/AC-439 and is not
+      // wired here, so the driver holds no such verb. Unmeasured ⇒ false.
+      stopTask: false, // unmeasured: resident task ledger is AC-438/AC-439 ⇒ false
+      // Reserved: reachability through the provider's own remote-control
+      // bridge; never measured for codex. Unmeasured ⇒ false.
+      remoteControl: false, // unmeasured ⇒ false
+    },
   },
   opencode: {
     provider: 'opencode',
