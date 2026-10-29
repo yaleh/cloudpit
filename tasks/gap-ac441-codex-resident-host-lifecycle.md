@@ -67,17 +67,17 @@ goal_ac: AC-441
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 6`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts'`。
-- [ ] AC2 resident-policy lease：resident host 打开后打印 `open state=… leases=… pid=…`；`state == 'idle'`、`leases` 恰为 `['resident-policy']`、`pid` 等于假 transport 固定 pid、`driver.startHost` 调用恰 1 次。
-- [ ] AC3 turn busy/idle：打印 `during state=… leases=…` 与 `after state=… leases=…`；前者 `state=='busy'`、leases 含 `turn` 且含 `resident-policy`，后者 `state=='idle'`、leases 恰为 `['resident-policy']`；`leaseAdded` 与 `leaseRemoved` 各计 1 次（失败腿：`turn/start` 回错后 host 仍回 `idle`，lease 不粘）。
-- [ ] AC4 关闭原因：打印 `close reason=… driverReason=… closeCalls=…`、`unbind reason=… driverReason=… hostReason=…`、`exit hostReason=… driverCloseCalled=…`；前两组 driver 收到与 manager 记录同一原因，`close()` 恰 1 次；exit 组 `hostReason=='exited'` 且 driver 的 `closeHost` 未被回调。
-- [ ] AC5 idle 超时：打印 `ceiling=… windowStart=… deadline=… closeReason=… driverReason=…`；`quietDeadlineAt - quietWindowStartAt == quietCeilingMs`，推过 deadline 后 `state=='closed'`、`closeReason=='idle'`、`driver.lastCloseReason=='idle'`，关闭时 binding 不含 `turn` lease。
-- [ ] AC6 restore 走 startResidentSession：打印 `restore started=… skipped=… calls=… hostLeases=… resumeThreadId=…`；`outcome.started` 含候选、`skipped` 不含 `no-resident-driver`、driver 动词恰 1 次、host 持 `resident-policy`、随后一轮 `thread/resume` 的 `threadId == 'thread-existing'`；重复 start 幂等且 pid 不变。
-- [ ] AC7 挂载可读：打印 `provider=codex hostDriver=CodexHostDriver multiplexedHost=false`；判据内 `assert.ok(providerRegistry.resolveProvider('codex').hostDriver instanceof CodexHostDriver)` 与 `multiplexedHost === false`；不出现对 `lifecycleModes` 的断言（`grep -n 'lifecycleModes' server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 无输出）。
-- [ ] AC8 假形态承重：临时删 `leaseRemoved('turn')` ⇒ criterion 退出 **1**；临时删/抛 `startResidentSession` ⇒ criterion 退出 **1**；两次逐字红态文案写进完成记录，还原后 `git status --short` 无残留。
-- [ ] AC9 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'provider-capabilities\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts|session-host-manager\.service\.ts|shared/interfaces\.ts'` 输出为空。
-- [ ] AC10 既有契约不变：`npx tsx --tsconfig server/tsconfig.json --test <file>` 对 `server/modules/session-hosts/tests/session-host-lifecycle.test.ts`、`resident-host-service.test.ts`、`resident-ondemand-start-route.test.ts`、`resident-restore.service.test.ts`、`lifecycle-mode.test.ts`、`server/modules/providers/tests/codex-runtime.test.ts` 逐个退出 0（逐个单文件跑；如需并发按 `docs/operations/process-isolation-and-memory-caps.md` 用 `with-memory-cap.sh` 限并发）；`npm run typecheck` 退出 0。
-- [ ] AC11 如实登记：完成记录写明假 transport 形态、fixed pid、FakeClock 注入点、五项读数的逐字输出、两个假形态的退出码与红态文案、以及未实现项（capabilities / queue / settings / approvals / background lease / 协议门控 / E2E）。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 6`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts'`。
+- [x] AC2 resident-policy lease：resident host 打开后打印 `open state=… leases=… pid=…`；`state == 'idle'`、`leases` 恰为 `['resident-policy']`、`pid` 等于假 transport 固定 pid、`driver.startHost` 调用恰 1 次。
+- [x] AC3 turn busy/idle：打印 `during state=… leases=…` 与 `after state=… leases=…`；前者 `state=='busy'`、leases 含 `turn` 且含 `resident-policy`，后者 `state=='idle'`、leases 恰为 `['resident-policy']`；`leaseAdded` 与 `leaseRemoved` 各计 1 次（失败腿：`turn/start` 回错后 host 仍回 `idle`，lease 不粘）。
+- [x] AC4 关闭原因：打印 `close reason=… driverReason=… closeCalls=…`、`unbind reason=… driverReason=… hostReason=…`、`exit hostReason=… driverCloseCalled=…`；前两组 driver 收到与 manager 记录同一原因，`close()` 恰 1 次；exit 组 `hostReason=='exited'` 且 driver 的 `closeHost` 未被回调。
+- [x] AC5 idle 超时：打印 `ceiling=… windowStart=… deadline=… closeReason=… driverReason=…`；`quietDeadlineAt - quietWindowStartAt == quietCeilingMs`，推过 deadline 后 `state=='closed'`、`closeReason=='idle'`、`driver.lastCloseReason=='idle'`，关闭时 binding 不含 `turn` lease。
+- [x] AC6 restore 走 startResidentSession：打印 `restore started=… skipped=… calls=… hostLeases=… resumeThreadId=…`；`outcome.started` 含候选、`skipped` 不含 `no-resident-driver`、driver 动词恰 1 次、host 持 `resident-policy`、随后一轮 `thread/resume` 的 `threadId == 'thread-existing'`；重复 start 幂等且 pid 不变。
+- [x] AC7 挂载可读：打印 `provider=codex hostDriver=CodexHostDriver multiplexedHost=false`；判据内 `assert.ok(providerRegistry.resolveProvider('codex').hostDriver instanceof CodexHostDriver)` 与 `multiplexedHost === false`；不出现对 `lifecycleModes` 的断言（`grep -n 'lifecycleModes' server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 无输出）。
+- [x] AC8 假形态承重：临时删 `leaseRemoved('turn')` ⇒ criterion 退出 **1**；临时删/抛 `startResidentSession` ⇒ criterion 退出 **1**；两次逐字红态文案写进完成记录，还原后 `git status --short` 无残留。
+- [x] AC9 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'provider-capabilities\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts|session-host-manager\.service\.ts|shared/interfaces\.ts'` 输出为空。
+- [x] AC10 既有契约不变：`npx tsx --tsconfig server/tsconfig.json --test <file>` 对 `server/modules/session-hosts/tests/session-host-lifecycle.test.ts`、`resident-host-service.test.ts`、`resident-ondemand-start-route.test.ts`、`resident-restore.service.test.ts`、`lifecycle-mode.test.ts`、`server/modules/providers/tests/codex-runtime.test.ts` 逐个退出 0（逐个单文件跑；如需并发按 `docs/operations/process-isolation-and-memory-caps.md` 用 `with-memory-cap.sh` 限并发）；`npm run typecheck` 退出 0。
+- [x] AC11 如实登记：完成记录写明假 transport 形态、fixed pid、FakeClock 注入点、五项读数的逐字输出、两个假形态的退出码与红态文案、以及未实现项（capabilities / queue / settings / approvals / background lease / 协议门控 / E2E）。
 
 ## DoD
 
@@ -87,5 +87,63 @@ goal_ac: AC-441
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts (modify: turn lease、host port、startResidentSession、冷启动 run、原因读数)
 - server/modules/providers/list/codex/codex.provider.ts (modify: 挂载 hostDriver)
+- server/modules/providers/index.ts (modify: 导出 CodexHostDriver / CodexAppServerConnection 及两个类型，供跨模块判据经 barrel 访问)
 - server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts (new)
+- server/modules/session-hosts/tests/lifecycle-mode.test.ts (modify: per-run-only 夹具改为「codex 已挂驱动但未声明 resident」，cursor/opencode 仍无驱动)
 - tasks/gap-ac441-codex-resident-host-lifecycle.md
+
+## 完成记录
+
+**落地（本条提交 `c60e587cc`，父提交 `060a431a5` = 创建时的 goal/GOAL-051 tip；随后 `git merge --no-edit develop` 无冲突，合并后重跑下列全部读数）**
+
+- driver：`CodexHostDriver` 新增 `host?: Pick<SessionHostManager, 'openHost' | 'snapshot'>`；`startResidentSession` 幂等（已有 live host 直接回 `{hostId,pid}`），从 `launch.context.resolveProviderSessionId` 取 threadId、从 `launch.options` 取 `cwd`/`model` 作为 `thread/start` 默认；冷启动 `run()` 复用同一路径。
+- turn lease：`submit` 在 `turn/start` 前 `leaseAdded({kind:'turn',runId:'codex-turn-<n>'})`，`settleTurn` 为唯一结算点 `leaseRemoved('turn')`，`turn/start` 抛错时 catch 内先移除再 rethrow（`removeTurnLease` 幂等）。
+- 原因读数：`closeHost` / `unbind` 分别记录 `lastCloseReason` / `lastUnbindReason`（公开只读），不改 `IProviderHostDriver`。
+- 挂载：`codex.provider.ts` 新增 `residentHostDriver: CodexHostDriver = new CodexHostDriver({ host: sessionHostManager })` 与 `hostDriver: IProviderHostDriver = this.residentHostDriver`；capabilities / `lifecycleModes` 未动。
+- barrel：`server/modules/providers/index.ts` 导出 `CodexHostDriver`、`CodexAppServerConnection`、`CodexResidentHostPort`、`CodexAppServerTransport`，使 `session-hosts` 模块的判据无需 deep import（边界 lint 强制）。
+- `lifecycle-mode.test.ts` 的 (4c) 原本断言真实 registry 对 `PER_RUN_ONLY_PROVIDERS` 全部无 host driver；挂载 codex 后该断言必红，改为正向断言 codex 挂驱动且仍无 resident 声明，cursor/opencode 仍循环断言无驱动（capability 矩阵未动，`PER_RUN_ONLY_PROVIDERS` 未动）。
+
+**判据形态**：`FakeAppServerTransport` 为内存双工假 `codex app-server`（固定 pid `424242`，可配置 `autoCompleteTurn` / `failNextTurnStart` / `die()`，`terminateCalls` 计数）；`createHarness` 包装 `driver.startHost` 计 `startHostCalls`、包装 sink 计 `leaseAdded/leaseRemoved`、包装 `closeHost` 计 `closeHostCalls`；FakeClock 注入 `createSessionHostManager({ now, scheduler, residentPolicy: { quietCeilingMs: 5000 } })`；`ProviderRuntimeContext` 以 `resolveProviderSessionId` 提供 `thread-existing`。不 spawn 真 codex、不碰 DB/网络。
+
+**逐字读数（落地树上运行原命令，exit 0）**
+
+```
+open state=idle leases=resident-policy pid=424242
+during state=busy leases=resident-policy+turn
+after state=idle leases=resident-policy
+leaseAdded=1 leaseRemoved=1
+rejected state=idle leases=resident-policy
+close reason=user driverReason=user closeCalls=1
+unbind reason=user driverReason=user hostReason=user
+exit hostReason=exited driverCloseCalled=false
+ceiling=5000 windowStart=1700000000000 deadline=1700000005000 closeReason=pending driverReason=pending   (exit 腿：exit 不走 quiet close)
+ceiling=5000 windowStart=1700000000000 deadline=1700000005000 closeReason=idle driverReason=idle       (AC5 idle 超时)
+restore started=session-restore skipped=none calls=1 hostLeases=resident-policy resumeThreadId=thread-existing
+provider=codex hostDriver=CodexHostDriver multiplexedHost=false
+```
+
+`ℹ tests 9 / ℹ pass 9 / ℹ fail 0`（exit 0）。AC7 的 `grep -n 'lifecycleModes' server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 无输出（exit 1）。
+
+**假形态（承重证明）**
+
+1. 注释掉 `settleTurn` 里的 `this.removeTurnLease(session);` → criterion exit **1**，逐字红态：
+   `AssertionError [ERR_ASSERTION]: a settled turn returns the resident host to idle` / `'busy' !== 'idle'` / `actual: 'busy', expected: 'idle', operator: 'strictEqual'`。
+2. `startResidentSession` 开头 `throw new Error('FALSE FORM ...')` → criterion exit **1**，逐字红态：
+   `AssertionError [ERR_ASSERTION]: the restore pass opened a host for the candidate` / `actual: undefined, expected: true, operator: '=='`（restore 的 `started` 为空）。
+   两次均以 `git checkout -- <file>` 还原，还原后 `git status --short` 输出为空（无残留），随后重跑 criterion 仍 exit 0 / pass 9。
+
+**既有契约（合并 develop 后逐个单文件跑）**：codex-resident-lifecycle 9 pass、session-host-lifecycle 7 pass、resident-host-service 5 pass、resident-ondemand-start-route 4 pass、resident-restore.service 5 pass、lifecycle-mode 9 pass、codex-runtime 12 pass，全部 exit 0；`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）。
+
+**AC9 的如实读数（重要）**：在本工作树执行 `git diff --name-only develop...HEAD` 会额外列出 `scripts/suite-duration-baseline.tsv`、`server/modules/providers/list/codex/codex-app-server.connection.ts`、`codex-background-lease-ledger.ts`、`codex-app-server-protocol.test.ts`、`codex-host-driver-persistent.test.ts`、`codex-resident-background-leases.test.ts`、`server/shared/tests/quay-test-script.test.ts` —— 这些是 AC-436…AC-440 在 `goal/GOAL-051` 上、尚未进入 develop 的兄弟任务文件，不是本条写入。本条的自身增量 `git diff --name-only 060a431a5 c60e587cc` 恰为 Touches 的 5 个代码/测试文件；`git diff --name-only develop...HEAD | grep -E 'provider-capabilities\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts|session-host-manager\.service\.ts|shared/interfaces\.ts'` 输出为空（exit 1）。anti-drift Touches 检查（`--merge-target goal/GOAL-051`）在 Touches 补登后通过，是本条范围约束的机械判据。
+
+**未实现项（如实登记）**：capabilities / `lifecycleModes`（AC-442）；queue / settings / approvals / background lease / 协议门控（AC-436…AC-440）；E2E（AC-443）。`multiplexedHost` 仍为 false，`interrupt` 仍只发 `turn/interrupt`。
+
+**ADR-007 暗轴**：该轴仍暗,理由:后端宿主层接线任务，无前端布局(L_D)或图形(L_G)面的可观测改动。
+
+## Blocker
+
+**2026-10-29T12:38:11.968Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→853 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：751728e2-b450-49a0-a6cc-7b3b2a3755ab

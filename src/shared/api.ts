@@ -439,6 +439,14 @@ export const api = {
   cockpitResendFeedback: (cardId: string) =>
     post('/api/cockpit/cards/feedback/resend', { cardId }),
   /**
+   * Discards a card without sending anything back to its conversation: the server asks the
+   * provider's feedback executor for a `dismissed` receipt with `dismiss: true`, and the card
+   * settles instead of returning to the queue. A stale revision is refused exactly like a
+   * confirmation's.
+   */
+  cockpitDismissCard: (request: { cardId: string; revision: number }) =>
+    post('/api/cockpit/cards/dismiss', request),
+  /**
    * One card's brief: the BriefSpec document flattened beside its identity, status and spend.
    * A fallback is still HTTP 200 — `status` and `reason` say why no model brief was drawn, so
    * the drawer shows the reason instead of treating it as a transport failure.

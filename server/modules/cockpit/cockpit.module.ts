@@ -235,6 +235,7 @@ function toBriefResponse(result: CockpitBriefResult): CockpitBriefResponse {
  *   GET  /api/cockpit/cards          — every open card, in provider order
  *   GET  /api/cockpit/cards/:id/brief — the card's BriefSpec, or the default brief + reason
  *   POST /api/cockpit/cards/confirm  — { cardId, revision, optionId | replyText }
+ *   POST /api/cockpit/cards/dismiss  — { cardId, revision }: discard without sending anything
  *
  * The routes only parse transport input and forward errors; every guard lives in
  * `cockpit-card-actions.ts`, every ordering/visibility rule in `cockpit-card-registry.ts`, and
@@ -328,6 +329,11 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
   });
   router.post('/confirm', (req, res, next) => {
     actions.confirm(req.body).then((result) => res.json(result), next);
+  });
+  // Discards a card without sending anything back to its conversation: the feedback executor
+  // receives `dismiss: true` and the provider closes the item as discarded.
+  router.post('/dismiss', (req, res, next) => {
+    actions.dismiss(req.body).then((result) => res.json(result), next);
   });
   // Re-sends ONLY the feedback: the person's 2-minute timeout produces this call, not a second
   // confirmation. The action ledger is untouched, so the action cannot run twice.

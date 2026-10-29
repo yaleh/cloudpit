@@ -133,6 +133,39 @@ export type CockpitCardConfirmRequest = {
   replyText?: string;
 };
 
+/** One dismiss request's transport fields, matching `POST /api/cockpit/cards/dismiss`. */
+export type CockpitCardDismissRequest = {
+  cardId: string;
+  revision: number;
+};
+
+/**
+ * The card-level 「忽略/丢弃」 target: a THIRD choice offered beside the shown option and the
+ * person's own reply, on session-ask cards.
+ *
+ * It carries no option id because it sends nothing back to the conversation: the server hands the
+ * provider's feedback executor a `dismiss: true` signal and the card settles. It is locked exactly
+ * like the other choices while a sent action waits for its receipt.
+ */
+export type CockpitCardDismissTarget = {
+  cardId: string;
+  /** The revision the dismiss would name; the server refuses a stale one. */
+  revision: number;
+  /** A target exists but may not be sent yet (a sent action is awaiting its receipt). */
+  disabled: boolean;
+  disabledReason: string | null;
+};
+
+/** The one-line notice a dismiss leaves in the list; the card itself has usually left by then. */
+export type CockpitCardDismissNotice = {
+  cardId: string;
+  ok: boolean;
+  message: string;
+};
+
+/** What a successful dismiss says: the card was discarded, not sent. */
+export const CARD_DISMISSED_NOTICE = '已忽略';
+
 /** What a confirmation names and what the executor answered. */
 export type CockpitCardConfirmOutcome =
   | { ok: true; cardId: string; executor: string; result: unknown }
@@ -212,6 +245,11 @@ export type CockpitCardControllerDeps = {
    * resend: the button then states that instead of disappearing without a reason.
    */
   resendFeedback?: (cardId: string) => Promise<unknown>;
+  /**
+   * Discards a card without sending anything back to its conversation. Absent means the surface
+   * cannot dismiss: no target is offered, so the button never appears without a path.
+   */
+  dismiss?: (request: CockpitCardDismissRequest) => Promise<unknown>;
   /** The only clock; defaults to the browser's. */
   clock?: Clock;
   /**
@@ -311,6 +349,18 @@ export type CockpitCardControllerSnapshot = {  status: 'idle' | 'loading' | 'loa
   /** The confirm bar target derived from each card's shown option; absent when unavailable. */
   targets: Readonly<Record<string, CockpitCardConfirmTarget>>;
   /**
+   * The card-level 「忽略/丢弃」 target per session-ask card. It sits BESIDE {@link targets} rather
+   * than replacing the shown option's target: the two are separate choices, and the person may
+   * confirm either one.
+   */
+  dismissTargets: Readonly<Record<string, CockpitCardDismissTarget>>;
+  /** The dismiss confirmation state: set by the first press, cleared by send or cancel. */
+  pendingDismiss: CockpitCardDismissTarget | null;
+  /** The card whose dismiss request is in flight, or `null`. */
+  dismissingCardId: string | null;
+  /** The last dismiss answer, drawn as one line in the list; `null` until the first one. */
+  dismissNotice: CockpitCardDismissNotice | null;
+  /**
    * The irreversible option's two-step confirmation: set by the first press, cleared by send,
    * cancel or the ~6 s retreat. A REVERSIBLE option never appears here — its first press starts
    * {@link sendCountdown} instead.
@@ -404,6 +454,15 @@ export type CockpitCardController = {
    * Returns whether a resend request was made.
    */
   resendFeedback: (cardId: string) => Promise<boolean>;
+  /**
+   * The first press on 「忽略/丢弃」: opens the in-place dismiss confirmation. Sends nothing; the
+   * card's options and its own confirm bar are untouched.
+   */
+  requestDismiss: (cardId: string) => boolean;
+  /** The dismiss confirmation's second press: sends exactly one dismiss request. */
+  confirmDismiss: () => Promise<boolean>;
+  /** Leaves the dismiss confirmation without sending; the card keeps its options. */
+  cancelDismiss: () => boolean;
   /** Cancels either the irreversible confirm state or a running countdown, sending nothing. */
   cancelConfirm: () => boolean;
   /** Handles one key; returns whether the cockpit consumed it. Escape is never consumed. */
@@ -434,6 +493,10 @@ const initialState: CockpitCardControllerSnapshot = {
   briefs: {},
   situationExpanded: {},
   targets: {},
+  dismissTargets: {},
+  pendingDismiss: null,
+  dismissingCardId: null,
+  dismissNotice: null,
   pendingConfirm: null,
   sendCountdown: null,
   confirming: false,
@@ -537,6 +600,28 @@ export function confirmTargetOf(
       : locked
         ? FEEDBACK_LOCKED_REASON
         : (option.confirmableReason ?? option.action.executor),
+  };
+}
+
+/**
+ * The card-level 「忽略/丢弃」 target, or `null` when this card does not offer one.
+ *
+ * Only a session-ask card (`kind: 'ask'`) has the third choice: those are the cards a fleet item
+ * behind an assistant question, where discarding is a meaningful alternative to answering. Any
+ * other kind keeps the two-choice contract it shipped with, so the control never appears where
+ * the server has no item to close.
+ *
+ * A sent action awaiting its receipt locks it exactly like the confirm target: the action already
+ * ran, so discarding would be a second, contradictory decision on the same item.
+ */
+export function dismissTargetOf(card: CockpitCard): CockpitCardDismissTarget | null {
+  if (card.kind !== 'ask') return null;
+  const locked = card.feedback !== undefined;
+  return {
+    cardId: card.id,
+    revision: card.revision,
+    disabled: locked,
+    disabledReason: locked ? FEEDBACK_LOCKED_REASON : null,
   };
 }
 
@@ -748,6 +833,7 @@ function failureMessage(failure: unknown): string {
 function normalize(
   next: CockpitCardControllerSnapshot,
   now: number,
+  dismissAvailable: boolean,
 ): CockpitCardControllerSnapshot {
   const cards = next.cards;
   const byId = new Map(cards.map((card) => [card.id, card]));
@@ -865,6 +951,29 @@ function normalize(
       : null;
 
   const targets = targetsOf(drawableCards, shown, ownReplies);
+  // The dismiss target is offered only when the surface can send one (a binding without the
+  // transport must not draw a button that cannot work), and it follows the same folded-duplicate
+  // rule as the confirm target: a folded card owns neither.
+  const dismissTargets: Record<string, CockpitCardDismissTarget> = {};
+  if (dismissAvailable) {
+    for (const card of drawableCards) {
+      const target = dismissTargetOf(card);
+      if (target !== null) dismissTargets[card.id] = target;
+    }
+  }
+  let pendingDismiss = next.pendingDismiss;
+  if (pendingDismiss !== null) {
+    const target = dismissTargets[pendingDismiss.cardId];
+    if (target === undefined || target.disabled || target.revision !== pendingDismiss.revision) {
+      pendingDismiss = null;
+    }
+  }
+  // A dismiss in flight names its card only while that card still exists; a removed card leaves
+  // nothing to draw the answer on (the list-level notice is what survives the card).
+  const dismissingCardId =
+    next.dismissingCardId !== null && byId.has(next.dismissingCardId)
+      ? next.dismissingCardId
+      : null;
   let pendingConfirm = next.pendingConfirm;
   if (pendingConfirm !== null) {
     const card = byId.get(pendingConfirm.cardId);
@@ -906,6 +1015,9 @@ function normalize(
     detailsStack,
     openDropdownCardId,
     targets,
+    dismissTargets,
+    pendingDismiss,
+    dismissingCardId,
     pendingConfirm,
     sendCountdown,
     confirmingCardId,
@@ -1027,7 +1139,9 @@ export function createCockpitCardController(
   /** The one write path: patch the snapshot, normalize it, publish. */
   const commit = (patch: Partial<CockpitCardControllerSnapshot>): void => {
     if (disposed) return;
-    store.update((previous) => normalize({ ...previous, ...patch }, clock.now()));
+    store.update((previous) =>
+      normalize({ ...previous, ...patch }, clock.now(), deps.dismiss !== undefined),
+    );
     // `normalize` may also close the state (a vanished card, a moved revision), so the check is
     // on the committed snapshot rather than on `patch`.
     if (store.getSnapshot().pendingConfirm === null) clearConfirmRetreat();
@@ -1302,6 +1416,9 @@ export function createCockpitCardController(
     if (confirming) return false;
     // One countdown at a time: a second one would arm a second timer nobody can see or cancel.
     if (snapshot.sendCountdown !== null) return false;
+    // One decision at a time: an open dismiss confirmation owns the card until it is confirmed
+    // or cancelled.
+    if (snapshot.pendingDismiss !== null) return false;
     const target = snapshot.targets[targetId];
     if (target === undefined || target.disabled) return false;
     // The warning options keep the two-press confirmation: the person must press again, on the
@@ -1372,6 +1489,55 @@ export function createCockpitCardController(
     const pending = store.getSnapshot().pendingConfirm;
     if (pending === null || confirming) return false;
     return send(pending);
+  };
+
+  /**
+   * The first press on 「忽略/丢弃」: opens the dismiss confirmation without sending anything.
+   *
+   * It refuses while another confirmation is open or in flight — one card, one decision at a
+   * time — and it never touches the shown option, the own-reply draft or the send countdown. The
+   * options stay exactly as they were, so confirming a dismiss is not a choice of answer.
+   */
+  const requestDismiss = (cardId: string): boolean => {
+    if (disposed) return false;
+    const snapshot = store.getSnapshot();
+    if (confirming) return false;
+    if (snapshot.pendingConfirm !== null || snapshot.sendCountdown !== null) return false;
+    const target = snapshot.dismissTargets[cardId];
+    if (target === undefined || target.disabled) return false;
+    commit({ pendingDismiss: target, dismissNotice: null });
+    return true;
+  };
+
+  /** The dismiss confirmation's second press: one request, never the action executor. */
+  const confirmDismiss = async (): Promise<boolean> => {
+    const pending = store.getSnapshot().pendingDismiss;
+    if (pending === null || confirming) return false;
+    const dismiss = deps.dismiss;
+    if (dismiss === undefined) return false;
+    confirming = true;
+    commit({ dismissingCardId: pending.cardId, dismissNotice: null });
+    let notice: CockpitCardDismissNotice;
+    try {
+      await dismiss({ cardId: pending.cardId, revision: pending.revision });
+      notice = { cardId: pending.cardId, ok: true, message: CARD_DISMISSED_NOTICE };
+    } catch (failure) {
+      notice = { cardId: pending.cardId, ok: false, message: failureMessage(failure) };
+    } finally {
+      confirming = false;
+    }
+    commit({ pendingDismiss: null, dismissingCardId: null, dismissNotice: notice });
+    // A successful dismiss settled the provider's item, so the next read is the card leaving the
+    // list. A failure keeps it, with the notice saying why.
+    if (notice.ok) await read();
+    return notice.ok;
+  };
+
+  /** Leaves the dismiss confirmation without sending; the card's options are untouched. */
+  const cancelDismiss = (): boolean => {
+    if (store.getSnapshot().pendingDismiss === null) return false;
+    commit({ pendingDismiss: null });
+    return true;
   };
 
   /**
@@ -1581,6 +1747,9 @@ export function createCockpitCardController(
     requestConfirm,
     confirm,
     resendFeedback,
+    requestDismiss,
+    confirmDismiss,
+    cancelDismiss,
     cancelConfirm: () => {
       // Once the request has left it cannot be taken back: the button is disabled and the answer
       // — success or failure — stands. Reporting `false` says 「nothing was cancelled」.

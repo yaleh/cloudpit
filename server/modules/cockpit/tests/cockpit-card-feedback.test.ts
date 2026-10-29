@@ -12,6 +12,8 @@
  *     the card's reading) and on the card leaving the reading — but a `closed` receipt while the
  *     item is still listed keeps 「已发出」, and a revision change alone never clears it;
  *   · `rejected` clears the overlay and keeps the reason;
+ *   · a dismiss runs NO action executor, sends `dismiss: true` to the feedback executor, and its
+ *     `dismissed` receipt settles the card without a notice;
  *   · a resend reuses the same `feedbackId` and never runs the action again;
  *   · a provider with no feedback executor answers an explicit unavailable reason on resend.
  *
@@ -426,6 +428,80 @@ test('a rejected receipt clears the overlay and keeps the reason', async () => {
   const listed = store.applyCards(await registry.listCards());
   assert.equal(listed[0].feedbackNotice?.reason, 'stale-revision');
   assert.equal(listed[0].feedback, undefined);
+});
+
+test('a dismiss sends `dismiss: true`, runs no action executor and settles on the receipt', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1' })]);
+  const registry = createCockpitCardRegistry([provider]);
+  const action = actionExecutor();
+  const feedback = feedbackExecutor({
+    receipt: (params) => receiptOf(params, 'dismissed'),
+  });
+  const store = createCockpitCardFeedbackStore();
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [action, feedback],
+    feedbackStore: store,
+    now: () => new Date(AT),
+    newFeedbackId: () => 'feedback-dismiss',
+  });
+
+  const answer = await actions.dismiss({ cardId: 'card-1', revision: 1 });
+
+  assert.equal(answer.executor, 'test.feedback');
+  assert.equal(action.calls.length, 0, 'a dismiss never runs an action executor');
+  assert.equal(feedback.calls.length, 1, 'the feedback executor takes the dismiss signal');
+  const params = feedback.calls[0];
+  assert.equal(params.attentionId, 'card-1');
+  assert.equal(params.revision, 1);
+  assert.equal(params.feedbackId, 'feedback-dismiss');
+  assert.equal(params.dismiss, true, 'the dismiss flag is top-level feedback params');
+  assert.equal(params.optionId, undefined, 'a dismiss names no option');
+  assert.equal(params.outcome, undefined, 'no action ran, so there is no action outcome');
+
+  // Settle, not a return to the queue: nothing is left for the display to draw on this card.
+  assert.equal(store.overlay('card-1'), null, 'no action means no feedback overlay');
+  assert.equal(store.notice('card-1'), null, 'a dismissed receipt records no kept/rejected notice');
+  provider.cards = [];
+  assert.deepEqual(store.applyCards(await registry.listCards()), []);
+});
+
+test('a dismissed receipt settles a sent feedback without recording a notice', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1' })]);
+  const registry = createCockpitCardRegistry([provider]);
+  const store = createCockpitCardFeedbackStore();
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [
+      actionExecutor(),
+      feedbackExecutor({ receipt: (params) => receiptOf(params, 'dismissed') }),
+    ],
+    feedbackStore: store,
+    newFeedbackId: () => 'feedback-dismissed-after-action',
+  });
+
+  await actions.confirm({ cardId: 'card-1', revision: 1, optionId: 'go' });
+
+  assert.equal(store.overlay('card-1'), null, 'a dismissed receipt clears the overlay');
+  assert.equal(store.notice('card-1'), null, 'it does not return as a kept/rejected notice');
+});
+
+test('a dismiss for a stale revision is refused before reaching the provider', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1', revision: 3 })]);
+  const registry = createCockpitCardRegistry([provider]);
+  const feedback = feedbackExecutor({ receipt: (params) => receiptOf(params, 'dismissed') });
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [actionExecutor(), feedback],
+    feedbackStore: createCockpitCardFeedbackStore(),
+  });
+
+  await assert.rejects(
+    () => actions.dismiss({ cardId: 'card-1', revision: 2 }),
+    (failure: unknown) =>
+      failure instanceof AppError && failure.code === 'REVISION_CONFLICT',
+  );
+  assert.equal(feedback.calls.length, 0, 'a stale dismiss never reaches the provider');
 });
 
 test('a resend reuses the same feedbackId and never runs the action again', async () => {

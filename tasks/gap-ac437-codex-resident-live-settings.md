@@ -175,3 +175,11 @@ goal_ac: AC-437
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-ac437-codex-resident-live-settings.md
+
+## Blocker
+
+**2026-10-29T11:53:12.860Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：1555f4ab-aeab-4fbf-bffa-9a6880d1fb28

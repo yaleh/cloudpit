@@ -128,10 +128,12 @@ export type {
   CockpitCardVizKind,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 export {
+  CARD_DISMISSED_NOTICE,
   cockpitCardsReading,
   confirmTargetOf,
   createCockpitCardController,
   defaultShownOption,
+  dismissTargetOf,
   isIrreversibleOption,
   shownOptionOf,
 } from '@/modules/cockpit/cockpitCardController';
@@ -143,6 +145,9 @@ export type {
   CockpitCardControllerDeps,
   CockpitCardControllerSnapshot,
   CockpitCardDensity,
+  CockpitCardDismissNotice,
+  CockpitCardDismissRequest,
+  CockpitCardDismissTarget,
   CockpitCardReading,
   CockpitCardShown,
   CockpitCardTypeFilter,

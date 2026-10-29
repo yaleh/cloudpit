@@ -25,6 +25,7 @@ import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
   CockpitCardDensity,
+  CockpitCardDismissTarget,
   CockpitCardDuplicatesState,
   CockpitCardSendCountdown,
   CockpitCardShown,
@@ -211,6 +212,15 @@ export type CockpitCardProps = {
   shown: CockpitCardShown | undefined;
   /** The current confirm target derived from `shown`; `null` when the card has nothing to confirm. */
   target: CockpitCardConfirmTarget | null;
+  /**
+   * The card-level 「忽略/丢弃」 target, offered BESIDE the shown option's confirm target on a
+   * session-ask card. Absent/null means this card does not offer the third action.
+   */
+  dismissTarget?: CockpitCardDismissTarget | null;
+  /** True when this card's dismiss confirmation is open (the first press has happened). */
+  dismissPending?: boolean;
+  /** True while this card's dismiss request is in flight. */
+  dismissing?: boolean;
   ownReply: string;
   dropdownOpen: boolean;
   selected: boolean;
@@ -255,6 +265,12 @@ export type CockpitCardProps = {
   onConfirm?: () => void;
   /** Leaves the confirm state without sending. */
   onCancelConfirm?: () => void;
+  /** The first press on 「忽略/丢弃」: opens the dismiss confirmation, sending nothing. */
+  onRequestDismiss?: () => void;
+  /** The dismiss confirmation's second press: discards the card without replying to it. */
+  onConfirmDismiss?: () => void;
+  /** Leaves the dismiss confirmation without sending. */
+  onCancelDismiss?: () => void;
   /** Re-sends only the feedback after the 2-minute window (never the action). */
   onResendFeedback?: () => void;
   /** True while this card's feedback resend is in flight. */
@@ -268,6 +284,9 @@ export default function CockpitCard({
   now,
   shown,
   target,
+  dismissTarget = null,
+  dismissPending = false,
+  dismissing = false,
   ownReply,
   dropdownOpen,
   selected,
@@ -290,6 +309,9 @@ export default function CockpitCard({
   outcome = null,
   onConfirm,
   onCancelConfirm,
+  onRequestDismiss,
+  onConfirmDismiss,
+  onCancelDismiss,
   onResendFeedback,
   resendingFeedback = false,
   feedbackResendError = null,
@@ -910,6 +932,50 @@ export default function CockpitCard({
               )}
             </>
           ))}
+          {/* The third choice on a session-ask card: discard the card WITHOUT answering it. It
+              sits beside the option's confirm bar, never inside it, so opening the dismiss
+              confirmation leaves the shown option and its buttons exactly as they were. The
+              first press only opens that confirmation; nothing is sent from here. */}
+          {!feedbackLocked && dismissTarget !== null && (
+            <div
+              data-testid="cockpit-card-dismiss-bar"
+              data-card-id={card.id}
+              data-dismiss-pending={dismissPending ? 'true' : 'false'}
+              className="mt-1"
+            >
+              {dismissPending ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    data-testid="cockpit-card-dismiss-confirm"
+                    disabled={dismissing}
+                    onClick={onConfirmDismiss}
+                    className="rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                  >
+                    {dismissing ? t('cockpit.cardDismissing') : t('cockpit.cardDismissConfirm')}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="cockpit-card-dismiss-cancel"
+                    disabled={dismissing}
+                    onClick={onCancelDismiss}
+                    className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                  >
+                    {t('cockpit.cardConfirmCancel')}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="cockpit-card-dismiss"
+                  onClick={onRequestDismiss}
+                  className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {t('cockpit.cardDismiss')}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </article>
