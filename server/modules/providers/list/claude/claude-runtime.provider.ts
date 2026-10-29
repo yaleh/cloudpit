@@ -28,7 +28,6 @@ import {
   CLAUDE_PREDEFINED_MODELS,
   CLAUDE_ULTRACODE_EFFORT
 } from '@/modules/providers/list/claude/claude-models.provider.js';
-import { createBoundedLedger, MAX_REMEMBERED_APPROVALS } from '@/shared/bounded-approval-ledger.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import {
   createNotificationEvent,
@@ -41,6 +40,15 @@ import { resolveModelContextWindowRow, resolveModelLaunchSpec } from '@/modules/
 import { resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
 import { createClaudeSessionScopeSpawn } from '@/modules/providers/services/claude-session-scope.service.js';
 import { createClaudeTurnTracker } from '@/modules/providers/services/claude-turn-phase.service.js';
+import {
+  approvalRequests,
+  TOOL_APPROVAL_TIMEOUT_MS,
+  type ClientToolDecisionInput,
+} from '@/modules/providers/shared/base/approval-requests.service.js';
+
+// Re-exported at its declaration site in the shared service; this module only
+// forwards the name `providers/index.ts` and `mcp-approvals.ts` already read.
+export { TOOL_APPROVAL_TIMEOUT_MS };
 import {
   createClaudeTaskReducer,
   earnsTaskTerminalRow,
@@ -63,8 +71,6 @@ import {
 } from '@/shared/utils.js';
 import type {
   AnyRecord,
-  ApprovalDecisionRecord,
-  MissingApprovalReason,
   NormalizedMessage,
   ProviderModelsDefinition,
   ProviderRuntimeContext,
@@ -99,23 +105,13 @@ type ActiveClaudeSession = {
 };
 
 /**
- * A pending tool-approval waiter.
+ * The process-wide mutable state of the Claude runtime: which runs are live
+ * and which session ids were aborted.
  *
- * The extra fields are the metadata `getPendingApprovalsForSession` replays a
- * pending prompt from, attached to the resolver so one map holds the wait and
- * the facts a reconnecting client needs.
- */
-type ToolApprovalResolver = ((decision: AnyRecord | null) => void) & {
-  _sessionId?: string | null;
-  _toolName?: string;
-  _input?: unknown;
-  _context?: unknown;
-  _receivedAt?: Date;
-};
-
-/**
- * The process-wide mutable state of the Claude runtime: which runs are live,
- * which tool approvals are waiting, and which session ids were aborted.
+ * Tool approvals are no longer here: the pending registry and its ledgers moved
+ * to the shared `approval-requests.service.ts` when Codex became the second
+ * provider to ask a client (AC-438). The names below still resolve to that one
+ * shared owner.
  *
  * All three containers were module-level bindings; they live here as private
  * fields so the class is their only owner and every read/write goes through a
@@ -127,9 +123,6 @@ type ToolApprovalResolver = ((decision: AnyRecord | null) => void) & {
 class ClaudeRuntimeState {
   /** Live runs by app session id; the only handle for interrupting them. */
   private readonly activeSessions = new Map<string, ActiveClaudeSession>();
-
-  /** Tool-approval waits keyed by request id, awaiting a client decision. */
-  private readonly pendingToolApprovals = new Map<string, ToolApprovalResolver>();
 
   /**
    * Session ids whose current run the abort handler already terminated: it
@@ -153,23 +146,6 @@ class ClaudeRuntimeState {
 
   listActiveSessionIds(): string[] {
     return Array.from(this.activeSessions.keys());
-  }
-
-  setPendingToolApproval(requestId: string, resolver: ToolApprovalResolver): void {
-    this.pendingToolApprovals.set(requestId, resolver);
-  }
-
-  getPendingToolApproval(requestId: string): ToolApprovalResolver | undefined {
-    return this.pendingToolApprovals.get(requestId);
-  }
-
-  deletePendingToolApproval(requestId: string): void {
-    this.pendingToolApprovals.delete(requestId);
-  }
-
-  /** Snapshot iterator for the per-session replay of waiting prompts. */
-  entriesPendingToolApprovals(): IterableIterator<[string, ToolApprovalResolver]> {
-    return this.pendingToolApprovals.entries();
   }
 
   markSessionAborted(sessionId: string): void {
@@ -197,78 +173,17 @@ class ClaudeRuntimeState {
 /** The single Claude runtime state instance every function in this module uses. */
 const runtimeState = new ClaudeRuntimeState();
 
-/**
- * The bounded ledger of approval request ids this process has HELD.
- *
- * The pending-approval registry in {@link ClaudeRuntimeState} is emptied by
- * `cleanup()` the instant a request
- * settles, so the live map alone cannot tell an id that was here and timed out
- * from one that was never minted — both simply read as absent. AC-287 requires
- * the MCP `approval_answer` surface to report those two apart, so the id is
- * recorded here when the wait is armed and kept after the pending entry is
- * gone. Bounded (oldest first out) so a long-lived process cannot grow the set
- * without limit; an evicted id degrades to the conservative `never_issued`
- * rather than a false `expired`.
- *
- * Consumed by {@link classifyMissingApproval}, which
- * `claudeRuntime.permissions.classifyMissingApproval` exposes to
- * `provider-runtime.service.ts` and, through it, to the MCP approval adapter.
+/*
+ * The approval names AC-168 pinned still resolve from this module, and each is
+ * the shared service's own function object rather than a copy: the pending
+ * registry and both ledgers moved to `approval-requests.service.ts` when Codex
+ * became the second provider that asks a client (AC-438). `claude-host-driver`
+ * and the MCP tests import these names and behave exactly as before.
  */
-const heldApprovalLedger = createBoundedLedger<true>(MAX_REMEMBERED_APPROVALS);
-
-/** Records `requestId` as held, evicting the oldest id past the cap. */
-function rememberHeldApproval(requestId: string): void {
-  heldApprovalLedger.remember(requestId, true);
-}
-
-/**
- * Classifies a `requestId` that is NOT in the pending registry.
- *
- * `expired` means this process held the request and no longer does (it timed
- * out or was already decided); `never_issued` means nothing here ever minted
- * it. Consumers: `provider-runtime.service.ts` forwards it, and
- * `chat-control.service.ts` / `mcp-approvals.ts` turn it into the
- * `APPROVAL_NOT_FOUND` envelope's `details.reason`.
- */
-function classifyMissingApproval(requestId: string): MissingApprovalReason {
-  return heldApprovalLedger.has(requestId) ? 'expired' : 'never_issued';
-}
-
-/**
- * The bounded ledger of approval request ids this process has DECIDED.
- *
- * The pending-approval registry is emptied the instant a request settles, so a second
- * `approval_answer` for the same id finds nothing and cannot tell "another
- * caller just decided this" from "nothing ever held it" — both read as absent
- * and both collapse to `APPROVAL_EXPIRED_OR_NOT_FOUND`. The MCP surface needs
- * them apart so a client can confirm its own answer landed (or learn, and
- * report, that it lost the race), so the decision is recorded here at settle
- * time, before the resolver runs.
- *
- * Bounded (oldest first out) for the same reason `heldApprovalLedger` is: a
- * long-lived process must not grow it without limit. An evicted id degrades to
- * the conservative `expired`/`never_issued` reading rather than a false
- * `ALREADY_DECIDED`.
- *
- * Consumed by {@link readApprovalDecision}, which
- * `claudeRuntime.permissions.readApprovalDecision` exposes to
- * `provider-runtime.service.ts` and, through it, to `chat-control.service.ts`.
- */
-const approvalDecisionLedger = createBoundedLedger<ApprovalDecisionRecord>(MAX_REMEMBERED_APPROVALS);
-
-/** Records one settled decision, evicting the oldest entry past the cap. */
-function rememberApprovalDecision(requestId: string, record: ApprovalDecisionRecord): void {
-  approvalDecisionLedger.remember(requestId, record);
-}
-
-/**
- * The decision this process recorded for a request id, or `null` when it never
- * decided one. A request still awaiting an answer reads `null` — this ledger
- * only ever names requests that were actually settled.
- */
-function readApprovalDecision(requestId: string): ApprovalDecisionRecord | null {
-  return approvalDecisionLedger.read(requestId) ?? null;
-}
+export const resolveToolApproval = approvalRequests.resolveToolApproval;
+export const getPendingApprovalsForSession = approvalRequests.getPendingApprovalsForSession;
+export const classifyMissingApproval = approvalRequests.classifyMissingApproval;
+export const readApprovalDecision = approvalRequests.readApprovalDecision;
 
 /**
  * The SDK query factory every run creates its process through.
@@ -289,16 +204,9 @@ export const claudeQueryFactory: { current: typeof query } = { current: query };
 // entry, the abort flag, and all client-facing events belong to the new run.
 const supersededInstances = new WeakSet<object>();
 
-/**
- * How long an ordinary (non-interactive) tool approval waits before it is
- * auto-denied, in milliseconds. Read once from the environment.
- *
- * Exported because the MCP gateway has to state this same deadline on the
- * requests it lists (`approvals_list`'s `autoTimeoutMs` and
- * `session_get`'s `pendingInteraction`), and a re-derived copy would be a
- * second answer to the same question.
- */
-export const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS as string, 10) || 55000;
+// The approval deadline `TOOL_APPROVAL_TIMEOUT_MS` moved with the rest of the
+// approval machinery to `approval-requests.service.ts` and is re-exported from
+// there by name, so the MCP gateway still reads one value.
 
 // How long background work is allowed to keep running after a turn ends. This drives
 // two halves of the same behaviour:
@@ -408,202 +316,26 @@ function createRequestId(): string {
   return crypto.randomBytes(16).toString('hex');
 }
 
-/** The options one tool-approval wait is armed with. */
-type ToolApprovalOptions = {
-  timeoutMs?: number;
-  signal?: AbortSignal | null;
-  onCancel?: (reason: string) => void;
-  metadata?: AnyRecord | null;
-};
-
-function waitForToolApproval(
-  requestId: string,
-  options: ToolApprovalOptions = {},
-): Promise<AnyRecord | null> {
-  const { timeoutMs = TOOL_APPROVAL_TIMEOUT_MS, signal, onCancel, metadata } = options;
-
-  // Recorded at ARM time, not at settle time: the ledger must still name this id
-  // after `cleanup()` deletes the pending entry, which is the whole point.
-  rememberHeldApproval(requestId);
-
-  return new Promise(resolve => {
-    let settled = false;
-
-    const finalize = (decision: AnyRecord | null) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(decision);
-    };
-
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-
-    const cleanup = () => {
-      runtimeState.deletePendingToolApproval(requestId);
-      if (timeout) clearTimeout(timeout);
-      if (signal && abortHandler) {
-        signal.removeEventListener('abort', abortHandler);
-      }
-    };
-
-    // timeoutMs 0 = wait indefinitely (interactive tools)
-    if (timeoutMs > 0) {
-      timeout = setTimeout(() => {
-        onCancel?.('timeout');
-        finalize(null);
-      }, timeoutMs);
-    }
-
-    const abortHandler = () => {
-      onCancel?.('cancelled');
-      finalize({ cancelled: true });
-    };
-
-    if (signal) {
-      if (signal.aborted) {
-        onCancel?.('cancelled');
-        finalize({ cancelled: true });
-        return;
-      }
-      signal.addEventListener('abort', abortHandler, { once: true });
-    }
-
-    const resolver: ToolApprovalResolver = (decision) => {
-      finalize(decision);
-    };
-    // Attach metadata for getPendingApprovalsForSession lookup
-    if (metadata) {
-      Object.assign(resolver, metadata);
-    }
-    runtimeState.setPendingToolApproval(requestId, resolver);
-  });
-}
-
-function resolveToolApproval(
-  requestId: string,
-  decision: AnyRecord | null,
-  decidedBy: string | null = null,
-): void {
-  const resolver = runtimeState.getPendingToolApproval(requestId);
-  if (!resolver) {
-    // No live wait means nothing was decided — a decision for an id this
-    // process is not holding must not enter the ledger, or a later caller would
-    // read a settlement that never happened.
-    return;
-  }
-  // Recorded BEFORE the resolver runs, and synchronously with the lookup above:
-  // the resolver's `finalize` deletes the pending entry in the same tick, so
-  // this is the only point at which a concurrent second caller can still learn
-  // the request was decided rather than merely gone.
-  rememberApprovalDecision(requestId, {
-    decidedAt: Date.now(),
-    decidedBy,
-    allow: typeof decision?.allow === 'boolean' ? decision.allow : null,
-  });
-  resolver(decision);
-}
-
 /**
  * Asks the attached client to decide one human-facing request.
  *
- * The protocol is the one this module has always used for a tool call — a
- * `permission_request` frame on the run's writer, an `action_required`
- * notification, then a wait on `waitForToolApproval` — and it is factored out
- * rather than duplicated so a *resident* host asks the same question the same
- * way instead of inventing a second request protocol. The resident path needs
- * no new frame kind for elicitation or dialogs: the request travels as the
- * frame's `input` and the caller keeps its own mapping back.
- *
- * Returns the client's own decision object, `{ cancelled: true }` when the wait
- * was aborted, or `null` when it timed out — the three answers the per-run
- * callback has always branched on, so the caller keeps its own branch and its
- * own wording. `permission_resolved` is sent here, before an answer is handed
- * back, for the reason it always was: a mid-run page refresh replays the run
- * buffer, and a prompt with nothing to retract it resurrects.
- *
- * `onCancel` is an extra side effect for a caller that has one — the
- * `permission_cancelled` frame is sent here either way, and both callers (the
- * per-run callback and the resident one) have nothing to add, so its default
- * states the optionality the body's `onCancel?.(reason)` already assumed.
+ * The protocol lives in `approval-requests.service.ts` now; this wrapper only
+ * states Claude's two provider-specific facts, so every existing caller keeps
+ * its frame shape and its Turn Tracker feed: the frame's provider id is
+ * `claude`, and the tracker's `awaitingPermission` phase is observed through
+ * the shared service's phase hook. No session id means no phase to key — the
+ * frame still travels with `sessionId: null`.
  */
-export async function requestClientToolDecision({
-  toolName,
-  input,
-  requiresInteraction,
-  requestId,
-  ws,
-  emitNotification,
-  sessionId,
-  sessionSummary,
-  signal,
-  onCancel = undefined,
-}: {
-  toolName: string;
-  input: unknown;
-  requiresInteraction: boolean;
-  requestId: string;
-  ws: ProviderRuntimeWriter | null;
-  emitNotification: (event: AnyRecord) => void;
-  sessionId: string | null;
-  sessionSummary: string | null;
-  signal?: AbortSignal | null;
-  onCancel?: (reason: string) => void;
-}): Promise<AnyRecord | null> {
-  ws!.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: sessionId || null, provider: 'claude' }));
-  // Fed from here rather than from either caller: this is the one seam both the
-  // per-run and the resident path ask a client through, so the tracker's
-  // `awaitingPermission` phase (which `overview` and `session_get` read) is the
-  // same signal as the prompt above, not a second bookkeeping of it. No session
-  // id means no phase to key — the frame still travels with `sessionId: null`.
-  if (sessionId) {
-    turnTracker.observePermission(sessionId, { kind: 'permission_request', requestId });
-  }
-  emitNotification(createNotificationEvent({
+export function requestClientToolDecision(
+  input: Omit<ClientToolDecisionInput, 'provider' | 'onPermissionPhase'>,
+): Promise<AnyRecord | null> {
+  return approvalRequests.requestClientToolDecision({
+    ...input,
     provider: 'claude',
-    sessionId: sessionId || null,
-    kind: 'action_required',
-    code: 'permission.required',
-    meta: { toolName, sessionName: sessionSummary },
-    severity: 'warning',
-    requiresUserAction: true,
-    dedupeKey: `claude:permission:${sessionId || 'none'}:${requestId}`
-  } as unknown as Parameters<typeof createNotificationEvent>[0]));
-
-  let decision: AnyRecord | null = null;
-  try {
-    decision = await waitForToolApproval(requestId, {
-      timeoutMs: requiresInteraction ? 0 : undefined,
-      signal,
-      metadata: {
-        // Keyed by the app session id so `chat.subscribe` can look pending
-        // approvals up directly; provider id only for legacy callers.
-        _sessionId: sessionId || null,
-        _toolName: toolName,
-        _input: input,
-        _receivedAt: new Date(),
-      },
-      onCancel: (reason) => {
-        ws!.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason, sessionId: sessionId || null, provider: 'claude' }));
-        onCancel?.(reason);
-      }
-    });
-  } finally {
-    // The wait is over the moment it settles, times out or aborts — the phase
-    // must leave `awaitingPermission` in every one of those cases, or the
-    // session would read as still parked on a prompt nobody is waiting on.
-    if (sessionId) {
-      turnTracker.observePermission(sessionId, { kind: 'permission_resolved', requestId });
-    }
-  }
-  if (!decision) {
-    return null;
-  }
-  if (decision.cancelled) {
-    return { cancelled: true };
-  }
-
-  ws!.send(createNormalizedMessage({ kind: 'permission_resolved', requestId, sessionId: sessionId || null, provider: 'claude' }));
-  return decision;
+    onPermissionPhase: (sessionId, event) => {
+      turnTracker.observePermission(sessionId, event);
+    },
+  });
 }
 
 /**
@@ -2361,28 +2093,6 @@ function getActiveClaudeSDKSessions(): string[] {
 }
 
 /**
- * Get pending tool approvals for a specific session.
- * @param {string} sessionId - The session ID
- * @returns {Array} Array of pending permission request objects
- */
-function getPendingApprovalsForSession(sessionId: string): AnyRecord[] {
-  const pending: AnyRecord[] = [];
-  for (const [requestId, resolver] of runtimeState.entriesPendingToolApprovals()) {
-    if (resolver._sessionId === sessionId) {
-      pending.push({
-        requestId,
-        toolName: resolver._toolName || 'UnknownTool',
-        input: resolver._input,
-        context: resolver._context,
-        sessionId,
-        receivedAt: resolver._receivedAt || new Date(),
-      });
-    }
-  }
-  return pending;
-}
-
-/**
  * Reconnect a session's WebSocketWriter to a new raw WebSocket.
  * Called when client reconnects (e.g. page refresh) while SDK is still running.
  * @param {string} sessionId - The session ID
@@ -2423,8 +2133,6 @@ export {
   backgroundClaudeSDKTask,
   isClaudeSDKSessionActive,
   getActiveClaudeSDKSessions,
-  resolveToolApproval,
-  getPendingApprovalsForSession,
   reconnectSessionWriter,
   extractTokenBudget,
   extractCumulativeTokenBudget,

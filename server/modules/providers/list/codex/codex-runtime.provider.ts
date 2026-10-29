@@ -22,6 +22,7 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
+import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
 
 type ActiveCodexSession = {
@@ -585,10 +586,23 @@ function abortCodexSession(sessionId: string) {
   return codexRuntimeState.abort(sessionId);
 }
 
-/** Used by the providers module's CodexProvider to run and abort SDK turns. */
+/**
+ * Used by the providers module's CodexProvider to run and abort SDK turns.
+ *
+ * `permissions` is the facet `provider-runtime.service.resolveToolApproval`
+ * fans out to, so a client answer for a resident Codex request reaches the same
+ * pending registry the broker parked it on (AC-438). It is the shared
+ * `approval-requests.service` instance, not a second registry.
+ */
 export const codexRuntime = {
   run: queryCodex,
   abort: abortCodexSession,
+  permissions: {
+    resolve: approvalRequests.resolveToolApproval,
+    listPending: approvalRequests.getPendingApprovalsForSession,
+    classifyMissingApproval: approvalRequests.classifyMissingApproval,
+    readApprovalDecision: approvalRequests.readApprovalDecision,
+  },
 };
 
 /**

@@ -800,9 +800,64 @@
 #   (dur=6977ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
 #   tree collects 463 server test files).
 6977	server/modules/context-events/tests/session-run-events.test.ts
+#   and the codex-host-driver-persistent row by gap-ac435-codex-resident-host-driver-persistent,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts`
+#   (dur=2695ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 465 server test files).
+2695	server/modules/providers/tests/codex-host-driver-persistent.test.ts
+#   and the codex-resident-background-leases row by gap-ac439-codex-resident-background-leases,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-background-leases.test.ts`
+#   (dur=2674ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 466 server test files).
+2674	server/modules/providers/tests/codex-resident-background-leases.test.ts
+#   and the codex-host-driver-settings row by gap-ac437-codex-resident-live-settings,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-settings.test.ts`
+#   (dur=2684ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 467 server test files at measurement time; 468 once this row and the sibling
+#   codex-app-server-protocol row are both on the tree).
+2684	server/modules/providers/tests/codex-host-driver-settings.test.ts
+#   and the codex-app-server-protocol row by gap-ac440-codex-app-server-protocol-gate,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-app-server-protocol.test.ts`
+#   (dur=2755ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 468 server test files).
+2755	server/modules/providers/tests/codex-app-server-protocol.test.ts
+#   and the codex-resident-lifecycle row by gap-ac441-codex-resident-host-lifecycle,
+#   measured on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts`
+#   (dur=6229ms from two warm runs, 6229/6457, its own new criterion; the row also keeps the 90%
+#   coverage floor green now that the tree collects 468 server test files).
+6229	server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
+#   and the codex-resident-capabilities row by gap-ac442-codex-resident-capabilities,
+#   measured one file at a time on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-capabilities.test.ts`
+#   (dur=7308ms from two warm runs, 7721/7308, its own new criterion; the row also keeps the
+#   90% coverage floor green now that the tree collects 470 server test files).
+7308	server/modules/providers/tests/codex-resident-capabilities.test.ts
+#   and the codex-resident-approvals row by gap-ac438-codex-resident-approvals-broker,
+#   measured one file at a time on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-approvals.test.ts`
+#   (dur=6495ms from one warm run, its own new criterion; the row also keeps the 90% coverage
+#   floor green now that the tree collects 471 server test files).
+6495	server/modules/providers/tests/codex-resident-approvals.test.ts
+#   and the codex-host-driver-queue row by gap-ac436-codex-resident-queue-reland,
+#   measured one file at a time on 2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts`
+#   (dur=8144ms from two warm runs, 8392/8144, its own new criterion; the row also keeps the 90%
+#   coverage floor green now that the tree collects 472 server test files).
+8144	server/modules/providers/tests/codex-host-driver-queue.test.ts
+#   and the codex-host-driver-steer row by gap-ac444-codex-resident-turn-steer,
+#   measured one file at a time on 2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-steer.test.ts`
+#   (dur=3398ms from one warm run, its own new criterion; the row also keeps the 90% coverage
+#   floor green now that the tree collects 473 server test files).
+3398	server/modules/providers/tests/codex-host-driver-steer.test.ts
 #   and the session-ask-semantic-gate row by gap-cockpit-ask-semantic-gate, measured once on
 #   2026-10-30 with
 #   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-semantic-gate.test.ts`
 #   (dur=3773ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
-#   tree collects 465 server test files).
+#   tree collects 474 server test files).
 3773	server/modules/observation/tests/session-ask-semantic-gate.test.ts

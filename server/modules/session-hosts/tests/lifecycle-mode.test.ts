@@ -61,8 +61,15 @@ const { AppError } = await import('@/shared/utils.js');
 
 const USER_ID = 1;
 
-/** The providers whose declared lifecycle modes do not include `resident`. */
-const PER_RUN_ONLY_PROVIDERS: LLMProvider[] = ['codex', 'cursor', 'opencode'];
+/**
+ * The providers whose declared lifecycle modes do not include `resident`.
+ *
+ * Codex is no longer one of them: AC-442 declared `resident` after AC-441
+ * mounted its host driver, so a codex session is exactly the positive-control
+ * subject this arm calls "a provider that does declare resident". The two ids
+ * left here are the ones with no driver and no declaration.
+ */
+const PER_RUN_ONLY_PROVIDERS: LLMProvider[] = ['cursor', 'opencode'];
 
 // ---------------------------
 //----------------- THE FAKE HOST DRIVER ------------
@@ -475,15 +482,19 @@ test('(2) a mode the provider never declared is refused with its own code, and a
       console.log(`[lifecycle] unsupported: provider=${provider} code=${reading.code} status=${reading.status}`);
     }
 
-    // The refusal follows the session, not the path: the same codex session,
+    // The refusal follows the session, not the path: the same cursor session,
     // written through a provider whose matrix *does* list resident, must still
     // be refused. Otherwise the matrix would be a property of the URL — and a
     // caller could pick whichever provider it liked.
-    const codexSessionId = `ac169-mode-write-${PER_RUN_ONLY_PROVIDERS[0]}`;
-    const disguised = await putLifecycleMode(context, 'claude', codexSessionId, 'resident');
-    assertModeRefusedForProvider(disguised, 'codex named as claude in the path');
+    //
+    // The subject is `PER_RUN_ONLY_PROVIDERS[0]` rather than a fixed id: when
+    // AC-442 moved codex into the resident set this arm had to move with it,
+    // and deriving it from the list keeps the next such move a one-line edit.
+    const perRunSessionId = `ac169-mode-write-${PER_RUN_ONLY_PROVIDERS[0]}`;
+    const disguised = await putLifecycleMode(context, 'claude', perRunSessionId, 'resident');
+    assertModeRefusedForProvider(disguised, `${PER_RUN_ONLY_PROVIDERS[0]} named as claude in the path`);
     assert.equal(
-      sessionsDb.getSessionLifecycleMode(codexSessionId),
+      sessionsDb.getSessionLifecycleMode(perRunSessionId),
       'per-run',
       'naming another provider must not move the mode either',
     );
@@ -607,8 +618,17 @@ test('(4b) close ends a resident host with user, and refuses a per-run session w
 test('(4c) start is refused when the provider mounts no driver, distinctly from the other refusals', async () => {
   await withHarness(async (context) => {
     // The real registry is the evidence that this arm is not a coincidence of
-    // the injected lookup: no provider but claude has a host driver at all.
-    for (const provider of PER_RUN_ONLY_PROVIDERS) {
+    // the injected lookup. Codex mounts a host driver AND declares the resident
+    // lifecycle mode (AC-441 + AC-442), so it is no longer a "no driver"
+    // example: the arm's subject has to be a provider that really has neither.
+    // The refusal below is still produced by the router's injected resolver
+    // answering null, exactly as it does for those providers in production.
+    assert.notEqual(
+      providerRegistry.resolveProvider('codex').hostDriver,
+      undefined,
+      'codex mounts a host driver (and, since AC-442, declares resident)',
+    );
+    for (const provider of ['cursor', 'opencode'] as const) {
       assert.equal(
         providerRegistry.resolveProvider(provider).hostDriver,
         undefined,
@@ -617,7 +637,7 @@ test('(4c) start is refused when the provider mounts no driver, distinctly from 
     }
 
     const sessionId = 'ac169-start-no-driver';
-    seedSession(sessionId, 'codex', context.directory);
+    seedSession(sessionId, 'cursor', context.directory);
     sessionsDb.setSessionLifecycleMode(sessionId, 'resident');
 
     const reading = await startHost(context, sessionId);

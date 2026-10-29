@@ -390,11 +390,38 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // gap-cockpit-card-feedback-receipt-lifecycle added its criterion
     // server/modules/cockpit/tests/cockpit-card-feedback.test.ts
     // (463 + 1 = 464 collected server test files). Then
+    // gap-ac435-codex-resident-host-driver-persistent added its criterion
+    // server/modules/providers/tests/codex-host-driver-persistent.test.ts
+    // (464 + 1 = 465 collected server test files). Then
+    // gap-ac439-codex-resident-background-leases added its criterion
+    // server/modules/providers/tests/codex-resident-background-leases.test.ts
+    // (465 + 1 = 466 collected server test files). Then
+    // gap-ac437-codex-resident-live-settings added its criterion
+    // server/modules/providers/tests/codex-host-driver-settings.test.ts
+    // (466 + 1 = 467 collected server test files), then
+    // gap-ac440-codex-app-server-protocol-gate added its criterion
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts
+    // (467 + 1 = 468 collected server test files). Then
+    // gap-ac441-codex-resident-host-lifecycle added its criterion
+    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
+    // (468 + 1 = 469 collected server test files). Then
+    // gap-ac442-codex-resident-capabilities added its criterion
+    // server/modules/providers/tests/codex-resident-capabilities.test.ts
+    // (469 + 1 = 470 collected server test files). Then
+    // gap-ac438-codex-resident-approvals-broker added its criterion
+    // server/modules/providers/tests/codex-resident-approvals.test.ts
+    // (470 + 1 = 471 collected server test files). Then
+    // gap-ac436-codex-resident-queue-reland added its criterion
+    // server/modules/providers/tests/codex-host-driver-queue.test.ts
+    // (471 + 1 = 472 collected server test files). Then
+    // gap-ac444-codex-resident-turn-steer added its criterion
+    // server/modules/providers/tests/codex-host-driver-steer.test.ts
+    // (472 + 1 = 473 collected server test files). Then
     // gap-cockpit-ask-semantic-gate added its criterion
     // server/modules/observation/tests/session-ask-semantic-gate.test.ts
-    // (464 + 1 = 465 collected server test files). This fixture names 3 known files, so
-    // 465 - 3 = 462.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=462$/);
+    // (473 + 1 = 474 collected server test files). This fixture names 3 known files, so
+    // 474 - 3 = 471.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=471$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -475,11 +502,29 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts, then
     // gap-cockpit-session-start-background-resident-and-run-events added
     // server/modules/context-events/tests/session-run-events.test.ts, then
+    // gap-ac435-codex-resident-host-driver-persistent added
+    // server/modules/providers/tests/codex-host-driver-persistent.test.ts, then
+    // gap-ac439-codex-resident-background-leases added
+    // server/modules/providers/tests/codex-resident-background-leases.test.ts, then
+    // gap-ac437-codex-resident-live-settings added
+    // server/modules/providers/tests/codex-host-driver-settings.test.ts, then
+    // gap-ac440-codex-app-server-protocol-gate added
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts, then
+    // gap-ac441-codex-resident-host-lifecycle added
+    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts, then
+    // gap-ac442-codex-resident-capabilities added
+    // server/modules/providers/tests/codex-resident-capabilities.test.ts, then
+    // gap-ac438-codex-resident-approvals-broker added
+    // server/modules/providers/tests/codex-resident-approvals.test.ts, then
+    // gap-ac436-codex-resident-queue-reland added
+    // server/modules/providers/tests/codex-host-driver-queue.test.ts, then
+    // gap-ac444-codex-resident-turn-steer added
+    // server/modules/providers/tests/codex-host-driver-steer.test.ts, then
     // gap-cockpit-ask-semantic-gate added
     // server/modules/observation/tests/session-ask-semantic-gate.test.ts)
-    // — but this fixture names ONE known file, so 465 - 1 = 464 (AC2 reads 462 because its
+    // — but this fixture names ONE known file, so 474 - 1 = 473 (AC2 reads 471 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=464$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=473$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
