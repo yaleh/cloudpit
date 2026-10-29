@@ -2,7 +2,7 @@
 id: gap-ac436-codex-resident-queue-busy-input
 title: AC-436 Codex 常驻：忙时输入走 thread/queue/add、queue/list 深度真值、queue/delete
   撤回、完成自动排水、中断后显式 queue/start
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -233,3 +233,18 @@ CONFLICT (content): Merge conflict in tasks/gap-ac442-codex-resident-capabilitie
 Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
 - session_id：30786939-18cb-4081-af7b-f1402677d292
+
+## Needs-Human
+
+**执行 2026-10-29T15:13:00.008Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Auto-merging tasks/gap-ac442-codex-resident-capabilities.md
+CONFLICT (content): Merge conflict in tasks/gap-ac442-codex-resident-capabilities.md
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：30786939-18cb-4081-af7b-f1402677d292
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac436-codex-resident-queue-busy-input-wk-prod-anchor.log
