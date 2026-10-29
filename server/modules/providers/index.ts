@@ -265,6 +265,18 @@ export type {
   ClaudeResidentProcessFactory,
   ClaudeResidentQuery,
 } from './list/claude/claude-host-driver.provider.js';
+// The Codex resident driver and its protocol seam, for AC-441's criterion
+// (`server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts`). That
+// criterion lives in the session-hosts module — the state machine's home — and
+// has to drive the real driver over an in-memory app-server transport, so the
+// classes and types it needs are exported here rather than reached through a
+// provider's internal path: the module boundary lint and the backend module
+// standards both require cross-module access to go through this barrel. Same
+// reason as `ClaudeResidentHostDriver` above.
+export { CodexHostDriver } from './list/codex/codex-host-driver.provider.js';
+export type { CodexResidentHostPort } from './list/codex/codex-host-driver.provider.js';
+export { CodexAppServerConnection } from './list/codex/codex-app-server.connection.js';
+export type { CodexAppServerTransport } from './list/codex/codex-app-server.connection.js';
 export { CLAUDE_PREDEFINED_MODELS } from './list/claude/claude-models.provider.js';
 export {
   abortClaudeSDKSession,

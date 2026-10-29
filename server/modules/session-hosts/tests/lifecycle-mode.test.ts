@@ -607,8 +607,17 @@ test('(4b) close ends a resident host with user, and refuses a per-run session w
 test('(4c) start is refused when the provider mounts no driver, distinctly from the other refusals', async () => {
   await withHarness(async (context) => {
     // The real registry is the evidence that this arm is not a coincidence of
-    // the injected lookup: no provider but claude has a host driver at all.
-    for (const provider of PER_RUN_ONLY_PROVIDERS) {
+    // the injected lookup. Codex now mounts a host driver while still declaring
+    // no resident lifecycle mode — mounting and the mode declaration are
+    // separate facts (AC-441 vs AC-442) — so the arm's refusal is produced by
+    // the router's injected resolver answering null for it, exactly as it does
+    // for the providers below, which mount no driver at all.
+    assert.notEqual(
+      providerRegistry.resolveProvider('codex').hostDriver,
+      undefined,
+      'codex mounts a host driver while declaring no resident mode',
+    );
+    for (const provider of ['cursor', 'opencode'] as const) {
       assert.equal(
         providerRegistry.resolveProvider(provider).hostDriver,
         undefined,
