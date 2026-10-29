@@ -75,11 +75,100 @@ export type DeployReadinessPort = () => Promise<DeployReadinessReading>;
 /** Sends the one confirmed build+restart request. */
 export type DeployExecutePort = () => Promise<{ ok: boolean }>;
 
+/**
+ * One project's queue reading, summed by the page from the fleet summary it already holds.
+ * `ready + todo` is the queue: the tasks the driver can still pick up. The strip shows that
+ * sum as `todo N`, from the SAME project reading the cockpit's cards are drawn from — not a
+ * second task-store read.
+ */
+export type DeployQueueReading = {
+  readonly ready: number;
+  readonly todo: number;
+};
+
+/** The strip's `todo N` number: the queue the cards view and the driver share. */
+function queueTodoCount(queue: DeployQueueReading): number {
+  return queue.ready + queue.todo;
+}
+
+/**
+ * The strip's one build-truth judgment. It reads the three fingerprints `build-skew-check`
+ * compares (`dist-server/build-info.json`, `dist/build-info.json`) plus the sha of the process
+ * that is actually RUNNING, and never a historical deploy record:
+ *
+ *   - `unavailable` — at least one fingerprint is absent/unreadable. The strip says so and
+ *     draws no sha at all; it must not fall back to the last deploy's target sha.
+ *   - `pending` with `skew` — the browser and server builds on disk name different commits
+ *     (exactly `build-skew-check`'s `skew` verdict); a restart would pair two builds.
+ *   - `pending` — the running process is not the build on disk (one build step behind), or
+ *     the server reported source commits between the built sha and HEAD. `count` is the
+ *     reading the strip prints as 「N changes not yet built」.
+ *   - `current` — the running process IS the build on disk and no source commit is pending.
+ */
+type DeployBuildTruth =
+  | { kind: 'unavailable' }
+  | { kind: 'current'; runningSha: string }
+  | {
+      kind: 'pending';
+      runningSha: string;
+      builtSha: string;
+      count: number;
+      skew: boolean;
+    };
+
+/**
+ * The one comparison rule. Kept as a free function so the criterion exercises exactly the
+ * production decision rather than a re-implementation. The server's `status` field is
+ * deliberately not an input: it may be stale, and the sha readings are the facts this strip
+ * is about.
+ */
+function classifyDeployBuild(
+  reading: Pick<
+    DeployReadinessReading,
+    'runningSha' | 'builtSha' | 'clientBuiltSha' | 'pendingCommits'
+  >,
+): DeployBuildTruth {
+  const { runningSha, builtSha, clientBuiltSha } = reading;
+  // A process that cannot name its own build, or a missing build record, is an unreadable
+  // reading — never a licence to substitute the last deploy's sha.
+  if (runningSha === null || builtSha === null || clientBuiltSha === null) {
+    return { kind: 'unavailable' };
+  }
+  // build-skew-check's rule: both records are readable, and they disagree.
+  const skew = builtSha !== clientBuiltSha;
+  if (skew) {
+    return { kind: 'pending', runningSha, builtSha, count: 1, skew: true };
+  }
+  if (runningSha !== builtSha) {
+    // The build on disk is one build ahead of the running process: restarting is what makes
+    // the built sha live, so the reading is 「1 change not yet built」, naming both shas.
+    return { kind: 'pending', runningSha, builtSha, count: 1, skew: false };
+  }
+  if (reading.pendingCommits.length > 0) {
+    // Both builds and the running process agree, but HEAD has source commits the build does
+    // not contain. That is the one case where the server's commit list is the count.
+    return {
+      kind: 'pending',
+      runningSha,
+      builtSha,
+      count: reading.pendingCommits.length,
+      skew: false,
+    };
+  }
+  return { kind: 'current', runningSha };
+}
+
 type DeployReadinessProps = {
   read?: DeployReadinessPort;
   deploy?: DeployExecutePort;
   /** Injected in tests so the relative 「2 分钟前」 is deterministic. */
   now?: () => number;
+  /**
+   * The project queue the cockpit already holds (`ready + todo`, summed by `CockpitPage` over
+   * the same fleet reading the cards are built from). `null` means the fleet reading is not
+   * available; the strip then draws no todo number rather than a false zero.
+   */
+  queue?: DeployQueueReading | null;
 };
 
 /** What the shared confirmation panel draws: the commits that would take effect, and the one
@@ -213,6 +302,7 @@ export default function DeployReadiness({
   read = defaultRead,
   deploy = defaultDeploy,
   now = () => Date.now(),
+  queue = null,
 }: DeployReadinessProps) {
   const { t } = useTranslation();
   // The server's current reading. Essential: every sentence and button below is a projection
@@ -255,64 +345,118 @@ export default function DeployReadiness({
     return null;
   }
 
-  // A skewed pair is the one reading that must not be summarised as 「N changes not yet built」:
-  // it is not a pending build, it is two builds that disagree, and a restart would apply both.
-  const statusSentence = (() => {
-    switch (reading.status) {
-      case 'fresh':
+  // The one derived judgment. A build/restart the server is running right now overrides it:
+  // the disk fingerprints are expected to disagree while a build runs, so blaming a skew there
+  // would report the deploy's own transient state as a defect.
+  const truth = classifyDeployBuild(reading);
+  const inFlightStatus =
+    reading.status === 'building' || reading.status === 'restarting' ? reading.status : null;
+
+  const statusLabel = (() => {
+    if (inFlightStatus === 'building') {
+      return t('cockpit.deployBuilding');
+    }
+    if (inFlightStatus === 'restarting') {
+      return t('cockpit.deployRestarting');
+    }
+    switch (truth.kind) {
+      case 'unavailable':
+        // 「Unknown」 is the whole answer: the strip must not fall back to the last deploy's
+        // sha, which is a historical materialisation and not the running build.
+        return t('cockpit.deployUnknown');
+      case 'current':
         return t('cockpit.deployFresh');
-      case 'pending-build':
-        return reading.pendingCommits.length === 1
+      case 'pending':
+        // A skewed pair is two builds that disagree, not a pending build — say which sides
+        // disagree (the same verdict `build-skew-check --json` prints).
+        if (truth.skew) {
+          return t('cockpit.deployBuildSkew', {
+            client: shortSha(reading.clientBuiltSha),
+            server: shortSha(truth.builtSha),
+          });
+        }
+        return truth.count === 1
           ? t('cockpit.deployPendingBuildOne', { n: 1 })
-          : t('cockpit.deployPendingBuild', { n: reading.pendingCommits.length });
-      case 'built-pending-restart':
-        return t('cockpit.deployBuiltPendingRestart');
-      case 'building':
-        return t('cockpit.deployBuilding');
-      case 'restarting':
-        return t('cockpit.deployRestarting');
+          : t('cockpit.deployPendingBuild', { n: truth.count });
       default:
         return t('cockpit.deployUnknown');
     }
   })();
 
-  const statusLabel = reading.buildSkew
-    ? t('cockpit.deployBuildSkew', {
-        client: shortSha(reading.clientBuiltSha),
-        server: shortSha(reading.builtSha),
-      })
-    : statusSentence;
+  // A skew is fixable by the same one action (the deploy path runs the full `npm run build`),
+  // so the strip must offer it whenever the running process is not the build on disk.
+  const canDeploy = inFlightStatus === null
+    && (truth.kind === 'pending');
 
-  // A skew is fixable by the same one action (the deploy path runs the full `npm run build`), so
-  // the strip must offer it even when the classification does not read as pending-build.
-  const canDeploy = reading.buildSkew
-    || reading.status === 'pending-build'
-    || reading.status === 'built-pending-restart';
-
-  const lastDeployLine = reading.lastDeploy === null
-    ? null
-    : reading.lastDeploy.ok
+  // The last deploy line reports the RUNNING process. `lastDeploy` is a persisted record of a
+  // past verification; it may only add its verdict and timestamp when it verified the sha that
+  // is running now. Otherwise the line is the bare running sha — never another deploy's sha.
+  const lastDeployMatchesRunning = reading.lastDeploy !== null
+    && reading.runningSha !== null
+    && reading.lastDeploy.targetSha === reading.runningSha;
+  const lastDeployLine = (() => {
+    if (reading.runningSha === null) {
+      return null;
+    }
+    if (!lastDeployMatchesRunning) {
+      // No verdict to claim: the persisted record describes a different deploy.
+      return <code data-testid="deploy-running-sha">{shortSha(reading.runningSha)}</code>;
+    }
+    return reading.lastDeploy?.ok
       ? t('cockpit.deployLastOk', {
-          sha: shortSha(reading.lastDeploy.targetSha),
+          sha: shortSha(reading.runningSha),
           time: relativeTime(reading.lastDeploy.at, now(), t),
         })
-      : t('cockpit.deployLastFailed', { sha: shortSha(reading.lastDeploy.targetSha) });
+      : t('cockpit.deployLastFailed', { sha: shortSha(reading.runningSha) });
+  })();
 
-  const failedCheck = reading.lastDeploy?.ok === false
+  const failedCheck = lastDeployMatchesRunning && reading.lastDeploy?.ok === false
     ? reading.lastDeploy.checks.find((check) => !check.ok)?.name ?? null
     : null;
+
+  // The machine reading follows the derived truth, not the possibly-stale server status.
+  const derivedStatus = inFlightStatus
+    ?? (truth.kind === 'unavailable' ? 'unknown' : truth.kind === 'pending' ? 'pending-build' : 'fresh');
+
+  const queueTodo = queue === null ? null : queueTodoCount(queue);
 
   return (
     <section
       data-testid="deploy-readiness"
-      data-status={reading.status}
-      data-build-skew={reading.buildSkew ? 'true' : 'false'}
+      data-status={derivedStatus}
+      data-build-truth={truth.kind}
+      data-build-skew={truth.kind === 'pending' && truth.skew ? 'true' : 'false'}
       className="relative flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-xs"
       aria-label={t('cockpit.deployStatus')}
     >
       <span data-testid="deploy-status" className="text-foreground">
         {statusLabel}
       </span>
+
+      {/* The two fingerprints behind the count, named on the strip itself: the running
+          process's sha and the sha of the build on disk. */}
+      {truth.kind === 'pending' && (
+        <span data-testid="deploy-build-readings" className="text-muted-foreground">
+          <code data-testid="deploy-running-build">{shortSha(truth.runningSha)}</code>
+          {' · '}
+          <code data-testid="deploy-built-build">{shortSha(truth.builtSha)}</code>
+        </span>
+      )}
+
+      {queueTodo !== null && (
+        <span
+          data-testid="deploy-queue"
+          data-queue-todo={queueTodo}
+          data-queue-ready={queue?.ready}
+          data-queue-pending={queue?.todo}
+          // The number is the whole queue: ready + todo, from the same project reading the
+          // cockpit's cards are built from.
+          title={`${t('cockpit.phoneStatusTodo', { n: queueTodo })} · ${t('cockpit.readyCount', { n: queue?.ready ?? 0 })}`}
+          className="text-muted-foreground"
+        >
+          {t('cockpit.phoneStatusTodo', { n: queueTodo })}
+        </span>
+      )}
 
       {reading.failure !== null && (
         <span data-testid="deploy-failure" className="text-destructive">
@@ -335,7 +479,7 @@ export default function DeployReadiness({
       )}
 
       {lastDeployLine !== null && (
-        <span data-testid="deploy-last" className="text-muted-foreground">
+        <span data-testid="deploy-last" data-verified={lastDeployMatchesRunning ? 'true' : 'false'} className="text-muted-foreground">
           {lastDeployLine}
           {failedCheck !== null && ` · ${t('cockpit.deployLastFailedCheck', { check: failedCheck })}`}
         </span>
