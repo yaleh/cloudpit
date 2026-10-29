@@ -2,7 +2,7 @@
 id: gap-ac442-codex-resident-capabilities
 title: AC-442 Codex 常驻 capabilities：codex 声明 resident + 实测 residentFeatures，其他
   provider 写 resident 仍被 LIFECYCLE_MODE_NOT_SUPPORTED 拒绝
-status: ready
+status: done
 labels:
   - gap
 parent: null
