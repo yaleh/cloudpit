@@ -2,7 +2,7 @@
 id: gap-ac436-codex-resident-queue-busy-input
 title: AC-436 Codex 常驻：忙时输入走 thread/queue/add、queue/list 深度真值、queue/delete
   撤回、完成自动排水、中断后显式 queue/start
-status: needs-human
+status: superseded
 labels:
   - gap
 parent: null
@@ -248,3 +248,6 @@ Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
 - session_id：30786939-18cb-4081-af7b-f1402677d292
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac436-codex-resident-queue-busy-input-wk-prod-anchor.log
+
+
+supersede：3× exited-not-landed + worktree 陈旧（13:04 开）+ 与已落地兄弟（AC-441/442 等）在 codex-host-driver.provider.ts / quay-test-script.test.ts / suite-duration-baseline.tsv 冲突；实现不完整（第 1 次 task-introduced-red：计数钉子未 bump）。由 gap-filing 从当前 goal tip 重立案。

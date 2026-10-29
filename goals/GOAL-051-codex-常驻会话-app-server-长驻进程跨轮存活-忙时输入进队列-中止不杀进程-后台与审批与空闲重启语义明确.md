@@ -43,4 +43,4 @@ per-run Codex 每轮一个 codex exec（server/modules/providers/list/codex/code
 
 ## 退出条件
 
-- AC-435..AC-442（pre-merge，判据 worktree 上求值）+ AC-443（post-merge，真实浏览器，主检出上求值）。
+- AC-435..AC-444（pre-merge，判据 worktree 上求值）+ AC-443（post-merge，真实浏览器，主检出上求值）。
