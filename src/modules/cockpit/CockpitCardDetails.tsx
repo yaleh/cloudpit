@@ -1,4 +1,3 @@
-import type { TFunction } from 'i18next';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +6,7 @@ import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import {
   cockpitAssistantQuote,
+  cockpitCardAge,
   cockpitCardDescriptor,
   cockpitCardFactsBeyondSituation,
   cockpitCardTitle,
@@ -116,6 +116,18 @@ export type CockpitCardDetailsProps = {
 const DRAWER_CLOSE_SWIPE_PX = 60;
 
 /**
+ * The fallback reasons that are diagnostics, not readings: `disabled` says the feature is off, and
+ * `unsupported-content` says the card does not point at a conversation question — both are
+ * judgements about the card or the build, not something the person deciding can use. Every other
+ * fallback names why a brief the feature DOES offer is missing (a spent budget, an unreadable
+ * transcript), so it keeps its section.
+ */
+const SILENT_FALLBACK_REASONS: readonly string[] = [
+  'disabled',
+  'unsupported-content',
+];
+
+/**
  * The cockpit page owns the Enter key on `window` (it zooms the stage), and it calls
  * `preventDefault()` there even when a button has focus — so a plain button's native Enter
  * activation never fires inside the cockpit. The rows therefore activate themselves on
@@ -131,17 +143,6 @@ function activateRowOnKey(
     event.stopPropagation();
     action?.();
   };
-}
-
-function waitingText(t: TFunction, now: number, waitingSince: string): string {
-  const since = Date.parse(waitingSince);
-  const milliseconds = Number.isNaN(since) ? 0 : Math.max(0, now - since);
-  const minutes = Math.floor(milliseconds / 60_000);
-  if (minutes < 1) return t('cockpit.observationJustNow');
-  if (minutes < 60) return t('cockpit.observationMinutesAgo', { n: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t('cockpit.observationHoursAgo', { n: hours });
-  return t('cockpit.observationDaysAgo', { n: Math.floor(hours / 24) });
 }
 
 /** One titled section; empty sections are not drawn at all. */
@@ -256,14 +257,19 @@ export default function CockpitCardDetails({
       : card.subject.project !== undefined && card.subject.project.trim() !== ''
         ? cockpitViewPath({ type: 'board', project: card.subject.project })
         : COCKPIT_PATH;
-  // NO BRIEF AREA WHEN THERE IS NOTHING TO READ: idle/absent means the drawer never asked, and a
-  // `disabled` fallback means the brief feature is off — a titled 「Brief」 section whose body is
-  // "this is disabled" is chrome, not a reading. Other fallbacks (a gateway that is down, say)
-  // stay: they explain why a brief the feature DOES offer is missing.
+  // NO BRIEF AREA WHEN THERE IS NOTHING TO READ. Idle/absent means the drawer never asked, and a
+  // silent fallback (see `SILENT_FALLBACK_REASONS`) produced no reading — only a diagnostic about
+  // the card or the build. Both hide the whole section, title included. Loading, a failed read and
+  // a fallback that names a missing brief stay: they are states of a brief the feature DOES offer.
   const briefVisible =
     brief !== undefined
     && brief.status !== 'idle'
-    && !(brief.status === 'ready' && brief.response.status === 'fallback' && brief.response.reason === 'disabled');
+    && !(
+      brief.status === 'ready'
+      && brief.response.status === 'fallback'
+      && brief.response.reason !== null
+      && SILENT_FALLBACK_REASONS.includes(brief.response.reason)
+    );
 
   // The title row. On the phone it lives INSIDE the same sticky header as the drag handle, so
   // the handle can never scroll over and cover it: the two move together as one block.
@@ -279,8 +285,11 @@ export default function CockpitCardDetails({
         <span className="truncate text-xs font-semibold text-foreground">
           {t('cockpit.cardDetailsTitle')}
         </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {t('cockpit.cardWaitingFor', { duration: waitingText(t, now, card.waitingSince) })}
+        <span
+          data-testid="cockpit-card-details-age"
+          className="shrink-0 text-[11px] text-muted-foreground"
+        >
+          {t('cockpit.cardWaitingFor', { duration: cockpitCardAge(t, now, card.waitingSince) })}
         </span>
       </span>
       {/* The phone's sheet carries no Close button: its title bar is the drag handle, and a
@@ -305,333 +314,358 @@ export default function CockpitCardDetails({
       data-cockpit-card-details-inline={inline ? 'true' : 'false'}
       data-drawer={drawer ? 'true' : 'false'}
       className={cn(
-        'flex flex-col overflow-auto text-card-foreground',
+        'flex flex-col overflow-hidden text-card-foreground',
         inline
           ? 'min-h-0 flex-1'
           : drawer
-            ? 'h-[90vh] max-h-[90vh] w-full rounded-t-2xl border border-b-0 border-border bg-card p-3 shadow-xl'
-            : 'max-h-[90vh] w-full rounded-xl border border-border bg-card p-3 shadow-xl',
+            ? 'h-[90vh] max-h-[90vh] w-full rounded-t-2xl border border-b-0 border-border bg-card shadow-xl'
+            : 'mx-auto max-h-[90vh] w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl',
       )}
     >
-      {drawer ? (
+      {/*
+        TWO REGIONS, ONE DRAWER. The body scrolls; the confirm bar is a SIBLING of that scroller,
+        so the bar can never sit on top of the last option or the conversation link. `min-h-0` is
+        what lets the flex child actually shrink below its content and scroll.
+      */}
+      <div
+        data-testid="cockpit-card-details-scroll"
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
         <div
-          data-testid="cockpit-card-details-header"
-          className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 bg-card"
+          data-testid="cockpit-card-details-inner"
+          className={cn(
+            'mx-auto flex w-full max-w-3xl flex-col',
+            drawer ? 'px-3 pb-3' : inline ? '' : 'px-3 pb-3 pt-3',
+          )}
         >
-          <button
-            type="button"
-            data-testid="cockpit-card-details-drag-handle"
-            aria-label={t('cockpit.cardDetailsClose')}
-            // A tap on the handle is the same dismissal as a downward swipe: the handle is the
-            // sheet's only chrome, so it must not be an inert strip.
-            onClick={onClose}
-            onPointerDown={(event) => {
-              swipeStartY.current = event.clientY;
-            }}
-            onPointerUp={(event) => {
-              const start = swipeStartY.current;
-              swipeStartY.current = null;
-              if (start !== null && event.clientY - start >= DRAWER_CLOSE_SWIPE_PX) onClose();
-            }}
-            onPointerCancel={() => {
-              swipeStartY.current = null;
-            }}
-            className="flex w-full touch-none justify-center rounded-t-2xl bg-card pb-1 pt-1.5"
-          >
-            <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/40" />
-          </button>
-          {titleRow}
-        </div>
-      ) : (
-        titleRow
-      )}
-
-      <p className="mt-2 text-sm font-medium text-foreground">{cockpitCardTitle(card, t)}</p>
-      {card.contentUnavailable !== undefined && (
-        <p
-          data-testid="cockpit-card-details-content-unavailable"
-          className="mt-1 text-xs text-muted-foreground"
-        >
-          {card.contentUnavailable}
-        </p>
-      )}
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        {[card.subject.project, card.subject.taskId, card.subject.sessionId]
-          .filter((part): part is string => part !== undefined && part !== '')
-          .join(' · ')}
-      </p>
-
-      {quayHref !== null && (
-        <a
-          data-testid="cockpit-card-open-in-quay"
-          data-task-id={card.subject.taskId}
-          href={quayHref}
-          className="mt-1 self-start text-xs font-medium text-primary hover:underline"
-        >
-          {t('cockpit.cardDetailsOpenInQuay')}
-        </a>
-      )}
-
-      {card.situation !== undefined && (
-        <Section title={t('cockpit.cardDetailsSituation')}>
-          <p className="text-xs text-foreground">{card.situation}</p>
-        </Section>
-      )}
-
-      {/* The assistant's own words, quoted, with the way back into the session they came from.
-          Only the phone drawer draws this: a card whose summary quotes the assistant gets the
-          quote where the mockup puts it, and the session link is the one exit. */}
-      {assistantQuote !== null && (
-        <Section
-          title={t('cockpit.cardDetailsAssistantQuote')}
-          testId="cockpit-card-details-quote"
-        >
-          <blockquote
-            data-testid="cockpit-card-assistant-quote"
-            className="border-l-2 border-primary/40 pl-2 text-xs italic text-foreground"
-          >
-            {assistantQuote}
-          </blockquote>
-          {sessionId !== undefined && (
-            <a
-              data-testid="cockpit-card-quote-session-link"
-              href={`/session/${encodeURIComponent(sessionId)}`}
-              onClick={
-                onOpenConversation === undefined
-                  ? undefined
-                  : (event) => {
-                      event.preventDefault();
-                      onOpenConversation(sessionId);
-                    }
-              }
-              className="mt-1 inline-block text-[11px] font-medium text-primary hover:underline"
+          {drawer ? (
+            <div
+              data-testid="cockpit-card-details-header"
+              className="sticky top-0 z-10 -mx-3 bg-card"
             >
-              {t('cockpit.cardDetailsInSession')}
+              <button
+                type="button"
+                data-testid="cockpit-card-details-drag-handle"
+                aria-label={t('cockpit.cardDetailsClose')}
+                // A tap on the handle is the same dismissal as a downward swipe: the handle is the
+                // sheet's only chrome, so it must not be an inert strip.
+                onClick={onClose}
+                onPointerDown={(event) => {
+                  swipeStartY.current = event.clientY;
+                }}
+                onPointerUp={(event) => {
+                  const start = swipeStartY.current;
+                  swipeStartY.current = null;
+                  if (start !== null && event.clientY - start >= DRAWER_CLOSE_SWIPE_PX) onClose();
+                }}
+                onPointerCancel={() => {
+                  swipeStartY.current = null;
+                }}
+                className="flex w-full touch-none justify-center rounded-t-2xl bg-card pb-1 pt-1.5"
+              >
+                <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+              </button>
+              {titleRow}
+            </div>
+          ) : (
+            titleRow
+          )}
+
+          <p className="mt-2 text-sm font-medium text-foreground">{cockpitCardTitle(card, t)}</p>
+          {card.contentUnavailable !== undefined && (
+            <p
+              data-testid="cockpit-card-details-content-unavailable"
+              className="mt-1 text-xs text-muted-foreground"
+            >
+              {card.contentUnavailable}
+            </p>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {[card.subject.project, card.subject.taskId, card.subject.sessionId]
+              .filter((part): part is string => part !== undefined && part !== '')
+              .join(' · ')}
+          </p>
+
+          {quayHref !== null && (
+            <a
+              data-testid="cockpit-card-open-in-quay"
+              data-task-id={card.subject.taskId}
+              href={quayHref}
+              className="mt-1 self-start text-xs font-medium text-primary hover:underline"
+            >
+              {t('cockpit.cardDetailsOpenInQuay')}
             </a>
           )}
-        </Section>
-      )}
 
-      {facts.length > 0 && (
-        <Section title={t('cockpit.cardDetailsFacts')}>
-          <ul className="space-y-0.5" data-testid="cockpit-card-details-facts">
-            {facts.map((fact, index) => (
-              <li key={`${fact.text}:${index}`} className="flex items-start gap-1 text-xs text-foreground">
-                <span aria-hidden className={cn('mt-1.5 h-1 w-1 shrink-0 rounded-full', fact.mechanical ? 'bg-primary' : 'bg-muted-foreground')} />
-                <span className={fact.mechanical ? '' : 'italic'}>{fact.text}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+          {card.situation !== undefined && (
+            <Section title={t('cockpit.cardDetailsSituation')}>
+              <p className="text-xs text-foreground">{card.situation}</p>
+            </Section>
+          )}
 
-      {briefVisible && brief !== undefined && (
-        <Section title={t('cockpit.briefTitle')} testId="cockpit-card-details-brief">
-          <CockpitBriefView state={brief} onRetry={onRetryBrief} />
-        </Section>
-      )}
+          {/* The assistant's own words, quoted, with the way back into the session they came from.
+              Only the phone drawer draws this: a card whose summary quotes the assistant gets the
+              quote where the mockup puts it, and the session link is the one exit. */}
+          {assistantQuote !== null && (
+            <Section
+              title={t('cockpit.cardDetailsAssistantQuote')}
+              testId="cockpit-card-details-quote"
+            >
+              <blockquote
+                data-testid="cockpit-card-assistant-quote"
+                className="border-l-2 border-primary/40 pl-2 text-xs italic text-foreground"
+              >
+                {assistantQuote}
+              </blockquote>
+              {sessionId !== undefined && (
+                <a
+                  data-testid="cockpit-card-quote-session-link"
+                  href={`/session/${encodeURIComponent(sessionId)}`}
+                  onClick={
+                    onOpenConversation === undefined
+                      ? undefined
+                      : (event) => {
+                          event.preventDefault();
+                          onOpenConversation(sessionId);
+                        }
+                  }
+                  className="mt-1 inline-block text-[11px] font-medium text-primary hover:underline"
+                >
+                  {t('cockpit.cardDetailsInSession')}
+                </a>
+              )}
+            </Section>
+          )}
 
-      {(card.options.length > 0 || ownReplyAvailable) && (
-        <Section title={t('cockpit.cardDetailsOptions')}>
-          {/*
-            EVERY ROW IS ONE PRESS TARGET. The whole row is a button (not a radio: the person's
-            choice is a reading, and the drawer shows it as a highlighted frame). `aria-pressed`
-            states the selection for assistive technology, `border-primary` + a ring is the main
-            signal, and the faint `bg-primary/5` only supports it. The last row is always the
-            person's own reply, carrying the same state and expanding the shared draft editor.
-          */}
-          <ul ref={optionsListRef} className="space-y-1.5" data-testid="cockpit-card-details-options">
-            {card.options.map((option) => {
-              const isShown = shownOptionId === option.id;
-              // The text this option would actually send, for the 「✎ 编辑」 shortcut. An option
-              // that states none (every fleet disposal option) has nothing to copy, so it offers
-              // no shortcut. The other three conditions mirror the own-reply row: the card must
-              // have an own-reply action, this drawer must be able to write its draft, and the
-              // card must not be locked behind an already-sent feedback.
-              const editableText = option.sendText;
-              const editAvailable =
-                editableText !== undefined && ownReplyAvailable && onOwnReplyChange !== undefined;
-              return (
-                <li key={option.id} className="relative">
-                  <button
-                    type="button"
-                    data-testid={`cockpit-card-details-option-${option.id}`}
-                    data-selected={isShown ? 'true' : 'false'}
-                    aria-pressed={isShown}
-                    disabled={optionsLocked}
-                    onClick={optionsLocked ? undefined : () => onShowOption?.(option.id)}
-                    onKeyDown={activateRowOnKey(
-                      optionsLocked ? undefined : () => onShowOption?.(option.id),
-                    )}
-                    className={cn(
-                      'block w-full rounded-md border px-2 py-1.5 text-left transition-colors',
-                      'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                      isShown ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : 'border-border',
-                      optionsLocked && 'cursor-default opacity-70',
-                      // Room for the shortcut in the corner, so the two never overlap.
-                      editAvailable && !optionsLocked && 'pr-14',
-                    )}
-                  >
-                    <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-foreground">
-                      <span>{option.label}</span>
-                      {option.suggested && (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                          {t('cockpit.cardSuggested')}
+          {facts.length > 0 && (
+            <Section title={t('cockpit.cardDetailsFacts')}>
+              <ul className="space-y-0.5" data-testid="cockpit-card-details-facts">
+                {facts.map((fact, index) => (
+                  <li key={`${fact.text}:${index}`} className="flex items-start gap-1 text-xs text-foreground">
+                    <span aria-hidden className={cn('mt-1.5 h-1 w-1 shrink-0 rounded-full', fact.mechanical ? 'bg-primary' : 'bg-muted-foreground')} />
+                    <span className={fact.mechanical ? '' : 'italic'}>{fact.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {briefVisible && brief !== undefined && (
+            <Section title={t('cockpit.briefTitle')} testId="cockpit-card-details-brief">
+              <CockpitBriefView state={brief} onRetry={onRetryBrief} />
+            </Section>
+          )}
+
+          {(card.options.length > 0 || ownReplyAvailable) && (
+            <Section title={t('cockpit.cardDetailsOptions')}>
+              {/*
+                EVERY ROW IS ONE PRESS TARGET. The whole row is a button (not a radio: the person's
+                choice is a reading, and the drawer shows it as a highlighted frame). `aria-pressed`
+                states the selection for assistive technology, `border-primary` + a ring is the main
+                signal, and the faint `bg-primary/5` only supports it. The last row is always the
+                person's own reply, carrying the same state and expanding the shared draft editor.
+              */}
+              <ul ref={optionsListRef} className="space-y-1.5" data-testid="cockpit-card-details-options">
+                {card.options.map((option) => {
+                  const isShown = shownOptionId === option.id;
+                  // The text this option would actually send, for the 「✎ 编辑」 shortcut. An option
+                  // that states none (every fleet disposal option) has nothing to copy, so it offers
+                  // no shortcut. The other three conditions mirror the own-reply row: the card must
+                  // have an own-reply action, this drawer must be able to write its draft, and the
+                  // card must not be locked behind an already-sent feedback.
+                  const editableText = option.sendText;
+                  const editAvailable =
+                    editableText !== undefined && ownReplyAvailable && onOwnReplyChange !== undefined;
+                  return (
+                    <li key={option.id} className="relative">
+                      <button
+                        type="button"
+                        data-testid={`cockpit-card-details-option-${option.id}`}
+                        data-selected={isShown ? 'true' : 'false'}
+                        aria-pressed={isShown}
+                        disabled={optionsLocked}
+                        onClick={optionsLocked ? undefined : () => onShowOption?.(option.id)}
+                        onKeyDown={activateRowOnKey(
+                          optionsLocked ? undefined : () => onShowOption?.(option.id),
+                        )}
+                        className={cn(
+                          'block w-full rounded-md border px-2 py-1.5 text-left transition-colors',
+                          'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                          isShown ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : 'border-border',
+                          optionsLocked && 'cursor-default opacity-70',
+                          // Room for the shortcut in the corner, so the two never overlap.
+                          editAvailable && !optionsLocked && 'pr-14',
+                        )}
+                      >
+                        <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-foreground">
+                          <span>{option.label}</span>
+                          {option.suggested && (
+                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                              {t('cockpit.cardSuggested')}
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
-                    {option.why !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
-                    )}
-                    {option.warn !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">⚠ {option.warn}</span>
-                    )}
-                    {(option.tags ?? []).length > 0 && (
-                      <span className="mt-1 flex flex-wrap gap-1">
-                        {(option.tags ?? []).map((tag) => (
-                          <span
-                            key={`${tag.kind}:${tag.text}`}
-                            className={cn(
-                              'rounded-full px-1.5 py-0.5 text-[10px]',
-                              tag.kind === 'warn'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-                                : 'bg-muted text-muted-foreground',
-                            )}
-                          >
-                            {tag.text}
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
+                        {option.why !== undefined && (
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
+                        )}
+                        {option.warn !== undefined && (
+                          <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">⚠ {option.warn}</span>
+                        )}
+                        {(option.tags ?? []).length > 0 && (
+                          <span className="mt-1 flex flex-wrap gap-1">
+                            {(option.tags ?? []).map((tag) => (
+                              <span
+                                key={`${tag.kind}:${tag.text}`}
+                                className={cn(
+                                  'rounded-full px-1.5 py-0.5 text-[10px]',
+                                  tag.kind === 'warn'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                                    : 'bg-muted text-muted-foreground',
+                                )}
+                              >
+                                {tag.text}
+                              </span>
+                            ))}
                           </span>
-                        ))}
-                      </span>
-                    )}
-                    {option.undo !== undefined && (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
-                    )}
-                  </button>
-                  {/* A SIBLING of the row button, never a child: HTML cannot nest buttons. The
-                      shortcut copies the option's sent text into the shared draft and asks for
-                      the caret at its end; it does not confirm anything. */}
-                  {editAvailable && !optionsLocked && (
+                        )}
+                        {option.undo !== undefined && (
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
+                        )}
+                      </button>
+                      {/* A SIBLING of the row button, never a child: HTML cannot nest buttons. The
+                          shortcut copies the option's sent text into the shared draft and asks for
+                          the caret at its end; it does not confirm anything. */}
+                      {editAvailable && !optionsLocked && (
+                        <button
+                          type="button"
+                          data-testid={`cockpit-card-details-option-edit-${option.id}`}
+                          onClick={() => {
+                            setFocusOwnReplyPending(true);
+                            onOwnReplyChange?.(editableText);
+                          }}
+                          className="absolute right-1 top-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          <span aria-hidden>✎ </span>
+                          {t('cockpit.cardEditOption')}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+                {ownReplyAvailable && (
+                  <li>
                     <button
                       type="button"
-                      data-testid={`cockpit-card-details-option-edit-${option.id}`}
-                      onClick={() => {
-                        setFocusOwnReplyPending(true);
-                        onOwnReplyChange?.(editableText);
-                      }}
-                      className="absolute right-1 top-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      data-testid="cockpit-card-details-own-reply"
+                      data-selected={showingOwnReply ? 'true' : 'false'}
+                      aria-pressed={showingOwnReply}
+                      disabled={optionsLocked}
+                      onClick={optionsLocked ? undefined : onShowOwnReply}
+                      onKeyDown={activateRowOnKey(optionsLocked ? undefined : onShowOwnReply)}
+                      className={cn(
+                        'block w-full rounded-md border border-dashed px-2 py-1.5 text-left text-xs font-medium text-foreground transition-colors',
+                        'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        showingOwnReply
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
+                          : 'border-border',
+                        optionsLocked && 'cursor-default opacity-70',
+                      )}
                     >
                       <span aria-hidden>✎ </span>
-                      {t('cockpit.cardEditOption')}
+                      {t('cockpit.cardWriteOwn')}
                     </button>
-                  )}
-                </li>
-              );
-            })}
-            {ownReplyAvailable && (
-              <li>
-                <button
-                  type="button"
-                  data-testid="cockpit-card-details-own-reply"
-                  data-selected={showingOwnReply ? 'true' : 'false'}
-                  aria-pressed={showingOwnReply}
-                  disabled={optionsLocked}
-                  onClick={optionsLocked ? undefined : onShowOwnReply}
-                  onKeyDown={activateRowOnKey(optionsLocked ? undefined : onShowOwnReply)}
-                  className={cn(
-                    'block w-full rounded-md border border-dashed px-2 py-1.5 text-left text-xs font-medium text-foreground transition-colors',
-                    'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                    showingOwnReply
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
-                      : 'border-border',
-                    optionsLocked && 'cursor-default opacity-70',
-                  )}
-                >
-                  <span aria-hidden>✎ </span>
-                  {t('cockpit.cardWriteOwn')}
-                </button>
-                {/* The SAME draft the card row edits; selecting the row is the only way in. */}
-                {showingOwnReply && !optionsLocked && onOwnReplyChange !== undefined && (
-                  <OwnReplyEditor
-                    testId="cockpit-card-details-own-reply-input"
-                    value={ownReply}
-                    onChange={onOwnReplyChange}
-                    ariaLabel={t('cockpit.cardWriteOwn')}
-                    placeholder={t('cockpit.cardOwnReplyPlaceholder')}
-                  />
+                    {/* The SAME draft the card row edits; selecting the row is the only way in. */}
+                    {showingOwnReply && !optionsLocked && onOwnReplyChange !== undefined && (
+                      <OwnReplyEditor
+                        testId="cockpit-card-details-own-reply-input"
+                        value={ownReply}
+                        onChange={onOwnReplyChange}
+                        ariaLabel={t('cockpit.cardWriteOwn')}
+                        placeholder={t('cockpit.cardOwnReplyPlaceholder')}
+                      />
+                    )}
+                  </li>
                 )}
-              </li>
-            )}
-          </ul>
-        </Section>
-      )}
+              </ul>
+            </Section>
+          )}
 
-      <Section title={t('cockpit.cardDetailsConversation')}>
-        {sessionId !== undefined && conversationOnLeft ? (
-          <p
-            data-testid="cockpit-card-opened-in-session"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            {t('cockpit.columnOpenedInSession')}
-          </p>
-        ) : sessionId !== undefined ? (
-          <a
-            data-testid="cockpit-card-conversation-link"
-            href={`/session/${encodeURIComponent(sessionId)}`}
-            onClick={
-              onOpenConversation === undefined
-                ? undefined
-                : (event) => {
-                    // The column opens the conversation in place (left side) and owns what
-                    // happens to the column afterwards; a full page load would lose that.
-                    event.preventDefault();
-                    onOpenConversation(sessionId);
-                  }
-            }
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {t('cockpit.cardDetailsOpenConversation', { sessionId })}
-          </a>
-        ) : startProject !== undefined ? (
-          <button
-            type="button"
-            data-testid="cockpit-card-start-conversation"
-            onClick={() => onStartConversation?.(card)}
-            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-          >
-            {t('cockpit.cardDetailsStartConversation')}
-          </button>
-        ) : (
-          <p className="text-xs text-muted-foreground">{t('cockpit.cardDetailsNoConversation')}</p>
-        )}
-      </Section>
+          <Section title={t('cockpit.cardDetailsConversation')}>
+            {sessionId !== undefined && conversationOnLeft ? (
+              <p
+                data-testid="cockpit-card-opened-in-session"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t('cockpit.columnOpenedInSession')}
+              </p>
+            ) : sessionId !== undefined ? (
+              <a
+                data-testid="cockpit-card-conversation-link"
+                href={`/session/${encodeURIComponent(sessionId)}`}
+                onClick={
+                  onOpenConversation === undefined
+                    ? undefined
+                    : (event) => {
+                        // The column opens the conversation in place (left side) and owns what
+                        // happens to the column afterwards; a full page load would lose that.
+                        event.preventDefault();
+                        onOpenConversation(sessionId);
+                      }
+                }
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {t('cockpit.cardDetailsOpenConversation', { sessionId })}
+              </a>
+            ) : startProject !== undefined ? (
+              <button
+                type="button"
+                data-testid="cockpit-card-start-conversation"
+                onClick={() => onStartConversation?.(card)}
+                className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+              >
+                {t('cockpit.cardDetailsStartConversation')}
+              </button>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t('cockpit.cardDetailsNoConversation')}</p>
+            )}
+          </Section>
+
+        </div>
+      </div>
 
       {/*
         THE PERSISTENT CONFIRM BAR. It is bound to the SAME target the card's own bar is bound to
         (the card's currently shown option), and its press opens the same in-place confirm state —
-        Details is a longer reading of one card, not a second confirmation path. `sticky bottom-0`
-        keeps it in view while the drawer's body scrolls. The bar itself is the card's shared
-        `CockpitCardConfirmBar`: one action, one control, one style. A card whose feedback is
-        already sent draws NO bar here either: its action ran, and the only live control is the
-        resend the card row offers after the window.
+        Details is a longer reading of one card, not a second confirmation path. It is a SIBLING
+        of the scrolling body (never inside it), so it cannot cover the reading's last lines. The
+        bar itself is the card's shared `CockpitCardConfirmBar`: one action, one control, one
+        style. A card whose feedback is already sent draws NO bar here either: its action ran, and
+        the only live control is the resend the card row offers after the window.
       */}
       {target !== undefined && target !== null && card.feedback === undefined && (
-        <CockpitCardConfirmBar
-          barTestId="cockpit-card-details-confirm-bar"
-          testId="cockpit-card-details-confirm"
-          cardId={card.id}
-          target={target}
-          showingOwnReply={showingOwnReply}
-          pending={confirmPending}
-          countdown={sendCountdown}
-          confirming={confirming}
-          now={now}
-          outcome={confirmOutcome}
-          className="sticky bottom-0 mt-3 border-t border-border bg-card pt-2"
-          onRequestConfirm={() => onRequestConfirm?.()}
-          onConfirm={onConfirm}
-          onCancelConfirm={onCancelConfirm}
-        />
+        <div
+          data-testid="cockpit-card-details-footer"
+          className="shrink-0 border-t border-border bg-card px-3 py-2"
+        >
+          <div className="mx-auto w-full max-w-3xl">
+            <CockpitCardConfirmBar
+              barTestId="cockpit-card-details-confirm-bar"
+              testId="cockpit-card-details-confirm"
+              cardId={card.id}
+              target={target}
+              showingOwnReply={showingOwnReply}
+              pending={confirmPending}
+              countdown={sendCountdown}
+              confirming={confirming}
+              now={now}
+              outcome={confirmOutcome}
+              onRequestConfirm={() => onRequestConfirm?.()}
+              onConfirm={onConfirm}
+              onCancelConfirm={onCancelConfirm}
+            />
+          </div>
+        </div>
       )}
     </aside>
   );

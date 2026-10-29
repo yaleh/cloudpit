@@ -1034,6 +1034,7 @@
     "cardFeedbackKept": "Fleet l’a reçu et a laissé l’élément ouvert",
     "cardFeedbackRejected": "Fleet a refusé ce retour : {{reason}}",
     "cardAwaitingFeedback": "{{total}} cartes, {{awaiting}} en attente de confirmation de fleet",
+    "cardCountSummary": "{{needsYou}} vous attendent · {{waiting}} en attente de confirmation de fleet · {{answered}} cartes répondues encore ouvertes",
     "cardStartConversationEcho": "Intention de démarrer une conversation pour {{project}} enregistrée (son ouverture viendra dans une tâche ultérieure).",
     "cardDetailsTitle": "Détails",
     "cardDetailsClose": "Fermer",

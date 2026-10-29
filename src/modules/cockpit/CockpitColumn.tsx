@@ -199,27 +199,19 @@ function CockpitColumnFrame({ binding }: { binding: CockpitColumnBinding }) {
         <span className="min-w-0 truncate text-sm font-medium text-foreground">
           {t('cockpit.columnTitle')}
         </span>
-        <span
-          data-testid="cockpit-column-count"
-          className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
-        >
-          {t('cockpit.columnWaitingCount', { n: snapshot.openCount })}
-        </span>
-        {/* The stuck segment appears only when there ARE stuck cards: a "0 stuck" beside the
-            waiting count reads as a second, contradictory tally. Its words are the locale's
-            existing `columnRescueCount` sentence ("{{n}} stuck"). */}
+        {/* NO SECOND COUNT HERE. The three-reading line at the top of the list (needs you ·
+            waiting for the fleet · answered) is the column's one count; a badge beside the title
+            repeated the same total in different words. */}
+        {/* The stuck segment appears only when there ARE stuck cards: a "0 stuck" would read as a
+            contradictory tally. Its words are the locale's existing `columnRescueCount` sentence
+            ("{{n}} stuck"). */}
         {stuckCount > 0 && (
-          <>
-            <span aria-hidden className="-mx-1 flex-shrink-0 text-[11px] text-muted-foreground">
-              {' · '}
-            </span>
-            <span
-              data-testid="cockpit-column-stuck-count"
-              className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
-            >
-              {t('cockpit.columnRescueCount', { n: stuckCount })}
-            </span>
-          </>
+          <span
+            data-testid="cockpit-column-stuck-count"
+            className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground"
+          >
+            {t('cockpit.columnRescueCount', { n: stuckCount })}
+          </span>
         )}
         <button
           type="button"
