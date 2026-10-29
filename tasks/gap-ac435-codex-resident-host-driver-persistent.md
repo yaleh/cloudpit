@@ -103,3 +103,11 @@ goal_ac: AC-435
 - 未实现项（按任务范围留给后续）：未挂载 `CodexProvider.hostDriver`、未改 capabilities 的 `lifecycleModes`（AC-441/442）；queue / settings / approvals / background lease / restore / E2E 未做（AC-436…AC-443）；`codex.provider.ts`、`provider-capabilities.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts` 零改动。
 
 该轴仍暗,理由:本条只新增两个 codex 私有实现文件与一个判据，未改变模块依赖图，也没有可读的 ArchGuard 周期/重复度量数值。
+
+## Blocker
+
+**2026-10-29T10:35:59.464Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: incomplete suite (338/465 files) — recovery unsupported for this suite entry (no --lane-count control): node; needs a code/config fix, see plugin/scripts/worker-fan-in.ts
+- run_id：wk-prod-anchor
+- session_id：ee4bcb6e-fb77-4198-aebc-da8112ca19f7
