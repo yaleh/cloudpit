@@ -29,9 +29,13 @@ depends_on:
 - 本地即时抑制：投影（`cockpit-fleet-card-projection.ts`）读到卡片的 `contentRef.messageId` 在 retracted 集合里时，不把该卡加入可见列表（或按 resolved 处理）。这个集合必须**对没有 observation object 的会话也有效**（从共享事件流的 retraction 行或一个按 messageId 的本地持久集合读取），否则 fea61be5 这类「事件-only」卡无法抑制。不等 fleet consumer 上线，界面当天就消掉误发卡；fleet 消费后成为持久关闭。
 - 只做 CloudCLI 写端与本地抑制；fleet 的文本键迁移、来源消失 resolve、retraction 消费由对方任务负责。
 
-约束：撤回只针对「修正后的检测器确认不是提问」的 ask；真提问与不可读转写不动；不改卡片交互规则（折叠与空内容展示在 `gap-cockpit-card-fold-by-contentref`）。
+约束：撤回只针对「确认不是提问」的 ask；真提问与不可读转写不动；不改卡片交互规则（折叠与空内容展示在 `gap-cockpit-card-fold-by-contentref`）。
+
+- 撤回判定**不得**使用位置启发式：`62d959c0:3818a9e5` 的决策在中段、末段是 caveat，按末段判定会把它读成陈述而误撤一张真卡。判定改为全文机械预筛 + T1 语义判定；位置启发式仅作预筛提示，不产出撤回结论。
 
 ## AC
+
+撤回类用例里的「不是提问」一律由**全文机械预筛 + T1 摘要语义判定**（`isAsking` + 抽取的问题文本）得出；位置启发式（末段检测）只可作预筛提示，**不得作为撤回依据**（现场夹具见本段最后一条）。
 
 - [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0：新增用例——ledger 里一条 asking 指向带编号列表的长回答 ⇒ 写出一次 `session.asking.retracted`（askId/messageId 正确），ledger 的 `asking`/`pending` 清空；第二次回放不重复写；真提问不撤；transcript 不可读时不撤。
 - [ ] 同一文件新增：**只存在于事件流、ledger/对象没有的 asking**（内容引用一个最后一段是陈述的消息）⇒ 回放仍发出一次 `session.asking.retracted`；重复回放不重发；真提问不发 retraction。
@@ -39,8 +43,18 @@ depends_on:
 - [ ] 同一文件新增：一个没有 observation object 的会话，transcript 里 asking 之后有用户消息 ⇒ 启动补扫/用户回合发出一次 `session.answered`（askId/messageId 正确）；重复调用不重发；假提问走 retraction 而不是 answered。
 - [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts server/modules/context-events/tests/session-ask-event-writer.test.ts` 退出 0：新 kind 被接受且 producer=cloudcli、group=interaction、data 只含 `{askId,messageId}`；缺字段/错类型被拒；既有 kind 行为不变。
 - [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0：contentRef.messageId 在 retracted 集合中的卡不出现在可见列表；不在集合中的卡保留；**没有 observation object 的会话**其 retracted 卡也被抑制；假形态删掉本地抑制 ⇒ 该用例红。
+- [ ] 现场夹具 `62d959c0:3818a9e5`（session `62d959c0-5487-4649-a5f2-ab38462c438b` / message `3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a`，cockpit 卡 `att_260e4c9bbcc0`）：该消息是**真提问**（决策「值得优先讨论的下一步 1/2/3」在消息中段，末段只是「本轮没有运行测试」的说明）。回放/补扫后断言：(a) 共享流**没有**该 askId 的 `session.asking.retracted`；(b) 该 askId 的 `session.answered` 在用户回复后被写出（现网缺口：asking 已写、user 已答、answered 从未写出）；(c) 该 askId **不在**任何 retracted 集合里，本地投影**不得**抑制该卡；(d) 该卡只允许因 answered（或来源消失）关闭——answered 写出之前它必须仍可见。
 - [ ] 假形态变红：删掉回放里的 retraction 写入 ⇒ 第一条用例红；删掉事件-only 回放 ⇒ 第二条用例红；删掉无对象补发 answered 的分支 ⇒ 第四条用例红；改完即还原。
 - [ ] `npm run typecheck`、`npm run lint` 退出 0；若 producer/投影越过基线，按 AC-394 RECORDED CHANGE 格式记录。
+
+## 现场夹具（2026-10-30 人工补录）
+
+现场读数（`~/.quay-fleet/`，非推测）：
+
+- 卡：`att_260e4c9bbcc0`，provider=quay-fleet，kind=ask，group=rescue，state=open，waitingSince=2026-10-29T16:05:53Z，subject.taskId=null，contentRef.resolver=`cloudcli.session-ask`，messageId=`3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a`，ask 文本空、options 空。
+- 事件流（`context/events/2026-10-29.jsonl`）：16:05:53Z `session.asking`（askId `62d959c0-5487-4649-a5f2-ab38462c438b:3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a`）；16:11:45Z `chip.picked`；16:11:51Z 用户 utterance「先拆 observation producer 的 ask ledger 和恢复/sweep…创建任务。」；**没有**对应 `session.answered` ⇒ 卡至今仍开。这正是本任务「无对象也补发 answered」要修的现场症状。
+- 判定：消息 `3818a9e5` 是真提问（决策在中段，末段是 caveat）。它同时是「不得用位置启发式撤回」的负向夹具——按末段判定撤回会撤掉一张真卡。
+- 验收口径：该卡必须在一份 `session.answered {askId, messageId}` 写出之后才消失；消失的驱动力是 answered（或来源消失），**不是** retraction 本地抑制。
 
 ## DoD
 
@@ -48,7 +62,7 @@ depends_on:
 
 1. 在隔离实例或真实数据副本上跑回放：共享事件流里出现 5b984a5f 的 3 条、fea61be5 的 4 条（7aed36dd / 973a3df3 / 5e25b481 / 33ba0c00）、0a8e120a/843631e5/b96e7efc/c07db8d2 对应条目的 `session.asking.retracted`（贴出 askId/messageId）；a1690759 与真提问没有 retraction 行。
 2. 无对象的会话（5b984a5f / 843631e5 / b96e7efc）在补扫后共享流出现对应的 `session.answered`；贴出事件行（askId/messageId）；与 fleet 的旧键迁移配合后卡关闭。
-3. 390 与 1440 打开 `/cockpit?view=cards`：上述误发卡不再出现（本地抑制即时生效，包含没有 object 的会话），真提问卡仍在且可确认；截图存 `tmp/`。
+3. 390 与 1440 打开 `/cockpit?view=cards`：上述误发卡不再出现（本地抑制即时生效，包含没有 object 的会话），真提问卡仍在且可确认；现场夹具 `att_260e4c9bbcc0` 必须**仍在**（它没被撤回，只等 answered）——补扫写出 answered 后再次打开，该卡才消失；截图存 `tmp/`。
 4. 场景运行器可用时跑 `node scripts/ui-scenario.mjs e2e/scenarios/cockpit-mode-switch.json …` 并贴 JSON；实例用毕停掉。
 
 ## Touches
