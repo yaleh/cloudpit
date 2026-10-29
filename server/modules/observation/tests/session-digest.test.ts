@@ -246,7 +246,7 @@ test('AC1: a question ending and a numbered-options ending both ask you, a state
   assert.deepEqual(statement.options, []);
 });
 
-test('AC: only the last paragraph decides whether an assistant message asks you', () => {
+test('AC: a question anywhere asks you; a numbered list only counts as the last paragraph', () => {
   /** `count` consecutive short numbered lines — the shape that used to read as "pick one". */
   const numbered = (count: number): string =>
     Array.from({ length: count }, (_, index) => `${index + 1}. 第${index + 1}项检查已完成`).join('\n');
@@ -270,8 +270,9 @@ test('AC: only the last paragraph decides whether an assistant message asks you'
     assert.equal(result.digest.askingYou.isAsking, false, `${count} 行编号的长回答 digest 判为陈述`);
   }
 
-  // A question mark in an earlier paragraph does not survive a statement at the end.
-  assert.equal(analyzeAssistantAsk('这里要先确认一件事？\n\n最后的结论是改动已完成。').isAsking, false);
+  // A question mark in an EARLIER paragraph is a real question: 62d959c0's decision sat in the
+  // middle of a three-part report whose last paragraph was a note. Position must not hide it.
+  assert.equal(analyzeAssistantAsk('这里要先确认一件事？\n\n最后的结论是改动已完成。').isAsking, true);
 
   // The two real asking shapes still read as asking when they are the LAST paragraph.
   assert.equal(analyzeAssistantAsk('前面做了很多。\n\n要不要我现在就把旧断言改掉？').isAsking, true);

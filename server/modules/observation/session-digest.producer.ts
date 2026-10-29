@@ -489,6 +489,57 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
           const ledger = readSessionAskEventLedger(previousDigest);
           const at = new Date(event.completedAt || now()).toISOString();
 
+          // ---- THE SEMANTIC GATE ----------------------------------------------------------
+          // `readSessionAsk` answers a MECHANICAL CANDIDATE (the wide prefilter), not a verdict:
+          // a decision in a middle paragraph and a long report containing a numbered list both
+          // pass it. The T1 summary is what decides. It is awaited BEFORE any write, so a
+          // definitive `isAsking:false` produces neither the `session.asking` event nor the
+          // observation object. When the summary is unavailable or fails, the documented
+          // fallback applies: the candidate is shown, and its reading's reason is what the card
+          // displays (better briefly visible than silently dropped).
+          const candidate = ask.current;
+          let current = candidate;
+          let askDecision: SessionAskDecisionReading | undefined;
+          if (candidate !== null) {
+            if (summarizeAsk === undefined) {
+              // No tier in this build: state the fallback ON the deterministic revision itself,
+              // so the wall keeps its one-write-per-turn contract and the card still shows why
+              // it is showing a candidate.
+              askDecision = {
+                state: 'skipped',
+                reason: '提问语义判定不可用（未启用 observation.sessionDigest）：已按机械预筛显示候选',
+                originalAsk: candidate.assistantText,
+              };
+              digest = { ...digest, askDecision };
+            } else {
+              try {
+                askDecision = await summarizeAsk.summarize({
+                  sessionId: event.appSessionId,
+                  sessionTitle: resolved.title,
+                  askId: candidate.askId,
+                  revision: candidate.revision,
+                  assistantText: candidate.assistantText,
+                  context: ask.context,
+                });
+              } catch (failure) {
+                askDecision = {
+                  state: 'unevaluated',
+                  reason: `提问摘要生成失败：${failure instanceof Error ? failure.message : String(failure)}`,
+                  originalAsk: candidate.assistantText,
+                };
+              }
+            }
+            if (askDecision.isAsking === false) {
+              // A definitive non-ask writes nothing — except an errored turn still writes its
+              // red reading (the ask is simply dropped from it).
+              if (digest.activity !== 'error') return null;
+              current = null;
+            } else {
+              // Confirmed asking, or the candidate fallback: the wall waits on this turn.
+              digest = { ...digest, activity: 'waiting' };
+            }
+          }
+
           // Every ask this session's ledger still names as UNFINISHED and the transcript now
           // shows a later user message for is stated. The pending set is the gate, not the
           // transcript: a transcript carrying dozens of old answered rounds must not backfill
@@ -501,7 +552,6 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
             at,
           });
 
-          const current = ask.current;
           if (current !== null) {
             const askingKey = `${current.askId}:${current.revision}`;
             if (ledger.asking.includes(askingKey) === false) {
@@ -546,11 +596,12 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
                 ? { state: 'attention' as const, reason: '本轮以提问结束，等你回复' }
                 : { state: 'ok' as const };
 
-          // THE LEDGER IS THE TURN'S OWN FACT, so it is written BEFORE the model call. The T1
-          // summary may take minutes, fail, or never return (the process was restarted while it
-          // was in flight — the live 09:43 ask whose answered event never appeared); none of
-          // those may lose 「this session asked and nobody has answered」. The summary is a
-          // second, delta-less revision below.
+          // THE LEDGER IS THE TURN'S OWN FACT, so it is written in the deterministic revision
+          // BEFORE the summary ENRICHES it. The gate above already decided this turn asks; the
+          // summary's own revision is a second, delta-less write, and if it never lands (the
+          // process was restarted while it was in flight — the live 09:43 ask whose answered
+          // event never appeared) the ledger still says 「this session asked and nobody has
+          // answered」.
           const written = store.writeRevision({
             uri,
             kind: 'session',
@@ -565,24 +616,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
             },
           });
 
-          if (current === null || summarizeAsk === undefined) return written;
-
-          let askDecision: SessionAskDecisionReading;
-          try {
-            askDecision = await summarizeAsk.summarize({
-              sessionId: event.appSessionId,
-              sessionTitle: resolved.title,
-              askId: current.askId,
-              revision: current.revision,
-              assistantText: current.assistantText,
-              context: ask.context,
-            });
-          } catch (failure) {
-            askDecision = {
-              state: 'unevaluated',
-              reason: `提问摘要生成失败：${failure instanceof Error ? failure.message : String(failure)}`,
-            };
-          }
+          if (current === null || askDecision === undefined || summarizeAsk === undefined) return written;
 
           // Only the digest is enriched: the turn's delta was stated by the revision above, so
           // this one carries none (a second 「新增 1 轮」 would be a lie the wall shows twice).

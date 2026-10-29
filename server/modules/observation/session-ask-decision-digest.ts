@@ -26,9 +26,9 @@ import type { SessionAskDecisionReading } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 import {
-  analyzeAssistantAsk,
   isUserPromptRow,
   parseTranscriptRows,
+  prefilterAssistantAsk,
   transcriptRowMessageId,
   transcriptRowRole,
   transcriptRowText,
@@ -51,7 +51,11 @@ type AskingRow = { messageId: string; text: string };
 
 /** What one transcript says about the ask it ends on and the ask its last prompt answered. */
 export type SessionAskReading = {
-  /** The current turn's ask, or null when the last assistant message does not ask anything. */
+  /**
+   * The current turn's ask CANDIDATE — the last assistant message passed the mechanical
+   * prefilter — or null when it carries no ask marker at all. This is a candidate, not a
+   * verdict: the producer confirms it with the T1 summary's `isAsking` before stating an event.
+   */
   current: { askId: string; messageId: string; revision: number; assistantText: string } | null;
   /** The previous ask this transcript's last user prompt answers, or null. */
   answered: { askId: string; messageId: string } | null;
@@ -175,6 +179,16 @@ export function rememberAskDecision(
  */
 export const SESSION_ASK_OUTPUT_UNUSABLE_REASON = '模型输出不可用';
 
+/**
+ * The reason carried by the T1 summary's DEFINITIVE non-ask verdict (`isAsking: false`).
+ *
+ * The verdict is not a failure — it is the gate doing its job on a mechanically-valid candidate
+ * (a long review containing a numbered list). It is never persisted to a digest: the producer
+ * writes neither the `session.asking` event nor the observation object when it sees this reading.
+ * The token is exported so the criteria can assert the reading's shape without re-typing the prose.
+ */
+export const SESSION_ASK_NOT_ASKING_REASON = '语义判定：这条助手消息不是在提问';
+
 /** One asking turn as a transcript-wide scan states it. */
 export type TranscriptAsk = {
   /** `<sessionId>:<first asking message id in the span>` — the fleet's dedup key. */
@@ -253,14 +267,14 @@ export type SessionAskDecisionDigestDeps = {
   debugLog?: (message: string) => void;
 };
 
-/** The asking messages among `rows`, oldest first, with rows that carry no id dropped. */
+/** The mechanically-candidate messages among `rows`, oldest first, dropping rows without an id. */
 function askingRows(rows: TranscriptRow[]): AskingRow[] {
   const asks: AskingRow[] = [];
   for (const row of rows) {
     if (transcriptRowRole(row) !== 'assistant') continue;
     const text = transcriptRowText(row);
     const messageId = transcriptRowMessageId(row);
-    if (text !== '' && messageId !== '' && analyzeAssistantAsk(text).isAsking) asks.push({ messageId, text });
+    if (text !== '' && messageId !== '' && prefilterAssistantAsk(text).candidate) asks.push({ messageId, text });
   }
   return asks;
 }
@@ -287,8 +301,8 @@ function promptIndexesOf(rows: TranscriptRow[]): number[] {
 
 /**
  * The ask ending at `endIndex`: its identity, its revision and the message whose words are
- * restated. The ask exists only when the last assistant message at or before `endIndex` is
- * itself asking — a later, non-asking assistant message means that turn already moved on.
+ * restated. The ask exists only when the last assistant message at or before `endIndex` passes
+ * the MECHANICAL prefilter — it is a candidate the producer must confirm with the T1 summary.
  */
 function askEndingAt(
   rows: TranscriptRow[],
@@ -305,7 +319,7 @@ function askEndingAt(
   }
   if (lastAssistantIndex < 0) return null;
   const assistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
-  if (!analyzeAssistantAsk(assistantText).isAsking) return null;
+  if (!prefilterAssistantAsk(assistantText).candidate) return null;
 
   // The ask span starts after the last user prompt before the asking message; a re-ask keeps the
   // span's FIRST asking id and bumps the revision.
@@ -446,7 +460,7 @@ export function readSessionAsks(raw: string, sessionId: string): SessionAskTrans
     }
     if (lastAssistantIndex < 0) continue;
     const lastAssistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
-    if (!analyzeAssistantAsk(lastAssistantText).isAsking) continue;
+    if (!prefilterAssistantAsk(lastAssistantText).candidate) continue;
     current = {
       askId,
       messageId: transcriptRowMessageId(rows[lastAssistantIndex] ?? {}),
@@ -573,6 +587,13 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
           `[observation.sessionDigest] 提问摘要解析失败: ${reason}; 原始输出头部=${JSON.stringify(head)}; 尾部=${JSON.stringify(tail)}`,
         );
         return { state: 'unevaluated', reason: `${SESSION_ASK_OUTPUT_UNUSABLE_REASON}：${reason}` };
+      }
+
+      // The semantic gate's NEGATIVE verdict. It is a successful call whose answer is 「this is
+      // not a question」: carry `isAsking:false` explicitly so the producer can suppress the
+      // event/object, and do not build any decision (the model was told not to invent one).
+      if (parsed.isAsking === false) {
+        return { state: 'unevaluated', isAsking: false, reason: SESSION_ASK_NOT_ASKING_REASON };
       }
 
       const reading = withStableOptionIds(
