@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-ask-semantic-gate
 title: 提问判定改为机械预筛 + T1 摘要语义判定：不再用首/中/尾位置；62d959c0 的中段决策要被识别，5b/fea61b 类长报告不产生假卡
-status: ready
+status: done
 labels:
   - gap
   - cockpit
