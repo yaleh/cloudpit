@@ -61,17 +61,17 @@ goal_ac: AC-435
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 3`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-persistent.test.ts'`。
-- [ ] AC2 三轮身份稳定：同一 resident 会话连续 3 轮后逐轮打印 `turn=N threadId=… hostPid=… transportPid=…`；三行 threadId 全等、hostPid 全等、transportPid 全等；任一不等时断言以点名差异失败。
-- [ ] AC3 resume 语义：打印方法调用序列；序列中 `thread/start` 恰 1 次（首轮），`thread/resume` 恰 2 次且两次参数 threadId == 首轮 id。
-- [ ] AC4 零轮次回退：假 transport 对未跑过轮次的 thread 回 `no rollout found for thread id …`；驱动改调 `thread/start`，随后 `turn/start` 使用新 id；打印 `resumeError=… fallbackThreadId=… turnThreadId=…`，三者与上述关系一致。
-- [ ] AC5 中止不杀进程：打印 `interruptTurnStatus=… beforePid=… afterPid=… nextTurnPid=… nextTurnThreadId=…`；`interruptTurnStatus == 'interrupted'`、`afterPid == beforePid`、`nextTurnPid == beforePid`、`nextTurnThreadId == 中断前的 threadId`；transport 在 interrupt 前后都报告存活。
-- [ ] AC6 反向控制可达：测试内把「threadId 每轮变化」读数喂给身份断言、把「interrupt 后 pid 变化/进程消失」读数喂给存活断言，两者都必须 reject；各自打印判定，证明判据不是恒真。
-- [ ] AC7 实测两个假形态承重：临时把真实现改成每轮 `thread/start`，criterion 退出 **1**；临时把 `interrupt` 改成杀进程，criterion 退出 **1**；两次红态文案逐字记录，还原后 `git status --short` 无残留。
-- [ ] AC8 接口与声明：测试文件里 `CodexHostDriver` 以 `IProviderHostDriver` 类型赋值通过类型检查（`npm run typecheck` 退出 0）；打印 `multiplexedHost=false`。
-- [ ] AC9 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。
-- [ ] AC10 既有契约不变：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime.test.ts server/modules/providers/tests/codex-session-fork.test.ts` 退出 0；`npm run typecheck` 退出 0。
-- [ ] AC11 如实登记：完成记录写明假 transport 形态与锁定协议版本（0.153.4）、每轮通知序列、`no rollout found` 错误形状出处（REPORT E1）、两个假形态的实测退出码与红态文案、未实现项（provider 挂载、capabilities、queue/settings/approvals/background lease/restore/E2E）。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 3`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-persistent.test.ts'`。
+- [x] AC2 三轮身份稳定：同一 resident 会话连续 3 轮后逐轮打印 `turn=N threadId=… hostPid=… transportPid=…`；三行 threadId 全等、hostPid 全等、transportPid 全等；任一不等时断言以点名差异失败。
+- [x] AC3 resume 语义：打印方法调用序列；序列中 `thread/start` 恰 1 次（首轮），`thread/resume` 恰 2 次且两次参数 threadId == 首轮 id。
+- [x] AC4 零轮次回退：假 transport 对未跑过轮次的 thread 回 `no rollout found for thread id …`；驱动改调 `thread/start`，随后 `turn/start` 使用新 id；打印 `resumeError=… fallbackThreadId=… turnThreadId=…`，三者与上述关系一致。
+- [x] AC5 中止不杀进程：打印 `interruptTurnStatus=… beforePid=… afterPid=… nextTurnPid=… nextTurnThreadId=…`；`interruptTurnStatus == 'interrupted'`、`afterPid == beforePid`、`nextTurnPid == beforePid`、`nextTurnThreadId == 中断前的 threadId`；transport 在 interrupt 前后都报告存活。
+- [x] AC6 反向控制可达：测试内把「threadId 每轮变化」读数喂给身份断言、把「interrupt 后 pid 变化/进程消失」读数喂给存活断言，两者都必须 reject；各自打印判定，证明判据不是恒真。
+- [x] AC7 实测两个假形态承重：临时把真实现改成每轮 `thread/start`，criterion 退出 **1**；临时把 `interrupt` 改成杀进程，criterion 退出 **1**；两次红态文案逐字记录，还原后 `git status --short` 无残留。
+- [x] AC8 接口与声明：测试文件里 `CodexHostDriver` 以 `IProviderHostDriver` 类型赋值通过类型检查（`npm run typecheck` 退出 0）；打印 `multiplexedHost=false`。
+- [x] AC9 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches 列出的文件；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。
+- [x] AC10 既有契约不变：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime.test.ts server/modules/providers/tests/codex-session-fork.test.ts` 退出 0；`npm run typecheck` 退出 0。
+- [x] AC11 如实登记：完成记录写明假 transport 形态与锁定协议版本（0.153.4）、每轮通知序列、`no rollout found` 错误形状出处（REPORT E1）、两个假形态的实测退出码与红态文案、未实现项（provider 挂载、capabilities、queue/settings/approvals/background lease/restore/E2E）。
 
 ## DoD
 
@@ -83,3 +83,23 @@ goal_ac: AC-435
 - server/modules/providers/list/codex/codex-host-driver.provider.ts (new)
 - server/modules/providers/tests/codex-host-driver-persistent.test.ts (new)
 - tasks/gap-ac435-codex-resident-host-driver-persistent.md
+
+## 完成记录
+
+- 判据原命令（worktree 树）：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` → exit **0**，`tests 5 / pass 5 / fail 0`。
+- 假 transport 形态：内存双工 JSON-RPC server 桩（`FakeAppServerTransport`），固定假 pid `424242`，记录方法调用序列；处理 `initialize`、`thread/start`（每次新 id）、`thread/resume`（仅在跑过轮次后成功，未跑过轮次回 `no rollout found for thread id <id>`）、`turn/start`（回 `{turn:{id}}` 并发 `turn/started`，随后按指令发 `turn/completed`）、`turn/interrupt`（回 `{}` 并发终态 `status=interrupted`）。不真起 codex。
+- 锁定协议版本：`@openai/codex 0.153.4`；`no rollout found` 错误形状出自 `tmp/codex-appserver-exp-NuPHhk/REPORT.md` E1（首轮之前 resume 失败）。
+- 每轮通知序列（本判据的假 transport）：`turn/started` → `turn/completed`。真实 app-server 在这两者之间还会发 `item/started` / `item/completed`（E1/E3 原始帧），那些帧的归一化属 AC-440，本条只做轮次结算。
+- (a) 三轮读数：`turn=1 threadId=thread-1 hostPid=424242 transportPid=424242`、`turn=2 threadId=thread-1 hostPid=424242 transportPid=424242`、`turn=3 threadId=thread-1 hostPid=424242 transportPid=424242`；三行全等，`identity=accepted turns=3`。
+- (b) 方法序列：`initialize,initialized,thread/start,turn/start,thread/resume,turn/start,thread/resume,turn/start`；`threadStartCount=1 threadResumeCount=2`，两次 resume 的 `params.threadId` 均为首轮 id `thread-1`。
+- (c) 零轮次回退：`resumeError=no rollout found for thread id thread-zero-turn fallbackThreadId=thread-1 turnThreadId=thread-1`；随后一轮的 `thread/resume` 参数是新 id `thread-1`，旧 id 未被写回。
+- (d) interrupt：`interruptTurnStatus=interrupted beforePid=424242 afterPid=424242 nextTurnPid=424242 nextTurnThreadId=thread-1`；`transportAliveBefore=true transportAliveAfter=true`。
+- (e) 反向控制：`reverseIdentityRejected=true reversePidChangeRejected=true reverseProcessGoneRejected=true`；正向腿与反向控制共用同一组断言函数（`assertStableIdentity` / `assertInterruptKeptProcess`），证明判据不是恒真。
+- (f) `multiplexedHost=false`；测试内 `const conformance: IProviderHostDriver = driver` 通过 `npm run typecheck`（exit 0）。
+- AC7 两个假形态（临时改实现后按原命令实测，随后 `git checkout --` 还原，`git status --short` 无残留）：
+  - 「每轮 `thread/start`」变体：exit **1**，`fail 3`；逐字红态 `AssertionError [ERR_ASSERTION]: threadId drifted: turn=2 threadId=thread-2 firstTurn=1 firstThreadId=thread-1`。
+  - 「`interrupt` 改成关闭连接/杀进程」变体：exit **1**，`fail 1`；逐字红态 `AssertionError [ERR_ASSERTION]: transport reported the process gone after interrupt`（同时打印 `sessionAfterInterruptError=No Codex resident session is bound for "session-interrupt".`）。
+- 既有契约：`codex-runtime.test.ts` + `codex-session-fork.test.ts` → `tests 14 / pass 14 / fail 0`，exit 0；`npm run typecheck` exit 0。
+- 未实现项（按任务范围留给后续）：未挂载 `CodexProvider.hostDriver`、未改 capabilities 的 `lifecycleModes`（AC-441/442）；queue / settings / approvals / background lease / restore / E2E 未做（AC-436…AC-443）；`codex.provider.ts`、`provider-capabilities.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts` 零改动。
+
+该轴仍暗,理由:本条只新增两个 codex 私有实现文件与一个判据，未改变模块依赖图，也没有可读的 ArchGuard 周期/重复度量数值。
