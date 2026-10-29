@@ -14,9 +14,11 @@
  *
  *   · the card is absent from the provider's current reading  → the item is settled, clear;
  *   · `card.receipt.feedbackId` matches the overlay's id:
- *       `closed`   → the item is still listed, so the reading stays 「已发出」 (keep);
- *       `kept`     → clear, and record the kept notice;
- *       `rejected` → clear, and record the rejected notice with its reason;
+ *       `closed`    → the item is still listed, so the reading stays 「已发出」 (keep);
+ *       `kept`      → clear, and record the kept notice;
+ *       `rejected`  → clear, and record the rejected notice with its reason;
+ *       `dismissed` → clear and record NO notice: the item was discarded, so it settles like a
+ *                     closed item rather than returning to the person's queue;
  *   · a receipt for another `feedbackId` changes nothing.
  *
  * The file is CloudCLI's own state, not the provider's: the default path is
@@ -103,7 +105,9 @@ type PersistedState = {
 
 /** Whether a provider's answer names a disposition this lifecycle knows. */
 function isDisposition(value: string): value is CockpitCardReceipt['disposition'] {
-  return value === 'closed' || value === 'kept' || value === 'rejected';
+  return (
+    value === 'closed' || value === 'kept' || value === 'rejected' || value === 'dismissed'
+  );
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -266,6 +270,13 @@ export function createCockpitCardFeedbackStore(options: {
     // it but not yet removed it: the display keeps saying 「已发出」 until the card disappears.
     if (receipt.disposition === 'closed') return;
     overlays.delete(stored.cardId);
+    // `dismissed` settles the card like a closed item: no kept/rejected notice returns it to the
+    // queue. Any earlier notice for the same card is stale once the provider discards it.
+    if (receipt.disposition === 'dismissed') {
+      notices.delete(stored.cardId);
+      persist();
+      return;
+    }
     notices.set(stored.cardId, {
       cardId: stored.cardId,
       feedbackId: stored.feedbackId,

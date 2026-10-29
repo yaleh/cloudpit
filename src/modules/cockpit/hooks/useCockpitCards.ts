@@ -9,6 +9,7 @@ import type {
   CockpitCardControllerDeps,
   CockpitCardControllerEvent,
   CockpitCardControllerSnapshot,
+  CockpitCardDismissRequest,
   CockpitCardFilterMemory,
   CockpitCardFilters,
   CockpitCardMemory,
@@ -169,6 +170,7 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
     confirm,
     fetchBrief,
     resendFeedback,
+    dismiss,
     clock,
     refreshIntervalMs,
     onEvent,
@@ -205,6 +207,10 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
         resendFeedback ??
         (async (cardId: string) =>
           readApiJson<unknown>(await api.cockpitResendFeedback(cardId))),
+      dismiss:
+        dismiss ??
+        (async (request: CockpitCardDismissRequest) =>
+          readApiJson<unknown>(await api.cockpitDismissCard(request))),
       // A started conversation runs in the BACKGROUND: the default listener does not navigate.
       // A caller that supplies its own listener replaces it (and may choose to move the page).
       onEvent: onEvent ?? createCockpitCardsDefaultOnEvent(),
@@ -221,6 +227,7 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
       confirm,
       fetchBrief,
       resendFeedback,
+      dismiss,
       clock,
       refreshIntervalMs,
       onEvent,

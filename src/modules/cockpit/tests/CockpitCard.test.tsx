@@ -25,6 +25,7 @@ import type {
 import {
   confirmTargetOf,
   defaultShownOption,
+  dismissTargetOf,
 } from '@/modules/cockpit/cockpitCardController';
 
 /**
@@ -106,6 +107,9 @@ type FixtureProps = {
   onResendFeedback?: () => void;
   resendingFeedback?: boolean;
   feedbackResendError?: string | null;
+  /** The third action's transports: the first press opens it, the second discards. */
+  onRequestDismiss?: () => void;
+  onConfirmDismiss?: () => void;
 };
 
 /** The card with just enough local state to exercise its own controls. */
@@ -121,6 +125,8 @@ function Fixture({
   onResendFeedback,
   resendingFeedback = false,
   feedbackResendError = null,
+  onRequestDismiss,
+  onConfirmDismiss,
 }: FixtureProps) {
   const [shown, setShown] = useState<CockpitCardShown | undefined>(
     defaultShownOption(card) ?? undefined,
@@ -137,7 +143,12 @@ function Fixture({
   const [countdown, setCountdown] = useState<CockpitCardSendCountdown | null>(initialCountdown);
   const [sending, setSending] = useState(false);
   const [outcome, setOutcome] = useState<CockpitCardConfirmOutcome | null>(null);
+  // The third action mirrors the controller: it is derived from the card, opened by one press
+  // and sent by the next, and it never touches the shown option or the confirm bar.
+  const [dismissPending, setDismissPending] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
   const target = confirmTargetOf(card, shown, ownReply);
+  const dismissTarget = dismissTargetOf(card);
   const confirming = forceConfirming || sending;
 
   return (
@@ -203,6 +214,20 @@ function Fixture({
       onResendFeedback={onResendFeedback}
       resendingFeedback={resendingFeedback}
       feedbackResendError={feedbackResendError}
+      dismissTarget={dismissTarget}
+      dismissPending={dismissPending}
+      dismissing={dismissing}
+      onRequestDismiss={() => {
+        onRequestDismiss?.();
+        setDismissPending(true);
+      }}
+      onConfirmDismiss={() => {
+        onConfirmDismiss?.();
+        setDismissing(true);
+        setDismissPending(false);
+        setDismissing(false);
+      }}
+      onCancelDismiss={() => setDismissPending(false)}
     />
   );
 }
@@ -1774,5 +1799,51 @@ describe('folded duplicates are stated on the kept card', () => {
     renderCard();
 
     expect(screen.queryByTestId('cockpit-card-duplicates')).toBeNull();
+  });
+});
+
+describe('the third action: 「忽略/丢弃」 on a session-ask card', () => {
+  it('renders the dismiss action, opens its confirmation, and leaves the 是/否 choices intact', () => {
+    const onRequestDismiss = vi.fn();
+    const onConfirmDismiss = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Fixture
+          card={CARD}
+          onOpenDetails={vi.fn()}
+          onRequestConfirm={vi.fn()}
+          onRequestDismiss={onRequestDismiss}
+          onConfirmDismiss={onConfirmDismiss}
+        />
+      </I18nextProvider>,
+    );
+
+    const dismiss = screen.getByTestId('cockpit-card-dismiss');
+    expect(dismiss.textContent?.trim()).toBe('Ignore / discard');
+    // The action is offered BESIDE the option's confirm bar, which is still bound to the shown
+    // option.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
+    expect(screen.queryByTestId('cockpit-card-dismiss-confirm')).toBeNull();
+
+    fireEvent.click(dismiss);
+    expect(onRequestDismiss).toHaveBeenCalledTimes(1);
+    expect(onConfirmDismiss).not.toHaveBeenCalled();
+    expect(screen.getByTestId('cockpit-card-dismiss-confirm').textContent?.trim()).toBe(
+      'Confirm discard',
+    );
+
+    // Opening the dismiss confirmation does not disturb the existing choices: the confirm bar is
+    // unchanged and switching the shown option still works.
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    expect(within(screen.getByTestId('cockpit-card-option-list')).getAllByRole('radio')).toHaveLength(3);
+    fireEvent.click(screen.getByTestId('cockpit-card-option-park'));
+    expect(screen.getByTestId('cockpit-card-option-trigger').textContent).toContain('Park it');
+    expect(screen.getByTestId('cockpit-card-confirm').getAttribute('data-irreversible')).toBe(
+      'true',
+    );
+
+    fireEvent.click(screen.getByTestId('cockpit-card-dismiss-confirm'));
+    expect(onConfirmDismiss).toHaveBeenCalledTimes(1);
   });
 });

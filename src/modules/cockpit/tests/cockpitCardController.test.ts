@@ -1278,3 +1278,77 @@ describe('the same question asked twice is one card', () => {
     expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual(['newer']);
   });
 });
+
+describe('the card-level 「忽略/丢弃」 target', () => {
+  it('sits beside the option target and confirms through the dismiss channel', async () => {
+    const dismissRequests: { cardId: string; revision: number }[] = [];
+    const h = harness([card('c1')], {
+      dismiss: async (request) => {
+        dismissRequests.push(request);
+        return { ok: true };
+      },
+    });
+    await h.controller.load();
+
+    // Two choices on the same card: the shown option's confirm target and the card-level
+    // dismiss target. They are separate readings, not one replacing the other.
+    expect(h.snapshot().targets.c1).toMatchObject({ optionId: 'one', label: 'One' });
+    expect(h.snapshot().dismissTargets.c1).toMatchObject({
+      cardId: 'c1',
+      revision: 1,
+      disabled: false,
+      disabledReason: null,
+    });
+
+    // The first press only opens the dismiss confirmation.
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(h.snapshot().pendingDismiss).toMatchObject({ cardId: 'c1', revision: 1 });
+    expect(dismissRequests).toHaveLength(0);
+
+    // The second press sends the dismiss transport, never the action/confirm transport.
+    expect(await h.controller.confirmDismiss()).toBe(true);
+    expect(dismissRequests).toEqual([{ cardId: 'c1', revision: 1 }]);
+    expect(h.requests).toHaveLength(0);
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.snapshot().dismissNotice).toMatchObject({
+      cardId: 'c1',
+      ok: true,
+      message: '已忽略',
+    });
+  });
+
+  it('cancelling the dismiss confirmation sends nothing and keeps the option target', async () => {
+    const dismissRequests: unknown[] = [];
+    const h = harness([card('c1')], {
+      dismiss: async (request) => {
+        dismissRequests.push(request);
+        return { ok: true };
+      },
+    });
+    await h.controller.load();
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(h.controller.cancelDismiss()).toBe(true);
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.snapshot().targets.c1).toMatchObject({ optionId: 'one', disabled: false });
+    expect(dismissRequests).toHaveLength(0);
+  });
+
+  it('offers no dismiss target on a card that is not a session-ask', async () => {
+    const h = harness([card('c1', { kind: 'fix' })], {
+      dismiss: async () => ({ ok: true }),
+    });
+    await h.controller.load();
+
+    expect(h.snapshot().dismissTargets.c1).toBeUndefined();
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+  });
+
+  it('offers no dismiss target when the surface has no dismiss transport', async () => {
+    const h = harness([card('c1')]);
+    await h.controller.load();
+
+    expect(h.snapshot().dismissTargets).toEqual({});
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+  });
+});

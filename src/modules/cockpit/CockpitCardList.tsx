@@ -270,6 +270,22 @@ function CockpitCardListBound({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 pb-2">
+            {/* The dismiss answer. It lives HERE rather than on the card because a successful
+                dismiss usually removes the card in the same read: the line that says 「已忽略」
+                has to outlive the row it was pressed on. */}
+            {snapshot.dismissNotice !== null && (
+              <p
+                role={snapshot.dismissNotice.ok ? 'status' : 'alert'}
+                data-testid="cockpit-card-dismiss-notice"
+                data-ok={snapshot.dismissNotice.ok ? 'true' : 'false'}
+                className={cn(
+                  'w-full text-[11px]',
+                  snapshot.dismissNotice.ok ? 'text-muted-foreground' : 'text-destructive',
+                )}
+              >
+                {snapshot.dismissNotice.message}
+              </p>
+            )}
             {/* One line, three readings: what needs the person, what the person answered that the
                 fleet has not acknowledged, and what the fleet acknowledged but the provider still
                 lists. It replaces BOTH the column title's count and the old second line. */}
@@ -476,6 +492,9 @@ function CockpitCardListBound({
                 now={snapshot.now}
                 shown={snapshot.shown[card.id]}
                 target={snapshot.targets[card.id] ?? null}
+                dismissTarget={snapshot.dismissTargets[card.id] ?? null}
+                dismissPending={snapshot.pendingDismiss?.cardId === card.id}
+                dismissing={snapshot.dismissingCardId === card.id}
                 ownReply={snapshot.ownReplies[card.id] ?? ''}
                 dropdownOpen={snapshot.openDropdownCardId === card.id}
                 selected={snapshot.selectedCardId === card.id}
@@ -500,6 +519,9 @@ function CockpitCardListBound({
                 outcome={outcomeFor(card.id)}
                 onConfirm={() => void controller.confirm()}
                 onCancelConfirm={() => controller.cancelConfirm()}
+                onRequestDismiss={() => controller.requestDismiss(card.id)}
+                onConfirmDismiss={() => void controller.confirmDismiss()}
+                onCancelDismiss={() => controller.cancelDismiss()}
                 onResendFeedback={() => void controller.resendFeedback(card.id)}
                 resendingFeedback={snapshot.resendingFeedbackCardId === card.id}
                 feedbackResendError={
