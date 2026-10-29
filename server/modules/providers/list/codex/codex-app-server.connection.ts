@@ -465,25 +465,52 @@ function isExperimentalCapabilityRejection(message: string): boolean {
 }
 
 /**
- * Default transport: spawns the `codex app-server` shipped in node_modules.
+ * The environment key that replaces the pinned app-server launcher.
  *
- * Deliberately not the `codex` on PATH — the protocol is only guaranteed
- * against the version this package depends on. The launcher resolution is a
- * local copy of the fork client's, kept here because this task's Touches do not
- * include that file; the two should share it when the resident driver is wired
- * into the provider (AC-441).
+ * A deployment never sets it: the pinned CLI is the only launcher whose protocol
+ * this connection is written against. It exists so the resident UI criterion can
+ * point the real server at a deterministic stand-in without a test-only branch in
+ * the driver, and the pinned resolution stays the default for every other launch.
  */
-function spawnCodexAppServerTransport(launch: CodexAppServerLaunch): CodexAppServerTransport {
+export const CODEX_APP_SERVER_LAUNCHER_ENV = 'CODEX_APP_SERVER_LAUNCHER';
+
+/**
+ * Resolves the script `spawnCodexAppServerTransport` runs as `app-server`.
+ *
+ * The explicit override wins when it is a non-blank string; otherwise the
+ * launcher is the pinned `@openai/codex/bin/codex.js` the package ships, resolved
+ * from THIS module so a server started in any working directory finds the copy
+ * it depends on. Missing package is an unavailable host, not a crash.
+ */
+export function resolveCodexAppServerLauncher(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env[CODEX_APP_SERVER_LAUNCHER_ENV];
+  if (typeof override === 'string' && override.trim()) {
+    return override.trim();
+  }
   const require_ = createRequire(import.meta.url);
-  let launcher: string;
   try {
-    launcher = require_.resolve('@openai/codex/bin/codex.js');
+    return require_.resolve('@openai/codex/bin/codex.js');
   } catch {
     throw new AppError('The Codex CLI package is not installed, so a resident Codex host cannot start.', {
       code: 'CODEX_APP_SERVER_UNAVAILABLE',
       statusCode: 501,
     });
   }
+}
+
+/**
+ * Default transport: spawns the `codex app-server` shipped in node_modules.
+ *
+ * Deliberately not the `codex` on PATH — the protocol is only guaranteed
+ * against the version this package depends on. The launcher resolution is a
+ * local copy of the fork client's, kept here because this task's Touches do not
+ * include that file; the two should share it when the resident driver is wired
+ * into the provider (AC-441). `resolveCodexAppServerLauncher` is the single
+ * resolution point, so the criterion's override and the shipped default differ
+ * only by the environment they are read from.
+ */
+function spawnCodexAppServerTransport(launch: CodexAppServerLaunch): CodexAppServerTransport {
+  const launcher = resolveCodexAppServerLauncher(launch.env ?? process.env);
 
   const child = spawn(process.execPath, [launcher, 'app-server'], {
     cwd: launch.cwd,

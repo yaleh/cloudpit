@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import type { HostPendingQueuedInputs, HostQueuedInputCancelResult } from '@/shared/types.js';
+import type { HostPendingQueuedInputs, HostQueuedInputCancelResult, ProviderRuntimeWriter } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
 /**
@@ -24,6 +24,16 @@ export type QueuedEntry = {
   text: string;
   /** Set when a `turn/started` bound this submission to the turn in flight. */
   started: boolean;
+  /**
+   * The run writer of the send that queued this submission, when it had one.
+   *
+   * It is where this submission's `command_lifecycle` frames go: the client's
+   * pending row is drawn from them (uuid, then `cancelled`/`completed`), and the
+   * queue is the only place that knows when the process moved the submission.
+   * Null for a submission this queue only mirrors, such as one another instance
+   * wrote.
+   */
+  writer: ProviderRuntimeWriter | null;
   promise: Promise<void>;
   resolve: () => void;
 };
@@ -129,7 +139,11 @@ export class CodexResidentQueue {
    * `turn/started` binds, and the returned entry's promise settles when that turn
    * settles (or when the submission is withdrawn).
    */
-  async add(connection: CodexAppServerConnection, text: string): Promise<QueuedEntry> {
+  async add(
+    connection: CodexAppServerConnection,
+    text: string,
+    writer: ProviderRuntimeWriter | null = null,
+  ): Promise<QueuedEntry> {
     const threadId = this.deps.threadId();
     if (!threadId) {
       throw new AppError('Codex app-server has no thread to queue a turn on.', {
@@ -163,6 +177,7 @@ export class CodexResidentQueue {
       queuedSubmissionId: submission.id,
       text,
       started: false,
+      writer,
       promise,
       resolve,
     };
@@ -172,6 +187,11 @@ export class CodexResidentQueue {
     // Take the depth reading from the process's own list, not from the adds
     // this driver just made: the two only agree while nothing else churns.
     await this.requestRefresh();
+    // The client's own pending row picks up its uuid here — the frame's
+    // `commandUuid` is the id the queue answers to, which is the id a
+    // withdrawal names. Emitted after the refresh so the state is the queue's
+    // truth rather than this call's optimism.
+    this.emitLifecycle(entry, 'queued');
     return entry;
   }
 
@@ -247,6 +267,9 @@ export class CodexResidentQueue {
         // The message will never run, so its run must not stay pending: settle
         // it as finished rather than leaving a promise that can only leak.
         queued.resolve();
+        // The process's answer is the withdrawal's evidence, so the row is told
+        // AFTER the delete was accepted — never from the request's own timing.
+        this.emitLifecycle(queued, 'cancelled');
       }
       return 'withdrawn';
     }
@@ -290,6 +313,10 @@ export class CodexResidentQueue {
     this.bound = entry;
     this.started.add(entry.clientUserMessageId);
     this.dropMirror(entry.queuedSubmissionId);
+    // The process drained this submission into its turn. The transcript keeps the
+    // row (and its text) until the turn's own rows arrive, which is why this is
+    // `started` and not a retirement.
+    this.emitLifecycle(entry, 'started');
   }
 
   /**
@@ -299,8 +326,12 @@ export class CodexResidentQueue {
    * terminal turn: the entry joins the FIFO that `turn/started` binds, and the
    * run settles when that turn settles (or when the submission is withdrawn).
    */
-  async enqueueAndWait(connection: CodexAppServerConnection, text: string): Promise<void> {
-    const entry = await this.add(connection, text);
+  async enqueueAndWait(
+    connection: CodexAppServerConnection,
+    text: string,
+    writer: ProviderRuntimeWriter | null = null,
+  ): Promise<void> {
+    const entry = await this.add(connection, text, writer);
     await entry.promise;
   }
 
@@ -321,6 +352,10 @@ export class CodexResidentQueue {
     }
     this.bound = null;
     this.remove(entry);
+    // The turn that ran this submission is over; its row retires. `completed`
+    // is what removes the client's pending row (a `started` row stays until the
+    // turn's own transcript replaces it).
+    this.emitLifecycle(entry, 'completed');
   }
 
   /**
@@ -393,10 +428,35 @@ export class CodexResidentQueue {
   settleAll(): void {
     for (const entry of this.entries.splice(0)) {
       entry.resolve();
+      // The host is going away, so the row must not outlive it as a pending
+      // command nobody is holding any more.
+      this.emitLifecycle(entry, 'completed');
     }
     this.bound = null;
     this.mirror = [];
     this.refreshRequested = false;
+  }
+
+  /**
+   * Publishes one state of a submission to the run that queued it.
+   *
+   * A frame is an observation, never a precondition: a writer whose socket has
+   * gone away must not turn the queue operation itself into a failure, so any
+   * throw from `send` is swallowed here.
+   */
+  private emitLifecycle(entry: QueuedEntry, state: 'queued' | 'started' | 'cancelled' | 'completed'): void {
+    if (!entry.writer) {
+      return;
+    }
+    try {
+      entry.writer.send({
+        kind: 'command_lifecycle',
+        commandUuid: entry.clientUserMessageId,
+        commandState: state,
+      });
+    } catch {
+      // The queue did what it was asked; the client simply did not hear about it.
+    }
   }
 
   private dropMirror(queuedSubmissionId: string): void {

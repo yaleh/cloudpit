@@ -35,6 +35,40 @@ import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBo
  */
 const LIFECYCLE_MODE_POLL_MS = 2_000;
 
+/**
+ * The lifecycle reading this view polls for one session: its stored mode and the
+ * provider that owns it. Tagged with the session id so a reading taken for a
+ * previously selected session can never decide the current one's tabs.
+ */
+export type LifecycleModeReading = {
+  sessionId: string;
+  mode: string;
+  provider: string | null;
+};
+
+/**
+ * Whether the Shell tab is closed to the selected session.
+ *
+ * Residency alone is not the rule: it is Claude's resident process that owns its
+ * conversation with no terminal-safe entry, so its Shell tab is disabled. A Codex
+ * resident session keeps an ordinary terminal — the terminal launches the bare
+ * CLI and never resumes the conversation the app is holding — which is why the
+ * provider is part of this reading rather than an extra state of its own.
+ *
+ * A reading for another session, or one the host listing does not know, closes
+ * nothing: guessing `resident` would close a tab nobody asked to close. Exported
+ * for the workspace's unit criterion, which pins the two providers' answers.
+ */
+export function isShellClosedToSession(
+  reading: LifecycleModeReading | null,
+  selectedSessionId: string | null,
+): boolean {
+  return reading !== null
+    && reading.sessionId === selectedSessionId
+    && reading.mode === 'resident'
+    && reading.provider === 'claude';
+}
+
 type WorkspaceMainProps = {
   /** The whole sidebar listing, drawn by the landing overview when no project is selected. */
   projects: Project[];
@@ -177,7 +211,11 @@ function WorkspaceMain({
   // has to stay closed for — so `running` is not the reading this asks for. The
   // workspace's own session objects do not carry the mode at all, and the host
   // listing is the only face that publishes it.
-  const [lifecycleMode, setLifecycleMode] = useState<{ sessionId: string; mode: string } | null>(null);
+  // The provider rides along because the Shell closure is Claude's rule, not a
+  // property of residency itself: a Codex resident session keeps its ordinary
+  // terminal (the app's process owns the conversation; the terminal must not
+  // resume it).
+  const [lifecycleMode, setLifecycleMode] = useState<LifecycleModeReading | null>(null);
 
   const selectedSessionId = selectedSession?.id ?? null;
 
@@ -194,13 +232,17 @@ function WorkspaceMain({
         const response = await api.sessionHostState(selectedSessionId);
         if (!response.ok) return;
         const body = (await response.json()) as {
-          data?: { sessions?: { appSessionId?: string; lifecycleMode?: string }[] };
+          data?: { sessions?: { appSessionId?: string; lifecycleMode?: string; provider?: string }[] };
         };
         if (cancelled) return;
         const row = body.data?.sessions?.find((entry) => entry.appSessionId === selectedSessionId);
         // A row the listing does not know is per-run: that is the column's own
         // default, and guessing `resident` would close a tab nobody asked to close.
-        setLifecycleMode({ sessionId: selectedSessionId, mode: row?.lifecycleMode ?? 'per-run' });
+        setLifecycleMode({
+          sessionId: selectedSessionId,
+          mode: row?.lifecycleMode ?? 'per-run',
+          provider: row?.provider ?? null,
+        });
       } catch (error) {
         // The last reading stands. Re-opening Shell because one poll failed would be
         // the one failure mode this whole guard exists to prevent, and a resident
@@ -222,20 +264,21 @@ function WorkspaceMain({
 
   // A reading speaks only for the session it was taken for: while the first poll
   // for a newly selected session is in flight, the previous session's mode must not
-  // decide this session's tabs.
-  const isResidentSession =
-    lifecycleMode !== null && lifecycleMode.sessionId === selectedSessionId && lifecycleMode.mode === 'resident';
+  // decide this session's tabs. Residency alone is not the whole rule — a Codex
+  // resident session keeps its ordinary terminal — so every Shell decision below
+  // (the guard effect, the header's disabled tab, the notice, the view gate) reads
+  // the provider-aware answer rather than the raw mode.
+  const shellClosed = isShellClosedToSession(lifecycleMode, selectedSessionId);
 
-  // A resident session's whole point is that the app holds the process, so handing
-  // the user a terminal onto that process is the opposite of the mode. The tab is
-  // disabled, but a session that was already on Shell when its mode changed would
-  // keep the terminal it had — the mode is what decides, so this has to be reactive
-  // rather than a mount-time check.
+  // A session whose Shell tab is closed (Claude's resident mode) has the process —
+  // not the user — holding the conversation, so a tab left on Shell when the mode
+  // changed must move back. The mode is what decides, so this is reactive rather
+  // than a mount-time check.
   useEffect(() => {
-    if (isResidentSession && activeTab === 'shell') {
+    if (shellClosed && activeTab === 'shell') {
       setActiveTab('chat');
     }
-  }, [isResidentSession, activeTab, setActiveTab]);
+  }, [shellClosed, activeTab, setActiveTab]);
 
   // Stable so React.memo(ChatInterface) can bail out: an inline arrow here made
   // every WorkspaceMain render re-render the whole chat tree, including during
@@ -317,7 +360,7 @@ function WorkspaceMain({
         shouldShowQuayTab={shouldShowQuayTab}
         shouldShowArchitectureTab={shouldShowArchitectureTab}
         shouldShowBrowserTab={shouldShowBrowserTab}
-        isResidentSession={isResidentSession}
+        isResidentSession={shellClosed}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
       />
@@ -326,9 +369,11 @@ function WorkspaceMain({
           other tab already shows the reason through the disabled tab's own `title`
           and `aria-describedby`, so a sighted user on Chat has no use for it and a
           screen reader only needs it read when it focuses that tab. Kept `sr-only`
-          rather than inside the Shell view: the view never mounts for a resident
-          session, so a notice living in it would be a notice nobody's reader reaches. */}
-      {isResidentSession && (
+          rather than inside the Shell view: the view never mounts for a session the
+          closure applies to, so a notice living in it would be a notice nobody's
+          reader reaches. Only Claude's resident mode reaches this branch
+          (`isShellClosedToSession`); a Codex resident session draws no notice. */}
+      {shellClosed && (
         <p
           id={RESIDENT_SHELL_NOTICE_ID}
           data-resident-shell-notice="true"
@@ -376,10 +421,11 @@ function WorkspaceMain({
             </div>
           )}
 
-          {/* `!isResidentSession` is not redundant with the guard effect above: it
+          {/* `!shellClosed` is not redundant with the guard effect above: it
               closes the view on the very render the reading arrives, before the
-              effect that moves the tab away has had a chance to run. */}
-          {activeTab === 'shell' && !isResidentSession && (
+              effect that moves the tab away has had a chance to run. A Codex
+              resident session is not closed, so its view mounts like any other. */}
+          {activeTab === 'shell' && !shellClosed && (
             <div className="h-full w-full overflow-hidden" data-workspace-view="shell">
               <StandaloneShell
                 project={selectedProject}
