@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 
-import type { CockpitCard as CockpitCardData, CockpitCardKind } from '@/shared/types';
+import type {
+  CockpitCard as CockpitCardData,
+  CockpitCardKind,
+  LLMProvider,
+} from '@/shared/types';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
@@ -11,8 +15,15 @@ import { cockpitCardsReading } from '@/modules/cockpit/cockpitCardController';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
 import { cockpitCardQuestionOf } from '@/modules/cockpit/cockpitCardDuplicates';
 import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
+import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversation';
+import type {
+  CockpitStartConversationCreated,
+  CockpitStartConversationProject,
+} from '@/modules/cockpit/cockpitCardStartConversation';
 import { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
+import { useCockpitStartConversation } from '@/modules/cockpit/hooks/useCockpitStartConversation';
+import { useOptionalProjectMainState } from '@/modules/project-workspace';
 
 /**
  * The cards view's container: filters and density at the top, the card list and the Details
@@ -59,6 +70,22 @@ export type CockpitCardListProps = {
   currentSessionId?: string | null;
   /** The column's back button; defaults to closing the Details stack entry. */
   onBack?: () => void;
+  /**
+   * The registered cockpit projects a card's 「start a conversation」 may name, when the surface
+   * has already read them (the cockpit page has). Absent means the flow reads the fleet registry
+   * on the first press.
+   */
+  registeredProjects?: readonly CockpitStartConversationProject[] | null;
+  /**
+   * Registers a session the start flow created. Defaults to the workspace's optimistic
+   * registration when this list is mounted inside the project state; a surface above it simply
+   * navigates. A criterion passes its own recorder.
+   */
+  onSessionCreated?: (created: CockpitStartConversationCreated) => void;
+  /** Opens a created session; defaults to the conversation link's own navigation. */
+  onNavigateToSession?: (sessionId: string) => void;
+  /** The LLM the new conversation runs on; production leaves the server's default (`claude`). */
+  sessionProvider?: LLMProvider;
 };
 
 export default function CockpitCardList(props: CockpitCardListProps) {
@@ -87,13 +114,20 @@ function CockpitCardListBound({
   openedCardId = null,
   currentSessionId = null,
   onBack,
+  registeredProjects = null,
+  onSessionCreated,
+  onNavigateToSession,
+  sessionProvider,
 }: CockpitCardListProps & { binding: CockpitCardsBinding }) {
   const { t } = useTranslation();
   // The page's Details is a bottom sheet on a phone and a centred card on a wide screen. The
   // column variant pushes its Details inside instead, so it never asks this question.
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { snapshot, controller } = binding;
-  const [startIntentProject, setStartIntentProject] = useState<string | null>(null);
+  // The workspace's project state, when this list is mounted INSIDE it (the PC column is; the
+  // cockpit page and the phone overlay are above it). It is the seam that registers a started
+  // session optimistically; its absence only means this surface navigates without registering.
+  const projectState = useOptionalProjectMainState();
   // The project drawer is open/closed state, not a filter: it is a transient overlay the person
   // dismisses, so it has no reason to outlive the visit (the selection itself is persisted).
   const [projectDrawerOpen, setProjectDrawerOpen] = useState(false);
@@ -173,6 +207,56 @@ function CockpitCardListBound({
   const detailsCard =
     detailsCardId === null ? null : snapshot.cards.find((card) => card.id === detailsCardId) ?? null;
   const detailsInsideColumn = variant === 'column' && detailsCard !== null;
+  /**
+   * The created session's registration. The caller's own recorder wins; otherwise the workspace's
+   * optimistic registration is used when this list is inside the project state AND the registered
+   * project is one of its projects. Nothing is invented for a path the workspace does not list —
+   * the route still opens, the sidebar simply learns the row from the next read.
+   */
+  const registerStartedSession = (created: CockpitStartConversationCreated): void => {
+    if (onSessionCreated !== undefined) {
+      onSessionCreated(created);
+      return;
+    }
+    if (projectState === null) return;
+    const project = projectState.projects.find(
+      (candidate) => (candidate.fullPath || candidate.path || '') === created.project.projectPath,
+    );
+    if (project === undefined) return;
+    projectState.registerOptimisticSession({
+      sessionId: created.sessionId,
+      provider: created.provider,
+      project,
+      summary: '',
+    });
+  };
+  /**
+   * Opening the created session. The caller's own navigation wins; otherwise the surface's
+   * conversation link (the column opens it on the left, the overlay closes itself over it). Every
+   * production surface hands one over — the standalone page its `onNavigateToSession`, the other
+   * two their `onOpenConversation` — so a started session is never left unopened.
+   */
+  const openStartedSession = (sessionId: string): void => {
+    if (onNavigateToSession !== undefined) {
+      onNavigateToSession(sessionId);
+      return;
+    }
+    if (onOpenConversation !== undefined && detailsCard !== null) {
+      onOpenConversation(detailsCard, sessionId);
+    }
+  };
+  const startConversation = useCockpitStartConversation({
+    registeredProjects,
+    onCreated: registerStartedSession,
+    onNavigate: openStartedSession,
+    provider: sessionProvider,
+  });
+  /** One card's reading; every other card draws the idle control (no error leaked across cards). */
+  const startConversationView = (card: CockpitCardData): CockpitStartConversationView => ({
+    status: startConversation.snapshot.cardId === card.id ? startConversation.snapshot.status : 'idle',
+    error: startConversation.snapshot.cardId === card.id ? startConversation.snapshot.error : null,
+    onStart: () => startConversation.start(card),
+  });
   // The confirm state belongs to ONE card, and every bar that card has (the card's own, and the
   // Details drawer's — a longer reading of the same card) draws it. A bar of another card stays
   // in its idle state, and the outcome is drawn only by the card that asked. A running delayed
@@ -266,10 +350,7 @@ function CockpitCardListBound({
             openedInSession={openedCardId === detailsCard.id}
             currentSessionId={currentSessionId}
             onOpenConversation={(sessionId: string) => onOpenConversation?.(detailsCard, sessionId)}
-            onStartConversation={(card: CockpitCardData) =>
-              setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')
-            }
-            startConversationIntent={startIntentProject}
+            startConversation={startConversationView(detailsCard)}
           />
         </div>
       ) : (
@@ -566,10 +647,7 @@ function CockpitCardListBound({
                     : (sessionId: string) => onOpenConversation(detailsCard, sessionId)
                 }
                 openedInSession={openedCardId === detailsCard.id}
-                onStartConversation={(card: CockpitCardData) =>
-                  setStartIntentProject(card.conversation?.startInProject ?? card.subject.project ?? '')
-                }
-                startConversationIntent={startIntentProject}
+                startConversation={startConversationView(detailsCard)}
               />
             </div>
           )}

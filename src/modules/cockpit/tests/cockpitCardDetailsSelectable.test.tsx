@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Clock, CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
@@ -124,20 +124,25 @@ beforeAll(async () => {
   await i18n.changeLanguage('en');
 });
 
-describe('the drawer’s start-conversation intent', () => {
-  it('shows the recorded intent inside Details', () => {
+describe('the drawer’s start-conversation action', () => {
+  it('issues the start command itself instead of recording an intent', () => {
+    const onStart = vi.fn();
     render(
       <I18nextProvider i18n={i18n}>
         <CockpitCardDetails
           card={card()}
           now={NOW}
           onClose={() => undefined}
-          startConversationIntent="p1"
+          startConversation={{ status: 'idle', error: null, onStart }}
         />
       </I18nextProvider>,
     );
 
-    expect(screen.getByTestId('cockpit-card-start-intent').textContent).toContain('p1');
+    fireEvent.click(screen.getByTestId('cockpit-card-start-conversation'));
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    // The acknowledgement-only echo is gone: the control acts, it does not report an intent.
+    expect(screen.queryByTestId('cockpit-card-start-intent')).toBeNull();
   });
 });
 

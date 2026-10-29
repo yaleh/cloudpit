@@ -14,6 +14,8 @@ import {
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
 import { OwnReplyEditor } from '@/modules/cockpit/CockpitCard';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import { CockpitCardStartConversation } from '@/modules/cockpit/CockpitCardStartConversation';
+import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversation';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
@@ -32,9 +34,10 @@ import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
  * options mean, so drawing it below them would ask the reader to choose before the reading.
  *
  * THE CONVERSATION SECTION IS THE DRAWER'S END. A card that belongs to a conversation links to
- * it; a card with only a project offers 「就此开一个会话」, which issues an intent callback and
- * does NOT open anything — opening it is a later task's job. A card with neither states that,
- * rather than drawing a dead link.
+ * it; a card with only a project offers 「就此开一个会话」, which allocates an EMPTY session in
+ * that project and opens it (the flow, its pending lock and its visible error live in
+ * `CockpitCardStartConversation`). A card with neither states that, rather than drawing a dead
+ * link.
  *
  * The drawer is presentational: the list owns the Details stack and passes the card to draw.
  */
@@ -43,10 +46,12 @@ export type CockpitCardDetailsProps = {
   card: CockpitCardData;
   now: number;
   onClose: () => void;
-  /** 「就此开一个会话」 — the intent only; no conversation is created here. */
-  onStartConversation?: (card: CockpitCardData) => void;
-  /** The acknowledged project intent, shown here so it stays visible above the drawer layer. */
-  startConversationIntent?: string | null;
+  /**
+   * 「就此开一个会话」's live reading: the attempt's status, its visible failure and the one
+   * command that allocates the session. Absent draws no start control (a standalone drawer in a
+   * criterion renders without the flow wired).
+   */
+  startConversation?: CockpitStartConversationView | null;
   /** The card's brief reading; absent or idle means the drawer draws no brief section. */
   brief?: CockpitBriefState;
   /** Re-reads a failed brief; the drawer's retry button calls it. */
@@ -172,8 +177,7 @@ export default function CockpitCardDetails({
   card,
   now,
   onClose,
-  onStartConversation,
-  startConversationIntent = null,
+  startConversation = null,
   brief,
   onRetryBrief,
   target,
@@ -621,25 +625,9 @@ export default function CockpitCardDetails({
                 {t('cockpit.cardDetailsOpenConversation', { sessionId })}
               </a>
             ) : startProject !== undefined ? (
-              <>
-                <button
-                  type="button"
-                  data-testid="cockpit-card-start-conversation"
-                  onClick={() => onStartConversation?.(card)}
-                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-                >
-                  {t('cockpit.cardDetailsStartConversation')}
-                </button>
-                {startConversationIntent !== null && (
-                  <p
-                    role="status"
-                    data-testid="cockpit-card-start-intent"
-                    className="mt-1 text-xs text-muted-foreground"
-                  >
-                    {t('cockpit.cardStartConversationEcho', { project: startConversationIntent })}
-                  </p>
-                )}
-              </>
+              startConversation !== null ? (
+                <CockpitCardStartConversation view={startConversation} />
+              ) : null
             ) : (
               <p className="text-xs text-muted-foreground">{t('cockpit.cardDetailsNoConversation')}</p>
             )}
