@@ -1,6 +1,6 @@
 ---
 id: gap-cockpit-asking-event-question-text
-title: session.asking 事件补写 questionText（原文、尾部截断 4000 字、空文本不写），供 fleet 以「会话+规范化问题文本」去重
+title: session.asking 事件补写 questionText（未截断全文、空文本不写），让 fleet 的「会话+规范化全文」去重键覆盖严格全文
 status: ready
 labels:
   - gap
@@ -23,18 +23,18 @@ extra: {}
 
 做什么：
 
-- **补字段**：`data.questionText` = `current.assistantText`，尾部截断到 `SESSION_ASK_QUESTION_TEXT_MAX_CHARS = 4000`（常量与截断函数放在 producer 所在模块，注释写明「截断只影响键的稳定性，必须确定性」；同一 askId + revision 重放得到同一字符串）。
-- **与 fleet 对齐（2026-10-29）**：fleet 用**整条消息原文**的规范化形式做键，不做「末尾问句」启发式。CloudCLI 在写入前做**尾部** 4000 字截断，这是事件体积上限，不是语义抽取：文本不超过 4000 字时键覆盖全文；超过时键只覆盖末尾 4000 字，因此两段只在 4000 字之前不同的提问会被并成同一键。这一取舍要写进常量注释，并在任务完成记录里向 fleet 说明（fleet 若要严格全文键，须改上限并重立 AC）。
+- **补字段（不截断）**：`data.questionText` = `current.assistantText` 的**全文**，一个字都不截。用户 2026-10-29 改判：去重键必须覆盖严格全文。同一 askId + revision 重放得到同一字符串（直接取转写原文，不做任何加工）。
+- **与 fleet 对齐（2026-10-29，4000 字上限已按用户改判撤销）**：fleet 用**整条消息原文**的规范化形式做键，不做「末尾问句」启发式。fleet 起初接受 4000 字尾部截断，用户随后要求键覆盖**严格全文**，因此这里**不设上限、不截断**：`questionText` 与转写里那条助手消息的文本逐字相同（含全部前后缀与空白）。已知代价如实记录：长回答的 `session.asking` 行可能几万到几十万字符，事件文件增长更快——这是为「严格全文键」付的代价，不保留任何「超过 N 字截断」的后门。
 - **只加字段，不改已有键**：`askId`、`messageId`、`revision`、`contentRef` 原样保留；`data` 仍是开放对象，不新增封闭枚举。
 - **空文本不写该字段**：`assistantText` 去空白后为空时不写 `questionText`（fleet 据此回退旧键），避免写出 `questionText: ""` 让键变成空文本的哈希。
-- **文档注释**：在 `SessionAskEvent` 类型旁写明 `questionText` 的语义（原文、尾部截断上限、供 fleet 的文本键使用），说明它不是给界面显示用的。
+- **文档注释**：在 `SessionAskEvent` 类型旁写明 `questionText` 的语义（**未截断**的提问消息全文，供 fleet 的全文文本键使用），说明它不是给界面显示用的，并写明「不要为了体积对它做截断——截断会让不同提问并成同一个键」。
 - **回归**：`session-ask-stream-reader.ts` 的启动补扫只读 `askId`/`messageId`，新增字段不影响它；补一条用例证明补扫对带 `questionText` 的行照旧工作。
 
 ## AC
 
-- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：一次提问写出的 `session.asking` 行 `data.questionText` 等于该助手消息的文本（去首尾空白后比对）；超过 4000 字符的文本按尾部截断且长度等于上限；同一 askId+revision 重放两次写出相同字符串；`assistantText` 为空的提问**不含** `questionText` 键。
+- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：一次提问写出的 `session.asking` 行 `data.questionText` **逐字等于**该助手消息的文本（比对全串）；给一条 200000 字符的助手消息，`questionText.length` 等于原文长度且首尾各 100 字符与原文一致（钉住「不截断」）；同一 askId+revision 重放两次写出相同字符串；`assistantText` 为空的提问**不含** `questionText` 键。
 - [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0（既有 asking/answered 载荷断言未被破坏）。
-- [x] 假形态变红：把 `questionText` 从 payload 中删掉 ⇒ 第一条用例红；把截断改成保留头部 ⇒ 截断用例红（尾部截断是契约的一部分）；改完即还原。
+- [ ] 假形态变红：把 `questionText` 从 payload 中删掉 ⇒ 第一条用例红；加上任意 4000 字截断（尾部或头部）⇒ 长文本用例红（「不截断」是契约）；改完即还原。
 - [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0（本任务不新增 server 测试文件；若新增，测试文件计数钉子与 `scripts/suite-duration-baseline.tsv` 同步更新并补进 Touches）。
 - [x] `npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）。
 
@@ -44,8 +44,9 @@ extra: {}
 
 1. 让一个复制来的会话以一次提问结束；贴出临时事件目录里那条 `session.asking` 行（含 `questionText`，可截断展示）。
 2. 同一会话再问一次（新 messageId、同一句问题）：贴出第二条 asking 行的 `questionText` 与第一条逐字相同（这是 fleet 文本键能命中的前提）。
-3. 贴出补扫日志，证明带新字段的事件流不影响启动补扫。
-4. 把该行原文交给 fleet 校验其规范化结果（在任务完成记录里贴出 fleet 的回复或本地用同一规则复算的 sha1 前 16 位）。
+3. 贴出补扫日志，证明带 `questionText` 的事件流不影响启动补扫。
+4. 贴一条长回答（≥ 20000 字符）的 asking 行：`questionText.length` 等于转写原文长度，并给出该行在事件文件里的字节数，如实记录体积代价。
+5. 把该行原文交给 fleet 校验其规范化结果（在任务完成记录里贴出 fleet 的回复或本地用同一规则复算的 sha1 前 16 位）。
 
 ## DoD 结果
 
