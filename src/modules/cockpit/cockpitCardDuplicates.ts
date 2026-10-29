@@ -14,8 +14,15 @@ import type { CockpitCard } from '@/shared/types';
  * leading/trailing whitespace dropped, every run of whitespace collapsed to one space, and the
  * sentence-final punctuation stripped, so 「…staging directory?」 and 「…staging directory」 are
  * one question. `ask` is the question; a card whose digest did not resolve falls back to
- * `situation`, and a card that carries neither is grouped by SESSION alone (the card states
- * 「this session has N unanswered ask」 rather than pretending to know the wording).
+ * `situation`.
+ *
+ * WHEN NO CARD STATES A QUESTION. Two different asks that both failed to resolve are DIFFERENT
+ * questions, so the wording is not the only identity available: the fleet opens one entry per
+ * 「session:message」 and writes that message id into `contentRef.ref` as `sessionId#messageId`.
+ * A questionless card is therefore grouped by that message id — two entries naming the same
+ * message are the same ask, two message ids are two asks. A card whose contentRef is absent or
+ * carries no `#messageId` has no stated identity and stands alone: the fold never guesses one by
+ * session alone, which would merge unrelated asks into one card saying 「asked N times」.
  *
  * WHAT IS KEPT. The card whose `surfacedAt` is latest — it is the newest statement of the same
  * question, and its age is the one the person has not seen yet; ties keep the card earlier in the
@@ -33,9 +40,9 @@ import type { CockpitCard } from '@/shared/types';
  * number of times the question was asked (`hidden.length + 1`), which is what the card states.
  */
 export type CockpitCardDuplicateGroup = {
-  /** The grouping key: the session id plus the normalized question. */
+  /** The grouping key: the session id plus the normalized question or the content's message id. */
   key: string;
-  /** The normalized question, or `null` for a session-only group whose cards carry no wording. */
+  /** The normalized question, or `null` for a group of cards that state no wording. */
   question: string | null;
   /** The card left in the list: latest `surfacedAt`, provider order breaking a tie. */
   keep: string;
@@ -82,9 +89,41 @@ function surfacedAtOf(card: CockpitCard): number {
 }
 
 /**
+ * The message id a card's `contentRef` names, or `null` when it names none.
+ *
+ * The wire shape is `ref = sessionId[#messageId]` (the fleet's own `session:message` entry
+ * identity, projected by the server). Only the id after the `#` is the ask's identity: a ref that
+ * is a bare session id says which conversation, not which question, and an absent ref says
+ * nothing at all. Both return `null`, so the caller keeps such a card out of every fold.
+ */
+export function cockpitCardContentIdentity(card: CockpitCard): string | null {
+  const ref = card.contentRef?.ref?.trim() ?? '';
+  const separator = ref.indexOf('#');
+  if (separator < 0) return null;
+  const messageId = ref.slice(separator + 1).trim();
+  return messageId === '' ? null : messageId;
+}
+
+/**
+ * The identity a card shares with another card of the same session, within one namespace:
+ * `q:` a normalized question, `m:` a contentRef message id, `id:` the card's own id (a group of
+ * one). The prefixes keep the namespaces apart, so a question that happens to read like a message
+ * id can never fold onto that message's cards.
+ */
+function cardIdentityOf(card: CockpitCard, question: string | null): string {
+  if (question !== null) return `q:${question}`;
+  const messageId = cockpitCardContentIdentity(card);
+  return messageId === null ? `id:${card.id}` : `m:${messageId}`;
+}
+
+/**
  * Groups the cards that ask the same question in the same session, returning only the groups
  * that actually fold something. A group needs a session id: two cards with no session have no
  * shared subject, so they are never folded on their wording alone.
+ *
+ * A card that states a question is identified by that question. A questionless card is
+ * identified by its contentRef message id; one that names no message id is grouped under its own
+ * id, so it can never fold — there is no identity to share.
  *
  * The returned groups follow the order in which their KEPT card appears in `cards`, so a caller
  * that applies them in order never reorders the list.
@@ -100,7 +139,10 @@ export function cockpitCardDuplicateGroups(
     const sessionId = card.subject.sessionId?.trim() ?? '';
     if (sessionId === '') continue;
     const question = cockpitCardQuestionOf(card);
-    const key = `${sessionId}\u0000${question ?? ''}`;
+    // A stated question wins and keeps the existing behaviour (same wording folds even across
+    // message ids); the fallbacks identify a card whose wording never resolved without ever
+    // folding two different asks.
+    const key = `${sessionId}\u0000${cardIdentityOf(card, question)}`;
     const members = byKey.get(key);
     if (members === undefined) {
       byKey.set(key, [card]);
