@@ -2,7 +2,7 @@
 id: gap-cockpit-ask-retraction-and-ledger-backfill
 title: 撤回误发提问 + 补发 answered：retraction 覆盖事件-only ask、回放 ledger、发 asking
   必写对象、无对象也发 answered、投影本地抑制
-status: ready
+status: needs-human
 labels:
   - gap
   - cockpit
@@ -12,7 +12,7 @@ children: []
 extra:
   schema: execution
 depends_on:
-  - gap-cockpit-ask-detector-last-paragraph
+  - gap-cockpit-ask-semantic-gate
 ---
 ## Proposal
 
@@ -65,3 +65,11 @@ depends_on:
 - server/modules/context-events/tests/session-ask-event-writer.test.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Blocker
+
+**2026-10-29T16:18:39.185Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 0/8，剩余未勾 8）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：cbf2c97a-c059-42f5-9369-9284791e6f6d
