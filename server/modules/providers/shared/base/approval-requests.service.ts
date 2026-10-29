@@ -16,6 +16,15 @@
  * unchanged), `codex-runtime.provider.ts` (the permissions facet the
  * `provider-runtime.service` fan-out reaches), and the Codex approval broker in
  * `providers/list/codex/`.
+ *
+ * Lives in `providers/shared/base/` rather than `providers/services/` on
+ * purpose: `modules/providers/services` already imports
+ * `providers/list/codex/codex-transcript-format.ts`
+ * (`session-conversations-search.service.ts`), so a `list/codex` import back
+ * into `services` would close a new directory cycle in the AC-394 budget
+ * ratchet. `providers/shared/base` is a leaf of the providers component — it
+ * points only at `server/shared/**`, `modules/notifications` and itself — so
+ * both provider implementations may import it without becoming a cycle member.
  */
 import {
   createBoundedLedger,

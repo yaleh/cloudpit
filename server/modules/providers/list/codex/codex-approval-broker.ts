@@ -23,7 +23,7 @@ import {
   approvalRequests as sharedApprovalRequests,
   TOOL_APPROVAL_TIMEOUT_MS,
   type ApprovalRequestsService,
-} from '@/modules/providers/services/approval-requests.service.js';
+} from '@/modules/providers/shared/base/approval-requests.service.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 import { isRecord } from '@/shared/utils.js';
 import type { AnyRecord, ProviderRuntimeWriter } from '@/shared/types.js';

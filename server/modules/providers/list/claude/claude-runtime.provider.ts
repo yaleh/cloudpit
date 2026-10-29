@@ -44,7 +44,7 @@ import {
   approvalRequests,
   TOOL_APPROVAL_TIMEOUT_MS,
   type ClientToolDecisionInput,
-} from '@/modules/providers/services/approval-requests.service.js';
+} from '@/modules/providers/shared/base/approval-requests.service.js';
 
 // Re-exported at its declaration site in the shared service; this module only
 // forwards the name `providers/index.ts` and `mcp-approvals.ts` already read.

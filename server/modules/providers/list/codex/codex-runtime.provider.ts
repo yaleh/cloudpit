@@ -22,7 +22,7 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
-import { approvalRequests } from '@/modules/providers/services/approval-requests.service.js';
+import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
 
 type ActiveCodexSession = {

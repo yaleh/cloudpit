@@ -45,8 +45,8 @@ import {
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
 import * as claudeRuntime from '@/modules/providers/list/claude/claude-runtime.provider.js';
-import { approvalRequests } from '@/modules/providers/services/approval-requests.service.js';
-import { TOOL_APPROVAL_TIMEOUT_MS } from '@/modules/providers/services/approval-requests.service.js';
+import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
+import { TOOL_APPROVAL_TIMEOUT_MS } from '@/modules/providers/shared/base/approval-requests.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import type { IProvider, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
@@ -830,23 +830,17 @@ test('the criterion itself is discriminating: both controls throw (AC13)', () =>
 });
 
 test('the Claude approval names still resolve from their original module (AC14)', () => {
-  const names = [
-    'resolveToolApproval',
-    'getPendingApprovalsForSession',
-    'classifyMissingApproval',
-    'readApprovalDecision',
-  ] as const;
-  for (const name of names) {
-    assert.equal(
-      claudeRuntime[name],
-      approvalRequests[name],
-      `${name} must be the shared service's own function object`,
-    );
-  }
+  // Static property access on purpose: oxlint's `import(namespace)` rule refuses a
+  // computed read of an imported namespace, and the four names are a fixed list.
+  assert.equal(claudeRuntime.resolveToolApproval, approvalRequests.resolveToolApproval, "resolveToolApproval must be the shared service's own function object");
+  assert.equal(claudeRuntime.getPendingApprovalsForSession, approvalRequests.getPendingApprovalsForSession, "getPendingApprovalsForSession must be the shared service's own function object");
+  assert.equal(claudeRuntime.classifyMissingApproval, approvalRequests.classifyMissingApproval, "classifyMissingApproval must be the shared service's own function object");
+  assert.equal(claudeRuntime.readApprovalDecision, approvalRequests.readApprovalDecision, "readApprovalDecision must be the shared service's own function object");
   assert.equal(typeof claudeRuntime.requestClientToolDecision, 'function');
   assert.equal(claudeRuntime.TOOL_APPROVAL_TIMEOUT_MS, TOOL_APPROVAL_TIMEOUT_MS);
   console.log(
-    `claudeNames=${names.join(',')} requestClientToolDecision=${typeof claudeRuntime.requestClientToolDecision} `
+    'claudeNames=resolveToolApproval,getPendingApprovalsForSession,classifyMissingApproval,readApprovalDecision '
+      + `requestClientToolDecision=${typeof claudeRuntime.requestClientToolDecision} `
       + `timeoutMs=${claudeRuntime.TOOL_APPROVAL_TIMEOUT_MS}`,
   );
 });

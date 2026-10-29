@@ -407,9 +407,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (468 + 1 = 469 collected server test files). Then
     // gap-ac442-codex-resident-capabilities added its criterion
     // server/modules/providers/tests/codex-resident-capabilities.test.ts
-    // (469 + 1 = 470 collected server test files). This fixture names 3 known files, so
-    // 470 - 3 = 467.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=467$/);
+    // (469 + 1 = 470 collected server test files). Then
+    // gap-ac438-codex-resident-approvals-broker added its criterion
+    // server/modules/providers/tests/codex-resident-approvals.test.ts
+    // (470 + 1 = 471 collected server test files). This fixture names 3 known files, so
+    // 471 - 3 = 468.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=468$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -501,10 +504,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac441-codex-resident-host-lifecycle added
     // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts, then
     // gap-ac442-codex-resident-capabilities added
-    // server/modules/providers/tests/codex-resident-capabilities.test.ts
-    // — but this fixture names ONE known file, so 470 - 1 = 469 (AC2 reads 467 because its
+    // server/modules/providers/tests/codex-resident-capabilities.test.ts, then
+    // gap-ac438-codex-resident-approvals-broker added
+    // server/modules/providers/tests/codex-resident-approvals.test.ts
+    // — but this fixture names ONE known file, so 471 - 1 = 470 (AC2 reads 468 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=469$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=470$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
