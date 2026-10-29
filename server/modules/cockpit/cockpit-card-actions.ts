@@ -80,9 +80,24 @@ export type CockpitCardResendResult = {
   result: unknown;
 };
 
+/** What a dismiss answered: the feedback executor that took the signal and its own result. */
+export type CockpitCardDismissResult = {
+  ok: true;
+  cardId: string;
+  executor: string;
+  params: Record<string, unknown>;
+  result: unknown;
+};
+
 /** The action channel's public surface. */
 export type CockpitCardActions = {
   confirm(request: unknown): Promise<CockpitCardConfirmResult>;
+  /**
+   * Discards a card WITHOUT running its action: no option is resolved and no action executor is
+   * called. The provider's feedback executor receives the feedback params with a top-level
+   * `dismiss: true`, and its `dismissed` receipt settles the item instead of returning it.
+   */
+  dismiss(request: unknown): Promise<CockpitCardDismissResult>;
   /**
    * Re-sends ONLY the feedback call for a card whose action already ran. No option is resolved
    * and no action executor is called; the stored params — same `feedbackId` included — go to
@@ -173,6 +188,30 @@ function resolveAction(card: CockpitCard, request: ParsedConfirmRequest): Cockpi
     executor: card.ownReply.executor,
     params: { ...card.ownReply.params, reply: request.replyText },
   };
+}
+
+/**
+ * The card a dismiss body names, and the revision the person was looking at.
+ *
+ * The same revision guard every confirmation runs: a dismiss for a stale revision is a conflict,
+ * never a silent discard of content the person has not seen.
+ */
+function parseDismissRequest(raw: unknown): { cardId: string; revision: number } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw invalid('the dismiss body must be a JSON object');
+  }
+  const record = raw as Record<string, unknown>;
+  if (typeof record.cardId !== 'string' || record.cardId.trim() === '') {
+    throw invalid('`cardId` must be a non-empty string');
+  }
+  if (
+    typeof record.revision !== 'number' ||
+    !Number.isInteger(record.revision) ||
+    record.revision < 1
+  ) {
+    throw invalid('`revision` must be a positive integer');
+  }
+  return { cardId: record.cardId, revision: record.revision };
 }
 
 /** The `cardId` a resend body names, or an `INVALID_REQUEST`. */
@@ -311,9 +350,10 @@ export function createCockpitCardActions(deps: {
       );
       if (receipt !== null && store !== undefined) {
         // A `closed` receipt keeps the overlay while the item is still listed; kept/rejected
-        // return the card to the person, so the overlay leaves and the notice stays.
+        // return the card to the person, so the overlay leaves and the notice stays. A
+        // `dismissed` receipt settles the card without a notice.
         if (receipt.disposition !== 'closed') store.removeOverlay(params.card.id);
-        if (receipt.disposition !== 'closed') {
+        if (receipt.disposition === 'kept' || receipt.disposition === 'rejected') {
           store.recordNotice({
             cardId: params.card.id,
             feedbackId: receipt.feedbackId,
@@ -429,6 +469,97 @@ export function createCockpitCardActions(deps: {
   };
 
   /**
+   * Discards one card WITHOUT running its action.
+   *
+   * The provider's feedback executor is the only call: its params carry a top-level
+   * `dismiss: true`, which tells the fleet to close the item as discarded rather than to accept
+   * a choice. Nothing is stored as an overlay — there is no action to acknowledge — and a
+   * `dismissed` receipt settles the card without recording a kept/rejected notice.
+   *
+   * The same `(provider, card, revision)` ledger the confirmation path uses is consulted, so a
+   * dismiss and a confirmation of the same revision can never both be accepted.
+   */
+  const dismiss = async (raw: unknown): Promise<CockpitCardDismissResult> => {
+    const request = parseDismissRequest(raw);
+    const card = await deps.registry.getCard(request.cardId);
+    if (card === null) {
+      throw new AppError(`no open card ${request.cardId}`, {
+        code: 'CARD_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    if (request.revision !== card.revision) {
+      throw new AppError(
+        `card ${card.id} is at revision ${card.revision}, not ${request.revision}`,
+        { code: 'REVISION_CONFLICT', statusCode: 409 },
+      );
+    }
+    const feedbackExecutor = deps.registry.feedbackExecutor(card.provider);
+    if (feedbackExecutor === null) {
+      throw new AppError(NO_FEEDBACK_EXECUTOR_REASON, {
+        code: 'FEEDBACK_UNAVAILABLE',
+        statusCode: 400,
+      });
+    }
+    const implementation = await executorById(feedbackExecutor);
+    if (implementation === undefined) {
+      throw new AppError(`feedback executor ${feedbackExecutor} has no implementation`, {
+        code: 'EXECUTOR_UNAVAILABLE',
+        statusCode: 500,
+      });
+    }
+    const key = `${card.provider}\u0000${card.id}\u0000${card.revision}`;
+    if (accepted.has(key)) {
+      throw new AppError(`card ${card.id} revision ${card.revision} was already confirmed`, {
+        code: 'ALREADY_CONFIRMED',
+        statusCode: 409,
+      });
+    }
+
+    const params: Record<string, unknown> = {
+      attentionId: card.id,
+      revision: card.revision,
+      feedbackId: newFeedbackId(),
+      dismiss: true,
+    };
+    accepted.add(key);
+    let result: unknown;
+    try {
+      result = await implementation.execute(params);
+    } catch (failure) {
+      // The dismiss did not happen, so the revision stays dismissable.
+      accepted.delete(key);
+      if (failure instanceof AppError) throw failure;
+      throw new AppError(
+        `feedback executor ${feedbackExecutor} failed: ${feedbackFailureMessage(failure)}`,
+        { code: 'EXECUTOR_FAILED', statusCode: 500 },
+      );
+    }
+
+    const receipt = readCockpitCardReceipt(
+      typeof result === 'object' && result !== null
+        ? (result as Record<string, unknown>).receipt
+        : undefined,
+    );
+    const store = deps.feedbackStore;
+    if (receipt !== null && receipt.disposition !== 'closed') {
+      // A dismissed card settles without a notice; a kept/rejected answer still returns the card
+      // with its reason, exactly as it does for a confirmation's feedback.
+      store?.removeOverlay(card.id);
+      if (receipt.disposition === 'kept' || receipt.disposition === 'rejected') {
+        store?.recordNotice({
+          cardId: card.id,
+          feedbackId: receipt.feedbackId,
+          kind: receipt.disposition,
+          ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
+        });
+      }
+    }
+
+    return { ok: true, cardId: card.id, executor: feedbackExecutor, params, result };
+  };
+
+  /**
    * Resends only the feedback: the stored `params` (same `feedbackId`) go to the feedback
    * executor again. The action executor and the accepted-confirmation ledger are never touched,
    * so a resend can never run the action twice.
@@ -479,12 +610,14 @@ export function createCockpitCardActions(deps: {
     );
     if (receipt !== null && receipt.disposition !== 'closed') {
       store?.removeOverlay(cardId);
-      store?.recordNotice({
-        cardId,
-        feedbackId: receipt.feedbackId,
-        kind: receipt.disposition,
-        ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
-      });
+      if (receipt.disposition === 'kept' || receipt.disposition === 'rejected') {
+        store?.recordNotice({
+          cardId,
+          feedbackId: receipt.feedbackId,
+          kind: receipt.disposition,
+          ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
+        });
+      }
     }
 
     return {
@@ -496,5 +629,5 @@ export function createCockpitCardActions(deps: {
     };
   };
 
-  return { confirm, resendFeedback };
+  return { confirm, dismiss, resendFeedback };
 }

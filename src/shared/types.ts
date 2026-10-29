@@ -4309,9 +4309,11 @@ export type CockpitCardNotify = {
  *
  * `closed` means the item is settled (the card goes away); `kept` means the item is still open
  * but the feedback was accepted; `rejected` means the feedback was refused and the item returns
- * to the person's queue with a reason.
+ * to the person's queue with a reason. `dismissed` answers a dismiss signal (feedback params
+ * carrying `dismiss: true`): the provider closed the item as discarded, so the card settles
+ * without returning to the queue and without a kept/rejected notice.
  */
-export type CockpitCardReceiptDisposition = 'closed' | 'kept' | 'rejected';
+export type CockpitCardReceiptDisposition = 'closed' | 'kept' | 'rejected' | 'dismissed';
 
 /** The provider's own acknowledgement that it received a feedback call. */
 export type CockpitCardReceipt = {
