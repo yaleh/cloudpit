@@ -61,6 +61,16 @@ extra:
 
 `npm run typecheck` exit 0；`npm run lint` exit 0（仅存量 warning）。`server/shared/types.ts` 5307→5318 行，已按 AC-394 RECORDED CHANGE 追加到 `server/shared/tests/architecture-ratchet.baseline.json`：新增的是三个 arm 上的 `isAsking?: boolean` 与说明段落——本任务的判定字段就是这次增长本身。
 
+### 续跑轮 — suite 红根因与修复（quay-test-script 的两条 pin + 90% 地板）
+
+上一轮 exited-not-landed 的 `server/shared/tests/quay-test-script.test.ts` 不是环境抖动，而是**新增 server 判据文件**的记账后果：delta-relatedness 报 UNRELATED 对这类「测试输入是整棵树」的文件永远无效。在 worktree 单文件复现三红：AC7 `baseline covers 418/465 collected files (< 90%)`；AC2 实读 `known=3 unknown=462`（钉 461）；AC3 实读 `known=1 unknown=464`（钉 463）。
+
+修复（两个文件都补进 Touches）：
+- `scripts/suite-duration-baseline.tsv` 追加 `3773\t server/modules/observation/tests/session-ask-semantic-gate.test.ts`（实测 `duration_ms` 3773），418→419 行 ⇒ `419/465 = 90.1%`，并按既有惯例在头部记账行写明本任务与日期。
+- `server/shared/tests/quay-test-script.test.ts`：两条 pin 移到 `unknown=462` / `unknown=464`（464 + 1 = 465 收集数），两处计数注释块补上本任务文件。
+
+复量：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → 14/14 绿（88.97s）；三个 observation 判据文件 → 66/66 绿；`npm run typecheck` exit 0；`npm run lint` exit 0。
+
 ### DoD 1 — 真实数据回放（`tmp/replay-ask-semantic-gate.mts`，真实 T1 摘要调用，内存 store / event writer）
 
 | 消息 | 预筛 | 摘要 | ask | 事件 | object |
@@ -106,3 +116,13 @@ extra:
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
 - server/modules/observation/tests/session-ask-semantic-gate.test.ts (new)
 - server/shared/tests/architecture-ratchet.baseline.json
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
+
+## Blocker
+
+**2026-10-29T17:08:42.715Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=88549 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793293261671 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：a940af79-5196-4319-9d35-01d00a45b001

@@ -1,7 +1,7 @@
 ---
 id: gap-goal-051-exit-and-logging-not-an-ac
 title: GOAL-051 范围第 1 条的「退出与日志」无在域 AC 覆盖：提议新增 AC-445（app-server 自行退出被记录、主动关闭不误报），交人裁定
-status: needs-human
+status: superseded
 labels:
   - gap
 parent: null
@@ -129,3 +129,6 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/co
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/tests/codex-resident-exit-and-logging.test.ts (new)
 - tasks/gap-goal-051-exit-and-logging-not-an-ac.md
+
+
+supersede：人 yale 2026-10-30 裁定 (b)——划掉范围里「退出与日志」软条款而非新增 AC-445；GOAL-051 范围已改（退出与日志/一会话一 app-server/错误文案 三条划掉，containment 标注 AC-167）。本提案作废。
