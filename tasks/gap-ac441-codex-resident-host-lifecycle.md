@@ -2,7 +2,7 @@
 id: gap-ac441-codex-resident-host-lifecycle
 title: AC-441 Codex 常驻宿主层契约：openHost 持 resident-policy lease、turn
   busy/idle、closeHost/unbind 原因、idle 超时、restore 走 startResidentSession
-status: todo
+status: ready
 labels:
   - gap
 parent: null

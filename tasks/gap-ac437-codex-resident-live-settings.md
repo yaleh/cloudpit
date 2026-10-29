@@ -2,7 +2,7 @@
 id: gap-ac437-codex-resident-live-settings
 title: AC-437 Codex 常驻：thread/settings/update 实时生效（idle/active，pid
   不变）、turn/settings/update 按 step_model_switching 探测 fail-closed 拒绝
-status: todo
+status: ready
 labels:
   - gap
 parent: null

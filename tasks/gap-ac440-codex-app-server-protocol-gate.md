@@ -2,7 +2,7 @@
 id: gap-ac440-codex-app-server-protocol-gate
 title: AC-440 Codex 常驻：initialize 声明 capabilities.experimentalApi=true、缺失时
   thread/queue/add 被拒且驱动 fail-closed、未知 notification 放过不中断读取循环
-status: todo
+status: ready
 labels:
   - gap
 parent: null
@@ -82,7 +82,7 @@ goal_ac: AC-440
 
 ## Touches
 
-- server/modules/providers/list/codex/codex-app-server.connection.ts
-- server/modules/providers/list/codex/codex-host-driver.provider.ts
+- server/modules/providers/list/codex/codex-app-server.connection.ts (new)
+- server/modules/providers/list/codex/codex-host-driver.provider.ts (new)
 - server/modules/providers/tests/codex-app-server-protocol.test.ts (new)
 - tasks/gap-ac440-codex-app-server-protocol-gate.md
