@@ -96,6 +96,7 @@ goal_ac: AC-442
 - server/modules/session-hosts/tests/lifecycle-mode.test.ts (modify: PER_RUN_ONLY_PROVIDERS、disguised 臂、(4c) subject)
 - scripts/suite-duration-baseline.tsv (append: 新判据文件实测 duration 一行)
 - server/shared/tests/quay-test-script.test.ts (modify: 两条 unknown= pin 与来源注释)
+- server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts (modify: AC-350 假形态改锚到 claude 行——AC-442 的 codex 行按实测同样声明 cancelQueuedInput:true，整文件唯一性 pin 会把两个独立实测读成冲突)
 - tasks/gap-ac442-codex-resident-capabilities.md
 
 ## 完成记录 (2026-10-29)
@@ -157,6 +158,8 @@ goal_ac: AC-442
 
 **未实现项（按设计不在本条）。** 驱动挂载属 AC-441（已落地，本条只声明并用判据钉住）；queue / settings / approvals / background lease 属 AC-436…AC-439；E2E 属 AC-443。`codex.provider.ts` / `codex-host-driver.provider.ts` / `sessions.service.ts` / `session-host-manager.service.ts` / `shared/types.ts` 零改动。
 
+
+**suite 红修复（2026-10-29，exited-not-landed 轮）。** 上轮 suite 唯一红是 AC-350 的假形态判据 `server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts`：它把 `cancelQueuedInput: true,` 的**整文件**命中数钉成 1，而本条给 codex 行按 E2 实测同样写了 `cancelQueuedInput: true`（AC3 的 deepEqual 要求）⇒ 命中数 2，判据红。这不是环境抖动，单文件复现一致。修法是把假形态锚到本条判据的**主体**——claude 行（E9/E10/U4 的实测对象）：在 claude 行切片内仍断言赋值命中数恰 1，仍按**赋值**（不是注释）匹配，仍写 `__criterion-falsify-cancel-queued-<pid>.ts` 动态 import 读回 false，语义未削弱；只是不再要求「全模块只有一家 provider 声明这个实测值」。该文件因此成为本条的第六个产物，已补进 `## Touches`。修后单文件 `tests 2 / pass 2 / fail 0`；本条判据 `codex-resident-capabilities.test.ts` 6/6 仍绿。
 该轴仍暗,理由:本任务只改 capability 声明与判据文件，未触及模块依赖边，未运行 archguard 读数
 
 ## Blocker
