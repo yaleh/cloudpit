@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-quay-json-field-readers
 title: "architecture-analysis: archguard_detect_duplicates(scope=server) reports
   readNullableNumber as an exact structural clone (hash 95e46f038385c213, 96
   tokens, 10 lines) at both sites;"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
