@@ -2,7 +2,7 @@
 id: gap-ac444-codex-resident-turn-steer
 title: AC-444 Codex 常驻：忙时 turn/steer 改当前 turn（返回当前 turnId、产物
   STEERED、pid/threadId 不变、queue 深度不增），stale expectedTurnId 错误 fail-closed
-status: ready
+status: done
 labels:
   - gap
 parent: null
