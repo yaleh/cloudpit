@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-phone-overlay-navigation-stack
 title: 手机驾驶舱覆盖层按导航栈往返会话并恢复卡片上下文
-status: ready
+status: done
 labels:
   - gap
   - cockpit
@@ -29,11 +29,11 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitOverlay.test.tsx src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx` 退出 0：在移动视口从会话 A 打开覆盖层、记录 card controller 可观测支持的选中项/筛选/滚动，然后从卡片打开会话 B；浏览器返回回到覆盖层，且会话 A 仍是同一挂载实例、卡片上下文与打开 B 前一致。用例同时验证会话 B 是当前会话，且返回不是直接落到 A。
-- [ ] 同组测试验证再次关闭/返回覆盖层后 URL/导航位置回到会话 A；会话 A 的挂载身份、transcript 滚动与输入草稿均与初始读数一致。用独立挂载计数或节点身份断言，不能只断言内容相同。
-- [ ] 反形态：把打开会话 B 的动作改为 replace 原覆盖层 entry，或令返回直接回到会话 A，第一条导航栈用例必须失败；恢复后通过。记录该负控的失败断言与退出码。
-- [ ] `npx vitest run src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` 退出 0：手机深链 `/cockpit?view=cards` 仍为独立 cards 页面且无回程条；1440px PC 列仍按原行为工作。
-- [ ] `npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitOverlay.test.tsx src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx` 退出 0：在移动视口从会话 A 打开覆盖层、记录 card controller 可观测支持的选中项/筛选/滚动，然后从卡片打开会话 B；浏览器返回回到覆盖层，且会话 A 仍是同一挂载实例、卡片上下文与打开 B 前一致。用例同时验证会话 B 是当前会话，且返回不是直接落到 A。
+- [x] 同组测试验证再次关闭/返回覆盖层后 URL/导航位置回到会话 A；会话 A 的挂载身份、transcript 滚动与输入草稿均与初始读数一致。用独立挂载计数或节点身份断言，不能只断言内容相同。
+- [x] 反形态：把打开会话 B 的动作改为 replace 原覆盖层 entry，或令返回直接回到会话 A，第一条导航栈用例必须失败；恢复后通过。记录该负控的失败断言与退出码。
+- [x] `npx vitest run src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` 退出 0：手机深链 `/cockpit?view=cards` 仍为独立 cards 页面且无回程条；1440px PC 列仍按原行为工作。
+- [x] `npm run typecheck`、`npm run lint`、`npm run build:client` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
 
 ## DoD
 
@@ -68,3 +68,29 @@ extra:
 - src/modules/i18n/locales/ru/common.json
 - src/modules/i18n/locales/tr/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## Completion
+
+实现（提交 `70a26bd52`，worktree `/data/home/yale/work/claudecodeui-worktrees/task-gap-cockpit-phone-overlay-navigation-stack`）：`CockpitOverlayHost` 的 `onOpenConversation` 从 `navigate(path, { replace: true })` 改为不带 replace 的 push，导航栈变为 A → 覆盖层 entry → B；浏览器后退回到覆盖层同一 entry（卡片筛选/选中/滚动不丢），覆盖层自身的关闭才 pop 回 A。`CockpitOverlay.test.tsx` 新增「a card-opened session B sits ABOVE the layer」用例：真实 `MemoryRouter` + `CockpitOverlayHost`（与 `App` 一样作为 `<Routes>` 兄弟）驱动整条往返，用 controller 读数与 DOM 节点身份/挂载计数断言。
+
+AC 证据：
+- AC1 `npx vitest run src/modules/cockpit/tests/CockpitOverlay.test.tsx src/modules/cockpit/tests/cockpitCardDetailsSelectable.test.tsx` → 2 files / 7 tests passed，exit 0。
+- AC2 同一用例后半段：后退回到 `/session/session-phone-overlay` 且覆盖层仍存在；显式关闭后 URL 回 A、`session-area`/`session-draft`/`session-transcript` 为同一 DOM 节点、`mountLedger.mounts === 1`、transcript `scrollTop` 42、草稿 `keep this draft for A` 不变。
+- AC3 反形态：把该行改回 `{ replace: true }` 后运行 `CockpitOverlay.test.tsx` → 1 failed，`AssertionError: Back lands on the layer, not directly on session A`（`CockpitOverlay.test.tsx:441`），exit 1；恢复 push 后同文件 2 passed，exit 0。
+- AC4 `npx vitest run src/modules/project-workspace/tests/mobileHeaderCockpitEntry.test.tsx` → 9 tests passed，exit 0。
+- AC5 `npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）；`npm run build:client` exit 0（25.10s）；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6 pass / 0 fail，exit 0（仅打印可下调基线提示；未改 `CockpitPage.tsx`）。
+
+DoD（真实运行页面 390×844；worktree vite :5199 代理 live :3001；仅拦截 `GET /api/cockpit/cards`（提供 9 张夹具卡，卡片内容非本任务所改）与 `/api/user/drafts`（内存应答，避免写真实库），其余均为真实服务）：
+- 驱动脚本 `tmp/dod-phone-overlay-stack.mjs`，结构化报告 `tmp/dod-phone-overlay-stack/report.json`：29/29 checks passed，exit 0。A = `49d976b2-e00e-4c56-8c8e-6cbc1724fe58`（Live Voice 第三场），B = `4e8bb98e-ec89-4ba9-91d0-14c7f7912fa0`（Respond with hello）。
+- 打开覆盖层：URL 仍 `/session/A`，标题「Live Voice 第三场」；筛选 `need`、选中 `dod-need-conv`、列表 `scrollTop=137`；A 的 `[data-app-shell]` 为同一节点。
+- 卡片的「Open conversation」→ B：URL `/session/B`，覆盖层不绘制，shell / composer textarea / transcript 均为 A 时同一 DOM 节点（workspace 未重建）。
+- 浏览器后退：URL `/session/A` 且覆盖层重新出现（不是裸 A），标题仍在；筛选/选中/`scrollTop=137` 与离开前一致，`sessionStorage['cockpit.cards.memory.v1'] = {"selectedCardId":"dod-need-conv","scrollPosition":137}`；草稿不变。
+- 显式关闭：URL `/session/A`、覆盖层消失，shell/transcript/textarea 仍为同一节点，草稿 `keep this draft for A` 不变。
+- 截图（仓库内）：`tmp/dod-phone-overlay-stack/01-session-a.png`、`02-overlay-open.png`、`03-card-context-and-input.png`、`04-session-b.png`、`05-overlay-after-back.png`、`06-session-a-return.png`。
+- DoD 2：在覆盖层内卡片 Details 的「Write your own」编辑框真实输入 `dod phone overlay input works` 并读回一致（`03-card-context-and-input.png`）；覆盖层复用既有 cards 主界面，本身没有额外 composer，故未另造输入框。按 Escape 后覆盖层仍在（未消费，聊天自身 Escape 语义保留）。
+- 差异诚实记录：实时页 transcript 在 A→B→A 会话切换后 `scrollTop` 由离开时 3101 变为 588；对照实验（不经覆盖层，侧栏 Conversations 切到另一会话再后退）同样得到 588，说明这是 transcript 在会话消息重载时自身的恢复行为、与本覆盖层无关，且 transcript 的 DOM 节点身份全程不变；精确 scrollTop 相等由 AC2 单测（显式 42→42）断言。
+- DoD 3：`/cockpit?view=cards` 深链无覆盖层、无回程条（`08-deeplink-cards-page.png`）；1440px 打开的是 `[data-testid="cockpit-column"]`，从不绘制手机覆盖层（`08-pc-column-1440.png`）。
+- DoD 4：运行器可用性实测 `node scripts/ui-scenario.mjs tmp/dod-runner-availability-probe.json --base-url http://127.0.0.1:5199 --auth-token <jwt> --out tmp/ui-scenario-probe` → exit 0，报告 `tmp/ui-scenario-probe.json`，checkpoint `tmp/ui-scenario-probe/step-1-open-cockpit.png`。但本旅程无法表达且未伪称通过：`scripts/ui-scenario.mjs:682` 固定 `viewport: {width:1280,height:800}`；`:769` 的 openers 为闭集 `session|cockpit|cockpit-cards|quay-panel`（无覆盖层入口）；步骤只有 open/drive/expect/checkpoint（无点击/视口步骤），语义面 `window.__cloudcliScenario` 也无覆盖层读数。因此未创建会失败或误导的 `e2e/scenarios/cockpit-phone-overlay.json`，该旅程由上述真实浏览器脚本覆盖。
+- Pre-merge：`git merge --no-edit develop` 无冲突（merge commit `96a38380e`）；项目未声明 scoped_command，按流程跳过 scoped gate；anti-drift Touches 检查 `ANTI-DRIFT OK ... 2 actual file(s), all within declared Touches (23 glob(s))`，exit 0。
+
+该轴仍暗,理由:本任务只改前端覆盖层的 history 语义并补测试，未新增或改变任何架构依赖边，L_D/L_G 无变化。

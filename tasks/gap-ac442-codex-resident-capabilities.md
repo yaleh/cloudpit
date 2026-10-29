@@ -161,17 +161,3 @@ goal_ac: AC-442
 
 **suite 红修复（2026-10-29，exited-not-landed 轮）。** 上轮 suite 唯一红是 AC-350 的假形态判据 `server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts`：它把 `cancelQueuedInput: true,` 的**整文件**命中数钉成 1，而本条给 codex 行按 E2 实测同样写了 `cancelQueuedInput: true`（AC3 的 deepEqual 要求）⇒ 命中数 2，判据红。这不是环境抖动，单文件复现一致。修法是把假形态锚到本条判据的**主体**——claude 行（E9/E10/U4 的实测对象）：在 claude 行切片内仍断言赋值命中数恰 1，仍按**赋值**（不是注释）匹配，仍写 `__criterion-falsify-cancel-queued-<pid>.ts` 动态 import 读回 false，语义未削弱；只是不再要求「全模块只有一家 provider 声明这个实测值」。该文件因此成为本条的第六个产物，已补进 `## Touches`。修后单文件 `tests 2 / pass 2 / fail 0`；本条判据 `codex-resident-capabilities.test.ts` 6/6 仍绿。
 该轴仍暗,理由:本任务只改 capability 声明与判据文件，未触及模块依赖边，未运行 archguard 读数
-
-## Blocker
-
-**2026-10-29T14:20:05.361Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts:   AssertionError [ERR_ASSERTION]: the false form must flip exactly one field assignment in provider-capabilities.service.ts, found 2 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts,server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：9f7e2751-6874-4237-ae90-509b338c8474
-
-**2026-10-29T14:34:51.867Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=doc-face-done-sync: propagateDocBranchToDevelop failed (doc→develop ff-only ∧ semantic fallback both failed)
-- run_id：wk-prod-anchor
-- session_id：9d1f1c56-ca18-48de-acc4-79e3fb9b371d

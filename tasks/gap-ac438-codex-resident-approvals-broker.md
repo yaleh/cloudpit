@@ -21,14 +21,14 @@ goal_ac: AC-438
 
 **要建的东西**
 
-1. **共享审批请求服务**：新建 `server/modules/providers/services/approval-requests.service.ts`，从 `claude-runtime.provider.ts` 迁出 pending 注册表、held/decision 两个有界账本、`waitForToolApproval` 的 arming/超时/abort 逻辑与 `requestClientToolDecision`。`provider`、`timeoutMs` 是新参数；Claude 调用点不传时行为与今天逐字一致。
+1. **共享审批请求服务**：新建 `server/modules/providers/shared/base/approval-requests.service.ts`，从 `claude-runtime.provider.ts` 迁出 pending 注册表、held/decision 两个有界账本、`waitForToolApproval` 的 arming/超时/abort 逻辑与 `requestClientToolDecision`。`provider`、`timeoutMs` 是新参数；Claude 调用点不传时行为与今天逐字一致。**该文件第二轮从 `providers/services/` 移来**：`services` 已经导入 `list/codex/codex-transcript-format.js`，Codex 侧再静态导入 `services` 就会闭合成新的目录环（AC-394 ratchet），而 `providers/shared/base` 是 providers 组件的叶子，两个 provider 实现都可导入它且不进入 SCC。
 2. **连接回写**（`codex-app-server.connection.ts`）：`respond(id, result)` / `respondError(id, code, message)`，id 原样回显（含数字 `0`）；`closed` / 进程已退出时 no-op 且不抛。
 3. **Codex 驱动审批 broker**（`codex-approval-broker.ts` + `codex-host-driver.provider.ts` 接线）：五类方法分派与响应映射、无人值守判定、有界超时、生命周期清理、非审批 server request、`readSession()` 读数扩展。
 4. **新判据** `server/modules/providers/tests/codex-resident-approvals.test.ts`（hermetic：内存假 transport + 固定假 pid；`resolveToolApproval` 走真实共享服务）。
 
 ## Plan
 
-1. 抽出 `approval-requests.service.ts`，Claude 面保持原样 re-export。
+1. 抽出 `approval-requests.service.ts`（落点为 `providers/shared/base/`，见 Proposal 第 1 条），Claude 面保持原样 re-export。
 2. 给 `codex-app-server.connection.ts` 加 `respond` / `respondError`。
 3. 在 `codex-approval-broker.ts` 落地五类映射、等待/超时/生命周期清理，`codex-host-driver.provider.ts` 只做接线并保持 ≤800 行 ratchet。
 4. 给 `codexRuntime` 加 permissions facet；用 `createProviderRuntimeService` 验证扇出。
@@ -52,9 +52,9 @@ goal_ac: AC-438
 - [x] AC11 生命周期清理：`interruptAnswered={"decision":"cancel"} pending=0 pidBefore=424242 pidAfter=424242`；`unbindDrained=true`；`closeDrained=true afterCloseWrites=0`。
 - [x] AC12 provider runtime 扇出：`fanoutSettled=true pendingViaRuntime=1 decisionRecorded=true secondResolveNoop=true`。
 - [x] AC13 反向控制可达：两次 `negativeControlThrew=true`。
-- [x] AC14 Claude 面零漂移：六个名字仍从原路径导入且与共享服务同源（4 个函数对象 `===`，`requestClientToolDecision` 为函数，`TOOL_APPROVAL_TIMEOUT_MS=55000`）；三个回归与 `npm run typecheck` 均 exit 0。
+- [x] AC14 Claude 面零漂移：六个名字仍从原路径（`claude-runtime.provider.ts`）导入且与共享服务同源（4 个函数对象 `===`，`requestClientToolDecision` 为函数，`TOOL_APPROVAL_TIMEOUT_MS=55000`）；三个回归与 `npm run typecheck` 均 exit 0。
 - [x] AC15 四个假形态承重：A/B/C/D 各让 criterion 退出 **1**（逐字红态见完成记录）；还原后 criterion exit 0、`git status --short` 无残留。
-- [x] AC16 范围不越界：本任务自己写下的唯一提交 `093ec0516` 恰为 Touches 的 7 个代码文件；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动；fan-in 的 anti-drift 读数为 `ANTI-DRIFT OK — 7 actual file(s), all within declared Touches (8 glob(s))`（`develop...HEAD` 的合并后读数说明见完成记录）。
+- [x] AC16 范围不越界：实现提交 `093ec0516` 恰为 7 个代码文件；第二轮收敛提交 `071ec532f` 只改该 7 个文件中的 5 个（含把共享服务从 `providers/services/` 移到 `providers/shared/base/`，旧路径在提交历史里按删除计入）、判据文件与两份 pin 文件（`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`），全部在 Touches 内；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动；退出前 anti-drift 读数为 `ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 11 actual file(s), all within declared Touches (11 glob(s))`（逐字读数见完成记录 (n)）。
 
 ## DoD
 
@@ -62,18 +62,21 @@ goal_ac: AC-438
 
 ## Touches
 
-- server/modules/providers/services/approval-requests.service.ts (new)
+- server/modules/providers/shared/base/approval-requests.service.ts (new; moved here from providers/services/ in the convergence commit)
+- server/modules/providers/services/approval-requests.service.ts (the pre-move path of that same file, deleted by the move — commit history still names it)
 - server/modules/providers/list/codex/codex-approval-broker.ts (new)
 - server/modules/providers/list/claude/claude-runtime.provider.ts
 - server/modules/providers/list/codex/codex-app-server.connection.ts
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/list/codex/codex-runtime.provider.ts
 - server/modules/providers/tests/codex-resident-approvals.test.ts (new)
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - tasks/gap-ac438-codex-resident-approvals-broker.md
 
 ## 完成记录
 
-**落地形态。** 共享服务 `approval-requests.service.ts`（355 行，唯一 owner 实例、`resolve` 幂等）；Codex 侧 `codex-approval-broker.ts`（五类方法表 + 纯映射 + broker，449 行，独占 writers/pending/notifications/threadStatuses）；driver 只做接线，`codex-host-driver.provider.ts` 800 行（ratchet ≤800 通过，`architecture-ratchet.test.ts` 6 pass / 0 fail）；连接新增 `respond`/`respondError`；`codexRuntime.permissions` 指向同一共享实例。
+**落地形态。** 共享服务 `approval-requests.service.ts`（355 行，唯一 owner 实例、`resolve` 幂等，第二轮落在 `providers/shared/base/`）；Codex 侧 `codex-approval-broker.ts`（五类方法表 + 纯映射 + broker，449 行，独占 writers/pending/notifications/threadStatuses）；driver 只做接线，`codex-host-driver.provider.ts` 800 行（ratchet ≤800 通过，`architecture-ratchet.test.ts` 6 pass / 0 fail）；连接新增 `respond`/`respondError`；`codexRuntime.permissions` 指向同一共享实例。
 
 **判据读数（落地后重跑，merge develop 之后）。**
 
@@ -190,7 +193,7 @@ npm run typecheck → exit 0（tsconfig / server/tsconfig / scripts/tsconfig 全
 npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts → exit 0（6 pass / 0 fail，driver 800 行在 OVERSIZE_LIMIT 内）
 ```
 
-**AC16 范围读数（合并后如实记录）。** 本任务自己写下的唯一提交是 `093ec0516`；`git show --name-only --format= 093ec0516` 恰为 7 个代码文件：
+**AC16 范围读数（合并后如实记录）。** 本任务的实现提交是 `093ec0516`；`git show --name-only --format= 093ec0516` 恰为 7 个代码文件：
 ```
 server/modules/providers/list/claude/claude-runtime.provider.ts
 server/modules/providers/list/codex/codex-app-server.connection.ts
@@ -200,7 +203,24 @@ server/modules/providers/list/codex/codex-runtime.provider.ts
 server/modules/providers/services/approval-requests.service.ts
 server/modules/providers/tests/codex-resident-approvals.test.ts
 ```
-排除 grep 在该提交上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本提交中零改动。按 worker brief 退出前两次 `git merge develop`（第二次为取回本次 task_write 提交）后，`git diff --name-only develop...HEAD` / `goal/GOAL-051...HEAD` 会带出分支继承的兄弟任务（AC-435/436/437/441）与 develop 上的任务文件提交（约 20 个代码文件 + 4 个 tasks/*.md），那些不是本任务写下的改动，故不作为本任务的范围读数；fan-in 的 anti-drift Touches 检查以 merge-target 计读数并通过：`ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 7 actual file(s), all within declared Touches (8 glob(s))`。
+排除 grep 在该提交上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本提交中零改动。第二轮收敛提交 `071ec532f` 只触及上列文件中的 5 个 + 判据 + 两个 pin 文件，并把这 7 个里的共享服务移到 `providers/shared/base/`（旧路径作为删除仍出现在 task-owned 提交历史里，故两条路径都写进 Touches）。fan-in 的 anti-drift Touches 检查以 merge-target 计读数并通过，见 (n)。
+
+(n) 第二轮（2026-10-29，上一轮 exited-not-landed 的三条 suite 红）逐条定位与修复读数。
+
+1. `server/shared/tests/server-import-cycle-budget.test.ts` (b)：实测 SCC 为 `[modules/providers, modules/providers/list/claude, modules/providers/list/codex, modules/providers/services]`，比钉住的 G1 多出 `list/codex`。根因是本任务新增的 `list/codex -> providers/services` 值导入与既有的 `services -> list/codex` 边（`session-conversations-search.service.ts` 导入 `codex-transcript-format.js`）合成了一个新目录环。修法不是抬基线，而是把共享服务移到 `providers/shared/base/`（providers 组件的叶子：出边只有 `server/shared/**`、`modules/notifications` 与自身）；不新增目录、不改 manifest/pin。移动后单文件读数：`(b) static+dynamic SCC[3] server/modules/providers, server/modules/providers/list/claude, server/modules/providers/services`，`11 pass / 0 fail`。
+2. `server/shared/tests/quay-test-script.test.ts` AC2/AC3：本任务新增判据文件使收集数 470→471，两条 pin 实读 `known=3 unknown=468` / `known=1 unknown=470`（旧钉 467 / 469）。按该文件既有记账惯例把 pin 移到 468/470，并在注释里记下本任务的 +1；`scripts/suite-duration-baseline.tsv` 追加本判据一行（实测 `duration_ms=6495`），数据行 424→425 / 471 = 90.2%（地板不破）。单文件复跑 `14 pass / 0 fail`（90.2s）。
+3. `lint`：fan-in 汇总行显示的是相邻告警，逐行日志里的真因是本任务判据第 841 行 `claudeRuntime[name]` —— 对导入命名空间的计算属性读取触发 oxlint `import(namespace)` **error**。改为四条静态属性断言（行为不变，`console.log` 仍打印同一 `claudeNames=...` 行），`npm run lint` rc=0、0 error。
+
+移动后复跑：criterion `18 pass / 0 fail`（`duration_ms=6495`）；`claude-resident-permissions` 2/2、`claude-turn-phase` 11/11、`codex-host-driver-persistent` 5/5、`architecture-ratchet` 6/6；`npm run typecheck` rc=0。
 
 **ADR-007 记录。**
 该轴仍暗,理由:本任务只落地 server 侧 Codex 审批 broker 与判据，未产生可视 UX 读数（浏览器 UI 属 AC-443）。
+
+## Blocker
+
+**2026-10-29T14:59:24.034Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=lint,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts,lint,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：a5c7ad80-0d95-4b2a-8455-446d79858395
+- 处置：已在本轮 (n) 逐条修复（共享服务移入叶子目录、两条 pin 重测、lint 错改静态断言）。
