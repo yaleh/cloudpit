@@ -21,6 +21,11 @@ export {
   rememberCockpitReturnPath,
   resolveCockpitProject,
 } from '@/modules/cockpit/cockpitView';
+// The one action every route into the cockpit surface goes through (the header's gauge here;
+// the sidebar's mode switch reaches the same function through the leaf contract). Exported at
+// the barrel so a criterion can exercise the entry points against one entry action.
+export { enterCockpit } from '@/modules/cockpit/cockpitEntry';
+export type { CockpitEntryOptions } from '@/modules/cockpit/cockpitEntry';
 export type {
   CockpitProject,
   CockpitView,
