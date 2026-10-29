@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -12,13 +12,16 @@ import {
   cockpitCardTitle,
 } from '@/modules/cockpit/cockpitCardDescriptors';
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
+import { OwnReplyEditor } from '@/modules/cockpit/CockpitCard';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
   CockpitCardSendCountdown,
+  CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
+import { defaultShownOption } from '@/modules/cockpit/cockpitCardController';
 import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
 
 /**
@@ -66,6 +69,21 @@ export type CockpitCardDetailsProps = {
   /** Leaves the confirm state without sending. */
   onCancelConfirm?: () => void;
   /**
+   * The card's current shown reading — the option, or the person's own reply — which is the SAME
+   * reading the card row draws. Absent falls back to the provider's suggested option, exactly what
+   * the controller stores on its first read, so a standalone drawer highlights the row the list
+   * would.
+   */
+  shown?: CockpitCardShown;
+  /** The person's own-reply draft; the SAME draft the card row shows, never a second copy. */
+  ownReply?: string;
+  /** Chooses one option — the command the card row's dropdown issues, so both stay in sync. */
+  onShowOption?: (optionId: string) => void;
+  /** Chooses the person's own reply — the dropdown's last row issues the same command. */
+  onShowOwnReply?: () => void;
+  /** Writes the own-reply draft; absent draws no editor. */
+  onOwnReplyChange?: (text: string) => void;
+  /**
    * The PC column's conversation link: open the conversation on the LEFT (in place of the
    * anchor's default full-page navigation) so the column decides whether it must also collapse.
    * Absent keeps the page variant's plain link.
@@ -96,6 +114,24 @@ export type CockpitCardDetailsProps = {
 
 /** How far a downward swipe on the drawer's handle must travel before the sheet closes. */
 const DRAWER_CLOSE_SWIPE_PX = 60;
+
+/**
+ * The cockpit page owns the Enter key on `window` (it zooms the stage), and it calls
+ * `preventDefault()` there even when a button has focus — so a plain button's native Enter
+ * activation never fires inside the cockpit. The rows therefore activate themselves on
+ * Enter/Space and stop the event before it reaches the page handler: one press selects the row,
+ * it never also zooms the stage behind the drawer.
+ */
+function activateRowOnKey(
+  action: (() => void) | undefined,
+): (event: ReactKeyboardEvent<HTMLButtonElement>) => void {
+  return (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    action?.();
+  };
+}
 
 function waitingText(t: TFunction, now: number, waitingSince: string): string {
   const since = Date.parse(waitingSince);
@@ -144,6 +180,11 @@ export default function CockpitCardDetails({
   confirmOutcome = null,
   onConfirm,
   onCancelConfirm,
+  shown,
+  ownReply = '',
+  onShowOption,
+  onShowOwnReply,
+  onOwnReplyChange,
   onOpenConversation,
   openedInSession = false,
   currentSessionId = null,
@@ -162,6 +203,18 @@ export default function CockpitCardDetails({
   // The digest's verbatim fragment wins; older cards (or providers that state only the restated
   // question) fall back to the quoted phrase inside `situation`/`ask`.
   const assistantQuote = drawer ? (card.assistantQuote ?? cockpitAssistantQuote(card)) : null;
+  // The option rows read the SAME shown reading the card row draws. A drawer rendered without
+  // one (a unit fixture, an older caller) falls back to the provider's suggested option — what
+  // the controller stores on its first read — so the highlighted row always matches the list.
+  const shownReading = shown ?? defaultShownOption(card) ?? undefined;
+  const shownOptionId = shownReading?.kind === 'option' ? shownReading.optionId : null;
+  const showingOwnReply = shownReading?.kind === 'ownReply';
+  // The controller's own guard: a card with no own-reply executor would produce a confirmation
+  // the server refuses, so its row is only drawn where selecting it can send.
+  const ownReplyAvailable = card.ownReply !== undefined && onShowOwnReply !== undefined;
+  // A card awaiting a feedback receipt has already run its action; the list locks the options
+  // and so does the drawer — the two read one card, so they must lock together.
+  const optionsLocked = card.feedback !== undefined;
   // The server projection fills `conversation` from the subject; the fallback keeps the link
   // for a card read before that projection ran (and for a criterion that states only the subject).
   // A provider that states `conversation` itself stays authoritative: the subject is only used
@@ -358,48 +411,110 @@ export default function CockpitCardDetails({
         </Section>
       )}
 
-      {card.options.length > 0 && (
+      {(card.options.length > 0 || ownReplyAvailable) && (
         <Section title={t('cockpit.cardDetailsOptions')}>
+          {/*
+            EVERY ROW IS ONE PRESS TARGET. The whole row is a button (not a radio: the person's
+            choice is a reading, and the drawer shows it as a highlighted frame). `aria-pressed`
+            states the selection for assistive technology, `border-primary` + a ring is the main
+            signal, and the faint `bg-primary/5` only supports it. The last row is always the
+            person's own reply, carrying the same state and expanding the shared draft editor.
+          */}
           <ul className="space-y-1.5" data-testid="cockpit-card-details-options">
-            {card.options.map((option) => (
-              <li key={option.id} className="rounded-md border border-border px-2 py-1.5">
-                <p className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-foreground">
-                  <span>{option.label}</span>
-                  {option.suggested && (
-                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                      {t('cockpit.cardSuggested')}
+            {card.options.map((option) => {
+              const isShown = shownOptionId === option.id;
+              return (
+                <li key={option.id}>
+                  <button
+                    type="button"
+                    data-testid={`cockpit-card-details-option-${option.id}`}
+                    data-selected={isShown ? 'true' : 'false'}
+                    aria-pressed={isShown}
+                    disabled={optionsLocked}
+                    onClick={optionsLocked ? undefined : () => onShowOption?.(option.id)}
+                    onKeyDown={activateRowOnKey(
+                      optionsLocked ? undefined : () => onShowOption?.(option.id),
+                    )}
+                    className={cn(
+                      'block w-full rounded-md border px-2 py-1.5 text-left transition-colors',
+                      'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                      isShown ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : 'border-border',
+                      optionsLocked && 'cursor-default opacity-70',
+                    )}
+                  >
+                    <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-foreground">
+                      <span>{option.label}</span>
+                      {option.suggested && (
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                          {t('cockpit.cardSuggested')}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{option.does}</p>
-                {option.why !== undefined && (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{option.why}</p>
-                )}
-                {option.warn !== undefined && (
-                  <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-300">⚠ {option.warn}</p>
-                )}
-                {(option.tags ?? []).length > 0 && (
-                  <p className="mt-1 flex flex-wrap gap-1">
-                    {(option.tags ?? []).map((tag) => (
-                      <span
-                        key={`${tag.kind}:${tag.text}`}
-                        className={cn(
-                          'rounded-full px-1.5 py-0.5 text-[10px]',
-                          tag.kind === 'warn'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-                            : 'bg-muted text-muted-foreground',
-                        )}
-                      >
-                        {tag.text}
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.does}</span>
+                    {option.why !== undefined && (
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.why}</span>
+                    )}
+                    {option.warn !== undefined && (
+                      <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">⚠ {option.warn}</span>
+                    )}
+                    {(option.tags ?? []).length > 0 && (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {(option.tags ?? []).map((tag) => (
+                          <span
+                            key={`${tag.kind}:${tag.text}`}
+                            className={cn(
+                              'rounded-full px-1.5 py-0.5 text-[10px]',
+                              tag.kind === 'warn'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                                : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {tag.text}
+                          </span>
+                        ))}
                       </span>
-                    ))}
-                  </p>
-                )}
-                {option.undo !== undefined && (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{option.undo}</p>
+                    )}
+                    {option.undo !== undefined && (
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+            {ownReplyAvailable && (
+              <li>
+                <button
+                  type="button"
+                  data-testid="cockpit-card-details-own-reply"
+                  data-selected={showingOwnReply ? 'true' : 'false'}
+                  aria-pressed={showingOwnReply}
+                  disabled={optionsLocked}
+                  onClick={optionsLocked ? undefined : onShowOwnReply}
+                  onKeyDown={activateRowOnKey(optionsLocked ? undefined : onShowOwnReply)}
+                  className={cn(
+                    'block w-full rounded-md border border-dashed px-2 py-1.5 text-left text-xs font-medium text-foreground transition-colors',
+                    'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                    showingOwnReply
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
+                      : 'border-border',
+                    optionsLocked && 'cursor-default opacity-70',
+                  )}
+                >
+                  <span aria-hidden>✎ </span>
+                  {t('cockpit.cardWriteOwn')}
+                </button>
+                {/* The SAME draft the card row edits; selecting the row is the only way in. */}
+                {showingOwnReply && !optionsLocked && onOwnReplyChange !== undefined && (
+                  <OwnReplyEditor
+                    testId="cockpit-card-details-own-reply-input"
+                    value={ownReply}
+                    onChange={onOwnReplyChange}
+                    ariaLabel={t('cockpit.cardWriteOwn')}
+                    placeholder={t('cockpit.cardOwnReplyPlaceholder')}
+                  />
                 )}
               </li>
-            ))}
+            )}
           </ul>
         </Section>
       )}
@@ -457,7 +572,13 @@ export default function CockpitCardDetails({
           testId="cockpit-card-details-confirm"
           cardId={card.id}
           target={target}
-          idleLabel={t('cockpit.cardConfirm', { label: target.label })}
+          idleLabel={
+            showingOwnReply
+              ? target.label === ''
+                ? t('cockpit.cardConfirmNoOption')
+                : t('cockpit.cardConfirmOwnReply')
+              : t('cockpit.cardConfirm', { label: target.label })
+          }
           pending={confirmPending}
           countdown={sendCountdown}
           confirming={confirming}

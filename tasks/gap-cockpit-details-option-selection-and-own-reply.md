@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-details-option-selection-and-own-reply
 title: 详情里可选选项与写自己的回复：整行可点、悬停反馈、选中用高亮（边框为主、淡底辅助，不用 radio）
-status: ready
+status: done
 labels:
   - gap
   - cockpit
