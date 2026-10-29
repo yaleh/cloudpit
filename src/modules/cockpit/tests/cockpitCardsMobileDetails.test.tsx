@@ -258,6 +258,12 @@ const BRIEF_GENERATED: CockpitBriefResponse = {
   headline: 'Deleting staging is the low-risk step.',
 };
 
+/** A read that produced no brief because this card has nothing a brief can be written about. */
+const BRIEF_UNSUPPORTED: CockpitBriefResponse = {
+  ...BRIEF_DISABLED,
+  reason: 'unsupported-content',
+};
+
 const okResponse = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
 function renderCockpit(initialPath: string) {
@@ -356,6 +362,20 @@ describe('the phone Details sheet', () => {
     const bar = screen.getByTestId('cockpit-card-details-confirm');
     expect(bar.textContent?.trim()).toBe('Confirm');
     expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
+  });
+
+  it('scrolls the reading above a confirm bar that is not inside the scroller', async () => {
+    await openPhoneDetails();
+
+    const scroll = screen.getByTestId('cockpit-card-details-scroll');
+    const bar = screen.getByTestId('cockpit-card-details-confirm-bar');
+    // The defect was the bar being the scroller's LAST CHILD: its height covered the closing rows
+    // (the last option, the conversation link). Two regions, siblings in the drawer's column.
+    expect(scroll.contains(bar)).toBe(false);
+    expect(bar.closest('[data-testid="cockpit-card-details-scroll"]')).toBeNull();
+    expect(bar.parentElement?.parentElement?.getAttribute('data-testid')).toBe(
+      'cockpit-card-details-footer',
+    );
   });
 
   it('closes when the drag handle is swiped down', async () => {
@@ -540,6 +560,39 @@ describe('the brief section', () => {
     expect(within(section).getByTestId('cockpit-brief').getAttribute('data-brief-status')).toBe(
       'generated',
     );
+  });
+});
+
+describe('the wide-screen reading', () => {
+  it('caps the Details inner container at max-w-3xl and centres it at a PC width', async () => {
+    restoreViewport = setViewportWidth(1600);
+    renderCockpit('/cockpit?view=cards');
+    const card = await screen.findByTestId('cockpit-card-fixture:ask');
+    fireEvent.click(within(card).getByTestId('cockpit-card-zone-a'));
+    await screen.findByTestId('cockpit-card-details');
+
+    // PC draws the floating centred card, not the phone sheet.
+    expect(screen.getByTestId('cockpit-card-details').getAttribute('data-drawer')).toBe('false');
+    const inner = screen.getByTestId('cockpit-card-details-inner');
+    expect(inner.className).toContain('max-w-3xl');
+    expect(inner.className).toContain('mx-auto');
+  });
+
+  it('hides the whole BRIEF section when the read produced no brief', async () => {
+    apiMock.cockpitCardBrief.mockResolvedValue(okResponse(BRIEF_UNSUPPORTED));
+    await openPhoneDetails();
+    await waitFor(() => expect(apiMock.cockpitCardBrief).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Not the heading, not 「No model brief」, and not the developer-facing reason the live page
+    // leaked (`unsupported-content` is a judgement about the card, not a reading for the person).
+    expect(screen.queryByTestId('cockpit-card-details-brief')).toBeNull();
+    expect(screen.queryByText('Brief')).toBeNull();
+    expect(screen.queryByText('No model brief for this card.')).toBeNull();
+    expect(screen.queryByTestId('cockpit-brief-fallback')).toBeNull();
+    expect(screen.queryByText(i18n.t('cockpit.briefReasonUnsupportedContent'))).toBeNull();
   });
 });
 

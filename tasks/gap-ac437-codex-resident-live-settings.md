@@ -2,7 +2,7 @@
 id: gap-ac437-codex-resident-live-settings
 title: AC-437 Codex 常驻：thread/settings/update 实时生效（idle/active，pid
   不变）、turn/settings/update 按 step_model_switching 探测 fail-closed 拒绝
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -150,6 +150,20 @@ goal_ac: AC-437
 
   同轮打印 `idlePidBefore=730437 idlePidAfter=730438`。
 
+**本轮补丁（exited-not-landed 续跑，2026-10-29）**
+
+- 上一轮 fan-in 的 suite 红在 `server/shared/tests/server-import-cycle-budget.test.ts`：`(b)` 报 `modules/providers/list/codex` 加入了 providers SCC（actual 四成员 vs expected 三成员），`(g)` 同因报 `unmodified tree violations`。真因在本条代码：`codex-host-driver.provider.ts` 以 `import type` 从 `modules/providers/services/provider-runtime.service.ts` 取 `HostReconfigureOutcome`，而该 service 已静态 import `list/codex/codex-transcript-format.ts`，于是闭合了 `list/codex → providers/services → list/codex` 的新目录环（AC-394 的扫描包含 `import type`）。
+- 修法（不抬 baseline、不改 baseline JSON）：把结构相同的 `HostReconfigureOutcome = 'live' | 'next-turn' | 'unsupported'` 就近声明在 `codex-live-settings.ts`，driver 从同目录 sibling 引入；`provider-runtime.service.ts` 零改动，AC12 禁改清单 grep 仍为空。union 是结构类型，driver 的返回值仍满足 service 自己的 alias（typecheck 0 佐证）。
+- 重跑读数（merge develop 后）：`server-import-cycle-budget.test.ts` → exit **0**，`pass 11` / `fail 0`，`(b)` 两读数一致、`(g) unmodified tree violations: []`；`codex-host-driver-settings.test.ts` → exit **0**，`pass 6` / `fail 0`；`codex-host-driver-persistent.test.ts` → exit **0**，`pass 5`；`codex-runtime.test.ts` → exit **0**，`pass 12`；`npm run typecheck` → exit **0**；`npx oxlint` 两个改动文件 → 无输出。
+- anti-drift（merge develop 后）：`ANTI-DRIFT OK: task gap-ac437-codex-resident-live-settings — 5 actual file(s), all within declared Touches (6 glob(s))`（实际文件集不变，仍 5 个）。
+
+**本轮续跑（fan-in merge 冲突解决，2026-10-29 第三轮）**
+
+- 上一轮 fan-in 失败在 `step=merge-develop`：`scripts/suite-duration-baseline.tsv` 与 `server/shared/tests/quay-test-script.test.ts` 双侧都新增了判据行/注释，`git merge` 内容冲突（冲突留在 worktree，未提交）。
+- 解决（语义 union，不丢任何一侧）：tsv 同时保留本任务 `2684 codex-host-driver-settings.test.ts` 行与 AC-440 的 `2755 codex-app-server-protocol.test.ts` 行；`quay-test-script.test.ts` 两处 pin 按合并后收集数 468 重算 —— `known=3 unknown=464→465`、`known=1 unknown=466→467`，注释按两条任务依次追加（466→467→468）。
+- 重跑读数（本 worktree，已 merge goal/GOAL-051 与 develop：`8c77865ff`、`362f6b47c`）：`server-import-cycle-budget.test.ts` → exit **0**，`pass 11` / `fail 0`，SCC 仍为 `providers, providers/list/claude, providers/services` 三成员、`list/codex` 不在环内（上一轮的真因修复仍有效）；`codex-host-driver-settings.test.ts` → exit **0**，`pass 6` / `fail 0`；`codex-host-driver-persistent.test.ts` → exit **0**，`pass 5`；`codex-runtime.test.ts` → exit **0**，`pass 12`；`quay-test-script.test.ts` → exit **0**，`pass 14` / `fail 0`；`npm run typecheck` → exit **0**。
+- anti-drift（`--merge-target goal/GOAL-051`）：`ANTI-DRIFT OK: task gap-ac437-codex-resident-live-settings — 5 actual file(s), all within declared Touches (6 glob(s))`。
+
 **范围（AC12）**
 
 - 本任务自有改动集（anti-drift 的 actual-files 口径）：`git log --format= --name-only HEAD --not goal/GOAL-051 develop` 去空行去重后恰为 5 个文件：`codex-host-driver.provider.ts`、`codex-live-settings.ts`、`codex-host-driver-settings.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`；`tasks/gap-ac437-codex-resident-live-settings.md` 由 task_write 单独提交（该提交已进入 develop，故不在上面的差集里，但已声明在 Touches）。
@@ -157,6 +171,7 @@ goal_ac: AC-437
 - ⚠️ 两次 `git merge develop` 会把 develop 的提交带进本分支，所以 `git diff --name-only e5fdb309c..HEAD` / `git diff --name-only develop...HEAD` 都会混入他人的文件；前者在 merge 前的读数是 5 个文件，merge 后不再是本任务写入的读数。AC12 字面的 `develop...HEAD` 在 goal 分支任务上还会含 goal 分支继承的 AC-435/439 基线文件（`codex-app-server.connection.ts`、`codex-host-driver-persistent.test.ts` 等）——anti-drift 工具把这条差集称为 mainline divergence，不是本任务写入（与 AC-439 完成记录同一读数）。
 - 禁改清单在本任务自有改动集上 grep 为空：`codex.provider.ts`、`provider-capabilities.service.ts`、`provider-runtime.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts`、`codex-app-server.connection.ts` 均未被本任务改动（`grep` exit 1，无输出）。
 - server 文件计数：新增判据文件把收集数 466→467；`server/shared/tests/quay-test-script.test.ts` 的 pin 移 `known=3 unknown=463→464`、`known=1 unknown=465→466`；`scripts/suite-duration-baseline.tsv` 追加本判据实测行（2684ms），覆盖率 421/467 = 90.15% ≥ 90%。
+- 本轮第二次 merge 后（AC-440 判据行同树）：collected=468，pin 更新为 `known=3 unknown=465`、`known=1 unknown=467`；baseline 数据行 422/468 = 90.17% ≥ 90%。
 
 **未实现项（非目标）**
 
@@ -175,11 +190,3 @@ goal_ac: AC-437
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-ac437-codex-resident-live-settings.md
-
-## Blocker
-
-**2026-10-29T11:53:12.860Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：1555f4ab-aeab-4fbf-bffa-9a6880d1fb28

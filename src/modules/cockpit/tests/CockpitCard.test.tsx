@@ -368,6 +368,26 @@ describe('the header row: kind mark, project, subject name, age and load', () =>
   });
 });
 
+describe('the age reading is one format in both places', () => {
+  it('renders the list chip’s exact age string in the Details header', () => {
+    // 11.2h before NOW: the list rounds to one decimal (`11.2h`), while the Details header used
+    // the observation wall's coarse `11 h ago`. Same card and same `waitingSince`, so the two
+    // readings of one wait must be the same string.
+    const aged: CockpitCardData = { ...CARD, waitingSince: '2026-10-26T12:58:00.000Z' };
+    renderCard({ card: aged });
+    const listAge = screen.getByTestId('cockpit-card-age').textContent;
+    expect(listAge).toBe('11.2h');
+
+    cleanup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails card={aged} now={NOW} onClose={() => undefined} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId('cockpit-card-details-age').textContent).toBe(`waiting ${listAge}`);
+  });
+});
+
 describe('facts and the small visualization', () => {
   it('marks a mechanical fact with ● and a judgement fact with ○', () => {
     renderCard();

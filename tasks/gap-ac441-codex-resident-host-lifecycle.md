@@ -86,10 +86,13 @@ goal_ac: AC-441
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts (modify: turn lease、host port、startResidentSession、冷启动 run、原因读数)
+- server/modules/providers/list/codex/codex-host-driver.contract.ts (new: driver 的公开类型契约与协议读数；把 provider 从 853 行降到 737 行以过 architecture-ratchet 的 800 行 oversize 上限，provider 原样 re-export 同一表面)
 - server/modules/providers/list/codex/codex.provider.ts (modify: 挂载 hostDriver)
 - server/modules/providers/index.ts (modify: 导出 CodexHostDriver / CodexAppServerConnection 及两个类型，供跨模块判据经 barrel 访问)
 - server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts (new)
 - server/modules/session-hosts/tests/lifecycle-mode.test.ts (modify: per-run-only 夹具改为「codex 已挂驱动但未声明 resident」，cursor/opencode 仍无驱动)
+- scripts/suite-duration-baseline.tsv (modify: 新判据的耗时行 6229ms，保住 AC7 的 90% 覆盖下限)
+- server/shared/tests/quay-test-script.test.ts (modify: 新增一个 server 判据文件后收集数 467→468，dispatch 计数钉 464→465 / 466→467)
 - tasks/gap-ac441-codex-resident-host-lifecycle.md
 
 ## 完成记录
@@ -139,3 +142,21 @@ provider=codex hostDriver=CodexHostDriver multiplexedHost=false
 **未实现项（如实登记）**：capabilities / `lifecycleModes`（AC-442）；queue / settings / approvals / background lease / 协议门控（AC-436…AC-440）；E2E（AC-443）。`multiplexedHost` 仍为 false，`interrupt` 仍只发 `turn/interrupt`。
 
 **ADR-007 暗轴**：该轴仍暗,理由:后端宿主层接线任务，无前端布局(L_D)或图形(L_G)面的可观测改动。
+
+**第二轮（沿用 exited-not-landed 的工作树，修复上一轮 suite 红；提交 `81b85f0c1`）**
+
+上一轮 fan-in 的 suite 红只有两条，都是本条新增文件触发的机械棘轮，不是行为回归：
+
+1. `server/shared/tests/architecture-ratchet.test.ts` — `ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→853 — 基线外的文件不得超过 800 行`。基线外文件不能靠 RECORDED CHANGE 抬限（判据对基线外文件硬性 800），所以按关切拆分：把 driver 的公开类型（`CodexTurnStatus` / `CodexResidentSessionReading` / `CodexThreadDefaults` / `CodexResidentHostPort` / `CodexHostDriverOptions` / `CodexBackgroundProcessSpec`）、内部会话状态类型与协议读数（`readThreadId` / `readTurnId` / `normalizeTurnStatus` / `threadDefaultsFromLaunchOptions`）原样移到同目录新文件 `codex-host-driver.contract.ts`（157 行），provider 由 853 → **737** 行，并以 `export type { … } from './codex-host-driver.contract.js'` 原样 re-export 同一表面（`server/modules/providers/index.ts`、`codex.provider.ts` 与三条兄弟判据无需改动）。纯移动，无行为变化。
+2. `server/shared/tests/quay-test-script.test.ts` — 新增 `server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts` 后收集数 468，而分支上的计数钉仍是 467（`unknown=464` / `unknown=466`），且 AC7 的耗时基线覆盖 421/468 < 90%。修复：计数钉改为 `468 - 3 = 465` 与 `468 - 1 = 467`（注释里补上本条的条目），`scripts/suite-duration-baseline.tsv` 追加本判据行 `6229ms`（2026-10-29 两次热跑 6229/6457ms，原命令见行上注释），覆盖变为 422/468 = **90.17%**。两个文件都是「新增 server 判据文件必须同步」的既有惯例，已补登进 `## Touches`。
+
+复跑读数（均在本工作树、按原命令单文件跑）：`architecture-ratchet.test.ts` 6 pass / 0 fail（exit 0，oversizeFiles 不再报本条文件）；`quay-test-script.test.ts` 14 pass / 0 fail（exit 0，含 AC2/AC3/AC7）；`server-import-cycle-budget.test.ts` 11 pass、`resident-legacy-path-ratchet.test.ts` 4 pass；依赖本 driver 的判据 codex-host-driver-persistent 5、codex-resident-background-leases 8、codex-app-server-protocol 7、codex-resident-lifecycle 9、lifecycle-mode 9、session-host-lifecycle 7、resident-host-service 5、resident-ondemand-start-route 4、resident-restore.service 5、codex-runtime 12，全部 exit 0；`npm run typecheck` exit 0；`npx oxlint server/` exit 0（仅既有 warning）。
+
+## Blocker
+
+**2026-10-29T12:38:11.968Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→853 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：751728e2-b450-49a0-a6cc-7b3b2a3755ab
+- 已在本轮的第二轮修复（见上）：provider 拆分至 737 行、计数钉与耗时基线同步 468；两条判据单文件复跑均已 exit 0。

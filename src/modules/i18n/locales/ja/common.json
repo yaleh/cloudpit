@@ -1034,6 +1034,7 @@
     "cardFeedbackKept": "fleet は受け取り、項目を開いたままにしました",
     "cardFeedbackRejected": "fleet はこのフィードバックを拒否しました：{{reason}}",
     "cardAwaitingFeedback": "{{total}} 件中 {{awaiting}} 件が fleet の確認待ち",
+    "cardCountSummary": "{{needsYou}} 件があなたを待っています · {{waiting}} 件が fleet の確認待ち · {{answered}} 件は回答済みで未クローズ",
     "cardStartConversationEcho": "{{project}} の会話開始の意図を記録しました（開始は今後のタスクで提供されます）。",
     "cardDetailsTitle": "詳細",
     "cardDetailsClose": "閉じる",
