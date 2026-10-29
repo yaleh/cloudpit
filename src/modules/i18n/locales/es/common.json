@@ -946,6 +946,8 @@
     "counterVoiceSeen": "Contra-voz revisada",
     "counterVoiceSeenMarker": "(contra-voz revisada)",
     "cardsView": "Tarjetas",
+    "overlayBack": "Volver a la sesión",
+    "overlayBackToSession": "Volver a la sesión: {{title}}",
     "columnTitle": "Cockpit",
     "columnExpand": "Abrir la columna del cockpit",
     "columnCollapse": "Cerrar la columna del cockpit",
