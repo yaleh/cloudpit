@@ -158,3 +158,11 @@ goal_ac: AC-442
 **未实现项（按设计不在本条）。** 驱动挂载属 AC-441（已落地，本条只声明并用判据钉住）；queue / settings / approvals / background lease 属 AC-436…AC-439；E2E 属 AC-443。`codex.provider.ts` / `codex-host-driver.provider.ts` / `sessions.service.ts` / `session-host-manager.service.ts` / `shared/types.ts` 零改动。
 
 该轴仍暗,理由:本任务只改 capability 声明与判据文件，未触及模块依赖边，未运行 archguard 读数
+
+## Blocker
+
+**2026-10-29T14:20:05.361Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts:   AssertionError [ERR_ASSERTION]: the false form must flip exactly one field assignment in provider-capabilities.service.ts, found 2 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts,server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：9f7e2751-6874-4237-ae90-509b338c8474
