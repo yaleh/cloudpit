@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-stable-option-identity
 title: 选项身份稳定：id 由标签派生、卡片带 contentRevision、已发出但选项已变时标明并禁用重发
-status: ready
+status: done
 labels:
   - gap
   - cockpit
