@@ -93,8 +93,8 @@ extra: {}
 
 ## Blocker
 
-**2026-10-29T05:15:18.495Z — worker 未落地（exited-not-landed）**
+**2026-10-29T06:04:42.748Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/modules/providers/tests/skills.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/modules/providers/tests/skills.test.ts]
+- 未落地原因：step=suite: not ok - server/modules/voice/tests/voice-capture-audio.false-forms.test.ts:   AssertionError [ERR_ASSERTION]: the unmutated copy must clear the whole list before the mutation means anything; it red at AC7 default directory beside the database [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/voice/tests/voice-capture-audio.false-forms.test.ts,server/modules/providers/tests/claude-session-name-authority.test.ts,server/modules/voice/tests/voice-capture-audio.test.ts,server/modules/voice/tests/voice-capture-audio.false-forms.test.ts,server/modules/providers/tests/claude-session-name-authority.test.ts,server/modules/voice/tests/voice-capture-audio.test.ts changed=-]
 - run_id：wk-prod-anchor
-- session_id：8535f72d-5e23-483e-934b-639af1568d84
+- session_id：b8a8978f-45ea-4491-9efd-a98ffbd5ee0c
