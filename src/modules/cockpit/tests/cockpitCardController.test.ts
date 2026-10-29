@@ -9,6 +9,14 @@ import {
   createCockpitCardController,
   defaultShownOption,
 } from '@/modules/cockpit/cockpitCardController';
+import {
+  dismissTargetsOf,
+  projectCountsOf,
+  projectsOf,
+  targetsOf,
+  typeCountsOf,
+  visibleCardsOf,
+} from '@/modules/cockpit/cockpitCardDerived';
 import { createCockpitCardsDefaultOnEvent } from '@/modules/cockpit/hooks/useCockpitCards';
 import type {
   CockpitCardConfirmRequest,
@@ -1377,5 +1385,62 @@ describe('the card-level 「忽略/丢弃」 target', () => {
 
     expect(h.snapshot().dismissTargets).toEqual({});
     expect(h.controller.requestDismiss('c1')).toBe(false);
+  });
+});
+
+/**
+ * The extracted derivations and the controller's public snapshot must agree on the same input.
+ *
+ * The controller is what decides WHICH cards a derivation runs on (the fold and filter rules), so
+ * this block feeds the snapshot's own `cards` back into the selectors and states equality. A
+ * drift on either side — a selector changed alone, or `normalize` computing a value its own way —
+ * lands here rather than in the UI.
+ */
+describe('the controller publishes exactly the extracted selectors’ readings', () => {
+  const CARDS = [
+    card('a', { kind: 'ask', subject: { uri: 'u/a', project: 'p1' } }),
+    card('b', { kind: 'need', subject: { uri: 'u/b', project: 'p2' } }),
+    card('c', { kind: 'fix', subject: { uri: 'u/c', project: 'p1' } }),
+  ];
+
+  function expectSameDerivations(snapshot: CockpitCardControllerSnapshot): void {
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(
+      visibleCardsOf(snapshot.cards, snapshot.typeFilter, snapshot.projectFilters).map(
+        (entry) => entry.id,
+      ),
+    );
+    expect(snapshot.typeCounts).toEqual(typeCountsOf(snapshot.cards, snapshot.projectFilters));
+    expect(snapshot.projectCounts).toEqual(
+      projectCountsOf(snapshot.cards, snapshot.typeFilter),
+    );
+    expect(snapshot.projects).toEqual(projectsOf(snapshot.cards));
+    expect(snapshot.targets).toEqual(
+      targetsOf(snapshot.cards, snapshot.shown, snapshot.ownReplies),
+    );
+    // A card the person has not replied to shows exactly what `defaultShownOption` names.
+    for (const entry of snapshot.cards) {
+      expect(snapshot.shown[entry.id]).toEqual(defaultShownOption(entry) ?? undefined);
+    }
+  }
+
+  it('agrees on the list, the counts, the projects and the targets', async () => {
+    const h = harness(CARDS, { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    expectSameDerivations(h.snapshot());
+    expect(h.snapshot().dismissTargets).toEqual(dismissTargetsOf(h.snapshot().cards));
+  });
+
+  it('agrees after the type filter and the project filter move', async () => {
+    const h = harness(CARDS, { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    h.controller.setTypeFilter('need');
+    expectSameDerivations(h.snapshot());
+
+    h.controller.setTypeFilter('all');
+    h.controller.toggleProjectFilter('p1');
+    expectSameDerivations(h.snapshot());
+    expect(h.snapshot().visibleCards.map((entry) => entry.id)).toEqual(['a', 'c']);
   });
 });
