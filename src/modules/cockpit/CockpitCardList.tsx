@@ -232,6 +232,11 @@ function CockpitCardListBound({
             brief={snapshot.briefs[detailsCard.id]}
             onRetryBrief={() => controller.loadBrief(detailsCard.id)}
             onClose={closeDetails}
+            shown={snapshot.shown[detailsCard.id]}
+            ownReply={snapshot.ownReplies[detailsCard.id] ?? ''}
+            onShowOption={(optionId: string) => controller.showOption(detailsCard.id, optionId)}
+            onShowOwnReply={() => controller.showOwnReply(detailsCard.id)}
+            onOwnReplyChange={(text: string) => controller.setOwnReply(detailsCard.id, text)}
             target={snapshot.targets[detailsCard.id] ?? null}
             onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
             confirmPending={pendingCardId === detailsCard.id}
@@ -501,6 +506,11 @@ function CockpitCardListBound({
                 brief={snapshot.briefs[detailsCard.id]}
                 onRetryBrief={() => controller.loadBrief(detailsCard.id)}
                 onClose={() => controller.closeDetails()}
+                shown={snapshot.shown[detailsCard.id]}
+                ownReply={snapshot.ownReplies[detailsCard.id] ?? ''}
+                onShowOption={(optionId: string) => controller.showOption(detailsCard.id, optionId)}
+                onShowOwnReply={() => controller.showOwnReply(detailsCard.id)}
+                onOwnReplyChange={(text: string) => controller.setOwnReply(detailsCard.id, text)}
                 target={snapshot.targets[detailsCard.id] ?? null}
                 onRequestConfirm={() => controller.requestConfirm(detailsCard.id)}
                 confirmPending={pendingCardId === detailsCard.id}

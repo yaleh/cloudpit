@@ -152,19 +152,22 @@ function ShownOptionExplanation({ option }: { option: CockpitCardOption }) {
 }
 
 /**
- * The own-reply editor: the last item of the dropdown and the card body's form when shown.
+ * The own-reply editor: the last item of the dropdown, the card body's form when shown, and the
+ * Details drawer's last option row.
  *
  * ONE HEADING PER EDITOR. The dropdown's last item already heads the reply with 「Write your
  * own」 and its radio circle, so the editor inside it draws `ariaLabel` only; the card body, which
  * has no such heading, draws the visible `label`. Either way the textarea's accessible name is the
- * same string.
+ * same string. Consumers: `CockpitCard` (the dropdown and the body form) and `CockpitCardDetails`
+ * (the drawer's own-reply row).
  */
-function OwnReplyEditor({
+export function OwnReplyEditor({
   value,
   onChange,
   placeholder,
   label,
   ariaLabel,
+  testId = 'cockpit-card-own-reply-input',
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -172,6 +175,8 @@ function OwnReplyEditor({
   /** The visible heading; omitted where a sibling already heads the reply. */
   label?: string;
   ariaLabel: string;
+  /** The reading hook. The drawer names its own copy so both editors can coexist on the page. */
+  testId?: string;
 }) {
   return (
     <div className="mt-1.5">
@@ -180,7 +185,7 @@ function OwnReplyEditor({
           <span className="text-[11px] font-medium text-foreground">{label}</span>
         )}
         <textarea
-          data-testid="cockpit-card-own-reply-input"
+          data-testid={testId}
           aria-label={ariaLabel}
           value={value}
           placeholder={placeholder}
