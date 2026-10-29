@@ -12,7 +12,7 @@ children: []
 extra:
   schema: execution
 depends_on:
-  - gap-cockpit-ask-detector-last-paragraph
+  - gap-cockpit-ask-semantic-gate
 ---
 ## Proposal
 
