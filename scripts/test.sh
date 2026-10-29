@@ -98,13 +98,32 @@ unset _host_env_name
 # inherits ONE clean root (children must keep sharing a single TMPDIR within a run). ⛔ Keep it
 # outside the repo: server/tsconfig includes repo scratch, and an untracked dir would dirty the
 # worktree. No qualifying base => TMPDIR untouched (fail-open, previous behaviour).
+# ⛔ A run's scratch tree must also not sit UNDER $HOME: pre-existing criteria assert exactly that
+# (voice-capture-audio "AC7 default directory beside the database" measures
+# `!isUnder(os.homedir(), arm.dir)`), and on this host the checkout sits under the person's home, so
+# choosing `dirname "$ROOT_DIR"` put every fixture there and red that criterion deterministically.
+# Automatic bases under $HOME are skipped; an explicitly pinned QUAY_SUITE_TMPDIR_BASE is honoured.
 # QUAY_SUITE_TMPDIR_BASE is the test seam (pin the base, or an empty/non-writable value to skip).
+_suite_tmp_home="$(cd "${HOME:-/}" 2>/dev/null && pwd -P)" || _suite_tmp_home=""
+_suite_tmp_candidates=()
+_suite_tmp_seam=0
+if [ -n "${QUAY_SUITE_TMPDIR_BASE:-}" ]; then
+  _suite_tmp_candidates+=("$QUAY_SUITE_TMPDIR_BASE")
+  _suite_tmp_seam=1
+fi
+_suite_tmp_candidates+=("$(dirname "$ROOT_DIR")" /var/tmp /dev/shm)
 SUITE_TMP_ROOT=""
-for _suite_tmp_base in \
-  ${QUAY_SUITE_TMPDIR_BASE:+"$QUAY_SUITE_TMPDIR_BASE"} \
-  "$(dirname "$ROOT_DIR")" /var/tmp /dev/shm; do
+_suite_tmp_index=0
+for _suite_tmp_base in "${_suite_tmp_candidates[@]}"; do
+  _suite_tmp_index=$((_suite_tmp_index + 1))
   [ -d "$_suite_tmp_base" ] && [ -w "$_suite_tmp_base" ] || continue
   _suite_tmp_probe="$(cd "$_suite_tmp_base" && pwd -P)" || continue
+  # Candidate 1 is the explicit seam when one was supplied; every other candidate is automatic.
+  if [ "$_suite_tmp_seam" = 1 ] && [ "$_suite_tmp_index" = 1 ]; then
+    :
+  elif [ -n "$_suite_tmp_home" ]; then
+    case "$_suite_tmp_probe/" in "$_suite_tmp_home"/*) continue ;; esac
+  fi
   _suite_tmp_clean=1
   while :; do
     if [ -e "$_suite_tmp_probe/.git" ]; then _suite_tmp_clean=0; break; fi
@@ -113,11 +132,17 @@ for _suite_tmp_base in \
     _suite_tmp_probe="$_suite_tmp_parent"
   done
   if [ "$_suite_tmp_clean" = 1 ]; then
-    SUITE_TMP_ROOT="$(mktemp -d "$_suite_tmp_base/quay-suite-tmp.XXXXXX")" || SUITE_TMP_ROOT=""
+    # ⛔ DASHES ONLY, no `.`: Claude's SDK names a project bucket by sanitising the cwd, while
+    # claude-session-name-authority's fixture only swaps `/` for `-`. A dot in the temp root makes
+    # the two names disagree, so the SDK cannot find a transcript the fixture wrote and the rename
+    # is refused ("Session … not found in project directory"). Measured 2026-10-29: the dotted
+    # template red that file deterministically; `quay-suite-tmp-XXXXXX` keeps it green.
+    SUITE_TMP_ROOT="$(mktemp -d "$_suite_tmp_base/quay-suite-tmp-XXXXXX")" || SUITE_TMP_ROOT=""
     [ -n "$SUITE_TMP_ROOT" ] && break
   fi
 done
-unset _suite_tmp_base _suite_tmp_probe _suite_tmp_parent _suite_tmp_clean
+unset _suite_tmp_base _suite_tmp_probe _suite_tmp_parent _suite_tmp_clean \
+  _suite_tmp_home _suite_tmp_candidates _suite_tmp_seam _suite_tmp_index
 if [ -n "$SUITE_TMP_ROOT" ]; then
   TMPDIR="$SUITE_TMP_ROOT"; export TMPDIR
   # stderr only: stdout is the anchored `__PERFILE__` / dry-run contract face.
