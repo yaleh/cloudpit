@@ -568,7 +568,8 @@
       "sessionCreate": "Crea sessioni (cloudcli:session:create)",
       "sessionControl": "Controlla sessioni (cloudcli:session:control)",
       "approve": "Approva (cloudcli:approve)",
-      "navigate": "Apri una sessione in uno dei tuoi browser (cloudcli:navigate)"
+      "navigate": "Apri una sessione in uno dei tuoi browser (cloudcli:navigate)",
+      "cockpitAct": "Conferma le schede del cockpit: può inviare messaggi, avviare sessioni (che eseguono comandi) o applicare disposizioni della flotta (cloudcli:cockpit:act)"
     },
     "oauthTokens": {
       "title": "Avanzate: token OAuth (sola lettura)",

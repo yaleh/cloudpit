@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CockpitCard } from '@/shared/types';
 import {
+  cockpitCardContentIdentity,
   cockpitCardDuplicateGroups,
   cockpitCardQuestionOf,
   normalizeCockpitCardQuestion,
@@ -11,9 +12,10 @@ import {
  * Folding cards that ask the same question in the same session.
  *
  * The rule has three parts, and each is one case below: what makes two cards the same question
- * (the session and the normalized ask), which card stays (the latest surfacing), and what a group
- * of cards with no wording at all means (one session, one card that states the count). The
- * grouping is a pure function over a list, so there is no React and no clock in the loop.
+ * (the session and the normalized ask), which card stays (the latest surfacing), and how a card
+ * that states no wording is identified (its contentRef message id — same message folds, two
+ * message ids or no message id at all never fold). The grouping is a pure function over a list,
+ * so there is no React and no clock in the loop.
  */
 
 function card(id: string, overrides: Partial<CockpitCard> = {}): CockpitCard {
@@ -130,21 +132,82 @@ describe('the same question in the same session folds into one card', () => {
   });
 });
 
-describe('cards with no question at all fold by session', () => {
-  it('folds the same session’s empty cards into one group of three', () => {
+describe('a questionless card folds by its contentRef message, never by session alone', () => {
+  it('folds only the two cards that name the same message id', () => {
+    const groups = cockpitCardDuplicateGroups([
+      card('a', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgA' },
+        surfacedAt: '2026-10-27T00:00:01.000Z',
+      }),
+      card('b', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgA' },
+        surfacedAt: '2026-10-27T00:03:00.000Z',
+      }),
+      card('c', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgB' },
+        surfacedAt: '2026-10-27T00:02:00.000Z',
+      }),
+    ]);
+
+    // The two msgA cards are one ask; msgB is a different ask and stays its own card.
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      keep: 'b',
+      hidden: ['a'],
+      count: 2,
+      question: null,
+    });
+  });
+
+  it('does not fold two cards that name no message id, even in the same session', () => {
     const groups = cockpitCardDuplicateGroups([
       card('a', { ask: undefined, situation: undefined }),
       card('b', { ask: undefined, situation: undefined }),
-      card('c', { ask: undefined, situation: undefined }),
     ]);
 
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({
-      keep: 'a',
-      hidden: ['b', 'c'],
-      count: 3,
-      question: null,
-    });
+    expect(groups).toEqual([]);
+  });
+
+  it('does not fold cards whose ref names a session but no message id', () => {
+    const groups = cockpitCardDuplicateGroups([
+      card('a', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1' },
+      }),
+      card('b', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1' },
+      }),
+    ]);
+
+    expect(groups).toEqual([]);
+  });
+
+  it('does not fold the same message id across different sessions', () => {
+    const groups = cockpitCardDuplicateGroups([
+      card('a', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgA' },
+        subject: { uri: 'x', sessionId: 's1' },
+      }),
+      card('b', {
+        ask: undefined,
+        situation: undefined,
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's2#msgA' },
+        subject: { uri: 'y', sessionId: 's2' },
+      }),
+    ]);
+
+    expect(groups).toEqual([]);
   });
 
   it('does not fold an empty card together with a card that states a question', () => {
@@ -154,6 +217,24 @@ describe('cards with no question at all fold by session', () => {
     ]);
 
     expect(groups).toEqual([]);
+  });
+
+  it('folds the same normalized question across different message ids (existing behaviour)', () => {
+    const groups = cockpitCardDuplicateGroups([
+      card('a', {
+        ask: 'Delete the staging directory?',
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgA' },
+        surfacedAt: '2026-10-27T00:00:01.000Z',
+      }),
+      card('b', {
+        ask: 'Delete the staging directory',
+        contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgB' },
+        surfacedAt: '2026-10-27T00:02:00.000Z',
+      }),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ keep: 'b', hidden: ['a'], count: 2 });
   });
 
   it('does not fold empty cards from different sessions', () => {
@@ -172,5 +253,20 @@ describe('cards with no question at all fold by session', () => {
     ]);
 
     expect(groups).toEqual([]);
+  });
+
+  it('reads the message id out of a contentRef, and null when there is none', () => {
+    expect(
+      cockpitCardContentIdentity(
+        card('a', { contentRef: { resolver: 'cloudcli.session-ask', ref: 's1#msgA' } }),
+      ),
+    ).toBe('msgA');
+    expect(
+      cockpitCardContentIdentity(
+        card('a', { contentRef: { resolver: 'cloudcli.session-ask', ref: 's1' } }),
+      ),
+    ).toBeNull();
+    expect(cockpitCardContentIdentity(card('a', { contentRef: { resolver: 'x' } }))).toBeNull();
+    expect(cockpitCardContentIdentity(card('a'))).toBeNull();
   });
 });

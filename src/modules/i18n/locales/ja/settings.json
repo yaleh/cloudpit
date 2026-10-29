@@ -562,7 +562,8 @@
       "sessionCreate": "セッションを作成（cloudcli:session:create）",
       "sessionControl": "セッションを制御（cloudcli:session:control）",
       "approve": "承認（cloudcli:approve）",
-      "navigate": "お使いのブラウザでセッションを開く（cloudcli:navigate）"
+      "navigate": "お使いのブラウザでセッションを開く（cloudcli:navigate）",
+      "cockpitAct": "コックピットカードを確認 — メッセージの送信、セッションの開始（コマンドを実行）、またはフリートの処置の適用が可能（cloudcli:cockpit:act）"
     },
     "oauthTokens": {
       "title": "詳細: OAuth トークン（読み取り専用）",

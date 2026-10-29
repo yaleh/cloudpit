@@ -225,12 +225,3 @@ ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 10 actual file
 
 **ADR-007 记录。**
 该轴仍暗,理由:本任务只落地 server 侧 Codex 审批 broker 与判据，未产生可视 UX 读数（浏览器 UI 属 AC-443）。
-
-## Blocker
-
-**2026-10-29T14:59:24.034Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=lint,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts,lint,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：a5c7ad80-0d95-4b2a-8455-446d79858395
-- 处置：已在本轮 (n) 逐条修复（共享服务移入叶子目录、两条 pin 重测、lint 错改静态断言）。

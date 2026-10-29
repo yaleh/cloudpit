@@ -668,7 +668,8 @@
       "sessionCreate": "세션 생성 (cloudcli:session:create)",
       "sessionControl": "세션 제어 (cloudcli:session:control)",
       "approve": "승인 (cloudcli:approve)",
-      "navigate": "브라우저에서 세션 열기 (cloudcli:navigate)"
+      "navigate": "브라우저에서 세션 열기 (cloudcli:navigate)",
+      "cockpitAct": "조종석 카드 확인 — 메시지를 보내거나 세션을 시작(명령 실행)하거나 플릿 조치를 적용할 수 있음 (cloudcli:cockpit:act)"
     },
     "oauthTokens": {
       "title": "고급: OAuth 토큰(읽기 전용)",

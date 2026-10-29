@@ -21,7 +21,9 @@
       "sessionCreate": "Kann neue Sitzungen starten",
       "sessionControl": "Kann laufende Sitzungen steuern",
       "approve": "Kann Tool-Freigaben erteilen",
-      "navigate": "Kann ändern, was dein Bildschirm zeigt"
+      "navigate": "Kann ändern, was dein Bildschirm zeigt",
+      "selection": "Kann den in einem Sitzungstranskript ausgewählten Text lesen",
+      "cockpitAct": "Kann Cockpit-Karten bestätigen — kann Nachrichten senden, Sitzungen starten (die Befehle ausführen) oder Fleet-Dispositionen anwenden"
     }
   },
   "writeWarning": "Diese Anwendung kann Sitzungen senden, erstellen und steuern. Erlaube es nur, wenn du ihr vertraust.",

@@ -12,7 +12,7 @@ type ProjectSidebarState = Pick<
   'sidebarOpen' | 'setSidebarOpen' | 'sidebarSharedProps'
 >;
 
-type ProjectMainState = Pick<
+export type ProjectMainState = Pick<
   ProjectsState,
   | 'projects'
   | 'selectedProject'
@@ -178,6 +178,18 @@ export function useProjectSidebarState(): ProjectSidebarState {
 
 export function useProjectMainState(): ProjectMainState {
   return useRequiredProjectContext(useContext(ProjectMainContext), 'useProjectMainState');
+}
+
+/**
+ * The main project state when a `ProjectsStateProvider` is above this component, `null` otherwise.
+ *
+ * The cockpit column is mounted INSIDE the workspace's provider while the cockpit page and the
+ * phone overlay are mounted ABOVE it. A component that must work on all three — the cards list's
+ * start-conversation registration — reads this optional form: present means the created session
+ * can also be registered optimistically, absent means the surface navigates only.
+ */
+export function useOptionalProjectMainState(): ProjectMainState | null {
+  return useContext(ProjectMainContext);
 }
 
 export function useProjectCommandState(): ProjectCommandState {

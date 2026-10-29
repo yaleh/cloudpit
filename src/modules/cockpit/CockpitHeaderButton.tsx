@@ -4,6 +4,7 @@ import { Gauge } from 'lucide-react';
 
 import { cn } from '@/shared/utils';
 import { cockpitOverlayHistoryState } from '@/modules/cockpit/CockpitOverlay';
+import { enterCockpit } from '@/modules/cockpit/cockpitEntry';
 import { useCockpitColumnContext } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
 
@@ -83,6 +84,11 @@ export default function CockpitHeaderButton({
  * THE FALLBACK IS THE OLD BEHAVIOUR, KEPT ON PURPOSE. With no `/session/:id` underfoot (the
  * workspace root) there is no conversation to cover, so `/cockpit?view=cards` is still the right
  * destination — and a deep link there must keep rendering the standalone page.
+ *
+ * BOTH DOORS RECORD THE RETURN PATH. Whether the gauge opens the layer or the standalone page,
+ * the trip goes through {@link enterCockpit}, so a later visit to the cockpit's 「会话」 segment
+ * leads back to this conversation instead of home. The layer itself is a history entry on the
+ * session address, so recording the address is exactly what closing it walks back to.
  */
 function CockpitPageButton({
   column,
@@ -99,13 +105,20 @@ function CockpitPageButton({
 
   const openCockpit = (): void => {
     if (sessionId === undefined || sessionId === '') {
-      navigate('/cockpit?view=cards');
+      enterCockpit({ navigate, target: '/cockpit?view=cards', location });
       return;
     }
     // One history entry on the SAME address: the route match (and with it the mounted workspace,
     // its draft and its scroll position) does not change. Back, and the back bar, pop this entry.
-    navigate(`${location.pathname}${location.search}`, {
-      state: cockpitOverlayHistoryState(location.state, sessionTitle),
+    // The entry action records this address before pushing it, so the cockpit's 「会话」 segment
+    // returns here when the standalone page is opened later.
+    enterCockpit({
+      navigate: (target) =>
+        navigate(target, {
+          state: cockpitOverlayHistoryState(location.state, sessionTitle),
+        }),
+      target: `${location.pathname}${location.search}`,
+      location,
     });
   };
 
