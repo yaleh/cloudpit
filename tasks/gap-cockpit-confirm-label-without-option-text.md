@@ -8,6 +8,8 @@ labels:
 parent: null
 children: []
 extra: {}
+depends_on:
+  - gap-cockpit-details-option-selection-and-own-reply
 ---
 ## Proposal
 
