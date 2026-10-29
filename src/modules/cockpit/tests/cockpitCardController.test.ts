@@ -1171,3 +1171,110 @@ describe('read failures are stated, not swallowed', () => {
     expect(h.snapshot().cards).toHaveLength(1);
   });
 });
+
+describe('the same question asked twice is one card', () => {
+  /** A card that names a session and states a question, so two of them can fold. */
+  function askedCard(id: string, surfacedAt: string, overrides: Partial<CockpitCard> = {}): CockpitCard {
+    return card(id, {
+      ask: 'Delete the staging directory?',
+      subject: { uri: `cloudcli://test/${id}`, project: 'p1', sessionId: 's1' },
+      surfacedAt,
+      ...overrides,
+    });
+  }
+
+  it('hides the folded card from visibleCards and from every count', async () => {
+    const h = harness([
+      askedCard('keep', '2026-10-27T00:10:00.000Z'),
+      askedCard('folded', '2026-10-27T00:01:00.000Z'),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.visibleCards.map((subject) => subject.id)).toEqual(['keep']);
+    expect(snapshot.openCount).toBe(1);
+    expect(snapshot.typeCounts).toEqual({ all: 1, ask: 1 });
+    expect(snapshot.projectCounts).toEqual({ p1: 1 });
+    expect(snapshot.duplicates).toEqual({
+      keep: { hiddenIds: ['folded'], expanded: false },
+    });
+  });
+
+  it('gives the folded card no confirmation target, and keeps the kept card’s', async () => {
+    const h = harness([
+      askedCard('keep', '2026-10-27T00:10:00.000Z'),
+      askedCard('folded', '2026-10-27T00:01:00.000Z'),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.targets.folded).toBeUndefined();
+    expect(snapshot.targets.keep).toMatchObject({ cardId: 'keep', optionId: 'one' });
+  });
+
+  it('expands the earlier card back to its original position, not to the end', async () => {
+    const h = harness([
+      card('first'),
+      askedCard('early', '2026-10-27T00:01:00.000Z'),
+      card('middle'),
+      askedCard('late', '2026-10-27T00:10:00.000Z'),
+    ]);
+    await h.controller.load();
+
+    // The fold is applied in the provider's order: the earlier card is gone, the rest is intact.
+    expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual([
+      'first',
+      'middle',
+      'late',
+    ]);
+
+    h.controller.toggleDuplicates('late');
+
+    expect(h.snapshot().duplicates.late).toEqual({ hiddenIds: ['early'], expanded: true });
+    expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual([
+      'first',
+      'early',
+      'middle',
+      'late',
+    ]);
+  });
+
+  it('keeps an expansion across a re-read of the same grouping', async () => {
+    const cards = [
+      askedCard('keep', '2026-10-27T00:10:00.000Z'),
+      askedCard('folded', '2026-10-27T00:01:00.000Z'),
+    ];
+    const h = harness(cards);
+    await h.controller.load();
+    h.controller.toggleDuplicates('keep');
+
+    h.setCards(cards.map((subject) => ({ ...subject, revision: 2 })));
+    await h.controller.load();
+
+    expect(h.snapshot().duplicates.keep).toEqual({ hiddenIds: ['folded'], expanded: true });
+    expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual(['keep', 'folded']);
+  });
+
+  it('starts a regrouped fold collapsed, because it is a different kept card', async () => {
+    const h = harness([
+      askedCard('keep', '2026-10-27T00:10:00.000Z'),
+      askedCard('folded', '2026-10-27T00:01:00.000Z'),
+    ]);
+    await h.controller.load();
+    h.controller.toggleDuplicates('keep');
+
+    // A newer duplicate arrives: the kept card is now `newer`, and the person never expanded it.
+    h.setCards([
+      askedCard('keep', '2026-10-27T00:10:00.000Z'),
+      askedCard('folded', '2026-10-27T00:01:00.000Z'),
+      askedCard('newer', '2026-10-27T00:20:00.000Z'),
+    ]);
+    await h.controller.load();
+
+    expect(h.snapshot().duplicates.newer).toEqual({
+      hiddenIds: ['keep', 'folded'],
+      expanded: false,
+    });
+    expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual(['newer']);
+  });
+});

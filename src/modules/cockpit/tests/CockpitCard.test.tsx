@@ -1653,3 +1653,106 @@ describe('a card whose own ask has no summary yet', () => {
     expect(screen.getByTestId('cockpit-card-confirm').textContent).toContain('Confirm');
   });
 });
+
+describe('folded duplicates are stated on the kept card', () => {
+  const EARLIER: CockpitCardData = {
+    ...CARD,
+    id: 'fixture:ask-earlier',
+    surfacedAt: '2026-10-27T00:01:00.000Z',
+  };
+
+  /**
+   * The kept card plus, once expanded, the earlier card below it — the LIST's re-insertion,
+   * mirrored here so the strip's control is exercised through real state. The position rule
+   * itself (provider order, not append) is proven in `cockpitCardController.test.ts`.
+   */
+  function DuplicatesFixture({
+    hiddenIds,
+    questionless = false,
+  }: {
+    hiddenIds: string[];
+    questionless?: boolean;
+  }) {
+    const [expanded, setExpanded] = useState(false);
+    const shown = defaultShownOption(CARD) ?? undefined;
+    return (
+      <I18nextProvider i18n={i18n}>
+        <CockpitCard
+          card={CARD}
+          now={NOW}
+          shown={shown}
+          target={confirmTargetOf(CARD, shown, '')}
+          ownReply=""
+          dropdownOpen={false}
+          selected
+          density="cards"
+          duplicates={{ hiddenIds, expanded }}
+          duplicatesQuestionless={questionless}
+          onToggleDuplicates={() => setExpanded((value) => !value)}
+          onSelect={() => undefined}
+          onOpenDetails={() => undefined}
+          onToggleDropdown={() => undefined}
+          onShowOption={() => undefined}
+          onShowOwnReply={() => undefined}
+          onOwnReplyChange={() => undefined}
+          onRequestConfirm={() => undefined}
+        />
+        {expanded &&
+          hiddenIds.map((id) => (
+            <CockpitCard
+              key={id}
+              card={{ ...EARLIER, id }}
+              now={NOW}
+              shown={defaultShownOption(EARLIER) ?? undefined}
+              target={confirmTargetOf(EARLIER, defaultShownOption(EARLIER) ?? undefined, '')}
+              ownReply=""
+              dropdownOpen={false}
+              selected={false}
+              density="cards"
+              onSelect={() => undefined}
+              onOpenDetails={() => undefined}
+              onToggleDropdown={() => undefined}
+              onShowOption={() => undefined}
+              onShowOwnReply={() => undefined}
+              onOwnReplyChange={() => undefined}
+              onRequestConfirm={() => undefined}
+            />
+          ))}
+      </I18nextProvider>
+    );
+  }
+
+  it('draws the strip with the count and hides the earlier card until expanded', () => {
+    render(<DuplicatesFixture hiddenIds={['fixture:ask-earlier']} />);
+
+    const strip = screen.getByTestId('cockpit-card-duplicates');
+    expect(strip.getAttribute('data-count')).toBe('2');
+    expect(strip.getAttribute('data-expanded')).toBe('false');
+    expect(strip.textContent).toContain('Asked the same question 2 times');
+    expect(strip.textContent).toContain('1 earlier cards folded');
+    expect(screen.queryByTestId('cockpit-card-fixture:ask-earlier')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('cockpit-card-duplicates-toggle'));
+
+    // The earlier card is drawn (by the list) and the strip states the expanded reading.
+    expect(screen.getByTestId('cockpit-card-fixture:ask-earlier')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-duplicates').getAttribute('data-expanded')).toBe(
+      'true',
+    );
+    expect(screen.getByTestId('cockpit-card-duplicates').textContent).toContain('Collapse');
+  });
+
+  it('states a session’s unanswered count for cards that carry no wording', () => {
+    render(<DuplicatesFixture hiddenIds={['fixture:ask-earlier', 'fixture:ask-second']} questionless />);
+
+    expect(screen.getByTestId('cockpit-card-duplicates').textContent).toContain(
+      'This session has 3 unanswered questions',
+    );
+  });
+
+  it('draws no strip when nothing was folded', () => {
+    renderCard();
+
+    expect(screen.queryByTestId('cockpit-card-duplicates')).toBeNull();
+  });
+});
