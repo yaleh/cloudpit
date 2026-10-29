@@ -1277,6 +1277,33 @@ describe('the same question asked twice is one card', () => {
     });
     expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual(['newer']);
   });
+
+  it('folds questionless cards by their contentRef message, not by session', async () => {
+    /** A questionless card that names one message id of `s1`. */
+    function questionlessCard(id: string, messageId: string, surfacedAt: string): CockpitCard {
+      return card(id, {
+        ask: undefined,
+        surfacedAt,
+        subject: { uri: `cloudcli://test/${id}`, project: 'p1', sessionId: 's1' },
+        contentRef: { resolver: 'cloudcli.session-ask', ref: `s1#${messageId}` },
+      });
+    }
+
+    const h = harness([
+      questionlessCard('a', 'msgA', '2026-10-27T00:00:01.000Z'),
+      questionlessCard('b', 'msgA', '2026-10-27T00:03:00.000Z'),
+      questionlessCard('c', 'msgB', '2026-10-27T00:02:00.000Z'),
+    ]);
+    await h.controller.load();
+
+    // The two msgA cards are one ask (kept card, count 2); msgB is a different ask and stays
+    // visible as its own card. The list draws two cards, and the fold counts 2, not 3.
+    expect(h.snapshot().duplicates).toEqual({
+      b: { hiddenIds: ['a'], expanded: false },
+    });
+    expect(h.snapshot().visibleCards.map((subject) => subject.id)).toEqual(['b', 'c']);
+    expect(h.snapshot().openCount).toBe(2);
+  });
 });
 
 describe('the card-level 「忽略/丢弃」 target', () => {

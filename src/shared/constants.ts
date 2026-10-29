@@ -318,12 +318,12 @@ export const resolveProviderDescriptor = (
 //----------------- PERSONAL ACCESS TOKEN SCOPES ------------
 
 /**
- * The five scopes a personal access token may carry, in the order the create
+ * The seven scopes a personal access token may carry, in the order the create
  * form renders them, each paired with whether it grants write access and with
  * the `settings` i18n leaf that labels it.
  *
  * `cloudcli:read` is the required baseline every token carries and is the only
- * non-writable scope; the five write scopes are opt-in, and checking any of them
+ * non-writable scope; the six write scopes are opt-in, and checking any of them
  * is what makes the create form raise its write-access risk note. The vocabulary
  * mirrors the server's `ACCESS_TOKEN_SCOPES` (`server/modules/oauth`), which
  * rejects anything outside it. `labelKey` is an alias rather than the raw scope
@@ -343,6 +343,11 @@ export const ACCESS_TOKEN_SCOPE_OPTIONS: readonly {
   // gap-mcp-ui-open-session: opens a session in one of the user's browsers. A
   // write scope — it changes what the user's screen shows.
   { scope: 'cloudcli:navigate', writable: true, labelKey: 'navigate' },
+  // gap-pat-scope-cockpit-act-ui: confirming a cockpit card runs the option's
+  // declared executor, so the honest worst case is stated in the label rather
+  // than softened — it can send a message, start a session (which runs commands)
+  // or apply a fleet disposition. Appended last, mirroring ACCESS_TOKEN_SCOPES.
+  { scope: 'cloudcli:cockpit:act', writable: true, labelKey: 'cockpitAct' },
 ];
 
 // ---------------------------

@@ -21,7 +21,9 @@
       "sessionCreate": "Yeni oturumlar başlatabilir",
       "sessionControl": "Çalışan oturumları denetleyebilir",
       "approve": "Araç onaylarını yanıtlayabilir",
-      "navigate": "Ekranında ne görüneceğini değiştirebilir"
+      "navigate": "Ekranında ne görüneceğini değiştirebilir",
+      "selection": "Bir oturum dökümünde seçtiğiniz metni okuyabilir",
+      "cockpitAct": "Kokpit kartlarını onaylayabilir — mesaj gönderebilir, oturum başlatabilir (bu oturumlar komut çalıştırır) veya filo düzenlemeleri uygulayabilir"
     }
   },
   "writeWarning": "Bu uygulama oturumları gönderebilecek, oluşturabilecek ve kontrol edebilecek. Yalnızca güveniyorsanız izin verin.",

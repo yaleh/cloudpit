@@ -562,7 +562,8 @@
       "sessionCreate": "Создание сессий (cloudcli:session:create)",
       "sessionControl": "Управление сессиями (cloudcli:session:control)",
       "approve": "Подтверждение (cloudcli:approve)",
-      "navigate": "Открыть сессию в одном из ваших браузеров (cloudcli:navigate)"
+      "navigate": "Открыть сессию в одном из ваших браузеров (cloudcli:navigate)",
+      "cockpitAct": "Подтверждение карточек кокпита — может отправлять сообщения, запускать сессии (они выполняют команды) или применять распоряжения флота (cloudcli:cockpit:act)"
     },
     "oauthTokens": {
       "title": "Дополнительно: токены OAuth (только чтение)",

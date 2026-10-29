@@ -21,7 +21,9 @@
       "sessionCreate": "可啟動新工作階段",
       "sessionControl": "可控制執行中的工作階段",
       "approve": "可批准工具呼叫",
-      "navigate": "可改變你螢幕上的顯示"
+      "navigate": "可改變你螢幕上的顯示",
+      "selection": "可讀取你在工作階段轉錄中選取的文字",
+      "cockpitAct": "可確認駕駛艙卡片，可能傳送訊息、開啟新工作階段（會執行命令）或套用 fleet 處置"
     }
   },
   "writeWarning": "此應用程式將能夠傳送、建立與控制工作階段。只有信任它時才允許。",

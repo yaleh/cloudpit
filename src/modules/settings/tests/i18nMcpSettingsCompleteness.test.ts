@@ -3,6 +3,8 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { ACCESS_TOKEN_SCOPE_OPTIONS } from '@/shared/constants';
+
 /**
  * The Settings → API tab renders the CloudCLI MCP block through `McpGatewaySection.tsx`
  * (`useTranslation('settings')`) and the personal-access-token scope checkboxes through
@@ -12,7 +14,7 @@ import { describe, expect, it } from 'vitest';
  * `accessTokens.scopes.sessionControl`) to the user — the failure this test exists to prevent.
  *
  * AC-254 (the sibling that owns the UI) landed the MCP block in the `mcpGateway` namespace and
- * the five scope labels in `accessTokens.scopes.*` rather than merging them into the pre-existing
+ * the six scope labels in `accessTokens.scopes.*` rather than merging them into the pre-existing
  * `mcp` namespace (which already carries the MCP *Servers* management UI, 13 keys). This test
  * therefore covers the landed locations — `mcpGateway` plus `accessTokens.scopes` — and does not
  * touch the unrelated `mcp` servers namespace. The AC text's "`mcp` namespace" refers to this
@@ -23,7 +25,7 @@ import { describe, expect, it } from 'vitest';
  * `accessTokens.scopes.` under `src/modules/settings/tabs/api-settings/`). It is kept as an
  * independent literal rather than derived from `en`, so a locale that quietly drops one keys
  * reds even when `en` agrees with it. The scope descriptions live inside the scope labels
- * themselves (e.g. `Read (cloudcli:read)`), so "五个 scope 的名称与说明" maps to the five
+ * themselves (e.g. `Read (cloudcli:read)`), so "scope 的名称与说明" maps to the six
  * `accessTokens.scopes.*` leaves — the landed contract, not a separate description key.
  *
  * It walks the whole `locales/*\/settings.json` glob rather than a hardcoded language list, so
@@ -61,14 +63,15 @@ const REQUIRED_MCP_KEYS = [
   'mcpGateway.enableHint', // 未启用时的提示
   'mcpGateway.copy', // 端点复制
   'mcpGateway.copied', // 复制成功
-  // AccessTokensSection — the five scope checkboxes and the write-scope warning.
+  // AccessTokensSection — the six scope checkboxes and the write-scope warning.
   'accessTokens.form.scopesLabel', // scope 勾选框组标题
-  'accessTokens.scopes.read', // 五个 scope 的名称与说明
+  'accessTokens.scopes.read', // 六个 scope 的名称与说明
   'accessTokens.scopes.sessionSend',
   'accessTokens.scopes.sessionCreate',
   'accessTokens.scopes.sessionControl',
   'accessTokens.scopes.approve',
   'accessTokens.scopes.navigate', // gap-mcp-ui-open-session 新增的 navigate scope
+  'accessTokens.scopes.cockpitAct', // gap-pat-scope-cockpit-act-ui 新增的 cockpit:act scope
   'accessTokens.form.writeScopeRisk', // 写权限风险提示
   // McpNavigationSection — the per-device navigation-policy / device-name block (namespace
   // `mcpNavigation`). Both strings the section renders in every state, the three policy labels
@@ -218,6 +221,41 @@ describe('every locale carries a complete CloudCLI MCP block and token-scope voc
     for (const file of bundleFiles) {
       expect(diffs[file], `${file} key set vs ${REFERENCE_LOCALE}`).toEqual({ missing: [], extra: [] });
     }
+  });
+
+  it('exposes cloudcli:cockpit:act last and resolves every scope labelKey in every locale', () => {
+    console.log(
+      `[AC2] PAT scope options (${ACCESS_TOKEN_SCOPE_OPTIONS.length}): ${JSON.stringify(ACCESS_TOKEN_SCOPE_OPTIONS)}`,
+    );
+
+    const cockpitActOptions = ACCESS_TOKEN_SCOPE_OPTIONS.filter(
+      (option) => option.scope === 'cloudcli:cockpit:act',
+    );
+    expect(cockpitActOptions).toHaveLength(1);
+    expect(cockpitActOptions[0]?.writable).toBe(true);
+    expect(cockpitActOptions[0]?.labelKey).toBe('cockpitAct');
+    // The server appends new scopes so earlier positional reads keep their index;
+    // the create form mirrors that order, so the newest scope is the last checkbox.
+    expect(ACCESS_TOKEN_SCOPE_OPTIONS[ACCESS_TOKEN_SCOPE_OPTIONS.length - 1]?.scope).toBe(
+      'cloudcli:cockpit:act',
+    );
+
+    // Every option the form renders must resolve to a real label in every locale;
+    // a missing key renders the raw dotted path instead.
+    const labelOffenders: string[] = [];
+    for (const file of bundleFiles) {
+      const bundle = JSON.parse(readFileSync(join(LOCALES_DIR, file), 'utf8')) as SettingsBundle;
+      for (const option of ACCESS_TOKEN_SCOPE_OPTIONS) {
+        const value = readPath(bundle, `accessTokens.scopes.${option.labelKey}`);
+        if (typeof value !== 'string' || value.trim().length === 0 || value === option.labelKey) {
+          labelOffenders.push(
+            `${file}: accessTokens.scopes.${option.labelKey} = ${JSON.stringify(value)}`,
+          );
+        }
+      }
+    }
+    console.log(`[AC2] option label offenders (${labelOffenders.length}): ${JSON.stringify(labelOffenders)}`);
+    expect(labelOffenders).toEqual([]);
   });
 
   // Positive control: the same checker must reject a bundle that lacks a key (or carries a

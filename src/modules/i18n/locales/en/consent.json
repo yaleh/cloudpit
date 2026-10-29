@@ -21,7 +21,9 @@
       "sessionCreate": "Can start new sessions",
       "sessionControl": "Can control running sessions",
       "approve": "Can approve tool calls",
-      "navigate": "Can change what your screen shows"
+      "navigate": "Can change what your screen shows",
+      "selection": "Can read the text you select in a session transcript",
+      "cockpitAct": "Can confirm cockpit cards — may send messages, start sessions (which run commands) or apply fleet dispositions"
     }
   },
   "writeWarning": "This application will be able to send, create and control sessions. Only allow it if you trust it.",
