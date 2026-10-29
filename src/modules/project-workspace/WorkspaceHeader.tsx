@@ -24,9 +24,12 @@ type WorkspaceHeaderProps = {
   shouldShowArchitectureTab?: boolean;
   shouldShowBrowserTab: boolean;
   /**
-   * The selected session's stored lifecycle mode, resolved by WorkspaceMain.
-   * Optional with `false` as the meaning of absent, so that a header rendered
-   * without a mode reading keeps offering Shell rather than closing it by default.
+   * Whether the Shell tab is closed to the selected session. WorkspaceMain
+   * resolves it from the session's stored lifecycle mode AND its provider — the
+   * closure is Claude's resident rule, not a property of residency itself, so a
+   * Codex resident session passes `false`. Optional with `false` as the meaning of
+   * absent, so that a header rendered without a mode reading keeps offering Shell
+   * rather than closing it by default.
    */
   isResidentSession?: boolean;
   isMobile: boolean;

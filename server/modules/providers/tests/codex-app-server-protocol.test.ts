@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 
 import {
+  CODEX_APP_SERVER_LAUNCHER_ENV,
   CodexAppServerConnection,
+  resolveCodexAppServerLauncher,
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
@@ -341,6 +344,38 @@ function assertLoopSurvivedHandlerFailure(reading: LoopReading): void {
 }
 
 // --------------------------- AC2 -------------
+
+/**
+ * AC-443: the resident UI criterion needs a deterministic app-server, and the
+ * only switch is the launcher's own environment.
+ *
+ * Both directions are read here, and the default leg is the load-bearing one: a
+ * deployment that sets nothing must still spawn the pinned CLI the connection's
+ * protocol was written against, while a run that names the stand-in gets exactly
+ * that path. A blank value is not an override — it would otherwise make the
+ * criterion's variable presence (rather than its value) decide which process
+ * starts.
+ */
+test('the app-server launcher override applies only when it names a path (AC-443)', () => {
+  const require_ = createRequire(import.meta.url);
+  const pinned = require_.resolve('@openai/codex/bin/codex.js');
+
+  assert.equal(
+    resolveCodexAppServerLauncher({}),
+    pinned,
+    'an environment with no override must resolve the pinned @openai/codex CLI',
+  );
+  assert.equal(
+    resolveCodexAppServerLauncher({ [CODEX_APP_SERVER_LAUNCHER_ENV]: '   ' }),
+    pinned,
+    'a blank override is not an override',
+  );
+  assert.equal(
+    resolveCodexAppServerLauncher({ [CODEX_APP_SERVER_LAUNCHER_ENV]: '/opt/e2e/fake-app-server.mjs' }),
+    '/opt/e2e/fake-app-server.mjs',
+    'an explicit override must be returned verbatim',
+  );
+});
 
 test('initialize declares capabilities.experimentalApi and the declaration is a switch (AC2)', async () => {
   const declared = createHarness();

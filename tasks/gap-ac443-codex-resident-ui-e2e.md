@@ -1,7 +1,7 @@
 ---
 id: gap-ac443-codex-resident-ui-e2e
 title: AC-443 Codex 常驻真实浏览器：常驻开关、忙时队列可撤回、状态栏 resident、Shell 普通终端不 resume
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -299,11 +299,3 @@ src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - `npx playwright test e2e/resident-shell-tab.spec.ts` → `1 passed (19.3s)`（Claude 常驻仍关闭 Shell，负向对照未回归）。
 - `npm run typecheck` → exit 0（三个 tsconfig 工程）。
 - 合并 develop `fcc43293d` 后：`ANTI-DRIFT OK: task gap-ac443-codex-resident-ui-e2e — 13 actual file(s), all within declared Touches (15 glob(s))`；棘轮判据合并后复跑仍 `tests 6 / pass 6 / fail 0`。
-
-## Blocker
-
-**2026-10-29T23:27:30.691Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: providerNameBranches src/modules/project-workspace/WorkspaceMain.tsx 基线外→1 — 基线外的文件不得新增 provider 名字分支 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：06446574-9355-4364-a427-ea680d250a06

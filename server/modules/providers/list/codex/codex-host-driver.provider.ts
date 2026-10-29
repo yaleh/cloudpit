@@ -475,7 +475,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       // Busy input is queued, never refused: the run stays pending until the
       // submission it wrote reaches a terminal turn (or is withdrawn).
       if (session.pending !== null || session.turnStatus === 'inProgress') {
-        await session.queue.enqueueAndWait(connection, turn.command);
+        await session.queue.enqueueAndWait(connection, turn.command, writer);
         return this.readSession(appSessionId);
       }
       await this.submit(host, appSessionId, turn);

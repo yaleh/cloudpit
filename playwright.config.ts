@@ -2321,6 +2321,123 @@ const seedMobileSendKeyWorkspace = () => {
   );
 };
 
+/**
+ * The Codex resident UI criterion, and the fixtures ONLY its selection's server sees.
+ *
+ * The criterion drives the real driver against the real app-server protocol, so the
+ * process the server spawns has to be a deterministic stand-in rather than the pinned
+ * CLI: a real `codex app-server` needs credentials the isolated HOME deliberately does
+ * not carry, and its turns settle on a model's schedule. Three things are switched on
+ * for this selection and for no other:
+ *
+ *   * `CODEX_APP_SERVER_LAUNCHER` — the checked-in stand-in in `e2e/support/`, which is
+ *     the seam the connection reads instead of resolving `@openai/codex/bin/codex.js`;
+ *   * `CODEX_FAKE_READINGS` — the file that stand-in appends every frame and its queue
+ *     depth to, so the spec's readings are the process's own account;
+ *   * a `codex` shim first on the server's PATH (`npm_config_prefix` points at its
+ *     directory, which is the entry the shell service moves to the front). The Shell
+ *     leg reads what the terminal actually launched from the shim's argv log — the one
+ *     place a `resume` argument would show up.
+ */
+const CODEX_RESIDENT_SPEC = 'codex-resident-ui.spec.ts';
+const codexResidentSelection = selectedSpecFiles().includes(CODEX_RESIDENT_SPEC);
+
+/** The workspace this criterion's seeded project and its sessions share; its own, like every spec above. */
+const CODEX_RESIDENT_WORKSPACE = path.join(dataDir, 'codex-resident-workspace');
+/**
+ * The seeded Codex session's rollout id.
+ *
+ * A disk-discovered Codex session is keyed by its provider id in BOTH columns, so this
+ * id is also the `provider_session_id` the Shell launch would resume under the old
+ * facet. That is what makes the Shell leg discriminate: a session without a provider
+ * id would read `codex` from either implementation.
+ */
+const CODEX_RESIDENT_SEEDED_SESSION_ID = 'e2e-codex-resident-shell';
+/** The stand-in app-server the connection spawns instead of the pinned CLI. */
+const CODEX_FAKE_APP_SERVER = path.join(CONFIG_DIR, 'e2e', 'support', 'codex-fake-app-server.mjs');
+/** Where the stand-in writes its frame log, handshake and queue depth. */
+const CODEX_FAKE_READINGS = path.join(dataDir, 'codex-fake-readings.json');
+/** Where the PATH shim records the argv the terminal launched it with. */
+const CODEX_FAKE_SHELL_LOG = path.join(dataDir, 'codex-fake-shell.log');
+/** The directory that holds the `codex` shim; `npm_config_prefix` points at it. */
+const CODEX_FAKE_SHELL_DIR = path.join(dataDir, 'codex-fake-bin');
+/**
+ * How long the stand-in holds a turn whose command carries the marker.
+ *
+ * The held turn is the FIRST command of the file: the withdraw leg needs it still in
+ * flight while it queues and withdraws a second command, so the hold has to outlast
+ * onboarding, the switch press and the pill leg that run before it. 20s covers those
+ * and stays well inside the file's 55s ceiling, because nothing waits on the turn's
+ * completion — the withdrawal removes the queue's own row.
+ */
+const CODEX_FAKE_HOLD_MS = 20_000;
+const CODEX_FAKE_HOLD_MARKER = 'hold-the-turn';
+/** The shim's own sleep: long enough for the terminal to draw its line, short enough not to leak a process. */
+const CODEX_FAKE_SHELL_SLEEP_SECONDS = 3;
+
+/**
+ * The `codex` the Shell terminal resolves for this selection.
+ *
+ * It records the argv it was launched with and prints a distinctive first line, so the
+ * spec reads the launch command from the terminal's own command rather than from a
+ * copy of the facet's return value. `$0` ends in `/codex` and `$*` is empty for the
+ * shipped facet; the reverted facet hands it `resume <thread id>`.
+ */
+const CODEX_FAKE_SHELL_SOURCE = [
+  '#!/usr/bin/env bash',
+  "log=\"${CODEX_FAKE_SHELL_LOG:-}\"",
+  "if [ -n \"$log\" ]; then printf 'argv0=%s args=[%s] cwd=%s\\n' \"$0\" \"$*\" \"$PWD\" >> \"$log\"; fi",
+  'printf \'codex-fake-shim launched argv=[%s]\\n\' "$*"',
+  `sleep ${CODEX_FAKE_SHELL_SLEEP_SECONDS}`,
+  '',
+].join('\n');
+
+/**
+ * Seeds the Codex session the Shell leg opens, and the project it belongs to.
+ *
+ * Written before the server boots because the Codex synchronizer scans
+ * `~/.codex/sessions` once at start-up and then watches with `ignoreInitial`: a
+ * rollout written while the test runs would be broadcast as a `session_upserted`
+ * and read as "needs attention". The rollout's first record is the session_meta the
+ * synchronizer parses, and it names the workspace as `cwd` so the sidebar files the
+ * session under this criterion's own project.
+ */
+const seedCodexResidentWorkspace = () => {
+  fs.mkdirSync(CODEX_RESIDENT_WORKSPACE, { recursive: true });
+  const sessionsDir = path.join(dataDir, '.codex', 'sessions', '2026', '10', '30');
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  const timestamp = new Date().toISOString();
+  const meta = {
+    timestamp,
+    type: 'session_meta',
+    payload: {
+      id: CODEX_RESIDENT_SEEDED_SESSION_ID,
+      cwd: CODEX_RESIDENT_WORKSPACE,
+      source: 'cli',
+      thread_source: 'user',
+    },
+  };
+  fs.writeFileSync(
+    path.join(sessionsDir, `rollout-2026-10-30T00-00-00-${CODEX_RESIDENT_SEEDED_SESSION_ID}.jsonl`),
+    `${JSON.stringify(meta)}\n`,
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(dataDir, '.codex', 'session_index.jsonl'),
+    `${JSON.stringify({ id: CODEX_RESIDENT_SEEDED_SESSION_ID, thread_name: 'codex-resident-shell' })}\n`,
+    'utf8',
+  );
+};
+
+/** Writes the PATH shim and clears the two files a previous run of this selection left behind. */
+const seedCodexFakeShell = () => {
+  fs.mkdirSync(CODEX_FAKE_SHELL_DIR, { recursive: true });
+  const shim = path.join(CODEX_FAKE_SHELL_DIR, 'codex');
+  fs.writeFileSync(shim, CODEX_FAKE_SHELL_SOURCE, { encoding: 'utf8', mode: 0o755 });
+  fs.rmSync(CODEX_FAKE_SHELL_LOG, { force: true });
+  fs.rmSync(CODEX_FAKE_READINGS, { force: true });
+};
+
 /** Workspace e2e/mobile-workspace-composer-layout.spec.ts reads its mobile cells in. */
 const MOBILE_LAYOUT_WORKSPACE = path.join(dataDir, 'mobile-layout-workspace');
 /** Session id that file navigates to, and the display name its header has to hold. */
@@ -2867,6 +2984,14 @@ if (isDataDirOwner) {
   seedVoiceDashscopeWorkspace();
   seedVoiceErrorMessageWorkspace();
   seedMobileSendKeyWorkspace();
+  // Owner-only AND selection-only: this rollout adds a Codex session to the sidebar every
+  // selection that contains it would list, so the runs that never name the criterion's spec
+  // keep the tree they had. The shim dir and the two reading files are cleared here for the
+  // same reason — a stale queue depth from an earlier run is not this run's truth.
+  if (codexResidentSelection) {
+    seedCodexResidentWorkspace();
+    seedCodexFakeShell();
+  }
   seedMobileLayoutWorkspace();
   seedWorkSegmentTranscript();
   seedForkAnchorTranscript();
@@ -3313,6 +3438,15 @@ process.env.QUAY_E2E_ARCHITECTURE_REFRESH_SETTINGS = ARCHITECTURE_REFRESH_SETTIN
 process.env.QUAY_E2E_ARCHITECTURE_REFRESH_COUNTER = ARCHITECTURE_REFRESH_COUNTER;
 process.env.QUAY_E2E_ARCHITECTURE_REFRESH_CONTROL = ARCHITECTURE_REFRESH_CONTROL;
 process.env.QUAY_E2E_ARCHITECTURE_REFRESH_CLI = ARCHITECTURE_REFRESH_FAKE_CLI;
+// Published for the Codex resident criterion: the stand-in's readings file, the shim's argv log and
+// the seeded session's own ids. Assigned unconditionally (like the four above) so a spec reading them
+// gets the run's paths rather than a stale shell export; only this selection's SERVER is given them.
+process.env.QUAY_E2E_CODEX_READINGS = CODEX_FAKE_READINGS;
+process.env.QUAY_E2E_CODEX_SHELL_LOG = CODEX_FAKE_SHELL_LOG;
+process.env.QUAY_E2E_CODEX_WORKSPACE = CODEX_RESIDENT_WORKSPACE;
+process.env.QUAY_E2E_CODEX_SEEDED_SESSION_ID = CODEX_RESIDENT_SEEDED_SESSION_ID;
+process.env.QUAY_E2E_CODEX_HOLD_MS = String(CODEX_FAKE_HOLD_MS);
+process.env.QUAY_E2E_CODEX_HOLD_MARKER = CODEX_FAKE_HOLD_MARKER;
 // The criterion that watches the dock degrade needs to see the server's beat and its silence budget
 // inside one gate. Only this selection shortens them, and only on the *server*: the client reads the
 // numbers the server announces in its hello, so the spec itself carries no threshold literal.
@@ -3802,6 +3936,23 @@ export default defineConfig({
           ? {
               ARCHGUARD_FAKE_COUNTER: ARCHITECTURE_REFRESH_COUNTER,
               ARCHGUARD_FAKE_CONTROL: ARCHITECTURE_REFRESH_CONTROL,
+            }
+          : {}),
+        // The Codex resident criterion's three fixtures, and nothing else about the server changes. The
+        // launcher override replaces the pinned `@openai/codex/bin/codex.js` the connection would spawn;
+        // the two reading paths are the stand-in's own channel back to the spec; the PATH shim is what the
+        // terminal will actually run, put first by `npm_config_prefix` (the entry the shell service moves to
+        // the head of PATH). Absent from every selection that does not name this file, so other servers
+        // keep the pinned CLI and the operator's PATH.
+        ...(codexResidentSelection
+          ? {
+              CODEX_APP_SERVER_LAUNCHER: CODEX_FAKE_APP_SERVER,
+              CODEX_FAKE_READINGS,
+              CODEX_FAKE_HOLD_MS: String(CODEX_FAKE_HOLD_MS),
+              CODEX_FAKE_HOLD_MARKER,
+              CODEX_FAKE_SHELL_LOG,
+              npm_config_prefix: CODEX_FAKE_SHELL_DIR,
+              PATH: `${CODEX_FAKE_SHELL_DIR}${path.delimiter}${process.env.PATH ?? ''}`,
             }
           : {}),
         // The turn-run path (SPEC §6) is what stamps a delivery's ORIGIN onto the run's options

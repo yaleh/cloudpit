@@ -10,6 +10,7 @@ import { beforeEach, test, vi } from 'vitest';
 import type { AppTab, Project } from '@/shared/types';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
+import { isShellClosedToSession } from '@/modules/project-workspace/WorkspaceMain';
 import WorkspaceTabs, { RESIDENT_SHELL_NOTICE_ID } from '@/modules/project-workspace/WorkspaceTabs';
 
 /**
@@ -402,6 +403,56 @@ test('a resident session keeps the Shell tab disabled and last in the built-in g
   const divider = parts.indexOf('divider');
   assert.ok(divider > 0, `the plugin divider must render; got ${JSON.stringify(parts)}`);
   assert.equal(parts[divider - 1], 'shell', `Shell must be the last built-in tab; got ${JSON.stringify(parts)}`);
+});
+
+// AC-443: the closure above is Claude's resident rule, not a property of residency
+// itself. A Codex resident session keeps an ordinary terminal — the app's process
+// owns the conversation and the terminal must not resume it — so the same stored
+// mode must leave Shell clickable and draw no notice. The decision is read from
+// the same function WorkspaceMain passes to this header, and the header is then
+// rendered with that answer, so the case fails on the gate rather than on a
+// restatement of it.
+test('a Codex resident session keeps the Shell tab enabled and draws no notice', () => {
+  const codexResident = { sessionId: 'codex-resident', mode: 'resident', provider: 'codex' };
+  assert.equal(
+    isShellClosedToSession(codexResident, 'codex-resident'),
+    false,
+    'a Codex resident session must not inherit Claude\'s Shell closure',
+  );
+  assert.equal(
+    isShellClosedToSession({ ...codexResident, provider: 'claude' }, 'codex-resident'),
+    true,
+    'the same reading from Claude must still close Shell — otherwise the provider is not what decides',
+  );
+  assert.equal(
+    isShellClosedToSession(codexResident, 'another-session'),
+    false,
+    'a reading taken for one session must not decide another session\'s tabs',
+  );
+  assert.equal(
+    isShellClosedToSession({ ...codexResident, mode: 'per-run' }, 'codex-resident'),
+    false,
+    'a per-run Codex session was never in question',
+  );
+
+  render(
+    <HeaderHarness
+      isMobile={false}
+      isResidentSession={isShellClosedToSession(codexResident, 'codex-resident')}
+      shouldShowTasksTab
+      shouldShowBrowserTab
+    />,
+  );
+
+  const shell = document.querySelector<HTMLElement>('[role="tab"][data-workspace-tab="shell"]');
+  assert.ok(shell, 'the Shell tab must render for a Codex resident session');
+  assert.equal(shell.getAttribute('data-disabled-reason'), null);
+  assert.equal(shell.getAttribute('aria-disabled'), null);
+  assert.equal(
+    shell.getAttribute('aria-describedby'),
+    null,
+    'no resident notice is attached to a tab that stays open',
+  );
 });
 
 // The order comes from the ONE `useWorkspaceTabDefinitions` list, so the mobile picker cannot

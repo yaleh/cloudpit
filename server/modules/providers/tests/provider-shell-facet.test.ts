@@ -15,6 +15,8 @@
  * branch chain (the welcome notice) and are read from the same object.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { ClaudeShellProvider } from '@/modules/providers/list/claude/claude-shell.provider.js';
@@ -84,22 +86,35 @@ test('claude: the pre-migration launch literals, on both platforms', () => {
   assert.ok(posixQuote.endsWith("'it'\\''s'"), posixQuote);
 });
 
-test('codex: the pre-migration launch literals, on both platforms', () => {
+test('codex: the shell is an ordinary terminal on both platforms', () => {
   const shell = new CodexShellProvider();
   assert.equal(shell.displayName, 'Codex');
 
   assert.equal(shell.launchCommand({ platform: 'linux' }), 'codex');
   assert.equal(shell.launchCommand({ platform: 'win32' }), 'codex');
-  // The old branch ignored a caller-supplied command for Codex.
+  // The old branch ignored a caller-supplied command for Codex, and still does.
   assert.equal(shell.launchCommand({ initialCommand: 'ignored', platform: 'linux' }), 'codex');
 
-  assert.equal(
-    shell.launchCommand({ resumeSessionId: 'thread-9', platform: 'linux' }),
-    'codex resume "thread-9" || codex',
+  // AC-443: a stored thread id must NOT turn the launch into a resume of the
+  // conversation the resident process already holds. Both platforms launch the
+  // bare CLI, verbatim.
+  assert.equal(shell.launchCommand({ resumeSessionId: 'thread-9', platform: 'linux' }), 'codex');
+  assert.equal(shell.launchCommand({ resumeSessionId: 'thread-9', platform: 'win32' }), 'codex');
+
+  // Reverse assertion: the old resume literal is gone from the facet's source.
+  // Read the shipped file rather than restating its contract here, so a launch
+  // that quietly grew a resume branch cannot pass on the two readings above.
+  const SOURCE = readFileSync(
+    fileURLToPath(new URL('../list/codex/codex-shell.provider.ts', import.meta.url)),
+    'utf8',
   );
-  assert.equal(
-    shell.launchCommand({ resumeSessionId: 'thread-9', platform: 'win32' }),
-    'codex resume "thread-9"; if ($LASTEXITCODE -ne 0) { codex }',
+  assert.ok(
+    !SOURCE.includes('codex resume'),
+    'the Codex shell facet must not launch a resume of the resident conversation',
+  );
+  assert.ok(
+    !SOURCE.includes('resumeSessionId'),
+    'the Codex shell facet must ignore the stored thread id entirely',
   );
 });
 
