@@ -773,6 +773,15 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // leaves no room for the boot+launch+two pages, so this declares the sibling interaction
   // entries' budget.
   'workspace-tabs-fit.spec.ts': 180_000,
+  // The Running view criterion: three hosts (one per-run turn host and one resident host shared by the
+  // two idle sessions), three sessions, four `waitForBadge` legs each waiting out the page's own 5 s
+  // poll, and repeated host start/close round trips. MEASURED on this worktree 2026-10-29 against the
+  // 55 s single-file default: a healthy run read `elapsed=53157ms` (boot 19147ms, main case 26.2s), and
+  // the two ledger reds in the half hour around it both stopped at 55005ms with the watchdog's own
+  // `crossed its own 55000ms ceiling` — the same tree and the same criterion, so the line, not the
+  // assertion, was deciding. 110_000 is > 2x that healthy wall clock and strictly below the 118000ms
+  // gate deadline declared on AC-173, so a load-slowed run can finish and print its verdict.
+  'resident-running-view.spec.ts': 110_000,
 };
 
 /**
