@@ -916,6 +916,8 @@
     "counterVoiceSeen": "Gegenstimme geprüft",
     "counterVoiceSeenMarker": "(Gegenstimme geprüft)",
     "cardsView": "Karten",
+    "overlayBack": "Zurück zur Sitzung",
+    "overlayBackToSession": "Zurück zur Sitzung: {{title}}",
     "columnTitle": "Cockpit",
     "columnExpand": "Cockpit-Spalte öffnen",
     "columnCollapse": "Cockpit-Spalte schließen",

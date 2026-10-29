@@ -536,7 +536,7 @@ describe('the header badge', () => {
     expect(screen.getByTestId('cockpit-header-badge').textContent).toBe('99+');
   });
 
-  it('is pressed while the column is open and absent below 900 px', async () => {
+  it('is pressed while the column is open, and becomes the phone layer door when the column is hidden', async () => {
     const open = await fixture({ expanded: true });
     const first = render(
       <TestBinding fixture={open}>
@@ -546,13 +546,24 @@ describe('the header badge', () => {
     expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('true');
     first.unmount();
 
+    // Under 900 px the column has nowhere to draw (`hidden`), so the same control is the phone
+    // layer's door instead of disappearing: it keeps the same count and is never "pressed",
+    // because there is no column to toggle. The old pin — absent below 900 px — belonged to the
+    // superseded "a separate page" decision; `CockpitOverlay.test.tsx` is the behavioural reading
+    // of what the door opens. The router stands in for the workspace because the door reads the
+    // current address to decide between the layer and the standalone page.
     const phone = await fixture({ expanded: true, workspaceWidth: 500 });
     render(
-      <TestBinding fixture={phone}>
-        <CockpitHeaderButton />
-      </TestBinding>,
+      <MemoryRouter initialEntries={['/']}>
+        <TestBinding fixture={phone}>
+          <CockpitHeaderButton />
+        </TestBinding>
+      </MemoryRouter>,
     );
-    expect(screen.queryByTestId('cockpit-header-button')).toBeNull();
+    const door = screen.getByTestId('cockpit-header-button');
+    expect(door.getAttribute('aria-pressed')).toBe('false');
+    expect(door.getAttribute('data-cockpit-column-count')).toBe('2');
+    expect(door.getAttribute('aria-label')).toBe('Cards');
   });
 });
 

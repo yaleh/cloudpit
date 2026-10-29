@@ -191,3 +191,8 @@ export {
   CockpitColumnRegion,
 } from '@/modules/cockpit/CockpitColumn';
 export { default as CockpitHeaderButton } from '@/modules/cockpit/CockpitHeaderButton';
+// The phone's cards layer and its router binding. `App` mounts the host as a sibling of its
+// routes so the session page it covers is never unmounted by opening or closing it; the presentational
+// layer is exported for a criterion that drives it without a router.
+export { default as CockpitOverlay, CockpitOverlayHost } from '@/modules/cockpit/CockpitOverlay';
+export type { CockpitOverlayProps } from '@/modules/cockpit/CockpitOverlay';

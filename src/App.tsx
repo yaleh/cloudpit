@@ -11,7 +11,7 @@ import { WebSocketProvider } from '@/shared/context/WebSocketContext';
 import { PluginsProvider } from '@/modules/plugins';
 import { ProjectWorkspaceRoute, useProjectsState } from '@/modules/project-workspace';
 import { OAuthConsentRoute } from '@/modules/oauth-consent';
-import { CockpitRoute } from '@/modules/cockpit';
+import { CockpitOverlayHost, CockpitRoute } from '@/modules/cockpit';
 import { ArchitecturePanel, requestArchitectureSessionFocus } from '@/modules/architecture';
 import { useWebSocket } from '@/shared/context/WebSocketContext';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
@@ -271,6 +271,12 @@ export default function App() {  const routerBasename = detectRouterBasename();
                           which is what sends them back here after they sign in. */}
                       <Route path={OAUTH_CONSENT_SPA_PATH} element={<OAuthConsentRoute />} />
                     </Routes>
+                    {/* The phone's cockpit layer. A SIBLING of the routes, not a route: it draws
+                        the cards over whatever the current location matched while the session page
+                        underneath stays mounted. It reads the history entry its opener pushed (the
+                        phone header's cockpit button) and renders nothing without it, so a direct
+                        `/cockpit?view=cards` deep link remains the standalone page. */}
+                    <CockpitOverlayHost />
                   </Router>
                 </ProtectedRoute>
                 </TaskMasterProvider>

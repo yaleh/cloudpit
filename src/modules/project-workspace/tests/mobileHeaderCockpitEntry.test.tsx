@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, act } from '@testing-library/react';
 import i18next from 'i18next';
 import type { ReactNode } from 'react';
 import { initReactI18next } from 'react-i18next';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import type {
@@ -19,6 +19,7 @@ import enChat from '@/modules/i18n/locales/en/chat.json';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import {
   CockpitColumnContext,
+  CockpitOverlayHost,
   createCockpitCardController,
   createCockpitColumnController,
 } from '@/modules/cockpit';
@@ -38,7 +39,15 @@ import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
  * at its compact size and open the session popover (its footer button is the way into the Quay
  * view); and the cockpit entry must be the third control in
  * the right-hand row, sized and bordered like the `⋯` beside it, with the provider's open-card
- * count as its badge (0 → faded and no badge, >99 → `99+`) and `/cockpit?view=cards` behind it.
+ * count as its badge (0 → faded and no badge, >99 → `99+`) and the phone layer it opens.
+ *
+ * THE PHONE COCKPIT PIN WAS DELIBERATELY REVERSED (2026-10-29). `cockpit-mobile-header-and-page`
+ * decided the phone's cockpit was an independent page reached at `/cockpit?view=cards`; the newer
+ * decision — and the user's own, after using both devices — is that the phone gets the PC's
+ * "cockpit and conversation coexist" reading as a layer over the live session. The assertion this
+ * file used to make ("clicking navigates to `/cockpit?view=cards`") is now "the layer opens AND
+ * the session is still there", and the deep-link case below keeps the old page behaviour for a
+ * direct `/cockpit?view=cards` (no conversation underfoot), so both decisions stay pinned.
  *
  * The desktop half is the reverse control: the same session must still show the `● Resident` pill
  * under the project name and the full-size pulse in the right-hand row — the phone change is a
@@ -143,6 +152,16 @@ vi.mock('@/modules/plugins', () => ({
   PluginIcon: () => null,
 }));
 
+// The layer is drawn only while the cockpit switch is on; this suite is about the header's
+// composition, so the boot-static reading is armed rather than fetched.
+vi.mock('@/shared/hooks/useServerFeatures', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useServerFeatures: () => ({ status: 'loaded', cockpitEnabled: true }),
+  };
+});
+
 await i18next.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
@@ -237,6 +256,13 @@ function LocationProbe() {
   return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
 }
 
+/**
+ * The header, on a real session route, with the cockpit layer's host mounted exactly as `App`
+ * mounts it (a sibling of the routes, so opening the layer does not change the route match).
+ *
+ * The session route also draws a marker: a criterion that says "the session is still there"
+ * reads a fact about the mounted conversation, not about the header alone.
+ */
 function Header({
   binding,
   isMobile,
@@ -247,19 +273,32 @@ function Header({
   children?: ReactNode;
 }) {
   return (
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[`/session/${SESSION_ID}`]}>
       <CockpitColumnContext.Provider value={binding}>
-        <WorkspaceHeader
-          activeTab="chat"
-          setActiveTab={() => {}}
-          selectedProject={PROJECT}
-          selectedSession={SESSION}
-          shouldShowTasksTab={false}
-          shouldShowQuayTab
-          shouldShowBrowserTab={false}
-          isMobile={isMobile}
-          onMenuClick={() => {}}
-        />
+        <Routes>
+          <Route
+            path="/session/:sessionId"
+            element={
+              <>
+                <WorkspaceHeader
+                  activeTab="chat"
+                  setActiveTab={() => {}}
+                  selectedProject={PROJECT}
+                  selectedSession={SESSION}
+                  shouldShowTasksTab={false}
+                  shouldShowQuayTab
+                  shouldShowBrowserTab={false}
+                  isMobile={isMobile}
+                  onMenuClick={() => {}}
+                />
+                <div data-testid="session-marker" />
+              </>
+            }
+          />
+          {/* The standalone cockpit page, as `App` mounts it at `/cockpit`. */}
+          <Route path="/cockpit" element={<div data-testid="standalone-cockpit" />} />
+        </Routes>
+        <CockpitOverlayHost binding={binding.cards} />
         {children}
         <LocationProbe />
       </CockpitColumnContext.Provider>
@@ -462,19 +501,88 @@ test('phone: the cockpit badge reads 0 (faded, no badge), 7, and 120 as 99+', as
   assert.equal(manyBadge.textContent, '99+', 'above 99 the badge caps its text');
 });
 
-test('phone: the cockpit entry opens /cockpit?view=cards', async () => {
+test('phone: the cockpit entry opens the cards layer and the conversation underneath survives', async () => {
   const binding = await columnBinding(3);
   render(<Header binding={binding} isMobile />);
+
+  assert.ok(document.querySelector('[data-testid="session-marker"]'), 'the session starts mounted');
 
   const button = document.querySelector<HTMLElement>('[data-testid="cockpit-header-button"]');
   assert.ok(button);
   fireEvent.click(button);
 
+  // This is the assertion that replaced `cockpit-mobile-header-and-page`'s old pin (the entry
+  // used to navigate to `/cockpit?view=cards`). The phone now gets the PC reading: cards ON the
+  // conversation, which stays mounted underneath.
+  const overlay = document.querySelector<HTMLElement>('[data-testid="cockpit-overlay"]');
+  assert.ok(overlay, 'the phone cockpit entry opens the cards layer');
+  assert.ok(
+    document.querySelector('[data-testid="cockpit-card-list"]'),
+    'the layer draws the cards content',
+  );
+  assert.ok(
+    document.querySelectorAll('[data-cockpit-card-id]').length > 0,
+    'the settled cards are visible inside the layer',
+  );
+  assert.ok(
+    document.querySelector('[data-testid="session-marker"]'),
+    'the conversation stays mounted under the layer',
+  );
+
+  const title = document.querySelector<HTMLElement>('[data-testid="cockpit-overlay-title"]');
+  assert.ok(title, 'the layer names the conversation it covers');
+  assert.ok(
+    title.textContent?.includes(SESSION.summary!),
+    `the layer title contains the session title; read "${title.textContent}"`,
+  );
+
   assert.equal(
     document.querySelector('[data-testid="location"]')?.textContent,
-    '/cockpit?view=cards',
-    'the phone cockpit entry navigates to the cards page',
+    `/session/${SESSION_ID}`,
+    'the layer is a history entry on the session address, not a navigation away from it',
   );
+});
+
+test('phone: a direct /cockpit?view=cards deep link is the standalone page, with no back bar', async () => {
+  const previousWidth = window.innerWidth;
+  window.innerWidth = 390;
+  try {
+    const binding = await columnBinding(1);
+    render(
+      <MemoryRouter initialEntries={['/cockpit?view=cards']}>
+        <CockpitColumnContext.Provider value={binding}>
+          <Routes>
+            <Route path="/session/:sessionId" element={<div data-testid="session-marker" />} />
+            <Route path="/cockpit" element={<div data-testid="standalone-cockpit" />} />
+          </Routes>
+          <CockpitOverlayHost binding={binding.cards} />
+          <LocationProbe />
+        </CockpitColumnContext.Provider>
+      </MemoryRouter>,
+    );
+
+    assert.ok(
+      document.querySelector('[data-testid="standalone-cockpit"]'),
+      'the deep link renders the cockpit page itself',
+    );
+    assert.equal(
+      document.querySelector('[data-testid="cockpit-overlay"]'),
+      null,
+      'with no conversation underfoot there is no layer',
+    );
+    assert.equal(
+      document.querySelector('[data-testid="cockpit-overlay-close"]'),
+      null,
+      'and therefore no back bar',
+    );
+    assert.equal(
+      document.querySelector('[data-testid="location"]')?.textContent,
+      '/cockpit?view=cards',
+      'the deep link keeps its own address',
+    );
+  } finally {
+    window.innerWidth = previousWidth;
+  }
 });
 
 test('desktop: the resident pill stays under the project name and the pulse stays full-size', async () => {
