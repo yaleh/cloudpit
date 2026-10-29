@@ -5236,11 +5236,22 @@ export type SessionAskDecision = {
  * auditable. `skipped` is a deliberate non-call (the tier is switched off). `unevaluated` means
  * the model answered something the schema does not accept — the producer then attaches NO `ask`
  * rather than passing the assistant's last sentence off as a restatement.
+ *
+ * `originalAsk` is the asking message's OWN words, kept verbatim so a card whose summary never
+ * materialised can still say what is being asked. It is a READ FROM THE TRANSCRIPT, not a digest
+ * field: the producer/reader attach it as a fallback for the `skipped`/`unevaluated` states (an
+ * `evaluated` reading already restates the question), and the projection caps it for display.
+ * It is never presented as the model's restatement; the card's own copy marks it as the original.
  */
 export type SessionAskDecisionReading =
-  | ({ state: 'evaluated'; inputTokens: number | null; outputTokens: number | null } & SessionAskDecision)
-  | { state: 'skipped'; reason: string }
-  | { state: 'unevaluated'; reason: string };
+  | ({
+      state: 'evaluated';
+      inputTokens: number | null;
+      outputTokens: number | null;
+      originalAsk?: string;
+    } & SessionAskDecision)
+  | { state: 'skipped'; reason: string; originalAsk?: string }
+  | { state: 'unevaluated'; reason: string; originalAsk?: string };
 
 /** The two context-event kinds a session ask produces; the fleet schema pins their names. */
 export type SessionAskEventKind = 'session.asking' | 'session.answered';

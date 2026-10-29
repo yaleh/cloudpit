@@ -39,7 +39,8 @@ depends_on:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDuplicates.test.ts` 退出 0（纯函数）：同一会话同一问句的两张卡折成一组、保留 `surfacedAt` 较晚的一张；不同会话或不同问句不折；句末标点与连续空白差异视为同一问句；`ask` 缺失时用 `situation` 分组；同一组三张时 `hiddenIds` 长度为 2 且顺序稳定。
+- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDuplicates.test.ts` 退出 0（纯函数）：同一会话同一问句的两张卡折成一组、保留 `surfacedAt` 较晚的一张；不同会话或不同问句不折；句末标点与连续空白差异视为同一问句；`ask` 与 `situation` 都缺失（摘要未生成的空卡）时按**会话**分组——同会话的 N 张空卡并成一张，标注「该会话有 N 个未答提问」；同一组三张时 `hiddenIds` 长度为 2 且顺序稳定。
+- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDuplicates.test.ts` 追加一组用例：同会话三张无 `ask`/`situation` 的空卡并成一组，数量读数 3；不同会话的空卡不并。
 - [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts` 退出 0，新增用例：`visibleCards` 不含被折叠的卡；类型 chip 计数与 `waiting for you` 读数按折叠后计算；`toggleDuplicates(cardId)` 展开后该卡重新出现在 `visibleCards` 的同一位置（不排到末尾）；重新读数后展开状态按同一分组保留；被折叠的卡不产生 `targets` 条目。
 - [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0，新增用例：有折叠项时渲染那条细条并显示次数；点「展开较早的」后渲染较早的卡；没有折叠项时不渲染细条。
 - [ ] 假形态变红：把分组键改为「卡片 id」⇒ 折叠用例红；把展开后的卡追加到列表末尾而不是原位 ⇒ 「同一位置」用例红；改完即还原。

@@ -12,6 +12,13 @@ import { reclaimDataDirs } from './scripts/e2e-data-dir-retention.mjs';
 import { resolveClientRoot } from './scripts/e2e-client-root.mjs';
 import { webServerStderrLogs, withStderrLog } from './scripts/e2e-web-server-stderr.mjs';
 import {
+  bootDeadlineFrom,
+  readConfigEvalStallMs,
+  runDeadlineFrom,
+  stallConfigEvaluation,
+  timerDelay,
+} from './scripts/e2e-run-ceilings.mjs';
+import {
   ASSEMBLY_TEMP_ROOT_ENV,
   PROBE_FILE_NAME,
   assemblyTempCandidates,
@@ -1089,7 +1096,18 @@ const writeWatchdogState = (state: {
  * own lifetime is short and already bounded by the runner — a ceiling armed there would fire on the runner's
  * run, not on the worker's, and report the wrong elapsed time.
  */
-if (isDataDirOwner) {
+const startRunWatchdog = (configEvalCompletedAt: number): void => {
+  /**
+   * How long config evaluation took, measured from the module's first line to the instant every synchronous
+   * stage here (seeds, client-root copy, server bundle) finished.
+   *
+   * Reported in the crossing line and in `watchdog-state.json` so a reader can tell *which* of the two
+   * spans consumed a deadline: a boot ceiling crossed at 45890ms with `config-eval-ms=45000` means the
+   * stall was config evaluation and the boot window was still nearly whole when it fired. That distinction
+   * is the whole defect this task fixed — the old reading could not tell them apart, because the boot
+   * deadline was counted from `runStartedAt` and config evaluation silently spent it.
+   */
+  const configEvalMs = configEvalCompletedAt - runStartedAt;
   const endRun = (label: string, ceiling: number, crossedAt: number, stall: Stall): void => {
     const elapsed = Date.now() - runStartedAt;
     // Recorded before anything can exit this process, and before the line below, so a run killed from outside
@@ -1100,7 +1118,10 @@ if (isDataDirOwner) {
       armed: true,
       fired: true,
       ceilingMs: ceiling,
-      detail: `${label} crossed at ${crossedAt}ms`,
+      detail:
+        label === 'boot ceiling'
+          ? `${label} crossed at ${crossedAt}ms — config-eval-ms=${configEvalMs}, boot window started at ${configEvalMs}ms and this ${ceiling}ms ceiling ran from there`
+          : `${label} crossed at ${crossedAt}ms — config-eval-ms=${configEvalMs}, this ${ceiling}ms ceiling ran from the run start`,
       stage: stall.stage,
       stall: stall.detail,
     });
@@ -1108,7 +1129,7 @@ if (isDataDirOwner) {
     // `process.stdout` is not flushed before `process.exit` — and the one line that explains the red would be
     // the one lost. The fallback covers a pipe that will not take the write right now; a lost line is bad but
     // not as bad as an exception on the way out swallowing the cleanup below.
-    const line = `[e2e] watchdog: this run crossed its own ${ceiling}ms ${label} at ${crossedAt}ms and is ending here with exit 1 at ${elapsed}ms — stuck at stage "${stall.stage}": ${stall.detail}.\n`;
+    const line = `[e2e] watchdog: this run crossed its own ${ceiling}ms ${label} at ${crossedAt}ms (config-eval-ms=${configEvalMs}${label === 'boot ceiling' ? `, boot window from ${configEvalMs}ms` : ''}) and is ending here with exit 1 at ${elapsed}ms — stuck at stage "${stall.stage}": ${stall.detail}.\n`;
     // BOTH streams, not stdout with stderr as a fallback. The fallback is about a pipe refusing a write; it is not
     // a fan-out, and the distinction matters here: the goal gate that judges this criterion keeps only the run's
     // *stderr* in its `payload.reason`, so a line written to stdout alone reaches every reader except the one that
@@ -1199,10 +1220,12 @@ if (isDataDirOwner) {
    *
    * Returns its timer so the latch below can cancel a boot ceiling the run has already outgrown.
    */
-  const arm = (ceiling: number, label: string, mayReArm: boolean): NodeJS.Timeout => {
+  const arm = (deadline: number, ceiling: number, label: string, mayReArm: boolean): NodeJS.Timeout => {
     const watchdog = setTimeout(() => {
       // Read before the probe below, so the moment the ceiling was crossed is reported as itself and the probe's
       // own cost is not folded into it — otherwise the line would name a 55s ceiling and an elapsed of 57s.
+      // Elapsed is always from `runStartedAt` (the whole invocation); the *deadline* it is compared against is
+      // the caller's, which is what differs between the two ceilings.
       const crossedAt = Date.now() - runStartedAt;
       describeStall()
         .catch(
@@ -1215,14 +1238,16 @@ if (isDataDirOwner) {
           // Either reading is enough to say this run is past boot: the latch is a fact the run established once,
           // and the sample is what a run that never set it can still show at the deadline.
           if (mayReArm && (bootCompletedAt !== null || stall.stage === 'browser-launch-or-cases')) {
-            arm(RUN_CEILING_MS, 'ceiling', false);
+            arm(runDeadlineFrom(runStartedAt, RUN_CEILING_MS), RUN_CEILING_MS, 'ceiling', false);
             return;
           }
           endRun(label, ceiling, crossedAt, classifyRunCeilingCrossing(stall));
         });
-      // Measured from the run's own start rather than from this call, so the second arming lands on the run
-      // ceiling itself and not on the boot ceiling plus it.
-    }, Math.max(0, runStartedAt + ceiling - Date.now()));
+      // The deadline is passed in rather than derived here, because the two ceilings have two different
+      // origins: the boot ceiling is counted from the END of config evaluation (a run cannot boot before the
+      // module finishes evaluating, and this timer cannot even run then), while the run ceiling is counted
+      // from `runStartedAt` — it bounds the whole invocation, config evaluation included.
+    }, timerDelay(deadline));
     // Not referenced: a run that finishes on its own must not be held open by this timer. It can only fire while
     // something else is genuinely keeping the event loop alive — which is exactly the condition it exists for.
     watchdog.unref();
@@ -1246,14 +1271,17 @@ if (isDataDirOwner) {
       clearTimeout(bootTimer);
       bootTimer = null;
     }
-    arm(RUN_CEILING_MS, 'ceiling', false);
+    arm(runDeadlineFrom(runStartedAt, RUN_CEILING_MS), RUN_CEILING_MS, 'ceiling', false);
+    // The positive reading AC2 asks for — both webServers answered — stated on stdout as well as in the
+    // state file, so a run whose boot window was started late can be read without opening the data dir.
+    console.log(`[e2e] boot: both webServers answered at ${bootCompletedAt - runStartedAt}ms (config-eval-ms=${configEvalMs}), re-armed to ${RUN_CEILING_MS}ms from the run start`);
     // Re-stated with the moment it happened, so a reader can tell a run that crossed the boot line from one that
     // never reached it without re-running anything — the same reason the crossing writes `stage`/`stall`.
     writeWatchdogState({
       armed: true,
       fired: false,
       ceilingMs: RUN_CEILING_MS,
-      detail: `boot completed at ${bootCompletedAt - runStartedAt}ms, re-armed to ${RUN_CEILING_MS}ms`,
+      detail: `boot completed at ${bootCompletedAt - runStartedAt}ms (config-eval-ms=${configEvalMs}), re-armed to ${RUN_CEILING_MS}ms from the run start`,
     });
   };
 
@@ -1266,9 +1294,18 @@ if (isDataDirOwner) {
   // and end a healthy run at 40s. So it arms only when there is a webServer to boot; the run ceiling still bounds
   // the whole run either way, and every other selection is byte-for-byte unchanged.
   if (mcpSettingsOnlySelection) {
-    arm(RUN_CEILING_MS, 'ceiling', false);
+    arm(runDeadlineFrom(runStartedAt, RUN_CEILING_MS), RUN_CEILING_MS, 'ceiling', false);
+    console.log(`[e2e] watchdog-armed: config-eval-ms=${configEvalMs}, run ceiling ${RUN_CEILING_MS}ms from the run start`);
   } else {
-    bootTimer = arm(BOOT_CEILING_MS, 'boot ceiling', true);
+    // THE ORIGIN IS THE FIX. A run cannot boot before this module finishes evaluating — Playwright has not
+    // spawned a webServer yet — and this timer cannot even run while evaluation is in progress, because
+    // evaluation is synchronous. So the boot window starts here, at `configEvalCompletedAt`, not at
+    // `runStartedAt`. Counted from the run start it was spent by config evaluation itself: on 2026-10-29 a
+    // 56.8s evaluation (gate event `9d08ccd0-c886-4e58-b750-ea2f2eeb7ede`) crossed the 40s deadline before
+    // the first webServer existed, and the crossing was written as a `webServer-start` stall with both ports
+    // closed — the exact class this ceiling exists to catch, for a run that had not begun booting.
+    bootTimer = arm(bootDeadlineFrom(configEvalCompletedAt, BOOT_CEILING_MS), BOOT_CEILING_MS, 'boot ceiling', true);
+    console.log(`[e2e] watchdog-armed: config-eval-ms=${configEvalMs}, boot ceiling ${BOOT_CEILING_MS}ms from config-eval end (deadline at ${configEvalMs + BOOT_CEILING_MS}ms after run start), then re-armed to ${RUN_CEILING_MS}ms from the run start`);
     // One probe at a time, a `WATCHDOG_PROBE_MS`-derived interval apart, and only until the latch is set: "has this
     // run ever been past boot?" is a fact about the run, and a single sample taken at the deadline cannot answer
     // it. The interval is derived from the probe's own deadline rather than introduced as a fresh number, so it
@@ -1300,10 +1337,10 @@ if (isDataDirOwner) {
     fired: false,
     ceilingMs: RUN_CEILING_MS,
     detail: mcpSettingsOnlySelection
-      ? `${RUN_CEILING_MS}ms, armed directly: this selection starts no webServer, so there is no unbounded pre-spawn probe for a boot ceiling to bound`
-      : `boot ${BOOT_CEILING_MS}ms, re-armed to ${RUN_CEILING_MS}ms once past boot`,
+      ? `${RUN_CEILING_MS}ms, armed directly: this selection starts no webServer, so there is no unbounded pre-spawn probe for a boot ceiling to bound (config-eval-ms=${configEvalMs})`
+      : `boot ${BOOT_CEILING_MS}ms from config-eval end (config-eval-ms=${configEvalMs}), re-armed to ${RUN_CEILING_MS}ms once past boot`,
   });
-}
+};
 
 /** Workspace e2e/session-filter.spec.ts creates its project in; its own directory so no other spec picks these sessions up. */
 const SESSION_FILTER_WORKSPACE = path.join(dataDir, 'session-filter-workspace');
@@ -2821,6 +2858,25 @@ if (isDataDirOwner) {
 }
 
 /**
+ * The CONTROL ARM that makes "config evaluation is slower than the boot ceiling" reproducible on demand.
+ *
+ * The defect this task closes needed a host load spike to appear: config evaluation reached 56.8s on
+ * 2026-10-29 (gate event `9d08ccd0-c886-4e58-b750-ea2f2eeb7ede`) against ~0.6s quiet, so waiting for the
+ * next spike is not a criterion anyone can run. `QUAY_E2E_CONFIG_EVAL_STALL_MS` parks the thread here, after
+ * every seed and before the client-root copy and server bundle below — i.e. inside the same synchronous
+ * block whose length broke the old boot origin.
+ *
+ * It is SYNCHRONOUS (`Atomics.wait`, see `scripts/e2e-run-ceilings.mjs`): an awaited sleep would hand the
+ * event loop back and let an armed timer fire mid-stall, producing the red for a different reason than the
+ * one under test. Owner-only, like every other seeding step here: workers re-evaluate this file with
+ * `QUAY_E2E_DATA_DIR_OWNER=false` and must not pay the stall again. Default 0, so an ordinary run is byte-
+ * for-byte unchanged; `QUAY_E2E_CLIENT_ROOT=off` is the other control arm and sits beside it.
+ */
+if (isDataDirOwner) {
+  stallConfigEvaluation(readConfigEvalStallMs(process.env), (line) => console.log(line));
+}
+
+/**
  * The specs that drive the debug agent, and the fixture home the server gets when one of them is selected.
  *
  * The debug agent's provider is not a product provider: `provider.registry.ts` writes its key only while the gate
@@ -3859,3 +3915,17 @@ export default defineConfig({
     (entry) => !(mcpSettingsOnlySelection && RUN_SERVERS.some((server) => server.url === entry.url)),
   ),
 });
+
+/**
+ * The end of config evaluation — the first instant Playwright can spawn a webServer, and the origin the boot
+ * ceiling is measured from.
+ *
+ * This is deliberately the LAST statement in the module. Everything above it is synchronous (seeds, the user
+ * dir sweep, the client-root copy, the server bundle, the webServer command construction), and a JS timer
+ * cannot fire while that runs: the old boot deadline, counted from `runStartedAt`, expired *inside* this
+ * block and fired with a 0ms delay once the event loop was free — before the first webServer existed. Placing
+ * the arming here is the fix; it is not a value change. `startRunWatchdog` is a `const` defined earlier in the
+ * module, so this call is the only thing that arms anything.
+ */
+const configEvalCompletedAt = Date.now();
+if (isDataDirOwner) startRunWatchdog(configEvalCompletedAt);

@@ -596,3 +596,116 @@ test('AC: a stored disabled-tier reading is repaired on read, so the card carrie
   assert.deepEqual(ask.options.map((option) => option.label), ['是', '否']);
   assert.deepEqual(ask.options.map((option) => option.suggested), [false, false]);
 });
+
+// ---------------------------------------------------------------------------------------------
+// A card's content is ITS OWN ask's: two cards on one session never share a reading
+// ---------------------------------------------------------------------------------------------
+
+/** One session-ask card about one asking message. `options: []` — the content layer fills them. */
+function askCardAbout(id: string, messageId: string): Record<string, unknown> {
+  return {
+    id,
+    provider: 'quay-fleet',
+    revision: 1,
+    kind: 'ask',
+    group: 'ruling',
+    rank: 1,
+    state: 'open',
+    waitingSince: WAITING,
+    surfacedAt: SURFACED,
+    subject: {
+      project: 'proj-1',
+      sessionId: 'sess-two',
+      uri: `cloudcli://session/sess-two#${messageId}`,
+    },
+    contentRef: { resolver: 'cloudcli.session-ask', sessionId: 'sess-two', messageId },
+    facts: [],
+    options: [],
+    ownerSession: null,
+  };
+}
+
+/** One evaluated digest for one ask, with labels the criterion can tell apart. */
+function readingFor(messageId: string, labels: [string, string]): SessionAskDecisionReading {
+  return {
+    state: 'evaluated',
+    inputTokens: 10,
+    outputTokens: 5,
+    askId: `sess-two:${messageId}`,
+    revision: 1,
+    ask: `${messageId} 的问题？`,
+    situation: `${messageId} 的情境。`,
+    options: labels.map((label, index) => ({
+      id: `${messageId}-${index}`,
+      label,
+      does: `${label} 的做法。`,
+      tags: [],
+      suggested: index === 0,
+      source: 'assistant' as const,
+    })),
+    incomplete: false,
+  };
+}
+
+test('AC: each ask card reads its own message’s digest, and a missing summary falls back to the original words', async () => {
+  // The assistant's own words for the unsummarized ask: far longer than the card cap, with the
+  // actual question at the END — the tail is the part a person has to answer.
+  const originalAsk = `HEAD-MARKER ${'背景信息 '.repeat(200)}TAIL-MARKER 真正的问题：要先补测试吗？`;
+  const readings: Record<string, SessionAskDecisionReading> = {
+    'm-a': readingFor('m-a', ['先补测试 A', '先改实现 A']),
+    'm-b': readingFor('m-b', ['合并 B', '等待 B']),
+    'm-none': {
+      state: 'unevaluated',
+      reason: '这条提问的摘要尚未生成',
+      originalAsk,
+    },
+  };
+  const stdout = `${[
+    askCardAbout('att-two-a', 'm-a'),
+    askCardAbout('att-two-b', 'm-b'),
+    askCardAbout('att-none', 'm-none'),
+  ]
+    .map((card) => JSON.stringify(card))
+    .join('\n')}\n`;
+  const seen: Array<[string, string]> = [];
+  const fleet = created({
+    runCards: runnerReturning(stdout),
+    readSessionAsk: (sessionId, messageId) => {
+      seen.push([sessionId, messageId]);
+      return readings[messageId] ?? null;
+    },
+  });
+
+  const cards = await fleet.provider.listCards();
+  const cardA = byId(cards, 'att-two-a');
+  const cardB = byId(cards, 'att-two-b');
+
+  // Each card's own message id reached the reader — no card asked about the session.
+  assert.deepEqual(seen, [
+    ['sess-two', 'm-a'],
+    ['sess-two', 'm-b'],
+    ['sess-two', 'm-none'],
+  ]);
+  const labelsOf = (card: CockpitCard): string[] => card.options.map((option) => option.label);
+  assert.deepEqual(labelsOf(cardA), ['先补测试 A', '先改实现 A'], 'A shows A’s options');
+  assert.deepEqual(labelsOf(cardB), ['合并 B', '等待 B'], 'B shows B’s options');
+  assert.notDeepEqual(labelsOf(cardA), labelsOf(cardB), 'the two cards cannot share one reading');
+  assert.equal(cardA.ask, 'm-a 的问题？');
+  assert.equal(cardB.ask, 'm-b 的问题？');
+  assert.equal(cardA.contentUnavailable, undefined);
+  assert.equal(cardB.contentUnavailable, undefined);
+
+  // A card whose message has no summary is NOT filled from the session's other reading: it says
+  // why it is empty, carries no options, and shows the asking message's own (capped) words.
+  const cardNone = byId(cards, 'att-none');
+  assert.deepEqual(cardNone.options, [], 'no options without a decision of its own');
+  assert.match(cardNone.contentUnavailable ?? '', /尚未生成/);
+  assert.equal(
+    cardNone.ask,
+    `…${originalAsk.slice(originalAsk.length - 600)}`,
+    'the original-text fallback keeps the tail where the question is',
+  );
+  assert.equal(cardNone.ask?.length, 601, '600 characters plus the leading ellipsis');
+  assert.equal(cardNone.ask?.includes('HEAD-MARKER'), false, 'the head is what the cap drops');
+  assert.match(cardNone.ask ?? '', /TAIL-MARKER 真正的问题：要先补测试吗？$/);
+});

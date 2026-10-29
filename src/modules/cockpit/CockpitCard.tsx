@@ -280,6 +280,20 @@ export default function CockpitCard({
   const compact = density === 'compact';
   const situation = card.situation !== card.ask ? card.situation ?? null : null;
   const ownReplyAvailable = card.ownReply !== undefined;
+  /**
+   * A card whose own ask has no summary yet: the reason is stated and NO options exist.
+   *
+   * The dropdown and the confirm bar are hidden for this card. With `options === []` the trigger
+   * could only say 「Choose an option」 over an empty list, and the confirm bar's empty state
+   * would promise 「Choose an option, then confirm」 for a choice the card does not have — the
+   * exact unreadable confirmation surface this reading exists to remove. What remains is what the
+   * card can honestly offer: the fallback question (zone A), the one-line reason (the situation
+   * line), the conversation it belongs to, and the person's own reply.
+   */
+  const emptyAskContent = card.contentUnavailable !== undefined && card.options.length === 0;
+  /** The conversation the empty card belongs to, read like the Details drawer reads it. */
+  const conversationSessionId =
+    (card.conversation?.sessionId ?? card.subject.sessionId ?? '').trim();
   // A fact already stated by the situation is not drawn twice; Details still lists every fact.
   const facts = cockpitCardFactsBeyondSituation(card);
   const question = cockpitCardTitle(card, t);
@@ -446,8 +460,59 @@ export default function CockpitCard({
         data-testid="cockpit-card-controls"
         className={cn(compact ? 'mt-1.5 flex items-start gap-2' : 'mt-2 space-y-2')}
       >
-        {/* B zone: one dropdown whose last item is the person's own reply. */}
+        {/* B zone: one dropdown whose last item is the person's own reply. A card with no
+            resolved options draws neither the dropdown nor its trigger; see `emptyAskContent`. */}
         <div className={cn('min-w-0', compact ? 'flex-1' : '')} data-testid="cockpit-card-options">
+          {emptyAskContent ? (
+            <div
+              data-testid="cockpit-card-empty-ask"
+              className="overflow-hidden rounded-md border border-dashed border-border"
+            >
+              {/* The two answers this card really has. The question and the reason are already
+                  drawn above (zone A and the situation line), so this strip adds no third copy. */}
+              {conversationSessionId !== '' && (
+                <a
+                  data-testid="cockpit-card-open-conversation"
+                  href={`/session/${encodeURIComponent(conversationSessionId)}`}
+                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-primary hover:underline"
+                >
+                  <span className="truncate">
+                    {t('cockpit.cardDetailsOpenConversation', { sessionId: conversationSessionId })}
+                  </span>
+                  <span aria-hidden className="shrink-0">›</span>
+                </a>
+              )}
+              {ownReplyAvailable && (
+                <button
+                  type="button"
+                  data-testid="cockpit-card-own-reply-trigger"
+                  data-selected={showingOwnReply ? 'true' : 'false'}
+                  aria-pressed={showingOwnReply}
+                  onClick={onShowOwnReply}
+                  className={cn(
+                    'flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs font-medium text-foreground hover:bg-accent',
+                    conversationSessionId !== '' && 'border-t border-border',
+                  )}
+                >
+                  <span aria-hidden>✎</span>
+                  <span className="truncate">{t('cockpit.cardWriteOwn')}</span>
+                </button>
+              )}
+              {/* The trigger above IS this editor's one heading, the same rule the dropdown's
+                  last item follows. */}
+              {showingOwnReply && ownReplyAvailable && (
+                <div className="border-t border-border px-2 py-1.5">
+                  <OwnReplyEditor
+                    value={ownReply}
+                    onChange={onOwnReplyChange}
+                    ariaLabel={t('cockpit.cardWriteOwn')}
+                    placeholder={t('cockpit.cardOwnReplyPlaceholder')}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
           {/* The trigger and the shown option's explanation are ONE bordered box: the frame owns
               the only border and rounding, so the explanation reads as part of the selected
               option rather than as a second, parallel option. */}
@@ -605,6 +670,8 @@ export default function CockpitCard({
                 )}
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* C zone: one confirm bar, bound to the shown option. Its first press turns the SAME
@@ -720,17 +787,19 @@ export default function CockpitCard({
           )}
           {/* The confirm control belongs to a card that can still act. A sent card's action
               already ran, so drawing a full-width disabled bar would put a dead control where the
-              live 「重发」 belongs. */}
+              live 「重发」 belongs. An ask whose content is unreadable draws no empty prompt either. */}
           {!feedbackLocked && (target === null ? (
-            <p
-              data-testid="cockpit-card-confirm-empty"
-              className={cn(
-                'text-[11px] text-muted-foreground',
-                compact ? 'w-20 self-center text-center leading-tight' : 'rounded-md border border-dashed border-border px-2 py-2 text-center',
-              )}
-            >
-              {t('cockpit.cardChooseThenConfirm')}
-            </p>
+            !emptyAskContent && (
+              <p
+                data-testid="cockpit-card-confirm-empty"
+                className={cn(
+                  'text-[11px] text-muted-foreground',
+                  compact ? 'w-20 self-center text-center leading-tight' : 'rounded-md border border-dashed border-border px-2 py-2 text-center',
+                )}
+              >
+                {t('cockpit.cardChooseThenConfirm')}
+              </p>
+            )
           ) : (
             <>
               <CockpitCardConfirmBar

@@ -38,6 +38,7 @@ import {
   readSessionAsk,
   readSessionAsks,
   SESSION_ASK_OUTPUT_UNUSABLE_REASON,
+  SESSION_ASK_DECISION_HISTORY_LIMIT,
   type SessionAskDecisionDigest,
 } from '../session-ask-decision-digest.js';
 import {
@@ -45,6 +46,7 @@ import {
   SESSION_ASK_DECISION_ASK_MISSING_REASON,
   SESSION_ASK_DECISION_ASK_RETRY_LIMIT,
   SESSION_ASK_DECISION_LIMIT_REASON,
+  SESSION_ASK_DECISION_NOT_GENERATED_REASON,
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
 } from '../session-ask-decision-reader.js';
 import {
@@ -1055,7 +1057,7 @@ test('read-time repair: a transcript that has not caught up yet is 「暂不可�
   assert.equal(storedAskDecision(objects)?.state, 'evaluated', 'the retry, not the first miss, decides');
 });
 
-test('read-time repair: a card naming a different ask than the stored reading is recomputed, not called missing', async () => {
+test('read-time repair: a card naming another ask never borrows the session slot, and its own ask is repaired under its askId', async () => {
   const { store, objects } = createMemoryStore();
   // THE LIVE DEFECT (#3): the stored digest belongs to the PREVIOUS turn (a0) — its own write for
   // the asking turn never landed — and the card names a1. The old reader compared the two askIds,
@@ -1099,23 +1101,44 @@ test('read-time repair: a card naming a different ask than the stored reading is
   });
 
   const first = reader.read(SESSION_ID, 'a1');
-  assert.equal(first?.state, 'evaluated', 'the frame still answers the stored reading');
+  assert.equal(
+    first?.state,
+    'unevaluated',
+    'the card names its own ask: the session slot (a0) is never its answer',
+  );
+  assert.equal(
+    first?.state === 'unevaluated' ? first.reason : '',
+    SESSION_ASK_DECISION_NOT_GENERATED_REASON,
+    'a card with no summary of its own says so, instead of showing another ask’s options',
+  );
   await reader.settled();
 
   assert.equal(requests.length, 1, 'the ask the card names is recomputed');
-  const stored = storedAskDecision(objects);
-  assert.equal(stored?.state, 'evaluated');
-  assert.equal(stored?.state === 'evaluated' ? stored.askId : '', `${SESSION_ID}:a1`);
+  const digest = objects.get(formatSessionUri(SESSION_ID))?.digest;
+  const askDecisions = (digest?.askDecisions ?? {}) as Record<string, SessionAskDecisionReading>;
+  const askDecisionMessages = (digest?.askDecisionMessages ?? {}) as Record<string, string>;
+  const perAsk = askDecisions[`${SESSION_ID}:a1`];
+  assert.equal(perAsk?.state, 'evaluated', 'the repair lands under the card’s own askId');
+  assert.equal(perAsk?.state === 'evaluated' ? perAsk.askId : '', `${SESSION_ID}:a1`);
   assert.equal(
-    JSON.stringify(stored).includes(SESSION_ASK_DECISION_ASK_MISSING_REASON),
+    JSON.stringify(perAsk).includes(SESSION_ASK_DECISION_ASK_MISSING_REASON),
     false,
     'the transcript does carry the card’s ask: the missing-ask sentence must never be written',
   );
   assert.equal(
-    stored?.state === 'evaluated' ? typeof stored.quote : 'missing',
+    perAsk?.state === 'evaluated' ? typeof perAsk.quote : 'missing',
     'string',
     'the card’s ask is the one now stored, with the quote a fresh recompute produces',
   );
+  assert.equal(
+    askDecisionMessages['a1'],
+    `${SESSION_ID}:a1`,
+    'the message index resolves the card’s message to its own ask',
+  );
+  // The legacy slot names the session's LATEST ask; repairing an older card's ask must not move
+  // it backwards.
+  const slot = storedAskDecision(objects);
+  assert.equal(slot?.state === 'evaluated' ? slot.askId : '', `${SESSION_ID}:a0`);
 });
 
 test('read-time repair: the card’s message id locates the ask when the transcript has moved on', async () => {
@@ -1901,4 +1924,85 @@ test('assistantQuoteOf keeps the question paragraph and caps the quote', () => {
   assert.equal(assistantQuoteOf(''), null);
   const long = `${'很长的段落'.repeat(100)}？`;
   assert.ok((assistantQuoteOf(long) ?? '').length <= 201, 'the quote is capped');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The per-ask history: a card reads ITS OWN ask, never the session's latest slot
+// ---------------------------------------------------------------------------------------------
+
+test('per-ask history: every ask keeps its own decision, a card reads it by message id, and the retention drops the oldest', async () => {
+  const { store, objects } = createMemoryStore();
+  // One model answer per asking turn, numbered by call order: each ask must keep ITS OWN labels,
+  // so the assertion "A's labels are not B's" has a fixture that can actually disagree.
+  let call = 0;
+  const harness = createHarness(() => {
+    call += 1;
+    const n = call;
+    return JSON.stringify({
+      ask: `第 ${n} 问的复述：要继续吗？`,
+      situation: `第 ${n} 问的情境。`,
+      incomplete: false,
+      recommendedOptionId: null,
+      options: [
+        { id: `opt-${n}-a`, label: `选项 ${n}A`, does: `第 ${n} 问的第一个做法。`, tags: [], source: 'assistant' },
+        { id: `opt-${n}-b`, label: `选项 ${n}B`, does: `第 ${n} 问的第二个做法。`, tags: [], source: 'assistant' },
+      ],
+    });
+  }, { objects });
+
+  const turns: Turn[] = [];
+  const askTurn = (n: number): Turn[] => [
+    { role: 'user', id: `u${n}`, text: `第 ${n} 轮开始` },
+    { role: 'assistant', id: `a${n}`, text: `第 ${n} 问：要继续吗？` },
+  ];
+
+  for (let n = 1; n <= 2; n += 1) {
+    turns.push(...askTurn(n));
+    harness.setTranscript(transcript(turns));
+    await harness.turnEnd();
+  }
+
+  // The digest now carries BOTH asks, keyed by their own askIds, with the message index a card's
+  // `contentRef.messageId` resolves through.
+  const digest = objects.get(formatSessionUri(SESSION_ID))?.digest;
+  const decisions = (digest?.askDecisions ?? {}) as Record<string, SessionAskDecisionReading>;
+  const messages = (digest?.askDecisionMessages ?? {}) as Record<string, string>;
+  assert.deepEqual(Object.keys(decisions), [`${SESSION_ID}:a1`, `${SESSION_ID}:a2`]);
+  assert.equal(messages['a1'], `${SESSION_ID}:a1`);
+  assert.equal(messages['a2'], `${SESSION_ID}:a2`);
+  // The legacy slot still names the LATEST ask; the cards never read it.
+  const slotReading = digest?.askDecision as SessionAskDecisionReading | undefined;
+  assert.equal(
+    slotReading?.state === 'evaluated' ? slotReading.askId : '',
+    `${SESSION_ID}:a2`,
+  );
+
+  // A card reads its own ask by the message it names. A is A's labels, B is B's — never each
+  // other's, and never the session slot's.
+  const reader = readerOver(store);
+  const readingA = reader.read(SESSION_ID, 'a1');
+  const readingB = reader.read(SESSION_ID, 'a2');
+  const labelsOf = (reading: SessionAskDecisionReading | null): string[] =>
+    reading?.state === 'evaluated' ? reading.options.map((option) => option.label) : [];
+  assert.equal(readingA?.state, 'evaluated', 'the older ask is readable on its own');
+  assert.equal(readingB?.state, 'evaluated');
+  assert.deepEqual(labelsOf(readingA), ['选项 1A', '选项 1B'], 'A reads A’s own decision');
+  assert.deepEqual(labelsOf(readingB), ['选项 2A', '选项 2B'], 'B reads B’s own decision');
+  assert.notDeepEqual(labelsOf(readingA), labelsOf(readingB), 'the two cards cannot share one reading');
+
+  // Eleven asks: the history is bounded at ten, and the OLDEST is the one dropped.
+  for (let n = 3; n <= 11; n += 1) {
+    turns.push(...askTurn(n));
+    harness.setTranscript(transcript(turns));
+    await harness.turnEnd();
+  }
+  const after = objects.get(formatSessionUri(SESSION_ID))?.digest;
+  const kept = (after?.askDecisions ?? {}) as Record<string, SessionAskDecisionReading>;
+  const keptMessages = (after?.askDecisionMessages ?? {}) as Record<string, string>;
+  assert.equal(Object.keys(kept).length, SESSION_ASK_DECISION_HISTORY_LIMIT);
+  assert.equal(kept[`${SESSION_ID}:a1`], undefined, 'the 11th-oldest ask is dropped');
+  assert.equal(kept[`${SESSION_ID}:a2`]?.state, 'evaluated', 'the next-oldest ask survives');
+  assert.equal(kept[`${SESSION_ID}:a11`]?.state, 'evaluated', 'the newest ask is present');
+  assert.equal(keptMessages['a1'], undefined, 'the dropped ask’s message index goes with it');
+  assert.equal(keptMessages['a11'], `${SESSION_ID}:a11`);
 });
