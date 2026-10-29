@@ -59,14 +59,14 @@ goal_ac: AC-173
 
 ## AC
 
-- [ ] AC1 判据直跑稳定绿：在本树连续 3 次 `npx playwright test e2e/resident-running-view.spec.ts` 均 `EXIT=0`；每次都贴 `N passed`、spec 自报 `elapsed=`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、以及跑前 `uptime` 的 load1；3 次 `elapsed` 的最大值 ≤ `82_500`（= 声明预算 `110_000` 的 75%），且 3 次输出都没有 `[e2e] watchdog:` 越界行。
-- [ ] AC2 声明与次序：`playwright.config.ts` 的 `SPEC_BUDGET_MS` 含 `'resident-running-view.spec.ts'` 且值为 `110_000`；`e2e/resident-running-view.spec.ts` 的 `test.describe.configure(...)` 含 `timeout: 110_000`；`quay goal show AC-173 --json` 的 `timeoutMs` == `118000`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`；`SPEC_BUDGET_MS` 里其它条目逐字未变。五条读数全部贴出。
-- [ ] AC3 判别性负控（拖过旧线）：`QUAY_E2E_CONFIG_EVAL_STALL_MS=15000 npx playwright test e2e/resident-running-view.spec.ts` → `EXIT=0`，spec 自报 `elapsed` > `55000` 且 ≤ `110_000`，该跑 `watchdog-state.json` 为 `fired:false`、`ceilingMs: 110000`；并贴 `git show $(git merge-base develop HEAD):playwright.config.ts | grep -n 'SINGLE_SPEC_CEILING_MS = 55_000'` 与 `git show $(git merge-base develop HEAD):e2e/resident-running-view.spec.ts | grep -n 'toBeLessThan(55_000)'` 均非空，证明同一读数在基线必红。
-- [ ] AC4 闸自证：`quay goal gate AC-173 --root <本任务 worktree> --json` exit 0，stdout 的 `verdict` == `"pass"`、`cause` == `null`、`timeoutMs` == `118000`、`event.payload.treeSha` == `git -C <worktree> rev-parse HEAD^{tree}`、`reason` 以 `acceptance passed (exit 0)` 开头；原文贴出。
-- [ ] AC5 判据语义未动：`quay goal show AC-173 --json` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-running-view.spec.ts`，`expect` 逐字仍为本 Proposal 引用的那两行，`status` == `achieved`、`goal` == `GOAL-013`；`git diff $(git merge-base develop HEAD) -- goals/` 的增删行只有 `timeoutMs` 那一行（允许 YAML 引号/折行归一的空白差异，逐字段值不变）。
-- [ ] AC6 spec 只动预算常量：`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts` 只改 `test.describe.configure` 的 `timeout` 与自检用例的阈值/用例名/消息；diff 新增行匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 `0`；判据文件名、`describe` 标题、用例顺序不变。
-- [ ] AC7 假形态仍必须红：spec 里那组判别断言逐字未动 —— 两个常驻 idle 被同一宿主持有时 `readBadge(...).reading ... toBe(0)`、一个 per-run turn 在飞时 `badge.reading` 为 `1` 且 `hosts.total` 为 `2`、第二个 turn 在飞时 `toBeGreaterThan(...)` 与 `toBe(2)`；`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -cE 'readBadge|residentsOnly|hosts\.total'` == `0`。
-- [ ] AC8 非目标：`goals/` 下除 AC-173 外无改动；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
+- [x] AC1 判据直跑稳定绿：在本树连续 3 次 `npx playwright test e2e/resident-running-view.spec.ts` 均 `EXIT=0`；每次都贴 `N passed`、spec 自报 `elapsed=`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、以及跑前 `uptime` 的 load1；3 次 `elapsed` 的最大值 ≤ `82_500`（= 声明预算 `110_000` 的 75%），且 3 次输出都没有 `[e2e] watchdog:` 越界行。
+- [x] AC2 声明与次序：`playwright.config.ts` 的 `SPEC_BUDGET_MS` 含 `'resident-running-view.spec.ts'` 且值为 `110_000`；`e2e/resident-running-view.spec.ts` 的 `test.describe.configure(...)` 含 `timeout: 110_000`；`quay goal show AC-173 --json` 的 `timeoutMs` == `118000`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`；`SPEC_BUDGET_MS` 里其它条目逐字未变。五条读数全部贴出。
+- [x] AC3 判别性负控（拖过旧线）：`QUAY_E2E_CONFIG_EVAL_STALL_MS=15000 npx playwright test e2e/resident-running-view.spec.ts` → `EXIT=0`，spec 自报 `elapsed` > `55000` 且 ≤ `110_000`，该跑 `watchdog-state.json` 为 `fired:false`、`ceilingMs: 110000`；并贴 `git show $(git merge-base develop HEAD):playwright.config.ts | grep -n 'SINGLE_SPEC_CEILING_MS = 55_000'` 与 `git show $(git merge-base develop HEAD):e2e/resident-running-view.spec.ts | grep -n 'toBeLessThan(55_000)'` 均非空，证明同一读数在基线必红。
+- [x] AC4 闸自证：`quay goal gate AC-173 --root <本任务 worktree> --json` exit 0，stdout 的 `verdict` == `"pass"`、`cause` == `null`、`timeoutMs` == `118000`、`event.payload.treeSha` == `git -C <worktree> rev-parse HEAD^{tree}`、`reason` 以 `acceptance passed (exit 0)` 开头；原文贴出。
+- [x] AC5 判据语义未动：`quay goal show AC-173 --json` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-running-view.spec.ts`，`expect` 逐字仍为本 Proposal 引用的那两行，`status` == `achieved`、`goal` == `GOAL-013`；`git diff $(git merge-base develop HEAD) -- goals/` 的增删行只有 `timeoutMs` 那一行（允许 YAML 引号/折行归一的空白差异，逐字段值不变）。
+- [x] AC6 spec 只动预算常量：`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts` 只改 `test.describe.configure` 的 `timeout` 与自检用例的阈值/用例名/消息；diff 新增行匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 `0`；判据文件名、`describe` 标题、用例顺序不变。
+- [x] AC7 假形态仍必须红：spec 里那组判别断言逐字未动 —— 两个常驻 idle 被同一宿主持有时 `readBadge(...).reading ... toBe(0)`、一个 per-run turn 在飞时 `badge.reading` 为 `1` 且 `hosts.total` 为 `2`、第二个 turn 在飞时 `toBeGreaterThan(...)` 与 `toBe(2)`；`git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -cE 'readBadge|residentsOnly|hosts\.total'` == `0`。
+- [x] AC8 非目标：`goals/` 下除 AC-173 外无改动；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
 
 ## DoD
 
@@ -82,3 +82,170 @@ goal_ac: AC-173
 - e2e/resident-running-view.spec.ts
 - goals/AC-173-真实浏览器里-running-视图分正在运行与常驻-空闲-两组-侧栏徽标只计正在运行的会话.md
 - tasks/gap-ac173-criterion-run-ceiling-load-headroom.md
+
+## Evidence
+
+### AC1 — three consecutive direct runs (same tree, verbatim criterion, no `-g`, no retries)
+
+Tree under test: `git rev-parse HEAD` = `5f6d89565087449fa1b1c7e04c273bd1da96da94`, `HEAD^{tree}` = `fef4f75b31e62c241218b36322c3844968113fe2`. Host load was 25–29 load1 at every start (the same loaded host that produced the 55005 ms reds).
+
+| run | command | rc | N passed | spec `elapsed=` | `/usr/bin/time` wall | load1 at start | `watchdog-state.json` |
+|---|---|---|---|---|---|---|---|
+| 1 | `npx playwright test e2e/resident-running-view.spec.ts` | 0 | `3 passed (41.9s)` | `42321ms` | 43.22s | 25.06 28.69 34.14 | `fired:false, ceilingMs:110000` |
+| 2 | same | 0 | `3 passed (37.3s)` | `37379ms` | 38.08s | 29.15 29.03 33.95 | `fired:false, ceilingMs:110000` |
+| 3 | same | 0 | `3 passed (38.1s)` | `38548ms` | 39.27s | 26.98 28.48 33.56 | `fired:false, ceilingMs:110000` |
+
+Max `elapsed` = `42321ms` ≤ `82500ms` (75% of the declared `110000`). `grep -c '[e2e] watchdog:'` = `0` in all three run logs (no crossing line).
+
+Watchdog details:
+
+- run1 `/data/home/yale/.cache/quay-e2e-tmp/quay-e2e-QSt7zB/watchdog-state.json`: `{"armed":true,"fired":false,"ceilingMs":110000,"detail":"boot completed at 4213ms (config-eval-ms=603), re-armed to 110000ms from the run start"}`
+- run2 `…/quay-e2e-Bgtf2d/watchdog-state.json`: `{"armed":true,"fired":false,"ceilingMs":110000,"detail":"boot completed at 3650ms (config-eval-ms=252), re-armed to 110000ms from the run start"}`
+- run3 `…/quay-e2e-BUlsLK/watchdog-state.json`: `{"armed":true,"fired":false,"ceilingMs":110000,"detail":"boot completed at 3946ms (config-eval-ms=553), re-armed to 110000ms from the run start"}`
+
+The criterion's own readings, one block per green run (identical values; the session ids are fresh each run):
+
+```
+run1 hosts.running=1 hosts.residentIdle=2 hosts.total=2 badge.reading=1
+run1 group.running.count=1 group.running.ids=340aa599-84d9-42cd-866f-cf2db2ff29c8
+run1 group.residentIdle.count=2 group.residentIdle.ids=2b95b545-6583-43d2-873d-df333ee1eda5,97e19051-6233-4f7c-ae2c-26a1743baf7f
+run1 close.request=200
+run1 hosts.beforeClose=2 hosts.afterClose=1
+run1 badge.afterExtra=2 badge.reading=1 hosts.total=2
+
+run2 hosts.running=1 hosts.residentIdle=2 hosts.total=2 badge.reading=1
+run2 group.running.count=1 group.running.ids=13d4c1a8-5991-4e89-8c26-a0732869f50e
+run2 group.residentIdle.count=2 group.residentIdle.ids=8870bf9a-6c64-46f7-9470-6a64b51ca993,c08bcd56-d463-4028-9c46-7f760fcb040c
+run2 close.request=200
+run2 hosts.beforeClose=2 hosts.afterClose=1
+run2 badge.afterExtra=2 badge.reading=1 hosts.total=2
+
+run3 hosts.running=1 hosts.residentIdle=2 hosts.total=2 badge.reading=1
+run3 group.running.count=1 group.running.ids=d27d363c-9d3f-4a7b-8d49-cc5c348c0fec
+run3 group.residentIdle.count=2 group.residentIdle.ids=26ddac82-380d-4730-b2c4-525202d586a5,f1efda78-e840-476c-8cb2-728fc339a18b
+run3 close.request=200
+run3 hosts.beforeClose=2 hosts.afterClose=1
+run3 badge.afterExtra=2 badge.reading=1 hosts.total=2
+```
+
+### AC3 — discriminating negative control (stall past the old 55 s line)
+
+| item | reading |
+|---|---|
+| command | `QUAY_E2E_CONFIG_EVAL_STALL_MS=15000 npx playwright test e2e/resident-running-view.spec.ts` |
+| rc | `0` |
+| N passed | `3 passed (42.5s)` |
+| spec `elapsed=` | `57632ms` (> 55000 and ≤ 110000) |
+| `/usr/bin/time` wall | 58.48s |
+| load1 at start | 25.32 27.92 33.13 |
+| watchdog | `fired:false, ceilingMs:110000` (`config-eval-ms=15386`, `boot completed at 17397ms`) |
+| stall line | `[e2e] config-eval-stall: holding config evaluation for 15000ms (QUAY_E2E_CONFIG_EVAL_STALL_MS=15000)` |
+
+Baseline proof that the same reading is necessarily red — merge-base `bb25494d74b3f599a6fddf98308482106c5450db`:
+
+```
+$ git show $(git merge-base develop HEAD):playwright.config.ts | grep -n 'SINGLE_SPEC_CEILING_MS = 55_000'
+374:const SINGLE_SPEC_CEILING_MS = 55_000;
+$ git show $(git merge-base develop HEAD):e2e/resident-running-view.spec.ts | grep -n 'toBeLessThan(55_000)'
+1178:    expect(elapsed, 'the whole invocation, measured from the config’s own start').toBeLessThan(55_000);
+```
+
+Both are non-empty ⇒ on the baseline this same `57632ms` run crosses the `55000ms` watchdog (exactly the observed 55005 ms reds) and fails the self-check.
+
+### AC4 — gate self-test (`quay goal gate AC-173 --root <worktree> --json`)
+
+Exit `0`; verbatim stdout:
+
+```json
+{
+  "id": "AC-173",
+  "verdict": "pass",
+  "cause": null,
+  "reason": "acceptance passed (exit 0)",
+  "capabilityCode": null,
+  "capabilityBypass": null,
+  "timeoutMs": 118000,
+  "timestamp": "2026-10-29T13:03:09.072Z",
+  "dryRun": false,
+  "event": {
+    "id": "b88dfa0d-3f06-4779-ac78-33fb26c3c8f9",
+    "item_id": "AC-173",
+    "pipeline_id": "AC-173",
+    "gate": "goal",
+    "actor": "goal-cli",
+    "verdict": "pass",
+    "timestamp": "2026-10-29T13:03:09.072Z",
+    "payload": {
+      "reason": "acceptance passed (exit 0)",
+      "evaluationRoot": "/data/home/yale/work/claudecodeui-worktrees/task-gap-ac173-criterion-run-ceiling-load-headroom",
+      "treeSha": "fef4f75b31e62c241218b36322c3844968113fe2"
+    }
+  }
+}
+```
+
+`event.payload.treeSha` `fef4f75b31e62c241218b36322c3844968113fe2` == `git -C <worktree> rev-parse HEAD^{tree}` (checked).
+
+### AC2 — five declaration readings
+
+```
+1  playwright.config.ts:784:  'resident-running-view.spec.ts': 110_000,
+2  e2e/resident-running-view.spec.ts:764:test.describe.configure({ mode: 'serial', timeout: 110_000 });
+3  quay goal show AC-173 --json → "timeoutMs": 118000
+4  playwright.config.ts:374:const SINGLE_SPEC_CEILING_MS = 55_000;
+5  git diff $(git merge-base develop HEAD) -- playwright.config.ts → 9 insertions, 0 deletions
+   (the new comment + entry only; every other SPEC_BUDGET_MS entry is byte-identical)
+```
+
+Read-scope note for (3): the packaged `.quay/config.yml` pins `providers.native.env.QUAY_NATIVE_GOAL_DIR` to the main checkout's absolute path, so an unscoped Provider read lags the branch until fan-in (the same gap AC-345's Evidence recorded). The reading above was taken from this task worktree with the provider's goal carrier scoped to the worktree — `quay goal show AC-173 --json` run at the worktree root with `QUAY_NATIVE_GOAL_DIR="./goals"` — and it agrees with the store-dialect read the gate itself uses: `quay goal get AC-173 --json --store --root <worktree>` → `"timeoutMs": 118000`. The worktree `.quay/config.yml` was restored from the main checkout's copy afterwards (`diff -q` clean, and `.quay/` is gitignored).
+
+### AC5 / AC6 / AC7 / AC8 readings
+
+```
+$ quay goal show AC-173 --json          # worktree-scoped carrier as noted above
+  "status": "achieved"
+  "goal": "GOAL-013"
+  "criterion": "npx playwright test e2e/resident-running-view.spec.ts"
+  "expect": "调试 agent 场景造出一个运行中的会话与两个空闲常驻会话：侧栏 Running 徽标读数为 1；Running 视图两组各列出对应会话，第二组每行有关闭按钮，点击后该会话宿主关闭、从该组消失。取假形态：徽标计入空闲常驻会话 ⇒ 读数 3，必须红。"
+
+$ git diff $(git merge-base develop HEAD) -- goals/ | grep '^[+-]' | grep -v '^\(+++\|---\)'
++timeoutMs: 118000
+⇒ only the timeoutMs line is added/deleted; criterion/expect/status/goal are byte-identical.
+
+$ git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep '^+' | grep -cE 'test\.skip|test\.only|retries|\.setTimeout\('
+0
+$ git diff $(git merge-base develop HEAD) -- e2e/resident-running-view.spec.ts | grep -cE 'readBadge|residentsOnly|hosts\.total'
+0
+```
+
+Spec diff is exactly: `test.describe.configure` gains `timeout: 110_000`; the self-check case's threshold becomes `110_000`, its name becomes `the run ends inside its declared spec budget`, and its doc comment no longer claims 60 s is the kill line. File name, `test.describe('resident running view')` title and case order are unchanged.
+
+```
+$ git diff --name-only $(git merge-base develop HEAD) -- goals/ src/ server/ tasks/
+goals/AC-173-真实浏览器里-running-视图分正在运行与常驻-空闲-两组-侧栏徽标只计正在运行的会话.md
+
+$ npm run typecheck
+> tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json
+exit 0
+```
+
+### Anti-drift
+
+```
+$ node --no-warnings /data/home/yale/.claude/plugins/cache/quay/quay/0.24.0/scripts/dist/anti-drift-touches-check.js --task gap-ac173-criterion-run-ceiling-load-headroom --worktree <worktree> --merge-target develop
+ANTI-DRIFT OK: task gap-ac173-criterion-run-ceiling-load-headroom — 3 actual file(s), all within declared Touches (4 glob(s))
+```
+
+`git status --short` in the worktree is empty at completion (`tmp/` is gitignored).
+
+### Main-checkout ledger — last AC-173 entry, read at completion
+
+```
+{"id":"a01ce5fd-9648-4d6e-ad22-03f5ad2e39f1","item_id":"AC-173","pipeline_id":"AC-173","gate":"goal","actor":"goal-cli","verdict":"pass","timestamp":"2026-10-29T13:02:33.053Z","payload":{"reason":"acceptance passed (exit 0)","evaluationRoot":"/data/home/yale/work/claudecodeui","treeSha":"fd227d2f285280dd15d995981a8b3103243c0a1f"}}
+```
+
+This last entry is the main checkout's own sweep (`evaluationRoot=/data/home/yale/work/claudecodeui`, `treeSha=fd227d2f…` is the develop/base tree), not this worktree's gate: this worktree's gate pass was written at `13:03:09.072Z` with `treeSha=fef4f75b…` into the worktree's `.quay/gate-events.jsonl`. The main ledger's AC-173 series as read was `12:55:58.200Z`, `12:59:24.086Z`, `13:02:33.053Z`, all `verdict:"pass"` on treeSha `fd227d2f…`. No inference is drawn beyond those recorded entries.
+
+### ADR-007 dark-axis record
+
+该轴仍暗,理由:本任务只声明 e2e 运行预算与 AC 记录 deadline，未触碰架构图/依赖边，无 L_G/L_D 新增读数可报。
