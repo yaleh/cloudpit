@@ -2,7 +2,7 @@
 id: gap-ac436-codex-resident-queue-reland
 title: AC-436 Codex 常驻：把忙时输入队列（queue/add、list 真值、delete 撤回、完成自动排水、中断后显式
   queue/start）重新落到当前 goal/GOAL-051 树
-status: ready
+status: done
 labels:
   - gap
 parent: null
