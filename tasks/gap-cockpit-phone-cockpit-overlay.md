@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-phone-cockpit-overlay
 title: 手机驾驶舱改为覆盖在会话上的层：打开不卸载会话、关闭回到原会话、层内切换会话保持卡片上下文
-status: ready
+status: done
 labels:
   - gap
   - cockpit
