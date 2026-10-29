@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-option-edit-into-own-reply
 title: 详情里每个选项加「✎ 编辑」：把实际发送全文（label — does）复制进自己的回复并聚焦到文本末尾
-status: ready
+status: done
 labels:
   - gap
   - cockpit

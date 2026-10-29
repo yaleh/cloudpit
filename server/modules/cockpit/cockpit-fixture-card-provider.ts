@@ -110,6 +110,14 @@ function fixtureOption(
   suggested: boolean,
   source: CockpitCardOption['source'],
   extra: Partial<CockpitCardOption> = {},
+  /**
+   * The text the option would actually send, for the Details drawer's 「✎ 编辑」 shortcut. Omitted
+   * means the option has nothing to copy (`fixture:need`'s and `fixture:multi`'s options, whose
+   * fixture actions record a choice rather than send words). The two `fixture:stuck` options DO
+   * set it: that card names a session, so the drawer's own-reply row is available and the whole
+   * copy-into-the-draft chain can be driven on the shipped fixture.
+   */
+  sendText?: string,
 ): CockpitCardOption {
   return {
     id,
@@ -121,6 +129,7 @@ function fixtureOption(
       executor: FIXTURE_EXECUTOR_ID,
       params: { cardId, optionId: id },
     },
+    ...(sendText === undefined ? {} : { sendText }),
     ...extra,
   };
 }
@@ -190,10 +199,10 @@ function fixtureCards(): CockpitCard[] {
       options: [
         fixtureOption('fixture:stuck', 'resume', 'Resume with a nudge', 'Send one message asking for the next concrete step.', true, 'judge', {
           tags: [{ kind: 'undo', text: '可撤' }],
-        }),
+        }, 'Resume with a nudge — Send one message asking for the next concrete step.'),
         fixtureOption('fixture:stuck', 'park', 'Park it', 'Stop the session and keep the transcript.', false, 'provider', {
           tags: [{ kind: 'irreversible', text: '不可逆' }],
-        }),
+        }, 'Park it — Stop the session and keep the transcript.'),
       ],
       notify: { system: true, reason: 'fleet.stuck' },
       // stuck → attempts: the dots of what has already been tried, newest first on the wire.

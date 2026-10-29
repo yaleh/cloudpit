@@ -951,6 +951,7 @@
     "cardChooseThenConfirm": "Option wählen, dann bestätigen",
     "cardChooseOption": "Option wählen",
     "cardWriteOwn": "Eigene Antwort",
+    "cardEditOption": "Bearbeiten",
     "cardDetailsAssistantQuote": "Was der Assistent sagte",
     "cardDetailsInSession": "in der Sitzung",
     "phoneStatusLanded": "gelandet {{n}}",

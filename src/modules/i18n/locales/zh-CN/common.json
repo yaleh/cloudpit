@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "选一个选项后确认",
     "cardChooseOption": "选择一项",
     "cardWriteOwn": "自己的回复",
+    "cardEditOption": "编辑",
     "cardDetailsAssistantQuote": "助手原话",
     "cardDetailsInSession": "在会话中",
     "phoneStatusLanded": "已落地 {{n}}",

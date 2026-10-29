@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { CockpitCard as CockpitCardData } from '@/shared/types';
@@ -196,6 +196,14 @@ export default function CockpitCardDetails({
   // The drawer's swipe-down gesture: the pointer's y where the handle was pressed. A number
   // rather than a boolean, because the closing distance is measured, not just "dragged at all".
   const swipeStartY = useRef<number | null>(null);
+  // 「✎ 编辑」 IS THE ONLY PATH THAT FOCUSES THE DRAFT. Pressing an option's edit button copies the
+  // option's sent text into the own-reply draft and asks the effect below to put the caret at the
+  // END; pressing the ordinary own-reply row just opens the editor and leaves focus alone. A
+  // one-shot flag (cleared once the focus lands) is what keeps those two paths distinct.
+  // The drawer's own options list. Its own-reply editor is the list's one textarea, so scoping
+  // the focus lookup here is what keeps the card row's editor out of reach — both can share a page.
+  const optionsListRef = useRef<HTMLUListElement | null>(null);
+  const [focusOwnReplyPending, setFocusOwnReplyPending] = useState(false);
   // The same rule the card body uses: a fact the situation already states is not a second
   // reading. Details is where the facts keep their FULL text, so only the repetition is dropped.
   const facts = cockpitCardFactsBeyondSituation(card);
@@ -215,6 +223,18 @@ export default function CockpitCardDetails({
   // A card awaiting a feedback receipt has already run its action; the list locks the options
   // and so does the drawer — the two read one card, so they must lock together.
   const optionsLocked = card.feedback !== undefined;
+  // Land the 「✎ 编辑」 focus only once BOTH the flag and the shown reading agree: whichever of the
+  // two state updates renders first, the effect re-runs when the other arrives. Focus is put at
+  // the end because the point of the shortcut is to append a few words to the copied text.
+  useEffect(() => {
+    if (!focusOwnReplyPending || !showingOwnReply) return;
+    const input = optionsListRef.current?.querySelector('textarea') ?? null;
+    if (input === null) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+    setFocusOwnReplyPending(false);
+  }, [focusOwnReplyPending, showingOwnReply]);
   // The server projection fills `conversation` from the subject; the fallback keeps the link
   // for a card read before that projection ran (and for a criterion that states only the subject).
   // A provider that states `conversation` itself stays authoritative: the subject is only used
@@ -420,11 +440,19 @@ export default function CockpitCardDetails({
             signal, and the faint `bg-primary/5` only supports it. The last row is always the
             person's own reply, carrying the same state and expanding the shared draft editor.
           */}
-          <ul className="space-y-1.5" data-testid="cockpit-card-details-options">
+          <ul ref={optionsListRef} className="space-y-1.5" data-testid="cockpit-card-details-options">
             {card.options.map((option) => {
               const isShown = shownOptionId === option.id;
+              // The text this option would actually send, for the 「✎ 编辑」 shortcut. An option
+              // that states none (every fleet disposal option) has nothing to copy, so it offers
+              // no shortcut. The other three conditions mirror the own-reply row: the card must
+              // have an own-reply action, this drawer must be able to write its draft, and the
+              // card must not be locked behind an already-sent feedback.
+              const editableText = option.sendText;
+              const editAvailable =
+                editableText !== undefined && ownReplyAvailable && onOwnReplyChange !== undefined;
               return (
-                <li key={option.id}>
+                <li key={option.id} className="relative">
                   <button
                     type="button"
                     data-testid={`cockpit-card-details-option-${option.id}`}
@@ -440,6 +468,8 @@ export default function CockpitCardDetails({
                       'hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                       isShown ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : 'border-border',
                       optionsLocked && 'cursor-default opacity-70',
+                      // Room for the shortcut in the corner, so the two never overlap.
+                      editAvailable && !optionsLocked && 'pr-14',
                     )}
                   >
                     <span className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-foreground">
@@ -478,6 +508,23 @@ export default function CockpitCardDetails({
                       <span className="mt-0.5 block text-[11px] text-muted-foreground">{option.undo}</span>
                     )}
                   </button>
+                  {/* A SIBLING of the row button, never a child: HTML cannot nest buttons. The
+                      shortcut copies the option's sent text into the shared draft and asks for
+                      the caret at its end; it does not confirm anything. */}
+                  {editAvailable && !optionsLocked && (
+                    <button
+                      type="button"
+                      data-testid={`cockpit-card-details-option-edit-${option.id}`}
+                      onClick={() => {
+                        setFocusOwnReplyPending(true);
+                        onOwnReplyChange?.(editableText);
+                      }}
+                      className="absolute right-1 top-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <span aria-hidden>✎ </span>
+                      {t('cockpit.cardEditOption')}
+                    </button>
+                  )}
                 </li>
               );
             })}

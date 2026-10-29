@@ -981,6 +981,7 @@
     "cardChooseThenConfirm": "オプションを選んでから確認",
     "cardChooseOption": "オプションを選択",
     "cardWriteOwn": "自分で返信を書く",
+    "cardEditOption": "編集",
     "cardDetailsAssistantQuote": "アシスタントの発言",
     "cardDetailsInSession": "セッション内",
     "phoneStatusLanded": "着地 {{n}}",

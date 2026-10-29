@@ -427,6 +427,59 @@ test('AC: a completed session-ask option answers its own session with 「label �
   );
 });
 
+test('AC: a content option carries the exact text it sends as `sendText`, and fleet options carry none', async () => {
+  // The Details drawer's 「✎ 编辑」 shortcut copies `sendText` into the person's own reply, so the
+  // field must be the SAME string the action sends — not a second derivation that could drift.
+  // Only content options have one: a fleet disposal option records a choice in place and sends
+  // no words, so there is nothing to copy into a reply.
+  const base = evaluated({ suggested: true, source: 'assistant' });
+  if (base.state !== 'evaluated') throw new Error('the fixture digest must be evaluated');
+  const reading: SessionAskDecisionReading = {
+    ...base,
+    options: [
+      { ...base.options[0]!, does: 'Remove the staging directory after the archive is verified.' },
+      // The empty-`does` arm: such an option sends its label alone.
+      { ...base.options[1]!, does: '' },
+    ],
+  };
+  const fleet = created({ readSessionAsk: () => reading });
+  const cards = await fleet.provider.listCards();
+  const ask = byId(cards, 'att-ask-1');
+
+  const deleting = optionById(ask, 'delete');
+  assert.equal(
+    deleting.sendText,
+    'Delete staging — Remove the staging directory after the archive is verified.',
+    'a labeled option sends 「label — does」',
+  );
+  assert.equal(
+    deleting.action.params.text,
+    deleting.sendText,
+    'the action param and the copied text are one string',
+  );
+
+  const keeping = optionById(ask, 'keep');
+  assert.equal(keeping.sendText, 'Keep staging', 'an option with nothing to add sends its label alone');
+  assert.equal(keeping.action.params.text, keeping.sendText);
+
+  // Fleet's own options (and the registry's `session.start` default, where a card names only a
+  // project) never carry the field: their text, if any, is not a reply to copy.
+  const otherOptions = cards
+    .flatMap((card) => card.options)
+    .filter(
+      (option) =>
+        option.action.executor.startsWith('fleet.') || option.action.executor === 'session.start',
+    );
+  assert.ok(otherOptions.length > 0, 'the fixture must give this assertion fleet options to read');
+  for (const option of otherOptions) {
+    assert.equal('sendText' in option, false, `${option.id} is a fleet action and carries no sendText`);
+  }
+
+  // The content options are the ones that DO carry it, so the reading above is not vacuous.
+  assert.equal('sendText' in deleting, true);
+  assert.equal('sendText' in keeping, true);
+});
+
 test('AC-432 / AC-434: a judge recommendation is the session-ask card’s default too, with its reason', async () => {
   // The assistant's own recommendation is not present, so the observation layer marked the
   // judge's pick. The projection passes that decision through — any source's suggested option is
