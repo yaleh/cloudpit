@@ -8,6 +8,9 @@ labels:
 parent: null
 children: []
 extra: {}
+depends_on:
+  - gap-cockpit-ask-content-anchored-by-askid
+  - gap-cockpit-card-sent-state-single-line
 ---
 ## Proposal
 
