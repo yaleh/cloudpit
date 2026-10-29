@@ -56,6 +56,28 @@ const TEMP_PREFIX = '__criterion-falsify-cancel-queued-';
  */
 const FIELD_ASSIGNMENT = /(\n\s*cancelQueuedInput: )true,/;
 
+/**
+ * The `claude` row of the shipping matrix — this criterion's own subject.
+ *
+ * The reading this file pins is CLAUDE's declaration: E9 and E10/U4 measured the withdraw for the
+ * Claude resident driver. The mutation is therefore scoped to the claude entry rather than counted
+ * across the whole module. A whole-file uniqueness pin cannot tell "the claude value regressed"
+ * apart from "another provider started telling the same measured truth": since AC-442 the codex
+ * row also states `cancelQueuedInput: true` (E2 measured `thread/queue/delete`), which is no
+ * defect here — those are two independent experiments that happen to agree. Inside the claude row
+ * the hit count still must be exactly one, so a no-op mutation is still caught, and the mutation
+ * is still keyed on the assignment rather than on any comment beside it.
+ */
+function claudeRowBounds(source: string): { start: number; end: number } {
+  const start = source.indexOf('\n  claude: {');
+  assert.notEqual(start, -1, 'the shipping matrix must still declare a `claude` row at provider indent');
+  // A provider row closes at two-space indent; nested objects (e.g. `residentFeatures`) close
+  // deeper, so the first `\n  },` after the row opener is the row's own close.
+  const close = source.indexOf('\n  },', start);
+  assert.ok(close > start, 'the `claude` row must close at provider indent');
+  return { start, end: close + '\n  },'.length };
+}
+
 /** A line that ties the slot to the un-measured value — the reasoning D-11 retires. */
 const OLD_VALUE_REASONING = /cancelQueuedInput[^\n]*\bfalse\b|slot is `?false`?/;
 
@@ -74,11 +96,15 @@ test('AC1: claude declares cancelQueuedInput true, and a copy flipped back to fa
   // flipped. If the assertion above could be satisfied by something other than the shipping value,
   // this arm would answer `true` too.
   const source = readFileSync(SHIPPING_SERVICE, 'utf8');
+  const row = claudeRowBounds(source);
+  const claudeSource = source.slice(row.start, row.end);
   // Counted with a global MATCH rather than `split`: `split` splices the regex's capture groups
   // into its own result, so the same pattern would report one phantom hit per group.
-  const hits = (source.match(new RegExp(FIELD_ASSIGNMENT.source, 'g')) ?? []).length;
-  assert.equal(hits, 1, `the false form must flip exactly one field assignment in ${path.basename(SHIPPING_SERVICE)}, found ${hits}`);
-  const mutated = source.replace(FIELD_ASSIGNMENT, '$1false,');
+  const hits = (claudeSource.match(new RegExp(FIELD_ASSIGNMENT.source, 'g')) ?? []).length;
+  assert.equal(hits, 1, `the false form must flip exactly one field assignment in the claude row of ${path.basename(SHIPPING_SERVICE)}, found ${hits}`);
+  const mutatedClaude = claudeSource.replace(FIELD_ASSIGNMENT, '$1false,');
+  assert.notEqual(mutatedClaude, claudeSource, 'the mutation must have changed the source, or the false form copies the shipping value');
+  const mutated = source.slice(0, row.start) + mutatedClaude + source.slice(row.end);
   assert.notEqual(mutated, source, 'the mutation must have changed the source, or the false form copies the shipping value');
 
   const mutantPath = path.join(path.dirname(SHIPPING_SERVICE), `${TEMP_PREFIX}${process.pid}.ts`);
