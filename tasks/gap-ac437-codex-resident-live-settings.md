@@ -150,6 +150,13 @@ goal_ac: AC-437
 
   同轮打印 `idlePidBefore=730437 idlePidAfter=730438`。
 
+**本轮补丁（exited-not-landed 续跑，2026-10-29）**
+
+- 上一轮 fan-in 的 suite 红在 `server/shared/tests/server-import-cycle-budget.test.ts`：`(b)` 报 `modules/providers/list/codex` 加入了 providers SCC（actual 四成员 vs expected 三成员），`(g)` 同因报 `unmodified tree violations`。真因在本条代码：`codex-host-driver.provider.ts` 以 `import type` 从 `modules/providers/services/provider-runtime.service.ts` 取 `HostReconfigureOutcome`，而该 service 已静态 import `list/codex/codex-transcript-format.ts`，于是闭合了 `list/codex → providers/services → list/codex` 的新目录环（AC-394 的扫描包含 `import type`）。
+- 修法（不抬 baseline、不改 baseline JSON）：把结构相同的 `HostReconfigureOutcome = 'live' | 'next-turn' | 'unsupported'` 就近声明在 `codex-live-settings.ts`，driver 从同目录 sibling 引入；`provider-runtime.service.ts` 零改动，AC12 禁改清单 grep 仍为空。union 是结构类型，driver 的返回值仍满足 service 自己的 alias（typecheck 0 佐证）。
+- 重跑读数（merge develop 后）：`server-import-cycle-budget.test.ts` → exit **0**，`pass 11` / `fail 0`，`(b)` 两读数一致、`(g) unmodified tree violations: []`；`codex-host-driver-settings.test.ts` → exit **0**，`pass 6` / `fail 0`；`codex-host-driver-persistent.test.ts` → exit **0**，`pass 5`；`codex-runtime.test.ts` → exit **0**，`pass 12`；`npm run typecheck` → exit **0**；`npx oxlint` 两个改动文件 → 无输出。
+- anti-drift（merge develop 后）：`ANTI-DRIFT OK: task gap-ac437-codex-resident-live-settings — 5 actual file(s), all within declared Touches (6 glob(s))`（实际文件集不变，仍 5 个）。
+
 **范围（AC12）**
 
 - 本任务自有改动集（anti-drift 的 actual-files 口径）：`git log --format= --name-only HEAD --not goal/GOAL-051 develop` 去空行去重后恰为 5 个文件：`codex-host-driver.provider.ts`、`codex-live-settings.ts`、`codex-host-driver-settings.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`；`tasks/gap-ac437-codex-resident-live-settings.md` 由 task_write 单独提交（该提交已进入 develop，故不在上面的差集里，但已声明在 Touches）。
@@ -183,3 +190,5 @@ goal_ac: AC-437
 - 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：1555f4ab-aeab-4fbf-bffa-9a6880d1fb28
+
+（已由 2026-10-29 的续跑补丁修复；见「本轮补丁」。）
