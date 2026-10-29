@@ -198,3 +198,11 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/tests/codex-host-driver-queue.test.ts (new)
 - tasks/gap-ac436-codex-resident-queue-busy-input.md
+
+## Blocker
+
+**2026-10-29T13:16:47.306Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→1100 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：37c1d44c-c60c-4a87-be29-4f43e3df668c
