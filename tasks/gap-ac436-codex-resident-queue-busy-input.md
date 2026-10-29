@@ -223,15 +223,13 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 
 ## Blocker
 
-**2026-10-29T14:19:49.502Z — worker 未落地（exited-not-landed）**
+**2026-10-29T15:12:59.310Z — worker 未落地（exited-not-landed）**
 
 - 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
-CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
-Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
-CONFLICT (content): Merge conflict in server/modules/providers/list/codex/codex-host-driver.provider.ts
 Auto-merging server/shared/tests/quay-test-script.test.ts
 CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
-Auto-merging tasks/gap-ac441-codex-resident-host-lifecycle.md
+Auto-merging tasks/gap-ac442-codex-resident-capabilities.md
+CONFLICT (content): Merge conflict in tasks/gap-ac442-codex-resident-capabilities.md
 Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：a81e0e86-0318-4f17-b9cc-89a956693c2f
+- session_id：30786939-18cb-4081-af7b-f1402677d292
