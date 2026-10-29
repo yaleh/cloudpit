@@ -94,3 +94,11 @@ depends_on:
 - L_G ratchet: oversizeFiles=77 moduleMutableState=112 hookStateHeavy=6 providerNameBranches=27 smallHelperCopies=6
 
 读数出自 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 本任务树上打印的五行；L_D 本轮没有接入可量化的探针，故只记 L_G。
+
+## Blocker
+
+**2026-10-29T10:18:51.624Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=240830 server/modules/session-hosts/tests/resident-server-restart.test.ts passed=false end_ms=1793267930269
+- run_id：wk-prod-anchor
+- session_id：38ff39ef-9b21-45a2-a3ad-a39fc25c11dd
