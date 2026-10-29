@@ -8,6 +8,9 @@ labels:
 parent: null
 children: []
 extra: {}
+depends_on:
+  - gap-cockpit-confirm-label-without-option-text
+  - gap-cockpit-asking-event-question-text
 ---
 ## Proposal
 

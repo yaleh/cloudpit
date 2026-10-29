@@ -8,6 +8,8 @@ labels:
 parent: null
 children: []
 extra: {}
+depends_on:
+  - gap-cockpit-duplicate-cards-collapsed
 ---
 ## Proposal
 
