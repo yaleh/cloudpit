@@ -285,3 +285,10 @@ src/modules/project-workspace/tests/workspaceTabsResponsive.test.tsx
 - 常驻 codex turn 的**规范化**帧（`turn/started`/`item/completed` 等被 `ChatSessionWriter` 以 `Dropping non-normalized outbound payload` 丢掉）仍属 AC-440 的范围；本条只补了队列生命周期的 `command_lifecycle` 桥，未改归一化。
 - 常驻 codex 的发送确认仍依赖随后的 `chat_subscribed`/ServerEvent：没有归一化帧时 5s ack 截止窗内二次提交会被 `sending` 相位挡住（判据通过让首条消息走「开新会话即 ack」的路径绕开，未改产品）。
 
+## Blocker
+
+**2026-10-29T23:27:30.691Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: providerNameBranches src/modules/project-workspace/WorkspaceMain.tsx 基线外→1 — 基线外的文件不得新增 provider 名字分支 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：06446574-9355-4364-a427-ea680d250a06
