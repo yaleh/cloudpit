@@ -11,6 +11,7 @@ import {
   FEEDBACK_LOCKED_REASON,
   awaitingFeedbackCount,
   canResendFeedback,
+  feedbackOptionGone,
   feedbackPhaseOf,
   isFeedbackLocked,
 } from '@/modules/cockpit/cockpitCardFeedback';
@@ -311,7 +312,11 @@ describe('cockpit card feedback lifecycle', () => {
  */
 const SHOWN: CockpitCardShown = { kind: 'option', optionId: 'one' };
 
-function renderFeedbackCard(target: CockpitCard, now: number): HTMLElement {
+function renderFeedbackCard(
+  target: CockpitCard,
+  now: number,
+  shown: CockpitCardShown = SHOWN,
+): HTMLElement {
   const { container } = render(
     createElement(
       I18nextProvider,
@@ -319,8 +324,8 @@ function renderFeedbackCard(target: CockpitCard, now: number): HTMLElement {
       createElement(CockpitCardView, {
         card: target,
         now,
-        shown: SHOWN,
-        target: confirmTargetOf(target, SHOWN, ''),
+        shown,
+        target: confirmTargetOf(target, shown, ''),
         ownReply: '',
         dropdownOpen: false,
         selected: false,
@@ -338,7 +343,11 @@ function renderFeedbackCard(target: CockpitCard, now: number): HTMLElement {
   return container;
 }
 
-function renderFeedbackDetails(target: CockpitCard, now: number): HTMLElement {
+function renderFeedbackDetails(
+  target: CockpitCard,
+  now: number,
+  shown: CockpitCardShown = SHOWN,
+): HTMLElement {
   const { container } = render(
     createElement(
       I18nextProvider,
@@ -347,8 +356,8 @@ function renderFeedbackDetails(target: CockpitCard, now: number): HTMLElement {
         card: target,
         now,
         onClose: () => undefined,
-        shown: SHOWN,
-        target: confirmTargetOf(target, SHOWN, ''),
+        shown,
+        target: confirmTargetOf(target, shown, ''),
       }),
     ),
   );
@@ -356,7 +365,10 @@ function renderFeedbackDetails(target: CockpitCard, now: number): HTMLElement {
 }
 
 describe('a sent card is one status line, not a disabled confirm bar', () => {
-  afterEach(() => cleanup());
+  afterEach(async () => {
+    cleanup();
+    await i18n.changeLanguage('en');
+  });
 
   it('draws no confirm bar on a sent card, nor in its Details variant', () => {
     const sent = feedbackOn(card('b'));
@@ -384,6 +396,110 @@ describe('a sent card is one status line, not a disabled confirm bar', () => {
     expect(unconfirmed.textContent).toContain('no receipt after 2 minutes');
     expect(unconfirmed.textContent).not.toContain('waiting for the fleet');
     expect(screen.getAllByTestId('cockpit-card-feedback-sent')).toHaveLength(1);
+  });
+
+  it('never passes the sent option’s old label off as the current selection', async () => {
+    // The summary was recomputed under the SAME provider revision: different options, a new
+    // `contentRevision`. The receipt still names the id it was sent for, which is now absent.
+    const recomputed = card('b', {
+      contentRevision: 2,
+      options: [
+        {
+          id: 'three',
+          label: 'Three',
+          does: 'Three does something',
+          suggested: true,
+          source: 'assistant',
+          action: { executor: 'test.exec', params: { optionId: 'three' } },
+        },
+        {
+          id: 'four',
+          label: 'Four',
+          does: 'Four does something',
+          suggested: false,
+          source: 'provider',
+          action: { executor: 'test.exec', params: { optionId: 'four' } },
+        },
+      ],
+    });
+    const sent = feedbackOn(recomputed, { optionId: 'one', label: 'One', contentRevision: 1 });
+    expect(feedbackOptionGone(sent)).toBe(true);
+
+    await i18n.changeLanguage('zh-CN');
+    // The card is drawn at the 2-minute mark, where the resend control exists. `shown` is what the
+    // controller hands over AFTER it dropped the reading opened on the replaced content: one of
+    // the NEW options, not the vanished `one`.
+    const container = renderFeedbackCard(sent, Date.parse(AT) + 120_000, {
+      kind: 'option',
+      optionId: 'three',
+    });
+
+    // The sent line says the option is gone, next to the label it was sent with.
+    const line = screen.getByTestId('cockpit-card-feedback-sent');
+    expect(line.textContent).toContain('已发出：One');
+    expect(line.textContent).toContain('（该选项已不在当前卡片）');
+
+    // The resend is offered but refused, with the option-change reason rather than a provider one.
+    const resend = screen.getByTestId('cockpit-card-feedback-resend') as HTMLButtonElement;
+    expect(resend.disabled).toBe(true);
+    expect(resend.getAttribute('data-resendable')).toBe('false');
+    expect(screen.getByTestId('cockpit-card-feedback-resend-unavailable').textContent).toContain(
+      '选项已变化，重发会被拒；去会话里看或选新选项',
+    );
+
+    // The old label is HISTORY. The card's current selection is one of the NEW options, and no
+    // control marked as selected carries the old label.
+    const trigger = screen.getByTestId('cockpit-card-option-trigger');
+    expect(trigger.textContent).toContain('Three');
+    expect(trigger.textContent).not.toContain('One');
+    const selectedTexts = [...container.querySelectorAll('[data-selected="true"]')].map(
+      (element) => element.textContent ?? '',
+    );
+    expect(selectedTexts.some((text) => text.includes('One'))).toBe(false);
+
+    // The Details variant makes the same statement: the selected row is the NEW option, and
+    // nothing selected names the old label.
+    cleanup();
+    const details = renderFeedbackDetails(sent, Date.parse(AT) + 120_000, {
+      kind: 'option',
+      optionId: 'three',
+    });
+    const detailsSelected = [...details.querySelectorAll('[data-selected="true"]')].map(
+      (element) => element.textContent ?? '',
+    );
+    expect(detailsSelected.some((text) => text.includes('Three'))).toBe(true);
+    expect(detailsSelected.some((text) => text.includes('One'))).toBe(false);
+
+    // The reset itself is the controller's: a reading opened on the replaced content is dropped,
+    // and the card falls back to the new content's own default.
+    cleanup();
+    const clock = manualClock();
+    const { controller, setCards } = bind([card('b')], clock);
+    await controller.load();
+    controller.showOption('b', 'two');
+    controller.openDropdown('b');
+    expect(controller.getSnapshot().shown.b).toEqual({ kind: 'option', optionId: 'two' });
+    expect(controller.getSnapshot().openDropdownCardId).toBe('b');
+
+    setCards([recomputed]);
+    await controller.load();
+    expect(controller.getSnapshot().shown.b).toEqual({ kind: 'option', optionId: 'three' });
+    expect(controller.getSnapshot().openDropdownCardId).toBeNull();
+    controller.dispose();
+  });
+
+  it('leaves the sent line and the resend untouched while the receipt’s option still exists', async () => {
+    await i18n.changeLanguage('zh-CN');
+    renderFeedbackCard(feedbackOn(card('b')), Date.parse(AT) + 120_000);
+
+    const line = screen.getByTestId('cockpit-card-feedback-sent');
+    expect(line.textContent).toContain('已发出：One');
+    expect(line.textContent).not.toContain('（该选项已不在当前卡片）');
+
+    const resend = screen.getByTestId('cockpit-card-feedback-resend') as HTMLButtonElement;
+    expect(resend.disabled).toBe(false);
+    expect(resend.getAttribute('data-resendable')).toBe('true');
+    expect(screen.queryByTestId('cockpit-card-feedback-resend-unavailable')).toBeNull();
   });
 
   it('turns the status row amber ONLY for a real feedback-call failure', () => {

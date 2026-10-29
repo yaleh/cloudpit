@@ -1100,6 +1100,8 @@
     "cardFeedbackResending": "Mengirim ulang…",
     "cardFeedbackResendHint": "Kirim ulang hanya mengulang umpan balik, bukan tindakannya",
     "cardFeedbackResendUnavailable": "Tidak dapat mengirim ulang: {{reason}}",
+    "cardFeedbackOptionGone": " (opsi ini tidak lagi ada di kartu)",
+    "cardFeedbackOptionGoneReason": "Opsi berubah sehingga pengiriman ulang akan ditolak; lihat percakapan atau pilih opsi baru",
     "cardFeedbackOutcomeSession": "Percakapan latar berjalan · buka percakapan ›",
     "cardFeedbackOutcomeDelivery": "Terkirim ke percakapan",
     "cardFeedbackOutcomeAccepted": "Diserahkan ke penyedia",

@@ -40,6 +40,12 @@ export type StoredCockpitCardFeedback = {
   /** The provider whose feedback executor answered (or was missing) for this card. */
   provider: string;
   revision: number;
+  /**
+   * The content revision the card carried when the action was confirmed. Persisted so a later
+   * read can say the summary the choice was made against was replaced, even though the provider's
+   * own revision did not move. Absent when the card carried no locally resolved content.
+   */
+  contentRevision?: number;
   feedbackId: string;
   optionId: string | null;
   label: string;
@@ -137,6 +143,9 @@ function readOverlay(raw: unknown): StoredCockpitCardFeedback | null {
     cardId,
     provider,
     revision,
+    ...(typeof entry.contentRevision === 'number' && Number.isFinite(entry.contentRevision)
+      ? { contentRevision: entry.contentRevision }
+      : {}),
     feedbackId,
     optionId: typeof entry.optionId === 'string' ? entry.optionId : null,
     label: text(entry.label),
@@ -232,6 +241,7 @@ export function createCockpitCardFeedbackStore(options: {
   const feedbackOf = (stored: StoredCockpitCardFeedback): CockpitCardFeedback => ({
     cardId: stored.cardId,
     revision: stored.revision,
+    ...(stored.contentRevision === undefined ? {} : { contentRevision: stored.contentRevision }),
     feedbackId: stored.feedbackId,
     optionId: stored.optionId,
     label: stored.label,

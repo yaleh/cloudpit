@@ -252,6 +252,25 @@ describe('cockpit card type sync', () => {
     }
   });
 
+  it('contentRevision is an OPTIONAL field of the card and of the feedback on both ends', () => {
+    // The comparison above passes when a field is deleted from BOTH ends at once, so the two
+    // shapes this task adds it to are also pinned by name. Optional-ness is part of the pin: a
+    // required field would read `contentRevision` (no `?`), and an old stored overlay or a card
+    // with no locally resolved summary must still type-check.
+    for (const typeName of ['CockpitCard', 'CockpitCardFeedback']) {
+      const row = ROWS.find((candidate) => candidate.typeName === typeName);
+      assert.ok(row, `${typeName} must be in the comparison table`);
+      assert.ok(
+        readClient(row).includes('contentRevision?'),
+        `${typeName} must declare \`contentRevision?\` under src/`,
+      );
+      assert.ok(
+        readServer(row).includes('contentRevision?'),
+        `${typeName} must declare \`contentRevision?\` in server/shared/types.ts`,
+      );
+    }
+  });
+
   it('false-form: deleting `expired` on the src side names the src file and the literal', () => {
     const srcTypes = readFile(path.join(srcRoot, 'shared', 'types.ts'));
     const mutated = srcTypes.replace(

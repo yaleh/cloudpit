@@ -13,9 +13,11 @@ import type {
 import {
   awaitingFeedbackCount,
   canResendFeedback,
+  feedbackOptionGone,
   feedbackPhaseOf,
   feedbackPhasesOf,
   FEEDBACK_LOCKED_REASON,
+  FEEDBACK_OPTION_GONE_REASON,
   type CockpitCardFeedbackPhase,
 } from '@/modules/cockpit/cockpitCardFeedback';
 
@@ -314,6 +316,13 @@ export type CockpitCardControllerSnapshot = {
   resendingFeedbackCardId: string | null;
   /** The last failed resend, drawn beside that card; cleared by the next attempt. */
   feedbackResendError: { cardId: string; message: string } | null;
+  /**
+   * Each card's `(revision, contentRevision)` key at the previous normalize. A change between two
+   * reads means the card's content was replaced, so the per-content state below (shown option,
+   * open dropdown, inline expansion, brief) is dropped rather than carried over. Internal
+   * bookkeeping; the display never reads it.
+   */
+  cardStateKeys: Readonly<Record<string, string>>;
   /** The controller's clock reading at the last commit; the waiting-time renderer uses it. */
   now: number;
 };
@@ -398,6 +407,7 @@ const initialState: CockpitCardControllerSnapshot = {
   awaitingFeedback: 0,
   resendingFeedbackCardId: null,
   feedbackResendError: null,
+  cardStateKeys: {},
   now: 0,
 };
 
@@ -408,6 +418,19 @@ export function shownOptionOf(
 ): CockpitCardOption | null {
   if (shown === undefined || shown.kind !== 'option') return null;
   return card.options.find((option) => option.id === shown.optionId) ?? null;
+}
+
+/**
+ * The key a card's per-content state is bound to: the provider's item revision plus the local
+ * content revision's own (empty when the card carries no locally resolved summary).
+ *
+ * Both halves are needed. The provider bumps `revision` when ITS item changes, but a locally
+ * recomputed summary does not move it; `contentRevision` moves when the summary does. State
+ * opened for one content (the shown option, an open dropdown, the situation's inline expansion)
+ * must not be drawn over a different one, so `normalize` resets it when this key changes.
+ */
+export function cockpitCardStateKey(card: CockpitCard): string {
+  return `${card.revision}:${card.contentRevision ?? ''}`;
 }
 
 /**
@@ -680,6 +703,8 @@ function failureMessage(failure: unknown): string {
  * repaired here, in one place, so no command has to remember the invariants:
  *
  *   - a removed card drops its shown option, draft, dropdown and Details entry;
+ *   - a card whose `(revision, contentRevision)` key moved drops every reading opened on the
+ *     previous content (shown option, open dropdown, inline expansion, brief);
  *   - the selection and the anchor fall back only when their card is no longer visible;
  *   - the confirm state closes when its card is gone or its revision moved (a stale revision
  *     would be refused by the server, so leaving it open would invite a guaranteed failure).
@@ -694,15 +719,29 @@ function normalize(
   const visibleCards = visibleCardsOf(cards, next.typeFilter, projectFilters);
   const visibleIds = new Set(visibleCards.map((card) => card.id));
 
+  // Each card's `(revision, contentRevision)` is the identity of the content its per-card state
+  // was opened on. A key that moved between two reads means a DIFFERENT set of options is drawn
+  // over the same card: the option ids are label-derived, so an old id may now name nothing (or
+  // worse, a different option), and carrying a shown option/dropdown/expansion/brief over would
+  // display a reading the person never chose for this content.
+  const cardStateKeys: Record<string, string> = {};
+  for (const card of cards) cardStateKeys[card.id] = cockpitCardStateKey(card);
+  const contentChanged = (cardId: string): boolean => {
+    const previous = next.cardStateKeys[cardId];
+    return previous !== undefined && previous !== cardStateKeys[cardId];
+  };
+
   // Every card gets a shown reading when it first arrives: the provider's suggested option, or
   // nothing. A stored reading that no longer resolves (the revision dropped that option, or the
   // card no longer offers a free-text reply) falls back the same way instead of leaving a
-  // confirm bar pointing at an option the card no longer has.
+  // confirm bar pointing at an option the card no longer has. A reading that was opened on
+  // replaced content is dropped too, even when its option id happens to still resolve.
   const shown: Record<string, CockpitCardShown> = {};
   for (const card of cards) {
     const previous = next.shown[card.id];
     const resolvable =
       previous !== undefined &&
+      !contentChanged(card.id) &&
       (previous.kind === 'ownReply'
         ? card.ownReply !== undefined
         : card.options.some((option) => option.id === previous.optionId));
@@ -713,24 +752,27 @@ function normalize(
   for (const [cardId, text] of Object.entries(next.ownReplies)) {
     if (byId.has(cardId)) ownReplies[cardId] = text;
   }
-  // A brief reading belongs to the card revision it was read at: a re-read that bumped the
-  // revision makes an already-drawn brief stale, so the next open asks again. A removed card
-  // drops its reading with everything else it owned.
+  // A brief reading belongs to the content it was read at: a re-read that bumped either revision
+  // makes an already-drawn brief stale, so the next open asks again. A removed card drops its
+  // reading with everything else it owned.
   const briefs: Record<string, CockpitBriefState> = {};
   for (const [cardId, reading] of Object.entries(next.briefs)) {
     const card = byId.get(cardId);
     if (card === undefined) continue;
-    if (reading.status === 'idle' || reading.cardRevision === card.revision) {
+    if (reading.status === 'idle' || (reading.cardRevision === card.revision && !contentChanged(cardId))) {
       briefs[cardId] = reading;
     }
   }
 
   // An expansion belongs to the situation it was opened on: a removed card drops it, and a card
-  // whose revision moved drops it too (the re-read brought different content).
+  // whose content was replaced (either revision moved) drops it too — the re-read brought
+  // different content.
   const situationExpanded: Record<string, number> = {};
   for (const [cardId, revision] of Object.entries(next.situationExpanded)) {
     const card = byId.get(cardId);
-    if (card !== undefined && card.revision === revision) situationExpanded[cardId] = revision;
+    if (card !== undefined && card.revision === revision && !contentChanged(cardId)) {
+      situationExpanded[cardId] = revision;
+    }
   }
 
   const selectedCardId =
@@ -742,8 +784,12 @@ function normalize(
       ? next.anchorCardId
       : null;
   const detailsStack = next.detailsStack.filter((cardId) => byId.has(cardId));
+  // An open dropdown belongs to the content it was opened on: replaced content changes the
+  // options, so the open list would show entries the card no longer has.
   const openDropdownCardId =
-    next.openDropdownCardId !== null && byId.has(next.openDropdownCardId)
+    next.openDropdownCardId !== null &&
+    byId.has(next.openDropdownCardId) &&
+    !contentChanged(next.openDropdownCardId)
       ? next.openDropdownCardId
       : null;
 
@@ -807,6 +853,7 @@ function normalize(
     awaitingFeedback,
     resendingFeedbackCardId,
     feedbackResendError,
+    cardStateKeys,
     now,
   };
 }
@@ -1281,13 +1328,14 @@ export function createCockpitCardController(
     // Before the window a resend is not offered; the same rule the button draws.
     if (feedbackPhaseOf(card.feedback, clock.now()) !== 'unconfirmed') return false;
     if (!canResendFeedback(card, clock.now())) {
-      commit({
-        feedbackResendError: {
-          cardId,
-          message:
-            card.feedback.resendUnavailableReason ?? '该提供方无法确认收到反馈',
-        },
-      });
+      // Two very different refusals share this control: the provider offers no way to resend at
+      // all, or the option the receipt names is no longer on the card (a resend would name an id
+      // the provider's current item does not carry). Naming the second one as the first would
+      // send the person hunting for a provider setting instead of a changed option.
+      const message = feedbackOptionGone(card)
+        ? FEEDBACK_OPTION_GONE_REASON
+        : (card.feedback.resendUnavailableReason ?? '该提供方无法确认收到反馈');
+      commit({ feedbackResendError: { cardId, message } });
       return false;
     }
     const resend = deps.resendFeedback;

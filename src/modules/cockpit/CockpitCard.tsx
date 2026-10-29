@@ -4,7 +4,11 @@ import { useTranslation } from 'react-i18next';
 import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
-import { canResendFeedback, feedbackPhaseOf } from '@/modules/cockpit/cockpitCardFeedback';
+import {
+  canResendFeedback,
+  feedbackOptionGone,
+  feedbackPhaseOf,
+} from '@/modules/cockpit/cockpitCardFeedback';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
   cockpitCardDescriptor,
@@ -319,6 +323,16 @@ export default function CockpitCard({
   const feedbackLocked = feedback !== undefined;
   const feedbackResendable = feedback !== undefined && canResendFeedback(card, now);
   const feedbackFailed = feedback?.lastError !== undefined;
+  // The option the receipt names is the one from the moment of the choice; a recomputed summary
+  // may have dropped it. The sent line then says so — the old label is HISTORY, never the card's
+  // current selection — and the resend is refused with its own reason.
+  const feedbackOptionMissing = feedbackOptionGone(card);
+  const feedbackLabel =
+    feedback === undefined
+      ? ''
+      : feedbackOptionMissing
+        ? `${feedback.label}${t('cockpit.cardFeedbackOptionGone')}`
+        : feedback.label;
   // The right side of the sent line: a card whose outcome names a conversation draws the short
   // 「打开会话 ›」 label; otherwise it keeps the pre-existing delivery/accepted reading.
   const feedbackOutcomeLine =
@@ -725,7 +739,7 @@ export default function CockpitCard({
                       feedbackPhase === 'unconfirmed'
                         ? 'cockpit.cardFeedbackUnconfirmed'
                         : 'cockpit.cardFeedbackSent',
-                      { label: feedback.label },
+                      { label: feedbackLabel },
                     )}
                   </span>
                 </p>
@@ -765,12 +779,21 @@ export default function CockpitCard({
                         : t('cockpit.cardFeedbackResend')}
                     </button>
                   </div>
-                  {!feedback.canResend && feedback.resendUnavailableReason !== undefined && (
+                  {feedbackOptionMissing ? (
                     <p data-testid="cockpit-card-feedback-resend-unavailable" className="mt-1">
                       {t('cockpit.cardFeedbackResendUnavailable', {
-                        reason: feedback.resendUnavailableReason,
+                        reason: t('cockpit.cardFeedbackOptionGoneReason'),
                       })}
                     </p>
+                  ) : (
+                    !feedback.canResend &&
+                    feedback.resendUnavailableReason !== undefined && (
+                      <p data-testid="cockpit-card-feedback-resend-unavailable" className="mt-1">
+                        {t('cockpit.cardFeedbackResendUnavailable', {
+                          reason: feedback.resendUnavailableReason,
+                        })}
+                      </p>
+                    )
                   )}
                 </>
               )}

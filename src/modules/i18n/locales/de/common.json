@@ -987,6 +987,8 @@
     "cardFeedbackResending": "Wird erneut gesendet…",
     "cardFeedbackResendHint": "Erneut senden wiederholt nur die Rückmeldung, nicht die Aktion",
     "cardFeedbackResendUnavailable": "Erneut senden nicht möglich: {{reason}}",
+    "cardFeedbackOptionGone": " (diese Option ist nicht mehr auf der Karte)",
+    "cardFeedbackOptionGoneReason": "Die Optionen haben sich geändert; ein erneutes Senden würde abgelehnt. Sieh im Gespräch nach oder wähle eine neue Option",
     "cardFeedbackOutcomeSession": "Hintergrundgespräch läuft · Gespräch öffnen ›",
     "cardFeedbackOutcomeDelivery": "An das Gespräch zugestellt",
     "cardFeedbackOutcomeAccepted": "An den Anbieter übergeben",

@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "正在重送…",
     "cardFeedbackResendHint": "重送只重送回饋，不會重做動作",
     "cardFeedbackResendUnavailable": "無法重送：{{reason}}",
+    "cardFeedbackOptionGone": "（該選項已不在目前卡片）",
+    "cardFeedbackOptionGoneReason": "選項已變化，重送會被拒；去會話裡看或選新選項",
     "cardFeedbackOutcomeSession": "背景工作階段執行中 · 開啟工作階段 ›",
     "cardFeedbackOutcomeDelivery": "已送達工作階段",
     "cardFeedbackOutcomeAccepted": "已交給提供方處理",

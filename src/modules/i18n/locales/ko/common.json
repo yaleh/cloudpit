@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "다시 보내는 중…",
     "cardFeedbackResendHint": "다시 보내기는 피드백만 재전송하며 동작은 반복하지 않습니다",
     "cardFeedbackResendUnavailable": "다시 보낼 수 없음: {{reason}}",
+    "cardFeedbackOptionGone": " (이 옵션은 현재 카드에 없습니다)",
+    "cardFeedbackOptionGoneReason": "옵션이 바뀌어 다시 보내면 거부됩니다. 대화를 확인하거나 새 옵션을 선택하세요",
     "cardFeedbackOutcomeSession": "백그라운드 대화 실행 중 · 대화 열기 ›",
     "cardFeedbackOutcomeDelivery": "대화에 전달됨",
     "cardFeedbackOutcomeAccepted": "제공자에게 전달됨",

@@ -19,6 +19,8 @@
  * Consumers: `session-digest.producer.ts` (attaches `digest.askDecision` and states the
  * `session.asking`/`session.answered` events) and `tests/session-ask-decision-digest.test.ts`.
  */
+import { createHash } from 'node:crypto';
+
 import { completeLlm, credentialFromKey, type LlmCompletion, type LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
 import type { SessionAskDecisionReading } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
@@ -473,6 +475,58 @@ function buildUserPrompt(input: SessionAskSummaryInput): string {
   ].join('\n');
 }
 
+/**
+ * The normalised form of an option label: surrounding whitespace removed and every run of
+ * whitespace inside it collapsed to one space. Identity is derived from THIS form, so the same
+ * label rendered with different spacing in two model answers still names the same option.
+ */
+export function normalizeOptionLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * The stable option id for a label: `opt-` plus the first eight hex digits of the normalised
+ * label's SHA-1.
+ *
+ * WHY IT IS DERIVED AND NOT TAKEN FROM THE MODEL. The model's own option id is free text and
+ * changes between recomputations of the same question (`yes` → `1` → `opt-baseline-first` on the
+ * live 2026-10-29 cards). The local receipt and the fleet feedback call use the id as the option's
+ * identity, so an unstable id makes the card unable to say what the person actually sent and makes
+ * a resend ask the provider for an option that no longer exists. Deriving it from the label makes
+ * the same label name the same option in every recomputation; the model's id is only a hint and is
+ * never written out.
+ */
+export function stableOptionId(label: string): string {
+  return `opt-${createHash('sha1').update(normalizeOptionLabel(label)).digest('hex').slice(0, 8)}`;
+}
+
+/**
+ * Replaces every option id of a finished reading with the label-derived stable one.
+ *
+ * Applied to the BUILT reading, not to the parsed answer: the yes/no options a yes/no question
+ * is given are synthesised inside `buildAskDecision` (`yes`/`no`), and they must be identified
+ * the same way as the options the model listed. By this point the suggestion has already been
+ * resolved onto the option itself (`suggested`), so rewriting the ids moves no suggestion.
+ *
+ * Uniqueness is per output: two options carrying the same normalised label get `opt-<hash>` and
+ * `opt-<hash>-2` (then `-3`, …), so a duplicate label never collapses two options into one id.
+ */
+export function withStableOptionIds(
+  reading: SessionAskDecisionReading,
+): SessionAskDecisionReading {
+  // Only an evaluated reading has options; the other states pass through untouched.
+  if (reading.state !== 'evaluated') return reading;
+  const used = new Set<string>();
+  const options = reading.options.map((option) => {
+    const base = stableOptionId(option.label);
+    let id = base;
+    for (let suffix = 2; used.has(id); suffix += 1) id = `${base}-${suffix}`;
+    used.add(id);
+    return { ...option, id };
+  });
+  return { ...reading, options };
+}
+
 /** Builds the summariser over its injected world. `summarize` never rejects. */
 export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDeps = {}): SessionAskDecisionDigest {
   const settingsSource = createSessionDigestLlmSettingsSource();
@@ -521,10 +575,17 @@ export function createSessionAskDecisionDigest(deps: SessionAskDecisionDigestDep
         return { state: 'unevaluated', reason: `${SESSION_ASK_OUTPUT_UNUSABLE_REASON}：${reason}` };
       }
 
-      const reading = buildAskDecision(parsed, { askId: input.askId, revision: input.revision }, input.assistantText, {
-        inputTokens: completion.inputTokens,
-        outputTokens: completion.outputTokens,
-      });
+      const reading = withStableOptionIds(
+        buildAskDecision(
+          parsed,
+          { askId: input.askId, revision: input.revision },
+          input.assistantText,
+          {
+            inputTokens: completion.inputTokens,
+            outputTokens: completion.outputTokens,
+          },
+        ),
+      );
       const quote = assistantQuoteOf(input.assistantText);
       return quote === null ? reading : { ...reading, quote };
     },

@@ -270,6 +270,12 @@ function withoutSuggestion(options: readonly CockpitCardOption[]): CockpitCardOp
  * `ask`/`situation` and appends its options; at most one is suggested, whichever source
  * (assistant or judge) the observation layer marked. An incomplete digest keeps the reason and
  * no default option.
+ *
+ * AN EVALUATED DIGEST ALSO SETS `contentRevision`. The fleet item's own `revision` describes the
+ * provider's content only; it does not move when the local digest is recomputed, so the display
+ * has no way to tell that this card's question/options were replaced. `contentRevision` is the
+ * digest reading's own revision — the same number the observation store carries for that ask —
+ * and moves whenever the summary does.
  */
 function withSessionAskContent(
   card: CockpitCard,
@@ -302,7 +308,12 @@ function withSessionAskContent(
     };
   }
   if (reading.incomplete) {
-    return { ...card, options, contentUnavailable: '提问决策摘要不完整，未设默认选项' };
+    return {
+      ...card,
+      options,
+      contentRevision: reading.revision,
+      contentUnavailable: '提问决策摘要不完整，未设默认选项',
+    };
   }
 
   let suggestionUsed = false;
@@ -315,6 +326,7 @@ function withSessionAskContent(
 
   return {
     ...card,
+    contentRevision: reading.revision,
     ...(reading.ask === '' ? {} : { ask: reading.ask }),
     ...(reading.situation === '' ? {} : { situation: reading.situation }),
     ...(reading.quote === undefined || reading.quote === '' ? {} : { assistantQuote: reading.quote }),

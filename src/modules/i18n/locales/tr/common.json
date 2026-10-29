@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "Yeniden gönderiliyor…",
     "cardFeedbackResendHint": "Yeniden gönder yalnızca geri bildirimi yineler, eylemi değil",
     "cardFeedbackResendUnavailable": "Yeniden gönderilemez: {{reason}}",
+    "cardFeedbackOptionGone": " (bu seçenek artık kartta yok)",
+    "cardFeedbackOptionGoneReason": "Seçenekler değişti, yeniden gönderim reddedilir; konuşmaya bakın veya yeni bir seçenek seçin",
     "cardFeedbackOutcomeSession": "Arka plan konuşması çalışıyor · konuşmayı aç ›",
     "cardFeedbackOutcomeDelivery": "Konuşmaya iletildi",
     "cardFeedbackOutcomeAccepted": "Sağlayıcıya iletildi",

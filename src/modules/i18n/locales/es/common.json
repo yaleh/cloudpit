@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "Reenviando…",
     "cardFeedbackResendHint": "Reenviar solo repite la confirmación, no la acción",
     "cardFeedbackResendUnavailable": "No se puede reenviar: {{reason}}",
+    "cardFeedbackOptionGone": " (esta opción ya no está en la tarjeta)",
+    "cardFeedbackOptionGoneReason": "Las opciones cambiaron y el reenvío sería rechazado; revisa la conversación o elige una opción nueva",
     "cardFeedbackOutcomeSession": "Conversación en segundo plano · abrir conversación ›",
     "cardFeedbackOutcomeDelivery": "Entregado a la conversación",
     "cardFeedbackOutcomeAccepted": "Entregado al proveedor",
