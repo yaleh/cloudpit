@@ -1,7 +1,7 @@
 ---
 id: gap-goal-051-exit-and-logging-not-an-ac
 title: GOAL-051 范围第 1 条的「退出与日志」无在域 AC 覆盖：提议新增 AC-445（app-server 自行退出被记录、主动关闭不误报），交人裁定
-status: todo
+status: needs-human
 labels:
   - gap
 parent: null
