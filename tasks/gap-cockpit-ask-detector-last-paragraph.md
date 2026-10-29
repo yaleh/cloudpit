@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-ask-detector-last-paragraph
 title: 提问检测只按最后一段判定：整条消息的编号列表不再被当成提问（修 5b/0a8/8436/b96e/c07 类误发卡）
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
