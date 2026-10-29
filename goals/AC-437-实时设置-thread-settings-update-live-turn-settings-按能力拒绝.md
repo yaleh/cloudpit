@@ -1,7 +1,7 @@
 ---
 id: AC-437
 title: 实时设置（thread/settings/update live，turn/settings 按能力拒绝）
-status: draft
+status: active
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -12,5 +12,16 @@ expect: thread/settings/update 在 idle 与 active 都更新
   turn/settings 已 live 必须红。
 origin: GOAL-051 的 Codex 常驻方案（人 yale 2026-10-29 五条裁定）+
   tmp/codex-appserver-exp-NuPHhk/REPORT.md（锁定版 0.153.4 实测）
+activatedAt: 2026-10-29T09:25:58.686Z
+statusLog:
+  - at: 2026-10-29T09:25:58.686Z
+    from: draft
+    to: active
+    actor: human:yale
+    reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-29T09:25:58.686Z
 phase: pre-merge
 ---

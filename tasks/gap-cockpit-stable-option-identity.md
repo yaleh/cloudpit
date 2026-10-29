@@ -42,12 +42,12 @@ depends_on:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：同一组选项以不同顺序出现两次，id 逐一相同；标签改一个字即得不同 id；同一输出里两条标签相同 ⇒ id 分别为 `opt-x` 与 `opt-x-2`；模型给的 `id` 不出现在写出的决策里。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：同一 fleet 条目在摘要重算前后，`revision` 不变而 `contentRevision` 递增；两端的 `contentRevision` 与摘要存储里的 revision 相等。
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` 退出 0，新增用例：回执的 `optionId` 不在当前选项里时，状态行含「（该选项已不在当前卡片）」且「重发」为 disabled 并给出原因；`optionId` 仍在时行为不变；卡片任何位置都不出现「旧标签 = 当前选中」的组合。
-- [ ] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（`contentRevision` 两端一致）；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0。
-- [ ] 假形态变红：把选项 id 改回「模型给什么用什么」⇒ 第一条用例红；把「选项已不在」的判断删掉 ⇒ 第三条用例红；改完即还原。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）；两个 `types.ts` 的增长按 RECORDED CHANGE 记录。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0，新增用例：同一组选项以不同顺序出现两次，id 逐一相同；标签改一个字即得不同 id；同一输出里两条标签相同 ⇒ id 分别为 `opt-x` 与 `opt-x-2`；模型给的 `id` 不出现在写出的决策里。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0，新增用例：同一 fleet 条目在摘要重算前后，`revision` 不变而 `contentRevision` 递增；两端的 `contentRevision` 与摘要存储里的 revision 相等。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardFeedback.test.ts` 退出 0，新增用例：回执的 `optionId` 不在当前选项里时，状态行含「（该选项已不在当前卡片）」且「重发」为 disabled 并给出原因；`optionId` 仍在时行为不变；卡片任何位置都不出现「旧标签 = 当前选中」的组合。
+- [x] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（`contentRevision` 两端一致）；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0。
+- [x] 假形态变红：把选项 id 改回「模型给什么用什么」⇒ 第一条用例红；把「选项已不在」的判断删掉 ⇒ 第三条用例红；改完即还原。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）；两个 `types.ts` 的增长按 RECORDED CHANGE 记录。
 
 ## DoD
 
@@ -62,8 +62,11 @@ depends_on:
 - tasks/gap-cockpit-stable-option-identity.md
 - server/modules/observation/session-ask-decision-digest.ts
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
+- server/modules/observation/tests/session-ask-judge-default.test.ts
 - server/modules/cockpit/cockpit-fleet-card-projection.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
+- server/modules/cockpit/cockpit-card-actions.ts
+- server/modules/cockpit/cockpit-card-feedback-store.ts
 - server/shared/types.ts
 - src/shared/types.ts
 - src/shared/tests/cockpitCardTypeSync.test.ts
@@ -74,6 +77,7 @@ depends_on:
 - src/modules/cockpit/tests/CockpitCard.test.tsx
 - src/modules/i18n/locales/en/common.json
 - src/modules/i18n/locales/zh-CN/common.json
+- src/modules/i18n/locales/zh-TW/common.json
 - src/modules/i18n/locales/de/common.json
 - src/modules/i18n/locales/es/common.json
 - src/modules/i18n/locales/fr/common.json
@@ -82,4 +86,11 @@ depends_on:
 - src/modules/i18n/locales/ja/common.json
 - src/modules/i18n/locales/ko/common.json
 - src/modules/i18n/locales/ru/common.json
+- src/modules/i18n/locales/tr/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
+
+## 暗轴记录（ADR-007）
+
+- L_G ratchet: oversizeFiles=77 moduleMutableState=112 hookStateHeavy=6 providerNameBranches=27 smallHelperCopies=6
+
+读数出自 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 本任务树上打印的五行；L_D 本轮没有接入可量化的探针，故只记 L_G。
