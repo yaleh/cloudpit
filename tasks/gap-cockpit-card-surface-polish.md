@@ -89,3 +89,11 @@ DoD 真实页面（任务 worktree 的 vite dev server :5199，代理运行中�
 ## Notes
 
 - 该轴仍暗,理由:本任务只做驾驶舱表面排版与读数统一，不改模块边界、依赖方向或数据生成，L_D/L_G 两轴没有可测读数；界面行为由四条 AC 判据、真实页面 boundingClientRect 读数与场景运行器覆盖。
+
+## Blocker
+
+**2026-10-29T11:58:04.920Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=150 src/modules/cockpit/tests/CockpitBriefView.test.tsx passed=false end_ms=1793275039199 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/cockpit/tests/CockpitBriefView.test.tsx,src/modules/cockpit/tests/CockpitBriefView.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：44c9d053-e153-480b-83f1-2bc9414a48d6
