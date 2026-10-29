@@ -9,6 +9,7 @@ import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors'
 import type { CockpitCardTypeFilter } from '@/modules/cockpit/cockpitCardController';
 import { cockpitCardsReading } from '@/modules/cockpit/cockpitCardController';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
+import { cockpitCardQuestionOf } from '@/modules/cockpit/cockpitCardDuplicates';
 import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
 import { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
@@ -461,6 +462,9 @@ function CockpitCardListBound({
                 density={snapshot.density}
                 situationExpanded={snapshot.situationExpanded[card.id] === card.revision}
                 onToggleSituationExpanded={() => controller.toggleSituationExpanded(card.id)}
+                duplicates={snapshot.duplicates[card.id] ?? null}
+                duplicatesQuestionless={cockpitCardQuestionOf(card) === null}
+                onToggleDuplicates={() => controller.toggleDuplicates(card.id)}
                 onSelect={() => controller.selectCard(card.id)}
                 onOpenDetails={() => controller.openDetails(card.id)}
                 onToggleDropdown={() =>

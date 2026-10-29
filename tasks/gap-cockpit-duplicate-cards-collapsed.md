@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-duplicate-cards-collapsed
 title: 同一会话同一问句的重复卡片原地折叠成一张，卡上如实标注「被问了 N 次」并可展开较早的那些；计数按折叠后计算
-status: ready
+status: done
 labels:
   - gap
   - cockpit
