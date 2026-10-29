@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import { api } from '@/shared/api';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
@@ -129,6 +130,10 @@ export default function CockpitStage({
   // live in ONE line above the list instead. It is drawn only for `view=cards` on a phone; the
   // wall, fleet and board views keep their own chrome on every width.
   const { isMobile } = useDeviceSettings({ trackPWA: false });
+  // The cards page's own navigation seam: a session started from a card opens on its own page.
+  // The stage owns it because this is the surface that sits inside the Router; the cards list
+  // itself stays Router-free (the column renders it outside one).
+  const navigate = useNavigate();
 
   return (
     <section
@@ -169,7 +174,11 @@ export default function CockpitStage({
       ) : view.type === 'cards' ? (
         <>
           {isMobile && <CockpitPhoneStatus projects={projects} />}
-          <CockpitCardList />
+          <CockpitCardList
+            registeredProjects={projects}
+            onNavigateToSession={(sessionId) =>
+              navigate(`/session/${encodeURIComponent(sessionId)}`)}
+          />
         </>
       ) : (
         <BoardView

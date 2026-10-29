@@ -65,3 +65,10 @@ export {
  */
 export { resolveVoiceReference } from '@/modules/chat/utils/voice/voiceContextPack';
 export type { VoiceReferenceMatch } from '@/modules/chat/utils/voice/voiceContextPack';
+/**
+ * The ONE session-allocation gateway, exposed for the cockpit's card button: starting a
+ * conversation about a card allocates a brand-new session through the same call the composer and
+ * Live Voice use, rather than minting a second creation path.
+ */
+export { createChatSession } from '@/modules/chat/utils/session/sessionCreation';
+export type { CreatedChatSession } from '@/modules/chat/utils/session/sessionCreation';
