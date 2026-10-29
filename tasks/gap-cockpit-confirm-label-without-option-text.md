@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-confirm-label-without-option-text
 title: 确认按钮不再重复选项文本：空闲态统一「Confirm」，选择项由列表显示／详情高亮表达
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
