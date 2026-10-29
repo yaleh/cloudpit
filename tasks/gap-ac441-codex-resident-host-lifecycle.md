@@ -26,7 +26,7 @@ goal_ac: AC-441
   - `session-host-manager.service.ts:667`：`applyDerivedState` 以 `turn` lease 决定 `busy`，turn lease 清空后只剩 `resident-policy` ⇒ `idle` 并 arm quiet close。
   - `session-host-manager.service.ts:636`：quiet ceiling 到期按 **mode** 命名 close：resident ⇒ `closeReason 'idle'`。
   - `session-host-manager.service.ts:1160-1186`：`unbindSession(appSessionId, reason)` 先 `await driver.unbind(host, appSessionId, reason)`，最后一个 binding 离开时 `closeHostAndWait(host.hostId, reason)`——driver 收到原因、host 记录同一个原因。
-  - `conclude`：这张表说明 manager 侧不需要新机制；本条要证明 Codex driver 真的把 turn lease 报进 sink、真的接收并保留 close/unbind 原因、真的能在 idle 到期时被关。
+  - 结论：manager 侧不需要新机制；本条要证明 Codex driver 真的把 turn lease 报进 sink、真的接收并保留 close/unbind 原因、真的能在 idle 到期时被关。
 - **Codex driver 只有 AC-435 分支版本**：文件 `server/modules/providers/list/codex/codex-host-driver.provider.ts` 只存在于 `task/gap-ac435-codex-resident-host-driver-persistent` 的 `90901930f`，develop / HEAD 都 ABSENT（本轮 `git log` 与 `git cat-file` 实测）。它有 `startHost/bind/submit/interrupt/reconfigure/unbind/closeHost/run`，但：
   - `submit()` 只调 `this.sink?.activity(appSessionId)`（第 172 行），**从不 `leaseAdded({kind:'turn'})` / `leaseRemoved('turn')`** ⇒ 宿主层永远看不到 turn，host 永远不会 `busy`，`idle` 超时窗口在提交期间也不会被 cancel。
   - 没有 `startResidentSession`，也**没有 host port**（构造函数只接受 `createConnection` / `launch` / `thread`）⇒ 无法 `openHost`，restore 与 on-demand start 都到不了它。
@@ -40,13 +40,13 @@ goal_ac: AC-441
 **要建的东西**
 
 1. `server/modules/providers/list/codex/codex.provider.ts`（改）—— 镜像 Claude 的挂载方式：
-   - `readonly residentHostDriver: CodexHostDriver = new CodexHostDriver({ host: sessionHostManager, launch: { cwd: undefined } })`（`host` 是本条给 driver 新增的构造选项；`launch` 用默认 transport，测试不经过它）；
+   - `readonly residentHostDriver: CodexHostDriver = new CodexHostDriver({ host: sessionHostManager });`（`host` 是本条给 driver 新增的构造选项；connection 仍由 `requireConnection` 惰性创建，模块加载不 spawn 进程）；
    - `readonly hostDriver: IProviderHostDriver = this.residentHostDriver;`，import `sessionHostManager` 自 `@/modules/session-hosts/index.js`（与 `claude.provider.ts:19` 同一条既有边）；
    - **不改** `provider-capabilities.service.ts`，不改 `lifecycleModes` / `residentFeatures`。
 2. `server/modules/providers/list/codex/codex-host-driver.provider.ts`（改）：
    - 新增构造选项 `host: CodexResidentHostPort`，类型为 `Pick<SessionHostManager, 'openHost' | 'snapshot'>`（与 `ClaudeResidentHostPort` 同型收窄，避免 import 整个 manager 面）。
    - **turn lease**：`submit()` 在 `turn/start` 之前 `sink.leaseAdded(appSessionId, { kind: 'turn', runId })`；`runId` 每轮唯一（driver 自增即可，如 `codex-turn-<n>`）；在 `settleTurn` 的**唯一结算点** `sink.leaseRemoved(appSessionId, 'turn')`，且每个 lease 只移除一次；`turn/start` 请求抛错时同样移除（catch 内移除后 rethrow）。`unbind` / `closeHost` 清理未结算轮时也移除。这样 `applyDerivedState` 能在 turn 期间给出 `busy`、结束后回到 `idle`，idle 窗口才会在提交期间被 `clearQuietClose` 取消、结束后重新 arm。
-   - **原因读数**：`closeHost(host, reason)` 记录 `lastCloseReason = reason`，`unbind(host, appSessionId, reason)` 记录 `lastUnbindReason = reason`（公开只读；`readSession` 形状可加字段，AC-435 测试不做 deepEqual， widening 安全）。这是判据读「driver 收到的原因与 manager 记录的原因相同」的观测面，不改变 `IProviderHostDriver` 签名。
+   - **原因读数**：`closeHost(host, reason)` 记录 `lastCloseReason = reason`，`unbind(host, appSessionId, reason)` 记录 `lastUnbindReason = reason`（公开只读；`readSession` 形状可加字段，AC-435 测试不做 deepEqual，widening 安全）。这是判据读「driver 收到的原因与 manager 记录的原因相同」的观测面，不改变 `IProviderHostDriver` 签名。
    - **`startResidentSession(appSessionId, launch)`**（实现接口可选动词，幂等）：
      - 已有 live host（`this.host` 且未 closed，或 `host.snapshot()` 里该 session 有非 closed binding）⇒ 直接回 `{ hostId, pid }`，不再开第二个进程；
      - 否则从 `launch.context.resolveProviderSessionId(appSessionId)` 读 provider-native id，作为该 session 的初始 `threadId`（有值才 resume；无值走 `thread/start`），从 `launch.options` 取 `cwd` / `model` 作为 `thread/start` 默认；
@@ -58,7 +58,7 @@ goal_ac: AC-441
    - (b) **busy → idle**：`const turn = driver.submit(host, id, { command:'hi', options:{} })`；等假 transport 收到 `turn/start` 后读 `snapshot()` ⇒ state `busy`、leases `resident-policy+turn`；发 `turn/completed`、`await turn` 后读 ⇒ state `idle`、leases `resident-policy`；打印两行读数与 `leaseAdded/leaseRemoved` 次数。再加一条失败腿：假 transport 对 `turn/start` 回 JSON-RPC error，`submit` reject 后 host 仍回 `idle`（turn lease 不粘住）。
    - (c) **closeHost / unbind 原因**：`manager.closeHost(hostId, 'user')` ⇒ `snapshot()` 的 `closeReason === 'user'`、`driver.lastCloseReason === 'user'`、连接的 `close()` 恰 1 次；另一 case `manager.unbindSession(id, 'user')` ⇒ `driver.lastUnbindReason === 'user'` 且非 multiplexed 的最后一个 binding 使 host `closeReason === 'user'`；再一条 `sink` 路径：假 transport 发进程退出 ⇒ `closeReason === 'exited'` 且 **没有** 回调 `driver.closeHost`（`driver.lastCloseReason` 仍为 null），证明 exit 不走 kill。
    - (d) **idle 超时**：FakeClock + `createSessionHostManager({ now, scheduler, residentPolicy: { quietCeilingMs } })`；打开 resident host、读完 `quietDeadlineAt - quietWindowStartAt === quietCeilingMs` 后把时钟推过 ceiling；断言 host `state 'closed'`、`closeReason 'idle'`、`driver.lastCloseReason === 'idle'`、关闭时 binding 无 `turn` lease；打印 `ceiling=… deadline=… closeReason=…`。
-   - (e) **restore 走 startResidentSession**：`createResidentRestoreService({ listRestorableResidentSessions, resolveHostDriver: (p) => p==='codex' ? driver : null, startResidentSession: (p,id) => driver.startResidentSession(id, launch), now, log })`，候选一条 `{ provider:'codex', providerSessionId:'thread-existing', lastActiveAt }`；断言 `outcome.started` 含该 id 且 `skipped` 不含 `no-resident-driver`；`provider` 的动词被调用恰 1 次；host 起来且持 `resident-policy`；随后发一轮，假 transport 的 `thread/resume` 参数 `threadId === 'thread-existing'`（证明恢复 adopt 了原会话，而不是 `thread/start` 新开）。再断言第二次 restore/start 幂等（不再 `openHost`、pid 不变）。
+   - (e) **restore 走 startResidentSession**：`createResidentRestoreService({ listRestorableResidentSessions, resolveHostDriver: (p) => p==='codex' ? driver : null, startResidentSession: (p,id) => driver.startResidentSession(id, launch), now, log })`，候选一条 `{ provider:'codex', providerSessionId:'thread-existing', lastActiveAt }`；断言 `outcome.started` 含该 id 且 `skipped` 不含 `no-resident-driver`；driver 动词被调用恰 1 次；host 起来且持 `resident-policy`；随后发一轮，假 transport 的 `thread/resume` 参数 `threadId === 'thread-existing'`（证明恢复 adopt 了原会话，而不是 `thread/start` 新开）。再断言第二次 start 幂等（不再 `openHost`、pid 不变）。
    - (f) **挂载**：`providerRegistry.resolveProvider('codex')` 的 `hostDriver` 是 `CodexHostDriver` 实例、`multiplexedHost === false`；`resolveHostDriver('codex')` 非空。**不断言** `lifecycleModes`（AC-442 的范围）。
 4. 两个假形态（只临时改实现，随后 `git checkout --` 还原并记录逐字红态）：
    - 去掉 `settleTurn` 里的 `leaseRemoved('turn')` ⇒ (b) 必红（host 停在 busy / leases 带 turn）；
