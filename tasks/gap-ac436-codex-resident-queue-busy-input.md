@@ -71,7 +71,7 @@ goal_ac: AC-436
 - [x] AC9 接口与声明：`CodexHostDriver` 以 `IProviderHostDriver` 类型赋值且四个队列读法随测试文件类型检查通过（`npm run typecheck` 退出 0）；打印 `multiplexedHost=false`。
 - [x] AC10 三个假形态承重：A 忙时拒绝、B 中断后假设自动排水、C 本地计数器，各自令 criterion 退出 **1**；三次红态文案逐字记录；还原后 `git status --short` 无残留。
 - [x] AC11 无回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0；`npm run typecheck` 退出 0。
-- [x] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。
+- [x] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches；`git diff --name-only develop...HEAD | grep -E 'codex\\.provider\\.ts|provider-capabilities\\.service\\.ts|provider-runtime\\.service\\.ts|codex-runtime\\.provider\\.ts|codex-app-server\\.client\\.ts'` 输出为空。
 - [x] AC13 如实登记：完成记录写明假 transport 形态与锁定协议版本（0.153.4）、E2/E3 通知序列出处、三个假形态的实测退出码与逐字红态文案、`thread/queue/list` 与 `thread/queue/start` 的 params，以及未实现项（experimentalApi、host lease、provider 挂载/capabilities、settings/approvals/background/restore/E2E）。
 
 ## DoD
@@ -186,8 +186,17 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 
 - criterion：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` → exit **0**，`tests 8 / pass 8 / fail 0`（merge develop 后复跑同样 exit 0）。
 - 无回归：`codex-host-driver-persistent.test.ts` → exit **0**，`tests 5 / pass 5 / fail 0`；`npm run typecheck`（三个 tsc 项目）→ exit **0**。
-- 范围：`git diff --name-only goal/GOAL-051...HEAD` 恰为 `server/modules/providers/list/codex/codex-host-driver.provider.ts` 与 `server/modules/providers/tests/codex-host-driver-queue.test.ts`；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。**需要如实说明的差别**：验收当时 `git diff --name-only develop...HEAD` 还列出 `codex-app-server.connection.ts`、`codex-background-lease-ledger.ts`、`codex-app-server-protocol.test.ts`、`codex-resident-background-leases.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv` 及若干 `tasks/*.md` —— 这些是兄弟任务 gap-ac435 / gap-ac439 / gap-ac440 已落在 `goal/GOAL-051`、但当时尚未 fan-in 进 develop 的提交，不是本任务的改动；本任务相对基线的增量就是上面两个 Touches 文件。
+- 范围：`git diff --name-only goal/GOAL-051...HEAD` 恰为 `server/modules/providers/list/codex/codex-host-driver.provider.ts` 与 `server/modules/providers/tests/codex-host-driver-queue.test.ts`；`git diff --name-only develop...HEAD | grep -E 'codex\\.provider\\.ts|provider-capabilities\\.service\\.ts|provider-runtime\\.service\\.ts|codex-runtime\\.provider\\.ts|codex-app-server\\.client\\.ts'` 输出为空。**需要如实说明的差别**：验收当时 `git diff --name-only develop...HEAD` 还列出 `codex-app-server.connection.ts`、`codex-background-lease-ledger.ts`、`codex-app-server-protocol.test.ts`、`codex-resident-background-leases.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv` 及若干 `tasks/*.md` —— 这些是兄弟任务 gap-ac435 / gap-ac439 / gap-ac440 已落在 `goal/GOAL-051`、但当时尚未 fan-in 进 develop 的提交，不是本任务的改动；本任务相对基线的增量就是上面两个 Touches 文件。
 - anti-drift Touches 硬门：`ANTI-DRIFT OK: task gap-ac436-codex-resident-queue-busy-input — 2 actual file(s), all within declared Touches (3 glob(s))`（exit 0）。
+
+**2026-10-29 第二轮 — exited-not-landed 后的修复（架构 ratchet 拆分 + 判据 pin 修复）。**
+
+上一轮 fan-in suite 红在两条，本轮逐条修复：
+
+1. `architecture-ratchet.test.ts`：`ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→1100 — 基线外的文件不得超过 800 行`。基线**外**没有 RECORDED CHANGE 通道，只能拆文件：把忙时队列的机制（`QueuedEntry`/镜像读取器/`CodexResidentQueue`：add、cancel、next、bind、remove、串行 refresh、settleAll）抽到新兄弟模块 `server/modules/providers/list/codex/codex-resident-queue.ts`（359 行），driver 只保留 turn 状态机并委托队列；`codex-host-driver.provider.ts` 1100 → **794** 行（< 800）。行为不变：criterion 复跑 `tests 8 / pass 8 / fail 0`，`codex-host-driver-persistent.test.ts` `tests 5 / pass 5 / fail 0`。
+2. `quay-test-script.test.ts`：新判据文件把收集数从 467 推到 **468**，两处 pin 按实测改为 `known=3 unknown=465` / `known=1 unknown=467`，注释块各追加本任务与新文件；`scripts/suite-duration-baseline.tsv` 追加本判据行（`6519` ms，实测一次）使覆盖 422/468 = 90.17% ≥ 90%。
+
+本轮单文件复跑读数：`architecture-ratchet.test.ts` → `tests 6 / pass 6 / fail 0`（含 `oversizeFiles` 全树 reading 通过）；`quay-test-script.test.ts` → `tests 14 / pass 14 / fail 0`；`server-import-cycle-budget.test.ts` → `tests 11 / pass 11 / fail 0`；`npm run typecheck`（三个 tsc 项目）→ exit 0。
 
 **未实现项（本任务边界外，按 Proposal 非目标）。** `experimentalApi` 声明与缺失时 fail-closed（AC-440，已在同一 connection 上由兄弟任务落地）；host lease/busy-idle（AC-439/AC-441）；`codex.provider.ts` 挂载与 capabilities 声明（AC-442）；settings/approvals/background/restore/E2E。驱动层仍只原样转发未知协议帧，不把它们归一化成 app 消息形状。
 
@@ -196,7 +205,10 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
+- server/modules/providers/list/codex/codex-resident-queue.ts (new)
 - server/modules/providers/tests/codex-host-driver-queue.test.ts (new)
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - tasks/gap-ac436-codex-resident-queue-busy-input.md
 
 ## Blocker
