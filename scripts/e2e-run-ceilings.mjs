@@ -62,17 +62,33 @@ export function readConfigEvalStallMs(env = process.env) {
  * `configEvalCompletedAt` is the instant the module finished its synchronous seeding / client-root /
  * bundle work — the first instant at which Playwright can spawn a webServer, and therefore the only
  * honest origin for a bound on that spawn.
+ *
+ * @param {number} configEvalCompletedAt
+ * @param {number} bootCeilingMs
+ * @returns {number}
  */
 export function bootDeadlineFrom(configEvalCompletedAt, bootCeilingMs) {
   return configEvalCompletedAt + bootCeilingMs;
 }
 
-/** The run ceiling's deadline, measured from `runStartedAt` — the whole invocation, config evaluation included. */
+/**
+ * The run ceiling's deadline, measured from `runStartedAt` — the whole invocation, config evaluation included.
+ *
+ * @param {number} runStartedAt
+ * @param {number} runCeilingMs
+ * @returns {number}
+ */
 export function runDeadlineFrom(runStartedAt, runCeilingMs) {
   return runStartedAt + runCeilingMs;
 }
 
-/** Milliseconds to wait from `now` until `deadline`, never negative — the same floor `setTimeout` needs. */
+/**
+ * Milliseconds to wait from `now` until `deadline`, never negative — the same floor `setTimeout` needs.
+ *
+ * @param {number} deadline
+ * @param {number} [now]
+ * @returns {number}
+ */
 export function timerDelay(deadline, now = Date.now()) {
   return Math.max(0, deadline - now);
 }
@@ -86,6 +102,10 @@ export function timerDelay(deadline, now = Date.now()) {
  * nobody writes parks the thread for the whole duration.
  *
  * Returns the clamped duration actually waited, so a caller can print the reading rather than the request.
+ *
+ * @param {number} ms
+ * @param {(line: string) => void} [log]
+ * @returns {number}
  */
 export function stallConfigEvaluation(ms, log = () => {}) {
   const bounded = Math.min(CONFIG_EVAL_STALL_MAX_MS, Math.max(0, Math.trunc(Number(ms) || 0)));
