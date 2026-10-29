@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "再送中…",
     "cardFeedbackResendHint": "再送はフィードバックのみで、アクションは繰り返しません",
     "cardFeedbackResendUnavailable": "再送できません：{{reason}}",
+    "cardFeedbackOptionGone": "（この選択肢は現在のカードにありません）",
+    "cardFeedbackOptionGoneReason": "選択肢が変わったため再送は拒否されます。会話を確認するか新しい選択肢を選んでください",
     "cardFeedbackOutcomeSession": "バックグラウンド会話が実行中 · 会話を開く ›",
     "cardFeedbackOutcomeDelivery": "会話に配信済み",
     "cardFeedbackOutcomeAccepted": "プロバイダーに渡しました",

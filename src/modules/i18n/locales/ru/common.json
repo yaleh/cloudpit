@@ -987,6 +987,8 @@
     "cardFeedbackResending": "Повторная отправка…",
     "cardFeedbackResendHint": "Повторная отправка повторяет только отзыв, а не действие",
     "cardFeedbackResendUnavailable": "Нельзя отправить снова: {{reason}}",
+    "cardFeedbackOptionGone": " (этого варианта больше нет на карточке)",
+    "cardFeedbackOptionGoneReason": "Варианты изменились, повторная отправка будет отклонена; посмотрите в беседе или выберите новый вариант",
     "cardFeedbackOutcomeSession": "Фоновый разговор выполняется · открыть разговор ›",
     "cardFeedbackOutcomeDelivery": "Доставлено в разговор",
     "cardFeedbackOutcomeAccepted": "Передано провайдеру",

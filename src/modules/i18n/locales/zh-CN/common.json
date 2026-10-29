@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "正在重发…",
     "cardFeedbackResendHint": "重发只重发反馈，不重做动作",
     "cardFeedbackResendUnavailable": "不可重发：{{reason}}",
+    "cardFeedbackOptionGone": "（该选项已不在当前卡片）",
+    "cardFeedbackOptionGoneReason": "选项已变化，重发会被拒；去会话里看或选新选项",
     "cardFeedbackOutcomeSession": "后台会话运行中 · 打开会话 ›",
     "cardFeedbackOutcomeDelivery": "已送达会话",
     "cardFeedbackOutcomeAccepted": "已交给提供方处理",

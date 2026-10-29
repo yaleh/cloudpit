@@ -277,6 +277,9 @@ export function createCockpitCardActions(deps: {
       cardId: params.card.id,
       provider: params.card.provider,
       revision: params.card.revision,
+      ...(params.card.contentRevision === undefined
+        ? {}
+        : { contentRevision: params.card.contentRevision }),
       feedbackId,
       optionId: params.optionId,
       label: params.label,

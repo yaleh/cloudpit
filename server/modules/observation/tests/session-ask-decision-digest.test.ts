@@ -39,6 +39,7 @@ import {
   readSessionAsks,
   SESSION_ASK_OUTPUT_UNUSABLE_REASON,
   SESSION_ASK_DECISION_HISTORY_LIMIT,
+  stableOptionId,
   type SessionAskDecisionDigest,
 } from '../session-ask-decision-digest.js';
 import {
@@ -263,9 +264,10 @@ test('AC-423: a recommended option is the only suggested one, sourced from the a
 
   const suggested = reading.options.filter((option) => option.suggested);
   assert.equal(suggested.length, 1);
-  assert.equal(suggested[0]?.id, 'b');
+  // The written id is derived from the LABEL, never the model's own `a`/`b`.
+  assert.equal(suggested[0]?.id, stableOptionId('先改实现'));
   assert.equal(suggested[0]?.source, 'assistant');
-  assert.equal(reading.options.find((option) => option.id === 'a')?.suggested, false);
+  assert.equal(reading.options.find((option) => option.id === stableOptionId('先补测试'))?.suggested, false);
   assert.deepEqual(suggested[0]?.tags, [{ kind: 'consequence', text: '更快看到修复' }]);
 });
 
@@ -306,7 +308,11 @@ test('AC-423: when the original text recommends nothing the judge supplies the s
   if (reading.state !== 'evaluated') return;
   const suggested = reading.options.filter((option) => option.suggested);
   assert.equal(suggested.length, 1, 'the judge fills exactly one default');
-  assert.equal(suggested[0]?.id, 'b', 'the assistant cue was absent, so the judge pick is the default');
+  assert.equal(
+    suggested[0]?.id,
+    stableOptionId('方案 B'),
+    'the assistant cue was absent, so the judge pick is the default',
+  );
   assert.equal(suggested[0]?.source, 'judge', 'the judge never labels its pick as the assistant’s');
   assert.equal(suggested[0]?.why, answer.judgeReason);
 });
@@ -1242,10 +1248,10 @@ test('yes/no: a yes/no question with no listed options gets 是/否 and the judg
   assert.deepEqual(
     reading.options.map((option) => ({ id: option.id, label: option.label, suggested: option.suggested })),
     [
-      { id: 'yes', label: '是', suggested: true },
-      { id: 'no', label: '否', suggested: false },
+      { id: stableOptionId('是'), label: '是', suggested: true },
+      { id: stableOptionId('否'), label: '否', suggested: false },
     ],
-    'the two synthesized options are 是/否, and the judge picks one of them',
+    'the two synthesized options are 是/否 with label-derived ids, and the judge picks one of them',
   );
   assert.deepEqual(reading.options.map((option) => option.source), ['judge', 'assistant']);
   assert.equal(reading.options[0]?.why, '释放 profile 才能让下一个会话启动浏览器。');
@@ -1269,11 +1275,139 @@ test('yes/no: a recommendation in the assistant text marks 是 and sources it fr
 
   assert.equal(reading.state, 'evaluated');
   if (reading.state !== 'evaluated') return;
-  const yes = reading.options.find((option) => option.id === 'yes');
-  const no = reading.options.find((option) => option.id === 'no');
+  const yes = reading.options.find((option) => option.id === stableOptionId('是'));
+  const no = reading.options.find((option) => option.id === stableOptionId('否'));
   assert.equal(yes?.suggested, true);
   assert.equal(yes?.source, 'assistant');
   assert.equal(no?.suggested, false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Stable option identity: the written id names the LABEL, not the model's own id
+//
+// The cockpit's local receipt and the fleet feedback call use `options[].id` as the option's
+// identity. A model-chosen id is free text and changes between two computations of the same
+// question, so a sent choice could no longer be matched to a current option. The digest therefore
+// derives the id from the normalised label; these cases pin that derivation end to end.
+// ---------------------------------------------------------------------------------------------
+
+const IDENTITY_ASSISTANT_TEXT = '你可以从这些做法里挑一个：先补测试 / 先改实现 / 先看日志';
+const IDENTITY_CONTEXT = `[用户] 下一步做什么？\n[助手] ${IDENTITY_ASSISTANT_TEXT}`;
+
+/** One model answer over the given (model-id, label) pairs, with no suggestion of any kind. */
+function identityAnswer(options: Array<{ id: string; label: string }>): Record<string, unknown> {
+  return {
+    ask: '下一步先做哪一件？',
+    situation: '刚讨论完三件可做的事。',
+    incomplete: false,
+    recommendedOptionId: null,
+    judgeOptionId: null,
+    judgeReason: null,
+    options: options.map(({ id, label }) => ({
+      id,
+      label,
+      does: `执行「${label}」。`,
+      tags: [],
+      source: 'assistant',
+    })),
+  };
+}
+
+/** The evaluated member of the reading union; every identity case asserts its way into it. */
+type EvaluatedReading = Extract<SessionAskDecisionReading, { state: 'evaluated' }>;
+
+async function summarizeIdentity(answer: Record<string, unknown>): Promise<EvaluatedReading> {
+  const summariser = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () => completion(JSON.stringify(answer)),
+  });
+  const reading = await summariser.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText: IDENTITY_ASSISTANT_TEXT,
+    context: IDENTITY_CONTEXT,
+  });
+  assert.equal(reading.state, 'evaluated', JSON.stringify(reading));
+  if (reading.state !== 'evaluated') throw new Error('the digest must be evaluated');
+  return reading;
+}
+
+test('option identity: the same labels in a different order carry IDENTICAL ids', async () => {
+  const forwards = await summarizeIdentity(
+    identityAnswer([
+      { id: 'a', label: '先补测试' },
+      { id: 'b', label: '先改实现' },
+      { id: 'c', label: '先看日志' },
+    ]),
+  );
+  // The second computation hands different model ids to the SAME labels, in the opposite order:
+  // a model's id is free text and changes between recomputations, which is exactly the defect.
+  // Only the labels agree, so only a label-derived id can match.
+  const backwards = await summarizeIdentity(
+    identityAnswer([
+      { id: 'z', label: '先看日志' },
+      { id: 'y', label: '先改实现' },
+      { id: 'x', label: '先补测试' },
+    ]),
+  );
+
+  const idByLabel = (
+    options: ReadonlyArray<{ label: string; id: string }>,
+  ): Record<string, string> => Object.fromEntries(options.map((option) => [option.label, option.id]));
+  // `backwards` first, so the expected object reads in its own order.
+  assert.deepEqual(idByLabel(backwards.options), idByLabel(forwards.options));
+  assert.deepEqual(Object.keys(idByLabel(forwards.options)), ['先补测试', '先改实现', '先看日志']);
+});
+
+test('option identity: a label changed by one character is a DIFFERENT option', async () => {
+  const [original] = (await summarizeIdentity(identityAnswer([{ id: 'a', label: '先补测试' }]))).options;
+  const [edited] = (await summarizeIdentity(identityAnswer([{ id: 'a', label: '先补测' }]))).options;
+
+  assert.equal(original?.id, stableOptionId('先补测试'));
+  assert.equal(edited?.id, stableOptionId('先补测'));
+  assert.notEqual(original?.id, edited?.id, 'one character is a different label, so a different id');
+});
+
+test('option identity: duplicate labels in ONE output get a suffix instead of collapsing', async () => {
+  const reading = await summarizeIdentity(
+    identityAnswer([
+      { id: 'first', label: '先跑测试' },
+      { id: 'second', label: '先跑测试' },
+    ]),
+  );
+  const base = stableOptionId('先跑测试');
+  assert.deepEqual(
+    reading.options.map((option) => option.id),
+    [base, `${base}-2`],
+    'the second copy of a label gets the `-2` suffix, so two options never share one id',
+  );
+  assert.deepEqual(
+    reading.options.map((option) => option.label),
+    ['先跑测试', '先跑测试'],
+    'the labels themselves are untouched',
+  );
+});
+
+test('option identity: the model-provided id is NEVER written into the decision', async () => {
+  const modelIds = ['baseline-first', 'bb', 'cc'];
+  const reading = await summarizeIdentity(
+    identityAnswer([
+      { id: modelIds[0]!, label: '先补测试' },
+      { id: modelIds[1]!, label: '先改实现' },
+      { id: modelIds[2]!, label: '先看日志' },
+    ]),
+  );
+
+  for (const option of reading.options) {
+    assert.match(option.id, /^opt-[0-9a-f]{8}(-\d+)?$/, 'every id is the label-derived shape');
+    assert.ok(!modelIds.includes(option.id), `the model id ${option.id} must not survive`);
+  }
+  const serialized = JSON.stringify(reading.options);
+  for (const modelId of modelIds) {
+    assert.ok(!serialized.includes(`"id":${JSON.stringify(modelId)}`), `no option carries the model id ${modelId}`);
+  }
 });
 
 // ---------------------------------------------------------------------------------------------

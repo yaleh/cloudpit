@@ -1017,6 +1017,8 @@
     "cardFeedbackResending": "Renvoi…",
     "cardFeedbackResendHint": "Renvoyer ne renvoie que le retour, pas l’action",
     "cardFeedbackResendUnavailable": "Renvoi impossible : {{reason}}",
+    "cardFeedbackOptionGone": " (cette option n’est plus sur la carte)",
+    "cardFeedbackOptionGoneReason": "Les options ont changé, un renvoi serait refusé ; consultez la conversation ou choisissez une nouvelle option",
     "cardFeedbackOutcomeSession": "Conversation en arrière-plan · ouvrir la conversation ›",
     "cardFeedbackOutcomeDelivery": "Remis à la conversation",
     "cardFeedbackOutcomeAccepted": "Remis au fournisseur",

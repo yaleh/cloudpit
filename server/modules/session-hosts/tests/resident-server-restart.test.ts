@@ -241,6 +241,25 @@ test('AC2: a run at every step deadline still finishes inside the budget (guard 
   );
 });
 
+/**
+ * AC1c — the positive control for the process-table read: a table that could not
+ * be read must not pass for "no such process".
+ *
+ * The 2026-10-29 red is the shape this case closes: `ps` overran `spawnSync`'s
+ * 1 MiB default on a loaded anchor, the helper answered `[]`, and the group kill
+ * signalled nothing — every stop leg then read as "the pid would not leave".
+ * This requires the table the legs read to carry this very process, the cheapest
+ * row a real table cannot be missing and an empty read cannot produce.
+ */
+test('AC1c: the process-table read carries this very process (not a silent empty table)', () => {
+  const table = processTable();
+  assert.ok(
+    table.some((row) => row.pid === process.pid),
+    `the process table (${table.length} rows) does not contain this runner (pid ${process.pid}); ` +
+      'an empty or failed read would make every group-kill leg vacuous',
+  );
+});
+
 // ---------------------------------------------------------------- mock endpoint
 
 type Received = {
@@ -371,11 +390,32 @@ async function startMockAnthropic(): Promise<MockAnthropic> {
 
 type ProcessRow = { pid: number; pgid: number; ppid: number; args: string };
 
+/**
+ * How much of `ps`'s row dump a read may carry.
+ *
+ * `spawnSync` defaults to a 1 MiB `maxBuffer`, and on a loaded fleet host the
+ * dump is bigger than that: 2026-10-29, with 5736 processes on the anchor, the
+ * 1.2 MB table tripped `ENOBUFS` — and because a failed read used to answer an
+ * empty table, `signalServiceGroup` then signalled nothing (`killed=0`), the
+ * server was never stopped, and both stop legs died on the same misleading
+ * `Timed out after 20000ms waiting for pid … to leave after SIGTERM`. An empty
+ * table is not a neutral reading for a kill leg; it is the reading that makes
+ * the leg vacuous. The ceiling is raised with headroom and a failed read now
+ * throws instead of passing for "no such process".
+ */
+const PS_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
 /** The process table, as `/proc` and `ps` report it for this host. */
 function processTable(): ProcessRow[] {
-  const result = spawnSync('ps', ['-eo', 'pid=,pgid=,ppid=,args='], { encoding: 'utf8' });
-  if (result.status !== 0 || !result.stdout) {
-    return [];
+  const result = spawnSync('ps', ['-eo', 'pid=,pgid=,ppid=,args='], {
+    encoding: 'utf8',
+    maxBuffer: PS_MAX_BUFFER_BYTES,
+  });
+  if (result.error !== undefined || result.status !== 0 || !result.stdout) {
+    throw new Error(
+      `the process table could not be read (${result.error?.message ?? `ps exited ${result.status}`}): ` +
+        'an empty table would make the group kill signal nothing and read as "no such process"',
+    );
   }
 
   const rows: ProcessRow[] = [];

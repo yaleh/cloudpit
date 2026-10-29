@@ -299,13 +299,15 @@ function evaluated(options: {
   source: 'assistant' | 'judge' | 'provider';
   incomplete?: boolean;
   why?: string;
+  /** The digest's own revision (the stored summary's, not the fleet item's). */
+  revision?: number;
 }): SessionAskDecisionReading {
   return {
     state: 'evaluated',
     inputTokens: 120,
     outputTokens: 40,
     askId: 'sess-ask:m-7',
-    revision: 1,
+    revision: options.revision ?? 1,
     ask: 'Should the staging directory be deleted?',
     situation: 'The run left 1.2 GB in staging and the archive is already verified.',
     options: [
@@ -441,6 +443,42 @@ test('AC-432 / AC-434: a judge recommendation is the session-ask card’s defaul
   assert.equal(suggested[0]?.why, judgeReason);
   assert.equal(ask.contentUnavailable, undefined);
   assert.equal(optionById(ask, 'keep').suggested, false);
+});
+
+test('AC: the card’s contentRevision follows the digest, while the provider’s revision stands still', async () => {
+  // The fleet item and its summary are two different clocks. Recomputing the SAME ask's summary
+  // leaves the provider's entry (and its `revision`) untouched, so `revision` alone cannot tell
+  // the display that the content was replaced; `contentRevision` carries the digest's revision
+  // and is what the client keys its per-content state on.
+  const firstRevision = 1;
+  const secondRevision = 2;
+  let reading = evaluated({ suggested: true, source: 'assistant', revision: firstRevision });
+  const fleet = created({
+    ttlMs: 0,
+    runCards: runnerReturning(FIXTURE),
+    readSessionAsk: () => reading,
+  });
+
+  const before = byId(await fleet.provider.listCards(), 'att-ask-1');
+  assert.equal(before.revision, 3, 'the provider item keeps its own revision');
+  assert.equal(before.contentRevision, firstRevision, 'the card carries the digest storage’s revision');
+
+  // A recompute of the same fleet entry: the item is unchanged, the summary is not.
+  reading = evaluated({ suggested: true, source: 'assistant', revision: secondRevision });
+  const after = byId(await fleet.provider.listCards(), 'att-ask-1');
+
+  assert.equal(after.revision, before.revision, 'the provider did not bump its item revision');
+  assert.equal(after.contentRevision, secondRevision, 'the summary’s new revision reaches the card');
+  assert.equal(
+    (after.contentRevision ?? 0) > (before.contentRevision ?? 0),
+    true,
+    'contentRevision increased across the recompute',
+  );
+  assert.deepEqual(
+    after.options.map((option) => option.id),
+    before.options.map((option) => option.id),
+    'the options are the same ones; only the content revision moved',
+  );
 });
 
 test('AC-432: a missing or incomplete digest keeps the card visible, marked not ready, with no default', async () => {

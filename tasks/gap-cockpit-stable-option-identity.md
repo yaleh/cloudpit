@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-stable-option-identity
 title: 选项身份稳定：id 由标签派生、卡片带 contentRevision、已发出但选项已变时标明并禁用重发
-status: ready
+status: done
 labels:
   - gap
   - cockpit
@@ -48,6 +48,7 @@ depends_on:
 - [x] `npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 退出 0（`contentRevision` 两端一致）；`npx vitest run src/modules/cockpit/tests/i18nCockpitCompleteness.test.ts` 退出 0。
 - [x] 假形态变红：把选项 id 改回「模型给什么用什么」⇒ 第一条用例红；把「选项已不在」的判断删掉 ⇒ 第三条用例红；改完即还原。
 - [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts`、`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；`npm run typecheck`、`npm run lint` 退出 0（lint 仅既有 warning）；两个 `types.ts` 的增长按 RECORDED CHANGE 记录。
+- [x] 解 suite 红灯（上一轮 exited-not-landed 的唯一失败）：`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/resident-server-restart.test.ts` 退出 0（本机 5/5 通过，20.4s；`sigterm-killed killed=5 spared=1`，`gone-after-ms=887 closeReason=server-shutdown`）。真因不在本任务 delta：`processTable()` 用 `spawnSync('ps', …)` 读表而 `ps` 输出 1.22 MB（5736 进程）超过 1 MiB 默认 `maxBuffer` ⇒ `ENOBUFS` ⇒ 进程表读成 `[]` ⇒ 组信号杀 0 个进程、服务器从未被停。修法：`maxBuffer` 提到 64 MiB，读失败显式抛错（不再用空表冒充「没有这个进程」），并加 AC1c 正向控制（表里必须含本进程）。
 
 ## DoD
 
@@ -88,9 +89,29 @@ depends_on:
 - src/modules/i18n/locales/ru/common.json
 - src/modules/i18n/locales/tr/common.json
 - server/shared/tests/architecture-ratchet.baseline.json
+- server/modules/session-hosts/tests/resident-server-restart.test.ts
 
 ## 暗轴记录（ADR-007）
 
 - L_G ratchet: oversizeFiles=77 moduleMutableState=112 hookStateHeavy=6 providerNameBranches=27 smallHelperCopies=6
 
 读数出自 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 本任务树上打印的五行；L_D 本轮没有接入可量化的探针，故只记 L_G。
+
+## Evidence
+
+### 上一轮 suite 红灯的真因（2026-10-29T10:18:51 exited-not-landed 的唯一失败项）
+
+- 失败文件：`server/modules/session-hosts/tests/resident-server-restart.test.ts`，`Timed out after 20000ms waiting for pid 3247745 to leave after SIGTERM`（suite 日志里同一文件 rerun 也红）。
+- 单独重跑同一命令即可复现（不是 lane 负载抖动）：`sigterm-killed killed=0 spared=1`，服务器进程组一个都没被杀。
+- 实测读数：`ps -eo pid=,pgid=,ppid=,args=` 输出 **1,216,228 字节 / 5736 行**；`node -e` 用默认参数 `spawnSync` 复读得到 `status null error ENOBUFS stdoutLen 1052230`。默认 `maxBuffer` = 1 MiB，`processTable()` 的 `if (result.status !== 0 || !result.stdout) return []` 把读失败静默变成空表。
+- 空表的后果是**空洞的杀**：`signalServiceGroup` 在空表上 `killed=0`，SIGTERM 从未到达服务器，resident CLI 当然 20s 不走；清理路径（`stop('SIGKILL', null)`）同样杀不掉，于是每次失败还泄漏一整棵 `npm exec → sh → tsx → node server/index.ts` 进程树。
+- 与本任务 delta 的关系：该文件不在本任务 3 个提交的 diff 里，与 develop 上的版本逐字节相同，结论是环境规模触发（进程表大小），非本任务改动引入；但它是 fan-in suite 的确定性红灯，必须在此轮解决。
+- 修法（本分支提交 `session-hosts: file-read the ps table with headroom, not a silent empty table`）：`PS_MAX_BUFFER_BYTES = 64 MiB` 传入 `spawnSync`；读失败（`result.error` / 非零退出 / 空 stdout）改为抛出，不再返回 `[]`；新增 AC1c 正向控制，要求读到的表里含本进程 pid。
+
+### 修后读数
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/resident-server-restart.test.ts`：`tests 5 / pass 5 / fail 0 / duration_ms 20451`，退出 0。
+- SIGTERM 腿：`sigterm-killed killed=5 spared=1`、`sigterm resident-pid=… gone-after-ms=887 closeReason=server-shutdown`。
+- SIGKILL 腿：`sigkill survivor=true killed=4 spared=1`、`sigkill-residue … swept=1`、`sigkill-reaped … alive-after-sweep=false`。
+- `npx tsc --noEmit -p server/tsconfig.json` 退出 0；`npx oxlint server/modules/session-hosts/tests/resident-server-restart.test.ts` 无告警。
+- 手工清理了此前失败轮次在本 worktree 留下的 4 棵孤儿服务器进程树（pgid 272116 / 2568311 / 3238122 / 3868381，均已 re-parent 到 systemd --user），避免下一轮 suite 被判为 leaked-process。

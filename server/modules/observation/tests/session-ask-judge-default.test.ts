@@ -23,7 +23,7 @@ import type { SessionAskDecisionReading } from '@/shared/types.js';
 
 import type { ObservedObject, ObservationStore } from '../observation-store.js';
 import { formatSessionUri } from '../observation-uri.js';
-import { createSessionAskDecisionDigest } from '../session-ask-decision-digest.js';
+import { createSessionAskDecisionDigest, stableOptionId } from '../session-ask-decision-digest.js';
 import { createSessionAskDecisionReader } from '../session-ask-decision-reader.js';
 import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
@@ -145,7 +145,11 @@ test('AC-434: an assistant recommendation is the one suggested option, sourced f
   assert.equal(calls, 1, 'one summary is one call, judge included');
   const suggested = suggestedOf(reading);
   assert.equal(suggested.length, 1, 'exactly one default');
-  assert.deepEqual(suggested[0], { id: 'a', source: 'assistant' }, 'the judge does not override the assistant');
+  assert.deepEqual(
+    suggested[0],
+    { id: stableOptionId('方案 A'), source: 'assistant' },
+    'the judge does not override the assistant',
+  );
   assert.equal(suggested.some((option) => option.source === 'judge'), false, 'the judge never labels its pick as the assistant’s');
 });
 
@@ -155,7 +159,7 @@ test('AC-434: with no assistant recommendation the judge supplies one, with a re
 
   assert.equal(calls, 1, 'the judge is a field pair in the SAME answer, never a second call');
   assert.equal(suggested.length, 1, 'exactly one default');
-  assert.equal(suggested[0]?.id, 'b');
+  assert.equal(suggested[0]?.id, stableOptionId('方案 B'));
   assert.equal(suggested[0]?.source, 'judge', 'the judge’s pick is sourced as the judge, not the assistant');
   assert.equal(suggested[0]?.why, JUDGE_ANSWER.judgeReason);
   assert.ok((suggested[0]?.why ?? '').trim() !== '', 'the judge states a reason');
@@ -182,11 +186,14 @@ test('AC-434: a yes/no question with no recommendation gets the judge’s 是/�
   assert.deepEqual(
     reading.options.map((option) => ({ id: option.id, label: option.label, suggested: option.suggested, source: option.source })),
     [
-      { id: 'yes', label: '是', suggested: false, source: 'assistant' },
-      { id: 'no', label: '否', suggested: true, source: 'judge' },
+      { id: stableOptionId('是'), label: '是', suggested: false, source: 'assistant' },
+      { id: stableOptionId('否'), label: '否', suggested: true, source: 'judge' },
     ],
   );
-  assert.equal(reading.options.find((option) => option.id === 'no')?.why, answer.judgeReason);
+  assert.equal(
+    reading.options.find((option) => option.id === stableOptionId('否'))?.why,
+    answer.judgeReason,
+  );
 });
 
 test('AC-434: an incomplete digest has no default, even when the model offers a judge pick', async () => {
@@ -300,7 +307,7 @@ test('AC-434: a stored digest with no default is recomputed once on read, then n
   const repaired = reader.read(SESSION_ID, 'a1');
   assert.deepEqual(
     suggestedOf(repaired).map((option) => [option.id, option.source]),
-    [['b', 'judge']],
+    [[stableOptionId('方案 B'), 'judge']],
     'the repaired reading carries the judge default',
   );
   assert.equal(requests.length, 1, 'the repair makes exactly one model call');

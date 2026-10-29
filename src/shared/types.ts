@@ -4337,6 +4337,13 @@ export type CockpitCardFeedback = {
   cardId: string;
   /** The revision the action was confirmed at (a later card revision does not clear this). */
   revision: number;
+  /**
+   * The CONTENT revision the card carried when the action was confirmed. The local receipt keeps
+   * it so a later read can tell 「the summary this choice was made against was replaced」 even
+   * when the provider's own `revision` did not move. Absent for a receipt recorded before this
+   * field existed.
+   */
+  contentRevision?: number;
   /** The idempotency key shared by the original call and every resend. */
   feedbackId: string;
   optionId: string | null;
@@ -4376,6 +4383,15 @@ export type CockpitCard = {
   id: string;
   provider: string;
   revision: number;
+  /**
+   * The revision of the LOCALLY RESOLVED content (the T1 ask digest) this card's `ask`,
+   * `situation` and content options came from. `revision` above is the provider's item revision
+   * and does not move when that digest is recomputed; this field does. The display keys its
+   * per-content state (shown option, open dropdown, inline expansion) on
+   * `(revision, contentRevision)` so a replaced summary resets them. Absent when the card has no
+   * locally resolved content.
+   */
+  contentRevision?: number;
   kind: CockpitCardKind | (string & {});
   group: string;
   rank: number;

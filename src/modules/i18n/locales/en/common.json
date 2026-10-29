@@ -1108,6 +1108,8 @@
     "cardFeedbackResending": "Resending…",
     "cardFeedbackResendHint": "Resend only resends the feedback; it does not redo the action",
     "cardFeedbackResendUnavailable": "Cannot resend: {{reason}}",
+    "cardFeedbackOptionGone": " (this option is no longer on the card)",
+    "cardFeedbackOptionGoneReason": "The options changed, so a resend would be refused; check the conversation or pick a new option",
     "cardFeedbackOutcomeSession": "Background conversation running · open conversation ›",
     "cardFeedbackOutcomeDelivery": "Delivered to the conversation",
     "cardFeedbackOutcomeAccepted": "Handed to the provider",
