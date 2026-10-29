@@ -56,7 +56,7 @@ import {
   type AsrRuntimeStatus,
   type AsrToken,
   type AsrTransformation,
-} from '../../asrRegistry.js';
+} from '../../asrContract.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'sensevoice-local';

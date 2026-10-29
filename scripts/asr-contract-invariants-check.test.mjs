@@ -51,6 +51,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKER = join(REPO_ROOT, 'scripts', 'asr-contract-invariants-check.mjs');
 const ADAPTER_RELATIVE = join('shared', 'asr', 'list', 'multimodal', 'multimodal.asr-provider.ts');
 const REGISTRY_RELATIVE = join('shared', 'asr', 'asrRegistry.ts');
+const CONTRACT_RELATIVE = join('shared', 'asr', 'asrContract.ts');
 
 const ALL_GROUPS = ['request-construction', 'error-mapping', 'size-layering', 'redaction', 'mime-gate'];
 
@@ -165,15 +166,15 @@ describe('asr-contract-invariants-check', () => {
   it('reds error mapping on the variant that collapses every failure onto one code', () => {
     // THE MUTATION MOVED WITH THE IMPLEMENTATION. The mapping this case falsifies used to be three
     // literal lines in the ADAPTER — a status-only `errorCodeForStatus` — and the case mutated each
-    // of them. The implementation is now ONE classifier in the registry
-    // (`classifyUpstreamFailure`), so the equivalent mutation is to make that classifier a constant:
-    // every failure reaches the same member and nothing the body says can change it. The anchors it
-    // replaced are gone from the adapter, and a case whose anchor had drifted would fail for a reason
-    // unrelated to its claim.
+    // of them. The implementation is now ONE classifier in the contract leaf
+    // (`classifyUpstreamFailure`, re-exported by the registry), so the equivalent mutation is to make
+    // that classifier a constant: every failure reaches the same member and nothing the body says can
+    // change it. The anchors it replaced are gone from the adapter, and a case whose anchor had
+    // drifted would fail for a reason unrelated to its claim.
     const root = treeWithMutations([
       {
         name: 'classifier-is-a-constant',
-        file: REGISTRY_RELATIVE,
+        file: CONTRACT_RELATIVE,
         find: '  const named = extractUpstreamCode(body);',
         replace: "  return 'UPSTREAM_UNAVAILABLE';\n  const named = extractUpstreamCode(body);",
       },

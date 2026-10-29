@@ -22,11 +22,11 @@
  * reading is what a falsifying form can move (see
  * `voice-error-classification.false-forms.test.ts`).
  *
- * THE IMPORT SHAPE IS LOAD-BEARING. Every adapter value-imports `baseMimeType`/`declaredAcceptsMime`
- * from the registry, so the registry and its adapters form a value-edge cycle: entering an adapter
- * first evaluates the registry while the adapter it is reading is still in progress, which is
- * `ReferenceError: Cannot access '<id>' before initialization`. The registry is therefore imported
- * before the adapter, and the adapter is entered with `await import(...)` — the shape
+ * THE IMPORT SHAPE IS LOAD-BEARING. The adapter value-imports `baseMimeType`/`declaredAcceptsMime`/
+ * `classifyUpstreamFailure` from `shared/asr/asrContract.ts` (re-exported by the registry), so the
+ * registry and its adapters no longer form a value-edge cycle — this task's split removed it. The
+ * contract is still imported before the adapter, so the shared instance is fully evaluated before
+ * any mutated copy is opened, and the adapter is entered with `await import(...)` — the shape
  * `voice-provider-dispatch.test.ts` records.
  *
  * WHAT THIS FILE DOES NOT DO, AND WHERE THAT HALF LIVES. AC7 asks for the exit code of a list of
@@ -63,8 +63,8 @@ const SERVER_DIR = path.resolve(HERE, '../../..');
 /** The repository root, one level above `server/`. */
 const REPO_ROOT = path.resolve(SERVER_DIR, '..');
 
-/** The registry: the one home of the vocabulary and of the classifier. */
-export const SHIPPING_REGISTRY_MODULE = path.join(REPO_ROOT, 'shared/asr/asrRegistry.ts');
+/** The contract: the one home of the vocabulary and of the classifier (re-exported by the registry). */
+export const SHIPPING_CONTRACT_MODULE = path.join(REPO_ROOT, 'shared/asr/asrContract.ts');
 /** The shipped service: the one home of the code→HTTP table. */
 export const SHIPPING_SERVICE_MODULE = path.join(SERVER_DIR, 'modules/voice/voice.service.ts');
 
@@ -88,13 +88,13 @@ const STARTED_AT = Date.now();
 const READINGS_EXPECTED = 6;
 
 /**
- * THE REGISTRY, ENTERED FIRST AND ON PURPOSE. The static import above is what makes the cycle safe:
- * by the time `measure` opens a mutated copy of the registry (or the adapter), the shipping registry
- * has finished evaluating, so the adapter's own value-import of it finds a complete module instead of
- * a temporal dead zone. Importing the registry here by PATH resolves to the same file URL the
- * adapters' relative specifier does, so this is the one instance the whole graph shares.
+ * THE CONTRACT, ENTERED FIRST AND ON PURPOSE. This task split the contract out of the registry and
+ * removed the registry↔adapter value cycle, so the old temporal-dead-zone hazard is gone; the
+ * shipping contract is still imported here by PATH before any mutated copy is opened, so an arm
+ * that points the override at a copy measures the copy and never re-initialises the shared one.
+ * Importing it here by PATH resolves to the same file URL the adapters' relative specifier does.
  */
-const REGISTRY_MODULE_URL = pathToFileURL(SHIPPING_REGISTRY_MODULE).href;
+const CONTRACT_MODULE_URL = pathToFileURL(SHIPPING_CONTRACT_MODULE).href;
 
 /** A module specifier, assembled rather than spelled — see `FORBIDDEN_SPECIFIERS`. */
 const specifier = (parts: readonly string[]): string => `'${parts.join('')}'`;
@@ -452,10 +452,10 @@ const ALIGNMENT_DECLARATION = 'export const ASR_ERROR_CODE_ALIGNMENT';
 
 export type CriterionOverrides = {
   /**
-   * A registry module to take the vocabulary and the classifier from, instead of the shipping one. A
+   * A contract module to take the vocabulary and the classifier from, instead of the shipping one. A
    * falsifying form points this at a text-mutated copy; the shipping run leaves it unset.
    */
-  registry?: string;
+  contract?: string;
   /**
    * The path whose TEXT the status table's rows are parsed from. The runtime import is always the
    * shipping `PROVIDER_ERROR_STATUS`, and the two are required to agree — so a falsifying form that
@@ -467,7 +467,7 @@ export type CriterionOverrides = {
 
 export type ReadingOutcome = { name: string; value: string; ok: boolean };
 
-type RegistryModule = {
+type ContractModule = {
   ASR_ERROR_CODES: readonly AsrErrorCode[];
   ASR_ERROR_CODE_ALIGNMENT: Readonly<Record<string, true>>;
   classifyUpstreamFailure: (status: number | undefined, body: string) => AsrErrorCode;
@@ -476,10 +476,10 @@ type RegistryModule = {
 type AdapterModule = { id: string; transcribe: AsrAdapter['transcribe'] };
 
 type Measurement = {
-  /** The vocabulary, from the registry under test. */
+  /** The vocabulary, from the contract under test. */
   vocab: readonly AsrErrorCode[];
-  /** The registry under test's own source text, read by AC8. */
-  registrySource: string;
+  /** The contract under test's own source text, read by AC8. */
+  contractSource: string;
   /** The table as the runtime object, which is always the shipping one. */
   tableRuntime: Readonly<Record<string, number>>;
   /** The table as the source text says it is written. */
@@ -538,24 +538,25 @@ async function driveAdapter(adapter: AdapterModule, row: FixtureRow): Promise<st
  * fixture row answered by both the pure classifier and the shipped adapter, and the three adapters'
  * own texts.
  *
- * The adapter is entered with `await import(...)` AFTER the registry, and that order is a machine
- * requirement rather than a style: the cycle described in this file's header makes the other order a
- * temporal dead zone. `dashscope-omni` is the adapter driven here because it is the one that reads an
- * answer body back on a failure; the other two are read as text, which is what AC5's table scan is for.
+ * The shipping contract is entered with `await import(...)` BEFORE the adapter so that an arm
+ * pointing the override at a mutated copy never re-initialises the shared instance; the adapter is
+ * then driven through the same path its own relative specifier resolves to. `dashscope-omni` is the
+ * adapter driven here because it is the one that reads an answer body back on a failure; the other
+ * two are read as text, which is what AC5's table scan is for.
  */
 async function measure(overrides: CriterionOverrides): Promise<Measurement> {
-  const registryPath = overrides.registry ?? SHIPPING_REGISTRY_MODULE;
+  const contractPath = overrides.contract ?? SHIPPING_CONTRACT_MODULE;
   const serviceSourcePath = overrides.serviceSource ?? SHIPPING_SERVICE_MODULE;
 
-  await import(REGISTRY_MODULE_URL);
-  const registry = (await import(pathToFileURL(registryPath).href)) as RegistryModule;
+  await import(CONTRACT_MODULE_URL);
+  const contract = (await import(pathToFileURL(contractPath).href)) as ContractModule;
   const adapter = (await import(pathToFileURL(DASHSCOPE_MODULE).href)) as AdapterModule;
 
   const pure: string[] = [];
   const adapterAnswered: string[] = [];
   for (const row of FIXTURES) {
     pure.push(
-      row.via === 'pure' ? registry.classifyUpstreamFailure(row.status, row.body) : '(not-classifiable)',
+      row.via === 'pure' ? contract.classifyUpstreamFailure(row.status, row.body) : '(not-classifiable)',
     );
     adapterAnswered.push(await driveAdapter(adapter, row));
   }
@@ -570,8 +571,8 @@ async function measure(overrides: CriterionOverrides): Promise<Measurement> {
   });
 
   return {
-    vocab: registry.ASR_ERROR_CODES,
-    registrySource: readFileSync(registryPath, 'utf8'),
+    vocab: contract.ASR_ERROR_CODES,
+    contractSource: readFileSync(contractPath, 'utf8'),
     tableRuntime: PROVIDER_ERROR_STATUS as Readonly<Record<string, number>>,
     tableSourceRows: tableRowsFromSource(readFileSync(serviceSourcePath, 'utf8')),
     pure,
@@ -736,7 +737,7 @@ const READINGS: readonly Reading[] = [
   {
     name: 'AC8 the vocabulary and its runtime list are one declaration',
     run: (measurement) => {
-      const source = measurement.registrySource;
+      const source = measurement.contractSource;
       const declared = source.includes(ALIGNMENT_DECLARATION);
       // The declaration's TYPE is the reading: `Readonly<Record<AsrErrorCode, true>>` is what makes a
       // member left out of the literal a missing property and a key that is not a member an excess
@@ -772,7 +773,7 @@ const READINGS: readonly Reading[] = [
     name: 'AC9 the scope this task does not cover',
     run: () => ({
       value:
-        'scope: this task delivers the vocabulary, the one classifier in the registry, the three ' +
+        'scope: this task delivers the vocabulary, the one classifier in the contract, the three ' +
         'adapters wired to it, the code→status table and the falsifying forms, and nothing else — ' +
         'the ADR-004 vocabulary revision and the service\'s transport-failure comment are GOAL-011\'s ' +
         'contract task; the route body carrying code/upstreamCode is AC-150; the twelve locales are ' +

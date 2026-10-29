@@ -55,6 +55,7 @@ const PROBE = path.join(SCRIPT_DIR, 'asr-second-adapter-check.mjs');
 const SHIPPING_FILES = [
   'package.json',
   'tsconfig.json',
+  'shared/asr/asrContract.ts',
   'shared/asr/asrRegistry.ts',
   'shared/asr/transcriptionWire.ts',
   'shared/asr/list/multimodal/multimodal.asr-provider.ts',

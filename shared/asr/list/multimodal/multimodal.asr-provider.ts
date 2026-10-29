@@ -50,7 +50,7 @@
  * written-style instructions on this corpus are worse, CER 0.456 with invented identifiers). The
  * written form is left to a task of its own, after its own paired measurement.
  *
- * ENVIRONMENT NEUTRALITY, the same machine property `../asrRegistry.ts` documents: this file is
+ * ENVIRONMENT NEUTRALITY, the same machine property `../../asrContract.ts` documents: this file is
  * compiled by BOTH compiler configurations (root: `lib: ES2020 + DOM`, `types: vite/client`;
  * server: `lib: ES2022`, NodeNext, `types: node`), so it uses no Node built-in and no ES2021+
  * library feature, and every environment dependency arrives through `AsrInvocation`. That is also
@@ -64,8 +64,8 @@ import type {
   AsrInvocation,
   AsrRequest,
   AsrResult,
-} from '../../asrRegistry.js';
-import { classifyUpstreamFailure } from '../../asrRegistry.js';
+} from '../../asrContract.js';
+import { classifyUpstreamFailure } from '../../asrContract.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'multimodal';

@@ -42,10 +42,12 @@ const SHIPPING_FILES = [
   'package.json',
   'shared/asr/transcriptionWire.ts',
   // The two files that carry the endpoint literal WITHOUT shaping a request or parsing a
-  // response: the registry names it in the comment explaining the multipart shape, and the
-  // offline invariant board records the URL its fixture resolves to. They are in the fixture
-  // because the probe used to report them as second implementations; the case at the bottom of
-  // this file is the one that holds the distinction in place.
+  // response: the contract names it in the comment explaining the multipart shape (it moved there
+  // when this task split the contract out of the registry), and the offline invariant board
+  // records the URL its fixture resolves to. They are in the fixture because the probe used to
+  // report them as second implementations; the case at the bottom of this file is the one that
+  // holds the distinction in place.
+  'shared/asr/asrContract.ts',
   'shared/asr/asrRegistry.ts',
   'shared/asr/asrInvariants.ts',
   'src/shared/api.ts',
@@ -56,7 +58,7 @@ const SHIPPING_FILES = [
 
 const IMPLEMENTATION_FILE = 'shared/asr/transcriptionWire.ts';
 /** A file in the fixture that mentions the endpoint and implements nothing. */
-const MENTION_FILE = 'shared/asr/asrRegistry.ts';
+const MENTION_FILE = 'shared/asr/asrContract.ts';
 
 function buildFixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'asr-wire-probe-'));
