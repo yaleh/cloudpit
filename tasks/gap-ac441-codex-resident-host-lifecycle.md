@@ -139,3 +139,11 @@ provider=codex hostDriver=CodexHostDriver multiplexedHost=false
 **未实现项（如实登记）**：capabilities / `lifecycleModes`（AC-442）；queue / settings / approvals / background lease / 协议门控（AC-436…AC-440）；E2E（AC-443）。`multiplexedHost` 仍为 false，`interrupt` 仍只发 `turn/interrupt`。
 
 **ADR-007 暗轴**：该轴仍暗,理由:后端宿主层接线任务，无前端布局(L_D)或图形(L_G)面的可观测改动。
+
+## Blocker
+
+**2026-10-29T12:38:11.968Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→853 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：751728e2-b450-49a0-a6cc-7b3b2a3755ab
