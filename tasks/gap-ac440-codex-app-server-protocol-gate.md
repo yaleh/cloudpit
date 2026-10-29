@@ -82,7 +82,7 @@ goal_ac: AC-440
 
 ## Touches
 
-- server/modules/providers/list/codex/codex-app-server.connection.ts
-- server/modules/providers/list/codex/codex-host-driver.provider.ts
+- server/modules/providers/list/codex/codex-app-server.connection.ts (new)
+- server/modules/providers/list/codex/codex-host-driver.provider.ts (new)
 - server/modules/providers/tests/codex-app-server-protocol.test.ts (new)
 - tasks/gap-ac440-codex-app-server-protocol-gate.md
