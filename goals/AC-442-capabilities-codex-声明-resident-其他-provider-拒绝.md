@@ -1,7 +1,7 @@
 ---
 id: AC-442
 title: capabilities：codex 声明 resident，其他 provider 拒绝
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-10-29T14:45:24.908Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
