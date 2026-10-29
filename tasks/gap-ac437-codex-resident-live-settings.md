@@ -185,10 +185,13 @@ goal_ac: AC-437
 
 ## Blocker
 
-**2026-10-29T11:53:12.860Z — worker 未落地（exited-not-landed）**
+**2026-10-29T12:53:00.858Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/server-import-cycle-budget.test.ts:   AssertionError [ERR_ASSERTION]: the measured cycles must match the pinned baseline groups member-for-member [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
+Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：1555f4ab-aeab-4fbf-bffa-9a6880d1fb28
-
-（已由 2026-10-29 的续跑补丁修复；见「本轮补丁」。）
+- session_id：34297d5e-67b0-41cb-bfeb-a2e811aa41b3
