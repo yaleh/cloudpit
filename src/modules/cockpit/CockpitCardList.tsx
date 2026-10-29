@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 
@@ -138,6 +138,16 @@ function CockpitCardListBound({
   // Restored once, and only after the first successful read: before the cards exist the section
   // has no height to scroll, so an earlier write would be clamped to 0.
   const scrollRestoredRef = useRef(false);
+  // The list's offset while Details is PUSHED INSIDE this same scroller (the column variant).
+  // The swap replaces the section's only child with the detail, whose own body scrolls, so the
+  // section no longer overflows and the browser clamps `scrollTop` to 0. The offset has to be
+  // kept here and put back when the list returns; reading it after the swap would already be 0.
+  // It is NOT reported to the controller's memory: that memory is the phone page's route
+  // reading, and the column must not overwrite it (see `handleScroll`).
+  const listScrollTopRef = useRef(0);
+  // Whether the previous render had Details inside, so only the closing edge restores. A ref
+  // rather than state: the transition, not a rendered value, is what this effect reacts to.
+  const detailsInsideWasRef = useRef(false);
 
   useEffect(() => {
     if (variant !== 'page' || scrollRestoredRef.current) return;
@@ -207,6 +217,19 @@ function CockpitCardListBound({
   const detailsCard =
     detailsCardId === null ? null : snapshot.cards.find((card) => card.id === detailsCardId) ?? null;
   const detailsInsideColumn = variant === 'column' && detailsCard !== null;
+  // The column's Details is drawn INSTEAD of the list, in the same scroll container. Returning
+  // to the list therefore lands at its top unless the offset is put back after the list is in
+  // the DOM again — the offset itself was recorded when Details opened (see `openCardDetails`),
+  // because the swap has already clamped it to 0 by the time this effect runs.
+  useLayoutEffect(() => {
+    if (variant !== 'column') return;
+    const wasInside = detailsInsideWasRef.current;
+    detailsInsideWasRef.current = detailsInsideColumn;
+    if (!wasInside || detailsInsideColumn) return;
+    const element = scrollRef.current;
+    if (element === null) return;
+    element.scrollTop = listScrollTopRef.current;
+  }, [detailsInsideColumn, variant]);
   /**
    * The created session's registration. The caller's own recorder wins; otherwise the workspace's
    * optimistic registration is used when this list is inside the project state AND the registered
@@ -279,6 +302,17 @@ function CockpitCardListBound({
       return;
     }
     controller.closeDetails();
+  };
+  /**
+   * Opening one card. The list's offset is recorded BEFORE the command, while the list still
+   * owns the section: the column's swap clamps `scrollTop` to 0, so a later read would restore
+   * the top instead of the card the person opened. The page variant's Details floats over the
+   * list and changes no offset, so recording there is harmless.
+   */
+  const openCardDetails = (cardId: string): void => {
+    const element = scrollRef.current;
+    if (element !== null) listScrollTopRef.current = element.scrollTop;
+    controller.openDetails(cardId);
   };
 
   // The type chips, in the order the list draws them. Each carries the count of cards that would
@@ -581,7 +615,7 @@ function CockpitCardListBound({
                 duplicatesQuestionless={cockpitCardQuestionOf(card) === null}
                 onToggleDuplicates={() => controller.toggleDuplicates(card.id)}
                 onSelect={() => controller.selectCard(card.id)}
-                onOpenDetails={() => controller.openDetails(card.id)}
+                onOpenDetails={() => openCardDetails(card.id)}
                 onToggleDropdown={() =>
                   controller.openDropdown(snapshot.openDropdownCardId === card.id ? null : card.id)
                 }

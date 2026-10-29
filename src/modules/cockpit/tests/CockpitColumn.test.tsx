@@ -273,6 +273,31 @@ describe('expanded', () => {
     expect(screen.getByTestId('cockpit-card-list')).toBeTruthy();
   });
 
+  it('returns the list to the card it left when Details closes', async () => {
+    const f = await fixture({ expanded: true });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    const list = screen.getByTestId('cockpit-card-list');
+    list.scrollTop = 320;
+    fireEvent.click(
+      within(screen.getByTestId('cockpit-card-c1')).getByTestId('cockpit-card-zone-a'),
+    );
+    expect(screen.getByTestId('cockpit-column-details')).toBeTruthy();
+    // A browser clamps the section to 0 once Details replaces the overflowing list; jsdom does
+    // not clamp on its own, so the clamp is stated here. The assertion is that Back puts the
+    // list's own offset back instead of landing on the first card.
+    list.scrollTop = 0;
+
+    fireEvent.click(screen.getByTestId('cockpit-column-back'));
+
+    expect(screen.getByTestId('cockpit-card-list')).toBe(list);
+    expect(list.scrollTop).toBe(320);
+  });
+
   it('opens the card’s conversation on the left and marks it while the squeeze layout stays open', async () => {
     const f = await fixture({ expanded: true });
     render(
