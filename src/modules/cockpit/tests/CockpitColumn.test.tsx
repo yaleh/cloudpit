@@ -11,7 +11,10 @@ import CockpitHeaderButton from '@/modules/cockpit/CockpitHeaderButton';
 import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
-import type { CockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import type {
+  CockpitColumnController,
+  CockpitColumnStorage,
+} from '@/modules/cockpit/cockpitColumnController';
 import { CockpitColumnContext } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
 
@@ -89,8 +92,10 @@ async function fixture(options: {
   rescueCount?: number;
   /** One kind per card, in provider order; omitted cards are `ask`. */
   kinds?: readonly CockpitCardData['kind'][];
-  viewportWidth?: number;
+  /** The layout row's width the column is laid out against (defaults to the 1440-window row). */
+  workspaceWidth?: number;
   expanded?: boolean;
+  storage?: CockpitColumnStorage | null;
 } = {}): Promise<Fixture> {
   const count = options.cardCount ?? 2;
   const rescueCount = options.rescueCount ?? 0;
@@ -110,12 +115,57 @@ async function fixture(options: {
   await cards.load();
   const column = createCockpitColumnController({
     cards,
-    readViewportWidth: () => options.viewportWidth ?? 1440,
-    storage: null,
+    readWorkspaceWidth: () => options.workspaceWidth ?? 1151,
+    storage: options.storage ?? null,
   });
   column.start();
   if (options.expanded === true) column.setExpanded(true);
   return { cards, column };
+}
+
+/** The stored frame, as `localStorage` would hold it; `dump` reads what the column wrote. */
+function memoryStorage(): CockpitColumnStorage & { dump: () => string | null } {
+  let value: string | null = null;
+  return {
+    getItem: () => value,
+    setItem: (_key, next) => {
+      value = next;
+    },
+    dump: () => value,
+  };
+}
+
+/**
+ * jsdom ships no ResizeObserver. This stub records the element it observes and replays a width,
+ * so a case proves the column follows the MEASURED row rather than the window.
+ */
+class StubResizeObserver {
+  static instances: StubResizeObserver[] = [];
+  observed: Element | null = null;
+  private readonly callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    StubResizeObserver.instances.push(this);
+  }
+  observe(element: Element): void {
+    this.observed = element;
+  }
+  unobserve(): void {}
+  disconnect(): void {}
+  emit(width: number): void {
+    this.callback(
+      [{ contentRect: { width } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    );
+  }
+}
+
+/** The observer watching the layout row — the only one whose width is the workspace. */
+function rowObserver(): StubResizeObserver {
+  const row = document.querySelector('[data-workspace-session-layout]');
+  const observer = StubResizeObserver.instances.find((candidate) => candidate.observed === row);
+  if (observer === undefined) throw new Error('nothing observes the workspace row');
+  return observer;
 }
 
 /** The production binding's shape, driven by both controllers' subscriptions. */
@@ -333,7 +383,7 @@ describe('the column title', () => {
     await cards.load();
     const column = createCockpitColumnController({
       cards,
-      readViewportWidth: () => 1440,
+      readWorkspaceWidth: () => 1151,
       storage: null,
     });
     column.start();
@@ -407,6 +457,63 @@ describe('the session layout', () => {
     expect(screen.queryByTestId('cockpit-column')).toBeNull();
     expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('false');
   });
+
+  it('takes the layout from the measured workspace row, not from the window', async () => {
+    vi.stubGlobal('ResizeObserver', StubResizeObserver);
+    StubResizeObserver.instances = [];
+    try {
+      // The injected reading is the 1440-window row (1151 px). The stub then reports the row of
+      // a 1280 window — 991 px once the 289 px sidebar has taken its share — which is where the
+      // old viewport rule left the session 591 px.
+      const f = await fixture({ expanded: true, workspaceWidth: 1151 });
+      render(
+        <TestBinding fixture={f}>
+          <CockpitColumnRegion>
+            <div data-testid="session-content">content</div>
+          </CockpitColumnRegion>
+        </TestBinding>,
+      );
+      const column = screen.getByTestId('cockpit-column');
+      expect(column.getAttribute('data-cockpit-column-layout')).toBe('squeeze');
+      expect(column.getAttribute('data-cockpit-column-width')).toBe('400');
+      expect(1151 - Number(column.getAttribute('data-cockpit-column-width'))).toBeGreaterThanOrEqual(640);
+
+      act(() => rowObserver().emit(991));
+
+      // The width steps down to the readable minimum instead of clipping the session at 591.
+      expect(column.getAttribute('data-cockpit-column-workspace')).toBe('991');
+      expect(column.getAttribute('data-cockpit-column-layout')).toBe('squeeze');
+      expect(column.getAttribute('data-cockpit-column-width')).toBe('320');
+      expect(991 - Number(column.getAttribute('data-cockpit-column-width'))).toBe(671);
+      expect(991 - Number(column.getAttribute('data-cockpit-column-width'))).toBeGreaterThanOrEqual(640);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('never lets a dragged width squeeze the session under 640 px or rewrite the remembered width', async () => {
+    // A drag to 720 px at a 991 px workspace would leave the session 271 px. The frame keeps the
+    // session at its floor by drawing at the 351 px the floor allows, and `cockpit.column.v1`
+    // keeps the person's 720 px so the column returns to it on a wider workspace.
+    const storage = memoryStorage();
+    const f = await fixture({ workspaceWidth: 991, expanded: true, storage });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumnRegion>
+          <div data-testid="session-content">content</div>
+        </CockpitColumnRegion>
+      </TestBinding>,
+    );
+    const column = screen.getByTestId('cockpit-column');
+
+    act(() => f.column.setWidth(720));
+
+    expect(column.getAttribute('data-cockpit-column-layout')).toBe('squeeze');
+    const drawn = Number(column.getAttribute('data-cockpit-column-width'));
+    expect(drawn).toBe(351);
+    expect(991 - drawn).toBeGreaterThanOrEqual(640);
+    expect(JSON.parse(storage.dump() ?? '{}')).toMatchObject({ width: 720 });
+  });
 });
 
 describe('the header badge', () => {
@@ -439,7 +546,7 @@ describe('the header badge', () => {
     expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('true');
     first.unmount();
 
-    const phone = await fixture({ expanded: true, viewportWidth: 800 });
+    const phone = await fixture({ expanded: true, workspaceWidth: 500 });
     render(
       <TestBinding fixture={phone}>
         <CockpitHeaderButton />
