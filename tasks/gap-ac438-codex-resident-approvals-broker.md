@@ -54,7 +54,7 @@ goal_ac: AC-438
 - [x] AC13 反向控制可达：两次 `negativeControlThrew=true`。
 - [x] AC14 Claude 面零漂移：六个名字仍从原路径（`claude-runtime.provider.ts`）导入且与共享服务同源（4 个函数对象 `===`，`requestClientToolDecision` 为函数，`TOOL_APPROVAL_TIMEOUT_MS=55000`）；三个回归与 `npm run typecheck` 均 exit 0。
 - [x] AC15 四个假形态承重：A/B/C/D 各让 criterion 退出 **1**（逐字红态见完成记录）；还原后 criterion exit 0、`git status --short` 无残留。
-- [x] AC16 范围不越界：实现提交 `093ec0516` 恰为 7 个代码文件；第二轮收敛提交 `071ec532f` 只改该 7 个文件中的 5 个（含把共享服务从 `providers/services/` 移到 `providers/shared/base/`，旧路径在提交历史里按删除计入）、判据文件与两份 pin 文件（`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`），全部在 Touches 内；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动；退出前 anti-drift 读数为 `ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 11 actual file(s), all within declared Touches (11 glob(s))`（逐字读数见完成记录 (n)）。
+- [x] AC16 范围不越界：实现提交 `093ec0516` 恰为 7 个代码文件；第二轮收敛提交 `071ec532f` 只改该 7 个文件中的 5 个（含把共享服务从 `providers/services/` 移到 `providers/shared/base/`，旧路径在提交历史里按删除计入）、判据文件与两份 pin 文件（`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`），全部在 Touches 内；排除 grep 只命中 `codex-runtime.provider.ts`；`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 零改动；退出前 anti-drift 读数为 `ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 10 actual file(s), all within declared Touches (11 glob(s))`——10 个实文件是共享服务的新旧两条路径 + 6 个代码文件 + 判据 + 两个 pin 文件，`tasks/gap-ac438-codex-resident-approvals-broker.md` 自身未被计入（其 task_write 提交在落地基线上），故实文件数比声明的 11 个 glob 少 1（逐字读数与逐文件清点见完成记录 (o)）。
 
 ## DoD
 
@@ -203,7 +203,7 @@ server/modules/providers/list/codex/codex-runtime.provider.ts
 server/modules/providers/services/approval-requests.service.ts
 server/modules/providers/tests/codex-resident-approvals.test.ts
 ```
-排除 grep 在该提交上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本提交中零改动。第二轮收敛提交 `071ec532f` 只触及上列文件中的 5 个 + 判据 + 两个 pin 文件，并把这 7 个里的共享服务移到 `providers/shared/base/`（旧路径作为删除仍出现在 task-owned 提交历史里，故两条路径都写进 Touches）。fan-in 的 anti-drift Touches 检查以 merge-target 计读数并通过，见 (n)。
+排除 grep 在该提交上只输出 `server/modules/providers/list/codex/codex-runtime.provider.ts` 一行；该文件的 diff 只增 `permissions` facet 与 import。`codex.provider.ts` / `provider-capabilities.service.ts` / `provider-runtime.service.ts` / `codex-app-server.client.ts` 在本提交中零改动。第二轮收敛提交 `071ec532f` 只触及上列文件中的 5 个 + 判据 + 两个 pin 文件，并把这 7 个里的共享服务移到 `providers/shared/base/`（旧路径作为删除仍出现在 task-owned 提交历史里，故两条路径都写进 Touches）。fan-in 的 anti-drift Touches 检查以 merge-target 计读数并通过，见 (o)。
 
 (n) 第二轮（2026-10-29，上一轮 exited-not-landed 的三条 suite 红）逐条定位与修复读数。
 
@@ -212,6 +212,16 @@ server/modules/providers/tests/codex-resident-approvals.test.ts
 3. `lint`：fan-in 汇总行显示的是相邻告警，逐行日志里的真因是本任务判据第 841 行 `claudeRuntime[name]` —— 对导入命名空间的计算属性读取触发 oxlint `import(namespace)` **error**。改为四条静态属性断言（行为不变，`console.log` 仍打印同一 `claudeNames=...` 行），`npm run lint` rc=0、0 error。
 
 移动后复跑：criterion `18 pass / 0 fail`（`duration_ms=6495`）；`claude-resident-permissions` 2/2、`claude-turn-phase` 11/11、`codex-host-driver-persistent` 5/5、`architecture-ratchet` 6/6；`npm run typecheck` rc=0。
+
+(o) anti-drift Touches 最终读数（退出前实测；合并 develop 后连跑两次，读数一致）：
+
+```
+ANTI-DRIFT OK: task gap-ac438-codex-resident-approvals-broker — 10 actual file(s), all within declared Touches (11 glob(s))
+```
+
+命令：`node --no-warnings …/anti-drift-touches-check.js --task gap-ac438-codex-resident-approvals-broker --worktree /data/home/yale/work/claudecodeui-worktrees/gap-ac438-codex-resident-approvals-broker --merge-target goal/GOAL-051`。
+
+10 个实文件（逐文件清点）：`server/modules/providers/services/approval-requests.service.ts`（移动前的删除路径）、`server/modules/providers/shared/base/approval-requests.service.ts`（新路径）、`server/modules/providers/list/claude/claude-runtime.provider.ts`、`server/modules/providers/list/codex/codex-approval-broker.ts`、`server/modules/providers/list/codex/codex-app-server.connection.ts`、`server/modules/providers/list/codex/codex-host-driver.provider.ts`、`server/modules/providers/list/codex/codex-runtime.provider.ts`、`server/modules/providers/tests/codex-resident-approvals.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`。声明 11 个 glob，多出的一个是 `tasks/gap-ac438-codex-resident-approvals-broker.md`：该文件的 task_write 提交已落在落地基线上，不计入本分支自有提交的文件集，故实文件 10 而未越界。
 
 **ADR-007 记录。**
 该轴仍暗,理由:本任务只落地 server 侧 Codex 审批 broker 与判据，未产生可视 UX 读数（浏览器 UI 属 AC-443）。
