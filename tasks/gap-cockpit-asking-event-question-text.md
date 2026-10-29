@@ -24,6 +24,7 @@ extra: {}
 做什么：
 
 - **补字段**：`data.questionText` = `current.assistantText`，尾部截断到 `SESSION_ASK_QUESTION_TEXT_MAX_CHARS = 4000`（常量与截断函数放在 producer 所在模块，注释写明「截断只影响键的稳定性，必须确定性」；同一 askId + revision 重放得到同一字符串）。
+- **与 fleet 对齐（2026-10-29）**：fleet 用**整条消息原文**的规范化形式做键，不做「末尾问句」启发式。CloudCLI 在写入前做**尾部** 4000 字截断，这是事件体积上限，不是语义抽取：文本不超过 4000 字时键覆盖全文；超过时键只覆盖末尾 4000 字，因此两段只在 4000 字之前不同的提问会被并成同一键。这一取舍要写进常量注释，并在任务完成记录里向 fleet 说明（fleet 若要严格全文键，须改上限并重立 AC）。
 - **只加字段，不改已有键**：`askId`、`messageId`、`revision`、`contentRef` 原样保留；`data` 仍是开放对象，不新增封闭枚举。
 - **空文本不写该字段**：`assistantText` 去空白后为空时不写 `questionText`（fleet 据此回退旧键），避免写出 `questionText: ""` 让键变成空文本的哈希。
 - **文档注释**：在 `SessionAskEvent` 类型旁写明 `questionText` 的语义（原文、尾部截断上限、供 fleet 的文本键使用），说明它不是给界面显示用的。
