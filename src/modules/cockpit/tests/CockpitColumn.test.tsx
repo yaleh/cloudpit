@@ -199,7 +199,7 @@ describe('expanded', () => {
     expect(screen.getByTestId('cockpit-card-list')).toBeTruthy();
     expect(screen.getByTestId('cockpit-column-composer')).toBeTruthy();
     expect(screen.getByTestId('cockpit-input')).toBeTruthy();
-    expect(screen.getByTestId('cockpit-column-count').textContent).toContain('2');
+    expect(screen.getByTestId('cockpit-card-count-summary').textContent).toContain('2');
   });
 
   it('pushes Details inside the column and the back button returns to the list', async () => {
@@ -259,7 +259,7 @@ describe('the column title', () => {
     );
 
     expect(f.cards.getSnapshot().typeCounts.stuck ?? 0).toBe(0);
-    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('7 waiting for you');
+    expect(screen.getByTestId('cockpit-card-count-summary').textContent).toContain('7 needs you');
     expect(screen.queryByTestId('cockpit-column-stuck-count')).toBeNull();
     const title = screen.getByTestId('cockpit-column-title').textContent ?? '';
     expect(title).not.toContain('stuck');
@@ -285,8 +285,8 @@ describe('the column title', () => {
     expect(screen.getByTestId('cockpit-column-stuck-count').textContent).toBe(
       `${controllerCount} stuck`,
     );
-    expect(screen.getByTestId('cockpit-column-count').textContent).toBe('5 waiting for you');
-    expect(screen.getByTestId('cockpit-column-title').textContent).toContain('· 2 stuck');
+    expect(screen.getByTestId('cockpit-card-count-summary').textContent).toContain('5 needs you');
+    expect(screen.getByTestId('cockpit-column-title').textContent).toContain('2 stuck');
   });
 
   it('reads zero when no card is of kind stuck', async () => {
@@ -299,6 +299,65 @@ describe('the column title', () => {
 
     expect(screen.queryByTestId('cockpit-column-stuck-count')).toBeNull();
     expect(screen.getByTestId('cockpit-column-title').textContent).not.toContain('stuck');
+  });
+
+  it('draws ONE count line covering needs-you, waiting-for-fleet and answered, and fades the filter strip', async () => {
+    // One card per state, so the line is a partition of what is on screen rather than a repeat of
+    // one number: c1 is answered and awaiting the fleet's receipt, c2 was answered and the fleet
+    // kept it (the server leaves a notice beside the card), c3 still needs the person.
+    const cards = createCockpitCardController({
+      fetchCards: async () => [
+        {
+          ...card('c1'),
+          feedback: {
+            cardId: 'c1',
+            revision: 1,
+            feedbackId: 'f1',
+            optionId: 'one',
+            label: 'one',
+            sentAt: new Date(NOW - 30_000).toISOString(),
+            outcome: { executor: 'test.exec', ok: true },
+            canResend: false,
+          },
+        },
+        {
+          ...card('c2'),
+          feedbackNotice: { cardId: 'c2', feedbackId: 'f2', kind: 'kept' },
+        },
+        card('c3'),
+      ],
+      confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
+      clock: FAKE_CLOCK,
+      refreshIntervalMs: 0,
+    });
+    await cards.load();
+    const column = createCockpitColumnController({
+      cards,
+      readViewportWidth: () => 1440,
+      storage: null,
+    });
+    column.start();
+    column.setExpanded(true);
+    render(
+      <TestBinding fixture={{ cards, column }}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    const summary = screen.getByTestId('cockpit-card-count-summary');
+    expect(summary.textContent).toBe(
+      '1 needs you · 1 waiting for the fleet · 1 answered cards still open',
+    );
+    // The old two-count header is gone: neither the column title's `N waiting for you` badge nor
+    // the list's `N cards, M waiting...` sentence is rendered anywhere.
+    expect(screen.queryByTestId('cockpit-column-count')).toBeNull();
+    expect(screen.queryByText(/\d+ waiting for you/)).toBeNull();
+    expect(screen.queryByText(/\d+ cards?, \d+ waiting for the fleet/)).toBeNull();
+
+    // The horizontally scrolling filter strip ends under a fade, so a cut chip reads as "more to
+    // the right" instead of as the end of the row.
+    const chips = screen.getByTestId('cockpit-card-filter-types');
+    expect(chips.getAttribute('style') ?? '').toContain('mask-image: linear-gradient');
   });
 });
 
@@ -338,7 +397,7 @@ describe('the session layout', () => {
 
     const column = screen.getByTestId('cockpit-column');
     expect(within(column).getByText('Cockpit')).toBeTruthy();
-    expect(within(column).getByTestId('cockpit-column-count').textContent).toContain('2');
+    expect(within(column).getByTestId('cockpit-card-count-summary').textContent).toContain('2');
     expect(screen.getByTestId('cockpit-header-button').getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(within(column).getByTestId('cockpit-column-collapse'));

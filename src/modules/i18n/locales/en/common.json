@@ -1122,6 +1122,7 @@
     "cardFeedbackKept": "The fleet received it and kept the item open",
     "cardFeedbackRejected": "The fleet rejected this feedback: {{reason}}",
     "cardAwaitingFeedback": "{{total}} cards, {{awaiting}} waiting for the fleet to confirm",
+    "cardCountSummary": "{{needsYou}} needs you · {{waiting}} waiting for the fleet · {{answered}} answered cards still open",
     "cardStartConversationEcho": "Start-conversation intent recorded for {{project}} (opening it comes in a later task).",
     "cardDetailsTitle": "Details",
     "cardDetailsClose": "Close",

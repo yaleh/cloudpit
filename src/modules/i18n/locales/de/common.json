@@ -1001,6 +1001,7 @@
     "cardFeedbackKept": "Fleet hat sie erhalten und den Eintrag offen gelassen",
     "cardFeedbackRejected": "Fleet hat diese Rückmeldung abgelehnt: {{reason}}",
     "cardAwaitingFeedback": "{{total}} Karten, {{awaiting}} warten auf Fleet-Bestätigung",
+    "cardCountSummary": "{{needsYou}} warten auf dich · {{waiting}} warten auf Fleet-Bestätigung · {{answered}} beantwortete Karten noch offen",
     "cardStartConversationEcho": "Absicht für ein neues Gespräch zu {{project}} vermerkt (das Öffnen folgt in einer späteren Aufgabe).",
     "cardDetailsTitle": "Details",
     "cardDetailsClose": "Schließen",

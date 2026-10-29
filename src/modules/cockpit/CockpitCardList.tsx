@@ -152,6 +152,19 @@ function CockpitCardListBound({
   }, [controller, variant]);
 
   const reading = cockpitCardsReading(snapshot);
+  // ONE COUNT LINE, THREE READINGS. The column used to say `5 waiting for you` in its title and
+  // the list repeated `5 cards, 1 waiting for the fleet to confirm` below it: the same total twice.
+  // The three numbers below are a partition of the cards on screen — not yet answered, answered
+  // and still awaiting the fleet's receipt, answered and acknowledged by the fleet (the notice
+  // the server keeps beside the card). The title no longer draws a count of its own.
+  const answeredCount = snapshot.visibleCards.filter(
+    (card) => card.feedbackNotice !== undefined,
+  ).length;
+  const countSummary = {
+    needsYou: Math.max(0, snapshot.visibleCards.length - reading.awaitingFeedback - answeredCount),
+    waiting: reading.awaitingFeedback,
+    answered: answeredCount,
+  };
   const detailsCardId = reading.detailsOpenCardId;
   const detailsCard =
     detailsCardId === null ? null : snapshot.cards.find((card) => card.id === detailsCardId) ?? null;
@@ -257,22 +270,22 @@ function CockpitCardListBound({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 pb-2">
-            {/* The header's second number: how many of the visible cards are sent and still
-                waiting for the provider's receipt. Absent at zero, so the ordinary list has no
-                extra line to read. */}
-            {reading.awaitingFeedback > 0 && (
-              <p
-                data-testid="cockpit-card-awaiting-feedback"
-                data-awaiting={reading.awaitingFeedback}
-                data-total={snapshot.visibleCards.length}
-                className="w-full text-[11px] text-muted-foreground"
-              >
-                {t('cockpit.cardAwaitingFeedback', {
-                  total: snapshot.visibleCards.length,
-                  awaiting: reading.awaitingFeedback,
-                })}
-              </p>
-            )}
+            {/* One line, three readings: what needs the person, what the person answered that the
+                fleet has not acknowledged, and what the fleet acknowledged but the provider still
+                lists. It replaces BOTH the column title's count and the old second line. */}
+            <p
+              data-testid="cockpit-card-count-summary"
+              data-needs-you={countSummary.needsYou}
+              data-waiting={countSummary.waiting}
+              data-answered={countSummary.answered}
+              className="w-full text-[11px] text-muted-foreground"
+            >
+              {t('cockpit.cardCountSummary', {
+                needsYou: countSummary.needsYou,
+                waiting: countSummary.waiting,
+                answered: countSummary.answered,
+              })}
+            </p>
             {/*
               THE TYPE CHIPS. A horizontally scrollable row rather than a dropdown: the counts are
               the point (a person reads what is waiting per type before choosing), and a closed
@@ -283,7 +296,14 @@ function CockpitCardListBound({
               role="group"
               aria-label={t('cockpit.cardFilterType')}
               data-testid="cockpit-card-filter-types"
-              className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto"
+              // The row scrolls horizontally on a 440px column, where the last chip used to be cut
+              // with no sign there was more. `pr-6` keeps the last chip clear of the mask's edge
+              // when everything fits, so the fade only ever covers the chip the viewport cuts.
+              style={{
+                maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+                WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+              }}
+              className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto pr-6"
             >
               {typeChips.map((chip) => {
                 const active = snapshot.typeFilter === chip.value;

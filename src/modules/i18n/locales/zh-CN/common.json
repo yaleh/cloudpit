@@ -1031,6 +1031,7 @@
     "cardFeedbackKept": "fleet 已收到并保留了这一项",
     "cardFeedbackRejected": "fleet 拒绝了这条反馈：{{reason}}",
     "cardAwaitingFeedback": "{{total}} 张，其中 {{awaiting}} 张等 fleet 确认",
+    "cardCountSummary": "{{needsYou}} 项在等你 · {{waiting}} 项等 fleet 确认 · {{answered}} 项已答仍在列",
     "cardStartConversationEcho": "已记录为 {{project}} 开一个会话的意图（打开会话由后续任务实现）。",
     "cardDetailsTitle": "详情",
     "cardDetailsClose": "关闭",

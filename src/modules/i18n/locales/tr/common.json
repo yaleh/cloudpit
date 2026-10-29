@@ -1031,6 +1031,7 @@
     "cardFeedbackKept": "Fleet aldı ve öğeyi açık bıraktı",
     "cardFeedbackRejected": "Fleet bu geri bildirimi reddetti: {{reason}}",
     "cardAwaitingFeedback": "{{total}} kart, {{awaiting}} fleet onayı bekliyor",
+    "cardCountSummary": "{{needsYou}} sizi bekliyor · {{waiting}} fleet onayı bekliyor · {{answered}} yanıtlanmış kart hâlâ açık",
     "cardStartConversationEcho": "{{project}} için konuşma başlatma niyeti kaydedildi (açma daha sonraki bir görevde gelecek).",
     "cardDetailsTitle": "Ayrıntılar",
     "cardDetailsClose": "Kapat",

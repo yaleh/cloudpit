@@ -1031,6 +1031,7 @@
     "cardFeedbackKept": "fleet 已收到並保留這一項",
     "cardFeedbackRejected": "fleet 拒絕了這則回饋：{{reason}}",
     "cardAwaitingFeedback": "{{total}} 張，其中 {{awaiting}} 張等 fleet 確認",
+    "cardCountSummary": "{{needsYou}} 項在等你 · {{waiting}} 項等 fleet 確認 · {{answered}} 項已答仍在列",
     "cardStartConversationEcho": "已記錄為 {{project}} 開一個會話的意圖（開啟會話由後續任務實作）。",
     "cardDetailsTitle": "詳細資料",
     "cardDetailsClose": "關閉",
