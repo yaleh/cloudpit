@@ -87,3 +87,11 @@ extra: {}
 - src/modules/cockpit/tests/DeployReadiness.test.tsx
 - src/modules/cockpit/CockpitPage.tsx
 - src/shared/api.ts
+
+## Blocker
+
+**2026-10-29T07:18:07.508Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/cockpit/CockpitPage.tsx 1902→1904 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：bae3047b-4982-407d-9a95-1b0de2157433
