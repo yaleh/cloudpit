@@ -404,9 +404,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (467 + 1 = 468 collected server test files). Then
     // gap-ac441-codex-resident-host-lifecycle added its criterion
     // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
-    // (468 + 1 = 469 collected server test files). This fixture names 3 known files, so
-    // 469 - 3 = 466.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=466$/);
+    // (468 + 1 = 469 collected server test files). Then
+    // gap-ac442-codex-resident-capabilities added its criterion
+    // server/modules/providers/tests/codex-resident-capabilities.test.ts
+    // (469 + 1 = 470 collected server test files). This fixture names 3 known files, so
+    // 470 - 3 = 467.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=467$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -496,10 +499,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac440-codex-app-server-protocol-gate added
     // server/modules/providers/tests/codex-app-server-protocol.test.ts, then
     // gap-ac441-codex-resident-host-lifecycle added
-    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
-    // — but this fixture names ONE known file, so 469 - 1 = 468 (AC2 reads 466 because its
+    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts, then
+    // gap-ac442-codex-resident-capabilities added
+    // server/modules/providers/tests/codex-resident-capabilities.test.ts
+    // — but this fixture names ONE known file, so 470 - 1 = 469 (AC2 reads 467 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=468$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=469$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
