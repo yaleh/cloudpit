@@ -31,6 +31,10 @@ import {
   type HostReconfigureOutcome,
 } from '@/modules/providers/list/codex/codex-live-settings.js';
 import { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
+import {
+  steerCurrentTurn,
+  type CodexSteerResult,
+} from '@/modules/providers/list/codex/codex-resident-steer.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
@@ -80,7 +84,7 @@ export type {
 /** The reading AC-438 widens with `threadStatus`/`activeFlags`/pending approvals. */
 export type { CodexResidentSessionReading, CodexApprovalDriverOptions };
 /** Re-exported so callers of the driver never reach into the helper module. */
-export type { CodexSettingsCapabilities, CodexTurnSettingsPatch };
+export type { CodexSettingsCapabilities, CodexTurnSettingsPatch, CodexSteerResult };
 
 /**
  * Owns the process lifetime and per-session thread state of Codex resident mode.
@@ -270,6 +274,12 @@ export class CodexHostDriver implements IProviderHostDriver {
       await pending.promise;
     }
     return true;
+  }
+
+  /** Rewrites the turn in flight with `turn/steer`; the protocol face lives in `codex-resident-steer.ts`. */
+  async steer(host: ProcessHost, appSessionId: string, turn: HostTurnInput): Promise<CodexSteerResult> {
+    void host;
+    return steerCurrentTurn(this.requireConnection(), this.requireSession(appSessionId), turn);
   }
 
   /**
