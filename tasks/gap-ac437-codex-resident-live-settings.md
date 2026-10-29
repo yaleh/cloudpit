@@ -152,9 +152,10 @@ goal_ac: AC-437
 
 **范围（AC12）**
 
-- 本任务自有改动集：`git diff --name-only e5fdb309c..HEAD`（fork point = goal/GOAL-051）恰为 5 个文件：`codex-host-driver.provider.ts`、`codex-live-settings.ts`、`codex-host-driver-settings.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`；`tasks/gap-ac437-codex-resident-live-settings.md` 由 task_write 单独提交。
-- AC12 字面的 `git diff --name-only develop...HEAD` 在 goal 分支任务上会含 goal 分支继承的 AC-435/439 基线文件（`codex-app-server.connection.ts`、`codex-host-driver-persistent.test.ts` 等）——anti-drift 工具把这条差集称为 mainline divergence，不是本任务写入（与 AC-439 完成记录同一读数）。
-- 禁改清单在本任务自有改动集上 grep 为空：`codex.provider.ts`、`provider-capabilities.service.ts`、`provider-runtime.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts`、`codex-app-server.connection.ts` 均未被本任务改动。
+- 本任务自有改动集（anti-drift 的 actual-files 口径）：`git log --format= --name-only HEAD --not goal/GOAL-051 develop` 去空行去重后恰为 5 个文件：`codex-host-driver.provider.ts`、`codex-live-settings.ts`、`codex-host-driver-settings.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv`；`tasks/gap-ac437-codex-resident-live-settings.md` 由 task_write 单独提交（该提交已进入 develop，故不在上面的差集里，但已声明在 Touches）。
+- anti-drift Touches 闸（merge develop 后，本 worktree 对 goal/GOAL-051）：`ANTI-DRIFT OK: task gap-ac437-codex-resident-live-settings — 5 actual file(s), all within declared Touches (6 glob(s))`。
+- ⚠️ 两次 `git merge develop` 会把 develop 的提交带进本分支，所以 `git diff --name-only e5fdb309c..HEAD` / `git diff --name-only develop...HEAD` 都会混入他人的文件；前者在 merge 前的读数是 5 个文件，merge 后不再是本任务写入的读数。AC12 字面的 `develop...HEAD` 在 goal 分支任务上还会含 goal 分支继承的 AC-435/439 基线文件（`codex-app-server.connection.ts`、`codex-host-driver-persistent.test.ts` 等）——anti-drift 工具把这条差集称为 mainline divergence，不是本任务写入（与 AC-439 完成记录同一读数）。
+- 禁改清单在本任务自有改动集上 grep 为空：`codex.provider.ts`、`provider-capabilities.service.ts`、`provider-runtime.service.ts`、`codex-runtime.provider.ts`、`codex-app-server.client.ts`、`codex-app-server.connection.ts` 均未被本任务改动（`grep` exit 1，无输出）。
 - server 文件计数：新增判据文件把收集数 466→467；`server/shared/tests/quay-test-script.test.ts` 的 pin 移 `known=3 unknown=463→464`、`known=1 unknown=465→466`；`scripts/suite-duration-baseline.tsv` 追加本判据实测行（2684ms），覆盖率 421/467 = 90.15% ≥ 90%。
 
 **未实现项（非目标）**
