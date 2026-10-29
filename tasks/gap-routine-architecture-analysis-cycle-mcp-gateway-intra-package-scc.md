@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-cycle-mcp-gateway-intra-package-scc
 title: "architecture-analysis: A 23-file SCC carrying 30 runtime (value) import
   edges of 83 inside one package - read-tools registers run-get/ui tools that
   import formatMcpTime and constan"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
