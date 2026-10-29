@@ -1004,6 +1004,7 @@
     "cardFeedbackKept": "Fleet получил его и оставил элемент открытым",
     "cardFeedbackRejected": "Fleet отклонил этот отзыв: {{reason}}",
     "cardAwaitingFeedback": "{{total}} карточек, {{awaiting}} ждут подтверждения fleet",
+    "cardCountSummary": "{{needsYou}} ждут вас · {{waiting}} ждут подтверждения fleet · {{answered}} отвеченных карточек всё ещё открыто",
     "cardStartConversationEcho": "Намерение начать разговор по {{project}} записано (открытие появится в следующей задаче).",
     "cardDetailsTitle": "Подробности",
     "cardDetailsClose": "Закрыть",

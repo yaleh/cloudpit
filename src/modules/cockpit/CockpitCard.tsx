@@ -1,4 +1,3 @@
-import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import type { CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
@@ -11,6 +10,7 @@ import {
 } from '@/modules/cockpit/cockpitCardFeedback';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
+  cockpitCardAge,
   cockpitCardDescriptor,
   cockpitCardFactsBeyondSituation,
   cockpitCardSubjectName,
@@ -53,23 +53,6 @@ import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
  * `createCockpitCardController`, so "switching the shown option switches the confirm target" is
  * a property of the state, not of this file's event wiring.
  */
-
-/** `9h` / `18m` / `3d` — the header's compact age, read through the cockpit's own copy. */
-function ageText(t: TFunction, now: number, waitingSince: string): string {
-  const since = Date.parse(waitingSince);
-  const milliseconds = Number.isNaN(since) ? 0 : Math.max(0, now - since);
-  const minutes = Math.floor(milliseconds / 60_000);
-  if (minutes < 1) return t('cockpit.cardAgeNow');
-  if (minutes < 60) return t('cockpit.cardAgeMinutes', { n: minutes });
-  const hours = minutes / 60;
-  if (hours < 24) {
-    const rounded = Math.round(hours * 10) / 10;
-    return t('cockpit.cardAgeHours', {
-      n: Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1),
-    });
-  }
-  return t('cockpit.cardAgeDays', { n: Math.floor(hours / 24) });
-}
 
 /**
  * The three-cell decision-weight reading. Only the provider's own `load` fills it; the reading is
@@ -492,7 +475,7 @@ export default function CockpitCard({
             data-testid="cockpit-card-age"
             className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground"
           >
-            {ageText(t, now, card.waitingSince)}
+            {cockpitCardAge(t, now, card.waitingSince)}
           </span>
           {card.load !== undefined && (
             <LoadCells

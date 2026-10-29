@@ -1117,6 +1117,7 @@
     "cardFeedbackKept": "Fleet menerimanya dan membiarkan item tetap terbuka",
     "cardFeedbackRejected": "Fleet menolak umpan balik ini: {{reason}}",
     "cardAwaitingFeedback": "{{total}} kartu, {{awaiting}} menunggu konfirmasi fleet",
+    "cardCountSummary": "{{needsYou}} menunggu Anda · {{waiting}} menunggu konfirmasi fleet · {{answered}} kartu terjawab masih terbuka",
     "cardStartConversationEcho": "Niat memulai percakapan untuk {{project}} dicatat (membukanya akan datang di tugas berikutnya).",
     "cardDetailsTitle": "Detail",
     "cardDetailsClose": "Tutup",

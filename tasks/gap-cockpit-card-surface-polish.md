@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-surface-polish
 title: 驾驶舱表面打磨：详情限宽居中、确认条不压内容、BRIEF 空态隐去、头部计数合成一行、筛选条渐隐、年龄格式统一
-status: ready
+status: done
 labels:
   - gap
   - cockpit
@@ -49,7 +49,7 @@ depends_on:
 - 假形态（改后立即还原并复跑绿）：确认条放回滚动容器内 ⇒ 兄弟节点用例红；BRIEF 空态整段恢复 ⇒ 无简报用例红；栏头第二行计数恢复 ⇒ 单行计数用例红。
 - `npm run typecheck` 退出 0；`npm run lint` 退出 0（仅既有 warning）。i18n 用例实际走全仓 12 个 locale（en/zh-CN/zh-TW/de/es/fr/id/it/ja/ko/ru/tr），新 key 12 个文件全部补齐。架构 ratchet：`CockpitCard.tsx` 917→900 行（下降，允许；打印「可下调基线」），`CockpitCardDetails.tsx`/`CockpitCardList.tsx` 未越 800 行基线。
 
-回归修正（本轮，提交 `dab24db8b`）：`src/modules/cockpit/tests/CockpitBriefView.test.tsx` 上一轮红，根因是上一轮把「所有 fallback」整段隐去，越过了本任务「不改行为规则」的范围——AC-431 的理由表是为「有简报但这次缺了」服务的（预算用尽、transcript 不可读等），把这些也藏掉会让该契约与组件 fallback 分支变成不可达。改为只静默诊断型 reason（`disabled`、`unsupported-content`），其余 fallback 继续显示理由。`SILENT_FALLBACK_REASONS` 在 `CockpitCardDetails.tsx` 模块级声明。
+回归修正（上一轮，提交 `dab24db8b`）：`src/modules/cockpit/tests/CockpitBriefView.test.tsx` 上一轮红，根因是上一轮把「所有 fallback」整段隐去，越过了本任务「不改行为规则」的范围——AC-431 的理由表是为「有简报但这次缺了」服务的（预算用尽、transcript 不可读等），把这些也藏掉会让该契约与组件 fallback 分支变成不可达。改为只静默诊断型 reason（`disabled`、`unsupported-content`），其余 fallback 继续显示理由。`SILENT_FALLBACK_REASONS` 在 `CockpitCardDetails.tsx` 模块级声明。
 
 - 复跑 5 个文件（4 条 AC 套件 + `CockpitBriefView.test.tsx`）共 134 个用例全绿。
 - 假形态：把 `unsupported-content` 从 `SILENT_FALLBACK_REASONS` 移除 ⇒ `cockpitCardsMobileDetails.test.tsx`「hides the whole BRIEF section」红（`cockpit-card-details-brief` 不再为 null），已还原并复跑绿。
@@ -64,6 +64,12 @@ DoD 真实页面（任务 worktree 的 vite dev server :5199，代理运行中�
 - 筛选条渐隐：容器 style `mask-image: linear-gradient(to right, black calc(100% - 24px), transparent)`，scrollWidth 467 > clientWidth 383，横向滚动保留。
 - 场景运行器：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-mode-switch.json --base-url http://127.0.0.1:5199 …` → `ui-scenario: passed (3 steps, 5775ms, 3 checkpoint(s))`。
 - 截图（任务 worktree `tmp/dod/`）：`pc-1600-details-nobrief.png`、`pc-1600-details-bottom.png`、`pc-column-400.png`、`pc-column-440.png`、`phone-390-list.png`、`phone-390-details.png`、`phone-390-details-bottom.png`；场景 checkpoint 在 `tmp/dod/scenario/`。
+
+回归修正（本轮，提交 `6a39ccc55`）：上一轮 suite 红在 `server/shared/tests/architecture-ratchet.test.ts` —— `ratchet: moduleMutableState src/modules/cockpit/CockpitCardDetails.tsx 基线外→1`。根因是 `dab24db8b` 把理由表写成模块级 `const SILENT_FALLBACK_REASONS: ReadonlySet<string> = new Set([…])`；ratchet 按行首形状把 `const <id> … = new Set(` 计为模块级可变状态（`ReadonlySet` 只是类型层只读，运行时仍是 Set），基线外必须为 0。改为 `const SILENT_FALLBACK_REASONS: readonly string[]` + `.includes(...)`，过滤行为不变，未上调基线。
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts`：6 tests / 0 fail；`moduleMutableState` 无基线外条目。
+- 复跑 5 个文件（4 条 AC 套件 + `CockpitBriefView.test.tsx`）共 135 个用例全绿（vitest `5 passed (5)` / `135 passed`）。
+- `npm run typecheck` 退出 0、`npm run lint` 退出 0（仅既有 warning）；`git merge develop` 干净合入（无冲突）；anti-drift Touches 检查 PASS —— 20 个实际改动文件全部在声明的 Touches 内。
 
 ## Touches
 
@@ -95,11 +101,3 @@ DoD 真实页面（任务 worktree 的 vite dev server :5199，代理运行中�
 ## Notes
 
 - 该轴仍暗,理由:本任务只做驾驶舱表面排版与读数统一，不改模块边界、依赖方向或数据生成，L_D/L_G 两轴没有可测读数；界面行为由四条 AC 判据、真实页面 boundingClientRect 读数与场景运行器覆盖。
-
-## Blocker
-
-**2026-10-29T12:38:00.726Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: moduleMutableState src/modules/cockpit/CockpitCardDetails.tsx 基线外→1 — 基线外的文件模块级可变状态必须为 0 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：ccbff57a-cd16-442e-be8b-82c7abf06e94

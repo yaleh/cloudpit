@@ -178,6 +178,31 @@ export function cockpitCardTitle(card: CockpitCard, t: TFunction): string {
   return card.subject.uri;
 }
 
+/**
+ * `9h` / `18m` / `3d` — the compact age of one card's wait, read through the cockpit's own copy.
+ *
+ * ONE FORMATTER FOR BOTH READINGS. The list row's age chip and the Details header state the same
+ * `waitingSince`; deriving them from different helpers let the two say `11.2h` and `11 h ago`
+ * about one card.
+ *
+ * Used by `CockpitCard` (the list row) and `CockpitCardDetails` (the drawer header).
+ */
+export function cockpitCardAge(t: TFunction, now: number, waitingSince: string): string {
+  const since = Date.parse(waitingSince);
+  const milliseconds = Number.isNaN(since) ? 0 : Math.max(0, now - since);
+  const minutes = Math.floor(milliseconds / 60_000);
+  if (minutes < 1) return t('cockpit.cardAgeNow');
+  if (minutes < 60) return t('cockpit.cardAgeMinutes', { n: minutes });
+  const hours = minutes / 60;
+  if (hours < 24) {
+    const rounded = Math.round(hours * 10) / 10;
+    return t('cockpit.cardAgeHours', {
+      n: Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1),
+    });
+  }
+  return t('cockpit.cardAgeDays', { n: Math.floor(hours / 24) });
+}
+
 /* ─── Facts: the pills the card body draws ───────────────────────── */
 
 /** `a  b` and `A b` compare equal: whitespace and case are formatting, not meaning. */

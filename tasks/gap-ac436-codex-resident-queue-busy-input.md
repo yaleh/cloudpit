@@ -60,26 +60,149 @@ goal_ac: AC-436
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 5`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-queue.test.ts'`。
-- [ ] AC2 忙时接受而非拒绝：turn active 时第二次 `run` 不抛拒绝；打印 `busyOutcome=queued queueAddCalls=1 refusal=none`，`thread/queue/add` 参数含当前 `threadId`、命令文本与 `clientUserMessageId`；被 queue 的 run 在断言时仍 pending（未 resolve 未 reject）；返回的 `queuedInputUuid` 与该条 `thread/queue/list` 里的 `clientUserMessageId` 相等。
-- [ ] AC3 queue/list 是深度真值：连加两条后打印 `depthAfterTwo=2 bytes=…`；随后假 transport **直接**删掉一条并只发 `thread/queue/changed`（driver 未发 delete），等待一次刷新后打印 `depthAfterExternalDelete=1 bytes=…`；两次读数与传输层 `thread/queue/list` 的返回逐字一致；driver 的 `queue/delete` 调用次数为 0。
-- [ ] AC4 撤回：打印 `cancel=<uuid> result=withdrawn deleteCalls=1 remaining=1`；对已离开队列的条目打印 `alreadyStartedResult=already-started deleteCallsUnchanged=true`；对不存在的 uuid 打印 `unknownResult=unknown`；三种情形分别按上列值断言。
-- [ ] AC5 正常完成自动排水：`turn/completed` 后由假 transport 自动发下一条 `turn/started`（复制 E2 读数），打印 `completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true`；结束时 `thread/queue/list` 为空。
-- [ ] AC6 中断保留且显式 start：打印 `interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1`；`thread/queue/start` 参数为队头 `queuedSubmissionId`；被推起的 turn 完成；`threadId` 与 pid 中断前后相等；transport 在 interrupt 前后都报告进程存活。
-- [ ] AC7 chat.send 接缝：用真实 `createProviderRuntimeService` + 测试内非 union provider（`declareRuntimeProviderCapabilities({provider:'codex-queue-test', lifecycleModes:['resident'], multiplexedHost:false})`）+ 真实 `sessionHostManager.openHost` 的 live host，打印 `acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1`；第二次 `runtime.run` 的 promise 不 reject。证明这条路径不会走到 `RUN_IN_PROGRESS` 的拒绝分支。
-- [ ] AC8 反向控制可达：测试内把「忙时拒绝」读数喂给接受断言、把「interrupt 后未显式 start 就自动起 turn」读数喂给中断断言，两者都必须 reject；各自打印判定，证明判据不是恒真。
-- [ ] AC9 接口与声明：`CodexHostDriver` 以 `IProviderHostDriver` 类型赋值且四个队列读法随测试文件类型检查通过（`npm run typecheck` 退出 0）；打印 `multiplexedHost=false`。
-- [ ] AC10 三个假形态承重：A 忙时拒绝、B 中断后假设自动排水、C 本地计数器，各自令 criterion 退出 **1**；三次红态文案逐字记录；还原后 `git status --short` 无残留。
-- [ ] AC11 无回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0；`npm run typecheck` 退出 0。
-- [ ] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。
-- [ ] AC13 如实登记：完成记录写明假 transport 形态与锁定协议版本（0.153.4）、E2/E3 通知序列出处、三个假形态的实测退出码与逐字红态文案、`thread/queue/list` 与 `thread/queue/start` 的 params，以及未实现项（experimentalApi、host lease、provider 挂载/capabilities、settings/approvals/background/restore/E2E）。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` 退出 **0**，输出 `fail 0` 且 `pass >= 5`。红态基线已测：同命令当前 exit 1、文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-queue.test.ts'`。
+- [x] AC2 忙时接受而非拒绝：turn active 时第二次 `run` 不抛拒绝；打印 `busyOutcome=queued queueAddCalls=1 refusal=none`，`thread/queue/add` 参数含当前 `threadId`、命令文本与 `clientUserMessageId`；被 queue 的 run 在断言时仍 pending（未 resolve 未 reject）；返回的 `queuedInputUuid` 与该条 `thread/queue/list` 里的 `clientUserMessageId` 相等。
+- [x] AC3 queue/list 是深度真值：连加两条后打印 `depthAfterTwo=2 bytes=…`；随后假 transport **直接**删掉一条并只发 `thread/queue/changed`（driver 未发 delete），等待一次刷新后打印 `depthAfterExternalDelete=1 bytes=…`；两次读数与传输层 `thread/queue/list` 的返回逐字一致；driver 的 `queue/delete` 调用次数为 0。
+- [x] AC4 撤回：打印 `cancel=<uuid> result=withdrawn deleteCalls=1 remaining=1`；对已离开队列的条目打印 `alreadyStartedResult=already-started deleteCallsUnchanged=true`；对不存在的 uuid 打印 `unknownResult=unknown`；三种情形分别按上列值断言。
+- [x] AC5 正常完成自动排水：`turn/completed` 后由假 transport 自动发下一条 `turn/started`（复制 E2 读数），打印 `completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true`；结束时 `thread/queue/list` 为空。
+- [x] AC6 中断保留且显式 start：打印 `interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1`；`thread/queue/start` 参数为队头 `queuedSubmissionId`；被推起的 turn 完成；`threadId` 与 pid 中断前后相等；transport 在 interrupt 前后都报告进程存活。
+- [x] AC7 chat.send 接缝：用真实 `createProviderRuntimeService` + 测试内非 union provider（`declareRuntimeProviderCapabilities({provider:'codex-queue-test', lifecycleModes:['resident'], multiplexedHost:false})`）+ 真实 `sessionHostManager.openHost` 的 live host，打印 `acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1`；第二次 `runtime.run` 的 promise 不 reject。证明这条路径不会走到 `RUN_IN_PROGRESS` 的拒绝分支。
+- [x] AC8 反向控制可达：测试内把「忙时拒绝」读数喂给接受断言、把「interrupt 后未显式 start 就自动起 turn」读数喂给中断断言，两者都必须 reject；各自打印判定，证明判据不是恒真。
+- [x] AC9 接口与声明：`CodexHostDriver` 以 `IProviderHostDriver` 类型赋值且四个队列读法随测试文件类型检查通过（`npm run typecheck` 退出 0）；打印 `multiplexedHost=false`。
+- [x] AC10 三个假形态承重：A 忙时拒绝、B 中断后假设自动排水、C 本地计数器，各自令 criterion 退出 **1**；三次红态文案逐字记录；还原后 `git status --short` 无残留。
+- [x] AC11 无回归：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0；`npm run typecheck` 退出 0。
+- [x] AC12 范围不越界：`git diff --name-only develop...HEAD` 仅含 Touches；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。
+- [x] AC13 如实登记：完成记录写明假 transport 形态与锁定协议版本（0.153.4）、E2/E3 通知序列出处、三个假形态的实测退出码与逐字红态文案、`thread/queue/list` 与 `thread/queue/start` 的 params，以及未实现项（experimentalApi、host lease、provider 挂载/capabilities、settings/approvals/background/restore/E2E）。
 
 ## DoD
 
 判据在落地后的树上按原命令重跑：退出码 0 且 `fail 0`。完成记录贴出 (a) 忙时 queue/add 的调用与 uuid 读数、(b) 外部删一条后的深度读数、(c) 三种撤回结果、(d) 正常排水与 `queue/start` 计数、(e) 中断前后队列/pid/threadId 与显式 start 读数、(f) chat.send 接缝的 `acceptsBusyInput`/`runRejected` 读数、(g) 两个反向控制判定、(h) A/B/C 三个假形态的退出码与逐字红态文案。`codex-host-driver-persistent.test.ts` 与 `npm run typecheck` 退出 0。改动只落在 Touches；`codex.provider.ts` / shipped capabilities / `provider-runtime.service.ts` / per-run runtime / fork client 零改动。完成后 goal driver 下一轮以 `goal_ac: AC-436` 独立复跑原 criterion 时由红翻绿；且翻绿有分辨力：忙时拒绝的变体必红，interrupt 后假设自动排水的变体必红，本地计数器变体必红。
+
+## 完成记录
+
+**树与提交。** worktree `/data/home/yale/work/claudecodeui-worktrees/task-gap-ac436-codex-resident-queue-busy-input`，分支 `task/gap-ac436-codex-resident-queue-busy-input`，基线 `goal/GOAL-051`。实现提交 `3de082d17`（driver + 新判据文件），`git merge --no-edit develop` 无冲突，merge 后 HEAD `2a79c685c`。
+
+**锁定协议与读数出处。** `@openai/codex` **0.153.4**；E2（忙时入队 / 深度 / 撤回 / 自动排水）与 E3（interrupt 保留队列、显式 start）取自 `tmp/codex-appserver-exp-NuPHhk/REPORT.md` 与 `e2-reading.json`、`e3-reading.json`、`e2-queue-while-busy.jsonl`。
+
+**假 transport 形态。** 判据内 `FakeAppServerTransport` 是内存 JSON-RPC app-server，实现 `initialize`、`initialized`、`thread/start`、`thread/resume`、`turn/start`、`turn/interrupt`、`thread/queue/add|list|delete|start`；主动发 `turn/started`、`turn/completed`（含 `turn.status='interrupted'`）、`thread/queue/changed`。开关 `autoComplete` / `autoDrainOnComplete=true`（E2：正常完成自动起下一条）/ `autoDrainAfterInterrupt=false`（E3：中断后 15s 不自动起）/ `holdQueueStart`（把 `thread/queue/start` 的应答压住，好在「中断后、显式 start 前」读一次队列）。`log` 记录调用与通知的**顺序**，`autoStartedAfterInterrupt` 由「interrupted 终态之后、首个 `thread/queue/start` 之前是否有 `turn/started`」算出，不是由任何计数器推断。不 spawn 真 codex、不开 DB、不碰网络。
+
+**协议 params/result（判据实际发送与读取）。**
+
+- `thread/queue/add` → `{"threadId":"thread-1","input":[{"type":"text","text":"queued while busy","text_elements":[]}],"clientUserMessageId":"<uuid>"}`，结果读 `result.queuedSubmission.{id, clientUserMessageId}`（E2 的 echo 被用作 app uuid）。
+- `thread/queue/list` → `{"threadId":"thread-1"}`，结果读 `result.data[]`（每行 `{id, input, clientUserMessageId}`）与 `nextCursor`；深度与 bytes 只从这份镜像算。
+- `thread/queue/delete` → `{"threadId":"thread-1","queuedSubmissionId":"qs-…"}`，只有 `{deleted:true}` 记作 `withdrawn`。
+- `thread/queue/start` → `{"threadId":"thread-1","queuedSubmissionId":"qs-1"}`（中断后队头）。
+- 通知 `thread/queue/changed` 的 params 为 `{threadId}`，每收到一条触发一次串行、可合并的 `thread/queue/list` 刷新。
+
+**(a) 忙时 queue/add 与 uuid 读数。**
+
+```
+busyOutcome=queued queueAddCalls=1 refusal=none threadId=thread-1 queuedUuid=213d79a5-db61-4d69-99f3-b155e6fd964f listUuid=213d79a5-db61-4d69-99f3-b155e6fd964f stillPending=true
+queuedRunResolved=true queuedFrames=thread/queue/changed,turn/completed,thread/queue/changed,turn/started,turn/completed
+```
+
+被 queue 的 run 在断言时既未 resolve 也未 reject；`queuedInputUuid` 与 `thread/queue/list` 里的 `clientUserMessageId` 逐字相等；该 run 的 writer 收到自己那一轮的 `turn/started`/`turn/completed` 帧后才结算。
+
+**(b) 外部删一条后的深度读数。**
+
+```
+depthAfterTwo=2 bytes=25 transportDepth=2
+depthAfterExternalDelete=1 bytes=12 transportDepth=1 deleteCalls=0
+```
+
+假 transport 直接删掉队头并只发 `thread/queue/changed`，driver 未发任何 `thread/queue/delete`（`deleteCalls=0`），读数仍跟随。
+
+**(c) 三种撤回结果。**
+
+```
+cancel=476ed659-f346-44c7-a346-a10a07874ed4 result=withdrawn deleteCalls=1 remaining=1
+alreadyStartedResult=already-started deleteCallsUnchanged=true
+unknownResult=unknown
+```
+
+被撤回的 run 也结算（不会留 pending promise 泄漏）。
+
+**(d) 正常排水与 queue/start 计数。**
+
+```
+completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true
+```
+
+**(e) 中断前后队列/pid/threadId 与显式 start。**
+
+```
+interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1 queueStartParams={"threadId":"thread-1","queuedSubmissionId":"qs-1"} pidBefore=515151 pidAfter=515151 threadIdBefore=thread-1 threadIdAfter=thread-1
+explicitStartCompleted=true turnStartedCount=2 transportAlive=true
+```
+
+**(f) chat.send 接缝。**
+
+```
+acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1 busyStillPending=true
+runtimeBusyResolved=true queueEmpty=true
+```
+
+非 union provider `codex-queue-test` 经 `declareRuntimeProviderCapabilities({provider, lifecycleModes:['resident'], multiplexedHost:false})` 声明，真实 `sessionHostManager.openHost` 给出 live host，真实 `createProviderRuntimeService` 派发；第二次 `runtime.run` 不 reject，说明不会走 `RUN_IN_PROGRESS` 分支。
+
+**(g) 两个反向控制。**
+
+```
+reverseRefusalRejected=true reverseAutoDrainRejected=true
+```
+
+把「忙时拒绝」读数喂给 `assertBusyAccepted`、把「interrupt 后未显式 start 就自动起 turn」读数喂给 `assertExplicitQueueStartAfterInterrupt`，两者都抛，判据不是恒真。
+
+**(h) A/B/C 三个假形态（只改实现，判据文件未动）。**
+
+- **A 忙时拒绝**（`isBusy` 分支抛 `RUN_IN_PROGRESS` 而非 `thread/queue/add`）：criterion exit **1**，`pass 2 / fail 6`（AC2/AC3/AC4/AC5/AC6/AC7 全红）。红态文案逐字：
+
+```
+✖ busy input is queued, not refused (AC2)
+  Error [AppError]: A Codex turn is already running.
+    code: 'RUN_IN_PROGRESS',
+    statusCode: 409,
+```
+
+- **B 中断后假设自动排水**（`status === 'interrupted'` 时不再调 `advanceQueueAfterInterrupt`）：criterion exit **1**，`pass 7 / fail 2`。红态文案逐字：
+
+```
+interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=0 queueStartParams=null pidBefore=515151 pidAfter=515151 threadIdBefore=thread-1 threadIdAfter=thread-1
+✖ an interrupt keeps the queue and needs an explicit queue/start (AC6)
+  AssertionError [ERR_ASSERTION]: the driver must push the queue exactly once with thread/queue/start (got 0)
+  0 !== 1
+```
+
+- **C 本地计数器冒充深度真值**（`pendingQueuedInputs` 改读 `session.queue.length` 而非 `thread/queue/list` 镜像）：criterion exit **1**，`pass 7 / fail 1`。红态文案逐字：
+
+```
+depthAfterTwo=2 bytes=25 transportDepth=2
+✖ queue/list is the depth truth, including an external delete (AC3)
+  Error: timed out waiting for the mirror to follow the external delete
+```
+
+每个假形态后都 `git checkout -- server/modules/providers/list/codex/codex-host-driver.provider.ts` 还原，`git status --short` 输出为空；还原后 criterion 复跑 exit **0**（`tests 8 / pass 8 / fail 0`）。
+
+**判据与回归读数。**
+
+- criterion：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` → exit **0**，`tests 8 / pass 8 / fail 0`（merge develop 后复跑同样 exit 0）。
+- 无回归：`codex-host-driver-persistent.test.ts` → exit **0**，`tests 5 / pass 5 / fail 0`；`npm run typecheck`（三个 tsc 项目）→ exit **0**。
+- 范围：`git diff --name-only goal/GOAL-051...HEAD` 恰为 `server/modules/providers/list/codex/codex-host-driver.provider.ts` 与 `server/modules/providers/tests/codex-host-driver-queue.test.ts`；`git diff --name-only develop...HEAD | grep -E 'codex\.provider\.ts|provider-capabilities\.service\.ts|provider-runtime\.service\.ts|codex-runtime\.provider\.ts|codex-app-server\.client\.ts'` 输出为空。**需要如实说明的差别**：验收当时 `git diff --name-only develop...HEAD` 还列出 `codex-app-server.connection.ts`、`codex-background-lease-ledger.ts`、`codex-app-server-protocol.test.ts`、`codex-resident-background-leases.test.ts`、`server/shared/tests/quay-test-script.test.ts`、`scripts/suite-duration-baseline.tsv` 及若干 `tasks/*.md` —— 这些是兄弟任务 gap-ac435 / gap-ac439 / gap-ac440 已落在 `goal/GOAL-051`、但当时尚未 fan-in 进 develop 的提交，不是本任务的改动；本任务相对基线的增量就是上面两个 Touches 文件。
+- anti-drift Touches 硬门：`ANTI-DRIFT OK: task gap-ac436-codex-resident-queue-busy-input — 2 actual file(s), all within declared Touches (3 glob(s))`（exit 0）。
+
+**未实现项（本任务边界外，按 Proposal 非目标）。** `experimentalApi` 声明与缺失时 fail-closed（AC-440，已在同一 connection 上由兄弟任务落地）；host lease/busy-idle（AC-439/AC-441）；`codex.provider.ts` 挂载与 capabilities 声明（AC-442）；settings/approvals/background/restore/E2E。驱动层仍只原样转发未知协议帧，不把它们归一化成 app 消息形状。
+
+- 该轴仍暗,理由:本任务交付 driver 内队列状态机与其 hermetic 判据，不产生架构图 L_D/L_G 读数，可测的只有 criterion/typecheck/anti-drift 退出码。
 
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/tests/codex-host-driver-queue.test.ts (new)
 - tasks/gap-ac436-codex-resident-queue-busy-input.md
+
+## Blocker
+
+**2026-10-29T13:16:47.306Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→1100 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：37c1d44c-c60c-4a87-be29-4f43e3df668c
