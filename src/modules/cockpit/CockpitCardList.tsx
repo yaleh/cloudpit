@@ -73,7 +73,11 @@ export default function CockpitCardList(props: CockpitCardListProps) {
 
 function CockpitCardListWithOwnController(props: Omit<CockpitCardListProps, 'binding'>) {
   const binding = useCockpitCards();
-  return <CockpitCardListBound binding={binding} {...props} />;
+  // `binding` goes AFTER the spread, not before: a caller that forwards its own optional
+  // `binding={maybeUndefined}` leaves the key on the props object, and a spread after this prop
+  // would overwrite the controller this component just bound with that `undefined` — crashing
+  // the list. "Absent" in the prop contract means `undefined`, so it must reach here too.
+  return <CockpitCardListBound {...props} binding={binding} />;
 }
 
 function CockpitCardListBound({

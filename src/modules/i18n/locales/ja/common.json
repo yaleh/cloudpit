@@ -946,6 +946,8 @@
     "counterVoiceSeen": "反対意見を確認済み",
     "counterVoiceSeenMarker": "（反対意見を確認済み）",
     "cardsView": "カード",
+    "overlayBack": "セッションに戻る",
+    "overlayBackToSession": "セッションに戻る: {{title}}",
     "columnTitle": "コックピット",
     "columnExpand": "コックピット列を開く",
     "columnCollapse": "コックピット列を閉じる",
