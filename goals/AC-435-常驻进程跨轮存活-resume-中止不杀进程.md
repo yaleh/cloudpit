@@ -1,7 +1,7 @@
 ---
 id: AC-435
 title: 常驻进程跨轮存活、resume、中止不杀进程
-status: draft
+status: active
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -12,5 +12,16 @@ expect: 假 app-server transport（不真起 codex）：同一 resident 会话�
   继续。假形态：每轮换新 thread 必须红；interrupt 杀进程必须红。
 origin: GOAL-051 的 Codex 常驻方案（人 yale 2026-10-29 五条裁定）+
   tmp/codex-appserver-exp-NuPHhk/REPORT.md（锁定版 0.153.4 实测）
+activatedAt: 2026-10-29T09:23:16.265Z
+statusLog:
+  - at: 2026-10-29T09:23:16.265Z
+    from: draft
+    to: active
+    actor: human:yale
+    reason: 人 yale 指令：激活 GOAL-051 的 AC，红先行
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-29T09:23:16.265Z
 phase: pre-merge
 ---
