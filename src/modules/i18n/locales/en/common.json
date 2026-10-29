@@ -860,6 +860,7 @@
     "deviceMobile": "Phone",
     "deviceDesktop": "Desktop",
     "modeSessions": "Sessions",
+    "modeSessionsReturnTo": "Sessions · return to session {{id}}",
     "modeCockpit": "Cockpit",
     "modeSwitchLabel": "Switch between sessions and cockpit",
     "attentionBadge": "{{n}} project items need you",

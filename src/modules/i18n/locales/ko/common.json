@@ -769,6 +769,7 @@
     "deviceMobile": "휴대폰",
     "deviceDesktop": "데스크톱",
     "modeSessions": "세션",
+    "modeSessionsReturnTo": "세션 · 세션 {{id}}으로 돌아가기",
     "modeCockpit": "콕핏",
     "modeSwitchLabel": "세션과 콕핏 전환",
     "attentionBadge": "{{n}}개의 프로젝트 항목이 확인을 기다립니다",

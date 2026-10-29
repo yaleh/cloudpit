@@ -769,6 +769,7 @@
     "deviceMobile": "Téléphone",
     "deviceDesktop": "Ordinateur",
     "modeSessions": "Sessions",
+    "modeSessionsReturnTo": "Sessions · revenir à la session {{id}}",
     "modeCockpit": "Cockpit",
     "modeSwitchLabel": "Basculer entre les sessions et le cockpit",
     "attentionBadge": "{{n}} éléments de projet vous attendent",

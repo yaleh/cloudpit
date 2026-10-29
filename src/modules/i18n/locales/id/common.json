@@ -852,6 +852,7 @@
     "deviceMobile": "Ponsel",
     "deviceDesktop": "Desktop",
     "modeSessions": "Sesi",
+    "modeSessionsReturnTo": "Sesi · kembali ke sesi {{id}}",
     "modeCockpit": "Kokpit",
     "modeSwitchLabel": "Beralih antara sesi dan kokpit",
     "attentionBadge": "{{n}} item proyek membutuhkan Anda",

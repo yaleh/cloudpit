@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
+
+import type { CockpitColumnBinding } from '@/modules/cockpit';
 
 /**
  * The sidebar's 「会话 / 驾驶舱」 switch and its attention badge.
@@ -30,6 +32,21 @@ vi.mock('@/shared/api', async (importOriginal) => {
 vi.mock('@/shared/hooks/useServerFeatures', () => ({
   useServerFeatures: () => ({ status: 'loaded' as const, cockpitEnabled: featuresMock.cockpitEnabled }),
 }));
+
+/**
+ * AC4: the switch and the header's gauge share ONE cockpit entry action.
+ *
+ * The stub replaces `enterCockpit` at its definition in the leaf contract's `viewAddress`
+ * module. The switch imports it from `@/modules/cockpit/contract` and the gauge from
+ * `@/modules/cockpit/cockpitEntry` (a re-export of the same symbol), so one call count proves
+ * both doors delegate — and the sessionStorage assertion proves neither writes the record by
+ * itself any more.
+ */
+const entryMock = vi.hoisted(() => ({ enterCockpit: vi.fn() }));
+vi.mock('@/modules/cockpit/contract/viewAddress', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, enterCockpit: entryMock.enterCockpit };
+});
 
 // The star badge fetches GitHub on mount; the switch cases do not care about it.
 vi.mock('@/modules/sidebar/GitHubStarBadge', () => ({ default: () => null }));
@@ -119,6 +136,8 @@ beforeEach(() => {
   featuresMock.cockpitEnabled = true;
   apiMock.quayFleetSummary.mockReset();
   apiMock.quayFleetSummary.mockImplementation(async () => okResponse(fleetSummary(0, 1)));
+  entryMock.enterCockpit.mockReset();
+  window.sessionStorage.clear();
   vi.resetModules();
 });
 
@@ -418,5 +437,72 @@ describe('the cockpit switch off (a released default)', () => {
       </I18nextProvider>,
     );
     assert.equal(collapsed.container.querySelectorAll('[data-testid="sidebar-mode-switch"]').length, 0);
+  });
+});
+
+describe('AC4: the switch and the gauge share one cockpit entry action', () => {
+  test('both doors call the same enterCockpit, and neither records the return path itself', async () => {
+    const { i18n, t, SidebarModeSwitch } = await loadModules();
+
+    const { container } = render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/session/abc']}>
+          <SidebarModeSwitch mode="sessions" t={t} />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+
+    const cockpitLink = container.querySelector(
+      '[data-mode-switch-link="cockpit"]',
+    ) as HTMLAnchorElement;
+    assert.ok(cockpitLink, 'the switch must draw its cockpit segment');
+    fireEvent.click(cockpitLink);
+
+    // The switch delegates: the shared action is called once, with the route it is leaving.
+    assert.equal(entryMock.enterCockpit.mock.calls.length, 1, 'the switch uses the shared action');
+    const switchCall = entryMock.enterCockpit.mock.calls[0]?.[0] as {
+      navigate: unknown;
+      target: string;
+      location?: { pathname: string; search: string };
+    };
+    assert.equal(switchCall.target, '/cockpit?view=fleet');
+    assert.equal(switchCall.location?.pathname, '/session/abc');
+    assert.equal(
+      window.sessionStorage.getItem('cockpit.returnPath'),
+      null,
+      'the switch no longer writes the return path itself',
+    );
+
+    // The header's gauge page variant (the standalone fallback, no session underfoot) goes
+    // through the SAME function — the cockpit module re-exports it, it does not reimplement it.
+    const { CockpitColumnContext, CockpitHeaderButton } = await import('@/modules/cockpit');
+    const binding = {
+      snapshot: { layout: 'hidden', expanded: false, openCount: 0 },
+      controller: { toggle: () => {} },
+      cards: {},
+    } as unknown as CockpitColumnBinding;
+    const gauge = render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/']}>
+          <CockpitColumnContext.Provider value={binding}>
+            <CockpitHeaderButton variant="page" />
+          </CockpitColumnContext.Provider>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    const button = gauge.container.querySelector<HTMLElement>(
+      '[data-testid="cockpit-header-button"]',
+    );
+    assert.ok(button, 'the gauge must draw');
+    fireEvent.click(button);
+
+    assert.equal(entryMock.enterCockpit.mock.calls.length, 2, 'the gauge uses the same action');
+    const gaugeCall = entryMock.enterCockpit.mock.calls[1]?.[0] as { target: string };
+    assert.equal(gaugeCall.target, '/cockpit?view=cards');
+    assert.equal(
+      window.sessionStorage.getItem('cockpit.returnPath'),
+      null,
+      'the gauge no longer writes the return path itself',
+    );
   });
 });

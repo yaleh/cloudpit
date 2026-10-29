@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-phone-overlay-navigation-stack
 title: 手机驾驶舱覆盖层按导航栈往返会话并恢复卡片上下文
-status: ready
+status: done
 labels:
   - gap
   - cockpit

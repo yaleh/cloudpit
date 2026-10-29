@@ -85,6 +85,64 @@ export function readCockpitReturnPath(): string {
 }
 
 /**
+ * The router location the entry action reads: `useLocation()`'s two path fields, or
+ * `window.location` when no router is underfoot. `search` carries its leading `?`.
+ */
+export type CockpitEntryLocation = {
+  pathname: string;
+  search: string;
+};
+
+export type CockpitEntryOptions = {
+  /**
+   * The router's navigation, or `null` when the browser owns the navigation (a modified click
+   * opening the cockpit in another tab): the return path is still recorded, nothing is navigated
+   * in this tab.
+   */
+  navigate: ((target: string) => void) | null;
+  /** The cockpit address to enter (a path from `cockpitViewPath` or the cards page). */
+  target: string;
+  /** Where the person is leaving from; defaults to `window.location`. */
+  location?: CockpitEntryLocation;
+};
+
+/**
+ * The ONE action every route into the cockpit goes through.
+ *
+ * Entering the standalone cockpit page must remember where the person came from, or its
+ * 「会话」 segment leads home instead of back to the conversation they left. That record used to
+ * be written by whichever entry point remembered to do it — the sidebar's mode switch did, the
+ * header's gauge did not — so the same trip behaved differently depending on the door. Passing
+ * every door through this function makes the record a property of "entering the cockpit", not of
+ * one caller.
+ *
+ * ALREADY ON THE COCKPIT: nothing is recorded. The current address is the cockpit itself, so
+ * overwriting the return path would make the way back lead to the page the person is on — and a
+ * second cockpit-to-cockpit navigation would forget the session that was there before.
+ *
+ * The target is navigated exactly once, after the record is written. A blocked storage area is
+ * not an error (see {@link rememberCockpitReturnPath}); the trip still happens.
+ */
+export function enterCockpit({ navigate, target, location }: CockpitEntryOptions): void {
+  const from = location ?? readWindowLocation();
+  if (!isCockpitPath(from.pathname)) {
+    rememberCockpitReturnPath(`${from.pathname}${from.search}`);
+  }
+  if (navigate !== null) navigate(target);
+}
+
+/** True for the cockpit's own addresses, including its sub-pages (e.g. `/cockpit/remote`). */
+function isCockpitPath(pathname: string): boolean {
+  return pathname === COCKPIT_PATH || pathname.startsWith(`${COCKPIT_PATH}/`);
+}
+
+/** The browser's current location, or the router's root when there is no `window` (SSR/tests). */
+function readWindowLocation(): CockpitEntryLocation {
+  if (typeof window === 'undefined') return { pathname: '/', search: '' };
+  return { pathname: window.location.pathname, search: window.location.search };
+}
+
+/**
  * Parses the cockpit's query string into a view description.
  *
  * Every malformed or unknown reading falls back to the WALL — the product's home — rather than

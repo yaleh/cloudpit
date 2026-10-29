@@ -2,7 +2,7 @@
 id: gap-ac436-codex-resident-queue-busy-input
 title: AC-436 Codex 常驻：忙时输入走 thread/queue/add、queue/list 深度真值、queue/delete
   撤回、完成自动排水、中断后显式 queue/start
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -200,12 +200,22 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 
 **未实现项（本任务边界外，按 Proposal 非目标）。** `experimentalApi` 声明与缺失时 fail-closed（AC-440，已在同一 connection 上由兄弟任务落地）；host lease/busy-idle（AC-439/AC-441）；`codex.provider.ts` 挂载与 capabilities 声明（AC-442）；settings/approvals/background/restore/E2E。驱动层仍只原样转发未知协议帧，不把它们归一化成 app 消息形状。
 
+**2026-10-29 第三轮 — fan-in 合并冲突修复与 ratchet 重组。**
+
+- 上一轮遗留的三处未合并路径按语义并集解决并提交（merge goal/GOAL-051）：`scripts/suite-duration-baseline.tsv` 保留双方行（6519 / 6229）；`server/shared/tests/quay-test-script.test.ts` 保留双方注释，两处 pin 按合并树实测 470 个采集文件改为 `known=3 unknown=467` 与 `known=1 unknown=469`；`codex-host-driver.provider.ts` 取 develop/AC-441 的 contract + live-settings 拆分与 turn lease，并重新应用本任务队列语义（忙时 `thread/queue/add`、`thread/queue/changed` 刷新镜像、`turn/started` 绑定队头、正常完成零次 `queue/start`、interrupt 后显式 `queue/start`）。
+- 合并后 driver 超 800 行，按 ratchet 继续拆：`process/*` 后台进程面抽到 `server/modules/providers/list/codex/codex-background-processes.ts`（行为不变），`ensureThread` 移入 `codex-host-driver.contract.ts`；`codex-host-driver.provider.ts` 781 行（< 800）。`ResidentSession` 增加 `queue` 字段（contract），队列的 turn 编排 `enqueueAndWait` / `takeForTurnStarted` / `settleBoundTurn` / `startNextAfterInterrupt` 落在 `codex-resident-queue.ts`。Touches 相应增补上述两个文件。
+- 合并 develop 无冲突；develop 侧只改了 `src/` 与 tasks，未触及 server。
+- 本轮实测（合并后树上）：queue criterion exit **0**（`tests 8 / pass 8 / fail 0`）；`persistent` + `background-leases` + `settings` 19/19；`app-server-protocol` + `resident-lifecycle` + `lifecycle-mode` 25/25；`architecture-ratchet` + `quay-test-script` 28/28（含 781 行 reading 与 470 文件 pin）；`npm run typecheck`（三个 tsc 项目）exit **0**；anti-drift：`ANTI-DRIFT OK`（以 goal/GOAL-051 为基线，所有实际文件都在 Touches 内；本轮新增的两个模块只出现在合并提交里，`git log --name-only` 不列 merge 的 diff，故读数不含它们，但它们已按诚实范围登记进 Touches）。
+- AC12 如实读数：合并 goal/GOAL-051 后 `git diff --name-only develop...HEAD` 会列出兄弟任务已在 goal 分支、尚未 fan-in 进 develop 的文件（含 `codex.provider.ts`、`codex-app-server.connection.ts`、`codex-live-settings.ts` 等 AC-441/442 提交）；这不是本任务的改动。本任务自身提交（`3de082d17`、`7c8fb662a` 及本轮合并提交中本任务一侧）的代码增量只在 Touches 内。
+
 - 该轴仍暗,理由:本任务交付 driver 内队列状态机与其 hermetic 判据，不产生架构图 L_D/L_G 读数，可测的只有 criterion/typecheck/anti-drift 退出码。
 
 ## Touches
 
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/list/codex/codex-resident-queue.ts (new)
+- server/modules/providers/list/codex/codex-host-driver.contract.ts
+- server/modules/providers/list/codex/codex-background-processes.ts (new)
 - server/modules/providers/tests/codex-host-driver-queue.test.ts (new)
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
@@ -213,15 +223,28 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 
 ## Blocker
 
-**2026-10-29T14:19:49.502Z — worker 未落地（exited-not-landed）**
+**2026-10-29T15:12:59.310Z — worker 未落地（exited-not-landed）**
 
 - 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
-CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
-Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
-CONFLICT (content): Merge conflict in server/modules/providers/list/codex/codex-host-driver.provider.ts
 Auto-merging server/shared/tests/quay-test-script.test.ts
 CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
-Auto-merging tasks/gap-ac441-codex-resident-host-lifecycle.md
+Auto-merging tasks/gap-ac442-codex-resident-capabilities.md
+CONFLICT (content): Merge conflict in tasks/gap-ac442-codex-resident-capabilities.md
 Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：a81e0e86-0318-4f17-b9cc-89a956693c2f
+- session_id：30786939-18cb-4081-af7b-f1402677d292
+
+## Needs-Human
+
+**执行 2026-10-29T15:13:00.008Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Auto-merging tasks/gap-ac442-codex-resident-capabilities.md
+CONFLICT (content): Merge conflict in tasks/gap-ac442-codex-resident-capabilities.md
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：30786939-18cb-4081-af7b-f1402677d292
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac436-codex-resident-queue-busy-input-wk-prod-anchor.log

@@ -769,6 +769,7 @@
     "deviceMobile": "手机",
     "deviceDesktop": "桌面",
     "modeSessions": "会话",
+    "modeSessionsReturnTo": "会话 · 返回会话 {{id}}",
     "modeCockpit": "驾驶舱",
     "modeSwitchLabel": "在会话与驾驶舱之间切换",
     "attentionBadge": "{{n}} 个项目事项需要你",

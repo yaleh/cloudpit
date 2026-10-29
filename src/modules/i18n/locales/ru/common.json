@@ -739,6 +739,7 @@
     "deviceMobile": "Телефон",
     "deviceDesktop": "Компьютер",
     "modeSessions": "Сеансы",
+    "modeSessionsReturnTo": "Сеансы · вернуться к сеансу {{id}}",
     "modeCockpit": "Кокпит",
     "modeSwitchLabel": "Переключение между сеансами и кокпитом",
     "attentionBadge": "{{n}} задач проекта ждут вас",
