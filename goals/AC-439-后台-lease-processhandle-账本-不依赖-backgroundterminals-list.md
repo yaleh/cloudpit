@@ -1,7 +1,7 @@
 ---
 id: AC-439
 title: 后台 lease：processHandle 账本，不依赖 backgroundTerminals/list
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-10-29T11:34:46.719Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
