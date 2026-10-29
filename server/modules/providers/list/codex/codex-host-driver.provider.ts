@@ -1,10 +1,7 @@
 import { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import {
-  createCodexBackgroundLeaseLedger,
-  type CodexBackgroundLease,
-  type CodexBackgroundLeaseLedger,
-} from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
+import type { CodexBackgroundLease } from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
+import { CodexBackgroundProcesses } from '@/modules/providers/list/codex/codex-background-processes.js';
 import {
   createCodexApprovalBroker,
   type CodexApprovalBroker,
@@ -12,12 +9,10 @@ import {
   type CodexResidentSessionReading,
 } from '@/modules/providers/list/codex/codex-approval-broker.js';
 import {
-  backgroundSpawnParams,
+  ensureThread,
   normalizeTurnStatus,
-  readThreadId,
   readTurnId,
   threadDefaultsFromLaunchOptions,
-  threadParams,
   turnParams,
   type CodexBackgroundProcessSpec,
   type CodexHostDriverOptions,
@@ -35,10 +30,13 @@ import {
   type CodexTurnSettingsPatch,
   type HostReconfigureOutcome,
 } from '@/modules/providers/list/codex/codex-live-settings.js';
+import { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
   HostCloseReason,
+  HostPendingQueuedInputs,
+  HostQueuedInputCancelResult,
   HostReconfigurePatch,
   HostResidentLaunch,
   HostResidentStartResult,
@@ -48,7 +46,7 @@ import type {
   ProviderRuntimeWriter,
   SessionBinding,
 } from '@/shared/types.js';
-import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
+import { AppError, isRecord } from '@/shared/utils.js';
 
 /** How long `reconfigure` waits for its `thread/settings/updated` before deferring. */
 const DEFAULT_SETTINGS_NOTIFICATION_TIMEOUT_MS = 5_000;
@@ -61,10 +59,12 @@ const DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS = 5_000;
  * app session, with thread identity, pid and an in-flight turn surviving across
  * turns.
  *
- * Owns process lifetime, the thread's turn state and the background leases;
- * live settings live in `codex-live-settings.ts` and every approval concern in
- * `codex-approval-broker.ts`. Mounting on `CodexProvider` is AC-441; declaring
- * `resident` in the capability registry is AC-442.
+ * Owns process lifetime, the thread's turn state, the busy-input queue and the
+ * background leases; live settings live in `codex-live-settings.ts`, every
+ * approval concern in `codex-approval-broker.ts`, the queue in
+ * `codex-resident-queue.ts` and the `process/*` verbs in
+ * `codex-background-processes.ts`. Mounting on `CodexProvider` is AC-441;
+ * declaring `resident` in the capability registry is AC-442.
  *
  * Consumed by the criteria in `tests/`, which inject an in-memory transport
  * through `createConnection`.
@@ -99,10 +99,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly sessions = new Map<string, ResidentSession>();
   /** Launches carried from `startResidentSession` to the `bind` it causes. */
   private readonly pendingLaunches = new Map<string, PendingResidentLaunch>();
-  /** `processHandle` holds, one map per app session (state owned by this driver). */
-  private readonly backgroundLeases: CodexBackgroundLeaseLedger;
-  /** Serial for a caller that leaves `processHandle` out; never reused by this instance. */
-  private backgroundHandleSerial = 0;
+  /** The `process/*` verbs and the `background-task` leases they report. */
+  private readonly background: CodexBackgroundProcesses;
   /** Serial for the `turn` lease's `runId`; unique per turn of this instance. */
   private turnSerial = 0;
   /** The last reason the manager relayed to `closeHost`, publicly read-only. */
@@ -139,7 +137,15 @@ export class CodexHostDriver implements IProviderHostDriver {
       notificationTimeoutMs: this.settingsNotificationTimeoutMs,
       capabilityProbeTimeoutMs: this.capabilityProbeTimeoutMs,
     });
-    this.backgroundLeases = createCodexBackgroundLeaseLedger({ now: options.now });
+    this.background = new CodexBackgroundProcesses({
+      connection: () => this.requireConnection(),
+      requireSession: (appSessionId) => {
+        this.requireSession(appSessionId);
+      },
+      boundSessions: () => this.sessions.keys(),
+      sink: () => this.sink,
+      now: options.now,
+    });
   }
 
   /**
@@ -195,6 +201,12 @@ export class CodexHostDriver implements IProviderHostDriver {
       pending: null,
       threadDefaults: launch?.threadDefaults ?? {},
       turnLeaseRunId: null,
+      queue: new CodexResidentQueue({
+        connection: () => this.connection,
+        threadId: () => this.sessions.get(binding.appSessionId)?.threadId ?? null,
+        closed: () => this.closed,
+        activity: () => this.sink?.activity(binding.appSessionId),
+      }),
     });
   }
 
@@ -203,7 +215,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     void host;
     const connection = this.requireConnection();
     const session = this.requireSession(appSessionId);
-    const threadId = await this.ensureThread(connection, session);
+    const threadId = await ensureThread(connection, session, this.threadDefaults);
     const pending = this.beginTurn(session, threadId);
     // Reported before `turn/start` so the manager derives `busy` from the same
     // frame that starts the work; a lease added later could miss that moment.
@@ -329,12 +341,17 @@ export class CodexHostDriver implements IProviderHostDriver {
     void host;
     this.lastUnbindReasonValue = reason;
     const session = this.sessions.get(appSessionId);
-    if (session?.pending) {
-      this.settleTurn(session, 'failed');
+    if (session) {
+      if (session.pending) {
+        this.settleTurn(session, 'failed');
+      }
+      // A queued run has no reader once the binding is gone; end it here rather
+      // than leave a promise nobody can observe settling.
+      session.queue.settleAll();
     }
     // A detached binding has no reader for its holds; drop them before the
     // session leaves `sessions` so closeHost's sweep cannot miss them.
-    this.releaseSessionLeases(appSessionId);
+    this.background.releaseSession(appSessionId);
     // Requests parked on this binding are answered before its writer and thread
     // mapping are dropped, or `settleSession` could no longer name them.
     await this.approvals.detachSession(appSessionId);
@@ -354,7 +371,8 @@ export class CodexHostDriver implements IProviderHostDriver {
       if (session.pending) {
         this.settleTurn(session, 'failed');
       }
-      this.releaseSessionLeases(session.appSessionId);
+      session.queue.settleAll();
+      this.background.releaseSession(session.appSessionId);
     }
     // Answer while the connection still has a socket; after `close()` the answer
     // is dropped by design and the request is no longer a hang.
@@ -436,16 +454,23 @@ export class CodexHostDriver implements IProviderHostDriver {
       });
     }
     const session = this.requireSession(appSessionId);
+    const connection = this.requireConnection();
     this.approvals.recordWriter(appSessionId, writer);
-    const unsubscribe = this.connection?.onNotification((method, params) => {
+    const unsubscribe = connection.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
         writer.send({ method, params });
       }
     });
     try {
+      // Busy input is queued, never refused: the run stays pending until the
+      // submission it wrote reaches a terminal turn (or is withdrawn).
+      if (session.pending !== null || session.turnStatus === 'inProgress') {
+        await session.queue.enqueueAndWait(connection, turn.command);
+        return this.readSession(appSessionId);
+      }
       await this.submit(host, appSessionId, turn);
     } finally {
-      unsubscribe?.();
+      unsubscribe();
     }
     return this.readSession(appSessionId);
   }
@@ -453,6 +478,29 @@ export class CodexHostDriver implements IProviderHostDriver {
   /** The session reading the criterion prints; also useful to a manager-side caller. */
   readSession(appSessionId: string): CodexResidentSessionReading {
     return this.approvals.readingFor(this.requireSession(appSessionId), appSessionId);
+  }
+
+  /** The app uuid of the most recent submission still in the server's queue, read off the mirror. */
+  queuedInputUuid(appSessionId: string): string | null {
+    return this.sessions.get(appSessionId)?.queue.latestInputUuid() ?? null;
+  }
+
+  /** How much the app-server's own queue still holds, from the `thread/queue/list` mirror. */
+  pendingQueuedInputs(appSessionId: string): HostPendingQueuedInputs | null {
+    return this.sessions.get(appSessionId)?.queue.pending() ?? null;
+  }
+
+  /**
+   * Withdraws one queued submission by the app uuid it was queued with. The
+   * verdict (`withdrawn` / `already-started` / `unknown`) is computed from the
+   * `thread/queue/list` truth, never from a local counter.
+   */
+  async cancelQueuedInput(
+    appSessionId: string,
+    messageUuid: string,
+  ): Promise<HostQueuedInputCancelResult> {
+    const session = this.sessions.get(appSessionId);
+    return session ? session.queue.cancel(messageUuid) : 'unknown';
   }
 
   /** The `action_required` events this driver emitted for the session, in order. */
@@ -491,13 +539,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     appSessionId: string,
     spec: CodexBackgroundProcessSpec,
   ): Promise<CodexBackgroundLease> {
-    this.requireSession(appSessionId);
-    const connection = this.requireConnection();
-    const processHandle = spec.processHandle ?? `bg-${++this.backgroundHandleSerial}`;
-    await connection.request('process/spawn', backgroundSpawnParams(processHandle, spec));
-    const lease = this.backgroundLeases.add(appSessionId, processHandle);
-    this.reportLeaseAdded(appSessionId, lease);
-    return lease;
+    return this.background.spawn(appSessionId, spec);
   }
 
   /**
@@ -507,48 +549,12 @@ export class CodexHostDriver implements IProviderHostDriver {
    * notification releases the hold, so the lease is kept here.
    */
   async killBackgroundProcess(appSessionId: string, processHandle: string): Promise<void> {
-    this.requireSession(appSessionId);
-    const connection = this.requireConnection();
-    await connection.request('process/kill', { processHandle });
+    return this.background.kill(appSessionId, processHandle);
   }
 
   /** The session's `background-task` holds, ordered by handle. */
   readBackgroundLeases(appSessionId: string): CodexBackgroundLease[] {
-    return this.backgroundLeases.list(appSessionId);
-  }
-
-  /**
-   * `thread/start` or `thread/resume` for this session's next turn. A known
-   * thread is resumed; the zero-turn thread (no rollout, so the server answers
-   * `no rollout found`) falls back to a fresh one, any other failure propagates.
-   */
-  private async ensureThread(connection: CodexAppServerConnection, session: ResidentSession): Promise<string> {
-    if (session.threadId) {
-      try {
-        const resumed = await connection.request('thread/resume', { threadId: session.threadId });
-        const threadId = readThreadId(resumed) ?? session.threadId;
-        session.threadId = threadId;
-        session.lastResumeError = null;
-        return threadId;
-      } catch (error) {
-        const message = errorMessage(error);
-        session.lastResumeError = message;
-        if (!message.includes('no rollout found')) {
-          throw error;
-        }
-        // Fall through: a zero-turn thread has no rollout to resume.
-      }
-    }
-    const started = await connection.request('thread/start', threadParams(this.threadDefaults, session.threadDefaults));
-    const threadId = readThreadId(started);
-    if (!threadId) {
-      throw new AppError('Codex app-server returned a thread without an id.', {
-        code: 'CODEX_APP_SERVER_PROTOCOL',
-        statusCode: 502,
-      });
-    }
-    session.threadId = threadId;
-    return threadId;
+    return this.background.list(appSessionId);
   }
 
   /** Registers the waiter before `turn/start`, so an early notification cannot be missed. */
@@ -566,7 +572,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     // Process frames carry `processHandle`, never `threadId`, so this dispatch
     // has to run before the thread gate below or the exit would be dropped.
     if (method === 'process/exited') {
-      this.handleProcessExited(params);
+      this.background.handleExited(params);
       return;
     }
     // The live-settings confirmation carries `threadId` but is not a turn frame.
@@ -581,6 +587,12 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (!session) {
       return;
     }
+    // The queue is the process's; this notification is its own account of a
+    // change, so refresh the mirror (bursts coalesce into one serialized read).
+    if (method === 'thread/queue/changed') {
+      void session.queue.requestRefresh();
+      return;
+    }
     if (this.approvals.observeNotification(session.appSessionId, method, params)) {
       return;
     }
@@ -589,6 +601,16 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (method === 'turn/started') {
       session.turnStatus = 'inProgress';
       session.activeTurnId = turnId ?? session.activeTurnId;
+      if (!session.pending && turnId) {
+        // A turn nobody dispatched directly: after a normal completion the
+        // app-server drains the queue by itself (E2), and after an interrupt it
+        // answers our explicit `thread/queue/start` (E3). Either way the FIFO
+        // head is what it is running.
+        this.bindQueuedTurn(session, turnId);
+      } else if (session.pending && !session.pending.turnId && turnId) {
+        // A direct `turn/start` whose reply has not landed yet: bind the id.
+        session.pending.turnId = turnId;
+      }
       this.sink?.activity(session.appSessionId);
       return;
     }
@@ -600,11 +622,30 @@ export class CodexHostDriver implements IProviderHostDriver {
           : normalizeTurnStatus(typeof turn.status === 'string' ? turn.status : 'completed');
       this.settleTurn(session, status, turnId);
       this.sink?.activity(session.appSessionId);
+      // A normal completion drains the queue by itself; an interrupt does not
+      // (E2 vs E3 on 0.153.4), so only the interrupted path pushes the next one.
+      if (status === 'interrupted') {
+        session.queue.startNextAfterInterrupt();
+      }
       // A terminal turn can arrive while an approval is parked (the server
       // failed or interrupted the turn itself); those requests must not
       // outlive it.
       void this.approvals.settleSession(session.appSessionId);
     }
+  }
+
+  /** Binds the queue's FIFO head to a `turn/started` nobody dispatched. */
+  private bindQueuedTurn(session: ResidentSession, turnId: string): void {
+    const entry = session.queue.takeForTurnStarted();
+    if (!entry) {
+      return;
+    }
+    session.pending = {
+      threadId: session.threadId ?? '',
+      turnId,
+      promise: entry.promise,
+      resolve: entry.resolve,
+    };
   }
 
   private settleTurn(session: ResidentSession, status: CodexTurnStatus, turnId?: string | null): void {
@@ -625,6 +666,8 @@ export class CodexHostDriver implements IProviderHostDriver {
     }
     session.activeTurnId = pending.turnId ?? session.activeTurnId;
     session.pending = null;
+    // The bound entry leaves the queue only once its turn is terminal.
+    session.queue.settleBoundTurn();
     pending.resolve();
   }
 
@@ -730,71 +773,14 @@ export class CodexHostDriver implements IProviderHostDriver {
       if (session.pending) {
         this.settleTurn(session, 'failed');
       }
+      session.queue.settleAll();
       // The process is gone, so every hold it represented is over. Report the
       // removal but never re-add a survivor: there are none.
-      this.releaseSessionLeases(session.appSessionId);
+      this.background.releaseSession(session.appSessionId);
     }
     const hostId = this.host?.hostId;
     if (hostId) {
       this.sink?.exited({ hostId, detail: 'error' });
     }
-  }
-
-  /**
-   * One `process/exited`: drop exactly that handle, then re-report the session's
-   * remaining holds.
-   *
-   * The manager drops a lease *by kind*, so the only way to remove one handle
-   * without losing its siblings is: remove the kind, then re-add every survivor
-   * with its original `since` in the same synchronous turn.
-   */
-  private handleProcessExited(params: unknown): void {
-    if (!isRecord(params) || typeof params.processHandle !== 'string') {
-      return;
-    }
-    const appSessionId = this.sessionForProcess(params.processHandle);
-    if (!appSessionId) {
-      return;
-    }
-    const { released, remaining } = this.backgroundLeases.release(appSessionId, params.processHandle);
-    if (!released) {
-      // An exit for a handle this session never held: say nothing, because
-      // `leaseRemoved` would clear a sibling process's live lease.
-      return;
-    }
-    this.sink?.leaseRemoved(appSessionId, 'background-task');
-    for (const lease of remaining) {
-      this.reportLeaseAdded(appSessionId, lease);
-    }
-  }
-
-  /** Reports one `background-task` hold, carrying the ledger's `since` verbatim. */
-  private reportLeaseAdded(appSessionId: string, lease: CodexBackgroundLease): void {
-    this.sink?.leaseAdded(appSessionId, {
-      kind: 'background-task',
-      id: lease.processHandle,
-      since: lease.since,
-    });
-  }
-
-  /** Drops one session's holds, reporting the kind once when anything was held. */
-  private releaseSessionLeases(appSessionId: string): void {
-    const released = this.backgroundLeases.releaseAll(appSessionId);
-    if (released.length > 0) {
-      this.sink?.leaseRemoved(appSessionId, 'background-task');
-    }
-  }
-
-  /** Which bound session holds this process handle, if any. */
-  private sessionForProcess(processHandle: string): string | null {
-    for (const appSessionId of this.sessions.keys()) {
-      const held = this.backgroundLeases
-        .list(appSessionId)
-        .some((lease) => lease.processHandle === processHandle);
-      if (held) {
-        return appSessionId;
-      }
-    }
-    return null;
   }
 }

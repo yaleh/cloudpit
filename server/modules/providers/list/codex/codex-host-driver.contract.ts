@@ -15,9 +15,10 @@ import type {
   CodexAppServerConnection,
   CodexAppServerLaunch,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { AnyRecord, HostTurnInput } from '@/shared/types.js';
-import { isRecord } from '@/shared/utils.js';
+import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
 
 /** The terminal and in-flight states one resident turn can be in. */
 export type CodexTurnStatus = 'inProgress' | 'completed' | 'failed' | 'interrupted';
@@ -111,6 +112,8 @@ export type ResidentSession = {
   threadDefaults: CodexThreadDefaults;
   /** The `turn` lease this session currently holds, or null when no turn is in flight. */
   turnLeaseRunId: string | null;
+  /** Submissions accepted by `thread/queue/add`, the `thread/queue/list` mirror and the refresh loop. */
+  queue: CodexResidentQueue;
 };
 
 /** The launch-scoped facts `bind` has to carry from the on-demand start. */
@@ -207,4 +210,44 @@ export function turnParams(threadId: string, turn: HostTurnInput): Record<string
     input: [{ type: 'text', text: turn.command }],
     ...(typeof effort === 'string' ? { effort } : {}),
   };
+}
+
+/**
+ * `thread/resume` for a known thread, or `thread/start` for a new one.
+ *
+ * The one recoverable resume failure is the zero-turn thread: it has an id but
+ * no rollout, so the server answers `no rollout found`; the driver then starts
+ * a fresh thread and replaces the id. Any other failure is propagated.
+ */
+export async function ensureThread(
+  connection: CodexAppServerConnection,
+  session: ResidentSession,
+  driverDefaults: CodexThreadDefaults,
+): Promise<string> {
+  if (session.threadId) {
+    try {
+      const resumed = await connection.request('thread/resume', { threadId: session.threadId });
+      const threadId = readThreadId(resumed) ?? session.threadId;
+      session.threadId = threadId;
+      session.lastResumeError = null;
+      return threadId;
+    } catch (error) {
+      const message = errorMessage(error);
+      session.lastResumeError = message;
+      if (!message.includes('no rollout found')) {
+        throw error;
+      }
+      // Fall through: a zero-turn thread has no rollout to resume.
+    }
+  }
+  const started = await connection.request('thread/start', threadParams(driverDefaults, session.threadDefaults));
+  const threadId = readThreadId(started);
+  if (!threadId) {
+    throw new AppError('Codex app-server returned a thread without an id.', {
+      code: 'CODEX_APP_SERVER_PROTOCOL',
+      statusCode: 502,
+    });
+  }
+  session.threadId = threadId;
+  return threadId;
 }
