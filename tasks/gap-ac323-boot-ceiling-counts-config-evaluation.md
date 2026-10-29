@@ -48,13 +48,13 @@ ES module 求值是一段同步执行，timer 只能在求值返回后的第一�
 
 ## AC
 
-- [ ] AC1（复现，修复前）：接入 `QUAY_E2E_CONFIG_EVAL_STALL_MS` 但**尚未**改 boot 原点时，`QUAY_E2E_CONFIG_EVAL_STALL_MS=45000 npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` exit 1；stderr 含 `[e2e] watchdog:`、`stuck at stage "webServer-start"`、`is not listening`，并贴 `<dataDir>/watchdog-state.json` 的 `"fired": true` / `"stage": "webServer-start"` 原文。该读数必须逐字复现本轮 07:24 的签名。
-- [ ] AC2（修复后同一条命令）：同一条 `QUAY_E2E_CONFIG_EVAL_STALL_MS=45000 npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` exit 0，贴 `N passed`、wall clock、`[e2e]` 输出（两个 webServer 已 boot）与 `watchdog-state.json`（未 fire，或 `detail` 显示 boot 完成时刻 > 45000ms）；证明 boot 窗口从 config 求值末尾起算。
-- [ ] AC3（负向控制：原点）：把 boot deadline 临时改回 `runStartedAt + BOOT_CEILING_MS`（其余修复保留）⇒ AC2 的命令重新 exit 1 且 stage 为 `webServer-start`；还原后复绿。贴两次原始输出。
-- [ ] AC4（真 boot 停滞仍被捕获）：临时把 server webServer 的 command 换成只 bind、不回复 HTTP 的进程（端口用 `SERVER_PORT`），不注入 config stall ⇒ 运行仍在 `BOOT_CEILING_MS` 附近 exit 1，消息含 `accepts TCP but never answers`（或至少 `stage "webServer-start"`）；还原。
-- [ ] AC5（单元）：`node --test scripts/e2e-run-ceilings.test.mjs` exit 0；断言 boot deadline 以 config 求值末尾为原点、run ceiling 仍以 `runStartedAt` 为原点、stall knob 缺省 0 且 clamp 到 120000。贴原始输出。
-- [ ] AC6（判据三条命令，工作树）：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` 三条 exit 0；贴每条 exit code、pass 计数与 `/usr/bin/time` wall clock；若串行总墙钟对 `goals/AC-323-*.md` 的 `timeoutMs` 没有 ≥15% 余量，只抬高该 `timeoutMs`，criterion / expect 一字不改。
-- [ ] AC7（隔离性）：`git diff --stat develop HEAD` 恰为 `playwright.config.ts`、`scripts/e2e-run-ceilings.mjs`（new）、`scripts/e2e-run-ceilings.test.mjs`（new）、`tasks/gap-ac323-boot-ceiling-counts-config-evaluation.md`；控制臂与负向控制的临时改动全部还原，`git status --porcelain` 为空；除 AC6 可能只改 `timeoutMs` 外不碰 `goals/`。
+- [x] AC1（复现，修复前）：接入 `QUAY_E2E_CONFIG_EVAL_STALL_MS` 但**尚未**改 boot 原点时，`QUAY_E2E_CONFIG_EVAL_STALL_MS=45000 npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` exit 1；stderr 含 `[e2e] watchdog:`、`stuck at stage "webServer-start"`、`is not listening`，并贴 `<dataDir>/watchdog-state.json` 的 `"fired": true` / `"stage": "webServer-start"` 原文。该读数必须逐字复现本轮 07:24 的签名。
+- [x] AC2（修复后同一条命令）：同一条 `QUAY_E2E_CONFIG_EVAL_STALL_MS=45000 npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` exit 0，贴 `N passed`、wall clock、`[e2e]` 输出（两个 webServer 已 boot）与 `watchdog-state.json`（未 fire，或 `detail` 显示 boot 完成时刻 > 45000ms）；证明 boot 窗口从 config 求值末尾起算。
+- [x] AC3（负向控制：原点）：把 boot deadline 临时改回 `runStartedAt + BOOT_CEILING_MS`（其余修复保留）⇒ AC2 的命令重新 exit 1 且 stage 为 `webServer-start`；还原后复绿。贴两次原始输出。
+- [x] AC4（真 boot 停滞仍被捕获）：临时把 server webServer 的 command 换成只 bind、不回复 HTTP 的进程（端口用 `SERVER_PORT`），不注入 config stall ⇒ 运行仍在 `BOOT_CEILING_MS` 附近 exit 1，消息含 `accepts TCP but never answers`（或至少 `stage "webServer-start"`）；还原。
+- [x] AC5（单元）：`node --test scripts/e2e-run-ceilings.test.mjs` exit 0；断言 boot deadline 以 config 求值末尾为原点、run ceiling 仍以 `runStartedAt` 为原点、stall knob 缺省 0 且 clamp 到 120000。贴原始输出。
+- [x] AC6（判据三条命令，工作树）：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` 三条 exit 0；贴每条 exit code、pass 计数与 `/usr/bin/time` wall clock；若串行总墙钟对 `goals/AC-323-*.md` 的 `timeoutMs` 没有 ≥15% 余量，只抬高该 `timeoutMs`，criterion / expect 一字不改。
+- [x] AC7（隔离性）：`git diff --stat develop HEAD` 恰为 `playwright.config.ts`、`scripts/e2e-run-ceilings.mjs`（new）、`scripts/e2e-run-ceilings.test.mjs`（new）、`tasks/gap-ac323-boot-ceiling-counts-config-evaluation.md`；控制臂与负向控制的临时改动全部还原，`git status --porcelain` 为空；除 AC6 可能只改 `timeoutMs` 外不碰 `goals/`。
 
 ## DoD
 
@@ -62,6 +62,76 @@ ES module 求值是一段同步执行，timer 只能在求值返回后的第一�
 - 合并到 develop 之后，在 develop 树上跑 `quay goal gate AC-323`（非 dry-run、非 `--dry-run`）并贴 `verdict: "pass"` 的 GateEvent 原文；AC-323 台账尾随之翻 pass。（待外部）
 - 贴 AC1 / AC2 / AC3 / AC4 的原始输出配对与 `watchdog-state.json` 前后对照；在 `## Evidence` 里记录失败 run `quay-e2e-5DXxST` 的时间戳分解，作为「为什么上一轮修复没挺住、这一轮为什么能定住」的对照。
 - 未验证项如实写明（例如宿主 load 下 boot 的真实上限），不得把未跑的控制臂写成已跑。
+
+## Evidence
+
+**AC1（修复前，已接入 stall knob、尚未改 boot 原点）**：`QUAY_E2E_CONFIG_EVAL_STALL_MS=45000 npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 1，WALL=46.71s：
+
+```
+[e2e] config-eval-stall: holding config evaluation for 45000ms (QUAY_E2E_CONFIG_EVAL_STALL_MS=45000)
+[e2e] watchdog: this run crossed its own 40000ms boot ceiling at 45890ms and is ending here with exit 1 at 45891ms — stuck at stage "webServer-start": port 15313 (server) is not listening, port 12415 (client) is not listening.
+```
+
+`<dataDir>/watchdog-state.json`（data-dir=`quay-e2e-Q4lqIF`）：
+
+```json
+{
+  "armed": true,
+  "fired": true,
+  "ceilingMs": 40000,
+  "detail": "boot ceiling crossed at 45890ms",
+  "stage": "webServer-start",
+  "stall": "port 15313 (server) is not listening, port 12415 (client) is not listening"
+}
+```
+
+与 07:24 的失败 run 同签名（`quay-e2e-5DXxST`：`detail: "boot ceiling crossed at 56826ms"`，同一 `stage`/`stall` 措辞，仅绝对毫秒与端口不同）。
+
+**AC2（修复后，同一条命令）**：exit 0，`6 passed (30.8s)`，WALL=82.50s：
+
+```
+[e2e] watchdog-armed: config-eval-ms=50806, boot ceiling 40000ms from config-eval end (deadline at 90806ms after run start), then re-armed to 240000ms from the run start
+[e2e] boot: both webServers answered at 55273ms (config-eval-ms=50806), re-armed to 240000ms from the run start
+```
+
+`watchdog-state.json`：`fired: false`，`detail: "boot completed at 55273ms (config-eval-ms=50806), re-armed to 240000ms from the run start"` —— boot 完成时刻 55273ms > 45000ms，且 `config-eval-ms=50806`，证明 boot 窗口从 config 求值末尾起算。
+
+**AC3（负向控制：原点）**：临时把 boot deadline 改回 `runStartedAt + BOOT_CEILING_MS`（其余修复保留）→ 同一条命令 exit 1：
+
+```
+[e2e] watchdog: this run crossed its own 40000ms boot ceiling at 76848ms (config-eval-ms=76847, boot window from 76847ms) and is ending here with exit 1 at 76851ms — stuck at stage "webServer-start": port 33173 (server) is not listening, port 1219 (client) is not listening.
+```
+
+还原后复绿：exit 0，`6 passed (28.4s)`，WALL=87.35s，`[e2e] boot: both webServers answered at 62490ms (config-eval-ms=57906), re-armed to 240000ms from the run start`。
+
+**AC4（真 boot 停滞仍被捕获）**：把 server `webServer` 的 command 换成只 bind、不回复 HTTP 的 `node -e "require('net').createServer(()=>{}).listen(Number(process.env.SERVER_PORT),'127.0.0.1')"`，不注入 config stall。
+
+- 字面运行（`WEB_SERVER_TIMEOUT_MS` 未动）：exit 1，WALL=36.91s，被 Playwright 自己的边界先抓住 —— `Error: Timed out waiting 35000ms from config.webServer.`。这是文件里 `WEB_SERVER_TIMEOUT_MS (35s) < BOOT_CEILING_MS (40s)` 那条次序的设计后果（watchdog 注释明确写了这条 5s 间隔让 Playwright 自己的行来报），不是 watchdog 路径。
+- 为把「watchdog 仍能捕获真停滞」单独读出来，同一 command swap 下把 `WEB_SERVER_TIMEOUT_MS` 临时抬到 50_000（仅此控制臂）→ exit 1，WALL=44.26s，crossed at 41374ms = `config-eval-ms=1374 + 40000`：
+
+```
+[e2e] watchdog: this run crossed its own 40000ms boot ceiling at 41374ms (config-eval-ms=1374, boot window from 1374ms) and is ending here with exit 1 at 43376ms — stuck at stage "webServer-start": port 24605 (server) accepts TCP but never answers an HTTP request — Playwright's pre-spawn availability probe for http://127.0.0.1:24605/health has no deadline, so it cannot return.
+```
+
+`watchdog-state.json`：`fired: true`、`stage: "webServer-start"`、`stall` 含 `accepts TCP but never answers`。两处临时改动已全部还原（`git status --porcelain` 为空）。
+
+**AC5（单元）**：`node --test scripts/e2e-run-ceilings.test.mjs` → `tests 5 / pass 5 / fail 0`（断言 boot deadline 以 config 求值末尾为原点、run ceiling 以 `runStartedAt` 为原点、stall knob 缺省 0 且 clamp 到 120000）；`npx tsc --noEmit -p scripts/tsconfig.json` exit 0，`npx tsc --noEmit -p tsconfig.json` exit 0，`npx oxlint playwright.config.ts scripts/e2e-run-ceilings.mjs scripts/e2e-run-ceilings.test.mjs` exit 0。
+
+**AC6（判据三条命令，工作树）**：
+
+1. `npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit 0，`19 passed (3.0m)`，`/usr/bin/time` WALL=181.90s
+2. `npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit 0，`Test Files 22 passed (22)` / `Tests 218 passed (218)`，WALL=5.99s
+3. `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 0，`6 passed (27.4s)`，WALL=31.37s；`watchdog-state.json` `fired:false`，`detail: "boot completed at 6368ms (config-eval-ms=3354), re-armed to 240000ms from the run start"`
+
+串行总墙钟 181.90 + 5.99 + 31.37 = 219.26s，对 `goals/AC-323-*.md` 的 `timeoutMs: 480000` 余量约 54%（≥15%），故未改 `goals/`。
+
+**AC7（隔离性）**：`git diff --stat develop HEAD` 恰为 `playwright.config.ts`、`scripts/e2e-run-ceilings.mjs`（new）、`scripts/e2e-run-ceilings.test.mjs`（new）、`tasks/gap-ac323-boot-ceiling-counts-config-evaluation.md`（本 tick）；`git status --porcelain` 为空；anti-drift-touches-check exit 0（`3 actual file(s), all within declared Touches`，tick 后为 4 个已声明路径）。
+
+**失败 run `quay-e2e-5DXxST` 的时间戳分解（为什么上一轮修复没挺住、这一轮为什么能定住）**：`tmp/.quay-e2e-assembly-ready` @15:23:27.72（`runStartedAt` ≈ 15:23:24.44）；`vite-cache/deps` 最后一批文件 @15:23:38.97；`watchdog-state.json` @15:24:21.27 = `runStartedAt + 56826ms`。即 config 求值到约 15:24:21 才结束，旧 boot deadline（`runStartedAt + 40000` = 15:24:04.44）在求值期间早已过去；事件循环一空出来，0 延迟 timer 立即触发，而 Playwright 此时尚未 spawn 任何 webServer，两端口 closed ⇒ 被写成 `webServer-start` 停滞。上一轮的修复分别落在 arming 首帧、断线草稿、FakeAudioContext、stderr 归因、CMD3 启动无界、`timeoutMs` 预算、裸 reload、交付行读数，没有一条动过 boot ceiling 的计时原点；这一轮把 arming 移到模块求值末尾（最后一条语句），boot deadline 改为 `configEvalCompletedAt + BOOT_CEILING_MS`，所以 config 求值再慢也不消耗 boot 窗口（AC2：config-eval-ms=50806 时 boot 仍在 55273ms 完成）。
+
+**未验证项（如实写明）**：宿主 load 下真实 boot 的上限没有重测（本机当前 load 低）；AC4 的 watchdog 路径是在把 `WEB_SERVER_TIMEOUT_MS` 临时抬到 50s 的隔离下读到的 —— 在 35s 的出厂次序下，Playwright 自己的边界按设计先报（字面运行已如实记录），该控制臂没有在出厂次序下复现 watchdog 消息。
+
+该轴仍暗,理由:本任务只改 e2e 看门狗的计时原点并新增 scripts/ 下的计时工具，未改 src/ 或 server/ 的模块与依赖边,L_D/L_G 无可读增量
 
 ## Touches
 
