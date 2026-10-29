@@ -12,6 +12,14 @@ import { reclaimDataDirs } from './scripts/e2e-data-dir-retention.mjs';
 import { resolveClientRoot } from './scripts/e2e-client-root.mjs';
 import { webServerStderrLogs, withStderrLog } from './scripts/e2e-web-server-stderr.mjs';
 import {
+  CONFIG_EVAL_STALL_ENV,
+  bootDeadlineFrom,
+  readConfigEvalStallMs,
+  runDeadlineFrom,
+  stallConfigEvaluation,
+  timerDelay,
+} from './scripts/e2e-run-ceilings.mjs';
+import {
   ASSEMBLY_TEMP_ROOT_ENV,
   PROBE_FILE_NAME,
   assemblyTempCandidates,
@@ -2818,6 +2826,25 @@ if (isDataDirOwner) {
   seedMobileLayoutWorkspace();
   seedWorkSegmentTranscript();
   seedForkAnchorTranscript();
+}
+
+/**
+ * The CONTROL ARM that makes "config evaluation is slower than the boot ceiling" reproducible on demand.
+ *
+ * The defect this task closes needed a host load spike to appear: config evaluation reached 56.8s on
+ * 2026-10-29 (gate event `9d08ccd0-c886-4e58-b750-ea2f2eeb7ede`) against ~0.6s quiet, so waiting for the
+ * next spike is not a criterion anyone can run. `QUAY_E2E_CONFIG_EVAL_STALL_MS` parks the thread here, after
+ * every seed and before the client-root copy and server bundle below — i.e. inside the same synchronous
+ * block whose length broke the old boot origin.
+ *
+ * It is SYNCHRONOUS (`Atomics.wait`, see `scripts/e2e-run-ceilings.mjs`): an awaited sleep would hand the
+ * event loop back and let an armed timer fire mid-stall, producing the red for a different reason than the
+ * one under test. Owner-only, like every other seeding step here: workers re-evaluate this file with
+ * `QUAY_E2E_DATA_DIR_OWNER=false` and must not pay the stall again. Default 0, so an ordinary run is byte-
+ * for-byte unchanged; `QUAY_E2E_CLIENT_ROOT=off` is the other control arm and sits beside it.
+ */
+if (isDataDirOwner) {
+  stallConfigEvaluation(readConfigEvalStallMs(process.env), (line) => console.log(line));
 }
 
 /**
