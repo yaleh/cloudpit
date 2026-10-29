@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-presentational-semantics
 title: 按展示语义拆分 CockpitCard 的纯呈现组件
-status: ready
+status: done
 labels:
   - gap
   - cockpit
