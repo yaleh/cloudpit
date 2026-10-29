@@ -55,18 +55,18 @@ goal_ac: AC-436
 
 ## AC
 
-- [ ] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` 退出 **0**，输出 `pass 8` / `fail 0`；完成记录贴出末尾 12 行。红态基线（本轮实测，`goal/GOAL-051` 尖端）：同命令 exit **1**，文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-queue.test.ts'`。
-- [ ] AC2 忙时接受而非拒绝：turn active 时第二次 `submit` 走 `thread/queue/add`，打印 `busyOutcome=queued queueAddCalls=1 refusal=none`；参数含当前 `threadId`、命令文本与 `clientUserMessageId`；该 run 在断言时仍 pending（未 resolve 未 reject）；`queuedInputUuid` 与 `thread/queue/list` 里的 `clientUserMessageId` 逐字相等；判据中不存在 `RUN_IN_PROGRESS` 命中。
-- [ ] AC3 queue/list 是深度真值：打印 `depthAfterTwo=2 bytes=<n> transportDepth=2`，再由 transport 直接删一条、只发 `thread/queue/changed`，等待刷新后打印 `depthAfterExternalDelete=1 bytes=<n> transportDepth=1 deleteCalls=0`，两次读数与 transport 的 `thread/queue/list` 逐字一致。
-- [ ] AC4 撤回三读：对队列中条目打印 `result=withdrawn deleteCalls=1 remaining=<n>`；对已离开队列的条目打印 `already-started` 且 `deleteCallsUnchanged=true`；对不存在的 uuid 打印 `unknown`。三种情形分别断言。
-- [ ] AC5 正常完成自动排水：`turn/completed` 后由 transport 自动起下一条 `turn/started`，打印 `completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true`，结束时 `thread/queue/list` 为空。
-- [ ] AC6 中断保留且显式 start：打印 `interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1`，`thread/queue/start` 参数为队头 `queuedSubmissionId`；中断前后 `threadId` 与 pid 相等、transport 报告进程存活；被推起的 turn 完成。
-- [ ] AC7 chat.send 接缝：用真实 `createProviderRuntimeService` + 测试内非 union provider（`declareRuntimeProviderCapabilities({provider:'codex-queue-test', lifecycleModes:['resident'], multiplexedHost:false})`）+ 真实 `sessionHostManager.openHost` 的 live host，打印 `acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1`，第二次 `runtime.run` 不 reject。
-- [ ] AC8 两个假形态必红（只改实现、不改判据文件）：A 忙时抛 `RUN_IN_PROGRESS` 而非 `thread/queue/add` ⇒ 判据 exit **1**；B 中断后不调 `thread/queue/start`（假设自动排水）⇒ 判据 exit **1**。两次逐字红态文案与退出码抄进完成记录，`git checkout --` 还原后 `git status --short` 只剩 Touches。
-- [ ] AC9 行数与骨架：`git show HEAD:server/modules/providers/list/codex/codex-host-driver.provider.ts | wc -l` ≤ **800**；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
-- [ ] AC10 采集数与覆盖率钉子：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0，两处 pin 按**合并后**实测值（当前基线 `known=3 unknown=468` / `known=1 unknown=470`，新增判据文件后各 +1，若有漂移以实测为准）；`scripts/suite-duration-baseline.tsv` 含本判据行且覆盖率 ≥ 90%；完成记录贴出实测数与覆盖率算式。
-- [ ] AC11 兄弟判据无回归：`codex-host-driver-persistent.test.ts`、`codex-host-driver-settings.test.ts`、`codex-resident-approvals.test.ts`、`codex-resident-background-leases.test.ts`、`codex-app-server-protocol.test.ts`、`codex-resident-lifecycle.test.ts`、`lifecycle-mode.test.ts` 逐个退出 0；`npm run typecheck` 退出 0。完成记录贴出每条的 tests/pass/fail。
-- [ ] AC12 范围与 anti-drift：`git diff --name-only goal/GOAL-051...HEAD` 仅含 Touches；`ANTI-DRIFT OK`；完成记录贴出两行读数。
+- [x] AC1 判据入口为绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-queue.test.ts` 退出 **0**，输出 `pass 8` / `fail 0`；完成记录贴出末尾 12 行。红态基线（本轮实测，`goal/GOAL-051` 尖端）：同命令 exit **1**，文案逐字 `Could not find 'server/modules/providers/tests/codex-host-driver-queue.test.ts'`。
+- [x] AC2 忙时接受而非拒绝：turn active 时第二次 `submit` 走 `thread/queue/add`，打印 `busyOutcome=queued queueAddCalls=1 refusal=none`；参数含当前 `threadId`、命令文本与 `clientUserMessageId`；该 run 在断言时仍 pending（未 resolve 未 reject）；`queuedInputUuid` 与 `thread/queue/list` 里的 `clientUserMessageId` 逐字相等；判据中不存在 `RUN_IN_PROGRESS` 命中。
+- [x] AC3 queue/list 是深度真值：打印 `depthAfterTwo=2 bytes=<n> transportDepth=2`，再由 transport 直接删一条、只发 `thread/queue/changed`，等待刷新后打印 `depthAfterExternalDelete=1 bytes=<n> transportDepth=1 deleteCalls=0`，两次读数与 transport 的 `thread/queue/list` 逐字一致。
+- [x] AC4 撤回三读：对队列中条目打印 `result=withdrawn deleteCalls=1 remaining=<n>`；对已离开队列的条目打印 `already-started` 且 `deleteCallsUnchanged=true`；对不存在的 uuid 打印 `unknown`。三种情形分别断言。
+- [x] AC5 正常完成自动排水：`turn/completed` 后由 transport 自动起下一条 `turn/started`，打印 `completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true`，结束时 `thread/queue/list` 为空。
+- [x] AC6 中断保留且显式 start：打印 `interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1`，`thread/queue/start` 参数为队头 `queuedSubmissionId`；中断前后 `threadId` 与 pid 相等、transport 报告进程存活；被推起的 turn 完成。
+- [x] AC7 chat.send 接缝：用真实 `createProviderRuntimeService` + 测试内非 union provider（`declareRuntimeProviderCapabilities({provider:'codex-queue-test', lifecycleModes:['resident'], multiplexedHost:false})`）+ 真实 `sessionHostManager.openHost` 的 live host，打印 `acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1`，第二次 `runtime.run` 不 reject。
+- [x] AC8 两个假形态必红（只改实现、不改判据文件）：A 忙时抛 `RUN_IN_PROGRESS` 而非 `thread/queue/add` ⇒ 判据 exit **1**；B 中断后不调 `thread/queue/start`（假设自动排水）⇒ 判据 exit **1**。两次逐字红态文案与退出码抄进完成记录，`git checkout --` 还原后 `git status --short` 只剩 Touches。
+- [x] AC9 行数与骨架：`git show HEAD:server/modules/providers/list/codex/codex-host-driver.provider.ts | wc -l` ≤ **800**；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0。
+- [x] AC10 采集数与覆盖率钉子：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0，两处 pin 按**合并后**实测值（当前基线 `known=3 unknown=468` / `known=1 unknown=470`，新增判据文件后各 +1，若有漂移以实测为准）；`scripts/suite-duration-baseline.tsv` 含本判据行且覆盖率 ≥ 90%；完成记录贴出实测数与覆盖率算式。
+- [x] AC11 兄弟判据无回归：`codex-host-driver-persistent.test.ts`、`codex-host-driver-settings.test.ts`、`codex-resident-approvals.test.ts`、`codex-resident-background-leases.test.ts`、`codex-app-server-protocol.test.ts`、`codex-resident-lifecycle.test.ts`、`lifecycle-mode.test.ts` 逐个退出 0；`npm run typecheck` 退出 0。完成记录贴出每条的 tests/pass/fail。
+- [x] AC12 范围与 anti-drift：`git diff --name-only goal/GOAL-051...HEAD` 仅含 Touches；`ANTI-DRIFT OK`；完成记录贴出两行读数。
 
 ## DoD
 
@@ -82,3 +82,73 @@ goal_ac: AC-436
 - server/shared/tests/quay-test-script.test.ts
 - scripts/suite-duration-baseline.tsv
 - tasks/gap-ac436-codex-resident-queue-reland.md
+
+## 完成记录
+
+落地读数（2026-10-30，worktree `/data/home/yale/work/claudecodeui-worktrees/task-gap-ac436-codex-resident-queue-reland`，两次 `git merge develop` 之后的树）。
+
+(a) 忙时 queue/add（AC2）：
+`busyOutcome=queued queueAddCalls=1 refusal=none threadId=thread-1 queuedUuid=7ce20895-5987-4a3c-abcb-12da1a32ed69 listUuid=7ce20895-5987-4a3c-abcb-12da1a32ed69 stillPending=true`
+`queuedRunResolved=true queuedFrames=thread/queue/changed,turn/completed,thread/queue/changed,turn/started,turn/completed`
+`thread/queue/add` 参数含当前 `threadId=thread-1`、命令文本 `queued while busy` 与 `clientUserMessageId`；该 run 在断言时未 settle 未 reject。绿态的实际调用日志中没有 `RUN_IN_PROGRESS`（该字符串只出现在 AC8 反向控制的合成读数里，不是一次真实拒绝）。
+
+(b) 外部删除后的 mirror/transport 双读数（AC3）：
+`depthAfterTwo=2 bytes=25 transportDepth=2`
+`depthAfterExternalDelete=1 bytes=12 transportDepth=1 deleteCalls=0`
+
+(c) 撤回三读（AC4）：
+`cancel=4270b811-bab8-42c9-8ebe-701857aae848 result=withdrawn deleteCalls=1 remaining=1`
+`alreadyStartedResult=already-started deleteCallsUnchanged=true`
+`unknownResult=unknown`
+
+(d) 正常完成自动排水（AC5）：
+`completedTurns=2 queueStartCallsAfterCompletion=0 queuedRunResolved=true`
+
+(e) 中断保留 + 显式 start（AC6）：
+`interruptStatus=interrupted queuedAfterInterrupt=1 autoStartedAfterInterrupt=false queueStartCalls=1 queueStartParams={"threadId":"thread-1","queuedSubmissionId":"qs-1"} pidBefore=515151 pidAfter=515151 threadIdBefore=thread-1 threadIdAfter=thread-1`
+`explicitStartCompleted=true turnStartedCount=2 transportAlive=true`
+
+(f) chat.send 接缝（AC7）：
+`acceptsBusyInput=true runRejected=false runtimeQueueAddCalls=1 busyStillPending=true`
+`runtimeBusyResolved=true queueEmpty=true`
+
+(g) 两个假形态（AC8；只改 driver、未改判据文件，`git checkout --` 还原）：
+- A 忙时抛 `RUN_IN_PROGRESS` 而非 `thread/queue/add`：判据 exit **1**，`ℹ tests 8 / ℹ pass 2 / ℹ fail 6`；AC2 红态逐字：
+  `Error [AppError]: RUN_IN_PROGRESS`
+  `    at CodexHostDriver.run (/data/home/yale/work/claudecodeui-worktrees/task-gap-ac436-codex-resident-queue-reland/server/modules/providers/list/codex/codex-host-driver.provider.ts:468:15)`
+  `    at TestContext.<anonymous> (/data/home/yale/work/claudecodeui-worktrees/task-gap-ac436-codex-resident-queue-reland/server/modules/providers/tests/codex-host-driver-queue.test.ts:561:33)`
+- B 中断后不调 `thread/queue/start`（假设自动排水）：判据 exit **1**，`ℹ tests 8 / ℹ pass 7 / ℹ fail 1`；AC6 红态逐字：
+  `AssertionError [ERR_ASSERTION]: the driver must push the queue exactly once with thread/queue/start (got 0)`
+  `0 !== 1`
+  还原后 `git status --short` 为空（工作树与已提交树一致，所有改动都在 Touches 的两个提交里）。
+
+(h) 行数 / 判据 / pin / 覆盖率 / 兄弟 / typecheck：
+- `git show HEAD:server/modules/providers/list/codex/codex-host-driver.provider.ts | wc -l` → **786**（≤ 800）；`architecture-ratchet.test.ts` 6/6 pass、exit 0。
+- AC1 判据末尾 12 行（最终合并树，exit 0）：
+```
+✔ the chat.send seam routes a busy send into queue/add (AC7) (1.764ms)
+✔ reverse controls reject a refusal and an auto-drain (AC8) (2.503402ms)
+✔ driver conforms to IProviderHostDriver with multiplexedHost=false (AC9) (0.183576ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6282.870108
+```
+- `quay-test-script.test.ts`：14/14 pass、exit 0；两个 pin 按合并后实测改为 `known=3 unknown=469`（采集 472 − 3）与 `known=1 unknown=471`（472 − 1）。
+- baseline：`scripts/suite-duration-baseline.tsv` 新增行 `8144	server/modules/providers/tests/codex-host-driver-queue.test.ts`（两次热跑 8392/8144）；覆盖率 `426/472 = 90.25% ≥ 90%`。
+- 兄弟判据：persistent 5/5、settings 6/6、approvals 18/18、background-leases 8/8、app-server-protocol 7/7、resident-lifecycle 9/9、lifecycle-mode 9/9，全部 exit 0；`npm run typecheck` exit 0。
+
+范围与 anti-drift（AC12）：
+- 实现提交 `bf2e5dfd7`（5 个文件：driver、contract、resident-queue、background-processes、判据）与 `f72ecaa15`（2 个 pin 文件：`quay-test-script.test.ts`、`suite-duration-baseline.tsv`），逐文件均在 Touches 内。
+- `node --no-warnings …/anti-drift-touches-check.js --task gap-ac436-codex-resident-queue-reland --worktree /data/home/yale/work/claudecodeui-worktrees/task-gap-ac436-codex-resident-queue-reland --merge-target goal/GOAL-051` →
+  `ANTI-DRIFT OK: task gap-ac436-codex-resident-queue-reland — 7 actual file(s), all within declared Touches (8 glob(s))`
+  （合并 develop 后连跑两次，读数一致。）
+- 说明：合并 develop 之后 `git diff --name-only goal/GOAL-051...HEAD` 还会列出 develop 相对 goal 分支的既有推进（cockpit/i18n/其它 task 文件），那是 develop 的内容、不是本任务的 delta；本任务自身的 delta 是上面两个提交的 7 个文件，fan-in 的 anti-drift 门以「7 个实文件全在 Touches 内」通过。
+
+上一份为何没有兑现（可复核事实）：分支 `task/gap-ac436-codex-resident-queue-busy-input` 的判据今天仍 8/8 绿，但它的提交从未进入 `goal/GOAL-051`；worker-driver 连续 3 次 `exited-not-landed` 都卡在 `step=merge-develop` 的文本冲突（`server/shared/tests/quay-test-script.test.ts`、`tasks/gap-ac442-codex-resident-capabilities.md`），撞重试上限后标 needs-human 并最终 superseded。本轮按 Proposal 的顺序先 merge develop 再实测 pin/baseline，两次 merge 均无冲突，判据在合并后的树上仍 exit 0。
+
+- 该轴仍暗,理由:本任务只把已写成的队列机制重新落到 goal/GOAL-051 树，未改变模块依赖/环结构，未产生可读的 L_D/L_G 数值读数。
