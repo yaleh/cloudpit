@@ -169,3 +169,9 @@ goal_ac: AC-442
 - 未落地原因：step=suite: not ok - server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts:   AssertionError [ERR_ASSERTION]: the false form must flip exactly one field assignment in provider-capabilities.service.ts, found 2 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts,server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：9f7e2751-6874-4237-ae90-509b338c8474
+
+**2026-10-29T14:34:51.867Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=doc-face-done-sync: propagateDocBranchToDevelop failed (doc→develop ff-only ∧ semantic fallback both failed)
+- run_id：wk-prod-anchor
+- session_id：9d1f1c56-ca18-48de-acc4-79e3fb9b371d

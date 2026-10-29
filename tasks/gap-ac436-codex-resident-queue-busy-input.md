@@ -213,8 +213,15 @@ depthAfterTwo=2 bytes=25 transportDepth=2
 
 ## Blocker
 
-**2026-10-29T13:16:47.306Z — worker 未落地（exited-not-landed）**
+**2026-10-29T14:19:49.502Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→1100 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-051 baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
+Auto-merging server/modules/providers/list/codex/codex-host-driver.provider.ts
+CONFLICT (content): Merge conflict in server/modules/providers/list/codex/codex-host-driver.provider.ts
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Auto-merging tasks/gap-ac441-codex-resident-host-lifecycle.md
+Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：37c1d44c-c60c-4a87-be29-4f43e3df668c
+- session_id：a81e0e86-0318-4f17-b9cc-89a956693c2f
