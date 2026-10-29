@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-ask-content-anchored-by-askid
 title: 提问卡的内容按 askId 锚定：摘要按 askId 存、投影按 contentRef 取、摘要缺失时用原文兜底并禁止空卡可确认
-status: ready
+status: done
 labels:
   - gap
   - cockpit
