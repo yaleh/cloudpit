@@ -769,6 +769,7 @@
     "deviceMobile": "スマートフォン",
     "deviceDesktop": "デスクトップ",
     "modeSessions": "セッション",
+    "modeSessionsReturnTo": "セッション · セッション {{id}} に戻る",
     "modeCockpit": "コックピット",
     "modeSwitchLabel": "セッションとコックピットを切り替える",
     "attentionBadge": "{{n}} 件のプロジェクト項目があなたを待っています",

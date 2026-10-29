@@ -15,12 +15,17 @@ export {
   COCKPIT_PATH,
   cockpitViewPath,
   cockpitViewUri,
+  enterCockpit,
   formatCockpitView,
   parseCockpitView,
   readCockpitReturnPath,
   rememberCockpitReturnPath,
 } from '@/modules/cockpit/contract/viewAddress';
-export type { CockpitView } from '@/modules/cockpit/contract/viewAddress';
+export type {
+  CockpitEntryLocation,
+  CockpitEntryOptions,
+  CockpitView,
+} from '@/modules/cockpit/contract/viewAddress';
 export {
   formatArchitectureUri,
   formatInitiativeUri,

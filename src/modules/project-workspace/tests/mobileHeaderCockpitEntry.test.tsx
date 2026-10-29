@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { cleanup, fireEvent, render, act } from '@testing-library/react';
 import i18next from 'i18next';
+import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
 import { initReactI18next } from 'react-i18next';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -25,6 +26,7 @@ import {
 } from '@/modules/cockpit';
 import type { CockpitColumnBinding } from '@/modules/cockpit';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
+import { SidebarModeSwitch } from '@/modules/sidebar';
 
 /**
  * The phone workspace header, as the redesign draws it (AC-430):
@@ -161,6 +163,20 @@ vi.mock('@/shared/hooks/useServerFeatures', async (importOriginal) => {
     useServerFeatures: () => ({ status: 'loaded', cockpitEnabled: true }),
   };
 });
+
+// The cockpit page's own 「会话」 segment (the sidebar mode switch) polls the fleet for its
+// attention badge. This suite reads only the segment's href, so the transport is replaced with
+// a settled empty reading instead of a network request.
+vi.mock('@/modules/sidebar/hooks/useFleetAttention', () => ({
+  useFleetAttention: () => ({
+    status: 'loaded',
+    needsHumanTotal: 0,
+    attentionByProject: [],
+    fleetState: 'ok',
+    fleetReason: null,
+    fleetProjectIdByProject: new Map<string, string>(),
+  }),
+}));
 
 await i18next.use(initReactI18next).init({
   lng: 'en',
@@ -303,6 +319,24 @@ function Header({
         <LocationProbe />
       </CockpitColumnContext.Provider>
     </MemoryRouter>
+  );
+}
+
+/**
+ * The cockpit page's own 「会话」 segment, mounted inside the same router so a case can read the
+ * href the person would land on after entering the cockpit from the header.
+ *
+ * It reads session storage on mount, which is why the case re-renders the header with this probe
+ * AFTER the gauge click: the storage write and the session page it was made from are different
+ * facts, and a segment rendered before the write would truthfully show `/`.
+ */
+function CockpitSessionsProbe() {
+  const t = i18next.t.bind(i18next) as unknown as TFunction;
+  return (
+    <SidebarModeSwitch
+      mode="cockpit"
+      t={t}
+    />
   );
 }
 
@@ -581,6 +615,49 @@ test('phone: a direct /cockpit?view=cards deep link is the standalone page, with
       'the deep link keeps its own address',
     );
   } finally {
+    window.innerWidth = previousWidth;
+  }
+});
+
+test('tablet 800 px: the header gauge records the session as the cockpit’s way back', async () => {
+  window.sessionStorage.clear();
+  // An 800 px window with the desktop header: the sidebar takes ~289 px, so the workspace row
+  // is ~511 px — under the controller's 600 px floor, the PC column does not exist (`hidden`)
+  // and the desktop header's gauge is the page door onto the standalone cockpit. That is the
+  // entry this task unifies (the row width is what the controller reads, not the window).
+  const previousWidth = window.innerWidth;
+  window.innerWidth = 800;
+  try {
+    const binding = await columnBinding(1, 511);
+    const view = render(<Header binding={binding} isMobile={false} />);
+
+    const button = document.querySelector<HTMLElement>('[data-testid="cockpit-header-button"]');
+    assert.ok(button, 'the 800 px header must draw the cockpit gauge');
+    fireEvent.click(button);
+
+    assert.equal(
+      window.sessionStorage.getItem('cockpit.returnPath'),
+      `/session/${SESSION_ID}`,
+      'the gauge records the conversation it was entered from',
+    );
+
+    // The cockpit page's own 「会话」 segment then leads back to that conversation. Re-render
+    // with it mounted so it reads the record the click just wrote (sessionStorage is not a React
+    // signal), exactly as the standalone page would when opened next.
+    view.rerender(
+      <Header binding={binding} isMobile={false}>
+        <CockpitSessionsProbe />
+      </Header>,
+    );
+    const sessions = document.querySelector('[data-mode-switch-link="sessions"]');
+    assert.ok(sessions, 'the cockpit page must draw its sessions segment');
+    assert.equal(
+      sessions.getAttribute('href'),
+      `/session/${SESSION_ID}`,
+      'the segment returns to the session the gauge was entered from',
+    );
+  } finally {
+    window.sessionStorage.clear();
     window.innerWidth = previousWidth;
   }
 });

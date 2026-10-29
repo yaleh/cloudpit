@@ -7,8 +7,8 @@ import { cn } from '@/shared/utils';
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
 import {
   cockpitViewPath,
+  enterCockpit,
   readCockpitReturnPath,
-  rememberCockpitReturnPath,
   useCockpitColumnVisibility,
 } from '@/modules/cockpit/contract';
 import { useFleetAttention } from '@/modules/sidebar/hooks/useFleetAttention';
@@ -67,12 +67,32 @@ type ModeSwitchViewProps = {
   layout: 'row' | 'column';
   sessionsHref: string;
   cockpitHref: string;
+  /**
+   * The destination the sessions segment leads back to when the cockpit has a recorded return
+   * path (a session), spoken instead of the bare 「Sessions」. `null` keeps the plain label.
+   */
+  sessionsHint?: string | null;
   attention: FleetAttentionReading;
   controlSizeClass?: string;
   onSelect: (mode: SidebarMode, event: MouseEvent<HTMLAnchorElement>) => void;
   onAttentionBadgeClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
   t: TFunction;
 };
+
+/**
+ * The sessions segment's tooltip when the cockpit was entered from a session: the segment's
+ * label stays 「Sessions」, but a reader is told which conversation it returns to. Only a session
+ * address gets a name — an arbitrary recorded route is still "sessions", just somewhere else.
+ */
+function sessionsReturnHint(returnPath: string, t: TFunction): string | null {
+  const match = /^\/session\/([^/?#]+)/.exec(returnPath);
+  const id = match?.[1];
+  if (id === undefined || id === '') return null;
+  return t('common:cockpit.modeSessionsReturnTo', {
+    id,
+    defaultValue: 'Sessions · return to session {{id}}',
+  });
+}
 
 /**
  * The presentational switch. Two real `<a href>` segments, because the cockpit is routinely
@@ -84,6 +104,7 @@ function ModeSwitchView({
   layout,
   sessionsHref,
   cockpitHref,
+  sessionsHint = null,
   attention,
   controlSizeClass,
   onSelect,
@@ -91,6 +112,9 @@ function ModeSwitchView({
   t,
 }: ModeSwitchViewProps) {
   const sessionsLabel = t('common:cockpit.modeSessions', 'Sessions');
+  // The visible label (icon-only here) stays 「Sessions」; only the spoken name and tooltip add
+  // the destination, so the switch's two segments keep reading as one control.
+  const sessionsAriaLabel = sessionsHint ?? sessionsLabel;
   const cockpitLabel = t('common:cockpit.modeCockpit', 'Cockpit');
   const switchLabel = t('common:cockpit.modeSwitchLabel', 'Switch between sessions and cockpit');
   const isColumn = layout === 'column';
@@ -162,8 +186,8 @@ function ModeSwitchView({
         href={sessionsHref}
         onClick={(event) => onSelect('sessions', event)}
         aria-current={mode === 'sessions' ? 'page' : undefined}
-        aria-label={sessionsLabel}
-        title={sessionsLabel}
+        aria-label={sessionsAriaLabel}
+        title={sessionsAriaLabel}
         data-mode-switch-link="sessions"
         className={segmentClass(mode === 'sessions')}
       >
@@ -220,21 +244,27 @@ function RoutedModeSwitch({
   // In sessions mode the sessions segment points at the page already open (a no-op that keeps
   // the current view); the cockpit segment remembers where it came from. In cockpit mode the
   // roles swap: sessions leads back to the remembered route, or home.
-  const sessionsPath =
-    mode === 'cockpit' ? readCockpitReturnPath() : `${location.pathname}${location.search}`;
+  const returnPath = mode === 'cockpit' ? readCockpitReturnPath() : null;
+  const sessionsPath = returnPath ?? `${location.pathname}${location.search}`;
+  const sessionsHint = returnPath === null ? null : sessionsReturnHint(returnPath, t);
   const cockpitPath = cockpitPathForSelection(attention, selectedProjectId);
   const sessionsHref = useHref(sessionsPath);
   const cockpitHref = useHref(cockpitPath);
 
   const handleSelect = (selected: SidebarMode, event: MouseEvent<HTMLAnchorElement>) => {
-    // A modified click belongs to the browser (new tab/window). Record the return route first
-    // so the tab the cockpit opens in still knows where the person was.
     if (selected === 'cockpit') {
-      rememberCockpitReturnPath(`${location.pathname}${location.search}`);
+      // ONE entry action for every door into the cockpit. A modified click belongs to the
+      // browser (new tab/window): the action still records the return route so the tab the
+      // cockpit opens in knows where the person was, but it passes `null` navigation.
+      const modified = isModifiedClick(event);
+      enterCockpit({ navigate: modified ? null : navigate, target: cockpitPath, location });
+      if (modified) return;
+      event.preventDefault();
+      return;
     }
     if (isModifiedClick(event)) return;
     event.preventDefault();
-    navigate(selected === 'cockpit' ? cockpitPath : sessionsPath);
+    navigate(sessionsPath);
   };
 
   return (
@@ -243,6 +273,7 @@ function RoutedModeSwitch({
       layout={layout}
       sessionsHref={sessionsHref}
       cockpitHref={cockpitHref}
+      sessionsHint={sessionsHint}
       attention={attention}
       controlSizeClass={controlSizeClass}
       onSelect={handleSelect}
@@ -270,12 +301,14 @@ function PlainModeSwitch({
     typeof window === 'undefined'
       ? '/'
       : `${window.location.pathname}${window.location.search}`;
+  const returnPath = mode === 'cockpit' ? readCockpitReturnPath() : null;
   return (
     <ModeSwitchView
       mode={mode}
       layout={layout}
-      sessionsHref={mode === 'cockpit' ? readCockpitReturnPath() : currentPath}
+      sessionsHref={returnPath ?? currentPath}
       cockpitHref={cockpitPathForSelection(attention, selectedProjectId)}
+      sessionsHint={returnPath === null ? null : sessionsReturnHint(returnPath, t)}
       attention={attention}
       controlSizeClass={controlSizeClass}
       onSelect={() => undefined}

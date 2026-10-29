@@ -769,6 +769,7 @@
     "deviceMobile": "Telefon",
     "deviceDesktop": "Masaüstü",
     "modeSessions": "Oturumlar",
+    "modeSessionsReturnTo": "Oturumlar · {{id}} oturumuna dön",
     "modeCockpit": "Kokpit",
     "modeSwitchLabel": "Oturumlar ve kokpit arasında geçiş yap",
     "attentionBadge": "{{n}} proje öğesi sizi bekliyor",

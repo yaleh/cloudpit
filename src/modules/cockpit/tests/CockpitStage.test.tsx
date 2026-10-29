@@ -1080,6 +1080,33 @@ describe('cockpit header mode switch', () => {
 
     window.sessionStorage.clear();
   });
+
+  it('names the conversation the 会话 segment returns to, and stays plain with no record', async () => {
+    window.sessionStorage.clear();
+    renderCockpit();
+
+    const home = await screen.findByTestId('sidebar-mode-switch');
+    const homeSessions = home.querySelector('[data-mode-switch-link="sessions"]') as HTMLAnchorElement;
+    // No record: the segment is the plain 「Sessions」 door home, not a session it cannot name.
+    expect(homeSessions.getAttribute('href')).toBe('/');
+    expect(homeSessions.getAttribute('title')).toBe(i18n.t('cockpit.modeSessions'));
+    expect(homeSessions.getAttribute('aria-label')).toBe(i18n.t('cockpit.modeSessions'));
+
+    cleanup();
+    window.sessionStorage.setItem('cockpit.returnPath', '/session/abc?tab=chat');
+    renderCockpit();
+
+    const back = await screen.findByTestId('sidebar-mode-switch');
+    const backSessions = back.querySelector('[data-mode-switch-link="sessions"]') as HTMLAnchorElement;
+    // The label stays 「Sessions」; the tooltip/accessible name say WHICH conversation it leads
+    // back to, so a reader knows the trip before taking it.
+    const spoken = backSessions.getAttribute('aria-label') ?? '';
+    expect(backSessions.getAttribute('href')).toBe('/session/abc?tab=chat');
+    expect(spoken).toContain('abc');
+    expect(backSessions.getAttribute('title')).toBe(spoken);
+
+    window.sessionStorage.clear();
+  });
 });
 
 describe('view changes and history', () => {
