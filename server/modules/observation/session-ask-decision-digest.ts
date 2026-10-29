@@ -26,7 +26,7 @@ import type { SessionAskDecisionReading } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 import {
-  analyzeAsking,
+  analyzeAssistantAsk,
   isUserPromptRow,
   parseTranscriptRows,
   transcriptRowMessageId,
@@ -260,7 +260,7 @@ function askingRows(rows: TranscriptRow[]): AskingRow[] {
     if (transcriptRowRole(row) !== 'assistant') continue;
     const text = transcriptRowText(row);
     const messageId = transcriptRowMessageId(row);
-    if (text !== '' && messageId !== '' && analyzeAsking(text).isAsking) asks.push({ messageId, text });
+    if (text !== '' && messageId !== '' && analyzeAssistantAsk(text).isAsking) asks.push({ messageId, text });
   }
   return asks;
 }
@@ -305,7 +305,7 @@ function askEndingAt(
   }
   if (lastAssistantIndex < 0) return null;
   const assistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
-  if (!analyzeAsking(assistantText).isAsking) return null;
+  if (!analyzeAssistantAsk(assistantText).isAsking) return null;
 
   // The ask span starts after the last user prompt before the asking message; a re-ask keeps the
   // span's FIRST asking id and bumps the revision.
@@ -446,7 +446,7 @@ export function readSessionAsks(raw: string, sessionId: string): SessionAskTrans
     }
     if (lastAssistantIndex < 0) continue;
     const lastAssistantText = transcriptRowText(rows[lastAssistantIndex] ?? {});
-    if (!analyzeAsking(lastAssistantText).isAsking) continue;
+    if (!analyzeAssistantAsk(lastAssistantText).isAsking) continue;
     current = {
       askId,
       messageId: transcriptRowMessageId(rows[lastAssistantIndex] ?? {}),

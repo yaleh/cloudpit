@@ -121,6 +121,15 @@ const PLAYWRIGHT_COUNT = /^\s*(\d+)\s+(passed|failed)\b/gm;
 /** A numbered option line: `1.`, `1)`, `1、`, `(1)`. */
 const NUMBERED_OPTION = /^\s*(?:\(?\d+[.)、]|（\d+）)\s+(.+)$/;
 
+/** A Markdown heading line; a paragraph that carries one is prose, never a pick-one list. */
+const MARKDOWN_HEADING = /^\s{0,3}#{1,6}\s/;
+
+/**
+ * A numbered line longer than this is prose that happens to start with `1.`, not an option.
+ * The CLI's own option lines are short labels; this is the "短行" half of the option shape.
+ */
+const OPTION_LINE_MAX_CHARS = 80;
+
 type UnknownRecord = Record<string, unknown>;
 
 function asString(value: unknown): string {
@@ -285,22 +294,28 @@ function evaluatedOrVacuous(
 }
 
 /**
- * Whether the assistant's final paragraph asks the person something.
+ * Whether one PARAGRAPH asks the person something.
  *
  * Two endings count as "asking you": a question mark, and a paragraph of numbered options (the
- * CLI's own "pick one" shape). Everything else is a statement. This is a heuristic that only
- * decides how the wall emphasizes the tile — it never triggers an action.
+ * CLI's own "pick one" shape). Everything else is a statement. This is the paragraph-level
+ * primitive; production callers pass a whole assistant message through `analyzeAssistantAsk`,
+ * which judges only its last paragraph — judging the whole message is what made a long report
+ * with a numbered list anywhere in it read as a question.
  */
 export function analyzeAsking(paragraph: string): SessionDigest['askingYou'] {
-  const lines = paragraph
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '');
+  const lines = nonEmptyLines(paragraph);
   if (lines.length === 0) return { isAsking: false, question: null, options: [] };
-
   const options = lines
     .map((line) => NUMBERED_OPTION.exec(line)?.[1]?.trim() ?? '')
     .filter((option) => option !== '');
+  return askingReading(lines, options);
+}
+
+/**
+ * Two endings count as "asking you": a question mark on the last line, or a paragraph that IS a
+ * numbered pick-one list. Shared so both entry points report the same question/options shape.
+ */
+function askingReading(lines: string[], options: string[]): SessionDigest['askingYou'] {
   const lastLine = lines.at(-1) ?? '';
   const endsWithQuestion = /[?？][」』"'）)]*\s*$/.test(lastLine);
   const isAsking = endsWithQuestion || options.length >= 2;
@@ -316,8 +331,60 @@ export function analyzeAsking(paragraph: string): SessionDigest['askingYou'] {
   };
 }
 
+function nonEmptyLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+}
+
+/**
+ * The numbered pick-one options a paragraph ends on, or none when it is not that shape.
+ *
+ * The paragraph must END on a run of two or more consecutive numbered lines whose own text is
+ * short, with no Markdown heading. A long answer that merely mentions a numbered list in the
+ * middle of prose is not asking; a long lead-in line above the options is fine — the CLI writes
+ * exactly that ("下一步你想怎么处理？请从下面选一个：" then the options).
+ */
+function numberedOptionsOf(lines: string[]): string[] {
+  if (lines.some((line) => MARKDOWN_HEADING.test(line))) return [];
+  const parsed = lines.map((line) => NUMBERED_OPTION.exec(line)?.[1]?.trim() ?? '');
+  // The options must be the paragraph's ending, not a list quoted inside a statement.
+  if ((parsed.at(-1) ?? '') === '') return [];
+
+  const options: string[] = [];
+  let index = parsed.length - 1;
+  for (; index >= 0; index -= 1) {
+    const option = parsed[index] ?? '';
+    if (option === '') break;
+    options.unshift(option);
+  }
+  // One run only: a numbered line before the final run belongs to prose, not to the choice.
+  if (parsed.slice(0, index + 1).some((option) => option !== '')) return [];
+
+  if (options.length < 2) return [];
+  // A numbered line longer than this is a paragraph that happens to start with `1.`, not an option.
+  if (options.some((option) => option.length > OPTION_LINE_MAX_CHARS)) return [];
+  return options;
+}
+
+/**
+ * The one ask reading for a whole assistant message: only its LAST paragraph is judged, and only
+ * a paragraph that IS a pick-one list counts as asking.
+ *
+ * `readSessionAsk`/`askEndingAt` and `buildSessionDigest`'s `askingYou` both call this, so the
+ * event path and the digest path cannot disagree about whether a message asks. Without it the
+ * event path judged the whole message and a long answer containing any numbered list was read
+ * as a question while the digest read the same message as idle.
+ */
+export function analyzeAssistantAsk(assistantText: string): SessionDigest['askingYou'] {
+  const lines = nonEmptyLines(lastParagraph(assistantText));
+  if (lines.length === 0) return { isAsking: false, question: null, options: [] };
+  return askingReading(lines, numberedOptionsOf(lines));
+}
+
 /** The last non-empty paragraph of a text, which is the part a reader skims for the conclusion. */
-function lastParagraph(text: string): string {
+export function lastParagraph(text: string): string {
   const paragraphs = text
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
@@ -422,7 +489,7 @@ export function buildSessionDigest(raw: string, options: { error?: boolean } = {
 
   const lastText = assistantTexts.at(-1) ?? '';
   const conclusionParagraph = lastParagraph(lastText);
-  const askingYou = analyzeAsking(conclusionParagraph);
+  const askingYou = analyzeAssistantAsk(lastText);
 
   const lastTestOutput = testOutputs.at(-1);
   const tests: SessionTestReading =

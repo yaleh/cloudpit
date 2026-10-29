@@ -56,6 +56,7 @@ import {
   readSessionAskEventLedger,
 } from '../session-digest.producer.js';
 import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
+import { analyzeAssistantAsk, buildSessionDigest } from '../session-digest.js';
 
 const CLOCK = 1_800_000_000_000;
 const SESSION_ID = 'ask-session';
@@ -243,7 +244,7 @@ function askEvents(events: SessionAskEvent[]): SessionAskEvent[] {
 test('AC-423: a recommended option is the only suggested one, sourced from the assistant', async () => {
   const raw = transcript([
     { role: 'user', id: 'u1', text: '你选一个方案' },
-    { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A：先补测试\n2. 方案 B：先改实现\n\n我建议选方案 B，因为它能先锁住行为。' },
+    { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A：先补测试\n2. 方案 B：先改实现\n\n我建议选方案 B，因为它能先锁住行为。你想选哪个？' },
   ]);
   const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER));
   harness.setTranscript(raw);
@@ -455,7 +456,7 @@ test('AC-423: one asking event per asking turn, and one answered event after the
   harness.setTranscript(
     transcript([
       { role: 'user', id: 'u1', text: '你选一个方案' },
-      { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。' },
+      { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。你想选哪个？' },
     ]),
   );
   await harness.turnEnd();
@@ -471,14 +472,14 @@ test('AC-423: one asking event per asking turn, and one answered event after the
     askId: `${SESSION_ID}:a1`,
     messageId: 'a1',
     revision: 1,
-    questionText: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。',
+    questionText: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。你想选哪个？',
     contentRef: { resolver: 'cloudcli.session-ask', sessionId: SESSION_ID, messageId: 'a1' },
   });
 
   harness.setTranscript(
     transcript([
       { role: 'user', id: 'u1', text: '你选一个方案' },
-      { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。' },
+      { role: 'assistant', id: 'a1', text: '有两个方案：\n1. 方案 A\n2. 方案 B\n\n我建议选方案 B。你想选哪个？' },
       { role: 'user', id: 'u2', text: '就按方案 B' },
       { role: 'assistant', id: 'a2', text: '好，我按方案 B 开始。' },
     ]),
@@ -612,6 +613,49 @@ test('AC-423: readSessionAsk derives the ask identity and the answered span from
   assert.equal(reading.answered?.messageId, 'u2');
   assert.match(reading.context, /\[用户\] 开始/);
   assert.match(reading.context, /第二问？/);
+});
+
+test('AC: readSessionAsk and buildSessionDigest.askingYou agree on the same text', () => {
+  /** `count` consecutive short numbered lines — the shape that used to read as "pick one". */
+  const numbered = (count: number): string =>
+    Array.from({ length: count }, (_, index) => `${index + 1}. 第${index + 1}项检查已完成`).join('\n');
+  const longAnswer = (count: number): string =>
+    ['我复核了整条链路，下面是发现：', numbered(count), '要的话我可以把 P0 的三条拆成 quay 任务，之后再一起看。'].join(
+      '\n\n',
+    );
+
+  const cases: Array<{ name: string; text: string; asking: boolean }> = [
+    { name: '3 行编号的长回答', text: longAnswer(3), asking: false },
+    { name: '4 行编号的长回答', text: longAnswer(4), asking: false },
+    { name: '14 行编号的长回答', text: longAnswer(14), asking: false },
+    { name: '问号在中间段落、末段是陈述', text: '这里要先确认一件事？\n\n最后的结论是改动已完成。', asking: false },
+    { name: '最后一行是问号', text: '前面做了很多。\n\n要不要现在改？', asking: true },
+    {
+      name: '最后一段是两条短选项',
+      text: '前面做了很多。\n\n你可以选一个：\n1. 继续改登录页\n2. 先补测试',
+      asking: true,
+    },
+  ];
+
+  for (const item of cases) {
+    const raw = transcript([
+      { role: 'user', id: 'u1', text: '开始' },
+      { role: 'assistant', id: 'a1', text: item.text },
+    ]);
+    const reading = readSessionAsk(raw, SESSION_ID);
+    const result = buildSessionDigest(raw);
+    assert.equal(result.state, 'evaluated', `${item.name}: digest 可读`);
+    if (result.state !== 'evaluated') return;
+
+    assert.equal(reading.current !== null, item.asking, `${item.name}: readSessionAsk.current`);
+    assert.equal(result.digest.askingYou.isAsking, item.asking, `${item.name}: buildSessionDigest.askingYou`);
+    assert.equal(
+      reading.current !== null,
+      result.digest.askingYou.isAsking,
+      `${item.name}: 两条路径给出同一个 isAsking`,
+    );
+    assert.equal(analyzeAssistantAsk(item.text).isAsking, item.asking, `${item.name}: 共享判定函数`);
+  }
 });
 
 // ---------------------------------------------------------------------------------------------

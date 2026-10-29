@@ -38,6 +38,7 @@ import { formatSessionUri } from '../observation-uri.js';
 import { createObservationStore } from '../observation-store.js';
 import {
   analyzeAsking,
+  analyzeAssistantAsk,
   buildSessionDigest,
   parseTestOutput,
   SESSION_DIGEST_CONCLUSION_CHARS,
@@ -243,6 +244,40 @@ test('AC1: a question ending and a numbered-options ending both ask you, a state
   const statement = analyzeAsking('改动已经完成，测试全绿。');
   assert.equal(statement.isAsking, false);
   assert.deepEqual(statement.options, []);
+});
+
+test('AC: only the last paragraph decides whether an assistant message asks you', () => {
+  /** `count` consecutive short numbered lines — the shape that used to read as "pick one". */
+  const numbered = (count: number): string =>
+    Array.from({ length: count }, (_, index) => `${index + 1}. 第${index + 1}项检查已完成`).join('\n');
+
+  // A long answer whose numbered list sits in a MIDDLE paragraph ends on a statement.
+  for (const count of [3, 4, 14]) {
+    const longAnswer = [
+      '我复核了整条链路，下面是发现：',
+      numbered(count),
+      '要的话我可以把 P0 的三条拆成 quay 任务，之后再一起看。',
+    ].join('\n\n');
+    assert.equal(analyzeAssistantAsk(longAnswer).isAsking, false, `${count} 行编号的长回答按最后一段判为陈述`);
+
+    const rows = [
+      { type: 'user', message: { role: 'user', content: [{ type: 'text', text: '复核一下' }] } },
+      { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: longAnswer }] } },
+    ];
+    const result = buildSessionDigest(rows.map((row) => JSON.stringify(row)).join('\n'));
+    assert.equal(result.state, 'evaluated');
+    if (result.state !== 'evaluated') return;
+    assert.equal(result.digest.askingYou.isAsking, false, `${count} 行编号的长回答 digest 判为陈述`);
+  }
+
+  // A question mark in an earlier paragraph does not survive a statement at the end.
+  assert.equal(analyzeAssistantAsk('这里要先确认一件事？\n\n最后的结论是改动已完成。').isAsking, false);
+
+  // The two real asking shapes still read as asking when they are the LAST paragraph.
+  assert.equal(analyzeAssistantAsk('前面做了很多。\n\n要不要我现在就把旧断言改掉？').isAsking, true);
+  const options = analyzeAssistantAsk('前面做了很多。\n\n你可以选一个：\n1. 继续改登录页\n2. 先补测试');
+  assert.equal(options.isAsking, true);
+  assert.deepEqual(options.options, ['继续改登录页', '先补测试']);
 });
 
 test('AC1: the conclusion is the final paragraph, truncated and marked deterministic', async () => {
