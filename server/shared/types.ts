@@ -5246,6 +5246,14 @@ export type SessionAskEventKind = 'session.asking' | 'session.answered';
  * identities, `at` is ISO-8601, and `refs` names the assistant message the question came from.
  * The real stream writer is injected only after the fleet's schema carries these two kinds
  * (待外部); until then the producer's event writer is a test/memory implementation.
+ *
+ * `data` is kind-specific and stays OPEN by contract. A `session.asking` row carries
+ * `askId`/`messageId`/`revision`/`contentRef` plus `questionText`: the asking message's own
+ * text, the UNTRUNCATED full text, omitted when the text is blank. `questionText`
+ * exists ONLY so fleet can dedup by 「session + normalised question text」 (it hashes that text
+ * into the key, falling back to the old askId key when absent). It is NOT a display field: the
+ * cockpit renders the question from its own card/`contentRef` resolution, and no CloudCLI UI
+ * reads `questionText`. Do NOT truncate it for size — a cut merges distinct questions into one key.
  */
 export type SessionAskEvent = {
   kind: SessionAskEventKind;

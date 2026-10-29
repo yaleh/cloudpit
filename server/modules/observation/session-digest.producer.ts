@@ -145,6 +145,60 @@ export type SessionAskEventLedger = {
 /** The digest key carrying {@link SessionAskEventLedger}; opaquely ignored by card readers. */
 export const SESSION_ASK_EVENTS_DIGEST_KEY = 'askEvents';
 
+/**
+ * The `questionText` a `session.asking` row states, or `null` when there is no text to state.
+ *
+ * The value is the asking assistant message VERBATIM — the WHOLE message, never an excerpt — and
+ * there is deliberately NO length cap. quay-fleet keys the ask by
+ * `projectId|session-ask|<sessionId>:<sha1(normalised questionText)[:16]>`, i.e. over exactly the
+ * text this producer writes, and the user requires that key to cover the STRICT full text
+ * (2026-10-29: the earlier 4000-character tail cap was revoked). Do NOT reintroduce a cap —
+ * truncating would collapse two questions that differ only outside the kept window into one key.
+ *
+ * The same askId + revision replayed must yield the same string, so this is a straight
+ * pass-through with no normalisation: fleet folds whitespace/punctuation/case itself. A
+ * whitespace-only message answers `null` so the field is OMITTED instead of written as `""`: an
+ * empty hash would make every blank ask share one key, while an omitted field makes fleet fall
+ * back to the old askId key.
+ *
+ * Consumers: {@link buildSessionAskingData} and the criterion
+ * `tests/session-ask-decision-digest.test.ts` (which pins the omission and the no-truncation rule).
+ */
+export function sessionAskQuestionText(assistantText: string): string | null {
+  if (assistantText.trim() === '') return null;
+  return assistantText;
+}
+
+/**
+ * Assembles the `data` payload of one `session.asking` row.
+ *
+ * `askId`, `messageId`, `revision` and `contentRef` are the pre-existing shape and stay
+ * unchanged. `questionText` is the one added member: the asking message's FULL text (see
+ * {@link sessionAskQuestionText} — untruncated), which fleet hashes into its
+ * 「session + normalised question text」 dedup key and falls back to `askId` when it is absent.
+ * `data` is an OPEN object by contract, so this member needs no new enum.
+ *
+ * Consumers: `handleTurnEnd` below (the only write path) and the criterion
+ * `tests/session-ask-decision-digest.test.ts`.
+ */
+export function buildSessionAskingData(
+  sessionId: string,
+  current: { askId: string; messageId: string; revision: number; assistantText: string },
+): Record<string, unknown> {
+  const questionText = sessionAskQuestionText(current.assistantText);
+  return {
+    askId: current.askId,
+    messageId: current.messageId,
+    revision: current.revision,
+    ...(questionText === null ? {} : { questionText }),
+    contentRef: {
+      resolver: 'cloudcli.session-ask',
+      sessionId,
+      messageId: current.messageId,
+    },
+  };
+}
+
 /** Reads the ledger out of a stored digest, tolerating anything older or malformed. */
 export function readSessionAskEventLedger(digest: unknown): SessionAskEventLedger {
   const empty: SessionAskEventLedger = { answered: [], asking: [], pending: [] };
@@ -448,16 +502,7 @@ export function createSessionDigestProducer(deps: SessionDigestProducerDeps): Se
                   project: resolved.projectPath,
                   at,
                   refs: [current.messageId],
-                  data: {
-                    askId: current.askId,
-                    messageId: current.messageId,
-                    revision: current.revision,
-                    contentRef: {
-                      resolver: 'cloudcli.session-ask',
-                      sessionId: event.appSessionId,
-                      messageId: current.messageId,
-                    },
-                  },
+                  data: buildSessionAskingData(event.appSessionId, current),
                 })
               ) {
                 ledger.asking.push(askingKey);
