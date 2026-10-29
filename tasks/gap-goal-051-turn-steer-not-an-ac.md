@@ -2,7 +2,7 @@
 id: gap-goal-051-turn-steer-not-an-ac
 title: GOAL-051 范围第 3 条的 turn/steer 无在域 AC 覆盖：提议新增 AC-444（忙时 steer 改当前
   turn、不排队列、不开新 turn），交人裁定
-status: todo
+status: needs-human
 labels:
   - gap
 parent: null
