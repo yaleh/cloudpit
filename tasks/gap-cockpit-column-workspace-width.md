@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-column-workspace-width
 title: PC 驾驶舱列按工作区可用宽度布局：侧栏展开时 1280 不再把会话挤到 591px，列宽自适应并保留最小可读会话宽度
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
