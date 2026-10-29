@@ -725,6 +725,10 @@ export function createCockpitFixtureCardProvider(options: {
    * The feedback executor. It answers the protocol's params untouched (`attentionId`,
    * `revision`, `feedbackId`, `optionId`/`ownReply`) and schedules the configured disposition.
    * A `none` reading records the call and answers no receipt on purpose.
+   *
+   * A feedback call carrying `dismiss: true` is the third action: the fixture closes the card and
+   * answers a `dismissed` receipt (the arm a real fleet's `fleet.feedback` implements), so the
+   * dismiss channel is verifiable without the fleet side. `none` keeps answering nothing.
    */
   const feedbackExecutor: ICockpitActionExecutor = {
     id: FIXTURE_FEEDBACK_EXECUTOR_ID,
@@ -736,6 +740,19 @@ export function createCockpitFixtureCardProvider(options: {
         return Promise.resolve({ acknowledged: false, feedbackId });
       }
       const at = now() + Math.max(0, feedback.delayMs);
+      if (params.dismiss === true) {
+        closedAt.set(cardId, at);
+        changed();
+        return Promise.resolve({
+          acknowledged: true,
+          feedbackId,
+          receipt: {
+            feedbackId,
+            at: new Date(at).toISOString(),
+            disposition: 'dismissed',
+          },
+        });
+      }
       const reason = feedback.reason.trim() === '' ? undefined : feedback.reason;
       if (feedback.mode === 'closed') {
         closedAt.set(cardId, at);
