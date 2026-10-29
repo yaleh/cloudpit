@@ -1,7 +1,7 @@
 ---
 id: AC-444
 title: 忙时 steer：turn/steer 改当前 turn、不排队列、不开新 turn
-status: draft
+status: active
 kind: criterion
 goal: GOAL-051
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,5 +18,16 @@ expect: 假 app-server transport（不真起 codex）：同一 resident 会话 a
 origin: GOAL-051 范围第 3 条 turn/steer 无 AC 覆盖（充分性 insufficient）+
   tmp/codex-appserver-exp-NuPHhk/REPORT.md E8 实测（返回 turnId、最终文本 STEERED、turn
   completed）
+activatedAt: 2026-10-29T15:50:29.483Z
+statusLog:
+  - at: 2026-10-29T15:50:29.484Z
+    from: draft
+    to: active
+    actor: human:yale
+    reason: 人 yale 指令：接受 AC-444
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-10-29T15:50:29.483Z
 phase: pre-merge
 ---
