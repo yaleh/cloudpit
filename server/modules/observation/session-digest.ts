@@ -369,19 +369,99 @@ function numberedOptionsOf(lines: string[]): string[] {
 }
 
 /**
- * The one ask reading for a whole assistant message: only its LAST paragraph is judged, and only
- * a paragraph that IS a pick-one list counts as asking.
+ * Whether one assistant message is a MECHANICAL CANDIDATE for asking the person.
  *
- * `readSessionAsk`/`askEndingAt` and `buildSessionDigest`'s `askingYou` both call this, so the
- * event path and the digest path cannot disagree about whether a message asks. Without it the
- * event path judged the whole message and a long answer containing any numbered list was read
- * as a question while the digest read the same message as idle.
+ * THIS IS A PREFILTER, NOT A VERDICT. Whether a message asks is semantic — the decision can sit
+ * in a middle paragraph while the last one is a note (the live 62d case) — so the only place a
+ * verdict is made is the T1 summary call. What this function decides is whether that call is
+ * worth making at all: it matches the marker vocabulary of the repo's real asks ANYWHERE in the
+ * message (question marks, 「是否/要不要」, 「请选择/请确认」, 「值得优先/下一步/建议」, and any run
+ * of two or more short numbered lines). The numbered-run arm is deliberately WIDE: it also
+ * matches the long review reports (5b/fea61b) that are not questions, which is fine because the
+ * summary is what rejects them. A message with no marker at all is a statement and never reaches
+ * the model.
+ *
+ * Consumers: `session-ask-decision-digest.ts` (candidate detection in `readSessionAsk` /
+ * `readSessionAsks`) and `tests/session-ask-semantic-gate.test.ts`.
+ */
+export type AskPrefilterMarker = 'question-mark' | 'choice-phrase' | 'request-phrase' | 'priority-phrase' | 'numbered-run';
+
+/** What the mechanical prefilter saw in one assistant message. */
+export type AskPrefilterReading = {
+  /** At least one marker class matched anywhere in the message. */
+  candidate: boolean;
+  /** The marker classes that matched, in a fixed order (for the replay table and tests). */
+  markers: AskPrefilterMarker[];
+};
+
+/**
+ * Wide marker vocabulary. 「建议」/「推荐」 are included on purpose: they are frequent in genuine
+ * asks and the summary, not this filter, refuses a recommendation that is merely a report.
+ */
+const ASK_PREFILTER_PHRASES: ReadonlyArray<readonly [AskPrefilterMarker, RegExp]> = [
+  ['choice-phrase', /要不要|是否|需不需要|用不用|能不能|可不可以|该不该|会不会|有没有|是不是/],
+  ['request-phrase', /请选择|请确认|请你?决定|选一个|选哪个|从下面选/],
+  ['priority-phrase', /值得优先|下一步|接下来(?:要|做|怎么|如何)|建议|推荐|倾向于?/],
+];
+
+/** Whether `lines` contain a run of at least two consecutive short numbered lines (anywhere). */
+function hasShortNumberedRun(lines: string[]): boolean {
+  let run = 0;
+  for (const line of lines) {
+    const option = NUMBERED_OPTION.exec(line)?.[1]?.trim() ?? '';
+    if (option !== '' && option.length <= OPTION_LINE_MAX_CHARS) {
+      run += 1;
+      if (run >= 2) return true;
+    } else {
+      run = 0;
+    }
+  }
+  return false;
+}
+
+/**
+ * The mechanical ask prefilter described above. Pure and position-free: it only asks whether any
+ * marker appears, never where it appears.
+ */
+export function prefilterAssistantAsk(assistantText: string): AskPrefilterReading {
+  const lines = nonEmptyLines(assistantText);
+  const markers: AskPrefilterMarker[] = [];
+  if (lines.some((line) => /[?？]/.test(line))) markers.push('question-mark');
+  for (const [marker, pattern] of ASK_PREFILTER_PHRASES) {
+    if (lines.some((line) => pattern.test(line))) markers.push(marker);
+  }
+  if (hasShortNumberedRun(lines)) markers.push('numbered-run');
+  return { candidate: markers.length > 0, markers };
+}
+
+/**
+ * The deterministic ask reading for a whole assistant message.
+ *
+ * It is NOT a position heuristic and NOT the prefilter. A question mark or an explicit ask phrase
+ * ANYWHERE makes the message read as asking (the 62d regression: the decision was mid-message),
+ * while a numbered list only counts when it is the LAST paragraph's own pick-one ending — a long
+ * report that merely contains a numbered list stays a statement (the 5b/fea61b false-card arm).
+ * The richer semantic verdict, including a model's `isAsking:false`, comes from the T1 summary;
+ * this reading is what `buildSessionDigest.askingYou` can state synchronously.
  */
 export function analyzeAssistantAsk(assistantText: string): SessionDigest['askingYou'] {
-  const lines = nonEmptyLines(lastParagraph(assistantText));
+  const lines = nonEmptyLines(assistantText);
   if (lines.length === 0) return { isAsking: false, question: null, options: [] };
-  return askingReading(lines, numberedOptionsOf(lines));
+  const options = numberedOptionsOf(nonEmptyLines(lastParagraph(assistantText)));
+  const questionLine = [...lines].reverse().find((line) => /[?？]/.test(line)) ?? null;
+  const phraseLine = [...lines].reverse().find((line) => DETERMINISTIC_ASK_PHRASE.test(line)) ?? null;
+  if (questionLine === null && phraseLine === null && options.length < 2) {
+    return { isAsking: false, question: null, options: [] };
+  }
+  return { isAsking: true, question: questionLine ?? phraseLine ?? null, options };
 }
+
+/**
+ * The ask vocabulary the deterministic reading accepts anywhere in a message. It is narrower than
+ * the prefilter: 「建议/推荐」 alone is far too common in reports, so it only reaches the summary.
+ */
+const DETERMINISTIC_ASK_PHRASE =
+  /是否|要不要|需不需要|用不用|能不能|可不可以|该不该|会不会|有没有|是不是|请选择|请确认|请你?决定|选一个|选哪个|从下面选|值得优先|下一步/;
 
 /** The last non-empty paragraph of a text, which is the part a reader skims for the conclusion. */
 export function lastParagraph(text: string): string {
