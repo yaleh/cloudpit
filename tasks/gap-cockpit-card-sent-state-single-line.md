@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-sent-state-single-line
 title: 已发出状态收成一行：不再渲染禁用的确认条、去掉整卡压暗、反馈调用失败原因透传到卡上（只有真失败才用琥珀色）
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
