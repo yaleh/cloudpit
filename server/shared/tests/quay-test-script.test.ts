@@ -395,9 +395,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (464 + 1 = 465 collected server test files). Then
     // gap-ac439-codex-resident-background-leases added its criterion
     // server/modules/providers/tests/codex-resident-background-leases.test.ts
-    // (465 + 1 = 466 collected server test files). This fixture names 3 known files, so
-    // 466 - 3 = 463.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=463$/);
+    // (465 + 1 = 466 collected server test files). Then
+    // gap-ac440-codex-app-server-protocol-gate added its criterion
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts
+    // (466 + 1 = 467 collected server test files). This fixture names 3 known files, so
+    // 467 - 3 = 464.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=464$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -481,10 +484,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac435-codex-resident-host-driver-persistent added
     // server/modules/providers/tests/codex-host-driver-persistent.test.ts, then
     // gap-ac439-codex-resident-background-leases added
-    // server/modules/providers/tests/codex-resident-background-leases.test.ts
-    // — but this fixture names ONE known file, so 466 - 1 = 465 (AC2 reads 463 because its
+    // server/modules/providers/tests/codex-resident-background-leases.test.ts, then
+    // gap-ac440-codex-app-server-protocol-gate added
+    // server/modules/providers/tests/codex-app-server-protocol.test.ts
+    // — but this fixture names ONE known file, so 467 - 1 = 466 (AC2 reads 464 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=465$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=466$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

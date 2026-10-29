@@ -812,3 +812,9 @@
 #   (dur=2674ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
 #   tree collects 466 server test files).
 2674	server/modules/providers/tests/codex-resident-background-leases.test.ts
+#   and the codex-app-server-protocol row by gap-ac440-codex-app-server-protocol-gate,
+#   measured once on 2026-10-29 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-app-server-protocol.test.ts`
+#   (dur=2755ms, its own new criterion; the row also keeps the 90% coverage floor green now that the
+#   tree collects 467 server test files).
+2755	server/modules/providers/tests/codex-app-server-protocol.test.ts
