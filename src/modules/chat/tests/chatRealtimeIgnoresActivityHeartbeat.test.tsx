@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { test } from 'vitest';
 
-import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
-import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
-import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import { useChatRealtimeHandlers } from '@/modules/chat-session';
+import { useSessionStore } from '@/modules/chat-session';
+import type { SessionStore } from '@/modules/chat-session';
 import type { ProjectSession, ServerEvent } from '@/shared/types';
 
 /**

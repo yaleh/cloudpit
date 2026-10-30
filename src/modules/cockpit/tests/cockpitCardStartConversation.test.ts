@@ -184,7 +184,7 @@ describe('the new-session setting did not leak into the existing send paths', ()
   });
 
   it('session.send / scheduled / queued still carry the session\'s own composer model', () => {
-    const composerPath = path.join(srcRoot, 'modules', 'chat', 'hooks', 'useChatComposerState.ts');
+    const composerPath = path.join(srcRoot, 'modules', 'chat-composer', 'hooks', 'useChatComposerState.ts');
     const composer = readFileSync(composerPath, 'utf8');
     // The existing send frame's model is the COMPOSER's per-session model, not the cockpit
     // setting. Both halves are asserted: the old source stays, the new setting is absent.
@@ -192,13 +192,13 @@ describe('the new-session setting did not leak into the existing send paths', ()
     assert.equal(composer.includes('cockpitSessionStart'), false);
 
     const scheduled = readFileSync(
-      path.join(srcRoot, 'modules', 'chat', 'composer', 'useScheduledMessages.ts'),
+      path.join(srcRoot, 'modules', 'chat-composer', 'composer', 'useScheduledMessages.ts'),
       'utf8',
     );
     assert.equal(scheduled.includes('cockpitSessionStart'), false);
 
     const creation = readFileSync(
-      path.join(srcRoot, 'modules', 'chat', 'utils', 'session', 'sessionCreation.ts'),
+      path.join(srcRoot, 'modules', 'chat-session', 'utils', 'session', 'sessionCreation.ts'),
       'utf8',
     );
     assert.equal(

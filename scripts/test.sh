@@ -1123,7 +1123,7 @@ PLANNED=$((${#SERVER_FILES[@]} + ${#CLIENT_FILES[@]}))
 # different file each round, and the shape is not an assertion: one server file died on a
 # NODE-INTERNAL assertion (`Assertion failed: (env_->execution_async_id()) == (0)`), and the lane's
 # red is `Failed to fetch dynamically imported module:
-# …/src/modules/chat/hooks/useSessionStore.ts` with 2 of its 3 cases passing in 3.3s — the arm's own
+# …/src/modules/chat-session/hooks/useSessionStore.ts` with 2 of its 3 cases passing in 3.3s — the arm's own
 # Vite module graph, not its subject. The same fingerprint is already recorded in this repo twice:
 # the predecessor task's own slope table (scripts/server-phase-concurrency-check.sh,
 # `gap-server-phase-concurrency-clamp`) carries `claude-peer-name-follows-ai-title … 负载 flake，

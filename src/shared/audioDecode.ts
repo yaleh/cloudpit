@@ -6,7 +6,7 @@
  * the only place in the frontend that touches WebAudio, so the "decode, trim, re-encode" step is
  * one call the hook makes rather than a codec conversation the hook has to have.
  *
- * Used by `src/modules/chat/hooks/useVoiceInput.ts`.
+ * Used by `src/modules/chat-voice/hooks/useVoiceInput.ts`.
  */
 
 /** A recording, decoded: mono samples and the rate they are at. */

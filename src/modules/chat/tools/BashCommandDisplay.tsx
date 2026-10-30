@@ -4,7 +4,7 @@ import { ChevronRight, Copy, Check } from 'lucide-react';
 
 import { cn,copyTextToClipboard } from '@/shared/utils';
 import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
-import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { useIsExportingTranscript } from '@/modules/chat-session';
 import type { ToolStatus } from '@/shared/types';
 
 type BashCommandDisplayProps = {

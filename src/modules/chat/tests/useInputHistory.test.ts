@@ -4,7 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, it } from 'vitest';
 import type { KeyboardEvent, RefObject } from 'react';
 
-import { readAllInputHistory, readInputHistory, useInputHistory } from '@/modules/chat/hooks/useInputHistory';
+import { readAllInputHistory, readInputHistory, useInputHistory } from '@/modules/chat-composer';
 
 const keyEvent = (
   key: string,

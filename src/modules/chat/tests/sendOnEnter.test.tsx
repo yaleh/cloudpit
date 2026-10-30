@@ -6,8 +6,8 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { useSendOnEnter } from '@/modules/chat/hooks/useSendOnEnter';
+import { ChatComposer } from '@/modules/chat-composer';
+import { useSendOnEnter } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { api } from '@/shared/api';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';

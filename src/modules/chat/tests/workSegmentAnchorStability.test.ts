@@ -4,10 +4,10 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import type { ChatMessage, NormalizedMessage, WorkSegment, WorkSegmentListItem } from '@/shared/types';
-import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
-import { mergeOlderServerPage } from '@/modules/chat/utils/session/sessionMessagePagination';
+import { normalizedToChatMessages } from '@/modules/chat-session';
+import { getIntrinsicMessageKey } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
+import { mergeOlderServerPage } from '@/modules/chat-session';
 
 /**
  * AC-205: a work segment's anchor is its FIRST member's intrinsic key, and
@@ -324,7 +324,7 @@ afterEach(() => {
 
 async function loadedStore(initial: NormalizedMessage[]) {
   sessionMessages.mockResolvedValue(historyOf(initial));
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer(SID, { limit: 20, offset: 0 });

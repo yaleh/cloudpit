@@ -3,7 +3,7 @@
  * trim decision reads.
  *
  * WHY THIS IS ITS OWN FILE. The trim gate answers "裁不裁" from a capability declaration
- * (`src/modules/chat/hooks/useVoiceInput.ts`) and the declaration comes from the registry — both
+ * (`src/modules/chat-voice/hooks/useVoiceInput.ts`) and the declaration comes from the registry — both
  * of which are pinned elsewhere. What nothing pinned is the JOIN between them: which provider the
  * declaration is read FOR. That join is a registration-order fact, and it is invisible from either
  * side. A tree can have one honest read point, one honest declaration, and still trim nothing,

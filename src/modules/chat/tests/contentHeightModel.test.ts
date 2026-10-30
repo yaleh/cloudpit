@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_ROW_HEIGHT_PX, ESTIMATE_DEADZONE_PX, aboveForFraction, estimateAbove, estimateContent, fractionAtAbove, nextPxPerMessage, rowAtAbove, shouldUpdateEstimate, thumbHeightPx } from '@/modules/chat/utils/transcript/contentHeightModel';
-import type { ContentRowInput, EstimateState } from '@/modules/chat/utils/transcript/contentHeightModel';
+import { DEFAULT_ROW_HEIGHT_PX, ESTIMATE_DEADZONE_PX, aboveForFraction, estimateAbove, estimateContent, fractionAtAbove, nextPxPerMessage, rowAtAbove, shouldUpdateEstimate, thumbHeightPx } from '@/modules/chat-transcript';
+import type { ContentRowInput, EstimateState } from '@/modules/chat-transcript';
 /** The minimum drawn thumb length these cases were written against. */
 const TRANSCRIPT_SCROLLBAR_MIN_THUMB_PX = 28;
 

@@ -128,15 +128,15 @@ vi.mock('@/shared/context/SessionProtectionContext', () => ({
   useSessionProtectionActions: () => ({ markSessionProcessing: () => undefined, markSessionIdle: () => undefined }),
 }));
 
-vi.mock('@/modules/chat/hooks/useSessionStore', () => ({
+vi.mock('@/modules/chat-session/hooks/useSessionStore', () => ({
   useSessionStore: () => ({}),
 }));
 
-vi.mock('@/modules/chat/hooks/useChatRealtimeHandlers', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatRealtimeHandlers', () => ({
   useChatRealtimeHandlers: () => undefined,
 }));
 
-vi.mock('@/modules/chat/composer/useScheduledMessages', () => ({
+vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
 
@@ -168,7 +168,7 @@ vi.mock('@/shared/api', () => ({
   },
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -180,7 +180,7 @@ vi.mock('@/shared/voiceDebug', () => ({
 // and its banner are what these cases read, so only the hook is replaced. Its
 // `start`/`end` counters are the connection lifecycle a reconnect would move, and
 // `connectedAt` is fixed so the elapsed clock is a stable reading.
-vi.mock('@/modules/chat/voice-realtime', async (importOriginal) => {
+vi.mock('@/modules/chat-voice/voice-realtime', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   const stub = {
     phase: 'listening',
@@ -220,7 +220,7 @@ vi.mock('@/modules/chat/voice-realtime', async (importOriginal) => {
 // The provider hook owns the pending set (stateful, so an answer really removes
 // the request); it is seeded from the shared array so the panel has something to
 // render on the first paint.
-vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatProviderState', () => ({
   useChatProviderState: () => {
     const [pending, setPending] = React.useState<PendingPermissionRequest[]>(state.pending);
     state.setPending = setPending;
@@ -251,7 +251,7 @@ vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
   },
 }));
 
-vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatSessionState', () => ({
   useChatSessionState: () => ({
     chatMessages: [],
     addMessage: () => undefined,
@@ -292,7 +292,7 @@ vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
 
 // The composer hook's decision handler is the one the panel calls: it records the
 // payload under test and, like the app, drops the answered request from pending.
-vi.mock('@/modules/chat/hooks/useChatComposerState', () => ({
+vi.mock('@/modules/chat-composer/hooks/useChatComposerState', () => ({
   useChatComposerState: () => ({
     input: '',
     setInput: () => undefined,

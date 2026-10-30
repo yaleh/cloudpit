@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { findSearchTargetIndex, resolveSearchWindowSize } from '@/modules/chat/utils/transcript/searchTargetLocator';
+import { findSearchTargetIndex, resolveSearchWindowSize } from '@/modules/chat-transcript';
 import type { ChatMessage } from '@/shared/types';
 
 /**

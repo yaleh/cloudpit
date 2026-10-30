@@ -4,13 +4,13 @@ import { resolve } from 'node:path';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { useVoiceRealtimeSession } from '@/modules/chat-voice';
 import type {
   VoiceRealtimeAudioFrame,
   VoiceRealtimeAudioSource,
-} from '@/modules/chat/voice-realtime/audioSource';
-import type * as SoundCueModule from '@/modules/chat/voice-realtime/soundCue';
-import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
+} from '@/modules/chat-voice';
+import type { SoundCueModule } from '@/modules/chat-voice';
+import type { VoiceRealtimeSession } from '@/modules/chat-voice';
 
 /**
  * (this task) The three non-verbal cues: entry, exit, and connection loss.
@@ -26,13 +26,13 @@ import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoic
  *
  * The hook is driven with a faked wire and audio source; only the cue module is replaced, so these
  * cases read the SHIPPED trigger points. Run:
- *   npx vitest run src/modules/chat/voice-realtime/tests/soundCue.test.ts
+ *   npx vitest run src/modules/chat-voice/voice-realtime/tests/soundCue.test.ts
  */
 
 /** Every cue the hook asked for, in order. */
 type Cue = 'enter' | 'exit' | 'attention';
 const cues = vi.hoisted(() => [] as Cue[]);
-vi.mock('@/modules/chat/voice-realtime/soundCue', () => ({
+vi.mock('@/modules/chat-voice/voice-realtime/soundCue', () => ({
   primeVoiceCues: () => undefined,
   playVoiceEnterCue: () => cues.push('enter'),
   playVoiceExitCue: () => cues.push('exit'),
@@ -45,7 +45,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 /** A controllable audio source: the test pushes the frames that make capture "live". */
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {
@@ -262,7 +262,7 @@ describe('the attention cue sounds once per connection when the wire is lost', (
 describe('the cue module synthesizes tones instead of playing audio assets', () => {
   test('soundCue.ts drives OscillatorNode and has no audio-element or speech path', () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'modules', 'chat', 'voice-realtime', 'soundCue.ts'),
+      resolve(process.cwd(), 'src', 'modules', 'chat-voice', 'voice-realtime', 'soundCue.ts'),
       'utf8',
     );
     expect(source).toContain('createOscillator');
@@ -315,7 +315,7 @@ describe('the cue module synthesizes tones instead of playing audio assets', () 
       }
     }
     vi.stubGlobal('AudioContext', FakeAudioContext);
-    const actual = await vi.importActual<typeof SoundCueModule>('@/modules/chat/voice-realtime/soundCue');
+    const actual = await vi.importActual<typeof SoundCueModule>('@/modules/chat-voice/voice-realtime/soundCue');
 
     actual.primeVoiceCues();
     actual.playVoiceEnterCue();

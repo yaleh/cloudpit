@@ -49,7 +49,7 @@
  * Frames are driven through the REAL wire type (`VoiceRealtimeSegmentAck`), not a hand-written shape,
  * so the test cannot drift from what AC-366 emits.
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/voiceSegmentLostState.test.tsx
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceSegmentLostState.test.tsx
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -64,12 +64,12 @@ import {
   collectUndeliveredUtterances,
   useVoiceRealtimeSession,
   voiceTranscriptRows,
-} from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
 import {
   SEGMENTED_RELAY_PROTOCOL,
   type VoiceRealtimeSegmentAck,
-} from '@/modules/chat/voice-realtime/voiceRealtimeProtocol';
+} from '@/modules/chat-voice';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import type { ChatMessage, DiffLine } from '@/shared/types';
@@ -147,7 +147,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

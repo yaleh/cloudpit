@@ -42,10 +42,10 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { describe, it } from 'vitest';
 
-import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
-import { normalizedToChatMessages, RESIDENT_PENDING_MESSAGE_TYPE } from '@/modules/chat/hooks/useChatMessages';
-import { mergeSessionRows, useSessionStore } from '@/modules/chat/hooks/useSessionStore';
-import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import { useChatRealtimeHandlers } from '@/modules/chat-session';
+import { normalizedToChatMessages, RESIDENT_PENDING_MESSAGE_TYPE } from '@/modules/chat-session';
+import { mergeSessionRows, useSessionStore } from '@/modules/chat-session';
+import type { SessionStore } from '@/modules/chat-session';
 import PendingResidentMessage from '@/modules/chat/transcript/PendingResidentMessage';
 import type {
   ChatMessage,

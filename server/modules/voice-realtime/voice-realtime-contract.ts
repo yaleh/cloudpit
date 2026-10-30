@@ -17,7 +17,7 @@
  * `voice-realtime-narrator.ts`, `voice-realtime-live-executor.ts`,
  * `voice-realtime-frame-registry.ts`, `voice-realtime-diagnose.service.ts`, and the module barrel
  * (`index.ts`). The browser side mirrors these shapes in
- * `src/modules/chat/voice-realtime/useVoiceRealtimeSession.ts`.
+ * `src/modules/chat-voice/voice-realtime/useVoiceRealtimeSession.ts`.
  */
 import type { VoiceRealtimeAudioCapture } from './voice-realtime-audio-capture.js';
 import type {

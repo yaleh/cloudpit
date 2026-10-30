@@ -27,7 +27,7 @@ import type { CockpitStartConversationCreated } from '@/modules/cockpit/cockpitC
  */
 
 const { createSession } = vi.hoisted(() => ({ createSession: vi.fn() }));
-vi.mock('@/modules/chat/utils/session/sessionCreation', () => ({
+vi.mock('@/modules/chat-session/utils/session/sessionCreation', () => ({
   createChatSession: createSession,
 }));
 

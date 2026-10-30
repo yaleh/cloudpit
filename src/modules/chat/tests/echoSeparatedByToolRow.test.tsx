@@ -132,7 +132,7 @@ afterEach(() => {
  * `computeMerged`), which would hide the defect rather than test for it.
  */
 async function freshStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   sessionMessages.mockResolvedValue(historyOf([userRow('u1', -1000)]));
   const view = renderHook(() => useSessionStore());
   await act(async () => {

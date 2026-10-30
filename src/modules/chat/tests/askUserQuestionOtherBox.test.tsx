@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { test, vi } from 'vitest';
 
-import { AskUserQuestionPanel } from '@/modules/chat/tools/InteractiveRenderers/AskUserQuestionPanel';
+import { AskUserQuestionPanel } from '@/modules/chat-tool-configs';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { PendingPermissionRequest, Question } from '@/shared/types';
 

@@ -41,7 +41,7 @@ vi.mock('@/shared/api', () => ({
 
 const renderProviderState = async () => {
   const { useChatProviderState } = await import(
-    '@/modules/chat/hooks/useChatProviderState'
+    '@/modules/chat-session'
   );
   return renderHook(() =>
     useChatProviderState({ selectedSession: null, selectedProject: null }),

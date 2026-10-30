@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { describe, it } from 'vitest';
 
-import { insertQuotedText } from '@/modules/chat/utils/inputSuggestions';
+import { insertQuotedText } from '@/modules/chat-support';
 
 /**
  * The composer's quote-insertion rules, as one pure function.

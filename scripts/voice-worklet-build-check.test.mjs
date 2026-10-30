@@ -42,7 +42,7 @@ const ROOT = path.resolve(HERE, '..');
 const PROBE = path.join(HERE, 'voice-worklet-build-check.mjs');
 
 /** The module the criterion reads the worklet's URL out of, relative to a tree's root. */
-const WORKLET_URL_REL = path.join('src', 'modules', 'chat', 'audio', 'voiceFrameProcessorUrl.ts');
+const WORKLET_URL_REL = path.join('src', 'modules', 'chat-voice', 'audio', 'voiceFrameProcessorUrl.ts');
 
 /**
  * The pre-fix URL source, verbatim in behaviour: the same expression, from the same directory, over
@@ -171,7 +171,7 @@ test('AC2 the shipped defect — import.meta.url over the source path — reds t
   // The file the defect served really is the source: that is what makes the content type the defect.
   assert.equal(
     readFileSync(publishedWorkletFile(after.stdout), 'utf8'),
-    readFileSync(path.join(tree, 'src', 'modules', 'chat', 'audio', 'voiceFrameProcessor.ts'), 'utf8'),
+    readFileSync(path.join(tree, 'src', 'modules', 'chat-voice', 'audio', 'voiceFrameProcessor.ts'), 'utf8'),
     'the URL the mutated build ships must resolve to the verbatim source',
   );
 

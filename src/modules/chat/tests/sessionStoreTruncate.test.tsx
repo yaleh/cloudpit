@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 async function loadedStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
@@ -95,7 +95,7 @@ describe('truncateAt', () => {
   });
 
   it('stamps an absolute floor when the anchor lives only in the live rows', async () => {
-    const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+    const { useSessionStore } = await import('@/modules/chat-session');
     const view = renderHook(() => useSessionStore());
 
     // A tail page whose absolute origin is 20. The message being edited is not
@@ -371,7 +371,7 @@ function localReplacementEcho(): NormalizedMessage {
 
 /** Loads the shifted-origin window, then performs the edit's cut. */
 async function windowShiftStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
 
   sessionMessages.mockResolvedValue(tailPage(WINDOW_TOTAL, preEditWindow()));
@@ -459,7 +459,7 @@ describe('replacement rows across a sliding history window', () => {
   });
 
   it('keeps an unclaimed local send when two sends share the same text', async () => {
-    const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+    const { useSessionStore } = await import('@/modules/chat-session');
     const view = renderHook(() => useSessionStore());
 
     sessionMessages.mockResolvedValue(tailPage(2, [

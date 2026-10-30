@@ -1,9 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
-import { SEGMENTED_RELAY_PROTOCOL } from '@/modules/chat/voice-realtime/voiceRealtimeProtocol';
+import { useVoiceRealtimeSession } from '@/modules/chat-voice';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
+import { SEGMENTED_RELAY_PROTOCOL } from '@/modules/chat-voice';
 
 /**
  * P1c — the browser's segmented relay, with the wire and the audio source faked.
@@ -26,7 +26,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 /** A controllable audio source: the test pushes frames, and can see whether it was released. */
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

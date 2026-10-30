@@ -1233,7 +1233,7 @@ const classifySubmitLabel = (label: string | null, labels: SubmitLabels): string
  * The accessible name on the composer's submit control, or `null` when the form draws no button.
  *
  * The control is the form's *last* button, not `button[type="submit"]`: `PromptInputSubmit`
- * renders `type={isActive ? 'button' : 'submit'}` (`src/modules/chat/composer/PromptInput.tsx`),
+ * renders `type={isActive ? 'button' : 'submit'}` (`src/modules/chat-composer/composer/PromptInput.tsx`),
  * so while a turn is running — exactly the state whose name this reading is about — the stop
  * control is a plain `button`, and a `[type="submit"]` selector would find nothing there. The
  * submit is the footer's final control in both states; the form draws nothing after it.

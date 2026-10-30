@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { renderHook } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
-import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
-import { useChatSessionState } from '@/modules/chat/hooks/useChatSessionState';
+import { useChatRealtimeHandlers } from '@/modules/chat-session';
+import { useChatSessionState } from '@/modules/chat-session';
 import type { ChatReplayCursorMap, Project, ProjectSession, ServerEvent } from '@/shared/types';
-import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import type { SessionStore } from '@/modules/chat-session';
 
 /**
  * The replay cursor must survive a run change.

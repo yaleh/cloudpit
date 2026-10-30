@@ -181,7 +181,7 @@ test('an unreadable index degrades to an empty list and is not re-asked', async 
 
 test('the three reference consumers read the shared index and keep no full-tree fetch', async () => {
   const consumers = [
-    ['@-mentions', 'src/modules/chat/hooks/useFileMentions.tsx'],
+    ['@-mentions', 'src/modules/chat-composer/hooks/useFileMentions.tsx'],
     ['command palette', 'src/modules/command-palette/hooks/useFilesSource.ts'],
     ['bare-name resolution', 'src/modules/project-workspace/hooks/useFileOpenResolver.ts'],
   ] as const;

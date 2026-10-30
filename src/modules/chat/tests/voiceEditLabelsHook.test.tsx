@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { ChatComposer } from '@/modules/chat-composer';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 // Type-only, so both are erased before vi.mock's hoisted factories run.
@@ -92,7 +92,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 
 // The real hook asks the backend whether a voice provider is configured; the mic button is gated on
 // that answer, and this file drives the mic button.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 await i18next.use(initReactI18next).init({
   lng: 'en',

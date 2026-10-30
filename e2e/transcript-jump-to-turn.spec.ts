@@ -904,7 +904,7 @@ test.describe('turn rail jump in a real browser', () => {
     // it too, the one jump reads an id-addressed window, and it never scrolls a
     // fully pulled transcript with `scrollIntoView`.
     const repoRoot = process.cwd();
-    const chatHook = fs.readFileSync(path.join(repoRoot, 'src/modules/chat/hooks/useChatSessionState.ts'), 'utf8');
+    const chatHook = fs.readFileSync(path.join(repoRoot, 'src/modules/chat-session/hooks/useChatSessionState.ts'), 'utf8');
     const railHook = fs.readFileSync(path.join(repoRoot, 'src/modules/chat/hooks/useTurnNavigation.ts'), 'utf8');
     expect(chatHook, 'the search effect must route through the shared jumpToMessage entry').toContain('jumpToMessage(anchorId)');
     expect(railHook, 'the rail must route through the same jumpToMessage entry').toContain('jumpToMessage(');

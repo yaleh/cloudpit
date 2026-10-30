@@ -6,8 +6,8 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { useSuggestionChips } from '@/modules/chat/hooks/useSuggestionChips';
+import { ChatComposer } from '@/modules/chat-composer';
+import { useSuggestionChips } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ComposerChipStrip } from '@/shared/types';
 
@@ -54,7 +54,7 @@ vi.mock('@/shared/api', () => {
   };
 });
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
@@ -63,7 +63,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   voiceDebugFlushSilenceSec: () => undefined,
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: () => undefined,

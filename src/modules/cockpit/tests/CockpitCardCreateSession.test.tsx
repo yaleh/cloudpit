@@ -31,7 +31,7 @@ import type { CockpitStartConversationCreated } from '@/modules/cockpit/cockpitC
 // The gateway is the subject of these cases: the hook imports this module, so the recorder
 // replaces it here and every press is observed exactly where production allocates a session.
 const { createSession } = vi.hoisted(() => ({ createSession: vi.fn() }));
-vi.mock('@/modules/chat/utils/session/sessionCreation', () => ({
+vi.mock('@/modules/chat-session/utils/session/sessionCreation', () => ({
   createChatSession: createSession,
 }));
 

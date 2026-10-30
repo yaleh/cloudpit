@@ -31,7 +31,7 @@ import { describe, it } from 'vitest';
 import {
   collapseMonitorEventRows,
   normalizedToChatMessages,
-} from '@/modules/chat/hooks/useChatMessages';
+} from '@/modules/chat-session';
 import type { ChatMessage, NormalizedMessage } from '@/shared/types';
 
 /** Base for every fixture row; fields a case cares about are overridden. */

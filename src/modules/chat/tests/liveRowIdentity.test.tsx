@@ -85,7 +85,7 @@ afterEach(() => {
 });
 
 async function loadedStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer(SID, { limit: 20, offset: 0 });
@@ -195,8 +195,8 @@ describe('the key the transcript derives for a block-keyed turn', () => {
   });
 
   it('is the same while streaming, after the settled frame replaces it, and after the refresh', async () => {
-    const { normalizedToChatMessages } = await import('@/modules/chat/hooks/useChatMessages');
-    const { getIntrinsicMessageKey } = await import('@/modules/chat/utils/transcript');
+    const { normalizedToChatMessages } = await import('@/modules/chat-session');
+    const { getIntrinsicMessageKey } = await import('@/modules/chat-transcript');
     const view = await loadedStore();
     const store = view.result.current;
 

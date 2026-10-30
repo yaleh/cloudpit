@@ -18,7 +18,7 @@
  * time by the proxy's own teardown flush. The leave reads the hold and leaves those words out, and
  * that is what this case drives: the exact expression `ChatInterface`'s leave handler evaluates.
  *
- * Run: npm run test:client -- src/modules/chat/voice-realtime/tests/voicePendingMessageCard.test.tsx
+ * Run: npm run test:client -- src/modules/chat-voice/voice-realtime/tests/voicePendingMessageCard.test.tsx
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -34,9 +34,9 @@ import {
   VoiceRealtimeBar,
   collectUndeliveredUtterances,
   useVoiceRealtimeSession,
-} from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
-import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
+import type { VoiceRealtimeSession } from '@/modules/chat-voice';
 
 /** The shipped English copy, read as data so a copy edit is not a test edit. */
 const EN_CHAT = JSON.parse(
@@ -57,7 +57,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

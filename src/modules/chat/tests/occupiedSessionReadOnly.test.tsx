@@ -48,8 +48,8 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { useChatComposerState } from '@/modules/chat-composer';
+import { ChatComposer } from '@/modules/chat-composer';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import ResidentStatusBar from '@/modules/chat/transcript/ResidentStatusBar';
 import deChat from '@/modules/i18n/locales/de/chat.json';
@@ -181,7 +181,7 @@ vi.mock('@/shared/selectedProvider', async (importOriginal) => {
 // The voice chain is a recorder, a debug gate and a trim switch this criterion has no reading on; a plain
 // install keeps the mic button the composer always draws from reaching for any of them. Same doubles as
 // the composer's sibling criteria.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -190,7 +190,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   // The silence flush's window switch: absent means the shipped 5 s default, which these cases run under.
   voiceDebugFlushSilenceSec: () => undefined,
 }));
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: () => undefined,

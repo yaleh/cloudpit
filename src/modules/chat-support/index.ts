@@ -1,0 +1,51 @@
+/**
+ * Public barrel for the chat-support leaf of the chat split. Every cross-module import of this
+ * module goes through this file; internal code keeps deep specifiers.
+ */
+export type { DictationToggleRegistration } from '@/modules/chat-support/utils/voiceShortcutController';
+export type { InlineQuoteChipPosition } from '@/modules/chat-support/utils/inlineQuoteChipLayout';
+export type { ModelGroup } from '@/modules/chat-support/components/ModelGroupList';
+export type { ReplySuggestionsApi } from '@/modules/chat-support/utils/replySuggestionsController';
+export type { ReplySuggestionsBatchCache } from '@/modules/chat-support/utils/replySuggestionsController';
+export type { ReplySuggestionsClock } from '@/modules/chat-support/utils/replySuggestionsController';
+export type { ReplySuggestionsContext } from '@/modules/chat-support/utils/replySuggestionsController';
+export type { SuggestionDisplayConditions } from '@/modules/chat-support/utils/inputSuggestions';
+export type { SuggestionFillSelection } from '@/modules/chat-support/utils/inputSuggestions';
+export type { UseUiStateResponderDeps } from '@/modules/chat-support/hooks/useUiStateResponder';
+export { ImageLightbox } from '@/modules/chat-support/components/ImageLightbox';
+export { REPLY_SUGGESTIONS_MAX_EXPANSION_DEPTH } from '@/modules/chat-support/utils/replySuggestionsController';
+export { ResidentToggle } from '@/modules/chat-support/components/ResidentConsentNotice';
+export { SUGGESTION_CHIP_ACCEPT_SOURCES } from '@/modules/chat-support/utils/inputSuggestions';
+export { SUGGESTION_LABEL_MAX_CHARS } from '@/modules/chat-support/utils/inputSuggestions';
+export { UNKNOWN_PANEL } from '@/modules/chat-support/hooks/useUiStateResponder';
+export { buildInputSuggestions } from '@/modules/chat-support/utils/inputSuggestions';
+export { buildSuggestionChips } from '@/modules/chat-support/utils/inputSuggestions';
+export { createReplySuggestionsBatchCache } from '@/modules/chat-support/utils/replySuggestionsController';
+export { createReplySuggestionsController } from '@/modules/chat-support/utils/replySuggestionsController';
+export { createVoiceShortcutController } from '@/modules/chat-support/utils/voiceShortcutController';
+export { default as ActivityDockPanel } from '@/modules/chat-support/activity/ActivityDockPanel';
+export { default as ActivityIndicator } from '@/modules/chat-support/activity/ActivityIndicator';
+export { default as CommandResultModal } from '@/modules/chat-support/modals/CommandResultModal';
+export { default as InputOutlineDrawer } from '@/modules/chat-support/outline/InputOutlineDrawer';
+export { default as ModelGroupList } from '@/modules/chat-support/components/ModelGroupList';
+export { default as ResidentConsentNotice } from '@/modules/chat-support/components/ResidentConsentNotice';
+export { default as UiNavigatePrompt } from '@/modules/chat-support/components/UiNavigatePrompt';
+export { inlineChipTextareaHeight } from '@/modules/chat-support/utils/inlineQuoteChipLayout';
+export { insertQuotedText } from '@/modules/chat-support/utils/inputSuggestions';
+export { normalizeSuggestionKey } from '@/modules/chat-support/utils/inputSuggestions';
+export { replySuggestionsBatchCache } from '@/modules/chat-support/utils/replySuggestionsController';
+export { resetReplySuggestionsBatchCache } from '@/modules/chat-support/utils/replySuggestionsController';
+export { resolveInlineQuoteChipCaret } from '@/modules/chat-support/utils/inlineQuoteChipLayout';
+export { scrollbarCompensation } from '@/modules/chat-support/utils/inlineQuoteChipLayout';
+export { splitInlineQuoteChipInput } from '@/modules/chat-support/utils/inlineQuoteChipLayout';
+export { suggestionConditionsHold } from '@/modules/chat-support/utils/inputSuggestions';
+export { suggestionOptionId } from '@/modules/chat-support/utils/inputSuggestions';
+export { truncateSuggestionLabel } from '@/modules/chat-support/utils/inputSuggestions';
+export { useInputOutline } from '@/modules/chat-support/outline/useInputOutline';
+export { useOutlineHandleDrag } from '@/modules/chat-support/outline/useOutlineHandleDrag';
+export { useTts } from '@/modules/chat-support/hooks/useTts';
+export { useUiNavigate } from '@/modules/chat-support/hooks/useUiNavigate';
+export { useUiStateResponder } from '@/modules/chat-support/hooks/useUiStateResponder';
+export { useVoiceAvailable } from '@/modules/chat-support/hooks/useVoiceAvailable';
+export { useVoiceInsertionState } from '@/modules/chat-support/hooks/useVoiceInsertionState';
+export { useVoiceShortcuts } from '@/modules/chat-support/hooks/useVoiceShortcuts';

@@ -2,7 +2,7 @@ import React from 'react';
 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { useIsExportingTranscript } from '@/modules/chat-session';
 
 type CollapsibleSectionProps = {
   title: string;

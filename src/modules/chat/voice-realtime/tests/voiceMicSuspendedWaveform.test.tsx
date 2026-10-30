@@ -6,8 +6,8 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { describe, expect, test } from 'vitest';
 
-import { VoiceRealtimeBar } from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimePhase, VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
+import { VoiceRealtimeBar } from '@/modules/chat-voice';
+import type { VoiceRealtimePhase, VoiceRealtimeSession } from '@/modules/chat-voice';
 
 /**
  * (this task) AC3 — a microphone suspension greys the waveform, WITHOUT the red error line and
@@ -22,7 +22,7 @@ import type { VoiceRealtimePhase, VoiceRealtimeSession } from '@/modules/chat/vo
  *
  * This renders the shipping `VoiceRealtimeBar` directly with a constructed `voice` prop — the bar
  * is the unit under test and it needs no live connection to be read. Run:
- *   npx vitest run src/modules/chat/voice-realtime/tests/voiceMicSuspendedWaveform.test.tsx
+ *   npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceMicSuspendedWaveform.test.tsx
  */
 
 await i18next.use(initReactI18next).init({

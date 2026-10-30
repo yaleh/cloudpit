@@ -71,14 +71,14 @@ export const FIXTURE_FILES = [
   'shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts',
   'shared/asr/list/multimodal/multimodal.asr-provider.ts',
   'src/shared/voiceTrim.ts',
-  'src/modules/chat/hooks/useVoiceInput.ts',
+  'src/modules/chat-voice/hooks/useVoiceInput.ts',
 ];
 
 /** Exported for the same reason `registryDeclarations` is: one home for the registry's path. */
 export const REGISTRY_MODULE = 'shared/asr/asrRegistry.ts';
 
 /** The module whose trim gate AC4 is about: the client-side read point this task unwires. */
-const GATE_MODULE = 'src/modules/chat/hooks/useVoiceInput.ts';
+const GATE_MODULE = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
 
 /** The capability's vocabulary. A declaration outside it is not read as a declaration at all. */
 const CAPABILITY_VALUES = ['destructive', 'neutral', 'useful'];

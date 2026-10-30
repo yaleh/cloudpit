@@ -9,17 +9,17 @@ import type { ChatMessage,
   ProviderModelActions,
   ProviderModelsDefinition,
   SessionActivity } from '@/shared/types';
-import { RESIDENT_PENDING_MESSAGE_TYPE, UNATTENDED_TURN_MESSAGE_TYPE } from '@/modules/chat/hooks/useChatMessages';
-import { getIntrinsicMessageKey, messageAnchorId } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
-import { findSearchTargetIndex } from '@/modules/chat/utils/transcript/searchTargetLocator';
-import { nextPxPerMessage } from '@/modules/chat/utils/transcript/contentHeightModel';
+import { RESIDENT_PENDING_MESSAGE_TYPE, UNATTENDED_TURN_MESSAGE_TYPE } from '@/modules/chat-session';
+import { getIntrinsicMessageKey, messageAnchorId } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
+import { findSearchTargetIndex } from '@/modules/chat-transcript';
+import { nextPxPerMessage } from '@/modules/chat-transcript';
 
-import type { ContentRowInput } from '@/modules/chat/utils/transcript/contentHeightModel';
-import { useLazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
-import { findPendingForegroundTool } from '@/modules/chat/hooks/useActivityControls';
-import { findLatestReplyItems, formatReplyItemUri } from '@/modules/chat/utils/transcript/replyItems';
-import type { ReplyItemRenderContext } from '@/modules/chat/utils/transcript/replyItems';
+import type { ContentRowInput } from '@/modules/chat-transcript';
+import { useLazyRowObserver } from '@/modules/chat-transcript';
+import { findPendingForegroundTool } from '@/modules/chat-session';
+import { findLatestReplyItems, formatReplyItemUri } from '@/modules/chat-transcript';
+import type { ReplyItemRenderContext } from '@/modules/chat-transcript';
 import LazyMessageRow from '@/modules/chat/transcript/LazyMessageRow';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import PendingResidentMessage from '@/modules/chat/transcript/PendingResidentMessage';
@@ -27,7 +27,7 @@ import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelec
 import type { NextTaskBannerComponent } from '@/modules/chat/transcript/ProviderSelectionEmptyState';
 import WorkSegmentRecord from '@/modules/chat/transcript/WorkSegmentRecord';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
-import { ActivityIndicator } from '@/modules/chat/activity';
+import { ActivityIndicator } from '@/modules/chat-support';
 
 /**
  * How many of the newest rows mount with real content on the first commit,

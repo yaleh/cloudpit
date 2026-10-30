@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { appendVoiceSegment, applyVoiceEdit, beginVoiceInsertion, voiceCommittedText } from '@/modules/chat/utils/voice/voiceInsertion';
-import type { VoiceInsertion } from '@/modules/chat/utils/voice/voiceInsertion';
+import { appendVoiceSegment, applyVoiceEdit, beginVoiceInsertion, voiceCommittedText } from '@/modules/chat-voice';
+import type { VoiceInsertion } from '@/modules/chat-voice';
 
 /**
  * The insertion range's properties, measured on a seeded generator rather than on hand-picked

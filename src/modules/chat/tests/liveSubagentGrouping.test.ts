@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import type { NormalizedMessage } from '@/shared/types';
-import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
+import { normalizedToChatMessages } from '@/modules/chat-session';
 
 /**
  * While a subagent runs, its rows stream in stamped with the spawning Task's

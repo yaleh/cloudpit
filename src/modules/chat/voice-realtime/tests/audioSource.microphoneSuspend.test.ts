@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { microphoneAudioSource, type VoiceRealtimeMicSuspension } from '@/modules/chat/voice-realtime/audioSource';
+import { microphoneAudioSource, type VoiceRealtimeMicSuspension } from '@/modules/chat-voice';
 
 /**
  * (this task) AC1 — the microphone source answers a browser-forced `AudioContext` suspension with a
@@ -13,12 +13,12 @@ import { microphoneAudioSource, type VoiceRealtimeMicSuspension } from '@/module
  * `resume()`. The shipped `microphoneAudioSource()` runs against it unchanged — nothing here stubs
  * the source itself, only the browser APIs it drives.
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/audioSource.microphoneSuspend.test.ts
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/audioSource.microphoneSuspend.test.ts
  */
 
 // The one import that reaches the bundler's `?worker&url` transform; the capture path only reads the
 // URL string, so a plain stub is what the source needs. Everything else is the real module.
-vi.mock('@/modules/chat/audio/voiceFrameProcessorUrl', () => ({
+vi.mock('@/modules/chat-voice/audio/voiceFrameProcessorUrl', () => ({
   voiceFrameProcessorUrl: () => 'blob:voice-frame-processor',
 }));
 

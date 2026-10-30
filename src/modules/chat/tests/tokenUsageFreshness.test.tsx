@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 async function loadStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   return renderHook(() => useSessionStore());
 }
 

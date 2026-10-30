@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { afterEach, test } from 'vitest';
 
-import { createVoiceShortcutController } from '@/modules/chat/utils/voiceShortcutController';
+import { createVoiceShortcutController } from '@/modules/chat-support';
 import type { VoiceShortcutChord, VoiceShortcuts } from '@/shared/voiceShortcuts';
 
 /**

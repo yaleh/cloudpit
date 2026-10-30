@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 
-import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
-import { createSendDelivery, readSendDeliveryTimeoutMs } from '@/modules/chat/utils/session/sendDelivery';
+import { useChatComposerState } from '@/modules/chat-composer';
+import { createSendDelivery, readSendDeliveryTimeoutMs } from '@/modules/chat-session';
 import type { LLMProvider, PermissionMode, Project, ProjectSession, ServerEvent } from '@/shared/types';
 import { resetUserPreferences } from '@/shared/userSettings';
 

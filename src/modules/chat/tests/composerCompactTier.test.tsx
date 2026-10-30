@@ -7,8 +7,8 @@ import type { MutableRefObject } from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { COMPACT_TIER_WIDTH_PX, INLINE_TOOLS_MIN_BOX_PX } from '@/modules/chat/hooks/useComposerCompactTier';
+import { ChatComposer } from '@/modules/chat-composer';
+import { COMPACT_TIER_WIDTH_PX, INLINE_TOOLS_MIN_BOX_PX } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ComposerChipStrip, VoiceClipSlot } from '@/shared/types';
 
@@ -49,7 +49,7 @@ const DESKTOP_WIDTH = 1280;
 const BOX_WITH_SIDEBAR_OPEN = 445;
 const BOX_WITH_SIDEBAR_CLOSED = 866;
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
@@ -69,7 +69,7 @@ const { clipFixture } = vi.hoisted(() => ({
   clipFixture: { slot: null as VoiceClipSlot | null, toggle: vi.fn() },
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: clipFixture.toggle,

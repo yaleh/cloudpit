@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ImageLightbox } from '@/modules/chat/components/ImageLightbox';
+import { ImageLightbox } from '@/modules/chat-support';
 import { api } from '@/shared/api';
 import type { ChatImage } from '@/shared/types';
 

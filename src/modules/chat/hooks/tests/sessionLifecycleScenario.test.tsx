@@ -37,10 +37,10 @@ import {
   applyCommandLifecycleToRows,
   mergeSessionRows,
   residentPendingRow,
-} from '@/modules/chat/hooks/useSessionStore';
-import { voiceTranscriptRows } from '@/modules/chat/voice-realtime/placeCaptions';
-import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
-import { isLiveRowId } from '@/modules/chat/utils/transcript/liveRowIdentity';
+} from '@/modules/chat-session';
+import { voiceTranscriptRows } from '@/modules/chat-voice';
+import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat-voice';
+import { isLiveRowId } from '@/modules/chat-transcript';
 import {
   SESSION_LIFECYCLE_TIMELINE,
   SESSION_LIFECYCLE_TIMELINE_ID,

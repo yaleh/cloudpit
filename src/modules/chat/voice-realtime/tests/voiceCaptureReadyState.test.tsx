@@ -7,12 +7,12 @@ import { useEffect } from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { VoiceRealtimeBar, useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { VoiceRealtimeBar, useVoiceRealtimeSession } from '@/modules/chat-voice';
 import type {
   VoiceRealtimeAudioFrame,
   VoiceRealtimeAudioSource,
-} from '@/modules/chat/voice-realtime/audioSource';
-import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeSession } from '@/modules/chat-voice';
 
 /**
  * (this task) The bar must not claim words for phases the person cannot act on — and the capture
@@ -27,7 +27,7 @@ import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoic
  *
  * The hook and the shipped bar are the unit under test: the wire and the audio source are faked,
  * because this criterion is about what the PAGE does with them. Run:
- *   npx vitest run src/modules/chat/voice-realtime/tests/voiceCaptureReadyState.test.tsx
+ *   npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceCaptureReadyState.test.tsx
  */
 
 const EN_CHAT = JSON.parse(
@@ -49,7 +49,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 /** A controllable audio source: the test pushes the frames, and the capture is ready only then. */
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { JUMP_ANCHOR_TOLERANCE_PX, createJumpAnchorLock, jumpAnchorCorrection } from '@/modules/chat/utils/transcript/jumpAnchorLock';
+import { JUMP_ANCHOR_TOLERANCE_PX, createJumpAnchorLock, jumpAnchorCorrection } from '@/modules/chat-transcript';
 
 /**
  * The frame scheduler the controller is driven by: nothing runs until the test

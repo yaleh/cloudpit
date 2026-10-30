@@ -7,13 +7,13 @@ import { useEffect } from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { VoiceRealtimeBar, useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { VoiceRealtimeBar, useVoiceRealtimeSession } from '@/modules/chat-voice';
 import type {
   VoiceRealtimeAudioFrame,
   VoiceRealtimeAudioSource,
   VoiceRealtimeMicSuspension,
-} from '@/modules/chat/voice-realtime/audioSource';
-import type { VoiceRealtimeSession } from '@/modules/chat/voice-realtime/useVoiceRealtimeSession';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeSession } from '@/modules/chat-voice';
 import type { ChatMessage } from '@/shared/types';
 
 /**
@@ -56,7 +56,7 @@ type FakeSource = VoiceRealtimeAudioSource & {
   stopped: number;
 };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     let onSuspension: ((event: VoiceRealtimeMicSuspension) => void) | null = null;

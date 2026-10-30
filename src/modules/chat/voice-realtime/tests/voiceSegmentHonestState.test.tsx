@@ -38,7 +38,7 @@
  * was spoken before. (The red was demonstrated by making the capstone's own sort the identity and
  * re-running the group; see the task's Notes.)
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/voiceSegmentHonestState.test.tsx
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceSegmentHonestState.test.tsx
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -54,9 +54,9 @@ import {
   voiceTranscriptRows,
   type VoiceRealtimeCaption,
   type VoiceRealtimeDelivery,
-} from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
-import { SEGMENTED_RELAY_PROTOCOL } from '@/modules/chat/voice-realtime/voiceRealtimeProtocol';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
+import { SEGMENTED_RELAY_PROTOCOL } from '@/modules/chat-voice';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import type { ChatMessage, DiffLine } from '@/shared/types';
@@ -138,7 +138,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { useFollowSentRun } from '@/modules/chat/voice-realtime/useFollowSentRun';
+import { useFollowSentRun } from '@/modules/chat-voice';
 
 /**
  * A delivered voice instruction opens a run no socket of this page is bound to, so the

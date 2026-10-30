@@ -22,12 +22,12 @@ import {
   matchReferenceTargets,
   normalizeReferenceTarget,
   readCaretQuery,
-} from '@/modules/chat/utils/transcript/referenceTargets';
+} from '@/modules/chat-transcript';
 
 const REPLY = [
   '## Implementation notes',
   '',
-  'The matcher lives in `src/modules/chat/utils/transcript/referenceTargets.ts`.',
+  'The matcher lives in `src/modules/chat-transcript/utils/transcript/referenceTargets.ts`.',
   '',
   '- It calls `matchReferenceTargets` with a target list.',
   '- The task id is chat-reply-items-addressable.',
@@ -41,7 +41,7 @@ const REPLY = [
 describe('extractReferenceTargets', () => {
   test('collects paths from prose and inline code, preferring the whole path', () => {
     const targets = extractReferenceTargets(REPLY);
-    const path = 'src/modules/chat/utils/transcript/referenceTargets.ts';
+    const path = 'src/modules/chat-transcript/utils/transcript/referenceTargets.ts';
     const target = targets.find((candidate) => candidate.text === path);
     assert.ok(target, 'the inline-code path is extracted');
     assert.equal(target.kind, 'path');
@@ -113,7 +113,7 @@ describe('matchReferenceTargets', () => {
 
   test('completes a path typed by its basename', () => {
     const matches = matchReferenceTargets('改一下 referenceTar', targets);
-    assert.equal(matches[0]?.target.text, 'src/modules/chat/utils/transcript/referenceTargets.ts');
+    assert.equal(matches[0]?.target.text, 'src/modules/chat-transcript/utils/transcript/referenceTargets.ts');
   });
 
   test('completes an identifier prefix', () => {

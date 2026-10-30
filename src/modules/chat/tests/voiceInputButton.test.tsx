@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { test } from 'vitest';
 
-import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
+import { VoiceInputButton } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 
 /**

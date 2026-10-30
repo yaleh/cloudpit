@@ -4,9 +4,9 @@ import { test } from 'vitest';
 
 import type { ChatMessage, WorkSegmentListItem } from '@/shared/types';
 import { buildTranscriptExport } from '@/modules/chat/export/chatExport';
-import { createCachedDiffCalculator } from '@/modules/chat/utils/transcript/messageTransforms';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
+import { createCachedDiffCalculator } from '@/modules/chat-transcript';
+import { getIntrinsicMessageKey } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
 
 /**
  * AC-206: the HTML export must keep every row the transcript had, even though

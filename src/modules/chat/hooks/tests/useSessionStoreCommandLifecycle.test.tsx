@@ -29,7 +29,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { normalizedToChatMessages, RESIDENT_PENDING_MESSAGE_TYPE } from '@/modules/chat/hooks/useChatMessages';
+import { normalizedToChatMessages, RESIDENT_PENDING_MESSAGE_TYPE } from '@/modules/chat-session';
 import type { NormalizedMessage } from '@/shared/types';
 
 const sessionMessages = vi.fn();
@@ -83,7 +83,7 @@ afterEach(() => {
 
 /** A loaded store with the busy send already recorded and waiting on the host. */
 async function storeWithPendingSend() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer(SESSION, { limit: 20, offset: 0 });

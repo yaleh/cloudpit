@@ -7,9 +7,9 @@ import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
-import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
+import { normalizedToChatMessages } from '@/modules/chat-session';
+import { getIntrinsicMessageKey } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
 
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import enChat from '@/modules/i18n/locales/en/chat.json';

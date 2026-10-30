@@ -9,14 +9,14 @@ import { useTranslation } from 'react-i18next';
 
 import { MermaidDiagram } from '@/modules/code-editor';
 import { MarkdownImage } from '@/modules/chat/transcript/MarkdownImage';
-import { normalizeInlineCodeFences } from '@/modules/chat/utils/transcript/chatFormatting';
-import { matchReplyItem } from '@/modules/chat/utils/transcript/replyItems';
-import { buildSyntaxTheme } from '@/modules/chat/utils/transcript/syntaxHighlightTheme';
+import { normalizeInlineCodeFences } from '@/modules/chat-transcript';
+import { matchReplyItem } from '@/modules/chat-transcript';
+import { buildSyntaxTheme } from '@/modules/chat-transcript';
 import { copyTextToClipboard } from '@/shared/utils';
 import { SyntaxHighlighter } from '@/shared/syntaxHighlighter';
 import { usePaletteOps } from '@/modules/command-palette';
-import type { PrismStyleSheet } from '@/modules/chat/utils/transcript/syntaxHighlightTheme';
-import type { ReplyItem, ReplyItemRenderContext } from '@/modules/chat/utils/transcript/replyItems';
+import type { PrismStyleSheet } from '@/modules/chat-transcript';
+import type { ReplyItem, ReplyItemRenderContext } from '@/modules/chat-transcript';
 
 type MarkdownProps = {
   children: React.ReactNode;

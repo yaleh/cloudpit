@@ -23,7 +23,7 @@
  * not fit rather than skipping it — which is what "newest-first until it no longer fits" means.
  *
  * THE FALSE FORMS ARE EXECUTED, NOT DESCRIBED. Section 3 writes a mutated copy of
- * `src/modules/chat/utils/voice/voiceContextPack.ts` beside the suite and imports it: one arm turns the
+ * `src/modules/chat-voice/utils/voice/voiceContextPack.ts` beside the suite and imports it: one arm turns the
  * budget check off (超预算时不截断), the other drops tool rows from the work-row exclusion (把工具
  * 调用/结果放进 pack). Each control runs the SAME reading through both arms — the mutated module and
  * the shipped one — so it cannot pass by being red for some unrelated reason, and both variants are
@@ -52,9 +52,9 @@ import {
   VOICE_INPUT_DRAFT_AFTER_HEADING,
   VOICE_INPUT_DRAFT_BEFORE_HEADING,
   VOICE_INPUT_VOICE_SO_FAR_HEADING,
-} from '@/modules/chat/utils/voice/voiceContextPack';
-import type { VoiceContextPack } from '@/modules/chat/utils/voice/voiceContextPack';
-import { groupWorkSegments, isWorkSegmentMember } from '@/modules/chat/utils/transcript/workSegments';
+} from '@/modules/chat-voice';
+import type { VoiceContextPack } from '@/modules/chat-voice';
+import { groupWorkSegments, isWorkSegmentMember } from '@/modules/chat-transcript';
 import type { ChatMessage, QuayFocusableObject } from '@/shared/types';
 
 /** The clock every case reads against, so a `刚刚` in the rendered line is a constant. */
@@ -64,7 +64,7 @@ const NOW = Date.parse('2026-10-10T12:00:00.000Z');
 const FRESH = new Date(NOW - 60_000).toISOString();
 
 /** The source of the module under test, read for the same-source and no-turn-count criteria. */
-const MODULE_PATH = path.resolve(process.cwd(), 'src/modules/chat/utils/voice/voiceContextPack.ts');
+const MODULE_PATH = path.resolve(process.cwd(), 'src/modules/chat-voice/utils/voice/voiceContextPack.ts');
 const TESTS_DIR = path.resolve(process.cwd(), 'src/modules/chat/utils/tests');
 
 // ── 1. The filter, judged against the transcript's own rules on one fixture batch ─────────────
@@ -310,11 +310,12 @@ test('① the pack READS the two predicates rather than restating them', () => {
   // drift the first time either side changed. Pinned at the source, because an import that was
   // quietly inlined would leave every reading above green.
   const source = readFileSync(MODULE_PATH, 'utf8');
-  // Read from the predicate's DEFINING module, not the `tools` barrel: the barrel drags the
-  // whole tools package (and its transcript imports) under `utils/voice`, closing a package
-  // cycle. `toolGrouping`/`workSegmentTitle` already read the same leaf this way.
-  assert.match(source, /import \{ shouldHideToolResult \} from '@\/modules\/chat\/tools\/configs\/toolConfigs';/);
-  assert.match(source, /import \{ isWorkSegmentMember \} from '@\/modules\/chat\/utils\/transcript\/workSegments';/);
+  // Read through each predicate's leaf barrel: after the split the predicates live in
+  // `chat-tool-configs` and `chat-transcript`, and a cross-module deep import would reach past
+  // a leaf's public surface. Neither barrel can reach `utils/voice`, so the edge stays one-way
+  // (the pinned `tools`↔`transcript` cycle is inside `chat`, not across the new leaves).
+  assert.match(source, /import \{ shouldHideToolResult \} from '@\/modules\/chat-tool-configs';/);
+  assert.match(source, /import \{ isWorkSegmentMember \} from '@\/modules\/chat-transcript';/);
   assert.match(source, /isWorkSegmentMember\(message\)/);
 });
 

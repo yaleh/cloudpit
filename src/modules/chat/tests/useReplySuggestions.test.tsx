@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { useReplySuggestions } from '@/modules/chat/hooks/useReplySuggestions';
-import { resetReplySuggestionsBatchCache } from '@/modules/chat/utils/replySuggestionsController';
+import { useReplySuggestions } from '@/modules/chat-composer';
+import { resetReplySuggestionsBatchCache } from '@/modules/chat-support';
 
 /**
  * The model-chip hook, one leg per rule the proposal states.

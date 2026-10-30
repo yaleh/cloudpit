@@ -26,8 +26,8 @@ import { readFileSync } from 'node:fs';
 
 import { test } from 'vitest';
 
-import { PIPELINE_DEFAULTS, planSegments, reassembleText, runSegmentPipeline, segmentPlaceholder } from '@/modules/chat/utils/voice/voiceSegments';
-import type { SegmentJob, SegmentTranscribe } from '@/modules/chat/utils/voice/voiceSegments';
+import { PIPELINE_DEFAULTS, planSegments, reassembleText, runSegmentPipeline, segmentPlaceholder } from '@/modules/chat-voice';
+import type { SegmentJob, SegmentTranscribe } from '@/modules/chat-voice';
 import { StreamingVad, type VoiceSegment } from '@/shared/voiceEndpoint';
 
 // ── Shared generators ───────────────────────────────────────────────────────────────────────

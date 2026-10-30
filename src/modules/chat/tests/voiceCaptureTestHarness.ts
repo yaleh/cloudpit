@@ -1,4 +1,4 @@
-import type { VoiceCaptureEngine, VoiceCaptureSink } from '@/modules/chat/hooks/useVoiceInput';
+import type { VoiceCaptureEngine, VoiceCaptureSink } from '@/modules/chat-voice';
 import type { VadEvent } from '@/shared/voiceEndpoint';
 
 /**

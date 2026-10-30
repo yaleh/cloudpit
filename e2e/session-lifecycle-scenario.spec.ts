@@ -79,15 +79,15 @@ import type { SessionLifecycleTerminalReading } from '../src/shared/scenarios/se
  * `tsx --tsconfig`.
  */
 const BROWSER_MODULES = Object.freeze([
-  '/src/modules/chat/hooks/useSessionStore.ts',
-  '/src/modules/chat/voice-realtime/placeCaptions.ts',
-  '/src/modules/chat/utils/transcript/liveRowIdentity.ts',
+  '/src/modules/chat-session/hooks/useSessionStore.ts',
+  '/src/modules/chat-voice/voice-realtime/placeCaptions.ts',
+  '/src/modules/chat-transcript/utils/transcript/liveRowIdentity.ts',
   '/src/shared/scenarios/sessionLifecycle.timeline.ts',
 ]);
 const NODE_MODULES = Object.freeze([
-  '@/modules/chat/hooks/useSessionStore',
-  '@/modules/chat/voice-realtime/placeCaptions',
-  '@/modules/chat/utils/transcript/liveRowIdentity',
+  '@/modules/chat-session/hooks/useSessionStore',
+  '@/modules/chat-voice/voice-realtime/placeCaptions',
+  '@/modules/chat-transcript/utils/transcript/liveRowIdentity',
   '@/shared/scenarios/sessionLifecycle.timeline',
 ]);
 

@@ -108,7 +108,7 @@ test('the AudioWorklet streams the same frame decisions as the pure function', a
       }
 
       const context = new OfflineAudioContext(1, mono.length, 16000);
-      await context.audioWorklet.addModule(`${clientUrl}/src/modules/chat/audio/voiceFrameProcessor.ts`);
+      await context.audioWorklet.addModule(`${clientUrl}/src/modules/chat-voice/audio/voiceFrameProcessor.ts`);
       const node = new AudioWorkletNode(context, 'voice-frame-processor', {
         numberOfInputs: 1,
         numberOfOutputs: 1,

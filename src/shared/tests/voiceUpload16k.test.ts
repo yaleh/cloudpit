@@ -27,7 +27,7 @@ import { beforeEach, test, vi } from 'vitest';
 
 import type { PauseCuesDeclaration } from '@shared/asr/asrRegistry';
 
-import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
+import { useVoiceInput } from '@/modules/chat-voice';
 import * as audio from '@/shared/audioDecode';
 import type * as SharedApi from '@/shared/api';
 

@@ -4,7 +4,7 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { test, vi } from 'vitest';
 
-import { PromptInput, PromptInputSubmit } from '@/modules/chat/composer/PromptInput';
+import { PromptInput, PromptInputSubmit } from '@/modules/chat-composer';
 
 /**
  * PromptInputSubmit used to accept its own `status` prop and fall back to

@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { test } from 'vitest';
 
-import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
+import { CommandResultModal } from '@/modules/chat-support';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { CommandModalPayload, CostCommandData } from '@/shared/types';
 

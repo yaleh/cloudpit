@@ -16,8 +16,8 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { AUDIO_TOKENS_PER_SEC, buildVoiceLiveReading } from '@/modules/chat/utils/voice/voiceLiveReading';
-import type { VoiceLiveMetrics } from '@/modules/chat/utils/voice/voiceLiveReading';
+import { AUDIO_TOKENS_PER_SEC, buildVoiceLiveReading } from '@/modules/chat-voice';
+import type { VoiceLiveMetrics } from '@/modules/chat-voice';
 
 /** Recorded 200 s, cut into three: 10 s + 20 s + 30 s on the wire, one of them forced. */
 const METRICS: VoiceLiveMetrics = {

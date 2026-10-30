@@ -4,8 +4,8 @@ import { ArrowDownIcon } from 'lucide-react';
 
 import { NextTaskBanner, useTasksSettings } from '@/modules/task-master';
 import { useWebSocket } from '@/shared/context/WebSocketContext';
-import PermissionContext from '@/modules/chat/context/PermissionContext';
-import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
+import { PermissionContext } from '@/modules/chat-session';
+import { MarkdownWorkspaceContext } from '@/modules/chat-session';
 import { api } from '@/shared/api';
 import type {
   ChatMessage,
@@ -17,23 +17,23 @@ import type {
   TranscriptExportAction,
   UiNavigateReveal,
 } from '@/shared/types';
-import { useChatProviderState } from '@/modules/chat/hooks/useChatProviderState';
-import { useScheduledMessages } from '@/modules/chat/composer/useScheduledMessages';
-import { useChatSessionState } from '@/modules/chat/hooks/useChatSessionState';
-import { useInputOutline } from '@/modules/chat/outline/useInputOutline';
-import InputOutlineDrawer from '@/modules/chat/outline/InputOutlineDrawer';
-import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
-import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
-import { useVoiceShortcuts } from '@/modules/chat/hooks/useVoiceShortcuts';
-import type { DictationToggleRegistration } from '@/modules/chat/utils/voiceShortcutController';
-import { useActivityDockTurn } from '@/modules/chat/hooks/useActivityDockTurn';
-import { useTranscriptSelection } from '@/modules/chat/hooks/useTranscriptSelection';
-import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
-import { useUiNavigate } from '@/modules/chat/hooks/useUiNavigate';
-import { useUiStateResponder } from '@/modules/chat/hooks/useUiStateResponder';
-import UiNavigatePrompt from '@/modules/chat/components/UiNavigatePrompt';
-import { subscribeTargetFor } from '@/modules/chat/utils/session/replayCursor';
-import { createChatSession } from '@/modules/chat/utils/session/sessionCreation';
+import { useChatProviderState } from '@/modules/chat-session';
+import { useScheduledMessages } from '@/modules/chat-composer';
+import { useChatSessionState } from '@/modules/chat-session';
+import { useInputOutline } from '@/modules/chat-support';
+import { InputOutlineDrawer } from '@/modules/chat-support';
+import { useChatRealtimeHandlers } from '@/modules/chat-session';
+import { useChatComposerState } from '@/modules/chat-composer';
+import { useVoiceShortcuts } from '@/modules/chat-support';
+import type { DictationToggleRegistration } from '@/modules/chat-support';
+import { useActivityDockTurn } from '@/modules/chat-session';
+import { useTranscriptSelection } from '@/modules/chat-transcript';
+import { useSessionStore } from '@/modules/chat-session';
+import { useUiNavigate } from '@/modules/chat-support';
+import { useUiStateResponder } from '@/modules/chat-support';
+import { UiNavigatePrompt } from '@/modules/chat-support';
+import { subscribeTargetFor } from '@/modules/chat-session';
+import { createChatSession } from '@/modules/chat-session';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -46,9 +46,9 @@ import {
   subscribeToLocateRequests,
 } from '@/shared/chatMessageLocator';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import ComposerModelMenu from '@/modules/chat/composer/ComposerModelMenu';
-import PermissionRequestsBanner from '@/modules/chat/composer/PermissionRequestsBanner';
+import { ChatComposer } from '@/modules/chat-composer';
+import { ComposerModelMenu } from '@/modules/chat-composer';
+import { PermissionRequestsBanner } from '@/modules/chat-composer';
 import {
   VoicePendingMessageCard,
   VoiceRealtimeBar,
@@ -58,13 +58,13 @@ import {
   useFollowSentRun,
   useVoiceRealtimeSession,
   warmMicrophoneSource,
-} from '@/modules/chat/voice-realtime';
-import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
+} from '@/modules/chat-voice';
+import { CommandResultModal } from '@/modules/chat-support';
 import { downloadTranscriptExport } from '@/modules/chat/export/chatExport';
 import {
   findLatestReplyItems,
   resolveReplyReference,
-} from '@/modules/chat/utils/transcript/replyItems';
+} from '@/modules/chat-transcript';
 
 import { useRegisterTranscriptExport } from '@/shared/context/TranscriptExportContext';
 

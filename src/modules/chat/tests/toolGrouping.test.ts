@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/transcript/toolGrouping';
+import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat-transcript';
 import type { ChatMessage } from '@/shared/types';
 
 /**

@@ -6,9 +6,9 @@ import type { ChatMessage, WorkSegmentListItem } from '@/shared/types';
 import {
   RESIDENT_PENDING_MESSAGE_TYPE,
   UNATTENDED_DIVIDER_MESSAGE_TYPE,
-} from '@/modules/chat/hooks/useChatMessages';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
+} from '@/modules/chat-session';
+import { getIntrinsicMessageKey } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
 
 /**
  * AC-202: the work-segment selector's boundaries are a pure function of a row's

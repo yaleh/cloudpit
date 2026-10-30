@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type { ChatMessage } from '@/shared/types';
-import type { LazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
+import type { LazyRowObserver } from '@/modules/chat-transcript';
 
 /**
  * Mounts a transcript row's real content only while the row is near the

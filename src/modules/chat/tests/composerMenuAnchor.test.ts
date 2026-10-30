@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { test } from 'vitest';
 
-import { useComposerMenuAnchor } from '@/modules/chat/hooks/useComposerMenuAnchor';
+import { useComposerMenuAnchor } from '@/modules/chat-composer';
 import type { ComposerMenuAnchor } from '@/shared/types';
 
 /**

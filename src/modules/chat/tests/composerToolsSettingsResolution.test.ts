@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
+import { useChatComposerState } from '@/modules/chat-composer';
 import type { LLMProvider, PermissionMode, Project, ProjectSession } from '@/shared/types';
 import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
 

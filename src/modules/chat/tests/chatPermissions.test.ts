@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { buildClaudeToolPermissionEntry } from '@/modules/chat/utils/session/chatPermissions';
+import { buildClaudeToolPermissionEntry } from '@/modules/chat-session';
 
 test('buildClaudeToolPermissionEntry derives a scoped git command from JSON input', () => {
   assert.equal(

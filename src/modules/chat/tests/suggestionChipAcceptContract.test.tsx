@@ -5,10 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { SUGGESTION_CHIP_ACCEPT_SOURCES } from '@/modules/chat/utils/inputSuggestions';
-import type { SuggestionDisplayConditions } from '@/modules/chat/utils/inputSuggestions';
-import { useSuggestionChips } from '@/modules/chat/hooks/useSuggestionChips';
-import type { UseSuggestionChipsResult } from '@/modules/chat/hooks/useSuggestionChips';
+import { SUGGESTION_CHIP_ACCEPT_SOURCES } from '@/modules/chat-support';
+import type { SuggestionDisplayConditions } from '@/modules/chat-support';
+import { useSuggestionChips } from '@/modules/chat-composer';
+import type { UseSuggestionChipsResult } from '@/modules/chat-composer';
 import type { SuggestionChip } from '@/shared/types';
 
 /**
@@ -44,7 +44,7 @@ const reply = vi.hoisted(() => ({
   redraw: vi.fn(async () => true),
 }));
 
-vi.mock('@/modules/chat/hooks/useReplySuggestions', () => ({
+vi.mock('@/modules/chat-composer/hooks/useReplySuggestions', () => ({
   REPLY_SUGGESTIONS_MAX_EXPANSION_DEPTH: 5,
   useReplySuggestions: () => ({
     enabled: reply.state.enabled,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
+import { normalizedToChatMessages } from '@/modules/chat-session';
 import type { NormalizedMessage } from '@/shared/types';
 
 const row = (fields: Partial<NormalizedMessage>): NormalizedMessage => ({

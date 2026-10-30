@@ -16,9 +16,9 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { shouldHideToolResult } from '@/modules/chat/tools';
-import { buildVoiceContextPack, isVoiceContextRow, VOICE_CONTEXT_BUDGET_CHARS, VOICE_CONTEXT_ROW_CAP_CHARS } from '@/modules/chat/utils/voice/voiceContextPack';
-import { isWorkSegmentMember } from '@/modules/chat/utils/transcript/workSegments';
-import { contextFrame } from '@/modules/chat/voice-realtime/voiceRealtimeProtocol';
+import { buildVoiceContextPack, isVoiceContextRow, VOICE_CONTEXT_BUDGET_CHARS, VOICE_CONTEXT_ROW_CAP_CHARS } from '@/modules/chat-voice';
+import { isWorkSegmentMember } from '@/modules/chat-transcript';
+import { contextFrame } from '@/modules/chat-voice';
 import type { ChatMessage } from '@/shared/types';
 
 const NOW = Date.parse('2026-10-10T12:00:00.000Z');

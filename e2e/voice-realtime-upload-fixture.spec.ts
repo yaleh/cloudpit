@@ -13,7 +13,7 @@
  * supports: an uploaded fixture file, decoded by the browser's REAL
  * `AudioContext.decodeAudioData` (no mock of the Web Audio API at all) and
  * replayed through `fileAudioSource` in
- * `src/modules/chat/voice-realtime/audioSource.ts` — the same module
+ * `src/modules/chat-voice/voice-realtime/audioSource.ts` — the same module
  * `microphoneAudioSource` lives in, so this is a run of the shared pipeline,
  * not a parallel one. This is also this repo's fixed-corpus automated
  * end-to-end path for voice: a known WAV fixture, decoded and chunked exactly

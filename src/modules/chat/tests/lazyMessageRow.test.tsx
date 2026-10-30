@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import React, { useRef } from 'react';
 import { act, render } from '@testing-library/react';
 
-import { useLazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
+import { useLazyRowObserver } from '@/modules/chat-transcript';
 import LazyMessageRow from '@/modules/chat/transcript/LazyMessageRow';
 
 /**

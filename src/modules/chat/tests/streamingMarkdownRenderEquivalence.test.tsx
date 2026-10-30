@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
-import { splitStreamingMarkdown } from '@/modules/chat/utils/transcript/streamingMarkdown';
+import { splitStreamingMarkdown } from '@/modules/chat-transcript';
 
 /**
  * The property the split exists to preserve: rendering `settled` and `pending`

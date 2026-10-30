@@ -34,7 +34,7 @@
  *
  * THE BROWSER HALF IS THE REAL MODULE. AC2 requires the frames to come from the browser's own protocol
  * module rather than hand-built fixtures, so the client side of both end-to-end cases is loaded from
- * `src/modules/chat/voice-realtime/voiceRealtimeProtocol.ts`. It is loaded through a dynamic
+ * `src/modules/chat-voice/voice-realtime/voiceRealtimeProtocol.ts`. It is loaded through a dynamic
  * file-URL import (a structural cast), not a static one: `server/tsconfig.json` excludes `../src`, so
  * a static specifier is a type error, while the RUNTIME module only needs `btoa` and is otherwise
  * dependency-free (its one import is type-only and erased).
@@ -81,7 +81,7 @@ const SHIPPING_HANDLERS_MODULE = path.resolve(HERE, '../voice-realtime-frame-han
 /** The proxy's single import of the handler set, retargeted so the mutant proxy drives the mutant handlers. */
 const HANDLERS_IMPORT_SPECIFIER = "'./voice-realtime-frame-handlers.js'";
 /** The browser's protocol module: the AC2 client half, loaded as a real module. */
-const BROWSER_PROTOCOL_MODULE = path.resolve(HERE, '../../../../src/modules/chat/voice-realtime/voiceRealtimeProtocol.ts');
+const BROWSER_PROTOCOL_MODULE = path.resolve(HERE, '../../../../src/modules/chat-voice/voice-realtime/voiceRealtimeProtocol.ts');
 /** The composition root whose wiring AC1 pins as source text. */
 const SERVER_INDEX = path.resolve(HERE, '../../../index.ts');
 

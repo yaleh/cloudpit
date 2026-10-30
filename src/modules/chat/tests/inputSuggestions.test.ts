@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { beforeEach, describe, it } from 'vitest';
 
-import { readAllInputHistory } from '@/modules/chat/hooks/useInputHistory';
+import { readAllInputHistory } from '@/modules/chat-composer';
 import {
   SUGGESTION_LABEL_MAX_CHARS,
   buildInputSuggestions,
@@ -10,7 +10,7 @@ import {
   normalizeSuggestionKey,
   suggestionConditionsHold,
   truncateSuggestionLabel,
-} from '@/modules/chat/utils/inputSuggestions';
+} from '@/modules/chat-support';
 
 /**
  * Candidate rules for the empty-composer chips, one rule per case.

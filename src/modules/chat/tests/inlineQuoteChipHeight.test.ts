@@ -6,7 +6,7 @@ import {
   inlineChipTextareaHeight,
   scrollbarCompensation,
   splitInlineQuoteChipInput,
-} from '@/modules/chat/utils/inlineQuoteChipLayout';
+} from '@/modules/chat-support';
 
 /**
  * The arithmetic behind the inline quote chip's height.

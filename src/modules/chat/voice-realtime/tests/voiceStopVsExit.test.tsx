@@ -23,7 +23,7 @@
  * `WebSocket` and a fake audio source, so the bar's DOM is read against real markup and a real
  * (fake-socket) session.
  *
- * Run: npm run test:client -- src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx
+ * Run: npm run test:client -- src/modules/chat-voice/voice-realtime/tests/voiceStopVsExit.test.tsx
  */
 import assert from 'node:assert/strict';
 
@@ -38,9 +38,9 @@ import {
   collectUndeliveredUtterances,
   countUnshownUtterances,
   useVoiceRealtimeSession,
-} from '@/modules/chat/voice-realtime';
+} from '@/modules/chat-voice';
 import enChat from '@/modules/i18n/locales/en/chat.json';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
 import type { ChatMessage, Project, SessionActivity } from '@/shared/types';
 
 const SESSION_ID = 'session-stop-exit';
@@ -89,7 +89,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {
@@ -170,9 +170,9 @@ vi.mock('@/shared/context/SessionProtectionContext', () => ({
   useSessionProtectionActions: () => ({ markSessionProcessing: () => undefined, markSessionIdle: () => undefined }),
 }));
 
-vi.mock('@/modules/chat/hooks/useSessionStore', () => ({ useSessionStore: () => ({}) }));
-vi.mock('@/modules/chat/hooks/useChatRealtimeHandlers', () => ({ useChatRealtimeHandlers: () => undefined }));
-vi.mock('@/modules/chat/composer/useScheduledMessages', () => ({
+vi.mock('@/modules/chat-session/hooks/useSessionStore', () => ({ useSessionStore: () => ({}) }));
+vi.mock('@/modules/chat-session/hooks/useChatRealtimeHandlers', () => ({ useChatRealtimeHandlers: () => undefined }));
+vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
 vi.mock('@/shared/hooks/useProviderCapabilities', () => ({ useResidentProviders: () => new Set<string>() }));
@@ -192,7 +192,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
     },
   };
 });
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -200,7 +200,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   voiceDebugFlushSilenceSec: () => undefined,
 }));
 
-vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatProviderState', () => ({
   useChatProviderState: () => ({
     provider: 'claude',
     setProvider: () => undefined,
@@ -227,7 +227,7 @@ vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
   }),
 }));
 
-vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatSessionState', () => ({
   useChatSessionState: () => ({
     chatMessages: [PRIOR_TURN],
     addMessage: () => undefined,
@@ -267,7 +267,7 @@ vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
 
 // The composer hook is doubled with a REAL state cell, so the draft the leave re-homes into is the
 // draft the (real) ChatComposer textarea reads back — the box a person would see, not a stub.
-vi.mock('@/modules/chat/hooks/useChatComposerState', async () => {
+vi.mock('@/modules/chat-composer/hooks/useChatComposerState', async () => {
   const ReactModule = await import('react');
   return {
     useChatComposerState: () => {

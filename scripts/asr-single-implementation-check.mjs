@@ -105,7 +105,7 @@ const RESPONSE_MARKERS = [
     //     variable (`JSON.parse(responseText)`), never a member expression. An event or frame
     //     payload arrives as a property (`JSON.parse(event.data)`), and a WebSocket frame
     //     `{ type: 'intent', text }` read off `frame.text` is not the wire protocol's response
-    //     half. Matching it reported `src/modules/chat/voice-realtime/useVoiceRealtimeSession.ts`
+    //     half. Matching it reported `src/modules/chat-voice/voice-realtime/useVoiceRealtimeSession.ts`
     //     as a second implementation (a defect in this probe, not in that file). The operand
     //     shape is the fix, NOT a narrowing of the annotation gap below: that gap is what fuses
     //     the separated spelling (`let frame: ServerFrame;` … `frame = JSON.parse(event.data)`),

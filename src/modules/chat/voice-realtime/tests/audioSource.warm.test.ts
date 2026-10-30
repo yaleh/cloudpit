@@ -5,7 +5,7 @@ import {
   releaseWarmMicrophoneSource,
   warmMicrophoneSource,
   type VoiceRealtimeAudioFrame,
-} from '@/modules/chat/voice-realtime/audioSource';
+} from '@/modules/chat-voice';
 
 /**
  * (this task) AC1 — the Live Voice microphone can be PRE-WARMED, and a start after a warm does not
@@ -20,12 +20,12 @@ import {
  * The pre-warm is module-level state (one tap's acquisition is adopted by the hook's later start),
  * so every case releases it first: cases must not read a cache a previous one left behind.
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/audioSource.warm.test.ts
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/audioSource.warm.test.ts
  */
 
 // The one import that reaches the bundler's `?worker&url` transform; the capture path only reads
 // the URL string, so a plain stub is what the source needs. Everything else is the real module.
-vi.mock('@/modules/chat/audio/voiceFrameProcessorUrl', () => ({
+vi.mock('@/modules/chat-voice/audio/voiceFrameProcessorUrl', () => ({
   voiceFrameProcessorUrl: () => 'blob:voice-frame-processor',
 }));
 

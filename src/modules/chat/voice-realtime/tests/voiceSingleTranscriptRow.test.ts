@@ -25,8 +25,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { voiceTranscriptRows } from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat/voice-realtime';
+import { voiceTranscriptRows } from '@/modules/chat-voice';
+import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat-voice';
 import type { ChatMessage } from '@/shared/types';
 
 const caption = (itemId: string, text: string, at: number, final = true, seq?: number): VoiceRealtimeCaption => ({

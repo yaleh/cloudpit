@@ -20,7 +20,7 @@
  * `e2e/voice-realtime-upload-fixture.spec.ts`. The fan-in suite (`scripts/test.sh`) does NOT run
  * Playwright, so that half is this task's own evidence.
  *
- * Run: npm run test:client -- src/modules/chat/voice-realtime/tests/voiceCaptionShownState.test.tsx
+ * Run: npm run test:client -- src/modules/chat-voice/voice-realtime/tests/voiceCaptionShownState.test.tsx
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -38,8 +38,8 @@ import {
   useVoiceRealtimeSession,
   type VoiceRealtimeCaption,
   type VoiceRealtimeDelivery,
-} from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat/voice-realtime/audioSource';
+} from '@/modules/chat-voice';
+import type { VoiceRealtimeAudioFrame, VoiceRealtimeAudioSource } from '@/modules/chat-voice';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import type { ChatMessage, DiffLine } from '@/shared/types';
@@ -64,7 +64,7 @@ vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
 type FakeSource = VoiceRealtimeAudioSource & { push(frame: VoiceRealtimeAudioFrame): void; stopped: number };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     const source: FakeSource = {

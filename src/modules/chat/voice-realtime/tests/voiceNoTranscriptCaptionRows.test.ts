@@ -23,13 +23,13 @@
  * caption line carries the words while the chat area holds no node with them — is taken off a real
  * page in `e2e/voice-realtime-upload-fixture.spec.ts`.
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/voiceNoTranscriptCaptionRows.test.ts
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceNoTranscriptCaptionRows.test.ts
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { voiceTranscriptRows } from '@/modules/chat/voice-realtime';
-import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat/voice-realtime';
+import { voiceTranscriptRows } from '@/modules/chat-voice';
+import type { VoiceRealtimeCaption, VoiceRealtimeDelivery } from '@/modules/chat-voice';
 import type { ChatMessage, VoiceRealtimeSegmentOutcome } from '@/shared/types';
 
 /** What the recogniser heard. */

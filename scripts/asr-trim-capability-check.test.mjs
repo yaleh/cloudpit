@@ -53,7 +53,7 @@ const DECLARING_MODULE = 'src/shared/voiceTrim.ts';
  * fixture's shipping set, and the last case below is what proves that membership is load-bearing.
  */
 const ALIASED_DEPENDENCY = 'src/shared/voiceEndpoint.ts';
-const CONSUMER = 'src/modules/chat/hooks/useVoiceInput.ts';
+const CONSUMER = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
 const SWITCH = 'src/shared/voiceDebug.ts';
 const EVIDENCE = 'docs/experiments/2026-09-22-voice-provider-paired-quality.md';
 /**

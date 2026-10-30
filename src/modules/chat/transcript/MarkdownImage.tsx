@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { ImageOff } from 'lucide-react';
 
 import { api } from '@/shared/api';
-import { useMarkdownWorkspaceProjectId } from '@/modules/chat/context/MarkdownWorkspaceContext';
-import { ImageLightbox } from '@/modules/chat/components/ImageLightbox';
+import { useMarkdownWorkspaceProjectId } from '@/modules/chat-session';
+import { ImageLightbox } from '@/modules/chat-support';
 
 type MarkdownImageProps = {
   node?: unknown;

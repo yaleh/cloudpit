@@ -75,7 +75,7 @@ const TABLET_VIEWPORT = { width: 1280, height: 900 } as const;
  * is a RECORDED READING, taken by putting the pre-change sources back in this worktree and reading the
  * live layout the same way this spec reads it:
  *
- *     git checkout develop -- src/modules/chat/composer/ChatComposer.tsx \
+ *     git checkout develop -- src/modules/chat-composer/composer/ChatComposer.tsx \
  *                              src/modules/i18n/locales/en/chat.json
  *     npx playwright test e2e/__baseline-probe.spec.ts      # scratch probe, prints BASELINE touch@390
  *     git checkout HEAD -- <same paths>

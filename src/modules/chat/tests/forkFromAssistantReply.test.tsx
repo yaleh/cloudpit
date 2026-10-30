@@ -132,15 +132,15 @@ vi.mock('@/shared/context/SessionProtectionContext', () => ({
   useSessionProtectionActions: () => ({ markSessionProcessing: () => undefined, markSessionIdle: () => undefined }),
 }));
 
-vi.mock('@/modules/chat/hooks/useSessionStore', () => ({
+vi.mock('@/modules/chat-session/hooks/useSessionStore', () => ({
   useSessionStore: () => ({}),
 }));
 
-vi.mock('@/modules/chat/hooks/useChatRealtimeHandlers', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatRealtimeHandlers', () => ({
   useChatRealtimeHandlers: () => undefined,
 }));
 
-vi.mock('@/modules/chat/composer/useScheduledMessages', () => ({
+vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
 
@@ -178,7 +178,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
   };
 });
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -186,7 +186,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   voiceDebugFlushSilenceSec: () => undefined,
 }));
 
-vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatProviderState', () => ({
   useChatProviderState: () => ({
     provider: 'claude',
     setProvider: () => undefined,
@@ -215,7 +215,7 @@ vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
   }),
 }));
 
-vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatSessionState', () => ({
   useChatSessionState: () => {
     // Read per render, not at mock time: a case swaps the transcript in `state`
     // before it mounts, and the hook has to answer with that case's rows.
@@ -258,7 +258,7 @@ vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
   },
 }));
 
-vi.mock('@/modules/chat/hooks/useChatComposerState', () => ({
+vi.mock('@/modules/chat-composer/hooks/useChatComposerState', () => ({
   useChatComposerState: () => ({
     input: '',
     setInput: () => undefined,

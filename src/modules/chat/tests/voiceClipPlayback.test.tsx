@@ -6,11 +6,11 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import VoiceClipButton from '@/modules/chat/composer/VoiceClipButton';
-import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
+import { ChatComposer } from '@/modules/chat-composer';
+import { VoiceClipButton } from '@/modules/chat-composer';
+import { useVoiceInput } from '@/modules/chat-voice';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
-import { voicePlayer } from '@/modules/chat/utils/voice/voicePlayer';
+import { voicePlayer } from '@/modules/chat-voice';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 // Type-only, so it is erased before vi.mock's hoisted factory runs.
 import type * as SharedApi from '@/shared/api';
@@ -54,7 +54,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 });
 
 // The mic button is gated on the backend saying a voice provider is configured.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // A plain install: no upload entry, the shipped segment minimum, no idle override.
 vi.mock('@/shared/voiceDebug', () => ({

@@ -8,7 +8,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterAll, afterEach, beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { ChatComposer } from '@/modules/chat-composer';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 // Type-only, so it is erased before vi.mock's hoisted factory runs.
@@ -65,7 +65,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 });
 
 // The mic only renders when the backend says a voice provider is configured.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // A plain install: no upload entry, the shipped segment minimum, and no idle override.
 vi.mock('@/shared/voiceDebug', () => ({
@@ -340,7 +340,7 @@ const takeReadings = async (Composer: ComposerComponent): Promise<Readings> => {
 
 /* ─── The lever: one patched copy of the shipped composer ──────────── */
 
-const COMPOSER_SOURCE = path.join(process.cwd(), 'src/modules/chat/composer/ChatComposer.tsx');
+const COMPOSER_SOURCE = path.join(process.cwd(), 'src/modules/chat-composer/composer/ChatComposer.tsx');
 const MUTANT_DIR = path.dirname(COMPOSER_SOURCE);
 /** Every copy this file wrote, so the run can prove it left none behind. */
 const written: string[] = [];

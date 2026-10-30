@@ -4,9 +4,9 @@ import { ChevronRight } from 'lucide-react';
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,DiffStats,Project,ToolGroupItem } from '@/shared/types';
 import { getToolConfig } from '@/modules/chat/tools';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
-import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { useIsExportingTranscript } from '@/modules/chat-session';
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
-import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/transcript/messageTransforms';
+import { parseToolPayload, summarizeDiff } from '@/modules/chat-transcript';
 
 type ToolGroupContainerProps = {
   group: ToolGroupItem;

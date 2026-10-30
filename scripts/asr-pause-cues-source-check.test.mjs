@@ -41,7 +41,7 @@ const PROBE = path.join(SCRIPT_DIR, 'asr-pause-cues-source-check.mjs');
 
 const REGISTRY = 'shared/asr/asrRegistry.ts';
 const VOICE_TRIM = 'src/shared/voiceTrim.ts';
-const GATE = 'src/modules/chat/hooks/useVoiceInput.ts';
+const GATE = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
 
 /**
  * The provider the shipped configuration sends to, and the two capability values that oppose.

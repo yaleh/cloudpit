@@ -97,7 +97,7 @@ afterEach(() => {
 });
 
 async function loadedStore() {
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer(SID, { limit: 20, offset: 0 });
@@ -244,7 +244,7 @@ const hookProps = {
  * decides whether to refresh.
  */
 async function leaveAndReturnToChat(store: ReturnType<typeof returningStore>, processing: boolean) {
-  const { useChatSessionState } = await import('@/modules/chat/hooks/useChatSessionState');
+  const { useChatSessionState } = await import('@/modules/chat-session');
 
   const view = renderHook(
     ({ isActive }: { isActive: boolean }) =>

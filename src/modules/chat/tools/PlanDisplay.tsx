@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   Shimmer,
 } from '@/shared/ui';
-import { usePermission } from '@/modules/chat/context/PermissionContext';
+import { usePermission } from '@/modules/chat-session';
 import { MarkdownContent } from '@/modules/chat/tools/ContentRenderers/MarkdownContent';
 
 type PlanDisplayProps = {

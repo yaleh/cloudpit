@@ -5,11 +5,11 @@ import type { ChatMessage, DiffLine, LLMProvider, Project } from '@/shared/types
 import {
   TranscriptRenderContext,
   useIsExportingTranscript,
-} from '@/modules/chat/context/TranscriptRenderContext';
+} from '@/modules/chat-session';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import WorkSegmentRecord from '@/modules/chat/transcript/WorkSegmentRecord';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/transcript/messageKeys';
-import { groupWorkSegments, isWorkSegment } from '@/modules/chat/utils/transcript/workSegments';
+import { getIntrinsicMessageKey } from '@/modules/chat-transcript';
+import { groupWorkSegments, isWorkSegment } from '@/modules/chat-transcript';
 
 type TranscriptExportDocumentProps = {
   messages: ChatMessage[];

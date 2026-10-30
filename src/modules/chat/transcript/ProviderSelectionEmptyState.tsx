@@ -21,8 +21,8 @@ import {
   Button,
   LLMProviderLogo,
 } from "@/shared/ui";
-import ModelGroupList, { type ModelGroup } from "@/modules/chat/components/ModelGroupList";
-import { ResidentToggle } from "@/modules/chat/components/ResidentConsentNotice";
+import { ModelGroupList, type ModelGroup } from '@/modules/chat-support';
+import { ResidentToggle } from '@/modules/chat-support';
 import ModelLibraryPanel from "@/shared/ui/ModelLibraryPanel";
 import { writeSelectedProvider } from '@/shared/selectedProvider';
 

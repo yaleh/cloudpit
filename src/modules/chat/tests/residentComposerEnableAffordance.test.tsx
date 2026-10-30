@@ -6,8 +6,8 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { ResidentToggle } from '@/modules/chat/composer/ResidentConsentNotice';
+import { ChatComposer } from '@/modules/chat-composer';
+import { ResidentToggle } from '@/modules/chat-composer';
 import type { SessionHostsSnapshot } from '@/shared/types';
 
 /**
@@ -68,7 +68,7 @@ vi.mock('@/shared/hooks/useSessionHosts', async (importOriginal) => {
 // The voice chain is not what this criterion is about; a plain install keeps the mic button the
 // composer always draws from reaching for a recorder, a debug entry or a trim switch it has no reason
 // to have. Same doubles as `chatComposerResponsive.test.tsx`.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -77,7 +77,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   // The silence flush's window switch: absent means the shipped 5 s default, which these cases run under.
   voiceDebugFlushSilenceSec: () => undefined,
 }));
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: () => undefined,

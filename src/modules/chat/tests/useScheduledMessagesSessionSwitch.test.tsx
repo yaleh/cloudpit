@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, test, vi } from 'vitest';
 
 import { api } from '@/shared/api';
-import { useScheduledMessages } from '@/modules/chat/composer/useScheduledMessages';
+import { useScheduledMessages } from '@/modules/chat-composer';
 
 function listResponse(data: unknown[]): Response {
   return { json: async () => ({ data }) } as unknown as Response;

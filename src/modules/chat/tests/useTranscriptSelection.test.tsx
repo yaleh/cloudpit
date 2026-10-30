@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { MAX_QUOTED_SELECTION_CHARS, useTranscriptSelection } from '@/modules/chat/hooks/useTranscriptSelection';
+import { MAX_QUOTED_SELECTION_CHARS, useTranscriptSelection } from '@/modules/chat-transcript';
 
 /**
  * The quoted-chip source, one rule per case.

@@ -99,15 +99,15 @@ vi.mock('@/shared/context/SessionProtectionContext', () => ({
   useSessionProtectionActions: () => ({ markSessionProcessing: () => undefined, markSessionIdle: () => undefined }),
 }));
 
-vi.mock('@/modules/chat/hooks/useSessionStore', () => ({
+vi.mock('@/modules/chat-session/hooks/useSessionStore', () => ({
   useSessionStore: () => ({}),
 }));
 
-vi.mock('@/modules/chat/hooks/useChatRealtimeHandlers', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatRealtimeHandlers', () => ({
   useChatRealtimeHandlers: () => undefined,
 }));
 
-vi.mock('@/modules/chat/composer/useScheduledMessages', () => ({
+vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
 
@@ -166,7 +166,7 @@ vi.mock('@/shared/api', () => ({
   },
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -177,7 +177,7 @@ vi.mock('@/shared/voiceDebug', () => ({
 // The real voice hook would open a WebSocket and reach for a microphone; the
 // bar's rendering is what these cases read, so only the hook is replaced and the
 // rest of the module (the bar itself) is the real one.
-vi.mock('@/modules/chat/voice-realtime', async (importOriginal) => {
+vi.mock('@/modules/chat-voice/voice-realtime', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   const stub = {
     phase: 'idle',
@@ -214,7 +214,7 @@ vi.mock('@/modules/chat/voice-realtime', async (importOriginal) => {
   return { ...actual, useVoiceRealtimeSession: () => stub };
 });
 
-vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatProviderState', () => ({
   useChatProviderState: () => ({
     provider: 'claude',
     setProvider: () => undefined,
@@ -243,7 +243,7 @@ vi.mock('@/modules/chat/hooks/useChatProviderState', () => ({
 
 // Stateful, so `handleSessionEstablished`'s `setCurrentSessionId` really moves
 // the pane onto the allocated id — that is the transition the entry depends on.
-vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
+vi.mock('@/modules/chat-session/hooks/useChatSessionState', () => ({
   useChatSessionState: () => {
     const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(state.openSessionId);
     return {
@@ -289,7 +289,7 @@ vi.mock('@/modules/chat/hooks/useChatSessionState', () => ({
   },
 }));
 
-vi.mock('@/modules/chat/hooks/useChatComposerState', () => ({
+vi.mock('@/modules/chat-composer/hooks/useChatComposerState', () => ({
   useChatComposerState: () => ({
     input: '',
     setInput: () => undefined,

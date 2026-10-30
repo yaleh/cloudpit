@@ -6,8 +6,8 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 
-import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { ActivityIndicator } from '@/modules/chat-composer';
+import { ChatComposer } from '@/modules/chat-composer';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import enChat from '@/modules/i18n/locales/en/chat.json';
@@ -339,7 +339,7 @@ const renderComposer = (width: number) => {
 // The real voice hooks ask the backend whether a provider is configured; the
 // composer render below is about the status surface, not the mic, so the two
 // hooks are doubled the way the composer's own responsive file doubles them.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
@@ -809,7 +809,7 @@ describe("the transcript's content-growth follow over the inline status line", (
     ]);
     const store = createSessionStore(messagesBySession);
 
-    const { useChatSessionState } = await import('@/modules/chat/hooks/useChatSessionState');
+    const { useChatSessionState } = await import('@/modules/chat-session');
     const { result, rerender } = renderHook(
       ({ session: current }: { session: ProjectSession }) =>
         useChatSessionState({

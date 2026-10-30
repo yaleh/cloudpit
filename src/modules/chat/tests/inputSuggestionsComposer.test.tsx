@@ -7,12 +7,12 @@ import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import type { KeyboardEvent, RefObject } from 'react';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { InputSuggestionChips, SUGGESTION_CHIP_PASS_THROUGH_PX } from '@/modules/chat/composer/InputSuggestionChips';
-import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
-import { useInputHistory } from '@/modules/chat/hooks/useInputHistory';
-import { useInputSuggestions } from '@/modules/chat/hooks/useInputSuggestions';
-import { buildSuggestionChips } from '@/modules/chat/utils/inputSuggestions';
+import { ChatComposer } from '@/modules/chat-composer';
+import { InputSuggestionChips, SUGGESTION_CHIP_PASS_THROUGH_PX } from '@/modules/chat-composer';
+import { useChatComposerState } from '@/modules/chat-composer';
+import { useInputHistory } from '@/modules/chat-composer';
+import { useInputSuggestions } from '@/modules/chat-composer';
+import { buildSuggestionChips } from '@/modules/chat-support';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { resetChatDrafts, writeDraftText } from '@/shared/chatDrafts';
 import type { ComposerChipStrip, PermissionMode, Project, ProjectSession } from '@/shared/types';
@@ -56,7 +56,7 @@ vi.mock('@/shared/api', () => {
   };
 });
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
@@ -65,7 +65,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   voiceDebugFlushSilenceSec: () => undefined,
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: () => undefined,

@@ -20,7 +20,7 @@
  * captions spoken into one window; the model answered with ONE `session_send` whose message covers
  * the first and third (the first rewritten) and omits the second entirely.
  *
- * Run: npx vitest run src/modules/chat/voice-realtime/tests/voiceAttributionRewriteGap.test.tsx
+ * Run: npx vitest run src/modules/chat-voice/voice-realtime/tests/voiceAttributionRewriteGap.test.tsx
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -30,12 +30,12 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { collectUndeliveredUtterances, useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { collectUndeliveredUtterances, useVoiceRealtimeSession } from '@/modules/chat-voice';
 import type {
   VoiceRealtimeAudioFrame,
   VoiceRealtimeAudioSource,
   VoiceRealtimeMicSuspension,
-} from '@/modules/chat/voice-realtime/audioSource';
+} from '@/modules/chat-voice';
 
 await i18next.use(initReactI18next).init({
   lng: 'en',
@@ -61,7 +61,7 @@ type FakeSource = VoiceRealtimeAudioSource & {
   stopped: number;
 };
 const sources: FakeSource[] = [];
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = (): FakeSource => {
     let onFrame: ((frame: VoiceRealtimeAudioFrame) => void) | null = null;
     let onSuspension: ((event: VoiceRealtimeMicSuspension) => void) | null = null;

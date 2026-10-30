@@ -1,13 +1,13 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { useVoiceRealtimeSession } from '@/modules/chat-voice';
 import {
   fileAudioSource,
   pacedFileAudioSource,
   type PacedAudioSourceOptions,
   type VoiceRealtimeAudioFrame,
-} from '@/modules/chat/voice-realtime/audioSource';
+} from '@/modules/chat-voice';
 
 /**
  * The real-time paced audio source, and the negative control on the microtask source beside it.

@@ -42,7 +42,7 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { test } from 'vitest';
 
-import { UNATTENDED_TURN_MESSAGE_TYPE } from '@/modules/chat/hooks/useChatMessages';
+import { UNATTENDED_TURN_MESSAGE_TYPE } from '@/modules/chat-session';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ChatMessage } from '@/shared/types';

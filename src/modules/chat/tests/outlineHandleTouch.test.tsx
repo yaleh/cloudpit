@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, test } from 'vitest';
 
-import InputOutlineDrawer from '@/modules/chat/outline/InputOutlineDrawer';
+import { InputOutlineDrawer } from '@/modules/chat-support';
 
 /**
  * A touch stream stays bound to the node it began on. The handle swaps its icon the moment a

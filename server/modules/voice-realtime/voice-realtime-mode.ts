@@ -18,7 +18,7 @@
  * server-side env change alone, no browser release.
  *
  * The token is the SAME string the browser offers (`SEGMENTED_RELAY_PROTOCOL` in
- * `src/modules/chat/voice-realtime/voiceRealtimeProtocol.ts`). It is repeated, not imported: the
+ * `src/modules/chat-voice/voice-realtime/voiceRealtimeProtocol.ts`). It is repeated, not imported: the
  * server's `tsconfig.json` excludes `../src`, so a server module cannot reach the browser's copy, and
  * a shared module that both could import would be a third place to keep in step. The criterion pins
  * the two literals against each other instead — a divergence there breaks the handshake silently, so

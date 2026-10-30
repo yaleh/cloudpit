@@ -113,7 +113,7 @@ export const FIXTURE_FILES = [
   SENSEVOICE_LOCAL_MODULE,
   TRANSCRIPTION_WIRE_MODULE,
   'src/shared/api.ts',
-  'src/modules/chat/hooks/useVoiceAvailable.ts',
+  'src/modules/chat-support/hooks/useVoiceAvailable.ts',
 ];
 
 /**
@@ -457,7 +457,7 @@ function clientReadings(root) {
   // The two symbols the client's capability path runs through: the variable that holds the
   // health reading's provider, and the hook call that fills it.
   const api = readTreeFileOrEmpty(root, 'src/shared/api.ts');
-  const hook = readTreeFileOrEmpty(root, 'src/modules/chat/hooks/useVoiceAvailable.ts');
+  const hook = readTreeFileOrEmpty(root, 'src/modules/chat-support/hooks/useVoiceAvailable.ts');
   const readPoints = [];
   if (/voiceProviderProfile/.test(api)) readPoints.push('voiceProviderProfile');
   if (/setVoiceProviderProfile\(/.test(hook)) readPoints.push('setVoiceProviderProfile');

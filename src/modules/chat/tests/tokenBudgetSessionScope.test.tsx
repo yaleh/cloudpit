@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { renderHook } from '@testing-library/react';
 import { test } from 'vitest';
 
-import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
+import { useChatRealtimeHandlers } from '@/modules/chat-session';
 import type { ServerEvent, ProjectSession } from '@/shared/types';
-import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import type { SessionStore } from '@/modules/chat-session';
 
 /**
  * Several sessions can stream at once, and the server stamps every

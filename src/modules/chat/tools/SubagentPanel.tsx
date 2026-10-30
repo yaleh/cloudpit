@@ -4,7 +4,7 @@ import { Bot, Brain, ChevronRight, CircleAlert, CircleCheck, MessageSquareText }
 import type { DiffLine, Project, SubagentActivity, SubagentInfo, ToolResult } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { ToolRenderer } from '@/modules/chat/tools/ToolRenderer';
-import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { useIsExportingTranscript } from '@/modules/chat-session';
 import { MarkdownContent } from '@/modules/chat/tools/ContentRenderers/MarkdownContent';
 
 type SubagentPanelProps = {

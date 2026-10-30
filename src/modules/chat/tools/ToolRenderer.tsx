@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useCallback } from 'react';
 
 import type { DiffLine, Project,ToolStatus } from '@/shared/types';
-import { formatToolDisplayName, getToolConfig } from '@/modules/chat/tools/configs/toolConfigs';
+import { formatToolDisplayName, getToolConfig } from '@/modules/chat-tool-configs';
 import { OneLineDisplay } from '@/modules/chat/tools/OneLineDisplay';
 import { BashCommandDisplay } from '@/modules/chat/tools/BashCommandDisplay';
 import { CollapsibleDisplay } from '@/modules/chat/tools/CollapsibleDisplay';
@@ -15,7 +15,7 @@ import { QuestionAnswerContent } from '@/modules/chat/tools/ContentRenderers/Que
 import { PlanDisplay } from '@/modules/chat/tools/PlanDisplay';
 import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
-import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/transcript/messageTransforms';
+import { parseToolPayload, summarizeDiff } from '@/modules/chat-transcript';
 
 type ToolRendererProps = {
   toolName: string;

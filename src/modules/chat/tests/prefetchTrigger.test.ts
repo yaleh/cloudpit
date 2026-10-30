@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { OLDER_MESSAGES_PAGE_SIZE, OLDER_PAGE_PREFETCH_VIEWPORTS, planOlderPagePrefetch, SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat/utils/session/sessionMessagePagination';
+import { OLDER_MESSAGES_PAGE_SIZE, OLDER_PAGE_PREFETCH_VIEWPORTS, planOlderPagePrefetch, SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat-session';
 
 // The upward path asks for an older page once the viewport is within a couple of screens of the
 // top, not once it has reached the edge (the absolute `scrollTop < 100` this replaced), and holds

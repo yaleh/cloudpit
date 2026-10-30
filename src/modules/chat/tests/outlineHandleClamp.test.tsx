@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, test } from 'vitest';
 
-import { useOutlineHandleDrag } from '@/modules/chat/outline/useOutlineHandleDrag';
+import { useOutlineHandleDrag } from '@/modules/chat-support';
 
 /**
  * The outline handle's vertical position is clamped in pixels against the header's bottom

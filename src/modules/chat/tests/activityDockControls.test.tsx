@@ -10,8 +10,8 @@ import ActivityDockPanel from '@/modules/chat/transcript/ActivityDockPanel';
 import {
   applyActivityFrame,
   resetSessionActivityStore,
-} from '@/modules/chat/hooks/useSessionActivity';
-import { findPendingForegroundTool } from '@/modules/chat/hooks/useActivityControls';
+} from '@/modules/chat-session';
+import { findPendingForegroundTool } from '@/modules/chat-session';
 import WebSocketContext from '@/shared/context/WebSocketContext';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ActivityTaskView, ChatMessage } from '@/shared/types';

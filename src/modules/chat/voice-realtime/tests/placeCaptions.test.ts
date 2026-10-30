@@ -22,7 +22,7 @@ import {
   markDeliveredVoiceMessages,
   placeCaptionsChronologically,
   undeliveredUtteranceRows,
-} from '@/modules/chat/voice-realtime/placeCaptions';
+} from '@/modules/chat-voice';
 import type { ChatMessage } from '@/shared/types';
 
 const row = (id: string, timestamp: unknown, type: ChatMessage['type'] = 'user'): ChatMessage =>

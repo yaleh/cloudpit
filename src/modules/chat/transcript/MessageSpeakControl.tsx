@@ -1,8 +1,8 @@
 import { Volume2, Loader2, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useTts } from '@/modules/chat/hooks/useTts';
-import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
+import { useTts } from '@/modules/chat-support';
+import { useVoiceAvailable } from '@/modules/chat-support';
 
 // Tap-to-speak button beside the copy control on assistant messages.
 // Renders nothing unless the optional voice feature is enabled.

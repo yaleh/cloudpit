@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import type { NormalizedMessage } from '@/shared/types';
-import { removeOptimisticUserEchoes } from '@/modules/chat/utils/session/sessionMessageReconciliation';
+import { removeOptimisticUserEchoes } from '@/modules/chat-session';
 
 const createUserMessage = (
   id: string,

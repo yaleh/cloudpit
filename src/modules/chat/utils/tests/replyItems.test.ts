@@ -23,8 +23,8 @@ import {
   parseReplyItemUri,
   replyItemLabel,
   resolveReplyReference,
-} from '@/modules/chat/utils/transcript/replyItems';
-import type { ReplyItem } from '@/modules/chat/utils/transcript/replyItems';
+} from '@/modules/chat-transcript';
+import type { ReplyItem } from '@/modules/chat-transcript';
 
 /** The four-item reply every resolution case below points at. */
 const FOUR_ITEMS: ReplyItem[] = [

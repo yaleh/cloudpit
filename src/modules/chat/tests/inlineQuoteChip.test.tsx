@@ -7,8 +7,8 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { buildSuggestionChips, truncateSuggestionLabel } from '@/modules/chat/utils/inputSuggestions';
+import { ChatComposer } from '@/modules/chat-composer';
+import { buildSuggestionChips, truncateSuggestionLabel } from '@/modules/chat-support';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import zhChat from '@/modules/i18n/locales/zh-CN/chat.json';
 import { resetChatDrafts } from '@/shared/chatDrafts';
@@ -54,7 +54,7 @@ vi.mock('@/shared/api', () => {
   };
 });
 
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 vi.mock('@/shared/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
@@ -63,7 +63,7 @@ vi.mock('@/shared/voiceDebug', () => ({
   voiceDebugFlushSilenceSec: () => undefined,
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: voiceMock.state,
     inFlight: false,

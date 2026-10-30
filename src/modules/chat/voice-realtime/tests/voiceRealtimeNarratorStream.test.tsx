@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
+import { useVoiceRealtimeSession } from '@/modules/chat-voice';
 
 /**
  * The page half of the narrator's first-frame playback (GOAL-047 follow-up).
@@ -28,7 +28,7 @@ import { useVoiceRealtimeSession } from '@/modules/chat/voice-realtime';
 const auth = vi.hoisted(() => ({ token: 'jwt-token' as string | null }));
 vi.mock('@/modules/auth', () => ({ useAuth: () => ({ token: auth.token }) }));
 
-vi.mock('@/modules/chat/voice-realtime/audioSource', () => {
+vi.mock('@/modules/chat-voice/voice-realtime/audioSource', () => {
   const make = () => ({
     async start() {},
     stop() {},

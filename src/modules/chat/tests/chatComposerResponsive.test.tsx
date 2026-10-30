@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { ChatComposer } from '@/modules/chat-composer';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
@@ -62,7 +62,7 @@ const DESKTOP_WIDTH = 1280;
 
 // The real hook asks the backend whether a voice provider is configured; the mic
 // button is one of the six the narrow row must keep, so it has to be offered here.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // A plain install: no debug upload entry (an extra control) and no trim switch.
 vi.mock('@/shared/voiceDebug', () => ({
@@ -87,7 +87,7 @@ const { clipFixture } = vi.hoisted(() => ({
   clipFixture: { slot: null as VoiceClipSlot | null },
 }));
 
-vi.mock('@/modules/chat/hooks/useVoiceInput', () => ({
+vi.mock('@/modules/chat-voice/hooks/useVoiceInput', () => ({
   useVoiceInput: () => ({
     state: 'idle',
     toggle: () => undefined,

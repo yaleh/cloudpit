@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { createMessageHistoryRefreshCoordinator } from '@/modules/chat/utils/session/messageHistoryRefreshCoordinator';
+import { createMessageHistoryRefreshCoordinator } from '@/modules/chat-session';
 
 test('hidden refresh signals make no requests and flush once on activation', async () => {
   let activeSessionId: string | null = null;

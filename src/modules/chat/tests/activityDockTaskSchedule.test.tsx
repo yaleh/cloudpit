@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { beforeEach, describe, test } from 'vitest';
 
-import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
+import { ActivityIndicator } from '@/modules/chat-composer';
 import ActivityDockPanel from '@/modules/chat/transcript/ActivityDockPanel';
 import {
   applyActivityFrame,
@@ -14,8 +14,8 @@ import {
   readSessionActivityView,
   resetSessionActivityStore,
   selectActiveTasks,
-} from '@/modules/chat/hooks/useSessionActivity';
-import { deriveActivityDockView } from '@/modules/chat/utils/voice/activityDockView';
+} from '@/modules/chat-session';
+import { deriveActivityDockView } from '@/modules/chat-session';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ActivityScheduleView, ActivityTaskState, ActivityTaskView } from '@/shared/types';
 

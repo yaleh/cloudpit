@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, test, vi } from 'vitest';
 
-import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
+import { useVoiceInput } from '@/modules/chat-voice';
 import type * as AudioDecode from '@/shared/audioDecode';
 import type * as SharedApi from '@/shared/api';
 

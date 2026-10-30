@@ -109,7 +109,7 @@ vi.mock('@/shared/api', () => ({
 
 const renderProviderState = async (session: ProjectSession | null) => {
   const { useChatProviderState } = await import(
-    '@/modules/chat/hooks/useChatProviderState'
+    '@/modules/chat-session'
   );
   return renderHook(() =>
     useChatProviderState({ selectedSession: session, selectedProject: PROJECT }),
@@ -123,10 +123,10 @@ const renderProviderState = async (session: ProjectSession | null) => {
  */
 const renderWiredChat = async (session: ProjectSession | null) => {
   const { useChatProviderState } = await import(
-    '@/modules/chat/hooks/useChatProviderState'
+    '@/modules/chat-session'
   );
   const { useChatComposerState } = await import(
-    '@/modules/chat/hooks/useChatComposerState'
+    '@/modules/chat-composer'
   );
 
   return renderHook(({ selectedSession }: { selectedSession: ProjectSession | null }) => {

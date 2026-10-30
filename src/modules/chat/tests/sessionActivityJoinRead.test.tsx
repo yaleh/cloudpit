@@ -4,7 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { resetSessionActivityStore, useSessionActivity } from '@/modules/chat/hooks/useSessionActivity';
+import { resetSessionActivityStore, useSessionActivity } from '@/modules/chat-session';
 import { fetchSessionActivity } from '@/shared/api';
 import type * as SharedApi from '@/shared/api';
 import WebSocketContext from '@/shared/context/WebSocketContext';

@@ -7,8 +7,8 @@ import React, { useRef, useState } from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, expect, describe, it, vi } from 'vitest';
 
-import UiNavigatePrompt from '@/modules/chat/components/UiNavigatePrompt';
-import { useUiNavigate } from '@/modules/chat/hooks/useUiNavigate';
+import { UiNavigatePrompt } from '@/modules/chat-support';
+import { useUiNavigate } from '@/modules/chat-support';
 import { ChangesView } from '@/modules/git-panel';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { TaskMasterPanel } from '@/modules/task-master';

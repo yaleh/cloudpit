@@ -118,7 +118,7 @@ afterEach(() => {
 
 async function loadTailStore(total: number, limit = 20) {
   HISTORY = buildHistory(total);
-  const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+  const { useSessionStore } = await import('@/modules/chat-session');
   const view = renderHook(() => useSessionStore());
   await act(async () => {
     await view.result.current.fetchFromServer('session-1', { limit, offset: 0 });
@@ -308,7 +308,7 @@ describe('session store window model (AC-212)', () => {
         { ...row(2), role: 'user', transcriptAnchorId: 'u2' },
         { ...row(3), role: 'assistant' },
       ];
-      const { useSessionStore } = await import('@/modules/chat/hooks/useSessionStore');
+      const { useSessionStore } = await import('@/modules/chat-session');
       const view = renderHook(() => useSessionStore());
       await act(async () => {
         await view.result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });

@@ -6,9 +6,9 @@ import {
   UNKNOWN_PANEL,
   useUiStateResponder,
   type UseUiStateResponderDeps,
-} from '@/modules/chat/hooks/useUiStateResponder';
+} from '@/modules/chat-support';
 import LazyMessageRow from '@/modules/chat/transcript/LazyMessageRow';
-import { messageAnchorId } from '@/modules/chat/utils/transcript/messageKeys';
+import { messageAnchorId } from '@/modules/chat-transcript';
 import { getDeviceId, getTabId } from '@/shared/utils/deviceIdentity';
 import type { ChatMessage, ServerEvent } from '@/shared/types';
 

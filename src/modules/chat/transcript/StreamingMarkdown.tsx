@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 
 import { MarkdownBody } from '@/modules/chat/transcript/Markdown';
-import { splitStreamingMarkdown } from '@/modules/chat/utils/transcript/streamingMarkdown';
-import type { ReplyItemRenderContext } from '@/modules/chat/utils/transcript/replyItems';
+import { splitStreamingMarkdown } from '@/modules/chat-transcript';
+import type { ReplyItemRenderContext } from '@/modules/chat-transcript';
 
 type StreamingMarkdownProps = {
   content: string;

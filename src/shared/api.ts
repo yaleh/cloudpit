@@ -1400,7 +1400,7 @@ function unsupportedContainerRefusal(mimeType: string): Response | null {
  * proxy route builds (`server/modules/voice/voice.routes.ts`).
  *
  * WHY IT IS THE SAME SHAPE AND NOT A SHAPE OF ITS OWN. Both paths land at the SAME reader —
- * `refusalCode` in `src/modules/chat/hooks/useVoiceInput.ts` reads `body.code` and nothing else —
+ * `refusalCode` in `src/modules/chat-voice/hooks/useVoiceInput.ts` reads `body.code` and nothing else —
  * so a second envelope here would be a second contract for one field, and the branch that read the
  * proxy's spelling would go blind on the direct path's. `upstreamCode` rides beside `code` when the
  * upstream named one, and is dropped rather than defaulted when it did not: a placeholder would

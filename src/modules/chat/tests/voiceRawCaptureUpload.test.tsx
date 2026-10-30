@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
+import { useVoiceInput } from '@/modules/chat-voice';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
 
 import type * as SharedApi from '@/shared/api';

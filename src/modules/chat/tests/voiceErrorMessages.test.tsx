@@ -52,10 +52,10 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
+import { ChatComposer } from '@/modules/chat-composer';
+import { useVoiceInput } from '@/modules/chat-voice';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
-import { voiceErrorKey, voiceErrorMessage, voiceErrorTechnicalDetail } from '@/modules/chat/utils/voice/voiceErrorMessages';
+import { voiceErrorKey, voiceErrorMessage, voiceErrorTechnicalDetail } from '@/modules/chat-voice';
 // Through the barrel, not the file: this test lives in chat and `languages.ts` belongs to i18n, and
 // the module-boundary rule the lint enforces is that a cross-module read goes through `index.ts`.
 // The VALUE is still the one `src/modules/i18n/languages.ts` ships — the barrel re-exports it.
@@ -291,7 +291,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 
 // The real hook asks the backend whether a voice provider is configured; the mic button is gated on
 // that, and both the composer and the hook harness below drive the mic.
-vi.mock('@/modules/chat/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
+vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // The voice path's switches, all off/unset: a plain install, with the shipped segment minimum and
 // idle auto-stop. Read here rather than through the environment so a developer's own flags cannot

@@ -3,4 +3,4 @@
  * transcript path. The panel now lives in `chat/activity` because the dock that
  * renders it moved there too.
  */
-export { default } from '@/modules/chat/activity/ActivityDockPanel';
+export { ActivityDockPanel as default } from '@/modules/chat-support';

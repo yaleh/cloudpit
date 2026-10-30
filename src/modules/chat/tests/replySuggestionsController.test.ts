@@ -6,13 +6,13 @@ import {
   REPLY_SUGGESTIONS_MAX_EXPANSION_DEPTH,
   createReplySuggestionsBatchCache,
   createReplySuggestionsController,
-} from '@/modules/chat/utils/replySuggestionsController';
+} from '@/modules/chat-support';
 import type {
   ReplySuggestionsApi,
   ReplySuggestionsBatchCache,
   ReplySuggestionsClock,
   ReplySuggestionsContext,
-} from '@/modules/chat/utils/replySuggestionsController';
+} from '@/modules/chat-support';
 import type {
   ReplySuggestionsEventInput,
   ReplySuggestionsRequest,

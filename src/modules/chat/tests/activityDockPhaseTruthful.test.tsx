@@ -6,7 +6,7 @@ import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 
-import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
+import { ActivityIndicator } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { ActivityConnection, ServerEvent, SessionActivity } from '@/shared/types';
 

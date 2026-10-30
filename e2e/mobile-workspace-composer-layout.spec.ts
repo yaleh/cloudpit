@@ -187,7 +187,7 @@ const DESKTOP_VIEWPORTS = [
 ];
 /**
  * The width of the composer's own input box below which the footer takes the compact arrangement, mirrored from
- * `COMPACT_TIER_WIDTH_PX` in `src/modules/chat/hooks/useComposerCompactTier.ts`.
+ * `COMPACT_TIER_WIDTH_PX` in `src/modules/chat-composer/hooks/useComposerCompactTier.ts`.
  *
  * The desktop cells need it because the arrangement a desktop *window* gets is decided by the box inside it, not by
  * the window: 768×900 with the sidebar open hands the composer a 445px box, which is below this threshold, so its

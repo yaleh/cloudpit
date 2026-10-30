@@ -51,7 +51,7 @@ const SHIPPING_FILES = [
   'shared/asr/asrRegistry.ts',
   'shared/asr/asrInvariants.ts',
   'src/shared/api.ts',
-  'src/modules/chat/hooks/useVoiceInput.ts',
+  'src/modules/chat-voice/hooks/useVoiceInput.ts',
   'server/modules/voice/voice.service.ts',
   'experiments/voice-asr-cli/transcribe.ts',
 ];
@@ -149,7 +149,7 @@ test('AC3: a copy written on each side makes the consumers resolve to different 
   );
   patchFixtureFile(
     root,
-    'src/modules/chat/hooks/useVoiceInput.ts',
+    'src/modules/chat-voice/hooks/useVoiceInput.ts',
     '@shared/asr/transcriptionWire',
     '@shared/asr/transcriptionWireFrontend',
   );
@@ -297,7 +297,7 @@ test('AC8: a landing that is not covered by npm run lint is reported, not merely
  * so a fix that only stopped the separated spelling (`let x: T;` … `x = JSON.parse(...)`) from
  * fusing would leave this case red. The operand shape is what has to clear it.
  */
-const WS_FRAME_FILE = 'src/modules/chat/voice-realtime/wsFrameConsumer.ts';
+const WS_FRAME_FILE = 'src/modules/chat-voice/voice-realtime/wsFrameConsumer.ts';
 
 function wsFrameSource() {
   return [
@@ -372,11 +372,11 @@ test('AC3: a verbatim transcription response half is still a second implementati
 
 /**
  * No buying green by EXCLUDING the voice-realtime directory: a COMPLETE second implementation
- * (request half + response half) placed inside `src/modules/chat/voice-realtime/` must still be
- * caught. A probe that dropped `src/modules/chat/voice-realtime/**` from the scan — the tempting
+ * (request half + response half) placed inside `src/modules/chat-voice/voice-realtime/` must still be
+ * caught. A probe that dropped `src/modules/chat-voice/voice-realtime/**` from the scan — the tempting
  * way to clear the frame false positive — would go blind exactly here.
  */
-const VOICE_REALTIME_SECOND_IMPL = 'src/modules/chat/voice-realtime/transcriptionWireCopy.ts';
+const VOICE_REALTIME_SECOND_IMPL = 'src/modules/chat-voice/voice-realtime/transcriptionWireCopy.ts';
 
 function completeSecondImplementationSource() {
   return [

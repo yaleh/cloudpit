@@ -4,9 +4,9 @@ import { BotIcon, GitBranchIcon, PencilIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,MessageOrigin } from '@/shared/types';
-import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/transcript/chatFormatting';
+import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat-transcript';
 import { ToolRenderer, ToolErrorDisplay, SubagentPanel, shouldHideToolResult } from '@/modules/chat/tools';
-import { useTaskByToolUseId } from '@/modules/chat/hooks/useSessionActivity';
+import { useTaskByToolUseId } from '@/modules/chat-session';
 import { LLMProviderLogo } from '@/shared/ui';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/modules/chat/transcript/Reasoning';
 import ChatMessageImages from '@/modules/chat/transcript/ChatMessageImages';
@@ -15,14 +15,14 @@ import { Markdown } from '@/modules/chat/transcript/Markdown';
 import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import MessageCopyControl from '@/modules/chat/transcript/MessageCopyControl';
 import MessageSpeakControl from '@/modules/chat/transcript/MessageSpeakControl';
-import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { useIsExportingTranscript } from '@/modules/chat-session';
 import { MemoryCitations } from '@/modules/chat/transcript/MemoryCitations';
 import { resolveProviderDescriptor } from '@/shared/constants';
-import type { ReplyItemRenderContext } from '@/modules/chat/utils/transcript/replyItems';
+import type { ReplyItemRenderContext } from '@/modules/chat-transcript';
 import {
   UNATTENDED_DIVIDER_MESSAGE_TYPE,
   UNATTENDED_TURN_MESSAGE_TYPE,
-} from '@/modules/chat/hooks/useChatMessages';
+} from '@/modules/chat-session';
 
 type MessageComponentProps = {
   message: ChatMessage;

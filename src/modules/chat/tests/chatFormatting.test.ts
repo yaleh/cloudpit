@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { stripProposedPlanEnvelope } from '@/modules/chat/utils/transcript/chatFormatting';
+import { stripProposedPlanEnvelope } from '@/modules/chat-transcript';
 
 test('stripProposedPlanEnvelope removes a complete outer plan envelope', () => {
   assert.equal(

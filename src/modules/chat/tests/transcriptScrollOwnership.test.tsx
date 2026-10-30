@@ -211,7 +211,7 @@ async function renderChatSessionState(options: {
   session: ProjectSession;
   store: ReturnType<typeof createStore>;
 }) {
-  const { useChatSessionState } = await import('@/modules/chat/hooks/useChatSessionState');
+  const { useChatSessionState } = await import('@/modules/chat-session');
 
   return renderHook(
     ({ session }: { session: ProjectSession }) =>

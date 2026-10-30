@@ -70,7 +70,7 @@ const DEFAULT_ROOT = path.resolve(HERE, '..');
 const mime = createRequire(import.meta.url)('mime-types');
 
 /** The worklet's source, relative to `--root`. Its own name is what the defect ended up serving. */
-const WORKLET_SOURCE_REL = 'src/modules/chat/audio/voiceFrameProcessor.ts';
+const WORKLET_SOURCE_REL = 'src/modules/chat-voice/audio/voiceFrameProcessor.ts';
 
 /**
  * The `AudioWorkletGlobalScope` global the processor registers itself with. Read off `globalThis`,
