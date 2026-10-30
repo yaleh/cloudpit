@@ -26,13 +26,15 @@ digest 卡（`plan.digest.v0` 的 `+N error` escalate）有渲染缺陷。实测
 
 ## AC
 
-- [ ] AC1: 一张 digest escalate 卡的 `options` 非空，至少含一项 dismiss/ack（回归 `att_2d86bc040462` 的 `options:[]`）。
-- [ ] AC2: 同 dedup 键的 digest 卡在 +ok evidence 到达后，标题/headline 反映 recovered（不再「标题 +2 error、evidence 已 +2 ok」的滞留态）。
-- [ ] AC3: 多条 evidence 的读数行可区分（每行带 grade/状态，或明确 error vs ok），不再出现两行截断得一样的「+2 error」。
+- [x] AC1: 一张 digest escalate 卡的 `options` 非空，至少含一项 dismiss/ack（回归 `att_2d86bc040462` 的 `options:[]`）。
+- [x] AC2: 同 dedup 键的 digest 卡在 +ok evidence 到达后，标题/headline 反映 recovered（不再「标题 +2 error、evidence 已 +2 ok」的滞留态）。
+- [x] AC3: 多条 evidence 的读数行可区分（每行带 grade/状态，或明确 error vs ok），不再出现两行截断得一样的「+2 error」。
 
 ## DoD
 
 在 landed 提交上，digest 卡有可点选项、自愈后标题不再滞留过期 error、读数行可区分。
+
+- L_D code:doc（实现 diff vs develop，不含任务文件）: docLines=0 codeLines=356 ratio=0.000 verdict=not-flagged
 
 ## Touches
 
