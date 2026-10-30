@@ -1,7 +1,7 @@
 ---
 id: gap-observation-ask-ledger-owner
 title: 将 ask ledger 状态与 recovery/sweep 从 session digest producer 拆为独立责任 owner
-status: ready
+status: done
 labels:
   - gap
 parent: null
