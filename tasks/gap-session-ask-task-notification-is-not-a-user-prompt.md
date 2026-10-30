@@ -2,7 +2,7 @@
 id: gap-session-ask-task-notification-is-not-a-user-prompt
 title: session-ask 把 <task-notification> 后台通知误当 user prompt，铸出 spurious
   session.answered
-status: todo
+status: ready
 labels:
   - cockpit
 parent: null
