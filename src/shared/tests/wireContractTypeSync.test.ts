@@ -83,6 +83,23 @@ const readObjectKeysFromSource = (source: string, typeName: string): string[] =>
 
 const readFile = (file: string): string => readFileSync(file, 'utf8');
 
+/**
+ * Runs `read` and reports `null` when the path vanished between the directory listing and the
+ * read. Vitest runs test files in parallel workers, and `voiceErrorNoticePersistence.test.tsx`
+ * writes `__mutation-*` copies beside the shipped composer and removes them at the end of its
+ * file — so an entry this walk just listed can be gone by the time it is inspected. A vanished
+ * entry cannot be a declaration source, and failing on it would make this criterion depend on a
+ * sibling file's timing rather than on the wire itself.
+ */
+const readIfPresent = <T>(read: () => T): T | null => {
+  try {
+    return read();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+};
+
 /** Finds the single non-test `src/**` file declaring `export type <typeName> = …`. */
 const findClientDeclaration = (typeName: string): string => {
   const declaration = new RegExp(`export type ${typeName}\\s*(?:<[^>]*>)?\\s*=`);
@@ -91,11 +108,14 @@ const findClientDeclaration = (typeName: string): string => {
     const found: string[] = [];
     for (const entry of readdirSync(directory)) {
       const full = path.join(directory, entry);
-      if (statSync(full).isDirectory()) {
+      const stats = readIfPresent(() => statSync(full));
+      if (stats === null) continue;
+      if (stats.isDirectory()) {
         if (entry === 'tests') continue;
         found.push(...walk(full));
       } else if (/\.(ts|tsx)$/.test(entry) && !/\.test\.(ts|tsx)$/.test(entry)) {
-        if (declaration.test(readFile(full))) found.push(full);
+        const source = readIfPresent(() => readFile(full));
+        if (source !== null && declaration.test(source)) found.push(full);
       }
     }
     return found;

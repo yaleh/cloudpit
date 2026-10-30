@@ -861,3 +861,15 @@
 #   (dur=3773ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
 #   tree collects 474 server test files).
 3773	server/modules/observation/tests/session-ask-semantic-gate.test.ts
+#   and the session-ask-ledger row by gap-observation-ask-ledger-owner, measured once on
+#   2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-ledger.test.ts`
+#   (dur=2371ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
+#   tree collects 476 server test files).
+2371	server/modules/observation/tests/session-ask-ledger.test.ts
+#   and the session-ask-recovery row by gap-observation-ask-ledger-owner, measured once on
+#   2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts`
+#   (dur=3033ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
+#   tree collects 476 server test files).
+3033	server/modules/observation/tests/session-ask-recovery.test.ts
