@@ -2134,6 +2134,90 @@ test('answered: readSessionAsks names every answered span and the tail ask', () 
 });
 
 // ---------------------------------------------------------------------------------------------
+// A background-task notification is not a user prompt: it must not answer a pending ask
+// ---------------------------------------------------------------------------------------------
+
+/** One row whose content is a BARE STRING — the shape the harness writes a notification in. */
+function stringContentRow(role: 'user' | 'assistant', id: string, text: string): string {
+  return JSON.stringify({ type: role, uuid: id, message: { role, content: text } });
+}
+
+/** One `<task-notification>` row exactly as the harness persists a background completion. */
+function taskNotificationRow(id: string): string {
+  return stringContentRow(
+    'user',
+    id,
+    '<task-notification>\n<task-id>t1</task-id>\n<status>completed</status>\n<summary>检查完毕</summary>\n</task-notification>',
+  );
+}
+
+/** The transcript up to a question, then the background notice — no answer from the person. */
+function askThenNotification(): string {
+  return `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    taskNotificationRow('n1'),
+  ].join('\n')}\n`;
+}
+
+test('AC1: a <task-notification> user row after a pending ask leaves it current, not settled', () => {
+  const scan = readSessionAsks(askThenNotification(), SESSION_ID);
+
+  assert.deepEqual(scan.settled, [], 'a background completion is not an answer from the person');
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a1`, 'the ask is still the open question');
+  assert.equal(scan.current?.revision, 1);
+});
+
+test('AC2: a real user message still settles the ask, even after a <task-notification> row', () => {
+  const raw = `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    taskNotificationRow('n1'),
+    stringContentRow('user', 'u2', '先补测试'),
+    stringContentRow('assistant', 'a2', '补完了，还要先跑一遍吗？'),
+  ].join('\n')}\n`;
+  const scan = readSessionAsks(raw, SESSION_ID);
+
+  assert.deepEqual(scan.settled, [{ askId: `${SESSION_ID}:a1`, answerMessageId: 'u2' }]);
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a2`, 'the tail ask is the newer question');
+});
+
+test('AC3: turn-end states no session.answered for a <task-notification> row', async () => {
+  // The ledger a restart leaves behind: a1 was stated as asking and is still unanswered.
+  const objects = new Map<string, ObservedObject>();
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [],
+        asking: [`${SESSION_ID}:a1:1`],
+        pending: [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  harness.setTranscript(askThenNotification());
+
+  await harness.turnEnd();
+
+  assert.deepEqual(
+    harness.events.filter((event) => event.kind === 'session.answered'),
+    [],
+    'no answer is stated when nobody answered',
+  );
+  const ledger = readSessionAskEventLedger(objects.get(formatSessionUri(SESSION_ID))?.digest);
+  assert.deepEqual(ledger.pending, [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }], 'the ask stays open');
+});
+
+// ---------------------------------------------------------------------------------------------
 // The ask digest's JSON contract: its own output ceiling, fences, and a loud truncation
 // ---------------------------------------------------------------------------------------------
 

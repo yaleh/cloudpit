@@ -13,7 +13,11 @@
  * typed text under `reply`. Either one is the new conversation's first message.
  */
 import type { ICockpitActionExecutor } from '@/shared/interfaces.js';
-import type { LLMProvider } from '@/shared/types.js';
+import type {
+  LLMProvider,
+  ProviderModelsDefinition,
+  SessionLaunchSelection,
+} from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 /** The executor id a card's action / `ownReply` names. */
@@ -89,6 +93,7 @@ export type CockpitSessionStartSessions = {
     provider: LLMProvider,
     projectPath: string,
     initialMessage: string,
+    selection?: SessionLaunchSelection,
   ): { sessionId: string };
   switchSessionLifecycleMode(
     provider: LLMProvider,
@@ -97,20 +102,33 @@ export type CockpitSessionStartSessions = {
   ): unknown;
 };
 
-/** The permission-mode writer (`providerModelsService.setSessionPermissionMode`). */
+/**
+ * The provider services the start path validates a configured launch selection with.
+ *
+ * `setSessionPermissionMode` is the existing writer. `getProviderModels` is the
+ * SAME catalog the picker lists and the launch compiler resolves against
+ * (predefined options merged with the custom model library), which is what makes
+ * a configured model/effort a check rather than a guess.
+ */
 export type CockpitSessionStartModels = {
   setSessionPermissionMode(
     provider: LLMProvider,
     sessionId: string,
     permissionMode: string,
   ): unknown;
+  getProviderModels(provider: LLMProvider): Promise<ProviderModelsDefinition>;
 };
 
 /** The provider capability matrix, as the start path reads it. */
 export type CockpitSessionStartCapabilities = {
   getProviderCapabilities(
     provider: LLMProvider,
-  ): { permissionModes: string[]; lifecycleModes: Array<'per-run' | 'resident'> } | undefined;
+  ): {
+    permissionModes: string[];
+    lifecycleModes: Array<'per-run' | 'resident'>;
+    /** Whether the provider runtime accepts a model-level reasoning effort at all. */
+    supportsEffort: boolean;
+  } | undefined;
 };
 
 /** The shared chat control service's one verb. */
@@ -120,7 +138,7 @@ export type CockpitSessionStartControl = {
     input: {
       sessionId: string;
       content: string;
-      options?: { permissionMode: string };
+      options?: { permissionMode: string; model?: string; effort?: string };
     },
   ): Promise<{ ok: true } | { ok: false; code: string; message: string }>;
 };
@@ -129,6 +147,10 @@ export type CockpitSessionStartControl = {
 export type CockpitSessionStartPreferences = {
   lifecycleMode: string;
   permissionMode: string;
+  /** The model the new conversation launches with (`'default'` is the shipped sentinel). */
+  model: string;
+  /** Optional reasoning effort; absent leaves the launch's own inference untouched. */
+  effort?: string;
 };
 
 /** Everything the starter binds; the composition root supplies the real world. */
@@ -159,16 +181,101 @@ function refusalStatus(code: string): number {
 }
 
 /**
+ * The model value that means "whatever the provider launches by default".
+ *
+ * It is the Claude catalog's own option, and the shipped `cockpit.sessionStart.model`. A
+ * provider whose catalog does not list it keeps its own default instead of being refused:
+ * the sentinel is the operator saying "do not choose", not a model name.
+ */
+const PROVIDER_DEFAULT_MODEL_SENTINEL = 'default';
+
+/**
+ * Validates the configured model/effort against the provider's catalog and capability matrix,
+ * and answers the `SessionLaunchSelection` the row is minted with.
+ *
+ * BOTH READINGS ARE THE PRODUCTION ONES. `getProviderModels` is the same merged catalog the
+ * picker lists and the launch compiler resolves (so a custom model-library id is selectable,
+ * and a deleted or mistyped id is not), and `supportsEffort` is the capability matrix the
+ * composer's effort picker is rendered from. The row writer records exactly what this returns;
+ * the first run then resolves its model from that row, so the selection cannot be a value the
+ * page showed and the launch ignored.
+ *
+ * An unknown/deleted model and an effort the provider or model does not offer are REFUSED with
+ * a readable AppError before any row exists — never silently downgraded to the provider default,
+ * which is the incident this rule exists to prevent. `'default'` on a provider that has no such
+ * catalog option is the one exception, and it means "unstated" (the provider's own default).
+ */
+async function resolveLaunchSelection(
+  deps: CockpitSessionStarterDeps,
+  provider: LLMProvider,
+): Promise<SessionLaunchSelection> {
+  const configuredModel = deps.preferences.model.trim();
+  const configuredEffort = (deps.preferences.effort ?? '').trim();
+  const catalog = await deps.models.getProviderModels(provider);
+  const knownOption = catalog.OPTIONS.find((option) => option.value === configuredModel);
+  const providerDefaultOption = catalog.OPTIONS.find((option) => option.value === catalog.DEFAULT);
+
+  // The shipped sentinel on a catalog that has no such entry means "unstated": the provider
+  // keeps its own launch default, exactly as it did before this preference existed.
+  const model = configuredModel === PROVIDER_DEFAULT_MODEL_SENTINEL && !knownOption
+    ? ''
+    : configuredModel;
+
+  if (model !== '' && !knownOption) {
+    const supported = catalog.OPTIONS.map((option) => option.value);
+    throw new AppError(
+      `Unknown ${provider} model "${model}". Supported models: ${supported.join(', ') || 'none'}.`,
+      { code: 'MODEL_UNKNOWN', statusCode: 400, details: { supported } },
+    );
+  }
+
+  if (configuredEffort !== '') {
+    const supportsEffort =
+      deps.capabilities.getProviderCapabilities(provider)?.supportsEffort === true;
+    if (!supportsEffort) {
+      throw new AppError(
+        `Provider "${provider}" does not support a reasoning effort; remove \`cockpit.sessionStart.effort\`.`,
+        { code: 'EFFORT_NOT_SUPPORTED', statusCode: 400 },
+      );
+    }
+    // When the catalog states which efforts the selected model offers, the configured value
+    // must be one of them: the runtime silently DROPS an unknown effort, so accepting it here
+    // would report a choice the launch never made. A catalog entry with no effort table (a
+    // custom model row) leaves the value to the provider's own capability answer above.
+    const effortOption = knownOption ?? providerDefaultOption;
+    const allowedEfforts = effortOption?.effort?.values?.map((value) => value.value) ?? [];
+    if (allowedEfforts.length > 0 && !allowedEfforts.includes(configuredEffort)) {
+      throw new AppError(
+        `Model "${model || catalog.DEFAULT}" does not offer reasoning effort "${configuredEffort}"; supported: ${allowedEfforts.join(', ')}.`,
+        { code: 'EFFORT_NOT_SUPPORTED', statusCode: 400, details: { supported: allowedEfforts } },
+      );
+    }
+  }
+
+  return {
+    ...(model === '' ? {} : { model }),
+    ...(configuredEffort === '' ? {} : { effort: configuredEffort }),
+  };
+}
+
+/**
  * Builds the real `session.start` body: open a NEW conversation in the BACKGROUND, resident and
  * with the configured permission mode, and make the card's reply its first message.
  *
  * THE ORDER IS MCP `session_create`'s ORDER, deliberately: refuse an unsupported permission mode
- * BEFORE a row exists (a card that cannot open the session it promised must not leave a
- * half-configured one behind), then create the row, then write both preferences, then send. The
- * preferences are written before the send because the backend reads them at DISPATCH time — a
- * resident session whose preference landed after the first turn would run that turn per-run, and
- * a `bypassPermissions` preference would arrive too late for the first Bash call to avoid the
- * prompt this whole path exists to remove.
+ * (and an unknown model / unsupported effort) BEFORE a row exists (a card that cannot open the
+ * session it promised must not leave a half-configured one behind), then create the row, then
+ * write both lifecycle/permission preferences, then send. The preferences are written before the
+ * send because the backend reads them at DISPATCH time — a resident session whose preference
+ * landed after the first turn would run that turn per-run, and a `bypassPermissions` preference
+ * would arrive too late for the first Bash call to avoid the prompt this whole path exists to
+ * remove.
+ *
+ * THE LAUNCH SELECTION IS PART OF THE ROW, not a later step: `createAppSession` records the
+ * configured model/effort in the same insert, and the opening send also states them so a per-run
+ * runtime (which reads its effort from the send's options) launches the FIRST turn under the
+ * same selection. The first turn is therefore never a compose-default turn followed by a
+ * correction on the second.
  *
  * The lifecycle default is provider-scoped, exactly like MCP: the shipped `resident` is stored
  * only where the provider's own matrix declares it, and every other provider keeps the row's
@@ -195,10 +302,17 @@ export function createCockpitSessionStarter(
       );
     }
 
+    // Validated BEFORE the row exists, exactly like the permission mode above: a model the
+    // catalog does not know (a typo, or a library entry that has since been deleted) and an
+    // effort the provider/model does not offer are readable refusals, never a silent fall back
+    // to the provider default and never an orphan row.
+    const selection = await resolveLaunchSelection(deps, request.provider);
+
     const created = deps.sessions.createAppSession(
       request.provider,
       projectPath,
       request.initialMessage,
+      selection,
     );
 
     // The same writer MCP uses. A null/undefined result means the row refused the write
@@ -237,7 +351,15 @@ export function createCockpitSessionStarter(
       {
         sessionId: created.sessionId,
         content: request.initialMessage,
-        options: { permissionMode },
+        options: {
+          permissionMode,
+          // The row already carries them, so a resident driver resolves the model from there;
+          // the options are what a PER-RUN runtime reads its effort from, and stating both on
+          // the opening send is what makes the FIRST turn the configured one rather than only
+          // the second onward. Absent values stay absent (the launch's own inference).
+          ...(selection.model === undefined ? {} : { model: selection.model }),
+          ...(selection.effort === undefined ? {} : { effort: selection.effort }),
+        },
       },
     );
     if (!sent.ok) {

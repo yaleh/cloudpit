@@ -63,7 +63,7 @@ export type CockpitExecutorsWiring = {
    */
   sessions?: Pick<typeof sessionsService, 'createAppSession' | 'switchSessionLifecycleMode'>;
   /** The permission-mode writer and the catalog reader, exactly as `session_create` reads them. */
-  models?: Pick<typeof providerModelsService, 'setSessionPermissionMode'>;
+  models?: Pick<typeof providerModelsService, 'setSessionPermissionMode' | 'getProviderModels'>;
   /** The provider capability matrix; a permission mode is refused before any row is created. */
   capabilities?: Pick<typeof providerCapabilitiesService, 'getProviderCapabilities'>;
   /** The acting user's id; defaults to the deployment's first user. */

@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-session-start-model-settings
 title: Cockpit session.start 使用 server.settings.json 模型设置并在首轮应用 selection
-status: todo
+status: done
 labels:
   - gap
   - cockpit
@@ -29,11 +29,18 @@ Cockpit `session.start` 已从 boot 读取的 `cockpit.sessionStart` 使用 life
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-executors.test.ts server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts` 退出 0；用例机械证明 shipped `model='default'`、未配置 effort 时沿用旧语义、自定义 model library selection 被建行并作用于第一轮，first-run launch/env 与 selection 一致。
-- [ ] 同一 cockpit model-selection 测试命令中，未知或已删除的显式 model 在任何 `createAppSession` 调用之前返回可见拒绝，创建行数为 0；显式 effort 按 capability 接受/拒绝，且拒绝同样没有创建行；测试不能通过真实 provider 调用或计费请求作判据。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts` 退出 0；配置解析对合法值保留 model/effort，对错误 `cockpit.sessionStart` / 错误字段留下明确 `problems`；设置不改变现有生命周期、权限、provider 默认语义。
-- [ ] 同一模型选择测试报告证明 `scheduled-messages` 对已存在 session 的 dispatch 仍只携带现有 `sessionId`/消息而不注入 `cockpit.sessionStart.model` 或 effort；不创建会话、不更换该行 model；测试用本地捕获的 dispatcher/control 记录，不启动真实 LLM。
-- [ ] `git diff -- server/modules/mcp-gateway/mcp-session-lifecycle.ts server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 为空；实现未要求编辑这两份用户已有未提交文件。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-executors.test.ts server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts` 退出 0；用例机械证明 shipped `model='default'`、未配置 effort 时沿用旧语义、自定义 model library selection 被建行并作用于第一轮，first-run launch/env 与 selection 一致。
+  - 证据: `tests 25 / pass 25 / fail 0`。shipped arm: `row model=default effort=null sendOptions={"permissionMode":"bypassPermissions","model":"default"} resolvedModel="default" spawnModel="default" spawnEffort=undefined`；library arm: `row model=v4.1flash-library-probe spawnModel=v4.1flash-library-probe envKeys=["ANTHROPIC_CARD_START_PROBE_BASE_URL","ANTHROPIC_CARD_START_PROBE_TOKEN"]`（只读键名，不读值）。
+- [x] 同一 cockpit model-selection 测试命令中，未知或已删除的显式 model 在任何 `createAppSession` 调用之前返回可见拒绝，创建行数为 0；显式 effort 按 capability 接受/拒绝，且拒绝同样没有创建行；测试不能通过真实 provider 调用或计费请求作判据。
+  - 证据: 删除后的 library id 与 typo id 均 `code=MODEL_UNKNOWN` / HTTP 400，`sessionCount` 不变、`sends.length=0`；effort 接受 arm 落行 `effort=high` 且 `spawnEffort="high"`；`effort='nonsense'` → `EFFORT_NOT_SUPPORTED`（supported: low, medium, high, max），cursor → `EFFORT_NOT_SUPPORTED`（`supportsEffort=false`），两者均 0 行 0 send。全部读数来自本地 recorder 与 SQLite，无 provider 调用。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts` 退出 0；配置解析对合法值保留 model/effort，对错误 `cockpit.sessionStart` / 错误字段留下明确 `problems`；设置不改变现有生命周期、权限、provider 默认语义。
+  - 证据: shipped `{"lifecycleMode":"resident","permissionMode":"bypassPermissions","model":"default"}`、`problems=[]`；合法值 `model="v4.1flash-library" effort="high"` 原样保留；空白 effort 读作未配置；`model:""`/`effort:5` → `problems=["\`cockpit.sessionStart.model\` must be a non-empty string","\`cockpit.sessionStart.effort\` must be a string"]` 且 model 回退 `default`；非对象 block 报 ``\`cockpit.sessionStart\` must be a JSON object``。
+- [x] 同一模型选择测试报告证明 `scheduled-messages` 对已存在 session 的 dispatch 仍只携带现有 `sessionId`/消息而不注入 `cockpit.sessionStart.model` 或 effort；不创建会话、不更换该行 model；测试用本地捕获的 dispatcher/control 记录，不启动真实 LLM。
+  - 证据: `dispatched=1 sendOptions={} rowModel=sonnet`；scheduled row 用生产 repository 落库，接收方为本地 recorder，无真实运行；会话行数与既有行 model 均未变。
+- [x] `git diff -- server/modules/mcp-gateway/mcp-session-lifecycle.ts server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts` 为空；实现未要求编辑这两份用户已有未提交文件。
+  - 证据: 命令输出 0 行。
+
+该轴仍暗,理由: 本任务修复 cockpit session.start 的模型/effort 配置与首轮 selection，不涉及 L_D/L_G 明暗轴的测量或迁移。
 
 ## DoD
 
@@ -52,3 +59,5 @@ Cockpit `session.start` 已从 boot 读取的 `cockpit.sessionStart` 使用 life
 - server/modules/providers/services/sessions.service.ts
 - server/modules/providers/services/provider-models.service.ts
 - server/shared/types.ts
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
