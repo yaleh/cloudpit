@@ -5,7 +5,12 @@ import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import { turnParams, type CodexResidentHostPort } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+import {
+  threadDefaultsFromLaunchOptions,
+  threadParams,
+  turnParams,
+  type CodexResidentHostPort,
+} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
@@ -495,6 +500,75 @@ test("turn/start omits CloudCLI's 'default' effort and forwards a codex value (A
   );
   assert.equal(withHigh.effort, 'high', "a codex-supported effort ('high') must be forwarded verbatim");
   assert.equal('effort' in withUltracode, false, 'a non-codex effort must be dropped rather than forwarded');
+});
+
+/**
+ * The failure this criterion pins: the resident launch carries the session's
+ * `permissionMode`, but the first `thread/start` used to drop it and ran on the
+ * app-server's own sandbox/approval defaults — neither GOAL-051's
+ * workspace-write + never nor the Claude resident's trusted bypass.
+ */
+test('the first thread/start carries the launch permission mode (AC1)', async () => {
+  const bypass = threadParams({}, threadDefaultsFromLaunchOptions({
+    cwd: '/work/project',
+    permissionMode: 'bypassPermissions',
+  }));
+  const defaultMode = threadParams({}, threadDefaultsFromLaunchOptions({
+    cwd: '/work/project',
+    permissionMode: 'default',
+  }));
+  const noMode = threadParams({}, threadDefaultsFromLaunchOptions({ cwd: '/work/project' }));
+  console.log(
+    `bypassApproval=${String(bypass.approvalPolicy)} bypassSandbox=${String(bypass.sandbox)} ` +
+      `defaultApproval=${String(defaultMode.approvalPolicy)} defaultSandbox=${String(defaultMode.sandbox)} ` +
+      `noModeHasApproval=${'approvalPolicy' in noMode} noModeHasSandbox=${'sandbox' in noMode}`,
+  );
+
+  assert.deepEqual(
+    { approvalPolicy: bypass.approvalPolicy, sandbox: bypass.sandbox },
+    { approvalPolicy: 'never', sandbox: 'danger-full-access' },
+    'bypassPermissions must reach thread/start as the trusted app-server equivalent',
+  );
+  assert.deepEqual(
+    { approvalPolicy: defaultMode.approvalPolicy, sandbox: defaultMode.sandbox },
+    { approvalPolicy: 'on-request', sandbox: 'workspace-write' },
+    "an ordinary mode must keep GOAL-051's workspace-write sandbox",
+  );
+  assert.equal('approvalPolicy' in noMode, false, 'a launch without a permission mode must not write approvalPolicy');
+  assert.equal('sandbox' in noMode, false, 'a launch without a permission mode must not write sandbox');
+
+  // End to end over the same cold-start path production uses: a resident
+  // session's first turn opens its host from the turn options, and the first
+  // thread/start frame is what app-server actually receives.
+  const transport = new FakeAppServerTransport();
+  const hostPort = createFakeHostPort();
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({
+      launch,
+      createTransport: () => transport,
+    }),
+    host: hostPort,
+  });
+  const writer = { send: () => {} } as unknown as ProviderRuntimeWriter;
+  const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+  try {
+    await driver.run(
+      'session-permission',
+      { command: 'first', options: { permissionMode: 'bypassPermissions' } },
+      writer,
+      context,
+    );
+    const starts = transport.calls.filter((call) => call.method === 'thread/start');
+    const first = starts[0]?.params ?? {};
+    console.log(`wireThreadStart=${JSON.stringify(first)}`);
+    assert.equal(starts.length, 1, 'the first resident turn must send exactly one thread/start');
+    assert.equal(first.approvalPolicy, 'never', 'the wire thread/start must carry approvalPolicy=never');
+    assert.equal(first.sandbox, 'danger-full-access', 'the wire thread/start must carry the full-access sandbox');
+  } finally {
+    for (const host of hostPort.hosts) {
+      await driver.closeHost(host, 'user');
+    }
+  }
 });
 
 /**

@@ -146,14 +146,49 @@ export function normalizeTurnStatus(raw: string): CodexTurnStatus {
 }
 
 /**
+ * The `thread/start` fields a CloudCLI permission mode asks for.
+ *
+ * `thread/start` takes a `sandbox` *string* (`workspace-write`,
+ * `danger-full-access`), while live settings take an object `sandboxPolicy`
+ * ({@link ./codex-live-settings.ts}) — do not copy that shape here. The values
+ * are the same ones the per-run SDK launch uses (`mapPermissionModeToCodexOptions`
+ * in `codex-runtime.provider.ts`), restated here rather than imported because a
+ * leaf contract must not reach into a provider module.
+ *
+ * `bypassPermissions` is the mode a resident session runs under (the Claude
+ * resident's `RESIDENT_PERMISSION_MODE`), so its mapping must be the trusted
+ * equivalent: never ask, full access. Every other mode keeps GOAL-051's
+ * `workspace-write` sandbox and only relaxes the approval prompt, exactly as the
+ * per-run launch does.
+ */
+function threadPermissionDefaults(permissionMode: string): {
+  approvalPolicy: string;
+  sandbox: string;
+} {
+  if (permissionMode === 'bypassPermissions') {
+    return { approvalPolicy: 'never', sandbox: 'danger-full-access' };
+  }
+  return {
+    approvalPolicy: permissionMode === 'acceptEdits' ? 'never' : 'on-request',
+    sandbox: 'workspace-write',
+  };
+}
+
+/**
  * The `thread/start` defaults a resident launch asks for.
  *
  * `HostResidentLaunch.options` is the bag the session's next turn would have
  * launched under, assembled by the providers layer (see
  * `defaultResidentLaunchOptions`): `cwd`/`projectPath` off the session row and
- * the stored model. Only a non-empty string is carried, so a launch with no
- * project directory or no chosen model keeps the constructor's defaults rather
- * than overwriting them with `undefined`.
+ * the stored model, effort and permission mode. Only a non-empty string is
+ * carried, so a launch with no project directory or no chosen model keeps the
+ * constructor's defaults rather than overwriting them with `undefined`.
+ *
+ * `permissionMode` becomes the thread's `approvalPolicy`/`sandbox` pair — the
+ * first `thread/start` otherwise runs on the app-server's own defaults, which is
+ * neither GOAL-051's workspace-write + never nor the Claude resident's trusted
+ * bypass. A launch with no permission mode writes neither field, keeping the
+ * app-server's defaults as the old behaviour did.
  */
 export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThreadDefaults {
   const defaults: CodexThreadDefaults = {};
@@ -162,6 +197,11 @@ export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThread
   }
   if (typeof options.model === 'string' && options.model) {
     defaults.model = options.model;
+  }
+  if (typeof options.permissionMode === 'string' && options.permissionMode) {
+    const permission = threadPermissionDefaults(options.permissionMode);
+    defaults.approvalPolicy = permission.approvalPolicy;
+    defaults.sandbox = permission.sandbox;
   }
   return defaults;
 }
