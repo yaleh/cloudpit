@@ -296,6 +296,9 @@ export class CodexProviderModels implements IProviderModels {
     const key = this.cacheKey();
     if (this.cached?.key === key && this.now() < this.cached.expiresAt) {
       this.source = this.cached.source === 'live' ? 'cache' : 'fallback';
+      // One line per read, so an operator can tell a cached answer from a
+      // fresh CLI spawn without a debugger attached.
+      console.log(`[codex-models] catalog read source=${this.source} models=${this.cached.models.OPTIONS.length}`);
       return this.cached.models;
     }
 
@@ -319,6 +322,7 @@ export class CodexProviderModels implements IProviderModels {
   }
 
   private async discover(key: string): Promise<ProviderModelsDefinition> {
+    console.log('[codex-models] model/list discovery started');
     let models: CodexModelDescriptor[] | null = null;
     try {
       models = await this.listModels();
@@ -327,6 +331,7 @@ export class CodexProviderModels implements IProviderModels {
     }
 
     const visible = (models ?? []).filter((model) => model.hidden === false);
+    console.log(`[codex-models] model/list discovery ${visible.length === 0 ? 'empty-or-failed' : 'ok'} visible=${visible.length}`);
     if (visible.length === 0) {
       this.cached = {
         key,
