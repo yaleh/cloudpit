@@ -296,8 +296,10 @@ export function createCockpitFleetCardProvider(
       return cached.cards.map((card) => structuredClone(card));
     }
 
-    // A card-cache miss is also the executor-declaration refresh point (at most hourly).
-    const [result] = await Promise.all([deps.runCards(args), ensureExecutors()]);
+    // A card-cache miss is also the executor-declaration refresh point (at most hourly). The
+    // declaration reading is awaited here too because a digest card's disposal option is built
+    // FROM it (`fleet.park`/`fleet.hold` by action) — the projection never names a fleet id.
+    const [result, executors] = await Promise.all([deps.runCards(args), ensureExecutors()]);
     if (result.exitCode !== 0 || result.error !== undefined) {
       last = {
         provider: COCKPIT_FLEET_PROVIDER_ID,
@@ -320,7 +322,10 @@ export function createCockpitFleetCardProvider(
     } catch {
       retracted = undefined;
     }
-    const projected = projection.project(result.stdout, retracted === undefined ? {} : { retracted });
+    const projected = projection.project(result.stdout, {
+      ...(retracted === undefined ? {} : { retracted }),
+      declarations: executors.declarations,
+    });
     last = {
       provider: COCKPIT_FLEET_PROVIDER_ID,
       ok: true,

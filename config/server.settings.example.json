@@ -32,8 +32,23 @@
       "model": "",
       "maxPerHour": 12,
       "apiKeyFile": ""
+    },
+    "sessionStart": {
+      "lifecycleMode": "resident",
+      "permissionMode": "bypassPermissions",
+      "model": "default",
+      "effort": ""
     }
   },
+  "_cockpitSessionStart": "How a card's `session.start` opens its new conversation. `lifecycleMode` and `permissionMode` are written to the row before the first message, exactly as MCP `session_create` does; `resident` and `bypassPermissions` ship as a background conversation nobody is watching. `model` is the provider-catalog entry the first run launches with (a built-in id or a custom model-library id) and ships `default`; an unknown or deleted id is refused before any session row exists rather than falling back to the provider default. `effort` is optional — leave it empty (or omit it) to keep the launch's own inference; a value the provider or model does not offer is refused. The file is read once at boot, so an edit takes effect after a restart.",
+  "codex": {
+    "mcpGateway": {
+      "enabled": false,
+      "url": "",
+      "tokenFile": ""
+    }
+  },
+  "_codexMcpGateway": "Hand a resident Codex child this server's own `/mcp` gateway, so a Codex session sees the same CloudCLI tools a Claude client connects to. `enabled` SHIPS FALSE: the block is inert until an operator opts in. `tokenFile` names a 0600 file holding a `ccp_` personal access token (the same value an operator pastes into `claude mcp add --header \"Authorization: Bearer …\"`); the token is passed to the child through its environment, never through argv, and is verified by the gateway's ordinary token service, so its scope check and audit row apply unchanged. A missing/blank/non-`ccp_` file leaves the injection off and is reported in the server log. `url` empty means `http://127.0.0.1:<SERVER_PORT>/mcp` — the loopback address the gateway is mounted on.",
   "quay": {
     "entrypoints": {}
   },

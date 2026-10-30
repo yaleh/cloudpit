@@ -31,6 +31,11 @@ import {
 } from '../session-ask-ledger.js';
 import { createSessionAskRecovery, type SessionAskRecovery } from '../session-ask-recovery.js';
 import { createSessionAskRetraction } from '../session-ask-retraction.js';
+import {
+  createSessionAskDecisionReader,
+  SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
+} from '../session-ask-decision-reader.js';
+import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
 
 type HarnessOptions = {
   /** Transcript text keyed by session id; `null` means the file is unreadable. */
@@ -290,4 +295,121 @@ test('user turn: a mis-stated pending ask is withdrawn, never answered', async (
   assert.deepEqual(ledger.retracted, [askId]);
   assert.deepEqual(ledger.pending, []);
   assert.deepEqual(ledger.answered, []);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The reader's 「找不到会话转写」 failure is a stale shape, not a permanent verdict
+// ---------------------------------------------------------------------------------------------
+
+/** The transcript of a session that ends on an open ask (`a1`). */
+const OPEN_ASK_ROWS = [
+  { type: 'user', uuid: 'u1', message: { role: 'user', content: [{ type: 'text', text: '开始' }] } },
+  {
+    type: 'assistant',
+    uuid: 'a1',
+    message: { role: 'assistant', content: [{ type: 'text', text: '要不要继续？' }] },
+  },
+];
+
+/** A switched-on tier that talks to no gateway. */
+const READER_SETTINGS: SessionDigestLlmSettings = {
+  enabled: true,
+  configuredEnabled: true,
+  model: 'stub-model',
+  maxPerHour: 6,
+  minTurnChars: 0,
+  apiKeyFile: '',
+  protocol: 'anthropic',
+  baseUrl: 'http://stub.invalid',
+  authScheme: 'bearer',
+  disableThinking: true,
+  timeoutMs: 1_000,
+  maxOutputTokens: 800,
+  temperature: 0.2,
+  apiKey: 'stub-key',
+  source: 'file',
+  path: null,
+  problems: [],
+};
+
+/**
+ * A reader over the harness store with a switchable world: when `row` is false the session row
+ * is gone AND the projects scan finds nothing; when true both the row and the transcript exist.
+ */
+function readerOverWorld(
+  store: ObservationStore,
+  world: { row: boolean; calls: { count: number } },
+): ReturnType<typeof createSessionAskDecisionReader> {
+  return createSessionAskDecisionReader({
+    store,
+    readSettings: () => READER_SETTINGS,
+    summarize: {
+      async summarize(input) {
+        world.calls.count += 1;
+        return {
+          state: 'evaluated',
+          inputTokens: 1,
+          outputTokens: 1,
+          askId: input.askId,
+          revision: input.revision,
+          ask: '要不要继续？',
+          situation: '测试情境',
+          options: [
+            { id: 'yes', label: '继续', does: '继续执行。', tags: [], suggested: true, source: 'assistant' },
+            { id: 'no', label: '停下', does: '停止执行。', tags: [], suggested: false, source: 'assistant' },
+          ],
+          incomplete: false,
+        };
+      },
+    },
+    resolveSession: () =>
+      world.row
+        ? { title: '会话', jsonlPath: '/transcripts/retry.jsonl', providerSessionId: null }
+        : null,
+    readTranscript: async () => (world.row ? transcript(OPEN_ASK_ROWS) : null),
+    findTranscript: async () => (world.row ? transcript(OPEN_ASK_ROWS) : null),
+    now: () => 1_700_000_000_000,
+  });
+}
+
+test('reader: a stored 「重算失败：找不到会话转写」 is retried once the session row and transcript are back', async () => {
+  const { store } = createHarness();
+  const sessionId = 'transcript-missing-retry';
+  const uri = formatSessionUri(sessionId);
+  // THE LIVE SHAPE (session a1690759): the session row had been deleted, so the old reader wrote
+  // this permanent sentence and `staleShapeOf` never recognised it again.
+  store.writeRevision({
+    uri,
+    kind: 'session',
+    title: '会话',
+    status: { state: 'attention', reason: '本轮以提问结束，等你回复' },
+    digest: {
+      activity: 'waiting',
+      askDecision: { state: 'unevaluated', reason: SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON },
+    },
+    deltaItems: [],
+    provenance: { producer: 'session-ask-decision-reader', tier: 'deterministic', evaluatedAt: 1 },
+  });
+
+  // Phase 1 — still gone. A fresh reader reads the stored failure, cannot reach the model and
+  // leaves the reading untouched (a failed attempt is remembered, not retried every poll).
+  const unavailable = { count: 0 };
+  const before = readerOverWorld(store, { row: false, calls: unavailable });
+  assert.equal(before.read(sessionId)?.state, 'unevaluated');
+  await before.settled();
+  assert.equal(unavailable.count, 0, 'nothing to summarize without a transcript');
+
+  // Phase 2 — the NEXT reader (the next process) sees the restored row/transcript. The stale
+  // transcript-missing shape schedules the recompute; before this task it was never retried.
+  const recovered = { count: 0 };
+  const after = readerOverWorld(store, { row: true, calls: recovered });
+  assert.equal(after.read(sessionId)?.state, 'unevaluated', 'the first frame still answers the stored failure');
+  await after.settled();
+  assert.equal(recovered.count, 1, 'the restored transcript triggers the retry');
+
+  const repaired = store.getObject(uri)?.digest.askDecision as SessionAskDecisionReading;
+  assert.equal(repaired.state, 'evaluated', 'the failure is replaced by the real decision');
+  assert.equal(after.read(sessionId)?.state, 'evaluated', 'the next poll no longer stops at the failure');
+  await after.settled();
+  assert.equal(recovered.count, 1, 'a repaired reading is not recomputed again');
 });

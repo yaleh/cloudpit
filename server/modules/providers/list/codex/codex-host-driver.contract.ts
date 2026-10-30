@@ -15,6 +15,7 @@ import type {
   CodexAppServerConnection,
   CodexAppServerLaunch,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { McpGatewayClientTarget } from '@/shared/ports/mcp-gateway-client.port.js';
 import type { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { AnyRecord, HostTurnInput } from '@/shared/types.js';
@@ -146,14 +147,49 @@ export function normalizeTurnStatus(raw: string): CodexTurnStatus {
 }
 
 /**
+ * The `thread/start` fields a CloudCLI permission mode asks for.
+ *
+ * `thread/start` takes a `sandbox` *string* (`workspace-write`,
+ * `danger-full-access`), while live settings take an object `sandboxPolicy`
+ * ({@link ./codex-live-settings.ts}) — do not copy that shape here. The values
+ * are the same ones the per-run SDK launch uses (`mapPermissionModeToCodexOptions`
+ * in `codex-runtime.provider.ts`), restated here rather than imported because a
+ * leaf contract must not reach into a provider module.
+ *
+ * `bypassPermissions` is the mode a resident session runs under (the Claude
+ * resident's `RESIDENT_PERMISSION_MODE`), so its mapping must be the trusted
+ * equivalent: never ask, full access. Every other mode keeps GOAL-051's
+ * `workspace-write` sandbox and only relaxes the approval prompt, exactly as the
+ * per-run launch does.
+ */
+function threadPermissionDefaults(permissionMode: string): {
+  approvalPolicy: string;
+  sandbox: string;
+} {
+  if (permissionMode === 'bypassPermissions') {
+    return { approvalPolicy: 'never', sandbox: 'danger-full-access' };
+  }
+  return {
+    approvalPolicy: permissionMode === 'acceptEdits' ? 'never' : 'on-request',
+    sandbox: 'workspace-write',
+  };
+}
+
+/**
  * The `thread/start` defaults a resident launch asks for.
  *
  * `HostResidentLaunch.options` is the bag the session's next turn would have
  * launched under, assembled by the providers layer (see
  * `defaultResidentLaunchOptions`): `cwd`/`projectPath` off the session row and
- * the stored model. Only a non-empty string is carried, so a launch with no
- * project directory or no chosen model keeps the constructor's defaults rather
- * than overwriting them with `undefined`.
+ * the stored model, effort and permission mode. Only a non-empty string is
+ * carried, so a launch with no project directory or no chosen model keeps the
+ * constructor's defaults rather than overwriting them with `undefined`.
+ *
+ * `permissionMode` becomes the thread's `approvalPolicy`/`sandbox` pair — the
+ * first `thread/start` otherwise runs on the app-server's own defaults, which is
+ * neither GOAL-051's workspace-write + never nor the Claude resident's trusted
+ * bypass. A launch with no permission mode writes neither field, keeping the
+ * app-server's defaults as the old behaviour did.
  */
 export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThreadDefaults {
   const defaults: CodexThreadDefaults = {};
@@ -163,7 +199,82 @@ export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThread
   if (typeof options.model === 'string' && options.model) {
     defaults.model = options.model;
   }
+  if (typeof options.permissionMode === 'string' && options.permissionMode) {
+    const permission = threadPermissionDefaults(options.permissionMode);
+    defaults.approvalPolicy = permission.approvalPolicy;
+    defaults.sandbox = permission.sandbox;
+  }
   return defaults;
+}
+
+/**
+ * The MCP server name this server's gateway is injected under.
+ *
+ * `cloudcli` is the name the settings page tells a Claude user to connect
+ * (`claude mcp add --transport http cloudcli …`), so a Codex session and a Claude
+ * session name the same backend the same way; nothing in the driver reads it.
+ */
+export const CODEX_MCP_GATEWAY_SERVER_NAME = 'cloudcli';
+
+/**
+ * The child environment variable that carries the gateway credential.
+ *
+ * Codex is told to read the bearer token from this name
+ * (`bearer_token_env_var`), so the value travels in the child's environment and
+ * never appears in the process arguments — an argv token is visible to every
+ * `ps` on the machine and to the app-server's own logs.
+ */
+export const CODEX_MCP_GATEWAY_TOKEN_ENV = 'CLOUDCLI_MCP_GATEWAY_TOKEN';
+
+/** One `-c key=value` config override, with the value written as a TOML basic string. */
+function codexConfigArg(key: string, value: string): string[] {
+  return ['-c', `${key}=${tomlBasicString(value)}`];
+}
+
+/** A TOML basic string: the two characters a path or URL can carry are escaped. */
+function tomlBasicString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * The launch a resident Codex child is spawned with, gateway injected or not.
+ *
+ * When `target` is null this returns the launch UNCHANGED — the shipped
+ * behaviour, and the negative arm of the criterion: no `-c`, no extra env, so
+ * the child's tool list is whatever `~/.codex/config.toml` provides.
+ *
+ * When a target is present the child is told about one extra HTTP MCP server:
+ *
+ *   -c mcp_servers.cloudcli.url="http://127.0.0.1:<port>/mcp"
+ *   -c mcp_servers.cloudcli.bearer_token_env_var="CLOUDCLI_MCP_GATEWAY_TOKEN"
+ *
+ * and the token is placed in the child's environment. That is the same config
+ * shape `codex.mcp` writes to `config.toml` (`url` + `bearer_token_env_var`), so
+ * a Codex user's own `[mcp_servers.*]` entries are unaffected and the injected
+ * one is an ordinary server from the app-server's point of view. Authorization
+ * is NOT short-circuited: the child presents a `ccp_` personal access token to
+ * the ordinary `/mcp` route, which verifies it through `AccessTokensService`,
+ * applies the tool's required scopes and writes the audit row.
+ */
+export function codexMcpGatewayLaunch(
+  launch: CodexAppServerLaunch,
+  target: McpGatewayClientTarget | null,
+): CodexAppServerLaunch {
+  if (target === null) {
+    return launch;
+  }
+  return {
+    ...launch,
+    args: [
+      ...(launch.args ?? []),
+      ...codexConfigArg(`mcp_servers.${CODEX_MCP_GATEWAY_SERVER_NAME}.url`, target.url),
+      ...codexConfigArg(
+        `mcp_servers.${CODEX_MCP_GATEWAY_SERVER_NAME}.bearer_token_env_var`,
+        CODEX_MCP_GATEWAY_TOKEN_ENV,
+      ),
+    ],
+    env: { ...(launch.env ?? process.env), [CODEX_MCP_GATEWAY_TOKEN_ENV]: target.token },
+  };
 }
 
 /** `process/spawn` params: the handle, the command, and only what the caller supplied. */

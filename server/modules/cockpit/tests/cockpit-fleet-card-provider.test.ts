@@ -177,6 +177,65 @@ function optionById(card: CockpitCard, id: string): CockpitCard['options'][numbe
   return option;
 }
 
+/**
+ * One cross-project digest card exactly as the fleet emits it (`att_2d86bc040462` on 2026-10-30):
+ * the entry is `kind: 'digest'`, carries NO options, and its evidence holds the triggering
+ * `+2 error` and the later `+2 ok`. Every row's `text` shares the rule+window prefix; only the
+ * status tail differs, which is why the raw card rendered indistinguishably.
+ */
+const DIGEST_CARD = {
+  id: 'att-digest-1',
+  provider: 'quay-fleet',
+  revision: 2,
+  kind: 'digest',
+  group: 'rescue',
+  rank: 9,
+  state: 'open',
+  waitingSince: '2026-10-30T11:26:10.116Z',
+  surfacedAt: '2026-10-30T11:29:19.903Z',
+  subject: { project: 'claudecodeui', uri: 'quay://claudecodeui/board' },
+  facts: [
+    {
+      text: '读数：plan.digest.v0 2026-10-30T11: claudecodeui: +2 error',
+      mechanical: true,
+      ref: 'events.jsonl@err',
+      observedAt: '2026-10-30T11:26:10.116Z',
+      detail: 'plan.digest.v0 2026-10-30T11: claudecodeui: +2 error',
+    },
+    {
+      text: '读数：plan.digest.v0 2026-10-30T11: claudecodeui: +2 ok',
+      mechanical: true,
+      ref: 'events.jsonl@ok',
+      observedAt: '2026-10-30T11:29:19.903Z',
+      detail: 'plan.digest.v0 2026-10-30T11: claudecodeui: +2 ok',
+    },
+  ],
+  options: [],
+  notify: { system: true, reason: 'escalate:plan.digest.v0' },
+  ownerSession: null,
+};
+
+/**
+ * The fleet's declaration document for the digest criteria. The park id is deliberately NOT one
+ * the fleet ships (`fleet.settle`): the criterion proves the disposal option's executor comes
+ * from the declaration, so a hard-coded `fleet.park` in the projection reds it.
+ */
+const DIGEST_DECLARATIONS = {
+  ok: true,
+  executors: [
+    { id: 'fleet.keep', action: 'hold', does: 'ack and keep open', params: [] },
+    { id: 'fleet.settle', action: 'park', does: 'expire the entry', params: [] },
+  ],
+};
+
+function digestRunner(card: unknown = DIGEST_CARD): (args: readonly string[]) => Promise<CockpitFleetCommandResult> {
+  return runnerReturning(`${JSON.stringify(card)}\n`);
+}
+
+function declarationsRunner(): (args: readonly string[]) => Promise<CockpitFleetCommandResult> {
+  return async () => ({ exitCode: 0, stdout: JSON.stringify(DIGEST_DECLARATIONS), stderr: '' });
+}
+
 test('AC-432: fleet fields pass through, and the registry hides ended cards and orders the rest', async () => {
   const calls: string[][] = [];
   const fleet = created({ runCards: runnerReturning(FIXTURE, calls) });
@@ -386,6 +445,76 @@ test('AC-432: one bad line is skipped and counted without hiding the other cards
   assert.equal(diagnostic?.skippedLines, 1);
   assert.equal(diagnostic?.cards, 2);
   assert.match(diagnostic?.reason ?? '', /1 malformed card line/);
+});
+
+test('AC: a digest escalate card always offers a clickable dismissal', async () => {
+  // THE DEFECT: the fleet states `options: []` for a digest, so the card drew a dropdown over an
+  // empty list and a confirm bar promising 「Choose an option」 — nothing the person could press.
+  // The projection completes it with ONE disposal option built from the fleet's declaration.
+  const fleet = created({
+    runCards: digestRunner(),
+    runExecutors: declarationsRunner(),
+  });
+
+  const card = byId(await createCockpitCardRegistry([fleet.provider]).listCards(), 'att-digest-1');
+  assert.ok(card.options.length > 0, 'a digest card must never render an empty option list');
+  const disposal = card.options.find((option) => option.id === 'dismiss' || option.id === 'ack');
+  assert.ok(disposal !== undefined, 'the option is a dismiss/ack the person can choose');
+  assert.equal(
+    disposal.action.executor,
+    'fleet.settle',
+    'the executor is the declaration with action=park, not an id hard-coded in the projection',
+  );
+  assert.deepEqual(disposal.action.params, { attentionId: 'att-digest-1' });
+  assert.equal(disposal.suggested, false, 'no recommendation is invented for a summary');
+  assert.equal(
+    disposal.confirmable,
+    undefined,
+    'the fleet declared the executor, so the option stays confirmable',
+  );
+});
+
+test('AC: a healed digest headline states the newest reading, not the triggering error', async () => {
+  // The entry keeps accumulating evidence, but the card's headline used to be `facts[0]` — the
+  // OLDEST row — so `+2 error` stayed the title after `+2 ok` had already arrived.
+  const fleet = created({ runCards: digestRunner(), runExecutors: declarationsRunner() });
+
+  const card = byId(await fleet.provider.listCards(), 'att-digest-1');
+  assert.match(card.ask ?? '', /已恢复/, 'the headline names the recovery');
+  assert.ok(
+    (card.ask ?? '').includes('+2 ok'),
+    'the headline carries the newest recovered reading',
+  );
+  assert.equal(
+    (card.ask ?? '').includes('+2 error'),
+    false,
+    'the stale triggering error is not the headline',
+  );
+  assert.equal(card.facts[0]?.text.includes('+2 ok'), true, 'readings are newest first');
+  assert.equal(card.facts.at(-1)?.text.includes('+2 error'), true, 'the oldest reading stays last');
+});
+
+test('AC: digest reading rows carry their own status, so they stay distinguishable when shortened', async () => {
+  // Every evidence row shares the rule+window prefix (`读数：plan.digest.v0 2026-10-30T11:`) while
+  // the difference lives in the tail, which the pill truncates away. Each row now leads with its
+  // status, inside the display's own 48-character cap.
+  const fleet = created({ runCards: digestRunner(), runExecutors: declarationsRunner() });
+
+  const card = byId(await fleet.provider.listCards(), 'att-digest-1');
+  assert.deepEqual(
+    card.facts.map((fact) => fact.text),
+    [
+      '读数：claudecodeui: +2 ok（2026-10-30T11）',
+      '读数：claudecodeui: +2 error（2026-10-30T11）',
+    ],
+    'each row states its own reading and the window',
+  );
+  // `COCKPIT_FACT_PILL_MAX_CHARS` is 48 on the client; a row that differs only after that cap
+  // renders identically. The status must be inside the prefix.
+  const prefixes = card.facts.map((fact) => fact.text.slice(0, 48));
+  assert.equal(new Set(prefixes).size, card.facts.length, 'no two rows shorten to the same prefix');
+  assert.ok(prefixes[0]?.includes('+2 ok'), 'the ok row names ok inside the prefix');
+  assert.ok(prefixes[1]?.includes('+2 error'), 'the error row names error inside the prefix');
 });
 
 /** One evaluated digest in the shape the observation layer stores. */

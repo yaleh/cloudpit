@@ -46,6 +46,12 @@ import {
 import { errorMessage } from '@/shared/utils.js';
 import type { CockpitFixtureSubject } from '@/shared/types.js';
 
+import {
+  defaultCodexMcpGatewaySettings,
+  readCodexMcpGateway,
+  type CodexMcpGatewaySettings,
+} from './codex-mcp-gateway.settings.js';
+
 /**
  * The environment variable naming the settings file, or nothing when the shipped user-copy
  * path is the one to read.
@@ -179,12 +185,28 @@ export type CockpitFixtureFeedbackKnob = {
   reason: string;
 };
 
-/** The two preferences a card-started conversation is opened with. */
+/** How a card-started conversation is opened: its lifecycle, permission and launch selection. */
 export type CockpitSessionStartSettings = {
   /** The lifecycle mode written before the first message; ships `resident`. */
   lifecycleMode: string;
   /** The permission mode written before the first message and carried on that send. */
   permissionMode: string;
+  /**
+   * The model the new conversation launches with; ships `'default'`.
+   *
+   * The value is the provider catalog's own entry — a built-in id or a custom
+   * model-library id — and is validated at start time, not here: this module only
+   * checks the SHAPE (a non-empty string), because the catalog is a provider
+   * concern and a settings read must never need a provider process. `'default'`
+   * is the shipped, provider-agnostic sentinel: a provider whose catalog does not
+   * list it keeps its own launch default.
+   */
+  model: string;
+  /**
+   * Optional reasoning effort. Omitted (or written as an empty string) means "do
+   * not choose one", which keeps the launch's existing inference untouched.
+   */
+  effort?: string;
 };
 
 /** The quay-fleet card provider's server-level policy. */
@@ -226,6 +248,16 @@ export const DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE = 'resident';
 export const DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE = 'bypassPermissions';
 
 /**
+ * The shipped `session.start` model: the Claude catalog's own default entry.
+ *
+ * The catalog (predefined options plus custom model-library rows) is what the start
+ * path validates a configured value against; this constant is only the shipped
+ * reading. A provider whose catalog has no `'default'` option keeps its own launch
+ * default instead of being refused — see `readSessionStart` and the starter.
+ */
+export const DEFAULT_COCKPIT_SESSION_START_MODEL = 'default';
+
+/**
  * The public server policy a client may read without an operator's own file.
  *
  * Today that is the cockpit switch alone. The shape is deliberately a named block rather than
@@ -253,6 +285,8 @@ export type ServerSettings = {
   observation: ObservationSettings;
   initiative: InitiativeSettings;
   cockpit: CockpitSettings;
+  /** Whether a resident Codex child is handed this server's `/mcp` gateway. */
+  codexMcpGateway: CodexMcpGatewaySettings;
   source: ServerSettingsSource;
   path: string;
   problems: string[];
@@ -317,12 +351,14 @@ export function loadServerSettings(options: {
   const observation = readObservation(record.observation, problems);
   const initiative = readInitiative(record.initiative, problems);
   const cockpit = readCockpit(record.cockpit, problems);
+  const codexMcpGateway = readCodexMcpGateway(record.codex, problems);
 
   return {
     residentRestore,
     observation,
     initiative,
     cockpit,
+    codexMcpGateway,
     source: 'file',
     path: filePath,
     problems,
@@ -357,8 +393,10 @@ function defaultServerSettings(filePath: string): ServerSettings {
       sessionStart: {
         lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
         permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+        model: DEFAULT_COCKPIT_SESSION_START_MODEL,
       },
     },
+    codexMcpGateway: defaultCodexMcpGatewaySettings(),
     source: 'default',
     path: filePath,
     problems: [],
@@ -556,6 +594,7 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
     sessionStart: {
       lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
       permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+      model: DEFAULT_COCKPIT_SESSION_START_MODEL,
     },
   };
 
@@ -600,17 +639,20 @@ function readCockpit(raw: unknown, problems: string[]): CockpitSettings {
 /**
  * Reads the `cockpit.sessionStart` block, field by field over the shipped defaults.
  *
- * Both fields must be non-empty strings. Their VOCABULARY is not re-stated here: a lifecycle
- * mode is checked by `sessionsService.switchSessionLifecycleMode` against the provider's own
- * capability matrix, and a permission mode by the same matrix before the row exists. A malformed
- * field falls back on its own and is reported, so a typo in the permission mode cannot silently
- * turn the shipped `bypassPermissions` back on for a provider that refuses it — the problem is
- * printed and the start is refused where the matrix is read.
+ * `lifecycleMode`, `permissionMode` and `model` must be non-empty strings; `effort` is
+ * optional, and an absent or empty one is the shipped "let the launch infer it" reading.
+ * Their VOCABULARY is not re-stated here: a lifecycle mode is checked by
+ * `sessionsService.switchSessionLifecycleMode` against the provider's own capability matrix,
+ * a permission mode by the same matrix, and a model by the provider catalog — all before the
+ * row exists. A malformed field falls back on its own and is reported, so a typo in the
+ * permission mode cannot silently turn the shipped `bypassPermissions` back on for a provider
+ * that refuses it — the problem is printed and the start is refused where the matrix is read.
  */
 function readSessionStart(raw: unknown, problems: string[]): CockpitSessionStartSettings {
   const settings: CockpitSessionStartSettings = {
     lifecycleMode: DEFAULT_COCKPIT_SESSION_START_LIFECYCLE_MODE,
     permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
+    model: DEFAULT_COCKPIT_SESSION_START_MODEL,
   };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     problems.push('`cockpit.sessionStart` must be a JSON object');
@@ -629,6 +671,23 @@ function readSessionStart(raw: unknown, problems: string[]): CockpitSessionStart
       settings.permissionMode = record.permissionMode.trim();
     } else {
       problems.push('`cockpit.sessionStart.permissionMode` must be a non-empty string');
+    }
+  }
+  if (record.model !== undefined) {
+    if (typeof record.model === 'string' && record.model.trim() !== '') {
+      settings.model = record.model.trim();
+    } else {
+      problems.push('`cockpit.sessionStart.model` must be a non-empty string');
+    }
+  }
+  // An absent `effort` is the shipped "let the launch infer it" reading; the empty
+  // string is the template's spelling of the same thing (the file's other optional
+  // strings use `""`). A present non-string, or whitespace only, is a typo.
+  if (record.effort !== undefined) {
+    if (typeof record.effort !== 'string') {
+      problems.push('`cockpit.sessionStart.effort` must be a string');
+    } else if (record.effort.trim() !== '') {
+      settings.effort = record.effort.trim();
     }
   }
   return settings;

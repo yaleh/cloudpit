@@ -118,7 +118,10 @@ const authorizeWithPrincipal: RequestHandler = (_req, res, next) => {
  * theirs is ever entered by a `tools/list` reading.
  */
 const readTools = { draft: {} } as unknown as McpReadToolDeps;
-const writeTools = { draft: {} } as unknown as McpWriteToolDeps;
+// gap-mcp-session-steer-tool: `session_steer` registers alongside the five write
+// tools when this member is present (its handlers are never entered by a
+// `tools/list` reading), so the listed name set stays the annotation table's keys.
+const writeTools = { draft: {}, sessionSteer: {} } as unknown as McpWriteToolDeps;
 const residentTools = { reconfigure: {}, background: {}, approvals: {} } as unknown as McpResidentToolDeps;
 // gap-mcp-cockpit-card-tools: the cockpit's four names register through their own
 // bag. `tools/list` never enters a handler, so the three members are the empty

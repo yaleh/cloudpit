@@ -17,6 +17,11 @@ export {
   loadServerSettings,
   SERVER_SETTINGS_ENV,
 } from './server-settings.js';
+// resolveCodexMcpGateway: turns the `codex.mcpGateway` block into the `{url, token}`
+// the composition root installs on the provider-facing port. Kept here (not in
+// `server-settings.ts`) so the 800-line ratchet can absorb future blocks without
+// moving this one, and so a criterion can drive it over a literal block.
+export { resolveCodexMcpGateway, type CodexMcpGatewayResolution } from './codex-mcp-gateway.settings.js';
 // createServerFeaturesRouter: mounted by the server entrypoint at
 // `/api/settings/features` to publish the server-level switches a client must know before it
 // renders an entry point (today: the cockpit). Kept as a factory so a criterion can mount it
@@ -36,3 +41,4 @@ export type {
   ServerFeatures,
   ServerSettings,
 } from './server-settings.js';
+export type { CodexMcpGatewaySettings } from './codex-mcp-gateway.settings.js';

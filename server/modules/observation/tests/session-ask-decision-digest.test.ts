@@ -748,6 +748,8 @@ function readerOver(
       providerSessionId?: string | null;
     } | null;
     readTranscript?: (jsonlPath: string) => Promise<string | null>;
+    /** Finds a transcript by provider id (or the card's own id) across the projects dirs. */
+    findTranscript?: (providerSessionId: string) => Promise<string | null>;
     claudeProjectsRoot?: string;
     /** The reader's clock; the temporal-retry criterion advances it between reads. */
     now?: () => number;
@@ -769,6 +771,7 @@ function readerOver(
       options.resolveSession ??
       (() => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' })),
     readTranscript: options.readTranscript ?? (async () => YES_NO_TRANSCRIPT),
+    ...(options.findTranscript === undefined ? {} : { findTranscript: options.findTranscript }),
     ...(options.claudeProjectsRoot === undefined
       ? {}
       : { claudeProjectsRoot: options.claudeProjectsRoot }),
@@ -1264,6 +1267,114 @@ test('read-time repair: a transcript in another project’s encoded directory is
   assert.equal(requests.length, 1, 'the cross-project transcript was found and recomputed');
   const stored = storedAskDecision(objects);
   assert.equal(stored?.state, 'evaluated');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The missing-object self-heal: a card whose session object was never written
+// ---------------------------------------------------------------------------------------------
+
+/** A second session, so 「no object yet」 cannot be confused with the suite's seeded one. */
+const HEAL_SESSION_ID = 'heal-session';
+
+test('self-heal: a missing object is rebuilt from the session row and transcript, never answered null', async () => {
+  const { store, objects } = createMemoryStore();
+  const uri = formatSessionUri(HEAL_SESSION_ID);
+  // THE LIVE SHAPE (15 of 18 live cards): `session.asking` reached the fleet, the card names a
+  // real session, but `observed_objects` has no row for it. The old read returned null here —
+  // 「尚未生成」 forever — BEFORE the transcript that carries the ask was ever consulted.
+  assert.equal(store.getObject(uri), null);
+
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    // The sessions row the live case had: a readable jsonl_path carrying the card's message.
+    resolveSession: () => ({
+      title: '会话：浏览器 profile',
+      jsonlPath: '/tmp/heal.jsonl',
+      providerSessionId: 'provider-heal',
+    }),
+    readTranscript: async () => YES_NO_TRANSCRIPT,
+  });
+
+  const first = reader.read(HEAL_SESSION_ID, 'a1');
+  assert.notEqual(first, null, 'a missing object is not a dead end — null draws 「尚未生成」 forever');
+  await reader.settled();
+
+  const healed = store.getObject(uri);
+  assert.notEqual(healed, null, 'the background repair writes the object it rebuilt');
+  const stored = healed?.digest.askDecision as SessionAskDecisionReading | undefined;
+  assert.equal(stored?.state, 'evaluated');
+  assert.equal(requests.length, 1, 'the transcript was summarized exactly once');
+
+  // The next poll answers the real decision (the card's own ask), not the placeholder again.
+  const second = reader.read(HEAL_SESSION_ID, 'a1');
+  assert.equal(second?.state, 'evaluated');
+  assert.equal(second?.state === 'evaluated' ? second.ask : '', YES_NO_ANSWER.ask);
+  assert.equal(objects.get(uri)?.digest.askDecision === undefined, false);
+});
+
+test('self-heal: with neither a session row nor a transcript the read stays null and never throws', async () => {
+  const { store } = createMemoryStore();
+  const reader = readerOver(store, {
+    resolveSession: () => null,
+    findTranscript: async () => null,
+    // The transcript read must not be reached: there is no path to read.
+    readTranscript: async () => {
+      throw new Error('readTranscript must not be called without a resolved path');
+    },
+  });
+
+  assert.equal(reader.read('unknown-session', 'a1'), null, 'no row and no transcript ⇒ the old null answer');
+  await assert.doesNotReject(async () => reader.settled());
+
+  // The failure is recorded as a reading (the a1690759 shape), so the next poll names WHY
+  // instead of drawing 「尚未生成」; still no throw and no model call.
+  const recorded = store.getObject(formatSessionUri('unknown-session'))?.digest.askDecision as
+    | SessionAskDecisionReading
+    | undefined;
+  assert.equal(recorded?.state, 'unevaluated');
+  assert.equal(
+    recorded?.state === 'unevaluated' ? recorded.reason : '',
+    SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
+  );
+});
+
+test('self-heal: one missing-object attempt is bounded — an unreadable transcript is not retried on every read', async () => {
+  const { store } = createMemoryStore();
+  let transcriptReads = 0;
+  const reader = readerOver(store, {
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/missing.jsonl', providerSessionId: null }),
+    readTranscript: async () => {
+      transcriptReads += 1;
+      return null;
+    },
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    assert.doesNotThrow(() => reader.read(HEAL_SESSION_ID, 'a1'));
+    await reader.settled();
+  }
+
+  assert.ok(transcriptReads <= 2, `the same card pays for at most two transcript reads, got ${transcriptReads}`);
+  assert.notEqual(store.getObject(formatSessionUri(HEAL_SESSION_ID)), null, 'the failure is recorded once');
+});
+
+test('self-heal: the hourly ceiling refuses the rebuild before any transcript is read', async () => {
+  const { store, objects } = createMemoryStore();
+  let transcriptReads = 0;
+  const reader = readerOver(store, {
+    settings: { ...STUB_SETTINGS, maxPerHour: 0 },
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl', providerSessionId: null }),
+    readTranscript: async () => {
+      transcriptReads += 1;
+      return YES_NO_TRANSCRIPT;
+    },
+  });
+
+  assert.equal(reader.read(HEAL_SESSION_ID, 'a1'), null);
+  await reader.settled();
+  assert.equal(transcriptReads, 0, 'the ceiling is checked before the transcript is read');
+  assert.equal(objects.size, 0, 'nothing is written under the ceiling');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -2020,6 +2131,90 @@ test('answered: readSessionAsks names every answered span and the tail ask', () 
   assert.deepEqual(scan.settled, [{ askId: `${SESSION_ID}:a1`, answerMessageId: 'u2' }]);
   assert.equal(scan.current?.askId, `${SESSION_ID}:a2`);
   assert.equal(scan.current?.revision, 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A background-task notification is not a user prompt: it must not answer a pending ask
+// ---------------------------------------------------------------------------------------------
+
+/** One row whose content is a BARE STRING — the shape the harness writes a notification in. */
+function stringContentRow(role: 'user' | 'assistant', id: string, text: string): string {
+  return JSON.stringify({ type: role, uuid: id, message: { role, content: text } });
+}
+
+/** One `<task-notification>` row exactly as the harness persists a background completion. */
+function taskNotificationRow(id: string): string {
+  return stringContentRow(
+    'user',
+    id,
+    '<task-notification>\n<task-id>t1</task-id>\n<status>completed</status>\n<summary>检查完毕</summary>\n</task-notification>',
+  );
+}
+
+/** The transcript up to a question, then the background notice — no answer from the person. */
+function askThenNotification(): string {
+  return `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    taskNotificationRow('n1'),
+  ].join('\n')}\n`;
+}
+
+test('AC1: a <task-notification> user row after a pending ask leaves it current, not settled', () => {
+  const scan = readSessionAsks(askThenNotification(), SESSION_ID);
+
+  assert.deepEqual(scan.settled, [], 'a background completion is not an answer from the person');
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a1`, 'the ask is still the open question');
+  assert.equal(scan.current?.revision, 1);
+});
+
+test('AC2: a real user message still settles the ask, even after a <task-notification> row', () => {
+  const raw = `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    taskNotificationRow('n1'),
+    stringContentRow('user', 'u2', '先补测试'),
+    stringContentRow('assistant', 'a2', '补完了，还要先跑一遍吗？'),
+  ].join('\n')}\n`;
+  const scan = readSessionAsks(raw, SESSION_ID);
+
+  assert.deepEqual(scan.settled, [{ askId: `${SESSION_ID}:a1`, answerMessageId: 'u2' }]);
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a2`, 'the tail ask is the newer question');
+});
+
+test('AC3: turn-end states no session.answered for a <task-notification> row', async () => {
+  // The ledger a restart leaves behind: a1 was stated as asking and is still unanswered.
+  const objects = new Map<string, ObservedObject>();
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [],
+        asking: [`${SESSION_ID}:a1:1`],
+        pending: [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  harness.setTranscript(askThenNotification());
+
+  await harness.turnEnd();
+
+  assert.deepEqual(
+    harness.events.filter((event) => event.kind === 'session.answered'),
+    [],
+    'no answer is stated when nobody answered',
+  );
+  const ledger = readSessionAskEventLedger(objects.get(formatSessionUri(SESSION_ID))?.digest);
+  assert.deepEqual(ledger.pending, [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }], 'the ask stays open');
 });
 
 // ---------------------------------------------------------------------------------------------

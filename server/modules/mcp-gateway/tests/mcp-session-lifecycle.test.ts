@@ -105,7 +105,16 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 
-import type { LLMProvider, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
+import type {
+  LLMProvider,
+  ProcessHost,
+  ProviderRuntimeContext,
+  ProviderRuntimeWriter,
+  SessionBinding,
+} from '@/shared/types.js';
+import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
+import type { CodexAppServerTransport } from '@/modules/providers/index.js';
+import type { McpSessionSteerDeps } from '../mcp-session-steer.js';
 
 // --------------------------------------------------------------------------
 // The environment is set BEFORE any aliased module is imported: the debug
@@ -157,6 +166,8 @@ const { closeConnection, getConnection, initializeDatabase, mcpAuditLogDb, sessi
 const { createAccessTokensService } = await import('@/modules/oauth/index.js');
 const {
   CLAUDE_PREDEFINED_MODELS,
+  CodexAppServerConnection,
+  CodexHostDriver,
   claudeQueryFactory,
   createProviderRuntimeService,
   providerCapabilitiesService,
@@ -176,6 +187,7 @@ const {
   buildRunGet,
   createMcpAuthMiddleware,
   mountMcpGateway,
+  registerMcpWriteTools,
 } = await import('../index.js');
 
 type AnyRecord = Record<string, unknown>;
@@ -484,6 +496,8 @@ type Harness = {
   modelWrites: Array<{ provider: string; sessionId: string; mode: string }>;
   runtime: RuntimeService;
   call: (name: string, args?: AnyRecord, which?: 'main' | 'sendOnly' | 'createOnly') => Promise<ToolCall>;
+  /** The `tools/list` names this mount registered, as the SDK reports them. */
+  listTools: () => Promise<string[]>;
 };
 
 type HarnessOptions = {
@@ -493,6 +507,12 @@ type HarnessOptions = {
   bindHost?: boolean;
   /** How long the walk keeps a round running. Defaults to {@link RUN_ALIVE_MS}. */
   runAliveMs?: number;
+  /**
+   * gap-mcp-session-steer-tool: mount `session_steer` over these services. Absent
+   * (every leg written before this task) keeps the mount at its exact old
+   * `tools/list`; present is what legs (o) and (p) drive.
+   */
+  steer?: McpSessionSteerDeps;
 };
 
 /** The read of the resident host serving `sessionId`, as the manager reports it. */
@@ -626,6 +646,9 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
       },
       sessionCreate: sessionCreateDeps,
       sessionInterrupt: sessionInterruptDeps,
+      // gap-mcp-session-steer-tool: only the steer legs supply this, so every
+      // earlier leg keeps its exact registered set.
+      ...(options.steer === undefined ? {} : { sessionSteer: options.steer }),
     },
     resolveDeps: {
       listProjects: () => FIXTURE_PROJECTS.map((project) => ({ id: project.id, title: project.title })),
@@ -682,6 +705,7 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
         }
         return callWith(clients[which], name, args);
       },
+      listTools: async () => (await clients.main.listTools()).tools.map((tool) => tool.name),
     });
   } finally {
     if (firstSendAt > 0) {
@@ -704,6 +728,252 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
     }
     await rm(tempDirectory, { recursive: true, force: true });
   }
+}
+
+// --------------------------- the codex steer fixture (gap-mcp-session-steer-tool) ---------------------------
+
+/**
+ * An in-memory codex app-server, the same shape the provider's own steer
+ * criterion uses: it answers `initialize` / the two thread methods /
+ * `turn/start` / `turn/interrupt` / `turn/steer` and the `thread/queue/*` group,
+ * keeps the active turn id itself, and records every inbound method. No codex
+ * process, database or network is involved; the pid is the fake's.
+ *
+ * `turn/steer` answers the top-level `{ turnId }` the real server answers with
+ * and completes that same turn, exactly as the app-server's own final frame
+ * would — so the in-flight `run` settles and the fixture can be torn down.
+ */
+class FakeCodexTransport implements CodexAppServerTransport {
+  readonly pid = 770_424;
+  readonly calls: Array<{ method: string; params: AnyRecord }> = [];
+  /** The app-server's own queue; a steer must never add to it. */
+  readonly queue: string[] = [];
+  activeTurnId: string | null = null;
+
+  private readonly materialised = new Set<string>();
+  private messageHandler: ((frame: string) => void) | null = null;
+  private exitHandler: ((reason: string) => void) | null = null;
+  private alive = true;
+  private threadSerial = 0;
+  private turnSerial = 0;
+
+  write(frame: string): void {
+    const message = JSON.parse(frame) as { id?: number; method?: string; params?: unknown };
+    if (typeof message.method !== 'string') {
+      return;
+    }
+    const params = (message.params ?? {}) as AnyRecord;
+    this.calls.push({ method: message.method, params });
+    switch (message.method) {
+      case 'initialize':
+        this.reply(message.id, { userAgent: 'fake-codex', codexHome: '/fake' });
+        return;
+      case 'initialized':
+        return;
+      case 'thread/start': {
+        const id = `thread-${++this.threadSerial}`;
+        this.materialised.add(id);
+        this.reply(message.id, { thread: { id, status: { type: 'idle' } } });
+        return;
+      }
+      case 'thread/resume': {
+        const threadId = String(params.threadId ?? '');
+        if (!this.materialised.has(threadId)) {
+          this.fail(message.id, `no rollout found for thread id ${threadId}`);
+          return;
+        }
+        this.reply(message.id, { thread: { id: threadId, status: { type: 'idle' } } });
+        return;
+      }
+      case 'turn/start': {
+        const threadId = String(params.threadId ?? '');
+        const turnId = `turn-${++this.turnSerial}`;
+        this.activeTurnId = turnId;
+        this.reply(message.id, { turn: { id: turnId, status: 'inProgress' } });
+        this.emit('turn/started', { threadId, turn: { id: turnId, status: 'inProgress' } });
+        return;
+      }
+      case 'turn/interrupt': {
+        this.reply(message.id, {});
+        return;
+      }
+      case 'turn/steer': {
+        const threadId = String(params.threadId ?? '');
+        const expectedTurnId = String(params.expectedTurnId ?? '');
+        if (expectedTurnId !== this.activeTurnId) {
+          this.fail(
+            message.id,
+            `expectedTurnId ${expectedTurnId} does not match current turn ${String(this.activeTurnId)}`,
+          );
+          return;
+        }
+        const turnId = this.activeTurnId;
+        this.reply(message.id, { turnId });
+        this.completeTurn(threadId, turnId);
+        return;
+      }
+      case 'thread/queue/add': {
+        this.queue.push(String(params.input ?? ''));
+        this.reply(message.id, { queued: true });
+        return;
+      }
+      case 'thread/queue/list': {
+        this.reply(message.id, { items: [] });
+        return;
+      }
+      case 'thread/queue/delete': {
+        this.reply(message.id, {});
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  onMessage(handler: (frame: string) => void): void {
+    this.messageHandler = handler;
+  }
+
+  onExit(handler: (reason: string) => void): void {
+    this.exitHandler = handler;
+  }
+
+  isAlive(): boolean {
+    return this.alive;
+  }
+
+  terminate(): void {
+    this.alive = false;
+  }
+
+  /** Completes `turnId` exactly as the app-server's last frame would. */
+  completeTurn(threadId: string, turnId: string): void {
+    if (this.activeTurnId === turnId) {
+      this.activeTurnId = null;
+    }
+    this.emit('turn/completed', { threadId, turn: { id: turnId, status: 'completed', items: [] } });
+  }
+
+  private reply(id: number | undefined, result: unknown): void {
+    this.deliver({ jsonrpc: '2.0', id, result });
+  }
+
+  private fail(id: number | undefined, message: string): void {
+    this.deliver({ jsonrpc: '2.0', id, error: { code: -32_000, message } });
+  }
+
+  private emit(method: string, params: unknown): void {
+    this.deliver({ jsonrpc: '2.0', method, params });
+  }
+
+  private deliver(frame: unknown): void {
+    if (this.alive) {
+      this.messageHandler?.(JSON.stringify(frame));
+    }
+  }
+}
+
+type CodexSteerFixture = {
+  /** The real `CodexHostDriver` — the SAME verb `session_steer` calls in production. */
+  driver: InstanceType<typeof CodexHostDriver>;
+  transport: FakeCodexTransport;
+  host: ProcessHost;
+  steerDeps: McpSessionSteerDeps;
+  steeredSessionId: string;
+  idleSessionId: string;
+  /** Starts one turn on {@link steeredSessionId} and waits until it is in flight. */
+  startTurn: () => Promise<void>;
+  close: () => Promise<void>;
+};
+
+/**
+ * Boots the codex half of legs (o)/(p): a real host driver over the in-memory
+ * transport, one host bound to two sessions — one that will hold a turn in
+ * flight, one that stays idle — and the three deps `session_steer` answers from
+ * (`sessions` / `resolveHostDriver` / `liveHostForSession`) over them.
+ */
+async function createCodexSteerFixture(): Promise<CodexSteerFixture> {
+  const transport = new FakeCodexTransport();
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({ launch, createTransport: () => transport }),
+  });
+  const host: ProcessHost = {
+    hostId: 'codex-steer-host-1',
+    provider: 'codex',
+    mode: 'resident',
+    state: 'starting',
+    pid: null,
+    startedAt: Date.now(),
+    bindings: new Map(),
+    closeReason: null,
+  };
+  const binding = (appSessionId: string): SessionBinding => ({
+    appSessionId,
+    providerSessionId: null,
+    state: 'idle',
+    leases: [],
+    lastActivityAt: Date.now(),
+    peerName: null,
+    detachReason: null,
+  });
+  const sink: IProviderHostDriverSink = {
+    leaseAdded: () => {},
+    leaseRemoved: () => {},
+    activity: () => {},
+    identity: () => {},
+    exited: () => {},
+  };
+  await driver.startHost(host, sink);
+
+  const steeredSessionId = 'codex-steer-session';
+  const idleSessionId = 'codex-idle-session';
+  await driver.bind(host, binding(steeredSessionId));
+  await driver.bind(host, binding(idleSessionId));
+
+  const steerDeps: McpSessionSteerDeps = {
+    sessions: {
+      getSessionById: (sessionId) =>
+        sessionId === steeredSessionId || sessionId === idleSessionId ? { provider: 'codex' } : null,
+    },
+    resolveHostDriver: (provider) => (provider === 'codex' ? driver : null),
+    liveHostForSession: (sessionId) =>
+      sessionId === steeredSessionId || sessionId === idleSessionId ? host : null,
+  };
+
+  let inflight: Promise<unknown> | null = null;
+  return {
+    driver,
+    transport,
+    host,
+    steerDeps,
+    steeredSessionId,
+    idleSessionId,
+    async startTurn() {
+      inflight = driver.run(
+        steeredSessionId,
+        { command: 'the original turn', options: {} },
+        recordingWriter().writer,
+        {} as never,
+      );
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        if (driver.readSession(steeredSessionId).turnStatus === 'inProgress') {
+          return;
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      throw new Error('the codex fixture turn never reached inProgress');
+    },
+    async close() {
+      const stuck = driver.readSession(steeredSessionId);
+      if (stuck.turnStatus === 'inProgress' && stuck.activeTurnId && stuck.threadId) {
+        transport.completeTurn(String(stuck.threadId), String(stuck.activeTurnId));
+      }
+      if (inflight) {
+        await inflight.catch(() => undefined);
+      }
+      await driver.closeHost(host, 'user').catch(() => undefined);
+    },
+  };
 }
 
 // --------------------------- (a) message starts a run, absence starts none ---------------------------
@@ -1236,6 +1506,139 @@ test('(n) a Claude create with no lifecycleMode leaves the real row resident; a 
     assert.equal(row?.lifecycle_mode ?? null, 'per-run', 'the returned session row must still carry the untouched DB default');
     assert.equal(createdRow?.lifecycle_mode ?? null, 'per-run', 'the freshly created row must carry the DB default per-run');
   });
+});
+
+// --------------------------- (o)/(p) session_steer (gap-mcp-session-steer-tool) ---------------------------
+
+test('(o) session_steer is a control-scope write tool that rewrites the in-flight turn with one turn/steer', { concurrency: false }, async () => {
+  const fixture = await createCodexSteerFixture();
+  try {
+    // AC1: registered through the SAME write-tool seam as the five SPEC tools,
+    // alongside them rather than in the frozen table, under session:control.
+    const registrations: Array<{ name: string; requiredScope: string }> = [];
+    registerMcpWriteTools(
+      (registration) => registrations.push({ name: registration.name, requiredScope: registration.requiredScope }),
+      { sessionSteer: fixture.steerDeps } as never,
+    );
+    const names = registrations.map((registration) => registration.name);
+    for (const tool of MCP_STAGE4_WRITE_TOOLS) {
+      assert.ok(names.includes(tool.name), `the five-tool table must still register ${tool.name}`);
+    }
+    const steerRegistration = registrations.find((registration) => registration.name === 'session_steer');
+    assert.ok(steerRegistration, 'session_steer must be registered through the write-tool seam');
+    assert.equal(
+      steerRegistration.requiredScope,
+      CONTROL_SCOPE,
+      'session_steer must require session:control, the scope session_interrupt requires',
+    );
+    say(`(o) registered names=${JSON.stringify(names)} session_steer scope=${steerRegistration.requiredScope}`);
+
+    await withHarness({ label: 'ac-steer', mode: 'resident', steer: fixture.steerDeps }, async (harness) => {
+      // AC1 on the wire: the real mount lists the tool next to the five.
+      const listed = await harness.listTools();
+      say(`(o) tools/list=${JSON.stringify(listed)}`);
+      assert.ok(listed.includes('session_steer'), `the mount must list session_steer (listed=${listed.join(', ')})`);
+      for (const tool of MCP_STAGE4_WRITE_TOOLS) {
+        assert.ok(listed.includes(tool.name), `the mount must still list ${tool.name}`);
+      }
+
+      // AC2: a turn is in flight on the REAL codex driver; steering it must send
+      // exactly one `turn/steer` aimed at that turn and nothing else.
+      await fixture.startTurn();
+      const before = fixture.driver.readSession(fixture.steeredSessionId);
+      assert.equal(before.turnStatus, 'inProgress', 'the fixture must hold a turn in flight before the steer');
+      const activeTurnId = String(before.activeTurnId);
+      const callMark = fixture.transport.calls.length;
+      const turnStartsBefore = fixture.transport.calls.filter((call) => call.method === 'turn/start').length;
+
+      const call = await harness.call('session_steer', { sessionId: fixture.steeredSessionId, input: 'STEERED now' });
+      assert.equal(call.isError, false, `session_steer must succeed (text=${call.text})`);
+      const payload = call.payload as AnyRecord;
+
+      const windowMethods = fixture.transport.calls.slice(callMark).map((entry) => entry.method);
+      const steerCalls = fixture.transport.calls.slice(callMark).filter((entry) => entry.method === 'turn/steer');
+      const queueAdds = windowMethods.filter((method) => method === 'thread/queue/add').length;
+      const turnStartsAfter = fixture.transport.calls.filter((call) => call.method === 'turn/start').length;
+
+      say(
+        `(o) payload=${JSON.stringify(payload)} activeTurnId=${activeTurnId} steerWindow=${JSON.stringify(windowMethods)} queueDepth=${fixture.transport.queue.length}`,
+      );
+      assert.equal(payload.sessionId, fixture.steeredSessionId, 'the payload must echo the steered session');
+      assert.equal(payload.turnId, activeTurnId, 'the payload must name the turn that was already in flight');
+      assert.equal(steerCalls.length, 1, `exactly one turn/steer must be sent (saw ${JSON.stringify(windowMethods)})`);
+      assert.equal(steerCalls[0]?.params.expectedTurnId, activeTurnId, 'expectedTurnId must be the current activeTurnId');
+      assert.equal(queueAdds, 0, 'a steer must not add to the app-server queue');
+      assert.equal(fixture.transport.queue.length, 0, 'the app-server queue depth must stay 0');
+      assert.equal(turnStartsAfter, turnStartsBefore, 'a steer must not open a second turn');
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('(p) session_steer refuses an idle, unbound, unsupported or unknown session with a readable error', { concurrency: false }, async () => {
+  const fixture = await createCodexSteerFixture();
+  try {
+    // The refusal deps keep the real driver for codex, hand back a driver with no
+    // steer verb for cursor, and drop the live host for the unbound session.
+    const refusalDeps: McpSessionSteerDeps = {
+      sessions: {
+        getSessionById: (sessionId) => {
+          if (sessionId === fixture.idleSessionId || sessionId === 'codex-unbound-session') {
+            return { provider: 'codex' };
+          }
+          if (sessionId === 'cursor-session') {
+            return { provider: 'cursor' };
+          }
+          return null;
+        },
+      },
+      resolveHostDriver: (provider) =>
+        provider === 'codex' ? fixture.driver : provider === 'cursor' ? ({} as never) : null,
+      liveHostForSession: (sessionId) => (sessionId === fixture.idleSessionId ? fixture.host : null),
+    };
+
+    await withHarness({ label: 'ac-steer-refusals', mode: 'resident', steer: refusalDeps }, async (harness) => {
+      const callMark = fixture.transport.calls.length;
+
+      // 1. Bound session, nothing in flight: the driver's own refusal reaches the
+      //    caller as a readable error — never an empty success.
+      const idle = await harness.call('session_steer', { sessionId: fixture.idleSessionId, input: 'too late' });
+      say(`(p) idle isError=${idle.isError} code=${String(idle.payload?.code)} text=${idle.text}`);
+      assert.equal(idle.isError, true, 'steering an idle session must be an error, never a silent success');
+      assert.match(idle.text, /No Codex turn is in flight/, 'the refusal must say no turn is in flight');
+
+      // 2. No live host for the session: refused before the driver is reached.
+      const unbound = await harness.call('session_steer', { sessionId: 'codex-unbound-session', input: 'hello' });
+      say(`(p) unbound isError=${unbound.isError} code=${String(unbound.payload?.code)} text=${unbound.text}`);
+      assert.equal(unbound.isError, true, 'steering a session with no live host must be an error');
+      assert.equal(unbound.payload?.code, 'RUN_NOT_FOUND', 'no live host must be the structured RUN_NOT_FOUND refusal');
+      assert.match(unbound.text, /no live resident host/i, 'the refusal must say the session has no live host');
+
+      // 3. The provider's driver exposes no steer capability: named refusal.
+      const unsupported = await harness.call('session_steer', { sessionId: 'cursor-session', input: 'hello' });
+      say(`(p) unsupported isError=${unsupported.isError} code=${String(unsupported.payload?.code)} text=${unsupported.text}`);
+      assert.equal(unsupported.isError, true, 'a provider without a steer verb must be refused');
+      assert.equal(unsupported.payload?.code, 'MCP_TOOL_NOT_IMPLEMENTED');
+      assert.match(unsupported.text, /does not expose a resident steer capability/);
+
+      // 4. Unknown session id: the structured not-found refusal.
+      const unknown = await harness.call('session_steer', { sessionId: 'no-such-session', input: 'hello' });
+      say(`(p) unknown isError=${unknown.isError} code=${String(unknown.payload?.code)} text=${unknown.text}`);
+      assert.equal(unknown.isError, true, 'an unknown session must be refused');
+      assert.equal(unknown.payload?.code, 'SESSION_NOT_FOUND');
+      assert.match(unknown.text, /No session has id/);
+
+      // No refusal may have reached the app server at all.
+      const steerWindow = fixture.transport.calls.slice(callMark).filter((entry) => entry.method === 'turn/steer');
+      const queued = fixture.transport.calls.slice(callMark).filter((entry) => entry.method === 'thread/queue/add');
+      say(`(p) steerCalls=${steerWindow.length} queueAddCalls=${queued.length}`);
+      assert.equal(steerWindow.length, 0, 'no refusal may send a turn/steer');
+      assert.equal(queued.length, 0, 'no refusal may queue input');
+    });
+  } finally {
+    await fixture.close();
+  }
 });
 
 // --------------------------- the stage-4 table ---------------------------
