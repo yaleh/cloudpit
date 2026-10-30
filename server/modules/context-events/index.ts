@@ -25,6 +25,9 @@ export {
   CONTEXT_EVENT_MAX_LINE_BYTES,
   createContextEventWriter,
   createSessionAskEventWriter,
+  FLEET_TOLERATED_AHEAD_KINDS,
+  SESSION_ASK_RETRACTED_DATA_FIELDS,
+  SESSION_ASK_RETRACTED_KIND,
 } from './context-event-writer.js';
 export type {
   AppendContextEventResult,
@@ -34,6 +37,7 @@ export type {
   ContextEventWriterStatus,
   SessionAnsweredEventData,
   SessionAskingEventData,
+  SessionAskingRetractedEventData,
   SessionAskContextEventDraft,
   SessionAskEventRecord,
   SessionAskEventWriter,
@@ -44,6 +48,7 @@ export type {
 export {
   DEFAULT_SESSION_ASK_LOOKBACK_DAYS,
   readOpenSessionAsks,
+  readRetractedSessionAskMessageIds,
 } from './session-ask-stream-reader.js';
 export type { OpenSessionAsk, ReadOpenSessionAsksOptions } from './session-ask-stream-reader.js';
 // consumer: shadow-prediction-report.mjs (through a JSON dump), and the classifier criterion

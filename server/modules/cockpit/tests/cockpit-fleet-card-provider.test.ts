@@ -18,9 +18,13 @@
  *     server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
  */
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import type { CockpitCard, SessionAskDecisionReading } from '@/shared/types.js';
+import { readRetractedSessionAskMessageIds } from '@/modules/context-events/index.js';
 import {
   createSessionAskDecisionDigest,
   createSessionAskDecisionReader,
@@ -822,4 +826,90 @@ test('AC: each ask card reads its own message’s digest, and a missing summary 
   assert.equal(cardNone.ask?.length, 601, '600 characters plus the leading ellipsis');
   assert.equal(cardNone.ask?.includes('HEAD-MARKER'), false, 'the head is what the cap drops');
   assert.match(cardNone.ask ?? '', /TAIL-MARKER 真正的问题：要先补测试吗？$/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Local suppression of withdrawn asks (gap-cockpit-ask-retraction-and-ledger-backfill)
+// ---------------------------------------------------------------------------------------------
+
+test('AC: a card whose contentRef.messageId was retracted is dropped from the visible list', async () => {
+  // The control: with no withdrawal reading the same card IS on the wall. This is the false
+  // form — delete the local suppression and this criterion reds.
+  const without = await created({ runCards: runnerReturning(FIXTURE) }).provider.listCards();
+  assert.ok(without.some((card) => card.id === 'att-ask-1'), 'the ask card is visible without suppression');
+
+  let readSessionAskCalls = 0;
+  const withSuppression = created({
+    runCards: runnerReturning(FIXTURE),
+    // The session-ask card's session holds NO observation object here.
+    readSessionAsk: () => {
+      readSessionAskCalls += 1;
+      return null;
+    },
+    readRetractedMessageIds: () => new Set(['m-7']),
+  });
+  const visible = await withSuppression.provider.listCards();
+
+  assert.equal(
+    visible.some((card) => card.id === 'att-ask-1'),
+    false,
+    'the withdrawn card is not on the wall, even with no observation object',
+  );
+  assert.ok(readSessionAskCalls > 0, 'the card was projected (and read) before the withdrawal dropped it');
+  // The other cards are untouched: the suppression names one message, not a group.
+  assert.ok(visible.some((card) => card.id === 'att-rescue-1'));
+  assert.ok(visible.some((card) => card.id === 'att-ruling-1'));
+});
+
+test('AC: a card whose messageId is NOT in the retracted set stays visible', async () => {
+  const cards = await created({
+    runCards: runnerReturning(FIXTURE),
+    readRetractedMessageIds: () => new Set(['some-other-message']),
+  }).provider.listCards();
+
+  assert.ok(cards.some((card) => card.id === 'att-ask-1'), 'an unrelated withdrawal never hides this card');
+});
+
+test('AC7: the live 62d card is not suppressed while no retraction row names its message', async () => {
+  const MESSAGE = '3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a';
+  const SESSION = '62d959c0-5487-4649-a5f2-ab38462c438b';
+  const AT = '2026-10-30T00:00:00.000Z';
+  const home = await mkdtemp(path.join(os.tmpdir(), 'retracted-reader-'));
+  try {
+    // A real stream day file with a retraction for a DIFFERENT message: the reader must answer
+    // the withdrawn message ids, and 62d's message must not be among them.
+    const eventsDir = path.join(home, 'context', 'events');
+    await mkdir(eventsDir, { recursive: true });
+    const row = {
+      v: 1,
+      id: '01M646JCWF04EY3X9Y2NC90RQ7',
+      at: AT,
+      source: 'cloudcli',
+      kind: 'session.asking.retracted',
+      session: 'another-session',
+      data: { askId: 'another-session:m-other', messageId: 'm-other' },
+    };
+    await writeFile(path.join(eventsDir, `${AT.slice(0, 10)}.jsonl`), `${JSON.stringify(row)}\n`, 'utf8');
+    const retracted = await readRetractedSessionAskMessageIds({
+      eventsDir,
+      nowMs: Date.parse(AT),
+      lookbackDays: 7,
+    });
+    assert.equal(retracted.has('m-other'), true, 'the reader reads the stream it was given');
+    assert.equal(retracted.has(MESSAGE), false, 'the 62d ask was never retracted');
+
+    const stdout = `${JSON.stringify(askCardAbout('att-260e4c9bbcc0', MESSAGE))}\n`;
+    const cards = await created({
+      runCards: runnerReturning(stdout),
+      readSessionAsk: () => null,
+      readRetractedMessageIds: () => retracted,
+    }).provider.listCards();
+
+    assert.ok(
+      cards.some((card) => card.id === 'att-260e4c9bbcc0'),
+      'the live 62d card stays visible until answered or its source disappears',
+    );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

@@ -82,6 +82,13 @@ export type CockpitFleetCardProviderDeps = {
   runExecutors?(args: readonly string[]): Promise<CockpitFleetCommandResult>;
   /** The observation layer's T1 digest for one session/message pair; `null` when absent. */
   readSessionAsk: CockpitFleetContentReader;
+  /**
+   * The assistant message ids this host has WITHDRAWN as mis-stated asks. A fleet card whose
+   * `contentRef.messageId` is in the set is dropped from the visible list. The real reading is
+   * async (the shared event stream); a criterion may supply a plain set. Absent means no local
+   * suppression.
+   */
+  readRetractedMessageIds?: () => Promise<ReadonlySet<string>> | ReadonlySet<string>;
   /** The settings switch; defaults to true for a direct construction. */
   enabled?: boolean;
   /** Cache window; `0` disables caching. Defaults to {@link DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS}. */
@@ -281,7 +288,16 @@ export function createCockpitFleetCardProvider(
       return [];
     }
 
-    const projected = projection.project(result.stdout);
+    // The withdrawal set is read per pass and BEFORE projecting, so a card the stream has
+    // withdrawn never reaches the list. A failing read suppresses nothing (fail open): the wall
+    // showing one extra card is a smaller harm than an empty wall.
+    let retracted: ReadonlySet<string> | undefined;
+    try {
+      retracted = await deps.readRetractedMessageIds?.();
+    } catch {
+      retracted = undefined;
+    }
+    const projected = projection.project(result.stdout, retracted === undefined ? {} : { retracted });
     last = {
       provider: COCKPIT_FLEET_PROVIDER_ID,
       ok: true,

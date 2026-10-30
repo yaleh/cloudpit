@@ -1,0 +1,40 @@
+## 会话历史：最近一周的封装实践
+
+我查看了 **10 月 23–29 日**本项目相关的会话记录，并按更新日期优先遵循共享架构经验（`verified: 2026-10-26`），而不是早期把“类少”直接判成“封装差”的说法。
+
+这周反复收敛出的判断方法是：**封装要看状态是否有明确属主、行为和状态是否共置、生命周期与写路径是否清楚；不能用 class 数量或模块边界替代这些检查。**
+
+- **10 月 23–24 日**讨论输入框历史导航、chip 行为和 UI 差异时，用户指出相似控件行为不一致，可能意味着处理没有被正确收拢。后续讨论也纠正了“函数多、类少就是封装不足”的过度推断：函数式闭包、React hook 和纯函数都可能是合适形态，关键是检查状态是否分散、有没有多个写入口、生命周期是否归属明确。
+- **10 月 25 日**开始把这一判据用于架构审查：除了模块级 `let`/`Map`，还要看组件内部成簇的 `useState`/`useRef`、为让回调读到新值而复制状态的 ref、定时器起止，以及 provider 分支是否散落在调用方。前端标准现在明确要求：组件/hook 不承载业务状态机；有生命周期或决策规则的状态交给 React-free controller，通过注入依赖、快照和命令暴露行为（`src/.agents/skills/frontend-module-standards/SKILL.md` 对应规则，实际路径是 `.agents/skills/frontend-module-standards/SKILL.md:119`）。
+- **10 月 26 日**的会话把“类图里 class 少”与“哪一组函数实际有封装问题”拆成两个问题；这与共享经验一致：先测状态和生命周期，再决定需不需要 owner。后端标准也明确支持 class **或**闭包工厂，并要求状态只经 owner 的方法改变（`.agents/skills/backend-module-standards/SKILL.md:34`）。
+
+可复用的方法是：**先圈定一组必须共同维护的不变量，确认它们是否有同一个状态 owner 和受控写路径；再决定抽 controller、工厂、能力接口，或保持纯函数。** 抽文件、少几个重复行、类图多几个 class 都不能单独证明封装变好了。
+
+## 最近 48 小时代码变化：与封装有关的信号
+
+我以 `develop` 上 **10 月 28–29 日**的非 merge 源码提交为范围，重点看了 cockpit 与 observation 相关变化。
+
+### 做得较好的实践
+
+- cockpit 的卡片确认、取消、倒计时、反馈重发、读卡和卡片修订等规则集中在 `createCockpitCardController` 中，依赖通过参数注入，状态经 `commit → normalize → publish` 收敛；而不是继续把决定散在组件回调里（`src/modules/cockpit/cockpitCardController.ts:833`, `:1036`）。这是符合本项目状态 owner/controller 惯例的方向。
+- 服务端新增的 feedback 生命周期单独由 `createCockpitCardFeedbackStore` 持有，写明 overlay 在什么条件下清除，并提供 `dispose`（`server/modules/cockpit/cockpit-card-feedback-store.ts:1`, `:203`）。它比把持久化状态塞进若干 action 函数更容易辨认状态归属。
+- `refreshAll` 的相同顺序循环被提取为 `refreshAllOf`，两处 producer 复用它（`server/modules/observation/producer-batch.ts:22`）。这是范围克制、行为约束明确的复用；注释也交代了为什么故意顺序执行。
+- `CockpitCardSituation` 把卡片的一块展示内容移出大组件，组件仍只负责呈现文本、密度和展开事件（`src/modules/cockpit/CockpitCardSituation.tsx:53`）。这有助于组件体积与显示关注点，但它是**展示提取**，不应当被计作状态封装的证据。
+
+### 值得优先讨论的下一步
+
+1. **优先处理 observation producer 的体积和职责聚集。**  
+   `server/modules/observation/session-digest.producer.ts` 当前有 **762 行**，而后端标准把约 260 行作为 implementation/service 文件的拆分触发线（`.agents/skills/backend-module-standards/SKILL.md:27`）。最近加入的用户回答记账、ask ledger、去重、恢复扫描、补写与摘要调用都集中在 `createSessionDigestProducer` 及其闭包周围（从 `:283` 起）。  
+   建议先按职责盘点，再拆出 ask ledger / answered-event 恢复与 sweep 的协作者；让原 producer 保留 turn-end 的编排。拆分时要保留关键不变量：回答事实要及时持久化、跨历史去重、旧 ledger 重建、逐会话失败隔离，以及 observation 失败不能影响聊天。不要为了降行数把这些规则拆成彼此看不见状态的自由函数。
+
+2. **把 cockpit controller 作为“可能需要分责”的候选，而不是判为封装失败。**  
+   `cockpitCardController.ts` 当前 **1,797 行**，snapshot 同时覆盖筛选/选择、详情、brief 缓存、确认/倒计时、dismiss、反馈重发等状态。它已有单一 owner 和统一 normalize；因此状态并非散在 React 组件里。下一步应核对这些状态是否真的属于一个有共同不变量的模型。可以优先考察**纯派生计算**与主 controller 的隔离，或评估 feedback lifecycle 是否有足够独立的状态边界；不要机械地把每组 command 各拆一个小文件，也不要拆到跨 owner 后无法一致清理 pending 状态。
+
+3. **避免把 UI 展示拆分误当作封装重构。**  
+   `CockpitCardSituation` 是合理的显示组件提取；后续若继续拆 `CockpitCard.tsx`，应以独立展示语义或可复用行为为依据，而非只看文件行数。只有出现跨组件共享、明确生命周期或一组规则时，才需要进一步的 owner/controller。
+
+## 当前工作树中的未提交改动
+
+检查时工作树已有两处未提交改动：`src/modules/cockpit/CockpitCardList.tsx` 与 `src/modules/cockpit/tests/CockpitColumn.test.tsx`，不是我造成的。我只读了 diff，没有改动它们。改动为 column 详情页切换时暂存并恢复列表滚动位置，增加两个 ref 和一个 `useLayoutEffect`（`CockpitCardList.tsx:224` 附近），以及相应测试。
+
+这部分状态与 DOM/scroller 切换直接相关，放在列表绑定层**可能是合适的局部 owner**；目前看不出应立即抽成通用 controller 的充分理由。建议确认 phone/page 的持久化 scroll memory 与 column 的临时 offset 语义确实不同，然后在真实浏览器中验证浏览器对滚动容器的 clamp/恢复行为。**本轮没有运行测试或浏览器验证**；以上是只读审查和重构讨论。

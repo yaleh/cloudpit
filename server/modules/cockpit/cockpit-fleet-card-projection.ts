@@ -80,7 +80,13 @@ export type CockpitFleetProjectionResult = {
 
 /** The projection's public surface. */
 export type CockpitFleetProjection = {
-  project(stdout: string): CockpitFleetProjectionResult;
+  /**
+   * One stdout pass to cards.
+   *
+   * `retracted` overrides the injected reading for THIS pass: the provider reads the set through
+   * an async seam and hands it in, while a criterion can pass one directly without any seam.
+   */
+  project(stdout: string, options?: { retracted?: ReadonlySet<string> }): CockpitFleetProjectionResult;
 };
 
 /** The address a contentRef names, kept beside its projected wire form. */
@@ -389,7 +395,10 @@ function mapReceipt(raw: unknown): CockpitCardReceipt | null {
 }
 
 /** One JSONL object as a card, or `null` when it is missing a field the contract requires. */
-function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): CockpitCard | null {
+function mapCard(
+  raw: unknown,
+  readSessionAsk: CockpitFleetContentReader,
+): { card: CockpitCard; content: ContentAddress | null } | null {
   if (!isRecord(raw)) return null;
   const id = text(raw.id);
   const kind = text(raw.kind);
@@ -452,17 +461,25 @@ function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): Cockp
     content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
       ? withSessionAskContent(card, content, readSessionAsk)
       : card;
-  return withFleetOwnReply(projected);
+  return { card: withFleetOwnReply(projected), content };
 }
 
-/** Builds a projection over the one outside reading it needs. */
+/**
+ * Builds a projection over the one outside reading it needs.
+ *
+ * The withdrawal set is not a reading of this function's own: it arrives per call through
+ * {@link CockpitFleetProjection.project} (`options.retracted`), because its real source is an
+ * async stream. A card whose `contentRef.messageId` is in that set is not put on the wall at all
+ * — it is not malformed, so it does not count as a skipped line.
+ */
 export function createCockpitFleetProjection(deps: {
   readSessionAsk: CockpitFleetContentReader;
 }): CockpitFleetProjection {
   return {
-    project(stdout) {
+    project(stdout, options) {
       const cards: CockpitCard[] = [];
       let skippedLines = 0;
+      const retracted: ReadonlySet<string> = options?.retracted ?? new Set<string>();
       for (const line of stdout.split('\n')) {
         if (line.trim() === '') continue;
         let parsed: unknown;
@@ -472,12 +489,16 @@ export function createCockpitFleetProjection(deps: {
           skippedLines += 1;
           continue;
         }
-        const card = mapCard(parsed, deps.readSessionAsk);
-        if (card === null) {
+        const mapped = mapCard(parsed, deps.readSessionAsk);
+        if (mapped === null) {
           skippedLines += 1;
           continue;
         }
-        cards.push(card);
+        // THE WITHDRAWN CARD IS DROPPED, not marked resolved: a question that was never a
+        // question has no answer to show, and the wall must stop offering it.
+        const messageId = mapped.content?.messageId ?? '';
+        if (messageId !== '' && retracted.has(messageId)) continue;
+        cards.push(mapped.card);
       }
       return { cards, skippedLines };
     },
