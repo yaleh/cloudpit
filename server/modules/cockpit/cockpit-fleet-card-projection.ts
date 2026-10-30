@@ -1,6 +1,6 @@
 /**
  * The quay-fleet card projection: one `quay-fleet cockpit cards --json` JSONL line in, one
- * `CockpitCard` out, plus the local content completion a session-ask card needs.
+ * `CockpitCard` out, plus the local content completion a session-ask or digest card needs.
  *
  * WHY IT IS SEPARATE FROM THE PROVIDER. The provider owns the CLI invocation, its short TTL
  * cache and the diagnostic it reports; this file owns the tolerant reading of the fleet's
@@ -13,13 +13,15 @@
  *   1. A malformed line is SKIPPED AND COUNTED, never fatal. One bad row may not hide the
  *      other things waiting for the person, so the provider returns every card it could read
  *      and reports `skippedLines` in its diagnostic.
- *   2. The projection INVENTIONS NOTHING. Fleet fields pass through verbatim; the only local
- *      additions are the session-ask content (`ask`, `situation`, content options) and the
- *      `contentUnavailable` reason when that content is not ready. A session-ask default option
- *      is whichever content option the observation layer marked `suggested` — the assistant's
- *      own recommendation (`source: 'assistant'`) or, when it gave none, the same call's judge
- *      pick (`source: 'judge'`, with its `why`). The projection passes that decision through but
- *      never invents one: no marked option means no default.
+ *   2. The projection INVENTIONS NOTHING. Fleet fields pass through verbatim; the local
+ *      additions are content completions the fleet leaves to this side: the session-ask content
+ *      (`ask`, `situation`, content options) with its `contentUnavailable` reason, and the digest
+ *      reading's headline/row text plus one disposal option. A session-ask default option is
+ *      whichever content option the observation layer marked `suggested` — the assistant's own
+ *      recommendation (`source: 'assistant'`) or, when it gave none, the same call's judge pick
+ *      (`source: 'judge'`, with its `why`). The projection passes that decision through but never
+ *      invents one: no marked option means no default. The digest completion reads only the
+ *      entry's own evidence and the fleet's executor declaration, never a fact of its own.
  *
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
@@ -38,11 +40,20 @@ import type {
 } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
-import { COCKPIT_FLEET_LOG_EXECUTOR_ID } from './cockpit-fleet-executor.js';
+import {
+  COCKPIT_FLEET_LOG_EXECUTOR_ID,
+  type CockpitFleetExecutorDeclaration,
+} from './cockpit-fleet-executor.js';
 import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from './cockpit-session-send.executor.js';
 
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
 const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';
+
+/**
+ * The card kind the fleet gives a cross-project digest entry (its category is `digest`, which is
+ * not in the fleet's kind table, so the open `kind` string carries the category itself).
+ */
+const DIGEST_KIND = 'digest';
 
 /**
  * How much of the asking message's own words a card shows when its summary is missing.
@@ -85,8 +96,18 @@ export type CockpitFleetProjection = {
    *
    * `retracted` overrides the injected reading for THIS pass: the provider reads the set through
    * an async seam and hands it in, while a criterion can pass one directly without any seam.
+   *
+   * `declarations` is the fleet's executor declaration document for this pass. A digest card with
+   * no options of its own gets one disposal option built FROM that document (so no fleet executor
+   * id is hard-coded here); with no readable declaration it gets none.
    */
-  project(stdout: string, options?: { retracted?: ReadonlySet<string> }): CockpitFleetProjectionResult;
+  project(
+    stdout: string,
+    options?: {
+      retracted?: ReadonlySet<string>;
+      declarations?: readonly CockpitFleetExecutorDeclaration[];
+    },
+  ): CockpitFleetProjectionResult;
 };
 
 /** The address a contentRef names, kept beside its projected wire form. */
@@ -161,16 +182,190 @@ function mapOption(raw: unknown): CockpitCardOption | null {
   };
 }
 
+/** One fact plus the evidence words the fleet kept in `detail` (the short `text` is a rendering). */
+type MappedFact = {
+  fact: CockpitCardFact;
+  /** The evidence's original sentence, or `''` when the fleet kept none. */
+  detail: string;
+};
+
 /** One fact; an entry with no text or a non-boolean `mechanical` is dropped. */
-function mapFact(raw: unknown): CockpitCardFact | null {
+function mapFact(raw: unknown): MappedFact | null {
   if (!isRecord(raw) || text(raw.text) === '' || typeof raw.mechanical !== 'boolean') return null;
   const ref = text(raw.ref);
   const observedAt = text(raw.observedAt);
   return {
-    text: text(raw.text),
-    mechanical: raw.mechanical,
-    ...(ref === '' ? {} : { ref }),
-    ...(observedAt === '' ? {} : { observedAt }),
+    fact: {
+      text: text(raw.text),
+      mechanical: raw.mechanical,
+      ...(ref === '' ? {} : { ref }),
+      ...(observedAt === '' ? {} : { observedAt }),
+    },
+    detail: text(raw.detail),
+  };
+}
+
+/**
+ * The fleet's digest evidence sentence: `<rule> <window>: <status>`.
+ *
+ * A digest fact's `text` is the fleet's humanised rendering (`读数：plan.digest.v0 … +2 error`),
+ * and its `detail` is the evidence sentence verbatim. Both rows of one digest share every prefix
+ * — the rule and the window — and differ only in the status tail (`+2 error` vs `+2 ok`), so a
+ * display that shortens from the start renders them identically. Reading the tail out here is
+ * what lets each row state its own status.
+ */
+const DIGEST_EVIDENCE_RE = /^plan\.digest\.[\w.-]+\s+(\S+):\s*(.+)$/;
+
+/** One digest reading: its status tail, the window it summarises, and when it was observed. */
+type DigestReading = {
+  /** The digest window the evidence belongs to (the fleet's `2026-10-30T11`). */
+  window: string;
+  /** The reading itself (`claudecodeui: +2 error`). */
+  status: string;
+  /** `observedAt` in epoch ms; `0` when it is missing or unreadable (sorts last). */
+  at: number;
+};
+
+/** One evidence row as a digest reading, or `null` when the row is not a digest sentence. */
+function digestReadingOf(mapped: MappedFact): DigestReading | null {
+  const raw = (mapped.detail !== '' ? mapped.detail : mapped.fact.text)
+    .replace(/^读数：/, '')
+    .trim();
+  const match = DIGEST_EVIDENCE_RE.exec(raw);
+  if (match === null) return null;
+  const observedAt = Date.parse(mapped.fact.observedAt ?? '');
+  return {
+    window: (match[1] ?? '').trim(),
+    status: (match[2] ?? '').trim(),
+    at: Number.isFinite(observedAt) ? observedAt : 0,
+  };
+}
+
+/** Whether one reading's status names a failure (`+2 error`). */
+function isErrorReading(reading: DigestReading): boolean {
+  return /\berror\b/i.test(reading.status);
+}
+
+/** Whether one reading's status names a recovery (`+2 ok`). */
+function isOkReading(reading: DigestReading): boolean {
+  return /\bok\b/i.test(reading.status);
+}
+
+/**
+ * Whether the digest has healed since its last error: an `ok` reading was observed AFTER the
+ * newest `error` reading. Two digests for one dedup key merge into one attention entry whose
+ * evidence accumulates, so this is the entry's own history, not a second store.
+ */
+function digestRecovered(readings: readonly DigestReading[]): boolean {
+  const newestErrorAt = readings
+    .filter(isErrorReading)
+    .reduce((newest, reading) => Math.max(newest, reading.at), -Infinity);
+  const newestOkAt = readings
+    .filter(isOkReading)
+    .reduce((newest, reading) => Math.max(newest, reading.at), -Infinity);
+  return Number.isFinite(newestErrorAt) && Number.isFinite(newestOkAt) && newestOkAt > newestErrorAt;
+}
+
+/**
+ * The fact's displayed sentence, STATUS FIRST.
+ *
+ * The fleet's own sentence keeps the status at the tail, after the rule and the window shared by
+ * every row; the client's pill shortens from the front, which is exactly why the two rows read
+ * the same. Moving the status to the front keeps the reading and the window (verbatim from the
+ * evidence) while making the rows distinguishable long before any shortening.
+ */
+function digestFactText(reading: DigestReading): string {
+  return `读数：${reading.status}（${reading.window}）`;
+}
+
+/** The headline status of a digest card: its newest reading, named as recovered when it is. */
+function digestHeadline(latest: DigestReading, recovered: boolean): string {
+  return `${recovered ? '摘要已恢复' : '摘要'}：${latest.status}（${latest.window} 窗）`;
+}
+
+/** The disposal actions a digest card offers, most decisive first (dismiss over ack). */
+const DIGEST_DISPOSAL_ACTIONS = ['park', 'hold'] as const;
+
+/**
+ * The one clickable disposal option a digest card gets when the fleet declared none.
+ *
+ * WHICH EXECUTOR IS THE FLEET'S STATEMENT, NOT OURS. `rescue executors --json` is read by the
+ * provider and its declaration arrives per projection pass; this function picks a declaration by
+ * its ACTION (`park` closes the card, `hold` acknowledges and keeps it), so no fleet executor id
+ * is named by this repo. A deck with no readable declaration yields no option: the projection
+ * never invents an action the fleet cannot run.
+ */
+function digestDisposalOption(
+  card: CockpitCard,
+  declarations: readonly CockpitFleetExecutorDeclaration[],
+): CockpitCardOption | null {
+  for (const action of DIGEST_DISPOSAL_ACTIONS) {
+    const declaration = declarations.find((entry) => entry.action === action);
+    if (declaration === undefined) continue;
+    const closing = action === 'park';
+    return {
+      id: closing ? 'dismiss' : 'ack',
+      label: closing ? '知道了，结束这条摘要' : '知道了，先留着这条摘要',
+      does: closing ? '结束这条摘要提醒，不再显示' : '确认收到，保留这条摘要提醒',
+      suggested: false,
+      source: 'provider',
+      action: { executor: declaration.id, params: { attentionId: card.id } },
+    };
+  }
+  return null;
+}
+
+/**
+ * The digest card's own reading, completed locally.
+ *
+ * THREE DEFECTS THIS COMPLETES, all observed on a real digest entry (`att_2d86bc040462`):
+ *
+ *   1. the fleet states no options for a digest, so the card rendered a dropdown over an empty
+ *      list and a confirm bar promising 「Choose an option」 — nothing to click. One declared
+ *      disposal option (dismiss/ack) is added, so the card can always be settled.
+ *   2. the headline came from `facts[0]`, i.e. the OLDEST evidence, so a card whose `+2 error`
+ *      had been followed by `+2 ok` still showed the stale error. Readings are ordered NEWEST
+ *      FIRST and the card's `ask` states the newest status, naming it recovered when it is.
+ *   3. every evidence row rendered the same prefix (rule + window) while the difference sat at
+ *      the tail; each row now leads with its own status.
+ *
+ * The projection still invents nothing: the status and window are read from the evidence, and the
+ * disposal executor comes from the fleet's declaration document.
+ */
+function withDigestReading(
+  card: CockpitCard,
+  facts: readonly MappedFact[],
+  declarations: readonly CockpitFleetExecutorDeclaration[],
+): CockpitCard {
+  if (card.kind !== DIGEST_KIND) return card;
+
+  const readings = facts
+    .map(digestReadingOf)
+    .filter((reading): reading is DigestReading => reading !== null);
+  if (readings.length === 0) return card;
+
+  // Newest first: the card's headline (its `facts[0]` fallback) and the list both read the
+  // latest state, never the trigger that started the episode.
+  const newestFirst = [...readings].sort((a, b) => b.at - a.at);
+  const latest = newestFirst[0] as DigestReading;
+  const ordered = [...facts].sort((a, b) => {
+    const left = a.fact.observedAt === undefined ? 0 : Date.parse(a.fact.observedAt);
+    const right = b.fact.observedAt === undefined ? 0 : Date.parse(b.fact.observedAt);
+    return (Number.isFinite(right) ? right : 0) - (Number.isFinite(left) ? left : 0);
+  });
+  const rewritten = ordered.map((mapped) => {
+    const reading = digestReadingOf(mapped);
+    return reading === null ? mapped.fact : { ...mapped.fact, text: digestFactText(reading) };
+  });
+
+  const disposal = card.options.length === 0 ? digestDisposalOption(card, declarations) : null;
+  return {
+    ...card,
+    facts: rewritten,
+    ...(card.ask === undefined || card.ask === ''
+      ? { ask: digestHeadline(latest, digestRecovered(readings)) }
+      : {}),
+    ...(disposal === null ? {} : { options: [disposal] }),
   };
 }
 
@@ -398,6 +593,7 @@ function mapReceipt(raw: unknown): CockpitCardReceipt | null {
 function mapCard(
   raw: unknown,
   readSessionAsk: CockpitFleetContentReader,
+  declarations: readonly CockpitFleetExecutorDeclaration[],
 ): { card: CockpitCard; content: ContentAddress | null } | null {
   if (!isRecord(raw)) return null;
   const id = text(raw.id);
@@ -406,10 +602,10 @@ function mapCard(
   const subject = mapSubject(raw.subject);
   if (id === '' || kind === '' || state === null || subject === null) return null;
 
-  const facts: CockpitCardFact[] = [];
+  const mappedFacts: MappedFact[] = [];
   for (const entry of list(raw.facts)) {
     const fact = mapFact(entry);
-    if (fact !== null) facts.push(fact);
+    if (fact !== null) mappedFacts.push(fact);
   }
   const options: CockpitCardOption[] = [];
   for (const entry of list(raw.options)) {
@@ -448,7 +644,7 @@ function mapCard(
       content !== null && subject.sessionId === undefined && content.sessionId !== ''
         ? { ...subject, sessionId: content.sessionId }
         : subject,
-    facts,
+    facts: mappedFacts.map((mapped) => mapped.fact),
     options,
     ...(content === null ? {} : { contentRef: content.cardRef }),
     ...(ask === '' ? {} : { ask }),
@@ -461,7 +657,7 @@ function mapCard(
     content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
       ? withSessionAskContent(card, content, readSessionAsk)
       : card;
-  return { card: withFleetOwnReply(projected), content };
+  return { card: withFleetOwnReply(withDigestReading(projected, mappedFacts, declarations)), content };
 }
 
 /**
@@ -470,7 +666,8 @@ function mapCard(
  * The withdrawal set is not a reading of this function's own: it arrives per call through
  * {@link CockpitFleetProjection.project} (`options.retracted`), because its real source is an
  * async stream. A card whose `contentRef.messageId` is in that set is not put on the wall at all
- * — it is not malformed, so it does not count as a skipped line.
+ * — it is not malformed, so it does not count as a skipped line. The executor declarations arrive
+ * the same way (per pass), so a digest card's disposal option names a declared id.
  */
 export function createCockpitFleetProjection(deps: {
   readSessionAsk: CockpitFleetContentReader;
@@ -480,6 +677,7 @@ export function createCockpitFleetProjection(deps: {
       const cards: CockpitCard[] = [];
       let skippedLines = 0;
       const retracted: ReadonlySet<string> = options?.retracted ?? new Set<string>();
+      const declarations = options?.declarations ?? [];
       for (const line of stdout.split('\n')) {
         if (line.trim() === '') continue;
         let parsed: unknown;
@@ -489,7 +687,7 @@ export function createCockpitFleetProjection(deps: {
           skippedLines += 1;
           continue;
         }
-        const mapped = mapCard(parsed, deps.readSessionAsk);
+        const mapped = mapCard(parsed, deps.readSessionAsk, declarations);
         if (mapped === null) {
           skippedLines += 1;
           continue;
