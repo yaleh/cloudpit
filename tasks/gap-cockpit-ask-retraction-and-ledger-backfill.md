@@ -92,8 +92,8 @@ depends_on:
 
 ## Blocker
 
-**2026-10-29T16:18:39.185Z — worker 未落地（exited-not-landed）**
+**2026-10-30T03:12:54.640Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：AC 未全勾（checked 0/8，剩余未勾 8）——续做只需验证并勾选 AC
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/context-events/context-event-writer.ts 849→939 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
 - run_id：wk-prod-anchor
-- session_id：cbf2c97a-c059-42f5-9369-9284791e6f6d
+- session_id：02171349-8735-4d00-b67c-39951ac09b59
