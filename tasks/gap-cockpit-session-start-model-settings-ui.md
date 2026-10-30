@@ -117,13 +117,3 @@ DoD 证据（隔离实例 /tmp/ccui-dod-cockpit-session-start,独立 HOME/DB/set
 ## ADR-007 轴记录
 
 - 该轴仍暗,理由:本任务交付设置表单与已鉴权 API,不涉及 L_D/L_G 可视化轴读数;行为由 AC 判据与隔离实例场景报告覆盖。
-
-## Blocker
-
-**2026-10-30T14:44:45.149Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=ff: fan-in-ff-merge: suite 证书 — suite_head..tip 恰为本任务的单个 flip-done 提交（身份判定：仅 M tasks/gap-cockpit-session-start-model-settings-ui.md）⇒ 判惰性，⛔ 未调分类器
-fan-in-ff-merge: FF FAILED — ! [rejected]            task/gap-cockpit-session-start-model-settings-ui -> develop (non-fast-forward); not a fast-forward. Retry record written (attempt 1). Return to 无锁段 step 1 (merge develop again — 必须 merge 不得 rebase, AC75), re-judge the delta (step 2) and re-run.
-fan-in-ff-merge: measure ff_only_locked=false
-- run_id：wk-prod-anchor
-- session_id：a3df2d31-4b91-47ed-a6df-b76ba4d23455
