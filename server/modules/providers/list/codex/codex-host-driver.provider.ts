@@ -727,10 +727,18 @@ export class CodexHostDriver implements IProviderHostDriver {
    * `this.host` is the record the manager handed to `startHost`; the snapshot is
    * the fallback for a host this driver did not open itself. A closed host — or
    * this instance's own closed latch — is never live.
+   *
+   * A session is served by the host it was `bind`ed to: the manager also mirrors
+   * that binding into `host.bindings`, but a driver handed a host directly (the
+   * criteria do this, with no `hostPort` to open one) records it only on its own
+   * session row. Reading either keeps `run` on the host it actually started
+   * instead of demanding a manager it does not have.
    */
   private liveHostFor(appSessionId: string): ProcessHost | null {
     const own = this.host;
-    if (own && !this.closed && own.state !== 'closed' && own.bindings.has(appSessionId)) {
+    const ownServesSession = own !== null
+      && (own.bindings.has(appSessionId) || this.sessions.get(appSessionId)?.hostId === own.hostId);
+    if (own && !this.closed && own.state !== 'closed' && ownServesSession) {
       return own;
     }
     for (const host of this.hostPort?.snapshot() ?? []) {
