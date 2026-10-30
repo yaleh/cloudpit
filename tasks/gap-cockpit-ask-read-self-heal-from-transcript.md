@@ -9,11 +9,6 @@ parent: null
 children: []
 extra:
   schema: execution
-  needs_human_cause: human-adjudication
-  park_reason: 交付物已完整且本任务 delta 全绿；landing 被 develop 侧 5 条无承载者的红挡住（codex resident
-    真回归 + ratchet oversize 827），fan-in 的 changed-assertion 是 dense __PERFILE__
-    块解析 artifact（added=[]、taskText=""），每轮会逐字复现；需人/manager 立任务修 develop 或裁定
-    complete
 ---
 ## Proposal
 
@@ -96,6 +91,19 @@ DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PA
 2. 或人裁定本任务 `complete`（其 delta 从未引入这 5 条红，`added: []` 已证明）。
 
 ⚠️ 只要那 5 条红还在、且 arch-ratchet 仍是最后完成的 `AssertionError` 文件，`changed-assertion` 会**每轮逐字复现**（dense 块 artifact 是确定性的）——纯 exit 只会再烧一轮 full suite（本轮 fan-in 已耗 5 分钟）。本任务不含对 `server/modules/providers/**` 的任何改动，也未改 `architecture-ratchet.baseline.json`（拒绝为让本轮变绿而伪造基线/造绿）。
+
+**2026-10-30 第 3 轮（CONTINUE，run wk-prod-anchor）— 合并 develop 后复验：上轮 5 条红全部转绿，可 fan-in 落地**
+
+本轮未重实现（沿用 `668569c25`）。第 2 轮 park 之后 develop 前进（`78f72acab fix(codex): recognise the host a resident session was bound to` 2026-10-30 15:21、`0dced56d5` 16:51，均晚于上轮 14:22 的 suite 红），本轮 `git merge --no-edit develop`（develop tip `ef079d26c`）干净合并 —— 带入 cockpit fleet card projection/provider 的 develop 变更，无冲突、无未合并路径。
+
+- 上轮 5 条红逐文件直跑（`scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test <file>`），全部 exit 0：`codex-host-driver-queue` 8/8、`codex-resident-approvals` 18/18、`codex-host-driver-steer` 4/4、`codex-app-server-protocol` 9/9、`architecture-ratchet` 6/6（`codex-host-driver.provider.ts` 已由 develop 的 `78f72acab` 正式记入 baseline 835，不再报「基线外→827」；`codex-host-driver-queue` 的 `CODEX_HOST_PORT_MISSING` 亦随该提交消失）；`src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx`（vitest）10/10。
+- 本任务 AC/DoD4 测试（合并后的树上逐个直跑，均 exit 0）：`session-ask-decision-digest` 54/54、`session-ask-recovery` 5/5、`cockpit-fleet-card-provider` 21/21。
+- AC2：`grep -c "return 'transcript-missing'" server/modules/observation/session-ask-decision-reader.ts` = 1（:265）。
+- AC4：`npm run typecheck` exit 0。
+- `anti-drift-touches-check --task gap-cockpit-ask-read-self-heal-from-transcript --worktree <worktree> --merge-target develop` = `ANTI-DRIFT OK`（3 actual file(s)，全在 Touches）。
+- `task_check` = ok true（AC 4/4、DoD 4/4）。DoD1–DoD3 的隔离 HOME/浏览器/场景证据沿用第 1 轮记录，产物仍在工作树 `tmp/`（`selfheal-iso/state/cards-*.json`、`dod3-before.png` / `dod3-after.png`、`ui-scenario-report.json` `ok: true`）；本轮代码未改，未重跑。
+
+结论：第 2 轮 park 的前提（develop 侧 5 条红无承载者）已被 develop 自身的修复解除；本任务 delta 全绿，退出交给 worker-driver 跑机械 fan-in。
 
 ## Blocker
 
