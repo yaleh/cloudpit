@@ -419,9 +419,13 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (472 + 1 = 473 collected server test files). Then
     // gap-cockpit-ask-semantic-gate added its criterion
     // server/modules/observation/tests/session-ask-semantic-gate.test.ts
-    // (473 + 1 = 474 collected server test files). This fixture names 3 known files, so
-    // 474 - 3 = 471.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=471$/);
+    // (473 + 1 = 474 collected server test files). Then
+    // gap-observation-ask-ledger-owner added its two criteria
+    // server/modules/observation/tests/session-ask-ledger.test.ts and
+    // server/modules/observation/tests/session-ask-recovery.test.ts
+    // (474 + 2 = 476 collected server test files). This fixture names 3 known files, so
+    // 476 - 3 = 473.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=473$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -521,10 +525,13 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-ac444-codex-resident-turn-steer added
     // server/modules/providers/tests/codex-host-driver-steer.test.ts, then
     // gap-cockpit-ask-semantic-gate added
-    // server/modules/observation/tests/session-ask-semantic-gate.test.ts)
-    // — but this fixture names ONE known file, so 474 - 1 = 473 (AC2 reads 471 because its
+    // server/modules/observation/tests/session-ask-semantic-gate.test.ts, then
+    // gap-observation-ask-ledger-owner added
+    // server/modules/observation/tests/session-ask-ledger.test.ts and
+    // server/modules/observation/tests/session-ask-recovery.test.ts)
+    // — but this fixture names ONE known file, so 476 - 1 = 475 (AC2 reads 473 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=473$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=475$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
