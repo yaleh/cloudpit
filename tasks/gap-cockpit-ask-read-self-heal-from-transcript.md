@@ -1,13 +1,19 @@
 ---
 id: gap-cockpit-ask-read-self-heal-from-transcript
 title: 驾驶舱提问卡「尚未生成」自愈：对象缺失时 read() 从转写重建、不再提前 return null；「找不到会话转写」纳入有界重试
-status: ready
+status: needs-human
 labels:
   - gap
   - cockpit
 parent: null
 children: []
-extra: {}
+extra:
+  schema: execution
+  needs_human_cause: human-adjudication
+  park_reason: 交付物已完整且本任务 delta 全绿；landing 被 develop 侧 5 条无承载者的红挡住（codex resident
+    真回归 + ratchet oversize 827），fan-in 的 changed-assertion 是 dense __PERFILE__
+    块解析 artifact（added=[]、taskText=""），每轮会逐字复现；需人/manager 立任务修 develop 或裁定
+    complete
 ---
 ## Proposal
 
