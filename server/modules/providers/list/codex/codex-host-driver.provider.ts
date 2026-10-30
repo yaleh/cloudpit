@@ -12,7 +12,7 @@ import {
   ensureThread,
   normalizeTurnStatus,
   readTurnId,
-  threadDefaultsFromLaunchOptions,
+  residentThreadDefaults,
   turnParams,
   type CodexBackgroundProcessSpec,
   type CodexHostDriverOptions,
@@ -437,7 +437,7 @@ export class CodexHostDriver implements IProviderHostDriver {
 
     this.pendingLaunches.set(appSessionId, {
       providerSessionId: launch.context.resolveProviderSessionId(appSessionId),
-      threadDefaults: threadDefaultsFromLaunchOptions(launch.options),
+      threadDefaults: residentThreadDefaults(launch.options),
     });
     try {
       const host = await hostPort.openHost({

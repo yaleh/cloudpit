@@ -575,6 +575,57 @@ test('the first thread/start carries the launch permission mode (AC1)', async ()
 });
 
 /**
+ * The failure this criterion pins: a resident launch with no stored permission
+ * mode (or the `default` sentinel) used to reach `thread/start` with neither
+ * `approvalPolicy` nor `sandbox`, so the app-server ran on its own `on-request`
+ * default and rejected approval-class MCP tool calls
+ * (`user rejected MCP tool call`). A resident session has no client attached to
+ * answer that prompt, so the driver must force the trusted pair the Claude
+ * resident pins, whatever the session row stored.
+ */
+test('a resident cold start forces the trusted permission pair without a stored mode (AC1)', async () => {
+  async function firstWireThreadStart(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const transport = new FakeAppServerTransport();
+    const hostPort = createFakeHostPort();
+    const driver = new CodexHostDriver({
+      createConnection: (launch) => new CodexAppServerConnection({
+        launch,
+        createTransport: () => transport,
+      }),
+      host: hostPort,
+    });
+    const writer = { send: () => {} } as unknown as ProviderRuntimeWriter;
+    const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+    try {
+      await driver.run('session-forced-permission', { command: 'first', options }, writer, context);
+      const starts = transport.calls.filter((call) => call.method === 'thread/start');
+      assert.equal(starts.length, 1, 'the first resident turn must send exactly one thread/start');
+      return starts[0].params;
+    } finally {
+      for (const host of hostPort.hosts) {
+        await driver.closeHost(host, 'user');
+      }
+    }
+  }
+
+  const noMode = await firstWireThreadStart({});
+  const storedDefault = await firstWireThreadStart({ permissionMode: 'default' });
+  console.log(
+    `noModeApproval=${String(noMode.approvalPolicy)} noModeSandbox=${String(noMode.sandbox)} ` +
+      `storedDefaultApproval=${String(storedDefault.approvalPolicy)} storedDefaultSandbox=${String(storedDefault.sandbox)}`,
+  );
+
+  assert.equal(noMode.approvalPolicy, 'never', 'a launch with no stored mode must still send approvalPolicy=never');
+  assert.equal(
+    noMode.sandbox,
+    'danger-full-access',
+    'a launch with no stored mode must still send the full-access sandbox',
+  );
+  assert.equal(storedDefault.approvalPolicy, 'never', "the 'default' sentinel must be overridden, not mapped");
+  assert.equal(storedDefault.sandbox, 'danger-full-access', "the 'default' sentinel must be overridden, not mapped");
+});
+
+/**
  * A minimal in-memory stand-in for the session-host manager's `openHost`/`snapshot`
  * verbs, so the cold-start path inside `run` (which calls `startResidentSession` ->
  * `openHost`) can be exercised with two sessions sharing one driver.
