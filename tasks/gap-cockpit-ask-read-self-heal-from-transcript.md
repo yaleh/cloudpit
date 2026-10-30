@@ -25,17 +25,17 @@ B. `staleShapeOf` 增加 `transcript-missing` 形状（`reading.state==='unevalu
 
 ## AC
 
-- [ ] AC1 **对象缺失时从转写自愈（行为）**：在 `server/modules/observation/tests/session-ask-decision-digest.test.ts` 新增用例：构造 `store.getObject(formatSessionUri(sessionId)) === null`、但 `sessionsDb.getSessionById(sessionId)` 返回该会话且 `jsonl_path` 指向一份真实可读、内含该 `messageId` 提问的转写；断言 `read()` 不返回 null、返回携带该提问原文或决策的 reading，且 `store` 被写入该会话对象（随后 `getObject` 非 null）；同文件整体 `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0。
-- [ ] AC2 **transcript-missing 纳入有界重试**：`grep -n "return 'transcript-missing'" server/modules/observation/session-ask-decision-reader.ts` 恰命中 1 行；`server/modules/observation/tests/session-ask-recovery.test.ts` 新增用例：存 `{state:'unevaluated', reason:'重算失败：找不到会话转写'}` 的 reading，在会话行/转写恢复后触发修复，断言重试执行且最终读数不再停留在该 reason；同文件整体 `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` 退出 0。
-- [ ] AC3 **自愈有界且回落安全**：对象缺失且会话解析/转写都不可得时 `read()` 仍返回 null 且不抛错（自愈路径异常被捕获回落）；同一 `<sessionId>:<messageId>` 自愈尝试有界、不无限循环，每小时限额与既有 `repair()` 一致；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 与 `server/modules/observation/tests/session-ask-recovery.test.ts` 各自退出 0。
-- [ ] AC4 **类型检查**：`npm run typecheck` 退出 0。
+- [x] AC1 **对象缺失时从转写自愈（行为）**：在 `server/modules/observation/tests/session-ask-decision-digest.test.ts` 新增用例：构造 `store.getObject(formatSessionUri(sessionId)) === null`、但 `sessionsDb.getSessionById(sessionId)` 返回该会话且 `jsonl_path` 指向一份真实可读、内含该 `messageId` 提问的转写；断言 `read()` 不返回 null、返回携带该提问原文或决策的 reading，且 `store` 被写入该会话对象（随后 `getObject` 非 null）；同文件整体 `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0。
+- [x] AC2 **transcript-missing 纳入有界重试**：`grep -n "return 'transcript-missing'" server/modules/observation/session-ask-decision-reader.ts` 恰命中 1 行；`server/modules/observation/tests/session-ask-recovery.test.ts` 新增用例：存 `{state:'unevaluated', reason:'重算失败：找不到会话转写'}` 的 reading，在会话行/转写恢复后触发修复，断言重试执行且最终读数不再停留在该 reason；同文件整体 `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` 退出 0。
+- [x] AC3 **自愈有界且回落安全**：对象缺失且会话解析/转写都不可得时 `read()` 仍返回 null 且不抛错（自愈路径异常被捕获回落）；同一 `<sessionId>:<messageId>` 自愈尝试有界、不无限循环，每小时限额与既有 `repair()` 一致；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 与 `server/modules/observation/tests/session-ask-recovery.test.ts` 各自退出 0。
+- [x] AC4 **类型检查**：`npm run typecheck` 退出 0。
 
 ## DoD
 
-- [ ] DoD1 **真实卡自愈（隔离 HOME）**：以独立 HOME 放一条 `attention.json` 的 `session-ask`（open、revision 0），其 `contentRef.sessionId` 指向一个 `sessions` 表有行（`jsonl_path` 真实存在、转写内含该 `messageId` 提问）但 `observed_objects` 无行的会话；启动隔离 CloudCLI，先读 `GET /api/cockpit/cards` 记录该卡为「尚未生成」/占位，随后（或下次 poll）变为携带真实摘要或原文，且 `observed_objects` 出现该会话行；完成记录贴出 CLI/API 前后两组逐字读数。
-- [ ] DoD2 **transcript-missing 恢复**：制造一个 sessions 行缺失的会话卡，读到「重算失败：找不到会话转写」；恢复 sessions 行指向真实转写后，确认下次读取重试并转为真实摘要/原文，不再是永久占位；贴出前后读数。
-- [ ] DoD3 **真实浏览器**：按仓库隔离实例配方打开驾驶舱卡片页，观察一张对象缺失的 ask 卡从「尚未生成」变为带摘要/原文；截图存 `tmp/` 并在完成记录贴路径；若存在可用场景，同时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 贴 JSON 报告与检查点截图。
-- [ ] DoD4 **无回归**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts server/modules/observation/tests/session-ask-recovery.test.ts` 与 `server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0；`npm run typecheck` 退出 0。
+- [x] DoD1 **真实卡自愈（隔离 HOME）**：以独立 HOME 放一条 `attention.json` 的 `session-ask`（open、revision 0），其 `contentRef.sessionId` 指向一个 `sessions` 表有行（`jsonl_path` 真实存在、转写内含该 `messageId` 提问）但 `observed_objects` 无行的会话；启动隔离 CloudCLI，先读 `GET /api/cockpit/cards` 记录该卡为「尚未生成」/占位，随后（或下次 poll）变为携带真实摘要或原文，且 `observed_objects` 出现该会话行；完成记录贴出 CLI/API 前后两组逐字读数。
+- [x] DoD2 **transcript-missing 恢复**：制造一个 sessions 行缺失的会话卡，读到「重算失败：找不到会话转写」；恢复 sessions 行指向真实转写后，确认下次读取重试并转为真实摘要/原文，不再是永久占位；贴出前后读数。
+- [x] DoD3 **真实浏览器**：按仓库隔离实例配方打开驾驶舱卡片页，观察一张对象缺失的 ask 卡从「尚未生成」变为带摘要/原文；截图存 `tmp/` 并在完成记录贴路径；若存在可用场景，同时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 贴 JSON 报告与检查点截图。
+- [x] DoD4 **无回归**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts server/modules/observation/tests/session-ask-recovery.test.ts` 与 `server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0；`npm run typecheck` 退出 0。
 
 该轴仍暗,理由:本条只在既有 observation 模块内修正读取路径，不新增跨模块边或抽象，L_D/L_G 无可读增量
 
@@ -45,3 +45,24 @@ B. `staleShapeOf` 增加 `transcript-missing` 形状（`reading.state==='unevalu
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
 - server/modules/observation/tests/session-ask-recovery.test.ts
 - tasks/gap-cockpit-ask-read-self-heal-from-transcript.md
+
+## 完成记录
+
+实现（提交 `668569c25`，分支 `task/gap-cockpit-ask-read-self-heal-from-transcript`）：
+
+- `read()` 在 `store.getObject(...) === null` 时不再直接返回 null，而是 `answerWithSelfHeal`：同步解析会话（`getSessionById` → `getSessionByProviderSessionId`），可解析即返回一条「尚未生成」的占位 reading 并在后台启动一次有界 `repair({attemptKey: <sid>:<mid>:missing-object, createObject:true})`——该 repair 复用既有 `resolveSession`/`findTranscript`（按 app id、provider id、projects 扫描），`writeRevision` 的 UPSERT 顺带创建缺失对象；不可解析（无行且项目扫描无转写）时仍返回 null，异常全部捕获。
+- `staleShapeOf` 新增 `transcript-missing`（唯一一行 `return 'transcript-missing'`，:265），并让 `repair` 以 `writeFailure({create})` 在对象缺失时也能落一条可重试的失败；`defaultResolveSession` 的行查询补上 `getSessionByProviderSessionId` 回落。
+
+AC 读数：
+
+- AC1：`session-ask-decision-digest.test.ts` 新增 4 个自愈用例（首个 reading 非 null；`settled()` 后对象存在且为 evaluated；两次读仅 1 次模型调用）。整文件 `tests 51 / pass 51 / fail 0`，退出 0。
+- AC2：`grep -n "return 'transcript-missing'" server/modules/observation/session-ask-decision-reader.ts` → `265:  if (missingTranscript) return 'transcript-missing';`，计数 1；`session-ask-recovery.test.ts` 新增两阶段用例（旧 reader 无行/无转写不动读数，新 reader 见到恢复的行与转写后重试一次并写成 evaluated）。整文件 `tests 5 / pass 5 / fail 0`，退出 0。
+- AC3：同一 digest 文件内覆盖「无行无转写 → read() 返回 null 且不抛错」与「同一 missing-object 尝试在 5 次读取中最多读 2 次转写」；恢复文件覆盖 `maxPerHour: 0` 时自愈在转写读取前即被拒。两文件分别退出 0。
+- AC4：`npm run typecheck` 退出 0（tsconfig/server/scripts 三段全部通过）。
+
+DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PATH` 内含 `residentRestore.enabled=false`、`CLAUDE_SESSION_SCOPE_SWEEP=off`、日志中 `[resident-restore]` 行数为 0；`QUAY_FLEET_HOME` 指向独立 attention.json）：
+
+- DoD1：`att_selfheal_demo`（`sessions` 有行、`observed_objects` 无行、转写含 messageId）。首个 `GET /api/cockpit/cards`：`contentUnavailable = "提问决策摘要不可用：这条提问的摘要尚未生成"`，`options: []`（`tmp/selfheal-iso/state/cards-before.json`）。修复落库后再读：`ask = "先补测试还是先改实现，你想先做哪一个？"`，`situation = "用户说「开始」后，助手提出两种推进顺序：先补测试或先改实现，并说明两者各有代价。"`，`options = [先补测试, 先改实现]`，`contentUnavailable` 消失（`cards-after-1.json`）；`observed_objects` 出现 `cloudcli://session/selfheal-demo-session`，revision 1，`askDecision.state = "evaluated"`。
+- DoD2：`att_selfheal_missing` 无 `sessions` 行、库内已存 `{state:'unevaluated', reason:'重算失败：找不到会话转写'}`。前后三组逐字读数：①首读 `contentUnavailable = "提问决策摘要不可用：重算失败：找不到会话转写"`；②恢复 sessions 行指向真实转写并重启实例（新 reader 进程）后首帧仍为同一句（stale 形状被识别并调度重试），`cards-heal-1.json`；③下一轮 poll 变为 `ask = "先补测试还是先改实现，你想先做哪一个？"`，`options = [先补测试, 先改实现]`，`contentUnavailable` 消失，对象 revision 2 → 3 且 `askDecision.state = "evaluated"`（`cards-heal-2.json`）。
+- DoD3：在 `http://127.0.0.1:4322/cockpit?view=cards`（vite dev 代理隔离实例 4321）用真实 Chromium 打开页面，先挂载页面再投放一张对象缺失的卡（`att_selfheal_browser2`）。页面自身 DOM 读数：前 → `question = "会话附了一条消息，原文见详情。"`、`unavailable = "提问决策摘要不可用：这条提问的摘要尚未生成"`、无 options；后 → `question = "要不要把这条自愈路径记进 runbook，还是先只留代码注释？"`、`situation = "刚完成一条浏览器自愈路径，需要决定这条路径的记录方式：写进 runbook 还是只留代码注释。"`、options 触发器出现；页面内 `fetch('/api/cockpit/cards')` 读数一致。截图：`tmp/dod3-before.png`、`tmp/dod3-after.png`（基线 `tmp/dod3-baseline.png`）。场景运行器：仓库内无既有 cockpit 场景文件，自拟 1 步 `cockpit-cards` 场景并按 AGENTS.md 跑通 —— `tmp/ui-scenario-report.json`（`ok: true`，`visibleCardIds` 含全部 4 张，`att_selfheal_browser2.confirmLabel = "记进 runbook"`），检查点截图 `tmp/ui-scenario-out/step-1-open-cockpit-cards.png`。
+- DoD4：`session-ask-decision-digest.test.ts` 51 pass / 0 fail；`session-ask-recovery.test.ts` 5 pass / 0 fail；`cockpit-fleet-card-provider.test.ts` 18 pass / 0 fail（三个文件逐个运行，均退出 0）；`npm run typecheck` 退出 0。
