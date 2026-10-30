@@ -1,6 +1,8 @@
 /**
- * The directory-level import-graph scanner for `server/` — the measuring core
- * AC-394's budget ratchet and AC-396's leaf assertion both read the tree with.
+ * The directory-level import-graph scanner for the workspace's two source trees —
+ * `server/` (AC-394's budget ratchet and AC-396's leaf assertion) and `src/` (the
+ * frontend directory-cycle ratchet). One scanner answers both, so the backend and
+ * the frontend cannot be measured by two implementations that drift apart.
  *
  * It was inline in `server/shared/tests/server-import-cycle-budget.test.ts`
  * until AC-396 needed the same reading for a different question ("is
@@ -331,12 +333,14 @@ export function scanFileImportGraph(
 }
 
 /**
- * Every non-test `.ts`/`.tsx` under `serverDir`, path relative to it as posix. `tests/`
+ * Every non-test `.ts`/`.tsx` under `rootDir`, path relative to it as posix. `tests/`
  * directories are pruned and `*.test.*` / `*.spec.*` files dropped, so the graph is the
- * shipping backend, not its criteria. The root is a parameter (AC-396) so a criterion can
- * scan the same tree AC-394 budgeted without re-implementing the walk.
+ * shipping tree, not its criteria.
+ *
+ * The walk is root-generic: AC-394's server budget passes `server/`, and the frontend
+ * directory-cycle ratchet passes `src/` — the same walk, the same resolution, one scanner.
  */
-export function collectServerSources(serverDir: string): SourceFile[] {
+export function collectTypeScriptSources(rootDir: string): SourceFile[] {
   const found: SourceFile[] = [];
   const walk = (directory: string): void => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -348,9 +352,19 @@ export function collectServerSources(serverDir: string): SourceFile[] {
       if (!/\.(ts|tsx)$/.test(entry.name)) continue;
       if (/\.(test|spec)\.(ts|tsx)$/.test(entry.name)) continue;
       const absolute = path.join(directory, entry.name);
-      found.push({ path: path.relative(serverDir, absolute).split(path.sep).join('/'), text: fs.readFileSync(absolute, 'utf8') });
+      found.push({ path: path.relative(rootDir, absolute).split(path.sep).join('/'), text: fs.readFileSync(absolute, 'utf8') });
     }
   };
-  walk(serverDir);
+  walk(rootDir);
   return found.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * The `server/` spelling of {@link collectTypeScriptSources}, kept as its own export because
+ * AC-394's criterion reads the backend and the name states which tree it means. The walk is
+ * shared, not copied: a second implementation could answer a different question than the
+ * frontend ratchet about the same import forms.
+ */
+export function collectServerSources(serverDir: string): SourceFile[] {
+  return collectTypeScriptSources(serverDir);
 }

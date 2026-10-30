@@ -431,7 +431,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts
     // (477 + 1 = 478 collected server test files). This fixture names 3 known files, so
     // 478 - 3 = 475.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=475$/);
+    // Re-measured 2026-10-31 after gap-routine-architecture-analysis-src-import-cycles-unpinned
+    // added the frontend cycle ratchet server/shared/tests/frontend-import-cycle-budget.test.ts
+    // (478 + 1 = 479 collected server test files). This fixture names 3 known files, so
+    // 479 - 3 = 476.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=476$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -539,9 +543,10 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts), then
     // gap-cockpit-session-start-model-settings-ui added
     // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts)
-    // — but this fixture names ONE known file, so 478 - 1 = 477 (AC2 reads 475 because its
-    // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=477$/);
+    // — but this fixture names ONE known file, so 479 - 1 = 478 (AC2 reads 476 because its
+    // fixture names 3; the 479 is the 478 the tree collected before
+    // frontend-import-cycle-budget.test.ts landed).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=478$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

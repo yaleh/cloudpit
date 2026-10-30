@@ -1,0 +1,38 @@
+{
+  "measuredAt": "2026-10-31",
+  "scope": "every non-test .ts/.tsx under src/ (tests/ directories pruned, *.test.*/*.spec.* dropped), paths relative to src/",
+  "note": "Committed baseline for the frontend directory-cycle ratchet (tasks/gap-routine-architecture-analysis-src-import-cycles-unpinned.md). A RATCHET: cycleGroups may only SHRINK. A group closed by a refactor is lowered explicitly here and in CYCLE_GROUPS in the same commit; never raise or add a group to accommodate a red reading. `readings` records the tree the pin was measured on (same walk, resolver and Tarjan scanner as AC-394's server budget, with src/ as the scan root so @/ resolves to src/); the counts are provenance, not a gate, because a new acyclic import is ordinary feature work.",
+  "readings": {
+    "files": 688,
+    "staticFileEdges": 2144,
+    "dynamicFileEdges": 3,
+    "nodeCount": 108,
+    "unresolvedInternal": 100,
+    "nonLiteralDynamic": 2
+  },
+  "cycleGroups": [
+    [
+      "modules/chat/tools",
+      "modules/chat/tools/ContentRenderers",
+      "modules/chat/transcript"
+    ],
+    [
+      "modules/cockpit",
+      "modules/cockpit/hooks",
+      "modules/project-workspace"
+    ],
+    [
+      "modules/git-panel",
+      "modules/git-panel/changes",
+      "modules/git-panel/history"
+    ],
+    [
+      "modules/architecture",
+      "modules/architecture/hooks"
+    ],
+    [
+      "modules/settings/hooks",
+      "modules/settings/tabs"
+    ]
+  ]
+}

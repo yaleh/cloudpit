@@ -879,3 +879,9 @@
 #   (dur=14887ms, its own new criterion over a real database; the row keeps the 90% coverage
 #   floor clear now that the tree collects 477 server test files).
 14887	server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts
+#   the frontend-import-cycle-budget row by gap-routine-architecture-analysis-src-import-cycles-unpinned,
+#   measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/frontend-import-cycle-budget.test.ts`
+#   (dur=3293ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 479 server test files).
+3293	server/shared/tests/frontend-import-cycle-budget.test.ts
