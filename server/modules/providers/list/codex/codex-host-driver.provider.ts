@@ -118,6 +118,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   /** Owns the approval writers, pending requests, notifications and thread status. */
   private readonly approvals: CodexApprovalBroker;
   private connection: CodexAppServerConnection | null = null;
+  /** One connection per host: the driver is a singleton, so two resident hosts must not share a connection. */
+  private readonly connections = new Map<string, CodexAppServerConnection>();
   private host: ProcessHost | null = null;
   private sink: IProviderHostDriverSink | null = null;
   private closed = false;
@@ -174,7 +176,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.closed = false;
     this.host = host;
     this.sink = sink;
-    const connection = this.requireConnection();
+    const connection = this.connectionFor(host.hostId);
     await connection.initialize();
     host.pid = connection.pid;
     return host;
@@ -182,7 +184,6 @@ export class CodexHostDriver implements IProviderHostDriver {
 
   /** Remembers the session's native thread id, when the session already has one. */
   async bind(host: ProcessHost, binding: SessionBinding): Promise<void> {
-    void host;
     // Consume the launch `startResidentSession` carried in: the provider-native
     // id a restore must adopt can only come from the launch context, and the
     // binding's own value (a caller that already knew it) still wins.
@@ -195,6 +196,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     }
     this.sessions.set(binding.appSessionId, {
       appSessionId: binding.appSessionId,
+      hostId: host.hostId,
       // A restored binding carries the provider-native id. A thread that never
       // ran a turn has no rollout yet, which is what makes resume fail and the
       // zero-turn fallback reachable.
@@ -206,7 +208,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       threadDefaults: launch?.threadDefaults ?? {},
       turnLeaseRunId: null,
       queue: new CodexResidentQueue({
-        connection: () => this.connection,
+        connection: () => this.connectionFor(host.hostId),
         threadId: () => this.sessions.get(binding.appSessionId)?.threadId ?? null,
         closed: () => this.closed,
         activity: () => this.sink?.activity(binding.appSessionId),
@@ -216,8 +218,7 @@ export class CodexHostDriver implements IProviderHostDriver {
 
   /** Delivers one turn and resolves only when that turn reaches a terminal state. */
   async submit(host: ProcessHost, appSessionId: string, turn: HostTurnInput): Promise<void> {
-    void host;
-    const connection = this.requireConnection();
+    const connection = this.connectionFor(host.hostId);
     const session = this.requireSession(appSessionId);
     const threadId = await ensureThread(connection, session, this.threadDefaults);
     const pending = this.beginTurn(session, threadId);
@@ -263,7 +264,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (!session || session.turnStatus !== 'inProgress' || !session.threadId || !session.activeTurnId) {
       return false;
     }
-    const connection = this.requireConnection();
+    const connection = this.connectionFor(host.hostId);
     const pending = session.pending;
     const { threadId, activeTurnId } = session;
     // Settle parked approvals first, while the socket is still open: an
@@ -278,8 +279,7 @@ export class CodexHostDriver implements IProviderHostDriver {
 
   /** Rewrites the turn in flight with `turn/steer`; the protocol face lives in `codex-resident-steer.ts`. */
   async steer(host: ProcessHost, appSessionId: string, turn: HostTurnInput): Promise<CodexSteerResult> {
-    void host;
-    return steerCurrentTurn(this.requireConnection(), this.requireSession(appSessionId), turn);
+    return steerCurrentTurn(this.connectionFor(host.hostId), this.requireSession(appSessionId), turn);
   }
 
   /**
@@ -298,7 +298,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (host.mode !== 'resident') {
       return 'next-turn';
     }
-    const connection = this.liveConnection();
+    const connection = this.liveConnectionFor(host.hostId);
     const session = this.sessions.get(appSessionId);
     if (!connection || !session?.threadId) {
       return 'next-turn';
@@ -315,7 +315,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (host.mode !== 'resident') {
       return { threadSettings: false, turnSettings: false };
     }
-    const connection = this.liveConnection();
+    const connection = this.liveConnectionFor(host.hostId);
     if (!connection) {
       return { threadSettings: false, turnSettings: false };
     }
@@ -338,7 +338,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (!capabilities.threadSettings || !capabilities.turnSettings) {
       return 'unsupported';
     }
-    const connection = this.liveConnection();
+    const connection = this.liveConnectionFor(host.hostId);
     const session = this.sessions.get(appSessionId);
     if (!connection || !session?.threadId || !session.activeTurnId) {
       return 'next-turn';
@@ -389,8 +389,11 @@ export class CodexHostDriver implements IProviderHostDriver {
     await this.approvals.drainAndForget(this.sessions.keys());
     this.sessions.clear();
     this.pendingLaunches.clear();
-    const connection = this.connection;
-    this.connection = null;
+    const connection = this.connections.get(host.hostId);
+    this.connections.delete(host.hostId);
+    if (this.connection === connection) {
+      this.connection = null;
+    }
     connection?.close();
   }
 
@@ -451,12 +454,14 @@ export class CodexHostDriver implements IProviderHostDriver {
     writer: ProviderRuntimeWriter,
     context: ProviderRuntimeContext,
   ): Promise<unknown> {
-    // Cold dispatch: the first turn of a resident session reaches the driver
-    // before any host exists; both paths share one launch decision.
-    if (!this.host || this.closed || this.host.state === 'closed') {
+    // Cold dispatch is per-session: the driver is a singleton (multiplexedHost=false),
+    // so `this.host` may hold another session's host. A host is opened only when
+    // THIS session has none of its own.
+    let host = this.closed ? null : this.liveHostFor(appSessionId);
+    if (!host) {
       await this.startResidentSession(appSessionId, { options: turn.options ?? {}, context });
+      host = this.liveHostFor(appSessionId);
     }
-    const host = this.host;
     if (!host) {
       throw new AppError('CodexHostDriver.run was called before a host was started.', {
         code: 'CODEX_HOST_NOT_STARTED',
@@ -464,7 +469,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       });
     }
     const session = this.requireSession(appSessionId);
-    const connection = this.requireConnection();
+    const connection = this.connectionFor(host.hostId);
     this.approvals.recordWriter(appSessionId, writer);
     const unsubscribe = connection.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
@@ -530,7 +535,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (this.closed || !this.sessions.has(appSessionId)) {
       return false;
     }
-    const connection = this.connection;
+    const connection = this.connections.get(this.sessions.get(appSessionId)?.hostId ?? '');
     if (!connection || !connection.isInitialized || !connection.isAlive()) {
       return false;
     }
@@ -745,27 +750,41 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   private requireConnection(): CodexAppServerConnection {
+    if (this.closed || !this.connection) {
+      throw new AppError('Codex resident host is closed.', {
+        code: 'CODEX_APP_SERVER_UNAVAILABLE',
+        statusCode: 409,
+      });
+    }
+    return this.connection;
+  }
+
+  /** The connection serving one host, creating it on first use; each host owns its own app-server process. */
+  private connectionFor(hostId: string): CodexAppServerConnection {
     if (this.closed) {
       throw new AppError('Codex resident host is closed.', {
         code: 'CODEX_APP_SERVER_UNAVAILABLE',
         statusCode: 409,
       });
     }
-    if (!this.connection) {
-      const connection = this.createConnection(this.launch);
-      this.connection = connection;
-      connection.onNotification((method, params) => this.handleNotification(method, params));
-      // Every server request (the five approvals and the auxiliary questions) is
-      // answered from here, so none can park the process on a client.
-      this.approvals.attach(connection);
-      connection.onExit((reason) => this.handleExit(reason));
+    const existing = this.connections.get(hostId);
+    if (existing) {
+      return existing;
     }
-    return this.connection;
+    const connection = this.createConnection(this.launch);
+    this.connections.set(hostId, connection);
+    this.connection = connection;
+    connection.onNotification((method, params) => this.handleNotification(method, params));
+    // Every server request (the five approvals and the auxiliary questions) is
+    // answered from here, so none can park the process on a client.
+    this.approvals.attach(connection);
+    connection.onExit((reason) => this.handleExit(reason));
+    return connection;
   }
 
-  /** The connection when it can still carry a frame; null before start or after close. */
-  private liveConnection(): CodexAppServerConnection | null {
-    const connection = this.connection;
+  /** The connection for one host when it can still carry a frame; null before start or after close. */
+  private liveConnectionFor(hostId: string): CodexAppServerConnection | null {
+    const connection = this.connections.get(hostId);
     if (this.closed || !connection || !connection.isAlive()) {
       return null;
     }

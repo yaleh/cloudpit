@@ -5,10 +5,16 @@ import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import { turnParams } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+import { turnParams, type CodexResidentHostPort } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
-import type { HostTurnInput, ProcessHost, SessionBinding } from '@/shared/types.js';
+import type {
+  HostTurnInput,
+  ProcessHost,
+  ProviderRuntimeContext,
+  ProviderRuntimeWriter,
+  SessionBinding,
+} from '@/shared/types.js';
 
 /**
  * The criterion for AC-435: a resident Codex driver holds one app-server process
@@ -489,4 +495,59 @@ test("turn/start omits CloudCLI's 'default' effort and forwards a codex value (A
   );
   assert.equal(withHigh.effort, 'high', "a codex-supported effort ('high') must be forwarded verbatim");
   assert.equal('effort' in withUltracode, false, 'a non-codex effort must be dropped rather than forwarded');
+});
+
+/**
+ * A minimal in-memory stand-in for the session-host manager's `openHost`/`snapshot`
+ * verbs, so the cold-start path inside `run` (which calls `startResidentSession` ->
+ * `openHost`) can be exercised with two sessions sharing one driver.
+ */
+function createFakeHostPort(): CodexResidentHostPort & { hosts: ProcessHost[] } {
+  const hosts: ProcessHost[] = [];
+  const port = {
+    hosts,
+    async openHost(input: { provider: string; mode: string; appSessionId: string; driver: IProviderHostDriver }) {
+      const host = createHost();
+      host.hostId = `codex-host-${hosts.length + 1}`;
+      const binding = createBinding(input.appSessionId, null);
+      host.bindings = new Map([[input.appSessionId, binding]]);
+      hosts.push(host);
+      await input.driver.startHost(host, createSink());
+      await input.driver.bind(host, binding);
+      return host;
+    },
+    snapshot: () => [...hosts],
+  };
+  return port as CodexResidentHostPort & { hosts: ProcessHost[] };
+}
+
+test('a second resident session opens its own host and thread instead of reusing the first (cold-start regression)', async () => {
+  const transport = new FakeAppServerTransport();
+  const hostPort = createFakeHostPort();
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({
+      launch,
+      createTransport: () => transport,
+    }),
+    host: hostPort,
+  });
+  const writer = { send: () => {} } as unknown as ProviderRuntimeWriter;
+  const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+  try {
+    await driver.run('session-1', turn('first'), writer, context);
+    await driver.run('session-2', turn('second'), writer, context);
+    const first = driver.readSession('session-1');
+    const second = driver.readSession('session-2');
+    console.log(
+      `session1.threadId=${first.threadId} session2.threadId=${second.threadId} hosts=${hostPort.hosts.length}`,
+    );
+    assert.ok(first.threadId, 'session-1 must have its own thread');
+    assert.ok(second.threadId, 'session-2 must have its own thread');
+    assert.notEqual(second.threadId, first.threadId, 'the second session must not reuse the first session thread');
+    assert.equal(hostPort.hosts.length, 2, 'the second session must open its own host');
+  } finally {
+    for (const host of hostPort.hosts) {
+      await driver.closeHost(host, 'user');
+    }
+  }
 });

@@ -103,6 +103,8 @@ export type PendingTurn = {
 
 export type ResidentSession = {
   appSessionId: string;
+  /** The host id this session is bound to; the queue resolves its connection through it. */
+  hostId: string;
   threadId: string | null;
   activeTurnId: string | null;
   turnStatus: CodexTurnStatus | null;
