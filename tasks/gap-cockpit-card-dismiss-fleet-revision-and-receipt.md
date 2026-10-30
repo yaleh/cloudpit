@@ -2,7 +2,7 @@
 id: gap-cockpit-card-dismiss-fleet-revision-and-receipt
 title: 驾驶舱「忽略/丢弃」在真实 fleet 卡上无效：revision 0 被抬成 1、fleet 回执在 result.receipt
   未被读取、拒绝仍报成功并占住账本
-status: ready
+status: done
 labels:
   - gap
   - cockpit
