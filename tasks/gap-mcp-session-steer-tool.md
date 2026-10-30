@@ -1,7 +1,7 @@
 ---
 id: gap-mcp-session-steer-tool
 title: 新增 session_steer MCP 工具：把 resident turn/steer 暴露给外部 MCP 客户端
-status: ready
+status: done
 labels: []
 parent: null
 children: []
