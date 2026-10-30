@@ -2,7 +2,7 @@
 id: codex-model-catalog-dynamic-model-list
 title: Codex 模型目录改为 app-server model/list 动态发现：TTL 缓存＋静态兜底，明确推翻
   no-provider-native-discovery 约定
-status: ready
+status: done
 labels:
   - feature
 parent: null
