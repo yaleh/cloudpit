@@ -385,6 +385,14 @@ const writeTools = {
   // to the declaration keys (b) reads, and makes the DRAFT_EMPTY trigger probe
   // reachable (it refuses before the control service is asked to send).
   draft: { drafts: draftStore },
+  // gap-mcp-session-steer-tool: registering `session_steer` (its deps are never
+  // entered by `tools/list`) keeps the registry name set equal to the
+  // declaration keys (b) compares.
+  sessionSteer: {
+    sessions: { getSessionById: () => null },
+    resolveHostDriver: () => null,
+    liveHostForSession: () => null,
+  },
 } as unknown as McpWriteToolDeps;
 
 /**

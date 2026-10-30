@@ -228,6 +228,18 @@ export const MCP_TOOL_ERROR_CODES: Record<McpGatewayToolName, readonly McpErrorC
   // run is started).
   draft_submit: [...WRAPPER_CODES, ...SESSION_TARGET_CODES, 'SESSION_BUSY', 'DRAFT_EMPTY'],
 
+  // -- resident steer tool (gap-mcp-session-steer-tool) ----------------------
+  // `session_steer` names one `sessionId` but it is NOT an AC-246 target
+  // reference (the gate rewrites a `session` argument; this tool resolves its own
+  // id), so it mints `SESSION_NOT_FOUND` itself for an id nothing matches. It
+  // refuses `RUN_NOT_FOUND` when the session has no live resident host, and
+  // `MCP_TOOL_NOT_IMPLEMENTED` when the provider's host driver exposes no steer
+  // verb. The driver's own "no turn in flight" refusal is a SERVICE code
+  // forwarded unchanged (the `CODEX_STEER_*` vocabulary), so by this file's rule
+  // it is deliberately not listed. Like `draft_*`, it is simply absent from
+  // `tools/list` until wired, so it keeps no placeholder refusal.
+  session_steer: [...WRAPPER_CODES, 'SESSION_NOT_FOUND', 'RUN_NOT_FOUND', 'MCP_TOOL_NOT_IMPLEMENTED'],
+
   // -- cockpit card tools (gap-mcp-cockpit-card-tools) -----------------------
   // None of the four takes a `project` / `session` reference, so AC-246's target
   // gate adds nothing. Each row is the wrapper's own three codes: the card

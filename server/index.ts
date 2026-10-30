@@ -2395,6 +2395,19 @@ const mcpGateway = mountMcpGateway(
             // both from this bag), so an MCP-submitted draft opens its run through
             // one send path.
             draft: { drafts: sessionDraftsDb },
+            // gap-mcp-session-steer-tool: `session_steer` over the SAME three
+            // seams the tools above already read — the session row's provider
+            // (`session_reconfigure`'s reader), the provider registry's host-driver
+            // lookup (`session_start`/`session_close`'s resolver, so a provider
+            // that grows a steer verb is reachable here without an edit) and the
+            // session-hosts manager's live-host read (`session_background`'s
+            // seam). The tool delegates to that driver's own `steer`; it opens no
+            // second send path.
+            sessionSteer: {
+                sessions: { getSessionById: (sessionId: string) => sessionsDb.getSessionById(sessionId) },
+                resolveHostDriver: (provider) => providerRegistry.resolveProvider(provider).hostDriver ?? null,
+                liveHostForSession: (sessionId) => sessionHostManager.liveHostForSession(sessionId),
+            },
         },
         // AC-271's `session_cancel_queued` over the same one control service, plus
         // AC-272's `session_reconfigure`: the provider runtime's `reconfigure`
