@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-first-turn-permission-mode
 title: 修复 codex resident 首轮 thread/start 丢弃 permissionMode：映射成 approvalPolicy+sandbox
-status: ready
+status: done
 labels: []
 parent: null
 children: []
