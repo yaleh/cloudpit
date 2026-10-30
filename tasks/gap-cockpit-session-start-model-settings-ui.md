@@ -111,8 +111,10 @@ DoD 证据（隔离实例 /tmp/ccui-dod-cockpit-session-start,独立 HOME/DB/set
 
 ## Blocker
 
-**2026-10-30T14:29:55.564Z — worker 未落地（exited-not-landed）**
+**2026-10-30T14:44:45.149Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx: AssertionError: expected "spy" to be called 1 times, but got 0 times [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx,src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx,src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx,src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx changed=-]
+- 未落地原因：step=ff: fan-in-ff-merge: suite 证书 — suite_head..tip 恰为本任务的单个 flip-done 提交（身份判定：仅 M tasks/gap-cockpit-session-start-model-settings-ui.md）⇒ 判惰性，⛔ 未调分类器
+fan-in-ff-merge: FF FAILED — ! [rejected]            task/gap-cockpit-session-start-model-settings-ui -> develop (non-fast-forward); not a fast-forward. Retry record written (attempt 1). Return to 无锁段 step 1 (merge develop again — 必须 merge 不得 rebase, AC75), re-judge the delta (step 2) and re-run.
+fan-in-ff-merge: measure ff_only_locked=false
 - run_id：wk-prod-anchor
-- session_id：0c5f2720-1ff5-4b0c-b616-5e1bb84591b5
+- session_id：a3df2d31-4b91-47ed-a6df-b76ba4d23455
