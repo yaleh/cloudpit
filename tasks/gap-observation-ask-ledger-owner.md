@@ -50,3 +50,11 @@ depends_on:
 - server/modules/observation/tests/session-digest.test.ts
 - server/modules/observation/tests/session-ask-ledger.test.ts (new)
 - server/modules/observation/tests/session-ask-recovery.test.ts (new)
+
+## Blocker
+
+**2026-10-30T03:45:04.312Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=87853 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793331426054 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,src/shared/tests/wireContractTypeSync.test.ts,server/shared/tests/quay-test-script.test.ts,src/shared/tests/wireContractTypeSync.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：c391ca9f-3788-432b-aad8-d07f3fdbddfe
