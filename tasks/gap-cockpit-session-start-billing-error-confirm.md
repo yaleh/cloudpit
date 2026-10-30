@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-session-start-billing-error-confirm
 title: 确认 cockpit `session.start` 拉起的会话首轮订阅/账单错误（同刻常驻会话正常，执行器仍报成功）
-status: todo
+status: ready
 labels:
   - gap
   - cockpit
