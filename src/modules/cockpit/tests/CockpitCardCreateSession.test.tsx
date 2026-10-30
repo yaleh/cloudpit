@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { api } from '@/shared/api';
 import type { Clock, CockpitCard as CockpitCardData } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
 import CockpitCardList from '@/modules/cockpit/CockpitCardList';
@@ -123,9 +124,31 @@ beforeAll(async () => {
   await i18n.changeLanguage('en');
 });
 
+/**
+ * The launch selection the card start reads from the server before allocating. These cases are
+ * about project resolution, not the selection, so the reading names nothing: the create call
+ * carries no model/effort keys (the provider keeps its own launch default).
+ */
+function emptyCockpitSessionStartReading(): Response {
+  return new Response(
+    JSON.stringify({
+      model: '',
+      effort: '',
+      effectiveModel: '',
+      effectiveEffort: '',
+      version: 'v1',
+      restartRequired: false,
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}
+
 beforeEach(() => {
   createSession.mockReset();
   createSession.mockResolvedValue({ sessionId: 'new-1', sessionName: 'New conversation' });
+  vi.spyOn(api.settings, 'cockpitSessionStart').mockImplementation(
+    async () => emptyCockpitSessionStartReading(),
+  );
 });
 
 describe('the card button’s project resolution', () => {

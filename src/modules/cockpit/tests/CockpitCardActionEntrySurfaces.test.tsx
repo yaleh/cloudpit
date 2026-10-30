@@ -131,6 +131,21 @@ beforeAll(async () => {
 beforeEach(() => {
   createSession.mockReset();
   createSession.mockResolvedValue({ sessionId: 'new-1', sessionName: 'New conversation' });
+  // The card start reads the server's effective launch selection before allocating. These
+  // cases are about the surfaces, so the reading names nothing: the create call carries no
+  // model/effort keys and every assertion below stays about create-and-open.
+  // A fresh Response per call: a start may be retried, and a Response body can be read once.
+  vi.spyOn(api.settings, 'cockpitSessionStart').mockImplementation(async () => new Response(
+    JSON.stringify({
+      model: '',
+      effort: '',
+      effectiveModel: '',
+      effectiveEffort: '',
+      version: 'v1',
+      restartRequired: false,
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  ));
 });
 
 afterEach(() => {
