@@ -71,6 +71,16 @@ export type CodexAppServerTransport = {
 export type CodexAppServerLaunch = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Extra arguments written after `app-server`.
+   *
+   * `-c key=value` config overrides are the only way to give the app-server an MCP
+   * server it does not have in `~/.codex/config.toml`; the resident Codex provider
+   * uses them to inject this server's `/mcp` endpoint (see
+   * `codexMcpGatewayLaunchArgs` in the driver contract). A launch with no args
+   * spawns exactly what AC-441 shipped.
+   */
+  args?: string[];
 };
 
 export type CodexAppServerConnectionOptions = {
@@ -512,7 +522,7 @@ export function resolveCodexAppServerLauncher(env: NodeJS.ProcessEnv = process.e
 function spawnCodexAppServerTransport(launch: CodexAppServerLaunch): CodexAppServerTransport {
   const launcher = resolveCodexAppServerLauncher(launch.env ?? process.env);
 
-  const child = spawn(process.execPath, [launcher, 'app-server'], {
+  const child = spawn(process.execPath, [launcher, 'app-server', ...(launch.args ?? [])], {
     cwd: launch.cwd,
     env: launch.env ?? process.env,
     stdio: ['pipe', 'pipe', 'pipe'],

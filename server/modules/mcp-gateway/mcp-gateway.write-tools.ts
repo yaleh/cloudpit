@@ -59,6 +59,10 @@ import {
   registerMcpDraftSubmitTool,
 } from './mcp-draft.js';
 import type { McpDraftDeps } from './mcp-draft.js';
+import {
+  registerMcpSessionSteerTool,
+} from './mcp-session-steer.js';
+import type { McpSessionSteerDeps } from './mcp-session-steer.js';
 import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
 import type {
   McpWriteToolRegistration,
@@ -300,6 +304,19 @@ export type McpWriteToolDeps = McpSessionSendDeps & {
    * `sessionDraftsDb`.
    */
   draft?: McpDraftDeps;
+  /**
+   * The resident steer services (gap-mcp-session-steer-tool): the session
+   * lookup, the provider registry's host-driver lookup, and the session-hosts
+   * manager's live-host read. Optional so every mount that predates this task
+   * — and every criterion that exercises the other write tools — keeps its exact
+   * old registration: absent, `session_steer` is NOT registered (the `draft_*`
+   * precedent — it is not one of AC-249's five, so a mount that cannot serve it
+   * must not enlarge `tools/list`); present, it registers through
+   * {@link registerMcpSessionSteerTool} under `SESSION_CONTROL_SCOPE`, the scope
+   * `session_interrupt` itself requires. `server/index.ts` binds the process
+   * singletons, so production always carries it.
+   */
+  sessionSteer?: McpSessionSteerDeps;
 };
 
 // --------------------------- registration ---------------------------
@@ -566,5 +583,17 @@ export function registerMcpWriteTools(seam: McpWriteToolSeam, deps: McpWriteTool
       inputSchema: DRAFT_SUBMIT_INPUT_SCHEMA,
       outputSchema: DRAFT_SUBMIT_OUTPUT_SCHEMA,
     });
+  }
+
+  // gap-mcp-session-steer-tool: `session_steer`, registered alongside the five
+  // above for the same reason the `ui_*` and `draft_*` tools are — AC-249 pins
+  // the table's length — and only when its services are wired. It carries
+  // `SESSION_CONTROL_SCOPE`, the scope `session_interrupt` requires: rewriting
+  // the turn a session is running is the same authority as aborting it. NOT
+  // `protect`-wrapped: a steer rewrites the caller's own in-flight turn instead
+  // of aborting it, so the self-target rule (which guards interrupting/queueing
+  // the run the tool call itself arrived on) does not apply.
+  if (deps.sessionSteer !== undefined) {
+    registerMcpSessionSteerTool(seam, deps.sessionSteer, SESSION_CONTROL_SCOPE);
   }
 }

@@ -65,6 +65,7 @@
  * | `draft_get`           | none   | true     | false       | true       | false     | reads the caller's unsent composer text; nothing stored, no state mutated |
  * | `draft_set`           | none   | false    | true        | true       | false     | replaces the unsent composer text, discarding what was there; same text twice is one state |
  * | `draft_submit`        | none   | false    | false       | false      | true      | sends the draft as a real turn through the composer's own path; the text is delivered, not discarded |
+ * | `session_steer`       | none   | false    | true        | false      | true      | rewrites the turn in flight; its original input is superseded |
  *
  * AC6 (metadata only, enforcement untouched) is discharged by the shape of the
  * change: the only edits are this table, the optional `annotations` field the
@@ -120,6 +121,10 @@ export type McpGatewayToolName =
   | 'draft_get'
   | 'draft_set'
   | 'draft_submit'
+  // gap-mcp-session-steer-tool: `session_steer`, registered alongside the five
+  // AC-249 write tools (it is not one of them) under the write table's
+  // `cloudcli:session:control` scope, so it is named here.
+  | 'session_steer'
   // gap-mcp-cockpit-card-tools: the cockpit's four tools, registered through
   // their own deps bag (`McpGatewayDeps.cockpitTools`) rather than by growing a
   // tool table — the three reads share `cloudcli:read` while the confirm carries
@@ -237,6 +242,16 @@ export const MCP_TOOL_ANNOTATIONS: Record<McpGatewayToolName, ToolAnnotations> =
   // opens — a provider agent starts. A repeat finds the draft cleared and is
   // refused rather than adding a second turn, so it is not idempotent.
   draft_submit: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+
+  // -- resident steer tool (gap-mcp-session-steer-tool) -----------------------
+  // Rewrites the turn a session already has in flight: the input that turn was
+  // running on is superseded and the provider agent's current work is redirected,
+  // so the reading is destructive (the conservative side — an extra confirmation
+  // costs a prompt, a missing one discards direction the caller may not have
+  // meant to drop). It opens the world: the steered turn runs in a provider
+  // process. Not idempotent: a second steer is a second rewrite of whatever is
+  // in flight at that moment, not a no-op.
+  session_steer: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
 
   // -- cockpit card tools (gap-mcp-cockpit-card-tools) ------------------------
   // The three reads answer from the card registry (and, for the brief, the card
