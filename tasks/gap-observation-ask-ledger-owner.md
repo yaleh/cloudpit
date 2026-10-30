@@ -35,6 +35,8 @@ depends_on:
 - `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` → exit 0，tests 4 / pass 4 / fail 0（启动补扫一次/重复、用户回合一次/重复、误发撤回、故障会话不阻断）。
 - `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts`（producer 的间接消费者回归）→ exit 0，tests 47 / pass 47 / fail 0。
 - `npm run typecheck` → exit 0；`npm run lint` → exit 0（仅既有 warning，无 error）。
+- 新增的两份 server 测试文件把收集数从 474 抬到 476：`scripts/suite-duration-baseline.tsv` 补两行（2371/3033ms）保住 90% 覆盖线，`server/shared/tests/quay-test-script.test.ts` 的 AC2/AC3 unknown 钉子重测为 473/475；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → exit 0，tests 14 / pass 14 / fail 0。
+- `npx vitest run src/shared/tests/wireContractTypeSync.test.ts` → 4 / 4 pass；其 src 遍历现容忍并发 mutation 测试（`voiceErrorNoticePersistence.test.tsx`）写在源码树里的 `__mutation-*` 副本在 readdir 与 stat 之间消失。
 
 ## ADR-007 暗轴记录
 
@@ -50,6 +52,9 @@ depends_on:
 - server/modules/observation/tests/session-digest.test.ts
 - server/modules/observation/tests/session-ask-ledger.test.ts (new)
 - server/modules/observation/tests/session-ask-recovery.test.ts (new)
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
+- src/shared/tests/wireContractTypeSync.test.ts
 
 ## Blocker
 
