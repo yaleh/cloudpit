@@ -161,14 +161,68 @@ function blockText(block: UnknownRecord): string {
 }
 
 /**
- * Whether one row is a real prompt — a person's message, not a tool result.
+ * The envelopes the harness writes as `user` rows but no person typed.
+ *
+ * A background-task completion arrives as a bare `<task-notification>…</task-notification>`
+ * string in a `user` row. Reading that as a prompt makes the transcript claim "the user spoke
+ * again" after every background task: it opens a new turn span and, for the ask ledger, answers
+ * a pending question nobody answered. The other tags are the same kind of row — slash-command
+ * and bash-escape bookkeeping, and the metadata blocks the CLI appends.
+ */
+const SYNTHETIC_USER_TURN_TAGS = [
+  'task-notification',
+  'system-reminder',
+  'local-command-stdout',
+  'local-command-stderr',
+  'command-name',
+  'command-message',
+  'command-args',
+  'bash-input',
+  'bash-stdout',
+  'bash-stderr',
+] as const;
+
+/** One leading synthetic envelope; matched repeatedly so stacked blocks still strip fully. */
+const SYNTHETIC_USER_TURN_ENVELOPE = new RegExp(
+  `^\\s*<(${SYNTHETIC_USER_TURN_TAGS.join('|')})>[\\s\\S]*?<\\/\\1>`,
+);
+
+/**
+ * Whether one text block is nothing but harness-injected envelopes.
+ *
+ * A real prompt that merely CARRIES a metadata block (the CLI often prepends a
+ * `<system-reminder>` to the person's own words) keeps a non-envelope remainder and is still a
+ * prompt — the whole block must strip to emptiness to stop being one.
+ */
+function isSyntheticUserText(text: string): boolean {
+  let remainder = text;
+  for (;;) {
+    const match = SYNTHETIC_USER_TURN_ENVELOPE.exec(remainder);
+    if (match === null) break;
+    remainder = remainder.slice(match[0].length);
+  }
+  return remainder.trim() === '';
+}
+
+/**
+ * Whether one row is a real prompt — a person's message, not a tool result and not a
+ * harness-injected synthetic turn.
  *
  * Claude records tool results as `user` rows. Treating those as turn boundaries would split a
- * single turn at every tool call, so the boundary is a row that carries non-empty text.
+ * single turn at every tool call, so the boundary is a row that carries non-empty text. A
+ * `<task-notification>` row also carries non-empty text, but nobody typed it: counting it as a
+ * prompt makes a pending ask look answered and shifts the digest's turn boundary.
  */
 export function isUserPromptRow(row: UnknownRecord): boolean {
   if (transcriptRowRole(row) !== 'user') return false;
-  return rowContentBlocks(row).some((block) => block.type === 'text' && blockText(block).trim() !== '');
+  const texts = rowContentBlocks(row)
+    .filter((block) => block.type === 'text')
+    .map(blockText)
+    .filter((text) => text.trim() !== '');
+  if (texts.length === 0) return false;
+  // Every non-empty block must be synthetic for the row to be synthetic; a real block beside an
+  // injected one means the person did speak on this row.
+  return texts.some((text) => !isSyntheticUserText(text));
 }
 
 /**
