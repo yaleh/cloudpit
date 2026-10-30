@@ -425,7 +425,10 @@ function mapCard(raw: unknown, readSessionAsk: CockpitFleetContentReader): Cockp
     id,
     // The provider id is this adapter's, not whatever the fleet document claims.
     provider: 'quay-fleet',
-    revision: Math.max(1, Math.trunc(finiteNumber(raw.revision, 1))),
+    // The fleet's revision is 0 for an item whose content never changed; a missing field still
+    // defaults to 1. Clamping to 1 would make this projection disagree with the fleet's own
+    // reading and every later dismissal would be refused as a stale revision.
+    revision: Math.max(0, Math.trunc(finiteNumber(raw.revision, 1))),
     kind,
     group: group === '' ? 'ruling' : group,
     rank: finiteNumber(raw.rank, 0),

@@ -25,7 +25,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { AppError } from '@/shared/utils.js';
+import { AppError, isRecord } from '@/shared/utils.js';
 import type { ICockpitActionExecutor } from '@/shared/interfaces.js';
 import type {
   CockpitCard,
@@ -143,9 +143,9 @@ function parseConfirmRequest(raw: unknown): ParsedConfirmRequest {
   if (
     typeof record.revision !== 'number' ||
     !Number.isInteger(record.revision) ||
-    record.revision < 1
+    record.revision < 0
   ) {
-    throw invalid('`revision` must be a positive integer');
+    throw invalid('`revision` must be a non-negative integer');
   }
   if (record.optionId !== undefined && (typeof record.optionId !== 'string' || record.optionId === '')) {
     throw invalid('`optionId` must be a non-empty string when present');
@@ -207,9 +207,9 @@ function parseDismissRequest(raw: unknown): { cardId: string; revision: number }
   if (
     typeof record.revision !== 'number' ||
     !Number.isInteger(record.revision) ||
-    record.revision < 1
+    record.revision < 0
   ) {
-    throw invalid('`revision` must be a positive integer');
+    throw invalid('`revision` must be a non-negative integer');
   }
   return { cardId: record.cardId, revision: record.revision };
 }
@@ -248,6 +248,33 @@ function feedbackOutcome(executor: string, result: unknown): CockpitCardFeedback
 /** The readable reason a failed feedback call carries to the card. */
 function feedbackFailureMessage(failure: unknown): string {
   return failure instanceof Error ? failure.message : String(failure);
+}
+
+/**
+ * The raw receipt an executor's answer carries, in EITHER shape a provider uses.
+ *
+ * The fixture provider answers `{ receipt }` at the top level, while the real `CockpitFleetExecutor`
+ * returns the whole fleet CLI document and puts it at `result.receipt`. Reading only the top level
+ * made every real fleet decision (including a refusal) look like no answer at all.
+ */
+function receiptFromAnswer(answer: unknown): unknown {
+  if (!isRecord(answer)) return undefined;
+  if (isRecord(answer.receipt)) return answer.receipt;
+  return isRecord(answer.result) ? answer.result.receipt : undefined;
+}
+
+/**
+ * Reads a receipt from an answer, attributed to the `feedbackId` this call sent.
+ *
+ * The provider echoes that id, but a refusal arm may omit it (the fleet's rejected receipt does
+ * only promise the id it was called with). Falling back to the id we sent keeps the receipt
+ * readable instead of discarding the one field that carries the decision.
+ */
+function readReceiptFromAnswer(answer: unknown, feedbackId: string): CockpitCardReceipt | null {
+  const raw = receiptFromAnswer(answer);
+  if (!isRecord(raw)) return null;
+  const echoed = typeof raw.feedbackId === 'string' && raw.feedbackId !== '' ? raw.feedbackId : feedbackId;
+  return readCockpitCardReceipt({ ...raw, feedbackId: echoed });
 }
 
 /**
@@ -343,11 +370,7 @@ export function createCockpitCardActions(deps: {
     }
     try {
       const answer = await implementation.execute(feedbackParams);
-      const receipt = readCockpitCardReceipt(
-        typeof answer === 'object' && answer !== null
-          ? (answer as Record<string, unknown>).receipt
-          : undefined,
-      );
+      const receipt = readReceiptFromAnswer(answer, feedbackId);
       if (receipt !== null && store !== undefined) {
         // A `closed` receipt keeps the overlay while the item is still listed; kept/rejected
         // return the card to the person, so the overlay leaves and the notice stays. A
@@ -516,10 +539,11 @@ export function createCockpitCardActions(deps: {
       });
     }
 
+    const feedbackId = newFeedbackId();
     const params: Record<string, unknown> = {
       attentionId: card.id,
       revision: card.revision,
-      feedbackId: newFeedbackId(),
+      feedbackId,
       dismiss: true,
     };
     accepted.add(key);
@@ -536,17 +560,31 @@ export function createCockpitCardActions(deps: {
       );
     }
 
-    const receipt = readCockpitCardReceipt(
-      typeof result === 'object' && result !== null
-        ? (result as Record<string, unknown>).receipt
-        : undefined,
-    );
+    const receipt = readReceiptFromAnswer(result, feedbackId);
     const store = deps.feedbackStore;
+    if (receipt !== null && receipt.disposition === 'rejected') {
+      // The provider refused the dismissal (the fleet says `stale-revision` when its item moved on):
+      // nothing was written, so this is a FAILED dismiss, never the `ok: true` the exit code alone
+      // suggests. Release the accepted key BEFORE throwing — the dismissal did not happen, and a
+      // retry must reach the provider again rather than be turned away as ALREADY_CONFIRMED.
+      accepted.delete(key);
+      store?.recordNotice({
+        cardId: card.id,
+        feedbackId: receipt.feedbackId,
+        kind: 'rejected',
+        ...(receipt.reason === undefined ? {} : { reason: receipt.reason }),
+      });
+      const reason = receipt.reason ?? 'rejected';
+      throw new AppError(`fleet refused the dismissal: ${reason}`, {
+        code: 'DISMISS_REJECTED',
+        statusCode: 409,
+      });
+    }
     if (receipt !== null && receipt.disposition !== 'closed') {
-      // A dismissed card settles without a notice; a kept/rejected answer still returns the card
-      // with its reason, exactly as it does for a confirmation's feedback.
+      // A dismissed card settles without a notice; a kept answer still returns the card with its
+      // reason, exactly as it does for a confirmation's feedback.
       store?.removeOverlay(card.id);
-      if (receipt.disposition === 'kept' || receipt.disposition === 'rejected') {
+      if (receipt.disposition === 'kept') {
         store?.recordNotice({
           cardId: card.id,
           feedbackId: receipt.feedbackId,
@@ -603,11 +641,7 @@ export function createCockpitCardActions(deps: {
     // The resend is a new attempt for the same feedback: the 2-minute window restarts, the id
     // does not change.
     store?.markResent(cardId, now().toISOString());
-    const receipt = readCockpitCardReceipt(
-      typeof result === 'object' && result !== null
-        ? (result as Record<string, unknown>).receipt
-        : undefined,
-    );
+    const receipt = readReceiptFromAnswer(result, stored.feedbackId);
     if (receipt !== null && receipt.disposition !== 'closed') {
       store?.removeOverlay(cardId);
       if (receipt.disposition === 'kept' || receipt.disposition === 'rejected') {
