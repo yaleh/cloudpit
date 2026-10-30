@@ -5,9 +5,19 @@ import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import {
+  turnParams,
+  type CodexResidentHostPort,
+} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
-import type { HostTurnInput, ProcessHost, SessionBinding } from '@/shared/types.js';
+import type {
+  HostTurnInput,
+  ProcessHost,
+  ProviderRuntimeContext,
+  ProviderRuntimeWriter,
+  SessionBinding,
+} from '@/shared/types.js';
 
 /**
  * The criterion for AC-435: a resident Codex driver holds one app-server process
@@ -466,4 +476,105 @@ test('driver conforms to IProviderHostDriver with multiplexedHost=false (AC8)', 
     assert.equal(typeof conformance[verb], 'function', `${verb} must be implemented`);
   }
   assert.equal(typeof driver.run, 'function', 'the resident turn entry must be present');
+});
+
+/**
+ * The failure this criterion pins: CloudCLI's `default` effort sentinel is not
+ * a codex effort, and the locked 0.153.4 app-server refuses the whole turn with
+ * `Invalid value: 'default'` rather than ignoring the field.
+ */
+test("turn/start omits CloudCLI's 'default' effort and forwards a codex value (AC1)", () => {
+  const withDefault = turnParams('thread-effort', { command: 'hi', options: { effort: 'default' } });
+  const withHigh = turnParams('thread-effort', { command: 'hi', options: { effort: 'high' } });
+  const withUltracode = turnParams('thread-effort', { command: 'hi', options: { effort: 'ultracode' } });
+  console.log(
+    `defaultHasEffort=${'effort' in withDefault} highEffort=${String(withHigh.effort)} ` +
+      `ultracodeHasEffort=${'effort' in withUltracode}`,
+  );
+  assert.deepEqual(
+    withDefault,
+    { threadId: 'thread-effort', input: [{ type: 'text', text: 'hi' }] },
+    "the 'default' sentinel must leave the effort field out of turn/start",
+  );
+  assert.equal(withHigh.effort, 'high', "a codex-supported effort ('high') must be forwarded verbatim");
+  assert.equal('effort' in withUltracode, false, 'a non-codex effort must be dropped rather than forwarded');
+});
+
+/**
+ * A session-host port with the manager's `openHost` contract: register the
+ * host with its binding, then let the driver start the process and bind the
+ * session. Only the two verbs the driver is narrowed to are implemented.
+ */
+function createHostPort(sink: IProviderHostDriverSink): {
+  port: CodexResidentHostPort;
+  hosts: ProcessHost[];
+  attach: (driver: CodexHostDriver) => void;
+} {
+  const hosts: ProcessHost[] = [];
+  let driver: CodexHostDriver | null = null;
+  let hostSerial = 0;
+  const port: CodexResidentHostPort = {
+    snapshot: () => hosts,
+    openHost: async (input) => {
+      if (!driver) {
+        throw new Error('the fake host port was used before its driver was attached');
+      }
+      const binding = createBinding(input.appSessionId, null);
+      const host: ProcessHost = {
+        ...createHost(),
+        hostId: `codex-host-${++hostSerial}`,
+        bindings: new Map([[input.appSessionId, binding]]),
+      };
+      hosts.push(host);
+      await driver.startHost(host, sink);
+      await driver.bind(host, binding);
+      return host;
+    },
+  };
+  return { port, hosts, attach: (instance) => { driver = instance; } };
+}
+
+/**
+ * The second failure this criterion pins: the driver serves every app session,
+ * but the cold-start decision used to ask whether *any* host existed. With one
+ * resident session already live, a second session's turn skipped the start and
+ * then failed with `No Codex resident session is bound`.
+ */
+test('a second resident session gets its own host and binding (AC2)', async () => {
+  const transport = new FakeAppServerTransport();
+  const hostPort = createHostPort(createSink());
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({
+      launch,
+      createTransport: () => transport,
+    }),
+    host: hostPort.port,
+  });
+  hostPort.attach(driver);
+  const writer: ProviderRuntimeWriter = { send: () => {} };
+  // Only the cold-start launch reads the context, and only for the provider id.
+  const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+  try {
+    await driver.run('session-first', turn('first session turn'), writer, context);
+    assert.equal(hostPort.hosts.length, 1, 'the first run must open exactly one host');
+    assert.notEqual(hostPort.hosts[0].state, 'closed', 'the first host must still be live');
+
+    await driver.run('session-second', turn('second session turn'), writer, context);
+
+    const first = driver.readSession('session-first');
+    const second = driver.readSession('session-second');
+    console.log(
+      `hosts=${hostPort.hosts.length} firstThread=${String(first.threadId)} secondThread=${String(second.threadId)}`,
+    );
+    assert.equal(hostPort.hosts.length, 2, 'the second session must open its own host, not reuse the first');
+    assert.notEqual(first.threadId, null, 'the first session must stay bound');
+    assert.notEqual(second.threadId, null, 'the second session must be bound instead of refused');
+    assert.notEqual(first.threadId, second.threadId, 'each session must own its own thread');
+
+    // A later turn on the already-bound second session reuses its host.
+    await driver.run('session-second', turn('second session, second turn'), writer, context);
+    assert.equal(hostPort.hosts.length, 2, 'a live host must be reused for its own session');
+  } finally {
+    await driver.closeHost(hostPort.hosts[hostPort.hosts.length - 1] ?? createHost(), 'user');
+  }
 });
