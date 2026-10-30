@@ -10,7 +10,10 @@
  * THE CACHE IS A SHORT TTL, NOT A SECOND MODEL. Every display poll may ask for cards, and the
  * fleet CLI is a child process; within `ttlMs` (default 5 s) repeated reads return the same
  * batch and run the CLI once. An edit reaches the next window without a push channel, which
- * is the honest shape until the fleet exposes one.
+ * is the honest shape until the fleet exposes one. OUR OWN WRITES ARE THE EXCEPTION: a disposal
+ * executor built here (`rescue exec …`) drops the batch on the way out, because that batch
+ * predates the write and the caller re-reads immediately — answering it would keep showing the
+ * card as open right after it was discarded (see `runExecutor`).
  *
  * FAILURE IS A READING, NOT A THROW. A missing CLI, a non-zero exit, or a child that never
  * spawned all answer an empty list plus a readable `reason` on the diagnostic the card route
@@ -190,6 +193,26 @@ export function createCockpitFleetCardProvider(
   // here (not on the module) so two providers in one process are independent, and it is read
   // lazily: the constructor starts the first read, a card-cache miss refreshes it once hourly.
   const runExecutors: CockpitFleetCardProviderDeps['runExecutors'] = deps.runExecutors;
+  /**
+   * The runner every executor this provider builds is handed.
+   *
+   * A disposal call (`rescue exec …`) writes to the fleet, so any batch in `cache` was read
+   * BEFORE that write. Dropping it on the way out — success or refusal — is what makes the
+   * caller's immediate re-read after a dismiss run the CLI instead of answering a batch that
+   * still names the discarded card for up to another `ttlMs` (the card then reappears in its
+   * pre-dismiss state before the next poll removes it). The declaration read is not a write and
+   * keeps the card cache intact.
+   */
+  const runExecutor =
+    (run: NonNullable<CockpitFleetCardProviderDeps['runExecutors']>) =>
+    async (args: readonly string[]): Promise<CockpitFleetCommandResult> => {
+      const writes = args[0] === 'rescue' && args[1] === 'exec';
+      try {
+        return await run(args);
+      } finally {
+        if (writes) cache.clear();
+      }
+    };
   let executorState: CockpitFleetExecutorReading & { at: number; read: boolean } = {
     declarations: [],
     reason: enabled ? 'rescue executors have not been read yet' : 'cockpit.fleetCards.enabled is off',
@@ -332,7 +355,7 @@ export function createCockpitFleetCardProvider(
     const reading = await ensureExecutors();
     const declaration = reading.declarations.find((entry) => entry.id === id);
     if (declaration === undefined || runExecutors === undefined) return null;
-    return new CockpitFleetExecutor(declaration, { runFleet: runExecutors });
+    return new CockpitFleetExecutor(declaration, { runFleet: runExecutor(runExecutors) });
   };
 
   // The diagnostic rides ON the provider, not only on this wrapper: the registry discovers the

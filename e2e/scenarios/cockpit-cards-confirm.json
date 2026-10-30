@@ -1,6 +1,6 @@
 {
   "name": "cockpit-cards-confirm",
-  "description": "The cards view's first business scenario: a person enters the cockpit through the mode switch, opens its cards view, selects the card that needs a credential, switches the shown option from the recommendation to 「Later」, confirms it, and then reads the card that carries no recommendation. Every assertion is a structured reading of the list's own `data-cockpit-cards` declaration; the drive verbs press the card's real controls (pointer press to select, dropdown trigger then option button, confirm bar then send), never the reading. After the confirmation the card is still listed and its confirm target is the option that was sent — the fixture executor's log (read during the DoD) is what proves exactly one request left.",
+  "description": "The cards view's first business scenario: a person enters the cockpit through the mode switch, opens its cards view, selects the card that needs a credential, switches the shown option from the recommendation to 「Later」, confirms it, and then reads the card that carries no recommendation. Every assertion is a structured reading of the list's own `data-cockpit-cards` declaration; the drive verbs press the card's real controls (pointer press to select, dropdown trigger then option button, confirm bar then send), never the reading. After the confirmation the card is still listed and the selection stays on it; the shown option/target return to the provider's recommendation because the fixture's action executor advances the card revision (a new revision is new content, and the controller drops per-content readings on it by design) — the fixture executor's log (read during the DoD) is what proves exactly one request left. Run this against an instance whose `cockpit.fixtureFeedback.mode` is not `closed`: the shipped `closed` arm removes the confirmed card from the list, which is a different scenario.",
   "steps": [
     {
       "open": "cockpit-cards",
@@ -71,10 +71,15 @@
           "fixture:multi",
           "fixture:decision"
         ],
+        "cockpitCardSelected": "fixture:need",
+        "cockpitCardShownOption": {
+          "cardId": "fixture:need",
+          "optionId": "provide"
+        },
         "cockpitCardConfirmTarget": {
           "cardId": "fixture:need",
-          "optionId": "later",
-          "label": "Later"
+          "optionId": "provide",
+          "label": "Provide the credential"
         }
       }
     },

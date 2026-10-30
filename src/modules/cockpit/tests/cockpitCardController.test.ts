@@ -1352,6 +1352,46 @@ describe('the card-level 「忽略/丢弃」 target', () => {
     });
   });
 
+  it('keeps the dismiss reading in flight until the re-read lands, then draws the card gone', async () => {
+    let reads = 0;
+    let releaseRead: ((cards: CockpitCard[]) => void) | undefined;
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const h = harness([card('c1'), card('c2')], {
+      fetchCards: async () => {
+        reads += 1;
+        if (reads === 1) return [card('c1'), card('c2')];
+        return new Promise<CockpitCard[]>((resolve) => {
+          releaseRead = resolve;
+          markStarted?.();
+        });
+      },
+      dismiss: async () => ({ ok: true }),
+    });
+    await h.controller.load();
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    const pending = h.controller.confirmDismiss();
+    await started;
+
+    // The dismiss answered and the re-read is in flight. The card must still read as leaving:
+    // closing the bar here would put 「忽略/丢弃」 back on a card the server has already
+    // discarded, which reads as the dismissal having been undone.
+    expect(h.snapshot().dismissingCardId).toBe('c1');
+    expect(h.snapshot().pendingDismiss).toMatchObject({ cardId: 'c1', revision: 1 });
+    expect(h.snapshot().cards.map((subject) => subject.id)).toEqual(['c1', 'c2']);
+    // ...and a second card cannot open its own dismiss confirmation under the in-flight one:
+    // the first command's cleanup would close that confirmation when its re-read lands.
+    expect(h.controller.requestDismiss('c2')).toBe(false);
+
+    releaseRead?.([]);
+    expect(await pending).toBe(true);
+    expect(h.snapshot().cards).toEqual([]);
+    expect(h.snapshot().dismissingCardId).toBeNull();
+  });
+
   it('cancelling the dismiss confirmation sends nothing and keeps the option target', async () => {
     const dismissRequests: unknown[] = [];
     const h = harness([card('c1')], {

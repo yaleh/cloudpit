@@ -400,6 +400,15 @@ function expectationFailures(expect, reading) {
         if (actual !== expected) fail(key, expected, actual);
         break;
       }
+      case 'cockpitCardDismissNoticeOk': {
+        // The last dismiss answer's outcome, read from the list-level line that outlives the card.
+        // `null` (no dismiss attempted yet) is a real reading, not "skip".
+        const actual = typeof reading.cockpit?.cards?.dismissNoticeOk === 'boolean'
+          ? reading.cockpit.cards.dismissNoticeOk
+          : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       default:
         failures.push(`${key}: unsupported expectation key (a scenario typo must not pass silently)`);
     }

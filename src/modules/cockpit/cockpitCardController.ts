@@ -1276,6 +1276,10 @@ export function createCockpitCardController(
     if (disposed) return false;
     const snapshot = store.getSnapshot();
     if (confirming) return false;
+    // One card, one decision: while a dismissal is in flight (its confirm bar is held until the
+    // re-read lands), another card's first press must not replace the pending dismiss — the
+    // in-flight command's own cleanup would then close the second card's confirmation.
+    if (snapshot.dismissingCardId !== null) return false;
     if (snapshot.pendingConfirm !== null || snapshot.sendCountdown !== null) return false;
     const target = snapshot.dismissTargets[cardId];
     if (target === undefined || target.disabled) return false;
@@ -1300,11 +1304,22 @@ export function createCockpitCardController(
     } finally {
       confirming = false;
     }
-    commit({ pendingDismiss: null, dismissingCardId: null, dismissNotice: notice });
-    // A successful dismiss settled the provider's item, so the next read is the card leaving the
-    // list. A failure keeps it, with the notice saying why.
-    if (notice.ok) await read();
-    return notice.ok;
+    if (!notice.ok) {
+      // The dismissal did not happen, so the card keeps its choices; the notice says why.
+      commit({ pendingDismiss: null, dismissingCardId: null, dismissNotice: notice });
+      return false;
+    }
+    // The dismissal was accepted. Keep the confirm bar in its 「正在丢弃」 reading until the
+    // re-read lands: a successful dismiss settled the provider's item, so the only correct next
+    // picture is the card gone. Closing the bar first would put 「忽略/丢弃」 back on a card the
+    // server has already discarded, which reads as the dismissal having been undone.
+    commit({ dismissNotice: notice });
+    try {
+      await read();
+    } finally {
+      commit({ pendingDismiss: null, dismissingCardId: null });
+    }
+    return true;
   };
 
   /** Leaves the dismiss confirmation without sending; the card's options are untouched. */

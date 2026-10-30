@@ -9,6 +9,7 @@ import {
   readCockpitCardsReading,
   settleCardStep,
   startConfirmingCard,
+  startDismissingCard,
   startShowingCardOption,
   startWritingCardOwnReply,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
@@ -90,6 +91,7 @@ export type ScenarioDriveStep =
   | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
   | { 'cockpitCard.confirm': string }
   | { 'cockpitCard.openDetails': string }
+  | { 'cockpitCard.dismiss': string }
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true };
@@ -612,6 +614,9 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('cockpitCard.confirm' in step) {
       action = 'cockpitCard.confirm';
       pendingCardAction = startConfirmingCard(step['cockpitCard.confirm']);
+    } else if ('cockpitCard.dismiss' in step) {
+      action = 'cockpitCard.dismiss';
+      pendingCardAction = startDismissingCard(step['cockpitCard.dismiss']);
     } else if ('cockpitCard.openDetails' in step) {
       action = 'cockpitCard.openDetails';
       openCardDetails(step['cockpitCard.openDetails']);
