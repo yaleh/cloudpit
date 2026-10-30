@@ -66,6 +66,8 @@ UI DoD 必须在真实运行页面经 MCP 浏览器实际打开设置、选择/�
 - src/modules/cockpit/cockpitCardStartConversation.ts
 - src/modules/cockpit/hooks/useCockpitStartConversation.ts
 - src/modules/cockpit/tests/cockpitCardStartConversation.test.ts
+- src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx
+- src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx
 - src/modules/sidebar/SidebarHeader.tsx
 - src/modules/ui-scenario/scenarioSurface.ts
 - src/modules/ui-scenario/settingsSurface.ts (new)
@@ -104,6 +106,13 @@ DoD 证据（隔离实例 /tmp/ccui-dod-cockpit-session-start,独立 HOME/DB/set
 
 - 本 session 没有 MCP 浏览器工具,故 UI DoD 第 1 条以 Playwright 驱动的真实浏览器 + 场景运行器完成,证据来自真实运行页面,非静态渲染或 API curl。
 - DoD 中“live 卡片开始对话”与 action/ownReply 实际起会话两腿未在本环境执行（需要 quay-fleet cockpit 夹具与真实 provider 会话);其共享字段语义由 AC5（真实 `createCockpitSessionStarter` 共用 preferences)与 AC4（controller 用服务端 effective selection)覆盖,未执行部分如实记录。
+
+### 续轮修复（exited-not-landed 之后，2026-10-30）
+
+上一轮 fan-in 全量套件红 3 条，本轮逐条复现后分类：
+
+- `src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx` 与 `src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx`：**真回归，已修**。根因：本任务让卡片空会话入口先读 `GET /api/settings/cockpit/session-start`（`readEffectiveSelection`），而这两个既有测试只 mock 了会话创建网关、没 mock 该读，真实 `fetch` 在 jsdom 中对相对 URL 抛 `Failed to parse URL from /api/settings/cockpit/session-start`，于是 `createSession` 一次都没被调用（`expected "spy" to be called 1 times, but got 0 times`）。修复：两文件各自在 `beforeEach` 里 `vi.spyOn(api.settings, 'cockpitSessionStart')` 返回一份空的 effective 读数（每次调用新建 `Response`，因为重试用例会读两次，而一个 Response body 只能读一次），既有断言保持原样；两文件因此纳入 `## Touches`。复跑：`npx vitest run` 两文件 13/13 通过，连同 `cockpitCardStartConversation.test.ts` 共 19/19 通过；client `tsc --noEmit` exit 0，oxlint 无输出。
+- `src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx`：**load-sensitive 抖动，非本任务 delta**。本任务在 `src/modules/sidebar/` 下只改了 `SidebarHeader.tsx`，而该测试只导入 `SidebarProjectItem`；失败形态是 `waitFor` 默认 1s 超时（报告 `STACK_TRACE_ERROR`，vitest 的 waitFor 超时路径），即冷模块图 `await import()` 在负载下超过 1s。本 worktree 单文件连跑 31 次：机器有并发套件负载时前 5 次红 2 次，其后 31 连绿；develop 基线导出树（`git archive develop` + 同 node_modules）连跑 8/8 绿。按仓库既有先例（`tasks/gap-live-voice-*` 系列）分类为已存在的 load-sensitive 抖动，不改该文件（不在本任务 Touches，且是其它已 done 任务的判据文件）。若 fan-in 再次红在同一文件，属同一分类。
 
 ## ADR-007 轴记录
 
