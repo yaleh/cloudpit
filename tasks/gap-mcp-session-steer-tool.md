@@ -22,7 +22,7 @@ GOAL-051 AC-444 已把 turn/steer（忙时改当前 turn、不排队列、不开
 
 - `server/modules/mcp-gateway/mcp-session-steer.ts`（新）持有 `session_steer` 的 schema、`buildSessionSteer` 与注册函数。它注入三件事：会话行的 provider、provider registry 的 host-driver 解析、session-hosts 管理器的 `liveHostForSession`；随后对驱动做结构化 `steer` 能力读取（与 `provider-runtime.service.ts` 读 `run`/`cancelQueuedInput` 同一手法），命中即调用驱动**自己的** `steer(host, sessionId, turn)` —— 也就是 AC-444 的 `turn/steer` 面，没有第二套协议、没有队列、没有第二个 turn。驱动未实现 `steer` 时不分支 provider id，直接给 `MCP_TOOL_NOT_IMPLEMENTED` 可读拒绝。
 - 注册走同一条写工具 seam，紧挨 AC-249 冻结的五工具（`MCP_STAGE4_WRITE_TOOLS` 长度不动），scope 取表里的 `cloudcli:session:control`；deps 未注入时工具根本不注册（`draft_*` 先例），因此既有 mount 的 `tools/list` 不变。
-- `session/index.ts` 未改动，`server/index.ts` 的 `writeTools` 增加 `sessionSteer` 三个进程 seam（与 `session_reconfigure` / `session_start` / `session_background` 读的是同一批对象）。`server/index.ts` 行数 2849→2862，已按 AC-394 格式在 `architecture-ratchet.baseline.json` 的 note 写 RECORDED CHANGE 并上调该条基线。
+- 包 barrel `server/modules/mcp-gateway/index.ts` 未改动（新模块只被同包的 `mcp-gateway.write-tools.ts` 与测试以相对路径引用，无需新增导出）。`server/index.ts` 的 `writeTools` 增加 `sessionSteer` 三个进程 seam（与 `session_reconfigure` / `session_start` / `session_background` 读的是同一批对象）。`server/index.ts` 行数 2849→2862，已按 AC-394 格式在 `architecture-ratchet.baseline.json` 的 note 写 RECORDED CHANGE 并上调该条基线。
 
 ## AC
 
