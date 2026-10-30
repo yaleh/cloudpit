@@ -20,13 +20,32 @@ Claude resident 把权限无条件钉死为 `bypassPermissions`：`claude-host-d
 
 ## AC
 
-- [ ] AC1 resident 首轮恒带受信任权限：`codex-host-driver-persistent.test.ts` 新增用例，经 `driver.run` 冷启动 → 假 transport 断言：即使 `launch.options` 不含 `permissionMode`（或为 `'default'`），发出的首帧 `thread/start` params 仍含 `approvalPolicy:'never'` 且 `sandbox:'danger-full-access'`；`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0 且 fail 0。
-- [ ] AC2 假形态必红：临时去掉强制（`startResidentSession` 改回直接消费原始 `launch.options.permissionMode`）⇒ AC1 用例红，抄下逐字失败行后还原。
-- [ ] AC3 无回归：`npm run typecheck` 退出 0；不新增 server 测试文件（`git status --short` 仅列出已声明的 Touches 文件）。
+- [x] AC1 resident 首轮恒带受信任权限：`codex-host-driver-persistent.test.ts` 新增用例，经 `driver.run` 冷启动 → 假 transport 断言：即使 `launch.options` 不含 `permissionMode`（或为 `'default'`），发出的首帧 `thread/start` params 仍含 `approvalPolicy:'never'` 且 `sandbox:'danger-full-access'`；`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0 且 fail 0。
+- [x] AC2 假形态必红：临时去掉强制（`startResidentSession` 改回直接消费原始 `launch.options.permissionMode`）⇒ AC1 用例红，抄下逐字失败行后还原。
+- [x] AC3 无回归：`npm run typecheck` 退出 0；不新增 server 测试文件（`git status --short` 仅列出已声明的 Touches 文件）。
 
 ## DoD
 
 AC1/AC2 先红后绿实测，贴逐字失败行与 tests/pass/fail；部署后真实 codex resident 会话首轮 `thread/start` 帧（或 `turn_context`）读到 `approvalPolicy:'never'` + `sandbox:'danger-full-access'`，且该会话审批类 MCP 工具调用不再被 `user rejected MCP tool call` 拒绝（贴日志帧/读数）。
+
+## 实测
+
+- AC1：新增用例 `a resident cold start forces the trusted permission pair without a stored mode (AC1)`（`driver.run` 冷启动 + 假 transport，分别以 `options:{}` 与 `options:{permissionMode:'default'}` 驱动）。读数 `noModeApproval=never noModeSandbox=danger-full-access storedDefaultApproval=never storedDefaultSandbox=danger-full-access`；整文件 `tests 11 / pass 11 / fail 0`，退出 0。
+- AC2：临时把 `startResidentSession` 改回 `threadDefaultsFromLaunchOptions(launch.options)` 后同一文件得 `tests 11 / pass 10 / fail 1`，退出 1，逐字失败行：
+  ```
+  AssertionError [ERR_ASSERTION]: a launch with no stored mode must still send approvalPolicy=never
+  + actual - expected
+
+  + undefined
+  - 'never'
+  ```
+  随后 `git checkout -- server/modules/providers/list/codex/codex-host-driver.provider.ts` 还原并复跑，回到 `tests 11 / pass 11 / fail 0`。
+- AC3：`npm run typecheck` 退出 0；`npx oxlint` 三个改动文件退出 0；改动仅已声明的 Touches 三个实现/测试文件，未新增 server 测试文件。
+- DoD 部署后读数：待部署（待外部）。本 worktree 未部署运行中的 codex resident，真实首轮 `thread/start` 帧与审批类 MCP 工具调用的部署后回读需在部署后进行。
+
+## ADR-007 暗轴
+
+该轴仍暗,理由:本任务只强制 resident 首轮权限注入并补测试，不改架构层级或依赖图，无 L_D/L_G 读数。
 
 ## Touches
 
