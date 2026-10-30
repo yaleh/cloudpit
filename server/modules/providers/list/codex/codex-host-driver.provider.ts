@@ -451,13 +451,12 @@ export class CodexHostDriver implements IProviderHostDriver {
     writer: ProviderRuntimeWriter,
     context: ProviderRuntimeContext,
   ): Promise<unknown> {
-    // Cold dispatch is per session, not "does the driver have any host": one
-    // driver serves every app session, so a session already in `sessions` owns
-    // a live host and a new one must not inherit the previous session's.
-    if (this.closed || !this.sessions.has(appSessionId)) {
+    // Cold dispatch: the first turn of a resident session reaches the driver
+    // before any host exists; both paths share one launch decision.
+    if (!this.host || this.closed || this.host.state === 'closed') {
       await this.startResidentSession(appSessionId, { options: turn.options ?? {}, context });
     }
-    const host = this.liveHostFor(appSessionId) ?? this.host;
+    const host = this.host;
     if (!host) {
       throw new AppError('CodexHostDriver.run was called before a host was started.', {
         code: 'CODEX_HOST_NOT_STARTED',
