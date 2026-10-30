@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-src-chat
 title: "architecture-analysis: src/modules/chat is 46,357 LOC over 175 source
   files with module fan-out 41 (archguard god-package defaults: minFiles 20,
   minFanOut 20) — 1.5x the next modul"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
