@@ -2,7 +2,7 @@
  * The cockpit's read path into one session's T1 ask digest — and the repair of a digest that
  * was stored before the current suggestion rules held.
  *
- * FIVE STALE SHAPES ARE REPAIRED ON READ, through one mechanism:
+ * SIX STALE SHAPES ARE REPAIRED ON READ, through one mechanism:
  *   1. A digest stored while the tier was still switched off (`{ state: 'skipped', reason:
  *      '未启用 …' }`). Only that session's NEXT turn recomputes it, so a person who enables the
  *      setting keeps reading 「提问决策摘要未启用」 on cards that are still open.
@@ -20,6 +20,19 @@
  *      ask mismatch, and remembered forever; the transcript may well carry the card's ask now.
  *      Recomputed under the same bounded rules, so a session left with the wrong verdict heals
  *      without waiting for its next asking turn.
+ *   6. A stored 「重算失败：找不到会话转写」 failure (a session row or transcript that was missing
+ *      when the old reader computed it). The transcript may have been recreated since; the same
+ *      bounded recompute runs, so the failure is not remembered forever.
+ *
+ * A MISSING OBJECT IS REBUILT FROM THE TRANSCRIPT. A `session.asking` card can name a session
+ * whose observation object was never written (the digest write for that turn lost the race, or
+ * the object was pruned) while the `sessions` row and the transcript are both there. Returning
+ * `null` before consulting the transcript — the old read did exactly that — draws 「尚未生成」
+ * forever, because the repair that could resolve the session is started from the object it never
+ * reads. When `getObject` answers null, the read therefore starts the SAME bounded repair through
+ * `resolveSession` (app id, then provider id, then the projects scan by the card's own id) and
+ * answers a 「尚未生成的」 reading for that frame; the next poll reads the object the repair wrote.
+ * With neither a session nor a transcript the read still answers `null`.
  *
  * IT IS A REPAIR, NOT A SECOND PRODUCER. The read itself stays synchronous (the card projection
  * calls it in a loop), so the recompute is started in the background and the caller keeps the
@@ -112,6 +125,13 @@ const ASK_RETRY_BACKOFF_MS = 2_000;
 
 /** The producer stamped on a repaired revision, so the repair is distinguishable from a turn. */
 const SESSION_ASK_DECISION_READER_PRODUCER = 'session-ask-decision-reader';
+
+/**
+ * The status of an object the reader itself creates. The normal producer writes the session
+ * object with this reading while it waits for a reply; a self-heal that recovers the object from
+ * the transcript has no other status to carry, and `attention` is what the waiting session is.
+ */
+const SELF_HEAL_STATUS = { state: 'attention', reason: '本轮以提问结束，等你回复' } as const;
 
 /** The token every disabled-tier skip reason carries (`未启用 observation.sessionDigest…`). */
 const DISABLED_REASON_TOKEN = '未启用';
@@ -222,7 +242,7 @@ function askIdOfMessage(
  * decision for the card's own ask, so the repair computes one (and, before that, records the
  * asking message's verbatim words so the card can state the question meanwhile).
  */
-type StaleShape = 'missing' | 'disabled' | 'output' | 'ask-missing' | 'quote' | 'default';
+type StaleShape = 'missing' | 'disabled' | 'output' | 'ask-missing' | 'transcript-missing' | 'quote' | 'default';
 
 /** Which repair, if any, this reading needs. `null` means it is a usable answer as it stands. */
 function staleShapeOf(reading: SessionAskDecisionReading): StaleShape | null {
@@ -238,6 +258,11 @@ function staleShapeOf(reading: SessionAskDecisionReading): StaleShape | null {
     reading.state === 'unevaluated' && reading.reason.startsWith(SESSION_ASK_OUTPUT_UNUSABLE_REASON);
   const missingAsk =
     reading.state === 'unevaluated' && reading.reason === SESSION_ASK_DECISION_ASK_MISSING_REASON;
+  // A missing session row or transcript was a fact about THAT moment. The row can be restored
+  // and the transcript recreated, so the failure is recomputed instead of remembered forever.
+  const missingTranscript =
+    reading.state === 'unevaluated' && reading.reason === SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON;
+  if (missingTranscript) return 'transcript-missing';
   if (disabledSkip) return 'disabled';
   if (failedOutput) return 'output';
   if (missingAsk) return 'ask-missing';
@@ -251,7 +276,10 @@ function defaultResolveSession(sessionId: string): {
   jsonlPath: string | null;
   providerSessionId: string | null;
 } | null {
-  const row = sessionsDb.getSessionById(sessionId);
+  // The card names the app's `session_id`; a fleet envelope naming the PROVIDER's id finds the
+  // same row through the second key. Either way the row carries the transcript path and the
+  // provider id the projects scan needs.
+  const row = sessionsDb.getSessionById(sessionId) ?? sessionsDb.getSessionByProviderSessionId(sessionId);
   if (row === null) return null;
   return {
     title: (row.custom_name ?? '').trim() || sessionId,
@@ -350,16 +378,26 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
   /**
    * Writes the honest failure reading over the stale disabled-tier skip, so the card names why
    * the recompute produced nothing. A failure and the hourly limit therefore look different.
+   *
+   * A failure found by the missing-object self-heal has no stored object to write over; there
+   * `create` supplies the session's title and the store creates the object, so the failure is a
+   * reading the next poll can answer (and the transcript-missing shape can retry) instead of
+   * silence.
    */
-  const writeFailure = (sessionId: string, reason: string): void => {
-    const object = store.getObject(formatSessionUri(sessionId));
-    if (object === null) return;
+  const writeFailure = (
+    sessionId: string,
+    reason: string,
+    options: { create?: boolean; title?: string } = {},
+  ): void => {
+    const uri = formatSessionUri(sessionId);
+    const object = store.getObject(uri);
+    if (object === null && options.create !== true) return;
     store.writeRevision({
-      uri: object.uri,
+      uri,
       kind: 'session',
-      title: object.title,
-      status: object.status,
-      digest: { ...object.digest, askDecision: { state: 'unevaluated', reason } },
+      title: object?.title ?? options.title ?? sessionId,
+      status: object?.status ?? SELF_HEAL_STATUS,
+      digest: { ...(object?.digest ?? {}), askDecision: { state: 'unevaluated', reason } },
       deltaItems: [],
       provenance: {
         producer: SESSION_ASK_DECISION_READER_PRODUCER,
@@ -376,13 +414,15 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
    * session+message+shape key (a `模型输出不可用` reading carries no askId until the transcript is
    * read). `expectedAskId` is set when the stored reading already names the ask: a transcript
    * that no longer carries THAT ask may not overwrite a valid digest with a different turn.
+   * `createObject` is set by the missing-object self-heal: the repair then writes the object it
+   * rebuilt instead of returning because there was nothing to overwrite.
    */
   const repair = async (
     sessionId: string,
     messageId: string,
-    options: { attemptKey: string; expectedAskId?: string },
+    options: { attemptKey: string; expectedAskId?: string; createObject?: boolean },
   ): Promise<void> => {
-    const { attemptKey, expectedAskId } = options;
+    const { attemptKey, expectedAskId, createObject = false } = options;
     /** Records the attempt so the next poll does not pay for the same stale reading again. */
     const remember = (): void => {
       attempted.add(attemptKey);
@@ -390,22 +430,37 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
     };
     try {
       const resolved = resolveSession(sessionId);
+      let raw: string | null = null;
+      let sessionTitle = sessionId;
       if (resolved === null) {
-        remember();
-        writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
-        return;
-      }
-
-      let raw = resolved.jsonlPath === null || resolved.jsonlPath === ''
-        ? null
-        : await readTranscript(resolved.jsonlPath);
-      if ((raw === null || raw.trim() === '') && resolved.providerSessionId !== null && resolved.providerSessionId !== undefined) {
-        raw = await findTranscript(resolved.providerSessionId);
-      }
-      if (raw === null || raw.trim() === '') {
-        remember();
-        writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON);
-        return;
+        // The row is gone (or was never visible to this process). The transcript may still be
+        // found by the id the card names across the projects directories; that scan is the last
+        // resort before this read gives up.
+        raw = await findTranscript(sessionId);
+        if (raw === null || raw.trim() === '') {
+          remember();
+          writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON, {
+            create: createObject,
+            title: sessionId,
+          });
+          return;
+        }
+      } else {
+        sessionTitle = resolved.title;
+        raw = resolved.jsonlPath === null || resolved.jsonlPath === ''
+          ? null
+          : await readTranscript(resolved.jsonlPath);
+        if ((raw === null || raw.trim() === '') && resolved.providerSessionId !== null && resolved.providerSessionId !== undefined) {
+          raw = await findTranscript(resolved.providerSessionId);
+        }
+        if (raw === null || raw.trim() === '') {
+          remember();
+          writeFailure(sessionId, SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON, {
+            create: createObject,
+            title: resolved.title,
+          });
+          return;
+        }
       }
 
       const askReading = readSessionAsk(raw, sessionId, messageId);
@@ -449,7 +504,7 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       callTimes.push(now());
       const reading = await summarize.summarize({
         sessionId,
-        sessionTitle: resolved.title,
+        sessionTitle,
         askId: ask.askId,
         revision: ask.revision,
         assistantText: ask.assistantText,
@@ -465,22 +520,26 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       // The switch may have been turned off while the call was in flight; keep the old reading.
       if (reading.state === 'skipped') return;
 
-      const object = store.getObject(formatSessionUri(sessionId));
-      if (object === null) return;
+      const uri = formatSessionUri(sessionId);
+      const object = store.getObject(uri);
+      // An existing object is overwritten in place. The missing-object self-heal has nothing to
+      // overwrite: it creates the object from the session/transcript it just resolved.
+      if (object === null && createObject === false) return;
       // The legacy slot names the session's LATEST ask. Repairing an older card's ask must not
       // move that slot backwards, so the slot is written only when it has no ask of its own (a
       // disabled skip, an unwritten failure) or when it already names the repaired ask.
-      const slot = storedReading(object);
+      const slot = object === null ? null : storedReading(object);
       const slotRelevant = slot === null || slot.state !== 'evaluated' || slot.askId === ask.askId;
+      const baseDigest = object?.digest ?? {};
       store.writeRevision({
-        uri: object.uri,
+        uri,
         kind: 'session',
-        title: object.title,
-        status: object.status,
+        title: object?.title ?? sessionTitle,
+        status: object?.status ?? SELF_HEAL_STATUS,
         digest: {
-          ...object.digest,
+          ...baseDigest,
           ...(slotRelevant ? { askDecision: reading } : {}),
-          ...rememberAskDecision(object.digest, {
+          ...rememberAskDecision(baseDigest, {
             askId: ask.askId,
             messageId: messageId !== '' ? messageId : ask.messageId,
             reading,
@@ -501,6 +560,7 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
       writeFailure(
         sessionId,
         `重算失败：读取转写失败（${failure instanceof Error ? failure.message : String(failure)}）`,
+        { create: createObject, title: sessionId },
       );
     }
   };
@@ -549,11 +609,69 @@ export function createSessionAskDecisionReader(deps: SessionAskDecisionReaderDep
     return answer;
   };
 
+  /**
+   * Answers one read whose observation object does not exist yet, and starts the bounded
+   * missing-object self-heal.
+   *
+   * The read is synchronous, so it cannot wait for the transcript; the frame answers
+   * 「这条提问的摘要尚未生成」 while the background repair resolves the session (app id, then
+   * provider id, then the projects scan), reads the transcript and WRITES the object. The next
+   * poll reads the object the repair created. Returning `null` here without starting that repair
+   * — the old behaviour — drew 「尚未生成」 forever, because the repair could only ever be started
+   * from the object it never read.
+   *
+   * It returns `null` when there is nothing to anchor a reading to (no session row and no
+   * transcript) or the tier is off/over its hourly ceiling, and it never throws: a resolver
+   * failure is a null answer, not a broken read.
+   */
+  const answerWithSelfHeal = (
+    sessionId: string,
+    messageId: string,
+  ): SessionAskDecisionReading | null => {
+    let resolved: ReturnType<typeof resolveSession> = null;
+    try {
+      resolved = resolveSession(sessionId);
+    } catch {
+      resolved = null;
+    }
+
+    const settings = readSettings();
+    if (!settings.enabled) return null;
+    if (callsInTheLastHour(now()) >= settings.maxPerHour) return null;
+
+    // The same once-per-ask bound the stored-reading repair uses: a terminal attempt is
+    // remembered, a temporal miss waits out its widening interval, and reads during an in-flight
+    // attempt do not pay for a second transcript read.
+    const attemptKey = `${sessionId}\u0000${messageId}\u0000missing-object`;
+    const retry = retries.get(attemptKey);
+    const blocked = attempted.has(attemptKey) || (retry !== undefined && retry.nextAt > now());
+    if (!blocked && !inflight.has(attemptKey)) {
+      const started = repair(sessionId, messageId, { attemptKey, createObject: true });
+      inflight.set(attemptKey, started);
+      void started.then(() => {
+        if (inflight.get(attemptKey) === started) inflight.delete(attemptKey);
+      });
+    }
+
+    // A legacy read (no card message) keeps answering null: 「摘要尚未生成」 is a sentence about
+    // a card's ask, and this call names none. The heal itself still runs and writes the object.
+    if (messageId === '' || resolved === null) return null;
+
+    const original = originals.get(originalKey(sessionId, messageId));
+    return {
+      state: 'unevaluated',
+      reason: SESSION_ASK_DECISION_NOT_GENERATED_REASON,
+      ...(original === undefined ? {} : { originalAsk: original }),
+    };
+  };
+
   return {
     read(sessionId, messageId = '') {
       if (sessionId === '') return null;
       const object = store.getObject(formatSessionUri(sessionId));
-      if (object === null) return null;
+      // NO OBJECT IS NOT A DEAD END. The transcript may carry the whole ask; the self-heal
+      // rebuilds the object from it and the next poll answers with it.
+      if (object === null) return answerWithSelfHeal(sessionId, messageId);
 
       // A CARD READS ITS OWN ASK. `contentRef.messageId` resolves to the askId the digest
       // indexed; the session's `askDecision` slot names the LATEST ask and is never this card's

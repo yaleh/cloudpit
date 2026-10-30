@@ -748,6 +748,8 @@ function readerOver(
       providerSessionId?: string | null;
     } | null;
     readTranscript?: (jsonlPath: string) => Promise<string | null>;
+    /** Finds a transcript by provider id (or the card's own id) across the projects dirs. */
+    findTranscript?: (providerSessionId: string) => Promise<string | null>;
     claudeProjectsRoot?: string;
     /** The reader's clock; the temporal-retry criterion advances it between reads. */
     now?: () => number;
@@ -769,6 +771,7 @@ function readerOver(
       options.resolveSession ??
       (() => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl' })),
     readTranscript: options.readTranscript ?? (async () => YES_NO_TRANSCRIPT),
+    ...(options.findTranscript === undefined ? {} : { findTranscript: options.findTranscript }),
     ...(options.claudeProjectsRoot === undefined
       ? {}
       : { claudeProjectsRoot: options.claudeProjectsRoot }),
@@ -1264,6 +1267,114 @@ test('read-time repair: a transcript in another project’s encoded directory is
   assert.equal(requests.length, 1, 'the cross-project transcript was found and recomputed');
   const stored = storedAskDecision(objects);
   assert.equal(stored?.state, 'evaluated');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The missing-object self-heal: a card whose session object was never written
+// ---------------------------------------------------------------------------------------------
+
+/** A second session, so 「no object yet」 cannot be confused with the suite's seeded one. */
+const HEAL_SESSION_ID = 'heal-session';
+
+test('self-heal: a missing object is rebuilt from the session row and transcript, never answered null', async () => {
+  const { store, objects } = createMemoryStore();
+  const uri = formatSessionUri(HEAL_SESSION_ID);
+  // THE LIVE SHAPE (15 of 18 live cards): `session.asking` reached the fleet, the card names a
+  // real session, but `observed_objects` has no row for it. The old read returned null here —
+  // 「尚未生成」 forever — BEFORE the transcript that carries the ask was ever consulted.
+  assert.equal(store.getObject(uri), null);
+
+  const requests: LlmCompletionRequest[] = [];
+  const reader = readerOver(store, {
+    requests,
+    // The sessions row the live case had: a readable jsonl_path carrying the card's message.
+    resolveSession: () => ({
+      title: '会话：浏览器 profile',
+      jsonlPath: '/tmp/heal.jsonl',
+      providerSessionId: 'provider-heal',
+    }),
+    readTranscript: async () => YES_NO_TRANSCRIPT,
+  });
+
+  const first = reader.read(HEAL_SESSION_ID, 'a1');
+  assert.notEqual(first, null, 'a missing object is not a dead end — null draws 「尚未生成」 forever');
+  await reader.settled();
+
+  const healed = store.getObject(uri);
+  assert.notEqual(healed, null, 'the background repair writes the object it rebuilt');
+  const stored = healed?.digest.askDecision as SessionAskDecisionReading | undefined;
+  assert.equal(stored?.state, 'evaluated');
+  assert.equal(requests.length, 1, 'the transcript was summarized exactly once');
+
+  // The next poll answers the real decision (the card's own ask), not the placeholder again.
+  const second = reader.read(HEAL_SESSION_ID, 'a1');
+  assert.equal(second?.state, 'evaluated');
+  assert.equal(second?.state === 'evaluated' ? second.ask : '', YES_NO_ANSWER.ask);
+  assert.equal(objects.get(uri)?.digest.askDecision === undefined, false);
+});
+
+test('self-heal: with neither a session row nor a transcript the read stays null and never throws', async () => {
+  const { store } = createMemoryStore();
+  const reader = readerOver(store, {
+    resolveSession: () => null,
+    findTranscript: async () => null,
+    // The transcript read must not be reached: there is no path to read.
+    readTranscript: async () => {
+      throw new Error('readTranscript must not be called without a resolved path');
+    },
+  });
+
+  assert.equal(reader.read('unknown-session', 'a1'), null, 'no row and no transcript ⇒ the old null answer');
+  await assert.doesNotReject(async () => reader.settled());
+
+  // The failure is recorded as a reading (the a1690759 shape), so the next poll names WHY
+  // instead of drawing 「尚未生成」; still no throw and no model call.
+  const recorded = store.getObject(formatSessionUri('unknown-session'))?.digest.askDecision as
+    | SessionAskDecisionReading
+    | undefined;
+  assert.equal(recorded?.state, 'unevaluated');
+  assert.equal(
+    recorded?.state === 'unevaluated' ? recorded.reason : '',
+    SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
+  );
+});
+
+test('self-heal: one missing-object attempt is bounded — an unreadable transcript is not retried on every read', async () => {
+  const { store } = createMemoryStore();
+  let transcriptReads = 0;
+  const reader = readerOver(store, {
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/missing.jsonl', providerSessionId: null }),
+    readTranscript: async () => {
+      transcriptReads += 1;
+      return null;
+    },
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    assert.doesNotThrow(() => reader.read(HEAL_SESSION_ID, 'a1'));
+    await reader.settled();
+  }
+
+  assert.ok(transcriptReads <= 2, `the same card pays for at most two transcript reads, got ${transcriptReads}`);
+  assert.notEqual(store.getObject(formatSessionUri(HEAL_SESSION_ID)), null, 'the failure is recorded once');
+});
+
+test('self-heal: the hourly ceiling refuses the rebuild before any transcript is read', async () => {
+  const { store, objects } = createMemoryStore();
+  let transcriptReads = 0;
+  const reader = readerOver(store, {
+    settings: { ...STUB_SETTINGS, maxPerHour: 0 },
+    resolveSession: () => ({ title: '会话：浏览器 profile', jsonlPath: '/tmp/ask.jsonl', providerSessionId: null }),
+    readTranscript: async () => {
+      transcriptReads += 1;
+      return YES_NO_TRANSCRIPT;
+    },
+  });
+
+  assert.equal(reader.read(HEAL_SESSION_ID, 'a1'), null);
+  await reader.settled();
+  assert.equal(transcriptReads, 0, 'the ceiling is checked before the transcript is read');
+  assert.equal(objects.size, 0, 'nothing is written under the ceiling');
 });
 
 // ---------------------------------------------------------------------------------------------
