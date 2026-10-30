@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-mcp-tool-surface
 title: codex app-server 接入 CloudCLI MCP 工具面（Bash/Read/MCP 浏览器）
-status: ready
+status: done
 labels: []
 parent: null
 children: []
