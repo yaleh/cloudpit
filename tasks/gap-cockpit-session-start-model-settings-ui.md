@@ -108,3 +108,11 @@ DoD 证据（隔离实例 /tmp/ccui-dod-cockpit-session-start,独立 HOME/DB/set
 ## ADR-007 轴记录
 
 - 该轴仍暗,理由:本任务交付设置表单与已鉴权 API,不涉及 L_D/L_G 可视化轴读数;行为由 AC 判据与隔离实例场景报告覆盖。
+
+## Blocker
+
+**2026-10-30T14:29:55.564Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx: AssertionError: expected "spy" to be called 1 times, but got 0 times [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx,src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx,src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/cockpit/tests/CockpitCardActionEntrySurfaces.test.tsx,src/modules/cockpit/tests/CockpitCardCreateSession.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：0c5f2720-1ff5-4b0c-b616-5e1bb84591b5
