@@ -1,7 +1,7 @@
 {
   "measuredAt": "2026-10-31",
   "scope": "every non-test .ts/.tsx under src/ (tests/ directories pruned, *.test.*/*.spec.* dropped), paths relative to src/",
-  "note": "Committed baseline for the frontend directory-cycle ratchet (tasks/gap-routine-architecture-analysis-src-import-cycles-unpinned.md). A RATCHET: cycleGroups may only SHRINK. A group closed by a refactor is lowered explicitly here and in CYCLE_GROUPS in the same commit; never raise or add a group to accommodate a red reading. `readings` records the tree the pin was measured on (same walk, resolver and Tarjan scanner as AC-394's server budget, with src/ as the scan root so @/ resolves to src/); the counts are provenance, not a gate, because a new acyclic import is ordinary feature work.",
+  "note": "Committed baseline for the frontend import-cycle ratchets (tasks/gap-routine-architecture-analysis-src-import-cycles-unpinned.md, tasks/gap-routine-architecture-analysis-src-module-scc-cockpit-hub.md). A RATCHET: cycleGroups and moduleSccGroups may only SHRINK. A group closed by a refactor is lowered explicitly here and in the matching in-file pin in the same commit; never raise or add a group to accommodate a red reading. `cycleGroups` is the DIRECTORY reading; `moduleSccGroups` is the MODULE reading (`modules/<name>` nodes collapsed from the same walk). `readings` records the tree the pin was measured on (same walk, resolver and Tarjan scanner as AC-394's server budget, with src/ as the scan root so @/ resolves to src/); the counts are provenance, not a gate, because a new acyclic import is ordinary feature work.",
   "readings": {
     "files": 688,
     "staticFileEdges": 2144,
@@ -10,6 +10,12 @@
     "unresolvedInternal": 100,
     "nonLiteralDynamic": 2
   },
+  "moduleSccGroups": [
+    [
+      "modules/cockpit",
+      "modules/project-workspace"
+    ]
+  ],
   "cycleGroups": [
     [
       "modules/chat/tools",

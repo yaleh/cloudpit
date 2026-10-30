@@ -18,7 +18,7 @@
  * unchanged by the extraction.
  */
 import type { CockpitCard, CockpitCardOption } from '@/shared/types';
-import type { CockpitCardTypeFilter } from '@/modules/cockpit/contract';
+import type { CockpitCardTypeFilter } from '@/modules/cockpit-contract';
 import { FEEDBACK_LOCKED_REASON } from '@/modules/cockpit/cockpitCardFeedback';
 
 /** What one card currently displays in its option area. */

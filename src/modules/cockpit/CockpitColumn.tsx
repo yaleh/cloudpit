@@ -8,7 +8,7 @@ import { cn } from '@/shared/utils';
 import CockpitCardList from '@/modules/cockpit/CockpitCardList';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
 import type { CockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
-import { CockpitColumnVisibilityContext } from '@/modules/cockpit/contract';
+import { CockpitColumnVisibilityContext } from '@/modules/cockpit-contract';
 import { useCockpitHub } from '@/modules/cockpit/hooks/useCockpitHub';
 import { useCockpitPushToTalk } from '@/modules/cockpit/hooks/useCockpitPushToTalk';
 import {

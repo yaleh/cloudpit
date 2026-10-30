@@ -5,7 +5,7 @@ import { ListOrdered } from 'lucide-react';
 import {
   cockpitColumnCoversSession,
   useCockpitColumnVisibility,
-} from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
 import InputOutlineHandle from '@/modules/chat/outline/InputOutlineHandle';
 import { useOutlineHandleDrag } from '@/modules/chat/outline/useOutlineHandleDrag';
 import type { InputOutlineEntry } from '@/modules/chat/outline/useInputOutline';

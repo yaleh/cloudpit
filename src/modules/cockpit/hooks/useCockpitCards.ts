@@ -15,7 +15,7 @@ import type {
   CockpitCardMemory,
   CockpitCardMemoryState,
 } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardTypeFilter } from '@/modules/cockpit/contract';
+import type { CockpitCardTypeFilter } from '@/modules/cockpit-contract';
 
 /**
  * The React binding for `createCockpitCardController`.

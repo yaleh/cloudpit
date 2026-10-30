@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Clock, CockpitCard, CockpitCardOption } from '@/shared/types';
 import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
 import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import { cockpitColumnCoversSession } from '@/modules/cockpit/contract';
+import { cockpitColumnCoversSession } from '@/modules/cockpit-contract';
 import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
 import type {
   CockpitColumnController,

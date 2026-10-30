@@ -10,7 +10,7 @@ import {
   enterCockpit,
   readCockpitReturnPath,
   useCockpitColumnVisibility,
-} from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
 import { useFleetAttention } from '@/modules/sidebar/hooks/useFleetAttention';
 import type { FleetAttentionReading } from '@/modules/sidebar/hooks/useFleetAttention';
 

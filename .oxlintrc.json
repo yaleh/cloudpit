@@ -139,10 +139,12 @@
       },
       {
         // The cockpit's leaf contract: the address grammar, the observation URI/pin surface and
-        // the card reading that non-cockpit modules (sidebar, ui-scenario) consume. It imports
+        // the card reading that non-cockpit modules (sidebar, chat, ui-scenario) consume. It is
+        // its own top-level module (not a folder inside `modules/cockpit`) so the module-level
+        // import graph sees it as a leaf instead of folding it into the cockpit's SCC. It imports
         // only src/shared and React, never another feature module.
         "type": "frontend-leaf-contract",
-        "pattern": "src/modules/cockpit/contract",
+        "pattern": "src/modules/cockpit-contract",
         "mode": "folder"
       },
       {
@@ -289,7 +291,7 @@
               {
                 "to": { "type": "frontend-leaf-contract" },
                 "disallow": { "to": { "internalPath": "**" } },
-                "message": "Imports of the cockpit's leaf contract must go through src/modules/cockpit/contract/index.ts."
+                "message": "Imports of the cockpit's leaf contract must go through src/modules/cockpit-contract/index.ts."
               },
               {
                 "to": { "type": "frontend-module" },

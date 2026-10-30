@@ -24,7 +24,7 @@ import type {
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
 import { defaultShownOption } from '@/modules/cockpit/cockpitCardController';
-import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit/contract';
+import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit-contract';
 
 /**
  * The Details drawer a tap on a card's A zone opens: the full question, the situation and its

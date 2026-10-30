@@ -22,6 +22,15 @@
  * a new acyclic import is ordinary feature work and must not red this criterion. What IS
  * gated is non-vacuity — a walk that matched no files would otherwise report "zero cycles"
  * and pass, so the real-tree case asserts a floor on files, directories and resolved edges.
+ *
+ * MODULE GRANULARITY (finding `src-module-scc-cockpit-hub`). The directory reading above is
+ * finer than the question the architecture review asks: "which FEATURES depend on each other?"
+ * A node there is `modules/<name>` (the scope `.oxlintrc.json` calls `frontend-module`), and an
+ * edge is any cross-module import, collapsed from the same walk and resolved with the same
+ * resolver — no second scanner. The second reading must see at most a two-module cycle; today it
+ * is exactly cockpit ↔ project-workspace, and the cockpit's leaf contract is its own top-level
+ * module so the chat/sidebar/ui-scenario edges into it cannot pull those modules back into the
+ * cockpit's SCC. A new module cycle, or a leaf contract that grows an out-edge, reds this file.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -29,7 +38,13 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { collectTypeScriptSources, scanImportGraph, type Graph, type SourceFile } from '@/shared/import-graph.js';
+import {
+  collectTypeScriptSources,
+  scanImportGraph,
+  strongComponents,
+  type Graph,
+  type SourceFile,
+} from '@/shared/import-graph.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../..');
@@ -58,10 +73,28 @@ const MIN_FILES = 600;
 const MIN_DIRECTORIES = 100;
 const MIN_STATIC_FILE_EDGES = 2000;
 
+/**
+ * The module-level pin (finding `src-module-scc-cockpit-hub`): the ONLY non-trivial SCC in the
+ * `modules/<name>` graph is cockpit ↔ project-workspace. The task's acceptance criterion is "at
+ * most 2 members", but this pin spells the exact two so a shrink is a deliberate lowering (the
+ * same ratchet rule as the directory groups above), and so a NEW module cycle cannot hide behind
+ * the word "at most".
+ */
+const MODULE_SCC_GROUPS: readonly string[][] = [['modules/cockpit', 'modules/project-workspace']];
+
+/**
+ * Non-vacuity for the module reading: the merged tree carries 29 module nodes and 53
+ * cross-module import pairs (2026-10-31, the same walk after the leaf-contract extraction).
+ * The floors sit far below so only a collapsed scan trips them.
+ */
+const MIN_MODULES = 25;
+const MIN_CROSS_MODULE_EDGES = 30;
+
 type Baseline = {
   measuredAt: string;
   scope: string;
   cycleGroups: string[][];
+  moduleSccGroups?: string[][];
   readings: Record<string, number>;
 };
 
@@ -85,6 +118,60 @@ function assertCycleBudget(graph: Graph, pinned: readonly string[][]): void {
     'src directory cycles do not match the committed baseline. A cycle may only shrink: ' +
       'when one is genuinely closed, lower CYCLE_GROUPS here and the committed JSON in the ' +
       'same commit. Never add a member or a group to accommodate a red reading.',
+  );
+}
+
+/** `modules/cockpit/hooks` → `modules/cockpit`; `null` for anything outside `src/modules/`. */
+function moduleOf(directory: string): string | null {
+  if (!directory.startsWith('modules/')) return null;
+  const [name] = directory.slice('modules/'.length).split('/');
+  return name ? `modules/${name}` : null;
+}
+
+/**
+ * Collapse the directory graph to the module graph: nodes are `modules/<name>`, an edge is any
+ * import crossing two of them. Intra-module imports (`modules/cockpit/hooks` → `modules/cockpit`)
+ * are the module's own business and drop out; paths under `src/shared`, `src/` root files etc.
+ * are not feature modules and are outside this reading. The SCC pass is the SAME
+ * `strongComponents` the directory reading uses, so the two granularities cannot diverge.
+ */
+function moduleGraph(graph: Graph): { nodes: string[]; adjacency: Map<string, string[]>; edges: number } {
+  const nodes = new Set<string>();
+  const adjacency = new Map<string, Set<string>>();
+  const pairs = new Set<string>();
+  for (const edge of graph.dirEdges) {
+    const from = moduleOf(edge.from);
+    const to = moduleOf(edge.to);
+    if (from === null || to === null || from === to) continue;
+    nodes.add(from);
+    nodes.add(to);
+    pairs.add(`${from}\u0000${to}`);
+    const targets = adjacency.get(from) ?? new Set<string>();
+    targets.add(to);
+    adjacency.set(from, targets);
+  }
+  return {
+    nodes: [...nodes].sort(),
+    adjacency: new Map([...adjacency].map(([from, targets]) => [from, [...targets].sort()])),
+    edges: pairs.size,
+  };
+}
+
+/** The non-trivial SCCs of the module graph, largest first — the same Tarjan pass, coarser nodes. */
+function moduleSccs(graph: Graph): string[][] {
+  const { nodes, adjacency } = moduleGraph(graph);
+  return strongComponents(nodes, adjacency).filter((component) => component.length >= 2);
+}
+
+/** The module ratchet: the pin may only shrink, by lowering both this constant and the JSON. */
+function assertModuleSccBudget(measured: readonly string[][], pinned: readonly string[][]): void {
+  assert.deepEqual(
+    normalize(measured),
+    normalize(pinned),
+    'the src MODULE cycle budget changed. A module SCC may only shrink: when one is genuinely ' +
+      'closed, lower MODULE_SCC_GROUPS here and moduleSccGroups in the committed JSON in the ' +
+      'same commit. Never add a module (or move a leaf contract back inside a feature module) ' +
+      'to accommodate a red reading.',
   );
 }
 
@@ -151,4 +238,71 @@ test('negative control: a one-way import is a resolved edge, not a cycle', () =>
   assert.deepEqual(graph.nonTrivialSccs, [], 'a one-way import cannot close a cycle');
   assert.equal(graph.staticFileEdges, 1, 'the edge must resolve — an unresolved import would make the empty SCC list vacuous');
   assert.doesNotThrow(() => assertCycleBudget(graph, []), 'an acyclic reading matches the empty pin');
+});
+
+// ── The module-level reading (finding `src-module-scc-cockpit-hub`) ─────────────
+
+test('the current src module graph carries exactly the pinned two-module cycle', () => {
+  const sources = collectTypeScriptSources(SRC_DIR);
+  const graph = scanImportGraph(sources, { includeDynamic: false });
+  const { nodes, adjacency, edges } = moduleGraph(graph);
+
+  assert.ok(nodes.length >= MIN_MODULES, `module reading saw ${nodes.length} modules (< ${MIN_MODULES}) — a collapsed scan is not a clean one`);
+  assert.ok(
+    edges >= MIN_CROSS_MODULE_EDGES,
+    `module reading saw ${edges} cross-module import pairs (< ${MIN_CROSS_MODULE_EDGES}) — the module graph is not being read`,
+  );
+  assert.ok(nodes.includes('modules/cockpit-contract'), 'the cockpit leaf contract must be its own top-level module');
+
+  // The leaf contract's whole point: it has no out-edge into a feature module, so importing it
+  // from chat/sidebar/ui-scenario cannot pull anything into a cycle.
+  assert.deepEqual(
+    adjacency.get('modules/cockpit-contract') ?? [],
+    [],
+    'the cockpit leaf contract grew an out-edge to a feature module — it is no longer a leaf',
+  );
+
+  assertModuleSccBudget(moduleSccs(graph), MODULE_SCC_GROUPS);
+
+  // Two-place pin: the committed JSON and the in-file constant must name the same SCC groups.
+  const baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8')) as Baseline;
+  assert.deepEqual(
+    normalize(baseline.moduleSccGroups ?? []),
+    normalize(MODULE_SCC_GROUPS),
+    'the committed JSON and the in-file module pin must name the same groups, or a wider reading could be blessed by editing one of them',
+  );
+});
+
+test('positive control: a planted two-module cycle reds the module ratchet', () => {
+  const graph = scanFixture({
+    'modules/alpha/a.ts': "import '@/modules/beta/b.js';\n",
+    'modules/beta/b.ts': "import '../alpha/a.js';\n",
+  });
+
+  assert.deepEqual(moduleSccs(graph), [['modules/alpha', 'modules/beta']], 'the module reading must see the planted @/-resolved cycle');
+  assert.throws(
+    () => assertModuleSccBudget(moduleSccs(graph), MODULE_SCC_GROUPS),
+    /MODULE cycle budget changed/,
+    'a module cycle outside the pin must red the same assertion the real tree uses',
+  );
+});
+
+test('control: a shared leaf module imported by two modules closes no cycle', () => {
+  const acyclic = scanFixture({
+    'modules/alpha/a.ts': "import '@/modules/leaf/index.js';\n",
+    'modules/beta/b.ts': "import '@/modules/leaf/index.js';\n",
+    'modules/leaf/index.ts': 'export const x = 1;\n',
+  });
+  assert.deepEqual(moduleSccs(acyclic), [], 'a leaf imported by two modules is a fan-in, not a cycle');
+
+  // The discriminating twin: the same two importers DO red when the "leaf" imports one back.
+  const cyclic = scanFixture({
+    'modules/alpha/a.ts': "import '@/modules/leaf/index.js';\n",
+    'modules/leaf/index.ts': "export { a } from '@/modules/alpha/a.js';\n",
+  });
+  assert.deepEqual(
+    moduleSccs(cyclic),
+    [['modules/alpha', 'modules/leaf']],
+    'a contract that imports a feature module must join its SCC — otherwise the leaf guard would be vacuous',
+  );
 });

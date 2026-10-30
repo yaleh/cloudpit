@@ -9,7 +9,7 @@ import {
   setObservationWatch,
   toggleObservationPin,
   useObservationPin,
-} from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
 
 /**
  * The observation wall's client half.

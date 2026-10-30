@@ -12,7 +12,7 @@ import { formatQuayUri } from '@/modules/quay';
  * The cockpit's view projection: the project shape, the latency reading, the initiative
  * reading types and the focus contracts the stage builds from them.
  *
- * THE ADDRESS GRAMMAR IS NOT HERE. It lives in `@/modules/cockpit/contract/viewAddress`, the
+ * THE ADDRESS GRAMMAR IS NOT HERE. It lives in `@/modules/cockpit-contract/viewAddress`, the
  * module's leaf contract, because the sidebar mints the same cockpit links and importing them
  * from this package's barrel closes a package cycle. The symbols are re-exported below so the
  * cockpit's own files keep one import path.
@@ -76,8 +76,8 @@ export {
   parseCockpitView,
   readCockpitReturnPath,
   rememberCockpitReturnPath,
-} from '@/modules/cockpit/contract';
-export type { CockpitView } from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
+export type { CockpitView } from '@/modules/cockpit-contract';
 
 // ── The initiative view / decision queue reading ─────────────────────────────
 //

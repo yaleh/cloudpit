@@ -8,7 +8,7 @@ import type {
   CockpitCardDensity,
   CockpitCardReading,
   CockpitCardTypeFilter,
-} from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
 import {
   awaitingFeedbackCount,
   canResendFeedback,
@@ -105,7 +105,7 @@ export type {
   CockpitCardDensity,
   CockpitCardReading,
   CockpitCardTypeFilter,
-} from '@/modules/cockpit/contract';
+} from '@/modules/cockpit-contract';
 
 /**
  * One card's brief reading. Every non-idle state carries the CARD revision it was read at, so a

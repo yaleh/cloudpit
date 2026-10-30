@@ -26,7 +26,7 @@
  * exist yet in `drive`. `drive` presses the trigger and hands the rest to `settle`, which the
  * runner awaits after every step ({@link settleCardStep}). Both halves are still real DOM presses.
  */
-import type { CockpitCardReading } from '@/modules/cockpit/contract';
+import type { CockpitCardReading } from '@/modules/cockpit-contract';
 
 /**
  * The payload of one card command: the card it addresses, plus what the command types or chooses.

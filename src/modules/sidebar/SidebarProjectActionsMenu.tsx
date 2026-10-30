@@ -6,7 +6,7 @@ import { ActionMenu } from '@/shared/ui';
 import type { ActionMenuItem } from '@/shared/ui/ActionMenu';
 import type { Project } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { cockpitViewPath, formatProjectUri, useObservationPin } from '@/modules/cockpit/contract';
+import { cockpitViewPath, formatProjectUri, useObservationPin } from '@/modules/cockpit-contract';
 
 export type SidebarProjectActionsMenuProps = {
   project: Project;

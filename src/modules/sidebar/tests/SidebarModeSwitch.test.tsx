@@ -37,13 +37,13 @@ vi.mock('@/shared/hooks/useServerFeatures', () => ({
  * AC4: the switch and the header's gauge share ONE cockpit entry action.
  *
  * The stub replaces `enterCockpit` at its definition in the leaf contract's `viewAddress`
- * module. The switch imports it from `@/modules/cockpit/contract` and the gauge from
+ * module. The switch imports it from `@/modules/cockpit-contract` and the gauge from
  * `@/modules/cockpit/cockpitEntry` (a re-export of the same symbol), so one call count proves
  * both doors delegate — and the sessionStorage assertion proves neither writes the record by
  * itself any more.
  */
 const entryMock = vi.hoisted(() => ({ enterCockpit: vi.fn() }));
-vi.mock('@/modules/cockpit/contract/viewAddress', async (importOriginal) => {
+vi.mock('@/modules/cockpit-contract/viewAddress', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, enterCockpit: entryMock.enterCockpit };
 });

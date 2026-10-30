@@ -272,5 +272,5 @@ export default function ObservationTile({
  * same button, and reaching it through this package would close the cockpit ↔ sidebar package
  * cycle. Re-exported so the cockpit's own barrel and tests keep one import path.
  */
-export { WatchPinToggle } from '@/modules/cockpit/contract';
+export { WatchPinToggle } from '@/modules/cockpit-contract';
 
