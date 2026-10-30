@@ -44,3 +44,4 @@ B. `staleShapeOf` 增加 `transcript-missing` 形状（`reading.state==='unevalu
 - server/modules/observation/session-ask-decision-reader.ts
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
 - server/modules/observation/tests/session-ask-recovery.test.ts
+- tasks/gap-cockpit-ask-read-self-heal-from-transcript.md
