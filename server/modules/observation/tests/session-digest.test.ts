@@ -33,9 +33,11 @@ import {
   observationDb,
   sessionsDb,
 } from '@/modules/database/index.js';
+import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
+import type { OpenSessionAsk } from '../../context-events/index.js';
 import { formatSessionUri } from '../observation-uri.js';
-import { createObservationStore } from '../observation-store.js';
+import { createObservationStore, type ObservedObject, type ObservationStore } from '../observation-store.js';
 import {
   analyzeAsking,
   analyzeAssistantAsk,
@@ -43,7 +45,17 @@ import {
   parseTestOutput,
   SESSION_DIGEST_CONCLUSION_CHARS,
 } from '../session-digest.js';
-import { createSessionDigestProducer } from '../session-digest.producer.js';
+import {
+  createSessionDigestProducer,
+  readSessionAskEventLedger,
+  SESSION_ASK_EVENTS_DIGEST_KEY,
+  type SessionAskEventLedger,
+  type SessionAskSweepableProducer,
+} from '../session-digest.producer.js';
+import {
+  SESSION_ASK_NOT_ASKING_REASON,
+  type SessionAskDecisionDigest,
+} from '../session-ask-decision-digest.js';
 
 const TEST_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.join(TEST_DIRECTORY, 'fixtures', 'session-transcript.jsonl');
@@ -406,4 +418,789 @@ test('AC2: a missing transcript writes unevaluated with a reason', async () => {
   assert.equal(typeof written?.status.reason, 'string');
   assert.notEqual(written?.status.reason, '');
   assert.match(String(written?.digest.unevaluatedReason), /transcript/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Ask retraction and answered backfill (gap-cockpit-ask-retraction-and-ledger-backfill)
+// ---------------------------------------------------------------------------------------------
+
+/** A captured session-ask event; only the fields the retraction criteria read. */
+type CapturedSessionAskEvent = {
+  kind: string;
+  session: string;
+  project: string;
+  at: string;
+  data: Record<string, unknown>;
+};
+
+/** The semantic verdict stub: a long report is a non-ask, everything else is a real ask. */
+function retractionSummarize(input: { assistantText: string }): SessionAskDecisionReading {
+  if (input.assistantText.includes('长篇审查报告') || input.assistantText.includes('不是提问')) {
+    return { state: 'unevaluated', isAsking: false, reason: '语义判定：这条助手消息不是在提问' };
+  }
+  return askingReading('要不要继续？');
+}
+
+/** Builds a producer over the real store with an in-memory event capture and a stub summariser. */
+function retractionProducer(options: {
+  sessionIds?: string[];
+  streamAsks?: ReadonlyArray<{
+    askId: string;
+    sessionId: string;
+    messageId: string;
+    revision: number;
+    project: string;
+    askedAt: string;
+  }>;
+  summarize?: (input: { assistantText: string }) => Promise<SessionAskDecisionReading>;
+}): { producer: ReturnType<typeof createSessionDigestProducer>; events: CapturedSessionAskEvent[] } {
+  const events: CapturedSessionAskEvent[] = [];
+  const eventWriter = {
+    write(event: CapturedSessionAskEvent) {
+      events.push(event);
+    },
+  };
+  const producer = createSessionDigestProducer({
+    store,
+    now: () => clock,
+    eventWriter,
+    isObserved: () => false,
+    summarizeAsk: {
+      summarize: async (input) =>
+        (options.summarize ?? (async () => retractionSummarize(input)))(input),
+    },
+    listObservedSessionIds: () => options.sessionIds ?? [],
+    ...(options.streamAsks === undefined
+      ? {}
+      : { readOpenSessionAsks: async () => options.streamAsks ?? [] }),
+    sweepDelayMs: 0,
+  });
+  return { producer, events };
+}
+
+/** Seeds one observation object whose ledger already names an unfinished ask. */
+function seedLedger(sessionId: string, ledger: SessionAskEventLedger): void {
+  clock += 1;
+  store.writeRevision({
+    uri: formatSessionUri(sessionId),
+    kind: 'session',
+    title: `Session ${sessionId}`,
+    status: { state: 'attention', reason: 'seeded' },
+    digest: { activity: 'waiting', askEvents: ledger },
+    deltaItems: [],
+    provenance: { producer: 'test-seed', tier: 'deterministic', evaluatedAt: clock },
+  });
+}
+
+const RETRACTION_FALSE_POSITIVE_ROWS = [
+  {
+    type: 'user',
+    uuid: 'fp-u1',
+    sessionId: 'retract-false-positive',
+    message: { role: 'user', content: [{ type: 'text', text: '看这份审查报告' }] },
+  },
+  {
+    type: 'assistant',
+    uuid: 'fp-a1',
+    sessionId: 'retract-false-positive',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'text', text: '长篇审查报告如下：\n1. 第一点\n2. 第二点\n\n本轮没有运行测试。' }],
+    },
+  },
+];
+
+test('retraction: a ledger ask whose message is a long report is withdrawn exactly once', async () => {
+  const sessionId = 'retract-ledger-session';
+  const messageId = 'fp-a1';
+  const askId = `${sessionId}:${messageId}`;
+  seedLedger(sessionId, { answered: [], asking: [`${askId}:1`], pending: [{ askId, messageId }], retracted: [] });
+  const transcriptRows = RETRACTION_FALSE_POSITIVE_ROWS.map((row) => ({ ...row, sessionId }));
+  createSessionRow(sessionId, await writeTranscript('retract-ledger.jsonl', transcriptRows));
+
+  const { producer, events } = retractionProducer({ sessionIds: [sessionId] });
+  await producer.sweepOpenAsks();
+
+  const retracted = events.filter((event) => event.kind === 'session.asking.retracted');
+  assert.equal(retracted.length, 1, 'one mis-stated ask is withdrawn once');
+  assert.deepEqual(retracted[0]?.data, { askId, messageId });
+
+  const ledger = readSessionAskEventLedger(store.getObject(formatSessionUri(sessionId))?.digest);
+  assert.deepEqual(ledger.asking, [], 'the asking key is cleared');
+  assert.deepEqual(ledger.pending, [], 'the pending entry is cleared');
+  assert.deepEqual(ledger.retracted, [askId], 'the withdrawn askId is remembered');
+
+  // A second pass never re-states the withdrawal.
+  await producer.sweepOpenAsks();
+  assert.equal(events.filter((event) => event.kind === 'session.asking.retracted').length, 1);
+});
+
+test('retraction: a genuine question is not withdrawn, and an unreadable transcript is left alone', async () => {
+  const sessionId = 'retract-genuine-session';
+  const messageId = 'gen-a1';
+  const askId = `${sessionId}:${messageId}`;
+  seedLedger(sessionId, { answered: [], asking: [`${askId}:1`], pending: [{ askId, messageId }], retracted: [] });
+  const rows = [
+    { type: 'user', uuid: 'gen-u1', sessionId, message: { role: 'user', content: [{ type: 'text', text: '开始' }] } },
+    { type: 'assistant', uuid: messageId, sessionId, message: { role: 'assistant', content: [{ type: 'text', text: '要不要先补测试？' }] } },
+  ];
+  createSessionRow(sessionId, await writeTranscript('retract-genuine.jsonl', rows));
+
+  const { producer, events } = retractionProducer({ sessionIds: [sessionId] });
+  await producer.sweepOpenAsks();
+  assert.equal(events.filter((event) => event.kind === 'session.asking.retracted').length, 0, 'a real ask is never withdrawn');
+
+  // An unreadable transcript (path does not exist) must not produce a withdrawal either.
+  const unreadableId = 'retract-unreadable-session';
+  const unreadableAskId = `${unreadableId}:${messageId}`;
+  seedLedger(unreadableId, { answered: [], asking: [`${unreadableAskId}:1`], pending: [{ askId: unreadableAskId, messageId }], retracted: [] });
+  createSessionRow(unreadableId, path.join(temporaryDirectory, 'missing-retract.jsonl'));
+  const { producer: unreadableProducer, events: unreadableEvents } = retractionProducer({ sessionIds: [unreadableId] });
+  await unreadableProducer.sweepOpenAsks();
+  assert.equal(unreadableEvents.filter((event) => event.kind === 'session.asking.retracted').length, 0, 'an unreadable message is never withdrawn');
+});
+
+test('retraction: an event-only ask with no observation object is withdrawn once', async () => {
+  const sessionId = 'retract-event-only-session';
+  const messageId = 'fp-a1';
+  const askId = `${sessionId}:${messageId}`;
+  createSessionRow(sessionId, await writeTranscript('retract-event-only.jsonl', RETRACTION_FALSE_POSITIVE_ROWS.map((row) => ({ ...row, sessionId }))));
+
+  const streamAsks = [
+    { askId, sessionId, messageId, revision: 1, project: temporaryDirectory, askedAt: '2026-10-29T00:00:00.000Z' },
+  ];
+  const { producer, events } = retractionProducer({ sessionIds: [], streamAsks });
+  await producer.sweepOpenAsks();
+
+  const retracted = events.filter((event) => event.kind === 'session.asking.retracted');
+  assert.equal(retracted.length, 1);
+  assert.deepEqual(retracted[0]?.data, { askId, messageId });
+
+  // The event-only session has no object, so the in-process emit guard is what stops a repeat.
+  await producer.sweepOpenAsks();
+  assert.equal(events.filter((event) => event.kind === 'session.asking.retracted').length, 1);
+});
+
+test('retraction: an asking turn writes the object before the asking event, even unwatched', async () => {
+  const sessionId = 'ask-object-before-event';
+  const rows = [
+    { type: 'user', uuid: 'ask-u1', sessionId, message: { role: 'user', content: [{ type: 'text', text: '开始' }] } },
+    { type: 'assistant', uuid: 'ask-a1', sessionId, message: { role: 'assistant', content: [{ type: 'text', text: '要不要先补测试？' }] } },
+  ];
+  createSessionRow(sessionId, await writeTranscript('ask-before-event.jsonl', rows));
+
+  const events: CapturedSessionAskEvent[] = [];
+  const eventWriter = {
+    write(event: CapturedSessionAskEvent) {
+      if (event.kind === 'session.asking') {
+        assert.notEqual(
+          store.getObject(formatSessionUri(sessionId)),
+          null,
+          'the object must exist before its asking event is stated',
+        );
+      }
+      events.push(event);
+    },
+  };
+  const producer = createSessionDigestProducer({
+    store,
+    now: () => clock,
+    eventWriter,
+    isObserved: () => false,
+    summarizeAsk: { summarize: async () => askingReading('要不要先补测试？') },
+  });
+
+  const written = await producer.handleTurnEnd({
+    appSessionId: sessionId,
+    runId: 'run-ask-before-event',
+    status: 'completed',
+    completedAt: clock,
+    error: null,
+  });
+  assert.notEqual(written, null, 'an asking turn is written even when nobody watches');
+  assert.equal(written?.status.state, 'attention');
+  assert.equal(events.filter((event) => event.kind === 'session.asking').length, 1);
+});
+
+test('answered: a session with no observation object states the answer from the stream once', async () => {
+  const sessionId = 'no-object-answered-session';
+  const messageId = 'no-a1';
+  const askId = `${sessionId}:${messageId}`;
+  const rows = [
+    { type: 'user', uuid: 'no-u1', sessionId, message: { role: 'user', content: [{ type: 'text', text: '开始' }] } },
+    { type: 'assistant', uuid: messageId, sessionId, message: { role: 'assistant', content: [{ type: 'text', text: '要不要先补测试？' }] } },
+    { type: 'user', uuid: 'no-u2', sessionId, message: { role: 'user', content: [{ type: 'text', text: '先补测试' }] } },
+    { type: 'assistant', uuid: 'no-a2', sessionId, message: { role: 'assistant', content: [{ type: 'text', text: '补好了。' }] } },
+  ];
+  createSessionRow(sessionId, await writeTranscript('no-object-answered.jsonl', rows));
+
+  const streamAsks = [
+    { askId, sessionId, messageId, revision: 1, project: temporaryDirectory, askedAt: '2026-10-29T00:00:00.000Z' },
+  ];
+  const { producer, events } = retractionProducer({ sessionIds: [], streamAsks });
+  await producer.sweepOpenAsks();
+
+  const answered = events.filter((event) => event.kind === 'session.answered');
+  assert.equal(answered.length, 1);
+  assert.equal(answered[0]?.data.askId, askId);
+  assert.equal(answered[0]?.data.messageId, 'no-u2', 'the answer names the user message that settled the ask');
+  assert.equal(events.filter((event) => event.kind === 'session.asking.retracted').length, 0);
+
+  await producer.sweepOpenAsks();
+  assert.equal(events.filter((event) => event.kind === 'session.answered').length, 1);
+});
+
+test('answered: a false-positive ask in a session with no object is withdrawn, not answered', async () => {
+  const sessionId = 'no-object-retract-session';
+  const messageId = 'fp-a1';
+  const askId = `${sessionId}:${messageId}`;
+  createSessionRow(sessionId, await writeTranscript('no-object-retract.jsonl', RETRACTION_FALSE_POSITIVE_ROWS.map((row) => ({ ...row, sessionId }))));
+
+  const streamAsks = [
+    { askId, sessionId, messageId, revision: 1, project: temporaryDirectory, askedAt: '2026-10-29T00:00:00.000Z' },
+  ];
+  const { producer, events } = retractionProducer({ sessionIds: [], streamAsks });
+  await producer.sweepOpenAsks();
+
+  assert.equal(events.filter((event) => event.kind === 'session.answered').length, 0, 'a mis-stated ask is never answered');
+  assert.equal(events.filter((event) => event.kind === 'session.asking.retracted').length, 1, 'it is withdrawn instead');
+});
+
+test('retraction: the 62d mid-message decision is a real ask — answered, never withdrawn', async () => {
+  // The live fixture: the question sits in the MIDDLE of the message, the last paragraph is a
+  // caveat. A position heuristic would read it as a statement; the semantic verdict must not.
+  const sessionId = '62d959c0-5487-4649-a5f2-ab38462c438b';
+  const messageId = '3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a';
+  const askId = `${sessionId}:${messageId}`;
+  const rows = [
+    { type: 'user', uuid: '62d-u1', sessionId, message: { role: 'user', content: [{ type: 'text', text: '帮我审查封装实践' }] } },
+    {
+      type: 'assistant',
+      uuid: messageId,
+      sessionId,
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: '值得优先讨论的下一步：\n1. 先拆 observation producer 的 ask ledger\n2. 再核对 cockpit controller\n\n本轮没有运行测试，以上是只读审查。',
+          },
+        ],
+      },
+    },
+    { type: 'user', uuid: '62d-u2', sessionId, message: { role: 'user', content: [{ type: 'text', text: '先拆 observation producer 的 ask ledger 和恢复/sweep。' }] } },
+  ];
+  createSessionRow(sessionId, await writeTranscript('retract-62d.jsonl', rows));
+
+  const streamAsks = [
+    { askId, sessionId, messageId, revision: 1, project: temporaryDirectory, askedAt: '2026-10-29T16:05:53.000Z' },
+  ];
+  const { producer, events } = retractionProducer({ sessionIds: [], streamAsks });
+  await producer.sweepOpenAsks();
+
+  assert.equal(
+    events.filter((event) => event.kind === 'session.asking.retracted').length,
+    0,
+    'the mid-message decision is never withdrawn',
+  );
+  const answered = events.filter((event) => event.kind === 'session.answered');
+  assert.equal(answered.length, 1, 'the user reply settles the ask');
+  assert.equal(answered[0]?.data.askId, askId);
+  assert.equal(answered[0]?.data.messageId, '62d-u2');
+});
+
+
+// ---------------------------------------------------------------------------------------------
+// Retraction of mis-stated asks, and answers for sessions that hold no observation object
+// ---------------------------------------------------------------------------------------------
+
+const ASK_CLOCK = 1_800_000_500_000;
+const ASK_PROJECT = '/repo/project';
+
+type AskTurn = { role: 'user' | 'assistant'; id: string; text: string };
+
+/** Renders turns as the JSONL the observation layer reads; the row `uuid` is the message id. */
+function askTranscript(turns: AskTurn[]): string {
+  return `${turns
+    .map((turn) =>
+      JSON.stringify({
+        type: turn.role,
+        uuid: turn.id,
+        message: { role: turn.role, content: [{ type: 'text', text: turn.text }] },
+      }),
+    )
+    .join('\n')}\n`;
+}
+
+/**
+ * A long report whose numbered list passes the WIDE prefilter but whose last paragraph is a
+ * statement. It is the 5b/fea61b arm: a card built from it was never a question.
+ */
+const ASK_STATEMENT_TEXT = [
+  '我复核了整条链路，下面是我的发现：',
+  '',
+  '1. 第一项检查已经完成',
+  '2. 第二项检查已经完成',
+  '3. 第三项检查已经完成',
+  '',
+  '结论都写在上面的报告里。',
+].join('\n');
+
+/** A plain, unambiguous question (the control arm). */
+const ASK_QUESTION_TEXT = '前面做了很多。\n\n要不要现在改？';
+
+/** The T1 verdict for the 5b/fea61b arm: a mechanically-wide candidate that is not a question. */
+const NOT_ASKING: SessionAskDecisionReading = {
+  state: 'unevaluated',
+  isAsking: false,
+  reason: SESSION_ASK_NOT_ASKING_REASON,
+};
+
+function askingReading(ask: string): SessionAskDecisionReading {
+  return {
+    state: 'evaluated',
+    isAsking: true,
+    askId: 'x:y',
+    revision: 1,
+    ask,
+    situation: '正在决定下一步。',
+    options: [],
+    incomplete: false,
+    inputTokens: 10,
+    outputTokens: 5,
+  };
+}
+
+/** A summary stub over one fixed reading, recording how many times it was consulted. */
+function summaryStub(reading: SessionAskDecisionReading): {
+  digest: SessionAskDecisionDigest;
+  calls: () => number;
+} {
+  let calls = 0;
+  return {
+    digest: {
+      async summarize() {
+        calls += 1;
+        return reading;
+      },
+    },
+    calls: () => calls,
+  };
+}
+
+type AskHarness = {
+  producer: SessionAskSweepableProducer;
+  events: SessionAskEvent[];
+  writes: ObservedObject[];
+  order: string[];
+  object: () => ObservedObject | null;
+};
+
+/**
+ * A producer over an in-memory store and event recorder, with the transcript and the stream
+ * seam supplied by the criterion. `seed` puts a digest (and thus a ledger) on the object before
+ * the first pass; the seeding writes are not counted as the criterion's own.
+ */
+function askHarness(options: {
+  sessionId: string;
+  raw: string | null;
+  summarizeAsk?: SessionAskDecisionDigest;
+  observed?: boolean;
+  readOpenSessionAsks?: () => Promise<readonly OpenSessionAsk[]>;
+  listObservedSessionIds?: () => string[];
+  seed?: Record<string, unknown>;
+}): AskHarness {
+  const objects = new Map<string, ObservedObject>();
+  const writes: ObservedObject[] = [];
+  const events: SessionAskEvent[] = [];
+  const order: string[] = [];
+  const store = {
+    writeRevision(input: Parameters<ObservationStore['writeRevision']>[0]): ObservedObject {
+      const object: ObservedObject = {
+        uri: input.uri,
+        kind: input.kind,
+        title: input.title,
+        status: input.status,
+        digest: input.digest ?? {},
+        blindSpots: [],
+        revision: (objects.get(input.uri)?.revision ?? 0) + 1,
+        updatedAt: ASK_CLOCK,
+        provenance: {
+          producer: input.provenance.producer,
+          tier: input.provenance.tier,
+          evaluatedAt: input.provenance.evaluatedAt ?? ASK_CLOCK,
+        },
+      };
+      objects.set(input.uri, object);
+      writes.push(object);
+      order.push(`write:${input.kind}`);
+      return object;
+    },
+    getObject: (uri: string) => objects.get(uri) ?? null,
+  } as unknown as ObservationStore;
+
+  if (options.seed !== undefined) {
+    store.writeRevision({
+      uri: formatSessionUri(options.sessionId),
+      kind: 'session',
+      title: 'seeded session',
+      status: { state: 'ok' },
+      digest: options.seed,
+      deltaItems: [],
+      provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: ASK_CLOCK },
+    });
+    writes.length = 0;
+    order.length = 0;
+  }
+
+  const producer = createSessionDigestProducer({
+    store,
+    resolveSession: () => ({ title: '会话：撤回', projectPath: ASK_PROJECT, jsonlPath: '/tmp/retraction.jsonl' }),
+    readTranscript: async () => options.raw,
+    isObserved: () => options.observed ?? true,
+    now: () => ASK_CLOCK,
+    sweepDelayMs: 0,
+    eventWriter: {
+      write(event) {
+        events.push(event);
+        order.push(`event:${event.kind}`);
+      },
+    },
+    ...(options.summarizeAsk === undefined ? {} : { summarizeAsk: options.summarizeAsk }),
+    ...(options.readOpenSessionAsks === undefined ? {} : { readOpenSessionAsks: options.readOpenSessionAsks }),
+    ...(options.listObservedSessionIds === undefined ? {} : { listObservedSessionIds: options.listObservedSessionIds }),
+  }) as unknown as SessionAskSweepableProducer;
+
+  return {
+    producer,
+    events,
+    writes,
+    order,
+    object: () => store.getObject(formatSessionUri(options.sessionId)),
+  };
+}
+
+function eventsOf(events: SessionAskEvent[], kind: SessionAskEvent['kind']): SessionAskEvent[] {
+  return events.filter((event) => event.kind === kind);
+}
+
+function ledgerOf(object: ObservedObject | null): SessionAskEventLedger {
+  return readSessionAskEventLedger(object?.digest);
+}
+
+test('AC: a ledger asking that points at a statement is withdrawn once, and the ledger records it', async () => {
+  const sessionId = 'replay-retraction-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '审查一下' },
+    { role: 'assistant', id: 'a1', text: ASK_STATEMENT_TEXT },
+  ]);
+  const stub = summaryStub(NOT_ASKING);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: stub.digest,
+    listObservedSessionIds: () => [sessionId],
+    seed: {
+      [SESSION_ASK_EVENTS_DIGEST_KEY]: {
+        answered: [],
+        asking: [`${askId}:1`],
+        pending: [{ askId, messageId: 'a1' }],
+      },
+    },
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  const retractions = eventsOf(harness.events, 'session.asking.retracted');
+  assert.equal(retractions.length, 1, 'the ledger replay states exactly one retraction');
+  assert.equal(retractions[0]?.session, sessionId);
+  assert.deepEqual(retractions[0]?.data, { askId, messageId: 'a1' });
+  assert.ok(stub.calls() >= 1, 'the withdrawal needs the T1 semantic verdict, never a position');
+
+  const ledger = ledgerOf(harness.object());
+  assert.deepEqual(ledger.asking, []);
+  assert.deepEqual(ledger.pending, []);
+  assert.deepEqual(ledger.retracted, [askId]);
+});
+
+test('AC: the withdrawn ask leaves asking/pending and is not restated on the next replay', async () => {
+  const sessionId = 'replay-retraction-once-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '审查一下' },
+    { role: 'assistant', id: 'a1', text: ASK_STATEMENT_TEXT },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(NOT_ASKING).digest,
+    listObservedSessionIds: () => [sessionId],
+    seed: {
+      [SESSION_ASK_EVENTS_DIGEST_KEY]: {
+        answered: [],
+        asking: [`${askId}:1`],
+        pending: [{ askId, messageId: 'a1' }],
+      },
+    },
+  });
+
+  await harness.producer.sweepOpenAsks();
+  const ledger = ledgerOf(harness.object());
+  assert.deepEqual(ledger.asking, [], 'no asking key survives the withdrawal');
+  assert.deepEqual(ledger.pending, [], 'no pending entry survives the withdrawal');
+  assert.deepEqual(ledger.retracted, [askId], 'the ledger is the cross-process dedup');
+
+  await harness.producer.sweepOpenAsks();
+  assert.equal(
+    eventsOf(harness.events, 'session.asking.retracted').length,
+    1,
+    'the second replay does not state the retraction again',
+  );
+});
+
+test('AC: a real question in the ledger is never withdrawn', async () => {
+  const sessionId = 'replay-real-question-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '开始' },
+    { role: 'assistant', id: 'a1', text: ASK_QUESTION_TEXT },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(askingReading('要不要现在改？')).digest,
+    listObservedSessionIds: () => [sessionId],
+    seed: {
+      [SESSION_ASK_EVENTS_DIGEST_KEY]: {
+        answered: [],
+        asking: [`${askId}:1`],
+        pending: [{ askId, messageId: 'a1' }],
+      },
+    },
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  assert.deepEqual(eventsOf(harness.events, 'session.asking.retracted'), []);
+  assert.deepEqual(ledgerOf(harness.object()).retracted, []);
+});
+
+test('AC: an unreadable transcript withdraws nothing', async () => {
+  const sessionId = 'replay-unreadable-session';
+  const askId = `${sessionId}:a1`;
+  const harness = askHarness({
+    sessionId,
+    raw: null,
+    summarizeAsk: summaryStub(NOT_ASKING).digest,
+    listObservedSessionIds: () => [sessionId],
+    seed: {
+      [SESSION_ASK_EVENTS_DIGEST_KEY]: {
+        answered: [],
+        asking: [`${askId}:1`],
+        pending: [{ askId, messageId: 'a1' }],
+      },
+    },
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  assert.deepEqual(eventsOf(harness.events, 'session.asking.retracted'), []);
+});
+
+test('AC: an asking that exists only in the event stream is replayed and withdrawn once', async () => {
+  const sessionId = 'event-only-retraction-session';
+  const askId = `${sessionId}:a1`;
+  const open: OpenSessionAsk[] = [
+    {
+      askId,
+      sessionId,
+      messageId: 'a1',
+      revision: 1,
+      project: ASK_PROJECT,
+      askedAt: '2026-10-29T16:05:53.000Z',
+    },
+  ];
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '审查一下' },
+    { role: 'assistant', id: 'a1', text: ASK_STATEMENT_TEXT },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(NOT_ASKING).digest,
+    // The stream reader's own rule: a retraction row closes the ask, so a later pass no
+    // longer sees it open. This is the cross-restart dedup for a session with no ledger.
+    readOpenSessionAsks: async () =>
+      harness.events.some(
+        (event) => event.kind === 'session.asking.retracted' && event.data.askId === askId,
+      )
+        ? []
+        : open,
+    listObservedSessionIds: () => [],
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  const retractions = eventsOf(harness.events, 'session.asking.retracted');
+  assert.equal(retractions.length, 1, 'the event-only ask is withdrawn even with no ledger');
+  assert.deepEqual(retractions[0]?.data, { askId, messageId: 'a1' });
+  assert.equal(harness.object(), null, 'a retraction never invents an observation object');
+
+  await harness.producer.sweepOpenAsks();
+  assert.equal(eventsOf(harness.events, 'session.asking.retracted').length, 1, 'no re-statement');
+});
+
+test('AC: an event-only real question states no retraction', async () => {
+  const sessionId = 'event-only-question-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '开始' },
+    { role: 'assistant', id: 'a1', text: ASK_QUESTION_TEXT },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(askingReading('要不要现在改？')).digest,
+    readOpenSessionAsks: async () => [
+      { askId, sessionId, messageId: 'a1', revision: 1, project: ASK_PROJECT, askedAt: '2026-10-29T16:05:53.000Z' },
+    ],
+    listObservedSessionIds: () => [],
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  assert.deepEqual(eventsOf(harness.events, 'session.asking.retracted'), []);
+});
+
+test('AC: an unwatched turn that asks writes the object, and the asking event follows it', async () => {
+  const sessionId = 'unwatched-asking-session';
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '怎么办' },
+    { role: 'assistant', id: 'a1', text: ASK_QUESTION_TEXT },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    observed: false,
+    summarizeAsk: summaryStub(askingReading('要不要现在改？')).digest,
+  });
+
+  const written = await harness.producer.handleTurnEnd({
+    appSessionId: sessionId,
+    runId: 'run-unwatched-ask',
+    status: 'completed',
+    completedAt: ASK_CLOCK,
+    error: null,
+  });
+
+  assert.notEqual(written, null, 'an asking turn is never dropped as idle traffic');
+  const asking = eventsOf(harness.events, 'session.asking');
+  assert.equal(asking.length, 1);
+  assert.notEqual(harness.object(), null, 'there is no asking event without its observation object');
+  const objectIndex = harness.order.findIndex((entry) => entry.startsWith('write:'));
+  const eventIndex = harness.order.indexOf('event:session.asking');
+  assert.ok(objectIndex >= 0, 'the object write happened');
+  assert.ok(eventIndex > objectIndex, 'the asking event is stated only after the object lands');
+});
+
+test('AC: a session with no observation object gets its stream ask answered from the transcript', async () => {
+  const sessionId = 'stream-only-answer-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '开始' },
+    { role: 'assistant', id: 'a1', text: ASK_QUESTION_TEXT },
+    { role: 'user', id: 'u2', text: '现在改' },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(askingReading('要不要现在改？')).digest,
+    readOpenSessionAsks: async () =>
+      harness.events.some(
+        (event) => event.kind === 'session.answered' && event.data.askId === askId,
+      )
+        ? []
+        : [{ askId, sessionId, messageId: 'a1', revision: 1, project: ASK_PROJECT, askedAt: '2026-10-29T16:05:53.000Z' }],
+    listObservedSessionIds: () => [],
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  const answered = eventsOf(harness.events, 'session.answered');
+  assert.equal(answered.length, 1, 'the send answers the stream ask even with no ledger');
+  assert.deepEqual(answered[0]?.data, { askId, messageId: 'u2' });
+  assert.equal(harness.object(), null, 'the answer states no invented object');
+
+  await harness.producer.sweepOpenAsks();
+  assert.equal(eventsOf(harness.events, 'session.answered').length, 1, 'a second sweep does not re-state it');
+});
+
+test('AC: a statement answered in a session with no object is withdrawn, not answered', async () => {
+  const sessionId = 'stream-only-statement-session';
+  const askId = `${sessionId}:a1`;
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '继续' },
+    { role: 'assistant', id: 'a1', text: ASK_STATEMENT_TEXT },
+    { role: 'user', id: 'u2', text: '好' },
+  ]);
+  const harness = askHarness({
+    sessionId,
+    raw,
+    summarizeAsk: summaryStub(NOT_ASKING).digest,
+    readOpenSessionAsks: async () => [
+      { askId, sessionId, messageId: 'a1', revision: 1, project: ASK_PROJECT, askedAt: '2026-10-29T16:05:53.000Z' },
+    ],
+    listObservedSessionIds: () => [],
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  assert.equal(eventsOf(harness.events, 'session.asking.retracted').length, 1);
+  assert.deepEqual(eventsOf(harness.events, 'session.answered'), [], 'a statement is never answered');
+});
+
+test('AC7: the live 62d959c0 fixture is a real question — no retraction, and the send answers it', async () => {
+  const SESSION = '62d959c0-5487-4649-a5f2-ab38462c438b';
+  const MESSAGE = '3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a';
+  const askId = `${SESSION}:${MESSAGE}`;
+  // The questionText the live `session.asking` row stated, verbatim (extracted from
+  // ~/.quay-fleet/context/events/2026-10-29.jsonl). Its decision sits in a MIDDLE paragraph
+  // ("值得优先讨论的下一步") and its last paragraph is a caveat ("本轮没有运行测试").
+  const liveText = await readFile(
+    path.join(TEST_DIRECTORY, 'fixtures', 'session-ask-62d959c0-3818a9e5.txt'),
+    'utf8',
+  );
+  const raw = askTranscript([
+    { role: 'user', id: 'u1', text: '检查会话历史，了解最近 1 周本项目进行面向对象重构尤其是封装的实践。' },
+    { role: 'assistant', id: MESSAGE, text: liveText },
+    { role: 'user', id: 'u2', text: '先拆 observation producer 的 ask ledger 和恢复/sweep，创建任务。' },
+  ]);
+  const stub = summaryStub(askingReading('是否先拆 observation producer 的 ask ledger，再做恢复/sweep？'));
+  const harness = askHarness({
+    sessionId: SESSION,
+    raw,
+    summarizeAsk: stub.digest,
+    readOpenSessionAsks: async () =>
+      harness.events.some(
+        (event) =>
+          event.kind === 'session.answered' ||
+          (event.kind === 'session.asking.retracted' && event.data.askId === askId),
+      )
+        ? []
+        : [{ askId, sessionId: SESSION, messageId: MESSAGE, revision: 1, project: ASK_PROJECT, askedAt: '2026-10-29T16:05:53.000Z' }],
+    listObservedSessionIds: () => [],
+  });
+
+  await harness.producer.sweepOpenAsks();
+
+  // (a) The real question is never withdrawn — a last-paragraph heuristic would have.
+  const retractions = eventsOf(harness.events, 'session.asking.retracted');
+  assert.deepEqual(retractions, [], 'the 62d decision is a middle paragraph; it must not be retracted');
+  assert.ok(stub.calls() >= 1, 'the withdrawal decision was made by the T1 verdict, not by position');
+
+  // (b) The user reply the live stream never got produces exactly one answered row.
+  const answered = eventsOf(harness.events, 'session.answered');
+  assert.equal(answered.length, 1, 'the live gap was a missing session.answered');
+  assert.deepEqual(answered[0]?.data, { askId, messageId: 'u2' });
 });

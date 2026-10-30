@@ -27,6 +27,9 @@ import test from 'node:test';
 import {
   CONTEXT_EVENT_MAX_LINE_BYTES,
   createContextEventWriter,
+  FLEET_TOLERATED_AHEAD_KINDS,
+  SESSION_ASK_RETRACTED_DATA_FIELDS,
+  SESSION_ASK_RETRACTED_KIND,
 } from '@/modules/context-events/index.js';
 
 /** The schema the fleet ships; this fixture states the same envelope keywords. */
@@ -352,5 +355,111 @@ test('AC1 (f): a document with a negative version is unreadable — no write, no
       console.log(`AC1(f/negative) state=${status.state} writes=${status.writes} reason=${status.reason}`);
     },
     { document: fixtureSchema(-1) },
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// session.asking.retracted — stated ahead of the installed fleet document
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The document in the shape quay-fleet actually ships (`row` + `kinds`), whose kind table is the
+ * only thing that gates a kind. `kinds` here deliberately omits the retraction: the row has to
+ * land while the installed release does not know it (its reader tolerates an unknown kind).
+ */
+function descriptiveSchema(version: number, kinds: Record<string, unknown>): Record<string, unknown> {
+  return {
+    version,
+    name: 'context-event',
+    row: {
+      required: ['v', 'id', 'at', 'source', 'kind', 'data'],
+      optional: ['project', 'session', 'refs'],
+    },
+    kinds,
+  };
+}
+
+const AHEAD_SCHEMA = descriptiveSchema(0, {
+  utterance: { producer: 'cloudcli', group: 'interaction' },
+  correction: { producer: 'cloudcli', group: 'learning' },
+});
+
+test('AC: session.asking.retracted is accepted although the installed schema does not list it', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const result = await writer.append({
+        kind: SESSION_ASK_RETRACTED_KIND,
+        session: 'sess-retract',
+        project: '/repo/project',
+        at: AT,
+        data: { askId: 'sess-retract:m-1', messageId: 'm-1' },
+      });
+      assert.equal(result.ok, true, 'the retraction is written ahead of the installed document');
+
+      const lines = await readDay(eventsDir);
+      assert.equal(lines.length, 1);
+      const event = JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+      assert.equal(event.kind, SESSION_ASK_RETRACTED_KIND);
+      assert.equal(event.source, 'cloudcli');
+      assert.equal(event.session, 'sess-retract');
+      assert.deepEqual(event.data, { askId: 'sess-retract:m-1', messageId: 'm-1' });
+      assert.deepEqual(
+        Object.keys((event.data ?? {}) as Record<string, unknown>).sort(),
+        [...SESSION_ASK_RETRACTED_DATA_FIELDS].sort(),
+        'a retraction carries exactly its two identity fields',
+      );
+      assert.equal(writer.status().writes, 1);
+      assert.deepEqual(FLEET_TOLERATED_AHEAD_KINDS, [SESSION_ASK_RETRACTED_KIND]);
+    },
+    { document: AHEAD_SCHEMA },
+  );
+});
+
+test('AC: a malformed retraction is refused as invalid and writes nothing', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const malformed = [
+        { askId: 'sess-retract:m-1' },
+        { messageId: 'm-1' },
+        { askId: 7, messageId: 'm-1' },
+        { askId: 'sess-retract:m-1', messageId: 'm-1', extra: true },
+      ];
+      for (const data of malformed) {
+        const result = await writer.append({
+          kind: SESSION_ASK_RETRACTED_KIND,
+          session: 'sess-retract',
+          at: AT,
+          data,
+        });
+        assert.equal(result.ok, false, `refused: ${JSON.stringify(data)}`);
+        if (!result.ok) assert.equal(result.reason, 'invalid');
+      }
+      assert.equal(writer.status().writes, 0);
+      assert.equal(writer.status().rejected, malformed.length);
+      await assert.rejects(readFile(path.join(eventsDir, `${DAY}.jsonl`), 'utf8'));
+    },
+    { document: AHEAD_SCHEMA },
+  );
+});
+
+test('AC: the tolerated-ahead allow-list does not loosen any other kind', async () => {
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      // An existing kind in the document is unchanged.
+      const utterance = await writer.append({ kind: 'utterance', at: AT, data: { text: '检查进展。' } });
+      assert.equal(utterance.ok, true);
+      // A kind outside the installed document is still refused — the retraction is the ONLY
+      // ahead-of-schema kind, so the gate is not relaxed in general.
+      for (const kind of ['session.asking', 'session.answered', 'session.run.ended'] as const) {
+        const result = await writer.append({ kind, at: AT, data: {} });
+        assert.equal(result.ok, false, `${kind} stays refused by the installed document`);
+        if (!result.ok) assert.equal(result.reason, 'invalid-kind');
+      }
+      assert.equal(writer.status().writes, 1);
+    },
+    { document: AHEAD_SCHEMA },
   );
 });

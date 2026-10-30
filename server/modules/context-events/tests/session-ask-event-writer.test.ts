@@ -32,6 +32,7 @@ import {
   createContextEventWriter,
   createContextEvents,
   createSessionAskEventWriter,
+  SESSION_ASK_RETRACTED_KIND,
   type SessionAskEventWriter,
 } from '@/modules/context-events/index.js';
 import { createSessionDigestProducer, type ObservedObject, type ObservationStore } from '@/modules/observation/index.js';
@@ -69,6 +70,16 @@ const V1_KINDS = {
   'session.asking': { producer: 'cloudcli' as const, group: 'interaction' },
   'session.answered': { producer: 'cloudcli' as const, group: 'interaction' },
 };
+
+/**
+ * The retraction's entry in the fleet's kind table: still owned by cloudcli, still in the
+ * interaction group. The installed v0 document does not carry it yet, which is why the writer
+ * states it ahead of the document (see the v0 case below).
+ */
+const RETRACTION_KIND_ENTRY = { producer: 'cloudcli' as const, group: 'interaction' };
+
+/** The kind table a future fleet document would ship, with the retraction listed. */
+const V2_KINDS = { ...V1_KINDS, [SESSION_ASK_RETRACTED_KIND]: RETRACTION_KIND_ENTRY } as const;
 
 /**
  * A descriptive document in the fleet's shipped shape (`row` + `kinds`). The writer reads the
@@ -367,4 +378,61 @@ test('AC-433: a record seam that throws is contained, counted, and never thrown 
   assert.equal(writer.status().rejectedByReason['write-failed'], 1);
   assert.ok(logs.some((line) => line.includes('unwritable')), 'the failure reason is logged once');
   console.log(`AC-433(throwing) rejected=${JSON.stringify(writer.status().rejectedByReason)}`);
+});
+
+// ---------------------------------------------------------------------------------------------
+// session.asking.retracted — the withdrawal row, ahead of the installed document
+// ---------------------------------------------------------------------------------------------
+
+/** The retraction event the observation layer states, in the shape its producer hands over. */
+function retractionEvent(messageId: string): SessionAskEvent {
+  return {
+    kind: SESSION_ASK_RETRACTED_KIND,
+    session: SESSION_ID,
+    project: PROJECT_PATH,
+    at: new Date(CLOCK).toISOString(),
+    data: { askId: `${SESSION_ID}:${messageId}`, messageId },
+  };
+}
+
+test('AC: a session.asking.retracted row lands on the installed v0 document with exactly its identity', async () => {
+  // The installed v0 table does not carry the retraction: the row is stated ahead of it, the
+  // same way the fleet's own reader tolerates an unknown kind.
+  assert.equal(V0_KINDS[SESSION_ASK_RETRACTED_KIND], undefined, 'v0 predates the retraction');
+  assert.equal(RETRACTION_KIND_ENTRY.producer, 'cloudcli');
+  assert.equal(RETRACTION_KIND_ENTRY.group, 'interaction');
+
+  await withHome(V0_SCHEMA, async ({ eventsDir, schemaPath }) => {
+    const harness = buildHarness(eventsDir, schemaPath);
+    harness.writer.write(retractionEvent('a1'));
+    await harness.writer.settled();
+
+    const rows = await readDay(eventsDir);
+    const retractions = rows.filter((row) => row.kind === SESSION_ASK_RETRACTED_KIND);
+    assert.equal(retractions.length, 1, 'the writer ahead of the document still lands the row');
+    const row = retractions[0];
+    assert.ok(row !== undefined);
+    assert.equal(row.source, RETRACTION_KIND_ENTRY.producer);
+    assert.equal(row.session, SESSION_ID);
+    assert.deepEqual(row.data, { askId: `${SESSION_ID}:a1`, messageId: 'a1' });
+    assert.deepEqual(Object.keys(row.data).sort(), ['askId', 'messageId']);
+    assert.equal(harness.writer.status().written, 1);
+    assert.equal(harness.writer.status().rejected, 0);
+  });
+});
+
+test('AC: a document that lists the retraction carries the same kind, group and payload', async () => {
+  assert.deepEqual(V2_KINDS[SESSION_ASK_RETRACTED_KIND], RETRACTION_KIND_ENTRY);
+  await withHome(descriptiveSchema(2, V2_KINDS), async ({ eventsDir, schemaPath }) => {
+    const harness = buildHarness(eventsDir, schemaPath);
+    harness.writer.write(retractionEvent('a2'));
+    await harness.writer.settled();
+
+    const rows = await readDay(eventsDir);
+    const row = rows.find((candidate) => candidate.kind === SESSION_ASK_RETRACTED_KIND);
+    assert.ok(row !== undefined);
+    assert.equal(row.source, 'cloudcli');
+    assert.equal(row.v, 2, 'the row carries the document’s own version');
+    assert.deepEqual(row.data, { askId: `${SESSION_ID}:a2`, messageId: 'a2' });
+  });
 });

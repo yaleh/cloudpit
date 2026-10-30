@@ -30,6 +30,7 @@
  * which injects a stub completion and a memory ledger).
  */
 import { observationDb } from '@/modules/database/index.js';
+import { readOpenSessionAsks } from '@/modules/context-events/index.js';
 import {
   completeLlm,
   credentialFromKey,
@@ -416,6 +417,9 @@ export const sessionDigestProducer: SessionDigestProducer = createSessionDigestL
     // kinds are counted as `invalid-kind` rather than written.
     summarizeAsk: createSessionAskDecisionDigest({ readSettings: () => defaultSettingsSource().read() }),
     eventWriter: sessionAskEventWriter,
+    // The live user-turn path reads this host's own stream for sessions that hold no ledger: the
+    // asking row there is the only record that a session without an observation object asked.
+    readOpenSessionAsks: () => readOpenSessionAsks(),
   }),
   store: processObservationStore,
   readSettings: () => defaultSettingsSource().read(),

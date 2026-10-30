@@ -25,6 +25,7 @@ import {
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
 } from './modules/cockpit/index.js';
+import { readRetractedSessionAskMessageIds } from './modules/context-events/index.js';
 import {
   createObservationStore,
   createSessionAskDecisionReader,
@@ -98,5 +99,10 @@ export function createCockpitFleetProvider(
       };
     },
     readSessionAsk: (sessionId, messageId) => readAskDecision(askReader, sessionId, messageId),
+    // LOCAL SUPPRESSION, read from the shared stream rather than from the observation store: a
+    // session whose digest revision never landed has no object at all, and its withdrawn card
+    // must still stop showing. The reader is cheap and bounded to the lookback window; it is
+    // called once per projected stdout pass, never per card.
+    readRetractedMessageIds: () => readRetractedSessionAskMessageIds(),
   });
 }

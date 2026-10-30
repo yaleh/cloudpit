@@ -84,6 +84,11 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   // document's `version` — the moment v1 is installed.
   'session.asking',
   'session.answered',
+  // The retraction of a mis-stated ask. It is deliberately written AHEAD of the installed
+  // fleet schema (see {@link FLEET_TOLERATED_AHEAD_KINDS}): the fleet reader tolerates an
+  // unknown kind, and a card already on the wall has to be withdrawn the day the detector
+  // is fixed, not the day the consumer ships.
+  'session.asking.retracted',
   // The session-lifecycle kinds (`session-run-events.ts`). Like the ask kinds above, an
   // installed schema that does not carry them refuses the append as `invalid-kind`.
   'session.run.ended', 'session.closed',
@@ -141,6 +146,41 @@ export type SessionAnsweredEventData = {
 };
 
 /**
+ * The one kind this writer mints to withdraw an ask it stated wrongly.
+ *
+ * The askId is the fleet dedup key (`<sessionId>:<assistantMessageId>`) of the ask being
+ * withdrawn, and `messageId` is the assistant message the cockpit card's `contentRef` names —
+ * the same identity pair a `session.asking` row carries, so a consumer (and this host's own
+ * projection) can resolve which card to drop without reading a transcript.
+ */
+export const SESSION_ASK_RETRACTED_KIND = 'session.asking.retracted' as const;
+
+/** The `data` payload of a `session.asking.retracted` row: exactly the withdrawn ask's identity. */
+export type SessionAskingRetractedEventData = {
+  askId: string;
+  messageId: string;
+};
+
+/** The ONLY members a retraction's `data` may carry; anything else is refused as `invalid`. */
+export const SESSION_ASK_RETRACTED_DATA_FIELDS = ['askId', 'messageId'] as const;
+
+/**
+ * Kinds this producer writes even when the INSTALLED fleet schema does not list them.
+ *
+ * The installed release is not the only clock. quay-fleet's reader tolerates an unknown kind
+ * (`producerOfKind` answers null and its row validation skips the per-kind producer/group check),
+ * so a retraction lands and is readable today; the fleet's own retraction consumer arrives
+ * later. Gate on the installed schema here and the withdrawn card stays on the wall until the
+ * next fleet upgrade — the defect this row exists to end.
+ *
+ * This is a narrow allow-list, never a relaxation of the gate: every other kind outside the
+ * installed document is still refused as `invalid-kind`.
+ */
+export const FLEET_TOLERATED_AHEAD_KINDS: readonly CloudCliContextEventKind[] = [
+  SESSION_ASK_RETRACTED_KIND,
+];
+
+/**
  * A session-ask event as a draft: the two kinds with their `data` shape pinned, so the
  * observation adapter cannot hand the stream a mistyped payload.
  */
@@ -158,6 +198,13 @@ export type SessionAskContextEventDraft =
       project?: string | null;
       refs?: readonly string[];
       data: SessionAnsweredEventData;
+    }
+  | {
+      kind: 'session.asking.retracted';
+      session: string;
+      project?: string | null;
+      refs?: readonly string[];
+      data: SessionAskingRetractedEventData;
     };
 
 /** One complete line, after the writer has added the envelope. */
@@ -579,6 +626,37 @@ function truncateDataToFit(
 }
 
 // ---------------------------------------------------------------------------
+// The retraction payload: two required identity fields, nothing else
+// ---------------------------------------------------------------------------
+
+/**
+ * Validates one retraction's `data` against the shape the fleet contract states.
+ *
+ * The envelope's `data` is OPEN by contract, so a per-kind rule is the only place a mistyped
+ * retraction can be refused: an absent or non-string identity cannot be resolved by any reader,
+ * and an extra member would be a second, undeclared statement about the ask. A retraction is
+ * therefore the ONE kind whose payload this writer pins exactly.
+ */
+function retractionDataFailures(data: Record<string, unknown> | undefined): string[] {
+  if (data === undefined) {
+    return SESSION_ASK_RETRACTED_DATA_FIELDS.map((field) => `data.${field} is required`);
+  }
+  const failures: string[] = [];
+  for (const field of SESSION_ASK_RETRACTED_DATA_FIELDS) {
+    const value = data[field];
+    if (typeof value !== 'string' || value.trim() === '') {
+      failures.push(`data.${field} must be a non-empty string`);
+    }
+  }
+  for (const key of Object.keys(data)) {
+    if (!(SESSION_ASK_RETRACTED_DATA_FIELDS as readonly string[]).includes(key)) {
+      failures.push(`data.${key} is not allowed on a session.asking.retracted row`);
+    }
+  }
+  return failures;
+}
+
+// ---------------------------------------------------------------------------
 // The writer
 // ---------------------------------------------------------------------------
 
@@ -669,13 +747,25 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
     // not carry is refused (and counted) rather than written. That is what makes a v0
     // fleet reject `session.asking`/`session.answered` while a v1 fleet accepts them.
     const schemaKinds = schemaKindSet(node);
-    if (schemaKinds !== null && !schemaKinds.has(draft.kind)) {
+    const toleratedAhead = (FLEET_TOLERATED_AHEAD_KINDS as readonly string[]).includes(draft.kind);
+    if (schemaKinds !== null && !schemaKinds.has(draft.kind) && !toleratedAhead) {
       rejected += 1;
       return {
         ok: false,
         reason: 'invalid-kind',
         detail: `"${draft.kind}" is not a kind in the installed fleet schema`,
       };
+    }
+
+    // A retraction is the one kind whose payload this writer pins (see
+    // {@link retractionDataFailures}); the schema's `data` is an open object, so nothing
+    // upstream would catch a missing or mistyped ask identity.
+    if (draft.kind === SESSION_ASK_RETRACTED_KIND) {
+      const failures = retractionDataFailures(draft.data);
+      if (failures.length > 0) {
+        rejected += 1;
+        return { ok: false, reason: 'invalid', detail: failures.join('; ') };
+      }
     }
 
     const at = draft.at ?? new Date(now()).toISOString();

@@ -5289,16 +5289,25 @@ export type SessionAskDecisionReading =
   | { state: 'skipped'; reason: string; originalAsk?: string; isAsking?: boolean }
   | { state: 'unevaluated'; reason: string; originalAsk?: string; isAsking?: boolean };
 
-/** The two context-event kinds a session ask produces; the fleet schema pins their names. */
-export type SessionAskEventKind = 'session.asking' | 'session.answered';
+/**
+ * The context-event kinds a session ask produces; the fleet schema pins the first two names.
+ *
+ * `session.asking.retracted` withdraws a mis-stated ask (`data` = `{askId, messageId}`). It is
+ * stated by this host ahead of the installed fleet schema — the fleet reader tolerates an
+ * unknown kind — so a wrong card leaves the wall the day the detector is fixed.
+ */
+export type SessionAskEventKind = 'session.asking' | 'session.answered' | 'session.asking.retracted';
 
 /**
- * One `session.asking`/`session.answered` event as the observation layer states it.
+ * One `session.asking`/`session.answered`/`session.asking.retracted` event as the observation
+ * layer states it.
  *
  * The envelope mirrors quay-fleet's context-event stream: `session` and `project` are top-level
  * identities, `at` is ISO-8601, and `refs` names the assistant message the question came from.
- * The real stream writer is injected only after the fleet's schema carries these two kinds
- * (待外部); until then the producer's event writer is a test/memory implementation.
+ * The real stream writer is injected only after the fleet's schema carries the asking/answered
+ * kinds (待外部); until then the producer's event writer is a test/memory implementation. A
+ * `session.asking.retracted` row is the one kind written AHEAD of the installed schema (see
+ * `context-event-writer.ts`), because the fleet reader tolerates an unknown kind.
  *
  * `data` is kind-specific and stays OPEN by contract. A `session.asking` row carries
  * `askId`/`messageId`/`revision`/`contentRef` plus `questionText`: the asking message's own
