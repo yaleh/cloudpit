@@ -195,9 +195,18 @@ const isUniqueConstraintError = (error: unknown): boolean => (
  * Creates the provider model application service used by Providers routes,
  * Commands, and provider runtimes.
  *
- * Curated adapter definitions stay source-controlled and are merged at read
- * time with custom SQLite rows. This deliberately has no predefined-model
- * persistence, memory cache, disk cache, TTL, or provider-native discovery.
+ * The contract, revised when Codex moved to live discovery:
+ *
+ * 1. Provider adapters may perform provider-native discovery; the Codex
+ *    adapter reads the packaged CLI's app-server `model/list` as its primary
+ *    source.
+ * 2. Memory caching (TTL + single-flight) belongs to the adapter, never to
+ *    this service: the service only merges and validates.
+ * 3. Persistence stays custom SQLite rows only; discovery results are never
+ *    written to disk.
+ * 4. The static `CODEX_PREDEFINED_MODELS` catalog is a fallback and an offline
+ *    reference, not the only source.
+ *
  * Tests inject a small custom-model store through the same boundary.
  */
 export const createProviderModelsService = (dependencies: ProviderModelsServiceDependencies = {}) => {

@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import readline from 'node:readline';
 
-import { AppError } from '@/shared/utils.js';
+import { AppError, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 /**
  * Minimal JSON-RPC client for `codex app-server`.
@@ -17,17 +17,104 @@ import { AppError } from '@/shared/utils.js';
  * own "fork" and "edit an earlier message" on top of.
  *
  * So this is a second transport to the same CLI, opened only for the
- * operations the SDK cannot express. Everything else still goes through the
- * SDK.
+ * operations the SDK cannot express: `thread/fork`, and `model/list`, which is
+ * how the picker reads the CLI's own catalog. Everything else still goes
+ * through the SDK.
  */
 
 /** How long a single request may take before the child is killed. */
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/**
+ * Deadline for the whole `model/list` read, handshake included.
+ *
+ * Unlike a fork, this is on a picker's read path: the catalog is only an
+ * enhancement over the source-controlled fallback, so a slow or hung app-server
+ * must not hold the request open. The read is retried after the adapter's short
+ * failure cache instead.
+ */
+const MODEL_LIST_TIMEOUT_MS = 3_000;
+
+/** Page ceiling, so a server repeating a cursor cannot spin forever. */
+const MODEL_LIST_MAX_PAGES = 50;
+
 type JsonRpcResponse = {
   id?: number;
   result?: unknown;
   error?: { code?: number; message?: string };
+};
+
+/**
+ * One entry of the app-server `model/list` reply, narrowed to the fields a
+ * model picker maps.
+ *
+ * The reply carries more (upgrade hints, UX nudges); those are deliberately not
+ * modeled so a server-side addition cannot change what this client reads.
+ */
+export type CodexModelDescriptor = {
+  id: string;
+  displayName?: string;
+  description?: string;
+  hidden?: boolean;
+  isDefault?: boolean;
+  defaultReasoningEffort?: string;
+  supportedReasoningEfforts?: Array<{ reasoningEffort?: string }>;
+};
+
+const readModelDescriptor = (value: unknown): CodexModelDescriptor | null => {
+  const record = readObjectRecord(value);
+  // `id` is the field the picker selects by; `model` is the same value on the
+  // measured replies and is kept as a fallback for protocol drift.
+  const id = readOptionalString(record?.id) ?? readOptionalString(record?.model);
+  if (!record || !id) {
+    return null;
+  }
+
+  const efforts = Array.isArray(record.supportedReasoningEfforts)
+    ? record.supportedReasoningEfforts
+      .map((entry) => readOptionalString(readObjectRecord(entry)?.reasoningEffort))
+      .filter((effort): effort is string => effort !== undefined)
+      .map((reasoningEffort) => ({ reasoningEffort }))
+    : undefined;
+
+  return {
+    id,
+    displayName: readOptionalString(record.displayName),
+    description: readOptionalString(record.description),
+    hidden: typeof record.hidden === 'boolean' ? record.hidden : undefined,
+    isDefault: typeof record.isDefault === 'boolean' ? record.isDefault : undefined,
+    defaultReasoningEffort: readOptionalString(record.defaultReasoningEffort),
+    supportedReasoningEfforts: efforts,
+  };
+};
+
+/**
+ * Reads every page of the app-server `model/list` reply, keyed by id.
+ *
+ * Exported as a pure function over `call` so pagination and de-duplication can
+ * be exercised without spawning a CLI. A repeated id keeps the LAST page's
+ * copy, which is what a server appending a refreshed entry would mean.
+ */
+export const collectModelPages = async (
+  call: (method: string, params: unknown) => Promise<unknown>,
+): Promise<CodexModelDescriptor[]> => {
+  const byId = new Map<string, CodexModelDescriptor>();
+  let cursor: string | null = null;
+  for (let page = 0; page < MODEL_LIST_MAX_PAGES; page += 1) {
+    const result = readObjectRecord(await call('model/list', cursor ? { cursor } : {}));
+    const data = Array.isArray(result?.data) ? result.data : [];
+    for (const entry of data) {
+      const model = readModelDescriptor(entry);
+      if (model) {
+        byId.set(model.id, model);
+      }
+    }
+    cursor = readOptionalString(result?.nextCursor) ?? null;
+    if (!cursor) {
+      break;
+    }
+  }
+  return [...byId.values()];
 };
 
 /**
@@ -72,6 +159,7 @@ function resolveCodexLauncher(): string {
  */
 async function withAppServer<T>(
   run: (call: (method: string, params: unknown) => Promise<unknown>) => Promise<T>,
+  options: { timeoutMs?: number } = {},
 ): Promise<T> {
   const launcher = resolveCodexLauncher();
   const child = spawn(process.execPath, [launcher, 'app-server'], {
@@ -131,6 +219,16 @@ async function withAppServer<T>(
   child.stdout?.on('error', (error) => failPending(error.message));
   child.stderr?.on('error', () => {});
 
+  // An op-level deadline, distinct from the per-request one: `run` may make
+  // several calls (model/list pages), and what is bounded here is the whole
+  // exchange. Failing pending calls makes `run` throw, and the finally below
+  // kills the child.
+  const deadlineTimer = options.timeoutMs === undefined
+    ? null
+    : setTimeout(() => {
+      failPending(`codex app-server did not finish within ${options.timeoutMs}ms`);
+    }, options.timeoutMs);
+
   const call = (method: string, params: unknown): Promise<unknown> =>
     new Promise((resolve, reject) => {
       if (exitReason) {
@@ -186,6 +284,9 @@ async function withAppServer<T>(
     }
     throw error;
   } finally {
+    if (deadlineTimer) {
+      clearTimeout(deadlineTimer);
+    }
     reader.close();
     child.kill();
   }
@@ -239,5 +340,24 @@ export const codexAppServer = {
 
       return { threadId, path };
     });
+  },
+
+  /**
+   * Reads the CLI's own model catalog through `model/list`.
+   *
+   * Returns `null` rather than throwing when the launcher is missing, the
+   * handshake fails, or the read misses its deadline. The adapter owns a
+   * source-controlled fallback, and a picker that fails closed is worse than one
+   * offering the last measured catalog.
+   */
+  async listModels(): Promise<CodexModelDescriptor[] | null> {
+    try {
+      return await withAppServer(
+        (call) => collectModelPages(call),
+        { timeoutMs: MODEL_LIST_TIMEOUT_MS },
+      );
+    } catch {
+      return null;
+    }
   },
 };

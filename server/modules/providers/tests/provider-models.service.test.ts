@@ -6,7 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { CODEX_PREDEFINED_MODELS } from '@/modules/providers/list/codex/codex-models.provider.js';
+import type { CodexModelDescriptor } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  CODEX_PREDEFINED_MODELS,
+  CodexProviderModels,
+} from '@/modules/providers/list/codex/codex-models.provider.js';
 import { createProviderModelsService } from '@/modules/providers/services/provider-models.service.js';
 import type {
   CustomProviderModelInput,
@@ -652,4 +656,192 @@ test('the predefined Codex catalog equals the packaged CLI account catalog', asy
   } finally {
     await rm(codexHome, { recursive: true, force: true });
   }
+});
+
+/**
+ * A three-entry `model/list` reply: one hidden, one `isDefault`, and different
+ * effort sets. The adapter under test never spawns a CLI — the lister is
+ * injected — so these cases read the mapping, cache and fallback logic itself.
+ */
+const LIVE_DESCRIPTORS: CodexModelDescriptor[] = [
+  {
+    id: 'codex-live-default',
+    displayName: 'Codex Live Default',
+    description: 'The default live model.',
+    hidden: false,
+    isDefault: true,
+    defaultReasoningEffort: 'high',
+    supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }],
+  },
+  {
+    id: 'codex-live-fast',
+    displayName: 'Codex Live Fast',
+    description: 'A fast live model.',
+    hidden: false,
+    isDefault: false,
+    defaultReasoningEffort: 'low',
+    supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'minimal' }],
+  },
+  {
+    id: 'codex-live-hidden',
+    displayName: 'Codex Live Hidden',
+    hidden: true,
+    isDefault: false,
+    defaultReasoningEffort: 'low',
+    supportedReasoningEfforts: [{ reasoningEffort: 'low' }],
+  },
+];
+
+const COUNTING_LISTER = (descriptors: () => CodexModelDescriptor[] | null) => {
+  let calls = 0;
+  return {
+    calls: () => calls,
+    listModels: async () => {
+      calls += 1;
+      return descriptors();
+    },
+  };
+};
+
+test('the Codex adapter maps the live model/list reply onto the picker contract', async () => {
+  const lister = COUNTING_LISTER(() => LIVE_DESCRIPTORS);
+  const adapter = new CodexProviderModels({ listModels: lister.listModels, now: () => 0 });
+
+  const catalog = await adapter.getSupportedModels();
+
+  assert.equal(lister.calls(), 1);
+  assert.equal(adapter.lastCatalogSource(), 'live');
+  assert.deepEqual(catalog, {
+    OPTIONS: [
+      {
+        value: 'codex-live-default',
+        label: 'Codex Live Default',
+        description: 'The default live model.',
+        effort: {
+          default: 'high',
+          values: [{ value: 'low' }, { value: 'high' }],
+        },
+      },
+      {
+        value: 'codex-live-fast',
+        label: 'Codex Live Fast',
+        description: 'A fast live model.',
+        effort: {
+          default: 'low',
+          values: [{ value: 'low' }, { value: 'minimal' }],
+        },
+      },
+    ],
+    DEFAULT: 'codex-live-default',
+  });
+  console.log(`codex-live mapped=${JSON.stringify(catalog.OPTIONS.map((option) => option.value))} DEFAULT=${catalog.DEFAULT} source=${adapter.lastCatalogSource()}`);
+});
+
+test('the Codex adapter caches a live catalog for its TTL and serves it as cache', async () => {
+  const lister = COUNTING_LISTER(() => LIVE_DESCRIPTORS);
+  let clock = 1_000;
+  const adapter = new CodexProviderModels({ listModels: lister.listModels, now: () => clock });
+
+  await adapter.getSupportedModels();
+  await adapter.getSupportedModels();
+  assert.equal(lister.calls(), 1, 'a second read inside the TTL must not call the lister');
+  assert.equal(adapter.lastCatalogSource(), 'cache');
+
+  clock += 5 * 60_000;
+  await adapter.getSupportedModels();
+  assert.equal(lister.calls(), 2, 'a read past the 5-minute TTL must refresh');
+  assert.equal(adapter.lastCatalogSource(), 'live');
+  console.log(`codex-ttl calls=${lister.calls()} source=${adapter.lastCatalogSource()}`);
+});
+
+test('concurrent cold Codex reads single-flight into one lister call', async () => {
+  let calls = 0;
+  let release: (descriptors: CodexModelDescriptor[]) => void = () => {};
+  const gate = new Promise<CodexModelDescriptor[]>((resolve) => {
+    release = resolve;
+  });
+  const adapter = new CodexProviderModels({
+    listModels: async () => {
+      calls += 1;
+      return gate;
+    },
+    now: () => 0,
+  });
+
+  const first = adapter.getSupportedModels();
+  const second = adapter.getSupportedModels();
+  release(LIVE_DESCRIPTORS);
+
+  const [firstCatalog, secondCatalog] = await Promise.all([first, second]);
+  assert.equal(calls, 1, 'two concurrent cold reads must share one lister call');
+  assert.deepEqual(firstCatalog, secondCatalog);
+  console.log(`codex-single-flight calls=${calls}`);
+});
+
+test('the Codex adapter falls back to the static catalog and remembers the failure for 30s', async () => {
+  const lister = COUNTING_LISTER(() => {
+    throw new Error('spawn failed');
+  });
+  let clock = 10_000;
+  const adapter = new CodexProviderModels({ listModels: lister.listModels, now: () => clock });
+
+  assert.deepEqual(await adapter.getSupportedModels(), CODEX_PREDEFINED_MODELS);
+  assert.equal(adapter.lastCatalogSource(), 'fallback');
+
+  clock += 29_999;
+  assert.deepEqual(await adapter.getSupportedModels(), CODEX_PREDEFINED_MODELS);
+  assert.equal(lister.calls(), 1, 'a failure inside the 30s window must not retry');
+  assert.equal(adapter.lastCatalogSource(), 'fallback');
+
+  clock += 2;
+  assert.deepEqual(await adapter.getSupportedModels(), CODEX_PREDEFINED_MODELS);
+  assert.equal(lister.calls(), 2, 'a failure past the 30s window must retry');
+  console.log(`codex-fallback calls=${lister.calls()} source=${adapter.lastCatalogSource()}`);
+});
+
+test('an empty live catalog is treated as a failed discovery', async () => {
+  const lister = COUNTING_LISTER(() => []);
+  const adapter = new CodexProviderModels({ listModels: lister.listModels, now: () => 0 });
+
+  assert.deepEqual(await adapter.getSupportedModels(), CODEX_PREDEFINED_MODELS);
+  assert.equal(adapter.lastCatalogSource(), 'fallback');
+  assert.equal(lister.calls(), 1);
+});
+
+test('the service merges custom rows over a live-discovered catalog, leaving predefined rows immutable', async () => {
+  const adapter = new CodexProviderModels({
+    listModels: async () => LIVE_DESCRIPTORS,
+    now: () => 0,
+  });
+  const catalog = createCatalogStore();
+  const service = createProviderModelsService({
+    catalog,
+    sessions: createSessionStore(),
+    resolveProvider: () => ({ models: adapter }),
+  });
+
+  await service.createCustomModel('codex', { model: 'My Live Model', id: 'my-live-model' });
+  const models = await service.getProviderModels('codex');
+
+  assert.deepEqual(models.OPTIONS.map((option) => option.value), [
+    'codex-live-default',
+    'codex-live-fast',
+    'my-live-model',
+  ]);
+  assert.equal(models.DEFAULT, 'codex-live-default');
+  assert.equal(models.OPTIONS[0].isCustom, false);
+  assert.equal(models.OPTIONS[0].recordId, undefined);
+  assert.equal(models.OPTIONS.at(-1)?.isCustom, true);
+
+  // A built-in option has no SQLite row, so the edit path has nothing to read;
+  // and its id cannot be claimed by a custom row either.
+  await assert.rejects(
+    () => service.updateCustomModel('codex', 999, { model: 'Renamed', id: 'renamed' }),
+    (error) => error instanceof AppError && error.code === 'MODEL_NOT_FOUND',
+  );
+  await assert.rejects(
+    () => service.createCustomModel('codex', { model: 'Shadow', id: 'codex-live-default' }),
+    (error) => error instanceof AppError && error.code === 'MODEL_ID_ALREADY_EXISTS',
+  );
+  console.log(`codex-merge ids=${JSON.stringify(models.OPTIONS.map((option) => option.value))} custom=${JSON.stringify(catalog.rows.get('codex')?.map((row) => row.modelId))}`);
 });

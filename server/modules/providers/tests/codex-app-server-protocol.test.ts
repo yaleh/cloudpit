@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 
+import { collectModelPages } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
   CODEX_APP_SERVER_LAUNCHER_ENV,
   CodexAppServerConnection,
@@ -685,4 +686,48 @@ test('the assertions reject the bad readings they are meant to catch (AC8)', () 
   assert.equal(droppedFrameRejected, true, 'the pass-through assertion accepted a dropped unknown frame');
   assert.equal(brokenLoopRejected, true, 'the loop assertion accepted a stopped read loop');
   assert.equal(silentSwallowRejected, true, 'the loop assertion accepted a silently swallowed failure');
+});
+
+/**
+ * `model/list` pagination is a pure function over the JSON-RPC `call`, so this
+ * case drives it with a fake two-page reply: page two follows the first
+ * `nextCursor`, the second page ends with `nextCursor: null`, and one model id
+ * appears on both pages. No CLI is spawned.
+ */
+test('collectModelPages concatenates pages, follows nextCursor, and keeps one copy per id', async () => {
+  const calls: Array<{ method: string; params: unknown }> = [];
+  const pages = [
+    {
+      data: [
+        { id: 'model-a', model: 'model-a', displayName: 'Model A', hidden: false },
+        { id: 'model-b', model: 'model-b', displayName: 'Model B (page 1)', hidden: false },
+      ],
+      nextCursor: 'page-2',
+    },
+    {
+      data: [
+        { id: 'model-b', model: 'model-b', displayName: 'Model B (page 2)', hidden: false },
+        { id: 'model-c', model: 'model-c', displayName: 'Model C', hidden: false },
+      ],
+      nextCursor: null,
+    },
+  ];
+
+  const models = await collectModelPages(async (method, params) => {
+    calls.push({ method, params });
+    return pages[calls.length - 1];
+  });
+
+  const ids = models.map((model) => model.id);
+  console.log(`collectModelPages calls=${JSON.stringify(calls)} ids=${JSON.stringify(ids)}`);
+  assert.deepEqual(calls, [
+    { method: 'model/list', params: {} },
+    { method: 'model/list', params: { cursor: 'page-2' } },
+  ]);
+  assert.deepEqual(ids, ['model-a', 'model-b', 'model-c'], 'pages must concatenate in order and a repeated id must appear once');
+  assert.equal(
+    models.find((model) => model.id === 'model-b')?.displayName,
+    'Model B (page 2)',
+    'a repeated id keeps the last page copy',
+  );
 });
