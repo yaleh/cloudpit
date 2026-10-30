@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-src-module-scc-cockpit-hub
 title: "architecture-analysis: At module granularity
   src/modules/{chat,cockpit,project-workspace,quay,sidebar,ui-scenario} form ONE
   6-member SCC over 14 cross-module edges (cockpit alone h"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
