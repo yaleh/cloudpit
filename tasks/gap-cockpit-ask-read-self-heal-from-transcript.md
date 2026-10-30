@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-ask-read-self-heal-from-transcript
 title: 驾驶舱提问卡「尚未生成」自愈：对象缺失时 read() 从转写重建、不再提前 return null；「找不到会话转写」纳入有界重试
-status: ready
+status: done
 labels:
   - gap
   - cockpit
