@@ -2,7 +2,7 @@
 id: gap-goal-051-turn-steer-not-an-ac
 title: GOAL-051 范围第 3 条的 turn/steer 无在域 AC 覆盖：提议新增 AC-444（忙时 steer 改当前
   turn、不排队列、不开新 turn），交人裁定
-status: needs-human
+status: superseded
 labels:
   - gap
 parent: null
@@ -64,7 +64,7 @@ GOAL-051 `## 范围` 第 3 条（同文件 `:27`）逐字：
 
 ⇒ 如果 AC-435..AC-443 全部落地，`turn/steer` 仍会完全未实现，而范围第 3 条明确要求它。这正是判官在「9 条在域 AC」上判 `insufficient` 的一个结构性缺口。
 
-充分性实例读数（`.quay/`）：`goal-sufficiency-followup.json` 的 `entries["GOAL-051"] = {key: d4de3177c1903dfef612774ca09b7e59c85bcb3ea0eb8242e9eb4755ae572d99, since: 2026-10-29T09:53:24.039Z, filedAt: null}`；`goal-sufficiency-cache.json` 同 key 的 `{verdict: "insufficient", ts: "2026-10-29T09:34:43.392Z"}`（两次采样一致）；`goal-round.jsonl` round 801（09:32:22Z，在域 AC 0 条）与 round 802（09:53:24Z，在域 AC 9 条）都记 `insufficient`。⇒ round 801 的 0 条是 AC 尚在逐条激活，round 802 的 9 条才是本提案针对的语义裁决。
+充分性实例读数（`.quay/`）：`goal-sufficiency-followup.json` 的 `entries[\"GOAL-051\"] = {key: d4de3177c1903dfef612774ca09b7e59c85bcb3ea0eb8242e9eb4755ae572d99, since: 2026-10-29T09:53:24.039Z, filedAt: null}`；`goal-sufficiency-cache.json` 同 key 的 `{verdict: \"insufficient\", ts: \"2026-10-29T09:34:43.392Z\"}`（两次采样一致）；`goal-round.jsonl` round 801（09:32:22Z，在域 AC 0 条）与 round 802（09:53:24Z，在域 AC 9 条）都记 `insufficient`。⇒ round 801 的 0 条是 AC 尚在逐条激活，round 802 的 9 条才是本提案针对的语义裁决。
 
 ### 本提案（选 a：新增 AC-444）
 
@@ -148,3 +148,7 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/co
 - goals/AC-444-codex-resident-turn-steer-改当前-turn-不排队列-不开新-turn.md (new)
 - goals/GOAL-051-codex-常驻会话-app-server-长驻进程跨轮存活-忙时输入进队列-中止不杀进程-后台与审批与空闲重启语义明确.md
 - tasks/gap-goal-051-turn-steer-not-an-ac.md
+
+## Resolution
+
+人 yale 2026-10-30 裁定：采纳本提案新增 AC-444。`goals/AC-444-忙时-steer-turn-steer-改当前-turn-不排队列-不开新-turn.md` 已由 goal 写入路径创建（`goal: GOAL-051`、`kind: criterion`、`status: achieved`、`phase: pre-merge`），实现任务 `gap-ac444-codex-resident-turn-steer` 已 done，AC-444 判据 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-steer.test.ts` 绿。GOAL-051 现已 achieved（10 条在域 AC 全部 achieved）。本提案完成使命，status 改 superseded 收口。
