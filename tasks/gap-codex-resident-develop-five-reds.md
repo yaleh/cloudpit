@@ -2,7 +2,7 @@
 id: gap-codex-resident-develop-five-reds
 title: 修复 develop 五红：codex-host-driver run() 缺 host 注入 + 三处 codex 断言失败 +
   provider 827 行超 ratchet
-status: todo
+status: ready
 labels:
   - gap
   - codex
