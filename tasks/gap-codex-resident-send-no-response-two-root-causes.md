@@ -63,11 +63,3 @@ AC1 的假形态实测过（先红后绿），完成记录贴出判据的 tests/
 ## ADR-007 暗轴
 
 - 该轴仍暗,理由:本任务只改 codex provider 内部的 effort 映射与一个既有测试文件，未新增模块、依赖边或文档面，未采集 ArchGuard 度量。
-
-## Blocker
-
-**2026-10-30T02:44:11.238Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：AC 未全勾（AC/DoD 段缺失或无法识别，无法评估 ≠ 合格）——续做需补齐并勾选 AC
-- run_id：wk-prod-anchor
-- session_id：1ab2a01d-7b1c-4ac7-8e79-2b1ad949eac7
