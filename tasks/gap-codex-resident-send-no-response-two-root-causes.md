@@ -37,9 +37,9 @@ return {
 
 ## AC
 
-- [ ] AC1 **effort 'default' 不再透传**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0 且 fail 0；新增/改写的用例断言 `turnParams(threadId, { command, options: { effort: 'default' } })` 的返回对象**不含** `effort` 键，`effort: 'high'` 时含 `effort: 'high'`。假形态：临时把 `'default'` 恢复为原样透传 ⇒ 该用例红；抄下逐字失败行后还原。
-- [ ] AC2 **不新增 server 测试文件**：修复的测试加进既有 `server/modules/providers/tests/codex-host-driver-persistent.test.ts`（或既有 codex-host-driver-* 测试文件），不新建 `*.test.ts`，避免连带 quay-test-script 的 collected/unknown 钉子与 suite-duration-baseline 覆盖率下限。
-- [ ] AC3 **typecheck 无回归**：`npm run typecheck` 退出 0。
+- [x] AC1 **effort 'default' 不再透传**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` 退出 0 且 fail 0；新增/改写的用例断言 `turnParams(threadId, { command, options: { effort: 'default' } })` 的返回对象**不含** `effort` 键，`effort: 'high'` 时含 `effort: 'high'`。假形态：临时把 `'default'` 恢复为原样透传 ⇒ 该用例红；抄下逐字失败行后还原。
+- [x] AC2 **不新增 server 测试文件**：修复的测试加进既有 `server/modules/providers/tests/codex-host-driver-persistent.test.ts`（或既有 codex-host-driver-* 测试文件），不新建 `*.test.ts`，避免连带 quay-test-script 的 collected/unknown 钉子与 suite-duration-baseline 覆盖率下限。
+- [x] AC3 **typecheck 无回归**：`npm run typecheck` 退出 0。
 
 ## DoD
 
@@ -50,3 +50,15 @@ AC1 的假形态实测过（先红后绿），完成记录贴出判据的 tests/
 - server/modules/providers/list/codex/codex-host-driver.contract.ts
 - server/modules/providers/tests/codex-host-driver-persistent.test.ts
 - tasks/gap-codex-resident-send-no-response-two-root-causes.md
+
+## 完成记录
+
+- AC1 绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-persistent.test.ts` → `ℹ tests 6` / `ℹ pass 6` / `ℹ fail 0`，读数 `defaultHasEffort=false highEffort=high ultracodeHasEffort=false`。
+- AC1 假形态红：临时把 `turnParams` 还原为 `const effort = turn.options.effort; … typeof effort === 'string' ? { effort }` → `ℹ tests 1` / `ℹ pass 0` / `ℹ fail 1`；逐字失败行：`AssertionError [ERR_ASSERTION]: the 'default' sentinel must leave the effort field out of turn/start`，`actual: { threadId: 'thread-effort', input: [ [Object] ], effort: 'default' }`，`expected: { threadId: 'thread-effort', input: [ [Object] ] }`。随后已还原并复绿。
+- AC2：只改既有 `server/modules/providers/tests/codex-host-driver-persistent.test.ts`，未新增 `*.test.ts`。
+- AC3：`npm run typecheck`（tsc ×3）→ `EXIT=0`。
+- 边界：按 amended body，`No Codex resident session is bound` 属既有单会话契约，本任务未改 `codex-host-driver.provider.ts`。
+
+## ADR-007 暗轴
+
+- 该轴仍暗,理由:本任务只改 codex provider 内部的 effort 映射与一个既有测试文件，未新增模块、依赖边或文档面，未采集 ArchGuard 度量。
