@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-digest-card-options-and-stale-headline
 title: digest 卡渲染：永远有可点选项、自愈后标题不再滞留、读数行可区分
-status: todo
+status: ready
 labels:
   - cockpit
 parent: null
