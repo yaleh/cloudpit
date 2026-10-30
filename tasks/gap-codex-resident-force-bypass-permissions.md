@@ -53,3 +53,11 @@ AC1/AC2 先红后绿实测，贴逐字失败行与 tests/pass/fail；部署后�
 - server/modules/providers/list/codex/codex-host-driver.contract.ts
 - server/modules/providers/tests/codex-host-driver-persistent.test.ts
 - tasks/gap-codex-resident-force-bypass-permissions.md
+
+## Blocker
+
+**2026-10-30T16:00:08.464Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 835→844 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：4d3bc73e-f3dd-4d9f-adcb-ade49cd0dd3d
