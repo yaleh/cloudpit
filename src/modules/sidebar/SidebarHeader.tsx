@@ -141,6 +141,7 @@ export default function SidebarHeader({
               onClick={onShowSettings}
               title={t('actions.settings')}
               aria-label={t('actions.settings')}
+              data-testid="open-settings"
             >
               <Settings className="h-3.5 w-3.5" />
             </Button>
@@ -335,6 +336,7 @@ export default function SidebarHeader({
               onClick={onShowSettings}
               title={t('actions.settings')}
               aria-label={t('actions.settings')}
+              data-testid="open-settings"
             >
               <Settings className="h-4 w-4 text-muted-foreground" />
             </button>

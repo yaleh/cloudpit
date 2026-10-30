@@ -13,6 +13,7 @@ import GitSettingsTab from '@/modules/settings/tabs/git-settings/GitSettingsTab'
 import BrowserUseSettingsTab from '@/modules/settings/tabs/browser-use-settings/BrowserUseSettingsTab';
 import NotificationsSettingsTab from '@/modules/settings/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '@/modules/settings/tabs/tasks-settings/TasksSettingsTab';
+import CockpitSessionStartSettingsTab from '@/modules/settings/tabs/CockpitSessionStartSettingsTab';
 import { PluginSettingsTab } from '@/modules/plugins';
 import AboutTab from '@/modules/settings/tabs/AboutTab';
 import { useSettingsController } from '@/modules/settings/hooks/useSettingsController';
@@ -243,6 +244,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               )}
 
               {activeTab === 'tasks' && <TasksSettingsTab />}
+
+              {activeTab === 'cockpit' && <CockpitSessionStartSettingsTab />}
 
               {activeTab === 'browser' && <BrowserUseSettingsTab />}
 

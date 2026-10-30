@@ -89,7 +89,8 @@
     "tasks": "Tâches",
     "notifications": "Notifications",
     "plugins": "Plugins",
-    "about": "À propos"
+    "about": "À propos",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Notifications",
@@ -722,5 +723,23 @@
     "speakerModelDownload": "Télécharger le modèle",
     "speakerModelDownloading": "Téléchargement…",
     "speakerModelNote": "Prend effet à la prochaine connexion Live Voice une fois le téléchargement terminé."
+  },
+  "cockpitSessionStart": {
+    "title": "Nouvelle conversation",
+    "description": "Le modèle et l'effort de raisonnement avec lesquels une conversation s'ouvre depuis une carte du cockpit.",
+    "loading": "Chargement…",
+    "loadFailed": "Impossible de charger les paramètres du cockpit",
+    "retry": "Réessayer",
+    "modelLabel": "Modèle",
+    "effortLabel": "Effort de raisonnement",
+    "effortDefault": "Valeur par défaut du fournisseur",
+    "effectiveTitle": "En vigueur maintenant",
+    "savedTitle": "Enregistré",
+    "providerDefault": "Valeur par défaut du fournisseur",
+    "restartRequired": "Redémarrez le serveur pour que ce changement prenne effet. D'ici là, les nouvelles conversations continuent d'utiliser le modèle en vigueur.",
+    "versionConflict": "Le fichier de paramètres a changé depuis l'ouverture de cette page. Rechargez, puis enregistrez à nouveau.",
+    "saveFailed": "Impossible d'enregistrer les paramètres du cockpit",
+    "save": "Enregistrer",
+    "reload": "Recharger"
   }
 }

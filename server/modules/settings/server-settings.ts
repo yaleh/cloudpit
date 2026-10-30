@@ -29,8 +29,6 @@
  * malformed knob must never be able to stop the server from booting.
  */
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import path from 'node:path';
 
 import {
   DEFAULT_RESIDENT_RESTORE_ENABLED,
@@ -51,27 +49,20 @@ import {
   readCodexMcpGateway,
   type CodexMcpGatewaySettings,
 } from './codex-mcp-gateway.settings.js';
+import {
+  defaultServerSettingsPath,
+  recordCockpitSessionStartBoot,
+  resolveServerSettingsFileTarget,
+  SERVER_SETTINGS_ENV,
+} from './server-settings-file.js';
 
 /**
  * The environment variable naming the settings file, or nothing when the shipped user-copy
- * path is the one to read.
- *
- * The single environment entry for this file: it points at the file and nothing else. An
- * unset value means {@link defaultServerSettingsPath}. Consumed by
- * {@link loadServerSettings} (and pinned by the resident-restore criterion, which names it
- * as the contract).
+ * path is the one to read. Declared in `server-settings-file.ts`, which also owns the path
+ * resolution and the operator-facing write seam; re-exported here because this module is the
+ * boot reader and the resident-restore criterion names it as the contract.
  */
-export const SERVER_SETTINGS_ENV = 'SERVER_SETTINGS_PATH';
-
-/**
- * The path an operator's copy of the settings file lives at when no other path is named.
- *
- * Resolved at call time rather than at module load, so a HOME set by the process (or by a
- * criterion) is the HOME this reading consults. Consumed by {@link loadServerSettings}.
- */
-function defaultServerSettingsPath(): string {
-  return path.join(homedir(), '.config', 'claudecodeui', 'server.settings.json');
-}
+export { SERVER_SETTINGS_ENV, defaultServerSettingsPath };
 
 /**
  * The start-up resident-session restore pass's policy, as read from this file.
@@ -313,10 +304,20 @@ export function loadServerSettings(options: {
   env?: Record<string, string | undefined>;
   defaultPath?: string | undefined;
 } = {}): ServerSettings {
-  const env = options.env ?? process.env;
-  const named = options.settingsPath ?? env[SERVER_SETTINGS_ENV];
-  const explicit = typeof named === 'string' && named.trim() !== '';
-  const filePath = explicit ? named.trim() : (options.defaultPath ?? defaultServerSettingsPath());
+  const reading = readServerSettings(options);
+  // The ONE boot read becomes the "currently in effect" reading the settings API reports, so
+  // the surface and the card `session.start` executor cannot disagree about this process.
+  recordCockpitSessionStartBoot(reading.path, reading.cockpit.sessionStart);
+  return reading;
+}
+
+/** The pure read behind {@link loadServerSettings}; it also backs the criterion's snapshots. */
+function readServerSettings(options: {
+  settingsPath?: string | undefined;
+  env?: Record<string, string | undefined>;
+  defaultPath?: string | undefined;
+} = {}): ServerSettings {
+  const { path: filePath, explicit } = resolveServerSettingsFileTarget(options);
   const defaults = defaultServerSettings(filePath);
 
   let raw: string;

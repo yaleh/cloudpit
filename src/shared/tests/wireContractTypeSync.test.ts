@@ -211,6 +211,12 @@ const ROWS: readonly SyncRow[] = [
     serverFile: path.join(repoRoot, 'server', 'modules', 'architecture', 'service.ts'),
     reader: 'object',
   },
+  {
+    client: 'CockpitSessionStartSettingsReading',
+    server: 'CockpitSessionStartSettingsReading',
+    serverFile: path.join(repoRoot, 'server', 'modules', 'settings', 'server-settings-file.ts'),
+    reader: 'object',
+  },
 ];
 
 /** Reads one row's type from an arbitrary source string (used for both ends). */

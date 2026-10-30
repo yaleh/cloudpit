@@ -426,9 +426,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (474 + 2 = 476 collected server test files). Then
     // gap-cockpit-session-start-model-settings added its criterion
     // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts
-    // (476 + 1 = 477 collected server test files). This fixture names 3 known files, so
-    // 477 - 3 = 474.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=474$/);
+    // (476 + 1 = 477 collected server test files). Then
+    // gap-cockpit-session-start-model-settings-ui added its criterion
+    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts
+    // (477 + 1 = 478 collected server test files). This fixture names 3 known files, so
+    // 478 - 3 = 475.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=475$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -533,10 +536,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/observation/tests/session-ask-ledger.test.ts and
     // server/modules/observation/tests/session-ask-recovery.test.ts), then
     // gap-cockpit-session-start-model-settings added
-    // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts)
-    // — but this fixture names ONE known file, so 477 - 1 = 476 (AC2 reads 474 because its
+    // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts), then
+    // gap-cockpit-session-start-model-settings-ui added
+    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts)
+    // — but this fixture names ONE known file, so 478 - 1 = 477 (AC2 reads 475 because its
     // fixture names 3).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=476$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=477$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

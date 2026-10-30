@@ -89,7 +89,8 @@
     "tasks": "タスク",
     "notifications": "通知",
     "plugins": "プラグイン",
-    "about": "概要"
+    "about": "概要",
+    "cockpit": "コックピット"
   },
   "notifications": {
     "title": "通知",
@@ -664,5 +665,23 @@
     "speakerModelDownload": "モデルをダウンロード",
     "speakerModelDownloading": "ダウンロード中…",
     "speakerModelNote": "ダウンロード完了後の次回 Live Voice 接続から有効になります。"
+  },
+  "cockpitSessionStart": {
+    "title": "新しい会話",
+    "description": "コックピットのカードから会話を開くときに使うモデルと推論エフォート。",
+    "loading": "読み込み中…",
+    "loadFailed": "コックピット設定を読み込めませんでした",
+    "retry": "再試行",
+    "modelLabel": "モデル",
+    "effortLabel": "推論エフォート",
+    "effortDefault": "プロバイダーの既定値",
+    "effectiveTitle": "現在有効",
+    "savedTitle": "保存済み",
+    "providerDefault": "プロバイダーの既定値",
+    "restartRequired": "この変更を反映するにはサーバーを再起動してください。それまでは新しい会話も現在有効なモデルを使います。",
+    "versionConflict": "このページを開いた後に設定ファイルが変更されました。再読み込みしてから、もう一度保存してください。",
+    "saveFailed": "コックピット設定を保存できませんでした",
+    "save": "保存",
+    "reload": "再読み込み"
   }
 }

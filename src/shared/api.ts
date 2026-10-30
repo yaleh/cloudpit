@@ -1008,6 +1008,17 @@ export const api = {
     revokeAccessToken: (tokenId: number) => del(`/api/settings/access-tokens/${tokenId}`),
     mcpGatewayStatus: () => get('/api/settings/mcp-gateway'),
 
+    // The cockpit's new-conversation launch selection, saved in the server settings file.
+    // GET reports the saved values beside the running process's effective ones; the save
+    // carries the version it was based on, so a stale editor gets a 409 rather than an
+    // overwrite. A successful save is PENDING until the server restarts.
+    cockpitSessionStart: () => get('/api/settings/cockpit/session-start'),
+    saveCockpitSessionStart: (payload: {
+      model: string;
+      effort?: string;
+      expectedVersion: string;
+    }) => put('/api/settings/cockpit/session-start', payload),
+
     // The OAuth surface the "connected apps" and "OAuth clients (advanced)" sections manage:
     // the signed-in user's own consent grants (list/revoke) and the registered clients
     // (list/disable), plus the manual-client creation whose secret is returned exactly once.

@@ -66,6 +66,35 @@ type AccessTokensPort = {
   revoke(tokenId: number): boolean;
 };
 
+/** One saved reading of the cockpit session-start selection, as the file owns it. */
+type CockpitSessionStartSavedReading = {
+  /** The saved model, or the shipped default when the file declares none. */
+  model: string;
+  /** The saved effort; `''` is "let the launch infer it". */
+  effort: string;
+  /** The content hash an editor sends back to prove it edited what it read. */
+  version: string;
+};
+
+/** One whitelist edit: only the fields present are changed. */
+type CockpitSessionStartWriteInput = {
+  model?: string | undefined;
+  effort?: string | undefined;
+  expectedVersion: string;
+};
+
+/**
+ * The file seam behind Settings → Cockpit → new-conversation selection.
+ *
+ * `read`/`write` see the SAVED file; `effective` reports what THIS boot loaded, so a save can
+ * be shown as pending without pretending it changed a running process.
+ */
+type CockpitSessionStartPort = {
+  read(): CockpitSessionStartSavedReading;
+  write(input: CockpitSessionStartWriteInput): Promise<CockpitSessionStartSavedReading>;
+  effective(): { model: string; effort: string } | null;
+};
+
 type SettingsDependencies = {
   credentials: {
     list(userId: number, credentialType: string | null): unknown[];
@@ -130,6 +159,14 @@ type SettingsDependencies = {
   mcpAudit?: {
     listForUser(input: { userId: number; limit?: unknown; includeReads?: unknown }): McpAuditRouteEntry[];
   };
+  /**
+   * The cockpit's new-conversation launch selection, saved in the SERVER settings file.
+   *
+   * Optional so the existing service criteria keep constructing the dependency object they
+   * always have; `settings.module.ts` always supplies it. The file reader fills an unwritten
+   * model with the shipped default, so this module never restates it.
+   */
+  cockpitSessionStart?: CockpitSessionStartPort;
 };
 
 /** The only lifetimes a personal access token may request, in days. */
@@ -192,6 +229,95 @@ function assertFound(found: boolean, resourceName: string, code: string): void {
   if (!found) {
     throw new AppError(`${resourceName} not found`, { code, statusCode: 404 });
   }
+}
+
+/** The only body keys the cockpit session-start endpoint accepts. */
+const COCKPIT_SESSION_START_FIELDS: readonly string[] = ['model', 'effort', 'expectedVersion'];
+
+function requireCockpitSessionStartPort(dependencies: SettingsDependencies): CockpitSessionStartPort {
+  const port = dependencies.cockpitSessionStart;
+  if (!port) {
+    throw new AppError('Cockpit session-start settings are not configured', {
+      code: 'COCKPIT_SESSION_START_UNAVAILABLE',
+      statusCode: 500,
+    });
+  }
+  return port;
+}
+
+/** The boot reading, or a visible 503 when the file was never loaded in this process. */
+function bootCockpitSessionStart(
+  port: CockpitSessionStartPort,
+): { model: string; effort: string } {
+  const effective = port.effective();
+  if (!effective) {
+    throw new AppError('The server settings file has not been loaded in this process', {
+      code: 'BOOT_SNAPSHOT_UNAVAILABLE',
+      statusCode: 503,
+    });
+  }
+  return effective;
+}
+
+/**
+ * The wire reading: `model`/`effort` are the SAVED file values the NEXT boot applies;
+ * `effective*` are the values the RUNNING process booted with. `restartRequired` is true only
+ * when those two disagree, which is exactly when a restart would change anything.
+ */
+function projectCockpitSessionStart(
+  saved: CockpitSessionStartSavedReading,
+  effective: { model: string; effort: string },
+) {
+  return {
+    model: saved.model,
+    effort: saved.effort,
+    effectiveModel: effective.model,
+    effectiveEffort: effective.effort,
+    version: saved.version,
+    restartRequired: saved.model !== effective.model || saved.effort !== effective.effort,
+  };
+}
+
+function readCockpitSessionStartModel(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new AppError('model must be a non-empty string', {
+      code: 'INVALID_MODEL',
+      statusCode: 400,
+    });
+  }
+  return value.trim();
+}
+
+function readCockpitSessionStartEffort(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new AppError('effort must be a string', {
+      code: 'INVALID_EFFORT',
+      statusCode: 400,
+    });
+  }
+  return value.trim();
+}
+
+/** The version the edit was based on: the body's `expectedVersion`, else the `If-Match` header. */
+function readCockpitSessionStartVersion(
+  body: Record<string, unknown>,
+  headerVersion: string | undefined,
+): string {
+  if (body.expectedVersion !== undefined && typeof body.expectedVersion !== 'string') {
+    throw new AppError('expectedVersion must be a string', {
+      code: 'INVALID_VERSION',
+      statusCode: 400,
+    });
+  }
+  const fromBody = typeof body.expectedVersion === 'string' ? body.expectedVersion.trim() : '';
+  const version = fromBody || (headerVersion ?? '').trim();
+  if (!version) {
+    throw new AppError('expectedVersion is required to save', {
+      code: 'VERSION_REQUIRED',
+      statusCode: 400,
+    });
+  }
+  return version;
 }
 
 /** Creates settings workflows with repositories and notification effects injected. */
@@ -369,6 +495,63 @@ export function createSettingsService(dependencies: SettingsDependencies) {
     },
     getNotificationPreferences(userId: number) {
       return { success: true, preferences: dependencies.notifications.getPreferences(userId) };
+    },
+    /**
+     * The Settings → Cockpit page's launch selection: saved model/effort beside the values this
+     * boot is actually using, plus the version a save must carry.
+     */
+    getCockpitSessionStart() {
+      const port = requireCockpitSessionStartPort(dependencies);
+      return projectCockpitSessionStart(port.read(), bootCockpitSessionStart(port));
+    },
+    /**
+     * Saves the launch selection. `partial` is PATCH: change only the fields present. A PUT
+     * replaces both whitelist fields, so an omitted `effort` is written as the template's empty
+     * string. Every other field in the file is preserved by the file writer, and a stale
+     * `expectedVersion` is a 409 rather than an overwrite.
+     */
+    async updateCockpitSessionStart(input: {
+      body: unknown;
+      headerVersion?: string | undefined;
+      partial: boolean;
+    }) {
+      const port = requireCockpitSessionStartPort(dependencies);
+      const body = typeof input.body === 'object' && input.body !== null && !Array.isArray(input.body)
+        ? input.body as Record<string, unknown>
+        : {};
+      const unknownFields = Object.keys(body).filter(
+        (field) => !COCKPIT_SESSION_START_FIELDS.includes(field),
+      );
+      if (unknownFields.length > 0) {
+        throw new AppError(`unknown field(s): ${unknownFields.join(', ')}`, {
+          code: 'UNKNOWN_FIELD',
+          statusCode: 400,
+          details: { fields: unknownFields },
+        });
+      }
+
+      const model = body.model === undefined ? undefined : readCockpitSessionStartModel(body.model);
+      const effort = body.effort === undefined
+        ? undefined
+        : readCockpitSessionStartEffort(body.effort);
+      if (!input.partial) {
+        if (model === undefined) {
+          throw new AppError('model is required', { code: 'MODEL_REQUIRED', statusCode: 400 });
+        }
+      } else if (model === undefined && effort === undefined) {
+        throw new AppError('nothing to update', {
+          code: 'NOTHING_TO_UPDATE',
+          statusCode: 400,
+        });
+      }
+
+      const expectedVersion = readCockpitSessionStartVersion(body, input.headerVersion);
+      const saved = await port.write({
+        model,
+        effort: input.partial ? effort : (effort ?? ''),
+        expectedVersion,
+      });
+      return projectCockpitSessionStart(saved, bootCockpitSessionStart(port));
     },
     updateNotificationPreferences(userId: number, preferences: NotificationPreferences) {
       return {

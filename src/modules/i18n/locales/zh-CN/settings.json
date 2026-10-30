@@ -159,7 +159,8 @@
     "browser": "浏览器",
     "notifications": "通知",
     "plugins": "插件",
-    "about": "关于"
+    "about": "关于",
+    "cockpit": "驾驶舱"
   },
   "notifications": {
     "title": "通知",
@@ -784,5 +785,23 @@
       "disableButton": "禁用",
       "disableConfirm": "确定要禁用该客户端吗？其名下所有授权与令牌会立即被拒绝，且无法撤销。"
     }
+  },
+  "cockpitSessionStart": {
+    "title": "新会话",
+    "description": "从 cockpit 卡片打开新会话时使用的模型和推理强度。",
+    "loading": "正在加载…",
+    "loadFailed": "无法加载 cockpit 设置",
+    "retry": "重试",
+    "modelLabel": "模型",
+    "effortLabel": "推理强度",
+    "effortDefault": "提供商默认",
+    "effectiveTitle": "当前生效",
+    "savedTitle": "已保存",
+    "providerDefault": "提供商默认",
+    "restartRequired": "重启服务后生效；在此之前，新会话仍使用当前生效的模型。",
+    "versionConflict": "设置文件在此页面打开后已被修改。请重新加载后再保存。",
+    "saveFailed": "无法保存 cockpit 设置",
+    "save": "保存",
+    "reload": "重新加载"
   }
 }

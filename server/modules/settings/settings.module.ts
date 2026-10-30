@@ -21,8 +21,34 @@ import { createAccessTokensService } from '@/modules/oauth/index.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
+import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
+import {
+  readCockpitSessionStart,
+  readCockpitSessionStartBoot,
+  resolveServerSettingsFileTarget,
+  writeCockpitSessionStart,
+} from './server-settings-file.js';
 
 const accessTokensService = createAccessTokensService({ now: () => new Date() });
+
+/**
+ * The file the cockpit settings page edits: the one THIS boot read, so a save can never land in
+ * a different file than the one the reported effective reading came from. Falls back to the
+ * configured target before the boot read (a bare route test composes its own port).
+ */
+function cockpitSessionStartFilePath(): string {
+  return readCockpitSessionStartBoot()?.path ?? resolveServerSettingsFileTarget().path;
+}
+
+/** A saved reading with the shipped default filled in for a field the file never wrote. */
+function savedCockpitSessionStart() {
+  const reading = readCockpitSessionStart(cockpitSessionStartFilePath());
+  return {
+    model: reading.model ?? DEFAULT_COCKPIT_SESSION_START_MODEL,
+    effort: reading.effort ?? '',
+    version: reading.version,
+  };
+}
 
 /**
  * The display name of the grant a token was issued under — the OAuth client's
@@ -118,6 +144,24 @@ const settingsService = createSettingsService({
           ? (accessTokensDb.findById(row.token_id)?.name ?? 'personal access token')
           : null,
   }),
+  // The cockpit's new-conversation launch selection: the same `cockpit.sessionStart` field the
+  // card `session.start` executor is handed at boot. `effective` is read from the boot registry,
+  // so a save is reported as pending until the next boot, never as if it changed this process.
+  cockpitSessionStart: {
+    read: savedCockpitSessionStart,
+    write: async (input) => {
+      const reading = await writeCockpitSessionStart(cockpitSessionStartFilePath(), input);
+      return {
+        model: reading.model ?? DEFAULT_COCKPIT_SESSION_START_MODEL,
+        effort: reading.effort ?? '',
+        version: reading.version,
+      };
+    },
+    effective: () => {
+      const boot = readCockpitSessionStartBoot();
+      return boot === null ? null : { model: boot.model, effort: boot.effort };
+    },
+  },
 });
 
 /** Settings router assembled for the authenticated server mount. */

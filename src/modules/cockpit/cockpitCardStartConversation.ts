@@ -61,7 +61,18 @@ export type CockpitStartConversationDeps = {
   createSession: (payload: {
     provider: LLMProvider;
     projectPath: string;
+    model?: string;
+    effort?: string;
   }) => Promise<{ sessionId: string; sessionName: string }>;
+  /**
+   * The server's EFFECTIVE `cockpit.sessionStart` selection for a new conversation.
+   *
+   * This is the same server config field the card `session.start` executor reads, so the
+   * card's button and an action/`ownReply` open conversations on the same model. A failed
+   * read fails the start visibly: a local default would open the conversation on a different
+   * model than the settings page just reported.
+   */
+  readEffectiveSelection: () => Promise<{ model?: string; effort?: string }>;
   /** The LLM a card-started conversation runs on; the server's own default is `claude`. */
   provider: LLMProvider;
 };
@@ -192,11 +203,18 @@ export function createCockpitStartConversationController(
           return;
         }
 
-        // An EMPTY session: no initial message, model or effort — the person starts talking in
-        // the conversation once it is open.
+        // An EMPTY session: no initial message — the person starts talking once it is open.
+        // Its LAUNCH SELECTION is the server's effective `cockpit.sessionStart` reading, the
+        // same field the card `session.start` executor uses. Blank values are omitted rather
+        // than sent as `''`, so the provider keeps its own launch default.
+        const selection = await deps.readEffectiveSelection();
+        const model = selection.model?.trim() ?? '';
+        const effort = selection.effort?.trim() ?? '';
         const created = await deps.createSession({
           provider: deps.provider,
           projectPath: project.projectPath,
+          ...(model === '' ? {} : { model }),
+          ...(effort === '' ? {} : { effort }),
         });
         const started: CockpitStartConversationCreated = {
           sessionId: created.sessionId,

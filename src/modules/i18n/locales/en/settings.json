@@ -169,7 +169,8 @@
     "browser": "Browser",
     "notifications": "Notifications",
     "plugins": "Plugins",
-    "about": "About"
+    "about": "About",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Notifications",
@@ -1013,5 +1014,23 @@
       "disableButton": "Disable",
       "disableConfirm": "Are you sure you want to disable this client? Every grant and token under it is rejected immediately. This cannot be undone."
     }
+  },
+  "cockpitSessionStart": {
+    "title": "New conversation",
+    "description": "The model and reasoning effort a conversation starts with when it is opened from a cockpit card.",
+    "loading": "Loading…",
+    "loadFailed": "Could not load the cockpit settings",
+    "retry": "Retry",
+    "modelLabel": "Model",
+    "effortLabel": "Reasoning effort",
+    "effortDefault": "Provider default",
+    "effectiveTitle": "In effect now",
+    "savedTitle": "Saved",
+    "providerDefault": "Provider default",
+    "restartRequired": "Restart the server for this change to take effect. Until then new conversations keep using the model in effect now.",
+    "versionConflict": "The settings file changed since this page was opened. Reload, then save again.",
+    "saveFailed": "Could not save the cockpit settings",
+    "save": "Save",
+    "reload": "Reload"
   }
 }

@@ -89,7 +89,8 @@
     "tasks": "Aufgaben",
     "notifications": "Benachrichtigungen",
     "plugins": "Plugins",
-    "about": "Info"
+    "about": "Info",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -664,5 +665,23 @@
     "speakerModelDownload": "Modell herunterladen",
     "speakerModelDownloading": "Wird heruntergeladen…",
     "speakerModelNote": "Wird mit der nächsten Live-Voice-Verbindung nach Abschluss des Downloads wirksam."
+  },
+  "cockpitSessionStart": {
+    "title": "Neue Unterhaltung",
+    "description": "Das Modell und der Reasoning-Aufwand, mit denen eine Unterhaltung aus einer Cockpit-Karte geöffnet wird.",
+    "loading": "Wird geladen…",
+    "loadFailed": "Die Cockpit-Einstellungen konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "modelLabel": "Modell",
+    "effortLabel": "Reasoning-Aufwand",
+    "effortDefault": "Anbieter-Standard",
+    "effectiveTitle": "Jetzt aktiv",
+    "savedTitle": "Gespeichert",
+    "providerDefault": "Anbieter-Standard",
+    "restartRequired": "Starte den Server neu, damit diese Änderung wirksam wird. Bis dahin verwenden neue Unterhaltungen weiterhin das jetzt aktive Modell.",
+    "versionConflict": "Die Einstellungsdatei wurde geändert, seit diese Seite geöffnet wurde. Lade neu und speichere erneut.",
+    "saveFailed": "Die Cockpit-Einstellungen konnten nicht gespeichert werden",
+    "save": "Speichern",
+    "reload": "Neu laden"
   }
 }

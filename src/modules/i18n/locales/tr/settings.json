@@ -90,7 +90,8 @@
     "computer": "Bilgisayar Kullanımı",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
-    "about": "Hakkında"
+    "about": "Hakkında",
+    "cockpit": "Kokpit"
   },
   "notifications": {
     "title": "Bildirimler",
@@ -671,5 +672,23 @@
     "speakerModelDownload": "Modeli indir",
     "speakerModelDownloading": "İndiriliyor…",
     "speakerModelNote": "İndirme tamamlandıktan sonraki Live Voice bağlantısında etkili olur."
+  },
+  "cockpitSessionStart": {
+    "title": "Yeni konuşma",
+    "description": "Bir kokpit kartından konuşma açılırken kullanılan model ve akıl yürütme düzeyi.",
+    "loading": "Yükleniyor…",
+    "loadFailed": "Kokpit ayarları yüklenemedi",
+    "retry": "Yeniden dene",
+    "modelLabel": "Model",
+    "effortLabel": "Akıl yürütme düzeyi",
+    "effortDefault": "Sağlayıcı varsayılanı",
+    "effectiveTitle": "Şu anda geçerli",
+    "savedTitle": "Kaydedildi",
+    "providerDefault": "Sağlayıcı varsayılanı",
+    "restartRequired": "Bu değişikliğin geçerli olması için sunucuyu yeniden başlatın. O zamana kadar yeni konuşmalar şu anda geçerli modeli kullanmaya devam eder.",
+    "versionConflict": "Bu sayfa açıldıktan sonra ayar dosyası değişti. Yeniden yükleyip tekrar kaydedin.",
+    "saveFailed": "Kokpit ayarları kaydedilemedi",
+    "save": "Kaydet",
+    "reload": "Yeniden yükle"
   }
 }

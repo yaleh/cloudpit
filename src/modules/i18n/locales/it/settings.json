@@ -89,7 +89,8 @@
     "tasks": "Attività",
     "notifications": "Notifiche",
     "plugins": "Plugin",
-    "about": "Informazioni"
+    "about": "Informazioni",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Notifiche",
@@ -670,5 +671,23 @@
     "speakerModelDownload": "Scarica il modello",
     "speakerModelDownloading": "Download in corso…",
     "speakerModelNote": "Ha effetto alla prossima connessione Live Voice al termine del download."
+  },
+  "cockpitSessionStart": {
+    "title": "Nuova conversazione",
+    "description": "Il modello e lo sforzo di ragionamento con cui si apre una conversazione da una scheda del cockpit.",
+    "loading": "Caricamento…",
+    "loadFailed": "Impossibile caricare le impostazioni del cockpit",
+    "retry": "Riprova",
+    "modelLabel": "Modello",
+    "effortLabel": "Sforzo di ragionamento",
+    "effortDefault": "Predefinito del provider",
+    "effectiveTitle": "In vigore ora",
+    "savedTitle": "Salvato",
+    "providerDefault": "Predefinito del provider",
+    "restartRequired": "Riavvia il server perché questa modifica abbia effetto. Fino ad allora le nuove conversazioni continueranno a usare il modello in vigore.",
+    "versionConflict": "Il file delle impostazioni è cambiato da quando è stata aperta questa pagina. Ricarica, poi salva di nuovo.",
+    "saveFailed": "Impossibile salvare le impostazioni del cockpit",
+    "save": "Salva",
+    "reload": "Ricarica"
   }
 }

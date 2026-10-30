@@ -90,7 +90,8 @@
     "computer": "電腦使用",
     "notifications": "通知",
     "plugins": "外掛",
-    "about": "關於"
+    "about": "關於",
+    "cockpit": "駕駛艙"
   },
   "notifications": {
     "title": "通知",
@@ -665,5 +666,23 @@
     "speakerModelDownload": "下載模型",
     "speakerModelDownloading": "下載中…",
     "speakerModelNote": "下載完成後，下一次 Live Voice 連線生效。"
+  },
+  "cockpitSessionStart": {
+    "title": "新對話",
+    "description": "從 cockpit 卡片開啟新對話時使用的模型與推理強度。",
+    "loading": "正在載入…",
+    "loadFailed": "無法載入 cockpit 設定",
+    "retry": "重試",
+    "modelLabel": "模型",
+    "effortLabel": "推理強度",
+    "effortDefault": "供應商預設",
+    "effectiveTitle": "目前生效",
+    "savedTitle": "已儲存",
+    "providerDefault": "供應商預設",
+    "restartRequired": "重新啟動服務後生效；在此之前，新對話仍使用目前生效的模型。",
+    "versionConflict": "設定檔在此頁面開啟後已被修改。請重新載入後再儲存。",
+    "saveFailed": "無法儲存 cockpit 設定",
+    "save": "儲存",
+    "reload": "重新載入"
   }
 }

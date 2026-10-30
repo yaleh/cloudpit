@@ -1,0 +1,54 @@
+{
+  "name": "cockpit-session-start-settings",
+  "description": "Settings → Cockpit: read the running (effective) and saved launch selection, choose a catalog model and reasoning effort, save, and confirm the page now reports the new SAVED values beside the still-running effective ones with the restart notice. The settings file this instance was started with seeds model=default and no effort.",
+  "steps": [
+    {
+      "open": "settings",
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/",
+        "settingsOpen": true,
+        "settingsStatus": "ready",
+        "settingsError": null,
+        "settingsSavedModel": "default",
+        "settingsSavedEffort": "",
+        "settingsEffectiveModel": "default",
+        "settingsEffectiveEffort": "",
+        "settingsRestartRequired": false,
+        "settingsDraftModel": "default",
+        "settingsDraftEffort": ""
+      }
+    },
+    {
+      "drive": { "settings.selectModel": "sonnet" },
+      "expect": {
+        "settingsDraftModel": "sonnet",
+        "settingsSavedModel": "default",
+        "settingsRestartRequired": false
+      }
+    },
+    {
+      "drive": { "settings.selectEffort": "high" },
+      "expect": {
+        "settingsDraftModel": "sonnet",
+        "settingsDraftEffort": "high",
+        "settingsSavedEffort": ""
+      }
+    },
+    {
+      "drive": { "settings.save": true },
+      "checkpoint": true,
+      "expect": {
+        "settingsStatus": "ready",
+        "settingsError": null,
+        "settingsDraftModel": "sonnet",
+        "settingsDraftEffort": "high",
+        "settingsSavedModel": "sonnet",
+        "settingsSavedEffort": "high",
+        "settingsEffectiveModel": "default",
+        "settingsEffectiveEffort": "",
+        "settingsRestartRequired": true
+      }
+    }
+  ]
+}

@@ -126,7 +126,8 @@
     "browser": "Browser",
     "notifications": "Notifikasi",
     "plugins": "Plugin",
-    "about": "Tentang"
+    "about": "Tentang",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Notifikasi",
@@ -964,5 +965,23 @@
       "disableButton": "Nonaktifkan",
       "disableConfirm": "Yakin ingin menonaktifkan klien ini? Semua otorisasi dan tokennya langsung ditolak. Tindakan ini tidak dapat dibatalkan."
     }
+  },
+  "cockpitSessionStart": {
+    "title": "Percakapan baru",
+    "description": "Model dan upaya penalaran yang dipakai saat percakapan dibuka dari kartu cockpit.",
+    "loading": "Memuat…",
+    "loadFailed": "Tidak dapat memuat pengaturan cockpit",
+    "retry": "Coba lagi",
+    "modelLabel": "Model",
+    "effortLabel": "Upaya penalaran",
+    "effortDefault": "Bawaan penyedia",
+    "effectiveTitle": "Berlaku sekarang",
+    "savedTitle": "Tersimpan",
+    "providerDefault": "Bawaan penyedia",
+    "restartRequired": "Mulai ulang server agar perubahan ini berlaku. Sampai saat itu, percakapan baru tetap memakai model yang berlaku sekarang.",
+    "versionConflict": "Berkas pengaturan berubah sejak halaman ini dibuka. Muat ulang, lalu simpan lagi.",
+    "saveFailed": "Tidak dapat menyimpan pengaturan cockpit",
+    "save": "Simpan",
+    "reload": "Muat ulang"
   }
 }

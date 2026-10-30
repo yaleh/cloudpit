@@ -126,7 +126,8 @@
     "browser": "Navegador",
     "notifications": "Notificaciones",
     "plugins": "Plugins",
-    "about": "Acerca de"
+    "about": "Acerca de",
+    "cockpit": "Cockpit"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -757,5 +758,23 @@
       "disableButton": "Deshabilitar",
       "disableConfirm": "¿Seguro que quieres deshabilitar este cliente? Todas sus autorizaciones y tokens se rechazan de inmediato. Esta acción no se puede deshacer."
     }
+  },
+  "cockpitSessionStart": {
+    "title": "Conversación nueva",
+    "description": "El modelo y el esfuerzo de razonamiento con los que se abre una conversación desde una tarjeta del cockpit.",
+    "loading": "Cargando…",
+    "loadFailed": "No se pudo cargar la configuración del cockpit",
+    "retry": "Reintentar",
+    "modelLabel": "Modelo",
+    "effortLabel": "Esfuerzo de razonamiento",
+    "effortDefault": "Predeterminado del proveedor",
+    "effectiveTitle": "En vigor ahora",
+    "savedTitle": "Guardado",
+    "providerDefault": "Predeterminado del proveedor",
+    "restartRequired": "Reinicia el servidor para aplicar este cambio. Hasta entonces, las conversaciones nuevas seguirán usando el modelo en vigor.",
+    "versionConflict": "El archivo de configuración cambió desde que se abrió esta página. Recarga y vuelve a guardar.",
+    "saveFailed": "No se pudo guardar la configuración del cockpit",
+    "save": "Guardar",
+    "reload": "Recargar"
   }
 }

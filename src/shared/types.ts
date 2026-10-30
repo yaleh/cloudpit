@@ -3176,7 +3176,26 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'about';
+/**
+ * The cockpit's new-conversation launch selection, as
+ * `GET /api/settings/cockpit/session-start` returns it.
+ *
+ * `model`/`effort` are the SAVED file values the NEXT boot applies; `effectiveModel`/
+ * `effectiveEffort` are the values the RUNNING process booted with; `restartRequired` is true
+ * only when those disagree. `version` is the file's content hash, and a save sends it back so a
+ * second editor's stale write is refused instead of silently overwriting. Mirrors the server's
+ * `CockpitSessionStartSettingsReading` (compared by `wireContractTypeSync.test.ts`).
+ */
+export type CockpitSessionStartSettingsReading = {
+  model: string;
+  effort: string;
+  effectiveModel: string;
+  effectiveEffort: string;
+  version: string;
+  restartRequired: boolean;
+};
+
+export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'about' | 'cockpit';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;

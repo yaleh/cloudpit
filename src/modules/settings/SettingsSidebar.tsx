@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Info, Key, ListChecks, Mic, MonitorPlay, Palette, Puzzle } from 'lucide-react';
+import { Bell, Bot, GitBranch, Info, Key, ListChecks, Mic, MonitorPlay, Palette, Puzzle, Rocket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
   { id: 'voice', labelKey: 'mainTabs.voice', icon: Mic },
   { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },
+  { id: 'cockpit', labelKey: 'mainTabs.cockpit', icon: Rocket },
   { id: 'browser', labelKey: 'mainTabs.browser', icon: MonitorPlay },
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
@@ -45,6 +46,7 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
             return (
               <button
                 key={item.id}
+                data-settings-tab={item.id}
                 onClick={() => onChange(item.id)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-150',
@@ -70,6 +72,7 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
             return (
               <Pill
                 key={item.id}
+                data-settings-tab={item.id}
                 isActive={activeTab === item.id}
                 onClick={() => onChange(item.id)}
                 className="flex-shrink-0"

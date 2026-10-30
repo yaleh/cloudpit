@@ -71,5 +71,34 @@ export function createSettingsRouter(
   router.delete('/access-tokens/:tokenId', respond((req) => service.revokeAccessToken(
     userId(req), Number(req.params.tokenId),
   )));
+
+  // The cockpit's new-conversation launch selection. GET reports the SAVED file values beside
+  // the values THIS boot is using (and whether a restart would change anything); PUT/PATCH edit
+  // only `model`/`effort`. The ETag is the file's content hash, and a write must carry the
+  // version it was based on — `expectedVersion` in the body, or `If-Match` — so a second
+  // editor's stale save is a 409 rather than a silent overwrite.
+  router.get('/cockpit/session-start', async (req, res, next) => {
+    try {
+      const reading = service.getCockpitSessionStart();
+      res.status(200).set('ETag', `"${reading.version}"`).json(reading);
+    } catch (error) { next(error); }
+  });
+  const writeCockpitSessionStart = (partial: boolean) =>
+    async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      try {
+        const header = req.get('if-match');
+        const headerVersion = header === undefined
+          ? undefined
+          : header.replace(/^W\//, '').replace(/^"|"$/g, '');
+        const reading = await service.updateCockpitSessionStart({
+          body: req.body,
+          headerVersion,
+          partial,
+        });
+        res.status(200).set('ETag', `"${reading.version}"`).json(reading);
+      } catch (error) { next(error); }
+    };
+  router.put('/cockpit/session-start', writeCockpitSessionStart(false));
+  router.patch('/cockpit/session-start', writeCockpitSessionStart(true));
   return router;
 }

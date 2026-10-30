@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import { api } from '@/shared/api';
-import type { CockpitCard, LLMProvider, QuayFleetSummary } from '@/shared/types';
+import { api, readApiJson } from '@/shared/api';
+import type {
+  CockpitCard,
+  CockpitSessionStartSettingsReading,
+  LLMProvider,
+  QuayFleetSummary,
+} from '@/shared/types';
 import { createChatSession } from '@/modules/chat';
 import { createCockpitStartConversationController } from '@/modules/cockpit/cockpitCardStartConversation';
 import type {
@@ -31,6 +36,27 @@ async function readRegisteredCockpitProjects(): Promise<readonly CockpitStartCon
   }));
 }
 
+/**
+ * Reads the launch selection a card-started conversation opens with: the EFFECTIVE values of
+ * the server settings file's `cockpit.sessionStart` — the same field the card `session.start`
+ * executor is handed. Saved-but-not-yet-restarted values are deliberately not used: a new
+ * conversation runs what this process is using, not what the next boot will.
+ */
+async function readEffectiveCockpitSessionStartSelection(): Promise<{
+  model?: string;
+  effort?: string;
+}> {
+  const response = await api.settings.cockpitSessionStart();
+  if (!response.ok) {
+    throw new Error(`Failed to read the cockpit session-start settings (${response.status})`);
+  }
+  const reading = await readApiJson<CockpitSessionStartSettingsReading>(response);
+  return {
+    ...(reading.effectiveModel === '' ? {} : { model: reading.effectiveModel }),
+    ...(reading.effectiveEffort === '' ? {} : { effort: reading.effectiveEffort }),
+  };
+}
+
 export type UseCockpitStartConversationOptions = {
   /** The registered projects the surface already read, or `null` to read them on demand. */
   registeredProjects?: readonly CockpitStartConversationProject[] | null;
@@ -57,7 +83,11 @@ export function useCockpitStartConversation(
 } {
   const provider = options.provider ?? DEFAULT_COCKPIT_CARD_SESSION_PROVIDER;
   const controller = useMemo(
-    () => createCockpitStartConversationController({ createSession: createChatSession, provider }),
+    () => createCockpitStartConversationController({
+      createSession: createChatSession,
+      readEffectiveSelection: readEffectiveCockpitSessionStartSelection,
+      provider,
+    }),
     [provider],
   );
   const snapshot = useSyncExternalStore(

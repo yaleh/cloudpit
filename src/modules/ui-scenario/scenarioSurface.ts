@@ -12,6 +12,14 @@ import {
   startShowingCardOption,
   startWritingCardOwnReply,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
+import {
+  pressSettingsSave,
+  readSettingsReading,
+  selectSettingsEffort,
+  selectSettingsModel,
+  settleSettingsStep,
+} from '@/modules/ui-scenario/settingsSurface';
+import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
 import type {
   CardContinuation,
   ScenarioCockpitCardTarget,
@@ -81,7 +89,10 @@ export type ScenarioDriveStep =
   | { 'cockpitCard.showOption': ScenarioCockpitCardTarget & { optionId: string } }
   | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
   | { 'cockpitCard.confirm': string }
-  | { 'cockpitCard.openDetails': string };
+  | { 'cockpitCard.openDetails': string }
+  | { 'settings.selectModel': string }
+  | { 'settings.selectEffort': string }
+  | { 'settings.save': true };
 
 /** One focusable's identity, kept beside the contract for assertions that name a label. */
 export type ScenarioFocusReading = {
@@ -159,6 +170,11 @@ export type ScenarioReading = {
   route: string;
   /** What the cockpit page is showing, or an all-null reading when it is not mounted. */
   cockpit: ScenarioCockpitReading;
+  /**
+   * The Settings → Cockpit form's reading, or `null` when that tab is not mounted. Taken from the
+   * `data-cockpit-session-start*` attributes the form itself draws.
+   */
+  settings: ScenarioSettingsReading | null;
   /** The view whose contract is active (the last one published), or `null`. */
   activeView: string | null;
   /** Every view URI that has published a contract, in publication order. */
@@ -472,6 +488,7 @@ function createScenarioSurface(): ScenarioSurface {
     return {
       route: `${window.location.pathname}${window.location.search}`,
       cockpit: readCockpitReading(),
+      settings: readSettingsReading(),
       activeView: activeViewUri,
       views: [...registeredViews.keys()],
       focusables,
@@ -538,6 +555,7 @@ function createScenarioSurface(): ScenarioSurface {
     const continuation = pendingCardAction;
     pendingCardAction = null;
     await settleCardStep(continuation);
+    await settleSettingsStep();
   };
 
   const drive = (step: ScenarioDriveStep): ScenarioReading => {
@@ -597,6 +615,15 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('cockpitCard.openDetails' in step) {
       action = 'cockpitCard.openDetails';
       openCardDetails(step['cockpitCard.openDetails']);
+    } else if ('settings.selectModel' in step) {
+      action = 'settings.selectModel';
+      selectSettingsModel(step['settings.selectModel']);
+    } else if ('settings.selectEffort' in step) {
+      action = 'settings.selectEffort';
+      selectSettingsEffort(step['settings.selectEffort']);
+    } else if ('settings.save' in step) {
+      action = 'settings.save';
+      pressSettingsSave();
     }
 
     stepTimings.push({ index: driveCount, action, ms: nowMs() - started });

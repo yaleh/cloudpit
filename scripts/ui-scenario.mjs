@@ -19,6 +19,9 @@
  *                      the return path a later `session` step lands on is the product's own;
  *       `cockpit-cards` — the cockpit's cards view: the same mode-switch entry, then the stage's
  *                      own `?view=cards` address (the app draws no separate cards link).
+ *       `settings`   — the Settings dialog's Cockpit tab, opened from the sidebar's Settings
+ *                      button; the opener waits until the form's own reading is `ready`/`failed`,
+ *                      so the first step never catches it mid-load.
  *     An unknown opener fails its step rather than being ignored.
  *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudcliScenario.drive`.
  *   · `expect`: a map of reading assertions, evaluated after the step (see
@@ -347,6 +350,56 @@ function expectationFailures(expect, reading) {
         if (!sameJson(actual, wanted)) fail(key, wanted, actual);
         break;
       }
+      case 'settingsOpen': {
+        const actual = reading.settings === null ? false : reading.settings.open === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsStatus': {
+        const actual = reading.settings === null ? null : reading.settings.status;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsDraftModel': {
+        const actual = reading.settings === null ? null : reading.settings.draftModel;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsDraftEffort': {
+        const actual = reading.settings === null ? null : reading.settings.draftEffort;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsSavedModel': {
+        const actual = reading.settings === null ? null : reading.settings.savedModel;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsSavedEffort': {
+        const actual = reading.settings === null ? null : reading.settings.savedEffort;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsEffectiveModel': {
+        const actual = reading.settings === null ? null : reading.settings.effectiveModel;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsEffectiveEffort': {
+        const actual = reading.settings === null ? null : reading.settings.effectiveEffort;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsRestartRequired': {
+        const actual = reading.settings === null ? null : reading.settings.restartRequired;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'settingsError': {
+        const actual = reading.settings === null ? null : reading.settings.error;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       default:
         failures.push(`${key}: unsupported expectation key (a scenario typo must not pass silently)`);
     }
@@ -661,6 +714,41 @@ async function openQuayPanel(page, target) {
 }
 
 /**
+ * Opens the Settings dialog's Cockpit tab.
+ *
+ * The dialog has no route of its own: it is the sidebar header's Settings button, and the tab is
+ * the same nav item a person presses. The opener then waits for the form's published status to
+ * settle (`ready` or `failed`), because its catalogue and reading arrive over the network and a
+ * scenario's first `expect` must not catch it in `loading`.
+ *
+ * @param {import('playwright').Page} page
+ */
+async function openSettingsCockpit(page) {
+  if (!page.url().startsWith('http')) {
+    await page.goto('/');
+  }
+  await waitForSurface(page);
+  const opener = page.locator('[data-testid="open-settings"]:visible').first();
+  await opener.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await opener.click();
+  const tab = page.locator('[data-settings-tab="cockpit"]:visible').first();
+  await tab.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await tab.click();
+  await page.waitForFunction(
+    () => {
+      const form = /** @type {any} */ (globalThis).document.querySelector(
+        '[data-cockpit-session-start]',
+      );
+      if (form === null) return false;
+      const status = form.getAttribute('data-cockpit-session-start');
+      return status === 'ready' || status === 'failed';
+    },
+    undefined,
+    { timeout: PANEL_TIMEOUT_MS },
+  );
+}
+
+/**
  * Runs one scenario file and returns its report.
  *
  * @param {import('playwright').Browser} browser
@@ -771,6 +859,7 @@ async function runScenario(browser, scenario, options) {
           session: () => openSession(page, { project: options.project, session: options.session }),
           cockpit: () => openCockpit(page),
           'cockpit-cards': () => openCockpitCards(page),
+          settings: () => openSettingsCockpit(page),
         };
         const execute = openers[step.open];
         if (execute === undefined) {
