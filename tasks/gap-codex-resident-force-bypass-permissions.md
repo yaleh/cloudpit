@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-force-bypass-permissions
 title: codex resident 权限未强制对齐 claude resident（bypassPermissions）
-status: todo
+status: ready
 labels:
   - gap
   - defect
