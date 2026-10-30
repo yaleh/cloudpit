@@ -1,13 +1,19 @@
 ---
 id: gap-cockpit-ask-read-self-heal-from-transcript
 title: 驾驶舱提问卡「尚未生成」自愈：对象缺失时 read() 从转写重建、不再提前 return null；「找不到会话转写」纳入有界重试
-status: ready
+status: needs-human
 labels:
   - gap
   - cockpit
 parent: null
 children: []
-extra: {}
+extra:
+  schema: execution
+  needs_human_cause: human-adjudication
+  park_reason: 交付物已完整且本任务 delta 全绿；landing 被 develop 侧 5 条无承载者的红挡住（codex resident
+    真回归 + ratchet oversize 827），fan-in 的 changed-assertion 是 dense __PERFILE__
+    块解析 artifact（added=[]、taskText=""），每轮会逐字复现；需人/manager 立任务修 develop 或裁定
+    complete
 ---
 ## Proposal
 
@@ -74,3 +80,28 @@ DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PA
 - 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→827 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
 - run_id：wk-prod-anchor
 - session_id：85572f07-bb01-464f-828a-1dceb71373f1
+
+
+## Notes
+
+**2026-10-30 第 2 轮（CONTINUE，run wk-prod-anchor）— 复验后主动 park：develop 侧 5 条红无承载者，本任务交付物已完整**
+
+本轮未重实现（分支已有实现提交 `668569c25` + 两次 merge develop；工作树干净，无未合并路径）。复验读数：
+
+- 本任务 delta：`git diff --name-only develop HEAD` = 仅 3 个 Touches 文件（`session-ask-decision-reader.ts`、`session-ask-decision-digest.test.ts`、`session-ask-recovery.test.ts`）。
+- 本任务测试在合并后的树上全绿（逐个直跑，均 exit 0）：`session-ask-decision-digest` 51/51、`session-ask-recovery` 5/5、`cockpit-fleet-card-provider` 18/18；`task_check` = ok true，AC 4/4、DoD 4/4；`anti-drift-touches-check --merge-target develop` = `ANTI-DRIFT OK`（3 actual file(s)，全在 Touches）。
+- suite 的 5 条红**全部在 develop 侧**，三条硬证据：
+  1. 驱动自己那轮的 develop 基线日志 `.quay/fan-in-suite-gap-cockpit-ask-read-self-heal-from-transcript~wk-prod-anchor~baseline-1793341360089-7622c7.log` 逐字含同样 5 条 `not ok`（app-server-protocol / host-driver-queue / host-driver-steer / resident-approvals / architecture-ratchet）；
+  2. 6 个相关文件（4 个 codex 测试 + `architecture-ratchet.test.ts` + `codex-host-driver.provider.ts`）的 blob 与 develop 逐字节相同（`git rev-parse HEAD:<f>` == `develop:<f>`，6/6 EQUAL）；
+  3. `worker-outcome.jsonl` 该轮 `baselineEquivalence.verdict` = `added: []`，`changed` 仅 1 条且 `taskText: ""`（`baselineText` 同时含 ratchet 文本与 `AssertionError...` 两段）⇒ `changed-assertion` 是 dense `__PERFILE__` 块让最后完成的断言文件丢掉 marker 文本的解析 artifact（见 memory `baseline-red-changed-assertion-signature-parser-artifact`），不是本任务引入的红。
+- develop 红根因（与 cockpit 无关）：
+  - `codex-host-driver-queue.test.ts`：`CodexHostDriver.run()`（`codex-host-driver.provider.ts:474`）调用 `startResidentSession()` 时未传 `host`，抛 `CODEX_HOST_PORT_MISSING`（:432）——develop 上 codex resident 的真实代码回归；
+  - `codex-resident-approvals` / `codex-host-driver-steer` / `codex-app-server-protocol` 三文件各自断言失败（fan-in 的隔离重跑同样复现，非并行噪声）；
+  - `architecture-ratchet.test.ts`：`server/modules/providers/list/codex/codex-host-driver.provider.ts` 实测 827 行 > 800 且不在 baseline（baseline 只记录 `codex-sessions.provider.ts`）。
+- 承载者核查：`task_list --status todo` = 0、`--status needs-human` = 0、`--status ready` = 1（仅本任务）；全部 codex resident 任务（ac436–ac444 等）均为 done/superseded ⇒ 这 5 条红**无在飞承载者**，修它们必须人/manager 新立任务。
+
+**收口菜单**（任选其一，之后 retreat/promote 本任务即可 ff 落地，交付物已就绪）：
+1. 立任务修 develop 五红（最关键：`run()` 传 `host`；provider 缩到 ≤800，或按仓库 RECORDED CHANGE 规则正式上调 baseline）→ 红清后本任务直接 ff；
+2. 或人裁定本任务 `complete`（其 delta 从未引入这 5 条红，`added: []` 已证明）。
+
+⚠️ 只要那 5 条红还在、且 arch-ratchet 仍是最后完成的 `AssertionError` 文件，`changed-assertion` 会**每轮逐字复现**（dense 块 artifact 是确定性的）——纯 exit 只会再烧一轮 full suite（本轮 fan-in 已耗 5 分钟）。本任务不含对 `server/modules/providers/**` 的任何改动，也未改 `architecture-ratchet.baseline.json`（拒绝为让本轮变绿而伪造基线/造绿）。
