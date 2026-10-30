@@ -42,7 +42,7 @@ AC1/AC2 先红后绿实测，贴逐字失败行与 tests/pass/fail；部署后�
   还原后复跑，回到 `tests 11 / pass 11 / fail 0`，退出 0。
 - AC3：`npm run typecheck` 退出 0；`npx oxlint` 三个改动文件退出 0；改动仅已声明的 Touches 三个实现/测试文件，未新增 server 测试文件。
 - 棘轮修复（上一轮 exited-not-landed 原因）：强制逻辑内联在 `startResidentSession` 时 `codex-host-driver.provider.ts` 835→844，越过 oversizeFiles 基线（只允许下降）。本轮把覆盖逻辑移入 contract 叶子的 `residentThreadDefaults(options)`（`codex-host-driver.contract.ts` 417 行，不在基线内），provider 侧只留一行 `threadDefaults: residentThreadDefaults(launch.options)`，实测 `wc -l` 回到 **835**（= 基线）；`architecture-ratchet.test.ts` 复跑 `tests 6 / pass 6 / fail 0`，无 `ratchet:` 红行。
-- DoD 部署后读数：待部署（待外部）。本 worktree 未部署运行中的 codex resident，真实首轮 `thread/start` 帧与审批类 MCP 工具调用的部署后回读需在部署后进行。
+- DoD 部署后读数（2026-10-31 隔离实例 :11203，新 dist，真实 codex app-server）：冷启动全新 resident codex 会话（thread `01a18dac-a5aa-7be1-954f-ca5fe288b062`）后，rollout `turn_context` 读得 `approval_policy:"never"` + `sandbox_policy:{type:"danger-full-access"}`，`thread_settings_applied` 同步 `approval_policy:"never"` + `permission_profile:{type:"disabled"}`；同一会话 `mcp__quay__task_list` 成功返回任务列表（`total:1274`），不再被 `user rejected MCP tool call` 拒。对照旧 dist 的 23:13 会话（thread `01a18d5f-…`）：同读数曾是 `on-request` + `workspace-write`，且该工具被拒。
 
 ## ADR-007 暗轴
 
