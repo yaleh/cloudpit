@@ -1,6 +1,8 @@
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
 import { CodexProviderAuth } from '@/modules/providers/list/codex/codex-auth.provider.js';
 import { CodexForkProvider } from '@/modules/providers/list/codex/codex-fork.provider.js';
+import { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import { codexMcpGatewayLaunch } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import { CodexProviderModels } from '@/modules/providers/list/codex/codex-models.provider.js';
 import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
@@ -11,6 +13,7 @@ import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sess
 import { CodexSkillsProvider } from '@/modules/providers/list/codex/codex-skills.provider.js';
 import { CodexTokenUsageProvider } from '@/modules/providers/list/codex/codex-token-usage.provider.js';
 import { sessionHostManager } from '@/modules/session-hosts/index.js';
+import { readMcpGatewayClientTarget } from '@/shared/ports/mcp-gateway-client.port.js';
 import type {
   IProviderAuth,
   IProviderFork,
@@ -47,7 +50,24 @@ export class CodexProvider extends AbstractProvider {
    * which is what makes the declaration a one-line change rather than a
    * re-wiring.
    */
-  readonly residentHostDriver: CodexHostDriver = new CodexHostDriver({ host: sessionHostManager });
+  readonly residentHostDriver: CodexHostDriver = new CodexHostDriver({
+    host: sessionHostManager,
+    /**
+     * The connection factory is the injection point for this server's `/mcp`
+     * gateway. It runs when a host is opened (long after `server/index.ts` read the
+     * settings file and installed the port), so the target is resolved per spawn
+     * rather than captured at module load — the provider singletons are built
+     * before that reading exists.
+     *
+     * The port fails closed: an uninstalled reader (a focused criterion, a process
+     * without a composition root) yields `null` and the launch goes through
+     * untouched.
+     */
+    createConnection: (launch) =>
+      new CodexAppServerConnection({
+        launch: codexMcpGatewayLaunch(launch, readMcpGatewayClientTarget()),
+      }),
+  });
 
   /** The same instance under the facet every provider mounts; see the Claude mount. */
   readonly hostDriver: IProviderHostDriver = this.residentHostDriver;

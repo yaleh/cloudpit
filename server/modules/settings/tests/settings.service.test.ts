@@ -8,6 +8,7 @@ import test from 'node:test';
 
 import express from 'express';
 
+import { resolveCodexMcpGateway } from '../codex-mcp-gateway.settings.js';
 import { createServerFeaturesRouter } from '../server-features.routes.js';
 import { loadServerSettings } from '../server-settings.js';
 import { createSettingsService } from '../settings.service.js';
@@ -211,6 +212,94 @@ test('the cockpit switch ships off and only an explicit boolean true enables it'
     const sibling = loadServerSettings({ settingsPath: siblingPath });
     assert.equal(sibling.cockpit.enabled, false);
     assert.deepEqual(sibling.problems, []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+/**
+ * The `codex.mcpGateway` block: off by default, and a credential that is not a
+ * usable `ccp_` token leaves the injection off with a reason rather than handing
+ * a child something the gateway will refuse.
+ *
+ * The block is read through `loadServerSettings` (the only reader of this file),
+ * and the resolution is driven over an injected `readFile` so no secret has to
+ * exist on disk.
+ */
+test('the codex gateway injection ships off and refuses an unusable credential', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'server-settings-codex-'));
+  try {
+    // (a) No file at all: the block is inert and says nothing.
+    const shipped = loadServerSettings({ env: {}, defaultPath: path.join(directory, 'absent.json') });
+    assert.deepEqual(shipped.codexMcpGateway, { enabled: false, url: '', tokenFile: '' });
+    assert.deepEqual(resolveCodexMcpGateway(shipped.codexMcpGateway, { serverPort: 3001, gatewayPath: '/mcp' }), {
+      target: null,
+      problem: null,
+    });
+
+    // (b) A malformed field falls back on its own and is reported.
+    const malformedPath = path.join(directory, 'malformed.json');
+    await writeFile(
+      malformedPath,
+      JSON.stringify({ codex: { mcpGateway: { enabled: 'true', url: 7 } } }),
+      'utf8',
+    );
+    const malformed = loadServerSettings({ settingsPath: malformedPath });
+    assert.equal(malformed.codexMcpGateway.enabled, false);
+    assert.ok(
+      malformed.problems.some((problem) => problem.includes('codex.mcpGateway.enabled')),
+      `expected a problem naming codex.mcpGateway.enabled, got ${JSON.stringify(malformed.problems)}`,
+    );
+
+    const enabledPath = path.join(directory, 'enabled.json');
+    await writeFile(
+      enabledPath,
+      JSON.stringify({ codex: { mcpGateway: { enabled: true, tokenFile: '/run/secrets/mcp.pat' } } }),
+      'utf8',
+    );
+    const enabled = loadServerSettings({ settingsPath: enabledPath });
+    assert.equal(enabled.codexMcpGateway.enabled, true);
+    assert.deepEqual(enabled.problems, []);
+
+    // (c) Enabled with a real-looking PAT: the address is this process's loopback route.
+    const resolved = resolveCodexMcpGateway(enabled.codexMcpGateway, {
+      serverPort: 3001,
+      gatewayPath: '/mcp',
+      readFile: () => 'ccp_abc123\n',
+    });
+    assert.deepEqual(resolved, {
+      target: { url: 'http://127.0.0.1:3001/mcp', token: 'ccp_abc123' },
+      problem: null,
+    });
+
+    // (d) An explicit `url` wins over the derived one (an operator behind a proxy).
+    const withUrl = resolveCodexMcpGateway(
+      { ...enabled.codexMcpGateway, url: 'http://127.0.0.1:4000/mcp' },
+      { serverPort: 3001, gatewayPath: '/mcp', readFile: () => 'ccp_abc123' },
+    );
+    assert.equal(withUrl.target?.url, 'http://127.0.0.1:4000/mcp');
+
+    // (e) The unusable-credential arms: blank, not a PAT, unreadable, and no file named.
+    const arms: Array<[string, () => string, string]> = [
+      ['blank', () => '  \n', 'is empty'],
+      ['jwt', () => 'eyJhbGciOi.payload.signature', 'does not hold a ccp_'],
+      ['unreadable', () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); }, 'could not read'],
+    ];
+    for (const [name, readFile, expected] of arms) {
+      const reading = resolveCodexMcpGateway(enabled.codexMcpGateway, {
+        serverPort: 3001,
+        gatewayPath: '/mcp',
+        readFile,
+      });
+      assert.equal(reading.target, null, `${name}: an unusable credential must not produce a target`);
+      assert.ok(reading.problem?.includes(expected), `${name}: problem=${reading.problem}`);
+    }
+    const noFile = resolveCodexMcpGateway(
+      { enabled: true, url: '', tokenFile: '' },
+      { serverPort: 3001, gatewayPath: '/mcp' },
+    );
+    assert.equal(noFile.target, null);
+    assert.ok(noFile.problem?.includes('tokenFile'), `problem=${noFile.problem}`);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

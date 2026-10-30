@@ -46,6 +46,12 @@ import {
 import { errorMessage } from '@/shared/utils.js';
 import type { CockpitFixtureSubject } from '@/shared/types.js';
 
+import {
+  defaultCodexMcpGatewaySettings,
+  readCodexMcpGateway,
+  type CodexMcpGatewaySettings,
+} from './codex-mcp-gateway.settings.js';
+
 /**
  * The environment variable naming the settings file, or nothing when the shipped user-copy
  * path is the one to read.
@@ -253,6 +259,8 @@ export type ServerSettings = {
   observation: ObservationSettings;
   initiative: InitiativeSettings;
   cockpit: CockpitSettings;
+  /** Whether a resident Codex child is handed this server's `/mcp` gateway. */
+  codexMcpGateway: CodexMcpGatewaySettings;
   source: ServerSettingsSource;
   path: string;
   problems: string[];
@@ -317,12 +325,14 @@ export function loadServerSettings(options: {
   const observation = readObservation(record.observation, problems);
   const initiative = readInitiative(record.initiative, problems);
   const cockpit = readCockpit(record.cockpit, problems);
+  const codexMcpGateway = readCodexMcpGateway(record.codex, problems);
 
   return {
     residentRestore,
     observation,
     initiative,
     cockpit,
+    codexMcpGateway,
     source: 'file',
     path: filePath,
     problems,
@@ -359,6 +369,7 @@ function defaultServerSettings(filePath: string): ServerSettings {
         permissionMode: DEFAULT_COCKPIT_SESSION_START_PERMISSION_MODE,
       },
     },
+    codexMcpGateway: defaultCodexMcpGatewaySettings(),
     source: 'default',
     path: filePath,
     problems: [],

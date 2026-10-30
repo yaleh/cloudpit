@@ -34,6 +34,14 @@
       "apiKeyFile": ""
     }
   },
+  "codex": {
+    "mcpGateway": {
+      "enabled": false,
+      "url": "",
+      "tokenFile": ""
+    }
+  },
+  "_codexMcpGateway": "Hand a resident Codex child this server's own `/mcp` gateway, so a Codex session sees the same CloudCLI tools a Claude client connects to. `enabled` SHIPS FALSE: the block is inert until an operator opts in. `tokenFile` names a 0600 file holding a `ccp_` personal access token (the same value an operator pastes into `claude mcp add --header \"Authorization: Bearer …\"`); the token is passed to the child through its environment, never through argv, and is verified by the gateway's ordinary token service, so its scope check and audit row apply unchanged. A missing/blank/non-`ccp_` file leaves the injection off and is reported in the server log. `url` empty means `http://127.0.0.1:<SERVER_PORT>/mcp` — the loopback address the gateway is mounted on.",
   "quay": {
     "entrypoints": {}
   },

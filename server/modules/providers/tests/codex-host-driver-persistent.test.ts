@@ -6,6 +6,9 @@ import {
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import {
+  CODEX_MCP_GATEWAY_SERVER_NAME,
+  CODEX_MCP_GATEWAY_TOKEN_ENV,
+  codexMcpGatewayLaunch,
   threadDefaultsFromLaunchOptions,
   threadParams,
   turnParams,
@@ -655,4 +658,53 @@ test('the resident turn announces session_created with the thread id (transcript
       await driver.closeHost(host, 'user');
     }
   }
+});
+
+/**
+ * The launch a resident Codex child is spawned with, with and without the
+ * gateway target installed.
+ *
+ * The negative arm is the shipped behaviour: `null` returns the SAME launch
+ * object, so the child is spawned with no `-c` override and no extra
+ * environment — the "remove the injection ⇒ no gateway tools" control of AC1.
+ * The positive arm is the whole point of this task: one HTTP MCP server named
+ * `cloudcli`, addressed at the loopback `/mcp` route, authenticated through a
+ * child-environment bearer token (never argv) that the gateway's ordinary token
+ * service verifies.
+ */
+test('the resident launch injects the /mcp gateway only when a target is installed', () => {
+  const base = { cwd: '/workspace', env: { PATH: '/usr/bin' } };
+
+  // (a) No target: the launch goes through untouched.
+  const untouched = codexMcpGatewayLaunch(base, null);
+  assert.equal(untouched, base, 'an uninstalled target must not rewrite the launch');
+
+  // (b) A target: two `-c` overrides, the credential in the environment only.
+  const target = { url: 'http://127.0.0.1:3001/mcp', token: 'ccp_probe_token' };
+  const injected = codexMcpGatewayLaunch(base, target);
+  assert.deepEqual(injected.args, [
+    '-c', `mcp_servers.${CODEX_MCP_GATEWAY_SERVER_NAME}.url="http://127.0.0.1:3001/mcp"`,
+    '-c', `mcp_servers.${CODEX_MCP_GATEWAY_SERVER_NAME}.bearer_token_env_var="${CODEX_MCP_GATEWAY_TOKEN_ENV}"`,
+  ]);
+  assert.equal(injected.env?.[CODEX_MCP_GATEWAY_TOKEN_ENV], 'ccp_probe_token');
+  assert.equal(injected.env?.PATH, '/usr/bin', 'the child keeps the environment it was given');
+  assert.equal(injected.cwd, '/workspace');
+  assert.equal(
+    injected.args?.some((arg) => arg.includes(target.token)),
+    false,
+    'the credential must never appear in the process arguments',
+  );
+
+  // (c) A launch that already carries args keeps them in front of the injection.
+  const withArgs = codexMcpGatewayLaunch({ ...base, args: ['--foo'] }, target);
+  assert.equal(withArgs.args?.[0], '--foo');
+
+  // (d) The operator's URL is written verbatim, TOML-quoted and escaped.
+  const quoted = codexMcpGatewayLaunch(base, { url: 'http://example.test/a"b', token: 'ccp_x' });
+  assert.equal(quoted.args?.[1], `mcp_servers.${CODEX_MCP_GATEWAY_SERVER_NAME}.url="http://example.test/a\\"b"`);
+
+  console.log(
+    `gatewayLaunch server=${CODEX_MCP_GATEWAY_SERVER_NAME} args=${JSON.stringify(injected.args)} ` +
+      `tokenEnv=${CODEX_MCP_GATEWAY_TOKEN_ENV} tokenInArgv=${injected.args?.some((arg) => arg.includes(target.token))}`,
+  );
 });

@@ -71,6 +71,7 @@ import { createCockpitCardsModule, createCockpitModule } from './modules/cockpit
 import { createCockpitBriefDeps } from './cockpit-brief-wiring.js';
 import { createCockpitCardExecutors } from './cockpit-executors-wiring.js';
 import { createCockpitFleetProvider } from './cockpit-fleet-wiring.js';
+import { installCodexMcpGatewayWiring } from './codex-mcp-gateway-wiring.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { loadServerSettings, createServerFeaturesRouter, settingsRoutes, type ResidentRestoreSettings } from './modules/settings/index.js';
 import {
@@ -111,11 +112,9 @@ import { createArchitectureModule } from './modules/architecture/index.js';
 import { createObservationModule, sessionAskSweeper, sessionDigestProducer } from './modules/observation/index.js';
 import { createLiaisonModule, createFileLiaisonStore, createQuayFleetRunner } from './modules/liaison/index.js';
 import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from './modules/reply-suggestions/index.js';
-// The host-level context event stream (context-event-stream-and-shadow-predictor).
-// ONE process instance: the chat control plane records utterances through it, the
-// cockpit records focus/send events, and the reply-suggestions ledger's observer
-// mirrors the chip events. The shadow predictor inside it writes to the same
-// stream and to nothing else.
+// The host-level context event stream (context-event-stream-and-shadow-predictor). ONE process
+// instance: chat control, the cockpit and the reply-suggestions observer all record through it,
+// and the shadow predictor inside it writes to the same stream and to nothing else.
 import {
     contextEvents,
     createSessionAskEventWriter,
@@ -232,12 +231,11 @@ const __dirname = getModuleDirectory(import.meta.url);
 // Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
 const APP_ROOT = findApplicationRoot(__dirname);
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
-// Version of the code that is actually running, captured once at process
-// startup. This intentionally does NOT re-read package.json per request: after
-// an update replaces the files on disk, package.json reflects the NEW version
-// while this long-lived process still runs the OLD code. The frontend bundle is
-// rebuilt on update, so a mismatch between this value and the frontend's
-// build-time version means the server was updated but not restarted.
+// Version of the code that is actually running, captured once at process startup. This intentionally
+// does NOT re-read package.json per request: after an update replaces the files on disk, package.json
+// reflects the NEW version while this long-lived process still runs the OLD code. The frontend bundle
+// is rebuilt on update, so a mismatch against the frontend's build-time version means the server was
+// updated but not restarted.
 const RUNNING_VERSION = (() => {
     try {
         return JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')).version || null;
@@ -266,10 +264,9 @@ const systemModule = createSystemModule({
     readFleetState: async () => (await quayService.getFleetSummary()).fleet.state,
 });
 
-// The ONE notice registry behind `GET /api/notices`. The provider list is assembled HERE, the
-// one place that may see both modules: `modules/notices` must not import `modules/system` (N8),
-// so the deploy provider is built from the system module's reading and handed in. The dismissal
-// table comes from `modules/database`'s barrel — the registry itself never touches SQL.
+// The ONE notice registry behind `GET /api/notices`, assembled HERE because `modules/notices` must
+// not import `modules/system` (N8): the deploy provider is handed the system module's reading, and
+// dismissals come from `modules/database`'s barrel — the registry itself never touches SQL.
 const noticeRegistry = createNoticeRegistry({
     providers: [
         createDeployNoticeProvider({
@@ -283,28 +280,31 @@ console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 const app = express();
 const server = http.createServer(app);
 
-// The generic SERVER-level settings file, read ONCE per process. It is loaded here rather than
-// inside `startServer` because the observation wall's block cap is a ROUTE-CONSTRUCTION input
-// (the mount below happens at module scope), and because the resident-restore pass must reuse
-// the SAME reading rather than open the file a second time — an edit reaching one and not the
-// other is exactly the split this single reading prevents. Every knob is optional; a malformed
-// one falls back to its shipped default and reports the reason, which is logged here.
+// The generic SERVER-level settings file, read ONCE per process: the observation wall's block cap
+// is a route-construction input (mounted below at module scope), and the resident-restore pass must
+// reuse this reading rather than open the file again — one reading, one answer. Every knob is
+// optional; a malformed one falls back to its shipped default and the reason is logged here.
 const serverSettings = loadServerSettings();
 for (const problem of serverSettings.problems) {
     console.warn(`${terminalTextStyles.info('[INFO]')} Server settings: ${problem}`);
 }
-// The cockpit's initiative spot-check ratio. Quay's initiatives reading needs it, and a direct
-// `modules/quay -> modules/settings` import would close the `quay -> settings -> mcp-gateway ->
-// quay` loop (AC-394's provider cycle, ten members instead of three); the port keeps the ONE
-// boot-time reading above as the only reader of the settings module. Installed before the
-// routes are mounted, and read lazily on the first initiatives request.
+// The cockpit's initiative spot-check ratio. A direct `modules/quay -> modules/settings` import
+// would close the `quay -> settings -> mcp-gateway -> quay` loop (AC-394); the port keeps the ONE
+// boot-time reading above as the only reader of the settings module, installed before the routes
+// are mounted and read lazily on the first initiatives request.
 installInitiativeAuditRatioPort({ readAuditRatio: () => serverSettings.initiative.auditRatio });
-// The cockpit's feature switch. The cockpit's dedicated routes live in modules/quay and
-// modules/observation, both composed before this reading exists (quayRoutes at import time);
-// the port carries the ONE boot-time value to their request-time gates without a
-// `modules/quay -> modules/settings` import (AC-394's cycle budget). Fail-closed before this
-// line: a route can never expose the cockpit by omission.
+// The cockpit's feature switch, carried to modules/quay and modules/observation (both composed
+// before this reading exists) without a `modules/quay -> modules/settings` import (AC-394).
+// Fail-closed before this line: a route can never expose the cockpit by omission.
 installCockpitEnabledPort({ readEnabled: () => serverSettings.cockpit.enabled });
+// A resident Codex child is told about this server's `/mcp` gateway, when the settings file
+// enables it. Resolved on the first host open: the provider singletons are built before this
+// reading, and the address needs `SERVER_PORT` below.
+installCodexMcpGatewayWiring({
+    settings: serverSettings.codexMcpGateway,
+    readServerPort: () => SERVER_PORT,
+    gatewayPath: MCP_GATEWAY_PATH,
+});
 // The observation layer's `session.asking` / `session.answered` rows go to the host-level
 // context-event stream. The observation producer is built at module load, before this line,
 // so it reads the port at write time: an uninstalled port writes nothing. While the installed
