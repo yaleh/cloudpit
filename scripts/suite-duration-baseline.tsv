@@ -873,3 +873,9 @@
 #   (dur=3033ms, its own new criterion; the row keeps the 90% coverage floor clear now that the
 #   tree collects 476 server test files).
 3033	server/modules/observation/tests/session-ask-recovery.test.ts
+#   and the cockpit-session-start-model-selection row by
+#   gap-cockpit-session-start-model-settings, measured once on 2026-10-30 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts`
+#   (dur=14887ms, its own new criterion over a real database; the row keeps the 90% coverage
+#   floor clear now that the tree collects 477 server test files).
+14887	server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts

@@ -547,6 +547,17 @@ function startWiring(input: {
       permissionWrites.push({ sessionId, permissionMode });
       return { sessionId, permissionMode };
     },
+    // The catalog the starter validates a configured model/effort against. This criterion is
+    // about the preference ORDER, not the catalog, so it offers the shipped `default` entry
+    // with an effort table and nothing else.
+    getProviderModels: async () => ({
+      OPTIONS: [{
+        value: 'default',
+        label: 'Default',
+        effort: { values: [{ value: 'low' }, { value: 'high' }, { value: 'max' }] },
+      }],
+      DEFAULT: 'default',
+    }),
   };
   const sends: Array<{ sessionId: string; content: string; options?: unknown }> = [];
   const control: CockpitSessionStartControl = {
@@ -578,7 +589,7 @@ function startWiring(input: {
 
 test('a card-started conversation is resident + bypassPermissions, both written before the first send', async () => {
   const wiring = startWiring({
-    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions', model: 'default' },
     capabilities: capabilitiesFor(),
   });
 
@@ -605,14 +616,14 @@ test('a card-started conversation is resident + bypassPermissions, both written 
   assert.equal(wiring.sends[0]?.content, 'ls');
   assert.deepEqual(
     wiring.sends[0]?.options,
-    { permissionMode: 'bypassPermissions' },
-    'the first run must spawn with the mode, not inherit it from a later message',
+    { permissionMode: 'bypassPermissions', model: 'default' },
+    'the first run must spawn with the mode and the configured model, not inherit them later',
   );
 });
 
 test('cockpit.sessionStart is obeyed: per-run + default take effect end to end', async () => {
   const wiring = startWiring({
-    sessionStart: { lifecycleMode: 'per-run', permissionMode: 'default' },
+    sessionStart: { lifecycleMode: 'per-run', permissionMode: 'default', model: 'default' },
     capabilities: capabilitiesFor(),
   });
 
@@ -629,7 +640,7 @@ test('cockpit.sessionStart is obeyed: per-run + default take effect end to end',
 
 test('a permission mode the provider does not support is refused with 400 and creates no row', async () => {
   const wiring = startWiring({
-    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions', model: 'default' },
     // No provider in the shipped matrix refuses `bypassPermissions`, so the refusing matrix is
     // stated here rather than borrowed from one of them.
     capabilities: capabilitiesFor({ permissionModes: ['default', 'acceptEdits'] }),
@@ -654,7 +665,7 @@ test('a provider without resident keeps its per-run default; the permission is s
   // MCP `session_create` parity: the shipped `resident` default applies only where the provider
   // declares it. The row's own DB default (`per-run`) is what a non-resident provider keeps.
   const wiring = startWiring({
-    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions' },
+    sessionStart: { lifecycleMode: 'resident', permissionMode: 'bypassPermissions', model: 'default' },
     capabilities: capabilitiesFor({ lifecycleModes: ['per-run'] }),
   });
 

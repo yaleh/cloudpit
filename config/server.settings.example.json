@@ -32,8 +32,15 @@
       "model": "",
       "maxPerHour": 12,
       "apiKeyFile": ""
+    },
+    "sessionStart": {
+      "lifecycleMode": "resident",
+      "permissionMode": "bypassPermissions",
+      "model": "default",
+      "effort": ""
     }
   },
+  "_cockpitSessionStart": "How a card's `session.start` opens its new conversation. `lifecycleMode` and `permissionMode` are written to the row before the first message, exactly as MCP `session_create` does; `resident` and `bypassPermissions` ship as a background conversation nobody is watching. `model` is the provider-catalog entry the first run launches with (a built-in id or a custom model-library id) and ships `default`; an unknown or deleted id is refused before any session row exists rather than falling back to the provider default. `effort` is optional — leave it empty (or omit it) to keep the launch's own inference; a value the provider or model does not offer is refused. The file is read once at boot, so an edit takes effect after a restart.",
   "codex": {
     "mcpGateway": {
       "enabled": false,
