@@ -104,11 +104,3 @@ DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PA
 - `task_check` = ok true（AC 4/4、DoD 4/4）。DoD1–DoD3 的隔离 HOME/浏览器/场景证据沿用第 1 轮记录，产物仍在工作树 `tmp/`（`selfheal-iso/state/cards-*.json`、`dod3-before.png` / `dod3-after.png`、`ui-scenario-report.json` `ok: true`）；本轮代码未改，未重跑。
 
 结论：第 2 轮 park 的前提（develop 侧 5 条红无承载者）已被 develop 自身的修复解除；本任务 delta 全绿，退出交给 worker-driver 跑机械 fan-in。
-
-## Blocker
-
-**2026-10-30T06:35:09.604Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→827 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx changed=server/shared/tests/architecture-ratchet.test.ts]
-- run_id：wk-prod-anchor
-- session_id：89012a6b-5691-408a-bc52-1df0d74da441
