@@ -217,10 +217,22 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   /** Delivers one turn and resolves only when that turn reaches a terminal state. */
-  async submit(host: ProcessHost, appSessionId: string, turn: HostTurnInput): Promise<void> {
+  async submit(
+    host: ProcessHost,
+    appSessionId: string,
+    turn: HostTurnInput,
+    writer?: ProviderRuntimeWriter,
+  ): Promise<void> {
     const connection = this.connectionFor(host.hostId);
     const session = this.requireSession(appSessionId);
     const threadId = await ensureThread(connection, session, this.threadDefaults);
+    // The per-run runtime announces the provider-native id through `session_created`;
+    // the resident driver must do the same, or the session row never records its
+    // thread id and the transcript reader finds no messages on reopen. Idempotent
+    // on the writer's side (same id is captured once).
+    if (writer && threadId) {
+      writer.send({ kind: 'session_created', newSessionId: threadId, sessionId: threadId, provider: 'codex' });
+    }
     const pending = this.beginTurn(session, threadId);
     // Reported before `turn/start` so the manager derives `busy` from the same
     // frame that starts the work; a lease added later could miss that moment.
@@ -483,7 +495,7 @@ export class CodexHostDriver implements IProviderHostDriver {
         await session.queue.enqueueAndWait(connection, turn.command, writer);
         return this.readSession(appSessionId);
       }
-      await this.submit(host, appSessionId, turn);
+      await this.submit(host, appSessionId, turn, writer);
     } finally {
       unsubscribe();
     }

@@ -551,3 +551,34 @@ test('a second resident session opens its own host and thread instead of reusing
     }
   }
 });
+
+test('the resident turn announces session_created with the thread id (transcript link)', async () => {
+  const transport = new FakeAppServerTransport();
+  const hostPort = createFakeHostPort();
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({
+      launch,
+      createTransport: () => transport,
+    }),
+    host: hostPort,
+  });
+  const sent: unknown[] = [];
+  const writer = { send: (data: unknown) => { sent.push(data); } } as unknown as ProviderRuntimeWriter;
+  const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+  try {
+    await driver.run('session-1', turn('first'), writer, context);
+    const created = sent.filter((m) => (m as { kind?: string }).kind === 'session_created');
+    console.log(`sessionCreated=${JSON.stringify(created)}`);
+    assert.equal(created.length, 1, 'the first resident turn must announce one session_created');
+    const message = created[0] as { newSessionId?: string };
+    assert.equal(
+      message.newSessionId,
+      driver.readSession('session-1').threadId,
+      'session_created must name the thread id so the transcript reader can find the rollout',
+    );
+  } finally {
+    for (const host of hostPort.hosts) {
+      await driver.closeHost(host, 'user');
+    }
+  }
+});
