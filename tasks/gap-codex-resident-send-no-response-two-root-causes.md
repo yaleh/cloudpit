@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-send-no-response-two-root-causes
 title: 修复 codex resident 会话首轮「发送无响应」：effort 'default' 被原样透传给 app-server
-status: ready
+status: done
 labels: []
 parent: null
 children: []

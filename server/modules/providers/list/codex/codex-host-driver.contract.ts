@@ -202,13 +202,42 @@ export function threadParams(
   };
 }
 
-/** `turn/start` params: the thread, one text input, and `effort` when supplied. */
+/**
+ * The reasoning-effort values `turn/start` accepts on the locked 0.153.4
+ * app-server, copied from its own refusal: "Supported values are: 'none',
+ * 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'."
+ *
+ * CloudCLI's vocabulary is wider than this: `default` is its "use the model's
+ * default" sentinel (`DEFAULT_EFFORT_VALUE` in `src/shared/constants.ts`) and
+ * `ultracode` is a Claude-only pseudo-level. Neither is a codex effort, and the
+ * server rejects the whole `turn/start` with a 400 for one unknown value, so a
+ * value outside this set is dropped rather than forwarded.
+ */
+const CODEX_EFFORT_VALUES: Readonly<Record<string, true>> = {
+  none: true,
+  minimal: true,
+  low: true,
+  medium: true,
+  high: true,
+  xhigh: true,
+  max: true,
+};
+
+/** The codex `effort` for one CloudCLI effort, or undefined to leave the field off. */
+function codexTurnEffort(effort: unknown): string | undefined {
+  return typeof effort === 'string' && CODEX_EFFORT_VALUES[effort] === true ? effort : undefined;
+}
+
+/**
+ * `turn/start` params: the thread, one text input, and `effort` when the value
+ * is one the app-server accepts (see {@link CODEX_EFFORT_VALUES}).
+ */
 export function turnParams(threadId: string, turn: HostTurnInput): Record<string, unknown> {
-  const effort = turn.options.effort;
+  const effort = codexTurnEffort(turn.options.effort);
   return {
     threadId,
     input: [{ type: 'text', text: turn.command }],
-    ...(typeof effort === 'string' ? { effort } : {}),
+    ...(effort ? { effort } : {}),
   };
 }
 
