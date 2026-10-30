@@ -73,15 +73,6 @@ DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PA
 - DoD3：在 `http://127.0.0.1:4322/cockpit?view=cards`（vite dev 代理隔离实例 4321）用真实 Chromium 打开页面，先让页面挂载再投放对象缺失的卡，分别记录 DOM/API 读数与卡片元素截图。行为读数（`att_selfheal_browser2`，页面内 `fetch('/api/cockpit/cards')`）：前 → `contentUnavailable = "提问决策摘要不可用：这条提问的摘要尚未生成"`、`ask = "会话附了一条消息，原文见详情。"`、无 options；后 → `ask = "要不要把这条自愈路径记进 runbook，还是先只留代码注释？"`、`situation = "刚完成一条浏览器自愈路径，需要决定这条路径的记录方式：写进 runbook 还是先只留代码注释。"`、`options = [记进 runbook, 只留代码注释]`，`contentUnavailable` 消失。视觉截图（`att_selfheal_visual2`，同一页面上卡片元素截图，前后哈希不同）：`tmp/dod3-before.png`（卡片显示「会话附了一条消息，原文见详情。」与「提问决策摘要不可用：这条提问的摘要尚未生成」）→ `tmp/dod3-after.png`（显示真实提问「要不要把这条自愈路径记进 runbook？」、situation、「记进 runbook · suggested · from assistant」与 Confirm 按钮）；整页截图 `tmp/dod3-before-page.png` / `tmp/dod3-after-page.png`。场景运行器：仓库内无既有 cockpit 场景文件，自拟 1 步 `cockpit-cards` 场景并按 AGENTS.md 跑通 —— `tmp/ui-scenario-report.json`（`ok: true`，`visibleCardIds` 含当时的 4 张卡，`att_selfheal_browser2.confirmLabel = "记进 runbook"`），检查点截图 `tmp/ui-scenario-out/step-1-open-cockpit-cards.png`。
 - DoD4：`session-ask-decision-digest.test.ts` 51 pass / 0 fail；`session-ask-recovery.test.ts` 5 pass / 0 fail；`cockpit-fleet-card-provider.test.ts` 18 pass / 0 fail（三个文件逐个运行，均退出 0）；`npm run typecheck` 退出 0。
 
-## Blocker
-
-**2026-10-30T06:23:28.776Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→827 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
-- run_id：wk-prod-anchor
-- session_id：85572f07-bb01-464f-828a-1dceb71373f1
-
-
 ## Notes
 
 **2026-10-30 第 2 轮（CONTINUE，run wk-prod-anchor）— 复验后主动 park：develop 侧 5 条红无承载者，本任务交付物已完整**
@@ -105,3 +96,11 @@ DoD 读数（隔离 HOME 实例：better-sqlite3 备份库、`SERVER_SETTINGS_PA
 2. 或人裁定本任务 `complete`（其 delta 从未引入这 5 条红，`added: []` 已证明）。
 
 ⚠️ 只要那 5 条红还在、且 arch-ratchet 仍是最后完成的 `AssertionError` 文件，`changed-assertion` 会**每轮逐字复现**（dense 块 artifact 是确定性的）——纯 exit 只会再烧一轮 full suite（本轮 fan-in 已耗 5 分钟）。本任务不含对 `server/modules/providers/**` 的任何改动，也未改 `architecture-ratchet.baseline.json`（拒绝为让本轮变绿而伪造基线/造绿）。
+
+## Blocker
+
+**2026-10-30T06:35:09.604Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/codex-host-driver.provider.ts 基线外→827 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx,src/modules/sidebar/tests/SidebarProjectItemTaskCounts.test.tsx changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：89012a6b-5691-408a-bc52-1df0d74da441
