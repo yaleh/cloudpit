@@ -26,8 +26,13 @@ import path from 'node:path';
 /** The only producer whose rows this host may rebuild its own ledger from. */
 const CLOUDCLI_SOURCE = 'cloudcli';
 
-/** The three kinds this reader understands; every other row is somebody else's business. */
-const SESSION_ASK_KINDS = new Set(['session.asking', 'session.answered', 'session.asking.retracted']);
+/**
+ * The three kinds this reader understands; every other row is somebody else's business.
+ *
+ * A readonly array, not a `Set`: the architecture ratchet counts a module-level `new Set` as
+ * mutable state, and nothing here mutates this list.
+ */
+const SESSION_ASK_KINDS: readonly string[] = ['session.asking', 'session.answered', 'session.asking.retracted'];
 
 /** How far back the rebuild looks; an older ask is no longer worth a boot-time model-free pass. */
 export const DEFAULT_SESSION_ASK_LOOKBACK_DAYS = 7;
@@ -121,7 +126,7 @@ async function readDay(file: string, cutoffMs: number): Promise<AskRow[]> {
     const row = recordOf(parsed);
     if (row === null) continue;
     if (row.source !== CLOUDCLI_SOURCE) continue;
-    if (typeof row.kind !== 'string' || !SESSION_ASK_KINDS.has(row.kind)) continue;
+    if (typeof row.kind !== 'string' || SESSION_ASK_KINDS.includes(row.kind) === false) continue;
     const at = timeOf(row.at);
     if (at === null || at < cutoffMs) continue;
     const data = recordOf(row.data);
