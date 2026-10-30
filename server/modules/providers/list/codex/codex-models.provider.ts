@@ -15,13 +15,27 @@ import {
   readOptionalString,
 } from '@/shared/utils.js';
 
-/** Curated Codex catalog shipped as immutable CloudCLI defaults. */
+/**
+ * Curated Codex catalog shipped as immutable CloudCLI defaults.
+ *
+ * The entries are the `hidden === false` half of the packaged CLI's
+ * `model/list` reply, measured on `@openai/codex 0.166.0` (2026-10-30) against
+ * the signed-in account. That reading is 8 models; the bundled catalog of the
+ * same version also lists `gpt-5.5`, which the account refresh drops, so it is
+ * deliberately absent here — the picker offers what the runtime will accept,
+ * not what the offline bundle happens to ship. Value, label, description, each
+ * model's default effort and its supported effort values are copied verbatim
+ * from the reply, and `DEFAULT` is the one entry the CLI marks `isDefault`. The
+ * membership claim is what `provider-models.service.test.ts` re-reads against
+ * the packaged CLI, so a refresh is only ever a re-measurement — never a
+ * hand-curated guess.
+ */
 export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
-      value: 'gpt-6-astra',
-      label: 'GPT-6 Astra',
-      description: 'Our most capable model for complex, demanding work.',
+      value: 'gpt-6.1-sol',
+      label: 'GPT-6.1-Sol',
+      description: 'Latest workhorse model for coding and everyday work.',
       effort: {
         default: 'low',
         values: [
@@ -35,9 +49,72 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
       },
     },
     {
+      value: 'gpt-6-astra',
+      label: 'GPT-6-Astra',
+      description: 'Frontier intelligence for the most demanding work.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-6-sol',
+      label: 'GPT-6-Sol',
+      description: 'Previous generation workhorse model.',
+      effort: {
+        default: 'medium',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-6-luna',
+      label: 'GPT-6-Luna',
+      description: 'Fast and affordable model for easier tasks.',
+      effort: {
+        default: 'medium',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+        ],
+      },
+    },
+    {
       value: 'gpt-5.6-sol',
-      label: 'GPT-5.6 Sol',
-      description: 'Latest frontier agentic coding model.',
+      label: 'GPT-5.6-Sol',
+      description: 'Older generation workhorse model.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-6.1-terra',
+      label: 'GPT-6.1 Terra',
+      description: 'GPT-6.1 Terra Codex model.',
       effort: {
         default: 'low',
         values: [
@@ -52,8 +129,8 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'gpt-5.6-terra',
-      label: 'GPT-5.6 Terra',
-      description: 'Balanced agentic coding model for everyday work.',
+      label: 'GPT-5.6-Terra',
+      description: 'Older balanced model for straightforward work.',
       effort: {
         default: 'medium',
         values: [
@@ -68,8 +145,8 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'gpt-5.6-luna',
-      label: 'GPT-5.6 Luna',
-      description: 'Fast and affordable agentic coding model.',
+      label: 'GPT-5.6-Luna',
+      description: 'Older fast and efficient model.',
       effort: {
         default: 'medium',
         values: [
@@ -82,7 +159,7 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
       },
     },
   ],
-  DEFAULT: 'gpt-5.6-sol',
+  DEFAULT: 'gpt-6.1-sol',
 };
 
 const CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
