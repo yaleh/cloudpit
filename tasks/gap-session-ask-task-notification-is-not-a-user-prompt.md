@@ -2,7 +2,7 @@
 id: gap-session-ask-task-notification-is-not-a-user-prompt
 title: session-ask 把 <task-notification> 后台通知误当 user prompt，铸出 spurious
   session.answered
-status: ready
+status: done
 labels:
   - cockpit
 parent: null
@@ -21,9 +21,9 @@ extra: {}
 
 ## AC
 
-- [ ] AC1: transcript 里 pending 提问之后只有 `<task-notification>` user 行（无真实 user 文本消息）⇒ `readSessionAsks` 返回该提问为 `current`（`settled` 为空）。
-- [ ] AC2: 真实 user 文本消息（非 `<task-notification>`）仍判 prompt 边界 ⇒ 提问进 `settled`（回归现有行为不破坏）。
-- [ ] AC3: `stateSettledPending` 在 turn 结束不因 `<task-notification>` 行铸 `session.answered`（无真实 user prompt 时 `stated=0`）。
+- [x] AC1: transcript 里 pending 提问之后只有 `<task-notification>` user 行（无真实 user 文本消息）⇒ `readSessionAsks` 返回该提问为 `current`（`settled` 为空）。
+- [x] AC2: 真实 user 文本消息（非 `<task-notification>`）仍判 prompt 边界 ⇒ 提问进 `settled`（回归现有行为不破坏）。
+- [x] AC3: `stateSettledPending` 在 turn 结束不因 `<task-notification>` 行铸 `session.answered`（无真实 user prompt 时 `stated=0`）。
 
 ## DoD
 
@@ -34,3 +34,7 @@ extra: {}
 - server/modules/observation/session-digest.ts
 - server/modules/observation/tests/session-ask-decision-digest.test.ts
 - tasks/gap-session-ask-task-notification-is-not-a-user-prompt.md
+
+## Dark axis
+
+该轴仍暗,理由:本次修复只收紧 observation 的 user-prompt 判别，不新增模块或依赖边，无可读的 L_D/L_G 量。
