@@ -4,7 +4,7 @@ title: "architecture-analysis: 5 non-trivial directory SCCs in src (108 dir
   nodes, 2147 static file edges):
   chat/tools<->chat/tools/ContentRenderers<->chat/transcript;
   cockpit<->cockpit/ho"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
