@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-session-start-model-settings
 title: Cockpit session.start 使用 server.settings.json 模型设置并在首轮应用 selection
-status: ready
+status: done
 labels:
   - gap
   - cockpit
