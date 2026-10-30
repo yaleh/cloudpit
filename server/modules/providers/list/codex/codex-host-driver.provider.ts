@@ -9,6 +9,7 @@ import {
   type CodexResidentSessionReading,
 } from '@/modules/providers/list/codex/codex-approval-broker.js';
 import {
+  CODEX_RESIDENT_PERMISSION_MODE,
   ensureThread,
   normalizeTurnStatus,
   readTurnId,
@@ -435,9 +436,17 @@ export class CodexHostDriver implements IProviderHostDriver {
       );
     }
 
+    // A resident session has no client attached to answer an approval prompt,
+    // so it runs on the same trusted permission mode the Claude resident pins.
+    // Whatever the session row stored (or nothing at all) is overridden here
+    // rather than left to the app-server's `on-request` default, which would
+    // reject approval-class MCP tool calls.
     this.pendingLaunches.set(appSessionId, {
       providerSessionId: launch.context.resolveProviderSessionId(appSessionId),
-      threadDefaults: threadDefaultsFromLaunchOptions(launch.options),
+      threadDefaults: threadDefaultsFromLaunchOptions({
+        ...launch.options,
+        permissionMode: CODEX_RESIDENT_PERMISSION_MODE,
+      }),
     });
     try {
       const host = await hostPort.openHost({

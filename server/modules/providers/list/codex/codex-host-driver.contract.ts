@@ -147,6 +147,20 @@ export function normalizeTurnStatus(raw: string): CodexTurnStatus {
 }
 
 /**
+ * The permission mode a resident Codex session always runs under.
+ *
+ * The Claude resident pins its sessions to `bypassPermissions`
+ * (`RESIDENT_PERMISSION_MODE` in `claude-host-driver.provider.ts`): nobody is
+ * attached to answer an approval prompt, so a resident turn must never be
+ * gated by one. A codex resident takes the same stand — `startResidentSession`
+ * overrides the stored mode with this value before mapping it, so a session
+ * whose row has no stored permission mode (or the `default` sentinel) still
+ * gets the trusted `never` + `danger-full-access` pair on its first
+ * `thread/start` instead of the app-server's `on-request` default.
+ */
+export const CODEX_RESIDENT_PERMISSION_MODE = 'bypassPermissions';
+
+/**
  * The `thread/start` fields a CloudCLI permission mode asks for.
  *
  * `thread/start` takes a `sandbox` *string* (`workspace-write`,
