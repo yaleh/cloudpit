@@ -161,6 +161,21 @@ export function normalizeTurnStatus(raw: string): CodexTurnStatus {
 export const CODEX_RESIDENT_PERMISSION_MODE = 'bypassPermissions';
 
 /**
+ * The `thread/start` defaults a *resident* session launches with.
+ *
+ * Nobody is attached to answer an approval prompt, so a resident always runs on
+ * the trusted permission mode the Claude resident pins — whatever the session
+ * row stored (or nothing at all) is overridden here before the launch-option
+ * mapping, rather than left to the app-server's `on-request` default.
+ */
+export function residentThreadDefaults(options: AnyRecord): CodexThreadDefaults {
+  return threadDefaultsFromLaunchOptions({
+    ...options,
+    permissionMode: CODEX_RESIDENT_PERMISSION_MODE,
+  });
+}
+
+/**
  * The `thread/start` fields a CloudCLI permission mode asks for.
  *
  * `thread/start` takes a `sandbox` *string* (`workspace-write`,
