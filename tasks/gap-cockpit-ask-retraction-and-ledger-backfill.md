@@ -37,15 +37,15 @@ depends_on:
 
 撤回类用例里的「不是提问」一律由**全文机械预筛 + T1 摘要语义判定**（`isAsking` + 抽取的问题文本）得出；位置启发式（末段检测）只可作预筛提示，**不得作为撤回依据**（现场夹具见本段最后一条）。
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0：新增用例——ledger 里一条 asking 指向带编号列表的长回答 ⇒ 写出一次 `session.asking.retracted`（askId/messageId 正确），ledger 的 `asking`/`pending` 清空；第二次回放不重复写；真提问不撤；transcript 不可读时不撤。
-- [ ] 同一文件新增：**只存在于事件流、ledger/对象没有的 asking**（内容引用一个最后一段是陈述的消息）⇒ 回放仍发出一次 `session.asking.retracted`；重复回放不重发；真提问不发 retraction。
-- [ ] 同一文件新增：`current !== null` 时即使未 watch、activity 判定为 idle，也写出 observation object；断言不存在「有 asking 事件、无对象」。
-- [ ] 同一文件新增：一个没有 observation object 的会话，transcript 里 asking 之后有用户消息 ⇒ 启动补扫/用户回合发出一次 `session.answered`（askId/messageId 正确）；重复调用不重发；假提问走 retraction 而不是 answered。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts server/modules/context-events/tests/session-ask-event-writer.test.ts` 退出 0：新 kind 被接受且 producer=cloudcli、group=interaction、data 只含 `{askId,messageId}`；缺字段/错类型被拒；既有 kind 行为不变。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0：contentRef.messageId 在 retracted 集合中的卡不出现在可见列表；不在集合中的卡保留；**没有 observation object 的会话**其 retracted 卡也被抑制；假形态删掉本地抑制 ⇒ 该用例红。
-- [ ] 现场夹具 `62d959c0:3818a9e5`（session `62d959c0-5487-4649-a5f2-ab38462c438b` / message `3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a`，cockpit 卡 `att_260e4c9bbcc0`）：该消息是**真提问**（决策「值得优先讨论的下一步 1/2/3」在消息中段，末段只是「本轮没有运行测试」的说明）。回放/补扫后断言：(a) 共享流**没有**该 askId 的 `session.asking.retracted`；(b) 该 askId 的 `session.answered` 在用户回复后被写出（现网缺口：asking 已写、user 已答、answered 从未写出）；(c) 该 askId **不在**任何 retracted 集合里，本地投影**不得**抑制该卡；(d) 该卡只允许因 answered（或来源消失）关闭——answered 写出之前它必须仍可见。
-- [ ] 假形态变红：删掉回放里的 retraction 写入 ⇒ 第一条用例红；删掉事件-only 回放 ⇒ 第二条用例红；删掉无对象补发 answered 的分支 ⇒ 第四条用例红；改完即还原。
-- [ ] `npm run typecheck`、`npm run lint` 退出 0；若 producer/投影越过基线，按 AC-394 RECORDED CHANGE 格式记录。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0：新增用例——ledger 里一条 asking 指向带编号列表的长回答 ⇒ 写出一次 `session.asking.retracted`（askId/messageId 正确），ledger 的 `asking`/`pending` 清空；第二次回放不重复写；真提问不撤；transcript 不可读时不撤。
+- [x] 同一文件新增：**只存在于事件流、ledger/对象没有的 asking**（内容引用一个最后一段是陈述的消息）⇒ 回放仍发出一次 `session.asking.retracted`；重复回放不重发；真提问不发 retraction。
+- [x] 同一文件新增：`current !== null` 时即使未 watch、activity 判定为 idle，也写出 observation object；断言不存在「有 asking 事件、无对象」。
+- [x] 同一文件新增：一个没有 observation object 的会话，transcript 里 asking 之后有用户消息 ⇒ 启动补扫/用户回合发出一次 `session.answered`（askId/messageId 正确）；重复调用不重发；假提问走 retraction 而不是 answered。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts server/modules/context-events/tests/session-ask-event-writer.test.ts` 退出 0：新 kind 被接受且 producer=cloudcli、group=interaction、data 只含 `{askId,messageId}`；缺字段/错类型被拒；既有 kind 行为不变。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts` 退出 0：contentRef.messageId 在 retracted 集合中的卡不出现在可见列表；不在集合中的卡保留；**没有 observation object 的会话**其 retracted 卡也被抑制；假形态删掉本地抑制 ⇒ 该用例红。
+- [x] 现场夹具 `62d959c0:3818a9e5`（session `62d959c0-5487-4649-a5f2-ab38462c438b` / message `3818a9e5-1fb5-4c9f-9d99-eb8b7ee0647a`，cockpit 卡 `att_260e4c9bbcc0`）：该消息是**真提问**（决策「值得优先讨论的下一步 1/2/3」在消息中段，末段只是「本轮没有运行测试」的说明）。回放/补扫后断言：(a) 共享流**没有**该 askId 的 `session.asking.retracted`；(b) 该 askId 的 `session.answered` 在用户回复后被写出（现网缺口：asking 已写、user 已答、answered 从未写出）；(c) 该 askId **不在**任何 retracted 集合里，本地投影**不得**抑制该卡；(d) 该卡只允许因 answered（或来源消失）关闭——answered 写出之前它必须仍可见。
+- [x] 假形态变红：删掉回放里的 retraction 写入 ⇒ 第一条用例红；删掉事件-only 回放 ⇒ 第二条用例红；删掉无对象补发 answered 的分支 ⇒ 第四条用例红；改完即还原。
+- [x] `npm run typecheck`、`npm run lint` 退出 0；若 producer/投影越过基线，按 AC-394 RECORDED CHANGE 格式记录。
 
 ## 现场夹具（2026-10-30 人工补录）
 
@@ -65,6 +65,10 @@ depends_on:
 3. 390 与 1440 打开 `/cockpit?view=cards`：上述误发卡不再出现（本地抑制即时生效，包含没有 object 的会话），真提问卡仍在且可确认；现场夹具 `att_260e4c9bbcc0` 必须**仍在**（它没被撤回，只等 answered）——补扫写出 answered 后再次打开，该卡才消失；截图存 `tmp/`。
 4. 场景运行器可用时跑 `node scripts/ui-scenario.mjs e2e/scenarios/cockpit-mode-switch.json …` 并贴 JSON；实例用毕停掉。
 
+## ADR-007 暗轴
+
+该轴仍暗,理由:本任务只修事件流、producer 与投影的缺陷，未新增文档或架构图，L_D/L_G 无新读数。
+
 ## Touches
 
 - tasks/gap-cockpit-ask-retraction-and-ledger-backfill.md
@@ -73,8 +77,14 @@ depends_on:
 - server/modules/observation/session-ask-decision-digest.ts
 - server/modules/context-events/context-event-writer.ts
 - server/modules/context-events/session-ask-stream-reader.ts
+- server/modules/context-events/index.ts
 - server/modules/cockpit/cockpit-fleet-card-projection.ts
+- server/modules/cockpit/cockpit-fleet-card-provider.ts
+- server/cockpit-fleet-wiring.ts
+- server/modules/observation/session-digest-llm.ts
+- server/shared/types.ts
 - server/modules/observation/tests/session-digest.test.ts
+- server/modules/observation/tests/fixtures/session-ask-62d959c0-3818a9e5.txt
 - server/modules/context-events/tests/context-event-writer.test.ts
 - server/modules/context-events/tests/session-ask-event-writer.test.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
