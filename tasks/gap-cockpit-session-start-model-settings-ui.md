@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-session-start-model-settings-ui
 title: Settings UI 安全编辑 cockpit session-start 模型设置并接入卡片空会话入口
-status: ready
+status: done
 labels:
   - gap
   - cockpit
