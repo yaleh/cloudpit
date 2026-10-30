@@ -9,6 +9,7 @@ import {
   readCockpitCardsReading,
   settleCardStep,
   startConfirmingCard,
+  startDismissingCard,
   startShowingCardOption,
   startWritingCardOwnReply,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
@@ -81,6 +82,7 @@ export type ScenarioDriveStep =
   | { 'cockpitCard.showOption': ScenarioCockpitCardTarget & { optionId: string } }
   | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
   | { 'cockpitCard.confirm': string }
+  | { 'cockpitCard.dismiss': string }
   | { 'cockpitCard.openDetails': string };
 
 /** One focusable's identity, kept beside the contract for assertions that name a label. */
@@ -594,6 +596,9 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('cockpitCard.confirm' in step) {
       action = 'cockpitCard.confirm';
       pendingCardAction = startConfirmingCard(step['cockpitCard.confirm']);
+    } else if ('cockpitCard.dismiss' in step) {
+      action = 'cockpitCard.dismiss';
+      pendingCardAction = startDismissingCard(step['cockpitCard.dismiss']);
     } else if ('cockpitCard.openDetails' in step) {
       action = 'cockpitCard.openDetails';
       openCardDetails(step['cockpitCard.openDetails']);

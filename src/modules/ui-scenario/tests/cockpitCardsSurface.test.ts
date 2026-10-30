@@ -14,7 +14,7 @@ import type * as SharedApi from '@/shared/api';
 import type { CockpitCard } from '@/shared/types';
 
 /**
- * The cards view's scenario surface: the reading the list publishes, and the five drive verbs
+ * The cards view's scenario surface: the reading the list publishes, and the six drive verbs
  * that press its controls.
  *
  * WHY THE REAL LIST IS THE FIXTURE. `data-cockpit-cards` is published by `CockpitCardList` from
@@ -31,6 +31,7 @@ import type { CockpitCard } from '@/shared/types';
 const apiMock = vi.hoisted(() => ({
   cockpitCards: vi.fn(),
   cockpitConfirmCard: vi.fn(),
+  cockpitDismissCard: vi.fn(),
 }));
 
 vi.mock('@/shared/api', async (importOriginal) => {
@@ -41,6 +42,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
       ...actual.api,
       cockpitCards: apiMock.cockpitCards,
       cockpitConfirmCard: apiMock.cockpitConfirmCard,
+      cockpitDismissCard: apiMock.cockpitDismissCard,
     },
   };
 });
@@ -119,6 +121,41 @@ const DECISION_CARD: CockpitCard = {
       action: { executor: 'fixture.record', params: { cardId: 'fixture:decision', optionId: 'canary' } },
     },
   ],
+};
+
+/** A session-ask card: the only kind that carries the card-level 「忽略/丢弃」 target. */
+const ASK_CARD: CockpitCard = {
+  id: 'fixture:ask',
+  provider: 'fixture',
+  revision: 1,
+  kind: 'ask',
+  group: 'ruling',
+  rank: 2,
+  state: 'open',
+  waitingSince: '2026-10-27T00:06:00.000Z',
+  surfacedAt: '2026-10-27T00:06:03.000Z',
+  subject: { uri: 'cloudcli://fixture/ask', project: 'fixture-project' },
+  ask: 'Should the cleanup delete the staging directory?',
+  facts: [],
+  options: [
+    {
+      id: 'delete',
+      label: 'Delete staging',
+      does: 'Remove the staging directory after the archive is verified.',
+      suggested: true,
+      source: 'assistant',
+      action: { executor: 'fixture.record', params: { cardId: 'fixture:ask', optionId: 'delete' } },
+    },
+    {
+      id: 'keep',
+      label: 'Keep staging',
+      does: 'Leave the directory for a later inspection.',
+      suggested: false,
+      source: 'provider',
+      action: { executor: 'fixture.record', params: { cardId: 'fixture:ask', optionId: 'keep' } },
+    },
+  ],
+  ownReply: { executor: 'fixture.record', params: { cardId: 'fixture:ask', ownReply: true } },
 };
 
 /** What the drive verbs pressed/typed, in order — the falsification ledger. */
@@ -214,6 +251,17 @@ beforeEach(() => {
         result: { recorded: request, total: 1 },
       }),
   );
+  apiMock.cockpitDismissCard.mockReset();
+  apiMock.cockpitDismissCard.mockImplementation(
+    async (request: { cardId: string; revision: number }) =>
+      answer({
+        ok: true,
+        cardId: request.cardId,
+        executor: 'fixture.feedback',
+        params: { ...request, dismiss: true },
+        result: { receipt: { disposition: 'dismissed' } },
+      }),
+  );
 });
 
 afterEach(() => {
@@ -289,7 +337,7 @@ test('AC1: an absent or malformed attribute reads as null, never as a guessed li
   assert.equal(surface.read().cockpit.cards, null, 'a partial shape is not a reading');
 });
 
-test('AC1: the five drive verbs press the page controls and the reading follows', async () => {
+test('AC1: the six drive verbs press the page controls and the reading follows', async () => {
   const { surface, ledger } = renderCards();
   await waitForLoaded(surface);
 
@@ -366,6 +414,59 @@ test('AC1: the five drive verbs press the page controls and the reading follows'
     ledger.clicks.includes('cockpit-card-confirm-send'),
     false,
     'no separate send control exists: the bar cancels in place',
+  );
+});
+
+test('AC1: the dismiss verb presses the card\'s own two-step control, sends no confirmation, and the card leaves', async () => {
+  let dismissed = false;
+  apiMock.cockpitDismissCard.mockImplementation(
+    async (request: { cardId: string; revision: number }) => {
+      dismissed = true;
+      return answer({
+        ok: true,
+        cardId: request.cardId,
+        executor: 'fixture.feedback',
+        params: { ...request, dismiss: true },
+        result: { receipt: { disposition: 'dismissed' } },
+      });
+    },
+  );
+  apiMock.cockpitCards.mockImplementation(async () =>
+    answer({ cards: dismissed ? [NEED_CARD] : [NEED_CARD, ASK_CARD] }),
+  );
+
+  const { surface, ledger } = renderCards();
+  await waitFor(() => {
+    assert.deepEqual(surface.read().cockpit.cards?.visibleCardIds, ['fixture:need', 'fixture:ask']);
+  });
+
+  surface.drive({ 'cockpitCard.dismiss': 'fixture:ask' });
+  await surface.settle();
+
+  assert.deepEqual(
+    surface.read().cockpit.cards?.visibleCardIds,
+    ['fixture:need'],
+    'the dismissed card left the visible list, and every other card stayed',
+  );
+  assert.equal(
+    surface.read().cockpit.cards?.dismissNoticeOk,
+    true,
+    'the list-level answer outlives the card and reads as a success',
+  );
+  assert.deepEqual(
+    apiMock.cockpitDismissCard.mock.calls,
+    [[{ cardId: 'fixture:ask', revision: 1 }]],
+    'exactly the dismiss channel ran, with the revision the page showed',
+  );
+  assert.equal(
+    apiMock.cockpitConfirmCard.mock.calls.length,
+    0,
+    'a dismissal never reaches the confirmation channel',
+  );
+  assert.ok(ledger.clicks.includes('cockpit-card-dismiss'), 'the first press was the card\'s own control');
+  assert.ok(
+    ledger.clicks.includes('cockpit-card-dismiss-confirm'),
+    'the second press was the bar\'s confirm, not a synthesized request',
   );
 });
 

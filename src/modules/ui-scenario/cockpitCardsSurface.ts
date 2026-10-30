@@ -37,10 +37,17 @@ export type ScenarioCockpitCardTarget = {
   cardId: string;
 };
 
-/** The cards view's reading: the list's own declaration plus the card in its confirm state. */
+/** The cards view's reading: the list's own declaration plus the two list-level answers. */
 export type ScenarioCockpitCardsReading = CockpitCardReading & {
   /** The card whose confirm bar is in its confirm state, or `null` when none is. */
   confirmOpenCardId: string | null;
+  /**
+   * The last dismiss answer's outcome, or `null` when there is no answer.
+   *
+   * A successful dismissal usually removes the card in the same read, so this list-level line is
+   * the only reading that outlives the row it was pressed on.
+   */
+  dismissNoticeOk: boolean | null;
 };
 
 /**
@@ -127,10 +134,30 @@ function readConfirmOpenCardId(): string | null {
   return bar instanceof HTMLElement ? bar.getAttribute('data-card-id') : null;
 }
 
+/**
+ * The last dismiss answer, read from the list-level line that survives the dismissed card.
+ *
+ * A notice is drawn only after a dismiss attempt; before that there is no answer to read, which
+ * is `null` — distinct from a failed answer (`false`).
+ */
+function readDismissNoticeOk(): boolean | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const notice = document.querySelector('[data-testid="cockpit-card-dismiss-notice"]');
+  return notice instanceof HTMLElement ? notice.getAttribute('data-ok') === 'true' : null;
+}
+
 /** Reads the cards list the page drew, or `null` when its declaration is absent or malformed. */
 export function readCockpitCardsReading(list: HTMLElement): ScenarioCockpitCardsReading | null {
   const published = parseCardsReading(list.getAttribute('data-cockpit-cards'));
-  return published === null ? null : { ...published, confirmOpenCardId: readConfirmOpenCardId() };
+  return published === null
+    ? null
+    : {
+        ...published,
+        confirmOpenCardId: readConfirmOpenCardId(),
+        dismissNoticeOk: readDismissNoticeOk(),
+      };
 }
 
 // ── The cards view's controls ────────────────────────────────────────────────
@@ -390,6 +417,89 @@ export function startConfirmingCard(cardId: string): CardContinuation | null {
 export function openCardDetails(cardId: string): boolean {
   const card = cardElement(cardId);
   return card === null ? false : press(controlWithTestId(card, 'cockpit-card-zone-a'));
+}
+
+/** The dismiss bar currently in its confirm state for `cardId`, or `null`. */
+function dismissBarFor(cardId: string): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  for (const candidate of Array.from(
+    document.querySelectorAll('[data-dismiss-pending="true"]'),
+  )) {
+    if (candidate instanceof HTMLElement && candidate.getAttribute('data-card-id') === cardId) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/** Polls for the dismiss bar `cardId` turned into its confirm state; `null` when it did not. */
+async function waitForDismissBar(cardId: string): Promise<HTMLElement | null> {
+  const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
+  for (;;) {
+    const bar = dismissBarFor(cardId);
+    if (bar !== null) {
+      return bar;
+    }
+    if (Date.now() >= deadline) {
+      return null;
+    }
+    await delay(10);
+  }
+}
+
+/**
+ * Polls until the card has left the list.
+ *
+ * A successful dismissal settles the provider's item, so the re-read that follows removes the
+ * card. Waiting for that removal is what makes the step's own reading the settled one; a refusal
+ * leaves the card in place and this wait simply expires (the step's visible-set assertion then
+ * reports the truth).
+ */
+async function waitForCardToLeave(cardId: string): Promise<void> {
+  const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
+  while (cardElement(cardId) !== null) {
+    if (Date.now() >= deadline) {
+      return;
+    }
+    await delay(10);
+  }
+}
+
+/**
+ * Discards a card and completes the confirmation: the first press opens the in-place dismiss
+ * confirmation, the second presses 「Confirm discard」, and the step ends once the card has left
+ * the list.
+ *
+ * This verb never presses the action/confirm bar: dismissing is the third choice, and the point
+ * of the business scenario is that the card settles without answering it.
+ *
+ * Returns `null` when the card or its dismiss control is absent — a card that is not a
+ * session-ask, or one locked while its feedback is pending, must not get a synthesized request.
+ */
+export function startDismissingCard(cardId: string): CardContinuation | null {
+  const card = cardElement(cardId);
+  if (card === null) {
+    return null;
+  }
+  const trigger = controlWithTestId(card, 'cockpit-card-dismiss');
+  if (trigger === null || (trigger instanceof HTMLButtonElement && trigger.disabled)) {
+    return null;
+  }
+  press(trigger);
+  return async () => {
+    const bar = await waitForDismissBar(cardId);
+    if (bar === null) {
+      return;
+    }
+    const confirm = controlWithTestId(bar, 'cockpit-card-dismiss-confirm');
+    if (confirm !== null && confirm instanceof HTMLButtonElement && confirm.disabled) {
+      return;
+    }
+    press(confirm);
+    await waitForCardToLeave(cardId);
+  };
 }
 
 /** How long `settle` waits for a card confirmation's request before letting the caller read. */

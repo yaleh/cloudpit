@@ -272,6 +272,74 @@ test('AC-432: reads inside the TTL run the CLI once, and the diagnostic says it 
   assert.equal(fleet.diagnostics()[0]?.cached, false);
 });
 
+test('AC-432: our own fleet write drops the cached batch, so the re-read after a dismiss is not pre-dismiss', async () => {
+  let now = 1_000;
+  let open = true;
+  const cardCalls: string[][] = [];
+  const fleet = created({
+    ttlMs: 5_000,
+    now: () => now,
+    runCards: async (args) => {
+      cardCalls.push([...args]);
+      return {
+        exitCode: 0,
+        stdout: open ? `${JSON.stringify(FLEET_CARDS[0])}\n` : '',
+        stderr: '',
+      };
+    },
+    runExecutors: async (args) => {
+      if (args[0] === 'rescue' && args[1] === 'executors') {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            ok: true,
+            executors: [{ id: 'fleet.feedback', action: 'feedback', does: 'close', params: [] }],
+          }),
+          stderr: '',
+        };
+      }
+      const params = JSON.parse(args[args.indexOf('--params') + 1] ?? '{}') as {
+        dismiss?: boolean;
+        feedbackId?: string;
+      };
+      if (params.dismiss === true) open = false;
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          ok: true,
+          result: { receipt: { feedbackId: params.feedbackId, disposition: 'dismissed' } },
+        }),
+        stderr: '',
+      };
+    },
+  });
+  await fleet.executorReading();
+
+  assert.equal((await fleet.provider.listCards()).length, 1);
+  await fleet.provider.listCards();
+  assert.equal(cardCalls.length, 1, 'the second read inside the window is the cached one');
+
+  // Reach the executor exactly as `cockpit.module.ts` does: through the provider's own resolver,
+  // so the runner this test fakes is the one the provider wrapped.
+  const feedback = await fleet.provider.resolveExecutor('fleet.feedback');
+  assert.ok(feedback !== null, 'the declared feedback executor resolves');
+  await feedback.execute({
+    attentionId: 'att-rescue-1',
+    revision: 4,
+    feedbackId: 'fb-1',
+    dismiss: true,
+  });
+
+  const after = await fleet.provider.listCards();
+  assert.equal(
+    cardCalls.length,
+    2,
+    'a fleet write must drop the pre-write batch; the caller re-reads immediately and must not be answered from it',
+  );
+  assert.equal(fleet.diagnostics()[0]?.cached, false);
+  assert.deepEqual(after.map((card) => card.id), [], 'the discarded card is gone on the immediate re-read');
+});
+
 test('AC-432: a missing CLI and a non-zero exit each answer an empty list and a readable reason', async () => {
   const missing = created({
     runCards: async () => ({
