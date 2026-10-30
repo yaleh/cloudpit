@@ -19,14 +19,26 @@ depends_on:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0，且既有 ask ledger、retraction、answered、去重、启动回放及事件-only 行为用例数量不减少。
-- [ ] 新增 `session-ask-ledger.test.ts` 针对 ledger owner 的写入、移除、retracted 记录与重复更新断言状态快照；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-ledger.test.ts` 退出 0。
-- [ ] recovery/sweep targeted tests 对启动补扫与用户回合各运行一次及重复运行，断言事件写入次数、askId/messageId 与 ledger 状态符合现有语义；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` 退出 0。
-- [ ] producer 委托 ledger/recovery 行为且不再持有这两类状态的写入细节；`session-digest.producer.ts` 与新 owner/helper 的引用由测试断言，且 `npm run typecheck` 与 `npm run lint` 退出 0。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0，且既有 ask ledger、retraction、answered、去重、启动回放及事件-only 行为用例数量不减少。
+- [x] 新增 `session-ask-ledger.test.ts` 针对 ledger owner 的写入、移除、retracted 记录与重复更新断言状态快照；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-ledger.test.ts` 退出 0。
+- [x] recovery/sweep targeted tests 对启动补扫与用户回合各运行一次及重复运行，断言事件写入次数、askId/messageId 与 ledger 状态符合现有语义；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` 退出 0。
+- [x] producer 委托 ledger/recovery 行为且不再持有这两类状态的写入细节；`session-digest.producer.ts` 与新 owner/helper 的引用由测试断言，且 `npm run typecheck` 与 `npm run lint` 退出 0。
 
 ## DoD
 
 在 ready peer 合入后，从实际 observation producer 调用路径驱动现有及新增 targeted tests，验证 ledger 状态变更和 recovery/sweep 仍连通真实事件写入；测试须证明重复回放幂等、故障会话不阻断其他会话，并且 producer 本身只负责编排而由明确 owner/helper 管理 ask 状态。完成记录给出命令退出码及各测试计数。
+
+## 完成记录
+
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` → exit 0，tests 28 / pass 28 / fail 0（与重构前同数；含 retraction、answered、去重、启动回放与 event-only 用例）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-ledger.test.ts` → exit 0，tests 6 / pass 6 / fail 0（含 producer 引用 owner/helper、不再持有写入细节的断言）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-recovery.test.ts` → exit 0，tests 4 / pass 4 / fail 0（启动补扫一次/重复、用户回合一次/重复、误发撤回、故障会话不阻断）。
+- `npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-ask-decision-digest.test.ts`（producer 的间接消费者回归）→ exit 0，tests 47 / pass 47 / fail 0。
+- `npm run typecheck` → exit 0；`npm run lint` → exit 0（仅既有 warning，无 error）。
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只在 observation 目录内拆出 ledger owner 与 recovery helper，不新增领域数据能力或目标层可观测读数，owner/helper 的行为由 targeted tests 固定。
 
 ## Touches
 
@@ -34,6 +46,7 @@ depends_on:
 - server/modules/observation/session-digest.producer.ts
 - server/modules/observation/session-ask-ledger.ts (new)
 - server/modules/observation/session-ask-recovery.ts (new)
+- server/modules/observation/session-ask-retraction.ts
 - server/modules/observation/tests/session-digest.test.ts
 - server/modules/observation/tests/session-ask-ledger.test.ts (new)
 - server/modules/observation/tests/session-ask-recovery.test.ts (new)
