@@ -73,6 +73,7 @@ depends_on:
 
 - tasks/gap-cockpit-ask-retraction-and-ledger-backfill.md
 - server/modules/observation/session-digest.producer.ts
+- server/modules/observation/session-ask-retraction.ts
 - server/modules/observation/session-digest.ts
 - server/modules/observation/session-ask-decision-digest.ts
 - server/modules/context-events/context-event-writer.ts
