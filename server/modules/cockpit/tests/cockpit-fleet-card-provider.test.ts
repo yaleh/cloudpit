@@ -229,6 +229,29 @@ test('AC-432: fleet fields pass through, and the registry hides ended cards and 
   assert.equal(providedDiagnostics[0]?.cards, 4);
 });
 
+test('AC-432: the fleet revision is passed through as-is, including 0', async () => {
+  const withZeroRevision = { ...FLEET_CARDS[0], id: 'att-revision-0', revision: 0 };
+  const withoutRevision: Record<string, unknown> = { ...FLEET_CARDS[1] };
+  delete withoutRevision.revision;
+  const fleet = created({
+    runCards: runnerReturning(
+      `${JSON.stringify(withZeroRevision)}\n${JSON.stringify(withoutRevision)}\n`,
+    ),
+  });
+
+  const cards = await fleet.provider.listCards();
+  assert.equal(
+    byId(cards, 'att-revision-0').revision,
+    0,
+    'the fleet\'s initial revision 0 must survive projection; clamping it to 1 makes every dismissal stale',
+  );
+  assert.equal(
+    byId(cards, 'att-ruling-1').revision,
+    1,
+    'a card row without a revision still defaults to 1',
+  );
+});
+
 test('AC-432: reads inside the TTL run the CLI once, and the diagnostic says it was cached', async () => {
   let now = 1_000;
   const calls: string[][] = [];

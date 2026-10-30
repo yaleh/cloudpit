@@ -5,6 +5,7 @@ import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
 } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import { turnParams } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
 import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type { HostTurnInput, ProcessHost, SessionBinding } from '@/shared/types.js';
@@ -466,4 +467,26 @@ test('driver conforms to IProviderHostDriver with multiplexedHost=false (AC8)', 
     assert.equal(typeof conformance[verb], 'function', `${verb} must be implemented`);
   }
   assert.equal(typeof driver.run, 'function', 'the resident turn entry must be present');
+});
+
+/**
+ * The failure this criterion pins: CloudCLI's `default` effort sentinel is not
+ * a codex effort, and the locked 0.153.4 app-server refuses the whole turn with
+ * `Invalid value: 'default'` rather than ignoring the field.
+ */
+test("turn/start omits CloudCLI's 'default' effort and forwards a codex value (AC1)", () => {
+  const withDefault = turnParams('thread-effort', { command: 'hi', options: { effort: 'default' } });
+  const withHigh = turnParams('thread-effort', { command: 'hi', options: { effort: 'high' } });
+  const withUltracode = turnParams('thread-effort', { command: 'hi', options: { effort: 'ultracode' } });
+  console.log(
+    `defaultHasEffort=${'effort' in withDefault} highEffort=${String(withHigh.effort)} ` +
+      `ultracodeHasEffort=${'effort' in withUltracode}`,
+  );
+  assert.deepEqual(
+    withDefault,
+    { threadId: 'thread-effort', input: [{ type: 'text', text: 'hi' }] },
+    "the 'default' sentinel must leave the effort field out of turn/start",
+  );
+  assert.equal(withHigh.effort, 'high', "a codex-supported effort ('high') must be forwarded verbatim");
+  assert.equal('effort' in withUltracode, false, 'a non-codex effort must be dropped rather than forwarded');
 });

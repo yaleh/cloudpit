@@ -109,8 +109,12 @@ function actionExecutor(options: { fail?: boolean; result?: unknown } = {}): ICo
   };
 }
 
-/** A feedback executor that records its calls and answers `receipt` (or nothing). */
-function feedbackExecutor(options: { receipt?: (params: Record<string, unknown>) => unknown } = {}): ICockpitActionExecutor & {
+/** A feedback executor that records its calls and answers `receipt`, `answer`, or nothing. */
+function feedbackExecutor(options: {
+  receipt?: (params: Record<string, unknown>) => unknown;
+  /** A whole answer document (the real fleet CLI nests its receipt under `result`). */
+  answer?: (params: Record<string, unknown>) => unknown;
+} = {}): ICockpitActionExecutor & {
   calls: Record<string, unknown>[];
 } {
   const calls: Record<string, unknown>[] = [];
@@ -119,6 +123,7 @@ function feedbackExecutor(options: { receipt?: (params: Record<string, unknown>)
     calls,
     execute: (params) => {
       calls.push(structuredClone(params));
+      if (options.answer !== undefined) return options.answer(params);
       const receipt = options.receipt?.(params);
       return receipt === undefined ? { acknowledged: true } : { acknowledged: true, receipt };
     },
@@ -484,6 +489,86 @@ test('a dismissed receipt settles a sent feedback without recording a notice', a
 
   assert.equal(store.overlay('card-1'), null, 'a dismissed receipt clears the overlay');
   assert.equal(store.notice('card-1'), null, 'it does not return as a kept/rejected notice');
+});
+
+test('a receipt nested under `result` is read exactly like a top-level receipt', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1' })]);
+  const registry = createCockpitCardRegistry([provider]);
+  const store = createCockpitCardFeedbackStore();
+  // The real `CockpitFleetExecutor` returns the WHOLE fleet CLI document, so its receipt lives at
+  // `result.receipt`; the fixture provider answers a top-level `receipt`. Both must be read.
+  const feedback = feedbackExecutor({
+    answer: (params) => ({
+      ok: true,
+      state: 'feedback',
+      result: {
+        receipt: {
+          feedbackId: params.feedbackId,
+          at: AT,
+          disposition: feedback.calls.length === 1 ? 'closed' : 'dismissed',
+        },
+      },
+    }),
+  });
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [actionExecutor(), feedback],
+    feedbackStore: store,
+    newFeedbackId: () => 'feedback-nested',
+  });
+
+  await actions.confirm({ cardId: 'card-1', revision: 1, optionId: 'go' });
+  assert.ok(store.overlay('card-1'), 'a nested `closed` receipt keeps the pending overlay');
+
+  await actions.resendFeedback({ cardId: 'card-1' });
+  assert.equal(store.overlay('card-1'), null, 'a nested `dismissed` receipt on the resend clears it');
+  assert.equal(store.notice('card-1'), null, 'a dismissal records no kept/rejected notice');
+});
+
+test('a rejected dismiss is an observable failure, keeps the reason and stays retryable', async () => {
+  const provider = new MutableCardProvider([makeCard({ id: 'card-1', revision: 0 })]);
+  const registry = createCockpitCardRegistry([provider]);
+  // The real fleet rejects a stale revision with `{ ok: true, result: { receipt: { disposition:
+  // 'rejected', reason: 'stale-revision' } } }` — a zero exit that wrote nothing.
+  const feedback = feedbackExecutor({
+    answer: () => ({
+      ok: true,
+      state: 'feedback',
+      result: {
+        receipt: { disposition: 'rejected', reason: 'stale-revision' },
+        appended: 0,
+        skipped: 0,
+      },
+    }),
+  });
+  const store = createCockpitCardFeedbackStore();
+  const actions = createCockpitCardActions({
+    registry,
+    executors: [actionExecutor(), feedback],
+    feedbackStore: store,
+    newFeedbackId: () => 'feedback-dismiss-rejected',
+  });
+
+  await assert.rejects(
+    () => actions.dismiss({ cardId: 'card-1', revision: 0 }),
+    (failure: unknown) =>
+      failure instanceof AppError &&
+      failure.statusCode === 409 &&
+      /stale-revision/.test(failure.message),
+    'a rejected dismiss answers 4xx and names the fleet reason',
+  );
+  const notice = store.notice('card-1');
+  assert.equal(notice?.kind, 'rejected', 'the refused dismissal leaves a rejected notice');
+  assert.equal(notice?.reason, 'stale-revision');
+
+  // The refusal wrote nothing, so the revision the person was looking at must still be
+  // dismissable: the retry reaches the provider again instead of being answered ALREADY_CONFIRMED.
+  await assert.rejects(() => actions.dismiss({ cardId: 'card-1', revision: 0 }));
+  assert.equal(
+    feedback.calls.length,
+    2,
+    'a rejected dismissal releases the accepted-ledger key so a retry reaches the fleet',
+  );
 });
 
 test('a dismiss for a stale revision is refused before reaching the provider', async () => {
