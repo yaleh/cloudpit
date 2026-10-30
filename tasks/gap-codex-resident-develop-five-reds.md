@@ -54,3 +54,4 @@ extra: {}
 - server/modules/providers/tests/codex-app-server-protocol.test.ts
 - server/shared/tests/architecture-ratchet.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+- tasks/gap-codex-resident-develop-five-reds.md
