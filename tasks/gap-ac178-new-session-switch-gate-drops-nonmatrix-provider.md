@@ -67,6 +67,7 @@ DBG lifecycle {"provider":"debug","defaults":{"claude":{"supportsResident":true,
 
 - src/modules/chat-session/hooks/useChatProviderState.ts
 - src/modules/chat/tests/chatProviderModels.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - e2e/resident-ui-layout.spec.ts
 - tasks/gap-ac178-new-session-switch-gate-drops-nonmatrix-provider.md
 
@@ -76,6 +77,7 @@ DBG lifecycle {"provider":"debug","defaults":{"claude":{"supportsResident":true,
 - AC1: `npx playwright test e2e/resident-ui-layout.spec.ts -g "composer has no resident switch"` exit 0；同一跑 stdout：`resident.composer.switch.count=0`、`per-run.composer.switch.count=0`、`empty.page.switch.count=1`。
 - AC2: 假形态（采纳 effect 还原为无条件 `setProvider`/`writeSelectedProvider`）同一命令 exit 1，红落在正控制 `e2e/resident-ui-layout.spec.ts:1598`：`expect(locator).toHaveCount(expected) failed`、`Expected: 1`、`Received: 0`；stdout 无 `empty.page.switch.count=` 读数（唯一出现是失败栈源码行 1599）。恢复 guard 后同一命令 exit 0 复绿。
 - AC3: `npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` exit 0，8 passed；新增两腿：矩阵外 `debug` ⇒ `provider` 仍 `claude` 且 `readSelectedProvider()` 仍 `claude`；对照腿 `codex` ⇒ `provider` 与偏好均为 `codex`。
+- 架构棘轮（上轮 suite 唯一红因）：`src/modules/chat-session/hooks/useChatProviderState.ts` 的采纳门使该文件 913→923 行。按基线自带的 AC-394 RECORDED CHANGE 格式在 `server/shared/tests/architecture-ratchet.baseline.json` 记录理由并上调该条目；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0（6/6 passed）。
 
 ## ADR-007
 
