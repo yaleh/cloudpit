@@ -2,7 +2,7 @@
 id: AC-453
 title: 桌面身份迁移：APP_NAME=Cloudpit，旧 userData/server 缓存/local-server marker
   可迁移，appId 与云端回调不变
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T16:31:09.005Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured

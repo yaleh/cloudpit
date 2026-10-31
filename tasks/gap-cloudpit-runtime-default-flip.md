@@ -155,3 +155,11 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - server/shared/mcp-contract/index.ts (scope vocabulary re-export)
 - server/modules/voice-realtime/tests/voice-realtime-log.test.ts (legacy dual arm pin)
 - server/modules/voice/tests/voice-capture-audio.test.ts (legacy dual arm pin)
+
+## Blocker
+
+**2026-10-31T16:13:17.613Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/assets/tests/image-assets.service.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-054 baseline red set: added=server/modules/cli/tests/cli-environment-bootstrap.test.ts,server/modules/assets/tests/image-assets.service.test.ts,server/modules/cli/tests/cli-environment-bootstrap.test.ts,server/modules/assets/tests/image-assets.service.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：b761648b-171f-4830-bba4-7a109a8d1440

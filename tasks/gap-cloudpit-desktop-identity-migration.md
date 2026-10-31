@@ -2,7 +2,7 @@
 id: gap-cloudpit-desktop-identity-migration
 title: Cloudpit B3：桌面身份迁移（APP_NAME/productName=Cloudpit、旧 userData/server
   缓存/marker 迁移、双 scheme 注册、appId 与云回调不变）
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -51,14 +51,14 @@ AC-453 的判据当前为 `not-evaluated`（capability）：`electron/tests/clou
 
 ## AC
 
-- [ ] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-desktop-identity.test.mjs` 退出 0，输出含 `fail 0`；文件已落地。
-- [ ] AC2 桌面显示身份：同一判据断言 `electron/main.js` 有 `const APP_NAME = 'Cloudpit';`、`package.json` 的 `productName === 'Cloudpit'` 且 `build.productName === 'Cloudpit'`。
-- [ ] AC3 userData 首次迁移：同一判据的 tmp 夹具（旧 `CloudCLI/` 三个 JSON + `cache.bin`）经 `maybeMigrateDesktopUserData({appName:'Cloudpit'})` 后 `copied` 恰为 `cloud-account.json` / `desktop-settings.json` / `desktop-notifications-settings.json`，新 `Cloudpit/` 目录只含这三个文件，`cache.bin` 未被复制，二次调用零复制且不覆盖用户编辑；源码臂断言 `main.js` 导入并在 `bootstrap()` 调用 `maybeMigrateDesktopUserData` 且传入 `appName: APP_NAME`。
-- [ ] AC4 server 缓存可移动或重下：同一判据断言 `DEFAULT_INSTALL_ROOT` 以 `.cloudpit/server` 结尾、`LEGACY_INSTALL_ROOT` 以 `.cloudcli/server` 结尾；tmp 旧版本目录经 `migrateLegacyVersionDir` 被 rename 到新根且返回 `{migrated:true, reason:'moved'}`；注入 `rename` 失败的臂返回 `{migrated:false, reason:'rename-failed'}` 且新版本目录不存在（留给 `ensureInstalled()` 下载）。
-- [ ] AC5 marker 新路径优先、旧路径回退：同一判据断言 `SERVER_MARKER_PATHS[0]` 以 `.cloudpit/local-server.json` 结尾、`[1]` 以 `.cloudcli/local-server.json` 结尾；仅旧文件存在时 `readServerMarkerUrl` 返回旧 marker 的 url，两者都存在时返回新路径的 url，两者都不存在时返回 `null`；源码臂断言 `server/index.ts` 的 `LOCAL_SERVER_MARKER_PATH` 指向 `.cloudpit/local-server.json`。
-- [ ] AC6 双 scheme 注册：同一判据断言 `package.json` 的 `build.protocols` scheme 并集同时含 `cloudcli` 与 `cloudpit`、mac `CFBundleURLSchemes` 并集同；`electron/main.js` 的 `DEEP_LINK_SCHEMES` 同时含两者且注册循环对每个 scheme 调用 `setAsDefaultProtocolClient`（dev 与 packaged 两分支）。
-- [ ] AC7 appId 与云端回调不变：同一判据断言 `package.json` 的 `build.appId === 'ai.cloudcli.desktop'`、`main.js` 的 `APP_USER_MODEL_ID === 'ai.cloudcli.desktop'`、`CALLBACK_PROTOCOL === 'cloudcli'`、`CALLBACK_URL` 为 `cloudcli://auth/callback`、`cloud.js` 的 `app_surface` 为 `cloudcli_desktop`；并断言 `main.js` 与 `cloud.js` 全文不含 `cloudpit://auth/callback`（假形态「云回调改用 cloudpit://」即红）。
-- [ ] AC8 collateral 钉子：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-userdata-migration.test.mjs` 退出 0 且含 `fail 0`（其 AC7 已翻成新接线断言）；`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/resident-server-restart.test.ts` 退出 0（marker 夹具已改新路径）；`npx oxlint electron/ server/index.ts server/modules/session-hosts/tests/resident-server-restart.test.ts` 退出 0；`npm run typecheck` 退出 0。
+- [x] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-desktop-identity.test.mjs` 退出 0，输出含 `fail 0`；文件已落地。
+- [x] AC2 桌面显示身份：同一判据断言 `electron/main.js` 有 `const APP_NAME = 'Cloudpit';`、`package.json` 的 `productName === 'Cloudpit'` 且 `build.productName === 'Cloudpit'`。
+- [x] AC3 userData 首次迁移：同一判据的 tmp 夹具（旧 `CloudCLI/` 三个 JSON + `cache.bin`）经 `maybeMigrateDesktopUserData({appName:'Cloudpit'})` 后 `copied` 恰为 `cloud-account.json` / `desktop-settings.json` / `desktop-notifications-settings.json`，新 `Cloudpit/` 目录只含这三个文件，`cache.bin` 未被复制，二次调用零复制且不覆盖用户编辑；源码臂断言 `main.js` 导入并在 `bootstrap()` 调用 `maybeMigrateDesktopUserData` 且传入 `appName: APP_NAME`。
+- [x] AC4 server 缓存可移动或重下：同一判据断言 `DEFAULT_INSTALL_ROOT` 以 `.cloudpit/server` 结尾、`LEGACY_INSTALL_ROOT` 以 `.cloudcli/server` 结尾；tmp 旧版本目录经 `migrateLegacyVersionDir` 被 rename 到新根且返回 `{migrated:true, reason:'moved'}`；注入 `rename` 失败的臂返回 `{migrated:false, reason:'rename-failed'}` 且新版本目录不存在（留给 `ensureInstalled()` 下载）。
+- [x] AC5 marker 新路径优先、旧路径回退：同一判据断言 `SERVER_MARKER_PATHS[0]` 以 `.cloudpit/local-server.json` 结尾、`[1]` 以 `.cloudcli/local-server.json` 结尾；仅旧文件存在时 `readServerMarkerUrl` 返回旧 marker 的 url，两者都存在时返回新路径的 url，两者都不存在时返回 `null`；源码臂断言 `server/index.ts` 的 `LOCAL_SERVER_MARKER_PATH` 指向 `.cloudpit/local-server.json`。
+- [x] AC6 双 scheme 注册：同一判据断言 `package.json` 的 `build.protocols` scheme 并集同时含 `cloudcli` 与 `cloudpit`、mac `CFBundleURLSchemes` 并集同；`electron/main.js` 的 `DEEP_LINK_SCHEMES` 同时含两者且注册循环对每个 scheme 调用 `setAsDefaultProtocolClient`（dev 与 packaged 两分支）。
+- [x] AC7 appId 与云端回调不变：同一判据断言 `package.json` 的 `build.appId === 'ai.cloudcli.desktop'`、`main.js` 的 `APP_USER_MODEL_ID === 'ai.cloudcli.desktop'`、`CALLBACK_PROTOCOL === 'cloudcli'`、`CALLBACK_URL` 为 `cloudcli://auth/callback`、`cloud.js` 的 `app_surface` 为 `cloudcli_desktop`；并断言 `main.js` 与 `cloud.js` 全文不含 `cloudpit://auth/callback`（假形态「云回调改用 cloudpit://」即红）。
+- [x] AC8 collateral 钉子：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-userdata-migration.test.mjs` 退出 0 且含 `fail 0`（其 AC7 已翻成新接线断言）；`npx tsx --tsconfig server/tsconfig.json --test server/modules/session-hosts/tests/resident-server-restart.test.ts` 退出 0（marker 夹具已改新路径）；`npx oxlint electron/ server/index.ts server/modules/session-hosts/tests/resident-server-restart.test.ts` 退出 0；`npm run typecheck` 退出 0。
 
 ## DoD
 
@@ -83,3 +83,74 @@ AC-453 的判据当前为 `not-evaluated`（capability）：`electron/tests/clou
 - package.json (productName/build.productName、protocols、mac CFBundleURLSchemes)
 - server/index.ts (local-server marker 写新路径)
 - server/modules/session-hosts/tests/resident-server-restart.test.ts (collateral: marker 夹具路径)
+
+## Verification (worker, 2026-11-01)
+
+### AC1 判据实跑
+
+- 命令：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-desktop-identity.test.mjs`
+- merge develop 后复跑末段：`ℹ tests 12` / `ℹ pass 12` / `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 0` / `ℹ todo 0`，`duration_ms 1906.63625`，退出码 0（wall ≈ 2.8s，pre-merge 一次为 `duration_ms 1994.232924`）。
+
+### AC3 userData 迁移读数
+
+- first = `{"migrated":true,"copied":["cloud-account.json","desktop-settings.json","desktop-notifications-settings.json"],"skipped":[]}`
+- `Cloudpit/` 清单 = `["cloud-account.json","desktop-notifications-settings.json","desktop-settings.json"]`
+- second = `{"migrated":false,"copied":[],"skipped":["cloud-account.json","desktop-settings.json","desktop-notifications-settings.json"]}`
+- 二次调用后用户编辑保留：`{"edited":true}`
+- 实际 tmp 目录树：`CloudCLI/` 下 `cache.bin` + 三个 JSON；`Cloudpit/` 下只有三个 JSON（`cache.bin` 未被复制）。
+- 源码臂：`main.js` 导入 `maybeMigrateDesktopUserData`，在 `bootstrap()` 的 `process.title = APP_NAME` 之后、`await app.whenReady()` 之前以 `appName: APP_NAME, appDataDir: app.getPath('appData')` 调用。
+
+### AC4 server 缓存迁移读数
+
+- `DEFAULT_INSTALL_ROOT = /data/home/yale/.cloudpit/server`
+- `LEGACY_INSTALL_ROOT = /data/home/yale/.cloudcli/server`
+- move = `{"migrated":true,"reason":"moved"}`；迁移前 `.cloudcli/server/9.9.9/{.installed.json,dist-server/server/index.js}`；迁移后 `.cloudcli/server/` 为空、`.cloudpit/server/9.9.9/{.installed.json,dist-server/server/index.js}`。
+- rename 失败臂 = `{"migrated":false,"reason":"rename-failed"}`，目标目录不存在、旧目录仍在（留给 `ensureInstalled()` 重下）。
+
+### AC5 marker 读数
+
+- `SERVER_MARKER_PATHS = ["/data/home/yale/.cloudpit/local-server.json","/data/home/yale/.cloudcli/local-server.json"]`
+- 仅旧 marker → `"http://127.0.0.1:4001"`；新旧都有 → `"http://127.0.0.1:4002"`（新路径优先）；都没有 → `null`。
+- `server/index.ts:2573`：`const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudpit', 'local-server.json');`
+- 源码臂：`readServerMarkerUrl` 的默认值仍为 `SERVER_MARKER_PATHS`（负控改成 `[SERVER_MARKER_PATHS[0]]` 即 AC5 红）。
+
+### AC6 双 scheme 读数
+
+- `build.protocols` = `[{"name":"CloudCLI","schemes":["cloudcli"]},{"name":"Cloudpit","schemes":["cloudpit"]}]`
+- mac `CFBundleURLTypes` = `[{"CFBundleURLName":"CloudCLI","CFBundleURLSchemes":["cloudcli","cloudpit"]}]`
+- `main.js`：`const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];`；`registerProtocolHandler()` 对每个 scheme 调 `setAsDefaultProtocolClient(scheme, process.execPath, [appEntry])`（dev）与 `setAsDefaultProtocolClient(scheme)`（packaged）。
+
+### AC7 不变项读数
+
+- `build.appId=ai.cloudcli.desktop`、`productName=Cloudpit`、`build.productName=Cloudpit`
+- `electron/main.js:15-18`：`APP_NAME = 'Cloudpit'`、`APP_USER_MODEL_ID = 'ai.cloudcli.desktop'`、`CALLBACK_PROTOCOL = 'cloudcli'`、`CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback``
+- `electron/cloud.js:247`：`connectUrl.searchParams.set('app_surface', 'cloudcli_desktop');`
+- `main.js` 与 `cloud.js` 全文均不含 `cloudpit://auth/callback`。
+
+### AC8 collateral 读数
+
+- `cloudpit-userdata-migration.test.mjs`：`ℹ tests 4` / `pass 4` / `fail 0`，退出码 0。
+- `resident-server-restart.test.ts`：`ℹ tests 5` / `pass 5` / `fail 0`，退出码 0（wall ≈ 38.4s）。
+- `npx oxlint electron/ server/index.ts server/modules/session-hosts/tests/resident-server-restart.test.ts`：退出码 0。
+- `npm run typecheck`（根 + server + scripts 三个 tsconfig）：退出码 0，wall ≈ 29.3s。
+
+### 假形态负控（改源码 → 跑判据 → 红 → 还原）
+
+- `build.appId` → `ai.cloudpit.desktop`：AC7 红（`tests 11 / pass 10 / fail 1`，exit 1）。
+- `CALLBACK_URL` → `cloudpit://auth/callback`：AC2/AC7 与 AC7 红（`tests 11 / pass 9 / fail 2`，exit 1）。
+- `readServerMarkerUrl` 默认 `markerPaths` 只留新路径：AC5 红（`tests 12 / pass 11 / fail 1`，exit 1）。
+- 删掉 `main.js` 的 `maybeMigrateDesktopUserData({` 调用：AC3 源码臂红（`tests 11 / pass 10 / fail 1`，exit 1）。
+- `DEFAULT_INSTALL_ROOT` 改回 `.cloudcli/server`：AC4 红（`tests 11 / pass 10 / fail 1`，exit 1）。
+- 每项均以 `git -C <worktree> checkout -- <file>` 还原，还原后 `git status --short` 为空（改动已提交）。
+
+### 真实桌面升级路径
+
+本任务不执行 Electron GUI 构建/安装（无显示环境，且发布动作在 goal 之外）。判据用 tmp 文件系统夹具真实执行 `migrateLegacyVersionDir` 与 `maybeMigrateDesktopUserData`，上面贴出的目录树即文件真的被复制/移动的证据。
+
+### anti-drift
+
+- `node --no-warnings .../anti-drift-touches-check.js --task gap-cloudpit-desktop-identity-migration --worktree <worktree> --merge-target goal/GOAL-054` → `ANTI-DRIFT OK: task gap-cloudpit-desktop-identity-migration — 9 actual file(s), all within declared Touches (10 glob(s))`，exit 0。
+- 本任务相对 `goal/GOAL-054` 的增量恰为上述 9 个 Touches 文件；在 goal-rooted 分支上 `git diff --name-only develop...HEAD` 还会列出 goal 分支自 develop 分叉以来继承的兄弟任务文件（非本任务改动），反漂移以 merge-target=`goal/GOAL-054` 的机械判定为准。
+- 未改 `appId`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`；未碰 AC-451 的可见文案批量翻转与 AC-452 的运行时默认值。
+
+该轴仍暗,理由:本任务只改 electron/ 身份接线与 server/index.ts 的 marker 路径常量,未改 src/ 或 server/ 的 import 依赖图
