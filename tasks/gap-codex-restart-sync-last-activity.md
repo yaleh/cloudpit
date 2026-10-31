@@ -56,9 +56,9 @@ depends_on:
 - server/modules/providers/tests/session-binding-consistency.test.ts
 - server/modules/projects/tests/*
 - server/modules/websocket/tests/*session*
+- scripts/ui-scenario.mjs
 - scripts/ui-scenarios/*session*activity*.json
 - scripts/session-activity-restart-check.mjs (new)
-- e2e/session-activity-restart.spec.ts (new)
 - src/modules/sidebar/SidebarSessionItem.tsx
 - src/modules/sidebar/tests/*activity*
 - src/modules/ui-scenario/*
