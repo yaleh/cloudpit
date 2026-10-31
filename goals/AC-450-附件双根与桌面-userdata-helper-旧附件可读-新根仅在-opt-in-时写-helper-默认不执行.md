@@ -1,7 +1,7 @@
 ---
 id: AC-450
 title: 附件双根与桌面 userData helper：旧附件可读，新根仅在 opt-in 时写，helper 默认不执行
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-053
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T07:32:10.415Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
