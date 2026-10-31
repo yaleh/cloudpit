@@ -1,7 +1,7 @@
 ---
 id: gap-codex-restart-sync-last-activity
 title: Codex 时间修复（三）：补齐旧日志的重启同步，以五场景验证列表最近活动
-status: todo
+status: ready
 labels:
   - gap
   - defect
