@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-runtime-default-flip
 title: Cloudpit B2：运行时默认值翻转与兼容（默认 ~/.cloudpit、settings/附件新路径、协议/scope/MCP/SW 双接受）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
