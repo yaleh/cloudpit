@@ -55,6 +55,9 @@ Extract one `honoredHints` into `shared/asr/asrContract.ts` (or a new `shared/as
 - 实跑：`npx vitest run src/shared/asr/tests/asrContractInvariants.test.ts src/shared/asr/tests/multimodalAdapter.test.ts` → 2 files / 43 tests passed；`npx tsc --noEmit -p tsconfig.json` 与 `-p server/tsconfig.json` → exit 0；`npx oxlint` 改动文件 → 无告警。
 - L_D shared_scope_duplicate_groups=3 honoredHints_groups=0 — 同口径（minStatements=6/minTokens=50）修复前后 totalGroups 4→3，消失的组含 `honoredHints`。
 - L_G honoredHints_definitions=1 honoredHints_adapter_call_sites=4 — 定义只在 `shared/asr/asrContract.ts`，四个适配器都经它应用自己的声明。
+- 套件红复核与修复（2026-11-01）：上一轮 fan-in 红在 `server/modules/voice/tests/voice-error-classification.false-forms.test.ts` 的 AC7，子命令 `scripts/asr-contract-invariants-check.test.mjs` exit=1。复现后确认是**本任务引入**、不是环境抖动：该控制测试用文本变异锚点伪造“把未声明 hint 发上线路”，锚点原文是适配器内联的 `if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;`；本任务把这段搬进 `shared/asr/asrContract.ts` 后锚点命中 0 次（`the mutation anchor for prompt-not-declared matched 0 times`）。修法：把该条变异锚点随实现移到 `CONTRACT_RELATIVE`，`empty-prompt-part` 等“请求体构造”锚点仍留在适配器；并在用例里写明“锚点随实现搬走”的理由。
+- 修复后实跑：`node --test scripts/asr-contract-invariants-check.test.mjs` → 9/9 passed；`npx tsx --test server/modules/voice/tests/voice-error-classification.false-forms.test.ts` → 7/7 passed（其中 AC7 的九条子命令全部 exit=0，含 `scripts/asr-contract-invariants-check.test.mjs cases=9`）。
+- commit（锚点修复）：`378408b66`。
 
 ## Touches
 - `shared/asr/list/multimodal/multimodal.asr-provider.ts`
@@ -64,6 +67,7 @@ Extract one `honoredHints` into `shared/asr/asrContract.ts` (or a new `shared/as
 - `shared/asr/asrContract.ts`
 - `src/shared/asr/tests/asrContractInvariants.test.ts`
 - `src/shared/asr/tests/multimodalAdapter.test.ts`
+- `scripts/asr-contract-invariants-check.test.mjs`
 - `tasks/gap-routine-architecture-analysis-asr-honored-hints-copied-four-times.md`
 
 ## Blocker
