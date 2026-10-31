@@ -16,7 +16,7 @@ AC-451 的缺口承载任务：把 Cloudpit 的**可见身份**与**分发身份
 
 输入：`docs/proposals/cloudpit-rename-SPEC.md` §2（产品名与 allowlist 规则）、§6.1（npm 新包）、§9 T1（品牌基座 + 展示层）、§10 AC1/AC2/AC13。GOAL-053 的 A1 已把 `BRAND` 常量与 `server/shared/brand.ts` 作为暗管道落好；本任务第一次让这些常量进入生产读取面。
 
-<!-- dedup-ref -->机制去重：`task-granularity-advice --touches …` 对候选文件返回 `peers: []`、`mentions: []`；任务库里没有任何任务以 `goal_ac: AC-451` 登记（`grep -rl '^goal_ac: AC-451' tasks/` 为空）。边界：AC-452 的运行时默认值（默认 `~/.cloudpit`、settings 新路径、附件双根、协议/scope/MCP/SW）与 AC-453 的桌面迁移接线（userData 复制、server 缓存、`local-server.json` 回退、双 scheme、`appId`）不在本任务内；本任务只翻用户可见名称与 npm/桌面身份字段。若 AC-453 的任务也声明 `electron/main.js`，调度器按 `## Touches` 串行，两任务各自只改自己那部分。
+<!-- dedup-ref -->机制去重：以本任务 `## Touches` 复跑 `task-granularity-advice --task gap-cloudpit-visible-identity-flip`，除自身外只有 `gap-codex-resident-blocked-context-events`（共享一个通用文件 `server/index.ts`）与 `gap-codex-token-usage-snapshot-semantics`（共享一个通用文件 `src/shared/utils.ts`）两个 ready 任务在单个文件上重叠；mechanism 不同（Codex 重启同步 / token 用量语义 vs 品牌身份），判定 **separate**：各自独立验收，调度器按 Touches 串行。任务库里没有任何任务以 `goal_ac: AC-451` 登记（`grep -rl '^goal_ac: AC-451' tasks/` 为空）。边界：AC-452 的运行时默认值（默认 `~/.cloudpit`、settings 新路径、附件双根、协议/scope/MCP/SW）与 AC-453 的桌面迁移接线（userData 复制、server 缓存、`local-server.json` 回退、双 scheme、`appId`）不在本任务内；本任务只翻用户可见名称与 npm/桌面身份字段。若 AC-453 的任务也声明 `electron/main.js`，调度器按 `## Touches` 串行，两任务各自只改自己那部分。
 
 ### 本任务做什么
 
