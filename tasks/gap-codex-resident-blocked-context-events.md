@@ -2,7 +2,7 @@
 id: gap-codex-resident-blocked-context-events
 title: Codex resident 阻塞态发 session.blocked / session.blocked.resolved context
   事件（approval 门 + turn failed/interrupted）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
