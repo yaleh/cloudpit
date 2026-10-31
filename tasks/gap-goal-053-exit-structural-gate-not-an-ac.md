@@ -2,7 +2,7 @@
 id: gap-goal-053-exit-structural-gate-not-an-ac
 title: GOAL-053 退出条件第 4 条（相关单测/typecheck/lint 绿、零新增模块目录、utils.ts 不增行）无在域 AC
   覆盖：提议新增一条「目标退出结构门」AC（建议 AC-455）；交人裁定
-status: todo
+status: ready
 labels:
   - gap
 parent: null
