@@ -140,11 +140,3 @@ depends_on:
 ### 轴状态
 
 该轴仍暗,理由:本任务是无 owning goal AC 的缺陷修复，五场景、负对照、构建/类型门已在最终树闭环，无可量化的目标指标轴需要汇报。
-
-## Blocker
-
-**2026-10-31T13:40:33.280Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/shared/utils.ts 1930→1973 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：e9d2f3d0-589d-446d-baa5-e204179a51bb
