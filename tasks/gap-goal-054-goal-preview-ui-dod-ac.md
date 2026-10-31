@@ -83,12 +83,12 @@ GOAL-054 `## 退出条件` 第 3 条，逐字为：
 
 ## AC
 
-- [ ] AC1 判据文件与运行：`e2e/cloudpit-brand-preview.spec.ts` 已落地；`npx playwright test e2e/cloudpit-brand-preview.spec.ts -g "AC-456"` 退出 0，输出含 `passed` 且 `0 failed`。
-- [ ] AC2 真实页面正臂：同一 spec 断言 `document.title` 与 `apple-mobile-web-app-title`、`/manifest.json` 的 `name`/`short_name` 均为 `Cloudpit`；Settings → About 产品名为 `Cloudpit`，`Based on CloudCLI UI` 归属句与 `siteboon/claudecodeui` 链接仍在；侧边栏/认证面可见文案无未 allowlist 的 `CloudCLI`。
-- [ ] AC3 false-form：同一断言函数分别喂入三条注入 `CloudCLI` 的合成读数（title / manifest.name / About 产品名），三条都判红，且失败消息点名对应面。
-- [ ] AC4 截图证据：spec 在检查点写出 full-page screenshot 到 `tmp/cloudpit-brand-preview/`，任务里贴出文件路径与截图。
-- [ ] AC5 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（任务文件本身按 task_write 落点说明）。
-- [ ] AC6 不改兄弟判据：AC-451/452/453 的 criterion/expect 与三条执行任务的判据文件均未被本任务修改（`git diff` 对 `scripts/brand-allowlist-check.test.mjs`、`server/shared/tests/cloudpit-runtime-flip.test.ts`、`electron/tests/cloudpit-desktop-identity.test.mjs` 为空）。
+- [x] AC1 判据文件与运行：`e2e/cloudpit-brand-preview.spec.ts` 已落地；`npx playwright test e2e/cloudpit-brand-preview.spec.ts -g "AC-456"` 退出 0，输出含 `passed` 且 `0 failed`。
+- [x] AC2 真实页面正臂：同一 spec 断言 `document.title` 与 `apple-mobile-web-app-title`、`/manifest.json` 的 `name`/`short_name` 均为 `Cloudpit`；Settings → About 产品名为 `Cloudpit`，`Based on CloudCLI UI` 归属句与 `siteboon/claudecodeui` 链接仍在；侧边栏/认证面可见文案无未 allowlist 的 `CloudCLI`。
+- [x] AC3 false-form：同一断言函数分别喂入三条注入 `CloudCLI` 的合成读数（title / manifest.name / About 产品名），三条都判红，且失败消息点名对应面。
+- [x] AC4 截图证据：spec 在检查点写出 full-page screenshot 到 `tmp/cloudpit-brand-preview/`，任务里贴出文件路径与截图。
+- [x] AC5 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（任务文件本身按 task_write 落点说明）。
+- [x] AC6 不改兄弟判据：AC-451/452/453 的 criterion/expect 与三条执行任务的判据文件均未被本任务修改（`git diff` 对 `scripts/brand-allowlist-check.test.mjs`、`server/shared/tests/cloudpit-runtime-flip.test.ts`、`electron/tests/cloudpit-desktop-identity.test.mjs` 为空）。
 
 ## DoD
 
@@ -125,3 +125,56 @@ GOAL-054 `## 退出条件` 第 3 条，逐字为：
 ### 边界
 
 本记录只登记裁定与修正，不改 `goals/*.md`、不改 AC-451/452/453 的判据文件、不改生产默认值；实现只改 `## Touches` 声明的文件。
+
+## 执行记录（worker, 2026-10-31）
+
+### AC1 判据文件与运行
+- 文件：`e2e/cloudpit-brand-preview.spec.ts`；实现提交 `25e3f80d4`，随后按 worker 协议 merge develop（`3c6320737`）并复跑。
+- 命令：`npx playwright test e2e/cloudpit-brand-preview.spec.ts -g "AC-456"`
+- 退出码 `0`；末行 `2 passed (12.1s)`；整条命令墙钟实测 `13014ms`（冷启动：config eval ≈0.26s、两个 webServer 均应答于 3.7s、其余为浏览器启动与用例）。merge develop 后复跑 `2 passed (12.0s)`、退出 0。
+- list reporter 在 0 失败时只打印 `N passed`、不打 `0 failed` 行；本次输出无任何 `failed` 行且退出码 0，即 AC1 要求的 `0 failed`。
+
+### AC2 真实页面正臂读数（同一次运行的 stdout）
+```
+[AC-456] readings {"title":"Cloudpit","appleTitle":"Cloudpit","manifest":{"name":"Cloudpit","short_name":"Cloudpit",...},"about":{"productName":"Cloudpit","links":["https://github.com/siteboon/claudecodeui/releases",...,"https://github.com/siteboon/claudecodeui",...],"licenseLine":"Licensed under AGPL-3.0"}}
+```
+- `document.title = "Cloudpit"`；`apple-mobile-web-app-title = "Cloudpit"`；`manifest.name = "Cloudpit"`、`manifest.short_name = "Cloudpit"`（`fetch('/manifest.json')`）。
+- Settings → About 产品名 `Cloudpit`、`Licensed under AGPL-3.0` 行在；`links` 含 `https://github.com/siteboon/claudecodeui`（另有 `/releases`、`/issues/new` 同域链接）。按 Resolution 第 3 条口径未断言不存在的「Based on CloudCLI UI」句。
+- 侧边栏 reading 含 footer 品牌行 `Cloudpit v1.41.0 – Open Source`（证明读到的是真实侧边栏，不是空容器）；auth reading 为注册页真实文案（`Create Account` / `Set up your account to get started` / `Cloudpit is open source`）。两者按 `scripts/brand-allowlist-check.mjs` 的 `findBrandViolations` 规则表扫描，0 违规。
+
+### AC3 false-form（同一 `brandPreviewViolations` 函数，stdout 原文）
+```
+[AC-456] false-form document.title: injected title="CloudCLI" -> ["document.title is \"CloudCLI\", expected \"Cloudpit\""]
+[AC-456] false-form manifest.name: injected manifest.name="CloudCLI" -> ["manifest.name is \"CloudCLI\", expected \"Cloudpit\""]
+[AC-456] false-form About product name: injected about.productName="CloudCLI" -> ["About product name is \"CloudCLI\", expected \"Cloudpit\""]
+```
+- 未注入的 baseline 读数先断言为 0 违规（防止「全部判红」的假函数通过三条控制）。
+- allowlist 路径另有两条控制：`Powered by CloudCLI` → `sidebar carries "CloudCLI" ...` 判红；`Try CloudCLI Hosted` → 0 违规（allowlist 外部服务文案生效）。
+
+### AC4 截图证据
+- `tmp/cloudpit-brand-preview/AC-456-auth.png`
+- `tmp/cloudpit-brand-preview/AC-456-landing.png`
+- `tmp/cloudpit-brand-preview/AC-456-about.png`
+- 三张已在会话内逐张打开核对：auth 页脚 `Cloudpit is open source`；首屏侧边栏 header `Cloudpit`、footer `Cloudpit v1.41.0 – Open Source`；About 产品名 `Cloudpit v1.41.0`、`Try CloudCLI Hosted`/`CloudCLI Pro Features`（allowlist 允许的外部服务文案）。
+
+### AC5 anti-drift
+- `node --no-warnings .../anti-drift-touches-check.js --task gap-goal-054-goal-preview-ui-dod-ac --worktree <wt> --merge-target goal/GOAL-054` → `ANTI-DRIFT OK: task gap-goal-054-goal-preview-ui-dod-ac — 1 actual file(s), all within declared Touches (2 glob(s))`，exit 0。
+- 本任务自身提交只有 `25e3f80d4`：`git show --stat` = `e2e/cloudpit-brand-preview.spec.ts | 343 +`，1 file changed。
+- 口径说明：按 worker 协议先 `git merge develop` 后，任何以 `goal/GOAL-054` 或 `develop` 为 merge-base 的三点 diff 都会把 goal 分支既有 6 个提交或 develop 新并入的提交计入，无法单独读出本任务 delta；机械 anti-drift 工具按任务提交做了任务级 scope，读数见上一条（与 shared-lessons「cross-branch-delta-pin-must-be-scoped-to-owner-branch」一致）。
+
+### AC6 兄弟判据未改
+- `git diff --name-only goal/GOAL-054...HEAD -- scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs server/shared/tests/cloudpit-runtime-flip.test.ts electron/tests/cloudpit-desktop-identity.test.mjs` 为空。本任务只新增 spec，未改 AC-451/452/453 的 criterion/expect 与判据文件。
+
+### AC-456 记录读回与时限
+- `quay goal show AC-456 --json`：`criterion = "npx playwright test e2e/cloudpit-brand-preview.spec.ts -g \"AC-456\""`、`timeoutMs = 300000`、`phase = pre-merge`、`status = active`、`goal = GOAL-054`。
+- 本 spec 冷启动实测 `13014ms`（整条命令）；1.25× = `16267.5ms ≈ 16.3s`。记录值 300000ms ≈ 18.4×，远低于 Resolution 的 240s 交回线。
+
+### UI DoD 说明
+- 本会话没有可用的 MCP 浏览器工具（`ToolSearch` 查 `browser` 无匹配）。按项目记忆 `no-mcp-browser-use-throwaway-playwright-spec` 的等价路径，用真实 Vite client + 真实 server（与 `quay goal preview` 同一棵树、同一份源码）的 Playwright 页面实际走 Auth → 首屏 → Settings → About，并逐张查看截图，作为 UI DoD 证据。
+- 仓库内无覆盖 Cloudpit 品牌身份的可用 `ui-scenario` JSON；按 DoD 要求写明「无覆盖品牌身份的可用场景，使用真实浏览器实测」。
+
+### ADR-007 暗轴
+- 该轴仍暗,理由:本任务只新增一个只读浏览器判据文件 e2e/cloudpit-brand-preview.spec.ts，不改变产品架构、模块边界或设计文档规模，L_D/L_G 两条轴在本任务 delta 上无实质读数。
+
+### 提交范围
+- 只改 Touches 声明的 `e2e/cloudpit-brand-preview.spec.ts`（任务文件由 task_write 提交）；不改生产默认值、不改 `goals/*.md`、不改 AC-451/452/453 判据；会话内未跑全量 suite（全量走 fan-in）。
