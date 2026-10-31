@@ -55,6 +55,7 @@
 
 import {
   declaredAcceptsMime,
+  honoredHints,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrErrorCode,
@@ -271,16 +272,6 @@ export function measureRequestBytes(request: AsrRequest, honored: AsrHints): num
   return bytes;
 }
 
-/** The subset of `hints` this provider will actually forward. Empty today; see `capabilities`. */
-export function honoredHints(hints: AsrHints | undefined): AsrHints {
-  const honored: AsrHints = {};
-  if (hints === undefined) return honored;
-  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
-  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
-  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
-  return honored;
-}
-
 /** The refusal owed an engine that cannot serve this request, in the seam's vocabulary. */
 function engineFailure(message: string): AsrResult {
   return { ok: false, code: 'ENGINE_UNAVAILABLE', message };
@@ -314,7 +305,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
     };
   }
 
-  const requestBytes = measureRequestBytes(request, honoredHints(request.hints));
+  const requestBytes = measureRequestBytes(request, honoredHints(capabilities, request.hints));
   if (requestBytes > capabilities.maxInlineRequestBytes) {
     return {
       ok: false,

@@ -752,3 +752,35 @@ export function declaredAcceptsMime(capabilities: AsrCapabilities, mimeType: str
 
   return capabilities.acceptsMime.indexOf(base) !== -1;
 }
+
+// ── the hints rule, read off a declaration ───────────────────────────────────────────────────
+
+/**
+ * The subset of `hints` a provider declaring `capabilities.honors` will actually put on the wire.
+ *
+ * THERE IS ONE COPY OF THIS ARITHMETIC, HERE. Every adapter applies its declaration through this
+ * function; before the extraction the same body existed byte-identically in four adapter modules
+ * (archguard scope `shared`, group c4ddbc765577af76), so a change to the rule — or a new hint axis —
+ * could be made in one adapter and silently missed in another, leaving that provider honouring a
+ * different hint set than the one it declares.
+ *
+ * The declaration is a PARAMETER for the same reason `declaredAcceptsMime` takes one: the caller
+ * has already selected the provider the request will use, and a rule that re-resolved the provider
+ * itself could answer about a different one than the request is served by.
+ *
+ * An absent hint and an unacknowledged one both leave the key out rather than sending an empty
+ * value: `{ prompt: '' }` is still a prompt part on the wire, which is exactly the outcome a
+ * `false` declaration promises not to produce. The caller's own instruction is not a hint and does
+ * not travel through here.
+ *
+ * Both compiler configurations compile this file (see the module comment), so this is written with
+ * ES5 syntax and no Node built-in.
+ */
+export function honoredHints(capabilities: AsrCapabilities, hints: AsrHints | undefined): AsrHints {
+  const honored: AsrHints = {};
+  if (hints === undefined) return honored;
+  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
+  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
+  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
+  return honored;
+}

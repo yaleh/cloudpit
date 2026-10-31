@@ -65,7 +65,7 @@ import type {
   AsrRequest,
   AsrResult,
 } from '../../asrContract.js';
-import { classifyUpstreamFailure } from '../../asrContract.js';
+import { classifyUpstreamFailure, honoredHints } from '../../asrContract.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'multimodal';
@@ -181,23 +181,6 @@ export function baseMimeType(mimeType: string): string {
 /** Whether this provider accepts `mimeType`, matched on the base type. */
 export function acceptsMime(mimeType: string): boolean {
   return capabilities.acceptsMime.indexOf(baseMimeType(mimeType)) !== -1;
-}
-
-/**
- * The subset of `hints` this provider will actually put on the wire.
- *
- * This is the only place the `honors` declaration is applied, and the body builder only ever sees
- * the value this returns — so "the prompt is not sent" is a property of the declaration rather
- * than of a second condition somewhere downstream that could drift from it. The adapter's own
- * instruction does not travel through here: it is not a hint, and the caller cannot turn it off.
- */
-export function honoredHints(hints: AsrHints | undefined): AsrHints {
-  const honored: AsrHints = {};
-  if (hints === undefined) return honored;
-  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
-  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
-  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
-  return honored;
 }
 
 /**
@@ -486,7 +469,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
     };
   }
 
-  const hints = honoredHints(request.hints);
+  const hints = honoredHints(capabilities, request.hints);
   const requestBytes = measureInlineRequestBytes(request, hints, invocation.model);
   if (requestBytes > capabilities.maxInlineRequestBytes) {
     return {
