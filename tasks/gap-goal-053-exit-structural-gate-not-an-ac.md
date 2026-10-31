@@ -2,18 +2,13 @@
 id: gap-goal-053-exit-structural-gate-not-an-ac
 title: GOAL-053 退出条件第 4 条（相关单测/typecheck/lint 绿、零新增模块目录、utils.ts 不增行）无在域 AC
   覆盖：提议新增一条「目标退出结构门」AC（建议 AC-455）；交人裁定
-status: needs-human
+status: todo
 labels:
   - gap
 parent: null
 children: []
 extra:
   schema: execution
-  needs_human_cause: human-adjudication
-  park_reason: GOAL-053 充分性判官 verdict=insufficient（实例
-    key=12ff5522a5dde870da77a81419dbe7bf3c402e15a61e2296b70d5e4e37f190c0，since=2026-10-31T06:22:27.382Z，缓存裁决
-    ts=2026-10-31T06:20:31.634Z）：退出条件第 4 条无任何在域 AC 判据覆盖。本任务只提议新增一条可运行的退出结构门
-    AC，不新增/不改 goals/*.md、不翻任何 GOAL/AC 状态；须人裁定后才可由被授权的 goal 写入路径入册。
 depends_on:
   - gap-cloudpit-data-root-migration
   - gap-cloudpit-assets-dual-root-and-userdata-helper
@@ -105,3 +100,23 @@ npx tsx --tsconfig server/tsconfig.json --test \
 - server/shared/tests/quay-test-script.test.ts (collateral: collected server test-file count pins)
 - scripts/suite-duration-baseline.tsv (collateral: duration row for the new criterion file)
 - tasks/gap-goal-053-exit-structural-gate-not-an-ac.md
+
+
+## Resolution
+
+**人 yale 裁定（2026-10-31，经当前会话下达）：采纳提案 (a)，为 GOAL-053 新增 AC-455。**
+
+### 裁定内容
+
+1. **采纳 (a)**：退出条件第 4 条（相关单测、typecheck、lint 绿；不新增模块目录，不往 `server/shared/utils.ts` 加行）由一条新的在域 AC 承载，编号 **AC-455**（AC-451…AC-454 属 GOAL-054；现行最大为 AC-454）。本任务与执行者不改 `goals/*.md`；AC 记录由被授权的 goal 写入路径创建。
+2. **判据按单调读法实现（覆盖立案文本中的等号措辞）**：
+   - 目录臂：`scanImportGraph(collectServerSources(<repo>/server)).nodes ⊆ 冻结基线目录集`，即 `extra=[]` 才是绿；冻结基线当前 58 条。**不**要求 `missing=[]`、**不**要求与现行 manifest 数量相等——AC-394 的 manifest 只许缩，兄弟任务合法收缩时不得打红。
+   - `utils.ts` 臂：实测行数 `<=` 冻结值 1930（并同时 `<=` `architecture-ratchet.baseline.json.oversizeFiles['server/shared/utils.ts']`）。**不**要求相等——该文件只许缩。
+   - 负向控制仍然保留：合成「多一个目录」/「多一行」必须判红。
+3. **时限**：AC-455 记录必须声明 `timeoutMs`（先写 150000，落地前按整链实测取 >=1.25× floor 重定）。运行中的 goal-driver 0.24.0 取值次序为 `record.timeoutMs > --timeout > QUAY_ACCEPTANCE_TIMEOUT_MS > 60000`，记录级字段优先；不写就走 60000，整链（实测 typecheck 29.5s + lint 14.4s + 判据文件）会超时并记成 fail。`quay goal write` 无 `--timeoutMs` 旗标，故由被授权的 goal 写入路径在记录 frontmatter 补 `timeoutMs` 后立即 commit，并用 `quay goal show AC-455 --json` 读回。
+4. **计数钉子按落地时实测重算，不抄立案快照**：立案时 AC6 写的 435/483 已过时。2026-10-31 实测 server 测试文件 485 个、`scripts/suite-duration-baseline.tsv` 覆盖 437 个；新增判据文件后须追加该行，`quay-test-script.test.ts` 两处 unknown 钉子按当轮 N 重算。
+5. **状态路径**：本任务已不再等待人的裁定；A2/A3（`gap-cloudpit-data-root-migration`、`gap-cloudpit-assets-dual-root-and-userdata-helper`）仍未 done，故置 `todo`，由 promotion driver 在二者均 done 后机械转为 `ready`；二者均 done 前不实现、不勾选 AC4 的有界清单。
+
+### 边界
+
+本记录只登记裁定，不自行创建或改写任何 GOAL/AC 状态；`goals/AC-455-*.md` 的创建与 `timeoutMs` 的补齐由被授权的 goal 写入路径执行。本任务在此后的实现中仍只改 `## Touches` 声明的文件。
