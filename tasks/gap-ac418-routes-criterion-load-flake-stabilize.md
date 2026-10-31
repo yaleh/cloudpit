@@ -36,14 +36,14 @@ goal_ac: AC-418
 
 ## AC
 
-- [ ] AC1 红态基线逐字可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep '^2026-10-31'` 的输出同时含 `04:22:34.258Z fail e1d1e01e63bd2a39e092e9456fe0e52487f444ae` 与 `04:23:11.084Z pass e1d1e01e63bd2a39e092e9456fe0e52487f444ae`（同 tree 对照），并含 `03:49:14.193Z fail` 与 `03:49:54.844Z pass` 同一 tree；本轮 4 次直跑全绿读数（35/35/0，2435.1/3125.2/2915.2/3004.7ms）逐字进 Evidence。
-- [ ] AC2 失败腿定位可复核：`sed -n '196p;1085p;179p' server/modules/architecture/tests/architecture-routes.test.ts` 分别输出 `return fetch(`, `const response = await postMentions(`, `await run(`（行号以交付树为准；若重试助手使行号下移，Evidence 写明新旧行号与 grep 命令 `grep -n 'function postMentions'` 的命中）；Evidence 说明红在 fetch 拒绝，不在断言/监听。
-- [ ] AC3 有界重试存在且可见：`grep -nE 'ARCH_ROUTES_FETCH_ATTEMPTS|fetchWithRetry' server/modules/architecture/tests/architecture-routes.test.ts` 命中 ≥2；重试次数有命名常量上界（默认 3）；注入运行的 stdout 里出现 `[arch-routes] fetch retry`。
-- [ ] AC4 重试承重（确定性）：`ARCH_ROUTES_FAIL_FIRST_FETCH=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` exit 0（stdout 含 `[arch-routes] fetch retry` 行）；`ARCH_ROUTES_FAIL_FIRST_FETCH=1 ARCH_ROUTES_FETCH_ATTEMPTS=0 npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` exit 1，且失败输出含注入的 `ECONNRESET` 文本、失败帧在该 fetch 助手上。两条命令与完整输出都在 Evidence 登记。
-- [ ] AC5 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = 0（零删除断言）；`grep -c '^test(' server/modules/architecture/tests/architecture-routes.test.ts` = 35（用例数不变）；diff 只含重试助手 + 调用点改写 + 注入分支。
-- [ ] AC6 稳定跑绿：自然负载下判据原命令连跑 10 次均 exit 0，每次 `tests 35 / pass 35 / fail 0`，逐次登记 `duration_ms`（日志在 `tmp/`）。
-- [ ] AC7 门控自证：在交付树上 `goal_gate AC-418` → `verdict: pass`，其 `treeSha` 等于 `git rev-parse HEAD^{tree}`。
-- [ ] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
+- [x] AC1 红态基线逐字可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep '^2026-10-31'` 的输出同时含 `04:22:34.258Z fail e1d1e01e63bd2a39e092e9456fe0e52487f444ae` 与 `04:23:11.084Z pass e1d1e01e63bd2a39e092e9456fe0e52487f444ae`（同 tree 对照），并含 `03:49:14.193Z fail` 与 `03:49:54.844Z pass` 同一 tree；本轮 4 次直跑全绿读数（35/35/0，2435.1/3125.2/2915.2/3004.7ms）逐字进 Evidence。
+- [x] AC2 失败腿定位可复核：`sed -n '196p;1085p;179p' server/modules/architecture/tests/architecture-routes.test.ts` 分别输出 `return fetch(`, `const response = await postMentions(`, `await run(`（行号以交付树为准；若重试助手使行号下移，Evidence 写明新旧行号与 grep 命令 `grep -n 'function postMentions'` 的命中）；Evidence 说明红在 fetch 拒绝，不在断言/监听。
+- [x] AC3 有界重试存在且可见：`grep -nE 'ARCH_ROUTES_FETCH_ATTEMPTS|fetchWithRetry' server/modules/architecture/tests/architecture-routes.test.ts` 命中 ≥2；重试次数有命名常量上界（默认 3）；注入运行的 stdout 里出现 `[arch-routes] fetch retry`。
+- [x] AC4 重试承重（确定性）：`ARCH_ROUTES_FAIL_FIRST_FETCH=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` exit 0（stdout 含 `[arch-routes] fetch retry` 行）；`ARCH_ROUTES_FAIL_FIRST_FETCH=1 ARCH_ROUTES_FETCH_ATTEMPTS=0 npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` exit 1，且失败输出含注入的 `ECONNRESET` 文本、失败帧在该 fetch 助手上。两条命令与完整输出都在 Evidence 登记。
+- [x] AC5 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = 0（零删除断言）；`grep -c '^test(' server/modules/architecture/tests/architecture-routes.test.ts` = 35（用例数不变）；diff 只含重试助手 + 调用点改写 + 注入分支。
+- [x] AC6 稳定跑绿：自然负载下判据原命令连跑 10 次均 exit 0，每次 `tests 35 / pass 35 / fail 0`，逐次登记 `duration_ms`（日志在 `tmp/`）。
+- [x] AC7 门控自证：在交付树上 `goal_gate AC-418` → `verdict: pass`，其 `treeSha` 等于 `git rev-parse HEAD^{tree}`。
+- [x] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
 
 ## DoD
 
@@ -60,7 +60,23 @@ goal_ac: AC-418
 - 失败签名（被 gate 截断后仍保留）：帧 `…/architecture-routes.test.ts:196:10` → `…:1085:28` → `withServer (…:179:11)`。当前行号语义：196 = `postMentions` 的 `return fetch(`；1085 = `const response = await postMentions(`；179 = `withServer` 的 `await run(baseUrl)`。完整 stdout（5992 chars）未留存，故不虚构错误消息。
 - `goal_gate AC-418`：`verdict: pass, reason: acceptance passed (exit 0), timestamp 2026-10-31T04:23:11.084Z, treeSha e1d1e01e63bd2a39e092e9456fe0e52487f444ae`。
 
+**worker 修复（2026-10-31，commit `dc1195be6`）。**
+
+- 复现结论：自然负载（`/proc/loadavg` = `42.58 35.40 30.76`、线程表 44105）下先跑判据原命令 1 次、再连跑 10 次均为 `tests 35 / pass 35 / fail 0`，未复现带 errno 的完整失败；按 Plan 第 1 步如实记「未复现」，不虚构日志；失败腿沿用立案的 gate 帧定位（`fetch` 拒绝，`withServer` 已 listening 之后）。
+- AC2 复读：`sed -n '196p;1085p;179p' server/modules/architecture/tests/architecture-routes.test.ts` 依次输出 `return fetch(`${baseUrl}/api/architecture/mentions`, {`、`const response = await postMentions(baseUrl, { projectId: 'project-1', sessionId: SESSION_ID, ...request });`、`await run(`http://127.0.0.1:${address.port}`);`；`grep -n 'function postMentions'` 命中 `195:function postMentions(...)`。行号未移动：重试机制全部追加在文件末尾，179/196/1085 三条读数行逐字未动。红在 `fetch` 拒绝，不在断言/监听——`withServer` 已 `await once(server, 'listening')` 才进入 `run`。
+- AC3 复读：`grep -nE 'ARCH_ROUTES_FETCH_ATTEMPTS|fetchWithRetry' server/modules/architecture/tests/architecture-routes.test.ts` 命中 13 行（≥2）；重试次数有命名常量上界 `DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS = 3`；注入运行 stdout 首行 `[arch-routes] fetch retry attempt=1 url=http://127.0.0.1:4487/api/architecture/graph cause=fetch failed (ECONNRESET)`。
+- 机制：文件末尾追加 `fetchWithRetry()`（首试 1 次 + 至多 `ARCH_ROUTES_FETCH_ATTEMPTS` 次重试，退避 `50*attempt` ms、上限 250ms）；只重试连接层失败（`TypeError: fetch failed` / `socket hang up` 且 cause 的 `code` ∈ {ECONNRESET, ECONNREFUSED, EPIPE, UND_ERR_SOCKET, ETIMEDOUT}）；HTTP 4xx/5xx 由 `fetch` resolve，原样返回、绝不重试；断言零接触。注入放在 `fetchOnce()`（重试层之下）；末尾 `const fetch = fetchWithRetry;` 把 postGraph/postMentions/postSearch 三个调用点统一接进重试，故 AC2 的读数行一字未动，`git diff --stat develop` = `1 file changed, 104 insertions(+)`（纯追加，无删除）。
+- AC4 读数（逐字，日志在 worktree `tmp/`）：
+  - 带重试：`ARCH_ROUTES_FAIL_FIRST_FETCH=1 npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` → **exit 0**；stdout 含 `[arch-routes] fetch retry attempt=1 url=http://127.0.0.1:4487/api/architecture/graph cause=fetch failed (ECONNRESET)`；`tests 35 / pass 35 / fail 0`、`duration_ms=3004.23093`（`tmp/ac418-inject-retry-on.log`）。
+  - 关重试：同一注入再加 `ARCH_ROUTES_FETCH_ATTEMPTS=0` → **exit 1**；失败输出含 `[cause]: Error: read ECONNRESET (injected)` 与 `code: 'ECONNRESET'`，帧 `at fetchOnce (…:2562:27)` → `at fetchWithRetry (…:2571:20)` → `at postGraph (…:188:10)` → `at withServer (…:179:11)`（`tmp/ac418-inject-retry-off.log`）。
+- AC5 复核：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = `0`；`grep -c '^test(' server/modules/architecture/tests/architecture-routes.test.ts` = `35`；`git diff --stat develop` = `1 file changed, 104 insertions(+)`。
+- AC6 读数（自然负载 `/proc/loadavg` = `42.58 35.40 30.76`，判据原命令连跑 10 次，全部 exit 0，每次 `tests 35 / pass 35 / fail 0`）：`duration_ms` = 2652.735982 / 2581.724664 / 2846.974339 / 2780.018537 / 2776.579316 / 2737.517987 / 2443.482288 / 2411.620556 / 2595.684384 / 2472.707121；相对现状（≈2.4–3.1s）无显著变慢（`tmp/ac418-stable-1..10.log`）。
+- AC8：`npm run typecheck` exit 0（`tmp/ac418-typecheck.log`）；`npm run lint` exit 0（仅存量 warning，`tmp/ac418-lint.log`）；`git diff --name-only $(git merge-base develop HEAD) HEAD` = `server/modules/architecture/tests/architecture-routes.test.ts` + `tasks/gap-ac418-routes-criterion-load-flake-stabilize.md`，均在 `## Touches`。
+- AC7：`goal_gate AC-418` 在本任务分支的**最终交付树**上执行（本次 task_write 勾选 + worktree 取回任务文件之后），是退出前最后一个动作，故 `payload.treeSha` 与最终 `git rev-parse HEAD^{tree}` 相等、不再改写任务文件（改写会移动 tree）。`--dry-run` 预演已读数：`verdict: pass, reason: acceptance passed (exit 0), evaluationRoot=<worktree>, treeSha=c22963b02449daaeb89a5a96997f89db87e20da0 = git rev-parse HEAD^{tree}`；正式运行事件写入 worktree `.quay/gate-events.jsonl`（`tmp/ac418-goal-gate-dryrun.json`）。
+
 ## Touches
 
 - `server/modules/architecture/tests/architecture-routes.test.ts`
 - `tasks/gap-ac418-routes-criterion-load-flake-stabilize.md`（自触）
+
+该轴仍暗,理由:仅判据测试文件的有界传输重试，无设计/文档增量，L_D 与 L_G 均无可测读数
