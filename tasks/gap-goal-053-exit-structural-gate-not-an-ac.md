@@ -120,3 +120,11 @@ npx tsx --tsconfig server/tsconfig.json --test \
 ### 边界
 
 本记录只登记裁定，不自行创建或改写任何 GOAL/AC 状态；`goals/AC-455-*.md` 的创建与 `timeoutMs` 的补齐由被授权的 goal 写入路径执行。本任务在此后的实现中仍只改 `## Touches` 声明的文件。
+
+
+### 补充修正（2026-10-31，AC-455 入册后 dry-run 实测）
+
+AC-455 的 criterion 已在入册后修正；本任务实现时按修正后的口径：
+
+- **存在性闸（新发现，承重）**：`npx tsx --test` 在混合存在的文件集里会**静默忽略缺失路径并以 0 退出**。实测（2026-10-31）：8 个 server 文件里 3 个缺失（含本任务要新增的 `cloudpit-goal-exit-gate.test.ts`），整条 server 命令仍 `EXIT=0`。若照 Proposal 第 2 条的原命令，A3 的 electron 判据文件落地后，整链会在门判据文件尚不存在时通过。⇒ AC-455 的 criterion 已在开头加 `for f in <9 个文件>; do [ -f "$f" ] || { echo "缺判据文件：$f" >&2; exit 1; }; done`；dry-run 现报 `acceptance failed (exit 1) — 缺判据文件：server/shared/tests/cloudpit-goal-exit-gate.test.ts`。判据文件本体仍须带前述负向控制。
+- 本补充与「单调读法（不增目录 / 不增行）」「记录级 timeoutMs」具有同等效力，优先于 Proposal 与 AC2/AC3/AC6 的立案文本。
