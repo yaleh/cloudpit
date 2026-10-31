@@ -1,7 +1,7 @@
 ---
 id: AC-445
 title: 编辑重发公共编排独立组合 provider 回退与 resident 关闭，失败不继续旧上下文
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-052
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T05:46:03.013Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
