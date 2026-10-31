@@ -1,7 +1,7 @@
 ---
 id: gap-ac455-exit-gate-carrier
 title: AC-455 目标退出结构门的 goal_ac 承载与整链独立验收
-status: ready
+status: done
 labels:
   - gap
 parent: null
