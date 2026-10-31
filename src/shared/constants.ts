@@ -34,6 +34,19 @@ type GitStatusFileGroup = 'modified' | 'added' | 'deleted' | 'untracked';
 export const CLOUDCLI_WORDMARK_FONT_FAMILY =
   'ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji';
 
+/**
+ * The product's brand identity under the Cloudpit name. Nothing consumes it yet: the
+ * user-visible flip from CloudCLI to Cloudpit (and the matching server/Electron wiring)
+ * belongs to GOAL-054, so today this constant is read only by the brand criterion.
+ */
+export const BRAND = {
+  name: 'Cloudpit',
+  shortName: 'Cloudpit',
+  packageName: '@yalehwang/cloudpit',
+  repository: 'yaleh/cloudpit',
+  scheme: 'cloudpit',
+} as const;
+
 // ---------------------------
 
 //----------------- APPLICATION VERSION ------------
