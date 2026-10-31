@@ -31,6 +31,7 @@ import {
   type HostReconfigureOutcome,
 } from '@/modules/providers/list/codex/codex-live-settings.js';
 import { createCodexResidentFrameRelay, type CodexResidentFrameRelay } from '@/modules/providers/list/codex/codex-resident-normalize.js';
+import { CodexResidentBlockedTurns, readTurnErrorMessage } from '@/modules/providers/list/codex/codex-resident-blocked-events.js';
 import { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
 import {
   steerCurrentTurn,
@@ -108,6 +109,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly liveSettings: CodexLiveSettings;
   /** Owns the approval writers, pending requests, notifications and thread status. */
   private readonly approvals: CodexApprovalBroker;
+  /** Which failed/interrupted turn left a blocked-session card open, per session. */
+  private readonly blockedTurns = new CodexResidentBlockedTurns();
   private connection: CodexAppServerConnection | null = null;
   /** One connection per host: the driver is a singleton, so two resident hosts must not share a connection. */
   private readonly connections = new Map<string, CodexAppServerConnection>();
@@ -370,6 +373,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     // Requests parked on this binding are answered before its writer and thread
     // mapping are dropped, or `settleSession` could no longer name them.
     await this.approvals.detachSession(appSessionId);
+    this.blockedTurns.clearSession(appSessionId);
     this.sessions.delete(appSessionId);
   }
 
@@ -393,6 +397,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       session.queue.settleAll();
       this.background.releaseSession(session.appSessionId);
       await this.approvals.detachSession(session.appSessionId);
+      this.blockedTurns.clearSession(session.appSessionId);
       this.sessions.delete(session.appSessionId);
       this.pendingLaunches.delete(session.appSessionId);
     }
@@ -644,7 +649,7 @@ export class CodexHostDriver implements IProviderHostDriver {
         : method === 'turn/interrupted'
           ? 'interrupted'
           : normalizeTurnStatus(typeof turn.status === 'string' ? turn.status : 'completed');
-      this.settleTurn(session, status, turnId);
+      this.settleTurn(session, status, turnId, readTurnErrorMessage(turn));
       this.sink?.activity(session.appSessionId);
       // A normal completion drains the queue by itself; an interrupt does not
       // (E2 vs E3 on 0.153.4), so only the interrupted path pushes the next one.
@@ -673,8 +678,9 @@ export class CodexHostDriver implements IProviderHostDriver {
     };
   }
 
-  private settleTurn(session: ResidentSession, status: CodexTurnStatus, turnId?: string | null): void {
+  private settleTurn(session: ResidentSession, status: CodexTurnStatus, turnId?: string | null, errorMessage?: string): void {
     session.turnStatus = status;
+    this.blockedTurns.noteTurnSettled(session.appSessionId, status, turnId ?? null, errorMessage);
     if (turnId) {
       session.activeTurnId = turnId;
     }

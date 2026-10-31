@@ -36,8 +36,16 @@
  * wire exercises is the one production uses.
  */
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
+import {
+  createContextEvents,
+  createContextEventWriter,
+  createSessionBlockedEventWriter,
+} from '@/modules/context-events/index.js';
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
@@ -48,6 +56,7 @@ import * as claudeRuntime from '@/modules/providers/list/claude/claude-runtime.p
 import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import { TOOL_APPROVAL_TIMEOUT_MS } from '@/modules/providers/shared/base/approval-requests.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
+import { installSessionBlockedEventWriterPort } from '@/shared/ports/session-blocked-events.port.js';
 import type { IProvider, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
@@ -181,6 +190,16 @@ class FakeAppServerTransport implements CodexAppServerTransport {
     this.materialised.add(threadId);
     this.activeTurns.delete(threadId);
     this.emit('turn/completed', { threadId, turn: { id: turnId, status } });
+  }
+
+  /** The turn the driver started, failed the way a real server ends it. */
+  failTurn(threadId: string, turnId: string, message?: string): void {
+    this.materialised.add(threadId);
+    this.activeTurns.delete(threadId);
+    this.emit('turn/failed', {
+      threadId,
+      turn: { id: turnId, status: 'failed', ...(message === undefined ? {} : { error: { message } }) },
+    });
   }
 
   private reply(id: number | string | undefined, result: unknown): void {
@@ -843,4 +862,261 @@ test('the Claude approval names still resolve from their original module (AC14)'
       + `requestClientToolDecision=${typeof claudeRuntime.requestClientToolDecision} `
       + `timeoutMs=${claudeRuntime.TOOL_APPROVAL_TIMEOUT_MS}`,
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Blocked-session context events (gap-codex-resident-blocked-context-events)
+//
+// The same scripted resident session, with the REAL writer over a temporary fleet home and the
+// REAL adapter installed on `shared/ports/session-blocked-events.port.ts`. The rows are read back
+// from the JSONL file, so this measures the landing shape rather than an in-memory recording.
+// ---------------------------------------------------------------------------------------------
+
+/** The kinds the writer must find in the fixture document for these rows to be mintable. */
+const BLOCKED_SCHEMA = {
+  version: 1,
+  name: 'context-event',
+  kinds: {
+    'session.blocked': { producer: 'cloudcli' as const, group: 'lifecycle' },
+    'session.blocked.resolved': { producer: 'cloudcli' as const, group: 'lifecycle' },
+  },
+};
+
+type BlockedRow = { kind: string; session?: string; data: Record<string, unknown> };
+
+/** One isolated fleet home; the adapter is installed on the process-wide port for the run. */
+async function withBlockedStream(
+  run: (stream: { eventsDir: string; settled: () => Promise<void> }) => Promise<void>,
+): Promise<void> {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'codex-blocked-events-'));
+  const eventsDir = path.join(homeDir, '.quay-fleet', 'context', 'events');
+  const schemaPath = path.join(homeDir, 'fixture', 'context-event.schema.v0.json');
+  try {
+    await mkdir(path.dirname(schemaPath), { recursive: true });
+    await writeFile(schemaPath, JSON.stringify(BLOCKED_SCHEMA), 'utf8');
+    const writer = createContextEventWriter({ eventsDir, schemaPath });
+    const stream = createContextEvents({ writer });
+    const adapter = createSessionBlockedEventWriter({
+      record: (draft) => stream.record(draft),
+      log: () => undefined,
+    });
+    installSessionBlockedEventWriterPort(adapter);
+    await run({ eventsDir, settled: () => adapter.settled() });
+  } finally {
+    // The port is a process-wide slot: leaving the dead adapter installed would let a later
+    // test's producer write into a directory this test just removed.
+    installSessionBlockedEventWriterPort(null);
+    await rm(homeDir, { recursive: true, force: true });
+  }
+}
+
+/** Every row the writer landed, across the day files it created. */
+async function readBlockedRows(eventsDir: string): Promise<BlockedRow[]> {
+  let names: string[];
+  try {
+    names = await readdir(eventsDir);
+  } catch {
+    return [];
+  }
+  const rows: BlockedRow[] = [];
+  for (const name of names.filter((candidate) => candidate.endsWith('.jsonl')).sort()) {
+    const raw = await readFile(path.join(eventsDir, name), 'utf8');
+    for (const line of raw.split('\n')) {
+      if (line !== '') rows.push(JSON.parse(line) as BlockedRow);
+    }
+  }
+  return rows;
+}
+
+/**
+ * The reading one approval arm must satisfy: one block and EXACTLY ONE matching resolution.
+ *
+ * This is the criterion AC4 ablates: delete the deny arm's resolution and this throws naming the
+ * missing withdrawal, rather than passing on the block alone.
+ */
+function assertBlockResolved(rows: BlockedRow[], blockId: string): void {
+  const blocked = rows.filter((row) => row.kind === 'session.blocked' && row.data.blockId === blockId);
+  const resolved = rows.filter((row) => row.kind === 'session.blocked.resolved' && row.data.blockId === blockId);
+  assert.equal(blocked.length, 1, `expected one session.blocked for ${blockId}; rows=${JSON.stringify(rows)}`);
+  assert.equal(resolved.length, 1, `deny must also withdraw the card for ${blockId}; rows=${JSON.stringify(rows)}`);
+}
+
+/** A writer for a follow-up turn; only `send` is read by the driver. */
+function createRuntimeWriter(): ProviderRuntimeWriter {
+  return { send: () => {}, setSessionId: () => {}, userId: null } as unknown as ProviderRuntimeWriter;
+}
+
+test('a parked approval writes session.blocked{approval}, and allow AND deny each resolve it (AC2)', async () => {
+  await withBlockedStream(async ({ eventsDir, settled }) => {
+    const ctx = await openResident();
+    try {
+      const transport = ctx.transport;
+      transport.emitRequest(1000, 'item/commandExecution/requestApproval', COMMAND_PARAMS(ctx.threadId, 'turn-1'));
+      await waitFor(() => permissionFrames(ctx.frames).length === 1, 'the allow approval frame');
+      const allowId = String(permissionFrames(ctx.frames)[0].requestId);
+      approvalRequests.resolveToolApproval(allowId, { allow: true });
+      await waitFor(() => transport.responses.length === 1, 'the allow answer');
+
+      transport.emitRequest(1001, 'item/fileChange/requestApproval', FILE_CHANGE_PARAMS(ctx.threadId, 'turn-1'));
+      await waitFor(() => permissionFrames(ctx.frames).length === 2, 'the deny approval frame');
+      const denyId = String(permissionFrames(ctx.frames)[1].requestId);
+      approvalRequests.resolveToolApproval(denyId, { allow: false });
+      await waitFor(() => transport.responses.length === 2, 'the deny answer');
+
+      await settled();
+      const rows = await readBlockedRows(eventsDir);
+      const allowBlockId = `${SESSION}:${allowId}`;
+      const denyBlockId = `${SESSION}:${denyId}`;
+
+      assert.deepEqual(
+        rows.filter((row) => row.kind === 'session.blocked').map((row) => ({ session: row.session, ...row.data })),
+        [
+          { session: SESSION, reason: 'approval', blockId: allowBlockId, requestId: allowId, toolName: 'commandExecution' },
+          { session: SESSION, reason: 'approval', blockId: denyBlockId, requestId: denyId, toolName: 'fileChange' },
+        ],
+      );
+      assert.deepEqual(
+        rows.filter((row) => row.kind === 'session.blocked.resolved').map((row) => row.data.blockId),
+        [allowBlockId, denyBlockId],
+        'the deny arm must write resolved too, or the denied card never clears',
+      );
+      assertBlockResolved(rows, allowBlockId);
+      assertBlockResolved(rows, denyBlockId);
+      console.log(`approvalBlocks=2 resolutions=${rows.filter((row) => row.kind === 'session.blocked.resolved').length}`);
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
+test('a failed turn writes session.blocked{failed}; the next completed turn resolves it (AC3)', async () => {
+  await withBlockedStream(async ({ eventsDir, settled }) => {
+    const ctx = await openResident();
+    try {
+      ctx.transport.failTurn(ctx.threadId, 'turn-1', 'the build exited 1');
+      await ctx.runPromise;
+      await settled();
+
+      const failedBlockId = `${SESSION}:turn-1`;
+      let rows = await readBlockedRows(eventsDir);
+      assert.deepEqual(
+        rows.filter((row) => row.kind === 'session.blocked').map((row) => ({ session: row.session, ...row.data })),
+        [
+          {
+            session: SESSION,
+            reason: 'failed',
+            blockId: failedBlockId,
+            turnId: 'turn-1',
+            errorMessage: 'the build exited 1',
+          },
+        ],
+      );
+      assert.equal(
+        rows.filter((row) => row.kind === 'session.blocked.resolved').length,
+        0,
+        'a failed turn stays blocked until the turn recovers',
+      );
+
+      const second = ctx.driver.run(
+        SESSION,
+        { command: 'recover', options: {} } as HostTurnInput,
+        createRuntimeWriter(),
+        {} as ProviderRuntimeContext,
+      );
+      await waitFor(
+        () => ctx.transport.calls.filter((call) => call.method === 'turn/start').length === 2,
+        'the recovery turn/start',
+      );
+      ctx.transport.completeTurn(ctx.threadId, 'turn-2', 'completed');
+      await second;
+      await settled();
+
+      rows = await readBlockedRows(eventsDir);
+      assert.deepEqual(
+        rows.filter((row) => row.kind === 'session.blocked.resolved').map((row) => row.data.blockId),
+        [failedBlockId],
+        'the completed turn withdraws the failed turn’s card',
+      );
+      assert.equal(
+        rows.filter((row) => row.kind === 'session.blocked').length,
+        1,
+        'the recovery turn itself writes no block',
+      );
+      console.log(`failedBlock=1 recovered=${JSON.stringify(rows.filter((row) => row.kind === 'session.blocked.resolved').map((row) => row.data.blockId))}`);
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
+test('an interrupted turn writes session.blocked{interrupted} and clears on the next completed turn (AC3)', async () => {
+  await withBlockedStream(async ({ eventsDir, settled }) => {
+    const ctx = await openResident();
+    try {
+      assert.equal(await ctx.driver.interrupt(ctx.host, SESSION), true);
+      await settled();
+
+      const interruptedBlockId = `${SESSION}:turn-1`;
+      let rows = await readBlockedRows(eventsDir);
+      assert.deepEqual(
+        rows.filter((row) => row.kind === 'session.blocked').map((row) => ({ session: row.session, ...row.data })),
+        [{ session: SESSION, reason: 'interrupted', blockId: interruptedBlockId, turnId: 'turn-1' }],
+      );
+
+      const second = ctx.driver.run(
+        SESSION,
+        { command: 'recover', options: {} } as HostTurnInput,
+        createRuntimeWriter(),
+        {} as ProviderRuntimeContext,
+      );
+      await waitFor(
+        () => ctx.transport.calls.filter((call) => call.method === 'turn/start').length === 2,
+        'the recovery turn/start',
+      );
+      ctx.transport.completeTurn(ctx.threadId, 'turn-2', 'completed');
+      await second;
+      await settled();
+
+      rows = await readBlockedRows(eventsDir);
+      assertBlockResolved(
+        rows.filter((row) => row.kind !== 'session.blocked' || row.data.blockId === interruptedBlockId),
+        interruptedBlockId,
+      );
+      console.log(`interruptedBlock=1 resolved=${JSON.stringify(rows.filter((row) => row.kind === 'session.blocked.resolved').map((row) => row.data.blockId))}`);
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
+test('a completed turn writes no session.blocked at all (AC3)', async () => {
+  await withBlockedStream(async ({ eventsDir, settled }) => {
+    const ctx = await openResident();
+    try {
+      ctx.transport.completeTurn(ctx.threadId, 'turn-1', 'completed');
+      await ctx.runPromise;
+      await settled();
+      assert.deepEqual(await readBlockedRows(eventsDir), []);
+      console.log('completedBlocked=0');
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
+test('the denied arm is discriminating: a rows list without the resolution throws (AC4)', () => {
+  const blockId = 'sess-control:req-control';
+  const onlyBlock: BlockedRow[] = [
+    { kind: 'session.blocked', session: 'sess-control', data: { reason: 'approval', blockId } },
+  ];
+  assert.throws(
+    () => assertBlockResolved(onlyBlock, blockId),
+    /deny must also withdraw the card/,
+    'deleting the deny arm’s resolution must red the pairing assertion',
+  );
+  assertBlockResolved(
+    [...onlyBlock, { kind: 'session.blocked.resolved', session: 'sess-control', data: { blockId } }],
+    blockId,
+  );
+  console.log('denyControlThrew=true');
 });
