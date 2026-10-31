@@ -27,6 +27,7 @@ import express, {
   type Response as ExpressResponse,
 } from 'express';
 
+import type { ContextEventDraft } from '@/modules/context-events/index.js';
 import { AppError } from '@/shared/utils.js';
 
 import { createViewEventRoutes } from '../view-events.routes.js';
@@ -58,8 +59,17 @@ function errorHandler(error: unknown, _req: Request, res: ExpressResponse, _next
   res.status(status).json({ error: error instanceof Error ? error.message : 'error', code });
 }
 
-/** One express app around the real router; `authenticated` decides whether `req.user` exists. */
-function createApp(settings: ViewEventsSettings, authenticated = true): Express {
+/**
+ * One express app around the real router; `authenticated` decides whether `req.user` exists.
+ *
+ * The context-stream publisher is always injected: the criterion reads the drafts it produced,
+ * and the production default would otherwise append to the host's real fleet stream.
+ */
+function createApp(
+  settings: ViewEventsSettings,
+  authenticated = true,
+  published: ContextEventDraft[] = [],
+): Express {
   const app = express();
   app.use(express.json());
   if (authenticated) {
@@ -68,7 +78,17 @@ function createApp(settings: ViewEventsSettings, authenticated = true): Express 
       next();
     });
   }
-  app.use('/api/observation', createViewEventRoutes(createViewEventService(settings)));
+  app.use(
+    '/api/observation',
+    createViewEventRoutes(
+      createViewEventService(settings, {
+        publishContextEvent: (draft) => {
+          published.push(draft);
+          return { ok: true, id: `criterion-${published.length}`, path: '/criterion/context.jsonl' };
+        },
+      }),
+    ),
+  );
   app.use(errorHandler);
   return app;
 }
@@ -201,13 +221,109 @@ test('AC2: invalid fields are refused with 400 and append nothing', async () => 
   }
 });
 
-test('AC2: with the switch off the route answers 204 and writes nothing', async () => {
+test('AC2: with the switch off the route answers 204 and writes neither carrier', async () => {
   const disabledPath = path.join(temporaryDirectory, 'disabled', 'ui-view-events.jsonl');
-  const { baseUrl, stop } = await listen(createApp({ enabled: false, path: disabledPath }));
+  const published: ContextEventDraft[] = [];
+  const { baseUrl, stop } = await listen(createApp({ enabled: false, path: disabledPath }, true, published));
   try {
     const response = await postBatch(baseUrl, [episode('session-a')]);
     assert.equal(response.status, 204);
     await assert.rejects(readFile(disabledPath, 'utf8'), /ENOENT/, 'the disabled log must never be created');
+    assert.deepEqual(published, [], 'the disabled switch must silence the context stream too');
+  } finally {
+    await stop();
+  }
+});
+
+test('AC2: every viewing episode is published to the context stream as a ui.view row', async () => {
+  const published: ContextEventDraft[] = [];
+  const { baseUrl, stop } = await listen(createApp({ enabled: true, path: eventPath }, true, published));
+  const before = await readLog();
+  try {
+    const events = [
+      episode('session-a'),
+      episode('quay', { kind: 'tab', fromTarget: 'session-a', dwellMs: 900 }),
+      episode('tile-1', { kind: 'cockpit-tile', fromTarget: 'quay', dwellMs: 700 }),
+      episode('preview-1', { kind: 'cockpit-preview', fromTarget: 'tile-1', dwellMs: 500 }),
+    ];
+    const response = await postBatch(baseUrl, events);
+    assert.equal(response.status, 204);
+
+    // Dual write: the local carrier keeps the episode AND the stream received the same one.
+    assert.deepEqual((await readLog()).slice(before.length), events, 'the local carrier still lands every episode');
+    assert.equal(published.length, events.length);
+    assert.deepEqual(
+      published.map((draft) => draft.kind),
+      ['ui.view', 'ui.view', 'ui.view', 'ui.view'],
+    );
+    assert.deepEqual(
+      published.map((draft) => JSON.parse(JSON.stringify(draft))),
+      [
+        {
+          kind: 'ui.view',
+          at: new Date(1_800_000_000_000).toISOString(),
+          data: { view: 'session', target: 'session-a', fromTarget: null, dwellMs: 1_500, deviceId: DEVICE_ID },
+        },
+        {
+          kind: 'ui.view',
+          at: new Date(1_800_000_000_000).toISOString(),
+          data: { view: 'tab', target: 'quay', fromTarget: 'session-a', dwellMs: 900, deviceId: DEVICE_ID },
+        },
+        {
+          kind: 'ui.view',
+          at: new Date(1_800_000_000_000).toISOString(),
+          data: { view: 'cockpit-tile', target: 'tile-1', fromTarget: 'quay', dwellMs: 700, deviceId: DEVICE_ID },
+        },
+        {
+          kind: 'ui.view',
+          at: new Date(1_800_000_000_000).toISOString(),
+          data: { view: 'cockpit-preview', target: 'preview-1', fromTarget: 'tile-1', dwellMs: 500, deviceId: DEVICE_ID },
+        },
+      ],
+      'the data shape is exactly {view,target,fromTarget,dwellMs,deviceId}',
+    );
+    for (const draft of published) {
+      assert.deepEqual(Object.keys(draft.data ?? {}).sort(), [
+        'deviceId',
+        'dwellMs',
+        'fromTarget',
+        'target',
+        'view',
+      ]);
+    }
+  } finally {
+    await stop();
+  }
+});
+
+test('AC2: a throwing context publisher does not stop the local carrier', async () => {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    (req as Request & { user?: { id: string } }).user = { id: USER_ID };
+    next();
+  });
+  app.use(
+    '/api/observation',
+    createViewEventRoutes(
+      createViewEventService(
+        { enabled: true, path: eventPath },
+        {
+          publishContextEvent: () => {
+            throw new Error('stream down');
+          },
+        },
+      ),
+    ),
+  );
+  app.use(errorHandler);
+  const { baseUrl, stop } = await listen(app);
+  const before = await readLog();
+  try {
+    const event = episode('session-failure');
+    const response = await postBatch(baseUrl, [event]);
+    assert.equal(response.status, 204, 'a secondary carrier failure must not fail the request');
+    assert.deepEqual((await readLog()).slice(before.length), [event]);
   } finally {
     await stop();
   }

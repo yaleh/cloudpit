@@ -6,6 +6,11 @@
  * never leaves this machine. It is deliberately NOT a database table: the log is per-host
  * observation data for the weekly report, not user state that should synchronise across devices.
  *
+ * DUAL WRITE. The same episode is also published into the host-level context stream as one
+ * `ui.view` row, which is what lets quay-fleet's behaviour experiments read whether the person
+ * was in the cockpit or in a session. The local carrier's path, switch, 204 and batch-ceiling
+ * semantics are unchanged, and a stream failure is swallowed. The switch gates BOTH carriers.
+ *
  * The path and the switch come from the server settings file's `observation.viewEvents` block.
  * The switch is enforced HERE, not only in the browser: with it off the route still answers
  * 204 (the caller did nothing wrong) and nothing is written.
@@ -18,11 +23,29 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import {
+  createContextEventWriter,
+  type AppendContextEventResult,
+  type ContextEventDraft,
+} from '@/modules/context-events/index.js';
 import { expandHome } from '@/shared/settings-file.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
 /** The kind of reading the reader left. Mirrors the frontend's `ViewEventKind`. */
 export type ViewEventKind = 'session' | 'tab' | 'cockpit-tile' | 'cockpit-preview';
+
+/**
+ * The `data` payload of one `ui.view` row: the local episode with its `kind` renamed `view`.
+ * quay-fleet's experiments read these five fields, so a rename or a dropped member is a
+ * contract break, not a refactor.
+ */
+export type UiViewEventData = {
+  view: ViewEventKind;
+  target: string;
+  fromTarget: string | null;
+  dwellMs: number;
+  deviceId: string;
+};
 
 /**
  * One validated viewing episode, with exactly the fields the log keeps.
@@ -88,6 +111,31 @@ export type ViewEventService = {
   /** Appends a validated batch and resolves the number of lines written (0 when disabled). */
   appendBatch: (body: unknown) => Promise<number>;
 };
+
+/**
+ * The context-stream seam: one `ui.view` draft in, the context writer's result out.
+ *
+ * Production leaves it unset and appends through a writer it owns; a criterion injects its own,
+ * so no fleet installation and no host file are needed. A rejected result is never inspected —
+ * a stream the local carrier must survive, not an error for the caller.
+ */
+export type ViewContextEventPublisher = (
+  draft: ContextEventDraft,
+) => Promise<AppendContextEventResult | null> | AppendContextEventResult | null;
+
+/** Construction seams; production supplies none. */
+export type ViewEventServiceOptions = {
+  publishContextEvent?: ViewContextEventPublisher;
+};
+
+/**
+ * The production publisher: one writer owned by this service instance. Building it performs no
+ * I/O — the fleet schema is read on the first append, so a missing fleet is a reading then.
+ */
+function createDefaultContextPublisher(): ViewContextEventPublisher {
+  const writer = createContextEventWriter();
+  return (draft) => writer.append(draft);
+}
 
 function invalid(message: string, statusCode = 400, code = 'INVALID_REQUEST'): AppError {
   return new AppError(message, { code, statusCode });
@@ -159,10 +207,15 @@ export function parseViewEventBatch(body: unknown): ViewEventRecord[] {
 /**
  * Builds the service over one reading of `observation.viewEvents`.
  *
- * Consumers: `server/modules/observation/observation.module.ts`.
+ * Consumers: `server/modules/observation/observation.module.ts`; the criterion
+ * `tests/view-events.test.ts` injects `publishContextEvent` to read the stream without a fleet.
  */
-export function createViewEventService(settings: ViewEventsSettings): ViewEventService {
+export function createViewEventService(
+  settings: ViewEventsSettings,
+  options: ViewEventServiceOptions = {},
+): ViewEventService {
   const filePath = settings.path;
+  const publishContextEvent = options.publishContextEvent ?? createDefaultContextPublisher();
 
   return {
     appendBatch: async (body: unknown): Promise<number> => {
@@ -179,6 +232,24 @@ export function createViewEventService(settings: ViewEventsSettings): ViewEventS
           code: 'VIEW_EVENT_WRITE_FAILED',
           statusCode: 500,
         });
+      }
+      // The local carrier has landed; now publish the same episodes to the host stream. One
+      // row per episode, carrying the episode's own `at` (not the flush time) and exactly the
+      // five data members the fleet experiments read. A stream failure is contained HERE so it
+      // can never turn a recorded episode into a failed request.
+      for (const record of records) {
+        const data: UiViewEventData = {
+          view: record.kind,
+          target: record.target,
+          fromTarget: record.fromTarget,
+          dwellMs: record.dwellMs,
+          deviceId: record.deviceId,
+        };
+        try {
+          await publishContextEvent({ kind: 'ui.view', at: new Date(record.at).toISOString(), data });
+        } catch {
+          // A secondary carrier's failure does not undo the local log.
+        }
       }
       return records.length;
     },
