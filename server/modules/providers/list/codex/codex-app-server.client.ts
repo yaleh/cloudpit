@@ -129,6 +129,15 @@ export type CodexThreadFork = {
   path: string;
 };
 
+/** What the CLI reports for one thread when asked to include its turns. */
+export type CodexThreadReading = {
+  threadId: string;
+  /** Number of turns the CLI would replay for this thread. */
+  turns: number;
+  /** The text of every item the CLI returns, in turn order. */
+  texts: string[];
+};
+
 /**
  * Resolves the `codex` launcher shipped in node_modules.
  *
@@ -339,6 +348,55 @@ export const codexAppServer = {
       }
 
       return { threadId, path };
+    });
+  },
+
+  /**
+   * Reads a thread back through the CLI's own protocol, turns included.
+   *
+   * A fork of a `paginated` rollout is a pointer file, so the app-side reader
+   * has to follow `forked_from_id` to show the conversation. This call is the
+   * other half of the same question, answered by the CLI alone: `thread/read`
+   * resolves the pointer on its side, and what it returns is the context the
+   * next turn of that thread would run with. A fork that the app could read but
+   * the CLI reported empty (or vice versa) would be two readings of one fact
+   * that disagree — which is exactly the defect that made the history vanish.
+   */
+  async readThread(input: {
+    threadId: string;
+    includeTurns?: boolean;
+  }): Promise<CodexThreadReading> {
+    return withAppServer(async (call) => {
+      const result = await call('thread/read', {
+        threadId: input.threadId,
+        includeTurns: input.includeTurns ?? true,
+      });
+      const record = readObjectRecord(result);
+      const thread = readObjectRecord(record?.thread) ?? record;
+      const threadId = readOptionalString(thread?.id) ?? input.threadId;
+      const rawTurns = Array.isArray(thread?.turns) ? thread.turns : [];
+      const texts: string[] = [];
+      for (const rawTurn of rawTurns) {
+        const turn = readObjectRecord(rawTurn);
+        const items = Array.isArray(turn?.items) ? turn.items : [];
+        for (const rawItem of items) {
+          const item = readObjectRecord(rawItem);
+          const direct = readOptionalString(item?.text);
+          if (direct) {
+            texts.push(direct);
+            continue;
+          }
+          const content = Array.isArray(item?.content) ? item.content : [];
+          for (const rawPart of content) {
+            const type = readObjectRecord(rawPart)?.type;
+            const text = readObjectRecord(rawPart)?.text;
+            if (type === 'text' && typeof text === 'string') {
+              texts.push(text);
+            }
+          }
+        }
+      }
+      return { threadId, turns: rawTurns.length, texts };
     });
   },
 

@@ -21,6 +21,8 @@ import {
   settleSettingsStep,
 } from '@/modules/ui-scenario/settingsSurface';
 import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
+import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
+import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
 import type {
   CardContinuation,
   ScenarioCockpitCardTarget,
@@ -94,7 +96,8 @@ export type ScenarioDriveStep =
   | { 'cockpitCard.dismiss': string }
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
-  | { 'settings.save': true };
+  | { 'settings.save': true }
+  | { 'chat.edit': string };
 
 /** One focusable's identity, kept beside the contract for assertions that name a label. */
 export type ScenarioFocusReading = {
@@ -177,6 +180,11 @@ export type ScenarioReading = {
    * `data-cockpit-session-start*` attributes the form itself draws.
    */
   settings: ScenarioSettingsReading | null;
+  /**
+   * The rendered transcript and composer. An empty reading when the page is not a session
+   * workspace, which is what lets a scenario assert the conversation after switching back.
+   */
+  chat: ScenarioChatReading;
   /** The view whose contract is active (the last one published), or `null`. */
   activeView: string | null;
   /** Every view URI that has published a contract, in publication order. */
@@ -491,6 +499,7 @@ function createScenarioSurface(): ScenarioSurface {
       route: `${window.location.pathname}${window.location.search}`,
       cockpit: readCockpitReading(),
       settings: readSettingsReading(),
+      chat: readChatReading(),
       activeView: activeViewUri,
       views: [...registeredViews.keys()],
       focusables,
@@ -629,6 +638,11 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('settings.save' in step) {
       action = 'settings.save';
       pressSettingsSave();
+    } else if ('chat.edit' in step) {
+      action = 'chat.edit';
+      // The press itself is the product's `onEditMessage`; the composer value the step's
+      // expectation reads is the state that handler wrote, once `settle` crosses its commit.
+      startEditingMessage(step['chat.edit']);
     }
 
     stepTimings.push({ index: driveCount, action, ms: nowMs() - started });

@@ -12,7 +12,8 @@
  *
  * WHAT THE SCENARIO IS. A JSON file with a `name` and `steps`; each step may carry:
  *   · `open`: an opener name — reaching a view is navigation, not business state, so it is the
- *     only step that touches the DOM. The vocabulary is explicit and closed:
+ *     only step that touches the DOM. An opener may name its own `project`/`session`, which is
+ *     how one scenario switches between two sessions. The vocabulary is explicit and closed:
  *       `quay-panel` — a project's Quay view (sidebar project → session → Quay tab);
  *       `session`    — one session's workspace (the sidebar project → session rows);
  *       `cockpit`    — the cockpit stage, entered through the same mode switch a person uses, so
@@ -23,6 +24,10 @@
  *                      button; the opener waits until the form's own reading is `ready`/`failed`,
  *                      so the first step never catches it mid-load.
  *     An unknown opener fails its step rather than being ignored.
+ *   · `reload`: reload the current page and wait for the surface again. The refresh leg of a
+ *     continuity scenario is a real browser reload, not a re-navigation through the sidebar.
+ *     With `waitForChat: true` it also waits until the reloaded page has drawn non-empty
+ *     transcript rows, because a session route fetches its history after the surface mounts.
  *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudcliScenario.drive`.
  *   · `expect`: a map of reading assertions, evaluated after the step (see
  *     {@link expectationFailures}); an unsupported key is a failure, never a silent pass.
@@ -54,6 +59,10 @@ const PANEL_TIMEOUT_MS = 30_000;
 /**
  * @typedef {{
  *   open?: string,
+ *   project?: string,
+ *   session?: string,
+ *   reload?: boolean,
+ *   waitForChat?: boolean,
  *   drive?: Record<string, unknown>,
  *   expect?: Record<string, unknown>,
  *   checkpoint?: boolean,
@@ -133,6 +142,7 @@ function readScenario(file) {
  */
 function stepAction(step) {
   if (typeof step.open === 'string') return `open:${step.open}`;
+  if (step.reload === true) return 'reload';
   if (step.drive !== undefined) return `drive:${Object.keys(step.drive)[0] ?? 'unknown'}`;
   return 'expect';
 }
@@ -407,6 +417,54 @@ function expectationFailures(expect, reading) {
           ? reading.cockpit.cards.dismissNoticeOk
           : null;
         if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'chatMessageCount': {
+        const actual = Array.isArray(reading.chat?.messages) ? reading.chat.messages.length : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'chatMessagesInclude': {
+        // Each phrase must be visible in the transcript's RENDERED text. Joined with a newline so
+        // a phrase cannot match across two rows by accident of concatenation.
+        if (!Array.isArray(expected)) {
+          failures.push(`${key}: expected an array of phrases`);
+          break;
+        }
+        const actual = Array.isArray(reading.chat?.messages)
+          ? reading.chat.messages.map((/** @type {any} */ message) => message.text).join('\n')
+          : null;
+        const missing = actual === null
+          ? expected
+          : expected.filter((phrase) => !actual.includes(String(phrase)));
+        if (missing.length > 0) fail(key, expected, { missing, texts: actual });
+        break;
+      }
+      case 'chatMessagesExclude': {
+        // The edited turn and everything after it must not be drawn. An empty transcript is the
+        // reading this arm exists to catch: `''` contains none of the phrases, so the present
+        // assertion above is what keeps exclusion from being satisfied by a blank page.
+        if (!Array.isArray(expected)) {
+          failures.push(`${key}: expected an array of phrases`);
+          break;
+        }
+        const actual = Array.isArray(reading.chat?.messages)
+          ? reading.chat.messages.map((/** @type {any} */ message) => message.text).join('\n')
+          : null;
+        const present = actual === null
+          ? expected
+          : expected.filter((phrase) => actual.includes(String(phrase)));
+        if (actual === null || present.length > 0) fail(key, expected, { present, texts: actual });
+        break;
+      }
+      case 'composerTextIs': {
+        const actual = typeof reading.chat?.composerText === 'string' ? reading.chat.composerText : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'composerTextIncludes': {
+        const actual = typeof reading.chat?.composerText === 'string' ? reading.chat.composerText : null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
         break;
       }
       default:
@@ -854,38 +912,65 @@ async function runScenario(browser, scenario, options) {
   try {
     for (let index = 0; index < scenario.steps.length; index += 1) {
       const step = scenario.steps[index];
-      if (!appReady && step.open === undefined) {
+      if (!appReady && step.open === undefined && step.reload !== true) {
         // A scenario that never opens a view still needs the app under it.
         await page.goto('/');
         await waitForSurface(page);
         appReady = true;
       }
-      if (step.open !== undefined) {
+      if (step.open !== undefined || step.reload === true) {
         await flushBatch();
-        /** @type {Record<string, (() => Promise<void>) | undefined>} */
-        const openers = {
-          'quay-panel': () => openQuayPanel(page, { project: options.project, session: options.session }),
-          session: () => openSession(page, { project: options.project, session: options.session }),
-          cockpit: () => openCockpit(page),
-          'cockpit-cards': () => openCockpitCards(page),
-          settings: () => openSettingsCockpit(page),
-        };
-        const execute = openers[step.open];
-        if (execute === undefined) {
-          const failures = [`unsupported opener ${JSON.stringify(step.open)}`];
-          results.push({
-            index: index + 1,
-            action: stepAction(step),
-            ok: false,
-            failures,
-            checkpoint: step.checkpoint === true,
-            screenshot: null,
-            reading: null,
-          });
-          continue;
+        if (step.reload === true) {
+          // A real refresh: the document, the client store and the history cache all start over.
+          await page.reload();
+          await waitForSurface(page);
+          if (step.waitForChat === true) {
+            // A session route loads its history after the surface mounts. Waiting for one drawn
+            // row is what separates "the reload has not fetched yet" from "the reload lost the
+            // conversation" — the two outcomes this leg exists to tell apart.
+            await page.waitForFunction(
+              () => {
+                const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
+                return surface !== undefined
+                  && Array.isArray(surface.read().chat?.messages)
+                  && surface.read().chat.messages.length > 0;
+              },
+              undefined,
+              { timeout: BOOT_TIMEOUT_MS },
+            );
+          }
+          appReady = true;
+        } else {
+          // An opener may address its own session; that is how one scenario switches between two.
+          const target = {
+            project: step.project ?? options.project,
+            session: step.session ?? options.session,
+          };
+          /** @type {Record<string, (() => Promise<void>) | undefined>} */
+          const openers = {
+            'quay-panel': () => openQuayPanel(page, target),
+            session: () => openSession(page, target),
+            cockpit: () => openCockpit(page),
+            'cockpit-cards': () => openCockpitCards(page),
+            settings: () => openSettingsCockpit(page),
+          };
+          const execute = step.open === undefined ? undefined : openers[step.open];
+          if (execute === undefined) {
+            const failures = [`unsupported opener ${JSON.stringify(step.open)}`];
+            results.push({
+              index: index + 1,
+              action: stepAction(step),
+              ok: false,
+              failures,
+              checkpoint: step.checkpoint === true,
+              screenshot: null,
+              reading: null,
+            });
+            continue;
+          }
+          await execute();
+          appReady = true;
         }
-        await execute();
-        appReady = true;
         const reading = await readSurface(page);
         let screenshot = null;
         if (step.checkpoint === true) {

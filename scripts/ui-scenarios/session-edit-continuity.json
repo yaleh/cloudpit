@@ -1,0 +1,82 @@
+{
+  "name": "session-edit-continuity",
+  "description": "A Codex thread edited in the middle keeps the turns before the edit and the replacement turn, drops the edited turn and its answer, and shows the same conversation after a real page reload and after switching to another session and back. The edit affordance is then pressed on the kept first turn and the composer is read back.",
+  "steps": [
+    {
+      "open": "session",
+      "session": "session-edit-continuity-fork",
+      "checkpoint": true,
+      "expect": {
+        "chatMessageCount": 6,
+        "chatMessagesInclude": [
+          "kept-prompt-1",
+          "kept-answer-1",
+          "kept-prompt-2",
+          "kept-answer-2",
+          "replacement-prompt",
+          "replacement-answer"
+        ],
+        "chatMessagesExclude": ["edited-prompt-3", "edited-answer-3"],
+        "composerTextIs": ""
+      }
+    },
+    {
+      "reload": true,
+      "waitForChat": true,
+      "checkpoint": true,
+      "expect": {
+        "chatMessageCount": 6,
+        "chatMessagesInclude": [
+          "kept-prompt-1",
+          "kept-answer-1",
+          "kept-prompt-2",
+          "kept-answer-2",
+          "replacement-prompt",
+          "replacement-answer"
+        ],
+        "chatMessagesExclude": ["edited-prompt-3", "edited-answer-3"]
+      }
+    },
+    {
+      "open": "session",
+      "session": "session-edit-continuity-base",
+      "checkpoint": true,
+      "expect": {
+        "chatMessageCount": 6,
+        "chatMessagesInclude": [
+          "kept-prompt-1",
+          "kept-answer-1",
+          "kept-prompt-2",
+          "kept-answer-2",
+          "edited-prompt-3",
+          "edited-answer-3"
+        ],
+        "chatMessagesExclude": ["replacement-prompt", "replacement-answer"]
+      }
+    },
+    {
+      "open": "session",
+      "session": "session-edit-continuity-fork",
+      "checkpoint": true,
+      "expect": {
+        "chatMessageCount": 6,
+        "chatMessagesInclude": [
+          "kept-prompt-1",
+          "kept-answer-1",
+          "kept-prompt-2",
+          "kept-answer-2",
+          "replacement-prompt",
+          "replacement-answer"
+        ],
+        "chatMessagesExclude": ["edited-prompt-3", "edited-answer-3"]
+      }
+    },
+    {
+      "drive": { "chat.edit": "kept-prompt-1" },
+      "checkpoint": true,
+      "expect": {
+        "composerTextIs": "kept-prompt-1"
+      }
+    }
+  ]
+}
