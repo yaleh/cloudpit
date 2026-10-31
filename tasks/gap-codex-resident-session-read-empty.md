@@ -2,7 +2,7 @@
 id: gap-codex-resident-session-read-empty
 title: Codex resident 会话 transcript 读空：session_read 只认 rollout
   jsonl_path，app-server 线程无 transcript 源
-status: todo
+status: ready
 labels:
   - gap
   - defect
