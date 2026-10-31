@@ -62,7 +62,7 @@ AC-451 的缺口承载任务：把 Cloudpit 的**可见身份**与**分发身份
 - [x] AC5 allowlist 正臂：真实扫描产品面零违规；把一条 `CloudCLI Cloud` 或 `Based on CloudCLI UI` 喂给同一扫描函数不产生违规（证明 allowlist 既不是“一律放行”也不是“一律拒绝”）；扫描面清单包含本任务 Proposal 列出的每个文件/glob。
 - [x] AC6 false-form：把 `CloudCLI` 注入 manifest `name`、一条 locale 值、CLI banner 文本、Electron `APP_NAME` 任一面，同一 `runBrandAllowlistCheck` 必须返回 `exitCode === 1` 并点名该文件；判据文件内至少覆盖 manifest 与 CLI 两面。
 - [x] AC7 回归与静态检查：`npx vitest run src/shared/tests/pageTitle.test.ts src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx src/modules/settings/tests/aboutTabCommunityLinks.test.tsx` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/modules/system/tests/system.service.test.ts server/modules/cli/tests/cli.service.test.ts server/modules/cli/tests/sandbox.service.test.ts` 退出 0；`node --test scripts/release/tests/fork-release-workflows.test.mjs` 退出 0；`node scripts/list-script-tests.mjs | grep brand-allowlist` 有输出；`npm run typecheck` 与 `npm run lint` 退出 0。
-- [ ] AC8 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（任务文件本身按 task_write 落点说明）。
+- [x] AC8 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（任务文件本身按 task_write 落点说明）。
 
 ## DoD
 
@@ -134,5 +134,6 @@ AC-451 的缺口承载任务：把 Cloudpit 的**可见身份**与**分发身份
 - UI DoD（本会话无 MCP 浏览器，使用一次性 Playwright 直连 worktree vite :5199，`/api` 代理运行中的 :3001）：`documentTitle=Cloudpit`、`manifest.name=Cloudpit`、`manifest.short_name=Cloudpit`、`manifest.description=Cloudpit web application`、Settings → About 产品名=`Cloudpit`、`pageErrors=[]`；截图 `tmp/brand-ui-dod/01-landing.png`、`tmp/brand-ui-dod/02-settings-about.png`，读数 `tmp/brand-ui-dod/report.json`。仓库无覆盖品牌身份的场景 JSON，故未运行 `scripts/ui-scenario.mjs`。
 - collateral pins：`vitest run src/shared/tests/pageTitle.test.ts src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx src/modules/settings/tests/aboutTabCommunityLinks.test.tsx` → 3 files / 11 tests passed；`tsx --test server/modules/system/tests/system.service.test.ts server/modules/cli/tests/cli.service.test.ts server/modules/cli/tests/sandbox.service.test.ts` → 14 pass / 0 fail；`node --test scripts/release/tests/fork-release-workflows.test.mjs` → 7 pass / 0 fail；`node scripts/list-script-tests.mjs | grep brand-allowlist` → `scripts/brand-allowlist-check.test.mjs`。
 - `npm run typecheck` 退出 0；`npm run lint` 退出 0。
+- AC8 anti-drift：`anti-drift-touches-check.js --task gap-cloudpit-visible-identity-flip --worktree <worktree> --merge-target goal/GOAL-054` → `ANTI-DRIFT OK: task gap-cloudpit-visible-identity-flip — 93 actual file(s), all within declared Touches (34 glob(s))`，退出码 0。
 
 该轴仍暗,理由:品牌迁移只替换可见文案与分发身份字段,AC 内没有可量化的 L_D/L_G 领域读数
