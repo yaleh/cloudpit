@@ -35,4 +35,5 @@ origin: 人 yale 2026-10-31 经会话裁定采纳 gap-goal-053-exit-structural-g
   2026-10-31T06:22:27Z，cache ts 06:20:31Z）：退出条件第 4 条无在域 AC。编号 AC-455（451–454 属
   GOAL-054）。判据按单调读法（不增行 / 不增目录）与记录级 timeoutMs 落地。
 activatedAt: 2026-10-31T07:17:26.743Z
+timeoutMs: 150000
 ---
