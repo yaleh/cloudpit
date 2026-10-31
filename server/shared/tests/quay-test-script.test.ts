@@ -448,8 +448,10 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (482 + 1 = 483 collected server test files). Then
     // gap-cloudpit-brand-env-fallback added its criterion
     // server/shared/tests/cloudpit-brand-env.test.ts (483 + 1 = 484 collected
-    // server test files). This fixture names 3 known files, so 484 - 3 = 481.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=481$/);
+    // server test files). Then gap-cloudpit-data-root-migration added its criterion
+    // server/shared/tests/cloudpit-data-root.test.ts (484 + 1 = 485 collected
+    // server test files). This fixture names 3 known files, so 485 - 3 = 482.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=482$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -566,10 +568,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-session-binding-consistency added
     // server/modules/providers/tests/session-binding-consistency.test.ts), then
     // gap-cloudpit-brand-env-fallback added
-    // server/shared/tests/cloudpit-brand-env.test.ts)
-    // — but this fixture names ONE known file, so 484 - 1 = 483 (AC2 reads 481 because its
-    // fixture names 3; the 484 is the number the tree collects with this task's criterion).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=483$/);
+    // server/shared/tests/cloudpit-brand-env.test.ts), then
+    // gap-cloudpit-data-root-migration added
+    // server/shared/tests/cloudpit-data-root.test.ts)
+    // — but this fixture names ONE known file, so 485 - 1 = 484 (AC2 reads 482 because its
+    // fixture names 3; the 485 is the number the tree collects with this task's criterion).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=484$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
