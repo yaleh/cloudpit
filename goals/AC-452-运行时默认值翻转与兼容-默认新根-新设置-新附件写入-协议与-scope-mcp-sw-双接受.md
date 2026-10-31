@@ -1,7 +1,7 @@
 ---
 id: AC-452
 title: 运行时默认值翻转与兼容：默认新根/新设置/新附件写入，协议与 scope/MCP/SW 双接受
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -20,6 +20,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T16:59:59.658Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
