@@ -8,17 +8,17 @@ import { DesktopWindowManager } from './desktopWindow.js';
 import { DesktopNotificationsController } from './desktopNotifications.js';
 import { LocalServerController } from './localServer.js';
 import { TabsController } from './tabs.js';
+import { maybeMigrateDesktopUserData } from './userDataMigration.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = 'Cloudpit';
 const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
-const CLOUDPIT_PROTOCOL = 'cloudpit';
-// Both schemes are registered so either build can open the desktop app; the
-// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
-const DEEP_LINK_PROTOCOLS = [CALLBACK_PROTOCOL, CLOUDPIT_PROTOCOL];
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
+// Both schemes open the app (either build can open the desktop app); the
+// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
+const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
 const CLOUDCLI_CONTROL_PLANE_URL = process.env.CLOUDCLI_CONTROL_PLANE_URL || 'https://cloudcli.ai';
 const REMOTE_START_TIMEOUT_MS = 30000;
 const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;
@@ -716,11 +716,11 @@ function getRemoteEnvironmentMenuItems() {
 
 function registerProtocolHandler() {
   const appEntry = path.join(getAppRoot(), 'electron', 'main.js');
-  for (const protocol of DEEP_LINK_PROTOCOLS) {
+  for (const scheme of DEEP_LINK_SCHEMES) {
     if (process.defaultApp && process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(protocol, process.execPath, [appEntry]);
+      app.setAsDefaultProtocolClient(scheme, process.execPath, [appEntry]);
     } else {
-      app.setAsDefaultProtocolClient(protocol);
+      app.setAsDefaultProtocolClient(scheme);
     }
   }
 }
@@ -895,6 +895,13 @@ async function bootstrap() {
   app.name = APP_NAME;
   app.setName(APP_NAME);
   process.title = APP_NAME;
+
+  // Copy the desktop userData JSON files before anything reads
+  // app.getPath('userData'), which already resolves under the Cloudpit folder.
+  maybeMigrateDesktopUserData({
+    appName: APP_NAME,
+    appDataDir: app.getPath('appData'),
+  });
 
   await app.whenReady();
   app.setName(APP_NAME);

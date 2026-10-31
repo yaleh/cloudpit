@@ -2570,7 +2570,7 @@ const SERVER_PORT = Number.parseInt(process.env.SERVER_PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
 const VITE_PORT = process.env.VITE_PORT || 5173;
-const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
+const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudpit', 'local-server.json');
 // How long shutdown waits for session host processes to confirm they are gone.
 // A host is a child process this server spawned, so leaving one behind outlives
 // the server that could still talk to it; the grace period is short because a
