@@ -113,7 +113,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly connections = new Map<string, CodexAppServerConnection>();
   private host: ProcessHost | null = null;
   private sink: IProviderHostDriverSink | null = null;
-  private closed = false;
+  /** The hosts this driver has closed. The driver is a singleton, so "closed" is per host. */
+  private readonly closedHostIds = new Set<string>();
 
   constructor(options: CodexHostDriverOptions & CodexApprovalDriverOptions = {}) {
     this.createConnection = options.createConnection
@@ -162,9 +163,8 @@ export class CodexHostDriver implements IProviderHostDriver {
 
   /** Starts the process and reports its pid on the host record. */
   async startHost(host: ProcessHost, sink: IProviderHostDriverSink): Promise<ProcessHost> {
-    // `closeHost` is terminal for one process, not for this instance: the
-    // provider mounts one driver for the life of the server.
-    this.closed = false;
+    // `closeHost` is terminal for one host, not for this instance.
+    this.closedHostIds.delete(host.hostId);
     this.host = host;
     this.sink = sink;
     const connection = this.connectionFor(host.hostId);
@@ -201,7 +201,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       queue: new CodexResidentQueue({
         connection: () => this.connectionFor(host.hostId),
         threadId: () => this.sessions.get(binding.appSessionId)?.threadId ?? null,
-        closed: () => this.closed,
+        closed: () => this.closedHostIds.has(host.hostId),
         activity: () => this.sink?.activity(binding.appSessionId),
       }),
     });
@@ -373,28 +373,29 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.sessions.delete(appSessionId);
   }
 
-  /** Terminates the process. Idempotent; the only verb that kills it. */
+  /** Terminates one host's process; only the sessions it served are forgotten. Idempotent. */
   async closeHost(host: ProcessHost, reason: HostCloseReason): Promise<void> {
-    void host;
     this.lastCloseReasonValue = reason;
-    if (this.closed) {
+    const sessions = [...this.sessions.values()].filter((session) => session.hostId === host.hostId);
+    const connection = this.connections.get(host.hostId);
+    if (this.closedHostIds.has(host.hostId) && sessions.length === 0 && !connection) {
       return;
     }
-    this.closed = true;
+    this.closedHostIds.add(host.hostId);
     this.liveSettings.settleAll();
-    for (const session of this.sessions.values()) {
+    // Answer while this socket is still open; after `close()` the answer is
+    // dropped by design. Only this host's sessions are detached: another host's
+    // writer, thread mapping, queue and holds must survive its sibling closing.
+    for (const session of sessions) {
       if (session.pending) {
         this.settleTurn(session, 'failed');
       }
       session.queue.settleAll();
       this.background.releaseSession(session.appSessionId);
+      await this.approvals.detachSession(session.appSessionId);
+      this.sessions.delete(session.appSessionId);
+      this.pendingLaunches.delete(session.appSessionId);
     }
-    // Answer while the connection still has a socket; after `close()` the answer
-    // is dropped by design and the request is no longer a hang.
-    await this.approvals.drainAndForget(this.sessions.keys());
-    this.sessions.clear();
-    this.pendingLaunches.clear();
-    const connection = this.connections.get(host.hostId);
     this.connections.delete(host.hostId);
     if (this.connection === connection) {
       this.connection = null;
@@ -462,7 +463,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     // Cold dispatch is per-session: the driver is a singleton (multiplexedHost=false),
     // so `this.host` may hold another session's host. A host is opened only when
     // THIS session has none of its own.
-    let host = this.closed ? null : this.liveHostFor(appSessionId);
+    let host = this.liveHostFor(appSessionId);
     if (!host) {
       await this.startResidentSession(appSessionId, { options: turn.options ?? {}, context });
       host = this.liveHostFor(appSessionId);
@@ -539,10 +540,11 @@ export class CodexHostDriver implements IProviderHostDriver {
    * provides and pins the reading; nothing here consumes it yet.
    */
   experimentalApiAvailable(appSessionId: string): boolean {
-    if (this.closed || !this.sessions.has(appSessionId)) {
+    const session = this.sessions.get(appSessionId);
+    if (!session || this.closedHostIds.has(session.hostId)) {
       return false;
     }
-    const connection = this.connections.get(this.sessions.get(appSessionId)?.hostId ?? '');
+    const connection = this.connections.get(session.hostId);
     if (!connection || !connection.isInitialized || !connection.isAlive()) {
       return false;
     }
@@ -721,8 +723,8 @@ export class CodexHostDriver implements IProviderHostDriver {
    * The live host serving this session, as this driver can see it.
    *
    * `this.host` is the record the manager handed to `startHost`; the snapshot is
-   * the fallback for a host this driver did not open itself. A closed host — or
-   * this instance's own closed latch — is never live.
+   * the fallback for a host this driver did not open itself. A host this driver
+   * closed is never live, while the driver's other hosts stay usable.
    *
    * A session is served by the host it was `bind`ed to: the manager also mirrors
    * that binding into `host.bindings`, but a driver handed a host directly (the
@@ -734,7 +736,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     const own = this.host;
     const ownServesSession = own !== null
       && (own.bindings.has(appSessionId) || this.sessions.get(appSessionId)?.hostId === own.hostId);
-    if (own && !this.closed && own.state !== 'closed' && ownServesSession) {
+    if (own && !this.closedHostIds.has(own.hostId) && own.state !== 'closed' && ownServesSession) {
       return own;
     }
     for (const host of this.hostPort?.snapshot() ?? []) {
@@ -766,18 +768,20 @@ export class CodexHostDriver implements IProviderHostDriver {
   }
 
   private requireConnection(): CodexAppServerConnection {
-    if (this.closed || !this.connection) {
+    const connection = this.connection?.isAlive()
+      ? this.connection : [...this.connections.values()].find((candidate) => candidate.isAlive()) ?? null;
+    if (!connection) {
       throw new AppError('Codex resident host is closed.', {
         code: 'CODEX_APP_SERVER_UNAVAILABLE',
         statusCode: 409,
       });
     }
-    return this.connection;
+    return connection;
   }
 
   /** The connection serving one host, creating it on first use; each host owns its own app-server process. */
   private connectionFor(hostId: string): CodexAppServerConnection {
-    if (this.closed) {
+    if (this.closedHostIds.has(hostId)) {
       throw new AppError('Codex resident host is closed.', {
         code: 'CODEX_APP_SERVER_UNAVAILABLE',
         statusCode: 409,
@@ -801,7 +805,7 @@ export class CodexHostDriver implements IProviderHostDriver {
   /** The connection for one host when it can still carry a frame; null before start or after close. */
   private liveConnectionFor(hostId: string): CodexAppServerConnection | null {
     const connection = this.connections.get(hostId);
-    if (this.closed || !connection || !connection.isAlive()) {
+    if (this.closedHostIds.has(hostId) || !connection || !connection.isAlive()) {
       return null;
     }
     return connection;
