@@ -74,3 +74,11 @@ extra: {}
 - server/modules/observation/view-events.service.ts
 - server/modules/observation/tests/view-events.test.ts
 - tasks/context-event-behavior-signal-producer.md
+
+## Blocker
+
+**2026-10-31T05:04:58.963Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/context-events/context-event-writer.ts 939→954 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：008baba3-6de1-4fbf-b3f1-b32d36a7a05b
