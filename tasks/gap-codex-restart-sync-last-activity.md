@@ -59,6 +59,7 @@ depends_on:
 - scripts/ui-scenarios/*session*activity*.json
 - scripts/session-activity-restart-check.mjs (new)
 - e2e/session-activity-restart.spec.ts (new)
+- src/modules/sidebar/SidebarSessionItem.tsx
 - src/modules/sidebar/tests/*activity*
 - src/modules/ui-scenario/*
 - tasks/gap-codex-restart-sync-last-activity.md
