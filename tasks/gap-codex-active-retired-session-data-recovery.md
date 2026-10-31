@@ -42,6 +42,6 @@ depends_on: []
 ## Touches
 
 - scripts/repair-session-binding.mjs
-- scripts/*repair-session-binding*.test.mjs
+- scripts/repair-session-binding.test.mjs
 - docs/operations/session-binding-recovery.md
 - tasks/gap-codex-active-retired-session-data-recovery.md
