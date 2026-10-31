@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-codex-find-file-with-suffix-twice
 title: "architecture-analysis: archguard scope `server` (9bd04f7b) group
   fa9c8eda9dcd93ef: two byte-identical 32-line `findFileWithSuffix`
   implementations (18 statements / 188 tokens, 32 s"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
