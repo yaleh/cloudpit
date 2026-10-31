@@ -2,7 +2,7 @@
 id: gap-cloudpit-desktop-identity-migration
 title: Cloudpit B3：桌面身份迁移（APP_NAME/productName=Cloudpit、旧 userData/server
   缓存/marker 迁移、双 scheme 注册、appId 与云回调不变）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
