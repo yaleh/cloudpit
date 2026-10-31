@@ -52,9 +52,9 @@ DBG lifecycle {"provider":"debug","defaults":{"claude":{"supportsResident":true,
 
 ## AC
 
-- [ ] AC1 判据复绿：`npx playwright test e2e/resident-ui-layout.spec.ts -g "composer has no resident switch"` 退出 **0**，stdout 逐字含 `resident.composer.switch.count=0`、`per-run.composer.switch.count=0`、`empty.page.switch.count=1`（同一选择器、同一次运行）；贴出退出码与这三行。
-- [ ] AC2 假形态必须红：把 `useChatProviderState` 的采纳条件还原成无条件 `setProvider(selectedSession.__provider); writeSelectedProvider(...)`，同一命令退出非 0，且红落在正控制上（`expect(locator).toHaveCount(expected) failed`、`Expected: 1`、`Received: 0`，行号为 `e2e/resident-ui-layout.spec.ts` 的 `toHaveCount(1, …)`）；贴出退出码、失败行与 stdout 中缺失 `empty.page.switch.count` 的事实。恢复 guard 后复绿。
-- [ ] AC3 采纳门单测（含对照腿）：`npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` 退出 **0**；新增用例断言 (a) `selectedSession.__provider = 'debug'`（矩阵外）时 `result.current.provider` 仍为 `readSelectedProvider()` 的 `claude`，且 `readSelectedProvider()` 读回仍为 `claude`（偏好没有被写成 `debug`）；(b) 对照腿 `selectedSession.__provider = 'codex'` 时 `provider` 变为 `codex` 且偏好写为 `codex`。贴出两腿断言与运行结果。
+- [x] AC1 判据复绿：`npx playwright test e2e/resident-ui-layout.spec.ts -g "composer has no resident switch"` 退出 **0**，stdout 逐字含 `resident.composer.switch.count=0`、`per-run.composer.switch.count=0`、`empty.page.switch.count=1`（同一选择器、同一次运行）；贴出退出码与这三行。
+- [x] AC2 假形态必须红：把 `useChatProviderState` 的采纳条件还原成无条件 `setProvider(selectedSession.__provider); writeSelectedProvider(...)`，同一命令退出非 0，且红落在正控制上（`expect(locator).toHaveCount(expected) failed`、`Expected: 1`、`Received: 0`，行号为 `e2e/resident-ui-layout.spec.ts` 的 `toHaveCount(1, …)`）；贴出退出码、失败行与 stdout 中缺失 `empty.page.switch.count` 的事实。恢复 guard 后复绿。
+- [x] AC3 采纳门单测（含对照腿）：`npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` 退出 **0**；新增用例断言 (a) `selectedSession.__provider = 'debug'`（矩阵外）时 `result.current.provider` 仍为 `readSelectedProvider()` 的 `claude`，且 `readSelectedProvider()` 读回仍为 `claude`（偏好没有被写成 `debug`）；(b) 对照腿 `selectedSession.__provider = 'codex'` 时 `provider` 变为 `codex` 且偏好写为 `codex`。贴出两腿断言与运行结果。
 
 ## DoD
 
@@ -69,3 +69,14 @@ DBG lifecycle {"provider":"debug","defaults":{"claude":{"supportsResident":true,
 - src/modules/chat/tests/chatProviderModels.test.ts
 - e2e/resident-ui-layout.spec.ts
 - tasks/gap-ac178-new-session-switch-gate-drops-nonmatrix-provider.md
+
+
+## Evidence
+
+- AC1: `npx playwright test e2e/resident-ui-layout.spec.ts -g "composer has no resident switch"` exit 0；同一跑 stdout：`resident.composer.switch.count=0`、`per-run.composer.switch.count=0`、`empty.page.switch.count=1`。
+- AC2: 假形态（采纳 effect 还原为无条件 `setProvider`/`writeSelectedProvider`）同一命令 exit 1，红落在正控制 `e2e/resident-ui-layout.spec.ts:1598`：`expect(locator).toHaveCount(expected) failed`、`Expected: 1`、`Received: 0`；stdout 无 `empty.page.switch.count=` 读数（唯一出现是失败栈源码行 1599）。恢复 guard 后同一命令 exit 0 复绿。
+- AC3: `npx vitest run src/modules/chat/tests/chatProviderModels.test.ts` exit 0，8 passed；新增两腿：矩阵外 `debug` ⇒ `provider` 仍 `claude` 且 `readSelectedProvider()` 仍 `claude`；对照腿 `codex` ⇒ `provider` 与偏好均为 `codex`。
+
+## ADR-007
+
+该轴仍暗,理由:本次仅前端采纳门修复，未产生架构层度量读数
