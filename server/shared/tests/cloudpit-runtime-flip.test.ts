@@ -273,10 +273,15 @@ test('AC6: both protocols are declared/registered and both observation URI spell
   assert.ok(macSchemes.includes('cloudcli') && macSchemes.includes('cloudpit'));
 
   const electronSource = readApplicationFile('electron/main.js');
-  assert.ok(electronSource.includes("const CLOUDPIT_PROTOCOL = 'cloudpit';"));
-  assert.ok(electronSource.includes('for (const protocol of DEEP_LINK_PROTOCOLS)'));
+  // Both schemes must live in the single registered-scheme list, and the loop must push every
+  // entry through setAsDefaultProtocolClient (packaged and dev branches alike).
+  assert.match(electronSource, /const DEEP_LINK_SCHEMES = \['cloudcli', 'cloudpit'\];/);
+  const registerSource = electronSource.slice(
+    electronSource.indexOf('function registerProtocolHandler'),
+  );
+  assert.ok(registerSource.includes('for (const scheme of DEEP_LINK_SCHEMES)'));
   assert.ok(
-    electronSource.includes('app.setAsDefaultProtocolClient(protocol'),
+    registerSource.includes('app.setAsDefaultProtocolClient(scheme'),
     'both schemes must reach setAsDefaultProtocolClient',
   );
 
