@@ -63,6 +63,8 @@ extra: {}
 - server/modules/providers/tests/session-creation-selection.test.ts
 - server/modules/providers/tests/session-selection-launch-spec.test.ts
 - server/modules/providers/tests/sessions.service.test.ts
+- server/modules/session-hosts/tests/resident-server-restart.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/types.ts
 - e2e/codex-resident-ui.spec.ts
 - e2e/resident-enable-consent.spec.ts
@@ -191,6 +193,13 @@ shell.launch=argv0=…/codex args=[]
 说明：截图 03 首次捕获到 CSS transition 的起始帧（`aria-checked` 已是 `false` 但轨道仍显示蓝色），computed style 在 400ms 后为灰色且滑块居左；已在 `verify.mjs` 增加 400ms 等待后重跑，03 为稳定的关闭态。这是截图时序，不是 UI 缺陷。
 
 场景运行器：仓库当前仅 `scripts/ui-scenarios/cockpit-session-start-settings.json` 一个场景，覆盖驾驶舱会话启动设置，与本任务的网页新会话生命周期开关/创建端点无交集；按 DoD“存在可用场景时”的前提，本任务没有可跑的场景，以真实浏览器 + 隔离实例读数与 `codex-resident-ui` e2e 作为替代证据。
+
+### 10. 上一轮 suite 红的两条修复（2026-10-31 续轮）
+
+上一轮 fan-in suite 红了两条，均为本任务默认策略变化的直接后果，不是环境红：
+
+- `server/modules/session-hosts/tests/resident-server-restart.test.ts`：per-run 正对照原先省略 `lifecycleMode` 创建，依赖旧的仓库层 per-run 默认；Claude 新默认 resident 后该行变成 resident，`reason` 因此非 null。修复为创建时显式 `lifecycleMode: 'per-run'`（控件行的语义本来就是“明确 per-run”）。重跑 **5 pass / 0 fail，40.9s**，读数 `sessions control lifecycle_mode=per-run running=false reason=null`。
+- `server/shared/tests/architecture-ratchet.test.ts`：`sessions.db.ts` 等 6 个基线内文件因本任务真实新增而上调。`sessions.db.ts` 通过压缩同处注释等量删行使 `wc -l` 回到基线 1479；其余 5 个文件（provider.routes.ts 1122→1152、sessions.service.ts 1327→1390、server/shared/types.ts 5327→5352、src/shared/api.ts 1799→1809、src/shared/types.ts 4719→4743）是交付本身（能力默认解析、统一创建服务、两端 hand-copied 线型契约、客户端能力解析），按 AC-394 的 RECORDED CHANGE 通道在 `architecture-ratchet.baseline.json` 记录并更新读数。重跑 **6 pass / 0 fail，5.1s**。
 
 ## ADR-007 dark axis
 
