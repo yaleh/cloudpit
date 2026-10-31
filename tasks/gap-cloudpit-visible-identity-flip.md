@@ -55,13 +55,13 @@ AC-451 的缺口承载任务：把 Cloudpit 的**可见身份**与**分发身份
 
 ## AC
 
-- [ ] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test scripts/brand-allowlist-check.test.mjs` 退出 0，输出含 `fail 0`；`scripts/brand-allowlist-check.mjs` 与 `scripts/brand-allowlist-check.test.mjs` 均已落地。
-- [ ] AC2 产品面正臂：同一判据断言 `index.html` 的 `<title>` 与 `apple-mobile-web-app-title`、`public/manifest.json` 的 `name`/`short_name`、`src/shared/utils.ts` 的 `DEFAULT_PAGE_TITLE`、CLI banner/help/status/update 文案、About 产品名、Electron `APP_NAME` 及其派生窗口/通知标题全部为 `Cloudpit`（是正向断言值等于 Cloudpit，不只断言“无 CloudCLI”）。
-- [ ] AC3 分发身份：同一判据断言 `package.json` 的 `name === '@yalehwang/cloudpit'`、`bin` 键集合为 `['cloudpit']`、`productName === 'Cloudpit'`、`build.productName === 'Cloudpit'`、`build.artifactName` 匹配 `^cloudpit-desktop-`；`package-lock.json` 根部 `name` 同步；`npmUpgradeCommand` 与 CLI 自更新命令均指向新包。
-- [ ] AC4 tarball 臂：同一判据用 `npm pack --ignore-scripts --pack-destination <tmp>` 打出真实 tarball，读回 `package/package.json` 断言 `bin` 只有 `cloudpit`；同一校验函数在喂入含 `cloudcli` bin 的合成打包清单时返回违规（负向控制）。
-- [ ] AC5 allowlist 正臂：真实扫描产品面零违规；把一条 `CloudCLI Cloud` 或 `Based on CloudCLI UI` 喂给同一扫描函数不产生违规（证明 allowlist 既不是“一律放行”也不是“一律拒绝”）；扫描面清单包含本任务 Proposal 列出的每个文件/glob。
-- [ ] AC6 false-form：把 `CloudCLI` 注入 manifest `name`、一条 locale 值、CLI banner 文本、Electron `APP_NAME` 任一面，同一 `runBrandAllowlistCheck` 必须返回 `exitCode === 1` 并点名该文件；判据文件内至少覆盖 manifest 与 CLI 两面。
-- [ ] AC7 回归与静态检查：`npx vitest run src/shared/tests/pageTitle.test.ts src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx src/modules/settings/tests/aboutTabCommunityLinks.test.tsx` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/modules/system/tests/system.service.test.ts server/modules/cli/tests/cli.service.test.ts server/modules/cli/tests/sandbox.service.test.ts` 退出 0；`node --test scripts/release/tests/fork-release-workflows.test.mjs` 退出 0；`node scripts/list-script-tests.mjs | grep brand-allowlist` 有输出；`npm run typecheck` 与 `npm run lint` 退出 0。
+- [x] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test scripts/brand-allowlist-check.test.mjs` 退出 0，输出含 `fail 0`；`scripts/brand-allowlist-check.mjs` 与 `scripts/brand-allowlist-check.test.mjs` 均已落地。
+- [x] AC2 产品面正臂：同一判据断言 `index.html` 的 `<title>` 与 `apple-mobile-web-app-title`、`public/manifest.json` 的 `name`/`short_name`、`src/shared/utils.ts` 的 `DEFAULT_PAGE_TITLE`、CLI banner/help/status/update 文案、About 产品名、Electron `APP_NAME` 及其派生窗口/通知标题全部为 `Cloudpit`（是正向断言值等于 Cloudpit，不只断言“无 CloudCLI”）。
+- [x] AC3 分发身份：同一判据断言 `package.json` 的 `name === '@yalehwang/cloudpit'`、`bin` 键集合为 `['cloudpit']`、`productName === 'Cloudpit'`、`build.productName === 'Cloudpit'`、`build.artifactName` 匹配 `^cloudpit-desktop-`；`package-lock.json` 根部 `name` 同步；`npmUpgradeCommand` 与 CLI 自更新命令均指向新包。
+- [x] AC4 tarball 臂：同一判据用 `npm pack --ignore-scripts --pack-destination <tmp>` 打出真实 tarball，读回 `package/package.json` 断言 `bin` 只有 `cloudpit`；同一校验函数在喂入含 `cloudcli` bin 的合成打包清单时返回违规（负向控制）。
+- [x] AC5 allowlist 正臂：真实扫描产品面零违规；把一条 `CloudCLI Cloud` 或 `Based on CloudCLI UI` 喂给同一扫描函数不产生违规（证明 allowlist 既不是“一律放行”也不是“一律拒绝”）；扫描面清单包含本任务 Proposal 列出的每个文件/glob。
+- [x] AC6 false-form：把 `CloudCLI` 注入 manifest `name`、一条 locale 值、CLI banner 文本、Electron `APP_NAME` 任一面，同一 `runBrandAllowlistCheck` 必须返回 `exitCode === 1` 并点名该文件；判据文件内至少覆盖 manifest 与 CLI 两面。
+- [x] AC7 回归与静态检查：`npx vitest run src/shared/tests/pageTitle.test.ts src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx src/modules/settings/tests/aboutTabCommunityLinks.test.tsx` 退出 0；`npx tsx --tsconfig server/tsconfig.json --test server/modules/system/tests/system.service.test.ts server/modules/cli/tests/cli.service.test.ts server/modules/cli/tests/sandbox.service.test.ts` 退出 0；`node --test scripts/release/tests/fork-release-workflows.test.mjs` 退出 0；`node scripts/list-script-tests.mjs | grep brand-allowlist` 有输出；`npm run typecheck` 与 `npm run lint` 退出 0。
 - [ ] AC8 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（任务文件本身按 task_write 落点说明）。
 
 ## DoD
@@ -112,4 +112,27 @@ AC-451 的缺口承载任务：把 Cloudpit 的**可见身份**与**分发身份
 - src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx (collateral: /Loading CloudCLI/ fixture)
 - server/modules/system/tests/system.service.test.ts (collateral: upgrade command)
 - scripts/release/tests/fork-release-workflows.test.mjs (collateral: FORK_NAME + comments)
+- scripts/voice-capture-process-check.mjs (collateral: ready-log marker)
+- server/modules/mcp-gateway/tests/oauth-flow.e2e.test.ts (collateral: ready-line fixture)
 - tasks/gap-cloudpit-visible-identity-flip.md
+
+## Evidence
+
+- AC1：`npx tsx --tsconfig server/tsconfig.json --test scripts/brand-allowlist-check.test.mjs` → `tests 6 / suites 0 / pass 6 / fail 0 / cancelled 0 / skipped 0 / todo 0`，退出码 0。
+- 检查器读数：`brand-allowlist: files=118 values=34623 localeValues=27324 allowlistHits=22 violations=0`，退出码 0。
+- allowlist 正臂：`CloudCLI Cloud`、`Based on CloudCLI UI`、`PRISM CloudCLI` 零违规；`CloudCLI Cloud and CloudCLI` 只报 1 条（span 级判定）。
+- false-form（同一 `runBrandAllowlistCheck`，均 `exitCode=1` 且点名文件）：
+  - manifest `name` 注入 `CloudCLI` → `public/manifest.json:name carries "CloudCLI" outside the brand allowlist: CloudCLI`
+  - locale `src/modules/i18n/locales/en/auth.json` 注入 `{footerText:"CloudCLI"}` → `src/modules/i18n/locales/en/auth.json:footerText carries "CloudCLI" outside the brand allowlist: CloudCLI`
+  - CLI banner 注入 `export const banner = 'CloudCLI';` → `server/modules/cli/cli.service.ts:1 carries "CloudCLI" outside the brand allowlist: export const banner = 'CloudCLI';`
+  - Electron `APP_NAME` 注入 `const APP_NAME = 'CloudCLI';` → `electron/main.js:1 carries "CloudCLI" outside the brand allowlist: const APP_NAME = 'CloudCLI';`
+  - 检查器 CLI（`--overrides <json>`）对 manifest 注入同样 `status=1`，stderr 点名 `public/manifest.json`。
+- tarball：`npm pack --ignore-scripts --json` → `yalehwang-cloudpit-1.41.0.tgz`；`tar -xOf … package/package.json` 的 `bin` 为 `{"cloudpit": "dist-server/server/modules/cli/cli.js"}`；合成 `{"cloudcli": …}` 被 `checkPackedManifest` 拒绝：`the packed manifest must expose exactly the "cloudpit" bin, found ["cloudcli"]`。
+- 身份读数：`package.json` name=`@yalehwang/cloudpit`、bin keys=`["cloudpit"]`、productName=`Cloudpit`、build.productName=`Cloudpit`、build.artifactName=`cloudpit-desktop-${version}-${os}-${arch}.${ext}`；`package-lock.json` 根部 name=`@yalehwang/cloudpit`。
+- 可见面 `git grep -n 'CloudCLI|claudecodeui'`（本任务扫描面）余量全部落在 allowlist：上游仓库/URL（`siteboon/claudecodeui`、`yaleh/claudecodeui`）、上游 scope（`@cloudcli-ai/`）、上游镜像（`docker.io/cloudcliai/`）、外部服务（`CloudCLI Pro/Hosted`）、第三方插件（`PRISM CloudCLI`、`CloudCLI Scheduler`）、本地缓存目录（`['.cache','claudecodeui']`）、About 版本检查标识（`useVersionCheck('siteboon','claudecodeui')`）；locale 的 `prismCloudCLI` 是键名、不在扫描范围，其值为 allowlist 的 `PRISM CloudCLI`。
+- CLI：`npx tsx --tsconfig server/tsconfig.json server/modules/cli/cli.ts help` 打印 banner `Cloudpit - Command Line Tool`（退出 0）；`… status` 打印 `Cloudpit - Status`（退出 0）。
+- UI DoD（本会话无 MCP 浏览器，使用一次性 Playwright 直连 worktree vite :5199，`/api` 代理运行中的 :3001）：`documentTitle=Cloudpit`、`manifest.name=Cloudpit`、`manifest.short_name=Cloudpit`、`manifest.description=Cloudpit web application`、Settings → About 产品名=`Cloudpit`、`pageErrors=[]`；截图 `tmp/brand-ui-dod/01-landing.png`、`tmp/brand-ui-dod/02-settings-about.png`，读数 `tmp/brand-ui-dod/report.json`。仓库无覆盖品牌身份的场景 JSON，故未运行 `scripts/ui-scenario.mjs`。
+- collateral pins：`vitest run src/shared/tests/pageTitle.test.ts src/modules/project-workspace/tests/WorkspaceStateViewOverview.test.tsx src/modules/settings/tests/aboutTabCommunityLinks.test.tsx` → 3 files / 11 tests passed；`tsx --test server/modules/system/tests/system.service.test.ts server/modules/cli/tests/cli.service.test.ts server/modules/cli/tests/sandbox.service.test.ts` → 14 pass / 0 fail；`node --test scripts/release/tests/fork-release-workflows.test.mjs` → 7 pass / 0 fail；`node scripts/list-script-tests.mjs | grep brand-allowlist` → `scripts/brand-allowlist-check.test.mjs`。
+- `npm run typecheck` 退出 0；`npm run lint` 退出 0。
+
+该轴仍暗,理由:品牌迁移只替换可见文案与分发身份字段,AC 内没有可量化的 L_D/L_G 领域读数
