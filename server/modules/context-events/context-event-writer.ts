@@ -87,9 +87,9 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   // unknown kind, and a card already on the wall has to be withdrawn the day the detector
   // is fixed, not the day the consumer ships.
   'session.asking.retracted',
-  // The session-lifecycle kinds (`session-run-events.ts`). Like the ask kinds above, an
-  // installed schema that does not carry them refuses the append as `invalid-kind`.
-  'session.run.ended', 'session.closed',
+  // The session-lifecycle kinds (`session-run-events.ts`) and the blocked-session kinds
+  // (`session-blocked-events.ts`) refuse the append as `invalid-kind` on a schema lacking them.
+  'session.run.ended', 'session.closed', 'session.blocked', 'session.blocked.resolved',
   // One completed viewing episode, written AHEAD of the fleet schema (see the list below).
   'ui.view',
 ] as const;
@@ -170,14 +170,14 @@ export const SESSION_ASK_RETRACTED_DATA_FIELDS = ['askId', 'messageId'] as const
  * The installed release is not the only clock. quay-fleet's reader tolerates an unknown kind
  * (`producerOfKind` answers null and its row validation skips the per-kind producer/group check),
  * so a retraction lands and is readable today; the fleet's own retraction consumer arrives
- * later. Gate on the installed schema here and the withdrawn card stays on the wall until the
- * next fleet upgrade — the defect this row exists to end.
+ * later. A parked resident session must likewise be visible the day its producer lands, not the
+ * day the fleet's consumer ships; gating on this document would keep its card off the wall.
  *
  * This is a narrow allow-list, never a relaxation of the gate: every other kind outside the
  * installed document is still refused as `invalid-kind`.
  */
 export const FLEET_TOLERATED_AHEAD_KINDS: readonly CloudCliContextEventKind[] = [
-  SESSION_ASK_RETRACTED_KIND, 'ui.view',
+  SESSION_ASK_RETRACTED_KIND, 'ui.view', 'session.blocked', 'session.blocked.resolved',
 ];
 
 /**

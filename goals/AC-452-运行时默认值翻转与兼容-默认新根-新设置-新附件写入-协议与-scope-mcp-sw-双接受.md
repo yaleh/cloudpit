@@ -1,7 +1,7 @@
 ---
 id: AC-452
 title: 运行时默认值翻转与兼容：默认新根/新设置/新附件写入，协议与 scope/MCP/SW 双接受
-status: draft
+status: active
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -13,5 +13,16 @@ expect: 未设置 CLOUDPIT_HOME 时默认使用 ~/.cloudpit 并自动迁移旧�
 origin: docs/proposals/cloudpit-rename-SPEC.md（2026-10-31）§3 兼容矩阵、§5 运行时契约、§6
   分发与发布、§9 Stage B；人 yale 2026-10-31 裁定 GOAL-053 普通 + GOAL-054 branch-mode
   的混合推进。
+activatedAt: 2026-10-31T14:50:40.303Z
+statusLog:
+  - at: 2026-10-31T14:50:40.303Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
+fidelity:
+  verdict: not-evaluated
+  reason: no judge configured
+  at: 2026-10-31T14:50:40.303Z
 phase: pre-merge
 ---
