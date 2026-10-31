@@ -6,8 +6,8 @@
  * Covers: copying exactly the three JSON files and nothing else, re-entrancy
  * (second call copies nothing and overwrites nothing), the CloudCLI app-name
  * guard leaving the filesystem untouched, and the source scan proving
- * `electron/main.js` neither imports nor calls the helper and still declares
- * `APP_NAME = 'CloudCLI'`.
+ * `electron/main.js` imports and calls the helper and declares
+ * `APP_NAME = 'Cloudpit'`.
  */
 import assert from 'node:assert/strict';
 import {
@@ -98,15 +98,15 @@ test('AC7: the CloudCLI app-name guard never touches the filesystem', (t) => {
   assert.equal(existsSync(path.join(newUserDataDir, 'cache.bin')), false);
 });
 
-test('AC7: electron/main.js does not reference the helper and still declares APP_NAME = CloudCLI', () => {
+test('AC7: electron/main.js imports and calls the helper and declares APP_NAME = Cloudpit', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
-  assert.equal(source.includes('migrateDesktopUserData'), false, 'no import or call of migrateDesktopUserData');
-  assert.equal(
-    source.includes('maybeMigrateDesktopUserData'),
-    false,
-    'no import or call of maybeMigrateDesktopUserData',
+  assert.match(
+    source,
+    /import \{ maybeMigrateDesktopUserData \} from '\.\/userDataMigration\.js';/,
+    'the helper module is imported',
   );
-  assert.equal(source.includes('userDataMigration'), false, 'the helper module is not imported at all');
-  assert.match(source, /const APP_NAME = 'CloudCLI';/, 'APP_NAME stays CloudCLI');
+  assert.match(source, /maybeMigrateDesktopUserData\(\{/, 'the helper is called');
+  assert.match(source, /appName: APP_NAME,/, 'the call passes the flipped app name');
+  assert.match(source, /const APP_NAME = 'Cloudpit';/, 'APP_NAME is flipped to Cloudpit');
 });

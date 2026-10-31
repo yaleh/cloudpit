@@ -98,6 +98,12 @@
         "schemes": [
           "cloudcli"
         ]
+      },
+      {
+        "name": "Cloudpit",
+        "schemes": [
+          "cloudpit"
+        ]
       }
     ],
     "mac": {
@@ -114,7 +120,8 @@
           {
             "CFBundleURLName": "CloudCLI",
             "CFBundleURLSchemes": [
-              "cloudcli"
+              "cloudcli",
+              "cloudpit"
             ]
           }
         ]

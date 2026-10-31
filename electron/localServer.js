@@ -13,7 +13,13 @@ const DISPLAY_HOST = 'localhost';
 const HEALTH_TIMEOUT_MS = 1000;
 const SERVER_START_TIMEOUT_MS = 30000;
 const MAX_STARTUP_LOG_LINES = 300;
-const SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
+const SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudpit', 'local-server.json');
+// New location first; the CloudCLI path stays readable so a local server started
+// by the previous desktop build is still discovered after the rename.
+export const SERVER_MARKER_PATHS = [
+  SERVER_MARKER_PATH,
+  path.join(os.homedir(), '.cloudcli', 'local-server.json'),
+];
 const LOCAL_SERVER_URL_ENV_KEYS = [
   'CLOUDCLI_DESKTOP_LOCAL_SERVER_URL',
   'CLOUDCLI_LOCAL_SERVER_URL',
@@ -205,14 +211,18 @@ function getServerCwd(appRoot, serverEntry) {
   return path.resolve(path.dirname(normalizedEntry), '..', '..');
 }
 
-async function readServerMarkerUrl() {
-  try {
-    const raw = await fs.readFile(SERVER_MARKER_PATH, 'utf8');
-    const marker = JSON.parse(raw);
-    return marker.url || (marker.port ? `http://${marker.host || HOST}:${marker.port}` : null);
-  } catch {
-    return null;
+export async function readServerMarkerUrl({ markerPaths = SERVER_MARKER_PATHS, fs: fsImpl = fs } = {}) {
+  for (const markerPath of markerPaths) {
+    try {
+      const raw = await fsImpl.readFile(markerPath, 'utf8');
+      const marker = JSON.parse(raw);
+      const url = marker.url || (marker.port ? `http://${marker.host || HOST}:${marker.port}` : null);
+      if (url) return url;
+    } catch {
+      // Missing or unreadable marker: fall through to the next candidate path.
+    }
   }
+  return null;
 }
 
 async function getExistingServerCandidateUrls(defaultUrl) {

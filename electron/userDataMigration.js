@@ -1,10 +1,11 @@
 /**
  * Desktop userData migration helper.
  *
- * This module is deliberately UNWIRED: `electron/main.js` neither imports nor
- * calls it, and `APP_NAME` stays `CloudCLI`. GOAL-054 flips the app name and
- * wires the helper in; until then the guard arm in
- * `maybeMigrateDesktopUserData` makes the intentional no-op explicit.
+ * `electron/main.js` calls this from `bootstrap()` once the app name is
+ * `Cloudpit`, before anything reads `app.getPath('userData')`; the legacy
+ * `CloudCLI` folder is copied into the new `Cloudpit` folder. The guard arm in
+ * `maybeMigrateDesktopUserData` keeps the helper inert if the app name is not
+ * flipped, so the migration cannot run under the old identity.
  *
  * Only the three JSON files listed below may be copied. Caches, logs, and any
  * other userData entry are never touched, and an existing target file always
