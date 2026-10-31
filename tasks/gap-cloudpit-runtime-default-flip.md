@@ -118,6 +118,11 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - `image-assets.service.test.ts` + `cli-environment-bootstrap.test.ts` + `quay-test-script.test.ts` 同一 tsx 进程 → `tests 22 / pass 22 / fail 0`（其中 image-assets 6/6、cli-environment-bootstrap 2/2，前者 isolated 复跑耗时 171ms → 本次全套 9.0s）。
 - `npm run typecheck` 退出 0；`npx oxlint` 对本次 6 个改动文件退出 0。
 
+### 2026-11-01 续做（merge 冲突收口）
+
+- `electron/main.js` 的 merge 冲突按语义并集收口：两侧各自新增了同一条「两个 scheme 都注册」机制（本任务 `DEEP_LINK_PROTOCOLS = [CALLBACK_PROTOCOL, CLOUDPIT_PROTOCOL]`；兄弟任务 `DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit']`，其 `electron/tests/cloudpit-desktop-identity.test.mjs` 逐字钉住该数组与循环）。保留单一来源 `DEEP_LINK_SCHEMES`，删除重复常量；AC6 判据改为断言该单一列表 + 循环调用 `setAsDefaultProtocolClient`（同为「两个 scheme 都注册」的语义，未放宽断言）。
+- 合并目标 `goal/GOAL-054` 与 `develop` 均已合入本 worktree（`git merge develop` 零冲突；task 文件的 Blocker 段来自 develop，AC 勾选保持 11/11）。
+- 合并后复跑读数：`server/shared/tests/cloudpit-runtime-flip.test.ts` → `tests 8 / pass 8 / fail 0`，`duration_ms 6926.45`；`server/modules/assets/tests/image-assets.service.test.ts` → 6/6；`server/modules/cli/tests/cli-environment-bootstrap.test.ts` → 2/2；`server/shared/tests/quay-test-script.test.ts` → 14/14。`npm run typecheck` 退出 0；`npx oxlint src/ server/ scripts/ shared/` 退出 0（仅基线 warning）；anti-drift Touches 检查：47 actual files 全部落在 51 个 declared glob 内。
 ## Touches
 
 - tasks/gap-cloudpit-runtime-default-flip.md
