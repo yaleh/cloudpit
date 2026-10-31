@@ -885,3 +885,9 @@
 #   (dur=3293ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 479 server test files).
 3293	server/shared/tests/frontend-import-cycle-budget.test.ts
+#   the codex-host-driver-multihost row by gap-codex-resident-closehost-orphans-other-sessions,
+#   measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-host-driver-multihost.test.ts`
+#   (dur=2539ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 481 server test files).
+2539	server/modules/providers/tests/codex-host-driver-multihost.test.ts

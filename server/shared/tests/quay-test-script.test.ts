@@ -436,9 +436,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (478 + 1 = 479 collected server test files). Then
     // gap-codex-resident-normalize-app-server-frames added its criterion
     // server/modules/providers/tests/codex-resident-normalize.test.ts
-    // (479 + 1 = 480 collected server test files). This fixture names 3 known files, so
-    // 480 - 3 = 477.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=477$/);
+    // (479 + 1 = 480 collected server test files). Then
+    // gap-codex-resident-closehost-orphans-other-sessions added its criterion
+    // server/modules/providers/tests/codex-host-driver-multihost.test.ts
+    // (480 + 1 = 481 collected server test files). This fixture names 3 known files, so
+    // 481 - 3 = 478.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=478$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -547,11 +550,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-cockpit-session-start-model-settings-ui added
     // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts), then
     // gap-codex-resident-normalize-app-server-frames added
-    // server/modules/providers/tests/codex-resident-normalize.test.ts)
-    // — but this fixture names ONE known file, so 480 - 1 = 479 (AC2 reads 477 because its
-    // fixture names 3; the 480 is the 479 the tree collected before
-    // codex-resident-normalize.test.ts landed).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=479$/);
+    // server/modules/providers/tests/codex-resident-normalize.test.ts), then
+    // gap-codex-resident-closehost-orphans-other-sessions added
+    // server/modules/providers/tests/codex-host-driver-multihost.test.ts)
+    // — but this fixture names ONE known file, so 481 - 1 = 480 (AC2 reads 478 because its
+    // fixture names 3; the 481 is the number the tree collects with this task's criterion).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=480$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
