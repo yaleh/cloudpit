@@ -30,7 +30,8 @@ GOAL-052 的最终组合验收，不以 AC-445/446 单独通过代替用户故�
 
 ## AC
 
-- [ ] bash scripts/session-edit-continuity-check.sh exit 0；真实执行行为判据而非静态扫描。
+- [ ] npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/session-edit-continuity.test.ts exit 0；跨模块行为断言为 goal 的可执行判据，必须失败于实际回归，不以静态扫描判绿。
+- [ ] bash scripts/session-edit-continuity-check.sh exit 0；作为执行阶段的有界整体验收入口，完成浏览器回归与证据核对，不能以单文件通过代替真实 DoD。
 - [ ] 保留轮次完整、被编辑及后续旧分支不复活，新 prompt/assistant 不重复；刷新、切换、隔离重启后相同。
 - [ ] 中间编辑关闭旧 host 后新 host 使用新绑定；首条编辑从空上下文启动；应用 ID 与 lifecycle 稳定；ID/路径/metadata 一致。
 - [ ] 当前真实 Codex transcript fork 前缀与恢复/上下文证据齐全；Claude 对照不过滤正常工具分支、不中断后误删合法续聊。
