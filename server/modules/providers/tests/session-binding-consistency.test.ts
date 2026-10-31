@@ -6,16 +6,14 @@ import test from 'node:test';
 
 import {
   closeConnection,
+  createSessionBindingService,
   getConnection,
   initializeDatabase,
+  sessionBindingService,
   sessionsDb,
 } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { createSessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
-import {
-  createSessionBindingService,
-  sessionBindingService,
-} from '@/modules/providers/services/session-binding.service.js';
 import { createNormalizedMessage } from '@/shared/utils.js';
 import type { FetchHistoryResult } from '@/shared/types.js';
 

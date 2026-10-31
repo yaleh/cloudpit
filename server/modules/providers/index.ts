@@ -20,19 +20,6 @@ export { providerModelsService } from './services/provider-models.service.js';
 // sessionsService: used by the websocket module's chat gateway to resolve an
 // edited message's resume point, which only the providers module can read.
 export { sessionsService } from './services/sessions.service.js';
-// sessionBindingService: the single read/write seam for a session's
-// provider-native binding. Used by the websocket module's chat run registry to
-// record what an ordinary run announced (without letting a late run overwrite
-// an edit's new binding) and by the Codex sessions provider for edit
-// fork/restart, which are the only writes allowed to replace it.
-export {
-  createSessionBindingService,
-  sessionBindingService,
-} from './services/session-binding.service.js';
-export type {
-  SessionBindingService,
-  SessionBindingServiceDeps,
-} from './services/session-binding.service.js';
 // uiLastOpenedSessionService: the browser's last-opened-session pointer. The
 // routes in this module write it; `server/index.ts` binds its reader into the
 // MCP gateway so `ui_last_opened_session` answers from the same one store.

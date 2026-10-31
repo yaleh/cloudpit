@@ -3,9 +3,8 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { sessionBindingService } from '@/modules/providers/services/session-binding.service.js';
 import {
   extractCodexText,
   isVisibleCodexUserMessage,

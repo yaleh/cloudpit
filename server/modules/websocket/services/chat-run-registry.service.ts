@@ -5,16 +5,12 @@ import {
   readSessionRunEventWriterPort,
   sessionRunOutcome,
 } from '@/shared/ports/session-run-events.port.js';
-import { sessionsDb } from '@/modules/database/index.js';
+import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import {
   sessionDigestProducer,
   type SessionTurnEndEvent,
 } from '@/modules/observation/index.js';
-import {
-  listProcessingSessions,
-  readSessionProcessing,
-  sessionBindingService,
-} from '@/modules/providers/index.js';
+import { listProcessingSessions, readSessionProcessing } from '@/modules/providers/index.js';
 import { BOOT_ID } from '@/modules/websocket/services/activity-heartbeat.service.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { broadcastSessionUpserted } from '@/modules/websocket/services/session-upsert-broadcast.service.js';

@@ -1,5 +1,7 @@
-import { sessionsDb } from '@/modules/database/index.js';
-import type { ProviderSessionBindingOutcome } from '@/modules/database/index.js';
+import {
+  providerSessionBindingDb,
+  type ProviderSessionBindingOutcome,
+} from '@/modules/database/repositories/session-binding.db.js';
 
 /**
  * The one place a run's provider-session observation becomes a stored binding.
@@ -16,8 +18,11 @@ import type { ProviderSessionBindingOutcome } from '@/modules/database/index.js'
  *
  * The repository owns both transactions; this service owns the distinction and
  * the rule that a rejected observation is reported rather than silently lost.
- * Consumed by `chat-run-registry.service` (run discovery), the Codex sessions
- * provider (edit rewind/restart), and `scripts/repair-session-binding.mjs`
+ * It lives in the database module (not in `providers/services`) because both of
+ * its consumers — the websocket module's chat run registry and the Codex
+ * sessions provider — already reach the database barrel, while a provider-side
+ * import from `providers/services` would pull `providers/list/codex` into the
+ * providers import cycle AC-394 pins. `scripts/repair-session-binding.mjs`
  * documents the same limited recovery path for an operator.
  */
 export type SessionBindingServiceDeps = {
@@ -110,7 +115,7 @@ export function createSessionBindingService(deps: SessionBindingServiceDeps) {
  */
 export const sessionBindingService = createSessionBindingService({
   confirmRunDiscoveredProviderSession: (input) =>
-    sessionsDb.confirmRunDiscoveredProviderSession(input),
-  replaceProviderSessionBinding: (input) => sessionsDb.replaceProviderSessionBinding(input),
-  detachProviderSessionForEdit: (sessionId) => sessionsDb.detachProviderSessionForEdit(sessionId),
+    providerSessionBindingDb.confirmRunDiscoveredProviderSession(input),
+  replaceProviderSessionBinding: (input) => providerSessionBindingDb.replaceProviderSessionBinding(input),
+  detachProviderSessionForEdit: (sessionId) => providerSessionBindingDb.detachProviderSessionForEdit(sessionId),
 });
