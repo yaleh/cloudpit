@@ -1,7 +1,7 @@
 ---
 id: AC-449
 title: 数据根解析与旧布局迁移：默认仍用 ~/.cloudcli，显式 CLOUDPIT_HOME 才走新根，迁移可重入且不删旧根
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-053
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T06:54:39.600Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
