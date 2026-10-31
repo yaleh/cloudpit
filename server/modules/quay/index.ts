@@ -93,7 +93,6 @@ export {
 export {
   createSessionMentionsService,
   mentionTokens,
-  readMessageText,
 } from './session-mentions.service.js';
 export type {
   SessionMentionGoalReading,
@@ -102,8 +101,8 @@ export type {
   SessionMentionsReading,
   SessionMentionsService,
   SessionMentionsTaskRow,
+  SessionMentionsTranscriptState,
   SessionMentionTaskReading,
-  SessionMessageText,
 } from './session-mentions.service.js';
 export type {
   QuayCommandResult,

@@ -429,6 +429,27 @@ export type UiNavigationRecord = {
 export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode';
 
 /**
+ * The user- or assistant-authored prose one provider transcript row carries.
+ *
+ * This is the provider-neutral contract for "what did this conversation SAY", used by readers
+ * that only need the message text and its instant (the Quay session-mentions reading). It is
+ * deliberately narrower than `NormalizedMessage`: no ids, tool calls, attachments or origin, so a
+ * consumer cannot mistake a rendered transcript row for something the conversation mentioned.
+ * Only the provider that owns a transcript format can produce it — each provider implements
+ * `IProviderSessions.readTranscriptMessage`.
+ *
+ * `text` is the prose of the row after the provider's own visibility rules (internal injections,
+ * tool calls/results, thinking/reasoning, command wrappers and duplicate carriers are already
+ * excluded). `timestamp` is the row's own instant as the transcript printed it, or `null` when
+ * the row carries none.
+ */
+export type ProviderTranscriptMessage = {
+  role: 'user' | 'assistant';
+  text: string;
+  timestamp: string | null;
+};
+
+/**
  * One selectable model row in a provider model catalog.
  */
 export type ProviderModelOption = {

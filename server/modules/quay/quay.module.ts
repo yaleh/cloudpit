@@ -6,6 +6,7 @@ import { readContextEventStatus } from '@/modules/context-events/index.js';
 import { projectsDb, sessionsDb, uiLastOpenedDb } from '@/modules/database/index.js';
 import { parseFrontMatter } from '@/shared/frontmatter.js';
 import { readInitiativeAuditRatio } from '@/shared/ports/initiative-audit-ratio.port.js';
+import { readProviderRegistryPort } from '@/shared/ports/provider-registry.port.js';
 import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
 
 import { createQuayFleetProjectIdResolver } from './quay-fleet-project-id.js';
@@ -425,6 +426,28 @@ async function readTranscriptSize(transcriptPath: string): Promise<number | null
 }
 
 /**
+ * A transcript's size plus its device+inode identity, or `null` when it cannot be stat-ed.
+ *
+ * The mention scan needs the identity in addition to the size: a rollover or a restored
+ * transcript can replace the file with one of the same or greater size, which a size check alone
+ * would read as "nothing new" and keep the old cursor. The identity is the host's own cheap
+ * answer (`dev:ino`); a host that reports no inode yields `null` and the scan falls back to the
+ * size check.
+ */
+async function readTranscriptStat(
+  transcriptPath: string,
+): Promise<{ size: number; identity: string | null } | null> {
+  try {
+    const stats = await fs.promises.stat(transcriptPath);
+    if (!stats.isFile()) return null;
+    const identity = stats.ino > 0 ? `${stats.dev}:${stats.ino}` : null;
+    return { size: stats.size, identity };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Bytes from `start` to EOF decoded as UTF-8, or `null` when the file cannot be read.
  *
  * Shared by both session readers (the write-chain scan and the mention scan): the two read the
@@ -533,8 +556,18 @@ function parseGoalRowsForMentions(stdout: string): SessionMentionsGoalRow[] | nu
 export const sessionMentions = createSessionMentionsService({
   resolveProjectPath: (projectId) => projectsDb.getProjectPathById(projectId),
   resolveTranscriptPath: ({ sessionId }) => sessionsDb.getSessionById(sessionId)?.jsonl_path ?? null,
-  transcriptSize: readTranscriptSize,
+  transcriptStat: readTranscriptStat,
   readTranscriptRange: readTranscriptRangeFrom,
+  // The provider that owns the session's transcript supplies its own row reader; Quay never
+  // inspects a Claude/Codex shape itself. The registry is reached through its shared port (the
+  // providers barrel would close the quay <-> providers cycle this edge deliberately avoids).
+  resolveTranscriptMessageReader: ({ sessionId }) => {
+    const providerId = sessionsDb.getSessionById(sessionId)?.provider;
+    if (providerId === undefined) return null;
+    const sessions = readProviderRegistryPort().resolveProvider(providerId).sessions;
+    const reader = sessions.readTranscriptMessage;
+    return reader === undefined ? null : (row) => reader.call(sessions, row);
+  },
   readTaskRows: async (projectPath) => {
     const result = await quayService.runQuayCommand(projectPath, ['task', 'list', '--json', '--no-body']);
     return result.ok ? parseTaskRowsForMentions(result.stdout) : null;

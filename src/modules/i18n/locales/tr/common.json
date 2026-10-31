@@ -1133,6 +1133,7 @@
     "empty": "Bu oturumda henüz hiçbir quay görevi anılmadı.",
     "loading": "Anılan görevler yükleniyor…",
     "listError": "Bu oturumda anılan görevler okunamadı.",
+    "transcriptError": "Bu oturumun dökümü okunamadı.",
     "lanesNote": "Şerit okuması kullanılamıyor — görevler kayıtlı durumlarını aşama olmadan gösterir.",
     "viaTasks_one": "{{count}} görev aracılığıyla",
     "viaTasks_other": "{{count}} görev aracılığıyla",

@@ -1133,6 +1133,7 @@
     "empty": "本会话尚未提及任何 quay 任务。",
     "loading": "正在加载提及的任务…",
     "listError": "无法读取本会话提及的任务。",
+    "transcriptError": "无法读取本会话的对话记录。",
     "lanesNote": "泳道读数不可用——任务仅显示存储状态，不显示阶段。",
     "viaTasks_other": "经由 {{count}} 个任务",
     "mentionedInMessage": "在消息中提及",

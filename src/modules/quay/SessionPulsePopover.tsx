@@ -495,6 +495,16 @@ export default function SessionPulsePopover({
       );
     }
 
+    if (mentions.status === 'unreadable') {
+      // The request succeeded, but the conversation itself could not be read. Saying "no tasks
+      // were mentioned" here would report a failed read as a successful empty result.
+      return (
+        <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-300" data-testid="quay-pulse-transcript-error">
+          {t('quayPulse.transcriptError')}
+        </p>
+      );
+    }
+
     if (tasks.length === 0 && goals.length === 0) {
       return (
         <p className="px-3 py-2 text-xs text-muted-foreground" data-testid="quay-pulse-empty">

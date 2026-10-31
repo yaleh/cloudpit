@@ -1133,6 +1133,7 @@
     "empty": "Aún no se ha mencionado ninguna tarea de quay en esta sesión.",
     "loading": "Cargando las tareas mencionadas…",
     "listError": "No se pudieron leer las tareas mencionadas en esta sesión.",
+    "transcriptError": "No se pudo leer la transcripción de esta sesión.",
     "lanesNote": "Lectura de carriles no disponible: las tareas muestran su estado guardado sin fase.",
     "viaTasks_one": "vía {{count}} tarea",
     "viaTasks_many": "vía {{count}} tareas",

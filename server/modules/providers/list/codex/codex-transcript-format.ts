@@ -15,9 +15,12 @@
  * - `codex-sessions.provider.ts` — projects transcript rows into chat messages.
  * - `session-conversations-search.service.ts` — extracts searchable text from
  *   the same rows.
+ * - `codex-sessions.provider.ts`'s `readTranscriptMessage` — the narrow prose
+ *   reader Quay's session-mentions scan consumes.
  */
 
-import type { AnyRecord } from '@/shared/types.js';
+import { isRecord } from '@/shared/utils.js';
+import type { AnyRecord, ProviderTranscriptMessage } from '@/shared/types.js';
 
 /**
  * Whether a Codex `event_msg` / `user_message` payload is a prompt the user
@@ -97,3 +100,68 @@ export function isInternalCodexContent(content: string): boolean {
   const normalized = content.trimStart();
   return CODEX_INTERNAL_CONTENT_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
+
+// --------------------------- PROSE READER ------------
+
+/**
+ * The prose one Codex rollout row carries, or `null` when it carries none.
+ *
+ * Consumed by `CodexSessionsProvider.readTranscriptMessage`, which is the
+ * capability Quay's session-mentions scan reaches through the provider
+ * registry. It answers the same question the history projection does — "is this
+ * row a prompt/answer the conversation authored?" — by reusing
+ * {@link isVisibleCodexUserMessage} and {@link extractCodexText}, but WITHOUT
+ * projecting a whole transcript.
+ *
+ * CARRIER SELECTION, NOT TEXT DEDUPE. A modern rollout records the same user
+ * prompt twice and the same assistant answer twice:
+ *   - a user prompt is a `response_item`/`message`/`role=user` row (the wire
+ *     form, which also carries the AGENTS.md/environment injection) AND an
+ *     `event_msg` (`item_completed`/`UserMessage`, or the older
+ *     `user_message`) row;
+ *   - an assistant answer is a `response_item`/`message`/`role=assistant` row
+ *     AND an `event_msg` `item_completed`/`AgentMessage` row.
+ * The history projection reads exactly one carrier per role, so this reader
+ * does too: user prose from `event_msg` only, assistant prose from
+ * `response_item` only. That is what makes a duplicated prompt count ONCE
+ * without the reader comparing text — two genuinely separate messages with
+ * identical text are still two rows of the chosen carrier and count twice.
+ * Removing the selection (accepting the wire `response_item` user row or the
+ * `AgentMessage` item) would double every prompt/answer in a real rollout.
+ *
+ * Everything else — reasonings, tool calls and outputs, lifecycle events,
+ * token counts — is a different `payload.type` and answers `null`.
+ */
+export function readCodexTranscriptMessage(row: unknown): ProviderTranscriptMessage | null {
+  if (!isRecord(row)) return null;
+  const payload = row.payload;
+  if (!isRecord(payload)) return null;
+
+  const timestamp = typeof row.timestamp === 'string' ? row.timestamp : null;
+  const prose = (role: ProviderTranscriptMessage['role'], text: string): ProviderTranscriptMessage | null => {
+    const trimmed = text.trim();
+    if (trimmed === '' || isInternalCodexContent(trimmed)) return null;
+    return { role, text: trimmed, timestamp };
+  };
+
+  if (row.type === 'event_msg') {
+    // Modern paginated rollouts carry the prompt as an item_completed item.
+    if (payload.type === 'item_completed') {
+      const item = payload.item;
+      if (!isRecord(item) || item.type !== 'UserMessage') return null;
+      return prose('user', extractCodexText(item.content, '\n'));
+    }
+    // Older rollouts carry it as a plain user_message payload.
+    if (isVisibleCodexUserMessage(payload)) {
+      return prose('user', String(payload.message));
+    }
+    return null;
+  }
+
+  if (row.type === 'response_item' && payload.type === 'message' && payload.role === 'assistant') {
+    return prose('assistant', extractCodexText(payload.content, '\n'));
+  }
+
+  return null;
+}
+

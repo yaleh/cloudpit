@@ -576,6 +576,12 @@ export type QuaySessionMentionsReading = {
   projectId: string;
   tasks: QuaySessionMentionTask[];
   goals: QuaySessionMentionGoal[];
+  /**
+   * Whether the session's transcript could be read. `unreadable` is reported alongside empty
+   * `tasks`/`goals`, so the popover can say "could not read the conversation" instead of
+   * "the conversation mentioned nothing".
+   */
+  transcript: 'ok' | 'unreadable';
   /** When this reading was assembled, ISO-8601. */
   generatedAt: string;
 };

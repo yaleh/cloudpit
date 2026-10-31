@@ -63,6 +63,7 @@ const MENTIONS: QuaySessionMentionsReading = {
     { goalId: 'GOAL-1', title: 'A mentioned goal', status: 'active', viaTaskCount: 1, mentionedDirectly: true },
   ],
   generatedAt: '2026-10-20T12:00:00.000Z',
+  transcript: 'ok',
 };
 
 const CHAIN: SessionTaskChainReading = {

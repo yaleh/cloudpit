@@ -315,6 +315,12 @@ export type SessionMentionsState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
+  /**
+   * The read succeeded but the transcript itself could not be read (missing, unreadable, or a
+   * provider without a transcript reader). Kept apart from both `loaded` with an empty list and
+   * a transport `error`, so the popover can say which of the three happened.
+   */
+  | { status: 'unreadable' }
   | { status: 'loaded'; reading: QuaySessionMentionsReading };
 
 /**
@@ -352,6 +358,13 @@ export function useSessionMentions(
         }
         const reading = (await response.json()) as QuaySessionMentionsReading;
         if (disposed) {
+          return;
+        }
+        // A successful HTTP read whose transcript could not be read is its own state: the list
+        // is not empty because the session said nothing, and it is not a request failure either.
+        // Reopening the popover mounts this hook again and retries the read.
+        if (reading.transcript === 'unreadable') {
+          setState({ status: 'unreadable' });
           return;
         }
         setState({ status: 'loaded', reading });

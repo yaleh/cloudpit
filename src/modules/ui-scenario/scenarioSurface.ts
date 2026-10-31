@@ -169,10 +169,36 @@ export type ScenarioCockpitReading = {
   cards: ScenarioCockpitCardsReading | null;
 };
 
+/**
+ * The title-bar Loop pulse popover's session-mention reading.
+ *
+ * The popover does not import this dev-only module (a production bundle must not carry it), so the
+ * reading is the DOM it already draws: every task row carries `data-task-id`, every goal row
+ * `data-goal-id`, and the three failure states are their own test ids. Reading those three facts
+ * lets a scenario assert WHICH mentions reached the popover without depending on the page's
+ * language or on row order derived from translated text.
+ */
+export type ScenarioQuayPulseReading = {
+  /** Whether the popover is mounted right now. */
+  open: boolean;
+  /**
+   * The mention list's settled condition: `ok` (loaded or legitimately empty), `unreadable`
+   * (the explicit "could not read the transcript" line), `error` (the request failed) or
+   * `loading` while a read is in flight. `null` when the popover is closed.
+   */
+  transcript: 'ok' | 'unreadable' | 'error' | 'loading' | null;
+  /** Task ids the popover lists, in the order it draws them. */
+  taskIds: string[];
+  /** Goal ids the popover lists, in the order it draws them. */
+  goalIds: string[];
+};
+
 /** The structured state a scenario reads. Everything here is a READING, never a screenshot. */
 export type ScenarioReading = {
   /** `location.pathname` + `location.search` at read time. */
   route: string;
+  /** The title-bar Loop pulse popover's mention reading, or an absent reading when it is closed. */
+  quayPulse: ScenarioQuayPulseReading;
   /** What the cockpit page is showing, or an all-null reading when it is not mounted. */
   cockpit: ScenarioCockpitReading;
   /**
@@ -472,6 +498,49 @@ function readCockpitReading(): ScenarioCockpitReading {
   };
 }
 
+/** The reading returned when the pulse popover is closed: every field is honestly absent. */
+const EMPTY_QUAY_PULSE_READING: ScenarioQuayPulseReading = {
+  open: false,
+  transcript: null,
+  taskIds: [],
+  goalIds: [],
+};
+
+/**
+ * Reads the title-bar Loop pulse popover's mention list from the DOM it draws.
+ *
+ * A closed popover answers the empty reading rather than throwing — that is what lets one
+ * scenario step assert it closed after a session switch, the same way the cockpit reading does.
+ */
+function readQuayPulseReading(): ScenarioQuayPulseReading {
+  if (typeof document === 'undefined') {
+    return { ...EMPTY_QUAY_PULSE_READING, taskIds: [], goalIds: [] };
+  }
+  const popover = document.querySelector('[data-testid="quay-pulse-popover"]');
+  if (!(popover instanceof HTMLElement)) {
+    return { ...EMPTY_QUAY_PULSE_READING, taskIds: [], goalIds: [] };
+  }
+  const has = (testId: string): boolean =>
+    popover.querySelector(`[data-testid="${testId}"]`) !== null;
+  const transcript = has('quay-pulse-transcript-error')
+    ? 'unreadable'
+    : has('quay-pulse-list-error')
+      ? 'error'
+      : has('quay-pulse-loading')
+        ? 'loading'
+        : 'ok';
+  const ids = (attribute: string, testId: string): string[] =>
+    [...popover.querySelectorAll(`[data-testid="${testId}"]`)]
+      .map((node) => node.getAttribute(attribute))
+      .filter((value): value is string => typeof value === 'string' && value !== '');
+  return {
+    open: true,
+    transcript,
+    taskIds: ids('data-task-id', 'quay-pulse-task-row'),
+    goalIds: ids('data-goal-id', 'quay-pulse-goal-row'),
+  };
+}
+
 /** Builds one page-bound surface with its own focus/tray/zoom state. */
 function createScenarioSurface(): ScenarioSurface {
   let focus: QuayObjectUri | null = null;
@@ -497,6 +566,7 @@ function createScenarioSurface(): ScenarioSurface {
     const focused = focus === null ? null : focusables.find((object) => object.uri === focus) ?? null;
     return {
       route: `${window.location.pathname}${window.location.search}`,
+      quayPulse: readQuayPulseReading(),
       cockpit: readCockpitReading(),
       settings: readSettingsReading(),
       chat: readChatReading(),

@@ -1133,6 +1133,7 @@
     "empty": "Nessuna attività quay è ancora stata menzionata in questa sessione.",
     "loading": "Caricamento delle attività menzionate…",
     "listError": "Impossibile leggere le attività menzionate in questa sessione.",
+    "transcriptError": "Impossibile leggere la trascrizione di questa sessione.",
     "lanesNote": "Lettura delle corsie non disponibile — le attività mostrano lo stato salvato senza fase.",
     "viaTasks_one": "tramite {{count}} attività",
     "viaTasks_many": "tramite {{count}} attività",

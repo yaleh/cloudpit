@@ -23,6 +23,9 @@
  *       `settings`   — the Settings dialog's Cockpit tab, opened from the sidebar's Settings
  *                      button; the opener waits until the form's own reading is `ready`/`failed`,
  *                      so the first step never catches it mid-load.
+ *       `quay-pulse` — the title-bar Loop pulse popover of the session the page is already on;
+ *                      the opener presses the trigger and waits for the mention list to settle,
+ *                      because that list arrives over the network after the popover mounts.
  *     An unknown opener fails its step rather than being ignored.
  *   · `reload`: reload the current page and wait for the surface again. The refresh leg of a
  *     continuity scenario is a real browser reload, not a re-navigation through the sidebar.
@@ -358,6 +361,28 @@ function expectationFailures(expect, reading) {
           ...(compareLabel ? { label: expected.label ?? null } : {}),
         };
         if (!sameJson(actual, wanted)) fail(key, wanted, actual);
+        break;
+      }
+      case 'quayPulseOpen': {
+        const actual = reading.quayPulse?.open ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'quayPulseTranscriptState': {
+        const actual = reading.quayPulse?.transcript ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'quayPulseTaskIds': {
+        // The ids IN ORDER: a reading that loses one session's mentions or gains another's
+        // must be observable, not merely present.
+        const actual = Array.isArray(reading.quayPulse?.taskIds) ? reading.quayPulse.taskIds : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'quayPulseGoalIds': {
+        const actual = Array.isArray(reading.quayPulse?.goalIds) ? reading.quayPulse.goalIds : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
         break;
       }
       case 'settingsOpen': {
@@ -816,6 +841,50 @@ async function openSettingsCockpit(page) {
 }
 
 /**
+ * Opens the title-bar Loop pulse popover for the session already on screen.
+ *
+ * The popover is the product's own dashboard entry (the header trigger), and its mention list is
+ * a separate, slower read than the session workspace: this opener waits until that list has
+ * settled into one of its own states, so a scenario's first `expect` reads mentions rather than a
+ * spinner. The tasks fold their done rows by default, so the opener expands that group — a
+ * scenario about WHICH tasks were mentioned has to read the whole list, not the open half. A
+ * popover that is already open is left alone; the trigger would toggle it closed.
+ *
+ * @param {import('playwright').Page} page
+ */
+async function openQuayPulse(page) {
+  const trigger = page.locator('[data-testid="quay-pulse-trigger"]:visible').first();
+  await trigger.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  const popover = page.locator('[data-testid="quay-pulse-popover"]');
+  const alreadyOpen = await popover.isVisible().catch(() => false);
+  if (!alreadyOpen) {
+    await trigger.click();
+  }
+  await popover.waitFor({ state: 'visible', timeout: PANEL_TIMEOUT_MS });
+  await page.waitForFunction(
+    () => {
+      const dialog = /** @type {any} */ (globalThis).document.querySelector(
+        '[data-testid="quay-pulse-popover"]',
+      );
+      if (dialog === null) return false;
+      return dialog.querySelector('[data-testid="quay-pulse-tasks"]') !== null
+        || dialog.querySelector('[data-testid="quay-pulse-goals"]') !== null
+        || dialog.querySelector('[data-testid="quay-pulse-empty"]') !== null
+        || dialog.querySelector('[data-testid="quay-pulse-list-error"]') !== null
+        || dialog.querySelector('[data-testid="quay-pulse-transcript-error"]') !== null;
+    },
+    undefined,
+    { timeout: PANEL_TIMEOUT_MS },
+  );
+  const doneToggle = popover.locator('[data-testid="quay-pulse-done-toggle"]').first();
+  if ((await doneToggle.count()) > 0 && (await doneToggle.isVisible().catch(() => false))) {
+    await doneToggle.click();
+    // The fold is a React state update; let its commit land before the caller's reading.
+    await page.waitForTimeout(100);
+  }
+}
+
+/**
  * Runs one scenario file and returns its report.
  *
  * @param {import('playwright').Browser} browser
@@ -953,6 +1022,7 @@ async function runScenario(browser, scenario, options) {
             cockpit: () => openCockpit(page),
             'cockpit-cards': () => openCockpitCards(page),
             settings: () => openSettingsCockpit(page),
+            'quay-pulse': () => openQuayPulse(page),
           };
           const execute = step.open === undefined ? undefined : openers[step.open];
           if (execute === undefined) {

@@ -210,6 +210,14 @@ export { createProviderTokenUsageService, summarizeClaudeTokenUsage } from './se
 // normalizer's own class to prove a partial SDK frame reaches the wire as a
 // `stream_delta` without a live CLI in the loop.
 export { ClaudeSessionsProvider } from './list/claude/claude-sessions.provider.js';
+// The provider-owned transcript prose readers. The Quay session-mentions criterion lives in
+// the quay module and must prove the REAL Claude and Codex row formats reach the mention join,
+// so these are exported here rather than reached through each provider's internal path — the
+// module boundary lint (and the backend module standards) require cross-module access to go
+// through this barrel. Production never reads them from here: quay resolves the reader through
+// the provider's `sessions.readTranscriptMessage` capability.
+export { readClaudeTranscriptMessage } from './list/claude/claude-transcript-format.js';
+export { readCodexTranscriptMessage } from './list/codex/codex-transcript-format.js';
 // ClaudeSessionSynchronizer: driven by the websocket module's session-upsert
 // broadcast test, which needs the real indexer to put an ai-title on a row
 // before asserting the delta that carries it.

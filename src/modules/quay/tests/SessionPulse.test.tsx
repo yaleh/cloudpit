@@ -15,6 +15,7 @@ import type {
   QuayInFlightTask,
   QuaySessionMentionGoal,
   QuaySessionMentionTask,
+  QuaySessionMentionsReading,
   QuaySnapshot,
 } from '@/shared/types';
 import { cn, formatRelativeTime } from '@/shared/utils';
@@ -196,12 +197,14 @@ const MENTION_GOALS: QuaySessionMentionGoal[] = [
 const mentionsReading = (
   tasks: QuaySessionMentionTask[] = MENTION_TASKS,
   goals: QuaySessionMentionGoal[] = MENTION_GOALS,
+  transcript: QuaySessionMentionsReading['transcript'] = 'ok',
 ) => ({
   ok: true,
   sessionId: 's1',
   projectId: 'proj-a',
   tasks,
   goals,
+  transcript,
   generatedAt: new Date(NOW).toISOString(),
 });
 
@@ -822,7 +825,7 @@ test('when lanes are unreadable the list still renders, without phase badges, ab
 
 /* ── 四种状态 ─────────────────────────────────────────────────────────── */
 
-test('the mention list has distinct loading, empty and error states, none of which drops the gantt', async () => {
+test('the mention list has distinct loading, empty, unreadable and error states, none of which drops the gantt', async () => {
   // Loading: the read never settles for this arm.
   apiMock.quaySessionMentions.mockImplementationOnce(() => new Promise<Response>(() => {}));
   const loadingView = render(<PulseHarness />);
@@ -839,6 +842,26 @@ test('the mention list has distinct loading, empty and error states, none of whi
   assert.ok(document.querySelector('[data-testid="quay-pulse-empty"]'), 'the empty state');
   assert.ok(document.querySelector('[data-testid="quay-gantt"]'), 'the gantt survives an empty list');
   emptyView.unmount();
+
+  // Transcript unreadable: the request succeeded, but the conversation itself could not be read.
+  // This must NOT render as the empty state — that would report a failed read as "mentioned
+  // nothing".
+  apiMock.quaySessionMentions.mockResolvedValue(
+    jsonResponse(mentionsReading([], [], 'unreadable')),
+  );
+  const unreadableView = render(<PulseHarness />);
+  await flush();
+  await openPopover();
+  assert.ok(
+    document.querySelector('[data-testid="quay-pulse-transcript-error"]'),
+    'the transcript error state',
+  );
+  assert.ok(
+    !document.querySelector('[data-testid="quay-pulse-empty"]'),
+    'an unreadable transcript is not the empty state',
+  );
+  assert.ok(document.querySelector('[data-testid="quay-gantt"]'), 'the gantt survives an unreadable transcript');
+  unreadableView.unmount();
 
   // List read failure: the lanes reading is unaffected.
   apiMock.quaySessionMentions.mockResolvedValue(jsonResponse({ ok: false, reason: 'boom' }, false, 500));

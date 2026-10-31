@@ -14,7 +14,12 @@
  * - `claude-sessions.provider.ts` — projects transcript rows into chat messages.
  * - `session-conversations-search.service.ts` — extracts searchable text from
  *   the same rows.
+ * - `claude-sessions.provider.ts`'s `readTranscriptMessage` — the narrow prose
+ *   reader Quay's session-mentions scan consumes.
  */
+
+import { isRecord } from '@/shared/utils.js';
+import type { ProviderTranscriptMessage } from '@/shared/types.js';
 
 /**
  * Prefixes that mark a Claude transcript row as internal machinery rather than
@@ -132,3 +137,96 @@ export function buildLocalCommandDisplayText(payload: ClaudeLocalCommandPayload)
 
   return commandArgs ? `${baseCommand} ${commandArgs}` : baseCommand;
 }
+
+// --------------------------- PROSE READER ------------
+
+/**
+ * Prefixes that mark a persisted row as an event this app DELIVERS but the
+ * conversation never authored.
+ *
+ * These are deliberately NOT added to {@link INTERNAL_CONTENT_PREFIXES}: the
+ * history projection renders a `<task-notification>` as a real notification
+ * line, so hiding it there would change what a person sees. The prose reader
+ * answers a different question — "did the conversation SAY this?" — and a
+ * notification body the harness wrote is not something the user or the model
+ * said, so it contributes no mention. `isMeta` rows (skill bodies, caveats,
+ * cross-session transport envelopes) are rejected whole by the caller for the
+ * same reason.
+ */
+const NON_PROSE_ROW_PREFIXES = ['<task-notification>'] as const;
+
+/**
+ * The conversation-bearing text blocks of one Claude `content` value.
+ *
+ * A plain string is one block (the older user-message shape). An array keeps
+ * ONLY blocks whose own `type` is `text`: `tool_use`, `tool_result`, `thinking`
+ * and image blocks are different types in the same array, and a hit inside one
+ * of them is not something the conversation said.
+ */
+function proseBlocks(content: unknown): string[] {
+  if (typeof content === 'string') {
+    return [content];
+  }
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  const texts: string[] = [];
+  for (const block of content) {
+    if (!isRecord(block)) continue;
+    if (block.type !== 'text') continue;
+    if (typeof block.text === 'string') texts.push(block.text);
+  }
+  return texts;
+}
+
+/**
+ * Whether one text block is internal machinery rather than authored prose.
+ *
+ * Covers the shared internal prefixes (system reminders, caveats, skill bodies,
+ * interruption banners, auth diagnostics), the delivered-not-authored
+ * notification rows above, and Claude's local slash-command surface: the
+ * command wrapper is metadata and `<local-command-stdout>` is the command's
+ * output, so neither is a message the conversation wrote.
+ */
+function isNonProseBlock(text: string): boolean {
+  if (isInternalContent(text)) return true;
+  if (NON_PROSE_ROW_PREFIXES.some((prefix) => text.trimStart().startsWith(prefix))) return true;
+  if (parseLocalCommandPayload(text) !== null) return true;
+  if (extractTaggedContent(text, 'local-command-stdout') !== null) return true;
+  return false;
+}
+
+/**
+ * The prose one Claude transcript row carries, or `null` when it carries none.
+ *
+ * Consumed by `ClaudeSessionsProvider.readTranscriptMessage`, which is the
+ * capability Quay's session-mentions scan reaches through the provider
+ * registry. The gate mirrors the history projection's own visible-row rule:
+ * only `user`/`assistant` rows, never `isMeta` (synthetic skill bodies,
+ * transport envelopes) or a compaction summary, and only `text` content blocks.
+ * The remaining internal/command rules live in {@link isNonProseBlock}.
+ *
+ * This is a rules-level reader, not a history projection: it deliberately does
+ * not remap a slash command to its display text, because "the person ran
+ * /model" is a command event, not a sentence that mentions a task.
+ */
+export function readClaudeTranscriptMessage(row: unknown): ProviderTranscriptMessage | null {
+  if (!isRecord(row)) return null;
+  if (row.type !== 'user' && row.type !== 'assistant') return null;
+  if (row.isMeta === true || row.isCompactSummary === true) return null;
+
+  // The message envelope is `row.message` in persisted rows; the flat shape
+  // accepts `content` on the row itself for callers that already unwrapped it.
+  const message = isRecord(row.message) ? row.message : row;
+  const texts = proseBlocks(message.content).filter((text) => !isNonProseBlock(text));
+  const text = texts.join('\n').trim();
+  if (text === '') return null;
+
+  return {
+    role: row.type,
+    text,
+    timestamp: typeof row.timestamp === 'string' ? row.timestamp : null,
+  };
+}
+
