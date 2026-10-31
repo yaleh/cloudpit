@@ -1,11 +1,18 @@
 ---
 id: GOAL-053
 title: Cloudpit 兼容暗管道：旧品牌下先行落地读取、迁移与夹具，默认行为不变
-status: draft
+status: active
 kind: goal
 origin: docs/proposals/cloudpit-rename-SPEC.md（2026-10-31）；人 yale 2026-10-31
   裁定采用 GOAL-053 普通 + GOAL-054 branch-mode 的混合推进：暗管道落 develop，身份翻转放短命 goal
   分支，外部发布留人工窗口。
+activatedAt: 2026-10-31T06:05:17.469Z
+statusLog:
+  - at: 2026-10-31T06:05:17.470Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
 branch: false
 ---
 ## 目标
