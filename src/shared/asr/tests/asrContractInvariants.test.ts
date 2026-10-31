@@ -53,12 +53,12 @@ import {
   tokenInvariantViolations,
 } from '@shared/asr/asrInvariants';
 import {
+  base64Encode,
   parseTranscriptionResponse,
   type TranscriptionEnvelope,
 } from '@shared/asr/transcriptionWire';
 import {
   STYLE_TRANSFORMATIONS,
-  base64Encode,
   baseMimeType,
   buildInlineRequestBody,
   capabilities,

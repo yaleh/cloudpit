@@ -23,13 +23,13 @@
  * signal) arrives through `AsrInvocation`.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   classifyUpstreamFailure,
   declaredAcceptsMime,
   honoredHints,
   type AsrAdapter,
   type AsrCapabilities,
-  type AsrHints,
   type AsrInvocation,
   type AsrRequest,
   type AsrResult,
@@ -93,27 +93,7 @@ export const capabilities: AsrCapabilities = {
   locality: 'remote',
 };
 
-// ── the hints ────────────────────────────────────────────────────────────────────────────────
-
-/**
- * The budget subject: the caller-controlled bytes the request carries — the audio, plus every hint
- * the declaration acknowledges, measured as the bytes the wire would carry them as.
- *
- * `Blob.size` is the byte length of a string part, which is why the hints are measured by encoding
- * them the way the wire would rather than by counting characters: a Chinese context is three bytes
- * per character, and a guard that counted characters would pass a request the service rejects.
- *
- * What this deliberately does not model is the constant transport envelope — the multipart
- * boundaries, the field names, the model — for the reason the second adapter's equivalent gives:
- * it is fixed per call and carries no caller-controlled bytes.
- */
-export function measureRequestBytes(request: AsrRequest, honored: AsrHints): number {
-  let bytes = request.audio.bytes.length;
-  if (honored.prompt !== undefined) bytes += new Blob([honored.prompt]).size;
-  if (honored.language !== undefined) bytes += new Blob([honored.language]).size;
-  if (honored.context !== undefined) bytes += new Blob([honored.context]).size;
-  return bytes;
-}
+// ── the audio part ──────────────────────────────────────────────────────────────────────────
 
 /**
  * The audio as the `File` part the multipart body carries.
