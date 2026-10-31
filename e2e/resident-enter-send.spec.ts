@@ -395,27 +395,38 @@ const openComposer = async (page: Page) => {
 const residentToggle = (page: Page) => page.getByRole('switch', { name: enChat.resident.toggle });
 
 /**
- * Opens a new-session composer and, when asked, flips the resident switch on.
+ * Opens a new-session composer with the resident switch in the requested position.
  *
  * The two legs differ only in this prefix, so it lives in one place: the switch OFF is the positive
  * control's state, the switch ON is the one whose Enter send must land resident. The switch lives on
  * the new-session empty state's model card (the composer no longer draws one), and `openComposer`
- * lands on that screen, so the page-wide locator finds it there. Nothing is ticked afterwards — the
- * switch position is the whole of the intent, so there is no separate tick to set.
+ * lands on that screen, so the page-wide locator finds it there. It arrives in the provider's declared
+ * default (resident for Claude), so the OFF arm presses it and the ON arm normally presses nothing;
+ * the position is read rather than assumed, and a press is made only when the page is not already
+ * there. Nothing is ticked afterwards — the switch position is the whole of the intent.
  */
 const openResidentComposer = async (page: Page, { switchOn }: { switchOn: boolean }) => {
   await page.goto('/');
   await openComposer(page);
-
-  if (!switchOn) return;
 
   const toggle = residentToggle(page);
   await expect(
     toggle,
     `${RESIDENT_PROVIDER} lists resident in its capability matrix, so the new-session screen must offer the switch`,
   ).toBeVisible({ timeout: 15_000 });
-  await toggle.click();
-  await expect(page.locator(NOTICE), 'opening the switch must disclose the mode in place').toBeVisible();
+
+  const wanted = switchOn ? 'true' : 'false';
+  if ((await toggle.getAttribute('aria-checked')) !== wanted) {
+    await toggle.click();
+  }
+  await expect(
+    toggle,
+    `the switch must read ${wanted} before the send this leg is about`,
+  ).toHaveAttribute('aria-checked', wanted);
+
+  if (switchOn) {
+    await expect(page.locator(NOTICE), 'the resident mode must be disclosed in place').toBeVisible();
+  }
 };
 
 test.describe.configure({ mode: 'serial' });
@@ -477,7 +488,8 @@ test('AC-180 (a): Enter with the resident switch on allocates a resident session
 test('AC-180 (b) control: Enter with the resident switch off still sends, and lands per-run', async ({ page, request }) => {
   await setSelectedProvider(request, RESIDENT_PROVIDER);
   await restoreSession(page, RESIDENT_PROVIDER);
-  // No switch interaction at all: this is the shape every non-resident send has always had.
+  // The switch arrives on under Claude's declared default; this leg presses it off, which is the one
+  // user action the per-run control is about.
   await openResidentComposer(page, { switchOn: false });
 
   const textarea = composer(page);

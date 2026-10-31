@@ -38,9 +38,9 @@ import {
   useProcessingSessions,
   useSessionProtectionActions,
 } from '@/shared/context/SessionProtectionContext';
-import { useResidentProviders } from '@/shared/hooks/useProviderCapabilities';
+import { useProviderLifecycleDefaults } from '@/shared/hooks/useProviderCapabilities';
+import { useNewSessionLifecycle } from '@/modules/chat/hooks/useNewSessionLifecycle';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
-import { readSelectedProvider } from '@/shared/selectedProvider';
 import {
   consumePendingLocateRequest,
   subscribeToLocateRequests,
@@ -218,6 +218,23 @@ function ChatInterface({
     selectedSession,
     selectedProject,
   });
+
+  /*
+   * The next-new-session lifecycle choice.
+   *
+   * The capability matrix is the only source of a provider's default; until it
+   * arrives the switch is hidden (`canToggle` is false). The controller owns the
+   * one-selectable override and spends it after a successful creation, so the
+   * switch's position and the created row's mode cannot disagree.
+   */
+  const providerLifecycleDefaults = useProviderLifecycleDefaults();
+  const {
+    mode: newSessionLifecycleMode,
+    canToggle: canToggleNewSessionLifecycle,
+    toggle: toggleNewSessionLifecycle,
+    spend: spendNewSessionLifecycle,
+    lifecycleModeForCreate,
+  } = useNewSessionLifecycle(provider, providerLifecycleDefaults[provider] ?? null);
 
   const {
     chatMessages,
@@ -410,19 +427,6 @@ function ChatInterface({
   }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
 
   /*
-   * The resident switch, held here because its one home — the new-session empty state's model card —
-   * is rendered below this component through `ChatMessagesPane`, while the send that has to act on it
-   * lives in `useChatComposerState`. Lifting the value to the one ancestor both surfaces share keeps a
-   * single intent: the empty state flips it, and the send path reads it to write the new session's
-   * lifecycle mode.
-   *
-   * It is the intent of the *next brand-new session only*. Declared before the composer hook so the
-   * send path can take it as an argument, and cleared by that path once a new session has been made
-   * resident — a send into an existing session never consults it, so a stale position cannot silently
-   * convert a session the user only navigated to.
-   */
-  const [residentEnabled, setResidentEnabled] = useState(false);
-  /**
    * Live Voice and the ordinary text composer are mutually exclusive inputs
    * (GOAL-033 / AC-316) sharing this one pane's session/transcript. Defaults
    * to `'text'` so no session is surprised into an open microphone by
@@ -460,20 +464,6 @@ function ChatInterface({
    */
   const [voiceEntryNotice, setVoiceEntryNotice] = useState<string | null>(null);
 
-  /**
-   * Spends the resident intent — declared here, above the callbacks that read it
-   * (`enterVoiceMode` below and the composer hook further down), because a
-   * `useCallback` dependency array is evaluated on the render that reaches it,
-   * and a `const` referenced before its own declaration would be in its TDZ.
-   */
-  const clearResidentIntent = useCallback(() => {
-    setResidentEnabled(false);
-  }, []);
-  /** Flips the switch. The position is the whole of the intent — there is no acknowledgement to record or withdraw. */
-  const toggleResident = useCallback(() => {
-    setResidentEnabled((enabled) => !enabled);
-  }, []);
-
   // A brand-new conversation (New Session, no row allocated yet) has no id to
   // bind a voice connection to. The server keys `session_send` on the id, so
   // the entry allocates one FIRST — through the same session gateway the
@@ -507,6 +497,12 @@ function ChatInterface({
       if (!selectedProject) {
         throw new Error('no project open to allocate a session for');
       }
+      // The switch's position for THIS allocation. Absent means "follow the
+      // provider default", which the server resolves as it mints the row; an
+      // explicit value is the person's one-session override. Either way the mode
+      // is stored before this call returns, so the voice turn that follows
+      // cannot start under a mode the page is not showing.
+      const lifecycleMode = lifecycleModeForCreate();
       const created = await createChatSession({
         provider,
         projectPath: selectedProject.fullPath || selectedProject.path || '',
@@ -520,40 +516,17 @@ function ChatInterface({
         model: currentProviderModel,
         effort: currentProviderEffort,
         permissionMode,
+        ...(lifecycleMode === undefined ? {} : { lifecycleMode }),
       });
       handleSessionEstablished(created.sessionId, {
         provider,
         project: selectedProject,
         summary: created.sessionName || undefined,
       });
-      // The resident switch on the empty state is this intent's only home, and
-      // the composer's first send is its other consumer — the two must read it
-      // the same way, in the same order. The session row exists now and the mode
-      // is written before the first turn: the server refuses a mode change while
-      // a host is mid-turn, and the voice connection this entry is about to open
-      // is exactly such a turn, so the write has to complete first. Mirrors
-      // `useChatComposerState`'s new-session branch.
-      if (residentEnabled) {
-        try {
-          await api.providers.setSessionLifecycleMode(provider, created.sessionId, 'resident');
-        } catch (error) {
-          console.error('Resident mode request failed:', error);
-          // Visible, not silent: the switch was drawn "on", so a session that
-          // came out per-run has to say why. The transcript is on screen in
-          // voice mode (the entry's own notice is not rendered there), so the
-          // error rides there — the same channel the composer path uses.
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          addMessage({
-            type: 'error',
-            content: `Failed to keep this session running: ${message}`,
-            timestamp: new Date(),
-          });
-        }
-        // The intent has been spent on the session it was set for. Clearing it
-        // here is what keeps the next New Session's empty state from drawing a
-        // stale "on" — the same reason the composer path clears it.
-        clearResidentIntent();
-      }
+      // The override was spent on the session it was set for. Clearing it here
+      // is what makes the NEXT new session draw the provider default again — a
+      // manually switched-off session does not stick.
+      spendNewSessionLifecycle();
       setVoiceModeSession(created.sessionId);
     } catch (error) {
       // The tap ended without voice mode ever starting, so nothing will adopt the microphone
@@ -577,8 +550,10 @@ function ChatInterface({
     provider,
     handleSessionEstablished,
     t,
-    residentEnabled,
-    clearResidentIntent,
+    // Both are stable controller commands; the mode is read at call time, so a
+    // stale render cannot allocate with the switch position of a moment ago.
+    lifecycleModeForCreate,
+    spendNewSessionLifecycle,
     addMessage,
     // The three selections the allocation states; a callback that read them from a
     // stale render would mint the row with the model the page showed a moment ago.
@@ -814,12 +789,13 @@ function ChatInterface({
     // row those events update — one object per held command, not two halves
     // that a refresh could separate.
     addResidentPending: sessionStore.addResidentPending,
-    // The switch's position for the next brand-new session, and the way the send path clears it once
-    // that session has been made resident. Handed in rather than read from a module-level one-shot so
-    // the intent travels with the component tree the switch is drawn in, and a send into an existing
-    // session has nothing to consult.
-    residentEnabled,
-    clearResidentIntent,
+    // The switch's position for the next brand-new session: an explicit mode
+    // when the person overrode the provider default, or `undefined` to let the
+    // server apply the default it declared. The spend callback clears the
+    // override once that session exists, so the next New Session starts from
+    // the default again.
+    newSessionLifecycleMode: lifecycleModeForCreate(),
+    onNewSessionLifecycleSpent: spendNewSessionLifecycle,
     setIsUserScrolledUp,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
@@ -1147,14 +1123,15 @@ function ChatInterface({
   const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
 
   /*
-   * Whether the selected provider can hold a resident session.
+   * Whether the empty state offers the resident switch.
    *
-   * Read here rather than passed down as a resolved boolean because the empty state needs it: the
-   * switch under the model card is drawn only for a provider the capability matrix lists `resident`
-   * for. Same matrix, same reading, one answer.
+   * Owned by the lifecycle selection above: the switch exists only when the
+   * capability matrix has answered AND the provider implements `resident`. Its
+   * position is the selection's resolved mode, `on` by default for a provider
+   * whose declared default is resident.
    */
-  const residentProviders = useResidentProviders();
-  const canRunResident = residentProviders.has(readSelectedProvider());
+  const canRunResident = canToggleNewSessionLifecycle;
+  const residentEnabled = newSessionLifecycleMode === 'resident';
 
   const selectedProviderLabel =
     provider === 'cursor'
@@ -1253,7 +1230,7 @@ function ChatInterface({
             setInput={setInput}
             canRunResident={canRunResident}
             residentEnabled={residentEnabled}
-            onToggleResident={toggleResident}
+            onToggleResident={toggleNewSessionLifecycle}
             isLoadingMoreMessages={isLoadingMoreMessages}
             hasMoreMessages={hasMoreMessages}
             totalMessages={totalMessages}

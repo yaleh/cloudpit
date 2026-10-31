@@ -870,15 +870,25 @@ export const api = {
       model?: string;
       effort?: string;
       permissionMode?: string;
+      /**
+       * The lifecycle mode a new session is created with, or absent to let the
+       * server apply the provider's declared `defaultLifecycleMode`.
+       *
+       * Stated on the creation rather than written afterwards: the row and its
+       * mode are one insert, so no first turn can run under a mode the page is
+       * not showing. An explicit value the provider does not implement is
+       * refused before the row exists.
+       */
+      lifecycleMode?: 'per-run' | 'resident';
     }) => post('/api/providers/sessions', payload),
     /**
-     * Stores a session's lifecycle-mode preference.
+     * Stores a session's lifecycle-mode preference AFTER it exists.
      *
-     * A separate call from `createSession` because the create payload carries no
-     * mode: the session gateway allocates the row and the mode is a statement
-     * about who owns the session's process, written through its own route. The
-     * server refuses a mode the session's own provider has not declared, so the
-     * caller's capability gate is a courtesy rather than the enforcement.
+     * A new session states its mode on `createSession` instead; this route is
+     * for converting an open session from the session menu, which is a
+     * deliberate later change rather than a creation choice. The server refuses
+     * a mode the session's own provider has not declared, so the caller's
+     * capability gate is a courtesy rather than the enforcement.
      */
     setSessionLifecycleMode: (provider: string, sessionId: string, mode: 'per-run' | 'resident') =>
       put(

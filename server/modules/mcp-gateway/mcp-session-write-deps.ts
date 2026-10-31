@@ -30,7 +30,7 @@
  */
 
 import type { providerCapabilitiesService, providerModelsService } from '@/modules/providers/index.js';
-import type { LLMProvider, ProjectRepositoryRow, SessionLaunchSelection } from '@/shared/types.js';
+import type { HostMode, LLMProvider, ProjectRepositoryRow, SessionLaunchSelection } from '@/shared/types.js';
 
 import type {
   McpControlAbortSeam,
@@ -47,13 +47,16 @@ import type { McpControlSeam } from './mcp-session-send.js';
  *
  * Every member is a process singleton rather than a value: `projects` is the
  * project repository (its `getProjectPaths` is the ACTIVE listing), `sessions`
- * is `sessionsService` — `createAppSession` mints the row, and
- * `switchSessionLifecycleMode` stores a lifecycle preference before the first
- * turn — and `control` is the one shared `ChatControlService` a message send
- * rides. The two `sessions` members are declared as METHODS so the real
- * service, whose `switchSessionLifecycleMode` takes the narrower `HostMode`,
- * stays assignable (method parameters are checked bivariantly); the builder's
- * own contract widens the mode to `string`, which is the tool's input type.
+ * is `sessionsService` — `createAppSession` mints the row AND decides its
+ * lifecycle mode in the same step — and `control` is the one shared
+ * `ChatControlService` a message send rides. `switchSessionLifecycleMode` is
+ * kept in the shape (and forwarded) only for a wiring that predates unified
+ * creation: the adapter no longer calls it, because a session's mode is chosen
+ * when the row is written rather than switched afterwards. The two `sessions`
+ * members are declared as METHODS so the real service, whose
+ * `switchSessionLifecycleMode` takes the narrower `HostMode`, stays assignable
+ * (method parameters are checked bivariantly); the builder's own contract
+ * widens the mode to `string`, which is the tool's input type.
  *
  * `createAppSession` is declared WITH its trailing `selection` even though the
  * adapter in this file is what forwards it and not what reads it. A declaration
@@ -72,8 +75,8 @@ export type McpSessionCreateWiring = {
       projectPath: string,
       initialMessage: string,
       selection?: SessionLaunchSelection,
-    ): { sessionId: string };
-    switchSessionLifecycleMode(provider: LLMProvider, sessionId: string, mode: string): unknown;
+    ): { sessionId: string; lifecycleMode?: HostMode };
+    switchSessionLifecycleMode?(provider: LLMProvider, sessionId: string, mode: string): unknown;
   };
   control: McpControlSeam;
   /**
@@ -132,8 +135,12 @@ export function buildSessionCreateDeps(wiring: McpSessionCreateWiring): McpSessi
       // states therefore reaches `createAppSession` verbatim.
       create: (provider, projectPath, initialMessage, selection) =>
         wiring.sessions.createAppSession(provider, projectPath, initialMessage, selection),
-      switchLifecycle: (provider, sessionId, mode) =>
-        wiring.sessions.switchSessionLifecycleMode(provider, sessionId, mode),
+      ...(wiring.sessions.switchSessionLifecycleMode === undefined
+        ? {}
+        : {
+            switchLifecycle: (provider: LLMProvider, sessionId: string, mode: string) =>
+              wiring.sessions.switchSessionLifecycleMode!(provider, sessionId, mode),
+          }),
     },
     control: wiring.control,
     ...(wiring.capabilities === undefined ? {} : { capabilities: wiring.capabilities }),

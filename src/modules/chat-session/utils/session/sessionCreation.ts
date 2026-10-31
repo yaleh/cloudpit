@@ -1,5 +1,5 @@
 import { api } from '@/shared/api';
-import type { LLMProvider } from '@/shared/types';
+import type { LLMProvider, SessionLifecycleMode } from '@/shared/types';
 
 /**
  * Allocates a session through the session gateway — the single place this
@@ -25,6 +25,12 @@ export type CreatedChatSession = {
    * none — the caller decides what a blank name falls back to.
    */
   sessionName: string;
+  /**
+   * The lifecycle mode the server actually stored, when it reported one. The
+   * server decides the mode when the creation states none, so this is the
+   * authoritative reading of the row the caller is about to address.
+   */
+  lifecycleMode?: SessionLifecycleMode;
 };
 
 export async function createChatSession(payload: {
@@ -41,6 +47,13 @@ export async function createChatSession(payload: {
   model?: string;
   effort?: string;
   permissionMode?: string;
+  /**
+   * The lifecycle mode to create the session with, or absent to let the server
+   * apply the provider's declared default. It travels on the creation itself so
+   * the row is stored with the mode before any turn exists — the first turn can
+   * therefore never run under a mode the caller did not choose.
+   */
+  lifecycleMode?: SessionLifecycleMode;
 }): Promise<CreatedChatSession> {
   const response = await api.providers.createSession(payload);
   if (!response.ok) {
@@ -53,5 +66,12 @@ export async function createChatSession(payload: {
   }
   const sessionName =
     typeof body?.data?.sessionName === 'string' ? body.data.sessionName.trim() : '';
-  return { sessionId, sessionName };
+  const reportedMode = body?.data?.lifecycleMode;
+  const lifecycleMode: SessionLifecycleMode | undefined =
+    reportedMode === 'per-run' || reportedMode === 'resident' ? reportedMode : undefined;
+  return {
+    sessionId,
+    sessionName,
+    ...(lifecycleMode === undefined ? {} : { lifecycleMode }),
+  };
 }

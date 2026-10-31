@@ -272,7 +272,13 @@ const providerCapabilities = async (request: APIRequestContext) => {
   const response = await request.get('/api/providers/capabilities', { headers: auth(authToken) });
   expect(response.ok(), `GET /api/providers/capabilities answered ${response.status()}`).toBe(true);
   const body = (await response.json()) as {
-    data?: { providers?: { provider: string; lifecycleModes?: string[] }[] };
+    data?: {
+      providers?: {
+        provider: string;
+        lifecycleModes?: string[];
+        defaultLifecycleMode?: string;
+      }[];
+    };
   };
   return body.data?.providers ?? [];
 };
@@ -581,8 +587,8 @@ test('the new-session screen carries the switch under the model card, and sendin
   // No reload here, unlike the three cases below: `beforeAll` has already paid for the file's one cold load and
   // the page it left is exactly the state this case needs — signed in, on the client root, with the default
   // provider (`claude`, `src/shared/selectedProvider.ts`) that this case writes above, and the resident switch
-  // (React state) untouched at its default off. The three later cases must reload because the case above them
-  // left that switch on.
+  // drawn in the provider's declared default (resident for Claude). The later cases reload for a clean page of
+  // their own.
   await openNewSession(page);
 
   // ── AC2: the model card and the switch, on one screen, before the first turn ─────────────────────────
@@ -619,7 +625,20 @@ test('the new-session screen carries the switch under the model card, and sendin
     switchBox!.y,
     'the switch must sit *below* the card it was relocated under, not above it or over it',
   ).toBeGreaterThan(cardBox!.y + cardBox!.height - 1);
-  expect(await toggle.getAttribute('aria-checked'), 'the switch starts off').toBe('false');
+  // The backend's declared default is the server's own answer, and the switch must be drawn at it. Reading the
+  // capability row rather than trusting the switch alone keeps this a claim about the shared policy: the matrix
+  // names Claude's new-session default resident, and the page starts there.
+  const capabilities = await providerCapabilities(request);
+  const providerRow = capabilities.find((row) => row.provider === RESIDENT_PROVIDER);
+  console.log(`capabilities.${RESIDENT_PROVIDER}.defaultLifecycleMode=${providerRow?.defaultLifecycleMode ?? 'none'}`);
+  expect(
+    providerRow?.defaultLifecycleMode,
+    `${RESIDENT_PROVIDER} must declare resident as its new-session default, or the switch's starting position is not the shared policy`,
+  ).toBe('resident');
+  expect(
+    await toggle.getAttribute('aria-checked'),
+    'the switch starts on for a provider whose declared default is resident',
+  ).toBe('true');
 
   // ── the disclosure is a hint, and it says the two things it has to say ───────────────────────────────
   expect(
@@ -628,20 +647,26 @@ test('the new-session screen carries the switch under the model card, and sendin
   ).toBe(1);
   emptyStateHintCopy = await openHint(page);
 
-  // ── AC2's second half, first reading: what is on screen *before* the switch is turned on ─────────────
+  // ── AC2's second half, first reading: what is on screen before the switch is pressed ────────────────
   const checkboxesBefore = await page.locator(CHECKBOX).count();
   const onSurfacesBefore = await page.locator(RESIDENT_SURFACES).count();
 
   // ── AC5's carrier: pressing the switch really takes effect ───────────────────────────────────────────
   //
   // This is the assertion the falsifying variant recorded in the task reds on: wrap the hint so its container
-  // swallows the click on its way to the switch, and the switch stays off while looking pressed. The
-  // aria-checked reading below is what tells "the press was delivered" from "a press was attempted", and the
-  // send that follows is the end-to-end consequence of the same fact.
+  // swallows the click on its way to the switch, and the switch does not move while looking pressed. The
+  // aria-checked readings below are what tell "the press was delivered" from "a press was attempted", and the
+  // send that follows is the end-to-end consequence of the same fact. It is flipped off and back on because
+  // that is the user's path under the new default: the switch arrives on, and a press turns it off.
   await toggle.click();
   expect(
     await toggle.getAttribute('aria-checked'),
-    'pressing the switch must actually turn it on — a hint that intercepted the click would leave it off',
+    'pressing the switch must actually turn it off — a hint that intercepted the click would leave it on',
+  ).toBe('false');
+  await toggle.click();
+  expect(
+    await toggle.getAttribute('aria-checked'),
+    'pressing it again must turn it back on, so the send below is made with the user-visible switch on',
   ).toBe('true');
 
   // ── AC2's second half, second reading: turning the switch on adds none ───────────────────────────────
@@ -686,11 +711,20 @@ test('the new-session screen carries the switch under the model card, and sendin
     'the session a switch-on send is addressed to must read back as resident from the server',
   ).toBe('resident');
 
-  // POSITIVE CONTROL for the mode reading: the same field, read the same way, for a session nobody asked to
-  // keep running. Without it, a projection that answered `resident` for every row would score the same.
+  // POSITIVE CONTROLS for the mode reading, each the same field read the same way.
+  //
+  // First, an explicit per-run creation: without it, a projection that answered `resident` for every row
+  // would score the same as the switch-on send above. Second, a creation that states no mode: under the
+  // backend-owned default it must land resident for Claude without any switch interaction at all — the same
+  // policy the switch's starting position is drawn from.
   const control = await request.post('/api/providers/sessions', {
     headers: auth(authToken),
-    data: { provider: RESIDENT_PROVIDER, projectPath: workspace, initialMessage: 'per-run control' },
+    data: {
+      provider: RESIDENT_PROVIDER,
+      projectPath: workspace,
+      initialMessage: 'per-run control',
+      lifecycleMode: 'per-run',
+    },
   });
   expect(control.ok(), `POST /api/providers/sessions answered ${control.status()}`).toBe(true);
   const controlSessionId = ((await control.json()) as { data?: { sessionId?: string } }).data?.sessionId as string;
@@ -698,18 +732,39 @@ test('the new-session screen carries the switch under the model card, and sendin
   console.log(`control.session.lifecycle_mode=${controlMode}`);
   expect(
     controlMode,
-    'a session created without the switch must read per-run — otherwise lifecycle_mode has no resolution',
+    'a creation that states per-run must read per-run — otherwise lifecycle_mode has no resolution',
   ).toBe('per-run');
+
+  const defaulted = await request.post('/api/providers/sessions', {
+    headers: auth(authToken),
+    data: { provider: RESIDENT_PROVIDER, projectPath: workspace, initialMessage: 'default control' },
+  });
+  expect(defaulted.ok(), `POST /api/providers/sessions answered ${defaulted.status()}`).toBe(true);
+  const defaultedBody = (await defaulted.json()) as {
+    data?: { sessionId?: string; lifecycleMode?: string };
+  };
+  const defaultedSessionId = defaultedBody.data?.sessionId as string;
+  console.log(`defaulted.create.lifecycleMode=${defaultedBody.data?.lifecycleMode ?? 'none'}`);
+  expect(
+    defaultedBody.data?.lifecycleMode,
+    'the creation response must name the mode it stored, before any first turn',
+  ).toBe('resident');
+  const defaultedMode = await modeOf(request, defaultedSessionId);
+  console.log(`defaulted.session.lifecycle_mode=${defaultedMode}`);
+  expect(
+    defaultedMode,
+    `${RESIDENT_PROVIDER} declares resident as its new-session default, so a creation that names no mode must store resident`,
+  ).toBe('resident');
 });
 
 /**
  * The silent-conversion regression: the switch's intent is a statement about the *new-session card*
  * only, and must never reach a send addressed to a session that already exists.
  *
- * The window this reads is the one the switch's never-reset position used to open. The empty-state
- * switch is turned on and a first message is sent, creating a brand-new session A that must land
- * resident. Then, *in the same app instance* — the sidebar navigates in-app, so `ChatInterface` is
- * not remounted and its `residentEnabled` state would still be `true` under the old code — an
+ * The window this reads is the one a never-reset selection used to open. The empty-state switch is
+ * at its declared default (on) and a first message is sent, creating a brand-new session A that must
+ * land resident. Then, *in the same app instance* — the sidebar navigates in-app, so `ChatInterface`
+ * is not remounted and its selection is still resident — an
  * existing per-run session B is opened and a message is sent into it. B must read back per-run.
  *
  * Under the retired shape (`if (residentIntent && targetSessionId)`, intent never cleared, and every
@@ -722,11 +777,17 @@ test('a switch-on send to a new session does not convert an existing per-run ses
   await page.goto('/');
   await openNewSession(page);
 
-  // ── A: the empty-state switch on, then send — the new session lands resident ─────────────────────────
+  // ── A: the empty-state switch at its default, then send — the new session lands resident ─────────────
+  //
+  // No press: Claude's declared default is resident, and the switch arrives there. This is the new
+  // single-step shape — the switch's starting position and the created row's mode are the same fact
+  // without an interaction in between.
   const toggle = switches(page).first();
   await expect(toggle, 'the new-session card must carry the switch').toBeVisible({ timeout: 15_000 });
-  await toggle.click();
-  expect(await toggle.getAttribute('aria-checked'), 'the switch must be on before the send').toBe('true');
+  expect(
+    await toggle.getAttribute('aria-checked'),
+    'the switch must be on before the send, because that is the default the send is made under',
+  ).toBe('true');
 
   await composer(page).fill('resident first turn');
   // Re-confirm the switch immediately before the send, so a remount between the press and here cannot make

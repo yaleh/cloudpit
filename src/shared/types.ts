@@ -91,6 +91,30 @@ export type ProviderModelActions = {
 /** Identifies the workspace pane the user is looking at; plugin panes are namespaced by plugin id. */
 export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'quay' | 'architecture' | 'browser' | `plugin:${string}`;
 
+/**
+ * How a session's provider process is owned for the session's lifetime.
+ *
+ * Stated by the backend capability matrix (`defaultLifecycleMode`) and chosen
+ * once, when the session row is created: `resident` keeps one process across
+ * turns, `per-run` opens one per turn. The browser never infers it from a
+ * provider id. Mirrors the server's `HostMode`; `wireContractTypeSync` reads
+ * both declarations, so adding a mode on one side reds the run.
+ */
+export type SessionLifecycleMode = 'per-run' | 'resident';
+
+/**
+ * What the provider capability matrix says about one provider's session
+ * lifecycle, as the new-session switch needs it.
+ *
+ * `defaultLifecycleMode` is null until the capability response has arrived, so
+ * the switch stays hidden rather than guessing. Used by
+ * `useProviderCapabilities`, `useNewSessionLifecycle`, and the chat controller.
+ */
+export type ProviderLifecycleDefault = {
+  supportsResident: boolean;
+  defaultLifecycleMode: SessionLifecycleMode | null;
+};
+
 /** A message queued to be sent to a session at a future time. */
 export type ScheduledMessage = {
   id: string;

@@ -97,6 +97,9 @@ vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
 
 vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
   useResidentProviders: () => new Set<string>(['claude']),
+  useProviderLifecycleDefaults: () => ({
+    claude: { supportsResident: true, defaultLifecycleMode: 'resident' },
+  }),
 }));
 
 vi.mock('@/shared/selectedProvider', () => ({

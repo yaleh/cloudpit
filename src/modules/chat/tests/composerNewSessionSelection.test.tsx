@@ -37,6 +37,8 @@ const EFFORT = 'high';
 
 const state = vi.hoisted(() => ({
   createSessionPayloads: [] as Array<Record<string, unknown>>,
+  lifecycleCalls: [] as Array<{ provider: string; sessionId: string; mode: string }>,
+  failNextCreate: false,
 }));
 
 vi.mock('@/shared/api', () => {
@@ -55,18 +57,32 @@ vi.mock('@/shared/api', () => {
       providers: {
         createSession: (payload: Record<string, unknown>) => {
           state.createSessionPayloads.push(payload);
+          if (state.failNextCreate) {
+            state.failNextCreate = false;
+            return Promise.resolve({
+              ok: false,
+              status: 503,
+              json: async () => ({ success: false, error: { code: 'UNAVAILABLE' } }),
+            });
+          }
           return okJson({
             success: true,
             data: { sessionId: CREATED_SESSION_ID, sessionName: 'selection chat' },
           });
         },
-        setSessionLifecycleMode: () => okJson({ success: true }),
+        setSessionLifecycleMode: (provider: string, sessionId: string, mode: string) => {
+          state.lifecycleCalls.push({ provider, sessionId, mode });
+          return okJson({ success: true });
+        },
       },
     },
   };
 });
 
-const renderComposer = () => renderHook(() => useChatComposerState({
+const renderComposer = (overrides: {
+  newSessionLifecycleMode?: 'per-run' | 'resident';
+  onNewSessionLifecycleSpent?: () => void;
+} = {}) => renderHook(() => useChatComposerState({
   selectedProject: PROJECT,
   selectedSession: null,
   currentSessionId: null,
@@ -85,11 +101,14 @@ const renderComposer = () => renderHook(() => useChatComposerState({
   addMessage: () => undefined,
   setIsUserScrolledUp: () => undefined,
   setPendingPermissionRequests: () => undefined,
+  ...overrides,
 }));
 
 beforeEach(() => {
   resetChatDrafts();
   state.createSessionPayloads = [];
+  state.lifecycleCalls = [];
+  state.failNextCreate = false;
 });
 
 test('the first send of a brand-new conversation states its selection on the gateway call', async () => {
@@ -119,4 +138,104 @@ test('the first send of a brand-new conversation states its selection on the gat
   );
   assert.equal(state.createSessionPayloads[0].effort, EFFORT);
   assert.equal(state.createSessionPayloads[0].permissionMode, 'acceptEdits');
+});
+
+test('an explicit new-session lifecycle mode rides the creation and is spent after success', async () => {
+  const spent: number[] = [];
+  const view = renderComposer({
+    newSessionLifecycleMode: 'per-run',
+    onNewSessionLifecycleSpent: () => spent.push(1),
+  });
+
+  await act(async () => {
+    view.result.current.setInput('first message');
+  });
+  await act(async () => {
+    await view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+
+  await waitFor(() => {
+    assert.equal(state.createSessionPayloads.length, 1);
+  });
+
+  assert.equal(
+    state.createSessionPayloads[0].lifecycleMode,
+    'per-run',
+    'the switch turned off for this next session must be stated ON the creation, not written afterwards',
+  );
+  assert.equal(
+    state.lifecycleCalls.length,
+    0,
+    'the mode is stored by the insert; no create-then-switch call may run',
+  );
+  assert.equal(spent.length, 1, 'the override is spent once the session it applied to exists');
+});
+
+test('a failed creation keeps the override for the retry, and only the successful creation spends it', async () => {
+  const spent: number[] = [];
+  const view = renderComposer({
+    newSessionLifecycleMode: 'per-run',
+    onNewSessionLifecycleSpent: () => spent.push(1),
+  });
+
+  state.failNextCreate = true;
+  await act(async () => {
+    view.result.current.setInput('first attempt');
+  });
+  await act(async () => {
+    await view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+
+  assert.equal(state.createSessionPayloads.length, 1);
+  assert.equal(
+    state.createSessionPayloads[0].lifecycleMode,
+    'per-run',
+    'the first attempt stated the choice the switch showed',
+  );
+  assert.equal(spent.length, 0, 'a failed creation must not spend the override — the retry still owns it');
+
+  // Retry without touching the switch: the same selection must be stated again,
+  // so the session that finally exists is the mode the page kept showing.
+  await act(async () => {
+    view.result.current.setInput('second attempt');
+  });
+  await act(async () => {
+    await view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+
+  await waitFor(() => {
+    assert.equal(state.createSessionPayloads.length, 2);
+  });
+  assert.equal(
+    state.createSessionPayloads[1].lifecycleMode,
+    'per-run',
+    'the retry must create the mode the switch still displays, not fall back to the provider default',
+  );
+  assert.equal(spent.length, 1, 'only the successful creation spends the override');
+});
+
+test('with no override the creation omits the mode and the override is still spent after success', async () => {
+  const spent: number[] = [];
+  const view = renderComposer({
+    onNewSessionLifecycleSpent: () => spent.push(1),
+  });
+
+  await act(async () => {
+    view.result.current.setInput('first message');
+  });
+  await act(async () => {
+    await view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+
+  await waitFor(() => {
+    assert.equal(state.createSessionPayloads.length, 1);
+  });
+
+  assert.equal(
+    'lifecycleMode' in state.createSessionPayloads[0],
+    false,
+    'following the provider default means omitting the field, so the server applies the mode it declared',
+  );
+  assert.equal(state.lifecycleCalls.length, 0);
+  assert.equal(spent.length, 1, 'a successful creation spends the selection even when it was the default');
 });

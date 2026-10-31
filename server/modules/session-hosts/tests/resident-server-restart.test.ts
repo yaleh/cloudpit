@@ -1019,12 +1019,21 @@ test('a stopped or killed server leaves no resident process behind, and the next
     });
     assert.ok(model.status === 201 || model.status === 200, `model entry was refused: ${JSON.stringify(model.body)}`);
 
-    const createSession = async (port: number, sessionToken: string, label: string): Promise<string> => {
+    const createSession = async (
+      port: number,
+      sessionToken: string,
+      label: string,
+      lifecycleMode?: 'per-run' | 'resident',
+    ): Promise<string> => {
       const created = dataOf(
         await api(port, sessionToken, 'POST', '/api/providers/sessions', {
           provider: PROVIDER,
           projectPath: tempRoot,
           initialMessage: '',
+          // The control states its mode explicitly: the provider's declared
+          // default is resident now, and this row exists to be the reading
+          // that the reason field is not filled for every row.
+          ...(lifecycleMode === undefined ? {} : { lifecycleMode }),
         }),
         `create ${label} session`,
       );
@@ -1057,7 +1066,7 @@ test('a stopped or killed server leaves no resident process behind, and the next
     // exits before it makes a single request. A row created after the boot keeps
     // its null, the runtime asks for no resume, and the turn is really in flight.
     const residentSession = await createSession(first.port, token, 'resident');
-    const perRunSession = await createSession(first.port, token, 'per-run');
+    const perRunSession = await createSession(first.port, token, 'per-run', 'per-run');
 
     await storeResidentMode(first.port, token, residentSession);
 

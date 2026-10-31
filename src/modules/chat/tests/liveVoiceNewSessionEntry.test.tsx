@@ -116,6 +116,9 @@ vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
   // the resident switch these readings flip. With an empty set the switch never
   // rendered and the criteria below would be readings of nothing.
   useResidentProviders: () => new Set<string>(['claude']),
+  useProviderLifecycleDefaults: () => ({
+    claude: { supportsResident: true, defaultLifecycleMode: 'resident' },
+  }),
 }));
 
 vi.mock('@/shared/selectedProvider', () => ({
@@ -403,8 +406,8 @@ const tapLiveVoice = async (view: ReturnType<typeof renderInterface>) => {
 const residentSwitch = (view: ReturnType<typeof renderInterface>) =>
   view.container.querySelector('[data-resident-enable="true"]');
 
-/** Flips the empty state's resident switch on, asserting it is there to flip. */
-const enableResident = async (view: ReturnType<typeof renderInterface>) => {
+/** Flips the empty state's resident switch, asserting it is there to flip. */
+const flipResident = async (view: ReturnType<typeof renderInterface>) => {
   const toggle = residentSwitch(view);
   assert.ok(
     toggle,
@@ -434,6 +437,15 @@ test('AC1 全新会话点 Live Voice：先分配会话、再进入语音，且�
     false,
     'entering voice mode allocates a session; it does not send a message',
   );
+  // The allocation states the person's override, or nothing at all when the
+  // switch sits on the provider default. Either way the server stores the mode
+  // in the same insert — there is no create-then-switch call afterwards.
+  assert.equal(
+    'lifecycleMode' in state.createSessionPayloads[0],
+    false,
+    'with the switch at the provider default the creation omits the mode',
+  );
+  assert.equal(state.lifecycleCalls.length, 0, 'no lifecycle write may follow the allocation');
 
   await waitFor(() => {
     assert.ok(
@@ -538,64 +550,72 @@ test('AC3b 分配失败（2xx 但 sessionId 为空）：不进入语音、控件
 });
 
 /**
- * The resident intent the empty-state switch sets has to reach the Live Voice
- * entry the same way it reaches the composer's first send.
+ * The empty-state switch and the Live Voice allocation are one decision.
  *
- * The switch's position is the frontend's only statement of "the session this
- * next step creates should be resident", and the entry allocates that session
- * itself. The composer path already reads the switch inside its new-session
- * branch and writes the mode through `setSessionLifecycleMode` before the turn
- * starts; these cases hold the voice entry to the same shape. The write has to
- * be a SEPARATE call that lands AFTER the allocation — the mode names an id the
- * allocation mints — and it must happen before the voice connection (which is
- * itself a turn the server refuses a mode change during) opens.
+ * The backend declares the provider's default (`defaultLifecycleMode`), the
+ * switch starts in that mode, and the entry's creation carries the person's
+ * override — if there is one — instead of writing a mode afterwards. There is
+ * no `setSessionLifecycleMode` call and therefore no window in which the row is
+ * per-run while the page shows the switch on: the mode is stored by the insert
+ * the allocation makes.
  */
 
-test('AC1 全新会话 + resident 开：POST 分配之后才写 resident，且进入语音', async () => {
+test('AC1 全新会话默认 resident：开关初始为开，分配请求省略模式，由服务端按 provider 默认落库', async () => {
   const view = renderInterface(null);
 
-  await enableResident(view);
+  assert.equal(
+    residentSwitch(view)?.getAttribute('aria-checked'),
+    'true',
+    'premise: claude declares a resident default, so the switch starts on',
+  );
 
   await tapLiveVoice(view);
 
   assert.equal(state.createSessionPayloads.length, 1, 'the entry allocates exactly one session');
   assert.deepEqual(
     state.requestLog,
-    ['createSession', `lifecycle:claude:${NEW_SESSION_ID}:resident`],
-    `the resident write must be a separate call that lands AFTER the allocation; the page made: ${JSON.stringify(state.requestLog)}`,
+    ['createSession'],
+    `the mode travels WITH the allocation; there must be no second lifecycle write. The page made: ${JSON.stringify(state.requestLog)}`,
   );
-  assert.deepEqual(
-    state.lifecycleCalls,
-    [{ provider: 'claude', sessionId: NEW_SESSION_ID, mode: 'resident' }],
-    'the write must name the id the gateway just minted and the resident mode',
+  assert.equal(
+    'lifecycleMode' in state.createSessionPayloads[0],
+    false,
+    'with no override the creation omits the mode, so the server applies the default it declared',
   );
+  assert.equal(state.lifecycleCalls.length, 0, 'no create-then-switch call may exist');
 
   await waitFor(() => {
     assert.ok(
       view.queryByTestId('voice-realtime-bar'),
-      `voice mode must still be entered after the resident write; DOM: ${view.container.innerHTML.slice(0, 400)}`,
+      `voice mode must be entered after the allocation; DOM: ${view.container.innerHTML.slice(0, 400)}`,
     );
   });
 
   view.unmount();
 });
 
-test('AC2 正控制——开关为关时同一条流程不得出现任何 setSessionLifecycleMode 调用', async () => {
+test('AC2 手动关闭后创建：分配请求显式携带 per-run，且没有后置切换调用', async () => {
   const view = renderInterface(null);
 
+  await flipResident(view);
   assert.equal(
     residentSwitch(view)?.getAttribute('aria-checked'),
     'false',
-    'premise: the switch starts off, so the intent is not set',
+    'premise: the person turned the switch off for this next session',
   );
 
   await tapLiveVoice(view);
 
   assert.equal(state.createSessionPayloads.length, 1, 'the off-switch path still allocates');
   assert.equal(
+    state.createSessionPayloads[0].lifecycleMode,
+    'per-run',
+    'turning the switch off must state per-run on the creation itself',
+  );
+  assert.equal(
     state.lifecycleCalls.length,
     0,
-    'with no resident intent there is nothing to write; the entry must not convert the session on its own',
+    'the mode is part of the insert; the entry must not write it afterwards',
   );
 
   await waitFor(() => {
@@ -605,7 +625,7 @@ test('AC2 正控制——开关为关时同一条流程不得出现任何 setSes
   view.unmount();
 });
 
-test('AC3 已有会话（voiceSessionId 非空）点 Live Voice 不得出现任何 setSessionLifecycleMode 调用', async () => {
+test('AC3 已有会话（voiceSessionId 非空）点 Live Voice 不得出现任何生命周期写入', async () => {
   const view = renderInterface(EXISTING_SESSION);
 
   await tapLiveVoice(view);
@@ -614,7 +634,7 @@ test('AC3 已有会话（voiceSessionId 非空）点 Live Voice 不得出现任�
   assert.equal(
     state.lifecycleCalls.length,
     0,
-    'the intent belongs to a brand-new session only; the entry must not convert a session the user merely opened',
+    'the choice belongs to a brand-new session only; the entry must not convert a session the user merely opened',
   );
 
   await waitFor(() => {
@@ -624,33 +644,33 @@ test('AC3 已有会话（voiceSessionId 非空）点 Live Voice 不得出现任�
   view.unmount();
 });
 
-test('AC4 意图消费：resident 写入之后开关回到关', async () => {
+test('AC4 选择消费：手动关闭并成功创建后，下一个新会话恢复默认开启', async () => {
   // The switch lives only in the brand-new empty state, and the allocation
   // normally replaces that state with the (empty) session's own view — so the
-  // switch's post-write position can only be read while that state is held
-  // mounted. Holding it is a reading instrument: the write and its ordering are
-  // exactly the shipping ones, asserted above.
+  // switch's post-create position can only be read while that state is held
+  // mounted. Holding it is a reading instrument; the creation is the shipping one.
   state.freezeBrandNewState = true;
   const view = renderInterface(null);
 
-  await enableResident(view);
+  assert.equal(residentSwitch(view)?.getAttribute('aria-checked'), 'true', 'premise: the default is on');
+  await flipResident(view);
   assert.equal(
     residentSwitch(view)?.getAttribute('aria-checked'),
-    'true',
-    'premise: the user set the intent by flipping the switch on',
+    'false',
+    'premise: the user turned this next session off',
   );
 
   await tapLiveVoice(view);
 
-  assert.deepEqual(
-    state.requestLog,
-    ['createSession', `lifecycle:claude:${NEW_SESSION_ID}:resident`],
-    'the write still happened, so the reading below is not of a no-op path',
+  assert.equal(
+    state.createSessionPayloads[0].lifecycleMode,
+    'per-run',
+    'the creation stated the override, so the reading below is not of a no-op path',
   );
   assert.equal(
     residentSwitch(view)?.getAttribute('aria-checked'),
-    'false',
-    'the intent has been spent on the session it was set for; a stale "on" would be drawn on the next New Session',
+    'true',
+    'the override was spent on the session it was set for; the next New Session draws the provider default again',
   );
 
   view.unmount();

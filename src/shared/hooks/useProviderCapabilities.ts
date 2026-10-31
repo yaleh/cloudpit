@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '@/shared/api';
-import type { LLMProvider } from '@/shared/types';
+import type { LLMProvider, ProviderLifecycleDefault, SessionLifecycleMode } from '@/shared/types';
 
 /**
  * The backend-owned answer to "what can this provider actually do".
@@ -18,6 +18,13 @@ type ProviderCapabilityRow = {
    * so a provider that gains the mode shows the affordance without a UI change.
    */
   lifecycleModes?: string[];
+  /**
+   * The mode a NEW session of this provider is created with when the caller
+   * states none. Separate from {@link lifecycleModes}: implementing resident
+   * does not mean it is the default. Mirrors the server's capability row; the
+   * frontend never derives a provider's default from its id.
+   */
+  defaultLifecycleMode?: SessionLifecycleMode;
 };
 
 /**
@@ -126,4 +133,46 @@ export function useResidentProviders(): Set<LLMProvider> {
   }, []);
 
   return providers;
+}
+
+/**
+ * Reports, per provider, whether `resident` is implemented and which lifecycle
+ * mode a new session gets when the caller states none.
+ *
+ * Used by `ChatInterface` for the new-session switch: the switch is drawn only
+ * for a provider whose default is known, and starts in the mode the backend
+ * declared — the frontend never derives a provider's default from its id, and a
+ * capability response that has not arrived yet yields an empty record (the
+ * switch stays hidden rather than guessing).
+ *
+ * Entries are stable per load, so a controller synced from this record does not
+ * see a new object on every render.
+ */
+export function useProviderLifecycleDefaults(): Partial<Record<LLMProvider, ProviderLifecycleDefault>> {
+  const [defaults, setDefaults] = useState<Partial<Record<LLMProvider, ProviderLifecycleDefault>>>(() => ({}));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadCapabilities().then((capabilities) => {
+      if (cancelled) return;
+      const next: Partial<Record<LLMProvider, ProviderLifecycleDefault>> = {};
+      for (const row of Object.values(capabilities)) {
+        if (!row) continue;
+        next[row.provider] = {
+          supportsResident: row.lifecycleModes?.includes('resident') === true,
+          // A response from before this field existed reads as the behaviour
+          // every provider had then; client and server ship together.
+          defaultLifecycleMode: row.defaultLifecycleMode === 'resident' ? 'resident' : 'per-run',
+        };
+      }
+      setDefaults(next);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return defaults;
 }

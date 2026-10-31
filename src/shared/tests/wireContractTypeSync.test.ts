@@ -217,6 +217,16 @@ const ROWS: readonly SyncRow[] = [
     serverFile: path.join(repoRoot, 'server', 'modules', 'settings', 'server-settings-file.ts'),
     reader: 'object',
   },
+  {
+    // The lifecycle vocabulary a NEW session is created with. The client spells
+    // it `SessionLifecycleMode`; the server's row column and capability matrix
+    // spell it `HostMode`. Both ends must name the same modes, or a create the
+    // page offers would be refused by the gateway (or vice versa).
+    client: 'SessionLifecycleMode',
+    server: 'HostMode',
+    serverFile: SERVER_TYPES,
+    reader: 'union',
+  },
 ];
 
 /** Reads one row's type from an arbitrary source string (used for both ends). */

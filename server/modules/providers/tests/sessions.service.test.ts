@@ -62,6 +62,55 @@ test('app sessions without message text receive a stable fallback name', { concu
   });
 });
 
+test('creation decides the lifecycle mode and stores it before the first turn', { concurrency: false }, async () => {
+  await withIsolatedDatabase(() => {
+    const omittedClaude = sessionsService.createAppSession('claude', '/tmp/lifecycle-claude', '');
+    const omittedCodex = sessionsService.createAppSession('codex', '/tmp/lifecycle-codex', '');
+    const omittedCursor = sessionsService.createAppSession('cursor', '/tmp/lifecycle-cursor', '');
+    const omittedOpencode = sessionsService.createAppSession('opencode', '/tmp/lifecycle-opencode', '');
+    const explicitPerRun = sessionsService.createAppSession('claude', '/tmp/lifecycle-per-run', '', {
+      lifecycleMode: 'per-run',
+    });
+    const explicitResident = sessionsService.createAppSession('codex', '/tmp/lifecycle-resident', '', {
+      lifecycleMode: 'resident',
+    });
+
+    // The mode is decided by the SAME call that mints the row, so the row and
+    // the result agree and the first dispatch reads the stored value — there is
+    // no window in which the row is per-run and the turn is already running.
+    assert.deepEqual(
+      [
+        omittedClaude.lifecycleMode,
+        sessionsDb.getSessionById(omittedClaude.sessionId)?.lifecycle_mode,
+        sessionsDb.getSessionLifecycleMode(omittedClaude.sessionId),
+      ],
+      ['resident', 'resident', 'resident'],
+      'a Claude create that states no mode adopts the provider default at creation',
+    );
+    assert.equal(omittedCodex.lifecycleMode, 'resident', 'a Codex create that states no mode adopts resident');
+    assert.equal(sessionsDb.getSessionById(omittedCodex.sessionId)?.lifecycle_mode, 'resident');
+    assert.equal(omittedCursor.lifecycleMode, 'per-run', 'cursor keeps its per-run default');
+    assert.equal(omittedOpencode.lifecycleMode, 'per-run', 'opencode keeps its per-run default');
+
+    assert.equal(explicitPerRun.lifecycleMode, 'per-run', 'an explicit per-run is never overridden by the default');
+    assert.equal(sessionsDb.getSessionById(explicitPerRun.sessionId)?.lifecycle_mode, 'per-run');
+    assert.equal(explicitResident.lifecycleMode, 'resident', 'an explicit resident is honoured where the mode is supported');
+    assert.equal(sessionsDb.getSessionById(explicitResident.sessionId)?.lifecycle_mode, 'resident');
+
+    // An unsupported mode is refused, not silently replaced by the default, and
+    // the refusal happens before any row exists.
+    const rowsBefore = sessionsDb.getAllSessions().length;
+    assert.throws(
+      () =>
+        sessionsService.createAppSession('cursor', '/tmp/lifecycle-bogus', '', {
+          lifecycleMode: 'resident',
+        }),
+      (error: unknown) => (error as { code?: string }).code === 'LIFECYCLE_MODE_NOT_SUPPORTED',
+    );
+    assert.equal(sessionsDb.getAllSessions().length, rowsBefore, 'a refused lifecycle mode mints no session row');
+  });
+});
+
 test('provider session id is unavailable until the provider assigns one', { concurrency: false }, async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('pending-app-session', 'claude', '/tmp/session-id-copy-project');

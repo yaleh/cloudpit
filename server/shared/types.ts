@@ -603,6 +603,21 @@ export type SessionLaunchSelection = {
   effort?: string;
   /** The permission mode the session's first run should launch under. */
   permissionMode?: string;
+  /**
+   * The lifecycle mode the row is created WITH.
+   *
+   * Absent means "the caller stated nothing", and the unified creation service
+   * resolves that to the provider's own `defaultLifecycleMode`. Present means an
+   * explicit choice, in either direction, which always wins over the default —
+   * but only when the provider's capability matrix actually lists the mode; an
+   * unsupported or unknown value is refused rather than silently replaced.
+   *
+   * Carried on the creation write rather than written afterwards so the row is
+   * already correct when it is returned: the mode is read at dispatch time, and
+   * a row created as `per-run` and switched later would run its first turn
+   * under the wrong mode (or, worse, let a mode change race the send).
+   */
+  lifecycleMode?: HostMode;
 };
 
 /**
@@ -3229,6 +3244,16 @@ export type RuntimeProviderCapabilities = {
   provider: string;
   /** Lifecycle modes this provider's host driver implements. */
   lifecycleModes: HostMode[];
+  /**
+   * The lifecycle mode a new session of this provider is created with when the
+   * caller states none.
+   *
+   * A separate fact from `lifecycleModes` on purpose: supporting a mode is not
+   * the same as defaulting to it. Optional so a declaration written before this
+   * field existed stays valid, and "absent" reads as the conservative `per-run`
+   * — a provider that never stated a default keeps the row's own DB default.
+   */
+  defaultLifecycleMode?: HostMode;
   /**
    * Whether one process of this provider may serve several sessions at once —
    * `IProviderHostDriver.multiplexedHost` stated as a standalone fact, so it

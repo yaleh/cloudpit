@@ -175,7 +175,7 @@ vi.mock('@/modules/chat-session/hooks/useChatRealtimeHandlers', () => ({ useChat
 vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
-vi.mock('@/shared/hooks/useProviderCapabilities', () => ({ useResidentProviders: () => new Set<string>() }));
+vi.mock('@/shared/hooks/useProviderCapabilities', () => ({ useResidentProviders: () => new Set<string>(), useProviderLifecycleDefaults: () => ({}) }));
 vi.mock('@/shared/selectedProvider', () => ({ readSelectedProvider: () => 'claude' }));
 vi.mock('@/shared/hooks/useSessionHosts', () => ({
   useSessionHosts: () => ({ snapshot: { hosts: [], sessions: [] } }),

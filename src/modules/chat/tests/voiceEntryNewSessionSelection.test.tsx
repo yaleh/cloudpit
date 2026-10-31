@@ -116,6 +116,9 @@ vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
   // the resident switch these readings flip. With an empty set the switch never
   // rendered and the criteria below would be readings of nothing.
   useResidentProviders: () => new Set<string>(['claude']),
+  useProviderLifecycleDefaults: () => ({
+    claude: { supportsResident: true, defaultLifecycleMode: 'resident' },
+  }),
 }));
 
 vi.mock('@/shared/selectedProvider', () => ({

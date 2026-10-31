@@ -170,7 +170,11 @@ await i18next.use(initReactI18next).init({
 // composer's switch drawn and its answer irrelevant to every reading below.
 vi.mock('@/shared/hooks/useProviderCapabilities', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, useResidentProviders: () => new Set<LLMProvider>(['claude']) };
+  return {
+    ...actual,
+    useResidentProviders: () => new Set<LLMProvider>(['claude']),
+    useProviderLifecycleDefaults: () => ({}),
+  };
 });
 
 vi.mock('@/shared/selectedProvider', async (importOriginal) => {
