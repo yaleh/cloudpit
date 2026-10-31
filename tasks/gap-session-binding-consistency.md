@@ -103,3 +103,11 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 ## 约束
 
 遵守 AGENTS.md 与 backend-module-standards；触及 src/ 时同时遵守 frontend-module-standards。服务约 260 行按关注点拆分、工厂与依赖注入；跨模块只走 barrel；不新增 provider 名字判断，不扩大到通用工作流框架。会话内单文件或有界 runner，不跑全套 fan-out；全套由 quay fan-in 承担。不得用替身、skip、仅静态代码匹配冒充真实行为验收。
+
+## Blocker
+
+**2026-10-31T06:09:53.172Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/database/repositories/sessions.db.ts 1479→1752 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：ef65505e-20c0-4fa6-9a76-bf6a4be82a36
