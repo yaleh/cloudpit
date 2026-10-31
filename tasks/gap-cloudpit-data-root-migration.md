@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-data-root-migration
 title: Cloudpit A2：数据根解析与旧布局迁移（默认仍 ~/.cloudcli，显式 CLOUDPIT_HOME 才走新根）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
