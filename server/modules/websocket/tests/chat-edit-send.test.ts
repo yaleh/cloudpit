@@ -64,13 +64,13 @@ type RunCall = { provider: string; command: string; options: Record<string, unkn
  * The host-manager seam the resident rebuild goes through, plus the ordering
  * log its criterion needs.
  *
- * `rewindAndWait` yields a microtask before it answers, so the log says more
- * than "it was called": the run only appears after `rewind-done`. That is
- * exactly what a fire-and-forget rewind cannot produce, and what makes the
+ * `closeHostForEditAndWait` yields a microtask before it answers, so the log
+ * says more than "it was called": the run only appears after `close-done`. That
+ * is exactly what a fire-and-forget close cannot produce, and what makes the
  * "closed *before* the replacement starts" half of the criterion observable
  * rather than asserted by construction.
  *
- * `truncatedBeforeRewind` is read at entry, mirroring the Codex case: the
+ * `truncatedBeforeClose` is read at entry, mirroring the Codex case: the
  * clients have to be told to drop the superseded turns before a rebuild that
  * can be slow begins.
  */
@@ -78,22 +78,22 @@ function createFakeHostManager(socket: ReturnType<typeof createFakeSocket>, even
   const rewinds: string[] = [];
   const manager = {
     rewinds,
-    failNextRewind: null as Error | null,
-    truncatedBeforeRewind: false,
-    async rewindAndWait(sessionId: string): Promise<boolean> {
-      events.push('rewind-start');
-      manager.truncatedBeforeRewind = socket.frames.some(
+    failNextClose: null as Error | null,
+    truncatedBeforeClose: false,
+    async closeHostForEditAndWait(sessionId: string): Promise<{ found: boolean }> {
+      events.push('close-start');
+      manager.truncatedBeforeClose = socket.frames.some(
         (frame) => frame.kind === 'history_truncated',
       );
       await Promise.resolve();
-      if (manager.failNextRewind) {
-        const error = manager.failNextRewind;
-        manager.failNextRewind = null;
+      if (manager.failNextClose) {
+        const error = manager.failNextClose;
+        manager.failNextClose = null;
         throw error;
       }
       rewinds.push(sessionId);
-      events.push('rewind-done');
-      return true;
+      events.push('close-done');
+      return { found: true };
     },
     attachViewer(): void {
       // The subscription path's verb. Nothing in this file subscribes, so a
@@ -423,10 +423,10 @@ test('an edit on a resident session restarts the host from the truncation point'
       content: 'a better second prompt',
     });
 
-    // Closed first, started after: `run` is only logged once `rewind-done` is.
+    // Closed first, started after: `run` is only logged once `close-done` is.
     // A rewind that was merely fired off would log `run` in between.
     assert.deepEqual(hosts.rewinds, [SESSION_ID]);
-    assert.deepEqual(events, ['rewind-start', 'rewind-done', 'run']);
+    assert.deepEqual(events, ['close-start', 'close-done', 'run']);
 
     // The replacement carries the same anchor a per-run edit does — the turn
     // before the edited one — instead of being appended to the live process.
@@ -439,7 +439,7 @@ test('an edit on a resident session restarts the host from the truncation point'
     // after it: a rebuild is slower than an append, and the edited-away
     // message must not sit on screen for that time.
     assert.ok(socket.frames.some((frame) => frame.kind === 'history_truncated'));
-    assert.equal(hosts.truncatedBeforeRewind, true);
+    assert.equal(hosts.truncatedBeforeClose, true);
 
     // The same conversation, not a new one: the row is the row it was, column
     // for column, and nothing was inserted beside it.
@@ -465,7 +465,7 @@ test('editing the first prompt of a resident session still restarts the host', a
     // conversation over — but the process holding the old one still has to go,
     // or the replacement would be appended into it.
     assert.deepEqual(hosts.rewinds, [SESSION_ID]);
-    assert.deepEqual(events, ['rewind-start', 'rewind-done', 'run']);
+    assert.deepEqual(events, ['close-start', 'close-done', 'run']);
     assert.equal(runs.length, 1);
     assert.equal(runs[0].options.resumeAnchorId, undefined);
     assert.equal(runs[0].options.resumeFromScratch, true);
@@ -492,7 +492,7 @@ test('an edit on a per-run session hands the anchor over and never rewinds a hos
 
 test('a resident rebuild whose host will not close ends the run and reports it once', async () => {
   await withGateway('claude', async ({ socket, runs, hosts, sendFrame }) => {
-    hosts.failNextRewind = new Error('the host refused to close');
+    hosts.failNextClose = new Error('the host refused to close');
     const before = sessionsDb.getSessionById(SESSION_ID);
 
     await sendFrame({
