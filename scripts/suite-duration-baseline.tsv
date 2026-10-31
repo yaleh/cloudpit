@@ -921,3 +921,8 @@
 #   (dur=2180ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 485 server test files).
 2180	server/shared/tests/cloudpit-data-root.test.ts
+#   the cloudpit-assets-dual-root row by gap-cloudpit-assets-dual-root-and-userdata-helper, measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/assets/tests/cloudpit-assets-dual-root.test.ts`
+#   (dur=6634ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 486 server test files).
+6634	server/modules/assets/tests/cloudpit-assets-dual-root.test.ts
