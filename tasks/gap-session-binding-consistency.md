@@ -1,7 +1,7 @@
 ---
 id: gap-session-binding-consistency
 title: 会话绑定：原子维护线程与 transcript，隔离旧身份回写并恢复受影响会话
-status: ready
+status: done
 labels:
   - gap
   - defect
