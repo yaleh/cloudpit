@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
   extractCodexText,
@@ -1911,13 +1911,10 @@ export class CodexSessionsProvider implements IProviderSessions {
     // there is no such thing as a fork of no turns, so the session is simply
     // detached and the next run opens a new thread.
     if (keepThroughId === null) {
-      sessionsDb.markProviderSessionSuperseded({
-        providerSessionId: supersededThreadId,
-        provider: PROVIDER,
-        sessionId,
-        jsonlPath: session.jsonl_path ?? null,
-      });
-      sessionsDb.detachProviderSession(sessionId);
+      // One transaction: retire the old thread and clear the row together, so a
+      // failure cannot leave a superseded thread still claimed or a detached
+      // row the indexer can hand straight back.
+      sessionBindingService.detachForEdit(sessionId);
       return;
     }
 
@@ -1927,13 +1924,11 @@ export class CodexSessionsProvider implements IProviderSessions {
       cwd: session.project_path ?? '',
     });
 
-    sessionsDb.markProviderSessionSuperseded({
-      providerSessionId: supersededThreadId,
-      provider: PROVIDER,
+    // Explicit replacement, not a run observation: retire the pre-edit thread,
+    // merge any watcher-created row for the fork, and move the id and path in
+    // one commit.
+    sessionBindingService.replaceBinding({
       sessionId,
-      jsonlPath: session.jsonl_path ?? null,
-    });
-    sessionsDb.repointSessionToProviderSession(sessionId, {
       providerSessionId: fork.threadId,
       jsonlPath: fork.path,
     });

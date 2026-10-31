@@ -1,5 +1,6 @@
 import { getConnection } from '@/modules/database/core/index.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
+import { providerSessionBindingDb } from '@/modules/database/repositories/session-binding.db.js';
 import type { HostMode, SessionLaunchSelection } from '@/shared/types.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
@@ -628,71 +629,13 @@ export const sessionsDb = {
   /**
    * Records the provider-native session id for one app-allocated session.
    *
-   * If the filesystem watcher indexed the provider transcript before this
-   * mapping was recorded (a duplicate row keyed by the provider id exists),
-   * the duplicate is merged into the app row: its transcript path and name
-   * are adopted and the duplicate row is removed. Runs in a transaction so
-   * the sidebar can never observe both rows at once.
+   * Kept on this surface because the watchers and synchronizers already call
+   * it; the write itself — including the transaction that merges a
+   * watcher-created duplicate row — lives in the sibling
+   * `session-binding.db.ts`, which owns every provider-binding write.
    */
   assignProviderSessionId(sessionId: string, providerSessionId: string): void {
-    const db = getConnection();
-
-    const merge = db.transaction(() => {
-      // Read raw rather than through the display projection: what is adopted
-      // below is the duplicate's stored columns, and a projected name would be
-      // written back as an override, freezing its transcript reading into
-      // `custom_name` where nothing could ever revise it again.
-      const duplicate = db
-        .prepare(
-          `SELECT ${SESSION_ROW_RAW_COLUMNS} FROM sessions
-           WHERE (session_id = ? OR provider_session_id = ?)
-             AND session_id <> ?
-           LIMIT 1`
-        )
-        .get(providerSessionId, providerSessionId, sessionId) as SessionRow | undefined;
-
-      if (duplicate) {
-        db.prepare('DELETE FROM sessions WHERE session_id = ?').run(duplicate.session_id);
-        db.prepare(
-          `UPDATE sessions SET
-             provider_session_id = @providerSessionId,
-             jsonl_path = COALESCE(jsonl_path, @jsonlPath),
-             custom_name = COALESCE(custom_name, @customName),
-             name_source = CASE
-               WHEN custom_name IS NULL AND @customName IS NOT NULL THEN @nameSource
-               ELSE name_source
-             END,
-             transcript_name = COALESCE(transcript_name, @transcriptName),
-             transcript_name_source = CASE
-               WHEN transcript_name IS NULL AND @transcriptName IS NOT NULL THEN @transcriptNameSource
-               ELSE transcript_name_source
-             END,
-             updated_at = CURRENT_TIMESTAMP
-           WHERE session_id = @sessionId`
-        ).run({
-          providerSessionId,
-          jsonlPath: duplicate.jsonl_path,
-          customName: duplicate.custom_name,
-          // A name and its provenance move together: adopting the duplicate's
-          // name without its source would let the next provider scan overwrite
-          // a name the user had chosen on the other row.
-          nameSource: duplicate.name_source ?? 'derived',
-          transcriptName: duplicate.transcript_name,
-          transcriptNameSource: duplicate.transcript_name_source ?? 'derived',
-          sessionId,
-        });
-        return;
-      }
-
-      db.prepare(
-        `UPDATE sessions SET
-           provider_session_id = ?,
-           updated_at = CURRENT_TIMESTAMP
-         WHERE session_id = ?`
-      ).run(providerSessionId, sessionId);
-    });
-
-    merge();
+    providerSessionBindingDb.assignProviderSessionId(sessionId, providerSessionId);
   },
 
   /**

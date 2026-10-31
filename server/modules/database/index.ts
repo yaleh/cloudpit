@@ -69,7 +69,30 @@ export {
   sessionsDb,
   stripSelfAssignedSuffix,
 } from '@/modules/database/repositories/sessions.db.js';
-export type { SessionNameHiddenByFilterJson, SessionNameSource, SessionNameVisibility } from '@/modules/database/repositories/sessions.db.js';
+export type {
+  SessionNameHiddenByFilterJson,
+  SessionNameSource,
+  SessionNameVisibility,
+} from '@/modules/database/repositories/sessions.db.js';
+// providerSessionBindingDb: the provider-session binding writes, split out of
+// sessions.db.ts. Consumed by the session-binding service below (the run
+// discovery guard and the Codex edit fork/restart); no other module writes the
+// binding pair directly.
+export { providerSessionBindingDb } from '@/modules/database/repositories/session-binding.db.js';
+export type { ProviderSessionBindingOutcome } from '@/modules/database/repositories/session-binding.db.js';
+// sessionBindingService: the single application entry for a session's
+// provider-native binding. Used by the websocket module's chat run registry to
+// record what an ordinary run announced (without letting a late run overwrite
+// an edit's new binding) and by the Codex sessions provider for edit
+// fork/restart, which are the only writes allowed to replace it.
+export {
+  createSessionBindingService,
+  sessionBindingService,
+} from '@/modules/database/session-binding.service.js';
+export type {
+  SessionBindingService,
+  SessionBindingServiceDeps,
+} from '@/modules/database/session-binding.service.js';
 // uiLastOpenedDb: used by the providers module to record the session the browser
 // last opened, and by the MCP gateway (through that service) to answer
 // `ui_last_opened_session`.

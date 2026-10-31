@@ -898,8 +898,13 @@
 #   (dur=10542ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 482 server test files).
 10542	server/modules/websocket/tests/chat-edit-preparation.test.ts
+#   the session-binding-consistency row by gap-session-binding-consistency, measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/session-binding-consistency.test.ts`
+#   (dur=5848ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 484 server test files).
+5848	server/modules/providers/tests/session-binding-consistency.test.ts
 #   the cloudpit-brand-env row by gap-cloudpit-brand-env-fallback, measured once on 2026-10-31 with
 #   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-brand-env.test.ts`
 #   (dur=2299ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
-#   collects 483 server test files).
+#   collects 484 server test files).
 2299	server/shared/tests/cloudpit-brand-env.test.ts
