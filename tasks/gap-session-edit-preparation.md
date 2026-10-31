@@ -54,6 +54,8 @@ AC-445 通过，完成记录含操作顺序与失败读数，接口消费者更�
 - server/shared/types.ts
 - server/shared/interfaces.ts
 - server/shared/index.ts
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - tasks/gap-session-edit-preparation.md
 
 ## 约束
@@ -84,6 +86,9 @@ AC-445 通过，完成记录含操作顺序与失败读数，接口消费者更�
 - `npm run lint` → exit 0（仅既有 warning）。
 - `npm run build:server` → exit 0。
 - 实现前基线实跑 exit 1：`Could not find 'server/modules/websocket/tests/chat-edit-preparation.test.ts'`。
+
+套件侧的连带读数（本轮续跑修复）：新增 server 判据文件把树收集数 481→482，AC7 的 90% 地板读成 433/482=89.83% 红，AC2/AC3 的两条 `unknown=` pin 实读 479/481 vs 钉 478/480。补 `scripts/suite-duration-baseline.tsv` 一行（实测 10542ms，覆盖回到 434/482=90.04%）并把两条 pin 移到 479/481 后，单文件复跑
+- `TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/quay-test-script.test.ts` → 14 pass / 0 fail（88156ms）。
 
 反向控制：`reverse control: the pre-fix mutual exclusion would leave a Codex resident host open` 与 `reverse control: swallowing a close refusal would let the rewind continue` 在恢复 `resident && !rewinds` 互斥或吞掉 close 拒绝时必红。
 
