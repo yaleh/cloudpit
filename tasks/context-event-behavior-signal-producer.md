@@ -2,7 +2,7 @@
 id: context-event-behavior-signal-producer
 title: 发布行为信号到 context 流：ui.view 视图进入 + utterance.data.class 稳定契约（quay-fleet
   行为实验 v1 的 producer 契约）
-status: ready
+status: done
 labels:
   - context-events
   - observation
