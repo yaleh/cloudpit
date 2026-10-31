@@ -24,6 +24,10 @@ import {
   attachActivityHeartbeat,
 } from '@/modules/websocket/services/activity-heartbeat.service.js';
 import { activityStore } from '@/modules/websocket/services/activity-protocol.service.js';
+import {
+  createChatEditPreparationService,
+  type ChatEditPreparationService,
+} from '@/modules/websocket/services/chat-edit-preparation.service.js';
 import { createChatControlService } from '@/modules/websocket/services/chat-control.service.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import {
@@ -349,17 +353,18 @@ type ChatWebSocketDependencies = {
    * the call land on it. Narrow on purpose — these are the only verbs the chat
    * gateway has any business calling.
    *
-   * `rewindAndWait` joined it with the resident edit-send rebuild: an edit on a
-   * resident session has to end the process holding the conversation before a
-   * replacement can be started from the truncation point, and that ordering is
-   * only observable through a seam that reports the rewind landing. It is
-   * optional where the viewer half is not, because the two answer different
-   * questions: a harness that hands over a host *watcher* has said nothing about
-   * rewinding, and a session whose seam cannot rewind is not one to crash a run
-   * over — the process-wide manager answers for it instead.
+   * `closeHostForEditAndWait` joined it with the resident edit-send rebuild: an
+   * edit on a resident session has to end the process holding the conversation
+   * before a replacement can be started from the truncation point, and that
+   * ordering — plus the driver's own refusal — is only observable through a seam
+   * that reports the close landing. It is optional where the viewer half is not,
+   * because the two answer different questions: a harness that hands over a host
+   * *watcher* has said nothing about closing, and a session whose seam cannot
+   * close is not one to crash a run over — the process-wide manager answers for
+   * it instead.
    */
   sessionHostManager?: Pick<SessionHostManager, 'attachViewer'> &
-    Partial<Pick<SessionHostManager, 'rewindAndWait'>>;
+    Partial<Pick<SessionHostManager, 'closeHostForEditAndWait'>>;
   /**
    * The task table read seam for the stop-task control verb.
    *
@@ -421,8 +426,15 @@ type ChatWebSocketDependencies = {
  * The dependencies with the control service resolved, as the three transport
  * verbs see them. `handleChatConnection` resolves the seam once and passes this
  * down, so a handler never has to re-derive (or re-construct) a control.
+ *
+ * `editPreparation` rides along for the same reason: the edit-send handler must
+ * use the host-close seam this connection was given, not a service built around
+ * the process-wide manager.
  */
-type ResolvedChatWebSocketDependencies = ChatWebSocketDependencies & { control: ChatControlSeam };
+type ResolvedChatWebSocketDependencies = ChatWebSocketDependencies & {
+  control: ChatControlSeam;
+  editPreparation: ChatEditPreparationService;
+};
 
 const DEFAULT_STOP_TASK_CONFIRM_TIMEOUT_MS = 5_000;
 const DEFAULT_STOP_TASK_CONFIRM_POLL_MS = 25;
@@ -582,6 +594,35 @@ function resolveChatControl(dependencies: ChatWebSocketDependencies): ChatContro
       assertSessionAccess: dependencies.assertSessionAccess,
     })
   );
+}
+
+/**
+ * The edit preparation one connection's `chat.edit-send` uses.
+ *
+ * The orchestration itself lives in `chat-edit-preparation.service.ts`; this
+ * function only points its injected seams at the shipped services — and at the
+ * host-close seam this connection was handed, when it can close. Read through
+ * the seam rather than the process-wide manager so a criterion that drove a
+ * manager of its own observes the close, while every harness that passed a
+ * bare `{ runtime }` still reaches production's manager.
+ */
+function resolveEditPreparation(
+  dependencies: ChatWebSocketDependencies,
+): ChatEditPreparationService {
+  const seam = dependencies.sessionHostManager;
+  const closeHostForEditAndWait =
+    seam && typeof seam.closeHostForEditAndWait === 'function'
+      ? (sessionId: string) => seam.closeHostForEditAndWait!(sessionId)
+      : (sessionId: string) => sessionHostManager.closeHostForEditAndWait(sessionId);
+
+  return createChatEditPreparationService({
+    resolveEditAnchor: (sessionId, anchorId) => sessionsService.resolveEditAnchor(sessionId, anchorId),
+    providerRewindsForEdit: (sessionId) => sessionsService.providerRewindsForEdit(sessionId),
+    isResidentSession: (sessionId) => sessionsDb.getSessionLifecycleMode(sessionId) === 'resident',
+    rewindSessionForEdit: (sessionId, keepThroughId) =>
+      sessionsService.rewindSessionForEdit(sessionId, keepThroughId),
+    closeHostForEditAndWait,
+  });
 }
 
 
@@ -1018,12 +1059,19 @@ export async function dispatchRun(
  * appends the replacement, so the abandoned attempt stays in the transcript
  * file and is simply no longer part of the live conversation — the same shape
  * Claude Code's rewind and Codex's fork-with-cut-point produce.
+ *
+ * The shared preparation — resolving the anchor, deciding whether the provider
+ * branches or resumes, and closing/replacing the old context in order — lives in
+ * `chat-edit-preparation.service.ts`. This handler is the transport half: it
+ * resolves who is sending, asks the preparation for a plan, and dispatches the
+ * run. The plan is applied only inside `dispatchRun`'s admitted-turn hook, so a
+ * refused edit closes nothing and replaces no binding.
  */
 async function handleChatEditSend(
   ws: WebSocket,
   userId: string | number | null,
   data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
+  dependencies: ResolvedChatWebSocketDependencies
 ): Promise<void> {
   const resolved = resolveSendTarget(ws, data, dependencies, 'chat.edit-send');
   if (!resolved) {
@@ -1037,49 +1085,29 @@ async function handleChatEditSend(
     return;
   }
 
-  let resumeThroughId: string | null;
-  try {
-    const anchor = await sessionsService.resolveEditAnchor(sessionId, anchorId);
-    if (!anchor) {
-      sendProtocolError(
-        ws,
-        'EDIT_NOT_SUPPORTED',
-        `Provider "${provider}" cannot replace an already-sent message.`,
-        sessionId
-      );
-      return;
-    }
-    if (!anchor.found) {
-      sendProtocolError(ws, 'ANCHOR_NOT_FOUND', 'That message is no longer in the transcript.', sessionId);
-      return;
-    }
-    resumeThroughId = anchor.resumeThroughId;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    sendProtocolError(ws, 'ANCHOR_LOOKUP_FAILED', `Could not read the transcript: ${message}`, sessionId);
+  // Read-only: the anchor lookup, the provider's recovery shape and the
+  // session's lifecycle mode decide the whole plan before anything is touched.
+  const preparation = dependencies.editPreparation;
+  const outcome = await preparation.prepare({ sessionId, provider, anchorId });
+  if (outcome.kind === 'unsupported-provider') {
+    sendProtocolError(
+      ws,
+      'EDIT_NOT_SUPPORTED',
+      `Provider "${provider}" cannot replace an already-sent message.`,
+      sessionId
+    );
+    return;
+  }
+  if (outcome.kind === 'anchor-not-found') {
+    sendProtocolError(ws, 'ANCHOR_NOT_FOUND', 'That message is no longer in the transcript.', sessionId);
+    return;
+  }
+  if (outcome.kind === 'lookup-failed') {
+    sendProtocolError(ws, 'ANCHOR_LOOKUP_FAILED', `Could not read the transcript: ${outcome.message}`, sessionId);
     return;
   }
 
-  // Providers split here on what their runtime can do. Claude resumes its
-  // transcript partway, so the anchor rides along as a run option. Codex
-  // cannot — a thread only grows — so the conversation is rewound on disk and
-  // the run that follows is an ordinary resume of whatever the session then
-  // points at. Which of the two applies is decided here; the rewind itself
-  // waits until the run has actually been admitted.
-  const rewinds = sessionsService.providerRewindsForEdit(sessionId);
-
-  // A resident session cannot take the anchor on the live process: the process
-  // already holds the conversation, and writing the replacement into it leaves
-  // both the replaced turn and everything it produced in context and in the
-  // transcript. So the host is torn down first and the replacement cold-starts
-  // a new process from the same provider session at the same truncation point —
-  // the session's identity (app id, provider session id, lifecycle mode, jsonl)
-  // is untouched, and the abandoned branch is what `dropSupersededPromptBranches`
-  // prunes on the next read. The anchor rides along exactly as it does per-run;
-  // only the rewind in front of it is resident-specific.
-  const rebuildsResidentHost =
-    !rewinds && sessionsDb.getSessionLifecycleMode(sessionId) === 'resident';
-
+  const { plan } = outcome;
   const { started, error: runError } = await dispatchRun(
     ws,
     userId,
@@ -1087,83 +1115,48 @@ async function handleChatEditSend(
     session,
     data,
     dependencies,
-    // `null` is meaningful: the edited turn was the first prompt, so the
-    // conversation starts over instead of resuming.
-    rewinds
-      ? {}
-      : { resumeAnchorId: resumeThroughId ?? undefined, resumeFromScratch: resumeThroughId === null },
+    // Empty for a provider that replaces its own binding: that provider's
+    // runtime resumes from whatever transcript the session now points at, and a
+    // Claude resume anchor it never reads would be a second, wrong statement of
+    // where to continue.
+    preparation.runtimeOptions(plan),
     async (run) => {
-      // Emitted through the run's writer so it is sequenced and replayed like
-      // any other event — a second tab watching this session has to truncate
-      // too.
-      //
-      // Before the rewind, not after it. A rewind that has to branch spawns a
-      // process and waits on a JSON-RPC round trip, and holding the frame
-      // until that came back left the message the user had just edited away
-      // sitting on screen for about a second — the very flicker this feature
-      // exists to avoid. Announcing first is safe because a rewind that fails
-      // still ends the run, and the terminal `complete` makes every client
-      // re-read the transcript, which puts back anything that turned out not
-      // to have been replaced after all.
-      run.writer.send({
-        kind: 'history_truncated',
-        provider,
-        sessionId,
-        anchorId,
+      // Admitted. Announce the truncation first (a second tab watching this
+      // session has to drop the superseded turns too), then let the preparation
+      // close the resident host and replace the provider binding in order.
+      const applied = await preparation.apply(plan, {
+        onTruncate: () => {
+          run.writer.send({
+            kind: 'history_truncated',
+            provider: plan.provider,
+            sessionId: plan.sessionId,
+            anchorId: plan.anchorId,
+          });
+        },
       });
 
-      if (rewinds) {
-        try {
-          await sessionsService.rewindSessionForEdit(sessionId, resumeThroughId);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          sendProtocolError(ws, 'EDIT_REWIND_FAILED', `Could not rewind the conversation: ${message}`, sessionId);
-          // Ends the run before the provider is asked to continue a
-          // conversation that was not rewound after all.
-          throw error;
-        }
-      } else if (rebuildsResidentHost) {
-        // Awaited, not fired: the replacement process may not come up while the
-        // old one is still being torn down, and appending into a host that is on
-        // its way out would silently keep the old conversation. A rewind that
-        // throws is deliberately not caught here — `dispatchRun`'s own
-        // catch settles the run, the provider is never asked to continue a
-        // conversation whose host was not rebuilt, and the failure is reported
-        // once, below, through the rebuild's own protocol error.
-        await resolveHostRewind(dependencies)(sessionId);
+      if (applied.kind === 'failed') {
+        // Ends the run before the provider is asked to continue a conversation
+        // whose old context was not retired. `dispatchRun`'s catch settles it and
+        // the run reports below.
+        const what =
+          applied.stage === 'close'
+            ? 'The process holding the old conversation did not close'
+            : 'The conversation could not be rewound';
+        throw new Error(`${what}: ${applied.message}`);
       }
     },
   );
 
-  // One report for the whole resident rebuild. It covers both halves — the host
-  // that would not close and the process that would not come back up — because
-  // either one means the same thing to the person who pressed edit: the
-  // conversation was not restarted, so the old turn is still there. Reported
-  // only for a run that was actually admitted, so a busy refusal keeps its own
-  // `RUN_IN_PROGRESS` and is not relabelled as a rebuild failure.
-  if (started && runError && rebuildsResidentHost) {
+  // One report for the whole edit preparation. It covers the old host that would
+  // not close, the provider binding that would not be replaced, and the process
+  // that would not come back up — each means the same thing to the person who
+  // pressed edit: the conversation was not restarted, so the old turn is still
+  // there. Reported only for a run that was actually admitted, so a busy refusal
+  // keeps its own `RUN_IN_PROGRESS` and is not relabelled.
+  if (started && runError && plan.mutatesBeforeRun) {
     sendProtocolError(ws, 'EDIT_REWIND_FAILED', `Could not restart the conversation: ${runError}`, sessionId);
   }
-}
-
-/**
- * The host manager's awaited rewind, as the edit-send rebuild needs it.
- *
- * Read through the gateway's own seam when it was given one that can rewind —
- * the same manager the subscription path is wired to — and off the process-wide
- * manager otherwise. The shape check rather than a bare dereference because the
- * seam's many harnesses hand over narrow fakes; a session whose manager cannot
- * report the rewind is not one to crash a run over.
- */
-function resolveHostRewind(
-  dependencies: ChatWebSocketDependencies,
-): (sessionId: string) => Promise<boolean> {
-  const seam = dependencies.sessionHostManager;
-  if (seam && typeof seam.rewindAndWait === 'function') {
-    const rewind = seam.rewindAndWait;
-    return (sessionId) => rewind.call(seam, sessionId);
-  }
-  return (sessionId) => sessionHostManager.rewindAndWait(sessionId);
 }
 
 /**
@@ -1867,6 +1860,7 @@ export function handleChatConnection(
   const resolvedDependencies: ResolvedChatWebSocketDependencies = {
     ...dependencies,
     control: resolveChatControl(dependencies),
+    editPreparation: resolveEditPreparation(dependencies),
   };
 
   // The registry this connection's identity goes into and is removed from. Both
