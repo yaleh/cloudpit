@@ -195,3 +195,11 @@ shell.launch=argv0=…/codex args=[]
 ## ADR-007 dark axis
 
 该轴仍暗,理由:本任务的读数是能力声明、创建请求/响应、持久化行与进程 running 布尔值，没有 L_D/L_G 可量化的领域读数。
+
+## Blocker
+
+**2026-10-31T04:32:28.772Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/session-hosts/tests/resident-server-restart.test.ts:   AssertionError [ERR_ASSERTION]: the reason field is filled for a per-run session too, so it says nothing [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/session-hosts/tests/resident-server-restart.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/modules/session-hosts/tests/resident-server-restart.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：0fe4be1d-cb7d-4661-93bc-2c1b6011ed8d
