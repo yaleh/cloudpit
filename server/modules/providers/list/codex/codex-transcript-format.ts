@@ -19,6 +19,7 @@
  *   reader Quay's session-mentions scan consumes.
  */
 
+import { isRecord } from '@/shared/utils.js';
 import type { AnyRecord, ProviderTranscriptMessage } from '@/shared/types.js';
 
 /**
@@ -101,11 +102,6 @@ export function isInternalCodexContent(content: string): boolean {
 }
 
 // --------------------------- PROSE READER ------------
-
-/** A value that is a non-array object. */
-function isRecord(value: unknown): value is AnyRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * The prose one Codex rollout row carries, or `null` when it carries none.

@@ -18,6 +18,7 @@
  *   reader Quay's session-mentions scan consumes.
  */
 
+import { isRecord } from '@/shared/utils.js';
 import type { ProviderTranscriptMessage } from '@/shared/types.js';
 
 /**
@@ -153,11 +154,6 @@ export function buildLocalCommandDisplayText(payload: ClaudeLocalCommandPayload)
  * same reason.
  */
 const NON_PROSE_ROW_PREFIXES = ['<task-notification>'] as const;
-
-/** A value that is a non-array object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * The conversation-bearing text blocks of one Claude `content` value.
