@@ -1,7 +1,7 @@
 ---
 id: gap-ac418-routes-undici-blocked-port-lottery
 title: AC-418 判据仍假红：withServer 的 listen(0) 会抽中 undici bad port，既有 fetch 重试不覆盖这条腿
-status: todo
+status: ready
 labels:
   - gap
 parent: null
