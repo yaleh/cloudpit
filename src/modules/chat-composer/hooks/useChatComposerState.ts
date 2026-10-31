@@ -9,10 +9,9 @@ import type {
   TouchEvent,
 } from 'react';
 
-import { api } from '@/shared/api';
 import { PROVIDER_PERMISSION_PREFERENCE_KEYS } from '@/shared/constants';
 import { readUserPreference } from '@/shared/userSettings';
-import type { ChatAttachment, ChatMessage, MarkSessionIdle, MarkSessionProcessing, PendingPermissionRequest, PermissionMode, SessionActivityMap, SessionEstablishedContext, Project, ProjectSession, LLMProvider, SlashCommand, QueuedDraft, QueuedSendOptions, ServerEvent } from '@/shared/types';
+import type { ChatAttachment, ChatMessage, MarkSessionIdle, MarkSessionProcessing, PendingPermissionRequest, PermissionMode, SessionActivityMap, SessionEstablishedContext, Project, ProjectSession, LLMProvider, SessionLifecycleMode, SlashCommand, QueuedDraft, QueuedSendOptions, ServerEvent } from '@/shared/types';
 import { grantClaudeToolPermission } from '@/modules/chat-session';
 import { createChatSession } from '@/modules/chat-session';
 import { writeDraftText, writeQueuedMessage } from '@/shared/chatDrafts';
@@ -140,18 +139,20 @@ type UseChatComposerStateArgs = {
    */
   addResidentPending?: (sessionId: string, text: string) => void;
   /**
-   * Whether the next brand-new session should be created resident.
+   * The lifecycle mode the next brand-new session should state on its creation,
+   * or absent to let the server apply the provider's declared default.
    *
-   * The switch that sets it has one home — the new-session empty state's model card — and this hook's
-   * send path is where the value has to act: the session row is allocated here, and the lifecycle-mode
-   * write that keeps it running lands between that allocation and the first `chat.send`. Read only
-   * when the send has no session to address (a brand-new conversation), never for one that already
-   * exists: the composer no longer offers a switch on an open session, so a send addressed to one must
-   * not convert it.
+   * The switch that sets it has one home — the new-session empty state's model
+   * card — and this hook's send path is where the value has to act: the session
+   * row is allocated here, and carrying the mode on THAT call is what stores it
+   * before the first turn exists. Read only when the send has no session to
+   * address (a brand-new conversation), never for one that already exists: the
+   * composer no longer offers a switch on an open session, so a send addressed
+   * to one must not convert it, and the server-written mode is final.
    */
-  residentEnabled?: boolean;
-  /** Clears the switch's position once the new session it applied to has been made resident. */
-  clearResidentIntent?: () => void;
+  newSessionLifecycleMode?: SessionLifecycleMode;
+  /** Clears the switch's position once the new session it applied to exists. */
+  onNewSessionLifecycleSpent?: () => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   /**
@@ -227,8 +228,8 @@ export function useChatComposerState({
   markUserTurnUndelivered,
   restoreUserTurn,
   addResidentPending,
-  residentEnabled = false,
-  clearResidentIntent,
+  newSessionLifecycleMode,
+  onNewSessionLifecycleSpent,
   setIsUserScrolledUp,
   setPendingPermissionRequests,
   lastAssistantMessageId = null,
@@ -663,6 +664,12 @@ export function useChatComposerState({
             model: currentProviderModel,
             effort: currentProviderEffort,
             permissionMode: String(permissionMode),
+            // The switch's position for THIS session. Absent means "follow the
+            // provider default" and the server applies the mode it declared; an
+            // explicit value is the person's one-session override. The mode is
+            // stored by the creation itself, so the first turn below cannot run
+            // under a per-run mode that the page showed as resident.
+            ...(newSessionLifecycleMode === undefined ? {} : { lifecycleMode: newSessionLifecycleMode }),
           });
           targetSessionId = created.sessionId;
           // A blank server name would leave the session unlabeled, so the local
@@ -694,31 +701,12 @@ export function useChatComposerState({
           summary: createdSessionName,
         });
 
-        // The resident intent belongs to this brand-new session and nowhere else: the session row
-        // now exists and the mode is written before the turn starts. Both halves of that window
-        // matter — there is nothing to write a preference against earlier, and the server refuses a
-        // mode change while a host is mid-turn, so a write that travelled with the send would race
-        // the process the send itself opens. It is read here, inside the new-session branch, and
-        // never for a send addressed to a session that already exists: the switch was removed from
-        // the composer, so an open session must not be converted by a position the user set while
-        // starting a different one.
-        if (residentEnabled) {
-          try {
-            await api.providers.setSessionLifecycleMode(provider, targetSessionId, 'resident');
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            console.error('Resident mode request failed:', error);
-            addMessage({
-              type: 'error',
-              content: `Failed to keep this session running: ${message}`,
-              timestamp: new Date(),
-            });
-          }
-          // The intent has been spent on the session it was set for. Clearing it here is what keeps a
-          // later send into an old per-run session from being converted silently: even though that
-          // send never reads the switch, a stale "on" would still be drawn on the next New Session.
-          clearResidentIntent?.();
-        }
+        // The switch's position belonged to this brand-new session and nowhere
+        // else. It has now been applied (or the provider default was followed),
+        // so clearing it here is what makes the NEXT New Session start from the
+        // provider default again — a manually switched-off session does not
+        // stick. A send addressed to an existing session never reaches here.
+        onNewSessionLifecycleSpent?.();
       }
 
       const attachmentRecords = uploadedAttachments as ChatAttachment[];
@@ -895,8 +883,8 @@ export function useChatComposerState({
       addMessage,
       markUserTurnUndelivered,
       restoreUserTurn,
-      residentEnabled,
-      clearResidentIntent,
+      newSessionLifecycleMode,
+      onNewSessionLifecycleSpent,
       setIsUserScrolledUp,
       slashCommands,
       // The three selections the session allocation states. Read here rather than

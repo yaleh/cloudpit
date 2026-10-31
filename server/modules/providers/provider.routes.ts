@@ -465,6 +465,29 @@ const parseSessionEffortPayload = (payload: unknown): string => {
  */
 const HOST_MODES: readonly HostMode[] = ['per-run', 'resident'];
 
+/**
+ * Reads an OPTIONAL lifecycle mode from a creation body.
+ *
+ * Absent (or blank) reads as "the caller stated nothing" and is handed to the
+ * service as `undefined`, which is what lets the provider default apply. A
+ * value that is present but not a mode is refused here with the transport's own
+ * code — the same discipline the dedicated lifecycle route follows — instead of
+ * travelling on and being silently dropped by the service.
+ */
+const readOptionalLifecycleMode = (value: unknown): HostMode | undefined => {
+  const mode = readOptionalQueryString(value);
+  if (mode === undefined) {
+    return undefined;
+  }
+  if (!HOST_MODES.includes(mode as HostMode)) {
+    throw new AppError(`lifecycleMode must be one of: ${HOST_MODES.join(', ')}.`, {
+      code: 'LIFECYCLE_MODE_UNKNOWN',
+      statusCode: 400,
+    });
+  }
+  return mode as HostMode;
+};
+
 const parseLifecycleModePayload = (payload: unknown): HostMode => {
   if (!payload || typeof payload !== 'object') {
     throw new AppError('Request body must be an object.', {
@@ -857,11 +880,18 @@ const parseSessionLaunchSelection = (payload: unknown): SessionLaunchSelection =
   const model = readOptionalQueryString(body.model);
   const effort = readOptionalQueryString(body.effort);
   const permissionMode = readOptionalQueryString(body.permissionMode);
+  // The lifecycle selection is checked against the same vocabulary the
+  // dedicated lifecycle route uses, so a typo is the transport's
+  // `LIFECYCLE_MODE_UNKNOWN` rather than something the creation service has to
+  // guess about. Whether the PROVIDER implements the mode is the service's
+  // refusal (`LIFECYCLE_MODE_NOT_SUPPORTED`).
+  const lifecycleMode = readOptionalLifecycleMode(body.lifecycleMode);
 
   return {
     ...(model ? { model } : {}),
     ...(effort ? { effort } : {}),
     ...(permissionMode ? { permissionMode } : {}),
+    ...(lifecycleMode ? { lifecycleMode } : {}),
   };
 };
 

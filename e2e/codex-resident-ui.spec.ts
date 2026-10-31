@@ -226,11 +226,11 @@ const setSelectedProvider = async (request: APIRequestContext) => {
 /** The capability matrix as the backend answers it, parsed exactly the way the app's own hook parses it. */
 const providerCapabilities = async (
   request: APIRequestContext,
-): Promise<{ provider: string; lifecycleModes?: string[] }[]> => {
+): Promise<{ provider: string; lifecycleModes?: string[]; defaultLifecycleMode?: string }[]> => {
   const response = await request.get('/api/providers/capabilities', { headers: auth(authToken) });
   expect(response.ok(), `GET /api/providers/capabilities answered ${response.status()}`).toBe(true);
   const body = (await response.json()) as {
-    data?: { providers?: { provider: string; lifecycleModes?: string[] }[] };
+    data?: { providers?: { provider: string; lifecycleModes?: string[]; defaultLifecycleMode?: string }[] };
   };
   return body.data?.providers ?? [];
 };
@@ -335,7 +335,12 @@ test('codex declares resident, and the switch-on send creates a resident session
   expect(codexRow, 'GET /api/providers/capabilities must list the codex provider').toBeTruthy();
   const modes = [...(codexRow?.lifecycleModes ?? [])].sort();
   console.log(`capabilities.codex.lifecycleModes=${modes.join(',')}`);
+  console.log(`capabilities.codex.defaultLifecycleMode=${codexRow?.defaultLifecycleMode ?? 'none'}`);
   expect(modes, 'codex must declare resident, or the switch below would have no business on screen').toContain('resident');
+  expect(
+    codexRow?.defaultLifecycleMode,
+    'codex must declare resident as the new-session default, or the switch would start somewhere else',
+  ).toBe('resident');
 
   await openNewSession(page);
   const toggle = page.locator(SWITCH).first();
@@ -346,11 +351,16 @@ test('codex declares resident, and the switch-on send creates a resident session
   // ── AC2, second half: the switch's own two readings ───────────────────────────────────────────────
   const before = await toggle.getAttribute('aria-checked');
   console.log(`resident.toggle.aria-checked.before=${before}`);
-  expect(before, 'the switch starts off').toBe('false');
+  expect(before, 'the switch starts on, in the default the backend declared').toBe('true');
+  // The press is still exercised, because the switch must be a control and not a label: off, then back on.
+  await toggle.click();
+  const flippedOff = await toggle.getAttribute('aria-checked');
+  console.log(`resident.toggle.aria-checked.off=${flippedOff}`);
+  expect(flippedOff, 'pressing the switch must turn it off').toBe('false');
   await toggle.click();
   const after = await toggle.getAttribute('aria-checked');
   console.log(`resident.toggle.aria-checked.after=${after}`);
-  expect(after, 'pressing the switch must turn it on').toBe('true');
+  expect(after, 'pressing it again must turn it back on for the send below').toBe('true');
 
   // The first command of the file carries the stand-in's hold marker: it is the turn
   // the withdraw leg finds still in flight, so "send while busy" is a real busy

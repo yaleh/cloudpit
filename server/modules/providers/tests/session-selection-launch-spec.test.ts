@@ -138,7 +138,13 @@ async function runOptionsLessFirstTurn(baseUrl: string, waitMs: number): Promise
   const socket = createFakeSocket();
   let sessionId = '';
   try {
-    const created = sessionsService.createAppSession('claude', tempDirectory, '', { model: SESSION_MODEL });
+    // This criterion reads the model half of the selection on a per-run first turn. The lifecycle
+    // mode is stated explicitly so the turn stays on that path now that the provider default is
+    // resident; its subject is the recorded model, not the mode.
+    const created = sessionsService.createAppSession('claude', tempDirectory, '', {
+      model: SESSION_MODEL,
+      lifecycleMode: 'per-run',
+    });
     sessionId = created.sessionId;
 
     handleChatConnection(

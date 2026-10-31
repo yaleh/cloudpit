@@ -82,6 +82,21 @@ type ProviderCapabilities = {
    */
   lifecycleModes: HostMode[];
   /**
+   * The lifecycle mode a NEW session of this provider is created with when the
+   * caller names none.
+   *
+   * Deliberately separate from {@link lifecycleModes}: supporting a mode is not
+   * the same as defaulting to it. Both facts are stated here, in the one matrix
+   * every entry point (the web session gateway, the MCP `session_create` tool,
+   * Live Voice's allocation) reads, so no frontend or tool carries its own
+   * provider-id branch for "what should a new session be".
+   *
+   * A provider not in the `LLMProvider` union states its own default through
+   * `RuntimeProviderCapabilities.defaultLifecycleMode`; absent there reads as
+   * `per-run`, which keeps every provider that never declared one unchanged.
+   */
+  defaultLifecycleMode: HostMode;
+  /**
    * Whether one process may serve several sessions at once. False for every
    * provider in the union: the default wrapper opens one process per turn and
    * never reuses a host, so a second binding is refused rather than multiplexed.
@@ -122,8 +137,10 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsSessionForking: true,
     // `per-run` is the default wrapper's mode. `resident` is the SDK's held-input
     // protocol: a never-ending prompt stream keeps one CLI alive across turns,
-    // and `claude-host-driver.provider.ts` is the driver that owns it.
+    // and `claude-host-driver.provider.ts` is the driver that owns it. A new
+    // session starts resident unless the caller explicitly asks for per-run.
     lifecycleModes: ['per-run', 'resident'],
+    defaultLifecycleMode: 'resident',
     multiplexedHost: false,
     // The five measured entries come from the phase-0 experiments E1–E8
     // (`docs/proposals/claude-resident-sessions.md`, "阶段 0 结论"), each with
@@ -201,6 +218,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsMessageEditing: false,
     supportsSessionForking: false,
     lifecycleModes: ['per-run'],
+    defaultLifecycleMode: 'per-run',
     multiplexedHost: false,
   },
   codex: {
@@ -221,8 +239,10 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsSessionForking: true,
     // `resident` is the app-server protocol: one process per session held
     // across turns, driven by `codex-host-driver.provider.ts` (AC-441). It is
-    // stated here only because that driver really serves the mode.
+    // stated here only because that driver really serves the mode. Like Claude,
+    // a new Codex session starts resident unless the caller asks for per-run.
     lifecycleModes: ['per-run', 'resident'],
+    defaultLifecycleMode: 'resident',
     // One conversation per app-server process — the same reading the driver's
     // own field states (`CodexHostDriver.multiplexedHost`), per yale's ruling
     // that one session owns one app-server.
@@ -288,6 +308,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsMessageEditing: false,
     supportsSessionForking: false,
     lifecycleModes: ['per-run'],
+    defaultLifecycleMode: 'per-run',
     multiplexedHost: false,
   },
 };
@@ -376,6 +397,39 @@ function copyRuntimeCapabilities(
 export const providerCapabilitiesService = {
   getProviderCapabilities(provider: LLMProvider): ProviderCapabilities {
     return PROVIDER_CAPABILITIES[provider];
+  },
+
+  /**
+   * The lifecycle mode a new session of `provider` is created with when the
+   * caller states none.
+   *
+   * The ONE answer the session gateway, the MCP `session_create` adapter and
+   * every other creation path share. Reads the union matrix first and the
+   * runtime registry second, so a provider outside `LLMProvider` that declared
+   * a default is honoured; a provider that declared nothing (or an unknown id)
+   * reads as `per-run`, which is the row's own DB default and the behaviour
+   * every provider had before this declaration existed.
+   */
+  resolveDefaultLifecycleMode(provider: string): HostMode {
+    const declared = PROVIDER_CAPABILITIES[provider as LLMProvider]?.defaultLifecycleMode
+      ?? runtimeProviderCapabilities.get(provider)?.defaultLifecycleMode;
+    return declared ?? 'per-run';
+  },
+
+  /**
+   * The lifecycle modes `provider` implements, read the same way
+   * {@link resolveDefaultLifecycleMode} reads the default: the union matrix
+   * first, the runtime registry second.
+   *
+   * Creation validates an explicitly requested mode against this list, so a
+   * provider outside the union (the debug agent, a plugin host) is refused or
+   * accepted on its OWN declaration rather than looking like a provider that
+   * implements nothing. A provider nobody declared reads as the empty list.
+   */
+  resolveLifecycleModes(provider: string): HostMode[] {
+    const declared = PROVIDER_CAPABILITIES[provider as LLMProvider]?.lifecycleModes
+      ?? runtimeProviderCapabilities.get(provider)?.lifecycleModes;
+    return declared === undefined ? [] : [...declared];
   },
 
   listAllProviderCapabilities(): ProviderCapabilities[] {

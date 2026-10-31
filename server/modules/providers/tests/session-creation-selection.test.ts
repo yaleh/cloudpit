@@ -190,6 +190,57 @@ test('the selection the create call states is the one the session readers report
   });
 });
 
+test('a gateway create stores the provider lifecycle default on the row it mints', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    const claude = await createSession(baseUrl, workspacePath, { initialMessage: 'typed first turn' });
+    const cursor = await createSession(baseUrl, workspacePath, { provider: 'cursor' });
+
+    // The row and the creation response are two readings of one decision: the
+    // mode is written by the insert, so it is already there before any turn can
+    // be dispatched (no create-then-switch window).
+    assert.equal(claude.status, 201);
+    assert.equal(claude.data.lifecycleMode, 'resident', 'the create response reports the stored provider default');
+    assert.equal(claude.row?.lifecycle_mode, 'resident', 'a Claude row is minted resident');
+    assert.equal(cursor.status, 201);
+    assert.equal(cursor.data.lifecycleMode, 'per-run');
+    assert.equal(cursor.row?.lifecycle_mode, 'per-run', 'a cursor row keeps its per-run default');
+  });
+});
+
+test('an explicit lifecycle mode is written at creation; a bad or unsupported one is refused before the row exists', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    const perRun = await createSession(baseUrl, workspacePath, { lifecycleMode: 'per-run' });
+    const resident = await createSession(baseUrl, workspacePath, { provider: 'claude', lifecycleMode: 'resident' });
+
+    assert.equal(perRun.status, 201);
+    assert.equal(perRun.data.lifecycleMode, 'per-run', 'an explicit per-run must not be replaced by the provider default');
+    assert.equal(perRun.row?.lifecycle_mode, 'per-run');
+    assert.equal(resident.status, 201);
+    assert.equal(resident.data.lifecycleMode, 'resident', 'an explicit resident is honoured where the provider implements it');
+    assert.equal(resident.row?.lifecycle_mode, 'resident');
+
+    const rowsBefore = sessionsDb.getAllSessions().length;
+    const unknown = await fetch(`${baseUrl}/api/providers/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'claude', projectPath: workspacePath, lifecycleMode: 'sometimes' }),
+    });
+    const unknownPayload = await unknown.json() as { error?: { code?: string } };
+    assert.equal(unknown.status, 400, 'an unknown lifecycle mode is an argument error');
+    assert.equal(unknownPayload.error?.code, 'LIFECYCLE_MODE_UNKNOWN');
+
+    const unsupported = await fetch(`${baseUrl}/api/providers/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'cursor', projectPath: workspacePath, lifecycleMode: 'resident' }),
+    });
+    const unsupportedPayload = await unsupported.json() as { error?: { code?: string } };
+    assert.equal(unsupported.status, 409, 'a supported vocabulary but an unsupported provider mode is a conflict');
+    assert.equal(unsupportedPayload.error?.code, 'LIFECYCLE_MODE_NOT_SUPPORTED');
+    assert.equal(sessionsDb.getAllSessions().length, rowsBefore, 'neither refusal may mint a session row');
+  });
+});
+
 // --------------------------- the MCP session_create adapter ---------------------------
 /**
  * The same statement, made through the MCP write tool.

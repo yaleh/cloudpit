@@ -450,8 +450,8 @@ test('session_create records a library entry model on the row and launches the f
     assert.equal(productionTap.args.length, 1, 'exactly one row write per create');
     assert.deepEqual(
       productionTap.args[0]?.selection,
-      { model: LIBRARY_MODEL_ID },
-      'the validated model must reach createAppSession as its selection',
+      { model: LIBRARY_MODEL_ID, lifecycleMode: 'resident' },
+      'the validated model and the caller-stated lifecycle mode must reach createAppSession as its selection',
     );
 
     // The row, read from the database.

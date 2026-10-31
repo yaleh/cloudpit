@@ -15,16 +15,15 @@
  * stay different acts: the run id is produced by exactly one thing (a real send)
  * and its absence is the honest reading of "no run was started".
  *
- * The lifecycle preference is stored before the opening send, and when the
- * caller names no `lifecycleMode` it is chosen per provider: `claude` — the one
- * provider the resident host subsystem (`server/modules/session-hosts/`) was
- * built for, and the only one whose capability matrix declares `resident` —
- * defaults to `resident`, while every other provider falls through to the row's
- * own DB default (`per-run`) untouched. An explicit `lifecycleMode`, in either
- * direction, always wins over that default. The choice lives here, not in the
- * `lifecycle_mode` column's `DEFAULT`: the schema default is what a provider
- * with no resident capability keeps, and moving it would retroactively
- * reinterpret every stored row.
+ * The lifecycle mode is written WITH the session row, by the same unified
+ * `sessionsService.createAppSession` the HTTP gateway calls: an explicit
+ * `lifecycleMode`, in either direction, wins when the provider's capability
+ * matrix lists it; an omitted one takes the provider's own declared
+ * `defaultLifecycleMode` (resident for Claude and Codex, per-run for the rest).
+ * The default therefore lives in the capability matrix, not in this adapter,
+ * and no provider-id branch remains here. Storing it on the creation write is
+ * what removes the "created per-run, switched just before the send" window: the
+ * row is already in its final mode when the opening send dispatches it.
  *
  * A `permissionMode` argument closes the race between "create a session with a
  * first message" and "the mode that first message runs under": the mode is
@@ -59,7 +58,7 @@
 import { z } from 'zod';
 
 import type { providerCapabilitiesService, providerModelsService } from '@/modules/providers/index.js';
-import type { LLMProvider, SessionLaunchSelection } from '@/shared/types.js';
+import type { HostMode, LLMProvider, SessionLaunchSelection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 import { MCP_ERROR_CODES, McpToolError, type McpErrorDetails } from './mcp-error-envelope.js';
@@ -105,11 +104,12 @@ export type McpControlAbortSeam = {
  * The services `session_create` answers from, all injected.
  *
  * `projects.list()` is the active-project projection (production:
- * `getProjectsWithSessions`); `sessions.create` /
- * `sessions.switchLifecycle` are `sessionsService.createAppSession` /
- * `sessionsService.switchSessionLifecycleMode`; `control` is the shared chat
- * control service. Narrowing `sessions` to the two members this tool reads keeps
- * the criterion from having to stand up the whole service surface.
+ * `getProjectsWithSessions`); `sessions.create` is
+ * `sessionsService.createAppSession` — it decides and stores the lifecycle mode
+ * in the same row insert, so `sessions.switchLifecycle` is retained only for
+ * older hand-written mounts and is never called; `control` is the shared chat
+ * control service. Narrowing `sessions` to this surface keeps the criterion from
+ * having to stand up the whole service.
  */
 export type McpSessionCreateDeps = {
   projects: {
@@ -121,8 +121,15 @@ export type McpSessionCreateDeps = {
       projectPath: string,
       initialMessage: string,
       selection?: SessionLaunchSelection,
-    ): { sessionId: string };
-    switchLifecycle(provider: LLMProvider, sessionId: string, mode: string): unknown;
+    ): { sessionId: string; lifecycleMode?: HostMode };
+    /**
+     * Retired from the creation path: the mode is now written by `create` in
+     * the same row insert (see {@link buildSessionCreate}). Kept OPTIONAL so a
+     * mount written before this change — several criteria hand-write it — stays
+     * a valid `McpSessionCreateDeps`; production still wires it, and nothing
+     * here calls it.
+     */
+    switchLifecycle?(provider: LLMProvider, sessionId: string, mode: string): unknown;
   };
   control: McpControlSeam;
   /**
@@ -150,7 +157,16 @@ export type McpSessionCreateDeps = {
    * never reads it; a caller that does, with the matrix unwired, fails closed —
    * an unverifiable mode is refused rather than written.
    */
-  capabilities?: Pick<typeof providerCapabilitiesService, 'getProviderCapabilities'>;
+  capabilities?: Pick<typeof providerCapabilitiesService, 'getProviderCapabilities'> & {
+    /**
+     * The lifecycle modes a provider implements, including providers that
+     * declare them at runtime rather than in the union matrix (the debug agent
+     * does). Production hands over the whole service; an older hand-written bag
+     * that only carries `getProviderCapabilities` still compiles, and its
+     * lifecycle validation reads the union table alone.
+     */
+    resolveLifecycleModes?: typeof providerCapabilitiesService.resolveLifecycleModes;
+  };
   /** The session-row writer for the recorded permission mode (the same service `session_reconfigure` uses). */
   models?: Pick<typeof providerModelsService, 'setSessionPermissionMode'> & {
     /**
@@ -187,10 +203,10 @@ export type McpSessionCreateInput = {
   /** The model preference recorded on the session. */
   model?: string;
   /**
-   * The lifecycle mode to store before any turn runs. Absent means the
-   * provider-scoped default: `resident` for Claude (the resident host
-   * subsystem's provider), the row's untouched DB default `per-run` for every
-   * other provider. An explicit value wins over that default.
+   * The lifecycle mode to store with the row. Absent means the provider-scoped
+   * default from the capability matrix (resident for Claude and Codex, per-run
+   * for every other provider). An explicit value always wins over that default
+   * and is refused when the provider does not declare it.
    */
   lifecycleMode?: string;
   /**
@@ -235,6 +251,15 @@ export const SESSION_CREATE_INPUT_SCHEMA = {
  */
 export type SessionCreatePayload = {
   sessionId: string;
+  /**
+   * The lifecycle mode the created row carries.
+   *
+   * Present whenever the creation seam reported it. It is the concrete stored
+   * value — the caller's explicit choice, or the provider's declared default —
+   * so the caller can read "the row was created in this mode" rather than infer
+   * it. Absent only for a hand-written seam that reports no mode.
+   */
+  lifecycleMode?: HostMode;
   /**
    * The delivery the opening message was accepted as (SPEC §8.1). Present ONLY
    * when a message was supplied, for the same reason `runId` is: it is the id of
@@ -399,11 +424,45 @@ export async function buildSessionCreate(
     }
   }
 
+  // An explicit lifecycle mode is checked against the SAME provider capability
+  // matrix `session_reconfigure` uses, before the row exists. With the matrix
+  // unwired this fails closed, exactly like the permission mode above. The
+  // vocabulary check is separate because the tool reads its arguments as
+  // strings: a typo is an argument mistake, not an unsupported-provider answer.
+  if (input.lifecycleMode !== undefined) {
+    if (input.lifecycleMode !== 'per-run' && input.lifecycleMode !== 'resident') {
+      throw new McpToolError(
+        MCP_ERROR_CODES.INVALID_ARGUMENT,
+        `"lifecycleMode" must be one of: per-run, resident.`,
+      );
+    }
+    const declared =
+      deps.capabilities?.resolveLifecycleModes?.(provider) ??
+      deps.capabilities?.getProviderCapabilities(provider)?.lifecycleModes ??
+      [];
+    if (!declared.includes(input.lifecycleMode)) {
+      throw new McpToolError(
+        MCP_ERROR_CODES.INVALID_ARGUMENT,
+        `Provider "${provider}" does not implement "${input.lifecycleMode}" lifecycle mode; supported: ${declared.join(', ') || 'none'}.`,
+        false,
+        { supported: [...declared] },
+      );
+    }
+  }
+
   const created = deps.sessions.create(
     provider,
     entry.path,
     input.message ?? '',
-    model ? { model } : undefined,
+    {
+      ...(model ? { model } : {}),
+      // The lifecycle selection travels WITH the row write. No `switchLifecycle`
+      // call follows: a mode stored after creation would leave the row in the
+      // provider default for the window before it, and the first turn would run
+      // under the wrong mode. Omitted means "the provider default", resolved by
+      // the same `createAppSession` the HTTP gateway uses.
+      ...(input.lifecycleMode === undefined ? {} : { lifecycleMode: input.lifecycleMode }),
+    },
   );
 
   // Record the mode on the row right after creation, so it is readable even when
@@ -413,31 +472,13 @@ export async function buildSessionCreate(
     deps.models.setSessionPermissionMode(provider, created.sessionId, input.permissionMode);
   }
 
-  // Both branches store the preference BEFORE the send, because the mode is read
-  // at dispatch time: a resident session whose preference were stored after the
-  // first turn would run that turn per-run and only become resident once it had
-  // already ended.
-  //
-  // The mode is the caller's when they named one — an explicit preference is
-  // never overridden by the default — and otherwise chosen per provider: Claude
-  // is the one provider the resident host subsystem
-  // (`server/modules/session-hosts/`) was built for and the only one whose
-  // capability matrix declares `resident`, so a Claude session that names no mode
-  // defaults to `resident`. Every other provider takes the second branch's miss
-  // and falls through to the row's own DB default (`per-run`) with NO call here.
-  // The default lives in this handler, not in the schema: the column's
-  // `DEFAULT 'per-run'` is what every provider keeps, and a provider that gains
-  // `resident` later is served by widening this branch rather than by a
-  // migration that would retroactively reinterpret every stored row.
-  if (input.lifecycleMode !== undefined) {
-    deps.sessions.switchLifecycle(provider, created.sessionId, input.lifecycleMode);
-  } else if (provider === 'claude') {
-    deps.sessions.switchLifecycle(provider, created.sessionId, 'resident');
-  }
-
   const message = input.message;
+  const lifecycleMode = created.lifecycleMode;
   if (message === undefined || message.length === 0) {
-    return { sessionId: created.sessionId };
+    return {
+      sessionId: created.sessionId,
+      ...(lifecycleMode === undefined ? {} : { lifecycleMode }),
+    };
   }
 
   const caller: McpControlCaller = { userId: ctx.principal.userId, via: 'mcp' };
@@ -472,7 +513,12 @@ export async function buildSessionCreate(
       deps.runs?.setRunCorrelationId?.(sent.runId, input.correlationId);
     }
   }
-  return { sessionId: created.sessionId, deliveryId: sent.deliveryId ?? null, runId: sent.runId };
+  return {
+    sessionId: created.sessionId,
+    ...(lifecycleMode === undefined ? {} : { lifecycleMode }),
+    deliveryId: sent.deliveryId ?? null,
+    runId: sent.runId,
+  };
 }
 
 // --------------------------- buildSessionInterrupt ---------------------------

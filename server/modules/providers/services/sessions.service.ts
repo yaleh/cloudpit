@@ -29,6 +29,13 @@ type CreateAppSessionResult = {
   provider: LLMProvider;
   projectPath: string;
   sessionName: string;
+  /**
+   * The lifecycle mode the row now carries. Always present and concrete: the
+   * caller's explicit choice when it named one, otherwise the provider's own
+   * default. Returned so "the row was stored with this mode" is a reading the
+   * caller can check before its first turn runs.
+   */
+  lifecycleMode: HostMode;
 };
 
 type ArchivedSessionListItem = {
@@ -336,6 +343,45 @@ function resolveProjectDisplayName(
 }
 
 /**
+ * Resolves the lifecycle mode a new session is created with.
+ *
+ * An explicit selection always wins, but only if the provider's capability
+ * matrix really lists it: a mode the provider does not implement (including a
+ * typo that reached here as a string) is refused with the same tagged error the
+ * dedicated lifecycle switch uses, rather than stored and discovered later by
+ * the dispatcher. An omitted selection reads the provider's declared default
+ * through the capability service — the ONE place that declaration lives — so no
+ * creation entry point carries its own provider-id branch.
+ *
+ * Consumed by `sessionsService.createAppSession`, and therefore by the HTTP
+ * session gateway, the MCP `session_create` adapter and Cockpit alike.
+ */
+function resolveCreateLifecycleMode(
+  provider: LLMProvider,
+  requested: HostMode | undefined,
+): HostMode {
+  const declared = providerCapabilitiesService.resolveLifecycleModes(provider);
+  if (requested !== undefined) {
+    if (!declared.includes(requested)) {
+      throw new AppError(
+        `Provider "${provider}" does not implement "${requested}" lifecycle mode.`,
+        { code: 'LIFECYCLE_MODE_NOT_SUPPORTED', statusCode: 409 },
+      );
+    }
+    return requested;
+  }
+
+  // A declared default is only honoured when the provider also lists the mode:
+  // the matrix promises both, and a mismatch is a defect in the declaration, not
+  // a reason to create a session in a mode its driver cannot serve.
+  const providerDefault = providerCapabilitiesService.resolveDefaultLifecycleMode(provider);
+  if (declared.includes(providerDefault)) {
+    return providerDefault;
+  }
+  return 'per-run';
+}
+
+/**
  * Application service for provider-backed session message operations.
  *
  * Callers pass a provider id and this service resolves the concrete provider
@@ -466,22 +512,35 @@ export const sessionsService = {
       });
     }
 
+    // The mode is resolved HERE — once, for every creation entry point — rather
+    // than by each caller. An explicit selection is validated against the
+    // provider's own capability matrix (an unsupported or unknown mode is
+    // refused, never silently replaced); an omitted one takes the provider's
+    // declared default. The row is written with it in the same insert below, so
+    // the returned session is already in the mode its first turn will run
+    // under — there is no per-run-then-switch window for a caller to race.
+    const lifecycleMode = resolveCreateLifecycleMode(provider, selection?.lifecycleMode);
+
     // The id is minted here, and the row is written before this call returns:
     // no client can name the session before its row exists, which is what keeps
     // a first message's permission mode from ever arriving ahead of the row it
     // belongs to (see the send path's `resolveSendTarget`). The selection is part
     // of that same write for the same reason, one step earlier: a voice
     // connection opened on the returned id must find a session that already knows
-    // which model it runs.
+    // which model it runs — and, now, which lifecycle mode it lives in.
     const sessionId = randomUUID();
     const sessionName = buildCloudCliSessionName(initialMessage);
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, sessionName, selection);
+    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, sessionName, {
+      ...selection,
+      lifecycleMode,
+    });
 
     return {
       sessionId,
       provider,
       projectPath: normalizedProjectPath,
       sessionName,
+      lifecycleMode,
     };
   },
 
@@ -541,6 +600,9 @@ export const sessionsService = {
     });
 
     const forkSessionId = randomUUID();
+    // The stored preference is read once: it is written to the fork row and
+    // returned, so the caller's reading and the row cannot disagree.
+    const lifecycleMode = sessionsDb.getSessionLifecycleMode(sessionId);
     sessionsDb.createForkedSession({
       sessionId: forkSessionId,
       provider,
@@ -562,7 +624,7 @@ export const sessionsService = {
       // an unknown stored value reads as `per-run`. This copies the stored
       // preference only: the fork has no host, and its process (if any) starts
       // on the first send, not here.
-      lifecycleMode: sessionsDb.getSessionLifecycleMode(sessionId),
+      lifecycleMode,
     });
 
     await readSessionBroadcastPort()?.broadcastSessionUpserted(forkSessionId);
@@ -576,6 +638,7 @@ export const sessionsService = {
       provider,
       projectPath: source.project_path ?? '',
       sessionName,
+      lifecycleMode,
     };
   },
 
