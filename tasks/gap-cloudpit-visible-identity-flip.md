@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-visible-identity-flip
 title: Cloudpit B1：可见身份与分发身份翻转 + 品牌 allowlist 检查器（承载 AC-451）
-status: ready
+status: done
 labels:
   - gap
 parent: null
