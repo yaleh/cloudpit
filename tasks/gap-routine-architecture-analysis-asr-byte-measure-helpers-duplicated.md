@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-asr-byte-measure-helpers-duplicated
 title: "architecture-analysis: Same archguard run reports three further
   cross-adapter clone groups — `measureRequestBytes` ×3 (d2b08b77e331b8e4, 14
   savable lines), `base64Encode` ×2 (3c3a9"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
