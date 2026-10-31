@@ -1,11 +1,18 @@
 ---
 id: GOAL-054
 title: Cloudpit 身份翻转：UI/分发/运行时默认值与桌面身份一次性切换，带兼容回退
-status: draft
+status: active
 kind: goal
 origin: docs/proposals/cloudpit-rename-SPEC.md（2026-10-31）；人 yale 2026-10-31
   裁定采用 GOAL-053 普通 + GOAL-054 branch-mode 的混合推进：暗管道落 develop，身份翻转放短命 goal
   分支，外部发布留人工窗口。
+activatedAt: 2026-10-31T14:50:30.073Z
+statusLog:
+  - at: 2026-10-31T14:50:30.073Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
 branch: true
 ---
 ## 目标
