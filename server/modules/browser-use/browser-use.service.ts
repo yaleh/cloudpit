@@ -12,6 +12,11 @@ import { providerMcpService } from '@/modules/providers/index.js';
 import { getModuleDirectory } from '@/shared/utils.js';
 
 import { getBrowserUseRuntime } from './browser-use-runtime.js';
+import {
+  LEGACY_MCP_SERVER_NAMES,
+  MCP_SERVER_NAME,
+  mcpServerNamesToRemove,
+} from './mcp-server-names.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = getModuleDirectory(import.meta.url);
@@ -81,12 +86,6 @@ const DEFAULT_SETTINGS: BrowserUseSettings = {
 };
 const AGENT_OWNER_ID = 'agent';
 const PROFILE_ROOT = path.join(os.homedir(), '.cloudcli', 'browser-use', 'profiles');
-export const MCP_SERVER_NAME = 'cloudpit-browser';
-export const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser', 'cloudcli-browser-use'];
-/** The names an uninstall must remove: the current registration plus every legacy spelling. */
-export function mcpServerNamesToRemove(): string[] {
-  return [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES];
-}
 const RUNTIME_READINESS_CACHE_TTL_MS = 30_000;
 
 function readSettings(): BrowserUseSettings {

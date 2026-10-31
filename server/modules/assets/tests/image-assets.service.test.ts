@@ -11,7 +11,11 @@ import {
   resolveImageAssetFile,
 } from '@/modules/assets/services/image-assets.service.js';
 
-const ASSETS_DIR = path.join(os.homedir(), '.cloudcli', 'assets');
+// Uploads land in the Cloudpit write root by default; the single-argument
+// `resolveImageAssetFile` helpers below deliberately keep the legacy root so an
+// attachment stored before the flip stays readable (AC-452 dual read).
+const WRITE_ASSETS_DIR = path.join(os.homedir(), '.cloudpit', 'assets');
+const LEGACY_ASSETS_DIR = path.join(os.homedir(), '.cloudcli', 'assets');
 
 test('isAllowedImageMimeType accepts image formats and rejects the rest', () => {
   assert.equal(isAllowedImageMimeType('image/png'), true);
@@ -29,7 +33,7 @@ test('buildStoredImageRecords returns absolute posix paths in the assets dir', (
   assert.equal(records[0].name, 'shot.png');
   assert.equal(records[0].size, 42);
   assert.equal(records[0].mimeType, 'image/png');
-  assert.equal(records[0].path, `${ASSETS_DIR.replace(/\\/g, '/')}/123-456-shot.png`);
+  assert.equal(records[0].path, `${WRITE_ASSETS_DIR.replace(/\\/g, '/')}/123-456-shot.png`);
 });
 
 test('buildStoredAttachmentRecords preserves metadata for non-image files', () => {
@@ -44,7 +48,7 @@ test('buildStoredAttachmentRecords preserves metadata for non-image files', () =
 
   assert.deepEqual(records[0], {
     name: 'requirements.pdf',
-    path: `${ASSETS_DIR.replace(/\\/g, '/')}/123-456-requirements.pdf`,
+    path: `${WRITE_ASSETS_DIR.replace(/\\/g, '/')}/123-456-requirements.pdf`,
     size: 2048,
     mimeType: 'application/pdf',
   });
@@ -52,7 +56,7 @@ test('buildStoredAttachmentRecords preserves metadata for non-image files', () =
 
 test('resolveImageAssetFile resolves plain filenames inside the assets dir', () => {
   const resolved = resolveImageAssetFile('123-shot.png');
-  assert.equal(resolved, path.join(path.resolve(ASSETS_DIR), '123-shot.png'));
+  assert.equal(resolved, path.join(path.resolve(LEGACY_ASSETS_DIR), '123-shot.png'));
 });
 
 test('resolveImageAssetFile rejects traversal and separator attempts', () => {
@@ -68,7 +72,7 @@ test('resolveImageAssetFile rejects traversal and separator attempts', () => {
 test('resolveAttachmentAssetFile uses the same direct-child boundary', () => {
   assert.equal(
     resolveAttachmentAssetFile('123-notes.txt'),
-    path.join(path.resolve(ASSETS_DIR), '123-notes.txt'),
+    path.join(path.resolve(LEGACY_ASSETS_DIR), '123-notes.txt'),
   );
   assert.equal(resolveAttachmentAssetFile('../notes.txt'), null);
 });
