@@ -411,7 +411,15 @@ test('AC: session.asking.retracted is accepted although the installed schema doe
         'a retraction carries exactly its two identity fields',
       );
       assert.equal(writer.status().writes, 1);
-      assert.deepEqual(FLEET_TOLERATED_AHEAD_KINDS, [SESSION_ASK_RETRACTED_KIND, 'ui.view']);
+      // The allow-list is exact: the blocked-session kinds were added to it by
+      // gap-codex-resident-blocked-context-events, so a parked resident session is visible
+      // before the fleet's consumer ships (see the list's own doc in the writer).
+      assert.deepEqual(FLEET_TOLERATED_AHEAD_KINDS, [
+        SESSION_ASK_RETRACTED_KIND,
+        'ui.view',
+        'session.blocked',
+        'session.blocked.resolved',
+      ]);
     },
     { document: AHEAD_SCHEMA },
   );

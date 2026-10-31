@@ -931,3 +931,9 @@
 #   (dur=2635ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 489 server test files).
 2635	server/shared/tests/cloudpit-goal-exit-gate.test.ts
+#   the session-blocked-events row by gap-codex-resident-blocked-context-events, measured once on
+#   2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/session-blocked-events.test.ts`
+#   (dur=2257ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 491 server test files).
+2257	server/modules/context-events/tests/session-blocked-events.test.ts

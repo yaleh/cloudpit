@@ -68,6 +68,17 @@ export type {
   SessionRunEventWriter,
   SessionRunEventWriterStatus,
 } from './session-run-events.js';
+// consumer: the composition root installs the adapter on the blocked-session port; the Codex
+// approval broker and host driver state `session.blocked` / `session.blocked.resolved` through it
+export {
+  createSessionBlockedEventWriter,
+  toSessionBlockedEventDraft,
+} from './session-blocked-events.js';
+export type {
+  SessionBlockedEventAppend,
+  SessionBlockedEventWriter,
+  SessionBlockedEventWriterStatus,
+} from './session-blocked-events.js';
 // consumer: the report's transition backfill, and the predictor criterion
 export { createShadowPredictor, SHADOW_PREDICTION_METHOD } from './shadow-predictor.js';
 export type {

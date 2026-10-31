@@ -20,6 +20,7 @@ import { installInitiativeAuditRatioPort } from '@/shared/ports/initiative-audit
 import { installProjectsSessionFetchPort } from '@/shared/ports/projects-session-fetch.port.js';
 import { installProviderRegistryPort } from '@/shared/ports/provider-registry.port.js';
 import { installSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
+import { installSessionBlockedEventWriterPort } from '@/shared/ports/session-blocked-events.port.js';
 import { installSessionBroadcastPort } from '@/shared/ports/session-broadcast.port.js';
 import { installSessionRunEventWriterPort } from '@/shared/ports/session-run-events.port.js';
 import { installSessionUserTurnPort } from '@/shared/ports/session-user-turn.port.js';
@@ -118,6 +119,7 @@ import { createReplySuggestionsModule, setReplySuggestionsUsageObserver } from '
 import {
     contextEvents,
     createSessionAskEventWriter,
+    createSessionBlockedEventWriter,
     createSessionRunEventWriter,
 } from './modules/context-events/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
@@ -322,6 +324,13 @@ installSessionAskEventWriterPort(
 // schema without these kinds refuses each append as `invalid-kind` inside the adapter.
 installSessionRunEventWriterPort(
     createSessionRunEventWriter({
+        record: (draft) => contextEvents.record(draft),
+    }),
+);
+// A Codex resident session parked on an approval, or left by a failed/interrupted turn, is a
+// "needs a person" fact: `session.blocked` with its paired resolution goes to the same stream.
+installSessionBlockedEventWriterPort(
+    createSessionBlockedEventWriter({
         record: (draft) => contextEvents.record(draft),
     }),
 );
