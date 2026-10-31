@@ -1,13 +1,20 @@
 ---
 id: GOAL-052
 title: Claude 与 Codex 编辑重发后上下文、活动线程、历史文件与浏览器一致，刷新重启不丢历史
-status: draft
+status: active
 kind: goal
 origin: 人 yale 2026-10-31 本会话授权：对照 Claude Code 的编辑回退、resident 重建与身份回写，修复 Codex
   历史消失；采纳一个 goal、三个顺序依赖 task 的方案并要求创建和激活。实测应用会话
   0f0cf753-c01e-4b26-93de-b13f418710f9 的
   provider_session_id=01a18fa6-3a32-7391-a3df-5b21e0183f03，但 jsonl_path 指向分叉
   01a19003-6b28-7910-9bf2-39ed4276635e；原始对话仍在原文件。
+activatedAt: 2026-10-31T04:57:35.774Z
+statusLog:
+  - at: 2026-10-31T04:57:35.774Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
 ---
 ## 目标
 
