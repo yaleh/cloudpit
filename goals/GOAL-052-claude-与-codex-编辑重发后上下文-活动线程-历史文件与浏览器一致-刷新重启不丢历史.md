@@ -1,7 +1,7 @@
 ---
 id: GOAL-052
 title: Claude 与 Codex 编辑重发后上下文、活动线程、历史文件与浏览器一致，刷新重启不丢历史
-status: active
+status: achieved
 kind: goal
 origin: 人 yale 2026-10-31 本会话授权：对照 Claude Code 的编辑回退、resident 重建与身份回写，修复 Codex
   历史消失；采纳一个 goal、三个顺序依赖 task 的方案并要求创建和激活。实测应用会话
@@ -15,6 +15,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T07:38:37.771Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: all ACs achieved + sufficiency covered"
 ---
 ## 目标
 
