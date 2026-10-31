@@ -1,7 +1,7 @@
 ---
 id: gap-session-edit-continuity-e2e
 title: 编辑重发整体验收：真实 Codex 分叉、Claude 对照与浏览器历史连续性
-status: ready
+status: done
 labels:
   - gap
   - defect
