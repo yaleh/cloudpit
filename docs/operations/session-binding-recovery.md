@@ -28,6 +28,25 @@ The application path no longer allows that write:
 This runbook is for a row that was already damaged before those guards existed.
 It is not a general repair tool and it never guesses.
 
+## Second defect shape: the claimed thread is wrongly retired and the path is NULL
+
+A related row looks different and is just as stale:
+
+- `provider_session_id` names the thread the conversation actually lives in;
+- `jsonl_path` is **NULL**;
+- the same thread is present in `superseded_provider_sessions` for this
+  session, with its rollout path.
+
+Nothing points at the transcript, so the sidebar falls back to the row's stored
+`updated_at` — the moment the bad retirement was recorded — and shows the
+session as hours older than its last turn. The transcript itself is intact and
+still ends with the conversation's real last activity.
+
+The script classifies the row as `null-path-retired` when those hold, and
+`fork-rebind` for the edit-fork shape above. It restores `provider_session_id`
+/`jsonl_path`, clears the wrong retirement, and sets `updated_at` to the
+transcript's own last recorded activity timestamp — never to the repair time.
+
 ## Diagnosis (read-only)
 
 1. Read the row and the superseded table:
@@ -41,13 +60,20 @@ It is not a general repair tool and it never guesses.
    ' <app-session-id>
    ```
 
-2. The defect shape is all of:
-   - `jsonl_path` names a thread id **different** from `provider_session_id`;
-   - `provider_session_id` is marked superseded for this session;
-   - the file the row points at is metadata-only (no completed turns) and its
-     `session_meta.forked_from_id` is `provider_session_id`;
-   - the original thread's file (recorded in the superseded row) still exists
-     and has completed turns.
+2. The defect shape is either of:
+   - **fork-rebind**: `jsonl_path` names a thread id **different** from
+     `provider_session_id`; `provider_session_id` is marked superseded for this
+     session; the file the row points at is metadata-only (no completed turns)
+     and its `session_meta.forked_from_id` is `provider_session_id`; the
+     original thread's file (recorded in the superseded row) still exists and
+     has completed turns;
+   - **null-path-retired**: `jsonl_path` is NULL; `provider_session_id` is
+     marked superseded for this session with that thread's rollout path; the
+     rollout exists, its `session_meta.id` is `provider_session_id`, and its
+     `session_meta.cwd` matches the row's `project_path`.
+
+   Both shapes also require the target transcript to record an activity
+   timestamp; the repair refuses rather than writing a wall-clock `updated_at`.
 
 ## Repair
 
@@ -64,33 +90,60 @@ node scripts/repair-session-binding.mjs --session <app-session-id>            # 
 
 In one transaction, `--apply`:
 
-1. restores `provider_session_id` and `jsonl_path` to the original thread,
-   guarded by a compare-and-swap on the id it read;
-2. deletes the superseded mark that wrongly retired the original thread;
-3. deletes the watcher-created duplicate row for the metadata-only fork;
-4. records the abandoned fork as superseded so the indexer does not offer it
-   back as an empty session.
+1. restores `provider_session_id` (fork-rebind only) and `jsonl_path` to the
+   original thread, guarded by a compare-and-swap on the id, path and
+   `updated_at` it read;
+2. sets `updated_at` to the transcript's last recorded activity timestamp;
+3. deletes the superseded mark that wrongly retired the original thread,
+   guarded by the recorded mark's path;
+4. for fork-rebind only: deletes the watcher-created duplicate row for the
+   metadata-only fork and records the abandoned fork as superseded so the
+   indexer does not offer it back as an empty session.
+
+A concurrent rebind, a changed transcript path or a changed superseded record
+makes the whole transaction refuse and roll back; nothing is written partially.
+
+The repair runs outside the server process, so a committed row is **not**
+broadcast. Reload the project/session list afterwards: the existing
+`GET /api/projects` path runs the provider synchronizer and then reads the row,
+which is the supported refresh entry. Do not claim that writing the database
+notifies open clients.
 
 The transcript files stay on disk. A second run exits `already-consistent`
 without writing.
 
 ## Refusals
 
-Exit code `2` means the row does not match the defect shape: no binding, the
-binding is already consistent, the target transcript is missing or has no turns,
-the pointed-at file has real turns, or it is not a fork of the stored id. Do not
-hand-edit the database; re-diagnose from the evidence file. Exit code `1` is an
-operational failure (database missing, session not found, concurrent write).
+Exit code `2` means the row does not match a defect shape: no binding, the
+binding is already consistent, the target transcript is missing or has no
+turns, its `session_meta.id`/`cwd` disagree with the row, it records no
+activity timestamp, the pointed-at file has real turns, or it is not a fork of
+the stored id. Do not hand-edit the database; re-diagnose from the evidence
+file. Exit code `1` is an operational failure (database missing, session not
+found, concurrent write).
 
 ## Verification after repair
 
 - The row's `provider_session_id` matches the thread id in `jsonl_path`.
+- `updated_at` equals the transcript's last recorded activity timestamp, not the
+  repair's wall clock.
 - `superseded_provider_sessions` no longer names the restored thread for the
-  session, and does name the abandoned fork.
+  session, and (fork-rebind) does name the abandoned fork.
 - Reopening the session in the app reads the original turns (early
   troubleshooting, deployment re-checks, later discussion) and the sidebar has
   one row, not two.
 - The browser refresh/restart story is covered separately by AC-447.
+
+`scripts/repair-session-binding.test.mjs` covers both shapes, the refusals, the
+compare-and-swap conflict, transaction rollback and the idempotent second run:
+
+```bash
+node --test scripts/repair-session-binding.test.mjs
+```
+
+Tests point the Codex rollout walk at a temp tree with
+`CODEX_SESSIONS_ROOT`, so no fixture can be answered by the host's real
+`~/.codex`.
 
 ## A consistent row can still read empty: paginated Codex forks
 
