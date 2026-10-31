@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-closehost-orphans-other-sessions
 title: Codex resident 单例 driver 的 closeHost 清空全部 session，关一个 host 即孤儿化其它 resident 会话
-status: todo
+status: ready
 labels:
   - gap
   - defect
