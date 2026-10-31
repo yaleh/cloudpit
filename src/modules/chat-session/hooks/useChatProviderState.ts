@@ -431,6 +431,16 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       return;
     }
 
+    // A session's runtime identity is not always a chat provider: debug
+    // sessions carry `__provider: 'debug'`, which has no row in the capability
+    // matrix. Adopting it here would leave the composer without capabilities
+    // (hiding the new-session affordances) and would persist an id the matrix
+    // cannot honour into the user's stored preference. Only ids the matrix
+    // knows are adopted; anything else leaves the validated preference alone.
+    if (!PROVIDERS.includes(selectedSession.__provider)) {
+      return;
+    }
+
     setProvider(selectedSession.__provider);
     writeSelectedProvider(selectedSession.__provider);
   }, [provider, selectedSession]);
