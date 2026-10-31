@@ -53,11 +53,20 @@ extra: {}
 ## Touches
 
 实施前核实具体文件；预计涉及：
-- server/modules/providers/ 的 provider 能力声明及公开契约
-- server/modules/ 下统一会话创建服务、创建路由与相关调用入口
-- server/modules/mcp-gateway/mcp-session-lifecycle.ts 及相关 tests
-- src/shared/hooks/useProviderCapabilities.ts、src/shared/api.ts 与线型契约
-- src/modules/chat/ChatInterface.tsx 与新会话选择状态 owner
+- server/modules/providers/services/provider-capabilities.service.ts
+- server/modules/providers/provider.registry.ts
+- server/modules/providers/services/sessions.service.ts
+- server/modules/providers/provider.routes.ts
+- server/modules/providers/tests/provider-capabilities-cancel-queued.test.ts
+- server/modules/mcp-gateway/mcp-session-lifecycle.ts
+- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-create-library-model.test.ts
+- server/modules/voice-realtime/voice-realtime-tools.ts
+- src/shared/hooks/useProviderCapabilities.ts
+- src/shared/api.ts
+- src/shared/types.ts
+- src/modules/chat/ChatInterface.tsx
 - src/modules/chat-composer/hooks/useChatComposerState.ts
-- 普通文本及 Live Voice 的相关窄测试、UI 场景与浏览器验收
+- src/modules/chat/tests/composerNewSessionSelection.test.tsx
+- src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx
 - tasks/claude-codex-new-session-default-resident.md
