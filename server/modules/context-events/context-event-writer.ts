@@ -78,10 +78,8 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   'correction',
   'shadow.prediction',
   'shadow.prediction.outcome',
-  // quay-fleet's context-event schema v1 adds the two session-ask kinds. Until the
-  // installed release ships that document the writer refuses them as `invalid-kind`
-  // (a counted, non-throwing reading) and starts landing them — stamped with that
-  // document's `version` — the moment v1 is installed.
+  // quay-fleet's context-event schema v1 adds the two session-ask kinds. Until that release is
+  // installed the writer refuses them as `invalid-kind` (a counted, non-throwing reading).
   'session.asking',
   'session.answered',
   // The retraction of a mis-stated ask. It is deliberately written AHEAD of the installed
@@ -92,6 +90,8 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   // The session-lifecycle kinds (`session-run-events.ts`). Like the ask kinds above, an
   // installed schema that does not carry them refuses the append as `invalid-kind`.
   'session.run.ended', 'session.closed',
+  // One completed viewing episode, written AHEAD of the fleet schema (see the list below).
+  'ui.view',
 ] as const;
 
 /** The kinds this producer may write. */
@@ -177,7 +177,7 @@ export const SESSION_ASK_RETRACTED_DATA_FIELDS = ['askId', 'messageId'] as const
  * installed document is still refused as `invalid-kind`.
  */
 export const FLEET_TOLERATED_AHEAD_KINDS: readonly CloudCliContextEventKind[] = [
-  SESSION_ASK_RETRACTED_KIND,
+  SESSION_ASK_RETRACTED_KIND, 'ui.view',
 ];
 
 /**
