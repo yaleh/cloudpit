@@ -41,8 +41,8 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 
 ## 实现
 
-- 仓储层（sessions.db.ts）新增带结果类型的绑定操作：普通运行发现走 confirmRunDiscoveredProviderSession（缺行/已 superseded/stale 拒绝，同 id 确认，NULL 首次登记，零回合且本 run 起步于当前绑定才允许替换）；主动替换走 replaceProviderSessionBinding / detachProviderSessionForEdit，ID、路径、superseded 标记与 watcher 重复行合并在同一事务内，失败整体回滚。
-- 新增 session-binding.service.ts 作为应用层绑定入口（工厂 + 注入依赖），chat-run-registry 记下 run 起步时的 bindingAtStart 并只通过该入口写绑定；codex 编辑分叉/首条重开改用显式 replaceBinding / detachForEdit。
+- 仓储层新增带结果类型的绑定操作（`server/modules/database/repositories/session-binding.db.ts`，由 `sessions.db.ts` 的 `assignProviderSessionId` 委托并经 database barrel 暴露）：普通运行发现走 confirmRunDiscoveredProviderSession（缺行/已 superseded/stale 拒绝，同 id 确认，NULL 首次登记，零回合且本 run 起步于当前绑定才允许替换）；主动替换走 replaceProviderSessionBinding / detachProviderSessionForEdit，ID、路径、superseded 标记与 watcher 重复行合并在同一事务内，失败整体回滚。
+- 新增 `server/modules/database/session-binding.service.ts` 作为应用层绑定入口（工厂 + 注入依赖），chat-run-registry 记下 run 起步时的 bindingAtStart 并只通过该入口写绑定；codex 编辑分叉/首条重开改用显式 replaceBinding / detachForEdit。入口放在 database 模块（而非 providers/services）：两个消费者都已在用 database barrel，而 codex 目录静态导入 providers/services 会把 `providers/list/codex` 拉进 AC-394 钉住的 providers 环。
 - 新增 scripts/repair-session-binding.mjs：仅针对单个会话、先干跑后 --apply、逐项核对故障形态、不修改/截断/删除 transcript、不重启共享服务，第二次运行报 already-consistent。操作说明见 docs/operations/session-binding-recovery.md。
 - 历史缓存身份为 (sessionId, transcriptPath, mtime, size)，重绑后天然 miss，无需改动缓存文件。
 
@@ -70,6 +70,10 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 - 反向控制：绕过服务盲写旧身份后 assertBindingIsConsistent 抛 /must not be a retired thread/，证明绿色用例的保证来自守卫而非夹具。
 - 回归（bounded runner）：sessions-provider-mapping、sessions.db.integration、codex-message-editing、codex-sessions、chat-run-registry → tests 48 / pass 47 / skipped 1 / fail 0。
 - npm run typecheck（root + server + scripts 三份 tsconfig）通过；npm run lint 通过，改动文件单独 oxlint exit 0。
+- 续跑轮（修上一轮 suite 红）：绑定写操作从 sessions.db.ts 拆到兄弟文件 session-binding.db.ts，sessions.db.ts 1479→1422（ratchet 转为「可下调基线」，不再上调）；session-binding.service.ts 移入 database 模块并由 database barrel 导出，codex 与 chat-run-registry 改走该 barrel，消除了 server-import-cycle-budget 里新出现的 providers/list/codex 环成员（SCC 回到 providers/claude/services 三成员）。
+- chat-run-registry.service.ts 1401→1436 是本次 run 记录接线与 bindingAtStart 文档的诚实增长，已按 AC-394 的 RECORDED CHANGE 格式记入 server/shared/tests/architecture-ratchet.baseline.json（唯一上调项，其余条目未动）。
+- 新增判据文件使 server 测试收集数 482→483：scripts/suite-duration-baseline.tsv 追加实测行（5848ms），并把 server/shared/tests/quay-test-script.test.ts 的两条 unknown pin 移到 480/482。
+- 修复后重跑：architecture-ratchet → pass 6 / fail 0；server-import-cycle-budget → pass 12 / fail 0；quay-test-script → pass 14 / fail 0；session-binding-consistency → tests 10 / pass 10 / fail 0；回归 48 / pass 47 / skipped 1 / fail 0；typecheck、lint（exit 0）通过。
 
 ## 暗轴记录
 
@@ -78,8 +82,10 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 ## Touches
 
 - server/modules/database/repositories/sessions.db.ts
+- server/modules/database/repositories/session-binding.db.ts
 - server/modules/database/tests/*
 - server/modules/database/index.ts
+- server/modules/database/session-binding.service.ts
 - server/modules/providers/services/session-binding.service.ts
 - server/modules/providers/services/sessions.service.ts
 - server/modules/providers/services/provider-runtime.service.ts
@@ -96,6 +102,9 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 - server/shared/types.ts
 - server/shared/interfaces.ts
 - server/shared/index.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - scripts/repair-session-binding.mjs
 - docs/operations/session-binding-recovery.md
 - tasks/gap-session-binding-consistency.md
