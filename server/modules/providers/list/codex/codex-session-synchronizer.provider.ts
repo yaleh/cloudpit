@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { appConfigDb, sessionsDb } from '@/modules/database/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -10,6 +10,7 @@ import {
   normalizeSessionName,
   readFileTimestamps,
 } from '@/shared/utils.js';
+import { readCodexTranscriptLastActivity } from '@/modules/providers/list/codex/codex-transcript-activity.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
 type ParsedSession = {
@@ -17,6 +18,12 @@ type ParsedSession = {
   projectPath: string;
   sessionName?: string;
 };
+
+/**
+ * The `app_config` marker that makes the content-derived activity pass once per
+ * database. Bumping the suffix re-derives every Codex row again.
+ */
+const LAST_ACTIVITY_BACKFILL_KEY_SUFFIX = 'last_activity_backfill_v1';
 
 /**
  * Session indexer for Codex transcript artifacts.
@@ -29,6 +36,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
    * Scans ~/.codex/sessions and upserts discovered sessions into DB.
    */
   async synchronize(since?: Date): Promise<number> {
+    await this.backfillLastActivity();
+
     const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
     const files = await findFilesRecursivelyCreatedAfter(
       path.join(this.codexHome, 'sessions'),
@@ -59,7 +68,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.projectPath,
         parsed.sessionName,
         timestamps.createdAt,
-        timestamps.updatedAt,
+        await this.resolveLastActivity(filePath, timestamps.updatedAt),
         filePath
       );
       processed += 1;
@@ -89,9 +98,75 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.projectPath,
       parsed.sessionName,
       timestamps.createdAt,
-      timestamps.updatedAt,
+      await this.resolveLastActivity(filePath, timestamps.updatedAt),
       filePath
     );
+  }
+
+  /**
+   * Resolves the activity time one rollout should be recorded with.
+   *
+   * The rollout's own newest conversation/turn row wins. A file's mtime moves
+   * for reasons that are not activity — a touch, a copy, a backup restore — and
+   * it is also what the startup scan uses to NOTICE a changed file, so taking it
+   * as the activity time would defeat the very scan being widened here.
+   *
+   * The mtime is the fallback for the two cases content cannot answer: a
+   * rollout with no activity rows yet (a thread the user just created) and one
+   * that cannot be read. Neither may end up without a time, or the session
+   * disappears from a sidebar that sorts by activity.
+   */
+  private async resolveLastActivity(
+    filePath: string,
+    fileUpdatedAt: string | undefined
+  ): Promise<string | undefined> {
+    return (await readCodexTranscriptLastActivity(filePath)) ?? fileUpdatedAt;
+  }
+
+  /**
+   * Re-derives `updated_at` for Codex rows indexed before content was read.
+   *
+   * The startup scan now re-reads a rollout whose mtime moved, but a row whose
+   * file has not been touched since the previous build would keep its
+   * mtime-derived reading forever. This pass reads the rows from the database
+   * (not by walking `~/.codex/sessions` — that walk runs on every list request)
+   * and rewrites each one from its content. The `app_config` marker keeps the
+   * pass to once per database; bumping the marker suffix re-runs it.
+   *
+   * A row whose rollout has since been deleted, or records no activity, is left
+   * exactly as it is: `pruneOrphanedSessions` owns deletion and a rollout with
+   * no activity rows has no better reading to offer.
+   */
+  private async backfillLastActivity(): Promise<void> {
+    const markerKey = `${this.provider}_${LAST_ACTIVITY_BACKFILL_KEY_SUFFIX}`;
+    if (appConfigDb.get(markerKey)) {
+      return;
+    }
+
+    let repaired = 0;
+    for (const row of sessionsDb.getSessionsWithTranscriptPath(this.provider)) {
+      // A row whose thread the ledger records as retired is the damaged shape
+      // the scan reports and deliberately leaves untouched. A timestamp rewrite
+      // here would be the scanner writing to a conflicted row behind that
+      // report, so it is skipped: recovery is explicit.
+      const providerSessionId = sessionsDb.getSessionById(row.session_id)?.provider_session_id;
+      if (providerSessionId && sessionsDb.isProviderSessionSuperseded(providerSessionId, this.provider)) {
+        continue;
+      }
+
+      const lastActivity = await readCodexTranscriptLastActivity(row.jsonl_path);
+      if (lastActivity && sessionsDb.updateSessionUpdatedAt(row.session_id, lastActivity)) {
+        repaired += 1;
+      }
+    }
+
+    appConfigDb.set(markerKey, new Date().toISOString());
+
+    if (repaired > 0) {
+      console.log(
+        `[Sessions] Re-derived last activity from transcript content for ${repaired} Codex session row(s).`
+      );
+    }
   }
 
   /**

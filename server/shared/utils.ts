@@ -1098,9 +1098,25 @@ export function sanitizeLeafDirectoryName(inputName: string, label = 'directory 
  * Recursively discovers files that match one extension, with optional incremental filtering.
  *
  * Provider synchronizers call this to find transcript artifacts under provider
- * home directories. Pass `lastScanAt` to include only files created after the
- * previous scan, or pass `null` to perform a full rescan. Missing directories
+ * home directories. Pass `lastScanAt` to include files the previous scan could
+ * not have seen, or pass `null` to perform a full rescan. Missing directories
  * are treated as empty because not every provider exists on every machine.
+ *
+ * A file is "new to this scan" when EITHER its birthtime or its mtime is after
+ * the cursor. The birthtime half covers transcripts created since the previous
+ * scan. The mtime half covers the restart gap: a session that already existed
+ * can have rows appended while this server was down, and `birthtime` never
+ * moves for it. Without the mtime half such a file is invisible to the startup
+ * scan for the rest of its life — the watcher is `ignoreInitial: true` and
+ * cannot replay the downtime either — so the appended turn never reaches the
+ * database or the sidebar.
+ *
+ * Re-reading a modified file is idempotent (every synchronizer upserts by
+ * provider session id) and is what an incremental scan is allowed to cost: the
+ * set is bounded by files changed since the cursor, not by the corpus size.
+ * Activity time is NOT taken from this mtime; each provider reads it from the
+ * transcript content (see `readTranscriptLastActivity`), so a touch or a copy
+ * that changes no content re-indexes the file without moving last activity.
  */
 export async function findFilesRecursivelyCreatedAfter(
   rootDir: string,
@@ -1128,7 +1144,7 @@ export async function findFilesRecursivelyCreatedAfter(
       }
 
       const fileStat = await stat(fullPath);
-      if (fileStat.birthtime > lastScanAt) {
+      if (fileStat.birthtime > lastScanAt || fileStat.mtime > lastScanAt) {
         fileList.push(fullPath);
       }
     }
@@ -1204,6 +1220,28 @@ const TRANSCRIPT_ACTIVITY_MAX_WINDOW_BYTES = 512 * 1024;
  * abort a scan.
  */
 export async function readTranscriptLastActivity(filePath: string): Promise<string | null> {
+  return readLastTranscriptRecord(filePath, readRecordedTimestamp);
+}
+
+/**
+ * Reads the newest tail record one transcript's content contains, as chosen by `select`.
+ *
+ * This is the bounded tail walk `readTranscriptLastActivity` is built on. A
+ * provider whose activity semantics are richer than "the record carries a
+ * `timestamp`" (Codex distinguishes conversation/turn rows from bookkeeping
+ * rows) supplies its own `select` and gets the same bounded, backwards,
+ * short-read-tolerant reading instead of a second copy of this machinery.
+ *
+ * `select` returns the value to report for a record, or `null` when the record
+ * is not evidence of the thing being asked about — the walk then continues to
+ * an older record. The window growth, half-line handling and null-on-unreadable
+ * contract are exactly `readTranscriptLastActivity`'s; see that function's
+ * documentation for why each exists.
+ */
+export async function readLastTranscriptRecord<T>(
+  filePath: string,
+  select: (record: unknown) => T | null
+): Promise<T | null> {
   let handle: FileHandle | undefined;
 
   try {
@@ -1219,22 +1257,23 @@ export async function readTranscriptLastActivity(filePath: string): Promise<stri
     let window = await readFileRange(handle, windowStart, windowBytes);
 
     for (;;) {
-      const timestamp = findLastRecordedTimestamp(
+      const selected = findLastSelectedRecord(
         window.toString('utf8'),
-        await startsMidLine(handle, windowStart)
+        await startsMidLine(handle, windowStart),
+        select
       );
-      if (timestamp) {
-        return timestamp;
+      if (selected !== null) {
+        return selected;
       }
 
-      // The window already covered the whole file, so the transcript records
-      // no activity at all; enlarging it further cannot change that.
+      // The window already covered the whole file, so the transcript holds no
+      // selected record at all; enlarging it further cannot change that.
       if (windowStart === 0 || windowBytes >= TRANSCRIPT_ACTIVITY_MAX_WINDOW_BYTES) {
         return null;
       }
 
       // Widening reads only the bytes the window does not already hold: the
-      // newest activity usually sits in the first window, and a transcript that
+      // newest record usually sits in the first window, and a transcript that
       // needs the ceiling should cost one read of the ceiling rather than the
       // sum of every window on the way there.
       const widenedBytes = Math.min(windowBytes * 4, TRANSCRIPT_ACTIVITY_MAX_WINDOW_BYTES, size);
@@ -1305,7 +1344,7 @@ async function startsMidLine(handle: FileHandle, offset: number): Promise<boolea
 }
 
 /**
- * Walks one tail window backwards for the newest record that reports activity.
+ * Walks one tail window backwards for the newest record `select` accepts.
  *
  * `hasLeadingFragment` drops the window's first line when the read started
  * mid-line: that line is the tail of a record whose head lies before the window,
@@ -1314,7 +1353,11 @@ async function startsMidLine(handle: FileHandle, offset: number): Promise<boolea
  * to the record before it, which is how a half-written append must behave
  * instead of throwing.
  */
-function findLastRecordedTimestamp(windowText: string, hasLeadingFragment: boolean): string | null {
+function findLastSelectedRecord<T>(
+  windowText: string,
+  hasLeadingFragment: boolean,
+  select: (record: unknown) => T | null
+): T | null {
   const lines = windowText.split('\n');
   if (hasLeadingFragment) {
     lines.shift();
@@ -1333,9 +1376,9 @@ function findLastRecordedTimestamp(windowText: string, hasLeadingFragment: boole
       continue;
     }
 
-    const timestamp = readRecordedTimestamp(record);
-    if (timestamp) {
-      return timestamp;
+    const selected = select(record);
+    if (selected !== null) {
+      return selected;
     }
   }
 

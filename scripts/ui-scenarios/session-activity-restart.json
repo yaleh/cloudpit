@@ -1,0 +1,76 @@
+{
+  "name": "session-activity-restart",
+  "description": "After the server restarts, the sidebar list shows the Codex session's content-derived last activity, keeps it across a real reload, and keeps it while switching between sessions. The fixture writes the newer activity row while the server is DOWN, so the reading can only come from the startup scan (not from a websocket delta), and appends a LATER bookkeeping row that must not move it.",
+  "steps": [
+    {
+      "open": "session",
+      "checkpoint": true
+    },
+    {
+      "expect": {
+        "route": "/session/0199aaaa-1111-7000-8000-aaaaaaaaaaaa",
+        "sidebarMounted": true,
+        "sidebarRowCount": 2,
+        "sidebarSessionIds": [
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa",
+          "0199bbbb-2222-7000-8000-bbbbbbbbbbbb"
+        ],
+        "sidebarLastActivity": {
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa": "2026-10-29T00:00:00.000Z",
+          "0199bbbb-2222-7000-8000-bbbbbbbbbbbb": "2026-10-27T00:00:00.000Z"
+        }
+      },
+      "checkpoint": true
+    },
+    {
+      "reload": true,
+      "checkpoint": true
+    },
+    {
+      "expect": {
+        "sidebarRowCount": 2,
+        "sidebarSessionIds": [
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa",
+          "0199bbbb-2222-7000-8000-bbbbbbbbbbbb"
+        ],
+        "sidebarLastActivity": {
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa": "2026-10-29T00:00:00.000Z",
+          "0199bbbb-2222-7000-8000-bbbbbbbbbbbb": "2026-10-27T00:00:00.000Z"
+        }
+      },
+      "checkpoint": true
+    },
+    {
+      "open": "session",
+      "session": "Restart sync other",
+      "checkpoint": true
+    },
+    {
+      "expect": {
+        "route": "/session/0199bbbb-2222-7000-8000-bbbbbbbbbbbb",
+        "sidebarLastActivity": {
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa": "2026-10-29T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "open": "session",
+      "session": "Restart sync target",
+      "checkpoint": true
+    },
+    {
+      "expect": {
+        "route": "/session/0199aaaa-1111-7000-8000-aaaaaaaaaaaa",
+        "sidebarRowCount": 2,
+        "sidebarSessionIds": [
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa",
+          "0199bbbb-2222-7000-8000-bbbbbbbbbbbb"
+        ],
+        "sidebarLastActivity": {
+          "0199aaaa-1111-7000-8000-aaaaaaaaaaaa": "2026-10-29T00:00:00.000Z"
+        }
+      },
+      "checkpoint": true
+    }
+  ]
+}

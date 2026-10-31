@@ -139,6 +139,12 @@ function SidebarSessionItem({
     setMobileOptionsOpen(false);
   };
 
+  /*
+   * The row-level activity contract: the session it names, the timestamp the age is formatted
+   * from, and the age text as rendered. The visible age is the product surface; the timestamp
+   * beside it is the same reading before formatting, so a scenario can assert which activity
+   * time the list SHOWS without deriving it back from a translated relative age.
+   */
   return (
     <div
       className="group relative"
@@ -151,6 +157,9 @@ function SidebarSessionItem({
         ? { 'data-activity-tool': activityPresentation.toolName ?? '' }
         : {})}
       data-activity-elapsed={isProcessing ? activityPresentation.elapsedMs ?? undefined : undefined}
+      data-session-id={session.id}
+      data-session-last-activity={session.lastActivity ?? undefined}
+      data-session-age={isProcessing ? undefined : compactSessionAge || undefined}
     >
       {(showAttentionIndicator || showRecentIndicator) && (
         <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">

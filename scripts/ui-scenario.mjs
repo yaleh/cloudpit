@@ -492,6 +492,76 @@ function expectationFailures(expect, reading) {
         if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
         break;
       }
+      case 'sidebarMounted': {
+        const actual = reading.sidebar?.mounted === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'sidebarRowCount': {
+        const actual = Array.isArray(reading.sidebar?.rows) ? reading.sidebar.rows.length : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'sidebarSessionIds': {
+        // Set equality: the list's order is the product's (activity within a project), and a
+        // scenario about WHICH sessions the list carries should not pin that order. Use
+        // `sidebarSessionIdsInOrder` when the order itself is the assertion.
+        const actual = Array.isArray(reading.sidebar?.rows)
+          ? reading.sidebar.rows.map((/** @type {any} */ row) => row.sessionId).sort()
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, [...expected].sort())) {
+          fail(key, expected, actual);
+        }
+        break;
+      }
+      case 'sidebarSessionIdsInOrder': {
+        const actual = Array.isArray(reading.sidebar?.rows)
+          ? reading.sidebar.rows.map((/** @type {any} */ row) => row.sessionId)
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'sidebarLastActivity': {
+        // `{ [sessionId]: ISO }`: every named row must exist AND carry exactly that timestamp.
+        // An absent row is a failure, not "unchanged" — that is the arm a refresh losing a row
+        // would otherwise satisfy.
+        if (!isRecord(expected)) {
+          failures.push(`${key}: expected a { sessionId: timestamp } map`);
+          break;
+        }
+        const rows = Array.isArray(reading.sidebar?.rows) ? reading.sidebar.rows : null;
+        if (rows === null) {
+          fail(key, expected, null);
+          break;
+        }
+        for (const [sessionId, wanted] of Object.entries(expected)) {
+          const row = rows.find((/** @type {any} */ candidate) => candidate.sessionId === sessionId);
+          if (row === undefined || row.lastActivity !== wanted) {
+            fail(`${key}.${sessionId}`, wanted, row === undefined ? 'row missing' : row.lastActivity);
+          }
+        }
+        break;
+      }
+      case 'sidebarAgeTexts': {
+        // `{ [sessionId]: text }`: the age the row actually drew. Asserted by the independent
+        // browser leg, where "now" is known and the expected compact age can be computed.
+        if (!isRecord(expected)) {
+          failures.push(`${key}: expected a { sessionId: ageText } map`);
+          break;
+        }
+        const rows = Array.isArray(reading.sidebar?.rows) ? reading.sidebar.rows : null;
+        if (rows === null) {
+          fail(key, expected, null);
+          break;
+        }
+        for (const [sessionId, wanted] of Object.entries(expected)) {
+          const row = rows.find((/** @type {any} */ candidate) => candidate.sessionId === sessionId);
+          if (row === undefined || row.ageText !== wanted) {
+            fail(`${key}.${sessionId}`, wanted, row === undefined ? 'row missing' : row.ageText);
+          }
+        }
+        break;
+      }
       default:
         failures.push(`${key}: unsupported expectation key (a scenario typo must not pass silently)`);
     }
