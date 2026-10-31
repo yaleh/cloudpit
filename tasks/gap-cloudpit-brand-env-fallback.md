@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-brand-env-fallback
 title: Cloudpit A1：品牌常量与 CLOUDPIT_* 回退（暗管道，默认行为不变）
-status: ready
+status: done
 labels:
   - gap
 parent: null
