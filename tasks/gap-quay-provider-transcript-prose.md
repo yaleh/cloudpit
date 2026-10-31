@@ -1,7 +1,7 @@
 ---
 id: gap-quay-provider-transcript-prose
 title: 统一 provider 会话正文读取，修复 Codex 会话的 Quay goals/tasks 漏显示
-status: ready
+status: done
 labels:
   - gap
   - defect
