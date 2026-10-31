@@ -69,7 +69,12 @@ export {
   sessionsDb,
   stripSelfAssignedSuffix,
 } from '@/modules/database/repositories/sessions.db.js';
-export type { SessionNameHiddenByFilterJson, SessionNameSource, SessionNameVisibility } from '@/modules/database/repositories/sessions.db.js';
+export type {
+  ProviderSessionBindingOutcome,
+  SessionNameHiddenByFilterJson,
+  SessionNameSource,
+  SessionNameVisibility,
+} from '@/modules/database/repositories/sessions.db.js';
 // uiLastOpenedDb: used by the providers module to record the session the browser
 // last opened, and by the MCP gateway (through that service) to answer
 // `ui_last_opened_session`.

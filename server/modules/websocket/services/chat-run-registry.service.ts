@@ -10,7 +10,11 @@ import {
   sessionDigestProducer,
   type SessionTurnEndEvent,
 } from '@/modules/observation/index.js';
-import { listProcessingSessions, readSessionProcessing } from '@/modules/providers/index.js';
+import {
+  listProcessingSessions,
+  readSessionProcessing,
+  sessionBindingService,
+} from '@/modules/providers/index.js';
 import { BOOT_ID } from '@/modules/websocket/services/activity-heartbeat.service.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { broadcastSessionUpserted } from '@/modules/websocket/services/session-upsert-broadcast.service.js';
@@ -110,7 +114,23 @@ type ChatRun = {
   appSessionId: string;
   runId: string;
   provider: LLMProvider;
+  /**
+   * The provider-native id the run has announced so far. Starts as the id the
+   * run was launched with and follows mid-run announcements; it is what abort
+   * addresses and what event labels are remapped from.
+   */
   providerSessionId: string | null;
+  /**
+   * The stored binding this run was admitted under, frozen at `startRun`.
+   *
+   * {@link providerSessionId} cannot answer "is this run still entitled to
+   * rebind the session?" — it changes as the runtime talks. This does: a run
+   * that started on the binding the row still claims may legitimately replace
+   * it (Codex's zero-turn fallback), while a run that started on some other
+   * thread is a stale host whose late `session_created` must not overwrite an
+   * edit's new binding.
+   */
+  bindingAtStart: string | null;
   source: ChatRunSource;
   status: ChatRunStatus;
   lastSeq: number;
@@ -618,9 +638,16 @@ export function createChatRunRegistry(options?: {
   }
 
   /**
-   * Records the provider-native session id for a run and persists the
-   * app-id-to-provider-id mapping so history fetches and future resumes can
-   * address the provider transcript.
+   * Records the provider-native session id a run announced.
+   *
+   * The run's own field always follows the announcement — abort and outbound
+   * labels address the thread this run is actually on — but the *stored*
+   * binding is written through `sessionBindingService`, which rejects the
+   * announcement when this run is not entitled to change it: a retired thread
+   * (an edit already moved the session on) or a run whose start binding the row
+   * no longer claims (an old host's late `session_created`). Rejections are
+   * logged by the service and leave the row untouched; only a real write
+   * broadcasts an upsert to connected clients.
    *
    * Called from the gateway writer when the runtime either calls
    * `setSessionId(...)` or emits its `session_created` event — whichever
@@ -634,7 +661,18 @@ export function createChatRunRegistry(options?: {
     run.providerSessionId = providerSessionId;
 
     try {
-      sessionsDb.assignProviderSessionId(run.appSessionId, providerSessionId);
+      const outcome = sessionBindingService.recordRunDiscoveredBinding({
+        sessionId: run.appSessionId,
+        providerSessionId,
+        runStartedWithProviderSessionId: run.bindingAtStart,
+      });
+
+      if (outcome.kind !== 'assigned' && outcome.kind !== 'replaced') {
+        // `confirmed` changed nothing in the row; the three rejections are the
+        // late-write cases and were logged without touching it.
+        return;
+      }
+
       void broadcastSessionUpserted(run.appSessionId).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
@@ -739,6 +777,7 @@ export function createChatRunRegistry(options?: {
       runId: randomUUID(),
       provider: input.provider,
       providerSessionId: input.providerSessionId,
+      bindingAtStart: input.providerSessionId,
       source,
       status: 'running',
       lastSeq: 0,
