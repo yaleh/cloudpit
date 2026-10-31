@@ -32,16 +32,39 @@ extra: {}
 
 ## AC
 
-- [ ] AC1 **`ui.view` 声明与放行**：`grep -n "'ui.view'" server/modules/context-events/context-event-writer.ts` 在 `CLOUDCLI_CONTEXT_EVENT_KINDS` 与 `FLEET_TOLERATED_AHEAD_KINDS` 各命中；`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts` exit 0。
-- [ ] AC2 **`ui.view` 生产者**：一个视图进入 episode（session/tab/cockpit-tile/cockpit-preview）被写进 context 流，`data` 字段与 `{view,target,fromTarget,dwellMs,deviceId}` 类型一致；本地 `ui-view-events.jsonl` 同 episode 仍落（双写不互斥）、开关关闭时两侧都不写；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/view-events.test.ts` exit 0。
-- [ ] AC3 **steering 契约钉住**：`UTTERANCE_CLASSES` 的 10 个值被测试精确钉住（数组 deepEqual + 逐值字符串断言），改任一值即红；`utterance` 事件仍带 `data.class`/`data.rule`（回归）；`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/utterance-classifier.test.ts` exit 0。
-- [ ] AC4 **typecheck**：`npm run typecheck` exit 0。
+- [x] AC1 **`ui.view` 声明与放行**：`grep -n "'ui.view'" server/modules/context-events/context-event-writer.ts` 在 `CLOUDCLI_CONTEXT_EVENT_KINDS` 与 `FLEET_TOLERATED_AHEAD_KINDS` 各命中；`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/context-event-writer.test.ts` exit 0。
+- [x] AC2 **`ui.view` 生产者**：一个视图进入 episode（session/tab/cockpit-tile/cockpit-preview）被写进 context 流，`data` 字段与 `{view,target,fromTarget,dwellMs,deviceId}` 类型一致；本地 `ui-view-events.jsonl` 同 episode 仍落（双写不互斥）、开关关闭时两侧都不写；`npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/view-events.test.ts` exit 0。
+- [x] AC3 **steering 契约钉住**：`UTTERANCE_CLASSES` 的 10 个值被测试精确钉住（数组 deepEqual + 逐值字符串断言），改任一值即红；`utterance` 事件仍带 `data.class`/`data.rule`（回归）；`npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/utterance-classifier.test.ts` exit 0。
+- [x] AC4 **typecheck**：`npm run typecheck` exit 0。
 
 ## DoD
 
-- [ ] DoD1 **真实写入读数（ui.view）**：本地启动隔离 server，真实产生一个进入再离开 cockpit 的 episode，读回 context 流当日文件，贴出该 `ui.view` 行的**逐字 JSON**（v/id/at/source/kind/data 全字段），`data.view` 与 episode 一致；本地 `ui-view-events.jsonl` 同 episode 仍落。
-- [ ] DoD2 **真实写入读数（steering）**：真实键入一条「检查进展」类消息，读回 context 流该 `utterance` 行，贴出逐字 JSON，`data.class == 'progress-check'` 且 `data.rule` 非空。
-- [ ] DoD3 **无回归**：`context-event-writer.test.ts` / `view-events.test.ts` / `utterance-classifier.test.ts` 逐个 exit 0；`npm run typecheck` exit 0；`anti-drift-touches-check` OK。
+- [x] DoD1 **真实写入读数（ui.view）**：本地启动隔离 server，真实产生一个进入再离开 cockpit 的 episode，读回 context 流当日文件，贴出该 `ui.view` 行的**逐字 JSON**（v/id/at/source/kind/data 全字段），`data.view` 与 episode 一致；本地 `ui-view-events.jsonl` 同 episode 仍落。
+- [x] DoD2 **真实写入读数（steering）**：真实键入一条「检查进展」类消息，读回 context 流该 `utterance` 行，贴出逐字 JSON，`data.class == 'progress-check'` 且 `data.rule` 非空。
+- [x] DoD3 **无回归**：`context-event-writer.test.ts` / `view-events.test.ts` / `utterance-classifier.test.ts` 逐个 exit 0；`npm run typecheck` exit 0；`anti-drift-touches-check` OK。
+
+## 完成记录
+
+- 实现提交：`932af186f feat(context-events): publish ui.view and pin utterance classes`（task 分支）。
+- DoD1 读数（隔离 server `127.0.0.1:30683`，真实浏览器进入 `/cockpit` 停留 4.0s 后 SPA 离开到 `/`；`POST /api/observation/view-events` → 204，本地 carrier 与 context 流双写同一 episode）：
+  - 截图：`tmp/dod1-enter-cockpit.png`、`tmp/dod1-leave-cockpit-workspace.png`
+  - 本地 `ui-view-events.jsonl` 同 episode：`{"at":1793422391941,"kind":"tab","target":"cockpit","fromTarget":null,"dwellMs":4031,"deviceId":"9f128e4b-b83c-4134-9e55-76c2a1905d66"}`
+  - context 流逐字行：
+    ```json
+    {"v":1,"id":"01M684VYM5DHF3NQJGAYXTJNF8","at":"2026-10-31T04:53:11.941Z","source":"cloudcli","kind":"ui.view","data":{"view":"tab","target":"cockpit","fromTarget":null,"dwellMs":4031,"deviceId":"9f128e4b-b83c-4134-9e55-76c2a1905d66"}}
+    ```
+  - `data.view`（`tab`）与 episode 的 `kind` 一致，五个 data 成员与本地 episode 一一对应。
+- DoD2 读数（真实会话 `c891057e-7ec5-49cc-b048-f51234c739e0`，真实键入 `检查进展。` 后回车）：
+  - 截图：`tmp/dod2-typed.png`、`tmp/dod2-after-send.png`
+  - context 流逐字行：
+    ```json
+    {"v":1,"id":"01M684WXMV3W59TCPG2KD8H1C7","at":"2026-10-31T04:53:43.707Z","source":"cloudcli","kind":"utterance","session":"c891057e-7ec5-49cc-b048-f51234c739e0","data":{"text":"检查进展。","source":"typing","class":"progress-check","rule":"progress-question"}}
+    ```
+  - `data.class == 'progress-check'`，`data.rule` 非空（`progress-question`）。
+- DoD3 读数：三个窄测试逐个 exit 0（context-event-writer 14 pass / view-events 7 pass / utterance-classifier 15 pass）；`npm run typecheck` exit 0；`anti-drift-touches-check` OK。
+- steering 契约：`utterance.data.class` 的 10 值枚举是 fleet 可依赖的稳定契约（测试对 `UTTERANCE_CLASSES` 做整数组 deepEqual + 逐值字符串钉住，改任一值即红）。
+- `ui.view` 的 schema 侧声明为 `{producer:'cloudcli', group:'interaction'}`（quay-fleet 侧 ship；本任务据此按 ahead 写，fleet schema 带该 kind 后从 `FLEET_TOLERATED_AHEAD_KINDS` 移除）。
+- 该轴仍暗,理由:本任务只新增 producer 契约与钉住测试，不改变模块分层或依赖方向，无 L_D/L_G 读数可记。
 
 ## Touches
 
