@@ -1,7 +1,7 @@
 ---
 id: AC-447
 title: 真实 Claude/Codex 编辑故事跨模块与浏览器通过，历史刷新、切换、重启和模型上下文一致
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-052
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -23,6 +23,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T07:31:52.290Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured

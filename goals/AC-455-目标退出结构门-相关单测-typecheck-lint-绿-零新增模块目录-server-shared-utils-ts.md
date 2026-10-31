@@ -1,7 +1,7 @@
 ---
 id: AC-455
 title: 目标退出结构门：相关单测 / typecheck / lint 绿，零新增模块目录，server/shared/utils.ts 未增行
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-053
 criterion: for f in server/shared/tests/cloudpit-goal-exit-gate.test.ts
@@ -47,5 +47,11 @@ origin: 人 yale 2026-10-31 经会话裁定采纳 gap-goal-053-exit-structural-g
   GOAL-054）。判据按单调读法（不增行 / 不增目录）与记录级 timeoutMs 落地；2026-10-31 dry-run
   实测混合文件集会静默忽略缺失路径，故补 for f 存在性闸。
 activatedAt: 2026-10-31T07:17:26.743Z
+statusLog:
+  - at: 2026-10-31T07:49:37.441Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 timeoutMs: 150000
 ---
