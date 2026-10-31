@@ -1,7 +1,7 @@
 ---
 id: AC-456
 title: GOAL-054 goal preview UI DoD：真实浏览器预览上 Cloudpit 可见身份成立，注入旧品牌必须变红
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx playwright test e2e/cloudpit-brand-preview.spec.ts -g "AC-456"
@@ -20,5 +20,11 @@ origin: 人 yale 2026-10-31 经会话裁定采纳 gap-goal-054-goal-preview-ui-d
   2026-10-31T15:10:16.960Z，cache ts 2026-10-31T14:53:25.255Z）：退出条件第 3 条「UI
   预览」无在域 AC。编号 AC-456（AC-451…AC-454 属 GOAL-054，AC-455 属 GOAL-053）。
 activatedAt: 2026-10-31T15:47:22.713Z
+statusLog:
+  - at: 2026-10-31T16:12:27.684Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 timeoutMs: 300000
 ---
