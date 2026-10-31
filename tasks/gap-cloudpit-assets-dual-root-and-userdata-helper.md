@@ -108,3 +108,11 @@ readRoots  = 去重([newRoot, legacyRoot])                              // 新�
 - server/shared/tests/quay-test-script.test.ts (collateral: collected server test-file count pins)
 - scripts/suite-duration-baseline.tsv (collateral: duration row for the new criterion file)
 - tasks/gap-cloudpit-assets-dual-root-and-userdata-helper.md
+
+## Blocker
+
+**2026-10-31T07:08:19.580Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/websocket/services/chat-websocket.service.ts 1970→1974 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：86cd2a65-71e5-407f-ba0d-40a0d358302c
