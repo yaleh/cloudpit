@@ -55,16 +55,16 @@ readRoots  = 去重([newRoot, legacyRoot])                              // 新�
 
 ## AC
 
-- [ ] AC1 `npx tsx --tsconfig server/tsconfig.json --test server/modules/assets/tests/cloudpit-assets-dual-root.test.ts && npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-userdata-migration.test.mjs` 退出 0，且两个文件的输出均为 `fail 0`。
-- [ ] AC2 旧根可读：附件判据文件的「旧根可读」用例通过——临时 legacy root 放 `old-shot.png`、new root 不放，双根查找返回 legacy 下的绝对路径；同一文件的负向控制「把旧根移走后同一查找返回 null」也通过（证明测试真的读了旧根）。
-- [ ] AC3 默认写旧根 / opt-in 写新根：默认臂 `getImageAssetsWriteDir({ env: {}, homeDir: tmp })` 等于 `<tmp>/.cloudcli/assets`，`buildStoredImageRecords` 的 path 以该根开头；opt-in 臂 `env.CLOUDPIT_HOME=<tmp>/new-data` 时 write dir 为 `<tmp>/new-data/assets`、records 路径以它开头，且旧根未被创建或修改。两臂在同一测试文件通过。
-- [ ] AC4 双根穿越防护：对 legacy 与 new 两个根分别断言 `../x`、`a/b`、`a\\b`、`..`、空串、绝对路径、子目录文件均返回 null，普通文件名返回该根下的路径；两个根各一组、同一测试文件通过。
-- [ ] AC5 重发旧附件不被过滤：`filterAttachmentsToUploadStore` 无 override 时接受旧根与新根的直接子文件、拒绝两根之外的路径；`isAllowedImageSourcePath` 同样接受两个根。`npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-attachment-filter.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/image-attachments.test.ts` 均退出 0。
-- [ ] AC6 桌面 helper 复制恰 3 个文件：`electron/tests/cloudpit-userdata-migration.test.mjs` 的复制臂通过——旧 userData 放三个 JSON 与一个 `cache.bin`，新目录得到恰好三个 JSON、无 `cache.bin`；第二次调用幂等且不覆盖已修改的目标文件。
-- [ ] AC7 APP_NAME 未翻转不得自动执行：同一测试的 guard 臂通过——`maybeMigrateDesktopUserData({ appName: 'CloudCLI', ... })` 返回 skipped 且不创建新目录，`appName: 'Cloudpit'` 才复制；并断言 `electron/main.js` 源码不含 `migrateDesktopUserData` / `maybeMigrateDesktopUserData` 的 import 或调用，且仍有 `const APP_NAME = 'CloudCLI';`。
-- [ ] AC8 `server/shared/tests/quay-test-script.test.ts` 两处 `known/unknown` 钉子已按最终合并树重测并更新，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0。
-- [ ] AC9 `npm run typecheck` 退出 0；`npx oxlint server/shared/image-attachments.ts server/modules/assets/services/image-assets.service.ts server/modules/websocket/services/chat-websocket.service.ts server/modules/assets/tests/cloudpit-assets-dual-root.test.ts server/shared/tests/quay-test-script.test.ts` 退出 0。
-- [ ] AC10 默认行为未翻转：`npx tsx --tsconfig server/tsconfig.json --test server/modules/assets/tests/image-assets.service.test.ts`、`server/shared/tests/image-attachments.test.ts`、`server/modules/websocket/tests/chat-attachment-filter.test.ts` 各自退出 0；`git grep -n "getGlobalImageAssetsDir" -- server | grep -v test` 中默认根仍为 `~/.cloudcli/assets`；`git grep -n "APP_NAME = 'CloudCLI'" -- electron/main.js` 命中。
+- [x] AC1 `npx tsx --tsconfig server/tsconfig.json --test server/modules/assets/tests/cloudpit-assets-dual-root.test.ts && npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-userdata-migration.test.mjs` 退出 0，且两个文件的输出均为 `fail 0`。
+- [x] AC2 旧根可读：附件判据文件的「旧根可读」用例通过——临时 legacy root 放 `old-shot.png`、new root 不放，双根查找返回 legacy 下的绝对路径；同一文件的负向控制「把旧根移走后同一查找返回 null」也通过（证明测试真的读了旧根）。
+- [x] AC3 默认写旧根 / opt-in 写新根：默认臂 `getImageAssetsWriteDir({ env: {}, homeDir: tmp })` 等于 `<tmp>/.cloudcli/assets`，`buildStoredImageRecords` 的 path 以该根开头；opt-in 臂 `env.CLOUDPIT_HOME=<tmp>/new-data` 时 write dir 为 `<tmp>/new-data/assets`、records 路径以它开头，且旧根未被创建或修改。两臂在同一测试文件通过。
+- [x] AC4 双根穿越防护：对 legacy 与 new 两个根分别断言 `../x`、`a/b`、`a\\b`、`..`、空串、绝对路径、子目录文件均返回 null，普通文件名返回该根下的路径；两个根各一组、同一测试文件通过。
+- [x] AC5 重发旧附件不被过滤：`filterAttachmentsToUploadStore` 无 override 时接受旧根与新根的直接子文件、拒绝两根之外的路径；`isAllowedImageSourcePath` 同样接受两个根。`npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/chat-attachment-filter.test.ts` 与 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/image-attachments.test.ts` 均退出 0。
+- [x] AC6 桌面 helper 复制恰 3 个文件：`electron/tests/cloudpit-userdata-migration.test.mjs` 的复制臂通过——旧 userData 放三个 JSON 与一个 `cache.bin`，新目录得到恰好三个 JSON、无 `cache.bin`；第二次调用幂等且不覆盖已修改的目标文件。
+- [x] AC7 APP_NAME 未翻转不得自动执行：同一测试的 guard 臂通过——`maybeMigrateDesktopUserData({ appName: 'CloudCLI', ... })` 返回 skipped 且不创建新目录，`appName: 'Cloudpit'` 才复制；并断言 `electron/main.js` 源码不含 `migrateDesktopUserData` / `maybeMigrateDesktopUserData` 的 import 或调用，且仍有 `const APP_NAME = 'CloudCLI';`。
+- [x] AC8 `server/shared/tests/quay-test-script.test.ts` 两处 `known/unknown` 钉子已按最终合并树重测并更新，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0。
+- [x] AC9 `npm run typecheck` 退出 0；`npx oxlint server/shared/image-attachments.ts server/modules/assets/services/image-assets.service.ts server/modules/websocket/services/chat-websocket.service.ts server/modules/assets/tests/cloudpit-assets-dual-root.test.ts server/shared/tests/quay-test-script.test.ts` 退出 0。
+- [x] AC10 默认行为未翻转：`npx tsx --tsconfig server/tsconfig.json --test server/modules/assets/tests/image-assets.service.test.ts`、`server/shared/tests/image-attachments.test.ts`、`server/modules/websocket/tests/chat-attachment-filter.test.ts` 各自退出 0；`git grep -n "getGlobalImageAssetsDir" -- server | grep -v test` 中默认根仍为 `~/.cloudcli/assets`；`git grep -n "APP_NAME = 'CloudCLI'" -- electron/main.js` 命中。
 
 ## DoD
 
@@ -79,11 +79,29 @@ readRoots  = 去重([newRoot, legacyRoot])                              // 新�
 - 本任务无 UI 改动，不适用浏览器 / UI 场景 DoD。
 - 该轴仍暗,理由:本任务只新增未接线的附件双根解析与桌面 userData helper，不改变任何模块依赖边，默认写入根与 APP_NAME 均未翻转。
 
+## Verification
+
+实现提交：`5fbbf01da`（task 分支）。所有读数在合并 develop 后的 worktree 上取得。
+
+- AC1（完整行）：附件判据 `tests 8 / pass 8 / fail 0`，exit 0；桌面判据 `tests 4 / pass 4 / fail 0`，exit 0。
+- AC2：旧根 `old-shot.png` 命中 `<tmp>/.cloudcli/assets/old-shot.png`（new root 不存在）；`rm` 该文件后同一查找返回 `null`；两根同名时返回新根路径（`AC2: the same filename resolves from the new root first`）。
+- AC3：默认写根 `<tmp>/.cloudcli/assets`，`buildStoredImageRecords` 的 path 以它开头；opt-in `CLOUDPIT_HOME=<tmp>/new-data` 时写根 `<tmp>/new-data/assets`，旧根与 `~/.cloudpit` 均未被创建；`CLOUDCLI_HOME` 回退臂通过；空串/空白 env 视同未设置。
+- AC4：两个根各自拒绝 `''`、`'   '`、`'../x.png'`、`'a/b.png'`、`'a\\b.png'`、`'..'`、`'/etc/passwd'`、绝对子目录文件、相对子目录文件；普通名 `shot.png` 在两个根下各自解析为该根下的路径。
+- AC5：无 override 时接受旧根 `old-resend.png`、新根 `new-send.png`、裸文件名 `bare-filename.png`；拒绝 `/etc/passwd`、根外路径、两根下的 `nested/deep.png`。`isAllowedImageSourcePath` 对两个根与 cwd 为 true，对 `/etc/passwd`、根外路径、根本身（目录）为 false。既有 `chat-attachment-filter.test.ts` 5/5、`image-attachments.test.ts` 20/20 通过。
+- AC6：复制清单恰为 `cloud-account.json`、`desktop-settings.json`、`desktop-notifications-settings.json`；目标目录 listing 就是这三个（无 `cache.bin`）；二次调用 `{migrated:false, copied:[], skipped:[三文件]}`，且手工改过的目标文件字节不变。
+- AC7：guard 臂 `{migrated:false, reason:'app-name-not-flipped'}` 且不创建目标目录；`appName:'Cloudpit'` 才复制。源码扫描在测试 `AC7: electron/main.js does not reference the helper and still declares APP_NAME = CloudCLI` 中用 `readFileSync` 读取 `electron/main.js`：不含 `migrateDesktopUserData`、`maybeMigrateDesktopUserData`、`userDataMigration`，且仍匹配 `const APP_NAME = 'CloudCLI';`（第 14 行）。
+- AC8：最终合并树收集数实测 486（`find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l`）；钉子 `known=3 unknown=482 → 483`、`known=1 unknown=484 → 485`；单文件运行 `tests 14 / pass 14 / fail 0`。
+- AC9：`npm run typecheck` exit 0；`npx oxlint`（含 `server/modules/websocket/index.ts`）exit 0。
+- AC10：`image-assets.service.test.ts` 6/6、`image-attachments.test.ts` 20/20、`chat-attachment-filter.test.ts` 5/5，均 exit 0；`getGlobalImageAssetsDir()` 仍为 `path.join(os.homedir(), '.cloudcli', 'assets')`；`git grep "APP_NAME = 'CloudCLI'" -- electron/main.js` 命中第 14 行。
+- 附带 Touches：`server/modules/websocket/index.ts` —— 判据文件位于 assets 模块，`boundaries/dependencies` 禁止跨模块 deep import `chat-websocket.service.ts`，故在 websocket barrel 发布 `filterAttachmentsToUploadStore` / `filterImagesToUploadStore` 两个既有导出（未新增模块依赖边：barrel 原先已 import 同一 service）。
+- 时长基线追加 `6634	server/modules/assets/tests/cloudpit-assets-dual-root.test.ts`，附来源命令与 486 收集数说明。
+
 ## Touches
 
 - server/shared/image-attachments.ts
 - server/modules/assets/services/image-assets.service.ts
 - server/modules/websocket/services/chat-websocket.service.ts
+- server/modules/websocket/index.ts (collateral: barrel export for the cross-module dual-root criterion)
 - electron/userDataMigration.js (new)
 - server/modules/assets/tests/cloudpit-assets-dual-root.test.ts (new)
 - electron/tests/cloudpit-userdata-migration.test.mjs (new)
