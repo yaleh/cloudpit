@@ -88,3 +88,11 @@ AC-445 通过，完成记录含操作顺序与失败读数，接口消费者更�
 反向控制：`reverse control: the pre-fix mutual exclusion would leave a Codex resident host open` 与 `reverse control: swallowing a close refusal would let the rewind continue` 在恢复 `resident && !rewinds` 互斥或吞掉 close 拒绝时必红。
 
 - 该轴仍暗,理由:本任务为编辑编排行为修复，未变更模块分层或依赖环，无 L_D/L_G 可读量。
+
+## Blocker
+
+**2026-10-31T05:30:59.755Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=108607 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793424186778 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/quay-test-script.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：dd4474c2-d341-49a0-b65e-ecd3bb266346
