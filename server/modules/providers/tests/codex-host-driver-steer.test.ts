@@ -9,6 +9,7 @@ import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-drive
 import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   HostTurnInput,
+  NormalizedMessage,
   ProcessHost,
   ProviderRuntimeWriter,
   SessionBinding,
@@ -230,14 +231,23 @@ function createBinding(appSessionId: string): SessionBinding {
   };
 }
 
-function createWriter(): { writer: ProviderRuntimeWriter; frames: Call[] } {
-  const frames: Call[] = [];
+/**
+ * Captures what the run writer actually receives.
+ *
+ * The resident driver now normalizes app-server notifications before sending
+ * them (gap-codex-resident-normalize-app-server-frames), so the writer's
+ * surface is kind-carrying messages, not raw `{method,params}` frames. The
+ * process's own emitted frames stay on `transport.frames`, which is where the
+ * steered turn's identity is read.
+ */
+function createWriter(): { writer: ProviderRuntimeWriter; frames: NormalizedMessage[] } {
+  const frames: NormalizedMessage[] = [];
   return {
     frames,
     writer: {
       send(data: unknown) {
-        if (isRecord(data) && typeof data.method === 'string') {
-          frames.push({ method: data.method, params: (data.params ?? {}) as Record<string, unknown> });
+        if (isRecord(data) && typeof data.kind === 'string') {
+          frames.push(data as unknown as NormalizedMessage);
         }
       },
     },
@@ -475,11 +485,17 @@ test('steer rewrites the active turn: same turn id, same pid/thread, queue untou
     await waitFor(() => steered.settled(), 'the steered run to settle');
     assert.equal(steered.rejected(), false, `the steered run rejected: ${String(steered.reason())}`);
 
-    const completedFrames = firstWriter.frames.filter((frame) => frame.method === 'turn/completed');
+    // The process's terminal frame names the steered turn; the writer's
+    // normalized frames carry the answer and the run's terminal complete.
+    const completedFrames = transport.frames.filter((frame) => frame.method === 'turn/completed');
     const terminalFrame = completedFrames[completedFrames.length - 1];
     const items = itemsOf(terminalFrame);
+    const finalAnswers = firstWriter.frames.filter(
+      (message) => message.kind === 'text' && message.role === 'assistant',
+    );
+    const completions = firstWriter.frames.filter((message) => message.kind === 'complete');
     const terminal: SteeredTerminalReading = {
-      finalAgentText: items.length === 1 && items[0].type === 'agentMessage' ? String(items[0].text ?? '') : '',
+      finalAgentText: finalAnswers.length === 1 ? String(finalAnswers[0].content ?? '') : '',
       terminalItemCount: items.length,
       terminalStatus: terminalFrame && isRecord(terminalFrame.params.turn)
         ? String(terminalFrame.params.turn.status ?? '')
@@ -495,6 +511,8 @@ test('steer rewrites the active turn: same turn id, same pid/thread, queue untou
       `terminalItems=${JSON.stringify(items)} terminalTurnId=${String(terminal.terminalTurnId)} activeTurnId=${String(terminal.activeTurnId)}`,
     );
     assertSteeredTerminal(terminal);
+    assert.equal(completions.length, 1, `the run writer must see exactly one terminal complete (got ${completions.length})`);
+    assert.equal(completions[0].exitCode, 0, 'a completed turn must reach the writer as a successful complete');
 
     // AC4: the process and the thread survive the steer, and the next round
     // reuses both.

@@ -36,6 +36,14 @@ export type QueuedEntry = {
   writer: ProviderRuntimeWriter | null;
   promise: Promise<void>;
   resolve: () => void;
+  /**
+   * Told which turn a `turn/started` bound this submission to.
+   *
+   * The run that queued it uses the id to route its own frames: the app-server
+   * broadcasts every thread notification, so without the bound turn a run
+   * waiting behind another would also receive that turn's output.
+   */
+  onBound?: (turnId: string | null) => void;
 };
 
 /**
@@ -143,6 +151,7 @@ export class CodexResidentQueue {
     connection: CodexAppServerConnection,
     text: string,
     writer: ProviderRuntimeWriter | null = null,
+    onBound?: (turnId: string | null) => void,
   ): Promise<QueuedEntry> {
     const threadId = this.deps.threadId();
     if (!threadId) {
@@ -178,6 +187,7 @@ export class CodexResidentQueue {
       text,
       started: false,
       writer,
+      onBound,
       promise,
       resolve,
     };
@@ -330,8 +340,13 @@ export class CodexResidentQueue {
     connection: CodexAppServerConnection,
     text: string,
     writer: ProviderRuntimeWriter | null = null,
+    onBound?: (turnId: string | null) => void,
   ): Promise<void> {
-    const entry = await this.add(connection, text, writer);
+    // The hook is attached at entry creation, not after this call returns: a
+    // `turn/started` can bind the entry while `add` is still awaiting its
+    // queue/list refresh, and a hook attached later would miss that turn and
+    // leave the run's relay queued forever.
+    const entry = await this.add(connection, text, writer, onBound);
     await entry.promise;
   }
 

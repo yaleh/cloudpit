@@ -30,6 +30,7 @@ import {
   type CodexTurnSettingsPatch,
   type HostReconfigureOutcome,
 } from '@/modules/providers/list/codex/codex-live-settings.js';
+import { createCodexResidentFrameRelay, type CodexResidentFrameRelay } from '@/modules/providers/list/codex/codex-resident-normalize.js';
 import { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
 import {
   steerCurrentTurn,
@@ -61,17 +62,10 @@ const DEFAULT_CAPABILITY_PROBE_TIMEOUT_MS = 5_000;
 /**
  * Codex's resident host driver: one long-lived `codex app-server` process per
  * app session, with thread identity, pid and an in-flight turn surviving across
- * turns.
- *
- * Owns process lifetime, the thread's turn state, the busy-input queue and the
- * background leases; live settings live in `codex-live-settings.ts`, every
- * approval concern in `codex-approval-broker.ts`, the queue in
- * `codex-resident-queue.ts` and the `process/*` verbs in
- * `codex-background-processes.ts`. Mounting on `CodexProvider` is AC-441;
- * declaring `resident` in the capability registry is AC-442.
- *
- * Consumed by the criteria in `tests/`, which inject an in-memory transport
- * through `createConnection`.
+ * turns. Process lifetime, turn state, the busy-input queue and background
+ * leases are owned here; live settings, approvals, the queue and the
+ * `process/*` verbs live in their sibling modules. Consumed by the criteria in
+ * `tests/`, which inject an in-memory transport through `createConnection`.
  */
 
 export type {
@@ -87,11 +81,8 @@ export type { CodexResidentSessionReading, CodexApprovalDriverOptions };
 export type { CodexSettingsCapabilities, CodexTurnSettingsPatch, CodexSteerResult };
 
 /**
- * Owns the process lifetime and per-session thread state of Codex resident mode.
- *
- * One connection per driver instance and `multiplexedHost = false`: the manager
- * may not place a second conversation on this process, which is the ruling that
- * one app session owns one app-server.
+ * One app session owns one app-server: `multiplexedHost = false` keeps the
+ * manager from placing a second conversation on this process.
  */
 export class CodexHostDriver implements IProviderHostDriver {
   readonly multiplexedHost = false;
@@ -222,6 +213,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     appSessionId: string,
     turn: HostTurnInput,
     writer?: ProviderRuntimeWriter,
+    frames?: CodexResidentFrameRelay,
   ): Promise<void> {
     const connection = this.connectionFor(host.hostId);
     const session = this.requireSession(appSessionId);
@@ -248,6 +240,7 @@ export class CodexHostDriver implements IProviderHostDriver {
         }
       }
       this.sink?.activity(appSessionId);
+      if (pending.turnId) frames?.bindTurn(pending.turnId); // frames of other turns are dropped by the relay
       await pending.promise;
       // Approvals still parked on this turn must be answered before the caller
       // reads the session, or they would outlive the turn that asked for them.
@@ -457,8 +450,8 @@ export class CodexHostDriver implements IProviderHostDriver {
    * The resident turn entry (`provider-runtime.service`'s `ResidentTurnEntry`).
    *
    * Runs one turn through the same submit path and forwards the app-server
-   * frames belonging to this session's thread to the run's writer. Normalizing
-   * them into app message shapes is a later integration task (AC-440).
+   * frames belonging to this session's thread, normalized into app message
+   * shapes by `codex-resident-normalize.ts`.
    */
   async run(
     appSessionId: string,
@@ -483,19 +476,21 @@ export class CodexHostDriver implements IProviderHostDriver {
     const session = this.requireSession(appSessionId);
     const connection = this.connectionFor(host.hostId);
     this.approvals.recordWriter(appSessionId, writer);
+    const frames = createCodexResidentFrameRelay(writer);
     const unsubscribe = connection.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
-        writer.send({ method, params });
+        frames.forward(method, params);
       }
     });
     try {
       // Busy input is queued, never refused: the run stays pending until the
       // submission it wrote reaches a terminal turn (or is withdrawn).
       if (session.pending !== null || session.turnStatus === 'inProgress') {
-        await session.queue.enqueueAndWait(connection, turn.command, writer);
+        frames.queue();
+        await session.queue.enqueueAndWait(connection, turn.command, writer, (turnId) => frames.bindTurn(turnId));
         return this.readSession(appSessionId);
       }
-      await this.submit(host, appSessionId, turn, writer);
+      await this.submit(host, appSessionId, turn, writer, frames);
     } finally {
       unsubscribe();
     }
@@ -667,6 +662,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (!entry) {
       return;
     }
+    entry.onBound?.(turnId);
     session.pending = {
       threadId: session.threadId ?? '',
       turnId,

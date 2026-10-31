@@ -536,12 +536,10 @@ test('a server refusal latches fail-closed but leaves the stable surface alive (
 test('unknown notifications pass without breaking the read loop (AC6)', async () => {
   const { transport, connection, driver } = createHarness();
   const host = createHost();
-  const forwarded: string[] = [];
+  const forwarded: unknown[] = [];
   const writer: ProviderRuntimeWriter = {
     send: (data) => {
-      if (isRecord(data) && typeof data.method === 'string') {
-        forwarded.push(data.method);
-      }
+      forwarded.push(data);
     },
   };
   try {
@@ -575,12 +573,24 @@ test('unknown notifications pass without breaking the read loop (AC6)', async ()
       `unknownNotifications=[${EXPECTED_UNKNOWN_NOTIFICATIONS.join(',')}] turnStatus=${session.turnStatus} `
         + `postLoopRequest=${postLoopRequest}`,
     );
-    console.log(`forwarded=${forwarded.join(',')}`);
-    // Only frames carrying this session's threadId are transcribed; the
-    // threadId-less unknowns are passed but not attributed to a run.
-    assert.ok(forwarded.includes('item/started'), 'a thread-scoped unknown frame must be forwarded');
+    const rawMethods = forwarded
+      .filter(isRecord)
+      .filter((data) => typeof data.method === 'string')
+      .map((data) => String(data.method));
+    const forwardedKinds = forwarded
+      .filter(isRecord)
+      .filter((data) => typeof data.kind === 'string')
+      .map((data) => String(data.kind));
+    const kindless = forwarded.filter((data) => !isRecord(data) || typeof data.kind !== 'string').length;
+    console.log(`forwardedKinds=[${forwardedKinds.join(',')}] rawMethods=[${rawMethods.join(',')}] kindless=${kindless}`);
+    // The driver normalizes before writing (gap-codex-resident-normalize-app-
+    // server-frames): every frame is a kind-carrying message, and an unmapped
+    // lifecycle frame such as `item/started` is dropped rather than leaked as a
+    // raw `{method,params}` payload the writer would discard wholesale.
+    assert.equal(kindless, 0, `kindless=${kindless} — the run writer must receive only kind-carrying messages`);
+    assert.equal(rawMethods.includes('item/started'), false, 'an unmapped lifecycle frame must not be forwarded raw');
     for (const method of ['configWarning', 'account/rateLimits/updated', 'futureFeature/doesNotExist']) {
-      assert.equal(forwarded.includes(method), false, `${method} has no threadId and must not be forwarded`);
+      assert.equal(rawMethods.includes(method), false, `${method} has no threadId and must not be forwarded`);
     }
     assertUnknownNotificationsWerePassed({
       unknownNotifications: [...EXPECTED_UNKNOWN_NOTIFICATIONS],

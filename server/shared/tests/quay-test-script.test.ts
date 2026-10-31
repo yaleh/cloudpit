@@ -433,9 +433,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // 478 - 3 = 475.
     // Re-measured 2026-10-31 after gap-routine-architecture-analysis-src-import-cycles-unpinned
     // added the frontend cycle ratchet server/shared/tests/frontend-import-cycle-budget.test.ts
-    // (478 + 1 = 479 collected server test files). This fixture names 3 known files, so
-    // 479 - 3 = 476.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=476$/);
+    // (478 + 1 = 479 collected server test files). Then
+    // gap-codex-resident-normalize-app-server-frames added its criterion
+    // server/modules/providers/tests/codex-resident-normalize.test.ts
+    // (479 + 1 = 480 collected server test files). This fixture names 3 known files, so
+    // 480 - 3 = 477.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=477$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -542,11 +545,13 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-cockpit-session-start-model-settings added
     // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts), then
     // gap-cockpit-session-start-model-settings-ui added
-    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts)
-    // — but this fixture names ONE known file, so 479 - 1 = 478 (AC2 reads 476 because its
-    // fixture names 3; the 479 is the 478 the tree collected before
-    // frontend-import-cycle-budget.test.ts landed).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=478$/);
+    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts), then
+    // gap-codex-resident-normalize-app-server-frames added
+    // server/modules/providers/tests/codex-resident-normalize.test.ts)
+    // — but this fixture names ONE known file, so 480 - 1 = 479 (AC2 reads 477 because its
+    // fixture names 3; the 480 is the 479 the tree collected before
+    // codex-resident-normalize.test.ts landed).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=479$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

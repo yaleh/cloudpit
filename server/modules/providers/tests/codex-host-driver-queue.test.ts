@@ -599,18 +599,25 @@ test('busy input is queued, not refused (AC2)', async () => {
     assertBusyAccepted(reading);
 
     // Frames of the queued turn reach the writer the queued run was handed.
+    // The driver normalizes app-server notifications before writing, so the
+    // queued turn's terminal frame is a `complete`, not a raw `turn/completed`.
     transport.autoComplete = true;
     transport.finishActiveTurn('completed');
     await first.promise;
     await queued.promise;
     assert.equal(queued.rejected(), false, 'the queued run must resolve when its turn completes');
     await waitFor(
-      () => queuedWriter.frames.some((frame) => frame.method === 'turn/started'),
-      'the queued run\'s writer to receive its turn/started frame',
+      () => queuedWriter.frames.some((frame) => frame.kind === 'complete'),
+      'the queued run\'s writer to receive its terminal complete',
     );
+    const queuedCompletes = queuedWriter.frames.filter((frame) => frame.kind === 'complete').length;
+    const firstCompletes = firstWriter.frames.filter((frame) => frame.kind === 'complete').length;
     console.log(
-      `queuedRunResolved=${queued.settled()} queuedFrames=${queuedWriter.frames.map((frame) => String(frame.method)).join(',')}`,
+      `queuedRunResolved=${queued.settled()} queuedKinds=${queuedWriter.frames.map((frame) => String(frame.kind)).join(',')} `
+        + `queuedCompletes=${queuedCompletes} firstCompletes=${firstCompletes}`,
     );
+    assert.equal(queuedCompletes, 1, 'the queued writer must see exactly its own terminal complete');
+    assert.equal(firstCompletes, 1, 'the first writer must not receive the queued turn\'s terminal complete');
     assert.equal(
       transport.calls.filter((call) => call.method === 'thread/queue/start').length,
       0,
