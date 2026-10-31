@@ -1,7 +1,7 @@
 ---
 id: gap-ac418-routes-unclassified-transport-failure
 title: AC-418 判据残余假红：fetch 重试谓词只认 5 个错误码、预算仅 4 次快速尝试，未分类/持续的传输失败仍整文件判红
-status: ready
+status: done
 labels:
   - gap
 parent: null
