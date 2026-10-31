@@ -1,7 +1,7 @@
 ---
 id: gap-session-edit-preparation
 title: 编辑重发：封装公共准备流程，修复 Codex resident 回退与旧 host 重建互斥
-status: ready
+status: done
 labels:
   - gap
   - defect
