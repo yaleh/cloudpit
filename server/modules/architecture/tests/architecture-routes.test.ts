@@ -171,16 +171,72 @@ function errorMiddleware(error: unknown, _request: ExpressRequest, response: Exp
   response.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: String(error) } });
 }
 
-async function withServer(app: Express, run: (baseUrl: string) => Promise<void>): Promise<void> {
+/**
+ * The 18 ports undici refuses before opening a socket (`bad port`). `app.listen(0)` asks the
+ * kernel for an ephemeral loopback port on every case, and this host's allocator range contains
+ * all of them, so a whole-file run draws one roughly once per hundred runs.
+ *
+ * `scripts/undici-blocked-ports-preload.mjs` holds these for the suite lane; the bare criteria
+ * command does not `--import` it, so {@link withServer} closes a blocked draw and re-binds. The
+ * criterion test at the bottom pins this copy to the preload's export so the two homes cannot
+ * drift apart silently.
+ */
+const UNDICI_BLOCKED_PORTS: ReadonlySet<number> = new Set([
+  1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000,
+  6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080,
+]);
+
+/** Upper bound on close+re-bind rounds; a chain this long is a bug, not the port lottery. */
+const MAX_PORT_REBINDS = 8;
+
+/** True when undici refuses `port` outright (`bad port`), before any socket is opened. */
+function isUndiciBlockedPort(port: number): boolean {
+  return UNDICI_BLOCKED_PORTS.has(port);
+}
+
+/** A bound loopback listener. `port` is what the allocator actually handed out. */
+type BoundListener = {
+  server: { close(callback: (error?: Error | null) => void): unknown };
+  port: number;
+};
+
+/** Default allocator: ask the kernel for an ephemeral port on loopback. */
+async function listenOnEphemeralPort(app: Express): Promise<BoundListener> {
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
+  const address = server.address() as AddressInfo;
+  return { server, port: address.port };
+}
+
+/** Close a listener and resolve once its port is released. */
+function closeListener(listener: BoundListener): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    listener.server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function withServer(
+  app: Express,
+  run: (baseUrl: string) => Promise<void>,
+  listen: (target: Express) => Promise<BoundListener> = listenOnEphemeralPort,
+): Promise<void> {
+  let listener = await listen(app);
+  let rebinds = 0;
+  // `bad port` carries no `cause.code`, so `fetchWithRetry` cannot help: retrying the request
+  // would fail identically. Re-bind until the port is one undici will actually talk to.
+  while (isUndiciBlockedPort(listener.port)) {
+    await closeListener(listener);
+    assert.ok(
+      rebinds < MAX_PORT_REBINDS,
+      `withServer: ${MAX_PORT_REBINDS} consecutive re-binds all drew an undici-blocked port (last ${listener.port})`,
+    );
+    rebinds += 1;
+    listener = await listen(app);
+  }
   try {
-    const address = server.address() as AddressInfo;
-    await run(`http://127.0.0.1:${address.port}`);
+    await run(`http://127.0.0.1:${listener.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
+    await closeListener(listener);
   }
 }
 
@@ -2582,3 +2638,78 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
 // module-local name. Declared at the bottom on purpose: the AC-418 reading lines
 // (`withServer`'s `await run(`, `postMentions`' `return fetch(`) keep their positions.
 const fetch = fetchWithRetry;
+
+test('withServer re-binds a drawn undici-blocked port before run sees a base URL', async () => {
+  const app = express();
+  app.use(express.json());
+  const blockedDraw = 6666;
+  assert.equal(isUndiciBlockedPort(blockedDraw), true);
+
+  const closedPorts: number[] = [];
+  const deliveredBaseUrls: string[] = [];
+  let allocations = 0;
+  // Deterministic allocator: the first draw is a blocked port, the second a real ephemeral one.
+  // The blocked arm has no listener on purpose — the suite lane's preload holds 6666, so binding
+  // it here would make the control depend on which lane ran it.
+  const listen = async (target: Express): Promise<BoundListener> => {
+    allocations += 1;
+    if (allocations === 1) {
+      return {
+        server: {
+          close: (callback) => {
+            closedPorts.push(blockedDraw);
+            callback();
+          },
+        },
+        port: blockedDraw,
+      };
+    }
+    return listenOnEphemeralPort(target);
+  };
+
+  await withServer(
+    app,
+    async (baseUrl) => {
+      deliveredBaseUrls.push(baseUrl);
+    },
+    listen,
+  );
+
+  assert.equal(allocations, 2);
+  assert.deepEqual(closedPorts, [blockedDraw]);
+  assert.equal(deliveredBaseUrls.length, 1);
+  const deliveredPort = Number(new URL(deliveredBaseUrls[0]).port);
+  assert.equal(isUndiciBlockedPort(deliveredPort), false);
+  assert.ok(!deliveredBaseUrls[0].endsWith(`:${blockedDraw}`), `run saw the blocked base URL ${deliveredBaseUrls[0]}`);
+});
+
+test('undici rejects port 6666 with bad port and the fetch retry predicate leaves it unretried', async () => {
+  assert.equal(isUndiciBlockedPort(6666), true);
+  assert.equal(isUndiciBlockedPort(1719), true);
+  assert.equal(isUndiciBlockedPort(10080), true);
+  assert.equal(isUndiciBlockedPort(49152), false);
+
+  // undici refuses the port before it opens a socket, so no listener needs to exist for this
+  // reading — and none can: the suite lane's preload holds 6666 for the whole process.
+  const error = await globalThis.fetch('http://127.0.0.1:6666/').then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+  assert.ok(error instanceof TypeError);
+  assert.equal(error.message, 'fetch failed');
+  const cause = (error as { cause?: unknown }).cause;
+  assert.ok(cause instanceof Error);
+  assert.equal(cause.message, 'bad port');
+  assert.equal((cause as { code?: unknown }).code, undefined);
+  // This is the gap the retry predates: no `cause.code`, so `fetchWithRetry` gives up after one
+  // attempt and the criterion reds on a port draw instead of on the endpoint.
+  assert.equal(isTransientFetchFailure(error), false);
+});
+
+test('the file-local undici blocked-port list matches scripts/undici-blocked-ports-preload.mjs', async () => {
+  const preload = await import('../../../../scripts/undici-blocked-ports-preload.mjs');
+  const local = [...UNDICI_BLOCKED_PORTS].sort((left, right) => left - right);
+  const canonical = [...preload.UNDICI_BLOCKED_PORTS].sort((left, right) => left - right);
+  assert.equal(local.length, UNDICI_BLOCKED_PORTS.size);
+  assert.deepEqual(local, canonical);
+});
