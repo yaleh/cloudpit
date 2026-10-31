@@ -3,7 +3,7 @@ id: gap-ac178-new-session-switch-gate-drops-nonmatrix-provider
 title: AC-178 正控制红：debug 会话的 __provider='debug' 被 useChatProviderState
   采纳并写进偏好，空状态开关门 canToggle=false（debug 不在能力矩阵）——矩阵外 provider 不采纳，恢复新会话空状态
   [data-resident-enable] count=1
-status: todo
+status: ready
 labels:
   - gap
   - defect
