@@ -74,6 +74,7 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 - chat-run-registry.service.ts 1401→1436 是本次 run 记录接线与 bindingAtStart 文档的诚实增长，已按 AC-394 的 RECORDED CHANGE 格式记入 server/shared/tests/architecture-ratchet.baseline.json（唯一上调项，其余条目未动）。
 - 新增判据文件使 server 测试收集数 482→483：scripts/suite-duration-baseline.tsv 追加实测行（5848ms），并把 server/shared/tests/quay-test-script.test.ts 的两条 unknown pin 移到 480/482。
 - 修复后重跑：architecture-ratchet → pass 6 / fail 0；server-import-cycle-budget → pass 12 / fail 0；quay-test-script → pass 14 / fail 0；session-binding-consistency → tests 10 / pass 10 / fail 0；回归 48 / pass 47 / skipped 1 / fail 0；typecheck、lint（exit 0）通过。
+- 本轮（merge-develop 冲突修复）：与 develop 的 suite-duration-baseline.tsv / quay-test-script.test.ts 冲突按并集解决——保留本任务的 session-binding-consistency 行与 develop 的 cloudpit-brand-env 行，合并后树收集 484 个 server 测试文件，两条 unknown pin 重测为 481/483。合并后重跑：architecture-ratchet 6/6（sessions.db.ts 1422 低于基线 1479，可下调）、server-import-cycle-budget 12/12、quay-test-script 14/14、session-binding-consistency 10/10、回归 48/47+1 skip/0 fail；typecheck exit 0、lint exit 0；anti-drift-touches-check 12 files 全部在 Touches 内（exit 0）。
 
 ## 暗轴记录
 
