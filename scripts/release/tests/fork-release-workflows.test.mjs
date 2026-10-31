@@ -5,7 +5,7 @@
  * The fork releases diverges from upstream (siteboon) in exactly these shape decisions, and each
  * one is a decision that silently REVERTS the moment someone re-syncs a file from upstream:
  *
- *   1. `package.json` names the fork `@yalehwang/cloudcli` and publishes it publicly. The
+ *   1. `package.json` names the fork `@yalehwang/cloudpit` and publishes it publicly. The
  *      upstream `@cloudcli-ai/cloudcli` scope belongs to other maintainers — it can never be
  *      published from here, so a regression back to that name fails the run at the publish step
  *      (after the tag is already made) rather than doing nothing.
@@ -14,7 +14,7 @@
  *   3. `release.yml` authenticates that publish with npm trusted publishing (OIDC, `id-token:
  *      write`), not an npm token: npm rejects 2FA-bypass tokens for publishing.
  *   4. No user-facing install/upgrade command in the repository points at the upstream scope —
- *      every one of them must name `@yalehwang/cloudcli`, or the fork ships users a command that
+ *      every one of them must name `@yalehwang/cloudpit`, or the fork ships users a command that
  *      installs somebody else's package.
  *   5. `desktop-release.yml` builds Windows only. There is no Apple signing certificate, so a
  *      re-added `build-macos` job makes `publish.needs` wait on a job that can never go green, and
@@ -31,7 +31,7 @@
  * WHAT IT PRINTS. The readings named by the criterion are printed unconditionally, before the
  * assertions, so a red run still shows which reading was wrong:
  *
- *   pkg.name=@yalehwang/cloudcli  npm.publish=true  auth.env=OIDC  legacy.upgradeCmds=0
+ *   pkg.name=@yalehwang/cloudpit  npm.publish=true  auth.env=OIDC  legacy.upgradeCmds=0
  *   requireBranch=develop  pushRepo=yaleh  macos.jobs=0  dmg.refs=0  readme.upstream_refs_outside_notice=0
  */
 
@@ -80,7 +80,7 @@ const desktopJobs =
 
 // ── the printed readings ────────────────────────────────────────────────────
 // The package name the fork publishes under: upstream's scope is somebody else's.
-const FORK_NAME = '@yalehwang/cloudcli';
+const FORK_NAME = '@yalehwang/cloudpit';
 // The upstream scope a user-facing command must never point at. This guard has to be able to spell
 // the pattern it forbids, so it is listed in EXCLUDED_PREFIXES rather than scanned.
 const UPSTREAM_NAME = '@cloudcli-ai/cloudcli';

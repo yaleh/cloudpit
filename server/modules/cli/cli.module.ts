@@ -74,12 +74,12 @@ export function createCliApplication(): CliApplication {
       // before this best-effort npm registry check runs.
       await new Promise<void>((resolve) => setImmediate(resolve));
       return execSync(
-        'npm show @yalehwang/cloudcli version',
+        'npm show @yalehwang/cloudpit version',
         { encoding: 'utf8' },
       ).trim();
     },
     updateGlobalPackage: () => {
-      execSync('npm update -g @yalehwang/cloudcli', { stdio: 'inherit' });
+      execSync('npm update -g @yalehwang/cloudpit', { stdio: 'inherit' });
     },
     startServer: async () => {
       // The server executable is an entrypoint rather than a feature module,

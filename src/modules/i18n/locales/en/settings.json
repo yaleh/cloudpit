@@ -547,7 +547,7 @@
     },
     "managed": {
       "badge": "Managed",
-      "hint": "Managed by CloudCLI."
+      "hint": "Managed by Cloudpit."
     },
     "help": {
       "title": "About Codex MCP",
@@ -579,7 +579,7 @@
     "docs": "Docs",
     "sections": {
       "officialTitle": "Official Plugins",
-      "officialDescription": "Maintained by the CloudCLI team and ready for direct install.",
+      "officialDescription": "Maintained by the Cloudpit team and ready for direct install.",
       "unofficialTitle": "Other Plugins",
       "unofficialDescription": "Unofficial plugins and integrations from other users. Review the source before installing."
     },
@@ -610,7 +610,7 @@
     "prismCloudCLI": {
       "name": "PRISM CloudCLI",
       "badge": "unofficial",
-      "description": "Session intelligence for Claude Code, inside CloudCLI. See why your sessions are burning tokens without leaving the browser.",
+      "description": "Session intelligence for Claude Code, inside Cloudpit. See why your sessions are burning tokens without leaving the browser.",
       "install": "Install"
     },
     "sessionManagerPlugin": {
@@ -876,7 +876,7 @@
       "kindsHelp": {
         "value": "Stored as a literal value and passed to the spawned process unchanged.",
         "secret": "Write-only: once saved, only whether it is set is shown.",
-        "envref": "Uses a variable already present in the CloudCLI server environment instead of a value saved with this model.",
+        "envref": "Uses a variable already present in the Cloudpit server environment instead of a value saved with this model.",
         "unset": "Removes this variable from the spawned process environment."
       },
       "secretSet": "Set",
@@ -886,7 +886,7 @@
       "envrefName": "Server environment variable name",
       "envrefSet": "Set on server",
       "envrefUnset": "Not set on server",
-      "envrefHelp": "Reads this variable from the CloudCLI server process environment; restart the server after changing it.",
+      "envrefHelp": "Reads this variable from the Cloudpit server process environment; restart the server after changing it.",
       "warningEnvrefUnset": "Environment variable {{name}} is not set on the server; this row will send nothing.",
       "unsavedRow": "Not saved — the value is empty.",
       "unsavedSummary": "These rows will not be saved because their value is empty:"
@@ -894,7 +894,7 @@
   },
   "accessTokens": {
     "title": "Personal Access Tokens",
-    "description": "Create personal access tokens to authenticate MCP clients and other applications against the CloudCLI API.",
+    "description": "Create personal access tokens to authenticate MCP clients and other applications against the Cloudpit API.",
     "newButton": "New Token",
     "form": {
       "namePlaceholder": "Token name (e.g., My MCP client)",
@@ -947,8 +947,8 @@
     }
   },
   "mcpGateway": {
-    "title": "CloudCLI MCP",
-    "description": "Connect a local MCP client to this CloudCLI server.",
+    "title": "Cloudpit MCP",
+    "description": "Connect a local MCP client to this Cloudpit server.",
     "status": {
       "enabled": "Enabled",
       "disabled": "Not enabled"
@@ -956,7 +956,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "connectLabel": "Connect command",
-    "enableHint": "The MCP gateway is not enabled. Set MCP_ENABLED=true in the server environment and restart CloudCLI to turn it on."
+    "enableHint": "The MCP gateway is not enabled. Set MCP_ENABLED=true in the server environment and restart Cloudpit to turn it on."
   },
   "mcpNavigation": {
     "title": "Navigation requests",
@@ -975,7 +975,7 @@
   },
   "connectedApps": {
     "title": "Connected Apps",
-    "description": "Applications you have authorized to act on your behalf through the CloudCLI MCP gateway. Revoking an authorization immediately rejects every token issued under it.",
+    "description": "Applications you have authorized to act on your behalf through the Cloudpit MCP gateway. Revoking an authorization immediately rejects every token issued under it.",
     "list": {
       "empty": "No connected apps yet.",
       "redirectHost": "Callback host:",
@@ -989,7 +989,7 @@
   },
   "oauthClients": {
     "title": "OAuth Clients (Advanced)",
-    "description": "Applications registered to obtain tokens from this CloudCLI server. A client disabled here has every grant and token under it rejected immediately.",
+    "description": "Applications registered to obtain tokens from this Cloudpit server. A client disabled here has every grant and token under it rejected immediately.",
     "newButton": "New Client",
     "form": {
       "namePlaceholder": "Client name (e.g., My integration)",

@@ -1,15 +1,15 @@
 {
-  "name": "@yalehwang/cloudcli",
+  "name": "@yalehwang/cloudpit",
   "version": "1.41.0",
   "publishConfig": {
     "access": "public"
   },
-  "productName": "CloudCLI",
+  "productName": "Cloudpit",
   "description": "A web-based UI for Claude Code CLI",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
-    "cloudcli": "dist-server/server/modules/cli/cli.js"
+    "cloudpit": "dist-server/server/modules/cli/cli.js"
   },
   "files": [
     "electron/",
@@ -73,9 +73,9 @@
   },
   "build": {
     "appId": "ai.cloudcli.desktop",
-    "productName": "CloudCLI",
+    "productName": "Cloudpit",
     "asar": false,
-    "artifactName": "cloudcli-desktop-${version}-${os}-${arch}.${ext}",
+    "artifactName": "cloudpit-desktop-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release/desktop"
     },
@@ -135,7 +135,7 @@
     "claude code",
     "claude-code",
     "claude-code-ui",
-    "cloudcli",
+    "cloudpit",
     "codex",
     "cursor",
     "cursor-cli",
@@ -147,7 +147,7 @@
     "ui",
     "mobile IDE"
   ],
-  "author": "CloudCLI UI Contributors",
+  "author": "Cloudpit Contributors",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.165",

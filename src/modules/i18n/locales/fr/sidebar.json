@@ -25,7 +25,7 @@
     "runClaudeCli": "Exécutez le CLI Claude dans un répertoire de projet pour commencer"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Cloudpit",
     "subtitle": "Interface d'assistant de codage IA"
   },
   "sessions": {

@@ -4,7 +4,7 @@
   "errorTitle": "승인 오류",
   "retry": "다시 시도",
   "unknownClient": "알 수 없는 애플리케이션",
-  "wantsAccess": "이(가) CloudCLI 계정에 액세스하려고 합니다.",
+  "wantsAccess": "이(가) Cloudpit 계정에 액세스하려고 합니다.",
   "callbackWarning": "승인 코드가 다음으로 전송됩니다:",
   "signingInAs": "{{username}}(으)로 로그인됨",
   "scopesLabel": "권한",

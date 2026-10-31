@@ -2,6 +2,7 @@ import { ArrowUpCircle, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { IS_PLATFORM } from '@/shared/utils';
+import { BRAND } from '@/shared/constants';
 import type { ReleaseInfo } from '@/shared/types';
 
 const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
@@ -101,7 +102,7 @@ export default function SidebarFooter({
             rel="noopener noreferrer"
             className="text-[10px] text-muted-foreground/40 transition-colors hover:text-muted-foreground"
           >
-            CloudCLI v{currentVersion} – {t('branding.openSource')}
+            {BRAND.name} v{currentVersion} – {t('branding.openSource')}
           </a>
         </div>
       )}

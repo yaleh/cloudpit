@@ -1,7 +1,7 @@
 import { Bug, Cloud, ExternalLink, MessageSquare, Star, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
+import { BRAND, CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
 import { IS_PLATFORM } from '@/shared/utils';
 import { DiscordIcon } from '@/shared/ui';
 import { useVersionCheck } from '@/shared/hooks/useVersionCheck';
@@ -40,7 +40,7 @@ export default function AboutTab() {
               className="text-base font-semibold text-foreground"
               style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
             >
-              CloudCLI
+              {BRAND.name}
             </span>
             <a
               href={releasesUrl}

@@ -508,7 +508,7 @@
       "kindsHelp": {
         "value": "Stored as a literal value and passed to the spawned process unchanged.",
         "secret": "Write-only: once saved, only whether it is set is shown.",
-        "envref": "Uses a variable already present in the CloudCLI server environment instead of a value saved with this model.",
+        "envref": "Uses a variable already present in the Cloudpit server environment instead of a value saved with this model.",
         "unset": "Removes this variable from the spawned process environment."
       },
       "secretSet": "Set",
@@ -518,7 +518,7 @@
       "envrefName": "Server environment variable name",
       "envrefSet": "Set on server",
       "envrefUnset": "Not set on server",
-      "envrefHelp": "Reads this variable from the CloudCLI server process environment; restart the server after changing it.",
+      "envrefHelp": "Reads this variable from the Cloudpit server process environment; restart the server after changing it.",
       "warningEnvrefUnset": "Environment variable {{name}} is not set on the server; this row will send nothing.",
       "unsavedRow": "Wird nicht gespeichert — der Wert ist leer.",
       "unsavedSummary": "Diese Zeilen werden nicht gespeichert, weil ihr Wert leer ist:"
@@ -526,7 +526,7 @@
   },
   "accessTokens": {
     "title": "Persönliche Zugriffstoken",
-    "description": "Erstellen Sie persönliche Zugriffstoken, um MCP-Clients und andere Anwendungen gegenüber der CloudCLI-API zu authentifizieren.",
+    "description": "Erstellen Sie persönliche Zugriffstoken, um MCP-Clients und andere Anwendungen gegenüber der Cloudpit-API zu authentifizieren.",
     "newButton": "Neuer Token",
     "form": {
       "namePlaceholder": "Token-Name (z. B. Mein MCP-Client)",
@@ -579,8 +579,8 @@
     }
   },
   "mcpGateway": {
-    "title": "CloudCLI MCP",
-    "description": "Verbinde einen lokalen MCP-Client mit diesem CloudCLI-Server.",
+    "title": "Cloudpit MCP",
+    "description": "Verbinde einen lokalen MCP-Client mit diesem Cloudpit-Server.",
     "status": {
       "enabled": "Aktiviert",
       "disabled": "Nicht aktiviert"
@@ -588,7 +588,7 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "connectLabel": "Verbindungsbefehl",
-    "enableHint": "Das MCP-Gateway ist nicht aktiviert. Setze MCP_ENABLED=true in der Serverumgebung und starte CloudCLI neu, um es zu aktivieren."
+    "enableHint": "Das MCP-Gateway ist nicht aktiviert. Setze MCP_ENABLED=true in der Serverumgebung und starte Cloudpit neu, um es zu aktivieren."
   },
   "mcpNavigation": {
     "title": "Navigationsanfragen",
@@ -607,7 +607,7 @@
   },
   "connectedApps": {
     "title": "Verbundene Apps",
-    "description": "Anwendungen, die du autorisiert hast, über das CloudCLI-MCP-Gateway in deinem Namen zu handeln. Beim Widerrufen einer Autorisierung werden alle darunter ausgegebenen Token sofort abgelehnt.",
+    "description": "Anwendungen, die du autorisiert hast, über das Cloudpit-MCP-Gateway in deinem Namen zu handeln. Beim Widerrufen einer Autorisierung werden alle darunter ausgegebenen Token sofort abgelehnt.",
     "list": {
       "empty": "Noch keine verbundenen Apps.",
       "redirectHost": "Callback-Host:",
@@ -621,7 +621,7 @@
   },
   "oauthClients": {
     "title": "OAuth-Clients (Erweitert)",
-    "description": "Anwendungen, die registriert sind, um Token von diesem CloudCLI-Server zu erhalten. Ein hier deaktivierter Client hat sofort alle zugehörigen Autorisierungen und Token abgelehnt.",
+    "description": "Anwendungen, die registriert sind, um Token von diesem Cloudpit-Server zu erhalten. Ein hier deaktivierter Client hat sofort alle zugehörigen Autorisierungen und Token abgelehnt.",
     "newButton": "Neuer Client",
     "form": {
       "namePlaceholder": "Client-Name (z. B. Meine Integration)",

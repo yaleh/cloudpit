@@ -58,7 +58,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const SERVER_ENTRY = 'server/index.ts';
 /** The exact line the product prints once it is accepting connections. */
-const READY_LINE = 'CloudCLI Server - Ready';
+const READY_LINE = 'Cloudpit Server - Ready';
 
 const TEST_JWT_SECRET = 'oauth-flow-e2e-secret';
 const USERNAME = 'oauth-e2e-user';
