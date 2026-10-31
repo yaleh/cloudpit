@@ -1,7 +1,7 @@
 ---
 id: AC-445
 title: 编辑重发公共编排独立组合 provider 回退与 resident 关闭，失败不继续旧上下文
-status: draft
+status: active
 kind: criterion
 goal: GOAL-052
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -15,4 +15,15 @@ origin: 人 yale 2026-10-31 本会话授权：对照 Claude Code 的编辑回退
   0f0cf753-c01e-4b26-93de-b13f418710f9 的
   provider_session_id=01a18fa6-3a32-7391-a3df-5b21e0183f03，但 jsonl_path 指向分叉
   01a19003-6b28-7910-9bf2-39ed4276635e；原始对话仍在原文件。
+activatedAt: 2026-10-31T04:57:18.720Z
+statusLog:
+  - at: 2026-10-31T04:57:18.720Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
+fidelity:
+  verdict: not-evaluated
+  reason: no judge configured
+  at: 2026-10-31T04:57:18.720Z
 ---
