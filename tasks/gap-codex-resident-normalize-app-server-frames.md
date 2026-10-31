@@ -2,7 +2,7 @@
 id: gap-codex-resident-normalize-app-server-frames
 title: Codex resident：把 app-server 原始帧归一化成 kind 消息，修复 assistant 回答被
   ChatSessionWriter 整体丢弃
-status: ready
+status: done
 labels:
   - gap
   - defect
