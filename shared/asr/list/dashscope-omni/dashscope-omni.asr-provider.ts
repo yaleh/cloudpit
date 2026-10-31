@@ -87,13 +87,21 @@ import type {
   AsrWire,
 } from '../../asrContract.js';
 import {
-  base64Encode,
-  base64Length,
   baseMimeType,
   classifyUpstreamFailure,
   declaredAcceptsMime,
-  utf8ByteLength,
 } from '../../asrContract.js';
+import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
+
+/**
+ * `base64Encode` stays on this module's public surface for its existing consumers.
+ *
+ * The arithmetic moved into the shared wire module (one implementation for every adapter), but the
+ * voice-capture criterion imports this adapter and calls `base64Encode` off it to derive the
+ * expected wire payload. A re-export keeps that reading measuring the shipped encoder without a
+ * second copy of it: this is an alias to the one function, not a definition.
+ */
+export { base64Encode };
 
 /**
  * The version of this frozen prompt. A value, not a derivation: it names the experiment round whose

@@ -53,10 +53,10 @@
  *     and a reading taken on one build can be told apart from a reading taken on another.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   declaredAcceptsMime,
   honoredHints,
-  measureRequestBytes,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrErrorCode,

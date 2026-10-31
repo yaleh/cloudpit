@@ -38,13 +38,11 @@ import type {
   AsrWire,
 } from '../../asrContract.js';
 import {
-  base64Encode,
-  base64Length,
   baseMimeType,
   classifyUpstreamFailure,
   declaredAcceptsMime,
-  utf8ByteLength,
 } from '../../asrContract.js';
+import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
 import {
   audioFormatFor,
   chatAudioDataUri,

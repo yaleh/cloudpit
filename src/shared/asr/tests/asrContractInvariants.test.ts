@@ -27,7 +27,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  base64Encode,
   classifyUpstreamFailure,
   honoredHints,
   listProviders,
@@ -54,6 +53,7 @@ import {
   tokenInvariantViolations,
 } from '@shared/asr/asrInvariants';
 import {
+  base64Encode,
   parseTranscriptionResponse,
   type TranscriptionEnvelope,
 } from '@shared/asr/transcriptionWire';

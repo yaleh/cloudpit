@@ -44,10 +44,10 @@
  *     `scripts/sensevoice/manifest.json` is the frozen record the build id is checked against.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   declaredAcceptsMime,
   honoredHints,
-  measureRequestBytes,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrErrorCode,

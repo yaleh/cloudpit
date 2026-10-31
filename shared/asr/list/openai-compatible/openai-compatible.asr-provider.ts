@@ -23,11 +23,11 @@
  * signal) arrives through `AsrInvocation`.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   classifyUpstreamFailure,
   declaredAcceptsMime,
   honoredHints,
-  measureRequestBytes,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrInvocation,

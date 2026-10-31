@@ -65,13 +65,8 @@ import type {
   AsrRequest,
   AsrResult,
 } from '../../asrContract.js';
-import {
-  base64Encode,
-  base64Length,
-  classifyUpstreamFailure,
-  honoredHints,
-  utf8ByteLength,
-} from '../../asrContract.js';
+import { classifyUpstreamFailure, honoredHints } from '../../asrContract.js';
+import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'multimodal';
