@@ -1,7 +1,7 @@
 ---
 id: gap-codex-token-usage-snapshot-semantics
 title: Codex token 用量统一快照口径并展示累计、最近请求与明细
-status: ready
+status: done
 labels:
   - gap
   - defect
