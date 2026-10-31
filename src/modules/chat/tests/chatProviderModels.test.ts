@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
+import type { ProjectSession } from '@/shared/types';
 
 /**
  * The four per-provider default models used to be four useState slots with four
@@ -39,12 +40,12 @@ vi.mock('@/shared/api', () => ({
   },
 }));
 
-const renderProviderState = async () => {
+const renderProviderState = async (selectedSession: ProjectSession | null = null) => {
   const { useChatProviderState } = await import(
     '@/modules/chat-session'
   );
   return renderHook(() =>
-    useChatProviderState({ selectedSession: null, selectedProject: null }),
+    useChatProviderState({ selectedSession, selectedProject: null }),
   );
 };
 
@@ -157,4 +158,44 @@ test('the active provider’s model is what currentProviderModel reports', async
     assert.equal(result.current.provider, 'cursor');
   });
   assert.equal(result.current.currentProviderModel, 'cursor-active');
+});
+
+test('a session provider outside the capability matrix is not adopted', async () => {
+  // Debug sessions carry their own runtime identity, which has no row in the
+  // provider matrix. Adopting it would leave the composer with no capabilities
+  // and persist an unusable id as the user's preference.
+  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/selectedProvider');
+  writeSelectedProvider('claude');
+
+  const debugSession = {
+    id: 'debug-session',
+    __provider: 'debug',
+  } as unknown as ProjectSession;
+
+  const { result } = await renderProviderState(debugSession);
+
+  assert.equal(result.current.provider, 'claude');
+  assert.equal(
+    readSelectedProvider(),
+    'claude',
+    'an unknown runtime provider must not be written into the user preference',
+  );
+});
+
+test('a session provider inside the capability matrix is still adopted', async () => {
+  // Control leg: the guard above must not turn adoption off altogether.
+  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/selectedProvider');
+  writeSelectedProvider('claude');
+
+  const codexSession = {
+    id: 'codex-session',
+    __provider: 'codex',
+  } as unknown as ProjectSession;
+
+  const { result } = await renderProviderState(codexSession);
+
+  await waitFor(() => {
+    assert.equal(result.current.provider, 'codex');
+  });
+  assert.equal(readSelectedProvider(), 'codex');
 });
