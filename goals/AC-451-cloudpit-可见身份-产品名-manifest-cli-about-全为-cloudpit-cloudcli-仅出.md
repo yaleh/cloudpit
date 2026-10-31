@@ -1,7 +1,7 @@
 ---
 id: AC-451
 title: Cloudpit 可见身份：产品名/manifest/CLI/About 全为 Cloudpit，CloudCLI 仅出现在 allowlist
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T15:41:02.490Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured

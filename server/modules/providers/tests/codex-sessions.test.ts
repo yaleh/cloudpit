@@ -1,13 +1,26 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { registerMcpReadTools, type McpReadToolRegistration } from '@/modules/mcp-gateway/index.js';
+import {
+  CodexAppServerConnection,
+  type CodexAppServerTransport,
+} from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider, parseCodexExecScript, readCodexMemoryCitations } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { createProviderTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
+import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
+import type {
+  ProcessHost,
+  ProviderRuntimeContext,
+  ProviderRuntimeWriter,
+  SessionBinding,
+} from '@/shared/types.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -681,6 +694,284 @@ test('a Codex turn anchors its last assistant answer with the turn id', { concur
       const users = history.messages.filter((message) => message.role === 'user');
       assert.equal(users.length, 2);
       assert.equal(users.some((message) => message.forkAnchorId), false, 'user prompts never carry a fork anchor');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Resident transcripts (gap-codex-resident-session-read-empty)
+//
+// A resident Codex conversation lives inside the app-server's thread, not in a
+// `~/.codex/sessions` rollout, so its session row had no `jsonl_path` and
+// `session_read` rendered an empty string. These criteria drive a real
+// `CodexHostDriver` turn over an in-memory app-server transport and read the
+// session back through the same provider the MCP read tool uses.
+// ---------------------------------------------------------------------------
+
+const RESIDENT_THREAD_ID = 'resident-thread-transcript-1';
+
+/** A minimal app-server stub: one thread, one answered turn carrying `assistantText`. */
+class ResidentTranscriptTransport implements CodexAppServerTransport {
+  readonly pid = 717_171;
+
+  private messageHandler: ((frame: string) => void) | null = null;
+  private alive = true;
+
+  constructor(private readonly assistantText: string) {}
+
+  write(frame: string): void {
+    const message = JSON.parse(frame) as {
+      id?: number;
+      method?: string;
+      params?: Record<string, unknown>;
+    };
+    if (typeof message.method !== 'string') {
+      return;
+    }
+    if (message.method === 'initialize') {
+      this.reply(message.id, { userAgent: 'fake-codex/0.153.4' });
+      return;
+    }
+    if (message.method === 'initialized') {
+      return;
+    }
+    if (message.method === 'thread/start') {
+      this.reply(message.id, { thread: { id: RESIDENT_THREAD_ID, status: { type: 'idle' } } });
+      return;
+    }
+    if (message.method === 'turn/start') {
+      const turnId = 'resident-turn-transcript-1';
+      this.reply(message.id, { turn: { id: turnId, status: 'inProgress' } });
+      // The resident app-server's own transcript: only these notifications
+      // carry the answer, and nothing writes them to a rollout file.
+      this.emit('turn/started', { threadId: RESIDENT_THREAD_ID, turn: { id: turnId, status: 'inProgress' } });
+      this.emit('item/completed', {
+        threadId: RESIDENT_THREAD_ID,
+        item: { id: 'resident-item-transcript-1', type: 'agentMessage', text: this.assistantText },
+      });
+      this.emit('turn/completed', { threadId: RESIDENT_THREAD_ID, turn: { id: turnId, status: 'completed' } });
+    }
+  }
+
+  onMessage(handler: (frame: string) => void): void {
+    this.messageHandler = handler;
+  }
+
+  onExit(): void {}
+
+  isAlive(): boolean {
+    return this.alive;
+  }
+
+  terminate(): void {
+    this.alive = false;
+  }
+
+  private reply(id: number | undefined, result: unknown): void {
+    this.deliver({ jsonrpc: '2.0', id, result });
+  }
+
+  private emit(method: string, params: unknown): void {
+    this.deliver({ jsonrpc: '2.0', method, params });
+  }
+
+  private deliver(value: unknown): void {
+    if (this.alive) {
+      this.messageHandler?.(JSON.stringify(value));
+    }
+  }
+}
+
+function residentHost(appSessionId: string): ProcessHost {
+  return {
+    hostId: `resident-host-${appSessionId}`,
+    provider: 'codex',
+    mode: 'resident',
+    state: 'starting',
+    pid: null,
+    startedAt: Date.now(),
+    bindings: new Map(),
+    closeReason: null,
+  };
+}
+
+/** Drives one resident turn through the driver and returns the host it used. */
+async function runResidentTurn(
+  appSessionId: string,
+  prompt: string,
+  assistantText: string,
+): Promise<ProcessHost> {
+  const transport = new ResidentTranscriptTransport(assistantText);
+  const driver = new CodexHostDriver({
+    createConnection: (launch) => new CodexAppServerConnection({
+      launch,
+      createTransport: () => transport,
+    }),
+  });
+  const host = residentHost(appSessionId);
+  const sink: IProviderHostDriverSink = {
+    leaseAdded: () => {},
+    leaseRemoved: () => {},
+    activity: () => {},
+    identity: () => {},
+    exited: () => {},
+  };
+  const binding: SessionBinding = {
+    appSessionId,
+    providerSessionId: null,
+    state: 'idle',
+    leases: [],
+    lastActivityAt: Date.now(),
+    peerName: null,
+    detachReason: null,
+  };
+  await driver.startHost(host, sink);
+  await driver.bind(host, binding);
+  const writer: ProviderRuntimeWriter = { send: () => {} };
+  const context = { resolveProviderSessionId: () => null } as unknown as ProviderRuntimeContext;
+  try {
+    await driver.run(appSessionId, { command: prompt, options: {} }, writer, context);
+  } finally {
+    await driver.closeHost(host, 'user');
+  }
+  return host;
+}
+
+test('a resident-shaped Codex session with no persisted turn reads empty (red baseline)', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-resident-empty-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await withIsolatedDatabase(async () => {
+      // The shape the defect reported: a resident conversation has a thread id
+      // but no rollout file, so there is nothing for the reader to open.
+      sessionsDb.createAppSession('app-resident-empty', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-resident-empty', 'resident-thread-empty');
+      assert.equal(sessionsDb.getSessionById('app-resident-empty')?.jsonl_path, null);
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-resident-empty');
+
+      assert.deepEqual(history.messages, []);
+      assert.equal(history.total, 0);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a resident turn is persisted outside the scanned sessions tree and reads back', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-resident-transcript-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const appSessionId = 'app-resident-transcript';
+  const prompt = 'Summarize the build result';
+  const answer = 'Build passed with no warnings.';
+
+  try {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession(appSessionId, 'codex', workspacePath);
+      await runResidentTurn(appSessionId, prompt, answer);
+
+      const row = sessionsDb.getSessionById(appSessionId);
+      assert.ok(row?.jsonl_path, 'the resident turn must link the session row to its transcript');
+      const transcriptPath = row.jsonl_path as string;
+      // The synchronizer indexes every rollout under ~/.codex/sessions as a
+      // separate per-run session, so the resident file must live outside it.
+      assert.equal(
+        transcriptPath.startsWith(path.join(tempRoot, '.codex', 'sessions')),
+        false,
+        'the resident transcript must not be inside the scanned sessions tree',
+      );
+      assert.ok(transcriptPath.startsWith(path.join(tempRoot, '.cloudcli')));
+
+      const transcript = await readFile(transcriptPath, 'utf8');
+      assert.ok(transcript.includes(prompt), 'the persisted turn must carry the user prompt');
+      assert.ok(transcript.includes(answer), 'the persisted turn must carry the assistant answer');
+
+      const provider = new CodexSessionsProvider();
+      const history = await provider.fetchHistory(appSessionId);
+      const assistant = history.messages.find((message) => message.kind === 'text' && message.role === 'assistant');
+      assert.equal(assistant?.content, answer);
+
+      // AC2's session_read leg: register the real read tool set over a deps bag
+      // whose `fetchHistory` is the provider above, then ask for latest mode.
+      const deps = {
+        sessions: {
+          fetchHistory: (sessionId: string, options?: { limit?: number | null; offset?: number }) =>
+            provider.fetchHistory(sessionId, options),
+        },
+      } as unknown as Parameters<typeof registerMcpReadTools>[1];
+      const registrations = new Map<string, McpReadToolRegistration>();
+      registerMcpReadTools((registration) => registrations.set(registration.name, registration), deps);
+      const sessionRead = registrations.get('session_read');
+      assert.ok(sessionRead, 'the read tool set must register session_read');
+      const rendered = await sessionRead.handler({ session: appSessionId, mode: 'latest' }) as {
+        content?: string;
+      };
+      assert.ok((rendered.content ?? '').length > 0, 'session_read must render non-empty content');
+
+      // AC4's fake form: remove the persisted turn (the step this task adds)
+      // and the very same read goes empty; put it back and it is green again.
+      const persisted = await readFile(transcriptPath, 'utf8');
+      await rm(transcriptPath);
+      const withoutPersistedTurn = await provider.fetchHistory(appSessionId);
+      assert.deepEqual(withoutPersistedTurn.messages, [], 'without the persisted transcript the read is empty again');
+      assert.equal(withoutPersistedTurn.total, 0);
+
+      await writeFile(transcriptPath, persisted, 'utf8');
+      const restored = await provider.fetchHistory(appSessionId);
+      assert.ok(
+        restored.messages.some((message) => message.kind === 'text' && message.content === answer),
+        'restoring the persisted turn restores the reading',
+      );
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a per-run Codex rollout still reads its own transcript unchanged', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-per-run-regression-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const providerSessionId = 'codex-per-run-1';
+
+  try {
+    const transcriptPath = await writeCodexTranscript(
+      tempRoot,
+      providerSessionId,
+      workspacePath,
+      'per-run prompt',
+    );
+    await appendFile(transcriptPath, `${JSON.stringify({
+      timestamp: '2026-07-07T12:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'per-run answer' }],
+      },
+    })}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-per-run-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-per-run-1', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-per-run-1');
+
+      assert.equal(sessionsDb.getSessionById('app-per-run-1')?.jsonl_path, transcriptPath);
+      assert.ok(history.messages.some((message) => message.kind === 'text' && message.content === 'per-run answer'));
+      assert.ok(history.messages.some((message) => message.role === 'user' && message.content === 'per-run prompt'));
     });
   } finally {
     restoreHomeDir();

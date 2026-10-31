@@ -85,3 +85,11 @@ Codex 会话 /cost 曾显示 Total tokens used 2,508,151、Breakdown Unavailable
 - src/modules/chat/tests/tokenBudgetSessionScope.test.tsx
 - src/modules/chat-composer/hooks/useCommandMenuState.ts
 - tasks/gap-codex-token-usage-snapshot-semantics.md
+
+## Blocker
+
+**2026-10-31T15:10:42.391Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/session-hosts/tests/session-host-default-wrap.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/session-hosts/tests/session-host-default-wrap.test.ts,server/modules/session-hosts/tests/session-host-default-wrap.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：545e41a0-612d-4849-91d6-cd0f2eead3bf

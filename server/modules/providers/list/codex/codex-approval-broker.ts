@@ -27,6 +27,9 @@ import {
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 import { isRecord } from '@/shared/utils.js';
 import type { AnyRecord, ProviderRuntimeWriter } from '@/shared/types.js';
+import {
+  readSessionBlockedEventWriterPort,
+} from '@/shared/ports/session-blocked-events.port.js';
 import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import type {
   CodexResidentSessionReading as BaseSessionReading,
@@ -124,6 +127,35 @@ export function buildServerRequestFallbackResult(method: string, now: number = D
     return { token: '' };
   }
   return {};
+}
+
+/* -------------------------------------------------------------------------- */
+/* Blocked-session events                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** The resolution key a parked approval and its `session.blocked.resolved` share. */
+function approvalBlockId(appSessionId: string, requestId: string): string {
+  return `${appSessionId}:${requestId}`;
+}
+
+/**
+ * The question a parked request is asking, when the protocol states one.
+ *
+ * An elicitation carries a free-text `message`; a user-input request carries a `questions` list
+ * whose first entry is the prompt. Nothing is synthesized: a row without a stated question omits
+ * the field rather than inventing text a person never saw.
+ */
+function approvalQuestion(toolName: CodexApprovalToolName, params: AnyRecord): string | null {
+  if (toolName === 'mcpElicitation') {
+    return typeof params.message === 'string' && params.message.trim() !== '' ? params.message : null;
+  }
+  if (toolName === 'requestUserInput') {
+    const first = Array.isArray(params.questions) ? params.questions[0] : null;
+    return isRecord(first) && typeof first.question === 'string' && first.question.trim() !== ''
+      ? first.question
+      : null;
+  }
+  return null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -312,6 +344,7 @@ export class CodexApprovalBroker {
     const sessionPending = this.pendingBySession.get(appSessionId) ?? new Map<string, PendingCodexApproval>();
     this.pendingBySession.set(appSessionId, sessionPending);
     sessionPending.set(requestId, record);
+    this.recordApprovalBlocked(appSessionId, requestId, toolName, params);
 
     record.done = this.awaitDecision(connection, id, method, toolName, params, appSessionId, requestId, writer)
       .finally(() => {
@@ -411,7 +444,41 @@ export class CodexApprovalBroker {
       // A write that failed (the client went away) is a refusal, not a hang.
       decision = null;
     }
+    // Allow and deny both withdraw the card: a denied approval that left the row standing would
+    // keep the fleet's "needs a person" project alive forever. A timeout and a `settleSession`
+    // cancel arrive here as the refusal shape too.
+    this.recordApprovalResolved(appSessionId, requestId);
     connection.respond(id, buildApprovalResponse(toolName, decision, params));
+  }
+
+  /** States the approval a person has to answer, so the fleet projects a "needs a person" card. */
+  private recordApprovalBlocked(
+    appSessionId: string,
+    requestId: string,
+    toolName: CodexApprovalToolName,
+    params: AnyRecord,
+  ): void {
+    const port = readSessionBlockedEventWriterPort();
+    if (!port) return;
+    const question = approvalQuestion(toolName, params);
+    port.write({
+      kind: 'session.blocked',
+      session: appSessionId,
+      reason: 'approval',
+      blockId: approvalBlockId(appSessionId, requestId),
+      requestId,
+      toolName,
+      ...(question === null ? {} : { question }),
+    });
+  }
+
+  /** Withdraws the card a settled approval left; see {@link awaitDecision} for both directions. */
+  private recordApprovalResolved(appSessionId: string, requestId: string): void {
+    readSessionBlockedEventWriterPort()?.write({
+      kind: 'session.blocked.resolved',
+      session: appSessionId,
+      blockId: approvalBlockId(appSessionId, requestId),
+    });
   }
 
   /** Records the refusal a request gets when nobody is connected to answer it. */
