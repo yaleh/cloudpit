@@ -8,6 +8,8 @@ parent: null
 children: []
 extra:
   schema: execution
+  acceptance: npx tsx --tsconfig server/tsconfig.json --test
+    server/shared/tests/cloudpit-brand-env.test.ts
 goal_ac: AC-448
 ---
 ## Proposal
