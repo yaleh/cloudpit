@@ -2541,35 +2541,55 @@ test('mention excerpts start on a word boundary and mark the cut with an ellipsi
 // talks to it through `fetch`. On a heavily loaded host (the quay fleet runs several
 // workers on one machine) a fresh loopback connection can be refused or reset before
 // the request reaches the route; without a retry one transport blip fails the whole
-// 35-case file, which the AC-418 criterion scores as a red even though the endpoint
-// behaved correctly. Retry ONLY connection-layer failures: an HTTP 4xx/5xx is the
-// semantics under test and reaches the caller unchanged, and no assertion is ever
-// swallowed. `ARCH_ROUTES_FAIL_FIRST_FETCH=1` forces the first raw fetch of the
-// process to fail with the same shape, which proves the retry is load-bearing;
-// `ARCH_ROUTES_FETCH_ATTEMPTS=0` disables it so that red lands on the same fetch leg.
+// file, which the AC-418 criterion scores as a red even though the endpoint behaved
+// correctly. Retry ONLY connection-layer failures: an HTTP 4xx/5xx is the semantics
+// under test and reaches the caller unchanged, and no assertion is ever swallowed.
+//
+// Classification is by failure CLASS, not by a code whitelist: under load undici puts
+// a different `cause.code` on each shape (`UND_ERR_CONNECT_TIMEOUT`, `EADDRNOTAVAIL`,
+// `ENOBUFS`, `EMFILE`, …) and sometimes none at all, yet every `fetch failed` reject
+// means the request never received an HTTP response — retrying it is safe. The one
+// deterministic exception is undici's `bad port`, which `withServer` handles by
+// re-binding the port. `ARCH_ROUTES_FAIL_FETCH_COUNT`/`ARCH_ROUTES_FAIL_FETCH_CODE`
+// force raw transport failures of a chosen class (the legacy
+// `ARCH_ROUTES_FAIL_FIRST_FETCH=1` is COUNT=1/CODE=ECONNRESET); `ARCH_ROUTES_FETCH_ATTEMPTS=0`
+// disables retries so a forced red lands on the same fetch leg.
 
-/** Default retry budget for a loopback request: additional attempts after the first. */
-const DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS = 3;
-/** Base backoff between attempts, in milliseconds; the actual wait is bounded by MAX below. */
-const ARCH_ROUTES_FETCH_BACKOFF_MS = 50;
+/** Total loopback attempts: the first request plus up to five bounded retries. */
+const DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS = 6;
+/** Base backoff between attempts, in milliseconds; it doubles per retry up to the cap. */
+const ARCH_ROUTES_FETCH_BACKOFF_MS = 100;
 /** Hard ceiling on a single backoff wait, in milliseconds. */
-const ARCH_ROUTES_FETCH_BACKOFF_MAX_MS = 250;
+const ARCH_ROUTES_FETCH_BACKOFF_MAX_MS = 800;
+/** Upper bound on the cumulative backoff one request may spend, in milliseconds. */
+const ARCH_ROUTES_FETCH_TOTAL_BUDGET_MS = 2300;
 
-/** Connection-layer error codes worth retrying; every other failure is real. */
-const TRANSIENT_FETCH_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'UND_ERR_SOCKET', 'ETIMEDOUT']);
-
-/** Reads `ARCH_ROUTES_FETCH_ATTEMPTS` (a non-negative integer) or falls back to the default. */
-function resolveFetchAttempts(): number {
-  const raw = process.env.ARCH_ROUTES_FETCH_ATTEMPTS;
-  if (raw === undefined || raw.trim() === '') return DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS;
+/** Reads a non-negative integer env knob, falling back when unset or malformed. */
+function resolveNonNegativeInteger(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS;
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+/** Reads `ARCH_ROUTES_FETCH_ATTEMPTS` (additional attempts, non-negative) or the default. */
+function resolveFetchAttempts(): number {
+  const fallback = DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS - 1;
+  return resolveNonNegativeInteger(process.env.ARCH_ROUTES_FETCH_ATTEMPTS, fallback);
 }
 
 const ARCH_ROUTES_FETCH_ATTEMPTS = resolveFetchAttempts();
 
-/** Forced transport failures left at the raw layer; `ARCH_ROUTES_FAIL_FIRST_FETCH=1` arms one. */
-let injectedFetchFailures = process.env.ARCH_ROUTES_FAIL_FIRST_FETCH === '1' ? 1 : 0;
+/**
+ * Deterministic transport-failure injection left at the raw layer. `COUNT`/`CODE` are the
+ * primary knobs; `ARCH_ROUTES_FAIL_FIRST_FETCH=1` stays as the legacy shorthand so the
+ * earlier readings (COUNT=1, CODE=ECONNRESET) still describe the same path.
+ */
+const INJECTED_FETCH_FAILURE_CODE = (() => {
+  const raw = process.env.ARCH_ROUTES_FAIL_FETCH_CODE;
+  return raw !== undefined && raw.trim() !== '' ? raw.trim() : 'ECONNRESET';
+})();
+const LEGACY_FIRST_FETCH_COUNT = process.env.ARCH_ROUTES_FAIL_FIRST_FETCH === '1' ? 1 : 0;
+let injectedFetchFailures = resolveNonNegativeInteger(process.env.ARCH_ROUTES_FAIL_FETCH_COUNT, LEGACY_FIRST_FETCH_COUNT);
 
 /** Renders an error (and its connection-layer `cause.code`) for the retry log line. */
 function describeFetchFailure(error: unknown): string {
@@ -2585,6 +2605,12 @@ function describeFetchFailure(error: unknown): string {
 /**
  * True only for connection-layer failures — a refused/reset/socket-closed transport.
  * An HTTP response, however unhappy, is never retried: `fetch` resolves for it.
+ *
+ * The predicate classifies the failure, not its `cause.code`: undici reports load-shedding
+ * under several codes and sometimes none, but every `fetch failed` reject means no HTTP
+ * response arrived. `bad port` is the one deterministic reject (no `cause.code`): undici
+ * refuses the URL before opening a socket, so a retry fails identically and only burns the
+ * budget; `withServer` re-binds the port instead.
  */
 function isTransientFetchFailure(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -2592,29 +2618,34 @@ function isTransientFetchFailure(error: unknown): boolean {
   if (!message.includes('fetch failed') && !message.includes('socket hang up')) return false;
   const cause = (error as { cause?: unknown }).cause;
   if (cause !== null && typeof cause === 'object') {
-    const code = (cause as { code?: unknown }).code;
-    if (typeof code === 'string') return TRANSIENT_FETCH_CODES.has(code);
+    const record = cause as { code?: unknown; message?: unknown };
+    if (record.code === undefined && record.message === 'bad port') return false;
   }
-  // `socket hang up` is connection-layer by definition and may arrive without a cause.
-  return message.includes('socket hang up');
+  return true;
 }
 
-function fetchBackoff(retry: number): Promise<void> {
-  const waitMs = Math.min(ARCH_ROUTES_FETCH_BACKOFF_MS * retry, ARCH_ROUTES_FETCH_BACKOFF_MAX_MS);
+/** Exponential backoff for the attempt number (1-based), capped by the hard ceiling. */
+function fetchBackoffMs(attempt: number): number {
+  return Math.min(ARCH_ROUTES_FETCH_BACKOFF_MS * 2 ** (attempt - 1), ARCH_ROUTES_FETCH_BACKOFF_MAX_MS);
+}
+
+function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, waitMs);
+    setTimeout(resolve, ms);
   });
 }
 
 /**
  * The raw single-attempt transport. The deterministic failure injection lives HERE,
- * below the retry loop, so `ARCH_ROUTES_FAIL_FIRST_FETCH=1` walks the same path a real
+ * below the retry loop, so `ARCH_ROUTES_FAIL_FETCH_COUNT`/`CODE` walk the same path a real
  * loopback reset does and `ARCH_ROUTES_FETCH_ATTEMPTS=0` surfaces it unchanged.
  */
 function fetchOnce(url: string, init: RequestInit): Promise<Response> {
   if (injectedFetchFailures > 0) {
     injectedFetchFailures -= 1;
-    const cause = Object.assign(new Error('read ECONNRESET (injected)'), { code: 'ECONNRESET' });
+    const cause = Object.assign(new Error(`read ${INJECTED_FETCH_FAILURE_CODE} (injected)`), {
+      code: INJECTED_FETCH_FAILURE_CODE,
+    });
     return Promise.reject(new TypeError('fetch failed', { cause }));
   }
   return globalThis.fetch(url, init);
@@ -2622,14 +2653,22 @@ function fetchOnce(url: string, init: RequestInit): Promise<Response> {
 
 /** Bounded retry over {@link fetchOnce}; responses and non-transport errors pass through. */
 async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let plannedBackoffMs = 0;
   for (let retry = 0; ; retry += 1) {
     try {
       return await fetchOnce(url, init);
     } catch (error) {
-      if (!isTransientFetchFailure(error) || retry >= ARCH_ROUTES_FETCH_ATTEMPTS) throw error;
+      if (!isTransientFetchFailure(error)) throw error;
       const attempt = retry + 1;
+      const backoffMs = fetchBackoffMs(attempt);
+      if (retry >= ARCH_ROUTES_FETCH_ATTEMPTS || plannedBackoffMs + backoffMs > ARCH_ROUTES_FETCH_TOTAL_BUDGET_MS) {
+        // Printed before the rethrow so a truncated ledger still names the error class.
+        console.log(`[arch-routes] fetch giving up attempts=${attempt} url=${url} cause=${describeFetchFailure(error)}`);
+        throw error;
+      }
+      plannedBackoffMs += backoffMs;
       console.log(`[arch-routes] fetch retry attempt=${attempt} url=${url} cause=${describeFetchFailure(error)}`);
-      await fetchBackoff(attempt);
+      await waitMs(backoffMs);
     }
   }
 }
@@ -2701,9 +2740,28 @@ test('undici rejects port 6666 with bad port and the fetch retry predicate leave
   assert.ok(cause instanceof Error);
   assert.equal(cause.message, 'bad port');
   assert.equal((cause as { code?: unknown }).code, undefined);
-  // This is the gap the retry predates: no `cause.code`, so `fetchWithRetry` gives up after one
-  // attempt and the criterion reds on a port draw instead of on the endpoint.
+  // This is why the predicate special-cases `bad port`: no `cause.code`, and a retry would fail
+  // identically. `withServer` re-binds the port instead of burning the retry budget.
   assert.equal(isTransientFetchFailure(error), false);
+});
+
+test('AC-418 transport class: connection-layer rejects retry while bad port and plain errors do not', () => {
+  const transportFailure = (code?: string): TypeError => {
+    const cause = new Error(code === undefined ? 'other side closed' : `connect ${code}`);
+    if (code !== undefined) (cause as { code?: string }).code = code;
+    return new TypeError('fetch failed', { cause });
+  };
+
+  // Codes the old five-code whitelist rejected despite the request never reaching the route.
+  for (const code of ['UND_ERR_CONNECT_TIMEOUT', 'EADDRNOTAVAIL', 'ENOBUFS', 'EMFILE']) {
+    assert.equal(isTransientFetchFailure(transportFailure(code)), true, `${code} is a transport-layer reject`);
+  }
+  // undici can reject with no `cause.code` at all; the class is still transport-layer.
+  assert.equal(isTransientFetchFailure(transportFailure()), true, 'a code-less fetch failed is transport-layer');
+  assert.equal(isTransientFetchFailure(new Error('socket hang up')), true, 'socket hang up without a cause is transport-layer');
+  // Deterministic rejects / non-transport errors stay unretried.
+  assert.equal(isTransientFetchFailure(new TypeError('fetch failed', { cause: new Error('bad port') })), false);
+  assert.equal(isTransientFetchFailure(new Error('Internal Server Error')), false);
 });
 
 test('the file-local undici blocked-port list matches scripts/undici-blocked-ports-preload.mjs', async () => {

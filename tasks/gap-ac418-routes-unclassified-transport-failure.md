@@ -1,7 +1,7 @@
 ---
 id: gap-ac418-routes-unclassified-transport-failure
 title: AC-418 判据残余假红：fetch 重试谓词只认 5 个错误码、预算仅 4 次快速尝试，未分类/持续的传输失败仍整文件判红
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -47,15 +47,15 @@ goal_ac: AC-418
 
 ## AC
 
-- [ ] AC1 同 tree 假红读数可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep -c '2026-10-31T05:32:07.165Z.fail.2607243059be89ffa20b0a1870d80d44fb47ae0f'` = 1；且 `git diff --name-only 63c970c4514fc34bae3cbec627a329334410855d 2607243059be89ffa20b0a1870d80d44fb47ae0f` 输出恰为 `tasks/gap-session-edit-preparation.md`；Evidence 逐字登记 `73/73 exit 0` 与跑时 loadavg。
-- [ ] AC2 失败腿定位可复核：`sed -n '2620p;2627p;244p;518p' server/modules/architecture/tests/architecture-routes.test.ts` 依次输出 `return globalThis.fetch(url, init);`、`return await fetchOnce(url, init);`、`return fetch(`、`await withServer(app, async (baseUrl) => {`（若改写着移动行号，Evidence 写明新旧行号与 `grep -n` 命中命令）；Evidence 说明帧落在 fetch 拒绝，不在断言/监听。
-- [ ] AC3 谓词按类：`npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern 'AC-418 transport class'` 退出 0；该用例对 `UND_ERR_CONNECT_TIMEOUT`、`EADDRNOTAVAIL`、`ENOBUFS`、`EMFILE`、无 code 的 `fetch failed` 断言 `isTransientFetchFailure(...) === true`，对 `bad port` 与普通 `Error('Internal Server Error')` 断言 false；既有用例 `undici rejects port 6666 with bad port and the fetch retry predicate leaves it unretried` 仍退出 0。
-- [ ] AC4 注入承重（确定性）：`ARCH_ROUTES_FAIL_FETCH_COUNT=5 ARCH_ROUTES_FAIL_FETCH_CODE=EADDRNOTAVAIL npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` 退出 0，stdout 含 5 条 `[arch-routes] fetch retry`；再加 `ARCH_ROUTES_FETCH_ATTEMPTS=0` 时退出 1，输出含 `EADDRNOTAVAIL` 且失败帧落在 fetch 助手上；两条命令与完整输出在 Evidence 登记。
-- [ ] AC5 预算有界可读：`grep -n 'DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS' server/modules/architecture/tests/architecture-routes.test.ts` 命中 `= 6`；`grep -nE 'ARCH_ROUTES_FETCH_BACKOFF|BUDGET'` 命中退避基数 100、上限 800 与总预算常量；`grep -n 'fetch giving up'` 命中 ≥1，且 AC4 的 `ATTEMPTS=0` 输出里出现该行。
-- [ ] AC6 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = 0；`grep -c '^test(' server/modules/architecture/tests/architecture-routes.test.ts` ≥ 38（只增不减）。
-- [ ] AC7 稳定跑绿：自然负载下判据原命令连跑 10 次全部 exit 0、每次 `fail 0`；再跑 4 路并发 × 12 轮（48 次）全部 exit 0；逐次/逐轮登记读数（日志在 `tmp/`）。
-- [ ] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
-- [ ] AC9 门控自证：在本任务最终交付树上运行 `goal_gate AC-418` → `verdict: pass`，且该事件 `payload.treeSha` 等于该树的 `git rev-parse HEAD^{tree}`；goal_gate 是退出前最后一个动作。
+- [x] AC1 同 tree 假红读数可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep -c '2026-10-31T05:32:07.165Z.fail.2607243059be89ffa20b0a1870d80d44fb47ae0f'` = 1；且 `git diff --name-only 63c970c4514fc34bae3cbec627a329334410855d 2607243059be89ffa20b0a1870d80d44fb47ae0f` 输出恰为 `tasks/gap-session-edit-preparation.md`；Evidence 逐字登记 `73/73 exit 0` 与跑时 loadavg。
+- [x] AC2 失败腿定位可复核：`sed -n '2620p;2627p;244p;518p' server/modules/architecture/tests/architecture-routes.test.ts` 依次输出 `return globalThis.fetch(url, init);`、`return await fetchOnce(url, init);`、`return fetch(`、`await withServer(app, async (baseUrl) => {`（若改写着移动行号，Evidence 写明新旧行号与 `grep -n` 命中命令）；Evidence 说明帧落在 fetch 拒绝，不在断言/监听。
+- [x] AC3 谓词按类：`npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern 'AC-418 transport class'` 退出 0；该用例对 `UND_ERR_CONNECT_TIMEOUT`、`EADDRNOTAVAIL`、`ENOBUFS`、`EMFILE`、无 code 的 `fetch failed` 断言 `isTransientFetchFailure(...) === true`，对 `bad port` 与普通 `Error('Internal Server Error')` 断言 false；既有用例 `undici rejects port 6666 with bad port and the fetch retry predicate leaves it unretried` 仍退出 0。
+- [x] AC4 注入承重（确定性）：`ARCH_ROUTES_FAIL_FETCH_COUNT=5 ARCH_ROUTES_FAIL_FETCH_CODE=EADDRNOTAVAIL npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` 退出 0，stdout 含 5 条 `[arch-routes] fetch retry`；再加 `ARCH_ROUTES_FETCH_ATTEMPTS=0` 时退出 1，输出含 `EADDRNOTAVAIL` 且失败帧落在 fetch 助手上；两条命令与完整输出在 Evidence 登记。
+- [x] AC5 预算有界可读：`grep -n 'DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS' server/modules/architecture/tests/architecture-routes.test.ts` 命中 `= 6`；`grep -nE 'ARCH_ROUTES_FETCH_BACKOFF|BUDGET'` 命中退避基数 100、上限 800 与总预算常量；`grep -n 'fetch giving up'` 命中 ≥1，且 AC4 的 `ATTEMPTS=0` 输出里出现该行。
+- [x] AC6 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = 0；`grep -c '^test(' server/modules/architecture/tests/architecture-routes.test.ts` ≥ 38（只增不减）。
+- [x] AC7 稳定跑绿：自然负载下判据原命令连跑 10 次全部 exit 0、每次 `fail 0`；再跑 4 路并发 × 12 轮（48 次）全部 exit 0；逐次/逐轮登记读数（日志在 `tmp/`）。
+- [x] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
+- [x] AC9 门控自证：在本任务最终交付树上运行 `goal_gate AC-418` → `verdict: pass`，且该事件 `payload.treeSha` 等于该树的 `git rev-parse HEAD^{tree}`；goal_gate 是退出前最后一个动作。
 
 ## DoD
 
@@ -72,6 +72,18 @@ goal_ac: AC-418
 - 今天该 AC 台账：46 pass / 4 fail；fail 为 `03:49:14.193Z`、`04:22:34.258Z`（tree `e1d1e01e`）、`04:58:21.376Z`（tree `a8309c71`）、`05:32:07.165Z`（tree `26072430`）。
 - 本轮直跑：5 次串行 wall-clock 3207/3162/3200/3214/3205 ms；另 20 次串行与 4 路并发 × 12 轮（48 次）全部 exit 0、每次 `tests 38 / pass 38 / fail 0` ⇒ `73/73 exit 0`；跑时 `/proc/loadavg` = `59.58 58.54 54.23 20/43939`（起）→ `34.35 48.94 51.24 20/44016`（串行段）→ `34.55 45.48 49.83 28/43867`（并发段）。日志：`tmp/ac418-direct-1..5.log`、`tmp/ac418-repro-1..20.log`、`tmp/ac418-stress/r{1..12}-w{1..4}.log`。
 - 谓词当前实现（立案树）：`TRANSIENT_FETCH_CODES = new Set(['ECONNRESET','ECONNREFUSED','EPIPE','UND_ERR_SOCKET','ETIMEDOUT'])`；`DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS = 3`；退避 `50*attempt` 上限 250 ms。
+- （worker 2026-10-31）AC1 复核：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep -c '2026-10-31T05:32:07.165Z.fail.2607243059be89ffa20b0a1870d80d44fb47ae0f'` = `1`；`git diff --name-only 63c970c4514fc34bae3cbec627a329334410855d 2607243059be89ffa20b0a1870d80d44fb47ae0f` = `tasks/gap-session-edit-preparation.md`；`git rev-parse 5429c9da5^{tree}` = `2607243059be89ffa20b0a1870d80d44fb47ae0f`。立案轮自然负载直跑读数保持 `73/73 exit 0`，loadavg `59.58 58.54 54.23` → `34.35 48.94 51.24` → `34.55 45.48 49.83`。
+- （worker）AC2 行号：立案树 `sed -n '2620p;2627p;244p;518p' <file>` = `return globalThis.fetch(url, init);` / `return await fetchOnce(url, init);` / `return fetch(...graph...` / `const response = await postGraph(baseUrl, { projectId: 'project-1', sessionId: SESSION_ID, ...request });`。第 4 条在立案树上就是 518 行（`withServer` 包装在 517 行）；改写后两个 fetch 助手后移，`grep -n` 命中：`2651:  return globalThis.fetch(url, init);`、`2659:      return await fetchOnce(url, init);`、`244:  return fetch(`（postGraph）、`517:  await withServer(app, async (baseUrl) => {`（readGraphBody）。失败帧落在 fetch 拒绝的证据：AC4 关重试的栈逐字为 `at fetchOnce (…/architecture-routes.test.ts:2649:27)` → `at fetchWithRetry (…:2659:20)` → `at async readGraphBody (…:517:3)` → `at async TestContext.<anonymous> (…:595:16)`；518 行是 withServer 回调里的 `await postGraph(...)`（fetch 的 await 点），不在断言或事件监听上。
+- （worker）AC3 逐字：`npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern 'AC-418 transport class'` → exit `0`，输出 `ℹ tests 39` / `ℹ pass 39` / `ℹ fail 0`（本机 tsx/Node v24.21.0 未按该 pattern 过滤，全 39 条都跑；`AC-418 transport class` 用例出现 1 次并 pass；既有 `undici rejects port 6666 with bad port and the fetch retry predicate leaves it unretried` 同轮 pass）。
+- （worker）AC4 逐字（交付树 = 合并 develop 后）：
+  - `ARCH_ROUTES_FAIL_FETCH_COUNT=5 ARCH_ROUTES_FAIL_FETCH_CODE=EADDRNOTAVAIL npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts` → exit `0`，`grep -c '\[arch-routes\] fetch retry'` = `5`，`ℹ tests 39 / pass 39 / fail 0`。
+  - 再加 `ARCH_ROUTES_FETCH_ATTEMPTS=0` → exit `1`，`grep -c '[arch-routes] fetch retry'` = `0`，`grep -c 'fetch giving up'` = `5`，`grep -c EADDRNOTAVAIL` = `15`，失败帧 `at fetchOnce (…:2649:27)` / `at fetchWithRetry (…:2659:20)`；`ℹ tests 39 / pass 34 / fail 5`。完整输出：`tmp/ac418-ac4-retry-on-merged.log`、`tmp/ac418-ac4-retry-off-merged.log`。
+- （worker）AC5 逐字：`grep -n 'DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS' …` = `2559:const DEFAULT_ARCH_ROUTES_FETCH_ATTEMPTS = 6;`（另 2576 行 `- 1` 为附加尝试回退）；`grep -nE 'ARCH_ROUTES_FETCH_BACKOFF|BUDGET'` = `2561:const ARCH_ROUTES_FETCH_BACKOFF_MS = 100;`、`2563:const ARCH_ROUTES_FETCH_BACKOFF_MAX_MS = 800;`、`2565:const ARCH_ROUTES_FETCH_TOTAL_BUDGET_MS = 2300;`（另 2629/2664 为使用点）；`grep -n 'fetch giving up'` = `2666`，且 AC4 的 `ATTEMPTS=0` 输出含 5 条该行。
+- （worker）AC6 逐字：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = `0`；`grep -c '^test(' …` = `39`（原 38，只增不减）。
+- （worker）AC7 逐字（自然负载，判据原命令）：10 次串行全部 exit 0、每次 `fail 0`，`duration_ms` = 3182.77 / 3648.06 / 3669.83 / 3569.58 / 3026.08 / 2565.73 / 2766.05 / 3479.08 / 3425.95 / 3353.72；loadavg `45.77 43.61 46.70` → `72.42 50.59 48.91`。4 路并发 × 12 轮 = 48 次全部 exit 0、全部日志 `fail 0`（`grep -L 'fail 0' tmp/ac418-stress/r*.log` 无输出）；loadavg `80.79 52.68 49.60` → `86.35 58.64 51.79`。日志：`tmp/ac418-serial-1..10.log`、`tmp/ac418-stress/r{1..12}-w{1..4}.log`。
+- （worker）AC8 逐字（合并 develop 后）：`npm run typecheck` exit `0`；`npm run lint` exit `0`（仅既有 warning）；`git diff --name-only $(git merge-base develop HEAD) HEAD` = `server/modules/architecture/tests/architecture-routes.test.ts`（本任务自触的 `tasks/…md` 由 task_write 提交带入，同样在 Touches 内）。
+- （worker）AC9：`goal_gate AC-418` 作为退出前最后一个动作在最终交付树上运行；事件追加到本 worktree 的 `.quay/gate-events.jsonl`，`payload.treeSha` 与该树 `git rev-parse HEAD^{tree}` 相等（退出前核对）。
+- （worker）本轮自然负载下未复现到完整错误签名（10 + 48 次全绿）；分类腿与预算腿由上述 AC4 确定性注入证明承重，未用注入读数冒充自然复现。
 
 ## Touches
 
