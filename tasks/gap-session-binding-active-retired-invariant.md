@@ -1,7 +1,7 @@
 ---
 id: gap-session-binding-active-retired-invariant
 title: Codex 时间修复（二）：收口绑定写入，禁止当前线程与淘汰记录并存
-status: ready
+status: done
 labels:
   - gap
   - defect
