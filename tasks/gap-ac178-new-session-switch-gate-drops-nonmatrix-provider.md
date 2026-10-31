@@ -80,3 +80,11 @@ DBG lifecycle {"provider":"debug","defaults":{"claude":{"supportsResident":true,
 ## ADR-007
 
 该轴仍暗,理由:本次仅前端采纳门修复，未产生架构层度量读数
+
+## Blocker
+
+**2026-10-31T12:37:24.368Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat-session/hooks/useChatProviderState.ts 913→923 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6d7dc731-0def-48ec-9bbc-4954c66ea251
