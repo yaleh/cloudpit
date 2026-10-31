@@ -135,3 +135,11 @@ Claude fixture 使用真实行形状（`type: user|assistant` + message.content 
 ## 约束
 
 遵循 AGENTS.md 与 backend-module-standards；触及 src/ 时遵循 frontend-module-standards。服务约 260 行按职责拆分，能力经接口/registry 与 barrel 组合；状态封装在生命周期 owner 内。保持本次为独立 task，不新建 goal、不自动挂不相关 AC。任务范围为 Quay 记录的正文提及，不同步 Codex 原生 goals/plans/subagents，不改成“本会话创建过的任务”。
+
+## Blocker
+
+**2026-10-31T07:59:09.550Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/claude/claude-sessions.provider.ts 1780→1792 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6f82cb75-e85c-446a-9b54-8ffcf8cf4e57
