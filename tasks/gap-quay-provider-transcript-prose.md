@@ -93,6 +93,18 @@ Claude fixture 使用真实行形状（`type: user|assistant` + message.content 
 
 生产代码检索：Quay 内无 Claude/Codex 格式 import、无 `readMessageText` / `contentText`；`quay.module.ts` 只按 session 的 provider id 通用解析 registry，没有 provider ID 字面量分支。正文读取入口只在 `claude-transcript-format.ts` / `codex-transcript-format.ts`，由各自 sessions provider 暴露。历史/搜索既有读取函数未改动（格式文件 diff 只有新增，无既有行为删改）。
 
+### 本轮（suite 红修复）— architecture-ratchet 基线读数
+
+上一轮 fan-in 在 `server/shared/tests/architecture-ratchet.test.ts` 红（`baseline A/B: HARD RED`）：`oversizeFiles server/modules/providers/list/claude/claude-sessions.provider.ts 1780→1792`。该判据一次 red 会把全部违规 join 进同一条消息，suite 日志只留首行；本地重跑该文件看到四条，逐条处理后 6/6 绿：
+
+- `smallHelperCopies` 新增的两份 `isRecord` 副本（`claude-transcript-format.ts` / `codex-transcript-format.ts`）不是交付物：改为 import 既有 `server/shared/utils.ts` 的 `isRecord`，副本总数回到基线（读数降为可下调基线的方向）。
+- 其余三处基线内上调与 claude 那处同性质——都是本任务的接线本身：两个 sessions provider 的 `readTranscriptMessage` 方法、`server/shared/types.ts` 的 `ProviderTranscriptMessage` 契约、`src/shared/types.ts` 的 wire `transcript: 'ok' | 'unreadable'` 字段。按 AC-394 RECORDED CHANGE 格式把四点写入 `server/shared/tests/architecture-ratchet.baseline.json` 的 note 并把读数改成实测值（1780→1792、2348→2361、5352→5373、4743→4749），该基线文件因此补进 Touches。
+
+命令与结果：
+- `bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → tests 6 / pass 6 / fail 0。
+- 复跑窄范围行为用例（claude/codex transcript-format + session-mentions，含 preload）→ tests 43 / pass 43 / fail 0。
+- `npm run typecheck` → exit 0；`npm run lint` → exit 0（仅既有 warning）。
+
 ### 两轴
 
 - L_D 该轴仍暗,理由:本任务只统一 provider 正文读取与报错态，没有新增或改变领域数据（L_D）的形态与生成能力，无可读读数。
@@ -107,6 +119,7 @@ Claude fixture 使用真实行形状（`type: user|assistant` + message.content 
 - server/shared/types.ts
 - server/shared/interfaces.ts
 - server/shared/index.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - server/modules/providers/index.ts
 - server/modules/providers/services/*transcript*
 - server/modules/providers/list/claude/claude-transcript-format.ts
