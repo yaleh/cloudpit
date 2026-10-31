@@ -79,7 +79,10 @@ export type {
 // discovery guard and the Codex edit fork/restart); no other module writes the
 // binding pair directly.
 export { providerSessionBindingDb } from '@/modules/database/repositories/session-binding.db.js';
-export type { ProviderSessionBindingOutcome } from '@/modules/database/repositories/session-binding.db.js';
+export type {
+  ProviderSessionBindingOutcome,
+  ProviderSessionBindingRecovery,
+} from '@/modules/database/repositories/session-binding.db.js';
 // sessionBindingService: the single application entry for a session's
 // provider-native binding. Used by the websocket module's chat run registry to
 // record what an ordinary run announced (without letting a late run overwrite

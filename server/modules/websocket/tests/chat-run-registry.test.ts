@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import {
+  closeConnection,
+  initializeDatabase,
+  sessionBindingService,
+  sessionsDb,
+} from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
@@ -522,3 +527,67 @@ test('chat.subscribe names the current run in the ack and replays from a stale r
   });
 });
 
+
+test('a late provider id from the pre-edit host cannot rewrite the binding', async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-late-binding', 'codex', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('app-late-binding', 'thread-old');
+    // The edit already moved the session onto the fork and retired the thread.
+    sessionBindingService.replaceBinding({
+      sessionId: 'app-late-binding',
+      providerSessionId: 'thread-new',
+      jsonlPath: '/workspace/rollout-thread-new.jsonl',
+    });
+
+    const connection = new FakeConnection();
+    connectedClients.add(connection as never);
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-late-binding',
+      provider: 'codex',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // The old host announces the thread the edit retired. This is the real
+    // discovery entry: the writer turns `session_created` into the registry's
+    // guarded binding write.
+    run.writer.send({
+      kind: 'session_created',
+      provider: 'codex',
+      sessionId: 'thread-old',
+      newSessionId: 'thread-old',
+    });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    const row = sessionsDb.getSessionById('app-late-binding');
+    assert.equal(row?.provider_session_id, 'thread-new', 'the retired thread must not become the binding again');
+    assert.equal(row?.jsonl_path, '/workspace/rollout-thread-new.jsonl');
+    assert.equal(sessionsDb.isProviderSessionSuperseded('thread-old', 'codex'), true);
+    assert.equal(
+      connection.frames.filter((frame) => frame.kind === 'session_upserted').length,
+      0,
+      'a rejected write must not be broadcast as a success',
+    );
+    // The run's own field follows what it announced; only the stored binding
+    // is guarded, which is what the next disconnected/reopened read uses.
+    assert.equal(run.providerSessionId, 'thread-old');
+
+    // A stale, non-retired id is rejected for the other reason: this run did
+    // not start on the binding the row currently claims.
+    run.writer.send({
+      kind: 'session_created',
+      provider: 'codex',
+      sessionId: 'thread-late',
+      newSessionId: 'thread-late',
+    });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+
+    assert.equal(sessionsDb.getSessionById('app-late-binding')?.provider_session_id, 'thread-new');
+    assert.equal(
+      connection.frames.filter((frame) => frame.kind === 'session_upserted').length,
+      0,
+    );
+  });
+});

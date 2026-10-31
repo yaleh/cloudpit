@@ -38,6 +38,67 @@ type BindingRow = {
   transcript_name_source: string | null;
 };
 
+/** The one column of a retirement record a recovery has to restore. */
+type RetiredBindingRow = {
+  session_id: string;
+  jsonl_path: string | null;
+};
+
+/**
+ * The row recording that `providerSessionId` was retired for `provider`, or
+ * undefined when the id is not retired.
+ *
+ * The whole binding surface reads the ledger through this one function. The
+ * invariant is deliberately single-sourced: an id is either the row's current
+ * binding or a retirement record, never both, and every write below asks this
+ * same question before it writes.
+ */
+function findRetiredProviderSession(
+  db: ReturnType<typeof getConnection>,
+  providerSessionId: string,
+  provider: string,
+): RetiredBindingRow | undefined {
+  return db
+    .prepare(
+      `SELECT session_id, jsonl_path FROM superseded_provider_sessions
+       WHERE provider_session_id = ? AND provider = ?
+       LIMIT 1`
+    )
+    .get(providerSessionId, provider) as RetiredBindingRow | undefined;
+}
+
+/** Writes the retirement record for one thread, refreshing an existing one. */
+function retireProviderSession(
+  db: ReturnType<typeof getConnection>,
+  input: {
+    providerSessionId: string;
+    provider: string;
+    sessionId: string;
+    jsonlPath: string | null;
+  },
+): void {
+  db.prepare(
+    `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(provider_session_id, provider) DO UPDATE SET
+       session_id = excluded.session_id,
+       jsonl_path = excluded.jsonl_path,
+       created_at = CURRENT_TIMESTAMP`
+  ).run(input.providerSessionId, input.provider, input.sessionId, input.jsonlPath);
+}
+
+/** Deletes the retirement record for one thread; only recovery may do this. */
+function clearRetiredProviderSession(
+  db: ReturnType<typeof getConnection>,
+  providerSessionId: string,
+  provider: string,
+): void {
+  db.prepare(
+    `DELETE FROM superseded_provider_sessions
+     WHERE provider_session_id = ? AND provider = ?`
+  ).run(providerSessionId, provider);
+}
+
 /**
  * What an ordinary run's attempt to record the provider-native id it discovered
  * did to the stored binding.
@@ -65,6 +126,22 @@ export type ProviderSessionBindingOutcome =
   | { kind: 'rejected-superseded'; supersededProviderSessionId: string }
   | { kind: 'rejected-stale'; currentProviderSessionId: string }
   | { kind: 'rejected-missing-session' };
+
+/**
+ * What an explicit recovery of a wrongly retired thread did.
+ *
+ * `already-consistent` is the idempotent second run: the row already claims
+ * the thread with the same path and no retirement record is left. The
+ * `previous*` fields name what the recovery displaced so the caller can report
+ * the old binding, which is retired in the same transaction.
+ */
+export type ProviderSessionBindingRecovery = {
+  kind: 'recovered' | 'already-consistent';
+  previousProviderSessionId: string | null;
+  previousJsonlPath: string | null;
+  /** Whether this write actually removed a retirement record for the target. */
+  clearedRetiredMark: boolean;
+};
 
 /**
  * Merges a watcher-created duplicate row into the app row while recording the
@@ -143,17 +220,25 @@ export const providerSessionBindingDb = {
   /**
    * Records the provider-native session id for one app-allocated session.
    *
+   * Kept on this surface because the watchers and synchronizers already call
+   * it. It is not a blind write any more: it is the unguarded-looking legacy
+   * spelling of ordinary discovery, so it is answered by
+   * {@link confirmRunDiscoveredProviderSession} with no admitting run (a
+   * synchronizer has no run record to speak for). A retired id, or an id that
+   * would displace a binding this caller never started on, is therefore
+   * rejected exactly like a late run announcement instead of overwriting it.
+   *
    * If the filesystem watcher indexed the provider transcript before this
    * mapping was recorded (a duplicate row keyed by the provider id exists),
-   * the duplicate is merged into the app row: its transcript path and name
-   * are adopted and the duplicate row is removed. Runs in a transaction so
-   * the sidebar can never observe both rows at once.
+   * the guarded path merges the duplicate into the app row in the same
+   * transaction.
    */
-  assignProviderSessionId(sessionId: string, providerSessionId: string): void {
-    const db = getConnection();
-    db.transaction(() => {
-      mergeDiscoveredProviderSessionDuplicate(db, sessionId, providerSessionId);
-    })();
+  assignProviderSessionId(sessionId: string, providerSessionId: string): ProviderSessionBindingOutcome {
+    return providerSessionBindingDb.confirmRunDiscoveredProviderSession({
+      sessionId,
+      providerSessionId,
+      runStartedWithProviderSessionId: null,
+    });
   },
 
   /**
@@ -201,18 +286,7 @@ export const providerSessionBindingDb = {
         return { kind: 'rejected-missing-session' };
       }
 
-      const isSuperseded = (providerSessionId: string): boolean =>
-        Boolean(
-          db
-            .prepare(
-              `SELECT 1 AS found FROM superseded_provider_sessions
-               WHERE provider_session_id = ? AND provider = ?
-               LIMIT 1`
-            )
-            .get(providerSessionId, row.provider) as { found: number } | undefined
-        );
-
-      if (isSuperseded(input.providerSessionId)) {
+      if (findRetiredProviderSession(db, input.providerSessionId, row.provider)) {
         return {
           kind: 'rejected-superseded',
           supersededProviderSessionId: input.providerSessionId,
@@ -274,7 +348,12 @@ export const providerSessionBindingDb = {
    * gets a throw, which rolls the transaction back.
    *
    * `clearSupersededForNewBinding` is for recovery: restoring a thread a
-   * previous edit wrongly retired. Ordinary edit forks leave it false.
+   * previous edit wrongly retired. Ordinary edit forks leave it false, and a
+   * replacement that targets a retired thread without it is refused — that is
+   * the write that used to leave a row claiming a thread the ledger also called
+   * retired. Recovery still has to have verified the thread's transcript
+   * identity before it calls here; this method only owns the atomic ledger
+   * move.
    */
   replaceProviderSessionBinding(input: {
     sessionId: string;
@@ -295,22 +374,30 @@ export const providerSessionBindingDb = {
       const previousProviderSessionId = row.provider_session_id;
       const previousJsonlPath = row.jsonl_path ?? null;
 
+      // The invariant: a row may not claim a thread the ledger records as
+      // retired. Ordinary replacement refuses; only explicit recovery clears
+      // the mark, and it does so in this same transaction.
+      if (
+        findRetiredProviderSession(db, input.providerSessionId, row.provider)
+        && !input.clearSupersededForNewBinding
+      ) {
+        throw new Error(
+          `Provider session "${input.providerSessionId}" is retired for session "${input.sessionId}"; `
+          + 'an ordinary replacement cannot claim a retired thread — explicit recovery is required.'
+        );
+      }
+
       if (previousProviderSessionId && previousProviderSessionId !== input.providerSessionId) {
-        db.prepare(
-          `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(provider_session_id, provider) DO UPDATE SET
-             session_id = excluded.session_id,
-             jsonl_path = excluded.jsonl_path,
-             created_at = CURRENT_TIMESTAMP`
-        ).run(previousProviderSessionId, row.provider, input.sessionId, previousJsonlPath);
+        retireProviderSession(db, {
+          providerSessionId: previousProviderSessionId,
+          provider: row.provider,
+          sessionId: input.sessionId,
+          jsonlPath: previousJsonlPath,
+        });
       }
 
       if (input.clearSupersededForNewBinding) {
-        db.prepare(
-          `DELETE FROM superseded_provider_sessions
-           WHERE provider_session_id = ? AND provider = ?`
-        ).run(input.providerSessionId, row.provider);
+        clearRetiredProviderSession(db, input.providerSessionId, row.provider);
       }
 
       // The watcher may already have indexed the new transcript under its own
@@ -334,6 +421,113 @@ export const providerSessionBindingDb = {
 
       return { previousProviderSessionId, previousJsonlPath };
     })();
+  },
+
+  /**
+   * Atomically restores a thread a previous write wrongly retired.
+   *
+   * This is the ONLY write that may remove a retirement record, and it is
+   * deliberately narrower than `replaceProviderSessionBinding`:
+   *
+   *  - the target must still be recorded as retired (otherwise this is an
+   *    ordinary replacement, not a recovery, and the caller is refused);
+   *  - a session already claiming the target with the same path and no
+   *    retirement record is `already-consistent` and writes nothing, so
+   *    operators can run recovery twice;
+   *  - the binding the recovery displaces is retired in the same transaction.
+   *
+   * The caller is responsible for having verified that the transcript at
+   * `jsonlPath` really is the target thread (the Codex entry point does this by
+   * reading `session_meta.id`/`cwd`). This method owns the transaction, not the
+   * identity claim. A failure throws and rolls every write back, so a recovery
+   * can never leave the row claiming a thread whose retirement record is gone
+   * while the path stayed wrong.
+   */
+  recoverProviderSessionBinding(input: {
+    sessionId: string;
+    providerSessionId: string;
+    jsonlPath: string;
+  }): ProviderSessionBindingRecovery {
+    const db = getConnection();
+
+    return db.transaction((): ProviderSessionBindingRecovery => {
+      const row = db
+        .prepare(`SELECT ${BINDING_ROW_COLUMNS} FROM sessions WHERE session_id = ? LIMIT 1`)
+        .get(input.sessionId) as BindingRow | undefined;
+      if (!row) {
+        throw new Error(`Session "${input.sessionId}" was not found while recovering its provider binding.`);
+      }
+
+      const previousProviderSessionId = row.provider_session_id;
+      const previousJsonlPath = row.jsonl_path ?? null;
+      const retired = findRetiredProviderSession(db, input.providerSessionId, row.provider);
+
+      if (!retired) {
+        if (
+          previousProviderSessionId === input.providerSessionId
+          && previousJsonlPath === input.jsonlPath
+        ) {
+          return {
+            kind: 'already-consistent',
+            previousProviderSessionId,
+            previousJsonlPath,
+            clearedRetiredMark: false,
+          };
+        }
+        throw new Error(
+          `Provider session "${input.providerSessionId}" is not retired for session "${input.sessionId}"; `
+          + 'recovery only restores a thread a previous write wrongly retired.'
+        );
+      }
+
+      // The old binding (when it is a different thread) is retired in the same
+      // transaction: recovery moves a conversation, it does not forget one.
+      if (previousProviderSessionId && previousProviderSessionId !== input.providerSessionId) {
+        retireProviderSession(db, {
+          providerSessionId: previousProviderSessionId,
+          provider: row.provider,
+          sessionId: input.sessionId,
+          jsonlPath: previousJsonlPath,
+        });
+      }
+
+      clearRetiredProviderSession(db, input.providerSessionId, row.provider);
+
+      // A watcher-created row keyed by the restored thread is this same
+      // conversation; keeping it would put two sidebar entries back.
+      db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
+        .run(input.providerSessionId, input.sessionId);
+
+      const updated = db
+        .prepare(
+          `UPDATE sessions SET
+             provider_session_id = ?,
+             jsonl_path = ?,
+             updated_at = CURRENT_TIMESTAMP
+           WHERE session_id = ?`
+        )
+        .run(input.providerSessionId, input.jsonlPath, input.sessionId);
+      if (updated.changes === 0) {
+        throw new Error(`Session "${input.sessionId}" vanished while recovering its provider binding.`);
+      }
+
+      return {
+        kind: 'recovered',
+        previousProviderSessionId,
+        previousJsonlPath,
+        clearedRetiredMark: true,
+      };
+    })();
+  },
+
+  /**
+   * Reads the retirement record for one thread, if any.
+   *
+   * Used by the Codex explicit-recovery entry point to find the transcript a
+   * wrongly retired binding left behind, and by tests that pin the ledger.
+   */
+  getRetiredProviderSession(providerSessionId: string, provider: string): RetiredBindingRow | null {
+    return findRetiredProviderSession(getConnection(), providerSessionId, provider) ?? null;
   },
 
   /**
@@ -363,14 +557,12 @@ export const providerSessionBindingDb = {
       const previousJsonlPath = row.jsonl_path ?? null;
 
       if (previousProviderSessionId) {
-        db.prepare(
-          `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(provider_session_id, provider) DO UPDATE SET
-             session_id = excluded.session_id,
-             jsonl_path = excluded.jsonl_path,
-             created_at = CURRENT_TIMESTAMP`
-        ).run(previousProviderSessionId, row.provider, sessionId, previousJsonlPath);
+        retireProviderSession(db, {
+          providerSessionId: previousProviderSessionId,
+          provider: row.provider,
+          sessionId,
+          jsonlPath: previousJsonlPath,
+        });
       }
 
       const updated = db

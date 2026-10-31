@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, getConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -63,18 +63,41 @@ async function withForkableClaude(
   }
 }
 
+/**
+ * Seeds an app-created session that already has a provider binding and a
+ * transcript path.
+ *
+ * This is the real order: `createAppSession` mints the row with no binding,
+ * ordinary discovery records the provider-native id, and the indexer records
+ * the transcript path. No public write sets a path on an app row, so the
+ * fixture performs the indexer's part with SQL; the binding itself still goes
+ * through the production discovery path (a blind rewrite is what the binding
+ * guard now refuses).
+ */
+function seedBoundAppSession(input: {
+  sessionId: string;
+  provider: string;
+  projectPath: string;
+  customName: string;
+  providerSessionId: string;
+  jsonlPath: string;
+}): void {
+  sessionsDb.createAppSession(input.sessionId, input.provider, input.projectPath, input.customName);
+  sessionsDb.assignProviderSessionId(input.sessionId, input.providerSessionId);
+  getConnection()
+    .prepare('UPDATE sessions SET jsonl_path = ?, custom_name = ? WHERE session_id = ?')
+    .run(input.jsonlPath, input.customName, input.sessionId);
+}
+
 function seedSource(directory: string): void {
-  const now = new Date().toISOString();
-  sessionsDb.createSession(
-    SOURCE_ID,
-    'claude',
-    directory,
-    'Original session',
-    now,
-    now,
-    path.join(directory, 'native-source.jsonl'),
-  );
-  sessionsDb.assignProviderSessionId(SOURCE_ID, 'native-source');
+  seedBoundAppSession({
+    sessionId: SOURCE_ID,
+    provider: 'claude',
+    projectPath: directory,
+    customName: 'Original session',
+    providerSessionId: 'native-source',
+    jsonlPath: path.join(directory, 'native-source.jsonl'),
+  });
 }
 
 test('a fork becomes an independent session that points back at its source', async () => {
@@ -305,17 +328,14 @@ test('a fork cut at an assistant forkAnchorId ends at that reply with no danglin
 
   try {
     const transcriptPath = await writeRealForkTranscript(configDir, providerSessionId);
-    const now = new Date().toISOString();
-    sessionsDb.createSession(
-      REAL_FORK_SOURCE_ID,
-      'claude',
-      REAL_FORK_PROJECT_PATH,
-      'Original session',
-      now,
-      now,
-      transcriptPath,
-    );
-    sessionsDb.assignProviderSessionId(REAL_FORK_SOURCE_ID, providerSessionId);
+    seedBoundAppSession({
+      sessionId: REAL_FORK_SOURCE_ID,
+      provider: 'claude',
+      projectPath: REAL_FORK_PROJECT_PATH,
+      customName: 'Original session',
+      providerSessionId,
+      jsonlPath: transcriptPath,
+    });
 
     // The anchor comes from the field the product writes, not from a literal:
     // this is what the fork button would send. `CLAUDE_CONFIG_DIR` is what the

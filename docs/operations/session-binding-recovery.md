@@ -190,3 +190,56 @@ contains the pointer fork: open the fork, reload, switch to the source session
 and back, then press the first kept turn's edit control. The source session is
 the control — the edited turn is visible there, so its absence on the fork is a
 reading rather than a blind reader.
+
+## Write-path audit and the binding invariant
+
+The invariant every write below is expected to preserve:
+
+> A session row's `provider_session_id` is never present in
+> `superseded_provider_sessions` for the same provider. A thread is either the
+> row's current binding or a retirement record, never both.
+
+`gap-session-binding-active-retired-invariant` closed the remaining writes that
+could break it. The production paths are:
+
+| Write | Production caller | Constraint |
+| --- | --- | --- |
+| `sessionBindingService.recordRunDiscoveredBinding` | websocket chat run registry (`session_created` / `setSessionId`) | Rejects a retired id (`rejected-superseded`), a late id from a run that did not start on the current binding (`rejected-stale`), and a missing row. The one in-run replacement is the zero-turn fallback in the same run. |
+| `sessionBindingService.replaceBinding` | Codex edit fork (`rewindSession`) | Retires the previous binding, deletes a watcher duplicate keyed by the new id, and writes id+path in one transaction. **Refuses to target a retired thread** unless the caller is explicit recovery. |
+| `sessionBindingService.detachForEdit` | Codex first-prompt edit | Retires the current binding and clears id+path in one transaction. |
+| `sessionBindingService.recoverBinding` | Codex explicit recovery entry (`recoverCodexSessionBinding`) | The only write allowed to delete a retirement record. Requires the target to still be retired; retires the displaced binding; idempotent second run writes nothing. The caller must have verified the rollout's `session_meta.id`/`cwd`. |
+| `sessionsDb.assignProviderSessionId` | OpenCode synchronizer (pending app row) | Not a blind write any more: it is ordinary discovery with no admitting run, so it is answered by the same guarded rules as run discovery. A retired id or an existing different binding is rejected. |
+| `sessionsDb.markProviderSessionSuperseded` | none (capability kept for callers that retire a thread a row does not claim) | **Throws** if the session currently claims the thread; detach/replace first. |
+| `sessionsDb.createSession` | filesystem synchronizers | Upserts by provider id; each synchronizer filters retired ids before calling (Codex does it explicitly), and this path never changes an existing `provider_session_id`. |
+| `sessionsDb.createAppSession` | app session creation | Writes no binding (NULL id/path). |
+| `sessionsDb.createForkedSession` | session fork | Binds a freshly minted thread id in the same transaction that mints the row; a new thread cannot already be retired. |
+| `scripts/repair-session-binding.mjs` | operator, out of process | Compare-and-swap over the row and ledger; clears the wrong mark and restores the path in one transaction; idempotent. |
+
+The legacy blind helpers `repointSessionToProviderSession` and
+`detachProviderSession` were removed: they could rewrite the binding pair
+without touching the ledger (and `detachProviderSession` could leave a detached
+row whose thread the indexer handed straight back). Anything that needs their
+effect goes through the guarded service entries above.
+
+### Historical damage vs. a current write path
+
+The row repaired by step one (`null-path-retired`: a current binding that the
+ledger also records as retired, path NULL) is **historical data**. It was
+written before the guards above existed, and its two timestamps (a retirement
+at 06:25:00, a row write at 06:27:15) show two separate writes, so it cannot
+have come from the single-transaction edit paths in the current tree. That
+trigger is not reproducible on this version; the evidence boundary is the
+repair capture, not a replayed server trace.
+
+What the current tree guarantees is the forward invariant: none of the write
+paths in the table can create that shape, and the synchronizer does not
+"repair" it silently. On a damaged row it logs
+`[CodexSessionSynchronizer] A session still claims a thread the ledger records
+as retired` and leaves both records untouched. Recovery is explicit:
+
+- in process: `recoverCodexSessionBinding(sessionId)` from
+  `server/modules/providers/list/codex/codex-session-binding.ts`, which reads the
+  rollout's `session_meta.id`/`cwd` and refuses on a mismatch;
+- out of process: `scripts/repair-session-binding.mjs --session <id> --apply`.
+
+Both are idempotent and neither is reachable from the ordinary indexer.

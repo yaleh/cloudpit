@@ -1,6 +1,7 @@
 import {
   providerSessionBindingDb,
   type ProviderSessionBindingOutcome,
+  type ProviderSessionBindingRecovery,
 } from '@/modules/database/repositories/session-binding.db.js';
 
 /**
@@ -41,6 +42,11 @@ export type SessionBindingServiceDeps = {
     previousProviderSessionId: string | null;
     previousJsonlPath: string | null;
   };
+  recoverProviderSessionBinding: (input: {
+    sessionId: string;
+    providerSessionId: string;
+    jsonlPath: string;
+  }) => ProviderSessionBindingRecovery;
 };
 
 export type SessionBindingService = ReturnType<typeof createSessionBindingService>;
@@ -105,6 +111,36 @@ export function createSessionBindingService(deps: SessionBindingServiceDeps) {
     detachForEdit(sessionId: string) {
       return deps.detachProviderSessionForEdit(sessionId);
     },
+
+    /**
+     * Restores a thread a previous write wrongly retired.
+     *
+     * This is the explicit recovery entry, and it is deliberately not what the
+     * indexer or run discovery calls. The caller MUST have verified that
+     * `jsonlPath` is the target thread's transcript first; the Codex entry
+     * point does that by reading `session_meta.id`/`cwd`. The repository owns
+     * the atomic move — clearing the retirement record, retiring the binding
+     * being displaced and writing the restored path commit together — and an
+     * already-consistent second call writes nothing.
+     */
+    recoverBinding(input: {
+      sessionId: string;
+      providerSessionId: string;
+      jsonlPath: string;
+    }): ProviderSessionBindingRecovery {
+      const outcome = deps.recoverProviderSessionBinding(input);
+
+      if (outcome.kind === 'recovered') {
+        console.info('[SessionBinding] Restored a wrongly retired provider session', {
+          sessionId: input.sessionId,
+          providerSessionId: input.providerSessionId,
+          jsonlPath: input.jsonlPath,
+          previousProviderSessionId: outcome.previousProviderSessionId,
+        });
+      }
+
+      return outcome;
+    },
   };
 }
 
@@ -118,4 +154,5 @@ export const sessionBindingService = createSessionBindingService({
     providerSessionBindingDb.confirmRunDiscoveredProviderSession(input),
   replaceProviderSessionBinding: (input) => providerSessionBindingDb.replaceProviderSessionBinding(input),
   detachProviderSessionForEdit: (sessionId) => providerSessionBindingDb.detachProviderSessionForEdit(sessionId),
+  recoverProviderSessionBinding: (input) => providerSessionBindingDb.recoverProviderSessionBinding(input),
 });

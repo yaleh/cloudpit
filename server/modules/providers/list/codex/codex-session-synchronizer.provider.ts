@@ -128,6 +128,23 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     // itself discovered from disk, whose app id is its original thread id, it
     // would hand the row back to that thread.
     if (sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+      // The other half of the invariant is a damaged row from a previous
+      // build: it still claims this thread while the ledger says it is
+      // retired. Do NOT clear the mark or write the path here — an indexer
+      // guessing a recovery is how that row was made. Report it and leave both
+      // records untouched; recovery is explicit (docs/operations/session-binding-recovery.md).
+      const claimedBy = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
+      if (claimedBy) {
+        console.warn(
+          '[CodexSessionSynchronizer] A session still claims a thread the ledger records as retired; '
+          + 'leaving the row and the retirement record untouched — explicit recovery is required',
+          {
+            sessionId: claimedBy.session_id,
+            providerSessionId: parsed.sessionId,
+            filePath,
+          },
+        );
+      }
       return null;
     }
 

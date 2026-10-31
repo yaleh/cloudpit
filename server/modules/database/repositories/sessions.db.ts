@@ -1,6 +1,9 @@
 import { getConnection } from '@/modules/database/core/index.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
-import { providerSessionBindingDb } from '@/modules/database/repositories/session-binding.db.js';
+import {
+  providerSessionBindingDb,
+  type ProviderSessionBindingOutcome,
+} from '@/modules/database/repositories/session-binding.db.js';
 import type { HostMode, SessionLaunchSelection } from '@/shared/types.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
@@ -632,60 +635,12 @@ export const sessionsDb = {
    * Kept on this surface because the watchers and synchronizers already call
    * it; the write itself — including the transaction that merges a
    * watcher-created duplicate row — lives in the sibling
-   * `session-binding.db.ts`, which owns every provider-binding write.
+   * `session-binding.db.ts`, which owns every provider-binding write. It is not
+   * a blind write: it is ordinary discovery with no admitting run, so a retired
+   * id or an id that would displace an existing binding is rejected.
    */
-  assignProviderSessionId(sessionId: string, providerSessionId: string): void {
-    providerSessionBindingDb.assignProviderSessionId(sessionId, providerSessionId);
-  },
-
-  /**
-   * Moves one session onto a different provider session and transcript.
-   *
-   * Only editing a message on a provider that has to branch to rewind (Codex)
-   * does this — an ordinary run keeps the same provider session for its whole
-   * life. `assignProviderSessionId` cannot be used for it: that one keeps the
-   * existing `jsonl_path` on purpose, so a session repointed with it would
-   * claim the new thread while still reading the old transcript.
-   *
-   * The watcher may already have indexed the new transcript under its own id.
-   * That row is the same conversation this one is about to become, so it is
-   * replaced rather than left behind as a second sidebar entry.
-   */
-  repointSessionToProviderSession(
-    sessionId: string,
-    input: { providerSessionId: string; jsonlPath: string },
-  ): void {
-    const db = getConnection();
-
-    db.transaction(() => {
-      db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
-        .run(input.providerSessionId, sessionId);
-      db.prepare(
-        `UPDATE sessions SET
-           provider_session_id = ?,
-           jsonl_path = ?,
-           updated_at = CURRENT_TIMESTAMP
-         WHERE session_id = ?`
-      ).run(input.providerSessionId, input.jsonlPath, sessionId);
-    })();
-  },
-
-  /**
-   * Detaches a session from its provider session so the next run starts a new
-   * one.
-   *
-   * Used when an edit replaces the very first prompt: there is no conversation
-   * left to branch from, so the session starts over instead.
-   */
-  detachProviderSession(sessionId: string): void {
-    const db = getConnection();
-    db.prepare(
-      `UPDATE sessions SET
-         provider_session_id = NULL,
-         jsonl_path = NULL,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE session_id = ?`
-    ).run(sessionId);
+  assignProviderSessionId(sessionId: string, providerSessionId: string): ProviderSessionBindingOutcome {
+    return providerSessionBindingDb.assignProviderSessionId(sessionId, providerSessionId);
   },
 
   /**
@@ -695,6 +650,11 @@ export const sessionsDb = {
    * is recoverable — but the indexer must not offer it back, and on a session
    * discovered from disk (whose app id *is* the provider id) rediscovering it
    * would repoint the row at the conversation the user edited away from.
+   *
+   * It refuses to retire the thread the session currently claims: a retirement
+   * record and a current binding must never coexist (that is the shape this
+   * guard exists to keep out). Detach or replace the binding first; the edit
+   * paths do both in one transaction through `sessionBindingService`.
    */
   markProviderSessionSuperseded(input: {
     providerSessionId: string;
@@ -703,14 +663,27 @@ export const sessionsDb = {
     jsonlPath: string | null;
   }): void {
     const db = getConnection();
-    db.prepare(
-      `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(provider_session_id, provider) DO UPDATE SET
-         session_id = excluded.session_id,
-         jsonl_path = excluded.jsonl_path,
-         created_at = CURRENT_TIMESTAMP`
-    ).run(input.providerSessionId, input.provider, input.sessionId, input.jsonlPath);
+    db.transaction(() => {
+      const row = db
+        .prepare('SELECT provider_session_id FROM sessions WHERE session_id = ? LIMIT 1')
+        .get(input.sessionId) as { provider_session_id: string | null } | undefined;
+
+      if (row?.provider_session_id && row.provider_session_id === input.providerSessionId) {
+        throw new Error(
+          `Refusing to retire provider session "${input.providerSessionId}" while session `
+          + `"${input.sessionId}" still claims it; detach or replace the binding first.`
+        );
+      }
+
+      db.prepare(
+        `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(provider_session_id, provider) DO UPDATE SET
+           session_id = excluded.session_id,
+           jsonl_path = excluded.jsonl_path,
+           created_at = CURRENT_TIMESTAMP`
+      ).run(input.providerSessionId, input.provider, input.sessionId, input.jsonlPath);
+    })();
   },
 
   isProviderSessionSuperseded(providerSessionId: string, provider: string): boolean {
