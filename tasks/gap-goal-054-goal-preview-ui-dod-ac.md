@@ -1,7 +1,7 @@
 ---
 id: gap-goal-054-goal-preview-ui-dod-ac
 title: GOAL-054 退出条件「UI 预览」无在域 AC 覆盖：提议新增 goal-preview UI DoD AC（建议 AC-456）
-status: ready
+status: done
 labels:
   - gap
 parent: null
