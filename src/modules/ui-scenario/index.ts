@@ -20,6 +20,11 @@ export type {
   ScenarioCockpitCardTarget,
   ScenarioCockpitCardsReading,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
+export { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
+export type {
+  ScenarioChatMessage,
+  ScenarioChatReading,
+} from '@/modules/ui-scenario/chatSurface';
 export type {
   ScenarioCockpitReading,
   ScenarioDriveStep,

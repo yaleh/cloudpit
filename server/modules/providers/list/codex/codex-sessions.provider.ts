@@ -5,6 +5,7 @@ import readline from 'node:readline';
 
 import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { codexRolloutLines } from '@/modules/providers/list/codex/codex-fork-history.js';
 import {
   extractCodexText,
   isVisibleCodexUserMessage,
@@ -129,8 +130,9 @@ function createCodexTurnTracker() {
  */
 async function readCodexLiveTurnIds(filePath: string): Promise<string[]> {
   const turns = createCodexTurnTracker();
-  const stream = fsSync.createReadStream(filePath);
-  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  // The fork's inherited prefix is part of this conversation, so a retained
+  // turn from before the edit is still an addressable anchor after it.
+  const lines = codexRolloutLines(filePath);
 
   for await (const line of lines) {
     if (!line.trim()) {
@@ -1199,8 +1201,10 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
   /** Turns whose prompt already carries the anchor, so only the first does. */
   const anchoredTurnIds = new Set<string>();
 
-  const fileStream = fsSync.createReadStream(sessionFilePath);
-  const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+  // A fork's rollout can hold only metadata while its kept turns stay in the
+  // source file; the generator reads that prefix first, so an edited Codex
+  // conversation keeps its history instead of appearing to lose it.
+  const rl = codexRolloutLines(sessionFilePath);
 
   /** Emits a tool_result row unless the call already produced one. */
   const pushToolResult = (callId: string, timestamp: string, output: string, isError: boolean) => {

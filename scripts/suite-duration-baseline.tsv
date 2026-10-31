@@ -240,6 +240,14 @@
 #   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-registry.test.ts`
 #   (dur=2651ms; its own new criterion; no green round contains it yet — the row also keeps the 90%
 #   coverage floor green now that the tree collects 452 server test files).
+#   and the session-edit-continuity and session-edit-real-cli rows by
+#   gap-session-edit-continuity-e2e, measured one file at a time on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test <file>`
+#   (dur=9200ms and dur=4430ms; both are this task's new criteria and no green round contains
+#   them yet — the rows also keep the 90% coverage floor green now that the tree collects 486
+#   server test files).
+9200	server/modules/websocket/tests/session-edit-continuity.test.ts
+4430	server/modules/providers/tests/session-edit-real-cli.test.ts
 1604	server/modules/file-tree/tests/file-tree-search-index.test.ts
 5700	server/shared/tests/server-composition-startup.test.ts
 1403	server/modules/voice-realtime/tests/voice-realtime-summary.test.ts

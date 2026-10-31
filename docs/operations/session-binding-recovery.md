@@ -91,3 +91,49 @@ operational failure (database missing, session not found, concurrent write).
   troubleshooting, deployment re-checks, later discussion) and the sidebar has
   one row, not two.
 - The browser refresh/restart story is covered separately by AC-447.
+
+## A consistent row can still read empty: paginated Codex forks
+
+The checks above catch a row whose two columns disagree. A Codex edit in the
+CLI's `paginated` history mode produces a different shape that looks consistent
+and still shows no conversation:
+
+- the row's `provider_session_id` and `jsonl_path` both name the **fork**;
+- the fork file holds two metadata rows, not copied turns — `session_meta`
+  carries `payload.forked_from_id`, `payload.forked_from_ordinal_exclusive` and
+  `payload.history_base {thread_id, end_ordinal_exclusive, end_byte_offset}`;
+- the kept turns remain in the source rollout named by `forked_from_id`.
+
+The CLI's own resume path follows that pointer, so the fork is a real thread.
+The app's reader has to follow it too (measured 2026-10-31 against the bundled
+`@openai/codex 0.166.0`: a fork file of 2 rows, `forked_from_ordinal_exclusive`
+11, and the CLI's `thread/read` reporting the 2 kept turns). `codexRolloutLines`
+in `server/modules/providers/list/codex/codex-fork-history.ts` emits the source
+prefix before the fork's own rows; without it the history view opens only the
+pointer file and renders nothing — the "history disappeared after an edit"
+symptom.
+
+Diagnose by reading the fork file's first row and the source's kept prefix:
+
+```bash
+head -n 1 <fork.jsonl>            # session_meta: forked_from_id + cut ordinal
+# the source is rollout-*-<forked_from_id>.jsonl under the same ~/.codex/sessions root
+```
+
+Do **not** rewrite the fork to copy turns in, and do not repoint the row at the
+source: both would undo the edit's cut. The correct reading is the prefix plus
+the fork's own appended replacement turn.
+
+Verification for this shape (AC-447):
+
+```bash
+npx tsx --tsconfig server/tsconfig.json --test server/modules/websocket/tests/session-edit-continuity.test.ts
+npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/session-edit-real-cli.test.ts
+bash scripts/session-edit-continuity-check.sh   # also verifies the browser/scenario evidence
+```
+
+The browser leg is a real page against an isolated instance whose `.codex` home
+contains the pointer fork: open the fork, reload, switch to the source session
+and back, then press the first kept turn's edit control. The source session is
+the control — the edited turn is visible there, so its absence on the fork is a
+reading rather than a blind reader.
