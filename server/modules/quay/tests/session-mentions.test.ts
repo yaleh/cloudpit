@@ -5,6 +5,11 @@ import test from 'node:test';
 
 import express from 'express';
 
+import {
+  readClaudeTranscriptMessage,
+  readCodexTranscriptMessage,
+} from '@/modules/providers/index.js';
+
 import { createQuayRouter } from '../quay.routes.js';
 import { createQuayService, type QuayCommandRunner, type QuayTaskStatusRow } from '../quay.service.js';
 import { createQuayTaskEvents } from '../quay-task-events.service.js';
@@ -130,12 +135,19 @@ type TranscriptFile = {
   readonly reads: number[];
   append(rows: readonly unknown[]): void;
   replace(text: string): void;
+  /** Replaces the file with a new one at the same path (a rollover/restore): new identity. */
+  rotate(text: string): void;
+  /** Simulates a stat/read failure without destroying what the file holds. */
+  setUnreadable(unreadable: boolean): void;
   size(): Promise<number | null>;
+  stat(): Promise<{ size: number; identity: string | null } | null>;
   read(start: number): Promise<string | null>;
 };
 
 function transcriptFile(rows: readonly unknown[]): TranscriptFile {
   let text = jsonl(rows);
+  let identity = 'dev:1';
+  let unreadable = false;
   const reads: number[] = [];
   return {
     get text() {
@@ -148,10 +160,23 @@ function transcriptFile(rows: readonly unknown[]): TranscriptFile {
     replace(nextText) {
       text = nextText;
     },
+    rotate(nextText) {
+      text = nextText;
+      // A rollover writes a NEW file at the same path: the inode changes even when the size
+      // happens to be equal or larger, which is the case a size-only check cannot see.
+      identity = `dev:${(Number(identity.split(':')[1]) || 1) + 1}`;
+    },
+    setUnreadable(nextUnreadable) {
+      unreadable = nextUnreadable;
+    },
     async size() {
-      return Buffer.byteLength(text, 'utf8');
+      return unreadable ? null : Buffer.byteLength(text, 'utf8');
+    },
+    async stat() {
+      return unreadable ? null : { size: Buffer.byteLength(text, 'utf8'), identity };
     },
     async read(start) {
+      if (unreadable) return null;
       reads.push(start);
       return Buffer.from(text, 'utf8').subarray(start).toString('utf8');
     },
@@ -260,8 +285,12 @@ function createHarness(options: {
     resolveTranscriptPath() {
       return options.missingTranscript === true ? null : '/transcripts/session-1.jsonl';
     },
-    transcriptSize: () => file.size(),
+    transcriptStat: () => file.stat(),
     readTranscriptRange: (_path, start) => file.read(start),
+    // Production resolves the reader from the session's provider; the harness defaults to the
+    // Claude reader (the fixtures in this file are Claude-shaped) and each Codex case overrides
+    // it. Pass `resolveTranscriptMessageReader` in `dependencies` for a providerless arm.
+    resolveTranscriptMessageReader: () => readClaudeTranscriptMessage,
     readTaskRows: async () => {
       harness.taskRowReads += 1;
       return taskRows;
@@ -467,6 +496,170 @@ test('AC3 — a vocabulary that grows between polls reports an id already presen
   assert.deepEqual(mentionedTaskIds(after), ['gap-later'], 'the cached tokens are joined against the current vocabulary');
   assert.deepEqual(file.reads, [0], 'no re-read was needed to answer it');
   assert.equal(after.tasks[0].status, 'todo');
+});
+
+// --------------------------- AC1/AC3/AC5: PROVIDER PROSE + TRANSCRIPT LIFECYCLE ------------
+
+/*
+ * These cases drive the PRODUCTION mention join with the production provider readers
+ * (`readCodexTranscriptMessage` / `readClaudeTranscriptMessage`), not a hand-written row parser:
+ * the service is handed exactly the reader the provider registry would hand it. They are the
+ * cross-provider criterion — a Claude-shaped row is never interpreted by Quay itself, and a real
+ * Codex carrier set is.
+ */
+
+/** A legacy Codex prompt: `event_msg` / `user_message`. */
+function codexUserMessage(text: string, timestamp?: string): unknown {
+  return {
+    type: 'event_msg',
+    ...(timestamp === undefined ? {} : { timestamp }),
+    payload: { type: 'user_message', message: text },
+  };
+}
+
+/** The wire form of a prompt, which a real rollout ALSO writes. */
+function codexWireUser(text: string): unknown {
+  return {
+    type: 'response_item',
+    payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+  };
+}
+
+/** A modern Codex prompt: `item_completed` / `UserMessage`. */
+function codexUserItem(text: string, timestamp?: string): unknown {
+  return {
+    type: 'event_msg',
+    ...(timestamp === undefined ? {} : { timestamp }),
+    payload: { type: 'item_completed', item: { type: 'UserMessage', content: [{ type: 'text', text }] } },
+  };
+}
+
+/** A Codex assistant answer: `response_item` / `message` / `role=assistant`. */
+function codexAssistant(text: string, timestamp?: string): unknown {
+  return {
+    type: 'response_item',
+    ...(timestamp === undefined ? {} : { timestamp }),
+    payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] },
+  };
+}
+
+/** The SAME answer's second carrier: `item_completed` / `AgentMessage`. */
+function codexAgentItem(text: string): unknown {
+  return {
+    type: 'event_msg',
+    payload: { type: 'item_completed', item: { type: 'AgentMessage', content: [{ type: 'Text', text }] } },
+  };
+}
+
+test('AC1 — real Codex carriers reach the mention join, and duplicate carriers count once', async () => {
+  const harness = createHarness({
+    rows: [
+      // The wire prompt also carries the environment/AGENTS injection; it is NOT the prompt
+      // carrier. Naming an id here must not produce a mention on its own.
+      codexWireUser('injected context mentions gap-hidden'),
+      codexUserItem('please finish gap-codex', '2026-10-25T09:00:00.000Z'),
+      // The older generation of the prompt carrier still works.
+      codexUserMessage('legacy rollout names gap-legacy'),
+      codexAgentItem('gap-codex is done'),
+      codexAssistant('gap-codex is done', '2026-10-25T09:05:00.000Z'),
+    ],
+    taskRows: [taskRow('gap-codex', { status: 'ready' }), taskRow('gap-hidden'), taskRow('gap-legacy')],
+    dependencies: { resolveTranscriptMessageReader: () => readCodexTranscriptMessage },
+  });
+
+  const reading = await read(harness);
+  assert.equal(reading.transcript, 'ok');
+  assert.deepEqual(
+    reading.tasks.map(({ taskId, mentionCount, lastMentionAt }) => ({ taskId, mentionCount, lastMentionAt })),
+    [
+      { taskId: 'gap-codex', mentionCount: 2, lastMentionAt: '2026-10-25T09:05:00.000Z' },
+      { taskId: 'gap-legacy', mentionCount: 1, lastMentionAt: null },
+    ],
+    'the chosen user carrier (1) + the chosen assistant carrier (1); the duplicated carriers do not double them',
+  );
+  assert.equal(
+    mentionedTaskIds(reading).includes('gap-hidden'),
+    false,
+    'the wire user row is an internal carrier, not a prompt',
+  );
+});
+
+test('AC3 — two independent Codex messages with identical text each count', async () => {
+  const harness = createHarness({
+    rows: [codexUserItem('gap-same please'), codexUserItem('gap-same please')],
+    taskRows: [taskRow('gap-same')],
+    dependencies: { resolveTranscriptMessageReader: () => readCodexTranscriptMessage },
+  });
+
+  const reading = await read(harness);
+  assert.equal(reading.tasks[0]?.mentionCount, 2, 'dedupe is by carrier selection, never by identical text');
+});
+
+test('AC5/AC6 — a session without a provider prose reader is unreadable, not empty (Quay parses no format)', async () => {
+  const harness = createHarness({
+    // Claude-shaped prose Quay used to parse itself. With no provider reader, the service must
+    // not interpret it: provider formats belong to providers, and the honest answer is
+    // "unreadable", not "nothing was mentioned".
+    rows: [assistantText('this row names gap-claude')],
+    taskRows: [taskRow('gap-claude')],
+    dependencies: { resolveTranscriptMessageReader: () => null },
+  });
+
+  const reading = await read(harness);
+  assert.equal(reading.transcript, 'unreadable');
+  assert.deepEqual(mentionedTaskIds(reading), []);
+});
+
+test('AC5 — an unreadable transcript is distinct from an empty reading and retries after recovery', async () => {
+  const file = transcriptFile([assistantText('the file names gap-retry')]);
+  const harness = createHarness({ file, taskRows: [taskRow('gap-retry')] });
+
+  file.setUnreadable(true);
+  const failed = await read(harness);
+  assert.equal(failed.transcript, 'unreadable', 'a failed read is reported, not disguised as empty');
+  assert.deepEqual(mentionedTaskIds(failed), [], 'nothing was consumed while the file was unreadable');
+
+  file.setUnreadable(false);
+  const recovered = await read(harness);
+  assert.equal(recovered.transcript, 'ok', 'reopening after recovery retries and succeeds');
+  assert.deepEqual(mentionedTaskIds(recovered), ['gap-retry']);
+  assert.deepEqual(file.reads, [0], 'the retry reads the file from its unconsumed start');
+});
+
+test('AC4 — a same-size rotated file resets the scan through its identity, not its size', async () => {
+  const first = 'the transcript names gap-old';
+  const second = 'the transcript names gap-new';
+  assert.equal(Buffer.byteLength(first, 'utf8'), Buffer.byteLength(second, 'utf8'), 'the fixture is size-neutral');
+  const file = transcriptFile([assistantText(first)]);
+  const harness = createHarness({ file, taskRows: [taskRow('gap-old'), taskRow('gap-new')] });
+
+  assert.deepEqual(mentionedTaskIds(await read(harness)), ['gap-old']);
+
+  file.rotate(jsonl([assistantText(second)]));
+  const reading = await read(harness);
+  assert.deepEqual(mentionedTaskIds(reading), ['gap-new'], 'the rotated file is rescanned, not read as "nothing new"');
+  assert.deepEqual(file.reads, [0, 0], 'the new file is read from byte 0');
+});
+
+test('AC4 — a changed transcript path (rebinding) starts a fresh scan', async () => {
+  let transcriptPath = '/transcripts/old.jsonl';
+  let active = transcriptFile([assistantText('the old path names gap-a')]);
+  const harness = createHarness({
+    taskRows: [taskRow('gap-a'), taskRow('gap-b')],
+    dependencies: {
+      resolveTranscriptPath: () => transcriptPath,
+      transcriptStat: () => active.stat(),
+      readTranscriptRange: (_path, start) => active.read(start),
+    },
+  });
+
+  assert.deepEqual(mentionedTaskIds(await read(harness)), ['gap-a']);
+
+  transcriptPath = '/transcripts/new.jsonl';
+  active = transcriptFile([assistantText('the new path names gap-b')]);
+  const reading = await read(harness);
+  assert.deepEqual(mentionedTaskIds(reading), ['gap-b'], 'a rebinding does not inherit the old file cursor');
+  assert.deepEqual(active.reads, [0], 'the new file is read from byte 0');
 });
 
 // --------------------------- AC4: THE JOIN ------------
@@ -826,8 +1019,9 @@ test('event chain — a delivered ready→done transition changes the mention re
   const service = createSessionMentionsService({
     resolveProjectPath: () => '/repo',
     resolveTranscriptPath: () => '/transcripts/session-1.jsonl',
-    transcriptSize: () => file.size(),
+    transcriptStat: () => file.stat(),
     readTranscriptRange: (_path, start) => file.read(start),
+    resolveTranscriptMessageReader: () => readClaudeTranscriptMessage,
     readTaskRows: async () => {
       taskListSpawns += 1;
       return [taskRow('task-a', { title: 'cli title', status: 'ready' })];
@@ -980,6 +1174,7 @@ test('goal cache / CLI arm — every field except the added sources is unchanged
     goals: [
       { goalId: 'GOAL-800', title: 'goal eight hundred', status: 'active', viaTaskCount: 1, mentionedDirectly: true },
     ],
+    transcript: 'ok',
     generatedAt: '2026-10-25T12:00:00.000Z',
   }, 'the pre-existing document is untouched; only `sources` was added');
   assert.deepEqual(sources, { tasks: 'cli', goals: 'cli' });
@@ -1046,6 +1241,7 @@ test('AC5 — a null reading is 404 project-or-session-not-found, and a reading 
     projectId: 'project-1',
     tasks: [],
     goals: [],
+    transcript: 'ok',
     sources: { tasks: 'index', goals: 'cache' },
     generatedAt: '2026-10-25T12:00:00.000Z',
   };

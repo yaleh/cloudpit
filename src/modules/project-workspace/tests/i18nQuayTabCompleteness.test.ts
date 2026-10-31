@@ -254,6 +254,7 @@ describe('every locale carries the title-bar Loop pulse keys', () => {
     'tasksCountLabel',
     'tasksHeading',
     'title',
+    'transcriptError',
     'triggerLabel',
   ];
 

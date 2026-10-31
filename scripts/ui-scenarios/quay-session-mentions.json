@@ -1,0 +1,44 @@
+{
+  "name": "quay-session-mentions",
+  "description": "The title-bar Loop pulse popover lists the tasks and goals a session's own prose names, for a Claude and for a Codex session. The rows are read from what the popover draws (ids, plus the transcript state) rather than from its translated labels. The Claude leg also proves internal carriers stay out: an isMeta body, a system reminder, a thinking block and a tool call each name an id that must not appear. The Codex leg is the regression this task fixes: a real rollout writes every prompt and answer twice (event_msg item carriers and response_item messages), and the popover must list each mention once. Seeded fixture sessions: 'Claude prose DoD' and 'Codex prose DoD'.",
+  "steps": [
+    {
+      "open": "session",
+      "project": "claudecodeui",
+      "session": "Claude prose DoD"
+    },
+    {
+      "open": "quay-pulse",
+      "checkpoint": true,
+      "expect": {
+        "quayPulseOpen": true,
+        "quayPulseTranscriptState": "ok",
+        "quayPulseTaskIds": [
+          "gap-quay-provider-transcript-prose",
+          "gap-ac135-criterion-ledger-red-is-merge-race",
+          "architecture-canvas-no-text-selection"
+        ],
+        "quayPulseGoalIds": ["GOAL-008", "GOAL-052", "GOAL-053"]
+      }
+    },
+    {
+      "open": "session",
+      "project": "claudecodeui",
+      "session": "Codex prose DoD"
+    },
+    {
+      "open": "quay-pulse",
+      "checkpoint": true,
+      "expect": {
+        "quayPulseOpen": true,
+        "quayPulseTranscriptState": "ok",
+        "quayPulseTaskIds": [
+          "gap-quay-provider-transcript-prose",
+          "gap-ac178-criterion-ledger-red-is-merge-race",
+          "gap-ac187-criterion-stability-window-straddles-tool-phase-boundary"
+        ],
+        "quayPulseGoalIds": ["GOAL-013", "GOAL-014", "GOAL-053"]
+      }
+    }
+  ]
+}

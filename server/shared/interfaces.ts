@@ -27,6 +27,7 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimePermissionGateway,
   ProviderRuntimeWriter,
+  ProviderTranscriptMessage,
   SessionAskEvent,
   SessionBinding,
   UpsertProviderMcpServerInput,
@@ -536,6 +537,24 @@ export interface IProviderSessions {
 
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[];
   fetchHistory(sessionId: string, options?: FetchHistoryOptions): Promise<FetchHistoryResult>;
+
+  /**
+   * The user/assistant PROSE one raw transcript row carries, or `null` when the row is not a
+   * message the conversation authored.
+   *
+   * This is the narrow reader behind prose consumers (today the Quay session-mentions reading):
+   * it applies this provider's own transcript format — its message-row gate, its visible-content
+   * rules and its carrier selection — without projecting a whole history. Each provider that
+   * owns a transcript format implements it by reusing that format's readers; a provider without a
+   * readable transcript leaves it undefined, which is what makes "prose mentions" unavailable
+   * rather than silently empty.
+   *
+   * `null` covers every non-prose row: internal injections, tool calls/results, thinking or
+   * reasoning, command wrappers/output, lifecycle events, and a duplicate carrier of a message
+   * another row already represents. It does NOT mean "the transcript is unreadable" — that is
+   * the caller's file-level concern.
+   */
+  readTranscriptMessage?(row: unknown): ProviderTranscriptMessage | null;
 
   /**
    * Resolves where a conversation must resume from so that the turn identified

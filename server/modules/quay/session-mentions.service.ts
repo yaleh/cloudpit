@@ -19,6 +19,11 @@
  * would hide a task whose id was already spoken before it was filed. Every request joins the
  * cached tokens against the CURRENT task/goal index instead.
  *
+ * PROVIDER FORMATS ARE NOT READ HERE. A transcript row is handed to the provider that owns its
+ * format (`IProviderSessions.readTranscriptMessage`, reached through the registry and injected by
+ * `quay.module.ts`). This service only sees role + prose + timestamp, so adding a provider means
+ * implementing the capability, not teaching Quay a second JSON shape.
+ *
  * READ-ONLY BY CONSTRUCTION. Every dependency is a reader, injected by `quay.module.ts`, and the
  * service's one verb answers a reading.
  *
@@ -38,63 +43,23 @@
  * this factory with injected transcript/task/goal/lanes stubs and no subprocess.
  */
 
-import type { QuayGanttLanes } from '@/shared/types.js';
+import type { ProviderTranscriptMessage, QuayGanttLanes } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 import { createSessionMentionsGoalCache } from './session-mentions-goal-cache.js';
 
 // --------------------------- TRANSCRIPT TEXT ------------
 
-/** One message body taken out of a transcript row, with the row's own instant. */
-export type SessionMessageText = {
-  text: string;
-  /** The row's `timestamp` as the transcript printed it, or `null` when it carries none. */
-  timestamp: string | null;
-};
-
 /**
- * The text of one message `content` value: a plain string, or the `text` blocks of an array.
+ * The transcript's condition as far as one reading can tell.
  *
- * A block is read only when its own `type` is `text`. That single condition is what keeps
- * `tool_use` inputs, `tool_result` contents and `thinking` blocks out of the reading — each of
- * them is a different block type in the same array, and a hit inside one of them is not
- * something the conversation said.
+ * `unreadable` covers a stat/read failure (the file is missing, detached, or denied) and a
+ * session whose provider cannot read a transcript at all. It is deliberately a separate
+ * field from an empty `tasks`/`goals` pair: "the conversation said nothing" and "we could not
+ * read the conversation" are different answers, and a client that rendered both as the empty
+ * state would report a failed read as a successful one.
  */
-function contentText(content: unknown): string | null {
-  if (typeof content === 'string') {
-    return content;
-  }
-  if (!Array.isArray(content)) {
-    return null;
-  }
-  const parts: string[] = [];
-  for (const block of content) {
-    if (!isRecord(block)) continue;
-    if (block.type !== 'text') continue;
-    if (typeof block.text === 'string') parts.push(block.text);
-  }
-  return parts.length === 0 ? null : parts.join('\n');
-}
-
-/**
- * The message body one transcript row carries, or `null` when the row is not a user/assistant
- * message.
- *
- * The row's own `type` is the gate: `attachment`, `queue-operation`, `file-history-snapshot`,
- * `summary` and the rest are not messages even when they happen to carry a `content` field, so
- * they are dropped before their content is ever looked at. Both the Claude shape
- * (`message.content`) and the flat shape (`content`) are accepted.
- */
-export function readMessageText(row: unknown): SessionMessageText | null {
-  if (!isRecord(row)) return null;
-  if (row.type !== 'user' && row.type !== 'assistant') return null;
-
-  const message = isRecord(row.message) ? row.message : row;
-  const text = contentText(message.content);
-  if (text === null) return null;
-
-  return { text, timestamp: typeof row.timestamp === 'string' ? row.timestamp : null };
-}
+export type SessionMentionsTranscriptState = 'ok' | 'unreadable';
 
 /**
  * The candidate tokens in one body of text: runs of `[A-Za-z0-9][A-Za-z0-9-]*` that CONTAIN a
@@ -150,6 +115,12 @@ export type SessionMentionsReading = {
   projectId: string;
   tasks: SessionMentionTaskReading[];
   goals: SessionMentionGoalReading[];
+  /**
+   * Whether the transcript itself was readable. `unreadable` is reported alongside empty
+   * `tasks`/`goals` so a client can say "could not read the conversation" instead of
+   * "the conversation mentioned nothing".
+   */
+  transcript: SessionMentionsTranscriptState;
   /** Where each vocabulary came from, so a criterion and a debugging reader can tell the arms apart. */
   sources: SessionMentionsSources;
   /** When this reading was assembled (ISO-8601). */
@@ -226,10 +197,29 @@ export type SessionMentionsDependencies = {
   resolveProjectPath(projectId: string): string | null;
   /** The session's transcript (JSONL) path, or `null` when the session is not known here. */
   resolveTranscriptPath(input: { projectId: string; sessionId: string }): string | null;
-  /** The transcript's current size in bytes, or `null` when it cannot be stat-ed. */
-  transcriptSize(transcriptPath: string): Promise<number | null>;
+  /**
+   * The transcript's size in bytes plus a cheap file identity (device + inode on this host), or
+   * `null` when it cannot be stat-ed.
+   *
+   * The identity is what catches a file REPLACED by another of the same or larger size: a size
+   * alone only detects truncation (`size < offset`). A null identity means the host could not
+   * provide one, and the scan falls back to the size check.
+   */
+  transcriptStat(transcriptPath: string): Promise<{ size: number; identity: string | null } | null>;
   /** Bytes from `start` to EOF, decoded as UTF-8, or `null` when the file cannot be read. */
   readTranscriptRange(transcriptPath: string, start: number): Promise<string | null>;
+  /**
+   * The prose reader for the provider that owns this session's transcript, or `null` when the
+   * session's provider cannot read prose from a transcript.
+   *
+   * Resolved once per reading, never per row. Quay does not know which provider a row belongs
+   * to — the provider's own format does — so this is the dependency through which provider
+   * formats stay in `server/modules/providers/`.
+   */
+  resolveTranscriptMessageReader(input: {
+    projectId: string;
+    sessionId: string;
+  }): ((row: unknown) => ProviderTranscriptMessage | null) | null;
   /** The project's task index rows (ids/titles/statuses/`goal_ac`), or `null` on a failed read. */
   readTaskRows(projectPath: string): Promise<readonly SessionMentionsTaskRow[] | null>;
   /** The project's `quay goal list --json` rows (goals AND criteria), or `null` on a failed read. */
@@ -268,6 +258,8 @@ type MentionTally = {
 /** One session's incremental transcript scan. Holds tokens + tallies, never a vocabulary join. */
 type TranscriptScanCache = {
   transcriptPath: string;
+  /** The file identity the consumed offset belongs to, or `null` when the host gave none. */
+  identity: string | null;
   /** The number of bytes already consumed; always sits on a line boundary. */
   offset: number;
   mentions: Map<string, MentionTally>;
@@ -343,7 +335,10 @@ function compareGoalReadings(a: SessionMentionGoalReading, b: SessionMentionGoal
  * A session's transcript is scanned incrementally: the cache records the byte offset consumed so
  * far, and only complete JSONL lines are consumed (a trailing partial line waits for the next
  * poll). Re-reading therefore cannot double-count. A transcript that shrank — a new session file
- * reusing the id — resets the scan instead of reading from the middle of a row.
+ * reusing the id — resets the scan instead of reading from the middle of a row, and so does a
+ * file whose identity changed while the path stayed the same (an atomic replace by a rollover or
+ * a restored transcript). A changed PATH (the session's binding now points elsewhere) starts a
+ * fresh scan cache outright.
  */
 export function createSessionMentionsService(
   dependencies: SessionMentionsDependencies,
@@ -366,6 +361,7 @@ export function createSessionMentionsService(
     }
     const fresh: TranscriptScanCache = {
       transcriptPath,
+      identity: null,
       offset: 0,
       mentions: new Map(),
     };
@@ -393,24 +389,37 @@ export function createSessionMentionsService(
     }
   };
 
-  /** Consumes whatever the transcript appended since the last scan. */
-  const readNewTranscriptLines = async (scan: TranscriptScanCache): Promise<void> => {
-    const size = await dependencies.transcriptSize(scan.transcriptPath);
-    if (size === null) return;
+  /**
+   * Consumes whatever the transcript appended since the last scan.
+   *
+   * Answers whether the transcript was readable at all. A `null` stat or read is a FAILED READ,
+   * not an empty transcript: the caller reports it as `unreadable` rather than pretending the
+   * conversation mentioned nothing. A failed read leaves the cursor untouched, so the next open
+   * retries from the same offset once the file is readable again.
+   */
+  const readNewTranscriptLines = async (
+    scan: TranscriptScanCache,
+    readMessage: (row: unknown) => ProviderTranscriptMessage | null,
+  ): Promise<boolean> => {
+    const stat = await dependencies.transcriptStat(scan.transcriptPath);
+    if (stat === null) return false;
 
-    if (size < scan.offset) {
-      // The file was replaced under the same session id: start over rather than read mid-row.
+    const replacedByIdentity = scan.identity !== null && stat.identity !== null && stat.identity !== scan.identity;
+    if (stat.size < scan.offset || replacedByIdentity) {
+      // The file was replaced under the same session id (a rollover, a restore, or a shorter
+      // rewrite): start over rather than read from the middle of a row.
       scan.offset = 0;
       scan.mentions.clear();
     }
-    if (size === scan.offset) return;
+    scan.identity = stat.identity;
+    if (stat.size === scan.offset) return true;
 
     const appended = await dependencies.readTranscriptRange(scan.transcriptPath, scan.offset);
-    if (appended === null) return;
+    if (appended === null) return false;
 
     // Only complete lines are consumed; a turn still streaming its last line is read next time.
     const lastNewline = appended.lastIndexOf('\n');
-    if (lastNewline === -1) return;
+    if (lastNewline === -1) return true;
     const complete = appended.slice(0, lastNewline + 1);
     scan.offset += Buffer.byteLength(complete, 'utf8');
 
@@ -423,11 +432,13 @@ export function createSessionMentionsService(
         // A torn line is not a reason to drop the rest of the transcript.
         continue;
       }
-      const message = readMessageText(row);
+      const message = readMessage(row);
       if (message === null) continue;
       recordText(scan, message.text, message.timestamp);
     }
+    return true;
   };
+
 
   const readSessionMentions = async (input: {
     projectId: string;
@@ -440,7 +451,10 @@ export function createSessionMentionsService(
     if (transcriptPath === null) return null;
 
     const scan = scanFor(scanCacheKey(input.projectId, input.sessionId), transcriptPath);
-    await readNewTranscriptLines(scan);
+    const readMessage = dependencies.resolveTranscriptMessageReader(input);
+    // A session whose provider has no transcript-prose reader cannot be scanned — report that as
+    // an unreadable transcript rather than as a conversation that mentioned nothing.
+    const transcriptReadable = readMessage === null ? false : await readNewTranscriptLines(scan, readMessage);
 
     // Reading the index is also the activity signal that activates this project's event monitor,
     // which is why it happens before the monitor is consulted. Only BOTH answers — an `active`
@@ -547,6 +561,7 @@ export function createSessionMentionsService(
       projectId: input.projectId,
       tasks,
       goals,
+      transcript: transcriptReadable ? 'ok' : 'unreadable',
       sources: {
         tasks: useIndex ? 'index' : 'cli',
         goals: goalReading.source,

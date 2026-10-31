@@ -13,6 +13,7 @@ import type {
   FetchHistoryResult,
   MessageOrigin,
   NormalizedMessage,
+  ProviderTranscriptMessage,
   SubagentActivity,
   SubagentInfo,
 } from '@/shared/types.js';
@@ -34,6 +35,7 @@ import {
   extractTaggedContent,
   isInternalContent,
   parseLocalCommandPayload,
+  readClaudeTranscriptMessage,
 } from '@/modules/providers/list/claude/claude-transcript-format.js';
 import { summarizeClaudeTokenUsage } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
 import { takeHistoryLoadContext } from '@/modules/providers/services/session-history-cache.service.js';
@@ -1118,6 +1120,16 @@ function collectClaudeForkAnchorUuids(rawMessages: AnyRecord[], running: boolean
 export class ClaudeSessionsProvider implements IProviderSessions {
   /** Claude's history reader parses the session row's JSONL transcript itself. */
   readonly transcriptFileBacked = true;
+
+  /**
+   * The prose one transcript row carries, for prose consumers that read the same
+   * JSONL without projecting history (Quay's session-mentions scan). The rules
+   * live in `claude-transcript-format.ts` so this reader, the history projection
+   * and search cannot drift on what counts as conversation.
+   */
+  readTranscriptMessage(row: unknown): ProviderTranscriptMessage | null {
+    return readClaudeTranscriptMessage(row);
+  }
 
   /**
    * Normalizes one Claude JSONL entry or live SDK stream event into the shared

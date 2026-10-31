@@ -1133,6 +1133,7 @@
     "empty": "Aucune tâche quay n'a encore été mentionnée dans cette session.",
     "loading": "Chargement des tâches mentionnées…",
     "listError": "Impossible de lire les tâches mentionnées dans cette session.",
+    "transcriptError": "Impossible de lire la transcription de cette session.",
     "lanesNote": "Lecture des voies indisponible — les tâches affichent leur statut enregistré sans phase.",
     "viaTasks_one": "via {{count}} tâche",
     "viaTasks_many": "via {{count}} tâches",

@@ -9,6 +9,7 @@ import { codexRolloutLines } from '@/modules/providers/list/codex/codex-fork-his
 import {
   extractCodexText,
   isVisibleCodexUserMessage,
+  readCodexTranscriptMessage,
 } from '@/modules/providers/list/codex/codex-transcript-format.js';
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
@@ -19,6 +20,7 @@ import type {
   FetchHistoryResult,
   MemoryCitation,
   NormalizedMessage,
+  ProviderTranscriptMessage,
   SubagentActivity,
   SubagentInfo,
 } from '@/shared/types.js';
@@ -1861,6 +1863,18 @@ function collectCodexForkAnchorRows(rawMessages: AnyRecord[]): Set<AnyRecord> {
 export class CodexSessionsProvider implements IProviderSessions {
   /** Codex's history reader parses the session row's rollout JSONL itself. */
   readonly transcriptFileBacked = true;
+
+  /**
+   * The prose one rollout row carries, for prose consumers that read the same
+   * JSONL without projecting history (Quay's session-mentions scan). Carrier
+   * selection and the visibility rules live in `codex-transcript-format.ts`, so
+   * this reader and the history projection cannot drift on what counts as
+   * conversation — in particular on which of a rollout's duplicate carriers
+   * represents a prompt or an answer.
+   */
+  readTranscriptMessage(row: unknown): ProviderTranscriptMessage | null {
+    return readCodexTranscriptMessage(row);
+  }
 
   /**
    * Resolves the last turn to keep when the turn `anchorId` names is replaced.

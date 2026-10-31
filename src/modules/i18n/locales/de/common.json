@@ -1103,6 +1103,7 @@
     "empty": "In dieser Sitzung wurden noch keine Quay-Aufgaben erwähnt.",
     "loading": "Erwähnte Aufgaben werden geladen…",
     "listError": "Die erwähnten Aufgaben dieser Sitzung konnten nicht gelesen werden.",
+    "transcriptError": "Das Transkript dieser Sitzung konnte nicht gelesen werden.",
     "lanesNote": "Lane-Lesung nicht verfügbar – Aufgaben zeigen ihren gespeicherten Status ohne Phase.",
     "viaTasks_one": "über {{count}} Aufgabe",
     "viaTasks_other": "über {{count}} Aufgaben",
