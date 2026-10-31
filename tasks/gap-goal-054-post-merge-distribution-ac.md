@@ -85,5 +85,5 @@ SPEC §6 与 §10.1 AC11 也把分发身份/发布核验列为独立判据面。
 ## Touches
 
 - tasks/gap-goal-054-post-merge-distribution-ac.md
-- scripts/cloudpit-distribution-check.mjs (new, AC-454 的 criterion 载体)
-- scripts/cloudpit-distribution-check.test.mjs (new, AC-457 criterion 的判据)
+- scripts/cloudpit-distribution-check.mjs (new)
+- scripts/cloudpit-distribution-check.test.mjs (new)
