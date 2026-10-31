@@ -459,9 +459,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (487 + 1 = 488 collected server test files). Then
     // gap-goal-053-exit-structural-gate-not-an-ac added its criterion
     // server/shared/tests/cloudpit-goal-exit-gate.test.ts
-    // (488 + 1 = 489 collected server test files). This fixture names 3 known files,
-    // so 489 - 3 = 486.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=486$/);
+    // (488 + 1 = 489 collected server test files). Then
+    // gap-codex-restart-sync-last-activity added its criterion
+    // server/modules/providers/tests/codex-session-activity-restart.test.ts
+    // (489 + 1 = 490 collected server test files). This fixture names 3 known files,
+    // so 490 - 3 = 487.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=487$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -586,9 +589,11 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/assets/tests/cloudpit-assets-dual-root.test.ts), then
     // gap-goal-053-exit-structural-gate-not-an-ac added
     // server/shared/tests/cloudpit-goal-exit-gate.test.ts)
-    // — but this fixture names ONE known file, so 489 - 1 = 488 (AC2 reads 486 because its
-    // fixture names 3; the 489 is the number the tree collects with these four criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=488$/);
+    // (489 + 1 = 490 after gap-codex-restart-sync-last-activity added
+    // server/modules/providers/tests/codex-session-activity-restart.test.ts)
+    // — but this fixture names ONE known file, so 490 - 1 = 489 (AC2 reads 487 because its
+    // fixture names 3; the 490 is the number the tree collects with these four criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=489$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

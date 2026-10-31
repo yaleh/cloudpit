@@ -27,17 +27,17 @@ import { isRecord, readLastTranscriptRecord } from '@/shared/utils.js';
  * excluded and everything else (user_message, task_started, task_complete,
  * item_completed, exec/patch/MCP/web events, aborts, rollbacks) counts.
  */
-const NON_ACTIVITY_EVENT_MESSAGE_TYPES = new Set([
+const NON_ACTIVITY_EVENT_MESSAGE_TYPES: readonly string[] = [
   'token_count',
   'thread_settings_applied',
-]);
+];
 
-const NON_ACTIVITY_RECORD_TYPES = new Set([
+const NON_ACTIVITY_RECORD_TYPES: readonly string[] = [
   'session_meta',
   'turn_context',
   'token_usage_record',
   'world_state',
-]);
+];
 
 /**
  * Whether one rollout row is evidence of conversation/turn activity.
@@ -54,7 +54,7 @@ export function isCodexActivityRecord(record: unknown): boolean {
   }
 
   const type = record.type;
-  if (typeof type !== 'string' || NON_ACTIVITY_RECORD_TYPES.has(type)) {
+  if (typeof type !== 'string' || NON_ACTIVITY_RECORD_TYPES.includes(type)) {
     return false;
   }
 
@@ -67,7 +67,7 @@ export function isCodexActivityRecord(record: unknown): boolean {
     const payloadType = isRecord(payload) && typeof payload.type === 'string'
       ? payload.type
       : undefined;
-    return payloadType !== undefined && !NON_ACTIVITY_EVENT_MESSAGE_TYPES.has(payloadType);
+    return payloadType !== undefined && !NON_ACTIVITY_EVENT_MESSAGE_TYPES.includes(payloadType);
   }
 
   return false;

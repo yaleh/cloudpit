@@ -20,6 +20,10 @@ export type {
   ScenarioCockpitCardTarget,
   ScenarioCockpitCardsReading,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
+export type {
+  ScenarioSidebarReading,
+  ScenarioSidebarRowReading,
+} from '@/modules/ui-scenario/sidebarSurface';
 export { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 export type {
   ScenarioChatMessage,
