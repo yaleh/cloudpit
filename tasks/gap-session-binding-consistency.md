@@ -113,15 +113,3 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 ## 约束
 
 遵守 AGENTS.md 与 backend-module-standards；触及 src/ 时同时遵守 frontend-module-standards。服务约 260 行按关注点拆分、工厂与依赖注入；跨模块只走 barrel；不新增 provider 名字判断，不扩大到通用工作流框架。会话内单文件或有界 runner，不跑全套 fan-out；全套由 quay fan-in 承担。不得用替身、skip、仅静态代码匹配冒充真实行为验收。
-
-## Blocker
-
-**2026-10-31T06:24:21.579Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
-CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
-Auto-merging server/shared/tests/quay-test-script.test.ts
-CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
-Automatic merge failed; fix conflicts and then commit the result.
-- run_id：wk-prod-anchor
-- session_id：5ab77167-6b08-4abf-bc4b-0a31e7078d26
