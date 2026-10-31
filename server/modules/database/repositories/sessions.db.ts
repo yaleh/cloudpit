@@ -547,9 +547,7 @@ export const sessionsDb = {
 
     projectsDb.createProjectPath(normalizedProjectPath);
 
-    // Every selection field defaults to NULL (SQLite's own default for the ones
-    // not named here was NULL too): a caller that states nothing leaves every
-    // reader falling back exactly as it did before this parameter existed.
+    // Every selection field defaults to NULL: a caller that states nothing leaves its reader as before.
     db.prepare(
       `INSERT INTO sessions (session_id, provider, provider_session_id, transcript_name, transcript_name_source, project_path, jsonl_path, model, effort, permission_mode, lifecycle_mode, isArchived, created_at, updated_at)
        VALUES (?, ?, NULL, ?, 'derived', ?, NULL, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
@@ -561,10 +559,7 @@ export const sessionsDb = {
       selection?.model ?? null,
       selection?.effort ?? null,
       selection?.permissionMode ?? null,
-      // NULL leaves the column's own `DEFAULT 'per-run'` semantics intact for a
-      // caller that stated nothing — readers already turn NULL into per-run.
-      // The unified service resolves the provider default before it gets here;
-      // direct repository callers keep the DB default they always had.
+      // NULL keeps the column's DB default for a caller that stated nothing.
       selection?.lifecycleMode ?? null,
     );
 
