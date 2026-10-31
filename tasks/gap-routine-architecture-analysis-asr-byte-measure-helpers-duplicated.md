@@ -50,18 +50,22 @@ Move the three byte/encoding helpers into the same shared asr helper module as `
 - [x] ⛔ 探针只立案不执行：本任务若需要跑产出者/修复，由派发链执行，⛔ 不由例程代跑
 
 ## 处置记录
-- 处置：修掉。四个预算/编码辅助函数（`measureRequestBytes`、`utf8ByteLength`、`base64Encode`、`base64Length`）的唯一实现移到 `shared/asr/asrContract.ts`（与 `honoredHints` 同处的共享契约叶子），五个 list 适配器与 `dashscope-omni-relay` 改为从该叶子导入，`shared/asr/list/**` 内不再有同名定义。`base64Length` 未被 archguard 的 6 语句门槛报出，但与 `base64Encode` 是同一份编码算术，一并归并。
-- commit：`0d87f4e3c`（分支 `task/gap-routine-architecture-analysis-asr-byte-measure-helpers-duplicated`）。
+- 处置：修掉。四个预算/编码辅助函数（`measureRequestBytes`、`utf8ByteLength`、`base64Encode`、`base64Length`）的唯一实现移到 `shared/asr/transcriptionWire.ts`，五个 list 适配器与 `dashscope-omni-relay` 改为从该共享模块导入；`shared/asr/list/**` 内不再有同名**定义**。`base64Length` 未被 archguard 的 6 语句门槛报出，但与 `base64Encode` 是同一份编码算术，一并归并。
+- 为什么不放进 `asrContract.ts`（与 `honoredHints` 同处）：第一版确实放在那里（commit `0d87f4e3c`），但该文件已 786 行，+83 行后 869 行，越过 `server/shared/tests/architecture-ratchet.test.ts` 的 800 行 oversize 硬线（实测红：`oversizeFiles shared/asr/asrContract.ts 基线外→869`）。字节/线格式算术本来也属于 wire 模块，因此改放到 `shared/asr/transcriptionWire.ts`（同一 `shared/asr` 共享模块，两个编译器配置都编译、环境中立，且已在全部探针 fixture 的 `SHIPPING_FILES` 里）；`asrContract.ts` 回到 786 行，棘轮不升基线。
+- commit：`0d87f4e3c`（首次归并）+ `9b9655029`（把算术放到 wire 模块，修掉 800 行棘轮与适配器导出面）。（分支 `task/gap-routine-architecture-analysis-asr-byte-measure-helpers-duplicated`。）
+- 兼容导出：`dashscope-omni` 适配器保留 `export { base64Encode }`（同一函数的再导出，非第二份定义），因为 `server/modules/voice/tests/voice-capture-text.test.ts` 从该适配器读 `base64Encode` 来构造期望的 wire body。`shared/asr/list/**` 内的同名**定义**仍为 0。
 - 复核（修复前，`develop`）：`git grep -c 'export function <sym>' develop -- shared/asr/list/**` → `base64Length=2 utf8ByteLength=2 base64Encode=2 measureRequestBytes=3`（共 9 份定义）；finding 所列三组的文件与行号在 `develop` 上仍然成立。
-- 修复后 archguard 读数：`archguard_analyze`（projectRoot=worktree，sources=[shared]，typescript）→ 1 scope `6086c425`（14 files / 99 entities）；`archguard_detect_duplicates`（scope=6086c425，minStatements=6，minTokens=50）→ `scannedFiles=14 scannedFunctions=177 totalGroups=0 groups=[]`。同口径修复前（上一任务记录）`totalGroups=3`，三组正是本 finding 的 `measureRequestBytes`×3、`base64Encode`×2、`utf8ByteLength`×2。
-- 唯一定义读数：`grep -rn '^export function <sym>' shared/asr` → 每个符号 1（均在 `shared/asr/asrContract.ts`）；`shared/asr/list` 内同名导出 → 每个符号 0；从该叶子导入这些符号的适配器文件 → 6（openai-compatible、sensevoice-local、sensevoice-wasm、dashscope-omni、dashscope-omni-relay、multimodal）。
-- 请求预算判据实跑（全部 exit 0）：`npx vitest run src/shared/asr/tests/asrContractInvariants.test.ts src/shared/asr/tests/multimodalAdapter.test.ts` → 2 files / 43 tests passed；`node scripts/asr-dashscope-omni-check.mjs` → readings=162 failures=0 platform-fetch-calls=0；`node scripts/asr-contract-invariants-check.mjs` → verdict=pass groups=6 readings=244；`node --test scripts/asr-dashscope-omni-check.test.mjs` → 14/14；`node --test scripts/asr-contract-invariants-check.test.mjs` → 9/9；`npx tsx --test server/modules/voice/tests/voice-error-classification.false-forms.test.ts` → 7/7（AC7 子命令全部 exit=0）。
+- 修复后 archguard 读数（重测于 `9b9655029` 树）：`archguard_analyze`（projectRoot=worktree，sources=[shared]，typescript）→ 1 scope `6086c425`（14 files / 99 entities）；`archguard_detect_duplicates`（scope=6086c425，minStatements=6，minTokens=50）→ `scannedFiles=14 scannedFunctions=177 totalGroups=0 groups=[]`。同口径修复前（上一任务记录）`totalGroups=3`，三组正是本 finding 的 `measureRequestBytes`×3、`base64Encode`×2、`utf8ByteLength`×2。
+- 唯一定义读数：`grep -rn '^export function <sym>' shared/asr` → 每个符号 1（均在 `shared/asr/transcriptionWire.ts`）；`shared/asr/list` 内同名定义 → 每个符号 0；从该共享模块导入这些符号的适配器文件 → 6（openai-compatible、sensevoice-local、sensevoice-wasm、dashscope-omni、dashscope-omni-relay、multimodal）。
+- 请求预算判据实跑（全部 exit 0）：`npx vitest run src/shared/asr/tests/asrContractInvariants.test.ts src/shared/asr/tests/multimodalAdapter.test.ts` → 2 files / 43 tests passed；`node scripts/asr-dashscope-omni-check.mjs` → readings=162 failures=0 platform-fetch-calls=0；`node scripts/asr-contract-invariants-check.mjs` → verdict=pass groups=6 readings=244；`node --test scripts/asr-dashscope-omni-check.test.mjs` → 14/14；`node --test scripts/asr-contract-invariants-check.test.mjs` → 9/9；`node --test scripts/asr-single-implementation-check.test.mjs` → 8/8；`node --test scripts/asr-mime-size-gaps-check.test.mjs` → 5/5；`node scripts/asr-import-cycle-check.mjs` → `files=11 value-edges=21 type-edges=7 value-sccs=0 verdict=PASS`。
+- 上一轮红的三处实跑复绿：`npx tsx --tsconfig server/tsconfig.json --test server/modules/voice/tests/voice-capture-text.test.ts` → 10/10；`... voice-capture-text.false-forms.test.ts` → 6/6；`... voice-capture-audio.false-forms.test.ts` → 9/9；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → 6/6（`asrContract.ts` 不再出现在 oversize 读数里）。
 - 静态门：`npx tsc --noEmit -p tsconfig.json` / `-p server/tsconfig.json` / `-p scripts/tsconfig.json` → 均 exit 0；`npx oxlint shared/asr src/shared/asr` → exit 0。
 - L_D shared_scope_duplicate_groups=0 byte_helper_groups=0 — archguard scope `shared`（14 files / 177 functions，floors 6 statements / 50 tokens）修复后 `totalGroups=0`；修复前同口径 3 组、`shared/asr/list/**` 内四个辅助函数共 9 份定义。
-- L_G helper_definitions=4 list_scope_definitions=0 importing_adapter_files=6 — 四个辅助函数各只有一处定义（均在 `shared/asr/asrContract.ts`），list 适配器全部经该叶子导入。
+- L_G helper_definitions=4 list_scope_definitions=0 importing_adapter_files=6 compat_reexports=1 — 四个辅助函数各只有一处定义（均在 `shared/asr/transcriptionWire.ts`），list 适配器全部经该模块导入；`dashscope-omni` 的一条 `base64Encode` 兼容再导出是别名而非定义。
 
 ## Touches
 - `shared/asr/asrContract.ts`
+- `shared/asr/transcriptionWire.ts`
 - `shared/asr/asrInvariants.ts`
 - `shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts`
 - `shared/asr/list/sensevoice-local/sensevoice-local.asr-provider.ts`
