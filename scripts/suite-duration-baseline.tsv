@@ -244,7 +244,7 @@
 #   gap-session-edit-continuity-e2e, measured one file at a time on 2026-10-31 with
 #   `npx tsx --tsconfig server/tsconfig.json --test <file>`
 #   (dur=9200ms and dur=4430ms; both are this task's new criteria and no green round contains
-#   them yet — the rows also keep the 90% coverage floor green now that the tree collects 486
+#   them yet — the rows also keep the 90% coverage floor green now that the tree collects 487
 #   server test files).
 9200	server/modules/websocket/tests/session-edit-continuity.test.ts
 4430	server/modules/providers/tests/session-edit-real-cli.test.ts
@@ -916,3 +916,8 @@
 #   (dur=2299ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 484 server test files).
 2299	server/shared/tests/cloudpit-brand-env.test.ts
+#   the cloudpit-data-root row by gap-cloudpit-data-root-migration, measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-data-root.test.ts`
+#   (dur=2180ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 485 server test files).
+2180	server/shared/tests/cloudpit-data-root.test.ts

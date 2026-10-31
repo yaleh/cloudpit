@@ -448,12 +448,14 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (482 + 1 = 483 collected server test files). Then
     // gap-cloudpit-brand-env-fallback added its criterion
     // server/shared/tests/cloudpit-brand-env.test.ts (483 + 1 = 484 collected
+    // server test files). Then gap-cloudpit-data-root-migration added its criterion
+    // server/shared/tests/cloudpit-data-root.test.ts (484 + 1 = 485 collected
     // server test files). Then gap-session-edit-continuity-e2e added its two criteria
     // server/modules/websocket/tests/session-edit-continuity.test.ts and
     // server/modules/providers/tests/session-edit-real-cli.test.ts
-    // (484 + 2 = 486 collected server test files). This fixture names 3 known files,
-    // so 486 - 3 = 483.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=483$/);
+    // (485 + 2 = 487 collected server test files). This fixture names 3 known files,
+    // so 487 - 3 = 484.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=484$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -570,11 +572,13 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-session-binding-consistency added
     // server/modules/providers/tests/session-binding-consistency.test.ts), then
     // gap-cloudpit-brand-env-fallback added
-    // server/shared/tests/cloudpit-brand-env.test.ts), then gap-session-edit-continuity-e2e
+    // server/shared/tests/cloudpit-brand-env.test.ts), then
+    // gap-cloudpit-data-root-migration added
+    // server/shared/tests/cloudpit-data-root.test.ts), then gap-session-edit-continuity-e2e
     // added its two criteria (session-edit-continuity.test.ts, session-edit-real-cli.test.ts)
-    // — but this fixture names ONE known file, so 486 - 1 = 485 (AC2 reads 483 because its
-    // fixture names 3; the 486 is the number the tree collects with this task's criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=485$/);
+    // — but this fixture names ONE known file, so 487 - 1 = 486 (AC2 reads 484 because its
+    // fixture names 3; the 487 is the number the tree collects with these three criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=486$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

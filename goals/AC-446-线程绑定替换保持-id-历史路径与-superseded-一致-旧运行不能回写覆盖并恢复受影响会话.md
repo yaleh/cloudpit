@@ -1,7 +1,7 @@
 ---
 id: AC-446
 title: 线程绑定替换保持 ID、历史路径与 superseded 一致，旧运行不能回写覆盖并恢复受影响会话
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-052
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -22,6 +22,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T06:42:08.234Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
