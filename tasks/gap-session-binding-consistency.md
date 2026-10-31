@@ -115,8 +115,12 @@ AC-446 判据和本会话恢复记录齐全。基线实跑 exit 1：Could not fi
 
 ## Blocker
 
-**2026-10-31T06:09:53.172Z — worker 未落地（exited-not-landed）**
+**2026-10-31T06:24:21.579Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/database/repositories/sessions.db.ts 1479→1752 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/server-import-cycle-budget.test.ts changed=-]
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
-- session_id：ef65505e-20c0-4fa6-9a76-bf6a4be82a36
+- session_id：5ab77167-6b08-4abf-bc4b-0a31e7078d26
