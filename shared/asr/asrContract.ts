@@ -784,3 +784,86 @@ export function honoredHints(capabilities: AsrCapabilities, hints: AsrHints | un
   if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
   return honored;
 }
+
+// ── the byte arithmetic the budget guard and the encoder both read ───────────────────────────
+
+/**
+ * The exact length a base64 encoding of `byteLength` bytes has, without encoding anything.
+ *
+ * THERE IS ONE COPY OF THIS ARITHMETIC, HERE, for the same reason `honoredHints` has one: the
+ * budget guard and the encoder that actually puts the audio on the wire have to agree on what the
+ * payload costs. Before the extraction the same two-line formula existed byte-identically in the
+ * two JSON-audio adapters (archguard scope `shared`, groups 3c3a920a4032ca45 and c84e98d9d48fd1af),
+ * so a change to one copy — or to `base64Encode` without it — could leave a guard measuring a
+ * different encoding than the one it was guarding.
+ *
+ * Both compiler configurations compile this file (see the module comment), so this is written with
+ * ES5 syntax and no Node built-in.
+ */
+export function base64Length(byteLength: number): number {
+  return Math.ceil(byteLength / 3) * 4;
+}
+
+/**
+ * The UTF-8 length of `value`, counted directly so no encoder global is needed on either side.
+ *
+ * The budget subject is measured in the bytes a wire would carry, not in characters: a Chinese
+ * context is three bytes per character, and a guard that counted characters would pass a request
+ * the service rejects. Written out rather than reached for (`TextEncoder`) because this file is
+ * compiled by both compiler configurations and the count must be the same on each.
+ */
+export function utf8ByteLength(value: string): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      index += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** Standard base64 of `bytes`. Written out rather than reached for, for the neutrality reason above. */
+export function base64Encode(bytes: Uint8Array): string {
+  let encoded = '';
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index];
+    const second = index + 1 < bytes.length ? bytes[index + 1] : 0;
+    const third = index + 2 < bytes.length ? bytes[index + 2] : 0;
+    encoded += BASE64_ALPHABET[first >> 2];
+    encoded += BASE64_ALPHABET[((first & 0x03) << 4) | (second >> 4)];
+    encoded += index + 1 < bytes.length ? BASE64_ALPHABET[((second & 0x0f) << 2) | (third >> 6)] : '=';
+    encoded += index + 2 < bytes.length ? BASE64_ALPHABET[third & 0x3f] : '=';
+  }
+  return encoded;
+}
+
+/**
+ * The budget subject: the audio bytes plus every hint the declaration acknowledges, measured as
+ * the bytes the wire would carry them as.
+ *
+ * THERE IS ONE COPY OF THIS ARITHMETIC, HERE. The three adapters whose caller-controlled bytes are
+ * the audio and the honoured hints carried byte-identical bodies (archguard scope `shared`, group
+ * d2b08b77e331b8e4), so a change to the rule could be made in one and silently missed in another,
+ * leaving that provider's guard sized differently from the request it guards.
+ *
+ * `Blob.size` is the byte length of a string part, which is why the hints are measured by encoding
+ * them the way the wire would rather than by counting characters: a Chinese context is three bytes
+ * per character, and a guard that counted characters would pass a request the service rejects.
+ *
+ * What this deliberately does not model is the constant transport envelope — the multipart
+ * boundaries, the field names, the model, the endpoint — for the reason the JSON-audio adapters'
+ * own measures give: it is fixed per call and carries no caller-controlled bytes.
+ */
+export function measureRequestBytes(request: AsrRequest, honored: AsrHints): number {
+  let bytes = request.audio.bytes.length;
+  if (honored.prompt !== undefined) bytes += new Blob([honored.prompt]).size;
+  if (honored.language !== undefined) bytes += new Blob([honored.language]).size;
+  if (honored.context !== undefined) bytes += new Blob([honored.context]).size;
+  return bytes;
+}

@@ -47,10 +47,10 @@
 import {
   declaredAcceptsMime,
   honoredHints,
+  measureRequestBytes,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrErrorCode,
-  type AsrHints,
   type AsrInvocation,
   type AsrRequest,
   type AsrResult,
@@ -244,24 +244,6 @@ export async function ensureRuntime(): Promise<AsrRuntimeStatus> {
 }
 
 // ── the guards that run before the engine ────────────────────────────────────────────────────
-
-/**
- * The bytes the budget is measured over: the audio, plus every hint the declaration acknowledges,
- * measured as the bytes the engine would carry them as.
- *
- * The hints half is written from the declaration rather than from a constant, exactly as the
- * OpenAI-compatible adapter writes it, so a declaration that one day acknowledges a hint carries the
- * arithmetic with it instead of leaving a guard that under-counts. With today's all-false
- * declaration the sum is the audio alone — and it is still computed, because a guard whose subject
- * is a literal `bytes.length` is a guard that cannot follow its own declaration.
- */
-export function measureRequestBytes(request: AsrRequest, honored: AsrHints): number {
-  let bytes = request.audio.bytes.length;
-  if (honored.prompt !== undefined) bytes += new Blob([honored.prompt]).size;
-  if (honored.language !== undefined) bytes += new Blob([honored.language]).size;
-  if (honored.context !== undefined) bytes += new Blob([honored.context]).size;
-  return bytes;
-}
 
 /** The refusal owed an engine that cannot serve this request, in the seam's vocabulary. */
 function engineFailure(message: string): AsrResult {

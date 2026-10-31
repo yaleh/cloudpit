@@ -86,7 +86,14 @@ import type {
   AsrResult,
   AsrWire,
 } from '../../asrContract.js';
-import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrContract.js';
+import {
+  base64Encode,
+  base64Length,
+  baseMimeType,
+  classifyUpstreamFailure,
+  declaredAcceptsMime,
+  utf8ByteLength,
+} from '../../asrContract.js';
 
 /**
  * The version of this frozen prompt. A value, not a derivation: it names the experiment round whose
@@ -456,43 +463,6 @@ export function buildChatRequestBody(
 }
 
 // ── the budget arithmetic ────────────────────────────────────────────────────────────────────
-
-/** The exact length a base64 encoding of `byteLength` bytes has, without encoding anything. */
-export function base64Length(byteLength: number): number {
-  return Math.ceil(byteLength / 3) * 4;
-}
-
-/** The UTF-8 length of `value`, counted directly so no encoder global is needed on either side. */
-export function utf8ByteLength(value: string): number {
-  let bytes = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code < 0x80) bytes += 1;
-    else if (code < 0x800) bytes += 2;
-    else if (code >= 0xd800 && code <= 0xdbff) {
-      bytes += 4;
-      index += 1;
-    } else bytes += 3;
-  }
-  return bytes;
-}
-
-const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-/** Standard base64 of `bytes`. Written out rather than reached for, for the neutrality reason above. */
-export function base64Encode(bytes: Uint8Array): string {
-  let encoded = '';
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const second = index + 1 < bytes.length ? bytes[index + 1] : 0;
-    const third = index + 2 < bytes.length ? bytes[index + 2] : 0;
-    encoded += BASE64_ALPHABET[first >> 2];
-    encoded += BASE64_ALPHABET[((first & 0x03) << 4) | (second >> 4)];
-    encoded += index + 1 < bytes.length ? BASE64_ALPHABET[((second & 0x0f) << 2) | (third >> 6)] : '=';
-    encoded += index + 2 < bytes.length ? BASE64_ALPHABET[third & 0x3f] : '=';
-  }
-  return encoded;
-}
 
 /**
  * The byte length of the request this adapter would send for `request` and `model` — the budget

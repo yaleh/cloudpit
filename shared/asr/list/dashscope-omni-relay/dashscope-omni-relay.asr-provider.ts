@@ -37,11 +37,16 @@ import type {
   AsrResult,
   AsrWire,
 } from '../../asrContract.js';
-import { baseMimeType, classifyUpstreamFailure, declaredAcceptsMime } from '../../asrContract.js';
 import {
-  audioFormatFor,
   base64Encode,
   base64Length,
+  baseMimeType,
+  classifyUpstreamFailure,
+  declaredAcceptsMime,
+  utf8ByteLength,
+} from '../../asrContract.js';
+import {
+  audioFormatFor,
   chatAudioDataUri,
   chatCompletionsEndpoint,
   credentials as dashscopeOmniCredentials,
@@ -50,7 +55,6 @@ import {
   isModelNotPurchased,
   readAnswerContent,
   readUsage,
-  utf8ByteLength,
   WRITTEN_TRANSFORMATIONS,
   type ChatMessage,
 } from '../dashscope-omni/dashscope-omni.asr-provider.js';

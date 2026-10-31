@@ -27,6 +27,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  base64Encode,
   classifyUpstreamFailure,
   honoredHints,
   listProviders,
@@ -58,7 +59,6 @@ import {
 } from '@shared/asr/transcriptionWire';
 import {
   STYLE_TRANSFORMATIONS,
-  base64Encode,
   baseMimeType,
   buildInlineRequestBody,
   capabilities,
