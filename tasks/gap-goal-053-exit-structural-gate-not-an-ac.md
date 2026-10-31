@@ -72,13 +72,13 @@ npx tsx --tsconfig server/tsconfig.json --test \
 
 ## AC
 
-- [ ] AC1 判据文件与基线文件存在；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` 退出 0，输出含 `# fail 0`。
-- [ ] AC2 零新增目录臂：实测 `scanImportGraph(collectServerSources(<repo>/server)).nodes` 的数量等于 `cloudpit-goal-exit-gate.baseline.json.moduleDirectories` 与 `server-import-cycle-budget.baseline.json.directoryManifest` 的数量（当前均 58），差集 `extra=[]`、`missing=[]`；同一文件里「合成多一个目录 → 判红」的负向控制通过。
-- [ ] AC3 `utils.ts` 未增行臂：实测 `server/shared/utils.ts` 行数 = 基线冻结的 `utilsLineCount` = `architecture-ratchet.baseline.json.oversizeFiles['server/shared/utils.ts']`（当前均 1930）；同一文件里「合成多一行 → 判红」的负向控制通过。
-- [ ] AC4 相关单测绿：上文有界清单的 8 个 server 文件与 `electron/tests/cloudpit-userdata-migration.test.mjs` 均退出 0，且各自输出 `fail 0`。
-- [ ] AC5 typecheck/lint：`npm run typecheck` 与 `npm run lint` 均退出 0。
-- [ ] AC6 钉子与覆盖：用 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` 实测 N；`server/shared/tests/quay-test-script.test.ts` 两处钉子更新为 `known=3 unknown=<N-3>` 与 `known=1 unknown=<N-1>`，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；`scripts/suite-duration-baseline.tsv` 追加 `<实测ms>\tserver/shared/tests/cloudpit-goal-exit-gate.test.ts` 一行。
-- [ ] AC7 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（含本任务文件）。
+- [x] AC1 判据文件与基线文件存在；`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` 退出 0，输出含 `# fail 0`。
+- [x] AC2 零新增目录臂：实测 `scanImportGraph(collectServerSources(<repo>/server)).nodes` 的数量等于 `cloudpit-goal-exit-gate.baseline.json.moduleDirectories` 与 `server-import-cycle-budget.baseline.json.directoryManifest` 的数量（当前均 58），差集 `extra=[]`、`missing=[]`；同一文件里「合成多一个目录 → 判红」的负向控制通过。
+- [x] AC3 `utils.ts` 未增行臂：实测 `server/shared/utils.ts` 行数 = 基线冻结的 `utilsLineCount` = `architecture-ratchet.baseline.json.oversizeFiles['server/shared/utils.ts']`（当前均 1930）；同一文件里「合成多一行 → 判红」的负向控制通过。
+- [x] AC4 相关单测绿：上文有界清单的 8 个 server 文件与 `electron/tests/cloudpit-userdata-migration.test.mjs` 均退出 0，且各自输出 `fail 0`。
+- [x] AC5 typecheck/lint：`npm run typecheck` 与 `npm run lint` 均退出 0。
+- [x] AC6 钉子与覆盖：用 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` 实测 N；`server/shared/tests/quay-test-script.test.ts` 两处钉子更新为 `known=3 unknown=<N-3>` 与 `known=1 unknown=<N-1>`，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；`scripts/suite-duration-baseline.tsv` 追加 `<实测ms>\tserver/shared/tests/cloudpit-goal-exit-gate.test.ts` 一行。
+- [x] AC7 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件（含本任务文件）。
 
 ## DoD
 
@@ -128,3 +128,120 @@ AC-455 的 criterion 已在入册后修正；本任务实现时按修正后的�
 
 - **存在性闸（新发现，承重）**：`npx tsx --test` 在混合存在的文件集里会**静默忽略缺失路径并以 0 退出**。实测（2026-10-31）：8 个 server 文件里 3 个缺失（含本任务要新增的 `cloudpit-goal-exit-gate.test.ts`），整条 server 命令仍 `EXIT=0`。若照 Proposal 第 2 条的原命令，A3 的 electron 判据文件落地后，整链会在门判据文件尚不存在时通过。⇒ AC-455 的 criterion 已在开头加 `for f in <9 个文件>; do [ -f "$f" ] || { echo "缺判据文件：$f" >&2; exit 1; }; done`；dry-run 现报 `acceptance failed (exit 1) — 缺判据文件：server/shared/tests/cloudpit-goal-exit-gate.test.ts`。判据文件本体仍须带前述负向控制。
 - 本补充与「单调读法（不增目录 / 不增行）」「记录级 timeoutMs」具有同等效力，优先于 Proposal 与 AC2/AC3/AC6 的立案文本。
+
+## Verification（DoD 读数，2026-10-31，worktree `gap-goal-053-exit-structural-gate-not-an-ac`）
+
+实现提交 `c2b398030`（task 分支），随后合并 `develop`（merge commit `ae00ed48a`，只带入两条他人 task md 改动，无代码变化）。所有读数在这棵树上取得。
+
+### AC1 判据文件与本体的真实运行
+
+`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` → exit 0
+
+```
+✔ AC2: every directory in the server tree is named by the frozen exit-gate baseline
+✔ AC3: server/shared/utils.ts is not longer than the frozen exit-gate baseline or the oversize ratchet
+✔ AC2/AC3 false form: a synthetic extra directory and a synthetic extra line each red the gate
+ℹ tests 3
+ℹ pass 3
+ℹ fail 0
+```
+
+（node:test 默认 reporter 以 `ℹ` 打头；`fail 0` 即判据的失败计数。）
+
+判据文件 `server/shared/tests/cloudpit-goal-exit-gate.test.ts` 与冻结基线 `server/shared/tests/cloudpit-goal-exit-gate.baseline.json` 均已落地。
+
+### AC2 零新增目录臂
+
+扫描器：`collectServerSources(<repo>/server)` + `scanImportGraph(...)`（与 AC-394 同一个，不是第二份实现）。完整读数：
+
+```
+[ac455] directory arm: measured=58 frozen=58 cycleManifest=58 extra=[] missing=[]
+```
+
+按 Resolution 的单调读法：`nodes ⊆ 冻结基线目录集`，`extra=[]` 即绿；`missing=[]` 只打印不断言，且不与现行 AC-394 manifest 要求数量相等（它只许缩，兄弟任务合法收缩不得打红）。`cycleManifest=58` 作为交叉读数打印。
+
+「合成多一个目录 → 判红」负向控制（与真实臂走同一个 `structuralGateViolations` 断言路径）：
+
+```
+[ac455] false form (extra directory): ["new module directory outside the frozen baseline: modules/__ac455-false-form — GOAL-053's exit gate forbids adding module directories (AC-394 only requires a new leaf; this gate forbids the directory at all)"]
+```
+
+### AC3 utils.ts 未增行臂
+
+```
+[ac455] utils arm: measured=1930 frozen=1930 ratchet=1930
+```
+
+`server/shared/utils.ts` 的 `split('\n').length - 1` = 1930 = gate 基线冻结的 `utilsLineCount` = `architecture-ratchet.baseline.json.oversizeFiles['server/shared/utils.ts']`。按 Resolution 单调读法：实测 `<=` 两个上限即绿，不要求与基线相等（该文件只许缩）。
+
+「合成多一行 → 判红」负向控制：
+
+```
+[ac455] false form (extra line): ["server/shared/utils.ts grew to 2 lines, over the frozen exit-gate baseline of 1 — GOAL-053's exit gate forbids adding lines to this file","server/shared/utils.ts grew to 2 lines, over the architecture-ratchet oversize baseline of 1"]
+```
+
+### AC4 相关单测（有界清单）
+
+8 个 server 文件一条有界命令（含本判据文件）：
+
+```
+npx tsx --tsconfig server/tsconfig.json --test \
+  server/shared/tests/cloudpit-goal-exit-gate.test.ts \
+  server/shared/tests/cloudpit-brand-env.test.ts \
+  server/shared/tests/cloudpit-data-root.test.ts \
+  server/modules/assets/tests/cloudpit-assets-dual-root.test.ts \
+  server/shared/tests/settings-file.test.ts \
+  server/shared/tests/image-attachments.test.ts \
+  server/modules/assets/tests/image-assets.service.test.ts \
+  server/modules/websocket/tests/chat-attachment-filter.test.ts
+```
+
+→ exit 0
+
+```
+ℹ tests 69
+ℹ pass 69
+ℹ fail 0
+```
+
+`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-userdata-migration.test.mjs` → exit 0
+
+```
+ℹ tests 4
+ℹ pass 4
+ℹ fail 0
+```
+
+### AC5 typecheck / lint
+
+- `npm run typecheck` → exit 0
+- `npm run lint` → exit 0（输出仅既有 warning，无 error）
+
+### AC6 钉子与覆盖
+
+- `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` → `489`
+- 两处钉子按当轮 N 重算：`known=3 unknown=485 → 486`、`known=1 unknown=487 → 488`（即 N-3 / N-1）
+- `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → exit 0
+
+```
+ℹ tests 14
+ℹ pass 14
+ℹ fail 0
+```
+
+- `scripts/suite-duration-baseline.tsv` 追加实测行（`2635\t server/shared/tests/cloudpit-goal-exit-gate.test.ts`，实测 `duration_ms=2634.6`）；覆盖 441/489 = 90.18%（≥ 90% 地板）。
+
+### AC7 anti-drift
+
+合并 `develop` 后的最终树：
+
+```
+ANTI-DRIFT OK: task gap-goal-053-exit-structural-gate-not-an-ac — 4 actual file(s), all within declared Touches (5 glob(s))
+```
+
+只有 4 个实现文件进入任务自有 diff（`cloudpit-goal-exit-gate.test.ts`、`.baseline.json`、`quay-test-script.test.ts`、`suite-duration-baseline.tsv`），全部在 `## Touches` 内。任务文件本身由 task_write 落点提交：本任务写的是 must-propagate 变更（AC 勾选 + 本节 Verification），native provider 会把它 ff 推到 `develop`，因此 `develop...HEAD` 不再列出它——这是 ABI 传播的已知读数，不是漏声明；它仍在 `## Touches` 内。
+
+### 边界
+
+- 不新增模块目录（判据本身已机械验证）；不往 `server/shared/utils.ts` 加行；不改任何生产默认值或模块依赖边。
+- 本任务无 UI 改动，不适用浏览器 / UI 场景 DoD。
