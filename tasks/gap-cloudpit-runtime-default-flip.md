@@ -105,6 +105,19 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - 假形态负控（逐次改文件→跑→恢复原文）：新根默认改回 `.cloudcli` ⇒ AC2/AC11、AC5/AC11 红（8 中 fail 2），恢复后 8/8 绿；`protocols` 的 `cloudpit` 改为 `cloudcli` ⇒ AC6 红（fail 1），恢复后绿；SW filter 去掉 `LEGACY_CACHE_PREFIX` ⇒ AC9 红（删除集合缺 `claude-ui-legacy`、`claude-ui-v3`），恢复后绿；从 `ACCESS_TOKEN_SCOPES` 删除 `cloudcli:read` ⇒ AC8/AC11 红（旧 scope 铸取被拒），恢复后绿。
 - 兄弟夹具复跑：cloudpit-data-root 9/9、settings-file 10/10、cloudpit-assets-dual-root 8/8、browser-use-mcp-entry 2/2、voice-realtime-log 8/8、voice-capture-audio 11/11、architecture-ratchet 6/6、server-import-cycle-budget 12/12、quay-test-script 14/14、access-token-scopes 5/5、access-tokens.service 10/10、oauth-consent-page 16/16、token-info.routes 4/4、mcp-auth 5/5、oauth-metadata-mount 6/6、settings.service 7/7、cockpit-session-start-settings.routes 6/6、image-attachments 20/20、observation-store 8/8、service-worker-transient-failure 6/6、src observationUri vitest 22/22、browser-use.service 1/1。
 
+### 2026-11-01 续做：上轮 suite 两红的真因与修复
+
+上一轮 exited-not-landed 的两条 suite 红本 worktree 单文件复现（池内 rc=1，isolated re-run 也 rc=1），不是负载 flake，也确为任务引入：
+
+- `server/modules/assets/tests/image-assets.service.test.ts`：`buildStoredImageRecords` / `buildStoredAttachmentRecords` 仍断言旧写根 `.cloudcli/assets`，写根翻转后 actual 已是 `.cloudpit/assets`。修法：写路径臂改用新根 `WRITE_ASSETS_DIR`；`resolveImageAssetFile` / `resolveAttachmentAssetFile` 的旧单参读语义仍钉旧根 `LEGACY_ASSETS_DIR`（双读兼容面，不放宽断言）。
+- `server/modules/cli/tests/cli-environment-bootstrap.test.ts`：`load-env.ts` 新增 `./shared/data-root.js` 导入，而该 fixture 手工复制模块图没有这一支 ⇒ `Cannot find module './shared/data-root.js'`。补齐 `server/shared/data-root.ts` + `server/shared/data-root-migration.ts` 副本，并把子进程 `HOME` 钉到 fixture 沙箱：默认根解析在 import 期运行，若不钉 HOME 会迁移开发者真实 `~/.cloudcli`；空沙箱走 `no-legacy` 臂，不加载 `better-sqlite3`。
+- 第一条修完后暴露的更深成因：`browser-use/index.ts` 的 MCP 名 re-export 原本指向 `browser-use.service.js`；ESM re-export 会**求值**该服务 ⇒ 数据库/provider 单例 ⇒ `@openai/codex-sdk`（其 exports 只有 `import` 条件），CJS 入口的 CLI fixture 直接报 `No "exports" main defined`。修法：MCP 名常量下沉到零依赖叶子 `server/modules/browser-use/mcp-server-names.ts`，barrel 与服务都从叶子取；AC7 判据的导入面（`@/modules/browser-use/index.js`）不变，barrel 重新变轻。
+
+复跑读数（merge develop 之后）：
+- `cloudpit-runtime-flip.test.ts` → `tests 8 / pass 8 / fail 0`，`duration_ms 6995.4`。
+- `image-assets.service.test.ts` + `cli-environment-bootstrap.test.ts` + `quay-test-script.test.ts` 同一 tsx 进程 → `tests 22 / pass 22 / fail 0`（其中 image-assets 6/6、cli-environment-bootstrap 2/2，前者 isolated 复跑耗时 171ms → 本次全套 9.0s）。
+- `npm run typecheck` 退出 0；`npx oxlint` 对本次 6 个改动文件退出 0。
+
 ## Touches
 
 - tasks/gap-cloudpit-runtime-default-flip.md
@@ -155,6 +168,9 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - server/shared/mcp-contract/index.ts (scope vocabulary re-export)
 - server/modules/voice-realtime/tests/voice-realtime-log.test.ts (legacy dual arm pin)
 - server/modules/voice/tests/voice-capture-audio.test.ts (legacy dual arm pin)
+- server/modules/assets/tests/image-assets.service.test.ts (write-root flip fixture)
+- server/modules/cli/tests/cli-environment-bootstrap.test.ts (load-env data-root graph + sandbox HOME)
+- server/modules/browser-use/mcp-server-names.ts (new dependency-free leaf for the MCP names)
 
 ## Blocker
 
