@@ -20,4 +20,5 @@ origin: 人 yale 2026-10-31 经会话裁定采纳 gap-goal-054-goal-preview-ui-d
   2026-10-31T15:10:16.960Z，cache ts 2026-10-31T14:53:25.255Z）：退出条件第 3 条「UI
   预览」无在域 AC。编号 AC-456（AC-451…AC-454 属 GOAL-054，AC-455 属 GOAL-053）。
 activatedAt: 2026-10-31T15:47:22.713Z
+timeoutMs: 300000
 ---
