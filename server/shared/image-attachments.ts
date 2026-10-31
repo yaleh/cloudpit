@@ -22,6 +22,89 @@ export function getGlobalImageAssetsDir(): string {
   return path.join(os.homedir(), '.cloudcli', 'assets');
 }
 
+/** Injectable environment for dual-root asset resolution. */
+export type ImageAssetsRootsOptions = {
+  /** Environment to read; defaults to `process.env`. */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** Home `~` expands against; defaults to the process home. */
+  homeDir?: string;
+};
+
+/**
+ * The four asset roots derived from one environment:
+ * - `legacyRoot` is always `<home>/.cloudcli/assets` (the unchanged default).
+ * - `newRoot` is `<explicit>/assets` when `CLOUDPIT_HOME`/`CLOUDCLI_HOME` is
+ *   set, otherwise the inert `<home>/.cloudpit/assets`.
+ * - `writeRoot` stays on the legacy root unless a root was requested
+ *   explicitly, so uploading is byte-for-byte unchanged by default.
+ * - `readRoots` is the deduplicated [newRoot, legacyRoot] list, new root first
+ *   (SPEC §4.3), so attachments written before or after the migration are both
+ *   readable.
+ */
+export type ImageAssetsRoots = {
+  legacyRoot: string;
+  newRoot: string;
+  writeRoot: string;
+  readRoots: string[];
+};
+
+const LEGACY_DATA_DIRECTORY_NAME = '.cloudcli';
+const CLOUDPIT_DATA_DIRECTORY_NAME = '.cloudpit';
+const ASSETS_DIRECTORY_NAME = 'assets';
+
+/** Expands a leading `~` in an explicit root against the injected home. */
+function expandHomePrefix(value: string, homeDir: string): string {
+  if (value === '~') {
+    return homeDir;
+  }
+  if (value.startsWith('~/') || value.startsWith('~\\')) {
+    return path.join(homeDir, value.slice(2));
+  }
+  return value;
+}
+
+/** First non-empty explicit data root, Cloudpit spelling winning over legacy. */
+function readExplicitDataRoot(
+  env: Readonly<Record<string, string | undefined>>,
+  homeDir: string,
+): string | null {
+  for (const variableName of ['CLOUDPIT_HOME', 'CLOUDCLI_HOME'] as const) {
+    const rawValue = env[variableName];
+    if (typeof rawValue === 'string' && rawValue.trim() !== '') {
+      return path.resolve(expandHomePrefix(rawValue.trim(), homeDir));
+    }
+  }
+  return null;
+}
+
+/** Resolves the dual asset roots; see {@link ImageAssetsRoots}. */
+export function getImageAssetsRoots(options: ImageAssetsRootsOptions = {}): ImageAssetsRoots {
+  const env = options.env ?? process.env;
+  const homeDir = options.homeDir ?? os.homedir();
+  const legacyRoot = path.resolve(homeDir, LEGACY_DATA_DIRECTORY_NAME, ASSETS_DIRECTORY_NAME);
+  const explicitRoot = readExplicitDataRoot(env, homeDir);
+  const newRoot = explicitRoot
+    ? path.resolve(explicitRoot, ASSETS_DIRECTORY_NAME)
+    : path.resolve(homeDir, CLOUDPIT_DATA_DIRECTORY_NAME, ASSETS_DIRECTORY_NAME);
+
+  return {
+    legacyRoot,
+    newRoot,
+    writeRoot: explicitRoot ? newRoot : legacyRoot,
+    readRoots: [...new Set([newRoot, legacyRoot])],
+  };
+}
+
+/** Folder new uploads are written to: legacy by default, explicit root when requested. */
+export function getImageAssetsWriteDir(options: ImageAssetsRootsOptions = {}): string {
+  return getImageAssetsRoots(options).writeRoot;
+}
+
+/** Folders to look in, new root first; both are direct-child stores. */
+export function getImageAssetsReadDirs(options: ImageAssetsRootsOptions = {}): string[] {
+  return getImageAssetsRoots(options).readRoots;
+}
+
 export type ImageAttachmentDescriptor = {
   /** Project-relative (preferred) or absolute path to the stored image. */
   path: string;
@@ -147,8 +230,12 @@ function getDirectoryPathVariants(directory: string): string[] {
  * the agent could already access on its own. Anything else (e.g. `~/.ssh`) is
  * refused, so a caller-supplied descriptor can never leak arbitrary files.
  */
-export function isAllowedImageSourcePath(resolvedPath: string, cwd?: string): boolean {
-  return [getGlobalImageAssetsDir(), cwd || process.cwd()].some((directory) =>
+export function isAllowedImageSourcePath(
+  resolvedPath: string,
+  cwd?: string,
+  options: ImageAssetsRootsOptions = {},
+): boolean {
+  return [...getImageAssetsReadDirs(options), cwd || process.cwd()].some((directory) =>
     getDirectoryPathVariants(directory).some((directoryVariant) =>
       isPathInsideDirectory(resolvedPath, directoryVariant)
     )

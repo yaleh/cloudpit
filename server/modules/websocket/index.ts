@@ -86,6 +86,14 @@ export { broadcastHostsChanged } from './services/hosts-changed-broadcast.servic
 // `createWebSocketServer` and driven directly by the gateway criteria.
 export { handleChatConnection } from './services/chat-websocket.service.js';
 export type { ProviderRuntimeGateway } from './services/chat-websocket.service.js';
+// The upload-store resend trust boundary. Published for the dual-root asset
+// criterion (`server/modules/assets/tests/cloudpit-assets-dual-root.test.ts`,
+// GOAL-053 A3), which must read "old-root and new-root direct children pass
+// without an override" from another backend module and so may not deep-import.
+export {
+  filterAttachmentsToUploadStore,
+  filterImagesToUploadStore,
+} from './services/chat-websocket.service.js';
 // The UI client registry: which devices (browsers) are connected, and which tabs
 // of each. `listUiClients` is the read port the MCP tools (`ui_clients_list`,
 // the `client` parameter of `ui_visible_context` / `ui_open_session`) call;

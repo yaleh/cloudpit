@@ -3,7 +3,13 @@ import path from 'node:path';
 
 import mime from 'mime-types';
 
-import { getGlobalImageAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
+import {
+  getGlobalImageAssetsDir,
+  getImageAssetsReadDirs,
+  getImageAssetsWriteDir,
+  toPosixPath,
+  type ImageAssetsRootsOptions,
+} from '@/shared/image-attachments.js';
 
 /**
  * Image mime types accepted for chat attachment uploads. SVG is allowed for
@@ -42,9 +48,13 @@ export function isAllowedImageMimeType(mimeType: string): boolean {
   return ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
 }
 
-/** Creates the global `~/.cloudcli/assets` folder if needed and returns it. */
-export async function ensureImageAssetsDir(): Promise<string> {
-  const assetsDir = getGlobalImageAssetsDir();
+/**
+ * Creates the active upload folder if needed and returns it. Without options
+ * this is the unchanged `~/.cloudcli/assets` default; an explicit
+ * `CLOUDPIT_HOME`/`CLOUDCLI_HOME` opts into `<explicit>/assets`.
+ */
+export async function ensureImageAssetsDir(options: ImageAssetsRootsOptions = {}): Promise<string> {
+  const assetsDir = getImageAssetsWriteDir(options);
   await fs.mkdir(assetsDir, { recursive: true });
   return assetsDir;
 }
@@ -54,8 +64,11 @@ export async function ensureImageAssetsDir(): Promise<string> {
  * chat composer. The absolute path is what providers receive and what session
  * history carries back to the UI.
  */
-export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImageAsset[] {
-  const assetsDir = getGlobalImageAssetsDir();
+export function buildStoredImageRecords(
+  files: UploadedImageFile[],
+  options: ImageAssetsRootsOptions = {},
+): StoredImageAsset[] {
+  const assetsDir = getImageAssetsWriteDir(options);
   return files.map((file) => ({
     name: file.originalname,
     path: toPosixPath(path.join(assetsDir, file.filename)),
@@ -69,29 +82,41 @@ export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImage
  * assets route. The shared storage format intentionally matches image records
  * so one uploaded file can move through queueing and provider dispatch.
  */
-export function buildStoredAttachmentRecords(files: UploadedAttachmentFile[]): StoredImageAsset[] {
-  return buildStoredImageRecords(files);
+export function buildStoredAttachmentRecords(
+  files: UploadedAttachmentFile[],
+  options: ImageAssetsRootsOptions = {},
+): StoredImageAsset[] {
+  return buildStoredImageRecords(files, options);
 }
 
 /**
- * Resolves one asset filename to its absolute path inside the global assets
- * folder, or null when the name is empty, contains path separators/traversal,
- * or would escape the folder. This is the only lookup the serving route uses,
- * so nothing outside `~/.cloudcli/assets` can ever be read through it.
+ * Resolves one asset filename to its absolute path inside one store root, or
+ * null when the name is empty, contains path separators/traversal, or would
+ * escape that root. The same strict direct-child boundary is applied to every
+ * root, so a second store never widens the accepted name space.
  */
-export function resolveImageAssetFile(filename: string): string | null {
+export function resolveImageAssetFileInRoot(filename: string, root: string): string | null {
   const trimmed = typeof filename === 'string' ? filename.trim() : '';
   if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..')) {
     return null;
   }
 
-  const assetsDir = path.resolve(getGlobalImageAssetsDir());
+  const assetsDir = path.resolve(root);
   const resolved = path.resolve(assetsDir, trimmed);
   if (!resolved.startsWith(assetsDir + path.sep)) {
     return null;
   }
 
   return resolved;
+}
+
+/**
+ * Resolves one asset filename inside the legacy `~/.cloudcli/assets` folder.
+ * Existing callers and tests keep this single-root default; the dual-root
+ * serving path uses {@link findStoredAttachmentAsset}.
+ */
+export function resolveImageAssetFile(filename: string): string | null {
+  return resolveImageAssetFileInRoot(filename, getGlobalImageAssetsDir());
 }
 
 /**
@@ -103,19 +128,44 @@ export function resolveAttachmentAssetFile(filename: string): string | null {
 }
 
 /**
+ * Looks one attachment filename up across the dual read roots (new root
+ * first), returning the first existing absolute path or null. Each root gets
+ * the identical direct-child guard, so filenames cannot traverse either store.
+ */
+export async function findStoredAttachmentAsset(
+  filename: string,
+  options: { roots?: readonly string[] } = {},
+): Promise<string | null> {
+  const roots = options.roots ?? getImageAssetsReadDirs();
+  for (const root of roots) {
+    const resolved = resolveImageAssetFileInRoot(filename, root);
+    if (!resolved) {
+      continue;
+    }
+    try {
+      await fs.access(resolved);
+      return resolved;
+    } catch {
+      // Try the next root.
+    }
+  }
+  return null;
+}
+
+/**
  * Opens one stored chat asset for the assets route without exposing arbitrary
  * filesystem reads. The route translates the lookup status and streams the
  * returned direct-child file to the authenticated client.
  */
 export async function openStoredAttachmentAsset(filename: string) {
-  const resolved = resolveAttachmentAssetFile(filename);
-  if (!resolved) {
+  const roots = getImageAssetsReadDirs();
+  const hasValidName = roots.some((root) => resolveImageAssetFileInRoot(filename, root) !== null);
+  if (!hasValidName) {
     return { status: 'invalid' as const };
   }
 
-  try {
-    await fs.access(resolved);
-  } catch {
+  const resolved = await findStoredAttachmentAsset(filename, { roots });
+  if (!resolved) {
     return { status: 'missing' as const };
   }
 
