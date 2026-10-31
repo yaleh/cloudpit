@@ -450,6 +450,23 @@ async function queryCodex(
         continue;
       }
 
+      // Send the same normalized snapshot the history reader and the
+      // `/token-usage` endpoint read. The SDK's `turn.completed.usage` is only
+      // this turn's spend — it has no cumulative total and no window — so the
+      // authoritative source is the rollout's newest `token_count` row, which
+      // the CLI has written by the time the turn completes. If the file cannot
+      // be read yet, no frame is sent rather than publishing a fabricated
+      // all-zero or per-turn-as-cumulative budget.
+      //
+      // The read is awaited HERE, before the terminal frame below is normalized
+      // and sent: the session-host wrapper treats a terminal frame followed by a
+      // still-pending run promise as a held-open window (`lingering` → `released`
+      // on settle). A filesystem await between the two would misreport a finished
+      // turn as a held one, so the I/O must finish before the frame goes out.
+      const tokenBudget = event.type === 'turn.completed'
+        ? await readCodexSessionTokenUsage(capturedSessionId || sessionId || null)
+        : null;
+
       const transformed = transformCodexEvent(event);
       if (transformed.type === 'error' || transformed.itemType === 'error') {
         errorSurfaced = true;
@@ -474,18 +491,8 @@ async function queryCodex(
         });
       }
 
-      // Send the same normalized snapshot the history reader and the
-      // `/token-usage` endpoint read. The SDK's `turn.completed.usage` is only
-      // this turn's spend — it has no cumulative total and no window — so the
-      // authoritative source is the rollout's newest `token_count` row, which
-      // the CLI has written by the time the turn completes. If the file cannot
-      // be read yet, no frame is sent rather than publishing a fabricated
-      // all-zero or per-turn-as-cumulative budget.
-      if (event.type === 'turn.completed') {
-        const tokenBudget = await readCodexSessionTokenUsage(capturedSessionId || sessionId || null);
-        if (tokenBudget) {
-          sendMessage(ws, createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
-        }
+      if (tokenBudget) {
+        sendMessage(ws, createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
       }
     }
 
