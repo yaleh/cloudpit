@@ -1,7 +1,7 @@
 ---
 id: AC-448
 title: 品牌常量与 CLOUDPIT_* 回退：旧名单独设置仍生效，新名优先，默认行为不变
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-053
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-10-31T06:32:38.642Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: not-evaluated
   reason: no judge configured
