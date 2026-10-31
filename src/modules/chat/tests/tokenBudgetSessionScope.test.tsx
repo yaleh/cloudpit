@@ -66,3 +66,33 @@ test('ignores token budgets from other running sessions', () => {
 
   assert.equal(budgets.length, 0);
 });
+
+test('forwards a cumulative reading with its scope and observedAt intact', () => {
+  const { budgets, dispatch } = renderHandlers();
+
+  dispatch({
+    kind: 'status',
+    text: 'token_budget',
+    sessionId: 'viewed-session',
+    tokenBudget: {
+      used: 2_400,
+      total: 258_400,
+      usageScope: 'session-cumulative',
+      observedAt: '2026-10-30T10:00:00.000Z',
+      cumulative: { inputTokens: 2_000, outputTokens: 400, totalTokens: 2_400 },
+      lastRequest: { inputTokens: 700, outputTokens: 120, totalTokens: 820 },
+    },
+  } as unknown as ServerEvent);
+
+  assert.equal(budgets.length, 1);
+  // The realtime frame is passed through whole: the counter needs the scope,
+  // and the freshness check needs the reading's own timestamp.
+  assert.deepEqual(budgets[0], {
+    used: 2_400,
+    total: 258_400,
+    usageScope: 'session-cumulative',
+    observedAt: '2026-10-30T10:00:00.000Z',
+    cumulative: { inputTokens: 2_000, outputTokens: 400, totalTokens: 2_400 },
+    lastRequest: { inputTokens: 700, outputTokens: 120, totalTokens: 820 },
+  });
+});

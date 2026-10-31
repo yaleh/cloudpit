@@ -163,8 +163,166 @@ test('Codex token usage uses the latest token_count snapshot', async () => {
       total: 250_000,
       inputTokens: 40,
       outputTokens: 9,
+      cumulative: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
+      usageScope: 'session-cumulative',
       breakdown: { input: 40, output: 9 },
     });
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex token usage keeps cumulative spend and the latest request in separate scopes', async () => {
+  // Real rollout shape: the event carries both quantity sets plus the model's
+  // window. Cached input is a subset of input and reasoning output a subset of
+  // output, so the reading must expose them without adding them in again.
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-codex-shape-'));
+  const sessionFilePath = path.join(tempDirectory, 'rollout-provider-session.jsonl');
+
+  try {
+    await writeFile(sessionFilePath, [
+      JSON.stringify({
+        timestamp: '2026-10-30T12:00:00.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            total_token_usage: {
+              input_tokens: 1_200,
+              cached_input_tokens: 900,
+              output_tokens: 300,
+              reasoning_output_tokens: 120,
+              total_tokens: 1_500,
+            },
+            last_token_usage: {
+              input_tokens: 800,
+              cached_input_tokens: 600,
+              output_tokens: 90,
+              reasoning_output_tokens: 40,
+              total_tokens: 890,
+            },
+            model_context_window: 258_400,
+          },
+        },
+      }),
+    ].join('\n'));
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'codex',
+        jsonl_path: sessionFilePath,
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    // Cumulative is the legacy `used`; the latest request is never treated as
+    // the number of tokens used in the session, and neither is the window.
+    assert.equal(usage.used, 1_500);
+    assert.equal(usage.total, 258_400);
+    assert.deepEqual(usage.cumulative, {
+      inputTokens: 1_200,
+      outputTokens: 300,
+      cacheReadTokens: 900,
+      reasoningOutputTokens: 120,
+      totalTokens: 1_500,
+    });
+    assert.deepEqual(usage.lastRequest, {
+      inputTokens: 800,
+      outputTokens: 90,
+      cacheReadTokens: 600,
+      reasoningOutputTokens: 40,
+      totalTokens: 890,
+    });
+    assert.equal(usage.usageScope, 'session-cumulative');
+    assert.equal(usage.observedAt, '2026-10-30T12:00:00.000Z');
+    // Subsets are carried through unchanged, not folded into input/output.
+    assert.equal(usage.inputTokens, 1_200);
+    assert.equal(usage.outputTokens, 300);
+    assert.equal(usage.cacheReadTokens, 900);
+    assert.equal(usage.reasoningOutputTokens, 120);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex token usage keeps missing quantities unknown instead of reporting zero', async () => {
+  // A snapshot that reports only the cumulative total: the absent per-kind
+  // counts must stay undefined, while an explicitly reported zero survives.
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-codex-missing-'));
+  const sessionFilePath = path.join(tempDirectory, 'rollout-provider-session.jsonl');
+
+  try {
+    await writeFile(sessionFilePath, [
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            total_token_usage: {
+              input_tokens: 10,
+              output_tokens: 0,
+              total_tokens: 10,
+            },
+          },
+        },
+      }),
+    ].join('\n'));
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'codex',
+        jsonl_path: sessionFilePath,
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    // Absent detail fields stay unknown; assert this before deepEqual narrows
+    // the cumulative block to the literal shape it was compared against.
+    assert.equal(usage.cumulative?.cacheReadTokens, undefined);
+    assert.equal(usage.cumulative?.reasoningOutputTokens, undefined);
+    assert.deepEqual(usage.cumulative, { inputTokens: 10, outputTokens: 0, totalTokens: 10 });
+    // No last request and no window in this event: neither is invented.
+    assert.equal(usage.lastRequest, undefined);
+    assert.equal(usage.total, undefined);
+    // Explicit zero is preserved and must not read as "unknown".
+    assert.equal(usage.cumulative?.outputTokens, 0);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex token usage skips a blank info row and a partially written tail line', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-codex-tail-'));
+  const sessionFilePath = path.join(tempDirectory, 'rollout-provider-session.jsonl');
+
+  try {
+    await writeFile(sessionFilePath, [
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            total_token_usage: { input_tokens: 70, output_tokens: 30, total_tokens: 100 },
+            model_context_window: 258_400,
+          },
+        },
+      }),
+      // Codex emits token_count rows with no info; they must not end the scan.
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: null } }),
+      '{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":',
+    ].join('\n'));
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'codex',
+        jsonl_path: sessionFilePath,
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.equal(usage.used, 100);
+    assert.equal(usage.total, 258_400);
+    assert.deepEqual(usage.cumulative, { inputTokens: 70, outputTokens: 30, totalTokens: 100 });
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
@@ -391,6 +549,8 @@ test('Codex token usage reads only the tail of a large rollout', async () => {
       total: 150_000,
       inputTokens: 21,
       outputTokens: 8,
+      cumulative: { inputTokens: 21, outputTokens: 8, totalTokens: 29 },
+      usageScope: 'session-cumulative',
       breakdown: { input: 21, output: 8 },
     });
   } finally {

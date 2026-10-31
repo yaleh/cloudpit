@@ -1,13 +1,16 @@
 ---
 id: gap-goal-054-goal-preview-ui-dod-ac
 title: GOAL-054 退出条件「UI 预览」无在域 AC 覆盖：提议新增 goal-preview UI DoD AC（建议 AC-456）
-status: needs-human
+status: ready
 labels:
   - gap
 parent: null
 children: []
 extra:
   schema: execution
+depends_on:
+  - gap-cloudpit-visible-identity-flip
+goal_ac: AC-456
 ---
 ## Proposal
 
@@ -103,3 +106,22 @@ GOAL-054 `## 退出条件` 第 3 条，逐字为：
 
 - tasks/gap-goal-054-goal-preview-ui-dod-ac.md
 - e2e/cloudpit-brand-preview.spec.ts (new, AC-456 criterion)
+
+## Resolution
+
+**人 yale 裁定（2026-10-31，经当前会话下达）：采纳提案 (a)，为 GOAL-054 新增 AC-456。**
+
+### 裁定内容
+
+1. **采纳 (a)**：退出条件第 3 条的「UI 预览」与 `## 范围` 的「goal preview 上的 UI DoD」由一条新的在域 AC 承载，编号 **AC-456**（AC-451…AC-454 属 GOAL-054，AC-455 属 GOAL-053）。记录已由被授权的 goal 写入路径创建（`goals/AC-456-*.md`，status=active、phase=pre-merge、`timeoutMs=300000`，commit `a78fcdb15` 补时限）。本任务从「只提议」转为该 AC 的实现承载：新增 `e2e/cloudpit-brand-preview.spec.ts`；执行者仍**不改** `goals/*.md`、不改 AC-451/452/453 的判据文件。
+2. **判据与时限**：criterion = `npx playwright test e2e/cloudpit-brand-preview.spec.ts -g "AC-456"`。2026-10-31 在 `goal-GOAL-054` worktree 实测同类 e2e 冷启动 16s（config-eval 0.2s、webServer 3.5s、2 个用例 15.1s）；`timeoutMs=300000` 余量充分。执行者在 DoD 里贴出**本 spec** 的实测耗时与 1.25× 计算；若整条命令实测超过 240s，按 needs-human 交回，执行者不改 `goals/*.md`。
+3. **立案文本修正（AC-456 入册前复核，优先于 Proposal 的对应措辞）**：
+   - About 面**不存在**「Based on CloudCLI UI」归属句（`grep -rn 'Based on CloudCLI' src/` 零命中）。AC-456 的 expect 已改为断言 About 产品名为 `Cloudpit`、上游 fork 链接 `https://github.com/siteboon/claudecodeui` 仍在、AGPL-3.0 行仍在；本任务的 AC2 按此口径执行，不得断言那句不存在的文案。
+   - About 里的 `CloudCLI Hosted` / `CloudCLI Pro` 是 allowlist 允许的外部服务文案，**不能**用「About 出现 CloudCLI 即红」的整面禁令。「无未被 allowlist 的 CloudCLI」只断言侧边栏/认证面，并按 `scripts/brand-allowlist-check.mjs` 的规则表判定。
+4. **依赖与承载**：顶层 `goal_ac` 置为 `AC-456`，避免 goal driver 按 `goal_ac` 统计承载者时读作「无承载者」再立 carrier 任务；`depends_on` 置为 `gap-cloudpit-visible-identity-flip`（已 done 并落在 `goal/GOAL-054`，浏览器读数依赖其品牌翻转）。
+5. **anti-drift 口径修正**：本任务是 branch-mode goal 的子任务，merge target 是 `goal/GOAL-054` 而不是 `develop`。AC5/DoD 里的 `git diff --name-only develop...HEAD` 按 `git diff --name-only goal/GOAL-054...HEAD` 执行；fan-in 的机械 anti-drift 也以 `--merge-target goal/GOAL-054` 为准。
+6. **状态路径**：裁定已下达，本任务不再等人；`needs-human → todo → ready`，由 worker 在 `goal/GOAL-054` 上实现 spec 并按其 AC/DoD 验收。
+
+### 边界
+
+本记录只登记裁定与修正，不改 `goals/*.md`、不改 AC-451/452/453 的判据文件、不改生产默认值；实现只改 `## Touches` 声明的文件。
