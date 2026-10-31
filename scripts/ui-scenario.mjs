@@ -492,6 +492,13 @@ function expectationFailures(expect, reading) {
         if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
         break;
       }
+      case 'route': {
+        // The pathname the app has navigated to. An opener waits for SOME session route, but a
+        // scenario switching between two sessions has to name WHICH one it expects.
+        const actual = typeof reading.route === 'string' ? reading.route : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       case 'sidebarMounted': {
         const actual = reading.sidebar?.mounted === true;
         if (actual !== expected) fail(key, expected, actual);
@@ -727,7 +734,18 @@ async function selectProjectSession(page, target) {
   }
 
   await projectRow.click();
-  const sessionRow = await waitForClickTarget(page, target.session, 10_000);
+  let sessionRow = await waitForClickTarget(page, target.session, 10_000);
+  if (sessionRow === null) {
+    // A project that is already expanded — the selected project auto-expands on
+    // mount — COLLAPSES on the row click, because the row click is the same
+    // toggle a person uses. Pressing it once more re-opens the project, which is
+    // the second click a person makes when the first one hides what they wanted.
+    const projectRowAgain = await waitForClickTarget(page, target.project, 4_000);
+    if (projectRowAgain !== null) {
+      await projectRowAgain.click();
+      sessionRow = await waitForClickTarget(page, target.session, 10_000);
+    }
+  }
   if (sessionRow === null) {
     throw new Error(`the session "${target.session}" never appeared under the project "${target.project}"`);
   }

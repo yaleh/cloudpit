@@ -380,6 +380,29 @@ function findProject(projects, projectPath) {
   return projects.find((project) => project.path === projectPath || project.fullPath === projectPath) ?? null;
 }
 
+/**
+ * Marks the isolated user onboarded.
+ *
+ * A fresh database registers a user who has not finished onboarding, and the
+ * client gates the whole app behind the setup wizard — the sidebar never mounts,
+ * so every page reading would see the wizard instead of the list. The mark is a
+ * user setting in the same database, so it survives the restarts below.
+ *
+ * @param {string} baseUrl
+ * @param {string} token
+ */
+async function completeOnboarding(baseUrl, token) {
+  const response = await fetch(`${baseUrl}/api/user/complete-onboarding`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`POST /api/user/complete-onboarding -> ${response.status}`);
+  }
+  const body = /** @type {any} */ (await response.json());
+  assertCheck('the isolated user is onboarded, so the page legs see the app and not the wizard', body?.success === true, body);
+}
+
 /** The API's own reading of one session: lastActivity is the column the sidebar formats. */
 /**
  * @param {any[]} projects
@@ -505,7 +528,16 @@ async function driveBrowser(baseUrl, token, projectName) {
     await projectRow.waitFor({ state: 'visible', timeout: 30_000 });
     await projectRow.click();
     const targetRow = page.locator(`#sidebar-panel [data-session-id="${THREAD_TARGET}"]`).first();
-    await targetRow.waitFor({ state: 'visible', timeout: 30_000 });
+    // The selected project auto-expands on mount, and the project row click TOGGLES — so the
+    // first click can collapse the list that is already open. A second click re-opens it, which
+    // is what a person does when the first click hides what they wanted.
+    const visibleAfterFirstClick = await targetRow
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true, () => false);
+    if (!visibleAfterFirstClick) {
+      await projectRow.click();
+      await targetRow.waitFor({ state: 'visible', timeout: 30_000 });
+    }
 
     let rows = await readSidebarRows(page);
     assertCheck(
@@ -638,6 +670,7 @@ async function main() {
       { expected: INITIAL_ACTIVITY, actual: initialSession.lastActivity },
     );
     assertCheck('first start indexes both threads', readRowsFromDatabase(dbPath).length === 2);
+    await completeOnboarding(apiBaseUrl, apiToken);
 
     // ---- downtime: the server is stopped, then the rollout grows ----
     stopIsolated(runtimeDir, homeDir);
