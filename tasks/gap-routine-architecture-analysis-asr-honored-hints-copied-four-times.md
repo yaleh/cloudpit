@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-asr-honored-hints-copied-four-times
 title: "architecture-analysis: archguard scope `shared` (76d67c2a) reports group
   c4ddbc765577af76: 4 byte-identical `honoredHints` bodies (10 statements / 137
   tokens, 24 savable lines) tha"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
