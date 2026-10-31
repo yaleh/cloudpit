@@ -54,6 +54,14 @@ function TokenUsageSummary({ usage, onClick, variant = 'button' }: TokenUsageSum
   const inputTokens = readUsageNumber(usage?.inputTokens ?? breakdown?.input);
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
   const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
+  // A cumulative provider reports the session's whole spend in `used`; it is
+  // not a context-window reading. Say so next to the number instead of letting
+  // the compact counter imply the value is current context occupancy.
+  const isCumulativeScope = usage?.usageScope === 'session-cumulative';
+  const scopeLabel = isCumulativeScope ? 'session total' : null;
+  const title = isCumulativeScope
+    ? `${usedTokens.toLocaleString()} tokens used this session (cumulative total)`
+    : t('chat:misc.tokensUsed', { count: usedTokens });
 
   if (variant === 'inline') {
     // The row around it is the control, so this is a plain reading: no nested
@@ -61,10 +69,11 @@ function TokenUsageSummary({ usage, onClick, variant = 'button' }: TokenUsageSum
     return (
       <span
         className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-        title={t('chat:misc.tokensUsed', { count: usedTokens })}
+        title={title}
       >
         <ActivityIcon className="h-3.5 w-3.5" />
         <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
+        {scopeLabel && <span className="text-muted-foreground/70">{scopeLabel}</span>}
       </span>
     );
   }
@@ -74,16 +83,20 @@ function TokenUsageSummary({ usage, onClick, variant = 'button' }: TokenUsageSum
       type="button"
       onClick={onClick}
       className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:gap-2 sm:px-2.5"
-      title={t('chat:misc.tokensUsed', { count: usedTokens })}
+      title={title}
       aria-label={t('chat:misc.showTokenUsage')}
     >
       <span className="grid h-5 w-5 place-items-center rounded-md bg-primary/10 text-primary">
         <ActivityIcon className="h-3.5 w-3.5" />
       </span>
       <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
-      <span className="hidden text-muted-foreground/70 sm:inline">
-        {t('chat:misc.tokensLabel', { count: usedTokens })}
-      </span>
+      {scopeLabel ? (
+        <span className="text-muted-foreground/70">{scopeLabel}</span>
+      ) : (
+        <span className="hidden text-muted-foreground/70 sm:inline">
+          {t('chat:misc.tokensLabel', { count: usedTokens })}
+        </span>
+      )}
     </button>
   );
 }

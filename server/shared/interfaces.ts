@@ -173,6 +173,30 @@ export type ProviderTokenUsageFileTail = {
 };
 
 /**
+ * One provider-reported usage quantity set — either the session's cumulative
+ * totals or the latest single request's.
+ *
+ * Every field is optional because "the source did not report this quantity" and
+ * "the source reported zero" are different answers: an absent field must stay
+ * absent so a UI can omit the row instead of printing a fabricated zero.
+ *
+ * `cacheReadTokens` is a SUBSET of `inputTokens`, and `reasoningOutputTokens` is
+ * a SUBSET of `outputTokens`. They are detail reads, never extra addends:
+ * `inputTokens + outputTokens` already covers them for Codex, so a consumer that
+ * adds them again double-counts.
+ */
+export type ProviderTokenUsageCounts = {
+  inputTokens?: number;
+  outputTokens?: number;
+  /** Cached input tokens; already contained in `inputTokens`. */
+  cacheReadTokens?: number;
+  /** Reasoning tokens; already contained in `outputTokens`. */
+  reasoningOutputTokens?: number;
+  /** The source's own total when it reported one, else absent (never re-derived here). */
+  totalTokens?: number;
+};
+
+/**
  * I/O the reader may use, injected so the service's tests keep their isolated
  * filesystem and home directory.
  */
@@ -189,13 +213,38 @@ export type ProviderTokenUsageDependencies = {
 
 /** The usage reading every provider facet answers with. */
 export type ProviderTokenUsageReading = {
+  /**
+   * Legacy single-number reading. For a context-scoped provider (Claude) it is
+   * the newest request's input+output; for Codex it is the session's cumulative
+   * total. `usageScope` tells the two apart — do not compare it to `total` as a
+   * fraction without reading that marker.
+   */
   used: number;
+  /** Window capacity in tokens (Claude context window, Codex `model_context_window`). */
   total?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   cacheTokens?: number;
+  /** Reasoning tokens, a subset of `outputTokens` when the provider reports them. */
+  reasoningOutputTokens?: number;
+  /** The session's cumulative usage, when the provider reports such a snapshot. */
+  cumulative?: ProviderTokenUsageCounts;
+  /** The newest single request's usage, for context-occupancy approximations. */
+  lastRequest?: ProviderTokenUsageCounts;
+  /**
+   * What `used` measures. `context` (or absent, for backward compatibility) is
+   * the newest request's prompt; `session-cumulative` is the whole session and
+   * must never be divided by `total` to produce an occupancy reading.
+   */
+  usageScope?: 'context' | 'session-cumulative';
+  /**
+   * Provider timestamp of the snapshot this reading came from (ISO 8601). Two
+   * writers can race — a history page and a live frame — and a timestamp is what
+   * lets the client keep the newer one instead of adopting whichever arrived last.
+   */
+  observedAt?: string;
   breakdown: {
     input: number;
     output: number;

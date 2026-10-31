@@ -18,6 +18,7 @@ export { default as ActivityIndicator } from '@/modules/chat-composer/composer/A
 export { default as ChatComposer } from '@/modules/chat-composer/composer/ChatComposer';
 export { default as ComposerModelMenu } from '@/modules/chat-composer/composer/ComposerModelMenu';
 export { default as PermissionRequestsBanner } from '@/modules/chat-composer/composer/PermissionRequestsBanner';
+export { default as TokenUsageSummary } from '@/modules/chat-composer/composer/TokenUsageSummary';
 export { default as VoiceClipButton } from '@/modules/chat-composer/composer/VoiceClipButton';
 export { default as VoiceInputButton } from '@/modules/chat-composer/composer/VoiceInputButton';
 export { readAllInputHistory } from '@/modules/chat-composer/hooks/useInputHistory';

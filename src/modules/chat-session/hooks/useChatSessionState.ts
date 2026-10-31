@@ -7,14 +7,14 @@ import type { SessionStore } from '@/modules/chat-session/hooks/useSessionStore'
 import { subscribeTargetFor } from '@/modules/chat-session/utils/session/replayCursor';
 import { OLDER_MESSAGES_PAGE_SIZE, planOlderPagePrefetch, SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat-session/utils/session/sessionMessagePagination';
 import { createMessageHistoryRefreshCoordinator } from '@/modules/chat-session/utils/session/messageHistoryRefreshCoordinator';
+import { pickFresherTokenUsage } from '@/modules/chat-session/utils/session/tokenUsageFreshness';
 
 import { createCachedDiffCalculator } from '@/modules/chat-transcript';
 import { MIN_SNIPPET_LENGTH, findSearchTargetIndex, normalizeSearchSnippet, resolveSearchWindowSize } from '@/modules/chat-transcript';
 import { createJumpAnchorLock } from '@/modules/chat-transcript';
 import { messageAnchorId } from '@/modules/chat-transcript';
 import { collapseMonitorEventRows, normalizedToChatMessages } from '@/modules/chat-session/hooks/useChatMessages';
-import type { JumpAnchorLock } from '@/modules/chat-transcript';
-import type { SearchTarget } from '@/modules/chat-transcript';
+import type { JumpAnchorLock, SearchTarget } from '@/modules/chat-transcript';
 import { readSelectedProvider } from '@/shared/selectedProvider';
 const INITIAL_VISIBLE_MESSAGES = 100;
 
@@ -638,7 +638,7 @@ export function useChatSessionState({
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
-        setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+        setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
       }
     }
     return !result.deferred;
@@ -1302,7 +1302,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+          setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
         }
 
         if (prependedCount === 0) {
@@ -1687,7 +1687,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+          setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
         }
       }
       setIsLoadingSessionMessages(false);
@@ -1952,7 +1952,7 @@ export function useChatSessionState({
         const response = await api.providers.sessionTokenUsage(selectedSession.id);
         if (response.ok) {
           const payload = await response.json();
-          setTokenBudget(payload.data ?? null);
+          setTokenBudget((current) => pickFresherTokenUsage(current, (payload.data as Record<string, unknown> | null) ?? null));
         } else {
           setTokenBudget(null);
         }

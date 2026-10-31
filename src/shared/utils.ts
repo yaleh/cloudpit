@@ -328,6 +328,33 @@ export function voiceClientAssetPaths(baseUrl: string | undefined): VoiceClientA
 
 // ---------------------------
 
+//----------------- PROVIDER DISPLAY ------------
+
+/** Display names for the provider ids the command surfaces can show. */
+const PROVIDER_DISPLAY_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  cursor: 'Cursor',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+};
+
+/**
+ * Reads a provider id as the label a person recognizes.
+ *
+ * Used by `CommandResultModal` and its `/cost` body. An unknown id renders as
+ * itself (a new provider is not hidden behind "Unknown"), and a missing id
+ * renders the caller's fallback — the same value the old local helper produced.
+ */
+export function getProviderLabel(provider: string | undefined, fallback = 'Unknown'): string {
+  if (!provider) {
+    return fallback;
+  }
+
+  return PROVIDER_DISPLAY_LABELS[provider] || provider;
+}
+
+// ---------------------------
+
 //----------------- TIMESTAMP FORMATTING ------------
 
 /**

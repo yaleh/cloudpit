@@ -13,3 +13,4 @@ export * from '@/modules/chat-session/utils/session/sendDelivery';
 export * from '@/modules/chat-session/utils/session/sessionCreation';
 export * from '@/modules/chat-session/utils/session/sessionMessagePagination';
 export * from '@/modules/chat-session/utils/session/sessionMessageReconciliation';
+export * from '@/modules/chat-session/utils/session/tokenUsageFreshness';

@@ -92,3 +92,122 @@ describe('token usage on a history page', () => {
     });
   });
 });
+
+describe('token usage ordering', () => {
+  it('keeps a newer realtime reading when an older history page lands after it', async () => {
+    sessionMessages
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            messages: [message],
+            total: 1,
+            hasMore: false,
+            tokenUsage: { used: 2_400, observedAt: '2026-10-30T10:00:00.000Z' },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            messages: [message],
+            total: 1,
+            hasMore: false,
+            tokenUsage: { used: 1_000, observedAt: '2026-10-30T09:00:00.000Z' },
+          },
+        }),
+      });
+
+    const { result } = await loadStore();
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+
+    assert.deepEqual(result.current.getSessionSlot('session-1')?.tokenUsage, {
+      used: 2_400,
+      observedAt: '2026-10-30T10:00:00.000Z',
+    });
+  });
+
+  it('adopts a history reading newer than the one already held', async () => {
+    sessionMessages
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            messages: [message],
+            total: 1,
+            hasMore: false,
+            tokenUsage: { used: 1_000, observedAt: '2026-10-30T09:00:00.000Z' },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            messages: [message],
+            total: 1,
+            hasMore: false,
+            tokenUsage: { used: 2_400, observedAt: '2026-10-30T10:00:00.000Z' },
+          },
+        }),
+      });
+
+    const { result } = await loadStore();
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+
+    assert.deepEqual(result.current.getSessionSlot('session-1')?.tokenUsage, {
+      used: 2_400,
+      observedAt: '2026-10-30T10:00:00.000Z',
+    });
+  });
+
+  it('keeps last-writer-wins for readings that carry no timestamp', async () => {
+    sessionMessages
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { messages: [message], total: 1, hasMore: false, tokenUsage: { used: 1 } },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { messages: [message], total: 1, hasMore: false, tokenUsage: { used: 2 } },
+        }),
+      });
+
+    const { result } = await loadStore();
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 20, offset: 0 });
+    });
+
+    assert.deepEqual(result.current.getSessionSlot('session-1')?.tokenUsage, { used: 2 });
+  });
+
+  it('never lets an untimestamped reading displace a timestamped one', async () => {
+    const { pickFresherTokenUsage } = await import('@/modules/chat-session');
+    const timed: Record<string, unknown> = { used: 2_400, observedAt: '2026-10-30T10:00:00.000Z' };
+
+    // Unparseable or absent timestamps cannot prove the incoming value is newer.
+    assert.equal(pickFresherTokenUsage<Record<string, unknown>>(timed, { used: 1_000 }), timed);
+    assert.equal(pickFresherTokenUsage<Record<string, unknown>>(timed, { used: 1_000, observedAt: 'not-a-date' }), timed);
+    // A timestamped reading always wins over an untimestamped current value.
+    assert.deepEqual(pickFresherTokenUsage<Record<string, unknown>>({ used: 1_000 }, timed), timed);
+    // Nothing incoming means nothing to replace.
+    assert.equal(pickFresherTokenUsage<Record<string, unknown> | undefined>(timed, undefined), timed);
+  });
+});

@@ -11,10 +11,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { api } from '@/shared/api';
 import type { CommandLifecycleState, DeliveryView, LLMProvider, NormalizedMessage, SessionMessagesQuery, SessionTurnOutline } from '@/shared/types';
-import { createLiveRowId, isLiveRowId } from '@/modules/chat-transcript';
-import { messageAnchorId } from '@/modules/chat-transcript';
+import { createLiveRowId, isLiveRowId, messageAnchorId } from '@/modules/chat-transcript';
 import { removeOptimisticUserEchoes } from '@/modules/chat-session/utils/session/sessionMessageReconciliation';
 import { hasReachedCachedTailTimeBoundary, mergeLatestServerPage, mergeOlderServerPage, messagesRepresentSamePersistedRow, planLatestPageBridge, resolveLatestPagePagination, SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat-session/utils/session/sessionMessagePagination';
+import { pickFresherTokenUsage } from '@/modules/chat-session/utils/session/tokenUsageFreshness';
 
 import type { SessionMessagesRequestOptions } from '@/modules/chat-session/utils/session/sessionMessagePagination';
 
@@ -1403,12 +1403,12 @@ async function refreshLatestSlotFromServer(
   }
 
   let changed = false;
-  if (
-    latestPage.tokenUsage !== undefined
-    && !hasEquivalentTokenUsage(latestPage.tokenUsage, slot.tokenUsage)
-  ) {
-    slot.tokenUsage = latestPage.tokenUsage;
-    changed = true;
+  if (latestPage.tokenUsage !== undefined) {
+    const nextTokenUsage = pickFresherTokenUsage(slot.tokenUsage, latestPage.tokenUsage);
+    if (!hasEquivalentTokenUsage(nextTokenUsage, slot.tokenUsage)) {
+      slot.tokenUsage = nextTokenUsage;
+      changed = true;
+    }
   }
 
   if (!nextServerMessages) {
@@ -1535,7 +1535,7 @@ export function useSessionStore() {
         ));
         recomputeMergedIfNeeded(slot);
         if (data.tokenUsage !== undefined) {
-          slot.tokenUsage = data.tokenUsage;
+          slot.tokenUsage = pickFresherTokenUsage(slot.tokenUsage, data.tokenUsage);
         }
 
         notify(sessionId);
@@ -1608,7 +1608,7 @@ export function useSessionStore() {
           slot.anchorIndex = clampIndex(slot.anchorIndex, slot.startIndex, slot.endIndex);
           prependedCount = olderMerge.prependedCount;
           if (data.tokenUsage !== undefined) {
-            slot.tokenUsage = data.tokenUsage;
+            slot.tokenUsage = pickFresherTokenUsage(slot.tokenUsage, data.tokenUsage);
           }
           recomputeMergedIfNeeded(slot);
           changed = true;
@@ -2229,7 +2229,7 @@ export function useSessionStore() {
         slot.anchorIndex = Math.max(slot.startIndex, slot.endIndex - 1);
         slot.fetchedAt = Date.now();
         if (data.tokenUsage !== undefined) {
-          slot.tokenUsage = data.tokenUsage;
+          slot.tokenUsage = pickFresherTokenUsage(slot.tokenUsage, data.tokenUsage);
         }
         ({
           serverMessages: slot.serverMessages,

@@ -185,3 +185,114 @@ test('cost command still reports usage when the ai-title reader throws', async (
   assert.equal(data.model, 'default');
   assert.equal(Object.prototype.hasOwnProperty.call(data, 'aiTitle'), false);
 });
+
+test('cost command groups a cumulative Codex reading without deriving a context ratio', async () => {
+  const tokenUsage = {
+    used: 2_400,
+    total: 258_400,
+    inputTokens: 2_000,
+    outputTokens: 400,
+    cacheReadTokens: 1_500,
+    reasoningOutputTokens: 150,
+    usageScope: 'session-cumulative',
+    observedAt: '2026-10-30T09:30:00.000Z',
+    cumulative: {
+      inputTokens: 2_000,
+      outputTokens: 400,
+      cacheReadTokens: 1_500,
+      reasoningOutputTokens: 150,
+      totalTokens: 2_400,
+    },
+    lastRequest: {
+      inputTokens: 700,
+      outputTokens: 120,
+      cacheReadTokens: 500,
+      reasoningOutputTokens: 60,
+      totalTokens: 820,
+    },
+  };
+
+  const result = await executeCommand('/cost', { provider: 'codex', sessionId: 'session-1', tokenUsage });
+  const data = result.data as Record<string, any>;
+
+  assert.deepEqual(data.tokenUsage, {
+    used: 2_400,
+    total: 258_400,
+    scope: 'session-cumulative',
+    cumulative: {
+      inputTokens: 2_000,
+      outputTokens: 400,
+      cacheReadTokens: 1_500,
+      reasoningOutputTokens: 150,
+      totalTokens: 2_400,
+    },
+    lastRequest: {
+      inputTokens: 700,
+      outputTokens: 120,
+      cacheReadTokens: 500,
+      reasoningOutputTokens: 60,
+      totalTokens: 820,
+    },
+    observedAt: '2026-10-30T09:30:00.000Z',
+  });
+  // Detail reads stay detail: no second total is produced by adding them up.
+  assert.deepEqual(data.tokenBreakdown, {
+    input: 2_000,
+    output: 400,
+    cacheRead: 1_500,
+    reasoningOutput: 150,
+  });
+  // The window is an independent fact, never a denominator applied to `used`.
+  assert.equal(data.tokenUsage.total, 258_400);
+  assert.notEqual(data.tokenUsage.total, data.tokenUsage.used);
+  assert.equal(Object.keys(data.tokenUsage).some((key) => /percent|ratio|fraction/i.test(key)), false);
+});
+
+test('cost command omits unreported Codex quantities instead of reporting zero', async () => {
+  const result = await executeCommand('/cost', {
+    provider: 'codex',
+    sessionId: 'session-1',
+    tokenUsage: {
+      used: 10,
+      usageScope: 'session-cumulative',
+      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+    },
+  });
+  const data = result.data as Record<string, any>;
+
+  assert.equal(data.tokenUsage.total, undefined);
+  assert.equal(data.tokenUsage.lastRequest, undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.tokenUsage, 'observedAt'), false);
+  // The explicit zero survives, and the absent cache/reasoning reads do not
+  // turn into zeros.
+  assert.equal(data.tokenUsage.cumulative.outputTokens, 0);
+  // Absent detail stays absent; assert before deepEqual narrows the block.
+  assert.equal(data.tokenBreakdown.cacheRead, undefined);
+  assert.equal(data.tokenBreakdown.reasoningOutput, undefined);
+  assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
+});
+
+test('cost command keeps the legacy Claude reading and arithmetic', async () => {
+  const result = await executeCommand('/cost', {
+    provider: 'claude',
+    sessionId: 'session-1',
+    tokenUsage: {
+      used: 120,
+      total: 200_000,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 10,
+      cacheCreationTokens: 5,
+    },
+  });
+  const data = result.data as Record<string, any>;
+
+  // No structured fields are grafted onto a context-style reading. Assert
+  // absence before deepEqual narrows the object to the literal it compared.
+  assert.equal(data.tokenUsage.scope, undefined);
+  assert.equal(data.tokenUsage.cumulative, undefined);
+  assert.equal(data.tokenUsage.lastRequest, undefined);
+  assert.deepEqual(data.tokenUsage, { used: 120, total: 200_000 });
+  assert.deepEqual(data.tokenBreakdown, { input: 100, output: 20 });
+  assert.equal(data.provider, 'claude');
+});

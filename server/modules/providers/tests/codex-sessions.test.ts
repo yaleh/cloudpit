@@ -7,6 +7,7 @@ import test from 'node:test';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider, parseCodexExecScript, readCodexMemoryCitations } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { createProviderTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -680,6 +681,78 @@ test('a Codex turn anchors its last assistant answer with the turn id', { concur
       const users = history.messages.filter((message) => message.role === 'user');
       assert.equal(users.length, 2);
       assert.equal(users.some((message) => message.forkAnchorId), false, 'user prompts never carry a fork anchor');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history and the token-usage endpoint describe the same snapshot', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-token-usage-consistency-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const providerSessionId = 'codex-usage-1';
+    const transcriptPath = await writeCodexTranscript(tempRoot, providerSessionId, workspacePath);
+    const info = {
+      total_token_usage: {
+        input_tokens: 2_000,
+        cached_input_tokens: 1_500,
+        output_tokens: 400,
+        reasoning_output_tokens: 150,
+        total_tokens: 2_400,
+      },
+      last_token_usage: {
+        input_tokens: 700,
+        cached_input_tokens: 500,
+        output_tokens: 120,
+        reasoning_output_tokens: 60,
+        total_tokens: 820,
+      },
+      model_context_window: 258_400,
+    };
+    await writeFile(transcriptPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        timestamp: '2026-10-30T09:30:00.000Z',
+        type: 'event_msg',
+        payload: { type: 'token_count', info },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-usage-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-usage-1', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-usage-1');
+      const endpointReading = await createProviderTokenUsageService().getSessionTokenUsage('app-usage-1');
+
+      // The realtime path reads the same normalizer from the same rollout, so a
+      // matching history + endpoint pair is the observable half of "all three
+      // surfaces agree". Assert the reading's shape here, not just equality.
+      assert.deepEqual(history.tokenUsage, endpointReading);
+      assert.equal(endpointReading.usageScope, 'session-cumulative');
+      assert.equal(endpointReading.used, 2_400);
+      assert.equal(endpointReading.total, 258_400);
+      assert.deepEqual(endpointReading.cumulative, {
+        inputTokens: 2_000,
+        outputTokens: 400,
+        cacheReadTokens: 1_500,
+        reasoningOutputTokens: 150,
+        totalTokens: 2_400,
+      });
+      assert.deepEqual(endpointReading.lastRequest, {
+        inputTokens: 700,
+        outputTokens: 120,
+        cacheReadTokens: 500,
+        reasoningOutputTokens: 60,
+        totalTokens: 820,
+      });
+      assert.equal(endpointReading.observedAt, '2026-10-30T09:30:00.000Z');
     });
   } finally {
     restoreHomeDir();

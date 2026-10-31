@@ -22,6 +22,7 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
+import { readCodexSessionTokenUsage } from '@/modules/providers/list/codex/codex-token-usage-files.js';
 import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
 
@@ -121,34 +122,6 @@ const CODEX_IMAGE_ONLY_PROMPT = 'Please analyze the attached image(s).';
  * user waits on — a shell command's output, an MCP call, and the running plan.
  */
 const PROGRESSIVE_CODEX_ITEM_TYPES = new Set(['command_execution', 'mcp_tool_call', 'todo_list']);
-
-function readUsageNumber(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function extractCodexTokenBudget(event: AnyRecord) {
-  const info = event?.info || event?.payload?.info || event?.usage?.info;
-  const usage = info?.total_token_usage || event?.usage?.total_token_usage || event?.usage;
-  if (!usage || typeof usage !== 'object') {
-    return null;
-  }
-
-  const inputTokens = readUsageNumber(usage.input_tokens);
-  const outputTokens = readUsageNumber(usage.output_tokens);
-  const used = readUsageNumber(usage.total_tokens) || inputTokens + outputTokens;
-
-  return {
-    used,
-    total: readUsageNumber(info?.model_context_window || event?.usage?.model_context_window) || 200000,
-    inputTokens,
-    outputTokens,
-    breakdown: {
-      input: inputTokens,
-      output: outputTokens,
-    },
-  };
-}
 
 /**
  * Transform Codex SDK event to WebSocket message format
@@ -501,9 +474,15 @@ async function queryCodex(
         });
       }
 
-      // Extract and send token usage if available (normalized to match Claude format)
+      // Send the same normalized snapshot the history reader and the
+      // `/token-usage` endpoint read. The SDK's `turn.completed.usage` is only
+      // this turn's spend — it has no cumulative total and no window — so the
+      // authoritative source is the rollout's newest `token_count` row, which
+      // the CLI has written by the time the turn completes. If the file cannot
+      // be read yet, no frame is sent rather than publishing a fabricated
+      // all-zero or per-turn-as-cumulative budget.
       if (event.type === 'turn.completed') {
-        const tokenBudget = extractCodexTokenBudget(event);
+        const tokenBudget = await readCodexSessionTokenUsage(capturedSessionId || sessionId || null);
         if (tokenBudget) {
           sendMessage(ws, createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
         }

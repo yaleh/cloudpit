@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 
 import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from '@/shared/ui';
+import { getProviderLabel } from '@/shared/utils';
+import { CostContent } from '@/modules/chat-support/modals/CostContent';
 import type {
   LLMProvider,
   ProviderModelActions,
@@ -52,13 +54,6 @@ type CommandEntry = {
   namespace?: string;
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-  opencode: 'OpenCode',
-};
-
 const FALLBACK_COMMANDS: CommandEntry[] = [
   { name: '/models', descriptionKey: 'chat:misc.fallbackCommands.models' },
   { name: '/cost', descriptionKey: 'chat:misc.fallbackCommands.cost' },
@@ -67,21 +62,6 @@ const FALLBACK_COMMANDS: CommandEntry[] = [
   { name: '/config', descriptionKey: 'chat:misc.fallbackCommands.config' },
   { name: '/help', descriptionKey: 'chat:misc.fallbackCommands.help' },
 ];
-
-const getProviderLabel = (provider: string | undefined, fallback = 'Unknown') => {
-  if (!provider) {
-    return fallback;
-  }
-
-  return PROVIDER_LABELS[provider] || provider;
-};
-
-const formatNumber = (value: number) => {
-  if (!Number.isFinite(value)) {
-    return '0';
-  }
-  return value.toLocaleString();
-};
 
 function MetricCard({
   label,
@@ -414,99 +394,6 @@ function ModelsContent({
           t('chat:misc.choiceSavedDefault')
         )}
       </p>
-    </div>
-  );
-}
-
-function CostContent({ data }: { data: CostCommandData }) {
-  const used = Number(data.tokenUsage?.used ?? 0);
-  const total = Number(data.tokenUsage?.total ?? 0);
-  const model = data.model || 'Unknown';
-  const provider = getProviderLabel(data.provider, data.provider || 'Unknown');
-  // A blank title is as absent as a missing one: the server only omits the
-  // field when the transcript carries none, and an empty string in it would
-  // otherwise render a labelled row saying nothing.
-  const aiTitle = typeof data.aiTitle === 'string' ? data.aiTitle.trim() : '';
-  const hasBreakdown =
-    typeof data.tokenBreakdown?.input === 'number' ||
-    typeof data.tokenBreakdown?.output === 'number';
-  const usageRows = [
-    { label: 'Total tokens used', value: formatNumber(used), icon: Activity },
-    ...(hasBreakdown
-      ? [
-          {
-            label: 'Input tokens',
-            value: formatNumber(Number(data.tokenBreakdown?.input ?? 0)),
-            icon: TerminalSquare,
-          },
-          {
-            label: 'Output tokens',
-            value: formatNumber(Number(data.tokenBreakdown?.output ?? 0)),
-            icon: Coins,
-          },
-        ]
-      : [
-          {
-            label: 'Breakdown',
-            value: 'Unavailable',
-            icon: TerminalSquare,
-          },
-        ]),
-    // Only when it is consistent with what was actually used. The window comes
-    // from the CONTEXT_WINDOW setting, which cannot know whether a session is
-    // running a 200K or a 1M variant of the same model name — and a row reading
-    // "used 404,009 / window 160,000" is worse than no row at all.
-    ...(total > used
-      ? [{ label: 'Context window', value: formatNumber(total), icon: Gauge }]
-      : []),
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/75">
-        {usageRows.map((row) => {
-          const Icon = row.icon;
-
-          return (
-            <div
-              key={row.label}
-              className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 last:border-b-0"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
-              </div>
-              <span className="shrink-0 font-mono text-sm font-semibold text-foreground">{row.value}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Provider</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{provider}</p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Model</p>
-            <p className="mt-1 break-all font-mono text-sm text-foreground">{model}</p>
-          </div>
-          {/* Under the pair it describes, and across both columns: this is a
-              sentence Claude wrote, not a short identifier, so it wraps rather
-              than truncates. Sessions without one — every non-Claude provider,
-              and any Claude session whose transcript has no generated title —
-              render nothing here instead of a placeholder. */}
-          {aiTitle && (
-            <div className="sm:col-span-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">AI title</p>
-              <p className="mt-1 break-words text-sm font-semibold text-foreground">{aiTitle}</p>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
