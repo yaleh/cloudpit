@@ -1,7 +1,7 @@
 ---
 id: gap-codex-active-retired-session-data-recovery
 title: Codex 时间修复（一）：恢复当前绑定却已被淘汰的会话数据与最近活动时间
-status: ready
+status: done
 labels:
   - gap
   - defect
