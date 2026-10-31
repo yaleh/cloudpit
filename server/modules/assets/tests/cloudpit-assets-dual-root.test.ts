@@ -80,21 +80,22 @@ test('AC2: the same filename resolves from the new root first', async (t) => {
   assert.notEqual(await findStoredAttachmentAsset('same.png', { roots }), legacyCopy);
 });
 
-test('AC3: the default arm writes to the legacy root and leaves the opt-in root alone', () => {
+test('AC3: the default arm writes to the Cloudpit root and still reads the legacy one', () => {
   const homeDir = mkdtempSync(path.join(os.tmpdir(), 'cloudpit-dual-root-write-'));
   try {
     const expectedLegacyRoot = path.resolve(homeDir, '.cloudcli', 'assets');
+    const expectedNewRoot = path.resolve(homeDir, '.cloudpit', 'assets');
 
     const defaultOptions = { env: {}, homeDir };
-    assert.equal(getImageAssetsWriteDir(defaultOptions), expectedLegacyRoot);
+    assert.equal(getImageAssetsWriteDir(defaultOptions), expectedNewRoot);
     assert.deepEqual(getImageAssetsReadDirs(defaultOptions), [
-      path.resolve(homeDir, '.cloudpit', 'assets'),
+      expectedNewRoot,
       expectedLegacyRoot,
     ]);
     const defaultRecords = buildStoredImageRecords(UPLOAD_FILES, defaultOptions);
-    assert.equal(defaultRecords[0].path, `${expectedLegacyRoot.replace(/\\/g, '/')}/123-shot.png`);
-    assert.ok(defaultRecords[0].path.startsWith(`${expectedLegacyRoot.replace(/\\/g, '/')}/`));
-    assert.equal(existsSync(expectedLegacyRoot), false, 'building records must not create the root');
+    assert.equal(defaultRecords[0].path, `${expectedNewRoot.replace(/\\/g, '/')}/123-shot.png`);
+    assert.ok(defaultRecords[0].path.startsWith(`${expectedNewRoot.replace(/\\/g, '/')}/`));
+    assert.equal(existsSync(expectedNewRoot), false, 'building records must not create the root');
   } finally {
     rmSync(homeDir, { recursive: true, force: true });
   }
@@ -136,8 +137,8 @@ test('AC3: the legacy env spelling is a fallback and blank values count as unset
     );
     assert.equal(
       getImageAssetsWriteDir({ env: { CLOUDPIT_HOME: '   ' }, homeDir }),
-      path.resolve(homeDir, '.cloudcli', 'assets'),
-      'a blank explicit root is unset; the default write root stays legacy',
+      path.resolve(homeDir, '.cloudpit', 'assets'),
+      'a blank explicit root is unset; the default write root is the Cloudpit root',
     );
   } finally {
     rmSync(homeDir, { recursive: true, force: true });

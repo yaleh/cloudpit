@@ -33,7 +33,8 @@ export type {
   WriteObservationInput,
 } from './observation-store.js';
 // consumer: server/modules/observation/observation.routes.ts and the producer tasks, which
-// spell an object's address with the same formatter they parse it with
+// spell an object's address with the same formatter they parse it with. The Cloudpit runtime
+// criterion also drives the dual-scheme parse through this barrel.
 export {
   formatArchitectureUri,
   formatObservationUri,

@@ -32,17 +32,28 @@ import {
 const accessTokensService = createAccessTokensService({ now: () => new Date() });
 
 /**
- * The file the cockpit settings page edits: the one THIS boot read, so a save can never land in
- * a different file than the one the reported effective reading came from. Falls back to the
- * configured target before the boot read (a bare route test composes its own port).
+ * The two files the cockpit settings page works with: the one THIS boot read, and the one a save
+ * must write. They differ only when the boot read fell back to the legacy settings file — the
+ * effective values and their version come from the legacy file, while the save lands in the
+ * Cloudpit default (never back in the old tree).
  */
-function cockpitSessionStartFilePath(): string {
-  return readCockpitSessionStartBoot()?.path ?? resolveServerSettingsFileTarget().path;
+function cockpitSessionStartPaths(): { readPath: string; writePath: string } {
+  const boot = readCockpitSessionStartBoot();
+  if (boot !== null) {
+    return { readPath: boot.path, writePath: boot.writePath };
+  }
+  const target = resolveServerSettingsFileTarget();
+  return { readPath: target.path, writePath: target.writePath };
+}
+
+/** The file the cockpit card's saved fields are read from. */
+function cockpitSessionStartReadPath(): string {
+  return cockpitSessionStartPaths().readPath;
 }
 
 /** A saved reading with the shipped default filled in for a field the file never wrote. */
 function savedCockpitSessionStart() {
-  const reading = readCockpitSessionStart(cockpitSessionStartFilePath());
+  const reading = readCockpitSessionStart(cockpitSessionStartReadPath());
   return {
     model: reading.model ?? DEFAULT_COCKPIT_SESSION_START_MODEL,
     effort: reading.effort ?? '',
@@ -150,7 +161,10 @@ const settingsService = createSettingsService({
   cockpitSessionStart: {
     read: savedCockpitSessionStart,
     write: async (input) => {
-      const reading = await writeCockpitSessionStart(cockpitSessionStartFilePath(), input);
+      const paths = cockpitSessionStartPaths();
+      const reading = await writeCockpitSessionStart(paths.writePath, input, {
+        versionPath: paths.readPath,
+      });
       return {
         model: reading.model ?? DEFAULT_COCKPIT_SESSION_START_MODEL,
         effort: reading.effort ?? '',

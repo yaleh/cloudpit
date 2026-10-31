@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 // The output port the attempt line already goes through. The capture row is written with the same
 // one, so a deployment that pipes the process's structured lines somewhere sees both kinds without a
 // second seam, and a test that counts them counts what the shipping process writes.
+import { defaultAuthDatabasePath } from '@/shared/data-root.js';
 import type { VoiceLogPort } from '@/shared/types.js';
 
 /**
@@ -362,9 +362,6 @@ export type VoiceCaptureRawInput = {
 /** The directory name a recording goes into when `VOICE_CAPTURE_DIR` names none. */
 const CAPTURE_DIRECTORY_NAME = 'voice-capture';
 
-/** Where the database lives when `DATABASE_PATH` names none — `server/load-env.ts`'s own default. */
-const DEFAULT_DATABASE_FILE = '.cloudcli/auth.db';
-
 /** The mode a recording directory is held at: owner-only, on the filesystem and not just on paper. */
 const CAPTURE_DIR_MODE = 0o700;
 
@@ -569,7 +566,7 @@ export function resolveVoiceCaptureDir(raw: string | undefined, databasePath: st
   }
 
   const database = databasePath === undefined || databasePath.trim() === ''
-    ? path.join(os.homedir(), DEFAULT_DATABASE_FILE)
+    ? defaultAuthDatabasePath()
     : databasePath;
   return path.join(path.dirname(database), CAPTURE_DIRECTORY_NAME);
 }

@@ -22,6 +22,11 @@
  * objects in one process, and a process-lifetime cache would collapse them.
  */
 
+import {
+  ACCESS_TOKEN_SCOPES,
+  CLOUDPIT_ACCESS_TOKEN_SCOPES,
+} from '@/shared/mcp-contract/index.js';
+
 import { readMcpOauthEnabled } from './mcp-gateway.loopback.js';
 
 /**
@@ -61,6 +66,12 @@ export type AuthorizationServerMetadata = {
   code_challenge_methods_supported: string[];
   grant_types_supported: string[];
   token_endpoint_auth_methods_supported: string[];
+  /**
+   * Both accepted spellings of every scope: a client registering from the
+   * Cloudpit build may ask for `cloudpit:*`, while the legacy names stay valid
+   * for tokens and grants minted before the flip.
+   */
+  scopes_supported: string[];
   registration_endpoint?: string;
 };
 
@@ -172,6 +183,7 @@ export function buildAuthorizationServerMetadata(options: {
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+    scopes_supported: [...CLOUDPIT_ACCESS_TOKEN_SCOPES, ...ACCESS_TOKEN_SCOPES],
   };
 
   if (dcrMode !== 'off') {

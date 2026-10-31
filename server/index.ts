@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables before other imports execute.
-import './load-env.js';
+import { DATA_ROOTS } from './load-env.js';
 import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -391,7 +391,7 @@ const cockpitCards = createCockpitCardsModule({
     fixtureFeedback: serverSettings.cockpit.fixtureFeedback,
     // The feedback overlay is Cloudpit's own lifecycle state: it survives a refresh and a
     // restart, so a sent-but-unconfirmed action is still readable on the next boot.
-    feedbackFilePath: path.join(os.homedir(), '.cloudcli', 'cockpit-card-feedback.json'),
+    feedbackFilePath: DATA_ROOTS.cockpitCardFeedbackPath,
     providers: [
         createCockpitFleetProvider({
             enabled: serverSettings.cockpit.fleetCards.enabled,

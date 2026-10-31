@@ -5,7 +5,7 @@
  * WHAT IT IS FOR. The chips a model offers are only half the story; whether a
  * person clicked one, cleared it, redrew or sent is the long-lived ground truth
  * an offline benchmark replays. This file appends one JSON object per line to a
- * local-only JSONL file under `~/.cloudcli` (the same root the attachment and
+ * local-only JSONL file under `~/.cloudpit` (the same root the attachment and
  * browser-profile stores use). Field names are the replay's contract: they are
  * unchanged from before this file owned the types.
  *
@@ -33,6 +33,8 @@
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+import { defaultCloudpitDataRoot } from '@/shared/data-root.js';
 
 import type {
   ReplySuggestionsEventName,
@@ -201,7 +203,8 @@ export function createReplySuggestionsUsageLog(
   options: { filePath?: string; maxBytes?: number; homeDir?: string } = {},
 ): ReplySuggestionsUsageLog {
   const homeDir = options.homeDir ?? os.homedir();
-  const filePath = options.filePath ?? path.join(homeDir, '.cloudcli', 'reply-suggestions-usage.jsonl');
+  const filePath = options.filePath
+    ?? path.join(defaultCloudpitDataRoot(homeDir), 'reply-suggestions-usage.jsonl');
   const maxBytes = options.maxBytes ?? REPLY_SUGGESTIONS_USAGE_LOG_MAX_BYTES;
 
   return {

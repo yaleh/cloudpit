@@ -23,6 +23,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -33,6 +34,10 @@ import {
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import {
+  defaultServerSettingsPath as defaultServerSettingsPathForHome,
+  legacyServerSettingsPath,
+} from '@/shared/settings-file.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
 
 /**
@@ -45,32 +50,55 @@ export const SERVER_SETTINGS_ENV = 'SERVER_SETTINGS_PATH';
 export type ServerSettingsFileTarget = {
   /** The file this boot read and the settings API edit. */
   path: string;
+  /** The file a save writes: always the Cloudpit default unless a path was named. */
+  writePath: string;
   /** Whether `SERVER_SETTINGS_PATH` (or a caller's override) named it, like `loadServerSettings`. */
   explicit: boolean;
 };
 
 /** The path an operator's copy lives at when no other path is named. Resolved per call, per HOME. */
 export function defaultServerSettingsPath(): string {
-  return path.join(homedir(), '.config', 'claudecodeui', 'server.settings.json');
+  // The one definition lives in the shared reader; this wrapper keeps the module's
+  // no-argument public surface while still honouring the process HOME.
+  return defaultServerSettingsPathForHome(homedir());
 }
 
 /**
  * Resolves the file the boot reader and the settings API share. Same order as
  * `loadServerSettings`: an explicit path > `SERVER_SETTINGS_PATH` > the shipped location.
+ *
+ * The shipped location is now `<home>/.config/cloudpit/server.settings.json`. When that file does
+ * not exist yet but the legacy `<home>/.config/claudecodeui/server.settings.json` does, the READ
+ * falls back to the legacy file while `writePath` stays on the Cloudpit default: an upgrade keeps
+ * its effective configuration and the next save lands in the new tree, never back in the old one.
+ *
  * Consumers: `server-settings.ts` (the boot read) and `settings.module.ts` (the API's target).
  */
 export function resolveServerSettingsFileTarget(options: {
   settingsPath?: string | undefined;
   env?: Record<string, string | undefined>;
   defaultPath?: string | undefined;
+  legacyDefaultPath?: string | undefined;
+  homeDir?: string | undefined;
+  exists?: ((filePath: string) => boolean) | undefined;
 } = {}): ServerSettingsFileTarget {
   const env = options.env ?? process.env;
+  const homeDir = options.homeDir ?? homedir();
+  const exists = options.exists ?? existsSync;
   const named = options.settingsPath ?? env[SERVER_SETTINGS_ENV];
   const explicit = typeof named === 'string' && named.trim() !== '';
-  return {
-    path: explicit ? named.trim() : (options.defaultPath ?? defaultServerSettingsPath()),
-    explicit,
-  };
+  if (explicit) {
+    const namedPath = named.trim();
+    return { path: namedPath, writePath: namedPath, explicit: true };
+  }
+
+  const defaultPath = options.defaultPath ?? defaultServerSettingsPathForHome(homeDir);
+  // An injected defaultPath without an injected legacy path is a hermetic caller: do not consult
+  // the process HOME behind its back.
+  const legacyDefaultPath = options.legacyDefaultPath
+    ?? (options.defaultPath === undefined ? legacyServerSettingsPath(homeDir) : defaultPath);
+  const path_ = exists(defaultPath) || !exists(legacyDefaultPath) ? defaultPath : legacyDefaultPath;
+  return { path: path_, writePath: defaultPath, explicit: false };
 }
 
 /**
@@ -102,6 +130,8 @@ export type CockpitSessionStartFileReading = {
 /** The boot reading the API reports as "currently in effect". */
 export type CockpitSessionStartBootSnapshot = {
   path: string;
+  /** Where a save lands. It differs from `path` only after a legacy-file read fallback. */
+  writePath: string;
   model: string;
   effort: string;
 };
@@ -121,7 +151,11 @@ const MISSING_FILE_VERSION = 'missing';
  * scope; the factory keeps one write path and lets `loadServerSettings` and the API share it.
  */
 export type CockpitSessionStartBootRegistry = {
-  record(filePath: string, sessionStart: { model: string; effort?: string | undefined }): void;
+  record(
+    filePath: string,
+    sessionStart: { model: string; effort?: string | undefined },
+    writePath?: string,
+  ): void;
   read(): CockpitSessionStartBootSnapshot | null;
 };
 
@@ -129,9 +163,10 @@ export type CockpitSessionStartBootRegistry = {
 export function createCockpitSessionStartBootRegistry(): CockpitSessionStartBootRegistry {
   let snapshot: CockpitSessionStartBootSnapshot | null = null;
   return {
-    record(filePath, sessionStart) {
+    record(filePath, sessionStart, writePath) {
       snapshot = {
         path: filePath,
+        writePath: writePath ?? filePath,
         model: sessionStart.model,
         effort: (sessionStart.effort ?? '').trim(),
       };
@@ -151,8 +186,9 @@ const cockpitSessionStartBoot = createCockpitSessionStartBootRegistry();
 export function recordCockpitSessionStartBoot(
   filePath: string,
   sessionStart: { model: string; effort?: string | undefined },
+  writePath?: string,
 ): void {
-  cockpitSessionStartBoot.record(filePath, sessionStart);
+  cockpitSessionStartBoot.record(filePath, sessionStart, writePath);
 }
 
 /** The boot reading, or `null` before `loadServerSettings` has run (e.g. a bare route test). */
@@ -296,9 +332,19 @@ function writeAtomically(filePath: string, contents: string, replacing: boolean)
 export function writeCockpitSessionStart(
   filePath: string,
   request: CockpitSessionStartWriteRequest,
+  options: {
+    /**
+     * The file the caller's `expectedVersion` was read from. After a legacy-settings read
+     * fallback the API reports the legacy file's version, so the save must compare against that
+     * file and carry its other keys into the Cloudpit target instead of inventing `{}`.
+     * Defaults to `filePath`.
+     */
+    versionPath?: string | undefined;
+  } = {},
 ): Promise<CockpitSessionStartFileReading> {
   return cockpitSessionStartWrites.run(() => {
-    const raw = readRawSettingsFile(filePath);
+    const sourcePath = options.versionPath ?? filePath;
+    const raw = readRawSettingsFile(sourcePath);
     if (raw.version !== request.expectedVersion) {
       throw new AppError('The settings file changed since it was read; reload and save again.', {
         code: 'VERSION_CONFLICT',
@@ -307,7 +353,7 @@ export function writeCockpitSessionStart(
       });
     }
 
-    const document = raw.text === null ? {} : parseSettingsDocument(filePath, raw.text);
+    const document = raw.text === null ? {} : parseSettingsDocument(sourcePath, raw.text);
     if (document.cockpit !== undefined && !isRecord(document.cockpit)) {
       throw new AppError('`cockpit` is not a JSON object; refusing to overwrite it.', {
         code: 'SERVER_SETTINGS_INVALID_SHAPE',
@@ -331,7 +377,7 @@ export function writeCockpitSessionStart(
     document.cockpit = cockpit;
 
     const serialized = `${JSON.stringify(document, null, 2)}\n`;
-    writeAtomically(filePath, serialized, raw.text !== null);
+    writeAtomically(filePath, serialized, existsSync(filePath));
     return { path: filePath, ...savedFieldsOf(document), version: versionOf(serialized) };
   });
 }

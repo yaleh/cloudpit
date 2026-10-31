@@ -10,6 +10,18 @@ extra:
   schema: execution
 goal_ac: AC-452
 ---
+---
+id: gap-cloudpit-runtime-default-flip
+title: Cloudpit B2：运行时默认值翻转与兼容（默认 ~/.cloudpit、settings/附件新路径、协议/scope/MCP/SW 双接受）
+status: ready
+labels:
+  - gap
+parent: null
+children: []
+extra:
+  schema: execution
+goal_ac: AC-452
+---
 ## Proposal
 
 AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-053 的暗管道（默认仍 `~/.cloudcli`、写入仍旧根、helper 未接线）翻到「默认新根 + 旧布局自动迁移 + 旧值永远可读」，并一次落齐 AC-452 expect 的七个运行时面：数据根 / settings / 附件 / 协议与观测 URI / MCP 名 / OAuth scope / SW 缓存。AC-452 的判据文件就是本任务新增的 `server/shared/tests/cloudpit-runtime-flip.test.ts`；执行结束时 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts` 必须真实退出 0。
@@ -52,17 +64,17 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 
 ## AC
 
-- [ ] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts` 退出 0，输出含 `fail 0`；文件已落地。
-- [ ] AC2 数据根默认翻转：同一判据以 `env={}`、注入 tmp `homeDir` 与最小 `backupDatabase` 调 `resolveDataRoots({defaultRoot:'cloudpit', ...})`，断言 `activeRoot === <tmp>/.cloudpit`、旧布局被迁移（DB 目标存在、`.migrated-from-cloudcli` 只在成功后写入、`reason === 'default-migrated'`）；迁移抛错臂断言 `activeRoot === <tmp>/.cloudcli` 且新根无半成品；`defaultRoot:'legacy'` 臂仍返回 `.cloudcli`（负控证明翻转由模式驱动，不是删掉旧模式）。
-- [ ] AC3 启动接线：同一判据读取 `server/load-env.ts` 与 `server/modules/cli/cli.module.ts` 源码，断言二者都从 `resolveDataRoots` 派生默认库路径、且两文件里不再有 `path.join(os.homedir(), '.cloudcli', 'auth.db')` / `path.join(homeDirectory, '.cloudcli', 'auth.db')` 的生产默认；`server/index.ts` 仍以 `import './load-env.js'` 首位求值。
-- [ ] AC4 设置写新路径且旧文件仍生效：同一判据断言 `defaultServerSettingsPath(<tmp>)` = `<tmp>/.config/cloudpit/server.settings.json`；只有旧 `claudecodeui/server.settings.json` 时 boot 读取采用其值且 `problems` 为空；保存目标为新路径；显式 `SERVER_SETTINGS_PATH` / `settingsPath` 行为不变。
-- [ ] AC5 附件新写旧读：同一判据断言无显式 env 时 `getImageAssetsWriteDir({homeDir})` = `<home>/.cloudpit/assets`、`getImageAssetsReadDirs` 以新根打头并仍含旧根；旧根里的文件经 `findStoredAttachmentAsset` 仍解析到旧绝对路径；把旧根移走后该臂必须失败（负控证明测试真在读旧根）。
-- [ ] AC6 协议与观测 URI：同一判据断言 `package.json` 的 `build.protocols` 同时含 `cloudcli` 与 `cloudpit`、mac `CFBundleURLSchemes` 同；`electron/main.js` 对两个 scheme 都注册；`parseObservationUri('cloudpit://session/x')` 与 `'cloudcli://session/x'` 返回同一 canonical 旧 URI，`formatSessionUri` 仍产出旧协议；两侧语法同形（源码读取比对）。
-- [ ] AC7 MCP 双接受：同一判据断言注册写入名 `cloudpit-browser`、legacy 名单含 `cloudcli-browser` 与 `cloudcli-browser-use`、清理遍历「新 + 全部 legacy」；`browser-use-mcp` 的 initialize `serverInfo.name` 为新名；一个不在名单里的名字不触发清理（负控）。
-- [ ] AC8 OAuth scope：同一判据断言 AS metadata 的 `scopes_supported` 同时含 8 个 `cloudcli:*` 与 8 个 `cloudpit:*`；`normalizeAccessTokenScopes` 接受两套拼写且按 canonical 去重；既有旧 scope token 的 principal 仍满足 `requiredScopes: ['cloudcli:read']`，新 scope token 同样满足；未知 scope 仍被拒（负控）。
-- [ ] AC9 SW 双前缀清理：同一判据在 `node:vm` 里以假 `caches` 注册 `cloudpit-v1`、`cloudpit-old`、`claude-ui-v3`、`claude-ui-legacy`、`voice-client-asr-model-v1`、`other`，触发 activate 后断言删除集合恰为 `cloudpit-old`、`claude-ui-v3`、`claude-ui-legacy`，保留 `cloudpit-v1`、`voice-client-asr-model-v1`、`other`。
-- [ ] AC10 钉子与静态检查：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0 且两处 `known=/unknown=` 已按新收集数更新；`scripts/suite-duration-baseline.tsv` 含本判据文件行；`npm run typecheck` 与 `npx oxlint` 对全部改动文件退出 0。
-- [ ] AC11 每个翻转点都有旧值对偶臂：同一次判据运行里，`defaultRoot:'legacy'` 返回旧根、旧 settings 文件生效、旧附件根可读、旧 scope token 可判、旧 MCP 名在 legacy 清理名单——五臂全部通过，证明新默认没有删掉兼容面。
+- [x] AC1 判据文件真实通过：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts` 退出 0，输出含 `fail 0`；文件已落地。
+- [x] AC2 数据根默认翻转：同一判据以 `env={}`、注入 tmp `homeDir` 与最小 `backupDatabase` 调 `resolveDataRoots({defaultRoot:'cloudpit', ...})`，断言 `activeRoot === <tmp>/.cloudpit`、旧布局被迁移（DB 目标存在、`.migrated-from-cloudcli` 只在成功后写入、`reason === 'default-migrated'`）；迁移抛错臂断言 `activeRoot === <tmp>/.cloudcli` 且新根无半成品；`defaultRoot:'legacy'` 臂仍返回 `.cloudcli`（负控证明翻转由模式驱动，不是删掉旧模式）。
+- [x] AC3 启动接线：同一判据读取 `server/load-env.ts` 与 `server/modules/cli/cli.module.ts` 源码，断言二者都从 `resolveDataRoots` 派生默认库路径、且两文件里不再有 `path.join(os.homedir(), '.cloudcli', 'auth.db')` / `path.join(homeDirectory, '.cloudcli', 'auth.db')` 的生产默认；`server/index.ts` 仍以 `import './load-env.js'` 首位求值。
+- [x] AC4 设置写新路径且旧文件仍生效：同一判据断言 `defaultServerSettingsPath(<tmp>)` = `<tmp>/.config/cloudpit/server.settings.json`；只有旧 `claudecodeui/server.settings.json` 时 boot 读取采用其值且 `problems` 为空；保存目标为新路径；显式 `SERVER_SETTINGS_PATH` / `settingsPath` 行为不变。
+- [x] AC5 附件新写旧读：同一判据断言无显式 env 时 `getImageAssetsWriteDir({homeDir})` = `<home>/.cloudpit/assets`、`getImageAssetsReadDirs` 以新根打头并仍含旧根；旧根里的文件经 `findStoredAttachmentAsset` 仍解析到旧绝对路径；把旧根移走后该臂必须失败（负控证明测试真在读旧根）。
+- [x] AC6 协议与观测 URI：同一判据断言 `package.json` 的 `build.protocols` 同时含 `cloudcli` 与 `cloudpit`、mac `CFBundleURLSchemes` 同；`electron/main.js` 对两个 scheme 都注册；`parseObservationUri('cloudpit://session/x')` 与 `'cloudcli://session/x'` 返回同一 canonical 旧 URI，`formatSessionUri` 仍产出旧协议；两侧语法同形（源码读取比对）。
+- [x] AC7 MCP 双接受：同一判据断言注册写入名 `cloudpit-browser`、legacy 名单含 `cloudcli-browser` 与 `cloudcli-browser-use`、清理遍历「新 + 全部 legacy」；`browser-use-mcp` 的 initialize `serverInfo.name` 为新名；一个不在名单里的名字不触发清理（负控）。
+- [x] AC8 OAuth scope：同一判据断言 AS metadata 的 `scopes_supported` 同时含 8 个 `cloudcli:*` 与 8 个 `cloudpit:*`；`normalizeAccessTokenScopes` 接受两套拼写且按 canonical 去重；既有旧 scope token 的 principal 仍满足 `requiredScopes: ['cloudcli:read']`，新 scope token 同样满足；未知 scope 仍被拒（负控）。
+- [x] AC9 SW 双前缀清理：同一判据在 `node:vm` 里以假 `caches` 注册 `cloudpit-v1`、`cloudpit-old`、`claude-ui-v3`、`claude-ui-legacy`、`voice-client-asr-model-v1`、`other`，触发 activate 后断言删除集合恰为 `cloudpit-old`、`claude-ui-v3`、`claude-ui-legacy`，保留 `cloudpit-v1`、`voice-client-asr-model-v1`、`other`。
+- [x] AC10 钉子与静态检查：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0 且两处 `known=/unknown=` 已按新收集数更新；`scripts/suite-duration-baseline.tsv` 含本判据文件行；`npm run typecheck` 与 `npx oxlint` 对全部改动文件退出 0。
+- [x] AC11 每个翻转点都有旧值对偶臂：同一次判据运行里，`defaultRoot:'legacy'` 返回旧根、旧 settings 文件生效、旧附件根可读、旧 scope token 可判、旧 MCP 名在 legacy 清理名单——五臂全部通过，证明新默认没有删掉兼容面。
 
 ## DoD
 
@@ -72,6 +84,26 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - 贴 `scripts/suite-duration-baseline.tsv` 追加行 diff 与 `server/shared/tests/quay-test-script.test.ts` 钉子 diff；贴 `npm run typecheck`、`npx oxlint <改动文件>` 退出码。
 - 合入前把 develop merge 进本任务 worktree 并复跑判据（合并冲突按并集处理，不改判据语义）；不在会话内跑全量 suite（按 AGENTS.md 的 runner 规则只跑相关文件）。
 - 本任务不动 UI，不需要 MCP 浏览器截图；若实现过程中改了任何 `src/` 可见组件，则按项目 DoD 补浏览器实测与截图。
+
+### 完成证据（2026-11-01）
+
+该轴仍暗,理由:本任务只翻运行时默认值与兼容读取，未改动任何 UI 可见组件（src/ 仅 observationUri.ts 的解析语法），无界面轴可量。
+
+判据实跑：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts` → `tests 8 / pass 8 / fail 0`，`duration_ms 7081.7`（merge develop 后复跑）。
+
+- AC1：见上；`server/shared/tests/cloudpit-runtime-flip.test.ts` 已落地。
+- AC2 读数：`activeRoot=<tmp>/.cloudpit`，`reason=default-migrated`，`migrated=true`，marker=`<tmp>/.cloudpit/.migrated-from-cloudcli`（仅成功后写入）；抛错臂 `activeRoot=<tmp>/.cloudcli`、`reason=fallback-after-failure`、`<tmp>/.cloudpit` 不存在（无半成品）；`defaultRoot:'legacy'` 臂 `reason=default-legacy`、`migrated=false`。
+- AC3：`server/load-env.ts` 含 `resolveDataRoots({ defaultRoot: 'cloudpit' })` 并写 `process.env.DATABASE_PATH = DATA_ROOTS.authDatabasePath`；`cli.module.ts` 含 `resolveDataRoots({ defaultRoot: 'cloudpit', homeDir: homeDirectory })`；两文件均不含 `'.cloudcli', 'auth.db'`；`server/index.ts` 首个 import 为 `from './load-env.js'`，feedback 路径读 `DATA_ROOTS.cockpitCardFeedbackPath`。
+- AC4 读数：`defaultServerSettingsPath(<tmp>)=<tmp>/.config/cloudpit/server.settings.json`；只有旧文件时 `model=legacy-model`、`effort=high`、`problems=[]`、`boot.path=<tmp>/.config/claudecodeui/server.settings.json`、`boot.writePath=<tmp>/.config/cloudpit/server.settings.json`；显式 `settingsPath` 与 `SERVER_SETTINGS_PATH` 均 `path=writePath=explicit`。
+- AC5 读数：`writeRoot=<tmp>/.cloudpit/assets`；`readRoots=[<tmp>/.cloudpit/assets, <tmp>/.cloudcli/assets]`；旧文件经 `findStoredAttachmentAsset` 解析到 `<tmp>/.cloudcli/assets/old-shot.png`；移除旧文件后同一查找返回 `null`。
+- AC6 读数：`protocols` schemes=`[cloudcli, cloudpit]`，mac `CFBundleURLSchemes`=`[cloudcli, cloudpit]`；`parseObservationUri('cloudpit://session/x')` = `{ scheme:'cloudcli', kind:'session', uri:'cloudcli://session/x' }`，与 `cloudcli://` 结果 deepEqual；`formatSessionUri('x')='cloudcli://session/x'`；两处 `const CLOUDCLI_URI = new RegExp(...)` 行文本完全相同。
+- AC7 读数：`MCP_SERVER_NAME=cloudpit-browser`；`LEGACY_MCP_SERVER_NAMES=[cloudcli-browser, cloudcli-browser-use]`；`mcpServerNamesToRemove()=[cloudpit-browser, cloudcli-browser, cloudcli-browser-use]`；不在名单的 `experimental-browser` 不触发清理；真实 MCP 子进程 initialize 回复 `serverInfo={"name":"cloudpit-browser","version":"1.0.0"}`。
+- AC8 读数：`scopes_supported` 共 16 项 = 8 个 `cloudcli:*` + 8 个 `cloudpit:*`（逐项 contains 断言）；`normalize([cloudcli:read, cloudpit:read])→[cloudcli:read]`，反向→`[cloudpit:read]`；旧 token principal scopes=`[cloudcli:read]`；新 token principal scopes=`[cloudcli:read, cloudcli:session:send]`，两臂均含 `requiredScopes: ['cloudcli:read']`；`cloudcli:admin` 与 `cloudpit:unknown` 均 `{ok:false}`。
+- AC9 读数：删除集合（排序）=`claude-ui-legacy`、`claude-ui-v3`、`cloudpit-old`；保留=`cloudpit-v1`、`voice-client-asr-model-v1`、`other`；`clients.claim()` 已调用。
+- AC10：本判据行已追加到 baseline；钉子改为 `known=3 unknown=489` / `known=1 unknown=491`（合并后实测收集 492）；`npm run typecheck` 退出 0；`npx oxlint src/ server/ scripts/ shared/` 退出 0（0 error，warning 为基线既有）。
+- AC11：五条旧值对偶臂在同一次运行通过（legacy 根、旧 settings、旧附件、旧 token、旧 MCP 名）。
+- 假形态负控（逐次改文件→跑→恢复原文）：新根默认改回 `.cloudcli` ⇒ AC2/AC11、AC5/AC11 红（8 中 fail 2），恢复后 8/8 绿；`protocols` 的 `cloudpit` 改为 `cloudcli` ⇒ AC6 红（fail 1），恢复后绿；SW filter 去掉 `LEGACY_CACHE_PREFIX` ⇒ AC9 红（删除集合缺 `claude-ui-legacy`、`claude-ui-v3`），恢复后绿；从 `ACCESS_TOKEN_SCOPES` 删除 `cloudcli:read` ⇒ AC8/AC11 红（旧 scope 铸取被拒），恢复后绿。
+- 兄弟夹具复跑：cloudpit-data-root 9/9、settings-file 10/10、cloudpit-assets-dual-root 8/8、browser-use-mcp-entry 2/2、voice-realtime-log 8/8、voice-capture-audio 11/11、architecture-ratchet 6/6、server-import-cycle-budget 12/12、quay-test-script 14/14、access-token-scopes 5/5、access-tokens.service 10/10、oauth-consent-page 16/16、token-info.routes 4/4、mcp-auth 5/5、oauth-metadata-mount 6/6、settings.service 7/7、cockpit-session-start-settings.routes 6/6、image-attachments 20/20、observation-store 8/8、service-worker-transient-failure 6/6、src observationUri vitest 22/22、browser-use.service 1/1。
 
 ## Touches
 
@@ -115,3 +147,11 @@ AC-452 的缺口承载任务：把 Cloudpit 的**运行时默认值**从 GOAL-05
 - server/modules/mcp-gateway/tests/oauth-metadata-mount.test.ts
 - server/modules/observation/tests/observation-store.test.ts
 - src/modules/cockpit/tests/observationUri.test.ts
+- server/modules/settings/settings.module.ts (read/write split for AC4)
+- server/modules/settings/index.ts (barrel re-export for the criterion)
+- server/modules/assets/index.ts (barrel re-export for the criterion)
+- server/modules/browser-use/index.ts (barrel re-export of the MCP names)
+- server/modules/observation/index.ts (barrel re-export for the criterion)
+- server/shared/mcp-contract/index.ts (scope vocabulary re-export)
+- server/modules/voice-realtime/tests/voice-realtime-log.test.ts (legacy dual arm pin)
+- server/modules/voice/tests/voice-capture-audio.test.ts (legacy dual arm pin)

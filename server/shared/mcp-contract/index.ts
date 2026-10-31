@@ -63,8 +63,16 @@ export type {
   ToolDefinition,
 } from './tool-definition.js';
 export type { McpControlCaller, McpToolModule, McpToolRegistry } from './types.js';
-// The one scope vocabulary (AC-243), re-homed from `modules/oauth`.
-export { ACCESS_TOKEN_SCOPES } from './types.js';
+// The one scope vocabulary (AC-243), re-homed from `modules/oauth`. Cloudpit is the
+// accepted alternative spelling of every scope; `canonicalScope` maps it onto the
+// legacy name every stored grant, row and `requiredScopes` literal still uses.
+export {
+  ACCESS_TOKEN_SCOPES,
+  ACCEPTED_ACCESS_TOKEN_SCOPES,
+  canonicalScope,
+  CLOUDPIT_ACCESS_TOKEN_SCOPES,
+  CLOUDPIT_SCOPE_PREFIX,
+} from './types.js';
 export { createToolRegistry, ToolRegistry } from './tool-registry.js';
 
 // The approval vocabulary (AC-274).

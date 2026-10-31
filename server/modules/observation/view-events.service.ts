@@ -28,6 +28,7 @@ import {
   type AppendContextEventResult,
   type ContextEventDraft,
 } from '@/modules/context-events/index.js';
+import { defaultCloudpitDataRoot } from '@/shared/data-root.js';
 import { expandHome } from '@/shared/settings-file.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
@@ -74,11 +75,11 @@ export const DEFAULT_VIEW_EVENTS_ENABLED = true;
 
 /**
  * The shipped log path, resolved at call time so a HOME set by the process (or by a criterion)
- * is the HOME consulted. `~/.cloudcli/` is the same local state directory the server already
+ * is the HOME consulted. `~/.cloudpit/` is the same local state directory the server already
  * uses; the file stays outside the repository and outside the synced database.
  */
 export function defaultViewEventsPath(): string {
-  return path.join(homedir(), '.cloudcli', 'ui-view-events.jsonl');
+  return path.join(defaultCloudpitDataRoot(homedir()), 'ui-view-events.jsonl');
 }
 
 /** Fills a partial reading with the shipped defaults (used by the module's own composition). */

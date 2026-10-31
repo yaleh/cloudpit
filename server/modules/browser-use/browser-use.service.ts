@@ -81,8 +81,12 @@ const DEFAULT_SETTINGS: BrowserUseSettings = {
 };
 const AGENT_OWNER_ID = 'agent';
 const PROFILE_ROOT = path.join(os.homedir(), '.cloudcli', 'browser-use', 'profiles');
-const MCP_SERVER_NAME = 'cloudcli-browser';
-const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser-use'];
+export const MCP_SERVER_NAME = 'cloudpit-browser';
+export const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser', 'cloudcli-browser-use'];
+/** The names an uninstall must remove: the current registration plus every legacy spelling. */
+export function mcpServerNamesToRemove(): string[] {
+  return [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES];
+}
 const RUNTIME_READINESS_CACHE_TTL_MS = 30_000;
 
 function readSettings(): BrowserUseSettings {
@@ -219,11 +223,7 @@ function probeRuntime(): RuntimeProbe {
   return readiness;
 }
 
-/**
- * Owns the browser-use runtime lifecycle: the cached readiness probe, the install job, and the
- * process-wide session/handle registry. The Browser Use service reaches it through the
- * `browserUseRuntime` singleton below.
- */
+/** Owns the cached readiness probe, the install job, and the session/handle registry. */
 class BrowserUseRuntime {
   private installPromise: Promise<RuntimeInstallResult> | null = null;
   private lastInstallMessage: string | null = null;
@@ -562,7 +562,7 @@ export const browserUseService = {
 
   async unregisterAgentMcp() {
     const results = (await Promise.all(
-      [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES].map((name) => removeMcpServerFromAllProviders(name)),
+      mcpServerNamesToRemove().map((name) => removeMcpServerFromAllProviders(name)),
     )).flat();
     return { name: MCP_SERVER_NAME, results };
   },

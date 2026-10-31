@@ -1177,7 +1177,7 @@ const READINGS: readonly Reading[] = [
       const { default: arm } = measurement;
       const row = arm.rows[0];
       const rowPath = row === undefined ? '' : fieldString(row, 'path');
-      const homeDefault = path.join(os.homedir(), '.cloudcli', 'voice-capture');
+      const homeDefault = path.join(os.homedir(), '.cloudpit', 'voice-capture');
       // "Beside the database", computed from THIS arm's database path: the promise is a sibling of
       // `auth.db` rather than a path this file chose, and the arm is the deployment that resolves it.
       const expectedDir = path.join(path.dirname(arm.databasePath), 'voice-capture');

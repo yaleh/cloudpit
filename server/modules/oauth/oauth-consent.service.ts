@@ -20,6 +20,7 @@
 
 import type { OAuthClientRow } from '@/modules/database/index.js';
 import { ACCESS_TOKEN_SCOPES } from '@/modules/oauth/access-tokens.service.js';
+import { canonicalScope } from '@/shared/mcp-contract/index.js';
 
 /** The scope every consent grants; the SPA lists it checked and not removable. */
 export const OAUTH_CONSENT_READ_SCOPE = 'cloudcli:read';
@@ -105,14 +106,19 @@ export type OAuthConsentClients = { findById(clientId: string): OAuthClientRow |
 
 /** The whole vocabulary, each entry flagged for the screen. */
 export function consentScopeOptions(): ConsentScopeOption[] {
-  return ACCESS_TOKEN_SCOPES.map((scope) => ({
-    scope,
-    description: SCOPE_DESCRIPTIONS[scope] ?? '',
-    required: scope === OAUTH_CONSENT_READ_SCOPE,
-    writable: scope !== OAUTH_CONSENT_READ_SCOPE,
-    group: scope === OAUTH_CONSENT_READ_SCOPE ? 'read' : 'write',
-    risk: SCOPE_RISK[scope] ?? null,
-  }));
+  return ACCESS_TOKEN_SCOPES.map((scope) => {
+    // The tables stay keyed by the legacy names; the lookup is canonical so an
+    // option added in either spelling still finds its description and risk badge.
+    const canonical = canonicalScope(scope);
+    return {
+      scope,
+      description: SCOPE_DESCRIPTIONS[canonical] ?? '',
+      required: canonical === OAUTH_CONSENT_READ_SCOPE,
+      writable: canonical !== OAUTH_CONSENT_READ_SCOPE,
+      group: canonical === OAUTH_CONSENT_READ_SCOPE ? 'read' : 'write',
+      risk: SCOPE_RISK[canonical] ?? null,
+    };
+  });
 }
 
 /** The redirect URIs stored for a client; an unparseable column counts as none. */
@@ -200,7 +206,11 @@ export function grantedScopes(submitted: readonly string[]): string[] {
   const vocabulary = new Set<string>(ACCESS_TOKEN_SCOPES);
   const seen = new Set<string>([OAUTH_CONSENT_READ_SCOPE]);
   const scopes = [OAUTH_CONSENT_READ_SCOPE];
-  for (const scope of submitted) {
+  for (const submittedScope of submitted) {
+    // A `cloudpit:*` request grants the same permission as its legacy spelling; the
+    // stored grant keeps the legacy name so existing `requiredScopes` literals and
+    // the consent screen's own vocabulary keep matching.
+    const scope = canonicalScope(submittedScope);
     if (!vocabulary.has(scope) || seen.has(scope)) {
       continue;
     }

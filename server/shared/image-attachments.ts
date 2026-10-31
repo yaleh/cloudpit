@@ -32,11 +32,11 @@ export type ImageAssetsRootsOptions = {
 
 /**
  * The four asset roots derived from one environment:
- * - `legacyRoot` is always `<home>/.cloudcli/assets` (the unchanged default).
+ * - `legacyRoot` is always `<home>/.cloudcli/assets`, kept readable forever.
  * - `newRoot` is `<explicit>/assets` when `CLOUDPIT_HOME`/`CLOUDCLI_HOME` is
- *   set, otherwise the inert `<home>/.cloudpit/assets`.
- * - `writeRoot` stays on the legacy root unless a root was requested
- *   explicitly, so uploading is byte-for-byte unchanged by default.
+ *   set, otherwise `<home>/.cloudpit/assets`.
+ * - `writeRoot` is the new root: uploads land in the Cloudpit store, and an
+ *   explicit root still wins.
  * - `readRoots` is the deduplicated [newRoot, legacyRoot] list, new root first
  *   (SPEC §4.3), so attachments written before or after the migration are both
  *   readable.
@@ -90,12 +90,12 @@ export function getImageAssetsRoots(options: ImageAssetsRootsOptions = {}): Imag
   return {
     legacyRoot,
     newRoot,
-    writeRoot: explicitRoot ? newRoot : legacyRoot,
+    writeRoot: newRoot,
     readRoots: [...new Set([newRoot, legacyRoot])],
   };
 }
 
-/** Folder new uploads are written to: legacy by default, explicit root when requested. */
+/** Folder new uploads are written to: the Cloudpit root (or the explicitly requested one). */
 export function getImageAssetsWriteDir(options: ImageAssetsRootsOptions = {}): string {
   return getImageAssetsRoots(options).writeRoot;
 }

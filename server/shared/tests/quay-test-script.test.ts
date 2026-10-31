@@ -465,9 +465,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (489 + 1 = 490 collected server test files). Then
     // gap-codex-resident-blocked-context-events added its criterion
     // server/modules/context-events/tests/session-blocked-events.test.ts
-    // (490 + 1 = 491 collected server test files). This fixture names 3 known files,
-    // so 491 - 3 = 488.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=488$/);
+    // (490 + 1 = 491 collected server test files). Then gap-cloudpit-runtime-default-flip
+    // added its criterion server/shared/tests/cloudpit-runtime-flip.test.ts
+    // (491 + 1 = 492 collected server test files). This fixture names 3 known files,
+    // so 492 - 3 = 489.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=489$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -595,10 +597,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // (489 + 1 = 490 after gap-codex-restart-sync-last-activity added
     // server/modules/providers/tests/codex-session-activity-restart.test.ts), then
     // gap-codex-resident-blocked-context-events added
-    // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491)
-    // — but this fixture names ONE known file, so 491 - 1 = 490 (AC2 reads 488 because its
-    // fixture names 3; the 491 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=490$/);
+    // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491), then
+    // gap-cloudpit-runtime-default-flip added
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (491 + 1 = 492)
+    // — but this fixture names ONE known file, so 492 - 1 = 491 (AC2 reads 489 because its
+    // fixture names 3; the 492 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=491$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -42,3 +42,10 @@ export type {
   ServerSettings,
 } from './server-settings.js';
 export type { CodexMcpGatewaySettings } from './codex-mcp-gateway.settings.js';
+// readCockpitSessionStartBoot / resolveServerSettingsFileTarget: the dual read/write target the
+// cockpit session-start settings use when the legacy file is the source. Exported so the
+// Cloudpit runtime criterion can drive the legacy-read → Cloudpit-write contract over a temp home.
+export {
+  readCockpitSessionStartBoot,
+  resolveServerSettingsFileTarget,
+} from './server-settings-file.js';

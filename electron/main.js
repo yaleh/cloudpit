@@ -14,6 +14,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_NAME = 'Cloudpit';
 const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
+const CLOUDPIT_PROTOCOL = 'cloudpit';
+// Both schemes are registered so either build can open the desktop app; the
+// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
+const DEEP_LINK_PROTOCOLS = [CALLBACK_PROTOCOL, CLOUDPIT_PROTOCOL];
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
 const CLOUDCLI_CONTROL_PLANE_URL = process.env.CLOUDCLI_CONTROL_PLANE_URL || 'https://cloudcli.ai';
 const REMOTE_START_TIMEOUT_MS = 30000;
@@ -712,10 +716,12 @@ function getRemoteEnvironmentMenuItems() {
 
 function registerProtocolHandler() {
   const appEntry = path.join(getAppRoot(), 'electron', 'main.js');
-  if (process.defaultApp && process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL, process.execPath, [appEntry]);
-  } else {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL);
+  for (const protocol of DEEP_LINK_PROTOCOLS) {
+    if (process.defaultApp && process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient(protocol, process.execPath, [appEntry]);
+    } else {
+      app.setAsDefaultProtocolClient(protocol);
+    }
   }
 }
 

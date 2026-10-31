@@ -937,3 +937,8 @@
 #   (dur=2257ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 491 server test files).
 2257	server/modules/context-events/tests/session-blocked-events.test.ts
+#   the cloudpit-runtime-flip row by gap-cloudpit-runtime-default-flip, measured once on 2026-10-31 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts`
+#   (dur=7636ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
+#   collects 492 server test files).
+7636	server/shared/tests/cloudpit-runtime-flip.test.ts
