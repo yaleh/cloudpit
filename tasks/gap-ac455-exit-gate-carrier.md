@@ -114,7 +114,7 @@ AC-455（GOAL-053 的目标退出结构门）当前判据在 author 树上实测
 ℹ todo 0
 ```
 
-两条负向控制（目录臂、utils.ts 臂）在同一条用例 `AC2/AC3 false form: a synthetic extra directory and a synthetic extra line each red the gate` 内都执行并通过（`skipped 0`），各自打印了独立的红读数：目录臂 `new module directory outside the frozen baseline: modules/__ac455-false-form`；utils.ts 臂 `server/shared/utils.ts grew to 2 lines, over the frozen exit-gate baseline of 1` 与 `... over the architecture-ratchet oversize baseline of 1`。
+两条负向控制（目录臂、utils.ts 臂）在同一条用例 `AC2/AC3 false form: a synthetic extra directory and a synthetic extra line each red the gate` 内都执行并通过（`skipped 0`，测试名即上列第三条 ✔），各自打印了独立的红读数：目录臂 `new module directory outside the frozen baseline: modules/__ac455-false-form`；utils.ts 臂 `server/shared/utils.ts grew to 2 lines, over the frozen exit-gate baseline of 1` 与 `... over the architecture-ratchet oversize baseline of 1`。
 
 ### AC7 整链复跑
 
@@ -122,4 +122,5 @@ AC1–AC5 串成一条命令一次执行 → `CHAIN_EXIT=0`，实测 `CHAIN_MS=5
 
 ### anti-drift / 提交范围
 
-本任务零生产代码改动（Touches 只有任务文件），worktree 相对 develop 无代码差异；`anti-drift-touches-check.js` 见下一条读数。任务文件本身由 `task_write` 落点提交并按 ABI 传播，`develop...HEAD` 是否列出它以 ABI 落点为准。
+- `anti-drift-touches-check.js --task gap-ac455-exit-gate-carrier --worktree <wt> --merge-target develop` → `ANTI-DRIFT OK: task gap-ac455-exit-gate-carrier — 0 actual file(s), all within declared Touches (1 glob(s))`，退出 0。
+- `git diff --name-only develop...HEAD` → 空。原因：本任务零生产代码改动，且 `task_write` 的任务文件提交已 ff 传播到 develop，worktree merge develop 后 HEAD 与 develop 同一提交；`git show --name-only --oneline HEAD` → `tasks/gap-ac455-exit-gate-carrier.md` 单文件。即落点差异只有任务文件本身，无任何生产代码 / 判据文件 / 基线改动。
