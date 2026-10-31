@@ -49,17 +49,17 @@ GOAL-053 的第二条暗管道任务（A2）。把「数据根解析 + 旧布局
 
 ## AC
 
-- [ ] AC1 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-data-root.test.ts` 退出 0；输出含 `# fail 0`。
-- [ ] AC2 默认臂：`resolveDataRoots({ env: {}, homeDir })` 返回 `activeRoot === path.join(homeDir, '.cloudcli')`、`reason === 'default-legacy'`、`migrated === false`，且 `<homeDir>/.cloudpit` 不存在；测试里同时断言「默认若返回 `~/.cloudpit` 即红」。
-- [ ] AC3 迁移臂：显式 `CLOUDPIT_HOME=<tmp>/new-root` 且旧布局夹具存在时，`reason='explicit-migrated'`、`migrated=true`；`newRoot/auth.db` 用 better-sqlite3 打开后能读到夹具写入的行；`voice-data`、`cockpit-card-feedback.json`、`reply-suggestions-usage.jsonl` 逐字节等于旧根；`<home>/.config/cloudpit/server.settings.json` 存在且内容等于旧设置文件。
-- [ ] AC4 旧根逐字未改：迁移前后对旧根（含 `<home>/.config/claudecodeui/`）递归取「相对路径 → SHA256」集合，两个集合完全相等（文件增删或内容变化即红）。
-- [ ] AC5 新写入落新根：在 `plan.replySuggestionsUsagePath` 追加一行后新根文件增长而旧根同名字节不变；`plan.voiceDataDir === path.join(plan.activeRoot, 'voice-data')`、`plan.authDatabasePath === path.join(plan.activeRoot, 'auth.db')`。
-- [ ] AC6 可重入：第一次迁移后改写 `newRoot/reply-suggestions-usage.jsonl` 的哨兵内容，再次 `resolveDataRoots` 返回 `migrated=false`、`reason='explicit-already-migrated'`，哨兵仍在（没有被重新复制覆盖）；`newRoot/.migrated-from-cloudcli` 的 JSON `source` 等于旧根。
-- [ ] AC7 安全臂：新根已存在且非空、无标记时返回 `reason='explicit-user-root'` 且不删除 / 不覆盖既有文件；旧根不存在时返回 `reason='explicit-no-legacy'`、`activeRoot===显式根`、不创建空迁移标记。
-- [ ] AC8 失败回退：注入 `backupDatabase` 抛 `SQLITE_BUSY` 时返回 `activeRoot===<home>/.cloudcli`、`reason='fallback-after-failure'`、`settingsPath===<home>/.config/claudecodeui/server.settings.json`；`newRoot` 目录不存在（或本次创建的部分已被删除）、新设置文件不存在、没有迁移标记。
-- [ ] AC9 钉子与覆盖：用 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` 测得 N；`server/shared/tests/quay-test-script.test.ts` 两处钉子更新为 `known=3 unknown=<N-3>` 与 `known=1 unknown=<N-1>`，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；`scripts/suite-duration-baseline.tsv` 增加 `<实测ms>\tserver/shared/tests/cloudpit-data-root.test.ts` 一行。
-- [ ] AC10 没有生产接线：`git grep -n 'resolveDataRoots' -- server src electron` 只命中 `server/shared/data-root.ts` 与测试文件；`git diff develop...HEAD -- server/load-env.ts server/modules/cli/cli.module.ts server/index.ts server/shared/utils.ts server/shared/types.ts` 为空。
-- [ ] AC11 `npm run typecheck` 退出 0；`npx oxlint server/shared/data-root.ts server/shared/data-root-migration.ts server/shared/tests/cloudpit-data-root.test.ts server/shared/tests/quay-test-script.test.ts` 退出 0；两个新源文件各 ≤260 行。
+- [x] AC1 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-data-root.test.ts` 退出 0；输出含 `# fail 0`。
+- [x] AC2 默认臂：`resolveDataRoots({ env: {}, homeDir })` 返回 `activeRoot === path.join(homeDir, '.cloudcli')`、`reason === 'default-legacy'`、`migrated === false`，且 `<homeDir>/.cloudpit` 不存在；测试里同时断言「默认若返回 `~/.cloudpit` 即红」。
+- [x] AC3 迁移臂：显式 `CLOUDPIT_HOME=<tmp>/new-root` 且旧布局夹具存在时，`reason='explicit-migrated'`、`migrated=true`；`newRoot/auth.db` 用 better-sqlite3 打开后能读到夹具写入的行；`voice-data`、`cockpit-card-feedback.json`、`reply-suggestions-usage.jsonl` 逐字节等于旧根；`<home>/.config/cloudpit/server.settings.json` 存在且内容等于旧设置文件。
+- [x] AC4 旧根逐字未改：迁移前后对旧根（含 `<home>/.config/claudecodeui/`）递归取「相对路径 → SHA256」集合，两个集合完全相等（文件增删或内容变化即红）。
+- [x] AC5 新写入落新根：在 `plan.replySuggestionsUsagePath` 追加一行后新根文件增长而旧根同名字节不变；`plan.voiceDataDir === path.join(plan.activeRoot, 'voice-data')`、`plan.authDatabasePath === path.join(plan.activeRoot, 'auth.db')`。
+- [x] AC6 可重入：第一次迁移后改写 `newRoot/reply-suggestions-usage.jsonl` 的哨兵内容，再次 `resolveDataRoots` 返回 `migrated=false`、`reason='explicit-already-migrated'`，哨兵仍在（没有被重新复制覆盖）；`newRoot/.migrated-from-cloudcli` 的 JSON `source` 等于旧根。
+- [x] AC7 安全臂：新根已存在且非空、无标记时返回 `reason='explicit-user-root'` 且不删除 / 不覆盖既有文件；旧根不存在时返回 `reason='explicit-no-legacy'`、`activeRoot===显式根`、不创建空迁移标记。
+- [x] AC8 失败回退：注入 `backupDatabase` 抛 `SQLITE_BUSY` 时返回 `activeRoot===<home>/.cloudcli`、`reason='fallback-after-failure'`、`settingsPath===<home>/.config/claudecodeui/server.settings.json`；`newRoot` 目录不存在（或本次创建的部分已被删除）、新设置文件不存在、没有迁移标记。
+- [x] AC9 钉子与覆盖：用 `find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` 测得 N；`server/shared/tests/quay-test-script.test.ts` 两处钉子更新为 `known=3 unknown=<N-3>` 与 `known=1 unknown=<N-1>`，`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` 退出 0；`scripts/suite-duration-baseline.tsv` 增加 `<实测ms>\tserver/shared/tests/cloudpit-data-root.test.ts` 一行。
+- [x] AC10 没有生产接线：`git grep -n 'resolveDataRoots' -- server src electron` 只命中 `server/shared/data-root.ts` 与测试文件；`git diff develop...HEAD -- server/load-env.ts server/modules/cli/cli.module.ts server/index.ts server/shared/utils.ts server/shared/types.ts` 为空。
+- [x] AC11 `npm run typecheck` 退出 0；`npx oxlint server/shared/data-root.ts server/shared/data-root-migration.ts server/shared/tests/cloudpit-data-root.test.ts server/shared/tests/quay-test-script.test.ts` 退出 0；两个新源文件各 ≤260 行。
 
 ## DoD
 
@@ -80,3 +80,145 @@ GOAL-053 的第二条暗管道任务（A2）。把「数据根解析 + 旧布局
 - server/shared/tests/quay-test-script.test.ts (collateral: collected server test-file count pins N-3 / N-1)
 - scripts/suite-duration-baseline.tsv (collateral: one measured row for the new criterion keeps 434/482-shaped coverage above the 90% floor)
 - tasks/gap-cloudpit-data-root-migration.md
+
+## Verification（DoD 读数，2026-10-31，worktree `gap-cloudpit-data-root-migration`）
+
+### AC1 真实运行
+
+`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-data-root.test.ts` → exit 0
+
+```
+ℹ tests 9
+ℹ pass 9
+ℹ fail 0
+```
+
+### AC2 默认臂
+
+```json
+{ "activeRoot": "/tmp/cloudpit-dod-C6nmAr/home-ac2/.cloudcli", "reason": "default-legacy", "migrated": false, "dotCloudpitExists": false, "settingsPath": "/tmp/cloudpit-dod-C6nmAr/home-ac2/.config/claudecodeui/server.settings.json" }
+```
+
+测试另外断言 `plan.activeRoot !== path.join(homeDir, '.cloudpit')`（默认若返回 `~/.cloudpit` 即红）。
+
+### AC3 迁移臂
+
+```json
+{
+  "activeRoot": "/tmp/cloudpit-dod-C6nmAr/new-root",
+  "reason": "explicit-migrated",
+  "migrated": true,
+  "rows": [{ "id": 1, "label": "legacy-row" }],
+  "byteChecks": [
+    { "rel": "voice-data/recording-1.wav", "equal": true },
+    { "rel": "voice-data/manifest.json", "equal": true },
+    { "rel": "cockpit-card-feedback.json", "equal": true },
+    { "rel": "reply-suggestions-usage.jsonl", "equal": true }
+  ],
+  "settingsEqual": true
+}
+```
+
+五个夹具的目标路径：`new-root/auth.db`（新库读出 `{id:1,label:'legacy-row'}`）、`new-root/voice-data/*`、`new-root/cockpit-card-feedback.json`、`new-root/reply-suggestions-usage.jsonl`、`<home>/.config/cloudpit/server.settings.json`（内容逐字节等于旧设置）。
+
+### `.migrated-from-cloudcli` 原文与 mtime
+
+```json
+{
+  "source": "/tmp/cloudpit-dod-C6nmAr/home/.cloudcli",
+  "at": "2026-10-31T06:46:05.632Z",
+  "version": "probe"
+}
+```
+
+`stat.mtimeMs = 1793429165632.1257`；被复制源文件的最新 mtime = `1793429165622.1257`，`markerWrittenLast: true`——标记是最后写入的。
+
+### AC4 迁移前后旧根 SHA256 集合（完整）
+
+迁移前 = 迁移后：
+
+```
+data/auth.db                                f6c25d136a9c164f381e0d229767faf1e60ac31ea6368bc8f9a124210e510f10
+data/cockpit-card-feedback.json             76d2c22192b34e7587fd9ce81edcbe74ff6ad33abb825f58b8afbefb5cedfd05
+data/reply-suggestions-usage.jsonl          edf26e2bdad50b10225b2d2eb9472db1ad13416b4351c8c162ad13bf3c254102
+data/voice-data/manifest.json               5921df11c55ea5e46b8b5fcc52b43ef20a44110d72ba74cf692cfccfa96c1960
+data/voice-data/recording-1.wav             35b9e86fb00cf111c910f841acf06dd80c9567a809bcf1807f20f20910311b7f
+config/server.settings.json                 242b6d5bf2ebab60c46bd6147660271b43bb502aabc85d0b000dd82aa0dd469d
+```
+
+### AC5 新写入落新根
+
+```json
+{ "replySuggestionsUsagePath": "/tmp/cloudpit-dod-C6nmAr/new-root/reply-suggestions-usage.jsonl", "voiceDataDir": "/tmp/cloudpit-dod-C6nmAr/new-root/voice-data", "authDatabasePath": "/tmp/cloudpit-dod-C6nmAr/new-root/auth.db", "newSizeBefore": 26, "newSizeAfter": 41, "legacyUnchanged": true }
+```
+
+### AC6 二次启动
+
+```json
+{ "reason": "explicit-already-migrated", "migrated": false, "sentinel": "{\"id\":\"sentinel\"}", "markerSource": "/tmp/cloudpit-dod-C6nmAr/home/.cloudcli", "legacyRoot": "/tmp/cloudpit-dod-C6nmAr/home/.cloudcli" }
+```
+
+### AC7 两个安全臂
+
+```json
+{ "reason": "explicit-user-root", "migrated": false, "activeRoot": "/tmp/cloudpit-dod-C6nmAr/user-root", "userFile": "do not touch", "markerExists": false }
+{ "reason": "explicit-no-legacy", "migrated": false, "activeRoot": "/tmp/cloudpit-dod-C6nmAr/no-legacy-new", "expectedRoot": "/tmp/cloudpit-dod-C6nmAr/no-legacy-new", "markerExists": false }
+```
+
+### AC8 失败回退（独立 home，备份注入 `SQLITE_BUSY`）
+
+```json
+{ "activeRoot": "/tmp/cloudpit-dod-FiANt3/home-fail/.cloudcli", "expectedLegacyRoot": "/tmp/cloudpit-dod-FiANt3/home-fail/.cloudcli", "reason": "fallback-after-failure", "migrated": false, "settingsPath": "/tmp/cloudpit-dod-FiANt3/home-fail/.config/claudecodeui/server.settings.json", "newRootExists": false, "newSettingsExists": false, "markerExists": false }
+```
+
+### AC9 钉子与覆盖
+
+测量：`find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | wc -l` → `485`。
+
+两处钉子 diff：
+
+```
+-    // server test files). This fixture names 3 known files, so 484 - 3 = 481.
+-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=481$/);
++    // server test files). Then gap-cloudpit-data-root-migration added its criterion
++    // server/shared/tests/cloudpit-data-root.test.ts (484 + 1 = 485 collected
++    // server test files). This fixture names 3 known files, so 485 - 3 = 482.
++    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=482$/);
+-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=483$/);
++    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=484$/);
+```
+
+`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/quay-test-script.test.ts` → exit 0，末行 `ℹ fail 0`（14 tests / 14 pass）。
+
+baseline 新行：
+
+```
+2180	server/shared/tests/cloudpit-data-root.test.ts
+```
+
+覆盖：436/484 原为 90.08%，新增判据后 437/485 = 90.10%（≥ 90%）。
+
+### AC10 无生产接线
+
+`git grep -n 'resolveDataRoots' -- server src electron` 完整结果：
+
+```
+server/shared/data-root.ts:11,25,65,146
+server/shared/tests/cloudpit-data-root.test.ts:30,127,144,185,198,207,226,232,250,266,282
+```
+
+`git diff develop...HEAD -- server/load-env.ts server/modules/cli/cli.module.ts server/index.ts server/shared/utils.ts server/shared/types.ts` → 空。
+
+### AC11 类型/静态检查与行数
+
+- `npm run typecheck` → exit 0。
+- `npx oxlint server/shared/data-root.ts server/shared/data-root-migration.ts server/shared/tests/cloudpit-data-root.test.ts server/shared/tests/quay-test-script.test.ts` → exit 0。
+- `wc -l server/shared/data-root.ts` → 191；`wc -l server/shared/data-root-migration.ts` → 232（均 ≤ 260）。
+
+### anti-drift
+
+`anti-drift-touches-check.js --task gap-cloudpit-data-root-migration --merge-target develop` → `ANTI-DRIFT OK: 5 actual file(s), all within declared Touches (6 glob(s))`。
+
+## 暗轴记录
+
+该轴仍暗,理由:本任务只新增未接线的纯函数与判据，未接入任何生产入口，数据根调用点仍全部走旧路径，无可测的亮/暗读数。
