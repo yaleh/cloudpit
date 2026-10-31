@@ -7,6 +7,7 @@ import { initReactI18next } from 'react-i18next';
 import { test } from 'vitest';
 
 import { CommandResultModal } from '@/modules/chat-support';
+import { TokenUsageSummary } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import type { CommandModalPayload, CostCommandData } from '@/shared/types';
 
@@ -108,4 +109,114 @@ test('the meta card renders no AI title row for a blank title', () => {
   });
 
   assert.equal(positionOf('AI title'), -1, 'a whitespace-only title is as absent as a missing one');
+});
+
+/**
+ * The grouped `/cost` layout for a cumulative provider. The three readings are
+ * separate facts: whole-session spend, the latest request as a context
+ * estimate, and the window capacity. The modal must not treat the window as a
+ * denominator, and cached/reasoning detail must not be added to their parents.
+ */
+const cumulativeReading = (overrides: Partial<NonNullable<CostCommandData['tokenUsage']>> = {}) => ({
+  used: 1_500,
+  total: 258_400,
+  scope: 'session-cumulative' as const,
+  cumulative: {
+    inputTokens: 1_200,
+    outputTokens: 300,
+    cacheReadTokens: 900,
+    reasoningOutputTokens: 120,
+    totalTokens: 1_500,
+  },
+  lastRequest: {
+    inputTokens: 800,
+    outputTokens: 90,
+    cacheReadTokens: 600,
+    reasoningOutputTokens: 40,
+    totalTokens: 890,
+  },
+  ...overrides,
+});
+
+test('the cost modal groups cumulative, latest request and window as separate readings', () => {
+  renderCostModal({
+    tokenUsage: cumulativeReading(),
+    provider: 'codex',
+    model: 'gpt-5-codex',
+  });
+
+  const text = document.body.textContent ?? '';
+  assert.ok(text.includes('Session cumulative'));
+  assert.ok(text.includes('Latest request (context estimate)'));
+  assert.ok(text.includes('Context window'));
+  // Subsets are labelled as subsets so they are not read as additional rows.
+  assert.ok(text.includes('subset of input — not added again'));
+  assert.ok(text.includes('subset of output — not added again'));
+  // The displayed total is the source's own total, not the sum of its detail.
+  assert.ok(text.includes((1_500).toLocaleString()));
+  assert.equal(text.includes((1_200 + 900 + 300 + 120).toLocaleString()), false);
+  // The window is shown as capacity, not as a derived fraction of the total.
+  assert.ok(text.includes((258_400).toLocaleString()));
+  assert.equal(/percent|%/i.test(text), false);
+});
+
+test('the grouped layout omits unreported quantities and keeps an explicit zero', () => {
+  renderCostModal({
+    tokenUsage: {
+      used: 10,
+      scope: 'session-cumulative',
+      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+    },
+    provider: 'codex',
+    model: 'gpt-5-codex',
+  });
+
+  const text = document.body.textContent ?? '';
+  assert.ok(text.includes('Session cumulative'));
+  // Missing detail is absent, not a zero row and not an empty section.
+  assert.equal(text.includes('Cached input tokens'), false);
+  assert.equal(text.includes('Reasoning output tokens'), false);
+  assert.equal(text.includes('Latest request'), false);
+  assert.equal(text.includes('Context window'), false);
+  // The explicitly reported zero survives.
+  const labels = Array.from(document.querySelectorAll('span')).map((element) => element.textContent);
+  assert.ok(labels.includes('Output tokens'));
+  assert.equal(labels.filter((label) => label === '0').length, 1);
+});
+
+test('the legacy Claude layout is unchanged', () => {
+  renderCostModal({
+    tokenUsage: { used: 1_200, total: 4_000 },
+    tokenBreakdown: { input: 1_000, output: 200 },
+    provider: 'claude',
+    model: 'claude-sonnet-4-5',
+  });
+
+  const text = document.body.textContent ?? '';
+  assert.ok(text.includes('Total tokens used'));
+  assert.ok(text.includes('Input tokens'));
+  assert.ok(text.includes('Output tokens'));
+  assert.ok(text.includes('Context window'));
+  // No cumulative-provider additions leak into a context-style reading.
+  assert.equal(text.includes('Session cumulative'), false);
+  assert.equal(text.includes('Latest request'), false);
+  assert.equal(text.includes('subset of input'), false);
+});
+
+test('the compact counter names the cumulative scope it is showing', () => {
+  const { container } = render(
+    <TokenUsageSummary usage={{ used: 1_500, usageScope: 'session-cumulative' }} />,
+  );
+
+  // The number is a whole-session total, not current context occupancy; the
+  // chip has to say so instead of leaving the reader to assume a window ratio.
+  assert.ok((container.textContent ?? '').includes('session total'));
+  assert.ok((container.textContent ?? '').includes('1.5K'));
+});
+
+test('the compact counter keeps the legacy context reading unchanged', () => {
+  const { container } = render(<TokenUsageSummary usage={{ used: 1_500 }} />);
+
+  assert.equal((container.textContent ?? '').includes('session total'), false);
+  assert.ok((container.textContent ?? '').includes('1.5K'));
 });

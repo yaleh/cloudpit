@@ -2435,15 +2435,34 @@ export type ModelCommandData = {
   defaultModel?: string;
 };
 
+/** One provider-reported usage quantity set: a session cumulative total or one latest request. Every field is optional because "not reported" must stay distinct from an explicit zero; cached input is a subset of input and reasoning output a subset of output, so they are never added in again. */
+export type TokenUsageCounts = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  reasoningOutputTokens?: number;
+  totalTokens?: number;
+};
+
 /** Result payload of the chat `/cost` slash command, carrying the session's token usage totals and input/output breakdown for the command modal's usage view. */
 export type CostCommandData = {
   tokenUsage?: {
     used?: number;
     total?: number;
+    /** `session-cumulative` means `used` is the whole session's spend, never a context fraction of `total`; absent means the legacy context reading. */
+    scope?: 'context' | 'session-cumulative';
+    /** Whole-session spend; the modal groups it separately from the latest request. */
+    cumulative?: TokenUsageCounts;
+    /** Newest single request; only an approximate context-occupancy reference. */
+    lastRequest?: TokenUsageCounts;
+    /** Provider timestamp of the snapshot, used to keep the newer of two racing writers. */
+    observedAt?: string;
   };
   tokenBreakdown?: {
     input?: number;
     output?: number;
+    cacheRead?: number;
+    reasoningOutput?: number;
   };
   provider?: string;
   model?: string;

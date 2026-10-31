@@ -92,6 +92,111 @@ const readCommandAiTitle = async (titlesReader, context) => {
   }
 };
 
+/**
+ * Reads one numeric usage quantity while preserving "unknown" as `undefined`.
+ * A missing or unparsable field must not become a fabricated zero.
+ */
+const readUsageQuantity = (value) => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+/**
+ * Copies only the quantities a structured usage block actually reported.
+ *
+ * The shape matches the provider readers' cumulative/latest-request blocks;
+ * snake_case fallbacks keep an old client payload readable.
+ */
+const readUsageCounts = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const counts = {};
+  const add = (field, ...keys) => {
+    for (const key of keys) {
+      const quantity = readUsageQuantity(value[key]);
+      if (quantity !== undefined) {
+        counts[field] = quantity;
+        return;
+      }
+    }
+  };
+
+  add("inputTokens", "inputTokens", "input_tokens");
+  add("outputTokens", "outputTokens", "output_tokens");
+  add("cacheReadTokens", "cacheReadTokens", "cache_read_input_tokens", "cached_input_tokens");
+  add("reasoningOutputTokens", "reasoningOutputTokens", "reasoning_output_tokens");
+  add("totalTokens", "totalTokens", "total_tokens");
+
+  return Object.keys(counts).length > 0 ? counts : undefined;
+};
+
+/**
+ * Builds `/cost`'s grouped answer for a provider that reports a session
+ * cumulative snapshot (Codex).
+ *
+ * The three quantities are kept separate by construction:
+ * - `cumulative` is the whole session's spend;
+ * - `lastRequest` is the newest request, an approximate context reading;
+ * - `total` is the window capacity, independent of either.
+ *
+ * No ratio is emitted, and cached/reasoning tokens stay inside their parent
+ * totals rather than being added again. Fields the source did not report are
+ * omitted, not zero-filled.
+ */
+const buildStructuredCostData = (tokenUsage, provider, model, aiTitle) => {
+  const cumulative = readUsageCounts(tokenUsage.cumulative);
+  const lastRequest = readUsageCounts(tokenUsage.lastRequest);
+  const used = readUsageQuantity(tokenUsage.used)
+    ?? cumulative?.totalTokens
+    ?? (
+      cumulative?.inputTokens !== undefined && cumulative?.outputTokens !== undefined
+        ? cumulative.inputTokens + cumulative.outputTokens
+        : undefined
+    );
+  const window = readUsageQuantity(tokenUsage.total ?? tokenUsage.contextWindow);
+  const observedAt =
+    typeof tokenUsage.observedAt === "string" && tokenUsage.observedAt
+      ? tokenUsage.observedAt
+      : undefined;
+  const hasBreakdown =
+    cumulative?.inputTokens !== undefined || cumulative?.outputTokens !== undefined;
+
+  return {
+    type: "builtin",
+    action: "cost",
+    data: {
+      tokenUsage: {
+        ...(used !== undefined ? { used } : {}),
+        ...(window !== undefined ? { total: window } : {}),
+        scope: "session-cumulative",
+        ...(cumulative ? { cumulative } : {}),
+        ...(lastRequest ? { lastRequest } : {}),
+        ...(observedAt ? { observedAt } : {}),
+      },
+      ...(hasBreakdown
+        ? {
+            tokenBreakdown: {
+              ...(cumulative?.inputTokens !== undefined ? { input: cumulative.inputTokens } : {}),
+              ...(cumulative?.outputTokens !== undefined ? { output: cumulative.outputTokens } : {}),
+              ...(cumulative?.cacheReadTokens !== undefined ? { cacheRead: cumulative.cacheReadTokens } : {}),
+              ...(cumulative?.reasoningOutputTokens !== undefined
+                ? { reasoningOutput: cumulative.reasoningOutputTokens }
+                : {}),
+            },
+          }
+        : {}),
+      provider,
+      model,
+      ...(aiTitle ? { aiTitle } : {}),
+    },
+  };
+};
+
 const executeModelsCommand = async (args, context, modelsService) => {
   const currentProvider = readModelProvider(context?.provider);
   const catalog = await modelsService.getProviderModels(currentProvider);
@@ -296,6 +401,20 @@ Custom commands can be created in:
     const provider = readModelProvider(context?.provider);
     const model = await resolveCommandModel(providerModelsService, provider, context);
     const aiTitle = await readCommandAiTitle(readSessionAiTitle, context);
+
+    // A provider that reports a cumulative snapshot (Codex) answers with the
+    // grouped shape: cumulative, latest request and window are separate facts.
+    // Providers that report a single context reading (Claude) keep the legacy
+    // arithmetic below untouched.
+    const structuredCumulative = readUsageCounts(tokenUsage.cumulative);
+    const structuredLastRequest = readUsageCounts(tokenUsage.lastRequest);
+    if (
+      tokenUsage.usageScope === "session-cumulative"
+      || structuredCumulative
+      || structuredLastRequest
+    ) {
+      return buildStructuredCostData(tokenUsage, provider, model, aiTitle);
+    }
 
     const reportedUsed =
       Number(

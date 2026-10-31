@@ -1,7 +1,7 @@
 ---
 id: gap-codex-token-usage-snapshot-semantics
 title: Codex token 用量统一快照口径并展示累计、最近请求与明细
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -55,6 +55,14 @@ Codex 会话 /cost 曾显示 Total tokens used 2,508,151、Breakdown Unavailable
 **ADR-007 暗轴**
 - 该轴仍暗,理由: 项目未声明 loop.scoped_command，本任务没有 loop 级 L_D/L_G 读数可报，以上聚焦测试、ratchet 与真实浏览器读数为本任务验证面。
 
+**2026-10-31 suite-red 修复：Codex 实时路径的终端帧时序**
+- 上轮 fan-in 红：`server/modules/session-hosts/tests/session-host-default-wrap.test.ts` AC4/AC6 期望 `turn-complete`、实测 `released`；隔离重跑与套件重跑均复现，判定为任务引入的真实回归（非环境假红）。
+- 根因：`codex-runtime.provider.ts` 在 `turn.completed` 事件里，于终端帧归一化并发送之后才 `await readCodexSessionTokenUsage(...)`；session-host 包装器把「终端帧已到、run promise 未 settle」读成 held-open 窗口，先置 `lingering`，随后以 `released` 关闭。
+- 修复（commit `3da48e8d0`）：把 rollout 读取上移到终端帧归一化/发送之前，帧顺序不变；终端帧成为 promise settle 前的最后一次写入，host 以 `turn-complete` 关闭。
+- 复验：同一命令修复前 4/6（AC4、AC6 红）→ 修复后 6/6 passed；合并 develop 后重跑该文件 + `codex-runtime.test.ts` + `provider-token-usage.service.test.ts` → 38 passed；`npm run typecheck` exit 0；`npm run lint` exit 0；`architecture-ratchet.test.ts` 6 passed。
+- merge develop 冲突处理：`server/modules/providers/tests/codex-sessions.test.ts` 取语义并集（develop 的 resident transcript 用例 + 本任务的 history/endpoint 一致性用例与 import）；`architecture-ratchet.baseline.json` 的 note 取两边 RECORDED CHANGE 并集，条目保留本任务 `src/shared/types.ts` 4749→4768 的读数。
+- 四条 AC 仍全部满足（`task_check`：`acTotal=4, acChecked=4`）。
+
 ## Touches
 
 - server/modules/providers/list/codex/codex-sessions.provider.ts
@@ -85,11 +93,3 @@ Codex 会话 /cost 曾显示 Total tokens used 2,508,151、Breakdown Unavailable
 - src/modules/chat/tests/tokenBudgetSessionScope.test.tsx
 - src/modules/chat-composer/hooks/useCommandMenuState.ts
 - tasks/gap-codex-token-usage-snapshot-semantics.md
-
-## Blocker
-
-**2026-10-31T15:10:42.391Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/modules/session-hosts/tests/session-host-default-wrap.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/session-hosts/tests/session-host-default-wrap.test.ts,server/modules/session-hosts/tests/session-host-default-wrap.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：545e41a0-612d-4849-91d6-cd0f2eead3bf

@@ -42,6 +42,7 @@ export { hasReachedCachedTailTimeBoundary } from '@/modules/chat-session/utils/s
 export { mergeLatestServerPage } from '@/modules/chat-session/utils/session/sessionMessagePagination';
 export { mergeOlderServerPage } from '@/modules/chat-session/utils/session/sessionMessagePagination';
 export { mergeSessionRows } from '@/modules/chat-session/hooks/useSessionStore';
+export { pickFresherTokenUsage } from '@/modules/chat-session/utils/session/tokenUsageFreshness';
 export { normalizedToChatMessages } from '@/modules/chat-session/hooks/useChatMessages';
 export { planLatestPageBridge } from '@/modules/chat-session/utils/session/sessionMessagePagination';
 export { planOlderPagePrefetch } from '@/modules/chat-session/utils/session/sessionMessagePagination';
