@@ -67,16 +67,12 @@ import { parseIncomingJsonObject, residentRunIsTurn } from '@/shared/utils.js';
 /**
  * Trust boundary for client-supplied image attachments: chat.send options come
  * straight from the browser, and the provider runtimes read the referenced
- * files off disk (Claude base64-encodes them into the prompt). Only images
- * that live directly inside one of the upload stores (the legacy
- * `~/.cloudcli/assets` and, when an explicit root is configured, its
- * `<explicit>/assets` — both places POST /api/assets/images can write to) are
- * allowed through — anything else (absolute paths elsewhere, traversal,
- * subdirectories) is dropped.
- *
- * Exported for tests; `assetsRootOverride` exists only for them. Without an
- * override both dual roots are accepted (new root first) so re-sending a
- * historical attachment from either store survives the filter.
+ * files off disk (Claude base64-encodes them). Only images directly inside an
+ * upload store (`~/.cloudcli/assets`, or `<explicit>/assets` when a root is
+ * configured — either place POST /api/assets/images writes) are allowed through;
+ * anything else (absolute paths elsewhere, traversal, subdirectories) is dropped.
+ * Exported for tests; without an override both dual roots are accepted (new root
+ * first) so re-sending a historical attachment from either store survives.
  */
 export function filterAttachmentsToUploadStore(
   attachments: unknown,
