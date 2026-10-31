@@ -189,12 +189,12 @@ function nullPathFixture() {
 
 /** @param {import('better-sqlite3').Database} db */
 function readSessionRow(db) {
-  return db.prepare('SELECT * FROM sessions WHERE session_id = ?').get(APP_SESSION);
+  return /** @type {any} */ (db.prepare('SELECT * FROM sessions WHERE session_id = ?').get(APP_SESSION));
 }
 
 /** @param {import('better-sqlite3').Database} db */
 function readSupersededRows(db) {
-  return db.prepare('SELECT * FROM superseded_provider_sessions WHERE session_id = ? ORDER BY provider_session_id').all(APP_SESSION);
+  return /** @type {any[]} */ (db.prepare('SELECT * FROM superseded_provider_sessions WHERE session_id = ? ORDER BY provider_session_id').all(APP_SESSION));
 }
 
 test('null-path-retired: dry run writes no business rows, then apply restores path and activity', () => {
@@ -435,7 +435,7 @@ test('fork-rebind: the legacy edit-fork shape still repairs, supersedes the fork
     assert.equal(row.jsonl_path, targetPath);
     assert.equal(row.updated_at, '2026-10-31 06:26:00');
 
-    const superseded = db.prepare('SELECT * FROM superseded_provider_sessions ORDER BY provider_session_id').all();
+    const superseded = /** @type {any[]} */ (db.prepare('SELECT * FROM superseded_provider_sessions ORDER BY provider_session_id').all());
     assert.deepEqual(superseded, [
       {
         provider_session_id: FORK_THREAD,
@@ -447,7 +447,7 @@ test('fork-rebind: the legacy edit-fork shape still repairs, supersedes the fork
     ]);
 
     // The watcher-created duplicate row for the fork is merged away.
-    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE session_id = ?').get(FORK_THREAD).count, 0);
+    assert.equal(/** @type {any} */ (db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE session_id = ?').get(FORK_THREAD)).count, 0);
     assert.deepEqual(readFileSync(forkPath), forkBytes, 'the abandoned fork file is never rewritten');
 
     const rerun = repairSession({
