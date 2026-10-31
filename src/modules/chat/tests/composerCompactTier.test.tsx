@@ -40,6 +40,8 @@ const FOOTER_SELECTOR = '[data-slot="prompt-input-footer"]';
 const TOOLS_SELECTOR = '[data-slot="prompt-input-tools"]';
 /** The row of its own the replay pair gets on the compact tier. */
 const CLIP_ROW_SELECTOR = '[data-slot="prompt-input-clip-row"]';
+/** The key-naming line under the controls, a flex item of the footer while it is displayed. */
+const HINT_SELECTOR = '[data-slot="composer-input-hint"]';
 
 /** The window rule's two sides: one pixel under `md`, and a window with room to spare. */
 const NARROW_EDGE_WIDTH = 767;
@@ -460,6 +462,41 @@ test('(a) a wide window with a box under the threshold takes the compact arrange
     `commands, schedule and token usage must not stay in the footer; ${reading}`,
   );
   assert.deepEqual(readFooter(footer).wrapTokens, ['flex-nowrap'], `the compact row may not wrap; ${reading}`);
+});
+
+test('(a2) the keyboard hint is hidden on the compact tier, whatever the window width says', () => {
+  /*
+   * The reported defect: opening the cockpit column narrowed the box below the threshold while the
+   * *window* stayed `lg`, so `hidden lg:block` still displayed the hint. In the nowrap compact row
+   * it is a third flex item between the two control groups, and `justify-between` stranded the
+   * model/permission/mic/send cluster in the middle, reading as "all buttons squeezed left".
+   *
+   * jsdom lays nothing out, so what holds here is the tier's own token: the hint carries `hidden`
+   * and not `lg:block` when the box is compact. The wide cell is the negative control — the same
+   * hint must keep `lg:block` there, or the fix would have removed the line from the desktop row.
+   */
+  const compact = renderComposer({ viewport: DESKTOP_WIDTH, boxWidth: BOX_WITH_SIDEBAR_OPEN });
+  const compactHint = compact.footer.querySelector<HTMLElement>(HINT_SELECTOR);
+  assert.ok(compactHint, `the compact footer must still render the hint (${HINT_SELECTOR})`);
+  assert.equal(
+    compactHint.classList.contains('hidden'),
+    true,
+    `an ${BOX_WITH_SIDEBAR_OPEN}px box must hide the hint; class=${compactHint.className}`,
+  );
+  assert.equal(
+    compactHint.classList.contains('lg:block'),
+    false,
+    `an lg:block token would override hidden and re-strand the controls; class=${compactHint.className}`,
+  );
+
+  const wide = renderComposer({ viewport: DESKTOP_WIDTH, boxWidth: BOX_WITH_SIDEBAR_CLOSED });
+  const wideHint = wide.footer.querySelector<HTMLElement>(HINT_SELECTOR);
+  assert.ok(wideHint, `the wide footer must still render the hint (${HINT_SELECTOR})`);
+  assert.equal(
+    wideHint.classList.contains('lg:block'),
+    true,
+    `an ${BOX_WITH_SIDEBAR_CLOSED}px box keeps the desktop hint; class=${wideHint.className}`,
+  );
 });
 
 test('(a) with a pair, the compact arrangement puts the replay row before the footer and nothing in the tools group', () => {

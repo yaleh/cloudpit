@@ -1617,9 +1617,20 @@ export default function ChatComposer({
             The voice tier fades it too: while the draft is empty the submit is the Live Voice entry
             (`submitIsVoice`), and starting Live Voice has no keyboard key, so the key-naming line
             would describe a key that does nothing — the same wrong-wording the touch rule removes.
+
+            THE COMPACT TIER HIDES IT REGARDLESS OF THE WINDOW. `basis-full` only gives the line its
+            own row while the footer wraps; the compact row is `flex-nowrap` (the six controls that
+            send a message stay on one line), so there the hint is a THIRD flex item between the two
+            control groups. `justify-between` then strands the model/permission/mic/send cluster in
+            the middle of the row — the reported "buttons all squeezed to the left" when the cockpit
+            column narrows the box below `COMPACT_TIER_WIDTH_PX` inside an `lg` window, which the
+            `hidden lg:block` media query alone cannot see. Measured at a 679px box in a 1440px
+            window: the hint took 356px and the send cluster ended at x=615 of the footer's 983.
+            Hidden on this tier, exactly as it is on touch: the row has no line to spare anyway.
           */}
           <div
-            className={`order-last basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 ${touchOnly ? 'hidden' : 'hidden lg:block'} ${
+            data-slot="composer-input-hint"
+            className={`order-last basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 ${touchOnly || isCompactTier ? 'hidden' : 'hidden lg:block'} ${
               (input.trim() && !canQueueDraft) || submitIsVoice ? 'opacity-0' : 'opacity-100'
             }`}
           >
