@@ -72,3 +72,11 @@ Move the three byte/encoding helpers into the same shared asr helper module as `
 - `src/shared/asr/tests/asrContractInvariants.test.ts`
 - `src/shared/asr/tests/multimodalAdapter.test.ts`
 - `tasks/gap-routine-architecture-analysis-asr-byte-measure-helpers-duplicated.md`
+
+## Blocker
+
+**2026-10-31T18:09:08.529Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/voice/tests/voice-capture-audio.false-forms.test.ts:   AssertionError [ERR_ASSERTION]: a criterion this task must not have moved is red [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/voice/tests/voice-capture-audio.false-forms.test.ts,server/modules/voice/tests/voice-capture-text.false-forms.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/modules/voice/tests/voice-capture-text.test.ts,server/modules/voice/tests/voice-capture-audio.false-forms.test.ts,server/modules/voice/tests/voice-capture-text.false-forms.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/modules/voice/tests/voice-capture-text.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6e92b64e-0a73-4879-a2d1-584766d5cab6
