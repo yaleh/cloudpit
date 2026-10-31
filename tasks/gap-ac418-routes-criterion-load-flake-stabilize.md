@@ -2,7 +2,7 @@
 id: gap-ac418-routes-criterion-load-flake-stabilize
 title: AC-418 判据在宿主高负载下假红：architecture-routes 测试的 loopback fetch
   偶发拒绝，给请求加有界重试（35 条读数逐字不动）
-status: ready
+status: done
 labels:
   - gap
 parent: null
