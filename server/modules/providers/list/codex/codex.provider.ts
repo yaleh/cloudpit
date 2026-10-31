@@ -44,11 +44,10 @@ export class CodexProvider extends AbstractProvider {
    *
    * Mounted with the process-wide session-host manager so an on-demand start
    * (`provider-runtime.service.startResidentSession`, reached by the host route
-   * and the restore pass) opens a host this manager tracks. Codex declares no
-   * `resident` lifecycle mode yet — that declaration is a later task — so the
-   * dispatch does not route a turn here; the driver is mounted and reachable,
-   * which is what makes the declaration a one-line change rather than a
-   * re-wiring.
+   * and the restore pass) opens a host this manager tracks. Codex declares
+   * `resident` in `provider-capabilities.service.ts` (`lifecycleModes:
+   * ['per-run', 'resident']`, default `resident`), so the dispatch routes a turn
+   * here; the driver is mounted and reachable for that path.
    */
   readonly residentHostDriver: CodexHostDriver = new CodexHostDriver({
     host: sessionHostManager,

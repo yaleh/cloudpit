@@ -482,7 +482,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     const session = this.requireSession(appSessionId);
     const connection = this.connectionFor(host.hostId);
     this.approvals.recordWriter(appSessionId, writer);
-    const frames = createCodexResidentFrameRelay(writer);
+    const frames = createCodexResidentFrameRelay(writer, { transcript: { appSessionId, prompt: turn.command } });
     const unsubscribe = connection.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
         frames.forward(method, params);
