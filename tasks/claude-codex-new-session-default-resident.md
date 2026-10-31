@@ -1,7 +1,7 @@
 ---
 id: claude-codex-new-session-default-resident
 title: Claude Code 与 Codex 新会话默认 resident：后端统一策略、创建时落库、网页/MCP/语音一致
-status: ready
+status: done
 labels:
   - feature
 parent: null
