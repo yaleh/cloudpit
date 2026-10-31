@@ -92,6 +92,13 @@ export const CLOUDCLI_CONTEXT_EVENT_KINDS = [
   // The session-lifecycle kinds (`session-run-events.ts`). Like the ask kinds above, an
   // installed schema that does not carry them refuses the append as `invalid-kind`.
   'session.run.ended', 'session.closed',
+  // One completed viewing episode (the local `ui-view-events.jsonl` carrier's context-stream
+  // twin). Written AHEAD of the installed fleet schema for the same reason as the retraction
+  // below: the reader tolerates an unknown kind, and quay-fleet's behaviour experiments need
+  // the signal before the release that names it ships. Remove from
+  // {@link FLEET_TOLERATED_AHEAD_KINDS} once the fleet schema declares it
+  // (`{producer:'cloudcli', group:'interaction'}`).
+  'ui.view',
 ] as const;
 
 /** The kinds this producer may write. */
@@ -175,9 +182,17 @@ export const SESSION_ASK_RETRACTED_DATA_FIELDS = ['askId', 'messageId'] as const
  *
  * This is a narrow allow-list, never a relaxation of the gate: every other kind outside the
  * installed document is still refused as `invalid-kind`.
+ *
+ * `ui.view` is on it for the same reason. The local view-event carrier already records completed
+ * viewing episodes; publishing the same episode into the host stream is what lets quay-fleet's
+ * behaviour experiments read "was the person in the cockpit or in a session?" before the fleet
+ * release that names the kind. The fleet's schema ships the row as
+ * `{producer:'cloudcli', group:'interaction'}`; once that release is installed this entry is
+ * removed — the schema then carries the kind itself.
  */
 export const FLEET_TOLERATED_AHEAD_KINDS: readonly CloudCliContextEventKind[] = [
   SESSION_ASK_RETRACTED_KIND,
+  'ui.view',
 ];
 
 /**

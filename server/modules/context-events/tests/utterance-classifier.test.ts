@@ -71,3 +71,63 @@ test('AC2: every category carries a baseline ladder level', () => {
   }
   console.log(`AC2 ladder=${JSON.stringify(LADDER_BASELINE)}`);
 });
+
+/**
+ * AC3 — `utterance.data.class` is a STABLE contract, not an implementation detail.
+ *
+ * quay-fleet's behaviour experiments derive polling cadence, answer-in-session rate and
+ * cross-session relay rate from the `class` member this table writes onto every `utterance`
+ * row. The pin is deliberately redundant: the array is compared whole (order included) AND
+ * each value is asserted as a literal string, so renaming, reordering, adding or removing one
+ * class reds the criterion instead of silently changing what the fleet's history means.
+ */
+const CONTRACT_UTTERANCE_CLASSES = [
+  'task-authoring',
+  'build-restart',
+  'landing-verification',
+  'progress-check',
+  'browser-verification',
+  'release',
+  'approval',
+  'session-collaboration',
+  'diagnosis',
+  'discussion',
+] as const;
+
+test('AC3: the ten utterance classes are the stable fleet contract (whole array)', () => {
+  assert.deepEqual(UTTERANCE_CLASSES, CONTRACT_UTTERANCE_CLASSES);
+  assert.equal(UTTERANCE_CLASSES.length, 10, 'exactly ten classes');
+  console.log(`AC3 classes=${UTTERANCE_CLASSES.length} ${UTTERANCE_CLASSES.join(',')}`);
+});
+
+test('AC3: every class value is pinned as its own literal', () => {
+  // One assertion per value, so a diff names the class that moved rather than only the array.
+  assert.equal(UTTERANCE_CLASSES[0], 'task-authoring');
+  assert.equal(UTTERANCE_CLASSES[1], 'build-restart');
+  assert.equal(UTTERANCE_CLASSES[2], 'landing-verification');
+  assert.equal(UTTERANCE_CLASSES[3], 'progress-check');
+  assert.equal(UTTERANCE_CLASSES[4], 'browser-verification');
+  assert.equal(UTTERANCE_CLASSES[5], 'release');
+  assert.equal(UTTERANCE_CLASSES[6], 'approval');
+  assert.equal(UTTERANCE_CLASSES[7], 'session-collaboration');
+  assert.equal(UTTERANCE_CLASSES[8], 'diagnosis');
+  assert.equal(UTTERANCE_CLASSES[9], 'discussion');
+  for (const value of CONTRACT_UTTERANCE_CLASSES) {
+    assert.equal(typeof value, 'string');
+  }
+});
+
+test('AC3: the classifier still labels a real phrase with class and rule (regression)', () => {
+  const reading = classifyUtterance('检查进展。');
+  assert.equal(reading.class, 'progress-check');
+  assert.equal(reading.rule, 'progress-question');
+  assert.ok(reading.rule.length > 0, 'the rule name is non-empty');
+  // Every produced label must be one of the pinned ten — the contract covers the writer too.
+  for (const phrase of ['检查进展。', '建一个任务', '发布吧', '今天天气不错']) {
+    const { class: label } = classifyUtterance(phrase);
+    assert.ok(
+      (CONTRACT_UTTERANCE_CLASSES as readonly string[]).includes(label),
+      `${label} must be one of the pinned classes`,
+    );
+  }
+});

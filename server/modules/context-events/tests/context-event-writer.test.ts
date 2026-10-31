@@ -25,6 +25,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  CLOUDCLI_CONTEXT_EVENT_KINDS,
   CONTEXT_EVENT_MAX_LINE_BYTES,
   createContextEventWriter,
   FLEET_TOLERATED_AHEAD_KINDS,
@@ -410,7 +411,7 @@ test('AC: session.asking.retracted is accepted although the installed schema doe
         'a retraction carries exactly its two identity fields',
       );
       assert.equal(writer.status().writes, 1);
-      assert.deepEqual(FLEET_TOLERATED_AHEAD_KINDS, [SESSION_ASK_RETRACTED_KIND]);
+      assert.deepEqual(FLEET_TOLERATED_AHEAD_KINDS, [SESSION_ASK_RETRACTED_KIND, 'ui.view']);
     },
     { document: AHEAD_SCHEMA },
   );
@@ -444,6 +445,46 @@ test('AC: a malformed retraction is refused as invalid and writes nothing', asyn
   );
 });
 
+test('AC1: ui.view is declared by the producer and written ahead of the installed schema', async () => {
+  // The kind list is the producer's own guard; both arrays must name it (the plan's grep).
+  assert.ok((CLOUDCLI_CONTEXT_EVENT_KINDS as readonly string[]).includes('ui.view'));
+  assert.ok((FLEET_TOLERATED_AHEAD_KINDS as readonly string[]).includes('ui.view'));
+
+  await withFixtureHome(
+    async ({ eventsDir, schemaPath }) => {
+      const writer = createContextEventWriter({ eventsDir, schemaPath, now: () => Date.parse(AT) });
+      const data = {
+        view: 'cockpit-tile',
+        target: 'tile-1',
+        fromTarget: 'quay',
+        dwellMs: 700,
+        deviceId: 'device-criterion',
+      };
+      const result = await writer.append({ kind: 'ui.view', at: AT, data });
+      assert.equal(result.ok, true, 'the episode is written although the document does not list ui.view');
+
+      const lines = await readDay(eventsDir);
+      assert.equal(lines.length, 1);
+      const event = JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+      assert.equal(event.v, 0);
+      assert.equal(event.source, 'cloudcli');
+      assert.equal(event.kind, 'ui.view');
+      assert.equal(event.at, AT);
+      assert.deepEqual(event.data, data, 'the five episode members land verbatim');
+      assert.deepEqual(Object.keys((event.data ?? {}) as Record<string, unknown>).sort(), [
+        'deviceId',
+        'dwellMs',
+        'fromTarget',
+        'target',
+        'view',
+      ]);
+      assert.equal(writer.status().writes, 1);
+      console.log(`AC1 ui.view writes=${writer.status().writes} kinds=${CLOUDCLI_CONTEXT_EVENT_KINDS.length}`);
+    },
+    { document: AHEAD_SCHEMA },
+  );
+});
+
 test('AC: the tolerated-ahead allow-list does not loosen any other kind', async () => {
   await withFixtureHome(
     async ({ eventsDir, schemaPath }) => {
@@ -451,8 +492,8 @@ test('AC: the tolerated-ahead allow-list does not loosen any other kind', async 
       // An existing kind in the document is unchanged.
       const utterance = await writer.append({ kind: 'utterance', at: AT, data: { text: '检查进展。' } });
       assert.equal(utterance.ok, true);
-      // A kind outside the installed document is still refused — the retraction is the ONLY
-      // ahead-of-schema kind, so the gate is not relaxed in general.
+      // A kind outside the installed document is still refused — only the two named
+      // ahead-of-schema kinds are let through, so the gate is not relaxed in general.
       for (const kind of ['session.asking', 'session.answered', 'session.run.ended'] as const) {
         const result = await writer.append({ kind, at: AT, data: {} });
         assert.equal(result.ok, false, `${kind} stays refused by the installed document`);
