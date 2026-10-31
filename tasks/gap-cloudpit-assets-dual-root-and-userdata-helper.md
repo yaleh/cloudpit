@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-assets-dual-root-and-userdata-helper
 title: Cloudpit A3：附件双根与桌面 userData 迁移 helper（默认仍写旧根，helper 不自动执行）
-status: ready
+status: done
 labels:
   - gap
 parent: null
