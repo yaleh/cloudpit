@@ -43,6 +43,8 @@ depends_on:
 ## Touches
 
 - server/shared/utils.ts
+- server/shared/transcript-activity.ts (new)
+- server/shared/tests/quay-test-script.test.ts
 - server/shared/tests/*transcript*activity*
 - server/shared/tests/*synchron*
 - server/modules/providers/list/codex/codex-session-synchronizer.provider.ts
@@ -66,7 +68,7 @@ depends_on:
 
 ## Completion
 
-最终集成树 `65377551a`（`git merge develop` 后与任务分支无净代码差异），证据 manifest 的 `gitHead` 即该提交；隔离实例使用临时 HOME/DB/日志，重启只发生在隔离服务上，结束后 runtime 已清理。
+最终集成树 `65377551a`（`git merge develop` 后与任务分支无净代码差异），证据 manifest 的 `gitHead` 即该提交；隔离实例使用临时 HOME/DB/日志，重启只发生在隔离服务上，结束后 runtime 已清理。本轮的机械修复只移动实现位置与常量形状，不改变语义，五场景证据仍对应同一实现。
 
 ### 五场景矩阵：场景 → 命令 → 预期 → 实际 → 证据
 
@@ -115,6 +117,25 @@ depends_on:
 - `npm run build:server` exit 0；`npm run build:client` exit 0；生产产物 `dist/` 中 `__cloudcliScenario` 命中 0 个文件、`ui-scenario` 出现 0 次。
 - `server/shared/tests/transcript-last-activity.test.ts` 8/8 通过（共享有界读取边界）。
 - 反漂移：`ANTI-DRIFT OK: task gap-codex-restart-sync-last-activity — 9 actual file(s), all within declared Touches (21 glob(s))`。
+
+### 本轮机械修复（2026-10-31 exited-not-landed 重入）
+
+上一轮 suite 的 4 条红均已在当前树上闭环，语义实现不变：
+
+- `server/shared/utils.ts` 1930→1973 越线：把有界 tail walk（`readLastTranscriptRecord`、`readFileRange`、`startsMidLine`、`findLastSelectedRecord` 与窗口常量）移入新共享叶子 `server/shared/transcript-activity.ts`；`utils.ts` 保留 `readTranscriptLastActivity`（时间戳形状的调用方）与 `readRecordedTimestamp`，并转出泛型 walker，避免 utils→新叶子→utils 环。现 1796 行，低于冻结的 1930 行 exit-gate，oversize 棘轮打印 `1930→1796，可下调基线`。
+- `src/modules/ui-scenario/scenarioSurface.ts` 836 行越过 800 行基线外上限：把 sidebar 行读取 `readSidebarReading` 与其两个类型移到同模块 sibling `sidebarSurface.ts`（与 `cockpitCardsSurface.ts`/`settingsSurface.ts` 同一形状），两类型经模块 `index.ts` barrel 转出；`scenarioSurface.ts` 现 775 行，`sidebar: readSidebarReading()` 读取入口保持不变。
+- `server/modules/providers/list/codex/codex-transcript-activity.ts` 原有 2 个模块级 `new Set`：改为 `readonly string[]` + `includes`，`moduleMutableState` 读数归 0（扫描器按行文本判 `const … = new Set(`）。
+- `server/shared/tests/quay-test-script.test.ts` 的收集数 pin 随本任务新增判据文件 `server/modules/providers/tests/codex-session-activity-restart.test.ts` 上调：`unknown=486→487`、`unknown=488→489`（树共收集 490 个 server 测试文件）。
+
+复跑（单文件/钳制并发，未在会话内跑全量 suite）：
+
+- `architecture-ratchet.test.ts` 6/6 绿；`cloudpit-goal-exit-gate.test.ts` 3/3 绿（AC3 读 1796 ≤ 1930）。
+- `quay-test-script.test.ts` 14/14 绿。
+- `codex-session-activity-restart.test.ts`、`transcript-last-activity.test.ts`、`session-binding-consistency.test.ts`、`codex-message-editing.test.ts`、`codex-sessions.test.ts` 共 54 tests / 53 pass / 1 skipped / 0 fail。
+- `src/modules/ui-scenario/tests/scenarioSurface.test.ts` 2/2 绿。
+- 上一轮 `fleet-cli-contracts.test.ts` AC3（`context/events/2026-10-31.jsonl` moved）单独复跑 17/17 绿并打印 `no file under /data/home/yale/.quay-fleet moved during the run`：那是契约运行期间实时 fleet 写事件的环境腿（resident-service 维护文件），不是本任务的代码缺陷。
+- `npm run typecheck` exit 0；`npm run lint` exit 0。
+- 反漂移：新增的 `server/shared/transcript-activity.ts` 与 `server/shared/tests/quay-test-script.test.ts` 已登记进 `## Touches`，`src/modules/ui-scenario/sidebarSurface.ts` 由既有 `src/modules/ui-scenario/*` 覆盖。
 
 ### 轴状态
 
