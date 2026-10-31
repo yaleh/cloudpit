@@ -2,7 +2,7 @@
 id: context-event-behavior-signal-producer
 title: 发布行为信号到 context 流：ui.view 视图进入 + utterance.data.class 稳定契约（quay-fleet
   行为实验 v1 的 producer 契约）
-status: ready
+status: done
 labels:
   - context-events
   - observation
@@ -64,6 +64,7 @@ extra: {}
 - DoD3 读数：三个窄测试逐个 exit 0（context-event-writer 14 pass / view-events 7 pass / utterance-classifier 15 pass）；`npm run typecheck` exit 0；`anti-drift-touches-check` OK。
 - steering 契约：`utterance.data.class` 的 10 值枚举是 fleet 可依赖的稳定契约（测试对 `UTTERANCE_CLASSES` 做整数组 deepEqual + 逐值字符串钉住，改任一值即红）。
 - `ui.view` 的 schema 侧声明为 `{producer:'cloudcli', group:'interaction'}`（quay-fleet 侧 ship；本任务据此按 ahead 写，fleet schema 带该 kind 后从 `FLEET_TOLERATED_AHEAD_KINDS` 移除）。
+- 2026-10-31 补正（oversize ratchet）：上一轮 fan-in 红在 `architecture-ratchet.test.ts`（`context-event-writer.ts` 939→954，基线内读数不得上调）。已按同文件等量删行修复——压缩 `ui.view` 说明注释及相邻既有注释，文件回到 939 行，行为不变；`architecture-ratchet.test.ts` 6 pass、三窄测试 36 pass、`npm run typecheck` exit 0、`anti-drift-touches-check` OK。
 - 该轴仍暗,理由:本任务只新增 producer 契约与钉住测试，不改变模块分层或依赖方向，无 L_D/L_G 读数可记。
 
 ## Touches
@@ -74,11 +75,3 @@ extra: {}
 - server/modules/observation/view-events.service.ts
 - server/modules/observation/tests/view-events.test.ts
 - tasks/context-event-behavior-signal-producer.md
-
-## Blocker
-
-**2026-10-31T05:04:58.963Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/context-events/context-event-writer.ts 939→954 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：008baba3-6de1-4fbf-b3f1-b32d36a7a05b

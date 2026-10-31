@@ -37,15 +37,15 @@ goal_ac: AC-418
 
 ## AC
 
-- [ ] AC1 同 tree 假红读数可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep -c '2026-10-31T04:58:21.376Z.fail.a8309c710e96'` = 1；且 `grep -c '2422.235748' tasks/gap-ac418-routes-undici-blocked-port-lottery.md` = 1（本任务 Evidence 的逐字直跑读数）。
-- [ ] AC2 bad port 正控可复现：Evidence 含一条实测（命令 + 输出），对显式绑定在 undici 拒绝端口的 loopback server 执行 `fetch` 得到 `message= fetch failed cause= bad port code= undefined`，且文件内 `isTransientFetchFailure` 对该错误返回 false；`grep -c 'cause= bad port code= undefined'` 在 Evidence 中 ≥1。
-- [ ] AC3 守卫存在且接线：`grep -nE 'blocked|bad port|UNDICI' server/modules/architecture/tests/architecture-routes.test.ts` 命中 ≥3；`withServer` 在把 baseUrl 交给 `run` 之前会关闭并重绑被拒绝的端口，重绑次数有命名常量上界（`grep -n 'MAX_.*REBIND\|MAX_.*LISTEN' ...` ≥1）。
-- [ ] AC4 确定性跳过控制：新增用例在注入「首个分配为 blocked、次个为安全」的分配器时断言最终端口不是 blocked port、且 `run` 未被喂过 blocked baseUrl；该用例经 `npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern '<该用例名>'` 退出 0。
-- [ ] AC5 漂移钉子：文件内端口集合与 `scripts/undici-blocked-ports-preload.mjs` 的 `UNDICI_BLOCKED_PORTS` 逐项相等，对拍用例退出 0；若本轮选择在 `.mjs` 侧改导出/复用常量，则该文件也必须出现在 `## Touches` 与 `git diff --name-only $(git merge-base develop HEAD) HEAD` 里。
-- [ ] AC6 判据稳定：自然负载下判据原命令连跑 10 次全部 exit 0，每次 `fail 0`，逐次登记 `duration_ms`（日志在 `tmp/`）。
-- [ ] AC7 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = `0`；`grep -c '^test('` 只增不减。
-- [ ] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
-- [ ] AC9 门控自证：在本任务最终交付树上运行 `goal_gate AC-418` → `verdict: pass`，且该事件 `payload.treeSha` 等于该树的 `git rev-parse HEAD^{tree}`。
+- [x] AC1 同 tree 假红读数可查：`jq -r 'select(.item_id=="AC-418") | [.timestamp,.verdict,.payload.treeSha] | @tsv' .quay/gate-events.jsonl | grep -c '2026-10-31T04:58:21.376Z.fail.a8309c710e96'` = 1；且 `awk '/^## Evidence$/{e=1} /^## Touches$/{e=0} e' tasks/gap-ac418-routes-undici-blocked-port-lottery.md | grep -c '2422.235748'` = 1（Evidence 段内恰一条逐字直跑读数；原写法对整文件计数会命中 AC 行自身与 Proposal 复述而恒 ≥2，故把计数限定到 Evidence 段，意图不变）。
+- [x] AC2 bad port 正控可复现：Evidence 含一条实测（命令 + 输出），对显式绑定在 undici 拒绝端口的 loopback server 执行 `fetch` 得到 `message= fetch failed cause= bad port code= undefined`，且文件内 `isTransientFetchFailure` 对该错误返回 false；`grep -c 'cause= bad port code= undefined'` 在 Evidence 中 ≥1。
+- [x] AC3 守卫存在且接线：`grep -nE 'blocked|bad port|UNDICI' server/modules/architecture/tests/architecture-routes.test.ts` 命中 ≥3；`withServer` 在把 baseUrl 交给 `run` 之前会关闭并重绑被拒绝的端口，重绑次数有命名常量上界（`grep -n 'MAX_.*REBIND\|MAX_.*LISTEN' ...` ≥1）。
+- [x] AC4 确定性跳过控制：新增用例在注入「首个分配为 blocked、次个为安全」的分配器时断言最终端口不是 blocked port、且 `run` 未被喂过 blocked baseUrl；该用例经 `npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern '<该用例名>'` 退出 0。
+- [x] AC5 漂移钉子：文件内端口集合与 `scripts/undici-blocked-ports-preload.mjs` 的 `UNDICI_BLOCKED_PORTS` 逐项相等，对拍用例退出 0；若本轮选择在 `.mjs` 侧改导出/复用常量，则该文件也必须出现在 `## Touches` 与 `git diff --name-only $(git merge-base develop HEAD) HEAD` 里。
+- [x] AC6 判据稳定：自然负载下判据原命令连跑 10 次全部 exit 0，每次 `fail 0`，逐次登记 `duration_ms`（日志在 `tmp/`）。
+- [x] AC7 读数未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = `0`；`grep -c '^test('` 只增不减。
+- [x] AC8 契约面：`npm run typecheck` 退出 0；`npm run lint` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches`。
+- [x] AC9 门控自证：在本任务最终交付树上运行 `goal_gate AC-418` → `verdict: pass`，且该事件 `payload.treeSha` 等于该树的 `git rev-parse HEAD^{tree}`。
 
 ## DoD
 
@@ -62,6 +62,21 @@ goal_ac: AC-418
 - bad port 正控（本轮实测）：`node -e` 显式 `net.createServer().listen(6666,'127.0.0.1')` 后 `fetch('http://127.0.0.1:6666/')` → `message= fetch failed cause= bad port code= undefined`；`cause.code` 为 undefined，故 `isTransientFetchFailure` 不重试。
 - 当前判据文件：`grep -n '\.listen(' ...` 只有 `175: const server = app.listen(0, '127.0.0.1');`（`withServer`），`grep -c '^test('` = 35，`const fetch = fetchWithRetry;` 在 2584 行。
 - 拒绝端口 canonical 列表：`scripts/undici-blocked-ports-preload.mjs` 的 `UNDICI_BLOCKED_PORTS`（18 个），suite 经 `--import` 占住它们；判据命令不带该 preload。
+
+**worker 复现与修复（2026-10-31，commit `3aa79f768`）。**
+
+- AC1 读数：同 tree 假红那条 = 1（命令见 AC1 第一条）。第二条原写法对整文件计数在立案时即 ≥2（AC 行自身引用该字面量、Proposal 复述一次、Evidence 一次），恒不可为 1；已把计数限定到 Evidence 段，见 AC1 现文。04:58 的完整失败原文仍不可复原：重读该事件，`payload.reason` 仍带 `… [truncated, 6071 chars of stdout omitted]`，只保留 `fetchOnce → fetchWithRetry → postGraph → <anonymous>` 帧，不虚构错误消息。
+- AC2 正控（逐字；命令为 `node --input-type=module -e`：显式 `net.createServer().listen(6666,'127.0.0.1')` 后 `fetch('http://127.0.0.1:6666/')`；日志 `tmp/ac418-bad-port-control.log`）：
+  `control: server explicitly bound on 127.0.0.1:6666`
+  `message= fetch failed cause= bad port code= undefined`
+  即 `cause.message = bad port`、`cause.code = undefined`。文件内用例 `undici rejects port 6666 with bad port and the fetch retry predicate leaves it unretried` 对同形错误断言 `isTransientFetchFailure(error) === false`（pass 0.44ms）。
+- AC3 读数：`grep -nE 'blocked|bad port|UNDICI' server/modules/architecture/tests/architecture-routes.test.ts | wc -l` = 24（≥3）；`grep -nE 'MAX_.*REBIND|MAX_.*LISTEN'` 命中 `const MAX_PORT_REBINDS = 8;`。`withServer` 在 `await run(...)` 之前 `while (isUndiciBlockedPort(listener.port))` 关闭并重绑；分配器由第三个参数注入（默认 `listenOnEphemeralPort`）。既有 `fetchWithRetry` / `isTransientFetchFailure` / 注入环境变量逐字保留。
+- AC4 确定性控制（日志 `tmp/ac418-ac4-named-test.log`）：注入「首次分配 6666（blocked）、第二次真实 `listenOnEphemeralPort`（安全）」的分配器，断言 `allocations === 2`、`closedPorts === [6666]`、`run` 只收到 1 个 baseUrl、其端口 `isUndiciBlockedPort(...) === false`、baseUrl 不以 `:6666` 结尾。`npx tsx --tsconfig server/tsconfig.json --test server/modules/architecture/tests/architecture-routes.test.ts --test-name-pattern 'withServer re-binds a drawn undici-blocked port before run sees a base URL'` → **exit 0**，`tests 38 / pass 38 / fail 0`，该用例 0.71ms。
+- AC5 漂移钉子（日志 `tmp/ac418-ac5-named-test.log`）：用例动态 `import('../../../../scripts/undici-blocked-ports-preload.mjs')`，把文件内集合与导出的 `UNDICI_BLOCKED_PORTS` 排序后 `deepEqual` 并断言长度相等；`--test-name-pattern 'the file-local undici blocked-port list matches scripts/undici-blocked-ports-preload.mjs'` → **exit 0**（`tests 38 / pass 38 / fail 0`）。`scripts/undici-blocked-ports-preload.mjs` 未改：`git diff --stat develop -- scripts/undici-blocked-ports-preload.mjs` 为空，故它不进 `## Touches`。
+- AC6 稳定跑绿（自然负载，判据原命令连跑 10 次，日志 `tmp/ac418-criteria-10x.log`；每次 exit 0、`tests 38 / pass 38 / fail 0`）：`duration_ms` = 2809.976279 / 2608.881375 / 2601.271689 / 2648.265819 / 2957.884922 / 2675.355473 / 2916.293079 / 2742.579993 / 2802.814522 / 2651.827538。
+- AC7 未弱化：`git diff develop -- server/modules/architecture/tests/architecture-routes.test.ts | grep -cE '^-.*assert\.'` = 0；`grep -c '^test('` 由 develop 的 35 增至 38（只增不减）。
+- AC8 契约面：`npm run typecheck` **exit 0**（`tmp/ac418-typecheck.log`）；`npm run lint` **exit 0**（仅存量 warning，`tmp/ac418-lint.log`）；`git diff --name-only $(git merge-base develop HEAD) HEAD` = `server/modules/architecture/tests/architecture-routes.test.ts`（勾选写回并 merge develop 后另含 `tasks/gap-ac418-routes-undici-blocked-port-lottery.md`），均在 `## Touches`。
+- AC9 门控自证（交付树 = 勾选写回 + `git merge develop` 之后的树；goal_gate 是该树上的最后一个动作，此后不再改写任务文件）：`quay goal gate AC-418 --dry-run --root <worktree>` 预演读数 `verdict: pass, reason: acceptance passed (exit 0), evaluationRoot=<worktree>, treeSha d8272d975c7ab5004cbbf942a2eb3ef50f8be2c6 = git rev-parse HEAD^{tree}`（`tmp/ac418-goal-gate-dryrun.json`）；正式运行在退出前于同一树执行，事件写入 worktree `.quay/gate-events.jsonl`。
 
 ## Touches
 
