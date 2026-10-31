@@ -44,7 +44,7 @@ import {
 } from '@/modules/websocket/services/ui-navigation.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import {
-  getGlobalImageAssetsDir,
+  getImageAssetsReadDirs,
   isImageAttachmentDescriptor,
   normalizeAttachmentDescriptors,
   type ChatAttachmentDescriptor,
@@ -68,28 +68,38 @@ import { parseIncomingJsonObject, residentRunIsTurn } from '@/shared/utils.js';
  * Trust boundary for client-supplied image attachments: chat.send options come
  * straight from the browser, and the provider runtimes read the referenced
  * files off disk (Claude base64-encodes them into the prompt). Only images
- * that live directly inside the global upload store (`~/.cloudcli/assets`,
- * where POST /api/assets/images puts them) are allowed through — anything
- * else (absolute paths elsewhere, traversal, subdirectories) is dropped.
+ * that live directly inside one of the upload stores (the legacy
+ * `~/.cloudcli/assets` and, when an explicit root is configured, its
+ * `<explicit>/assets` — both places POST /api/assets/images can write to) are
+ * allowed through — anything else (absolute paths elsewhere, traversal,
+ * subdirectories) is dropped.
  *
- * Exported for tests; `assetsRootOverride` exists only for them.
+ * Exported for tests; `assetsRootOverride` exists only for them. Without an
+ * override both dual roots are accepted (new root first) so re-sending a
+ * historical attachment from either store survives the filter.
  */
 export function filterAttachmentsToUploadStore(
   attachments: unknown,
   assetsRootOverride?: string,
 ): ChatAttachmentDescriptor[] {
-  const assetsRoot = path.resolve(assetsRootOverride ?? getGlobalImageAssetsDir());
+  const assetsRoots =
+    assetsRootOverride === undefined
+      ? getImageAssetsReadDirs().map((root) => path.resolve(root))
+      : [path.resolve(assetsRootOverride)];
 
   return normalizeAttachmentDescriptors(attachments).filter((descriptor) => {
-    // Relative paths are anchored in the store; absolute ones must already be in it.
-    const resolved = path.resolve(assetsRoot, descriptor.path);
-    const relative = path.relative(assetsRoot, resolved);
-    const isDirectChild =
-      relative.length > 0 &&
-      !relative.startsWith('..') &&
-      !path.isAbsolute(relative) &&
-      !relative.includes(path.sep) &&
-      !relative.includes('/');
+    // Relative paths are anchored in each store; absolute ones must already be in one.
+    const isDirectChild = assetsRoots.some((assetsRoot) => {
+      const resolved = path.resolve(assetsRoot, descriptor.path);
+      const relative = path.relative(assetsRoot, resolved);
+      return (
+        relative.length > 0 &&
+        !relative.startsWith('..') &&
+        !path.isAbsolute(relative) &&
+        !relative.includes(path.sep) &&
+        !relative.includes('/')
+      );
+    });
 
     if (!isDirectChild) {
       console.warn(`[Chat] Dropping attachment outside the upload store: ${descriptor.path}`);
