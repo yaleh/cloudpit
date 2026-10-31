@@ -452,20 +452,12 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
   const driverByHostId = new Map<string, IProviderHostDriver>();
   /** Cancel handles for the armed quiet ceiling, one per host at most. */
   const quietHandles = new Map<string, () => void>();
-  /** How each close is settling, so `shutdown()` can await the whole set. */
-  const pendingCloseByHost = new Map<string, Promise<void>>();
   /**
-   * The driver's own close outcome, rejection preserved.
-   *
-   * `pendingCloseByHost` answers "has the close settled", which is all an
-   * ordinary cleanup needs: a driver that rejects has still been told, and the
-   * host record is already closed. An edit may not be satisfied with that — it
-   * starts a replacement process next, and starting it while the old process is
-   * refusing to go away is exactly the defect — so `closeHostForEditAndWait`
-   * reads this promise and lets the rejection surface. The same promise is
-   * observed here so keeping it cannot become an unhandled rejection.
+   * How each close is settling, so `shutdown()` can await the whole set. The
+   * promise keeps the driver's own outcome, rejection included; readers that
+   * only need the close to have settled swallow it.
    */
-  const pendingCloseResultByHost = new Map<string, Promise<void>>();
+  const pendingCloseByHost = new Map<string, Promise<void>>();
 
   /**
    * Subscribers told whenever the host listing changes, and the revision that
@@ -802,28 +794,17 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
     driverByHostId.delete(hostId);
     if (!driver) {
       pendingCloseByHost.set(hostId, Promise.resolve());
-      pendingCloseResultByHost.set(hostId, Promise.resolve());
     } else {
       try {
-        // The same driver promise is read two ways: `pendingCloseByHost`
-        // swallows a rejection because a driver that rejects is not a shutdown
-        // failure (the host is gone either way, and the reason it was closed is
-        // already recorded), while `pendingCloseResultByHost` keeps it for the
-        // one caller that must not proceed on an unobservable close. Attaching
-        // the no-op catch marks the rejection observed for callers that never
-        // ask.
+        // Keep the driver's outcome, rejection included, for the edit path; the
+        // no-op catch marks it observed for readers that only await settling.
         const closed = Promise.resolve(driver.closeHost(host, reason));
         closed.catch(() => undefined);
-        pendingCloseResultByHost.set(hostId, closed);
-        pendingCloseByHost.set(hostId, closed.then(() => undefined, () => undefined));
+        pendingCloseByHost.set(hostId, closed);
       } catch (error) {
-        // A driver that throws synchronously failed the same way one that
-        // rejects did; the strict reader sees it, the best-effort reader does
-        // not.
         const failed = Promise.reject(error);
         failed.catch(() => undefined);
-        pendingCloseResultByHost.set(hostId, failed);
-        pendingCloseByHost.set(hostId, Promise.resolve());
+        pendingCloseByHost.set(hostId, failed);
       }
     }
 
@@ -848,7 +829,7 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
    */
   async function closeHostAndWait(hostId: string, reason: HostCloseReason): Promise<void> {
     closeHost(hostId, reason);
-    await (pendingCloseByHost.get(hostId) ?? Promise.resolve());
+    await (pendingCloseByHost.get(hostId) ?? Promise.resolve()).catch(() => undefined);
   }
 
   /**
@@ -1525,25 +1506,12 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
   }
 
   /**
-   * Closes the host serving this session for an edit, and reports the driver's
-   * own close outcome.
-   *
-   * This is the strict sibling of {@link rewind}: `rewind` states the decision
-   * synchronously and {@link closeHostAndWait} answers only that the close
-   * *settled*, because every ordinary cleanup treats a rejecting driver as a
-   * close that still happened. The edit-send rebuild cannot: it starts a
-   * replacement process immediately after, and starting one while the old
-   * process is still refusing to go away leaves the conversation appended to in
-   * a host that was supposed to be gone. So the driver's rejection is rethrown
-   * here rather than swallowed, and the caller may not continue.
-   *
-   * Answers `{ found: false }` when the session has no live host: a resident
-   * session whose host is already gone is a rebuild with nothing to close, not
-   * a failure. A found host that closed cleanly answers `{ found: true }`.
-   *
-   * Consumed by the chat gateway's edit preparation
-   * (`chat-edit-preparation.service.ts`), which is the only caller that needs a
-   * close result it can act on.
+   * Closes the host serving this session for an edit, answering the driver's own
+   * close outcome: unlike `closeHostAndWait` it lets a rejecting close reach the
+   * caller, because the edit starts a replacement process next and may not do so
+   * while the old one is still refusing to go away. `{ found: false }` when the
+   * session has no live host — a resident session whose host is already gone is a
+   * rebuild with nothing to close, not a failure.
    */
   async function closeHostForEditAndWait(appSessionId: string): Promise<{ found: boolean }> {
     const hostId = hostIdByAppSession.get(appSessionId);
@@ -1551,7 +1519,7 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
       return { found: false };
     }
     closeHost(hostId, 'rewind');
-    await (pendingCloseResultByHost.get(hostId) ?? Promise.resolve());
+    await (pendingCloseByHost.get(hostId) ?? Promise.resolve());
     return { found: true };
   }
 
@@ -1580,7 +1548,7 @@ export function createSessionHostManager(options: SessionHostManagerOptions = {}
       // Routing through the same close path keeps the reason vocabulary and the
       // binding teardown identical to every other close; only the awaiting differs.
       closeHost(host.hostId, 'server-shutdown');
-      const closing = pendingCloseByHost.get(host.hostId) ?? Promise.resolve();
+      const closing = (pendingCloseByHost.get(host.hostId) ?? Promise.resolve()).catch(() => undefined);
       settling.push(
         closing.then(() => {
           settledHostIds.add(host.hostId);

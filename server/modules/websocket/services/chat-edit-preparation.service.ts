@@ -99,10 +99,6 @@ export type ChatEditPreparationDeps = {
   closeHostForEditAndWait(sessionId: string): Promise<{ found: boolean }>;
 };
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * The provider-run options an edit's recovery implies.
  *
@@ -169,7 +165,7 @@ export function createChatEditPreparationService(deps: ChatEditPreparationDeps) 
         providerRewinds = deps.providerRewindsForEdit(sessionId);
         resident = deps.isResidentSession(sessionId);
       } catch (error) {
-        return { kind: 'lookup-failed', message: messageOf(error) };
+        return { kind: 'lookup-failed', message: error instanceof Error ? error.message : String(error) };
       }
 
       const recovery: ChatEditRecovery = {
@@ -218,7 +214,11 @@ export function createChatEditPreparationService(deps: ChatEditPreparationDeps) 
         try {
           hostClosed = (await deps.closeHostForEditAndWait(plan.sessionId)).found;
         } catch (error) {
-          return { kind: 'failed', stage: 'close', message: messageOf(error) };
+          return {
+            kind: 'failed',
+            stage: 'close',
+            message: error instanceof Error ? error.message : String(error),
+          };
         }
       }
 
@@ -226,7 +226,11 @@ export function createChatEditPreparationService(deps: ChatEditPreparationDeps) 
         try {
           await deps.rewindSessionForEdit(plan.sessionId, plan.recovery.keepThroughId);
         } catch (error) {
-          return { kind: 'failed', stage: 'rewind', message: messageOf(error) };
+          return {
+            kind: 'failed',
+            stage: 'rewind',
+            message: error instanceof Error ? error.message : String(error),
+          };
         }
       }
 
