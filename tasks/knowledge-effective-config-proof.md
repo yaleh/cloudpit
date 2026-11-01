@@ -1,7 +1,7 @@
 ---
 id: knowledge-effective-config-proof
 title: 参数生效事实：本次操作的实际请求与应答及字段级未知
-status: todo
+status: ready
 labels:
   - feature
   - knowledge-application
