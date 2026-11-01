@@ -67,3 +67,11 @@ goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsco
 - scripts/suite-duration-baseline.tsv
 - server/shared/tests/quay-test-script.test.ts
 - tasks/gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion.md
+
+## Blocker
+
+**2026-11-01T14:32:13.726Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts:   AssertionError [ERR_ASSERTION]: files under /data/home/yale/.quay-fleet moved during the contract run and are not written by the resident fleet service: context/events/2026-11-01.jsonl [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-054 baseline red set: added=server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6b6b6798-d463-4b0d-bd22-2cf1f6590202
