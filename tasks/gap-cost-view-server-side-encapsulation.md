@@ -2,7 +2,7 @@
 id: gap-cost-view-server-side-encapsulation
 title: Encapsulate /cost derivation server-side as a unified provider-agnostic
   cost view
-status: todo
+status: ready
 labels:
   - gap
 parent: null
