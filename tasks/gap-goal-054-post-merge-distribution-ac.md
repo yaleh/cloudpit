@@ -1,13 +1,14 @@
 ---
 id: gap-goal-054-post-merge-distribution-ac
 title: GOAL-054 退出条件「AC-454 达成（post-merge）」无在域 AC：提议新增分发核验载体 AC（建议 AC-457）
-status: needs-human
+status: todo
 labels:
   - gap
 parent: null
 children: []
 extra:
   schema: execution
+goal_ac: AC-457
 ---
 ## Proposal
 
@@ -87,3 +88,17 @@ SPEC §6 与 §10.1 AC11 也把分发身份/发布核验列为独立判据面。
 - tasks/gap-goal-054-post-merge-distribution-ac.md
 - scripts/cloudpit-distribution-check.mjs (new)
 - scripts/cloudpit-distribution-check.test.mjs (new)
+
+
+## Resolution
+
+**人 yale 裁定（2026-11-01，经当前会话下达）：采纳提案 (a)，为 GOAL-054 新增 AC-457。**
+
+1. **采纳 (a)**：退出条件第 2 条「AC-454 达成（post-merge，外部发布核验）」的缺口由一条新的在域 AC 承载，编号 **AC-457**（AC-451…AC-454 属 GOAL-054，AC-455 属 GOAL-053，AC-456 已存在）。记录已由被授权的 goal 写入路径创建（`goals/AC-457-*.md`，status=active、phase=pre-merge，criterion=`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs`，commit 171a08a59）。本任务从「只提议」转为该 AC 的实现承载：新增 `scripts/cloudpit-distribution-check.mjs` 与 `scripts/cloudpit-distribution-check.test.mjs`；执行者仍不改 `goals/*.md`、不改 AC-451/452/453/456 的判据文件。
+2. **判据与时限**：AC-457 的 criterion 与 AC-451 同形（离线 node test，零网络），无需 per-record timeoutMs，默认 60000 覆盖。
+3. **AC-454 激活是载体落地后由人执行的 goal store 写入，本任务不做**：AC-454 保持 draft；载体落地后由人把 AC-454 从 draft 激活为 active，`inScopeAcsOf()`（只按 status 过滤、不看 phase）才会把 AC-454 交给充分性判官覆盖退出条件第 2 条。
+4. **承载**：顶层 `goal_ac` 置为 `AC-457`，避免 goal driver 按 `goal_ac` 统计承载者时读作「无承载者」再立 carrier 任务。
+5. **merge target**：本任务是 branch-mode goal 的子任务，merge target 是 `goal/GOAL-054` 而不是 `develop`；AC5/AC6 与 fan-in 的 anti-drift 均按 `--merge-target goal/GOAL-054` 口径执行。
+6. **状态路径**：裁定已下达，本任务不再等人；`needs-human → todo → ready`，由 worker 在 `goal/GOAL-054` 上实现载体与离线判据并按其 AC/DoD 验收。
+
+**边界**：本记录只登记裁定与修正，不改 `goals/*.md`、不改 AC-451/452/453/456 的判据文件、不改生产默认值；实现只改 `## Touches` 声明的文件。
