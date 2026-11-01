@@ -1,7 +1,7 @@
 ---
 id: knowledge-peer-correlation-proof
 title: 跨会话结果事实：原询问、投递和真实对端回复的关联证明
-status: ready
+status: done
 labels:
   - feature
   - knowledge-application
