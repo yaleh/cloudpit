@@ -474,9 +474,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (491 + 3 = 494 collected server test files). Then
     // knowledge-effective-config-proof added its criterion
     // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts
-    // (494 + 1 = 495 collected server test files). This fixture names 3 known files,
-    // so 495 - 3 = 492.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=492$/);
+    // (494 + 1 = 495 collected server test files), then
+    // knowledge-peer-correlation-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
+    // (495 + 1 = 496 collected server test files). This fixture names 3 known files,
+    // so 496 - 3 = 493.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=493$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -611,10 +614,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/context-events/tests/knowledge-activity-events.test.ts and
     // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (492 + 2 = 494),
     // then knowledge-effective-config-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (494 + 1 = 495)
-    // — but this fixture names ONE known file, so 495 - 1 = 494 (AC2 reads 492 because its
-    // fixture names 3; the 495 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=494$/);
+    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (494 + 1 = 495),
+    // then knowledge-peer-correlation-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (495 + 1 = 496)
+    // — but this fixture names ONE known file, so 496 - 1 = 495 (AC2 reads 493 because its
+    // fixture names 3; the 496 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=495$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -75,6 +75,7 @@ import {
   type KnowledgeActivity,
   type KnowledgeActivityRead,
 } from '@/modules/context-events/index.js';
+import type { ISessionControlPeerDelivery } from '@/modules/session-control/index.js';
 
 /** The default page size for `inventory`. */
 export const KNOWLEDGE_INVENTORY_DEFAULT_LIMIT = 20;
@@ -162,6 +163,8 @@ export type KnowledgeFactSourceDeps = {
   serverVersion?: string | null;
   /** The running process identity. */
   bootId: string;
+  /** The cross-session delivery arm; absent means `capabilities` says unavailable. */
+  sessionControl?: ISessionControlPeerDelivery;
   now?: () => number;
   eventsDir?: string;
   lookbackDays?: number;
@@ -240,6 +243,7 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
     sessionId: string,
     peerSession: string | undefined,
     operationId: string | undefined,
+    delivery: { deliveryId?: string; correlationId?: string } | undefined,
   ): Promise<KnowledgePeerResultReading | null> => {
     const row = deps.sessions.getSessionById(sessionId);
     if (row === null) return null;
@@ -314,6 +318,8 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
           targetSessionId: string | null;
           askingMessageId: string | null;
           answeredMessageId: string | null;
+          deliveryId: string | null;
+          correlationId: string | null;
         }>('there is no activity to correlate')
       : knowledgeEvidence(
           {
@@ -323,6 +329,8 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
             targetSessionId,
             askingMessageId: activity.askingMessageId === '' ? null : activity.askingMessageId,
             answeredMessageId: activity.answeredMessageId,
+            deliveryId: null,
+            correlationId: null,
           },
           'context-events',
           activity.sourceRef,
@@ -372,7 +380,7 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
       }
     }
 
-    return {
+    const reading: KnowledgePeerResultReading = {
       kind: 'peer_result',
       operationId: resolvedOperationId,
       activity: activityEvidence,
@@ -380,9 +388,17 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
       waiting,
       authorization,
       reply,
+      deliveryCorrelation: null,
+      capabilities: { deliveryCorrelation: deps.sessionControl?.capability ?? 'unavailable' },
       unknown,
       readErrors,
     };
+    if (deps.sessionControl === undefined || delivery === undefined) return reading;
+    return deps.sessionControl.augmentPeerResult(reading, {
+      sourceSessionId: sessionId,
+      ...(peerSession === undefined ? {} : { peerSession }),
+      ...delivery,
+    });
   };
 
   const readEffectiveConfig = async (
@@ -755,8 +771,13 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
 
   const read = async (query: KnowledgeFactQuery): Promise<KnowledgeFactReading | null> => {
     switch (query.kind) {
-      case 'peer_result':
-        return readPeerResult(query.session, query.peerSession, query.operationId);
+      case 'peer_result': {
+        const locator =
+          query.deliveryId === undefined && query.correlationId === undefined
+            ? undefined
+            : { deliveryId: query.deliveryId, correlationId: query.correlationId };
+        return readPeerResult(query.session, query.peerSession, query.operationId, locator);
+      }
       case 'effective_config':
         return readEffectiveConfig(query.session, query.operationId, query.expected);
       case 'inventory':

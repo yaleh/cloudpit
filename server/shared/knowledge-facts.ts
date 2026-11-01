@@ -141,6 +141,80 @@ export type KnowledgePeerCorrelation = {
   targetSessionId: string | null;
   askingMessageId: string | null;
   answeredMessageId: string | null;
+  /**
+   * The delivery a cross-session ask was handed over as, when the query named a
+   * delivery locator and the server-saved record agreed with it. `null` on the
+   * ordinary answered-ask path, which has no delivery of its own.
+   */
+  deliveryId: string | null;
+  /** The correlation label that delivery carried, when one was saved. */
+  correlationId: string | null;
+};
+
+/**
+ * The server-saved record of one cross-session delivery.
+ *
+ * Written by `session_send` at the instant the control service accepted the
+ * send, not reconstructed from a transcript later: `sourceSessionId` is stated
+ * by the caller when it asks for the send, and `targetSessionId` / the ids are
+ * the send's own. This is the record a `peer_result` read is checked against,
+ * so a caller cannot prove a delivery merely by naming its own parameters.
+ */
+export type KnowledgePeerDeliveryRecord = {
+  deliveryId: string;
+  correlationId: string;
+  /** The session that asked. */
+  sourceSessionId: string;
+  /** The session the message was delivered to. */
+  targetSessionId: string;
+  /** The process boot that recorded the accepted send. */
+  bootId: string;
+  /** When the server accepted the send. */
+  recordedAt: string;
+};
+
+/** What the target transcript says about the delivered message itself. */
+export type KnowledgePeerOriginalMessage = {
+  /** The delivered message's row id. It EQUALS the delivery id: the send's identity is the row's identity. */
+  messageId: string;
+  role: string | null;
+  at: string | null;
+  verifiedAgainstTranscript: true;
+};
+
+/** The first assistant turn the target transcript holds AFTER the delivered message. */
+export type KnowledgePeerReply = {
+  messageId: string;
+  role: string | null;
+  /** The transcript instant, or null when the row carried none (reported in `unknown`). */
+  at: string | null;
+  /** The delivered message this reply follows, stated so the direction is checkable. */
+  afterMessageId: string;
+  verifiedAgainstTranscript: true;
+};
+
+/**
+ * The cross-session delivery arm of `peer_result`.
+ *
+ * It answers one question the ordinary ask/answer projection cannot: did THIS
+ * message reach THIS peer, and what did the peer actually answer? Every member
+ * is evidence or an explicit unknown; `verified` is true only when the server's
+ * own delivery record, the resident delivery ledger, the delivered transcript
+ * row and a following assistant turn all agree. The newest assistant message is
+ * never borrowed as the answer.
+ */
+export type KnowledgePeerDeliveryCorrelation = {
+  delivery: KnowledgeEvidence<KnowledgePeerDeliveryRecord>;
+  originalMessage: KnowledgeEvidence<KnowledgePeerOriginalMessage>;
+  reply: KnowledgeEvidence<KnowledgePeerReply>;
+  verified: boolean;
+  /**
+   * The action permission this reading grants: none. A reply proves the peer
+   * answered; it is not an authorization for any further action.
+   */
+  actionPermission: { granted: false; reason: string };
+  unknown: KnowledgeUnknownField[];
+  readErrors: KnowledgeReadError[];
 };
 
 /** One peer-result reading. */
@@ -172,9 +246,20 @@ export type KnowledgePeerResultReading = {
     at: string | null;
     verifiedAgainstTranscript: true;
   }>;
+  /**
+   * The cross-session delivery arm, present only when the query named a
+   * `deliveryId`. `null` means "not asked", never "asked and unsupported" — a
+   * consumer reads {@link capabilities} for the capability question.
+   */
+  deliveryCorrelation: KnowledgePeerDeliveryCorrelation | null;
+  /** Whether this build records and can read back the delivery arm at all. */
+  capabilities: { deliveryCorrelation: 'readable' | 'unavailable' };
   unknown: KnowledgeUnknownField[];
   readErrors: KnowledgeReadError[];
 };
+
+/** The capability value a build with a wired delivery ledger reports. */
+export const KNOWLEDGE_PEER_DELIVERY_CAPABILITY = 'readable' as const;
 
 // --------------------------- effective_config ---------------------------
 
@@ -586,6 +671,19 @@ export type KnowledgePeerResultQuery = {
   peerSession?: string;
   /** The operation id a previous reading returned, to re-read the same fact. */
   operationId?: string;
+  /**
+   * The delivery id an accepted `session_send` answered with. Naming it turns on
+   * the cross-session delivery arm: the reading then proves the ask was handed
+   * over as this delivery and re-reads the peer's own reply from the target
+   * transcript. Without it the reading is the ordinary ask/answer shape.
+   */
+  deliveryId?: string;
+  /**
+   * The correlation label that send carried. A CROSS-CHECK, not an address: a
+   * value that disagrees with the server-saved record makes the delivery
+   * unknown instead of proving some other delivery's chain.
+   */
+  correlationId?: string;
 };
 
 /** The query for one session's effective configuration. */

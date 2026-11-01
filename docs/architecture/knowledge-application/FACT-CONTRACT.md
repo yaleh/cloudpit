@@ -26,6 +26,8 @@ knowledge_facts {
   session?: string          // peer_result / effective_config 必填
   peerSession?: string      // peer_result 可选：调用方自己相信的目标会话
   operationId?: string      // peer_result / effective_config 可选：回读同一操作
+  deliveryId?: string       // peer_result 可选：跨会话投递链的地址（§3.1）
+  correlationId?: string    // peer_result 可选：该投递携带的关联标签，交叉核对用
   projectId?: string        // inventory 过滤
   provider?: string         // inventory 过滤
   limit?: number            // inventory，1..200，默认 20
@@ -99,6 +101,67 @@ type KnowledgeEvidence<T> =
 活动投影的 `unknown` 会向上合并到读数，唯一例外是被本读数**实际建立**的字段：调用方声明的
 peer 已被确认时，`targetSessionId` 不再出现在 `unknown` 里——`unknown` 描述的是**这次读取**
 回答不了的字段，而不是原始来源省略了什么。
+
+### 3.1 跨会话投递链（`deliveryCorrelation`）
+
+`session.asking` / `session.answered` 只描述"会话在自己的流里问了一句、又说了一句"。它不记录
+**这次问被交给了谁**、以哪个投递送达、对端哪条消息是回答。这三个事实只在服务端接受
+`session_send` 的那一瞬同时存在，因此由投递适配器在那一刻写入进程内的投递台账
+（SPEC §8.1 的 delivery 语义）：
+
+```
+deliveryId + correlationId + sourceSessionId + targetSessionId + bootId + recordedAt
+```
+
+只有**同时**声明 `sourceSession` 与 `correlationId` 的 relayed send 才写记录；单说一个不构成
+关联，普通人对会话的发送也不写。读侧以 `deliveryId` 为**地址**（`correlationId` 只是交叉核对，
+不是地址），返回 `deliveryCorrelation`：
+
+```ts
+type KnowledgePeerDeliveryCorrelation = {
+  delivery:        KnowledgeEvidence<{ deliveryId, correlationId, sourceSessionId,
+                                       targetSessionId, bootId, recordedAt }>;
+  originalMessage: KnowledgeEvidence<{ messageId, role, at, verifiedAgainstTranscript: true }>;
+  reply:           KnowledgeEvidence<{ messageId, role, at, afterMessageId,
+                                       verifiedAgainstTranscript: true }>;
+  verified: boolean;
+  actionPermission: { granted: false; reason: string };
+  unknown: string[];
+  readErrors: { source, message }[];
+};
+```
+
+`deliveryCorrelation: null` 表示**没问**这条链，不是"不支持"；能力问题看
+`capabilities.deliveryCorrelation`（`readable` / `unavailable`）。契约版本仍为 `1`，这是新增的
+可选分支，旧消费者忽略该字段即可。
+
+`verified: true` 需要**四条证据同时成立**：
+
+1. 调用方的 `session` / `peerSession` / `correlationId` 与服务端保存的记录一致（参数本身不是证据，
+   只是查找地址；不一致即拒绝该链）；
+2. 进程内的 resident 投递台账仍持有该 delivery，且其 session 就是记录的目标会话；
+3. 目标会话 transcript 里存在一条 **id 等于 deliveryId** 的消息行——投递身份与消息身份是同一个；
+4. 该行**之后**存在第一条 assistant 行。`reply.afterMessageId` 明确写出方向；此前的 assistant
+   行（旧回答）永远不会被借用，最新 assistant 也不会。
+
+`actionPermission.granted` 恒为 `false`。对端回复只证明"对端回答了这条消息"，**不是**任何后续
+动作的授权；`reading.authorization` 仍是 `unknown`，授权范围只能来自 Fleet 的人类授权引用。
+Fleet 传入的"已授权 ask 上下文"在本机只作为**查询定位**（哪次 ask），不改变授权判定。
+
+失败一律是显式 `unknown` + 原因，绝不静默成功：
+
+- 指名了不存在的 delivery 记录 → `delivery` unknown（该 send 未带 `sourceSession`/`correlationId`，
+  或本进程未接受过它）；
+- 记录存在但 resident 台账已无该 delivery（或 session 不符）→ `delivery` unknown；
+- 调用方声明的 peer / correlation 与记录不符 → `delivery` unknown，原因点名两边；
+- 目标 transcript 窗口内没有该 id 的行 → `originalMessage`/`reply` unknown；
+- 有该行但其后没有 assistant 行（旧回答 / 尚未回答）→ `reply` unknown；
+- transcript 读失败 → `readErrors` 一条 `sessions.transcript`，不是空 transcript。
+
+**持久性边界（必须知道）**：该台账与 resident 投递台账一样是**进程作用域**的。另一个进程
+（重启后）读不到上一进程记录的 delivery，读数会给出上面第一条显式 unknown，而**不会**从
+transcript 反推出一条链——一行 transcript 只证明消息存在，不证明它由谁、以哪个投递、在哪个关联
+下送出。`delivery.bootId` 标出记录它的进程。
 
 ## 4. `effective_config`：本次 operation 的实际请求与应答，逐字段判定
 
@@ -183,6 +246,12 @@ provider 自己的 transcript 里、落在 `[operation.at, now]` 且会话匹配
   `actualResponse` unknown；**不是**"这个 operation 没有请求"。
 - 无回读来源的字段（Claude 的 permissionMode）→ `capabilities` 明确声明 `unavailable`，
   verdict 为 `unknown`；既不是 `mismatch`，也不是 stored 值的回显。
+- `peer_result` 带 `deliveryId` 时（§3.1）：目标不符 / 关联标签不符 / 无投递记录 / resident
+  台账已失去该投递 / transcript 无该 id 的行 / 该行之后没有 assistant 行 / 文件缺失 →
+  `deliveryCorrelation.verified: false`，链路中具体那一环为 `unknown`，原因点名是哪一环；绝不会
+  把"对端以前回答过"或"最新一条 assistant"当成这条投递的回答。
+- 对端确实回答了，也**不是**授权：`actionPermission.granted: false`，`authorization` 仍为
+  `unknown`。
 
 ## 7. 消费者与边界
 
@@ -192,10 +261,17 @@ provider 自己的 transcript 里、落在 `[operation.at, now]` 且会话匹配
   `server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts`（本次 operation 的
   正例 + 十一种"不能宣布生效"的反例）与
   `server/modules/context-events/tests/knowledge-activity-events.test.ts` 是这几层的判据。
-- Fleet 消费样例：`docs/evidence/knowledge-effective-config-proof.json` 通过真实 `/mcp` 端口
-  记录了 `knowledge_facts` 的工具描述/输入输出 schema、一次 `verified: true` 的 Claude 操作读数
-  （`operation` / `actualRequest` / `actualResponse` / `fields` / `capabilities`）以及四种
-  `verified: false` 的读数与各自的 `unknown` 字段，可直接作为 consumer 的解析夹具。
+- 跨会话投递链的判据是
+  `server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts`：真实
+  `mountMcpGateway` + 真实 bearer + 真实临时库/transcript，先经真实 `session_send` 接受一次
+  relayed ask，再经 `knowledge_facts` 读回；正例记录 build/boot/operation/correlation/
+  messageId，反例覆盖目标不符、关联不符、无记录、旧回答、无该行、文件缺失、resident 台账缺失、
+  ordinary answered 无 messageId、未授权字段。
+- Fleet 消费样例：`docs/evidence/knowledge-effective-config-proof.json` 与
+  `docs/evidence/knowledge-peer-correlation-proof.json` 通过真实 `/mcp` 端口记录了
+  `knowledge_facts` / `session_send` 的工具描述与输入输出 schema、正例读数（`delivery` /
+  `originalMessage` / `reply` / `verified`）以及各反例的 `unknown`，可直接作为 consumer 的解析
+  夹具。两者都是受控实例读数，**不**代表生产部署已启用。
 - **Fleet 不读取本项目的私有 home。** 事实只能经受权网关读出；事件流是触发线索，读数是权威
   事实，决定前可以按 `operationId` 回读。
 - 非目标：本契约不写 fleet 文件、不读 observation store、不推断授权范围、不把"有回复"当成
@@ -216,3 +292,12 @@ CloudCLI 实例上、经正式 `/mcp` 网关取得的请求/响应与身份（`b
 `actualResponse` 均带 `sourceRef`，`permissionMode` 由 `capabilities` 声明为
 `unavailable`），以及 live-only、next-turn、DB-only、无回读 provider 四种
 `verified: false` 读数及各自 `unknown`。它**不**证明生产部署已启用：那部分留给 F10 与当前会话。
+
+`docs/evidence/knowledge-peer-correlation-proof.json` 记录本次**跨会话投递链**的受控实例读数，
+由该任务自己的判据在 `KNOWLEDGE_PEER_CORRELATION_EVIDENCE=<路径>` 下重跑写出：同一生产
+`/mcp` 挂载上先调用真实 `session_send`（带 `sourceSession` + `correlationId`），再调用
+`knowledge_facts` 读回。文件含两个工具的描述/schema、正例读数（`delivery` 的
+`deliveryId`/`correlationId`/`source`/`target`/`bootId`，`originalMessage.messageId` 与
+`reply.afterMessageId`，以及 `verified: true`）、以及九种 `verified: false` 反例及各自
+`unknown`。控制服务的应答是按 transcript 实际携带的 delivery id 脚本化的；它同样**不**证明生产
+部署已启用，也不把任何回复读成授权。

@@ -48,7 +48,7 @@ export const KNOWLEDGE_FACTS_REQUIRED_SCOPE = 'cloudcli:read';
 
 /** The description a caller reads before choosing a kind. */
 export const KNOWLEDGE_FACTS_DESCRIPTION =
-  'Read one versioned knowledge-application fact about this host: `peer_result` (the ask a session stated, the settling reply re-read from the transcript, and the same operation id on both readings), `effective_config` (expected, stored and actually-running model / effort / permission mode, the operation the reading is about, the ACTUAL request and response the provider recorded for that operation, and a per-field verdict — `verified` is false when the operation, any layer or any expected field is unknown, and a field the provider cannot read back is declared unavailable in `capabilities` rather than echoed from the stored row), or `inventory` (a bounded session page that keeps its filters, total and truncation, so an empty page is never reported as an empty host). Every field is either an evidence reading with its source and observation time, or an explicit `unknown` with a reason; the payload also carries the contract name and version, the build id and the running process boot id.';
+  'Read one versioned knowledge-application fact about this host: `peer_result` (the ask a session stated, the settling reply re-read from the transcript, the same operation id on both readings, and — when the query names a `deliveryId` — the cross-session delivery chain the server saved at acceptance: the delivery record, the target transcript row whose id IS that delivery, and the FIRST assistant turn after it; that chain is `verified` only when every link agrees, an answer is never borrowed from before the delivery, and a reply grants no action permission), `effective_config` (expected, stored and actually-running model / effort / permission mode, the operation the reading is about, the ACTUAL request and response the provider recorded for that operation, and a per-field verdict — `verified` is false when the operation, any layer or any expected field is unknown, and a field the provider cannot read back is declared unavailable in `capabilities` rather than echoed from the stored row), or `inventory` (a bounded session page that keeps its filters, total and truncation, so an empty page is never reported as an empty host). Every field is either an evidence reading with its source and observation time, or an explicit `unknown` with a reason; the payload also carries the contract name and version, the build id and the running process boot id.';
 
 /** The facts bag the registrar routes this tool to when it is wired. */
 export type McpKnowledgeFactsDeps = {
@@ -84,6 +84,14 @@ export const MCP_KNOWLEDGE_FACTS_INPUT_SCHEMA: McpToolInputSchema = {
   session: z.string().min(1).optional(),
   peerSession: z.string().min(1).optional(),
   operationId: z.string().min(1).optional(),
+  /**
+   * The delivery an accepted `session_send` answered with, and optionally the
+   * correlation label it carried. Naming a delivery turns on the cross-session
+   * arm; the label is a cross-check against the server-saved record, never an
+   * address of its own.
+   */
+  deliveryId: z.string().min(1).optional(),
+  correlationId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
   provider: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(200).optional(),
@@ -167,11 +175,15 @@ export function readKnowledgeFactQuery(args: Record<string, unknown>): Knowledge
   switch (kind) {
     case 'peer_result': {
       const peerSession = readString(args.peerSession);
+      const deliveryId = readString(args.deliveryId);
+      const correlationId = readString(args.correlationId);
       return {
         kind,
         session: requireSession(kind, args.session),
         ...(peerSession === undefined ? {} : { peerSession }),
         ...(operationId === undefined ? {} : { operationId }),
+        ...(deliveryId === undefined ? {} : { deliveryId }),
+        ...(correlationId === undefined ? {} : { correlationId }),
       };
     }
     case 'effective_config': {

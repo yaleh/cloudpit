@@ -165,6 +165,9 @@ import type {
 // process's real services. It sits at the composition root because it reads
 // across the database, session-hosts, chat-run and context-event modules.
 import { createKnowledgeFactSource } from './knowledge-facts-wiring.js';
+// knowledge-peer-correlation-proof: the cross-session delivery ledger (one
+// instance, shared by `session_send` and the fact reader) and its reader.
+import { createSessionControlLedger, createSessionControlPeerDelivery } from './modules/session-control/index.js';
 // The MCP read tools' project readers. The gateway fills these itself from the
 // same barrel when it is handed a partial bag; index.ts states them because the
 // voice executor (AC-312) needs the full `McpReadToolDeps` — see `mcpReadToolDeps`.
@@ -634,6 +637,17 @@ const mcpUiVisibleContextDeps: McpUiVisibleContextDeps = {
     listNavigations: (navigationId) => uiNavigations.listNavigations(navigationId),
 };
 
+// knowledge-peer-correlation-proof: ONE delivery ledger — `session_send` writes the accepted-send record, `knowledge_facts` checks it.
+const sessionControlLedger = createSessionControlLedger({ bootId: BOOT_ID });
+const sessionControlPeerDelivery = createSessionControlPeerDelivery({
+    ledger: sessionControlLedger,
+    deliveries: { lookupById: lookupResidentDeliveryById },
+    sessions: {
+        getSessionById: (sessionId: string) => sessionsDb.getSessionById(sessionId),
+        fetchHistory: (sessionId, options) => sessionsService.fetchHistory(sessionId, options),
+    },
+});
+
 // The read tools' deps (AC-248 and siblings): every reader `registerMcpReadTools`
 // installs is rebuilt from these. The voice executor exposes the same six tools
 // to the model, so it is handed the same bag rather than a second one — which is
@@ -795,14 +809,8 @@ const mcpReadToolDeps: McpReadToolDeps = {
         now: () => Date.now(),
         bootId: () => BOOT_ID,
     },
-    // knowledge-application-fact-contract: the versioned fact source behind the
-    // `knowledge_facts` read tool. Every source is the SAME process service a
-    // sibling read tool already uses — the session row and transcript readers,
-    // the host manager, the run registry, the project lookup and the context-event
-    // stream — so this tool cannot disagree with `session_get`, `run_get` or the
-    // ask ledger about the same fact. The build identity is captured once at
-    // startup (`RUNNING_VERSION` / `BUILD_INFO`) and the boot id is this process's
-    // own, so a reading always says which code and which process answered it.
+    // knowledge-application-fact-contract: the fact source behind
+    // `knowledge_facts`, over the SAME process services its sibling tools use.
     knowledgeFacts: {
         facts: createKnowledgeFactSource({
             sessions: {
@@ -822,44 +830,34 @@ const mcpReadToolDeps: McpReadToolDeps = {
             serverVersion: RUNNING_VERSION,
             bootId: BOOT_ID,
             now: () => Date.now(),
+            sessionControl: sessionControlPeerDelivery,
         }),
     },
     now: () => Date.now(),
 };
 
-// AC-273's `session_background` deps: the session reader, the session-hosts
-// manager's `liveHostForSession` snapshot and the one control service.
+// AC-273's `session_background` deps: the session reader, the host snapshot and one control service.
 const mcpSessionBackgroundDeps: McpSessionBackgroundDeps = {
     sessions: { getSessionById: (sessionId: string) => sessionsDb.getSessionById(sessionId) },
     hosts: sessionHostManager,
     control: chatControl,
 };
 
-// AC-274's `approvals_list` / `approval_answer` deps: the one control service
-// over a real clock.
+// AC-274's `approvals_list` / `approval_answer` deps: one control service over a real clock.
 const mcpApprovalsDeps: McpApprovalsDeps = {
     control: chatControl,
     now: () => Date.now(),
 };
 
-// AC-249's `session_send` deps, shared by the gateway's write tools and by the
-// voice executor, so an MCP call and a spoken instruction open their runs
-// through the identical send path. `control` is visibly the one `chatControl`
-// instance; `runGet` reuses AC-248's deps so a `waitSeconds` send and a
-// `run_get` wait move through one clock; `selection` (AC-272) reads the
-// session's recorded model/effort/permissionMode from the same singletons the
-// WebSocket send path records to.
+// AC-249's `session_send` deps, shared by the gateway's write tools and the
+// voice executor, so an MCP call and a spoken instruction use one send path.
 const mcpSessionSendDeps: McpSessionSendDeps = {
     control: chatControl,
-    // AC-337: the WHOLE process registry, not a `{ getRun }` projection. A send
-    // now stamps its optional `correlationId` onto the run it opened through
-    // this seam, and a projected object silently drops that call — the gateway
-    // mount had the identical narrowing, and on the real service both left
-    // `sessions_list`'s filter empty while the fixtures, which wire the registry
-    // itself, stayed green. This bag also feeds the voice executor's
-    // `session_send`, so handing over the registry keeps a spoken send's label
-    // landing in the same place as a direct MCP one.
+    // AC-337: the WHOLE registry — a `{ getRun }` projection would silently drop
+    // the delivery-correlation stamp on the real service while fixtures stayed green.
     runs: chatRunRegistry,
+    // knowledge-peer-correlation-proof: the shared accepted-send ledger.
+    deliveries: sessionControlLedger,
     runGet: { deps: mcpRunGetDeps, build: buildRunGet },
     selection: {
         sessions: { getSessionById: (sessionId: string) => sessionsDb.getSessionById(sessionId) },
@@ -2383,6 +2381,8 @@ const mcpGateway = mountMcpGateway(
             // `session_reconfigure` (or an ordinary UI send) is what the next run
             // actually carries.
             selection: mcpSessionSendDeps.selection,
+            // knowledge-peer-correlation-proof: the same shared send ledger.
+            deliveries: sessionControlLedger,
             // AC-278: the three optional session-write deps AC-249's
             // `registerMcpWriteTools` refuses to install without, so that
             // `session_create` / `session_interrupt` / `session_start` /
