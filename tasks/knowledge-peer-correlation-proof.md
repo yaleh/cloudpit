@@ -54,6 +54,7 @@ extra:
 - 负控原文（`docs/evidence/knowledge-peer-correlation-proof.json` 的 calls）：错目标 / 错 correlation / 无投递记录 / 旧回复（`KNOWLEDGE_REPLY_NOT_AFTER_DELIVERY_REASON`）/ 无该 id 行 / transcript 文件缺失 / resident 台账缺失（`KNOWLEDGE_DELIVERY_NOT_IN_LEDGER_REASON`）/ 普通 answered 无 messageId（`KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON`）/ 未授权字段，均为显式 `unknown`，读取过程 `controlCalls === 0`，无副作用。
 - 按文件运行：`knowledge-peer-correlation-proof`（10/10）、`mcp-session-send`（8/8）、`mcp-session-send-delivery`（1/1）、`mcp-knowledge-facts`（7/7）、`knowledge-effective-config-proof`（12/12）、`voice-realtime-closing-turn`（20/20）、`mcp-gateway-wiring`（3/3）、`mcp-production-session-wiring`（5/5）、`quay-test-script`（14/14）、`architecture-ratchet`（6/6）、`server-import-cycle-budget`（12/12）。`npm run typecheck` 退出 0；`oxlint src/ server/ scripts/ shared/` 退出 0（仅既有 warning）。未在会话内跑全套。
 - 契约：`FACT-CONTRACT.md` 新增 §3.1（输入、输出形状、verified 四条件、失败显式 unknown、进程作用域持久性边界、回复不授予动作权限）；版本仍为 1（additive，`capabilities.deliveryCorrelation` 可探测）。不假设 Fleet 侧已部署。
+- 目录合规：GOAL-053 exit gate（`server/shared/tests/cloudpit-goal-exit-gate.test.ts`，AC-455）禁止新增模块目录，原 `server/modules/session-control/` 会红；故把 accepted-send ledger 及其 knowledge-facts 读回臂放进既有叶子 `server/modules/context-events/`（该目录已承载 peer_result 的 knowledge-activity 行），通过其 barrel 暴露；证据 source 标识保持 `session-control.send` 不变。同步更新 `mcp-invalid-argument` 正控（`session_send` 新增可选 `sourceSession`）并重跑：`cloudpit-goal-exit-gate`（3/3）、`mcp-invalid-argument`（4/4）、`knowledge-peer-correlation-proof`（10/10）、`mcp-knowledge-facts`（7/7）、`mcp-session-send`（8/8）、`mcp-session-send-delivery`（1/1）、`knowledge-activity-events`（6/6）、`voice-realtime-closing-turn`（20/20）、`mcp-gateway-wiring`（3/3）、`mcp-production-session-wiring`（5/5）、`quay-test-script`（14/14）、`architecture-ratchet`（6/6）、`server-import-cycle-budget`（12/12）；`npm run typecheck` 0；`oxlint` 0（仅既有 warning）。
 
 ## ADR-007 暗轴记录
 
@@ -67,13 +68,14 @@ extra:
 - server/modules/mcp-gateway/mcp-knowledge-facts.ts
 - server/modules/mcp-gateway/mcp-session-send.ts
 - server/modules/context-events/knowledge-activity-events.ts
+- server/modules/context-events/index.ts
+- server/modules/context-events/knowledge-delivery-ledger.ts (new)
+- server/modules/context-events/knowledge-peer-transcript.ts (new)
+- server/modules/context-events/knowledge-peer-delivery-read.ts (new)
+- server/modules/context-events/knowledge-peer-delivery.ts (new)
+- server/modules/context-events/knowledge-unknown-fields.ts (new)
 - server/modules/mcp-gateway/mcp-read-tools-registry.ts
-- server/modules/session-control/index.ts (new)
-- server/modules/session-control/delivery-ledger.ts (new)
-- server/modules/session-control/peer-transcript.ts (new)
-- server/modules/session-control/peer-delivery-read.ts (new)
-- server/modules/session-control/peer-delivery.ts (new)
-- server/modules/session-control/unknown-fields.ts (new)
+- server/modules/mcp-gateway/tests/mcp-invalid-argument.test.ts
 - server/modules/voice-realtime/voice-realtime-tools.ts
 - server/modules/voice-realtime/tests/voice-realtime-closing-turn.test.ts
 - server/shared/tests/quay-test-script.test.ts
