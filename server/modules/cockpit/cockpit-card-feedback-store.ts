@@ -34,7 +34,10 @@ import type {
   CockpitCardFeedbackNotice,
   CockpitCardFeedbackOutcome,
   CockpitCardReceipt,
+  CockpitKnowledgeDecision,
 } from '@/shared/types.js';
+
+import { readKnowledgeDecision } from './cockpit-knowledge-reading.js';
 
 /** One overlay as the store persists it: the wire reading plus what a resend needs. */
 export type StoredCockpitCardFeedback = {
@@ -61,6 +64,14 @@ export type StoredCockpitCardFeedback = {
    * is waiting after a server restart; a receipt or a successful resend clears it.
    */
   lastError?: string;
+  /**
+   * The server-issued confirmation reference this action ran under, and the knowledge decision
+   * it carried. Persisted with the overlay so the trusted chain is readable back after a reload
+   * and a restart; absent for an ordinary (non-knowledge) card.
+   */
+  confirmationRef?: string;
+  decision?: CockpitKnowledgeDecision;
+  knowledgeCaseId?: string;
   /** The params of the ORIGINAL feedback call, resent verbatim with the same feedbackId. */
   params: Record<string, unknown>;
 };
@@ -143,6 +154,9 @@ function readOverlay(raw: unknown): StoredCockpitCardFeedback | null {
   const feedbackExecutor = text(entry.feedbackExecutor);
   const resendUnavailableReason = text(entry.resendUnavailableReason);
   const lastError = text(entry.lastError);
+  const confirmationRef = text(entry.confirmationRef);
+  const knowledgeCaseId = text(entry.knowledgeCaseId);
+  const decision = readKnowledgeDecision(entry.decision);
   return {
     cardId,
     provider,
@@ -163,6 +177,9 @@ function readOverlay(raw: unknown): StoredCockpitCardFeedback | null {
     feedbackExecutor: feedbackExecutor === '' ? null : feedbackExecutor,
     ...(resendUnavailableReason === '' ? {} : { resendUnavailableReason }),
     ...(lastError === '' ? {} : { lastError }),
+    ...(confirmationRef === '' ? {} : { confirmationRef }),
+    ...(decision === null ? {} : { decision }),
+    ...(knowledgeCaseId === '' ? {} : { knowledgeCaseId }),
     params: { ...params },
   };
 }
@@ -256,6 +273,13 @@ export function createCockpitCardFeedbackStore(options: {
       ? {}
       : { resendUnavailableReason: stored.resendUnavailableReason }),
     ...(stored.lastError === undefined ? {} : { lastError: stored.lastError }),
+    ...(stored.confirmationRef === undefined
+      ? {}
+      : { confirmationRef: stored.confirmationRef }),
+    ...(stored.decision === undefined ? {} : { decision: stored.decision }),
+    ...(stored.knowledgeCaseId === undefined
+      ? {}
+      : { knowledgeCaseId: stored.knowledgeCaseId }),
   });
 
   const applyReceipt = (stored: StoredCockpitCardFeedback, receipt: CockpitCardReceipt): void => {

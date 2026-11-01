@@ -34,6 +34,7 @@
  *     continuity scenario is a real browser reload, not a re-navigation through the sidebar.
  *     With `waitForChat: true` it also waits until the reloaded page has drawn non-empty
  *     transcript rows, because a session route fetches its history after the surface mounts.
+ *     `waitForCards: true` does the same for the cockpit cards view's visible set.
  *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudcliScenario.drive`.
  *   · `expect`: a map of reading assertions, evaluated after the step (see
  *     {@link expectationFailures}); an unsupported key is a failure, never a silent pass.
@@ -69,6 +70,7 @@ const PANEL_TIMEOUT_MS = 30_000;
  *   session?: string,
  *   reload?: boolean,
  *   waitForChat?: boolean,
+ *   waitForCards?: boolean,
  *   drive?: Record<string, unknown>,
  *   expect?: Record<string, unknown>,
  *   checkpoint?: boolean,
@@ -364,6 +366,58 @@ function expectationFailures(expect, reading) {
           ...(compareLabel ? { label: expected.label ?? null } : {}),
         };
         if (!sameJson(actual, wanted)) fail(key, wanted, actual);
+        break;
+      }
+      case 'cockpitCardKnowledgeState': {
+        // `{ cardId, state }` — the provider's knowledge case state for one card (`null` when the
+        // card asks no knowledge decision, or the card is not drawn).
+        if (!isRecord(expected) || typeof expected.cardId !== 'string') {
+          failures.push(`${key}: expected { cardId, state }`);
+          break;
+        }
+        const card = cardReading(reading, expected.cardId);
+        const actual = card === null ? null : card.knowledgeState ?? null;
+        const wanted = expected.state ?? null;
+        if (actual !== wanted) fail(key, wanted, actual);
+        break;
+      }
+      case 'cockpitCardKnowledgeVerification': {
+        // `{ cardId, state }` — the provider's verification verdict, never the cockpit's guess.
+        if (!isRecord(expected) || typeof expected.cardId !== 'string') {
+          failures.push(`${key}: expected { cardId, state }`);
+          break;
+        }
+        const card = cardReading(reading, expected.cardId);
+        const actual = card === null ? null : card.knowledgeVerificationState ?? null;
+        const wanted = expected.state ?? null;
+        if (actual !== wanted) fail(key, wanted, actual);
+        break;
+      }
+      case 'cockpitCardKnowledgeStates': {
+        // `{ cardId: state }` — the same reading for several cards at once, so one step can
+        // state a whole board's knowledge states without repeating a key.
+        if (!isRecord(expected)) {
+          failures.push(`${key}: expected { cardId: state }`);
+          break;
+        }
+        for (const [cardId, wanted] of Object.entries(expected)) {
+          const card = cardReading(reading, cardId);
+          const actual = card === null ? null : card.knowledgeState ?? null;
+          if (actual !== (wanted ?? null)) fail(`${key}.${cardId}`, wanted ?? null, actual);
+        }
+        break;
+      }
+      case 'cockpitCardKnowledgeVerifications': {
+        // `{ cardId: state }` — the provider's verification verdicts, never the cockpit's guess.
+        if (!isRecord(expected)) {
+          failures.push(`${key}: expected { cardId: state }`);
+          break;
+        }
+        for (const [cardId, wanted] of Object.entries(expected)) {
+          const card = cardReading(reading, cardId);
+          const actual = card === null ? null : card.knowledgeVerificationState ?? null;
+          if (actual !== (wanted ?? null)) fail(`${key}.${cardId}`, wanted ?? null, actual);
+        }
         break;
       }
       case 'quayPulseOpen': {
@@ -1167,6 +1221,21 @@ async function runScenario(browser, scenario, options) {
           // A real refresh: the document, the client store and the history cache all start over.
           await page.reload();
           await waitForSurface(page);
+          if (step.waitForCards === true) {
+            // A reloaded cards view fetches its list after the surface mounts. Waiting for one
+            // drawn card is what separates "the reload has not fetched yet" from "the reload
+            // lost the card" — the two outcomes a knowledge-state step must tell apart.
+            await page.waitForFunction(
+              () => {
+                const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
+                return surface !== undefined
+                  && Array.isArray(surface.read().cockpit?.cards?.visibleCardIds)
+                  && surface.read().cockpit.cards.visibleCardIds.length > 0;
+              },
+              undefined,
+              { timeout: BOOT_TIMEOUT_MS },
+            );
+          }
           if (step.waitForChat === true) {
             // A session route loads its history after the surface mounts. Waiting for one drawn
             // row is what separates "the reload has not fetched yet" from "the reload lost the

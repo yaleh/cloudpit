@@ -4779,6 +4779,92 @@ export type CockpitCardAction = {
   params: Record<string, unknown>;
 };
 
+/**
+ * The decision a versioned knowledge suggestion offers the person.
+ *
+ * The vocabulary is the knowledge-application contract's, not the cockpit's: four ways to answer
+ * one proposal. `apply` accepts it as written, `modify` accepts it with one or more changed plan
+ * steps, `defer` hands it back for a later review, and `not-applicable` records that the
+ * suggestion does not fit this project at all.
+ */
+export type CockpitKnowledgeDecision = 'apply' | 'modify' | 'defer' | 'not-applicable';
+
+/** Where the provider's knowledge case is after a decision was handed off. */
+export type CockpitKnowledgeCaseState =
+  | 'pending'
+  | 'executing'
+  | 'verifying'
+  | 'reported'
+  | 'blocked'
+  | 'unknown';
+
+/**
+ * The complete plan one confirmation delivers: what the decision covers, how it will run, and
+ * how its outcome will be verified. A decision that changes the project (`apply`/`modify`)
+ * cannot be confirmed without all three; a plain `defer`/`not-applicable` carries none.
+ */
+export type CockpitKnowledgePlan = {
+  /** The files/modules/projects the decision is allowed to touch. */
+  scope: string[];
+  /** The ordered steps the receiving executor will run. */
+  steps: string[];
+  /** How the outcome will be checked before the case can be reported as done. */
+  verification: string;
+};
+
+/** The provider's verification reading for a case that has run. */
+export type CockpitKnowledgeVerification = {
+  state: 'pending' | 'passed' | 'failed' | 'unknown';
+  summary: string;
+  at?: string;
+};
+
+/**
+ * One versioned knowledge suggestion's case, as the provider states it.
+ *
+ * This block is READ-ONLY from the cockpit's point of view: the provider owns the lifecycle
+ * (`state`), the current knowledge/proposal revisions, the plan's progress and the verification
+ * reading. The one field the cockpit adds is `confirmationRef`, a server-issued, unforgeable
+ * reference bound to the card revision and the person's choice; a caller-supplied identity is
+ * never accepted as proof of a human decision.
+ *
+ * A card whose block is missing or lacks `caseId`/`knowledgeRevision`/`proposalRevision` cannot
+ * be confirmed: the action channel refuses it with `KNOWLEDGE_EVIDENCE_MISSING` rather than
+ * inventing a case.
+ */
+export type CockpitKnowledgeCase = {
+  /** The provider's stable case id; one per suggestion under decision. */
+  caseId: string;
+  /** The knowledge entry the suggestion came from. */
+  knowledgeId?: string;
+  /** The version of the knowledge entry this proposal was derived from. */
+  knowledgeRevision: number;
+  /** The version of the proposal itself; both must match what the person saw. */
+  proposalRevision: number;
+  state: CockpitKnowledgeCaseState;
+  /** The plan attached to the proposal (or to the chosen option). */
+  plan?: CockpitKnowledgePlan;
+  /** What the case is doing now, for the in-progress reading. */
+  progress?: { step: string; at?: string };
+  /** The provider's execution id once the decision was handed off. */
+  executionId?: string;
+  /** The provider's verification reading; only the provider writes it. */
+  verification?: CockpitKnowledgeVerification;
+  /** When the provider expects to report the next state. */
+  nextCheckAt?: string;
+  /** The conversation the suggestion was discovered in. */
+  originSessionId?: string;
+  /** The knowledge entry's cockpit address. */
+  originUri?: string;
+  /** A digest of the evidence the proposal rests on; a change invalidates a stale confirmation. */
+  factsFingerprint?: string;
+  /**
+   * The server-issued confirmation reference. A provider never sets it: the cockpit mints it on
+   * read and verifies it on confirm, so a client cannot state its own proof.
+   */
+  confirmationRef?: string;
+};
+
 /** One selectable option on a card. */
 export type CockpitCardOption = {
   id: string;
@@ -4807,6 +4893,14 @@ export type CockpitCardOption = {
   confirmable?: boolean;
   /** Why the option cannot be confirmed; present exactly when `confirmable` is `false`. */
   confirmableReason?: string;
+  /**
+   * The knowledge decision this option states. Present only on a knowledge suggestion's
+   * options; the confirmation channel refuses a knowledge card whose chosen option carries
+   * none, because it cannot know what the person decided.
+   */
+  decision?: CockpitKnowledgeDecision;
+  /** The complete plan this option's decision delivers, when the option states one. */
+  plan?: CockpitKnowledgePlan;
 };
 
 /** What a card is about; `uri` is the cockpit address of the subject. */
@@ -4923,6 +5017,15 @@ export type CockpitCardFeedback = {
    * it in amber, so the person can tell 「fleet unreachable」 from 「fleet slow」.
    */
   lastError?: string;
+  /**
+   * The server-issued confirmation reference the action ran under. Kept so the trusted chain is
+   * readable back after a reload; a provider never writes it and a caller cannot forge it.
+   */
+  confirmationRef?: string;
+  /** The knowledge decision this confirmation carried, when it was a knowledge card. */
+  decision?: CockpitKnowledgeDecision;
+  /** The provider case this confirmation belongs to, when it was a knowledge card. */
+  knowledgeCaseId?: string;
 };
 
 /** A receipt that returned the card to the person, kept beside it until the next confirmation. */
@@ -5014,6 +5117,12 @@ export type CockpitCard = {
   feedback?: CockpitCardFeedback;
   /** A kept/rejected receipt's reading, attached while the card stays in the list. */
   feedbackNotice?: CockpitCardFeedbackNotice;
+  /**
+   * The versioned knowledge suggestion this card asks the person to decide, when it is one.
+   * Absent on every other card; a knowledge card WITHOUT this block is shown but cannot be
+   * confirmed (the action channel refuses it as missing evidence).
+   */
+  knowledge?: CockpitKnowledgeCase;
 };
 
 // ---------------------------

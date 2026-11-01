@@ -40,6 +40,12 @@ import {
   type CockpitCardFeedbackStore,
   type StoredCockpitCardFeedback,
 } from './cockpit-card-feedback-store.js';
+import {
+  callerAttestationFields,
+  type CockpitKnowledgeAuthority,
+  type CockpitKnowledgeConfirmation,
+} from './cockpit-knowledge-decision.js';
+import { isKnowledgeCard } from './cockpit-knowledge-reading.js';
 
 /** One confirmation's transport fields, before validation narrows them. */
 export type CockpitCardConfirmRequest = {
@@ -119,6 +125,11 @@ type ParsedConfirmRequest = {
   revision: number;
   optionId?: string;
   replyText?: string;
+  /**
+   * The server-issued knowledge confirmation reference. Present when the card is a versioned
+   * knowledge suggestion; the confirmation authority verifies it, this reader only carries it.
+   */
+  confirmationRef?: string;
 };
 
 function invalid(message: string): AppError {
@@ -136,6 +147,17 @@ function parseConfirmRequest(raw: unknown): ParsedConfirmRequest {
     throw invalid('the confirmation body must be a JSON object');
   }
   const record = raw as Record<string, unknown>;
+
+  // A CALLER CANNOT ATTEST TO ITSELF. A knowledge decision's proof is the server-issued
+  // reference, never a body that claims `by: "human"`; such a field is refused by name so no
+  // client learns to "just add it" and pass.
+  const attestation = callerAttestationFields(record);
+  if (attestation.length > 0) {
+    throw new AppError(
+      `caller-supplied ${attestation.join(', ')} is not accepted as confirmation identity`,
+      { code: 'CALLER_ATTESTATION_REJECTED', statusCode: 400 },
+    );
+  }
 
   if (typeof record.cardId !== 'string' || record.cardId.trim() === '') {
     throw invalid('`cardId` must be a non-empty string');
@@ -162,12 +184,21 @@ function parseConfirmRequest(raw: unknown): ParsedConfirmRequest {
   if ((optionId === undefined) === (replyText === undefined)) {
     throw invalid('exactly one of `optionId` or `replyText` is required');
   }
+  if (
+    record.confirmationRef !== undefined &&
+    (typeof record.confirmationRef !== 'string' || record.confirmationRef.trim() === '')
+  ) {
+    throw invalid('`confirmationRef` must be a non-empty string when present');
+  }
 
   return {
     cardId: record.cardId,
     revision: record.revision,
     ...(optionId === undefined ? {} : { optionId }),
     ...(replyText === undefined ? {} : { replyText }),
+    ...(record.confirmationRef === undefined
+      ? {}
+      : { confirmationRef: record.confirmationRef }),
   };
 }
 
@@ -297,6 +328,18 @@ export function createCockpitCardActions(deps: {
   now?: () => Date;
   /** Idempotency-key seam; defaults to `randomUUID`. */
   newFeedbackId?: () => string;
+  /**
+   * The knowledge suggestion's trusted-confirmation authority. The module always supplies one;
+   * a card that IS a knowledge suggestion is refused when this is absent rather than confirmed
+   * without its reference check.
+   */
+  knowledge?: CockpitKnowledgeAuthority;
+  /**
+   * Drops every provider's read cache so the next `getCard` re-runs the source. Used when a
+   * presented revision no longer matches: the caller is answered with the CURRENT revision
+   * instead of the stale batch the server still had in hand.
+   */
+  refreshCards?: () => Promise<void> | void;
 }): CockpitCardActions {
   const executors = new Map(deps.executors.map((executor) => [executor.id, executor]));
   const now = deps.now ?? (() => new Date());
@@ -324,9 +367,15 @@ export function createCockpitCardActions(deps: {
     source: string;
     outcome: CockpitCardFeedbackOutcome;
     text: string | null;
+    /**
+     * A knowledge decision's verified identity. Its deterministic `feedbackId` replaces the
+     * freshly minted one so a retry of the SAME decision carries the same idempotency key, and
+     * its `feedback` fields (case, revisions, decision, plan, reference) join the call verbatim.
+     */
+    knowledge?: CockpitKnowledgeConfirmation;
   }): Promise<CockpitCardReceipt | null> => {
     const store = deps.feedbackStore;
-    const feedbackId = newFeedbackId();
+    const feedbackId = params.knowledge?.feedbackId ?? newFeedbackId();
     const feedbackExecutor = deps.registry.feedbackExecutor(params.card.provider);
     const feedbackParams: Record<string, unknown> = {
       attentionId: params.card.id,
@@ -338,6 +387,7 @@ export function createCockpitCardActions(deps: {
       suggested: params.suggested,
       source: params.source,
       outcome: params.outcome,
+      ...(params.knowledge === undefined ? {} : params.knowledge.feedback),
     };
     const stored: StoredCockpitCardFeedback = {
       cardId: params.card.id,
@@ -346,6 +396,13 @@ export function createCockpitCardActions(deps: {
       ...(params.card.contentRevision === undefined
         ? {}
         : { contentRevision: params.card.contentRevision }),
+      ...(params.knowledge === undefined
+        ? {}
+        : {
+            confirmationRef: params.knowledge.ref,
+            decision: params.knowledge.decision,
+            knowledgeCaseId: params.knowledge.caseId,
+          }),
       feedbackId,
       optionId: params.optionId,
       label: params.label,
@@ -412,13 +469,65 @@ export function createCockpitCardActions(deps: {
       });
     }
     if (request.revision !== card.revision) {
+      // A stale presentation is answered with the provider's CURRENT revision: re-fetch first,
+      // then report the revision the person must look at before confirming.
+      await deps.refreshCards?.();
+      const current = await deps.registry.getCard(request.cardId);
+      const currentRevision = current?.revision ?? card.revision;
       throw new AppError(
-        `card ${card.id} is at revision ${card.revision}, not ${request.revision}`,
-        { code: 'REVISION_CONFLICT', statusCode: 409 },
+        `card ${card.id} is at revision ${currentRevision}, not ${request.revision}`,
+        {
+          code: 'REVISION_CONFLICT',
+          statusCode: 409,
+          details: { currentRevision },
+        },
       );
     }
 
     const action = resolveAction(card, request);
+
+    // A knowledge decision is confirmed through the server-issued reference, never through a
+    // caller-stated identity. The authority verifies the signature and that the binding still
+    // describes THIS card; a valid-but-old reference re-fetches once and then reports the move.
+    let knowledge: CockpitKnowledgeConfirmation | undefined;
+    if (isKnowledgeCard(card)) {
+      if (deps.knowledge === undefined) {
+        throw new AppError('knowledge confirmations are not wired on this server', {
+          code: 'KNOWLEDGE_UNAVAILABLE',
+          statusCode: 500,
+        });
+      }
+      const option =
+        request.optionId === undefined
+          ? null
+          : card.options.find((candidate) => candidate.id === request.optionId) ?? null;
+      try {
+        knowledge = deps.knowledge.confirm({
+          card,
+          option,
+          ...(request.confirmationRef === undefined
+            ? {}
+            : { confirmationRef: request.confirmationRef }),
+        });
+      } catch (failure) {
+        if (failure instanceof AppError && failure.code === 'STALE_CONFIRMATION') {
+          await deps.refreshCards?.();
+          const current = await deps.registry.getCard(card.id);
+          if (current !== null && current.revision !== card.revision) {
+            throw new AppError(
+              `card ${card.id} is at revision ${current.revision}, not ${request.revision}`,
+              {
+                code: 'REVISION_CONFLICT',
+                statusCode: 409,
+                details: { currentRevision: current.revision, reason: 'stale-confirmation' },
+              },
+            );
+          }
+        }
+        throw failure;
+      }
+    }
+
     if (!deps.registry.declaredExecutors().has(action.executor)) {
       throw new AppError(
         `executor ${action.executor} is not declared by any card provider`,
@@ -479,6 +588,7 @@ export function createCockpitCardActions(deps: {
         source: option?.source ?? 'own-reply',
         outcome: feedbackOutcome(action.executor, result),
         text: request.replyText ?? null,
+        ...(knowledge === undefined ? {} : { knowledge }),
       });
     }
 
@@ -512,9 +622,12 @@ export function createCockpitCardActions(deps: {
       });
     }
     if (request.revision !== card.revision) {
+      await deps.refreshCards?.();
+      const current = await deps.registry.getCard(request.cardId);
+      const currentRevision = current?.revision ?? card.revision;
       throw new AppError(
-        `card ${card.id} is at revision ${card.revision}, not ${request.revision}`,
-        { code: 'REVISION_CONFLICT', statusCode: 409 },
+        `card ${card.id} is at revision ${currentRevision}, not ${request.revision}`,
+        { code: 'REVISION_CONFLICT', statusCode: 409, details: { currentRevision } },
       );
     }
     const feedbackExecutor = deps.registry.feedbackExecutor(card.provider);

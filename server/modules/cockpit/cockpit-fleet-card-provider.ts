@@ -112,6 +112,12 @@ export type CockpitFleetCardProvider = {
     resolveExecutor: CockpitExecutorResolver;
     /** The declaration whose action is `feedback`, or null when the fleet declares none. */
     feedbackExecutor(): string | null;
+    /**
+     * Drops the read cache so the next read runs the CLI. The action channel calls it when a
+     * presented revision no longer matches: the person is answered with the CURRENT card instead
+     * of the batch the server still held.
+     */
+    refreshCards(): void;
   };
   /**
    * The same read the provider exposes, with the port's optional filters. The card contract's
@@ -366,15 +372,22 @@ export function createCockpitFleetCardProvider(
     return declaration === undefined ? null : declaration.id;
   };
 
+  // The cache drop is a command, not a state write: the holder cannot reach the Map itself.
+  const refreshCards = (): void => {
+    cache.clear();
+  };
+
   const provider: ICockpitCardProviderWithDiagnostics & {
     resolveExecutor: CockpitExecutorResolver;
     feedbackExecutor(): string | null;
+    refreshCards(): void;
   } = {
     id: COCKPIT_FLEET_PROVIDER_ID,
     listCards,
     declaredExecutors,
     resolveExecutor,
     feedbackExecutor,
+    refreshCards,
     diagnostics: () => [last],
   };
 

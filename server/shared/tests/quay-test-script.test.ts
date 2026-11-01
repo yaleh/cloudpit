@@ -466,12 +466,14 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // gap-codex-resident-blocked-context-events added its criterion
     // server/modules/context-events/tests/session-blocked-events.test.ts
     // (490 + 1 = 491 collected server test files). Then
+    // cockpit-knowledge-decision-handoff added its criterion
+    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts and
     // knowledge-application-fact-contract added its two criteria
     // server/modules/context-events/tests/knowledge-activity-events.test.ts and
     // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
-    // (491 + 2 = 493 collected server test files). This fixture names 3 known files,
-    // so 493 - 3 = 490.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=490$/);
+    // (491 + 3 = 494 collected server test files). This fixture names 3 known files,
+    // so 494 - 3 = 491.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=491$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -599,13 +601,15 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // (489 + 1 = 490 after gap-codex-restart-sync-last-activity added
     // server/modules/providers/tests/codex-session-activity-restart.test.ts), then
     // gap-codex-resident-blocked-context-events added
-    // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491),
+    // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491), then
+    // cockpit-knowledge-decision-handoff added
+    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (491 + 1 = 492),
     // then knowledge-application-fact-contract added its two criteria
     // server/modules/context-events/tests/knowledge-activity-events.test.ts and
-    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (491 + 2 = 493)
-    // — but this fixture names ONE known file, so 493 - 1 = 492 (AC2 reads 490 because its
-    // fixture names 3; the 493 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=492$/);
+    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (492 + 2 = 494)
+    // — but this fixture names ONE known file, so 494 - 1 = 493 (AC2 reads 491 because its
+    // fixture names 3; the 494 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=493$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

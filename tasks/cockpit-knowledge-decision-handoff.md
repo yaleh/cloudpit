@@ -1,7 +1,7 @@
 ---
 id: cockpit-knowledge-decision-handoff
 title: cockpit 知识建议决定交接：可信确认、修订与进展结果
-status: ready
+status: done
 labels:
   - feature
   - knowledge-application
@@ -59,6 +59,9 @@ extra:
 - server/modules/cockpit/cockpit-knowledge-decision.ts (new)
 - server/modules/cockpit/cockpit.module.ts
 - server/shared/types.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - server/cockpit-fleet-wiring.ts
 - src/shared/types.ts
 - src/modules/cockpit-contract/cardReading.ts

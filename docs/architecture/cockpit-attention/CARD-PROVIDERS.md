@@ -111,3 +111,36 @@ CockpitCard {
 
 仍待定：
 - 多人类 / 多机器时卡片归谁（ownerSession）：v0 按单一人类处理。
+
+## 8. 知识建议卡与可信决定（契约扩展，2026-11-01）
+
+知识建议复用**同一条** provider / 确认 / 反馈通道，不新增动作通道。扩展只在契约的开放位上：
+
+- `kind` 仍是开放字符串，知识卡用 `'knowledge'`；**不加入 `CockpitCardKind` 联合**，否则按 kind 查表的 `DESCRIPTORS` 会在编译期缺项。渲染仍走查表 + `knowledge` 块，不分提供方分支。
+- `CockpitCard.knowledge?: CockpitKnowledgeCase`：`caseId`、`knowledgeRevision`、`proposalRevision`、`state`（pending / executing / verifying / reported / blocked / unknown）、可选 `plan`、`progress`、`executionId`、`verification {state, summary, at?}`、`nextCheckAt`、`originSessionId`/`originUri`、`factsFingerprint`，以及**仅由服务端签发**的 `confirmationRef`。
+- `options[].decision?: apply | modify | defer | not-applicable` 与 `options[].plan?`。选择某个选项即声明该决定；不在词汇内的 `decision` 被投影丢弃，确认通道随后按“缺少证据”拒绝，而不是猜一个默认值。
+- `group` 由提供方给出：知识建议通常落在 `ruling`；投影不得把信息类 `notify` 改写成救援组。
+
+### 8.1 可信确认
+
+读卡片列表时由 `cockpit-knowledge-decision.ts` 的服务端权威为每张可读知识卡签发引用：
+
+```
+kc1.<base64url(payload)>.<base64url(HMAC-SHA256(payload))>
+payload = ['knowledge-confirmation/v1', provider, cardId, revision,
+           caseId, knowledgeRevision, proposalRevision, factsFingerprint ?? '',
+           [[optionId, decision], …按 optionId 排序]]
+```
+
+- 确认体必须携带该引用；`by` / `confirmedBy` / `confirmedByUser` / `actor` 这类**调用者自述身份一律拒绝**（`CALLER_ATTESTATION_REJECTED`），身份证明只能是服务端签发的引用。
+- 签名正确但绑定已变化 ⇒ `STALE_CONFIRMATION`（409）；若此时卡片 `revision` 也已前进，动作通道先让提供方刷新取数，再以 `REVISION_CONFLICT` + `details.currentRevision` 回答当前修订，执行器不运行。前端在 `REVISION_CONFLICT` 后重新读取，保证屏幕上的卡与服务器一致。
+- 需要执行计划的决定（apply / modify）缺少完整 `plan` ⇒ `KNOWLEDGE_PLAN_MISSING`；知识卡缺少可读 case 证据 ⇒ `KNOWLEDGE_EVIDENCE_MISSING`；未声明执行器 ⇒ `EXECUTOR_NOT_DECLARED`。
+- 反馈的 `feedbackId` 由绑定内容派生（`kf-` + SHA-256 前 32 位），所以**同一决定的重复提交与重发复用同一个幂等键**；`(provider, cardId, revision)` 的已接受台账保证一次确认至多一次执行。
+
+### 8.2 交接 ≠ 执行
+
+反馈回执只证明“已交接给提供方”。`progress`、`state`、`verification` 全部来自提供方的后续读数；cockpit 不根据回执推断执行结果，也不写 `verification`。反馈 overlay 持久化 `confirmationRef` / `decision` / `knowledgeCaseId`，下次读卡片时可回读整条可信链；`feedback` 对象里没有核验字段，避免把“已发送”冒充“已核验”。
+
+### 8.3 跨项目状态
+
+契约来源 `quay-fleet/fleet-knowledge-cockpit-proposals` 与 `docs/specs/knowledge-application-contract.md` 在本任务实现时**尚未交付**：安装的 `quay-fleet` 不声明知识执行器、读口不输出 `knowledge` 块。因此本任务只按正文冻结的字段做**兼容投影**，未假设真实能力可用；验证使用符合契约的替身提供方（`QUAY_FLEET_BIN` 指向本地脚本），并把这一限制写入 `docs/evidence/cockpit-knowledge-decision-handoff.md`。
