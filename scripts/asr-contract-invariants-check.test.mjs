@@ -130,11 +130,17 @@ describe('asr-contract-invariants-check', () => {
   });
 
   it('reds request construction on the variant that sends a prompt it declared it does not honor', () => {
+    // THE DECLARED-UNHONORED ANCHOR MOVED WITH THE RULE. Applying `honors` to the outgoing hints
+    // used to be three literal lines inside this adapter; it is now ONE function in the contract leaf
+    // (`honoredHints`, called by every adapter), so the mutation that makes the declaration a lie is
+    // the same unconditional assignment made there. The adapter still owns the part-building anchors
+    // below, because "a prompt part exists" is decided where the body is built, not where the hint
+    // subset is chosen.
     const root = treeWithMutations([
       {
         name: 'prompt-not-declared',
-        file: ADAPTER_RELATIVE,
-        find: "  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;",
+        file: CONTRACT_RELATIVE,
+        find: '  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;',
         replace: "  honored.prompt = hints.prompt === undefined ? '' : hints.prompt;",
       },
       {

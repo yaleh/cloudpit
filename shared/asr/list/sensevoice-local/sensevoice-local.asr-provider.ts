@@ -44,12 +44,13 @@
  *     `scripts/sensevoice/manifest.json` is the frozen record the build id is checked against.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   declaredAcceptsMime,
+  honoredHints,
   type AsrAdapter,
   type AsrCapabilities,
   type AsrErrorCode,
-  type AsrHints,
   type AsrInvocation,
   type AsrRequest,
   type AsrResult,
@@ -244,34 +245,6 @@ export async function ensureRuntime(): Promise<AsrRuntimeStatus> {
 
 // ── the guards that run before the engine ────────────────────────────────────────────────────
 
-/**
- * The bytes the budget is measured over: the audio, plus every hint the declaration acknowledges,
- * measured as the bytes the engine would carry them as.
- *
- * The hints half is written from the declaration rather than from a constant, exactly as the
- * OpenAI-compatible adapter writes it, so a declaration that one day acknowledges a hint carries the
- * arithmetic with it instead of leaving a guard that under-counts. With today's all-false
- * declaration the sum is the audio alone — and it is still computed, because a guard whose subject
- * is a literal `bytes.length` is a guard that cannot follow its own declaration.
- */
-export function measureRequestBytes(request: AsrRequest, honored: AsrHints): number {
-  let bytes = request.audio.bytes.length;
-  if (honored.prompt !== undefined) bytes += new Blob([honored.prompt]).size;
-  if (honored.language !== undefined) bytes += new Blob([honored.language]).size;
-  if (honored.context !== undefined) bytes += new Blob([honored.context]).size;
-  return bytes;
-}
-
-/** The subset of `hints` this provider will actually forward. Empty today; see `capabilities`. */
-export function honoredHints(hints: AsrHints | undefined): AsrHints {
-  const honored: AsrHints = {};
-  if (hints === undefined) return honored;
-  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
-  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
-  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
-  return honored;
-}
-
 /** The refusal owed an engine that cannot serve this request, in the seam's vocabulary. */
 function engineFailure(message: string): AsrResult {
   return { ok: false, code: 'ENGINE_UNAVAILABLE', message };
@@ -303,7 +276,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
     };
   }
 
-  const requestBytes = measureRequestBytes(request, honoredHints(request.hints));
+  const requestBytes = measureRequestBytes(request, honoredHints(capabilities, request.hints));
   if (requestBytes > capabilities.maxInlineRequestBytes) {
     return {
       ok: false,

@@ -21,6 +21,11 @@ export type {
   ScenarioCockpitCardsReading,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
 export type {
+  ScenarioCostPanelReading,
+  ScenarioCostPanelRowReading,
+  ScenarioCostPanelSegmentReading,
+} from '@/modules/ui-scenario/costPanelSurface';
+export type {
   ScenarioSidebarReading,
   ScenarioSidebarRowReading,
 } from '@/modules/ui-scenario/sidebarSurface';

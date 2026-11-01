@@ -972,7 +972,7 @@ const NO_WIRE_ACCEPTED = 'ENGINE_UNAVAILABLE requests=0';
  * WHY IT DIFFERS FROM `overBudgetAudioBytes`. That function derives its size from the wire's own
  * encoding — the inline-JSON wire spends the budget on base64 of the audio, so a size whose ENCODING
  * is past the line can still be well inside it as raw bytes. An adapter that reaches no wire never
- * encodes anything: it measures the bytes it is handed (see the provider's `measureRequestBytes`, and
+ * encodes anything: it measures the bytes it is handed (see the shared `measureRequestBytes`, and
  * the board reads the same rule it declares). Sizing such a request with the encoding's arithmetic
  * would hand it an audio its own guard correctly accepts, and the reading would report the guard
  * working as the guard failing.

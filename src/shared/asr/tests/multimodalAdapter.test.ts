@@ -25,16 +25,16 @@ import {
 } from '@shared/asr/asrRegistry';
 import {
   TRANSCRIPTION_INSTRUCTION,
-  base64Length,
   capabilities,
   generateContentEndpoint,
-  honoredHints,
   id,
   measureInlineRequestBytes,
   mergeTranscriptLines,
   readTranscriptText,
   transcribe,
 } from '@shared/asr/list/multimodal/multimodal.asr-provider';
+import { honoredHints } from '@shared/asr/asrContract';
+import { base64Length } from '@shared/asr/transcriptionWire';
 
 const ENVELOPE = JSON.stringify({
   candidates: [{ content: { parts: [{ text: 'hello ' }, { text: 'world' }] } }],
@@ -211,8 +211,8 @@ describe('hints', () => {
   it('drops exactly the hints the declaration does not acknowledge', () => {
     const hints = { prompt: 'p', language: 'zh', context: 'c' };
 
-    expect(honoredHints(hints)).toEqual({ context: 'c' });
-    expect(honoredHints(undefined)).toEqual({});
+    expect(honoredHints(capabilities, hints)).toEqual({ context: 'c' });
+    expect(honoredHints(capabilities, undefined)).toEqual({});
   });
 });
 
@@ -308,7 +308,7 @@ describe('the request-level budget counts the instruction (real-wire AC3)', () =
     // Measured with an encoder rather than with the adapter's own helper: a reading taken with the
     // function under test could not disagree with it, and "the budget matches the bytes" is exactly
     // the claim that must be able to disagree.
-    expect(measureInlineRequestBytes(request, honoredHints(request.hints), 'test-model')).toBe(
+    expect(measureInlineRequestBytes(request, honoredHints(capabilities, request.hints), 'test-model')).toBe(
       new TextEncoder().encode(bodyOf(stand)).length,
     );
   });

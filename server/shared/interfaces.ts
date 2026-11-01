@@ -180,16 +180,23 @@ export type ProviderTokenUsageFileTail = {
  * "the source reported zero" are different answers: an absent field must stay
  * absent so a UI can omit the row instead of printing a fabricated zero.
  *
- * `cacheReadTokens` is a SUBSET of `inputTokens`, and `reasoningOutputTokens` is
- * a SUBSET of `outputTokens`. They are detail reads, never extra addends:
- * `inputTokens + outputTokens` already covers them for Codex, so a consumer that
- * adds them again double-counts.
+ * `cacheReadTokens`, `cacheWriteTokens` and `reasoningOutputTokens` are SUBSETS
+ * of their parent totals. They are detail reads, never extra addends:
+ * `inputTokens + outputTokens` already covers them, so a consumer that adds them
+ * again double-counts.
  */
 export type ProviderTokenUsageCounts = {
   inputTokens?: number;
   outputTokens?: number;
-  /** Cached input tokens; already contained in `inputTokens`. */
+  /** Cached input tokens read back; already contained in `inputTokens`. */
   cacheReadTokens?: number;
+  /**
+   * Cached input tokens written to the cache (Anthropic
+   * `cache_creation_input_tokens`, Codex-style `cache_write_input_tokens`);
+   * already contained in `inputTokens`. Absent means the source did not report
+   * the quantity — it is never a fabricated zero.
+   */
+  cacheWriteTokens?: number;
   /** Reasoning tokens; already contained in `outputTokens`. */
   reasoningOutputTokens?: number;
   /** The source's own total when it reported one, else absent (never re-derived here). */
@@ -233,6 +240,13 @@ export type ProviderTokenUsageReading = {
   cumulative?: ProviderTokenUsageCounts;
   /** The newest single request's usage, for context-occupancy approximations. */
   lastRequest?: ProviderTokenUsageCounts;
+  /**
+   * Totals for the session's subagent/sidechain turns, kept apart from
+   * `cumulative` because they bill to the same account while owning a separate
+   * context. Absent when the provider has no sidechain concept or the transcript
+   * recorded none.
+   */
+  sidechain?: ProviderTokenUsageCounts;
   /**
    * What `used` measures. `context` (or absent, for backward compatibility) is
    * the newest request's prompt; `session-cumulative` is the whole session and

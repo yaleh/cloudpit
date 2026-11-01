@@ -23,6 +23,8 @@ import {
 import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
 import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
+import { readCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
+import type { ScenarioCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type { ScenarioSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type {
@@ -215,6 +217,11 @@ export type ScenarioReading = {
    * workspace, which is what lets a scenario assert the conversation after switching back.
    */
   chat: ScenarioChatReading;
+  /**
+   * The `/cost` modal's cache accounting, or an absent reading when the panel is not mounted.
+   * Read from the `data-cost-*` declarations the panel draws.
+   */
+  costPanel: ScenarioCostPanelReading;
   /** The view whose contract is active (the last one published), or `null`. */
   activeView: string | null;
   /** Every view URI that has published a contract, in publication order. */
@@ -575,6 +582,7 @@ function createScenarioSurface(): ScenarioSurface {
       cockpit: readCockpitReading(),
       settings: readSettingsReading(),
       chat: readChatReading(),
+      costPanel: readCostPanelReading(),
       activeView: activeViewUri,
       views: [...registeredViews.keys()],
       focusables,

@@ -23,12 +23,13 @@
  * signal) arrives through `AsrInvocation`.
  */
 
+import { measureRequestBytes } from '../../transcriptionWire.js';
 import {
   classifyUpstreamFailure,
   declaredAcceptsMime,
+  honoredHints,
   type AsrAdapter,
   type AsrCapabilities,
-  type AsrHints,
   type AsrInvocation,
   type AsrRequest,
   type AsrResult,
@@ -92,45 +93,7 @@ export const capabilities: AsrCapabilities = {
   locality: 'remote',
 };
 
-// ── the hints ────────────────────────────────────────────────────────────────────────────────
-
-/**
- * The subset of `hints` this provider will actually put on the wire.
- *
- * This is the only place the `honors` declaration is applied, exactly as the second adapter does
- * it, so "the prompt is not sent" is a property of the declaration rather than of a second
- * condition downstream that could drift from it. With this declaration the result is always empty;
- * it is written from the declaration anyway, so a declaration that starts acknowledging a hint
- * carries the rest of the arithmetic with it instead of leaving a guard that under-counts.
- */
-export function honoredHints(hints: AsrHints | undefined): AsrHints {
-  const honored: AsrHints = {};
-  if (hints === undefined) return honored;
-  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
-  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
-  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
-  return honored;
-}
-
-/**
- * The budget subject: the caller-controlled bytes the request carries — the audio, plus every hint
- * the declaration acknowledges, measured as the bytes the wire would carry them as.
- *
- * `Blob.size` is the byte length of a string part, which is why the hints are measured by encoding
- * them the way the wire would rather than by counting characters: a Chinese context is three bytes
- * per character, and a guard that counted characters would pass a request the service rejects.
- *
- * What this deliberately does not model is the constant transport envelope — the multipart
- * boundaries, the field names, the model — for the reason the second adapter's equivalent gives:
- * it is fixed per call and carries no caller-controlled bytes.
- */
-export function measureRequestBytes(request: AsrRequest, honored: AsrHints): number {
-  let bytes = request.audio.bytes.length;
-  if (honored.prompt !== undefined) bytes += new Blob([honored.prompt]).size;
-  if (honored.language !== undefined) bytes += new Blob([honored.language]).size;
-  if (honored.context !== undefined) bytes += new Blob([honored.context]).size;
-  return bytes;
-}
+// ── the audio part ──────────────────────────────────────────────────────────────────────────
 
 /**
  * The audio as the `File` part the multipart body carries.
@@ -210,7 +173,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
     };
   }
 
-  const requestBytes = measureRequestBytes(request, honoredHints(request.hints));
+  const requestBytes = measureRequestBytes(request, honoredHints(capabilities, request.hints));
   if (requestBytes > capabilities.maxInlineRequestBytes) {
     return {
       ok: false,

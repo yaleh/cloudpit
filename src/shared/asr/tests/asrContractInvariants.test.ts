@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   classifyUpstreamFailure,
+  honoredHints,
   listProviders,
   type AsrAdapter,
   type AsrCapabilities,
@@ -52,12 +53,12 @@ import {
   tokenInvariantViolations,
 } from '@shared/asr/asrInvariants';
 import {
+  base64Encode,
   parseTranscriptionResponse,
   type TranscriptionEnvelope,
 } from '@shared/asr/transcriptionWire';
 import {
   STYLE_TRANSFORMATIONS,
-  base64Encode,
   baseMimeType,
   buildInlineRequestBody,
   capabilities,
@@ -282,6 +283,49 @@ describe('the transcription seam invariant board', () => {
     expect(scanLines(planted, needles.payload).length).toBe(1);
     const clean = ['a line carrying neither'];
     expect(scanLines(clean, [needles.credential, ...needles.payload])).toEqual([]);
+  });
+});
+
+// ── the hints contract: one application of every adapter's declaration ───────────────────────
+//
+// The four adapters that used to carry byte-identical `honoredHints` bodies now all call the one
+// function in `asrContract.ts`. This block is the adapter-invariant reading: it walks the SHIPPED
+// registry and drives each adapter's declared `honors` through that function, so a declaration
+// that changes without its expected reading moving — or an adapter that grows a private copy
+// again — is a red here rather than a silent divergence between providers.
+//
+// THE EXPECTATIONS ARE LITERAL PER ADAPTER rather than re-derived from the declaration: a second
+// implementation of the rule inside the test would agree with the helper by construction.
+
+describe('the hints contract is applied once, through each adapter’s declaration', () => {
+  const HINTS: AsrHints = { prompt: 'p', language: 'zh', context: 'c' };
+
+  /** What each shipped adapter's declaration says it forwards when every hint is supplied. */
+  const EXPECTED: Record<string, AsrHints> = {
+    'openai-compatible': {},
+    multimodal: { context: 'c' },
+    'dashscope-omni': {},
+    'dashscope-omni-relay': { context: 'c' },
+    'sensevoice-local': {},
+    'sensevoice-wasm': {},
+  };
+
+  it('honours exactly the declared axes for every shipped adapter, and nothing else', () => {
+    for (const adapter of listProviders()) {
+      const expected = EXPECTED[adapter.id];
+      expect(expected, `no expected hint set declared for shipped adapter '${adapter.id}'`).toBeDefined();
+      expect(honoredHints(adapter.capabilities, HINTS), adapter.id).toEqual(expected);
+      // An absent hints bag is empty for every declaration, acknowledged axes or not.
+      expect(honoredHints(adapter.capabilities, undefined), adapter.id).toEqual({});
+    }
+  });
+
+  it('forwards every axis a declaration acknowledges (positive control)', () => {
+    const allHonors: AsrCapabilities = {
+      ...capabilities,
+      honors: { prompt: true, language: true, context: true },
+    };
+    expect(honoredHints(allHonors, HINTS)).toEqual(HINTS);
   });
 });
 

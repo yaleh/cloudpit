@@ -1,11 +1,11 @@
 import fsSync from 'node:fs';
-import fsp from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 
 import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import { codexRolloutLines } from '@/modules/providers/list/codex/codex-fork-history.js';
+import { findFileWithSuffix } from '@/modules/providers/list/codex/codex-session-paths.js';
 import { normalizeCodexTokenCountInfo } from '@/modules/providers/list/codex/codex-token-usage-normalization.js';
 import {
   extractCodexText,
@@ -893,40 +893,6 @@ async function findCodexSubagentRollout(
       break;
     }
     directory = parent;
-  }
-
-  return null;
-}
-
-/** Depth-limited search for a file whose name ends with `suffix`. */
-async function findFileWithSuffix(directory: string, suffix: string, depth: number): Promise<string | null> {
-  let entries;
-  try {
-    entries = await fsp.readdir(directory, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-
-  const subdirectories: string[] = [];
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      subdirectories.push(path.join(directory, entry.name));
-      continue;
-    }
-    if (entry.name.endsWith(suffix)) {
-      return path.join(directory, entry.name);
-    }
-  }
-
-  if (depth <= 0) {
-    return null;
-  }
-
-  for (const subdirectory of subdirectories) {
-    const match = await findFileWithSuffix(subdirectory, suffix, depth - 1);
-    if (match) {
-      return match;
-    }
   }
 
   return null;

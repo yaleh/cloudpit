@@ -65,7 +65,8 @@ import type {
   AsrRequest,
   AsrResult,
 } from '../../asrContract.js';
-import { classifyUpstreamFailure } from '../../asrContract.js';
+import { classifyUpstreamFailure, honoredHints } from '../../asrContract.js';
+import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'multimodal';
@@ -184,23 +185,6 @@ export function acceptsMime(mimeType: string): boolean {
 }
 
 /**
- * The subset of `hints` this provider will actually put on the wire.
- *
- * This is the only place the `honors` declaration is applied, and the body builder only ever sees
- * the value this returns — so "the prompt is not sent" is a property of the declaration rather
- * than of a second condition somewhere downstream that could drift from it. The adapter's own
- * instruction does not travel through here: it is not a hint, and the caller cannot turn it off.
- */
-export function honoredHints(hints: AsrHints | undefined): AsrHints {
-  const honored: AsrHints = {};
-  if (hints === undefined) return honored;
-  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;
-  if (capabilities.honors.language && hints.language !== undefined) honored.language = hints.language;
-  if (capabilities.honors.context && hints.context !== undefined) honored.context = hints.context;
-  return honored;
-}
-
-/**
  * Builds the request body.
  *
  * `inlineData` is a PARAMETER rather than something this function computes, and that is what makes
@@ -237,43 +221,6 @@ export function buildInlineRequestBody(
 }
 
 // ── the budget arithmetic ────────────────────────────────────────────────────────────────────
-
-/** The exact length a base64 encoding of `byteLength` bytes has, without encoding anything. */
-export function base64Length(byteLength: number): number {
-  return Math.ceil(byteLength / 3) * 4;
-}
-
-/** The UTF-8 length of `value`, counted directly so no encoder global is needed on either side. */
-export function utf8ByteLength(value: string): number {
-  let bytes = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code < 0x80) bytes += 1;
-    else if (code < 0x800) bytes += 2;
-    else if (code >= 0xd800 && code <= 0xdbff) {
-      bytes += 4;
-      index += 1;
-    } else bytes += 3;
-  }
-  return bytes;
-}
-
-const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-/** Standard base64 of `bytes`. Written out rather than reached for, for the neutrality reason above. */
-export function base64Encode(bytes: Uint8Array): string {
-  let encoded = '';
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const second = index + 1 < bytes.length ? bytes[index + 1] : 0;
-    const third = index + 2 < bytes.length ? bytes[index + 2] : 0;
-    encoded += BASE64_ALPHABET[first >> 2];
-    encoded += BASE64_ALPHABET[((first & 0x03) << 4) | (second >> 4)];
-    encoded += index + 1 < bytes.length ? BASE64_ALPHABET[((second & 0x0f) << 2) | (third >> 6)] : '=';
-    encoded += index + 2 < bytes.length ? BASE64_ALPHABET[third & 0x3f] : '=';
-  }
-  return encoded;
-}
 
 /**
  * The byte length of the request this adapter would send for `request`, `hints` and `model` — the
@@ -486,7 +433,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
     };
   }
 
-  const hints = honoredHints(request.hints);
+  const hints = honoredHints(capabilities, request.hints);
   const requestBytes = measureInlineRequestBytes(request, hints, invocation.model);
   if (requestBytes > capabilities.maxInlineRequestBytes) {
     return {

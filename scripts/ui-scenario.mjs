@@ -26,6 +26,9 @@
  *       `quay-pulse` — the title-bar Loop pulse popover of the session the page is already on;
  *                      the opener presses the trigger and waits for the mention list to settle,
  *                      because that list arrives over the network after the popover mounts.
+ *       `cost-panel` — the `/cost` modal, opened by typing the command into the composer and
+ *                      picking the menu's own row; it waits for the panel to declare itself
+ *                      mounted, so the first reading is a drawn panel, not a command in flight.
  *     An unknown opener fails its step rather than being ignored.
  *   · `reload`: reload the current page and wait for the surface again. The refresh leg of a
  *     continuity scenario is a real browser reload, not a re-navigation through the sidebar.
@@ -383,6 +386,47 @@ function expectationFailures(expect, reading) {
       case 'quayPulseGoalIds': {
         const actual = Array.isArray(reading.quayPulse?.goalIds) ? reading.quayPulse.goalIds : null;
         if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'costPanelOpen': {
+        // `null` is a real reading (the panel is not mounted), not "skip".
+        const actual = reading.costPanel === undefined ? null : reading.costPanel.open === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'costPanelCacheHitRatio': {
+        const actual = reading.costPanel?.cacheHitRatio ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'costPanelRowLabelsInclude': {
+        // Every named row must be drawn. A missing row is a failure, not "unchanged".
+        if (!Array.isArray(expected)) {
+          failures.push(`${key}: expected an array of row labels`);
+          break;
+        }
+        const labels = Array.isArray(reading.costPanel?.rows)
+          ? reading.costPanel.rows.map((/** @type {any} */ row) => row.label)
+          : null;
+        const missing = labels === null
+          ? expected
+          : expected.filter((label) => !labels.includes(String(label)));
+        if (missing.length > 0) fail(key, expected, { missing, labels });
+        break;
+      }
+      case 'costPanelSegmentKeys': {
+        // The segment keys IN DRAW ORDER: a bar that loses or reorders one is observable.
+        const actual = Array.isArray(reading.costPanel?.segments)
+          ? reading.costPanel.segments.map((/** @type {any} */ segment) => segment.key)
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'costPanelAccountingNoteIncludes': {
+        const actual = typeof reading.costPanel?.accountingNote === 'string'
+          ? reading.costPanel.accountingNote
+          : null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
         break;
       }
       case 'settingsOpen': {
@@ -973,6 +1017,48 @@ async function openQuayPulse(page) {
 }
 
 /**
+ * Opens the `/cost` modal for the session already on screen.
+ *
+ * THE COMMAND IS THE ENTRY. The panel is not a route and has no test hook of its own: a person
+ * types `/cost` into the composer and picks the menu's row, so the opener does the same rather
+ * than reaching into React state. Picking the row (instead of pressing Enter) is what keeps the
+ * text from being submitted as a chat message: selecting a built-in command executes it and
+ * preserves the composer content. The opener then waits for the panel to declare itself mounted,
+ * so the first reading observes the drawn rows rather than a command still in flight.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{ project: string, session: string }} target
+ */
+async function openCostPanel(page, target) {
+  // The `/cost` command forwards the client's own `tokenBudget` as the usage context, and that
+  // budget arrives from the session's token-usage fetch AFTER the workspace mounts. Executing
+  // before it lands renders the LEGACY layout (used 0 / Breakdown Unavailable) — a race in the
+  // page, not a scenario state — so the opener waits for that fetch (bounded: a session that
+  // reports none simply leaves the legacy layout, which is itself a legitimate reading).
+  const tokenUsage = page
+    .waitForResponse((response) => /\/token-usage(\?|$)/.test(new URL(response.url()).pathname), {
+      timeout: 15_000,
+    })
+    .catch(() => null);
+  await openSession(page, target);
+  await tokenUsage;
+  // Let the budget's React commit reach the command handler's closure before typing.
+  await page.waitForTimeout(300);
+
+  const textarea = page.locator('[data-slot="prompt-input-textarea"]:visible').first();
+  await textarea.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await textarea.click();
+  await textarea.fill('/cost');
+  const option = page.getByRole('option').filter({ hasText: '/cost' }).first();
+  await option.waitFor({ state: 'visible', timeout: PANEL_TIMEOUT_MS });
+  await option.click();
+  await page.locator('[data-testid="cost-panel"]').first().waitFor({
+    state: 'visible',
+    timeout: PANEL_TIMEOUT_MS,
+  });
+}
+
+/**
  * Runs one scenario file and returns its report.
  *
  * @param {import('playwright').Browser} browser
@@ -1111,6 +1197,7 @@ async function runScenario(browser, scenario, options) {
             'cockpit-cards': () => openCockpitCards(page),
             settings: () => openSettingsCockpit(page),
             'quay-pulse': () => openQuayPulse(page),
+            'cost-panel': () => openCostPanel(page, target),
           };
           const execute = step.open === undefined ? undefined : openers[step.open];
           if (execute === undefined) {
