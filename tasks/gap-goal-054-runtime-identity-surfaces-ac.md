@@ -84,10 +84,50 @@ GOAL-054 标题逐字为：
 
 本提案不执行实现、不改任何源码、不改 `goals/*.md`、不翻任何状态、不分配 AC 编号；⛔ 不修改 AC-451/452/453/456/457/458 的 criterion/expect。
 
+## Resolution
+
+**人 yale 2026-11-01 经会话裁定：采纳本提案 (a)——新增一条 pre-merge AC（建议 AC-459），但 `expect` 按本节「入册文本」执行，不逐字采用 Proposal 原文。** 本裁定不写 goal store、不改 `goals/*.md`、不翻任何 GOAL/AC 状态；AC-459 的编号确认、创建与 status 由被授权的 goal 写入路径完成。本任务停在 `needs-human`，不被当执行任务派发。
+
+### 裁定依据（复核于 `goal/GOAL-054` tip `50556466a`，不是照抄提案）
+
+- **缺口成立**：GOAL-054 `## 范围` 含「IPC/bridge/BroadcastChannel/语义面改名」；spec 兼容矩阵第 18–20 行标 R /「2.0.0 即完成」。活代码面仍有 `cloudcli-desktop:` 54 处（`main.js` 23 个 `ipcMain.handle`、`preload.cjs` 27 处 `invoke`/`on`、`desktopWindow.js` 4 处 `send`），`cloudpit-desktop:` 0 处。
+- **现有在域 AC 不覆盖**：AC-452 的 `expect` 是封闭列表且已 `achieved`；AC-451 的 brand allowlist 检查器对这些内部名零命中；AC-453 的判据文件对 `ipc|channel|Broadcast` 零命中；AC-456/457/458 是浏览器预览 / 分发核验，面不同。在域 AC 共 6 条（451/452/453/456/457/458；AC-454 已 `superseded`）。
+- **判官读数一致**：最近一轮 `.quay/goal-round.jsonl` 的 GOAL-054 `sufficiency.verdict` = `insufficient`，gap agent 的 stdout 正是为这个缺口立的本任务。
+- **编号与形态可行**：AC-459 在当前全部分支上未被占用（现有最高 458）；创建即 `active` 有 AC-458 先例（draft→active 转型闸按工作区根判定载体，而判据文件只在 goal 分支存在）。
+
+### 入册时必须采用的修订（4 点；被取代的仅限 Proposal 的 `expect` 文本）
+
+1. **零命中作用域改为活代码面**：`electron/`、`src/`、`scripts/`、`e2e/`、`AGENTS.md`。历史账本（`tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG`）按 GOAL-054 非目标「不改历史账本」排除。
+   - 原因：Proposal 的「仓库内零命中」与 goal 非目标直接冲突。`docs/proposals/cloudpit-rename-SPEC.md` 含 `cloudcli-desktop:` ×2、`__cloudcliScenario` ×2、`cloudcli-architecture` ×2；`tasks/` 下 12 个文件含 `__cloudcliScenario`。逐字执行只能靠改写历史账本，或让 AC 永远红。
+   - 同时纠正提案读数：`__cloudpitScenario` 在代码内 0 命中，在 spec 文档内 2 处；Proposal 的「全仓 0 命中」不准确。
+2. **补齐活消费者**：`__cloudcliScenario` 除 `src/main.tsx` / `scenarioSurface.ts` / `scripts/ui-scenario.mjs` 外，还有 `src/modules/ui-scenario/index.ts:6`、`src/modules/ui-scenario/tests/scenarioSurface.test.ts`、`src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts`、`e2e/ui-scenario-runner.spec.ts`、`e2e/scenarios/quay-wall-focus-pin-utter.json`、`AGENTS.md:18`；contextBridge 旧名消费者除 `electron/launcher/launcher.js:89` 外，还有 `src/modules/settings/Settings.tsx:44`、`src/modules/settings/hooks/useWebPush.ts:28`。criterion 按活代码根扫描，`expect` 把上述文件列为预期同步面。
+3. **注入 / 自匹配机制写明**：判据文件自身不得进入零命中扫描。扫描器接受可注入 root：正臂扫 worktree 活根，负臂在 `tmp/` 夹具上跑；旧名字面量由常量拼接或置于夹具数据。否则零命中要么被自命中永久打红，要么靠排除自身削弱负臂。
+4. **非目标面改为正断言**：`cloudcli.ai` 域名判定、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、appId `ai.cloudcli.desktop` 必须在同一判据中断言其存在。注意 AC-452 的 `cloudcli://` 观测 URI 是双读，零命中扫描不得顺手禁掉 `cloudcli://`。
+
+### 入册文本（AC-459，供被授权的 goal 写入路径逐字使用）
+
+- `goal: GOAL-054`、`kind: criterion`、`status: active`（创建即 active，不走 draft→active）、`phase: pre-merge`
+- `criterion`：
+
+  ```
+  npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs
+  ```
+
+- `expect`（修订后，取代 Proposal 原文的 `expect`）：
+
+  ```
+  Electron IPC 通道全部为 `cloudpit-desktop:*`（`electron/main.js` 的 `ipcMain` 注册、`electron/preload.cjs` 的 `invoke`/`on`、`electron/desktopWindow.js` 的 `webContents.send` 三处一致）；contextBridge 只暴露 `cloudpitDesktop` / `cloudpitDesktopNotifications`；架构独立页与工作区标签页的 BroadcastChannel 为 `cloudpit-architecture`；dev-only 语义面为 `window.__cloudpitScenario`。旧名 `cloudcli-desktop:`、`cloudcliDesktop*`、`cloudcli-architecture`、`__cloudcliScenario` 在活代码面（`electron/`、`src/`、`scripts/`、`e2e/`、`AGENTS.md`）零命中；历史账本（`tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG`）按 GOAL-054 非目标排除。语义面同步面包括 `src/main.tsx`、`src/modules/ui-scenario/scenarioSurface.ts`、`src/modules/ui-scenario/index.ts`、`src/modules/ui-scenario/tests/scenarioSurface.test.ts`、`src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts`、`scripts/ui-scenario.mjs`、`e2e/ui-scenario-runner.spec.ts`、`e2e/scenarios/quay-wall-focus-pin-utter.json`、`AGENTS.md`；contextBridge 新名消费面包括 `electron/launcher/launcher.js`、`src/modules/settings/Settings.tsx`、`src/modules/settings/hooks/useWebPush.ts`。判据扫描器接受可注入 root：正臂对 worktree 活代码根取证，负臂在 `tmp/` 夹具（旧名由常量拼接或置于夹具数据，判据文件自身不进入扫描）上验证，注入一条 `cloudcli-desktop:` / `__cloudcliScenario` 必须变红。非目标面保持原样并在同一判据中断言其存在：`cloudcli.ai` 域名判定、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、appId `ai.cloudcli.desktop`，以及 AC-452 已管的 `cloudcli://` 观测 URI 双读；零命中扫描不得把 `cloudcli://` 一并禁掉。取假形态：活代码面任一面仍残留旧名、或同一判据对注入旧名的合成读数不变红、或把上述非目标面一并改掉（包括为凑零命中而改写历史账本），均红。
+  ```
+
+### 状态
+
+- 本节闭合 AC1；AC2（授权路径创建 AC-459）、AC3（实现后 criterion 绿 + 负臂）、AC4/AC5（下一完整 goal 轮的 `covered` 与 `unmetPreMergeAcs` 读数）仍待外部，不代勾。
+- 本任务保持 `needs-human`；DoD 与 Touches 保持原样。AC-459 的入册不在本任务内执行。
+
 ## AC
 
-- [ ] AC1: 人裁定写回 `## Resolution`：采纳本提案 (a)，或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
-- [ ] AC2: 若采纳：`quay goal show AC-459 --json` 显示 `goal: GOAL-054`、`status: active`、`phase: pre-merge`，`criterion` 逐字为 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`，`expect` 与本提案逐字一致（待外部：由被授权的 goal 写入路径创建）。
+- [x] AC1: 人裁定写回 `## Resolution`：采纳本提案 (a)，或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
+- [ ] AC2: 若采纳：`quay goal show AC-459 --json` 显示 `goal: GOAL-054`、`status: active`、`phase: pre-merge`，`criterion` 逐字为 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`，`expect` 与 `## Resolution` 的入册文本逐字一致（待外部：由被授权的 goal 写入路径创建）。
 - [ ] AC3: 若采纳：目标分支上该 criterion exit 0，且同一判据对注入旧名的合成读数变红、对非目标面（`cloudcli.ai` / appId / `cloudcli://auth/callback`）保持不变（待外部：需实现任务先落地）。
 - [ ] AC4: 采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 的 GOAL-054 记录里 `goal-sufficiency.verdict` 翻 `covered`，且 In-scope AC 列表含 AC-459（待外部：driver 跑一轮）。
 - [ ] AC5: 同一轮的 pre-merge 未达成读数（`unmetPreMergeAcs` 或等价字段）含 AC-459，证明它在实现前真实挡住 merge，而不是只在判官输入里凑数（待外部：driver 跑一轮）。
