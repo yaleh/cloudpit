@@ -1,7 +1,7 @@
 ---
 id: cockpit-knowledge-decision-handoff
 title: cockpit 知识建议决定交接：可信确认、修订与进展结果
-status: ready
+status: done
 labels:
   - feature
   - knowledge-application
