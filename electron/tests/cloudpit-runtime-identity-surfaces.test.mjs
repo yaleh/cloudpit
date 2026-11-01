@@ -465,4 +465,24 @@ test('AC6: the history ledger still records the pre-2.0 names', () => {
     ledger.includes(LEGACY_SCENARIO_GLOBAL),
     `the rename spec still records at least one ${LEGACY_SCENARIO_GLOBAL} occurrence`,
   );
+
+  // The zero-hit scope is the live surface only. Assert that structurally
+  // instead of leaving it implied by the positive arm: a scanned ledger would
+  // red that arm, but only this pins the scan root itself.
+  const scanned = collectSurfaceFiles(REPO_ROOT).map((file) => toRelative(REPO_ROOT, file));
+  assert.ok(scanned.length >= 20, 'the scan root resolves to the live surface');
+  for (const ledgerPrefix of [
+    'tasks/',
+    'goals/',
+    'adr/',
+    'experiments/',
+    'docs/proposals/',
+    'CHANGELOG',
+  ]) {
+    assert.deepEqual(
+      scanned.filter((file) => file === ledgerPrefix || file.startsWith(ledgerPrefix)),
+      [],
+      `the scan root must not include the history ledger (${ledgerPrefix})`,
+    );
+  }
 });
