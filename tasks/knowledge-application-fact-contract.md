@@ -1,7 +1,7 @@
 ---
 id: knowledge-application-fact-contract
 title: 知识主动应用事实契约：关联回复、配置实际证据与活动读口
-status: todo
+status: ready
 labels:
   - feature
   - knowledge-application
