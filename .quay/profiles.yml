@@ -88,7 +88,12 @@ roles:
     mcpBlacklist:
       - chrome-devtools
       - playwright
-      # meta-cc 暂不拉黑：fan-in 语义兜底可能仍有 meta-cc 溯源调用（对端在排查）。
+      # 2026-11-01 确认可拉黑（gap-claudecodeui-fix-worker-meta-cc-blacklist）：fix-worker 是短命
+      # ABI 立案/修任务代理，promotion-driver buildFixWorkerPrompt、goal-driver
+      # buildGapWorkerPrompt、quality-gate-driver 三处 gap-filing prompt 均无 meta-cc；fan-in 语义
+      # 兜底是 worker-driver 驱动的 workflow，不是 fix-worker 会话（对端 quay 项目排查结论）。
+      # ⇒ 两份 carrier 的 fix-worker 黑名单集合应对齐（profiles-role-coverage-check 不报漂移）。
+      - meta-cc
       - archguard
       - plantuml
   pool-judge:
