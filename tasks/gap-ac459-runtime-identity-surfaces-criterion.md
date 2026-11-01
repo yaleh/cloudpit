@@ -1,7 +1,7 @@
 ---
 id: gap-ac459-runtime-identity-surfaces-criterion
 title: AC-459 判据：运行时内部身份面专用测试（IPC/contextBridge/BroadcastChannel/语义面全局）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
