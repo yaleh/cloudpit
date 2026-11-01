@@ -20,14 +20,18 @@ Claude 的 `cumulative` = 对所有**主线程** assistant 轮求和：`input = 
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-token-usage.service.test.ts` 退出 0，且其中新增用例：一条含两轮主线程 assistant + 一轮 `isSidechain` + 一行 `<synthetic>` 全零的 transcript，`summarizeClaudeTokenUsage(...).cumulative` 逐字段等于主线程各轮手算和（`input = Σ(input_tokens+cache_read+cache_creation)`、`output`、`cacheRead`、`cacheWrite`），`sidechain` 分桶等于 sidechain 轮自身总量，全零行贡献为 0。
-- [ ] 同一测试文件退出 0，且其中新增用例：Codex `token_count` 事件的 `total_token_usage` 与 `last_token_usage` 各带 `cache_write_input_tokens` 时，`cumulative.cacheWriteTokens`/`lastRequest.cacheWriteTokens` 等于该值，且 `inputTokens`/`outputTokens` 不被 cacheWrite 重复相加；事件缺该键时 `cacheWriteTokens` 保持 `undefined`。
-- [ ] 同一测试文件退出 0，且既有全形状 pin `the Claude summarizer reads the newest assistant turn`（约 412 行 deepEqual）更新为新返回形状后仍断言最新一轮占用不变：`used: 4183`、`cacheReadTokens: 4000`、`cacheCreationTokens: 100`；`skips synthetic rows` 与 `skips a subagent sidechain turn` 两用例仍断言 `.used === 4083`。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/commands/tests/commands.test.ts` 退出 0，且 `cost` 相关用例断言 `tokenBreakdown.cacheWrite` 等于 `cumulative.cacheWriteTokens`、`tokenUsage.cumulative.cacheWriteTokens`/`lastRequest.cacheWriteTokens` 原样透传，并在缺该字段时仍不产出 `cacheWrite` 键。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-token-usage.service.test.ts` 退出 0，且其中新增用例：一条含两轮主线程 assistant + 一轮 `isSidechain` + 一行 `<synthetic>` 全零的 transcript，`summarizeClaudeTokenUsage(...).cumulative` 逐字段等于主线程各轮手算和（`input = Σ(input_tokens+cache_read+cache_creation)`、`output`、`cacheRead`、`cacheWrite`），`sidechain` 分桶等于 sidechain 轮自身总量，全零行贡献为 0。
+- [x] 同一测试文件退出 0，且其中新增用例：Codex `token_count` 事件的 `total_token_usage` 与 `last_token_usage` 各带 `cache_write_input_tokens` 时，`cumulative.cacheWriteTokens`/`lastRequest.cacheWriteTokens` 等于该值，且 `inputTokens`/`outputTokens` 不被 cacheWrite 重复相加；事件缺该键时 `cacheWriteTokens` 保持 `undefined`。
+- [x] 同一测试文件退出 0，且既有全形状 pin `the Claude summarizer reads the newest assistant turn`（约 412 行 deepEqual）更新为新返回形状后仍断言最新一轮占用不变：`used: 4183`、`cacheReadTokens: 4000`、`cacheCreationTokens: 100`；`skips synthetic rows` 与 `skips a subagent sidechain turn` 两用例仍断言 `.used === 4083`。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/commands/tests/commands.test.ts` 退出 0，且 `cost` 相关用例断言 `tokenBreakdown.cacheWrite` 等于 `cumulative.cacheWriteTokens`、`tokenUsage.cumulative.cacheWriteTokens`/`lastRequest.cacheWriteTokens` 原样透传，并在缺该字段时仍不产出 `cacheWrite` 键。
 
 ## DoD
 
 后端真实读取路径（JSONL → 读取器 → service → `/cost` route）而非桩：一个 ≥2 轮的 Claude 会话通过 `getSessionTokenUsage` 得到会话累计花费（求和，不是最新一轮占用），sidechain token 以独立分桶可还原；一个报告 `cache_write_input_tokens` 的 Codex 会话在 `cumulative`/`lastRequest` 露出 `cacheWriteTokens`，`/cost` 命令的 `tokenBreakdown` 带出 `cacheWrite`。`provider-token-usage.service.test.ts` 与 `commands.test.ts` 全绿，`npm run typecheck`、`npm run build`、`npm run lint` 通过。本任务只动 `server/`，不碰 `src/`；不加任何 provider-id 分支（改动都落在 `providers/list/` 内的能力实现与共享类型上）。
+
+## ADR-007
+
+- 该轴仍暗,理由:本任务只改 provider token 读取器与共享 token 计数类型，未触及分层依赖轴，无 L_D/L_G 读数可测。
 
 ## Touches
 
