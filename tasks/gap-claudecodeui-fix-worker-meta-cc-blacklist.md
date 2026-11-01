@@ -1,7 +1,7 @@
 ---
 id: gap-claudecodeui-fix-worker-meta-cc-blacklist
 title: claudecodeui dev-tree profiles：fix-worker 补拉黑 meta-cc，与 shipped 载体对齐
-status: todo
+status: ready
 labels:
   - gap
 parent: null
