@@ -33,6 +33,7 @@ extra:
 - `CostContent.test.tsx` 7/7、`wireContractTypeSync.test.ts` 5/5、`ui-scenario/tests` 10/10、`npm run typecheck` 0、`npm run lint` 0（仅既有 warning + 两条 `react(only-export-components)`：本文件新增的纯推导/格式化函数导出，测试直接按其读数断言）、`npm run build:client` 0、`server/shared/tests/architecture-ratchet.test.ts` 6/6。
 - 场景运行器（开发构建 + 隔离后端 :3101，Codex 会话「Claude Code 会话弹出的选项 dialog」）：`node scripts/ui-scenario.mjs scripts/ui-scenarios/cost-panel-cache-ratio.json` → `ok: true`，命中率 `96%`、bar 段 `["fresh","cacheRead","cacheWrite"]`（该夹具报 `cache_write_input_tokens: 0`，故写段宽 0，属「报了 0」而非「缺失」）、口径含 `Input already includes cached input tokens`；检查点 `tmp/cost-dod/scenario/step-1-open-cost-panel.png`。
 - 一次性 Playwright（`tmp/cost-dod/verify-cost-panel.mjs`，真实页面）三条腿全过：真实 Codex 累计用量 → `tmp/cost-dod/shots/real-cache-ratio.png`、`real-cache-ratio-note.png`（命中率行 / 三段占比条 / Codex 口径）；注入 `cacheWriteTokens=60000` 的夹具 → `fixture-cachewrite.png`（非零 cacheWrite 行 + 三段 bar，宽度 2.84%，fresh 相应收窄）；注入 `provider=claude` → `provider-note-claude.png`（Claude 口径）。
+- 兄弟测试 `src/modules/chat/tests/costModalAiTitle.test.tsx` 8/8：原有「整个 modal 文本不得出现百分号」是命中率落地前的代理断言，现收窄为「命中率（900/1200=75%）是该布局唯一的百分数」，窗口仍只作容量、不出现 derived fraction。
 
 ## 轴读数
 
@@ -45,6 +46,7 @@ extra:
 - src/modules/chat-support/modals/CostContent.tsx
 - src/modules/chat-support/tests/CostContent.test.tsx (new)
 - src/shared/tests/wireContractTypeSync.test.ts (TokenUsageCounts ↔ ProviderTokenUsageCounts TypeSync 判据)
+- src/modules/chat/tests/costModalAiTitle.test.tsx (既有 no-percent 断言收窄为「命中率是唯一年百分数、窗口不得出现 derived fraction」)
 - scripts/ui-scenarios/cost-panel-cache-ratio.json (new)
 - tasks/gap-cost-panel-cache-hit-ratio-and-cachewrite-bar.md
 - server/shared/interfaces.ts (ProviderTokenUsageCounts 补 cacheWriteTokens?，让 TypeSync 两端字段集相等)
@@ -53,3 +55,11 @@ extra:
 - src/modules/ui-scenario/scenarioSurface.ts (costPanel 读数接入 ScenarioReading)
 - src/modules/ui-scenario/costPanelSurface.ts (new；ScenarioCostPanelReading 与其 DOM reader，避免 surface 文件超过 800 行棘轮)
 - src/modules/ui-scenario/index.ts (barrel 重新导出新类型)
+
+## Blocker
+
+**2026-11-01T02:18:04.462Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/chat/tests/costModalAiTitle.test.tsx: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/chat/tests/costModalAiTitle.test.tsx,src/modules/chat/tests/costModalAiTitle.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：bb776d44-2186-45cf-b247-8cfa4fc9122c
