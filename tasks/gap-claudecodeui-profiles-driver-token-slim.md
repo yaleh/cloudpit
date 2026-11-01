@@ -25,14 +25,18 @@ claudecodeui 的 dev-tree `.quay/profiles.yml` 是 driver 派发参数的载体�
 
 ## AC
 
-- [ ] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];n={'meta-cc','archguard','plantuml'};assert n<=set(r['task-worker']['mcpBlacklist']) and n<=set(r['selector']['mcpBlacklist']),'task-worker/selector 黑名单缺条目'"
-- [ ] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert {'archguard','plantuml'}<=set(r['fix-worker']['mcpBlacklist']),'fix-worker 缺 archguard/plantuml'"
-- [ ] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert all(r[k].get('effort')=='low' for k in ('selector','pool-judge','meta-driver')),'窄判定 role 未降 effort'"
-- [ ] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert 'mcpBlacklist' not in r['outer'] and 'effort' not in r['outer'],'outer 被连坐'"
+- [x] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];n={'meta-cc','archguard','plantuml'};assert n<=set(r['task-worker']['mcpBlacklist']) and n<=set(r['selector']['mcpBlacklist']),'task-worker/selector 黑名单缺条目'"
+- [x] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert {'archguard','plantuml'}<=set(r['fix-worker']['mcpBlacklist']),'fix-worker 缺 archguard/plantuml'"
+- [x] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert all(r[k].get('effort')=='low' for k in ('selector','pool-judge','meta-driver')),'窄判定 role 未降 effort'"
+- [x] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert 'mcpBlacklist' not in r['outer'] and 'effort' not in r['outer'],'outer 被连坐'"
 
 ## DoD
 
 dev-tree `.quay/profiles.yml` 已提交，且真实派发一个 claudecodeui-task-worker 会话：其启动 argv 的 `--mcp-config` inline json 里 `mcpServers` 键集不含 meta-cc/archguard/plantuml，同时该会话内 `mcp__plugin_quay_quay__task_list` 仍可正常调用（黑名单没有连坐 quay 自己）。同法确认 selector（或 pool-judge/meta-driver 任一）派发时 argv 带 `--effort low`。与对端 shipped `plugin/.quay/profiles.yml` 任务落地后，两份 carrier 内容一致（profiles-role-coverage-check 通过）。
+
+## ADR-007
+
+该轴仍暗,理由:本任务只改 .quay/profiles.yml 的派发参数（MCP 黑名单与 role effort），不新增或改动 src/、server/ 模块及其依赖边，架构轴无读数。
 
 ## Touches
 
