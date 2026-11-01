@@ -2,7 +2,7 @@
 id: gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion
 title: AC-451/AC-452 false-form 腿：expect 新增 scope 腿未被 criterion
   验证（brand-allowlist-check 不扫 @yalehwang/cloudcli 与 cli.module.ts）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
