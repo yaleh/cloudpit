@@ -15,7 +15,7 @@ extra:
 
 ## AC
 
-- [ ] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert 'meta-cc' in r['fix-worker']['mcpBlacklist'],'fix-worker 未拉黑 meta-cc'"
+- [x] python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert 'meta-cc' in r['fix-worker']['mcpBlacklist'],'fix-worker 未拉黑 meta-cc'"
 
 ## DoD
 
@@ -25,3 +25,12 @@ dev-tree `.quay/profiles.yml` 已提交：fix-worker 的 `mcpBlacklist` 含 meta
 
 - .quay/profiles.yml
 - tasks/gap-claudecodeui-fix-worker-meta-cc-blacklist.md
+
+## Evidence
+
+- AC: `python3 -c "import yaml;d=yaml.safe_load(open('.quay/profiles.yml'));r=d['roles'];assert 'meta-cc' in r['fix-worker']['mcpBlacklist'],'fix-worker 未拉黑 meta-cc'"` → PASS，`fix-worker.mcpBlacklist = [chrome-devtools, playwright, meta-cc, archguard, plantuml]`（与 task-worker / selector 集合相同）。
+- 提交：`task/gap-claudecodeui-fix-worker-meta-cc-blacklist` 上的 `chore(quay): blacklist meta-cc for fix-worker`，只改 `.quay/profiles.yml`。
+
+## ADR-007
+
+该轴仍暗,理由:仅改 .quay/profiles.yml 配置载体，无代码结构可采 L_D/L_G 读数。
