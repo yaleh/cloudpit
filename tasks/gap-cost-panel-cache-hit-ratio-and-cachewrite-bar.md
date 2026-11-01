@@ -20,13 +20,23 @@ extra:
 
 ## AC
 
-- [ ] `bash scripts/with-memory-cap.sh vitest run src/modules/chat-support/tests/CostContent.test.tsx` 退出 0，且其中断言：counts 带 `cacheWriteTokens` 时渲染出带 subset hint 的缓存写行、缺省时零渲染；命中率/占比纯函数对 `{input: 100, cacheRead: 30, cacheWrite: 20}` 得 `ratio 0.30`、`fresh 50`、三段 `50/30/20`。
-- [ ] `bash scripts/with-memory-cap.sh vitest run src/shared/tests/wireContractTypeSync.test.ts` 退出 0，且新判据断言 server `ProviderTokenUsageCounts` 与前端 `TokenUsageCounts` 的字段名集合相等（含 `cacheWriteTokens`），任一单边增删即红。
-- [ ] `npx tsc --noEmit -p tsconfig.json` 退出 0（`TokenUsageCounts`/`tokenBreakdown`/`PROVIDER_DESCRIPTORS` 新字段全部类型落位，无 any 兜底）。
+- [x] `bash scripts/with-memory-cap.sh vitest run src/modules/chat-support/tests/CostContent.test.tsx` 退出 0，且其中断言：counts 带 `cacheWriteTokens` 时渲染出带 subset hint 的缓存写行、缺省时零渲染；命中率/占比纯函数对 `{input: 100, cacheRead: 30, cacheWrite: 20}` 得 `ratio 0.30`、`fresh 50`、三段 `50/30/20`。
+- [x] `bash scripts/with-memory-cap.sh vitest run src/shared/tests/wireContractTypeSync.test.ts` 退出 0，且新判据断言 server `ProviderTokenUsageCounts` 与前端 `TokenUsageCounts` 的字段名集合相等（含 `cacheWriteTokens`），任一单边增删即红。
+- [x] `npx tsc --noEmit -p tsconfig.json` 退出 0（`TokenUsageCounts`/`tokenBreakdown`/`PROVIDER_DESCRIPTORS` 新字段全部类型落位，无 any 兜底）。
 
 ## DoD
 
 开发构建真实页面上用 MCP 浏览器把四条新 UI 各走一遍并截图存 `tmp/`：命中率行、三段占比条、cacheWrite 行（带 cacheWrite 的夹具会话）、每 provider 口径说明；对 Codex 会话（`cumulative` 已有 `cacheRead`）与一个带 `cacheWrite` 的夹具会话各验一次。`scripts/ui-scenarios/` 下新增一条打开 `/cost` 面板的场景，`node scripts/ui-scenario.mjs <scenario.json>` 跑出 JSON 报告与检查点截图（AGENTS.md 两条 UI 验证都要满足）。前端测试与 TypeSync 判据全绿，`npm run typecheck`、`npm run build:client`、`npm run lint` 通过；`CostContent.tsx` 不新增 `provider ===` 分支（口径经 `PROVIDER_DESCRIPTORS` 数据表）。
+
+## 验证
+
+- `CostContent.test.tsx` 7/7、`wireContractTypeSync.test.ts` 5/5、`npm run typecheck` 0、`npm run lint` 0（仅既有 warning + 两条 `react(only-export-components)`：本文件新增的纯推导/格式化函数导出，测试直接按其读数断言）、`npm run build:client` 0。
+- 场景运行器（开发构建 + 隔离后端 :3101，Codex 会话「Claude Code 会话弹出的选项 dialog」）：`node scripts/ui-scenario.mjs scripts/ui-scenarios/cost-panel-cache-ratio.json` → `ok: true`，命中率 `96%`、bar 段 `["fresh","cacheRead"]`、口径含 `Input already includes cached input tokens`；检查点 `tmp/cost-dod/scenario/step-1-open-cost-panel.png`。
+- 一次性 Playwright（`tmp/cost-dod/verify-cost-panel.mjs`，真实页面）三条腿全过：真实 Codex 累计用量 → `tmp/cost-dod/shots/real-cache-ratio.png`、`real-cache-ratio-note.png`（命中率行 / 两段占比条 / Codex 口径）；注入 `cacheWriteTokens=60000` 的夹具 → `fixture-cachewrite.png`（cacheWrite 行 + 三段 bar，宽度 2.84%）；注入 `provider=claude` → `provider-note-claude.png`（Claude 口径）。
+
+## 轴读数
+
+该轴仍暗,理由:/cost 面板的纯展示推导不移动模块边界或折叠轴，本任务无 L_D/L_G 可读。
 
 ## Touches
 
@@ -37,3 +47,7 @@ extra:
 - src/shared/tests/wireContractTypeSync.test.ts (TokenUsageCounts ↔ ProviderTokenUsageCounts TypeSync 判据)
 - scripts/ui-scenarios/cost-panel-cache-ratio.json (new)
 - tasks/gap-cost-panel-cache-hit-ratio-and-cachewrite-bar.md
+- server/shared/interfaces.ts (ProviderTokenUsageCounts 补 cacheWriteTokens?，让 TypeSync 两端字段集相等)
+- server/shared/tests/architecture-ratchet.baseline.json (src/shared/types.ts 4768→4772 的 RECORDED CHANGE)
+- scripts/ui-scenario.mjs (cost-panel opener 与 costPanel* 读数判据)
+- src/modules/ui-scenario/scenarioSurface.ts (ScenarioCostPanelReading 与 costPanel 读数)
