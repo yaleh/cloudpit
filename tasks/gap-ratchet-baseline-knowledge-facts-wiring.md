@@ -28,13 +28,15 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；stdout 不再出现 `server/knowledge-facts-wiring.ts 基线外→842`，贴出 `# tests` / `# pass` / `# fail` 逐字读数（实现前同一命令在该树红，逐字为 `ratchet: oversizeFiles server/knowledge-facts-wiring.ts 基线外→842 — 基线外的文件不得超过 800 行`）。
-- [ ] `node -e "const b=require('./server/shared/tests/architecture-ratchet.baseline.json'); if(b.oversizeFiles['server/knowledge-facts-wiring.ts']!==842) process.exit(1); if(!b.note.includes('knowledge-facts-wiring.ts')||!b.note.includes('基线外→842')||!b.note.includes('RECORDED CHANGE (2026-11-02')) process.exit(2);"` 退出 0（条目值恰为 842，note 含当天日期的 RECORDED CHANGE 且点名该文件与读数）。
-- [ ] 假形态变红：临时删掉 `oversizeFiles` 里的这条条目 ⇒ 第一条判据红并逐字重新出现 `ratchet: oversizeFiles server/knowledge-facts-wiring.ts 基线外→842`；改完即还原并复跑为绿，贴出红/绿两次读数。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` 退出 0；stdout 不再出现 `server/knowledge-facts-wiring.ts 基线外→842`，贴出 `# tests` / `# pass` / `# fail` 逐字读数（实现前同一命令在该树红，逐字为 `ratchet: oversizeFiles server/knowledge-facts-wiring.ts 基线外→842 — 基线外的文件不得超过 800 行`）。
+- [x] `node -e "const b=require('./server/shared/tests/architecture-ratchet.baseline.json'); if(b.oversizeFiles['server/knowledge-facts-wiring.ts']!==842) process.exit(1); if(!b.note.includes('knowledge-facts-wiring.ts')||!b.note.includes('基线外→842')||!b.note.includes('RECORDED CHANGE (2026-11-02')) process.exit(2);"` 退出 0（条目值恰为 842，note 含当天日期的 RECORDED CHANGE 且点名该文件与读数）。
+- [x] 假形态变红：临时删掉 `oversizeFiles` 里的这条条目 ⇒ 第一条判据红并逐字重新出现 `ratchet: oversizeFiles server/knowledge-facts-wiring.ts 基线外→842`；改完即还原并复跑为绿，贴出红/绿两次读数。
 
 ## DoD
 
 在交付树上真实运行 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts`，贴出 `# tests` / `# pass` / `# fail` 与「无 `knowledge-facts-wiring.ts 基线外→842` 行」的逐字证据；`node -e` 读回基线 JSON 的条目值为 842 且 note 含 RECORDED CHANGE；`git diff --stat` 只含本任务声明的文件（基线 + 任务文件），`server/knowledge-facts-wiring.ts` 零改动。不涉及 UI。
+
+该轴仍暗,理由:本任务只登记既有的 oversize 行数读数与 note 文本，不产生可测的 L_D/L_G 读数变化。
 
 ## Touches
 
