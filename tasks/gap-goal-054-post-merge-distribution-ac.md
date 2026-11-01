@@ -66,12 +66,12 @@ SPEC §6 与 §10.1 AC11 也把分发身份/发布核验列为独立判据面。
 
 ## AC
 
-- [ ] AC1 载体与判据可运行：`scripts/cloudpit-distribution-check.mjs` 与 `scripts/cloudpit-distribution-check.test.mjs` 存在；`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs` 退出 0，输出 `# fail 0`。
-- [ ] AC2 外部发布状态的真红臂：同一 test 文件对六种桩造非合规态各自 exit 非 0 并点名检查项——旧包未 deprecate、新包未发布、tarball 含 `cloudcli` bin、仓库 URL/homepage/repository/bugs 不可解析、桌面 `cloudpit-desktop-*`/`cloudpit-local-server-*` 资产缺失、README/NOTICE/LICENSE 归属声明被删；`grep -c "test(" scripts/cloudpit-distribution-check.test.mjs` 至少 7（6 红 + 1 绿），且运行输出 `# fail 0`。
-- [ ] AC3 真绿臂与单一读数路径：合规桩造快照 exit 0；`grep -c "export function distributionViolations" scripts/cloudpit-distribution-check.mjs` 为 1，且 test 文件 import 同一个函数（fixture 与 live 读数不各写一份判定）。
-- [ ] AC4 与 AC-454 criterion 对齐：`quay goal show AC-454 --json` 的 criterion 逐字为 `node scripts/cloudpit-distribution-check.mjs --release`；该路径在本次 diff 中新增；`node scripts/cloudpit-distribution-check.mjs --help` 退出 0 并列出 `--release`。
-- [ ] AC5 anti-drift：`git diff --name-only goal/GOAL-054...HEAD` 的输出是 `## Touches` 列表的子集（任务文件按 task_write 落点说明）。
-- [ ] AC6 不写 goal store / 不改兄弟判据：`git diff --name-only goal/GOAL-054...HEAD -- goals/` 输出为空。
+- [x] AC1 载体与判据可运行：`scripts/cloudpit-distribution-check.mjs` 与 `scripts/cloudpit-distribution-check.test.mjs` 存在；`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs` 退出 0，输出 `# fail 0`。
+- [x] AC2 外部发布状态的真红臂：同一 test 文件对六种桩造非合规态各自 exit 非 0 并点名检查项——旧包未 deprecate、新包未发布、tarball 含 `cloudcli` bin、仓库 URL/homepage/repository/bugs 不可解析、桌面 `cloudpit-desktop-*`/`cloudpit-local-server-*` 资产缺失、README/NOTICE/LICENSE 归属声明被删；`grep -c "test(" scripts/cloudpit-distribution-check.test.mjs` 至少 7（6 红 + 1 绿），且运行输出 `# fail 0`。
+- [x] AC3 真绿臂与单一读数路径：合规桩造快照 exit 0；`grep -c "export function distributionViolations" scripts/cloudpit-distribution-check.mjs` 为 1，且 test 文件 import 同一个函数（fixture 与 live 读数不各写一份判定）。
+- [x] AC4 与 AC-454 criterion 对齐：`quay goal show AC-454 --json` 的 criterion 逐字为 `node scripts/cloudpit-distribution-check.mjs --release`；该路径在本次 diff 中新增；`node scripts/cloudpit-distribution-check.mjs --help` 退出 0 并列出 `--release`。
+- [x] AC5 anti-drift：`git diff --name-only goal/GOAL-054...HEAD` 的输出是 `## Touches` 列表的子集（任务文件按 task_write 落点说明）。
+- [x] AC6 不写 goal store / 不改兄弟判据：`git diff --name-only goal/GOAL-054...HEAD -- goals/` 输出为空。
 
 ## DoD
 
@@ -102,3 +102,62 @@ SPEC §6 与 §10.1 AC11 也把分发身份/发布核验列为独立判据面。
 6. **状态路径**：裁定已下达，本任务不再等人；`needs-human → todo → ready`，由 worker 在 `goal/GOAL-054` 上实现载体与离线判据并按其 AC/DoD 验收。
 
 **边界**：本记录只登记裁定与修正，不改 `goals/*.md`、不改 AC-451/452/453/456 的判据文件、不改生产默认值；实现只改 `## Touches` 声明的文件。
+
+## 验收证据（worker，2026-11-01）
+
+### AC1 载体与判据可运行
+
+- 命令：`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs`
+- 退出码 `0`，`real 2.749s`（node v24.21.0，默认 spec reporter 末行 `ℹ fail 0`）；同一文件以 TAP reporter 重跑（`--test-reporter=tap`）末尾为：
+
+  ```
+  # tests 8
+  # pass 8
+  # fail 0
+  ```
+
+- 两个新文件已入库：`git show --numstat --format='' ed0672688` → `641 0 scripts/cloudpit-distribution-check.mjs`、`255 0 scripts/cloudpit-distribution-check.test.mjs`。
+
+### AC2 六种非合规桩造各自 exit 非 0 并点名检查项
+
+每个桩造由 `scripts/cloudpit-distribution-check.test.mjs` 写入 `--fixture` 文件后跑 CLI，断言 `status === 1` 且 stderr 点名检查项：
+
+- 旧包未 deprecate（`snapshot.npm.oldPackage.deprecated = null`）→ `old-package: old package @yalehwang/cloudcli@1.42.0 is not deprecated`
+- 新包未发布（`snapshot.npm.newPackage.published = false`）→ `new-package: new package @yalehwang/cloudpit@2.0.0 is not published`
+- tarball 含 `cloudcli` bin（`tarballBin = { cloudcli, cloudpit }`）→ `tarball-bin: new package tarball bin must be exactly "cloudpit", found ["cloudcli","cloudpit"]`
+- 仓库字段不可解析（逐个把 `url`/`homepage`/`repository`/`bugs` 的 `resolved` 置 false，4 个臂都断言）→ `repository: repository field "homepage" is not resolvable: "https://github.com/yaleh/cloudpit"`
+- 桌面资产缺失（`assets` 只剩不可下载的 desktop）→ `desktop-assets: desktop release asset cloudpit-desktop-* is missing or not downloadable` 与 `desktop-assets: desktop release asset cloudpit-local-server-v2.0.0-* is missing or not downloadable`
+- 归属声明被删（README 去掉 `siteboon/claudecodeui`；NOTICE/LICENSE 去掉 `CloudCLI UI`，3 个臂都断言）→ `ownership: ownership attribution is missing from README: expected the "CloudCLI UI" fork-of notice (siteboon/claudecodeui)`
+
+`grep -c "test(" scripts/cloudpit-distribution-check.test.mjs` = `8`（≥ 7：6 红 + 1 绿 + `--help` 臂），运行输出 `# fail 0`。
+
+### AC3 真绿臂与单一读数路径
+
+- 合规快照：`distributionViolations(compliantSnapshot())` 返回 `[]`；CLI `--fixture` 退出 `0`，输出 `cloudpit-distribution: source=fixture:… checks=6 violations=0`；TAP `# fail 0`。
+- 唯一导出点：`scripts/cloudpit-distribution-check.mjs:133` `export function distributionViolations(snapshot)`；`grep -c "export function distributionViolations"` = `1`。
+- 测试 import：`scripts/cloudpit-distribution-check.test.mjs:42` 从同一模块 import `distributionViolations`，红/绿两臂都走它（fixture 与 live 不各写一份判定）。
+
+### AC4 与 AC-454 criterion 对齐
+
+- `quay goal show AC-454 --json` 读回：`"criterion": "node scripts/cloudpit-distribution-check.mjs --release"`（`phase: post-merge`、`status: draft`）。
+- 该路径在本次 diff 新增：`git show --name-only --format='' ed0672688` → `scripts/cloudpit-distribution-check.mjs`、`scripts/cloudpit-distribution-check.test.mjs`。
+- `node scripts/cloudpit-distribution-check.mjs --help` 退出 `0`，usage 列出 `node scripts/cloudpit-distribution-check.mjs --release` 与 `--release            read npm, GitHub secrets/URLs and the local documents, then judge`。
+- **AC-454 的激活是载体落地后由人执行的 goal store 写入，本任务不做**；AC-454 保持 `draft`。
+
+### AC5 anti-drift（按 Resolution 第 5 条的 `--merge-target goal/GOAL-054` 口径）
+
+```
+ANTI-DRIFT OK: task gap-goal-054-post-merge-distribution-ac — 2 actual file(s), all within declared Touches (3 glob(s))
+```
+
+退出码 `0`；2 个实际文件即上述两个新脚本，均在 `## Touches` 内。
+
+### AC6 不写 goal store / 不改兄弟判据
+
+- 本任务自己的 commit `ed0672688` 对 `goals/` 的 delta 为空：`git diff --name-only ed0672688^ ed0672688 -- goals/` 无输出。
+- anti-drift 的 2 个实际文件也都不在 `goals/` 下。`goals/AC-457-*.md` 由被授权的 goal 写入路径在 `171a08a59` 创建，不是本任务的提交；本任务不读取/编辑 `goals/*.md`。
+
+## ADR-007 暗轴记录
+
+- L_G cloudpit-distribution: checks=6 redArms=6 greenArms=1 testCases=8 fail=0
+- L_D code:doc diff: codeLines=896 docLines=0 ratio=0.000 verdict=not-flagged
