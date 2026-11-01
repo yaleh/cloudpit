@@ -10,6 +10,7 @@ import type {
 import type { AnyRecord } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 import { resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
+import { resolveModelContextWindowRow } from '@/modules/providers/services/model-launch-spec.service.js';
 
 /**
  * The newest-turn (context-occupancy) read only needs the row at or near the
@@ -36,8 +37,13 @@ function readReportedUsageNumber(value: unknown): number | null {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
-// Model id of the newest main-thread assistant turn; its library entry's env row supplies the window.
-function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
+/**
+ * Model id of the newest main-thread assistant turn; its library entry's env
+ * row supplies the window. Consumed by `ClaudeTokenUsageProvider` (the usage
+ * service path) and `ClaudeSessionsProvider.fetchHistory` (the history path),
+ * so both resolve the window from the transcript the same way.
+ */
+export function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry?.isSidechain !== true && entry?.type === 'assistant' && typeof entry.message?.model === 'string') {
@@ -45,6 +51,24 @@ function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
     }
   }
   return null;
+}
+
+/**
+ * The history path's summary: `fetchHistory` feeds the composer counter and the
+ * `/cost` panel, so it must resolve the window from the session's model the
+ * same way the usage service and the live `token_budget` frame do — the session
+ * row's model first, else the newest main-thread assistant turn's, then that
+ * model entry's `CLAUDE_CODE_MAX_CONTEXT_TOKENS` row (AC-028's single source).
+ * An absent model or window row stays unresolved, so the summary reports the
+ * configured default rather than inventing a window.
+ */
+export function summarizeClaudeHistoryTokenUsage(
+  entries: AnyRecord[],
+  sessionModelId: string | null | undefined,
+): ProviderTokenUsageReading {
+  const modelId = sessionModelId || findNewestClaudeModelId(entries);
+  const modelContextWindow = modelId ? resolveModelContextWindowRow('claude', modelId) : undefined;
+  return summarizeClaudeTokenUsage(entries, process.env.CONTEXT_WINDOW, modelContextWindow);
 }
 
 /** One assistant row's usage, with its cache detail kept separate. */

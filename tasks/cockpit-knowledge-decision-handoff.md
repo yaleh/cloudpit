@@ -37,10 +37,11 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0，覆盖本任务正文的正例和反例，缺失证据必须明确拒绝。
-- [ ] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 返回 0；用陈旧 revision、重复 feedbackId、缺失确认身份和未知执行器反例验证拒绝或幂等。
-- [ ] 真实页面完成应用/修改/推迟/不适用及进行中→核验结果查看；MCP 浏览器实际操作，截图保存 tmp/ 并在证据中贴出；检查报告和截图存在且对应本次版本。
-- [ ] 在隔离实例运行 `node scripts/ui-scenario.mjs --help` 确定现行参数，再执行 scripts/ui-scenarios/cockpit-knowledge-application.json 场景，退出 0；证据贴 JSON 报告与检查点截图。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0，覆盖本任务正文的正例和反例，缺失证据必须明确拒绝。
+- [x] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-card-feedback.test.ts` 返回 0；用陈旧 revision、重复 feedbackId、缺失确认身份和未知执行器反例验证拒绝或幂等。
+- [x] 真实页面完成应用/修改/推迟/不适用及进行中→核验结果查看；MCP 浏览器实际操作，截图保存 tmp/ 并在证据中贴出；检查报告和截图存在且对应本次版本。
+- [x] 在隔离实例运行 `node scripts/ui-scenario.mjs --help` 确定现行参数，再执行 scripts/ui-scenarios/cockpit-knowledge-application.json 场景，退出 0；证据贴 JSON 报告与检查点截图。
+- L_G cockpit-knowledge-decision: tests=16, feedback_tests=19, controller_tests=69, scenario_steps=15, checkpoints=5
 
 ## DoD
 
@@ -54,9 +55,18 @@ extra:
 - server/modules/cockpit/cockpit-fleet-card-projection.ts
 - server/modules/cockpit/cockpit-card-actions.ts
 - server/modules/cockpit/cockpit-card-feedback-store.ts
+- server/modules/cockpit/cockpit-knowledge-reading.ts (new)
+- server/modules/cockpit/cockpit-knowledge-decision.ts (new)
+- server/modules/cockpit/cockpit.module.ts
+- server/shared/types.ts
 - server/cockpit-fleet-wiring.ts
+- src/shared/types.ts
+- src/modules/cockpit-contract/cardReading.ts
+- src/modules/cockpit/CockpitCard.tsx
 - src/modules/cockpit/cockpitCardController.ts
 - src/modules/cockpit/tests/cockpitCardController.test.ts
+- src/modules/ui-scenario/cockpitCardsSurface.ts
+- scripts/ui-scenario.mjs
 - docs/architecture/cockpit-attention/CARD-PROVIDERS.md
 - scripts/ui-scenarios/cockpit-knowledge-application.json (new)
 - docs/evidence/cockpit-knowledge-decision-handoff.md (new)
