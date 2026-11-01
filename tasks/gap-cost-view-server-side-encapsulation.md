@@ -33,10 +33,10 @@ CostView = {
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/commands/tests/commands.test.ts` 退出 0，且含用例：Claude 形 reading（无 `usageScope`）产出 `cost.session.total === cumulative.input+output`、`cost.context.used === used`、`cost.session.cacheHitRatio`/`fresh` 为派生值、`cost.accountingNote` 来自服务端映射，且 wire 上不存在顶层 `used`/`scope` 键。
-- [ ] 同一测试文件退出 0，且含用例：Codex 形 reading（`usageScope:'session-cumulative'`）产出 `cost.session.total === cumulative.totalTokens`、`cost.context.window === total`、`cost.context.used` 缺省。
-- [ ] `bash scripts/with-memory-cap.sh vitest run src/modules/chat-support/tests/CostContent.test.tsx` 退出 0，且组件只消费 `data.cost`：`buildCacheUsageBreakdown`/`formatCacheHitRatio` 不再从组件文件导出，`accountingNote` 取自 `data.cost.accountingNote`，无 `resolveProviderDescriptor`/`FALLBACK_CACHE_ACCOUNTING_NOTE` 引用。
-- [ ] `npx tsc --noEmit -p tsconfig.json` 退出 0；`grep -nE "provider ===? '" src/modules/chat-support/modals/CostContent.tsx` 无命中（单一布局、无 provider 分支）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/commands/tests/commands.test.ts` 退出 0，且含用例：Claude 形 reading（无 `usageScope`）产出 `cost.session.total === cumulative.input+output`、`cost.context.used === used`、`cost.session.cacheHitRatio`/`fresh` 为派生值、`cost.accountingNote` 来自服务端映射，且 wire 上不存在顶层 `used`/`scope` 键。
+- [x] 同一测试文件退出 0，且含用例：Codex 形 reading（`usageScope:'session-cumulative'`）产出 `cost.session.total === cumulative.totalTokens`、`cost.context.window === total`、`cost.context.used` 缺省。
+- [x] `bash scripts/with-memory-cap.sh vitest run src/modules/chat-support/tests/CostContent.test.tsx` 退出 0，且组件只消费 `data.cost`：`buildCacheUsageBreakdown`/`formatCacheHitRatio` 不再从组件文件导出，`accountingNote` 取自 `data.cost.accountingNote`，无 `resolveProviderDescriptor`/`FALLBACK_CACHE_ACCOUNTING_NOTE` 引用。
+- [x] `npx tsc --noEmit -p tsconfig.json` 退出 0；`grep -nE "provider ===? '" src/modules/chat-support/modals/CostContent.tsx` 无命中（单一布局、无 provider 分支）。
 
 ## DoD
 
@@ -51,5 +51,10 @@ CostView = {
 - src/shared/types.ts (CostCommandData 改为 cost 视图，退役 tokenUsage/tokenBreakdown)
 - src/modules/chat-support/modals/CostContent.tsx
 - src/modules/chat-support/tests/CostContent.test.tsx
+- src/modules/chat/tests/costModalAiTitle.test.tsx (modal 真实路径改用 data.cost 载荷)
 - src/shared/constants.ts (PROVIDER_DESCRIPTORS 删 cacheAccountingNote)
 - tasks/gap-cost-view-server-side-encapsulation.md
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只把 /cost 的 token 派生搬到服务端并让面板只渲染，不改变 ADR-007 任何暗轴的读数口径或覆盖范围。
