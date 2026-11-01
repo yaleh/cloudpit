@@ -57,4 +57,4 @@ extra:
 - docs/architecture/knowledge-application/FACT-CONTRACT.md
 - docs/evidence/knowledge-effective-config-proof.json (new)
 - server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (new)
-- tasks/knowledge-effective-config-proof.md (new)
+- tasks/knowledge-effective-config-proof.md
