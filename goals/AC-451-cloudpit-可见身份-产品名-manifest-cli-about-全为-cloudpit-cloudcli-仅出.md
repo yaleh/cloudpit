@@ -6,8 +6,9 @@ kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
   scripts/brand-allowlist-check.test.mjs
-expect: 构建后的产品标题、PWA manifest 的 name/short_name、CLI banner、About 产品名、窗口与通知标题均为
-  Cloudpit；package.json 的 name=@yalehwang/cloudpit、bin 只有
+expect: 品牌常量、UI 文案、12 语言包、index.html、README/文档、构建后的产品标题、PWA manifest 的
+  name/short_name、CLI banner、About 产品名、窗口与通知标题均为 Cloudpit；package.json 的
+  name=@yalehwang/cloudpit、bin 只有
   cloudpit、productName=Cloudpit、artifactName=cloudpit-desktop-*；CLI 自更新与 system
   update 命令改新包：`cloudpit update`、`npm show @yalehwang/cloudpit version`、`npm
   update -g @yalehwang/cloudpit`、`npm install -g @yalehwang/cloudpit`，更新路径无
