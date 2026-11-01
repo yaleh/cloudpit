@@ -221,6 +221,11 @@ export const MCP_TOOL_ERROR_CODES: Record<McpGatewayToolName, readonly McpErrorC
   // placeholder refusal — they are simply absent from `tools/list` until their
   // store is wired — so `MCP_TOOL_NOT_IMPLEMENTED` is deliberately not declared.
   draft_get: [...WRAPPER_CODES, ...SESSION_TARGET_CODES],
+  // knowledge-application-fact-contract: the two session-scoped kinds resolve
+  // their `session` (and an optional `peerSession`) by exact id, so the only
+  // target refusal the tool decides itself is SESSION_NOT_FOUND. It has no
+  // project reference to refuse and does not run the ambiguity gate.
+  knowledge_facts: [...WRAPPER_CODES, 'SESSION_NOT_FOUND'],
   draft_set: [...WRAPPER_CODES, ...SESSION_TARGET_CODES],
   // `draft_submit` adds the two refusals of its own send step: the session is
   // busy (`SESSION_BUSY`, the gateway's code for the control service's

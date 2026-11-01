@@ -216,6 +216,48 @@ export async function readOpenSessionAsks(
  * card here, which is the whole reason the retraction lives in the shared stream rather than in
  * a ledger.
  */
+/**
+ * One raw ask row with the file it came from.
+ *
+ * The knowledge-application fact reader needs the row itself and its stream
+ * file (the file is the `sourceRef` it reports), which the two projections above
+ * both throw away. This exports the SAME `dayFiles` / `readDay` traversal —
+ * same source filter, same lookback window, same torn-line tolerance — so a
+ * second implementation cannot drift from the rebuild's reading of the stream.
+ */
+export type CloudCliSessionAskRow = {
+  /** Absolute path of the day file the row came from. */
+  file: string;
+  /** The parsed row, already filtered to `source === 'cloudcli'` and the three ask kinds. */
+  row: Record<string, unknown>;
+  /** The row's `at` as epoch milliseconds. */
+  at: number;
+};
+
+/**
+ * Every ask row inside the lookback window, in file order, with its file.
+ *
+ * Consumer: `knowledge-activity-events.ts` (the fact contract's activity
+ * correlation). Read-only, tolerant, and bounded exactly like
+ * {@link readOpenSessionAsks}.
+ */
+export async function readCloudCliSessionAskRows(
+  options: ReadOpenSessionAsksOptions = {},
+): Promise<CloudCliSessionAskRow[]> {
+  const nowMs = options.nowMs ?? Date.now();
+  const lookbackDays = options.lookbackDays ?? DEFAULT_SESSION_ASK_LOOKBACK_DAYS;
+  const eventsDir = options.eventsDir ?? path.join(os.homedir(), '.quay-fleet', 'context', 'events');
+  const cutoffMs = nowMs - lookbackDays * 86_400_000;
+
+  const rows: CloudCliSessionAskRow[] = [];
+  for (const file of await dayFiles(eventsDir, cutoffMs)) {
+    for (const { row, at } of await readDay(file, cutoffMs)) {
+      rows.push({ file, row, at });
+    }
+  }
+  return rows;
+}
+
 export async function readRetractedSessionAskMessageIds(
   options: ReadOpenSessionAsksOptions = {},
 ): Promise<Set<string>> {
