@@ -75,6 +75,7 @@ goal store 写入已于 2026-11-01 经授权 goal 写入路径完成并读回核
 - AC-458：`status: active`、`phase: post-merge`、`goal: GOAL-054`、criterion 逐字 `node scripts/cloudpit-distribution-check.mjs --release`、expect 与 AC-454 逐字相同（commit `32c320e2f`）。
 - AC-454：`status: superseded`、`supersededBy: [AC-458]`，statusLog 记 `draft→superseded` 并附书面理由（commit `743768d89`）。
 - GOAL-054 退出条件第 2 条原字面引用 AC-454（已 supersede）→ 已改为引用 AC-458（commit `11dce4ee0`）：否则充分性判官在「点名 AC-454／在域只有 AC-458」之间反复 samples-disagree，verdict 无法翻 covered。
+- 退出条件第 3 条「品牌 allowlist／旧布局迁移／桌面升级／UI 预览」亦未点名 AC id，判官确定性判 insufficient；已改为「AC-451、AC-452、AC-453、AC-456 四项跨切面证据齐全（…）」（commit `ebb85cea3`）。
 
 闭合仍以台账读数为准（本任务 DoD）：待 driver 下一个完整 goal 轮，在域 AC 从 5 变 ≥6、`goal-sufficiency.verdict` 翻 `covered`、且 `phaseSplit.excluded` 仍含 AC-458，三者同轮成立才算闭合（AC4/AC5）。
 ## AC
