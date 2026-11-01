@@ -59,6 +59,9 @@ extra:
 - server/modules/cockpit/cockpit-knowledge-decision.ts (new)
 - server/modules/cockpit/cockpit.module.ts
 - server/shared/types.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - server/cockpit-fleet-wiring.ts
 - src/shared/types.ts
 - src/modules/cockpit-contract/cardReading.ts
