@@ -2,7 +2,7 @@
 id: gap-ratchet-baseline-knowledge-facts-wiring
 title: 补 architecture-ratchet 基线：server/knowledge-facts-wiring.ts
   基线外→842（RECORDED CHANGE），让 architecture-ratchet 判据转绿
-status: ready
+status: done
 labels:
   - gap
 parent: null
