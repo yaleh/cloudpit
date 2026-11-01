@@ -59,6 +59,9 @@ extra:
 - server/modules/cockpit/cockpit-knowledge-decision.ts (new)
 - server/modules/cockpit/cockpit.module.ts
 - server/shared/types.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - server/cockpit-fleet-wiring.ts
 - src/shared/types.ts
 - src/modules/cockpit-contract/cardReading.ts
@@ -72,3 +75,11 @@ extra:
 - docs/evidence/cockpit-knowledge-decision-handoff.md (new)
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (new)
 - tasks/cockpit-knowledge-decision-handoff.md
+
+## Blocker
+
+**2026-11-01T06:45:20.733Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/shared/types.ts 5373→5482 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/quay-test-script.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：66ca49c9-3dba-44c1-ad52-8dbb244c034b
