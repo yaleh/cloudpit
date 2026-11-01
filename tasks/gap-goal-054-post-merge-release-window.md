@@ -2,7 +2,7 @@
 id: gap-goal-054-post-merge-release-window
 title: GOAL-054 post-merge 发布窗口：仓库侧分发身份与 release 资产命名先落地，再执行旧包 1.42.0
   deprecate→仓库改名→新包 2.0.0→桌面资产，使 AC-458 转绿
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -59,13 +59,13 @@ AC-451（achieved）的判据 `scripts/brand-allowlist-check.test.mjs` 只静态
 
 ## AC
 
-- [ ] AC1 身份字段：`node -e "const p=require('./package.json'); console.log(JSON.stringify({name:p.name,bin:Object.keys(p.bin),homepage:p.homepage,repository:p.repository.url,bugs:p.bugs.url}))"` 打印 `name=@yalehwang/cloudpit`、`bin=["cloudpit"]`、三项 URL 均为 `yaleh/cloudpit`；`git grep -n "yaleh/claudecodeui" -- package.json .release-it.json README.md electron/serverInstaller.js scripts/release .github/workflows server/modules/cli/cli.service.ts` 为 0 命中。
-- [ ] AC2 资产命名：`npx tsx --tsconfig server/tsconfig.json --test scripts/release/tests/server-installer-bundle-url.test.mjs` 退出 0（3/3），断言 URL 为 `https://github.com/yaleh/cloudpit/releases/download/cloudpit-local-server-v2.0.0/cloudpit-local-server-v2.0.0-win-x64.tar.gz`；`git grep -n "cloudcli-local-server" -- electron/serverInstaller.js scripts/release/build-server-bundle.js .github/workflows/desktop-release.yml .github/workflows/desktop-windows-branch-build.yml .github/workflows/desktop-macos-branch-build.yml README.md` 为 0 命中。
-- [ ] AC3 发布守卫：`node --test scripts/release/tests/fork-release-workflows.test.mjs` 退出 0（7/7），其内 package.json 与 README 的仓库断言已指向 `yaleh/cloudpit`；把任一 URL 改回 `yaleh/claudecodeui` 后该测试退出非 0，恢复后复绿（贴两读）。
-- [ ] AC4 release 名与说明：`node -e "const r=require('./.release-it.json'); console.log(r.github.releaseName, r.plugins['@release-it/conventional-changelog'].header)"` 为 `Cloudpit v${version}` 且 header 含 `Cloudpit`；`grep -n "CloudCLI UI\|@yalehwang/cloudcli\|yaleh/claudecodeui" .release-it.json .github/workflows/release.yml` 为 0 命中（注释也算）。
-- [ ] AC5 判据未放宽：`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs` 退出 0（8/8）；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空。
-- [ ] AC6 归属声明仍在：`grep -c "fork of" README.md` ≥1 且匹配 `/fork of\s+\[?siteboon\/claudecodeui/i`；`grep -c "CloudCLI UI" NOTICE LICENSE` 各 ≥1。
-- [ ] AC7 静态检查：`npm run typecheck` 退出 0；`npx oxlint` 对本次改动文件退出 0（仅基线 warning）。
+- [x] AC1 身份字段：`node -e "const p=require('./package.json'); console.log(JSON.stringify({name:p.name,bin:Object.keys(p.bin),homepage:p.homepage,repository:p.repository.url,bugs:p.bugs.url}))"` 打印 `name=@yalehwang/cloudpit`、`bin=["cloudpit"]`、三项 URL 均为 `yaleh/cloudpit`；`git grep -n "yaleh/claudecodeui" -- package.json .release-it.json README.md electron/serverInstaller.js scripts/release .github/workflows server/modules/cli/cli.service.ts` 为 0 命中。
+- [x] AC2 资产命名：`npx tsx --tsconfig server/tsconfig.json --test scripts/release/tests/server-installer-bundle-url.test.mjs` 退出 0（3/3），断言 URL 为 `https://github.com/yaleh/cloudpit/releases/download/cloudpit-local-server-v2.0.0/cloudpit-local-server-v2.0.0-win-x64.tar.gz`；`git grep -n "cloudcli-local-server" -- electron/serverInstaller.js scripts/release/build-server-bundle.js .github/workflows/desktop-release.yml .github/workflows/desktop-windows-branch-build.yml .github/workflows/desktop-macos-branch-build.yml README.md` 为 0 命中。
+- [x] AC3 发布守卫：`node --test scripts/release/tests/fork-release-workflows.test.mjs` 退出 0（7/7），其内 package.json 与 README 的仓库断言已指向 `yaleh/cloudpit`；把任一 URL 改回 `yaleh/claudecodeui` 后该测试退出非 0，恢复后复绿（贴两读）。
+- [x] AC4 release 名与说明：`node -e "const r=require('./.release-it.json'); console.log(r.github.releaseName, r.plugins['@release-it/conventional-changelog'].header)"` 为 `Cloudpit v${version}` 且 header 含 `Cloudpit`；`grep -n "CloudCLI UI\|@yalehwang/cloudcli\|yaleh/claudecodeui" .release-it.json .github/workflows/release.yml` 为 0 命中（注释也算）。
+- [x] AC5 判据未放宽：`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs` 退出 0（8/8）；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空。
+- [x] AC6 归属声明仍在：`grep -c "fork of" README.md` ≥1 且匹配 `/fork of\s+\[?siteboon\/claudecodeui/i`；`grep -c "CloudCLI UI" NOTICE LICENSE` 各 ≥1。
+- [x] AC7 静态检查：`npm run typecheck` 退出 0；`npx oxlint` 对本次改动文件退出 0（仅基线 warning）。
 - [ ] AC8 旧包最终版：`@yalehwang/cloudcli@1.42.0` 已发布且已 deprecate，deprecation 文案含 `@yalehwang/cloudpit`；`node -e` 读 `registry.npmjs.org/@yalehwang%2fcloudcli/1.42.0` 的 `deprecated` 并打印该文案（人工窗口项，人 yale 执行）。
 - [ ] AC9 仓库改名：`gh api repos/yaleh/cloudpit --jq .full_name` 打印 `yaleh/cloudpit`（人工窗口项，人 yale 执行）。
 - [ ] AC10 新包发布：`@yalehwang/cloudpit@2.0.0` 单版本文档 200，`https://unpkg.com/@yalehwang/cloudpit@2.0.0/package.json` 的 `bin` 键集合恰为 `["cloudpit"]`（人工窗口项，人 yale 执行）。
@@ -79,12 +79,21 @@ AC-451（achieved）的判据 `scripts/brand-allowlist-check.test.mjs` 只静态
 - 人工窗口执行后，贴出 AC8–AC12 的读回：旧包 deprecated 文案、`gh api … full_name`、新包 `bin`、`gh release view` 的资产名列表、`--release --json` 的完整输出（`exitCode: 0`、`violations: []`）。终态以真实 registry/GitHub 读数为准，不以「配置改好了」代替发布。
 - 仓库侧改动只落在 `## Touches`；不改 `goals/`、不改 AC-458 的 criterion/expect、不放宽 `cloudpit-distribution-check.mjs`。
 - 不做任何外部发布动作：push yaleh、workflow dispatch、npm publish、GitHub 改名都留给人工窗口。
+- 仓库侧读数（2026-11-02，worktree 分支 `task/gap-goal-054-post-merge-release-window` 提交 `a7942b0f9`；AC8–AC12 留给人工窗口）：
+  - AC1 `node -e …` ⇒ `{"name":"@yalehwang/cloudpit","bin":["cloudpit"],"homepage":"https://github.com/yaleh/cloudpit","repository":"git+https://github.com/yaleh/cloudpit.git","bugs":"https://github.com/yaleh/cloudpit/issues"}`；`git grep … "yaleh/claudecodeui"` 0 命中（exit 1）。
+  - AC2 `npx tsx … --test scripts/release/tests/server-installer-bundle-url.test.mjs` ⇒ `# pass 3` / `# fail 0`，exit 0；断言的 URL = `https://github.com/yaleh/cloudpit/releases/download/cloudpit-local-server-v2.0.0/cloudpit-local-server-v2.0.0-win-x64.tar.gz`；`git grep … "cloudcli-local-server"` 0 命中（exit 1）。
+  - AC3 `node --test scripts/release/tests/fork-release-workflows.test.mjs` ⇒ `# pass 7` / `# fail 0`，exit 0；负控：把 `package.json` 的 repository.url 改回 `yaleh/claudecodeui` ⇒ exit 1，`AssertionError: package.json must point repository.url at the fork`；恢复后 ⇒ `# pass 7` / `# fail 0`，exit 0。
+  - AC5 `npx tsx … --test scripts/cloudpit-distribution-check.test.mjs` ⇒ `# pass 8` / `# fail 0`，exit 0；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空。
+  - AC6 `grep -c "fork of" README.md` = 1（`> **This repository is a fork of [siteboon/claudecodeui](…).**`）；`grep -c "CloudCLI UI" NOTICE` = 1、`LICENSE` = 4。
+  - AC7 `npm run typecheck` exit 0；`npx oxlint <本次改动文件>` exit 0。
 
 ## Needs-Human
 
 - 仓库侧（AC1–AC7）完成后，本任务的正确终态是 **needs-human**，不是 done：AC8–AC12 依赖人 yale 执行外部发布窗口（npm 凭据、npm Trusted Publishing、GitHub 仓库改名、workflow dispatch）。worker 做完仓库侧并提交后立即 park，AC8–AC12 保持未勾。
 - 人工窗口第一步是把本任务分支并入 develop 并 push yaleh；否则 release workflow 仍从旧 `yaleh/develop` 取树，仓库侧命名改动不会进入发布产物。
 - 窗口执行的完整顺序见 `## Proposal` 的「外部发布窗口」；每一步的外部读数写回对应 AC。
+
+该轴仍暗,理由:本任务只改发布身份与资产命名，不产生 L_D/L_G 依赖图读数。
 
 ## Touches
 
