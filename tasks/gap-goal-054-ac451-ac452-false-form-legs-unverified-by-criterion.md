@@ -33,7 +33,7 @@ goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsco
 
 ## Touches
 
-- scripts/brand-allowlist-check.mjs
-- scripts/brand-allowlist-check.test.mjs
-- server/shared/tests/cloudpit-runtime-flip.test.ts
+- scripts/brand-allowlist-check.mjs (new)
+- scripts/brand-allowlist-check.test.mjs (new)
+- server/shared/tests/cloudpit-runtime-flip.test.ts (new)
 - tasks/gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion.md
