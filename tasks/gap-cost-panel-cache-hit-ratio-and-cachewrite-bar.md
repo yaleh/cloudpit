@@ -2,7 +2,7 @@
 id: gap-cost-panel-cache-hit-ratio-and-cachewrite-bar
 title: Cost panel cache-hit ratio + fresh/cacheRead/cacheWrite bar +
   per-provider usage-scope copy
-status: ready
+status: done
 labels:
   - gap
 parent: null
