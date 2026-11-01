@@ -174,7 +174,10 @@ const buildStructuredCostData = (tokenUsage, provider, model, aiTitle) => {
       tokenUsage: {
         ...(used !== undefined ? { used } : {}),
         ...(window !== undefined ? { total: window } : {}),
-        scope: "session-cumulative",
+        // `used` is dual-meaning across providers: Claude's is the newest turn
+        // (context occupancy) while Codex's is the session total. Propagate the
+        // reader's own marker instead of claiming every reading is cumulative.
+        ...(tokenUsage.usageScope ? { scope: tokenUsage.usageScope } : {}),
         ...(cumulative ? { cumulative } : {}),
         ...(lastRequest ? { lastRequest } : {}),
         ...(observedAt ? { observedAt } : {}),

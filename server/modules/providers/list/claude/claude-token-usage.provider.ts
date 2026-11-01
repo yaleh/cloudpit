@@ -114,10 +114,11 @@ function toUsageCounts(totals: ClaudeUsageRowTotals): ProviderTokenUsageCounts {
 }
 
 /**
- * Usage of a Claude transcript's already-parsed rows, in two scopes:
+ * Usage of a Claude transcript's already-parsed rows, in three scopes:
  * - `used`/`inputTokens`/`cache*` stay the NEWEST main-thread turn, i.e. what
- *   the context window currently holds. Summing turns there would count the
- *   same cached prefix once per turn.
+ *   the context window currently holds, and `lastRequest` mirrors that same
+ *   newest turn in the counts shape. Summing turns there would count the same
+ *   cached prefix once per turn.
  * - `cumulative` is the session's total spend, summed over every main-thread
  *   assistant turn: the same per-row arithmetic as the newest-turn read,
  *   accumulated instead of last-wins. `sidechain` accumulates subagent turns
@@ -195,6 +196,7 @@ export function summarizeClaudeTokenUsage(
     // spend snapshot, which is not the same answer as a session that spent zero.
     ...(sawCumulativeUsage ? { cumulative: toUsageCounts(cumulativeTotals) } : {}),
     ...(sawSidechainUsage ? { sidechain: toUsageCounts(sidechainTotals) } : {}),
+    ...(lastRequest ? { lastRequest: toUsageCounts(lastRequest) } : {}),
     breakdown: { input: inputTokens, output: outputTokens },
   };
 }

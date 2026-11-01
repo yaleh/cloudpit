@@ -123,6 +123,12 @@ test('token usage lookup requires only the app-facing session id for Claude', as
         cacheReadTokens: 20,
         cacheWriteTokens: 5,
       },
+      lastRequest: {
+        inputTokens: 125,
+        outputTokens: 30,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 5,
+      },
       breakdown: { input: 125, output: 30 },
     });
   } finally {
@@ -517,6 +523,13 @@ test('the Claude summarizer reads the newest assistant turn, not the whole conve
       inputTokens: 5108,
       outputTokens: 130,
       cacheReadTokens: 5000,
+      cacheWriteTokens: 100,
+    },
+    // The newest turn also answers the context-occupancy scope in counts shape.
+    lastRequest: {
+      inputTokens: 4103,
+      outputTokens: 80,
+      cacheReadTokens: 4000,
       cacheWriteTokens: 100,
     },
     breakdown: { input: 4103, output: 80 },

@@ -125,6 +125,22 @@ describe('CostContent cache rendering', () => {
     );
   });
 
+  it('derives the session-total row from cumulative, not the dual-meaning `used` field', () => {
+    render(
+      <CostContent
+        data={structuredCost({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 30 })}
+      />,
+    );
+
+    const totalRow = screen
+      .getAllByTestId('cost-usage-row')
+      .find((row) => row.getAttribute('data-cost-label') === 'Total tokens used');
+    assert.ok(totalRow, 'the session-total row must render');
+    // `used` is 120 (a legacy single number) but the cumulative block sums to
+    // 140 — the row must show the session total, not the newest-turn reading.
+    assert.equal(totalRow.getAttribute('data-cost-value'), '140');
+  });
+
   it('states the provider-specific cache accounting in the meta card', () => {
     render(
       <CostContent
