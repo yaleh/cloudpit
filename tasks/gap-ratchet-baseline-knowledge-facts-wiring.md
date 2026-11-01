@@ -43,3 +43,11 @@ extra:
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/architecture-ratchet.test.ts
 - tasks/gap-ratchet-baseline-knowledge-facts-wiring.md
+
+## Blocker
+
+**2026-11-01T17:16:16.683Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=105609 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793552841503 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/quay-test-script.test.ts]
+- run_id：wk-prod-anchor
+- session_id：c4cb985b-34ab-45d9-b984-1f436b6bd939
