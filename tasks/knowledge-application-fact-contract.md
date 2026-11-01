@@ -71,6 +71,8 @@ extra:
 - server/modules/mcp-gateway/mcp-tool-error-codes.ts
 - server/modules/mcp-gateway/tests/mcp-tool-annotations.test.ts
 - server/modules/mcp-gateway/tests/mcp-error-vocabulary.test.ts
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 
 ## Blocker
 
