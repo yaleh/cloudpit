@@ -1208,9 +1208,15 @@ export function createProviderRuntimeService(
     },
 
     getPendingApprovalsForSession(sessionId: string): unknown[] {
-      return dependencies.listProviders().flatMap(
-        (provider) => provider.runtime.permissions?.listPending(sessionId) ?? [],
-      );
+      // Claude and Codex expose the same shared approval registry. Read each
+      // source once so subscribe acknowledgements cannot duplicate its prompts.
+      const readers = new Set<NonNullable<IProvider['runtime']['permissions']>['listPending']>();
+      return dependencies.listProviders().flatMap(({ runtime }) => {
+        const permissions = runtime.permissions;
+        if (!permissions || readers.has(permissions.listPending)) return [];
+        readers.add(permissions.listPending);
+        return permissions.listPending(sessionId);
+      });
     },
 
     /**

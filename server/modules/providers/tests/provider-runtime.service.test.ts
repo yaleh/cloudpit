@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
+import { ApprovalRequestsService } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { IProvider, IProviderRuntime } from '@/shared/interfaces.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { LLMProvider, ProcessHost } from '@/shared/types.js';
@@ -80,6 +81,42 @@ test('providerRegistry owns one runtime for every registered provider', () => {
   ]);
   assert.equal(providers.every((provider) => typeof provider.runtime.run === 'function'), true);
   assert.equal(providers.every((provider) => typeof provider.runtime.abort === 'function'), true);
+});
+
+test('shared approval registries contribute each pending question only once on subscribe', async () => {
+  const approvals = new ApprovalRequestsService();
+  const service = createService(['claude', 'codex'].map((id) => createProvider(id as LLMProvider, createRuntime({
+    permissions: { resolve: approvals.resolveToolApproval, listPending: approvals.getPendingApprovalsForSession },
+  }))));
+  const input = { questions: [{ question: 'Which option?', options: [{ label: 'A' }, { label: 'B' }] }] };
+  const wait = approvals.requestClientToolDecision({
+    requestId: 'shared-question', toolName: 'AskUserQuestion', input,
+    requiresInteraction: true, sessionId: 'session-1', sessionSummary: null,
+    ws: { send() {} }, emitNotification() {},
+  });
+  try {
+    const pending = service.getPendingApprovalsForSession('session-1');
+    assert.equal(pending.length, 1);
+    assert.equal((pending[0] as { requestId: string }).requestId, 'shared-question');
+    assert.deepEqual(service.getPendingApprovalsForSession('another-session'), []);
+  } finally {
+    service.resolveToolApproval('shared-question', { allow: true, updatedInput: { ...input, answers: { 'Which option?': 'A' } } });
+  }
+  assert.equal((await wait)?.allow, true);
+  assert.deepEqual(service.getPendingApprovalsForSession('session-1'), []);
+});
+
+test('distinct approval registries preserve identical questions with different request ids', () => {
+  const providers = ['claude', 'codex'].map((id) => createProvider(id as LLMProvider, createRuntime({
+    permissions: {
+      resolve() {},
+      listPending: (sessionId) => [{ requestId: `${id}-question`, sessionId, input: { question: 'Which option?' } }],
+    },
+  })));
+  assert.deepEqual(createService(providers).getPendingApprovalsForSession('session-1'), [
+    { requestId: 'claude-question', sessionId: 'session-1', input: { question: 'Which option?' } },
+    { requestId: 'codex-question', sessionId: 'session-1', input: { question: 'Which option?' } },
+  ]);
 });
 
 test('dispatches runs and aborts through the runtime owned by providerRegistry', async () => {
