@@ -669,29 +669,60 @@ function paddingLines(totalBytes: number): string {
   return Array.from({ length: Math.ceil(totalBytes / line.length) }, () => line).join('\n');
 }
 
-test('Claude token usage reads only the tail of a large transcript', async () => {
-  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-claude-tail-'));
+test('Claude token usage reads the whole transcript for cumulative when it is larger than the tail', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-claude-cumulative-full-'));
   const sessionFilePath = path.join(tempDirectory, 'provider-session.jsonl');
 
   try {
+    // Two main-thread turns separated by >4MB of padding so only the second
+    // sits inside the tail window. A tail-only read would sum just the second
+    // turn and undercount the session by the first.
+    const first = { type: 'assistant', message: { usage: { input_tokens: 100, cache_read_input_tokens: 20, output_tokens: 5 } } };
+    const last = { type: 'assistant', message: { usage: { input_tokens: 7, cache_read_input_tokens: 3, output_tokens: 2 } } };
     await writeFile(sessionFilePath, [
+      JSON.stringify(first),
       paddingLines(5 * 1024 * 1024),
-      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 7, output_tokens: 2 } } }),
+      JSON.stringify(last),
     ].join('\n'));
 
     const service = createProviderTokenUsageService({
       getSessionById: () => createSessionRow({ jsonl_path: sessionFilePath }),
       getClaudeContextWindow: () => '180000',
-      // Reading the whole file here would defeat the tail read; fail loudly.
-      readTextFile: () => { throw new Error('full read must not happen when the tail has usage'); },
     });
 
     const usage = await service.getSessionTokenUsage('app-session');
-    assert.equal(usage.inputTokens, 7);
+    // Both turns contribute: input = (100+20) + (7+3), output = 5 + 2,
+    // cacheRead = 20 + 3. Neither reported cache_creation, so cacheWriteTokens
+    // stays absent instead of being fabricated as zero.
+    assert.deepEqual(usage.cumulative, {
+      inputTokens: 130,
+      outputTokens: 7,
+      cacheReadTokens: 23,
+    });
+    // The newest-turn occupancy read still answers the last row, unchanged.
+    assert.equal(usage.inputTokens, 10);
     assert.equal(usage.outputTokens, 2);
+    assert.equal(usage.cacheReadTokens, 3);
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
+});
+
+test('the Claude summarizer omits cache subsets it never reported instead of fabricating zero', () => {
+  // Both turns report cache reads but no cache creation: the cumulative block
+  // keeps cacheReadTokens and omits cacheWriteTokens (absent ≠ reported zero).
+  const entries = [
+    { type: 'assistant', message: { usage: { input_tokens: 10, cache_read_input_tokens: 4, output_tokens: 2 } } },
+    { type: 'assistant', message: { usage: { input_tokens: 5, cache_read_input_tokens: 1, output_tokens: 3 } } },
+  ];
+
+  const reading = summarizeClaudeTokenUsage(entries, '200000');
+  assert.deepEqual(reading.cumulative, {
+    inputTokens: 20,
+    outputTokens: 5,
+    cacheReadTokens: 5,
+  });
+  assert.equal('cacheWriteTokens' in (reading.cumulative ?? {}), false);
 });
 
 test('Claude token usage falls back to the whole file when the tail has no usage row', async () => {

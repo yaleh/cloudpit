@@ -12,16 +12,28 @@ import { AppError } from '@/shared/utils.js';
 import { resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
 
 /**
- * Both JSONL usage readers only need the newest usage row, which sits at or
- * near the end of the transcript. Reading just this much of the tail keeps a
- * session-open usage lookup O(1) in the transcript's size; the rare tail with
- * no usage row at all falls back to the full read.
+ * The newest-turn (context-occupancy) read only needs the row at or near the
+ * end of the transcript, but the session-cumulative sum needs every main-thread
+ * turn. `readSessionUsage` therefore reads the whole file for any transcript
+ * larger than the tail window; the tail is just the fast path for small
+ * transcripts, where it is the whole file.
  */
 const TOKEN_USAGE_TAIL_BYTES = 4 * 1024 * 1024;
 
 function readUsageNumber(value: unknown): number {
   const parsedValue = Number(value);
   return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+/**
+ * Reads an optional quantity, keeping "the source reported a number" distinct
+ * from "the source did not report this quantity". Used for the cache subset
+ * reads so an absent field stays absent in the counts shape instead of being
+ * fabricated as zero.
+ */
+function readReportedUsageNumber(value: unknown): number | null {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
 // Model id of the newest main-thread assistant turn; its library entry's env row supplies the window.
@@ -42,6 +54,10 @@ type ClaudeUsageRowTotals = {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  /** True when this row (or any summed row) reported a cache-read quantity. */
+  sawCacheRead: boolean;
+  /** True when this row (or any summed row) reported a cache-write quantity. */
+  sawCacheWrite: boolean;
 };
 
 /**
@@ -58,20 +74,22 @@ function readClaudeUsageRow(entry: AnyRecord): ClaudeUsageRowTotals | null {
   }
 
   const directInputTokens = readUsageNumber(usage.input_tokens ?? usage.inputTokens);
-  const cacheReadTokens = readUsageNumber(
+  const cacheReadTokens = readReportedUsageNumber(
     usage.cache_read_input_tokens ?? usage.cacheReadInputTokens ?? usage.cacheReadTokens,
   );
-  const cacheWriteTokens = readUsageNumber(
+  const cacheWriteTokens = readReportedUsageNumber(
     usage.cache_creation_input_tokens
       ?? usage.cacheCreationInputTokens
       ?? usage.cacheCreationTokens,
   );
 
   return {
-    inputTokens: directInputTokens + cacheReadTokens + cacheWriteTokens,
+    inputTokens: directInputTokens + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0),
     outputTokens: readUsageNumber(usage.output_tokens ?? usage.outputTokens),
-    cacheReadTokens,
-    cacheWriteTokens,
+    cacheReadTokens: cacheReadTokens ?? 0,
+    cacheWriteTokens: cacheWriteTokens ?? 0,
+    sawCacheRead: cacheReadTokens !== null,
+    sawCacheWrite: cacheWriteTokens !== null,
   };
 }
 
@@ -80,14 +98,18 @@ function addClaudeUsageTotals(target: ClaudeUsageRowTotals, row: ClaudeUsageRowT
   target.outputTokens += row.outputTokens;
   target.cacheReadTokens += row.cacheReadTokens;
   target.cacheWriteTokens += row.cacheWriteTokens;
+  target.sawCacheRead ||= row.sawCacheRead;
+  target.sawCacheWrite ||= row.sawCacheWrite;
 }
 
 function toUsageCounts(totals: ClaudeUsageRowTotals): ProviderTokenUsageCounts {
   return {
     inputTokens: totals.inputTokens,
     outputTokens: totals.outputTokens,
-    cacheReadTokens: totals.cacheReadTokens,
-    cacheWriteTokens: totals.cacheWriteTokens,
+    // Cache subsets only when some summed row actually reported them:
+    // "reported zero" is a real answer, "reported nothing" is not.
+    ...(totals.sawCacheRead ? { cacheReadTokens: totals.cacheReadTokens } : {}),
+    ...(totals.sawCacheWrite ? { cacheWriteTokens: totals.cacheWriteTokens } : {}),
   };
 }
 
@@ -114,8 +136,14 @@ export function summarizeClaudeTokenUsage(
 ): ProviderTokenUsageReading {
   // Newest qualifying main-thread row: the context-occupancy reading.
   let lastRequest: ClaudeUsageRowTotals | null = null;
-  const cumulativeTotals: ClaudeUsageRowTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
-  const sidechainTotals: ClaudeUsageRowTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const cumulativeTotals: ClaudeUsageRowTotals = {
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+    sawCacheRead: false, sawCacheWrite: false,
+  };
+  const sidechainTotals: ClaudeUsageRowTotals = {
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+    sawCacheRead: false, sawCacheWrite: false,
+  };
   let sawCumulativeUsage = false;
   let sawSidechainUsage = false;
 
@@ -183,10 +211,6 @@ function parseClaudeUsageEntries(fileContent: string): AnyRecord[] {
   return entries;
 }
 
-function claudeEntriesHaveUsage(entries: AnyRecord[]): boolean {
-  return entries.some((entry) => entry?.type === 'assistant' && entry.message?.usage);
-}
-
 /**
  * Claude's usage reader: the newest assistant turn of the session's JSONL
  * transcript, with the context window the session's model declares.
@@ -248,10 +272,13 @@ export class ClaudeTokenUsageProvider implements IProviderTokenUsage {
     }
 
     const tail = await dependencies.readTextFileTail(sessionFilePath, TOKEN_USAGE_TAIL_BYTES);
-    let entries = parseClaudeUsageEntries(tail.content);
-    if (!claudeEntriesHaveUsage(entries) && !tail.isComplete) {
-      entries = parseClaudeUsageEntries(await dependencies.readTextFile(sessionFilePath));
-    }
+    // `cumulative` sums the whole session, so a transcript larger than the
+    // tail window must be read in full: a tail-only read would silently
+    // undercount every turn that fell before the last 4MB. The tail remains
+    // the cheap path for small transcripts, where it is the whole file.
+    const entries = tail.isComplete
+      ? parseClaudeUsageEntries(tail.content)
+      : parseClaudeUsageEntries(await dependencies.readTextFile(sessionFilePath));
     const modelId = session.model || findNewestClaudeModelId(entries);
     const modelRow = modelId ? dependencies.getClaudeModelContextWindow?.(modelId) : undefined;
     return summarizeClaudeTokenUsage(entries, dependencies.getClaudeContextWindow(), modelRow);
