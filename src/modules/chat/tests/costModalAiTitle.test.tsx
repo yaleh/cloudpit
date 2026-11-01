@@ -157,7 +157,9 @@ test('the cost modal groups cumulative, latest request and window as separate re
   assert.equal(text.includes((1_200 + 900 + 300 + 120).toLocaleString()), false);
   // The window is shown as capacity, not as a derived fraction of the total.
   assert.ok(text.includes((258_400).toLocaleString()));
-  assert.equal(/percent|%/i.test(text), false);
+  // The cache-hit-rate row is the one percentage this layout renders
+  // (cacheRead/input = 900/1200); a window/total fraction would add another.
+  assert.deepEqual(text.match(/\d+(?:\.\d+)?%/g) ?? [], ['75%']);
 });
 
 test('the grouped layout omits unreported quantities and keeps an explicit zero', () => {
