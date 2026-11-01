@@ -72,3 +72,11 @@ extra:
 ## ADR-007 暗轴记录
 
 该轴仍暗,理由:Fleet 侧 `docs/specs/knowledge-application-contract.md` 仍未交付 `effective-config-check` 的字段级事实 schema（该文档第 135 行明确 producer 的事实字段形状尚未落地），本机只声明自己的 contract version 1 和按 provider 的能力缺口，不冒充与未读过的外部 schema 兼容。
+
+## Blocker
+
+**2026-11-01T10:04:30.713Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/chat/tests/authoritativeTokenReadingChannels.test.tsx: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /tokenBudget=\{liveFrame\}/. Input: [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=src/modules/chat/tests/authoritativeTokenReadingChannels.test.tsx]
+- run_id：wk-prod-anchor
+- session_id：364c7fcd-cfca-4663-b39a-a17bd5450931
