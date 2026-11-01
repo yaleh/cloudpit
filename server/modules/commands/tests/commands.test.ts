@@ -169,7 +169,7 @@ test('cost command does not ask for an ai-title without a session', async () => 
   assert.equal(Object.prototype.hasOwnProperty.call(result.data, 'aiTitle'), false);
 });
 
-test('cost command still reports usage when the ai-title reader throws', async () => {
+test('cost command still reports the derived view when the ai-title reader throws', async () => {
   const result = await executeCommand(
     '/cost',
     { provider: 'claude', sessionId: 'session-1', tokenUsage: { used: 120, total: 200 } },
@@ -179,14 +179,18 @@ test('cost command still reports usage when the ai-title reader throws', async (
     },
   );
 
-  const data = result.data as { tokenUsage: { used: number; total: number }; model: string; aiTitle?: string };
-  assert.equal(data.tokenUsage.used, 120);
-  assert.equal(data.tokenUsage.total, 200);
+  const data = result.data as {
+    cost: { context?: { used?: number; window?: number } };
+    model: string;
+    aiTitle?: string;
+  };
+  assert.equal(data.cost.context?.used, 120);
+  assert.equal(data.cost.context?.window, 200);
   assert.equal(data.model, 'default');
   assert.equal(Object.prototype.hasOwnProperty.call(data, 'aiTitle'), false);
 });
 
-test('cost command groups a cumulative Codex reading without deriving a context ratio', async () => {
+test('cost command folds a cumulative reading into the session slot and keeps the window separate', async () => {
   const tokenUsage = {
     used: 2_400,
     total: 258_400,
@@ -214,41 +218,27 @@ test('cost command groups a cumulative Codex reading without deriving a context 
 
   const result = await executeCommand('/cost', { provider: 'codex', sessionId: 'session-1', tokenUsage });
   const data = result.data as Record<string, any>;
+  const cost = data.cost;
 
-  assert.deepEqual(data.tokenUsage, {
-    used: 2_400,
-    total: 258_400,
-    scope: 'session-cumulative',
-    cumulative: {
-      inputTokens: 2_000,
-      outputTokens: 400,
-      cacheReadTokens: 1_500,
-      reasoningOutputTokens: 150,
-      totalTokens: 2_400,
-    },
-    lastRequest: {
-      inputTokens: 700,
-      outputTokens: 120,
-      cacheReadTokens: 500,
-      reasoningOutputTokens: 60,
-      totalTokens: 820,
-    },
-    observedAt: '2026-10-30T09:30:00.000Z',
-  });
-  // Detail reads stay detail: no second total is produced by adding them up.
-  assert.deepEqual(data.tokenBreakdown, {
-    input: 2_000,
-    output: 400,
-    cacheRead: 1_500,
-    reasoningOutput: 150,
-  });
+  // A cumulative reading's `used` IS the session total, so it lands in the
+  // session slot instead of being repeated as a context occupancy.
+  assert.equal(cost.session.total, tokenUsage.cumulative.totalTokens);
+  assert.equal(cost.context.used, undefined);
   // The window is an independent fact, never a denominator applied to `used`.
-  assert.equal(data.tokenUsage.total, 258_400);
-  assert.notEqual(data.tokenUsage.total, data.tokenUsage.used);
-  assert.equal(Object.keys(data.tokenUsage).some((key) => /percent|ratio|fraction/i.test(key)), false);
+  assert.equal(cost.context.window, 258_400);
+  assert.equal(cost.session.input, 2_000);
+  assert.equal(cost.session.output, 400);
+  assert.equal(cost.session.cacheRead, 1_500);
+  assert.equal(cost.session.reasoningOutput, 150);
+  // Server-derived: cached input over input, and the uncached remainder.
+  assert.equal(cost.session.cacheHitRatio, 0.75);
+  assert.equal(cost.session.fresh, 500);
+  assert.deepEqual(cost.lastRequest, tokenUsage.lastRequest);
+  // Detail reads stay detail: no second total is produced by adding them up.
+  assert.equal(Object.keys(cost.session).some((key) => /percent|fraction/i.test(key)), false);
 });
 
-test('cost command omits unreported Codex quantities instead of reporting zero', async () => {
+test('cost command omits unreported quantities instead of reporting zero', async () => {
   const result = await executeCommand('/cost', {
     provider: 'codex',
     sessionId: 'session-1',
@@ -259,39 +249,63 @@ test('cost command omits unreported Codex quantities instead of reporting zero',
     },
   });
   const data = result.data as Record<string, any>;
+  const cost = data.cost;
 
-  assert.equal(data.tokenUsage.total, undefined);
-  assert.equal(data.tokenUsage.lastRequest, undefined);
-  assert.equal(Object.prototype.hasOwnProperty.call(data.tokenUsage, 'observedAt'), false);
+  assert.equal(cost.session.total, 10);
   // The explicit zero survives, and the absent cache/reasoning reads do not
   // turn into zeros.
-  assert.equal(data.tokenUsage.cumulative.outputTokens, 0);
-  // Absent detail stays absent; assert before deepEqual narrows the block.
-  assert.equal(data.tokenBreakdown.cacheRead, undefined);
-  assert.equal(data.tokenBreakdown.reasoningOutput, undefined);
-  assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
+  assert.equal(cost.session.output, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(cost.session, 'cacheRead'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(cost.session, 'cacheWrite'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(cost.session, 'reasoningOutput'), false);
+  // With no cache read reported there is no numerator, so no ratio or fresh row.
+  assert.equal(cost.session.cacheHitRatio, undefined);
+  assert.equal(cost.session.fresh, undefined);
+  assert.equal(cost.lastRequest, undefined);
+  // No window was reported, so the context block is absent rather than zeroed.
+  assert.equal(cost.context, undefined);
 });
 
-test('cost command omits scope when the reader did not mark the reading as cumulative', async () => {
-  // A Claude-shaped reading: `used` is the newest turn, and the reader leaves
-  // `usageScope` unset. The endpoint must not stamp "session-cumulative" onto it.
+test('cost command derives one provider-agnostic view for a context-scoped reading', async () => {
+  // A Claude-shaped reading: `used` is the newest turn (context occupancy), and
+  // the reader leaves `usageScope` unset. Its cumulative block still describes
+  // the whole session, so the two facts land in different slots.
   const result = await executeCommand('/cost', {
     provider: 'claude',
     sessionId: 'session-1',
     tokenUsage: {
       used: 120,
       total: 200_000,
-      cumulative: { inputTokens: 100, outputTokens: 20 },
-      lastRequest: { inputTokens: 100, outputTokens: 20 },
+      cumulative: {
+        inputTokens: 100,
+        outputTokens: 20,
+        cacheReadTokens: 75,
+        cacheWriteTokens: 5,
+      },
+      lastRequest: { inputTokens: 90, outputTokens: 15, cacheReadTokens: 60 },
     },
   });
   const data = result.data as Record<string, any>;
+  const cost = data.cost;
 
-  assert.equal(Object.prototype.hasOwnProperty.call(data.tokenUsage, 'scope'), false);
-  assert.deepEqual(data.tokenUsage.lastRequest, { inputTokens: 100, outputTokens: 20 });
+  // The session total is the cumulative spend, never the newest-turn occupancy.
+  assert.equal(cost.session.total, 100 + 20);
+  assert.equal(cost.context.used, 120);
+  assert.equal(cost.context.window, 200_000);
+  // Ratio and fresh remainder are derived on the server from cache reads only.
+  assert.equal(cost.session.cacheHitRatio, 0.75);
+  assert.equal(cost.session.fresh, 100 - 75 - 5);
+  assert.match(cost.accountingNote, /Input already includes cache reads and cache writes/);
+  assert.deepEqual(cost.lastRequest, { inputTokens: 90, outputTokens: 15, cacheReadTokens: 60 });
+
+  // The retired wire shape is gone, including the dual-meaning top-level fields.
+  assert.equal(Object.prototype.hasOwnProperty.call(data, 'used'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, 'scope'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, 'tokenUsage'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, 'tokenBreakdown'), false);
 });
 
-test('cost command passes cacheWrite through from the cumulative block', async () => {
+test('cost command passes cacheWrite through as a subset of input', async () => {
   const tokenUsage = {
     used: 2_400,
     total: 258_400,
@@ -316,19 +330,13 @@ test('cost command passes cacheWrite through from the cumulative block', async (
   const data = result.data as Record<string, any>;
 
   // Both scopes carry their own written-to-cache quantity unchanged.
-  assert.deepEqual(data.tokenUsage.cumulative, tokenUsage.cumulative);
-  assert.deepEqual(data.tokenUsage.lastRequest, tokenUsage.lastRequest);
-  assert.equal(data.tokenUsage.cumulative.cacheWriteTokens, 300);
-  assert.equal(data.tokenUsage.lastRequest.cacheWriteTokens, 80);
-  // The breakdown reads the session total; cacheWrite is a subset of input and
-  // is never folded into input or output as another addend.
-  assert.equal(data.tokenBreakdown.cacheWrite, data.tokenUsage.cumulative.cacheWriteTokens);
-  assert.deepEqual(data.tokenBreakdown, {
-    input: 2_000,
-    output: 400,
-    cacheRead: 1_500,
-    cacheWrite: 300,
-  });
+  assert.deepEqual(data.cost.lastRequest, tokenUsage.lastRequest);
+  assert.equal(data.cost.session.cacheWrite, 300);
+  assert.equal(data.cost.lastRequest.cacheWriteTokens, 80);
+  // cacheWrite is a subset of input and is never folded into input or output as
+  // another addend; it is only subtracted from the derived fresh remainder.
+  assert.equal(data.cost.session.input, 2_000);
+  assert.equal(data.cost.session.fresh, 2_000 - 1_500 - 300);
 });
 
 test('cost command omits cacheWrite when the reading never reported it', async () => {
@@ -344,14 +352,18 @@ test('cost command omits cacheWrite when the reading never reported it', async (
   const data = result.data as Record<string, any>;
 
   assert.equal(
-    Object.prototype.hasOwnProperty.call(data.tokenBreakdown, 'cacheWrite'),
+    Object.prototype.hasOwnProperty.call(data.cost.session, 'cacheWrite'),
     false,
     'an unreported cache write must stay absent, not print as zero',
   );
-  assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
+  assert.deepEqual(data.cost.session, {
+    total: 10,
+    input: 10,
+    output: 0,
+  });
 });
 
-test('cost command keeps the legacy Claude reading and arithmetic', async () => {
+test('cost command builds a session block from a flat context reading', async () => {
   const result = await executeCommand('/cost', {
     provider: 'claude',
     sessionId: 'session-1',
@@ -365,13 +377,20 @@ test('cost command keeps the legacy Claude reading and arithmetic', async () => 
     },
   });
   const data = result.data as Record<string, any>;
+  const cost = data.cost;
 
-  // No structured fields are grafted onto a context-style reading. Assert
-  // absence before deepEqual narrows the object to the literal it compared.
-  assert.equal(data.tokenUsage.scope, undefined);
-  assert.equal(data.tokenUsage.cumulative, undefined);
-  assert.equal(data.tokenUsage.lastRequest, undefined);
-  assert.deepEqual(data.tokenUsage, { used: 120, total: 200_000 });
-  assert.deepEqual(data.tokenBreakdown, { input: 100, output: 20 });
+  // The flat reading's own counts describe the session; `used` stays the
+  // newest-turn occupancy in the context slot.
+  assert.equal(cost.session.total, 100 + 20);
+  assert.equal(cost.session.input, 100);
+  assert.equal(cost.session.output, 20);
+  assert.equal(cost.session.cacheRead, 10);
+  // Anthropic's cache-creation quantity is the write half of the same prompt.
+  assert.equal(cost.session.cacheWrite, 5);
+  assert.equal(cost.session.cacheHitRatio, 0.1);
+  assert.equal(cost.session.fresh, 100 - 10 - 5);
+  assert.equal(cost.context.used, 120);
+  assert.equal(cost.context.window, 200_000);
+  assert.equal(cost.lastRequest, undefined);
   assert.equal(data.provider, 'claude');
 });

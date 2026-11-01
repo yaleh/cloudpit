@@ -67,7 +67,10 @@ const positionOf = (text: string): number => {
 
 test('the meta card shows the generated ai-title under the provider and model', () => {
   renderCostModal({
-    tokenUsage: { used: 1200, total: 4000 },
+    cost: {
+      context: { used: 1_200, window: 4_000 },
+      accountingNote: 'Input already includes cache reads and cache writes.',
+    },
     provider: 'claude',
     model: 'claude-sonnet-4-5',
     aiTitle: 'Generated From The Chat',
@@ -89,7 +92,10 @@ test('the meta card shows the generated ai-title under the provider and model', 
 
 test('the meta card renders no AI title row when the field is absent', () => {
   renderCostModal({
-    tokenUsage: { used: 1200, total: 4000 },
+    cost: {
+      context: { used: 1_200, window: 4_000 },
+      accountingNote: 'Input already includes cache reads and cache writes.',
+    },
     provider: 'claude',
     model: 'claude-sonnet-4-5',
   });
@@ -102,7 +108,10 @@ test('the meta card renders no AI title row when the field is absent', () => {
 
 test('the meta card renders no AI title row for a blank title', () => {
   renderCostModal({
-    tokenUsage: { used: 1200, total: 4000 },
+    cost: {
+      context: { used: 1_200, window: 4_000 },
+      accountingNote: 'Input already includes cache reads and cache writes.',
+    },
     provider: 'claude',
     model: 'claude-sonnet-4-5',
     aiTitle: '   ',
@@ -112,22 +121,22 @@ test('the meta card renders no AI title row for a blank title', () => {
 });
 
 /**
- * The grouped `/cost` layout for a cumulative provider. The three readings are
- * separate facts: whole-session spend, the latest request as a context
- * estimate, and the window capacity. The modal must not treat the window as a
- * denominator, and cached/reasoning detail must not be added to their parents.
+ * The server-derived `/cost` view for a cumulative provider. The three readings
+ * are separate facts: whole-session spend, the latest request as a context
+ * estimate, and the window capacity. The modal renders them without treating
+ * the window as a denominator or adding detail to its parent.
  */
-const cumulativeReading = (overrides: Partial<NonNullable<CostCommandData['tokenUsage']>> = {}) => ({
-  used: 1_500,
-  total: 258_400,
-  scope: 'session-cumulative' as const,
-  cumulative: {
-    inputTokens: 1_200,
-    outputTokens: 300,
-    cacheReadTokens: 900,
-    reasoningOutputTokens: 120,
-    totalTokens: 1_500,
+const cumulativeCost = (overrides: Partial<NonNullable<CostCommandData['cost']>> = {}) => ({
+  session: {
+    total: 1_500,
+    input: 1_200,
+    output: 300,
+    cacheRead: 900,
+    reasoningOutput: 120,
+    cacheHitRatio: 0.75,
+    fresh: 300,
   },
+  context: { window: 258_400 },
   lastRequest: {
     inputTokens: 800,
     outputTokens: 90,
@@ -135,12 +144,13 @@ const cumulativeReading = (overrides: Partial<NonNullable<CostCommandData['token
     reasoningOutputTokens: 40,
     totalTokens: 890,
   },
+  accountingNote: 'Input already includes cached input tokens (cached_input_tokens).',
   ...overrides,
 });
 
 test('the cost modal groups cumulative, latest request and window as separate readings', () => {
   renderCostModal({
-    tokenUsage: cumulativeReading(),
+    cost: cumulativeCost(),
     provider: 'codex',
     model: 'gpt-5-codex',
   });
@@ -164,10 +174,9 @@ test('the cost modal groups cumulative, latest request and window as separate re
 
 test('the grouped layout omits unreported quantities and keeps an explicit zero', () => {
   renderCostModal({
-    tokenUsage: {
-      used: 10,
-      scope: 'session-cumulative',
-      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+    cost: {
+      session: { total: 10, input: 10, output: 0 },
+      accountingNote: 'Input already includes cached input tokens (cached_input_tokens).',
     },
     provider: 'codex',
     model: 'gpt-5-codex',
@@ -186,20 +195,20 @@ test('the grouped layout omits unreported quantities and keeps an explicit zero'
   assert.equal(labels.filter((label) => label === '0').length, 1);
 });
 
-test('the legacy Claude layout is unchanged', () => {
+test('a context-only reading renders the context block alone', () => {
   renderCostModal({
-    tokenUsage: { used: 1_200, total: 4_000 },
-    tokenBreakdown: { input: 1_000, output: 200 },
+    cost: {
+      context: { used: 1_200, window: 4_000 },
+      accountingNote: 'Input already includes cache reads and cache writes.',
+    },
     provider: 'claude',
     model: 'claude-sonnet-4-5',
   });
 
   const text = document.body.textContent ?? '';
-  assert.ok(text.includes('Total tokens used'));
-  assert.ok(text.includes('Input tokens'));
-  assert.ok(text.includes('Output tokens'));
-  assert.ok(text.includes('Context window'));
-  // No cumulative-provider additions leak into a context-style reading.
+  assert.ok(text.includes('Context used'));
+  assert.ok(text.includes('Window capacity'));
+  // No session or latest-request additions leak into a context-only reading.
   assert.equal(text.includes('Session cumulative'), false);
   assert.equal(text.includes('Latest request'), false);
   assert.equal(text.includes('subset of input'), false);

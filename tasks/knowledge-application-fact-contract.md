@@ -35,15 +35,17 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts` 退出码 0，覆盖本任务正文的正例和反例，缺失证据必须明确拒绝。
-- [ ] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/knowledge-activity-events.test.ts` 返回 0，验证一次新活动与权威回读能按同一 operation 关联；未知字段不捏造。
-- [ ] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 返回 0；遵守 backend-module-standards，模块间只走 public index/共享接口，组合根注入读依赖。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts` 退出码 0，覆盖本任务正文的正例和反例，缺失证据必须明确拒绝。
+- [x] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/context-events/tests/knowledge-activity-events.test.ts` 返回 0，验证一次新活动与权威回读能按同一 operation 关联；未知字段不捏造。
+- [x] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/server-import-cycle-budget.test.ts` 返回 0；遵守 backend-module-standards，模块间只走 public index/共享接口，组合根注入读依赖。
 
 ## DoD
 
 在隔离运行 CloudCLI 实例操作实际会话读对象，经正式网关读到本次关联事实与缺失标记，给出请求/响应和版本证据；Fleet 不需读取本项目私有 home。调用测试遵守进程内存限制，不在会话内执行无界测试全集。
 
 验收必须操作本任务负责的真实机制对象并保留读回证据；局部实现可在隔离运行实例操作持久对象，首批业务投产闭环统一在 F10 收证，夹具不能冒充真实生产结果。
+
+- 该轴仍暗,理由:quay-fleet 的 docs/specs/knowledge-application-contract.md 未交付，本机只声明自有契约 v1，跨项目 schema 兼容性无法验证（extra.external_dependencies 已记录该外部依赖）
 
 ## Touches
 
@@ -63,3 +65,9 @@ extra:
 - server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (new)
 - tasks/knowledge-application-fact-contract.md
 - server/modules/context-events/tests/knowledge-activity-events.test.ts (new)
+- server/shared/knowledge-facts.ts (new)
+- server/modules/context-events/session-ask-stream-reader.ts
+- server/modules/mcp-gateway/mcp-tool-annotations.ts
+- server/modules/mcp-gateway/mcp-tool-error-codes.ts
+- server/modules/mcp-gateway/tests/mcp-tool-annotations.test.ts
+- server/modules/mcp-gateway/tests/mcp-error-vocabulary.test.ts
