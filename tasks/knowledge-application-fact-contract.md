@@ -61,5 +61,5 @@ extra:
 - server/shared/tests/architecture-ratchet.baseline.json
 - docs/evidence/knowledge-application-fact-contract.json (new)
 - server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (new)
-- tasks/knowledge-application-fact-contract.md (new)
+- tasks/knowledge-application-fact-contract.md
 - server/modules/context-events/tests/knowledge-activity-events.test.ts (new)
