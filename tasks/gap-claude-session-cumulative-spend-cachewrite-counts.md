@@ -2,7 +2,7 @@
 id: gap-claude-session-cumulative-spend-cachewrite-counts
 title: Claude session-cumulative spend + cacheWrite into
   ProviderTokenUsageCounts (Codex reads cache_write too)
-status: todo
+status: ready
 labels:
   - gap
 parent: null
