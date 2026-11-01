@@ -36,10 +36,10 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts` 退出 0；覆盖正文要求的正例、反例及真实公共入口，不能只扫描代码里有没有函数名。
-- [ ] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts` 返回 0；隔离运行的正式网关使用真实受控会话与投递记录走过询问→对应回复→公共读回，记录 build/boot/operation/correlation/messageId。
-- [ ] 同测试覆盖错目标、旧回复、错 correlation、无投递记录、普通 answered 缺回复 messageId、未授权字段；每类显式 unknown/拒绝，无副作用或假成功。
-- [ ] 遵循 backend-module-standards；按文件运行相关 tests 和类型检查，禁止会话内无界全套测试；向 Fleet 发布本任务正文和 FACT-CONTRACT.md 的可消费契约，不假设对端已部署。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts` 退出 0；覆盖正文要求的正例、反例及真实公共入口，不能只扫描代码里有没有函数名。
+- [x] 执行 `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts` 返回 0；隔离运行的正式网关使用真实受控会话与投递记录走过询问→对应回复→公共读回，记录 build/boot/operation/correlation/messageId。
+- [x] 同测试覆盖错目标、旧回复、错 correlation、无投递记录、普通 answered 缺回复 messageId、未授权字段；每类显式 unknown/拒绝，无副作用或假成功。
+- [x] 遵循 backend-module-standards；按文件运行相关 tests 和类型检查，禁止会话内无界全套测试；向 Fleet 发布本任务正文和 FACT-CONTRACT.md 的可消费契约，不假设对端已部署。
 
 ## DoD
 
@@ -47,15 +47,37 @@ extra:
 
 组件机制在运行实例操作具体对象并真实回读，注明隔离/受控/自然；生产部署、三项业务验收和真实开发者点击由 F10 与当前会话收证，不可把替身/夹具当成生产已启用。不得自动标 F10 或 Goal 完成。
 
+## 验证记录
+
+- 隔离实例：真实 express + 生产 `mountMcpGateway` + 生产 bearer 中间件跑在 loopback；真实 better-sqlite3 文件、真实会话行、真实 transcript JSONL 位于一次性临时目录；控制服务按 transcript 实际携带的 delivery id 脚本化。未读取或写入任何 fleet 私有 home，也未向真实人类会话外发消息。
+- 公共入口：先经真实 `session_send`（带 `sourceSession` + `correlationId`）接受一次 relayed ask，再经 `knowledge_facts({kind:'peer_result', deliveryId})` 读回；正例 `verified: true`，`delivery.sourceRef=delivery:<id>`，`originalMessage.messageId` 与 `reply.afterMessageId` 均可回读，`actionPermission.granted: false`。
+- 负控原文（`docs/evidence/knowledge-peer-correlation-proof.json` 的 calls）：错目标 / 错 correlation / 无投递记录 / 旧回复（`KNOWLEDGE_REPLY_NOT_AFTER_DELIVERY_REASON`）/ 无该 id 行 / transcript 文件缺失 / resident 台账缺失（`KNOWLEDGE_DELIVERY_NOT_IN_LEDGER_REASON`）/ 普通 answered 无 messageId（`KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON`）/ 未授权字段，均为显式 `unknown`，读取过程 `controlCalls === 0`，无副作用。
+- 按文件运行：`knowledge-peer-correlation-proof`（10/10）、`mcp-session-send`（8/8）、`mcp-session-send-delivery`（1/1）、`mcp-knowledge-facts`（7/7）、`knowledge-effective-config-proof`（12/12）、`voice-realtime-closing-turn`（20/20）、`mcp-gateway-wiring`（3/3）、`mcp-production-session-wiring`（5/5）、`quay-test-script`（14/14）、`architecture-ratchet`（6/6）、`server-import-cycle-budget`（12/12）。`npm run typecheck` 退出 0；`oxlint src/ server/ scripts/ shared/` 退出 0（仅既有 warning）。未在会话内跑全套。
+- 契约：`FACT-CONTRACT.md` 新增 §3.1（输入、输出形状、verified 四条件、失败显式 unknown、进程作用域持久性边界、回复不授予动作权限）；版本仍为 1（additive，`capabilities.deliveryCorrelation` 可探测）。不假设 Fleet 侧已部署。
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:本任务只读事实链与受控实例证据，未进行架构图 L_D/L_G 轴读数，轴值留待架构快照轮次。
+
 ## Touches
 
 - server/shared/knowledge-facts.ts
 - server/knowledge-facts-wiring.ts
+- server/index.ts
 - server/modules/mcp-gateway/mcp-knowledge-facts.ts
 - server/modules/mcp-gateway/mcp-session-send.ts
 - server/modules/context-events/knowledge-activity-events.ts
 - server/modules/mcp-gateway/mcp-read-tools-registry.ts
 - server/modules/session-control/index.ts (new)
+- server/modules/session-control/delivery-ledger.ts (new)
+- server/modules/session-control/peer-transcript.ts (new)
+- server/modules/session-control/peer-delivery-read.ts (new)
+- server/modules/session-control/peer-delivery.ts (new)
+- server/modules/session-control/unknown-fields.ts (new)
+- server/modules/voice-realtime/voice-realtime-tools.ts
+- server/modules/voice-realtime/tests/voice-realtime-closing-turn.test.ts
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - docs/architecture/knowledge-application/FACT-CONTRACT.md
 - docs/evidence/knowledge-peer-correlation-proof.json (new)
 - server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (new)
