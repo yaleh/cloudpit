@@ -18,12 +18,17 @@
  *    authorization scope, so both are `unknown` unless the caller names a peer
  *    that the store can confirm. An answer row that names no message stays an
  *    unverified reply.
- *  - `effective_config` keeps the three layers apart. The stored row is what the
- *    app recorded; the live host is the only evidence of what is actually
- *    running; a run in flight is the only evidence of the request identity. The
- *    reading is `verified` only when the caller's expected layer, the stored
- *    layer, the live layer and all three identity layers are evidence. "The DB
- *    says so" and "the next turn will use it" are deliberately not proof.
+ *  - `effective_config` keeps the layers apart and verifies FIELD BY FIELD
+ *    against the operation's actual request. The stored row is what the app
+ *    recorded; the live host is evidence that a process is running; the
+ *    in-flight run (created under this boot, started before the observed
+ *    response) is the only thing that names THIS operation; and the provider's
+ *    own transcript is the only read-back of what the request asked for and
+ *    what answered it. The reading is `verified` only when every one of those
+ *    is evidence and every expected field matched — "the DB says so", "a
+ *    process is alive" and "the next turn will use it" are deliberately not
+ *    proof. A field the provider's transcript cannot carry (Claude's
+ *    permission mode) is declared unavailable, never echoed from the row.
  *  - `inventory` is a bounded query over stored session rows. `total` and
  *    `truncated` are computed from the whole filtered set, so an empty page is
  *    never reported as an empty host. Both optional filters are applied in this
@@ -35,13 +40,21 @@
  */
 import path from 'node:path';
 import os from 'node:os';
+import { readFile } from 'node:fs/promises';
 
 import {
+  KNOWLEDGE_CONFIG_FIELDS,
   KNOWLEDGE_FACT_CONTRACT,
   KNOWLEDGE_FACT_CONTRACT_VERSION,
   KNOWLEDGE_FACT_PROJECT,
+  actualCapabilitiesFor,
+  actualCapabilityReason,
+  buildConfigFieldVerdicts,
+  hasActualRequestSource,
   knowledgeEvidence,
   knowledgeUnknown,
+  readClaudeTranscriptTurns,
+  selectClaudeTranscriptTurn,
   type IKnowledgeFactSource,
   type KnowledgeConfigLayer,
   type KnowledgeEffectiveConfigReading,
@@ -52,6 +65,7 @@ import {
   type KnowledgeInventoryReading,
   type KnowledgePeerResultReading,
   type KnowledgeReadError,
+  type KnowledgeUnknownField,
 } from '@/shared/knowledge-facts.js';
 import {
   KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON,
@@ -88,6 +102,8 @@ export type KnowledgeSessionRow = {
   effort: string | null;
   permission_mode: string | null;
   lifecycle_mode?: string;
+  /** The session's provider transcript, the read-back source for the actual request/response. */
+  jsonl_path?: string | null;
   created_at: string | null;
   updated_at: string | null;
   isArchived: number;
@@ -103,6 +119,8 @@ export type KnowledgeRunningRun = {
   providerSessionId?: string | null;
   /** `running` / `completed` / `aborted`; absent is read as running for a by-session lookup. */
   status?: string;
+  /** The process boot that created the run; a run from another boot is an old process. */
+  bootId?: string | null;
 };
 
 /** Every service the fact source answers from; production supplies all of them. */
@@ -420,8 +438,121 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
       null;
     const runId = run === null ? null : runIdOf(run);
 
+    // The in-flight operation this reading is about. A stored row, a next-turn
+    // plan and a run created by an older boot are each explicitly NOT this
+    // operation, and none of them is allowed to stand in for it.
+    const sessionOperationId = deriveKnowledgeOperationId(`config:${sessionId}`);
+    let operation: KnowledgeEffectiveConfigReading['operation'];
+    if (run === null || runId === null) {
+      operation = knowledgeUnknown('no run with an id is in flight for this session');
+    } else if (operationId !== undefined && operationId !== runId && operationId !== sessionOperationId) {
+      operation = knowledgeUnknown(
+        `the caller named operation "${operationId}", but the session's in-flight run is "${runId}"`,
+      );
+    } else if (typeof run.bootId === 'string' && run.bootId !== '' && run.bootId !== deps.bootId) {
+      operation = knowledgeUnknown(
+        'the in-flight run was created under a different process boot, so it belongs to an old process',
+      );
+    } else {
+      const at = toIso(run.startedAt);
+      operation = at === null
+        ? knowledgeUnknown('the in-flight run exposes no readable start instant')
+        : knowledgeEvidence(
+            { id: runId, at, bootId: typeof run.bootId === 'string' && run.bootId !== '' ? run.bootId : deps.bootId },
+            'chat-runs',
+            runId,
+            at,
+          );
+    }
+
+    const capabilities = actualCapabilitiesFor(row.provider);
+    const hasSource = hasActualRequestSource(row.provider);
+    const reasonFor = (half: 'request' | 'response', field: string): string =>
+      actualCapabilityReason(capabilities, half, field);
+
+    // The actual request and response of THIS operation, read from the
+    // provider's own transcript. Every branch below that fails says which
+    // attribution broke rather than falling back to the stored row.
+    let actualRequest: KnowledgeEffectiveConfigReading['actualRequest'];
+    let actualResponse: KnowledgeEffectiveConfigReading['actualResponse'];
+    let responseAtMs: number | null = null;
+    /** Sub-fields the chosen transcript turn leaves empty; surfaced in `unknown` below. */
+    let transcriptGaps: KnowledgeUnknownField[] = [];
+
+    if (!hasSource) {
+      actualRequest = knowledgeUnknown(reasonFor('request', 'model'));
+      actualResponse = knowledgeUnknown(reasonFor('response', 'model'));
+    } else if (operation.state === 'unknown') {
+      const reason = `no request or response can be attributed: ${operation.reason}`;
+      actualRequest = knowledgeUnknown(reason);
+      actualResponse = knowledgeUnknown(reason);
+    } else if (row.jsonl_path === undefined || row.jsonl_path === null || row.jsonl_path === '') {
+      const reason = 'the session row carries no transcript path, so the request and response cannot be read';
+      actualRequest = knowledgeUnknown(reason);
+      actualResponse = knowledgeUnknown(reason);
+    } else {
+      const transcriptPath = row.jsonl_path;
+      let raw: string | null = null;
+      try {
+        raw = await readFile(transcriptPath, 'utf8');
+      } catch (error) {
+        readErrors.push({
+          source: 'sessions.transcript',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      if (raw === null) {
+        const reason = 'the transcript could not be read; see readErrors';
+        actualRequest = knowledgeUnknown(reason);
+        actualResponse = knowledgeUnknown(reason);
+      } else {
+        const { turn: chosen, sawOlder } = selectClaudeTranscriptTurn(readClaudeTranscriptTurns(raw), {
+          startMs: Date.parse(operation.value.at),
+          nowMs: now(),
+          sessionIds: [row.session_id, row.provider_session_id],
+        });
+        if (chosen === null) {
+          const reason = sawOlder
+            ? 'the newest assistant turn predates this operation, so it belongs to an old one'
+            : 'the transcript records no assistant turn for this operation';
+          actualRequest = knowledgeUnknown(reason);
+          actualResponse = knowledgeUnknown(reason);
+        } else {
+          responseAtMs = Date.parse(chosen.timestamp);
+          const sourceRef = `${transcriptPath}#${chosen.uuid ?? chosen.requestRef ?? chosen.timestamp}`;
+          actualResponse = knowledgeEvidence(
+            { model: chosen.responseModel, responseId: chosen.responseId, at: chosen.timestamp },
+            'sessions.transcript',
+            sourceRef,
+            chosen.timestamp,
+          );
+          actualRequest = knowledgeEvidence(
+            {
+              model: chosen.requestedModel,
+              effort: chosen.effort,
+              permissionMode: null,
+              requestRef: chosen.requestRef,
+            },
+            'sessions.transcript',
+            sourceRef,
+            chosen.timestamp,
+          );
+          // A field this turn does not carry is a gap in the reading, not a
+          // silent null: name it so a consumer need not infer it.
+          transcriptGaps = [
+            ...(chosen.requestedModel === null ? ['actualRequest.model'] : []),
+            ...(chosen.effort === null ? ['actualRequest.effort'] : []),
+            ...(chosen.requestRef === null ? ['actualRequest.requestRef'] : []),
+            ...(chosen.responseModel === null ? ['actualResponse.model'] : []),
+            ...(chosen.responseId === null ? ['actualResponse.responseId'] : []),
+          ];
+        }
+      }
+    }
+
     let actual: KnowledgeEffectiveConfigReading['actual'];
     let process: KnowledgeEffectiveConfigReading['layers']['process'];
+    let liveStartedMs: number | null = null;
     if (deps.hosts === undefined) {
       unknown.push('actual', 'process');
       actual = knowledgeUnknown('no live-host source is wired into this fact reader');
@@ -429,6 +560,7 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
     } else {
       const host = deps.hosts.liveHostForSession(sessionId);
       const startedAt = toIso(host?.startedAt ?? null);
+      liveStartedMs = startedAt === null ? null : Date.parse(startedAt);
       actual = knowledgeEvidence(
         {
           live: host !== null,
@@ -453,6 +585,27 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
 
     const build = knowledgeEvidence({ buildId: deps.buildId }, 'build-info', deps.buildId, observedAt);
 
+    // A response the provider recorded before the live process (or the running
+    // build) existed was produced by an older operation even if it sits in this
+    // session's transcript file. The finding is about the RESPONSE, so only the
+    // request/response layers are downgraded; the live process is still live.
+    if (responseAtMs !== null && liveStartedMs !== null && responseAtMs < liveStartedMs) {
+      const reason = 'the readable response predates the live process, so an older process produced it';
+      actualRequest = knowledgeUnknown(reason);
+      actualResponse = knowledgeUnknown(reason);
+    }
+    const builtAtMs = deps.builtAt === undefined || deps.builtAt === null ? null : Date.parse(deps.builtAt);
+    if (responseAtMs !== null && builtAtMs !== null && Number.isFinite(builtAtMs) && responseAtMs < builtAtMs) {
+      const reason = 'the readable response predates the running build, so an older operation produced it';
+      actualRequest = knowledgeUnknown(reason);
+      actualResponse = knowledgeUnknown(reason);
+    }
+    if (actualRequest.state === 'evidence' && actualResponse.state === 'evidence') {
+      for (const gap of transcriptGaps) {
+        if (unknown.includes(gap) === false) unknown.push(gap);
+      }
+    }
+
     const request = run === null || runId === null
       ? knowledgeUnknown<{ sessionId: string; runId: string; providerSessionId: string | null }>(
           'no run with an id is in flight for this session',
@@ -463,23 +616,48 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
           runId,
           observedAt,
         );
+
+    // Field-by-field verification, against THIS operation's readable request.
+    // An unstated expectation is not a gap in the reading, so it stays out of
+    // `unknown`; a stated expectation that could not be verified is a gap and
+    // does enter it.
+    const fields = buildConfigFieldVerdicts({ expected: expectedLayer, actualRequest, capabilities });
+
+    const statedFields = KNOWLEDGE_CONFIG_FIELDS.filter((field) => (expectedLayer?.[field] ?? null) !== null);
+    if (statedFields.length === 0 && unknown.includes('expected') === false) unknown.push('expected');
+    if (operation.state === 'unknown') unknown.push('operation');
     if (request.state === 'unknown') unknown.push('request');
+    if (actualRequest.state === 'unknown') unknown.push('actualRequest');
+    if (actualResponse.state === 'unknown') unknown.push('actualResponse');
+    for (const field of statedFields) {
+      if (fields[field].state !== 'verified') unknown.push(`fields.${field}`);
+    }
 
     const verified =
       expected.state === 'evidence' &&
+      statedFields.length > 0 &&
       stored.state === 'evidence' &&
       actual.state === 'evidence' &&
       process.state === 'evidence' &&
       build.state === 'evidence' &&
-      request.state === 'evidence';
+      request.state === 'evidence' &&
+      operation.state === 'evidence' &&
+      actualRequest.state === 'evidence' &&
+      actualResponse.state === 'evidence' &&
+      statedFields.every((field) => fields[field].state === 'verified');
 
     return {
       kind: 'effective_config',
-      operationId: operationId ?? deriveKnowledgeOperationId(`config:${sessionId}`),
+      operationId: operationId ?? sessionOperationId,
       expected,
       stored,
       actual,
       layers: { process, build, request },
+      operation,
+      actualRequest,
+      actualResponse,
+      fields,
+      capabilities,
       verified,
       unknown,
       readErrors,
