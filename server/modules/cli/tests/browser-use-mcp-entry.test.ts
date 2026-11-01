@@ -12,7 +12,7 @@
  *   · leg 1 spawns the entry, writes ONE newline-delimited JSON-RPC `initialize` request to its
  *     stdin, and asserts the reply's `serverInfo.name`;
  *   · leg 2 imports the entry in a child that does NOT set `DATABASE_PATH` and asserts the
- *     bootstrap's user-level default (`~/.cloudcli/auth.db`) is in `process.env`, which is the
+ *     bootstrap's user-level default (`~/.cloudpit/auth.db`) is in `process.env`, which is the
  *     deterministic observable of "load-env ran" — the presence of a `.env` file is not
  *     guaranteed, so the bootstrap itself cannot be observed through it.
  *
@@ -35,18 +35,25 @@ const SERVER_TSCONFIG = path.join(APPLICATION_ROOT, 'server', 'tsconfig.json');
 const ENTRY_PATH = path.join(APPLICATION_ROOT, 'server', 'modules', 'cli', 'browser-use-mcp.ts');
 
 /** The expected MCP server identity, pinned at `browser-use-mcp.ts`'s `initialize` handler. */
-const EXPECTED_SERVER_NAME = 'cloudcli-browser';
+const EXPECTED_SERVER_NAME = 'cloudpit-browser';
 
 /** The default the root bootstrap installs when `DATABASE_PATH` is unset (`server/load-env.ts`). */
-const EXPECTED_DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.cloudcli', 'auth.db');
+function expectedDefaultDatabasePath(homeDirectory: string): string {
+  return path.join(homeDirectory, '.cloudpit', 'auth.db');
+}
 
 /** Prepended to leg 2's probe output so it is locatable in a stream that may carry other lines. */
 const BOOTSTRAP_PROBE_MARKER = '__CLOUDCLI_MCP_BOOTSTRAP__';
 
-/** A child environment with no inherited `DATABASE_PATH` — leg 2 needs the unset shape. */
-function environmentWithoutDatabasePath(): NodeJS.ProcessEnv {
+/**
+ * A child environment with no inherited `DATABASE_PATH` and an isolated HOME. The isolated HOME
+ * matters: the bootstrap's Cloudpit default migrates a legacy layout, and a probe must not touch
+ * the developer's real `~/.cloudcli`.
+ */
+function environmentWithoutDatabasePath(homeDirectory?: string): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { ...process.env };
   delete environment.DATABASE_PATH;
+  if (homeDirectory !== undefined) environment.HOME = homeDirectory;
   return environment;
 }
 
@@ -64,8 +71,8 @@ function spawnWithTsx(scriptPath: string, environment: NodeJS.ProcessEnv) {
  * reply line as well as its parsed `result` (the raw line is what the task asks to paste).
  */
 function requestInitialize(timeoutMs = 60_000): Promise<{ rawLine: string; result: Record<string, unknown> }> {
-  return new Promise((resolve, reject) => {
-    const child = spawnWithTsx(ENTRY_PATH, environmentWithoutDatabasePath());
+  return mkdtemp(path.join(os.tmpdir(), 'cloudpit-mcp-entry-home-')).then((isolatedHome) => new Promise<{ rawLine: string; result: Record<string, unknown> }>((resolve, reject) => {
+    const child = spawnWithTsx(ENTRY_PATH, environmentWithoutDatabasePath(isolatedHome));
     let stdout = '';
     let stderr = '';
     let settled = false;
@@ -119,7 +126,7 @@ function requestInitialize(timeoutMs = 60_000): Promise<{ rawLine: string; resul
         clientInfo: { name: 'browser-use-mcp-entry-smoke', version: '0.0.0' },
       },
     })}\n`);
-  });
+  }).finally(() => rm(isolatedHome, { recursive: true, force: true })));
 }
 
 /**
@@ -127,7 +134,7 @@ function requestInitialize(timeoutMs = 60_000): Promise<{ rawLine: string; resul
  * environment. The probe is a `.mts` file in a temp directory because `tsx` only transforms
  * files, not `--eval` strings, and it must not be collected by the suite's `*.test.ts` walk.
  */
-async function readBootstrapEnvironment(): Promise<{ databasePath: string | null }> {
+async function readBootstrapEnvironment(): Promise<{ databasePath: string | null; homeDirectory: string }> {
   const probeDirectory = await mkdtemp(path.join(os.tmpdir(), 'cloudcli-mcp-bootstrap-'));
   try {
     const probePath = path.join(probeDirectory, 'bootstrap-probe.mts');
@@ -145,7 +152,9 @@ async function readBootstrapEnvironment(): Promise<{ databasePath: string | null
     await writeFile(probePath, probeSource, 'utf8');
 
     const stdout = await new Promise<string>((resolve, reject) => {
-      const child = spawnWithTsx(probePath, environmentWithoutDatabasePath());
+      // HOME is the probe directory: the default is still the bootstrap's, but the migration it
+      // may run cannot touch the developer's real `~/.cloudcli`.
+      const child = spawnWithTsx(probePath, environmentWithoutDatabasePath(probeDirectory));
       let collected = '';
       let stderr = '';
       const timer = setTimeout(() => {
@@ -173,15 +182,18 @@ async function readBootstrapEnvironment(): Promise<{ databasePath: string | null
 
     const markerLine = stdout.split('\n').find((line) => line.includes(BOOTSTRAP_PROBE_MARKER));
     assert.ok(markerLine, `the bootstrap probe printed nothing — the entry never finished importing\nstdout:\n${stdout}`);
-    return JSON.parse(markerLine.slice(markerLine.indexOf(BOOTSTRAP_PROBE_MARKER) + BOOTSTRAP_PROBE_MARKER.length)) as {
-      databasePath: string | null;
+    return {
+      ...(JSON.parse(markerLine.slice(markerLine.indexOf(BOOTSTRAP_PROBE_MARKER) + BOOTSTRAP_PROBE_MARKER.length)) as {
+        databasePath: string | null;
+      }),
+      homeDirectory: probeDirectory,
     };
   } finally {
     await rm(probeDirectory, { recursive: true, force: true });
   }
 }
 
-test('the relocated MCP entry answers initialize as cloudcli-browser', async () => {
+test('the relocated MCP entry answers initialize as cloudpit-browser', async () => {
   const reply = await requestInitialize();
   console.log(`(d) initialize reply: ${reply.rawLine}`);
 
@@ -193,7 +205,8 @@ test('the relocated MCP entry answers initialize as cloudcli-browser', async () 
 
 test('the relocated MCP entry still installs the root environment bootstrap', async () => {
   const reading = await readBootstrapEnvironment();
-  console.log(`(d) bootstrap DATABASE_PATH=${String(reading.databasePath)} expected=${EXPECTED_DEFAULT_DATABASE_PATH}`);
+  const expectedDefault = expectedDefaultDatabasePath(reading.homeDirectory);
+  console.log(`(d) bootstrap DATABASE_PATH=${String(reading.databasePath)} expected=${expectedDefault}`);
   console.log(`(d) probe legs: entry=${path.relative(APPLICATION_ROOT, ENTRY_PATH)}, DATABASE_PATH unset in the child`);
 
   // NOTE: this assertion is exact on purpose. It holds when neither the child environment nor a
@@ -201,7 +214,7 @@ test('the relocated MCP entry still installs the root environment bootstrap', as
   // suite runs in worktrees that carry none, so the bootstrap's default is the only source.
   assert.equal(
     reading.databasePath,
-    EXPECTED_DEFAULT_DATABASE_PATH,
+    expectedDefault,
     'importing the entry must run server/load-env.ts, which installs the user-level default DATABASE_PATH',
   );
 });

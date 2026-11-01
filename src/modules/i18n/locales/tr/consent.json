@@ -4,7 +4,7 @@
   "errorTitle": "Yetkilendirme hatası",
   "retry": "Yeniden dene",
   "unknownClient": "Bilinmeyen uygulama",
-  "wantsAccess": "CloudCLI hesabınıza erişmek istiyor.",
+  "wantsAccess": "Cloudpit hesabınıza erişmek istiyor.",
   "callbackWarning": "Yetkilendirme kodunuz şuraya gönderilecek:",
   "signingInAs": "{{username}} olarak oturum açıldı",
   "scopesLabel": "İzinler",

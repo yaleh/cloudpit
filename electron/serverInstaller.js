@@ -7,16 +7,67 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * Installs the versioned local server runtime used by CloudCLI Desktop.
+ * Installs the versioned local server runtime used by Cloudpit Desktop.
  *
  * Server bundles are cached under:
- *   ~/.cloudcli/server/<version>/dist-server/server/index.js
+ *   ~/.cloudpit/server/<version>/dist-server/server/index.js
+ *
+ * An existing install under the previous `~/.cloudcli/server` root is moved
+ * into the new root on first use; a failed move falls back to a fresh download.
  */
 
-const DEFAULT_INSTALL_ROOT = path.join(os.homedir(), '.cloudcli', 'server');
+export const DEFAULT_INSTALL_ROOT = path.join(os.homedir(), '.cloudpit', 'server');
+export const LEGACY_INSTALL_ROOT = path.join(os.homedir(), '.cloudcli', 'server');
 const DEFAULT_BUNDLE_BASE_URL = 'https://github.com/yaleh/claudecodeui/releases/download';
 const MAX_REDIRECTS = 5;
 const LOCAL_DOWNLOAD_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+/**
+ * Moves one installed server version directory from the legacy root into the
+ * new root.
+ *
+ * - `already-installed`: the new root already has this version; keep it.
+ * - `legacy-missing`: nothing to move.
+ * - `moved`: the directory was renamed into the new root.
+ * - `rename-failed`: cross-device or other rename error; the partial target is
+ *   removed so `ensureInstalled()` can download the bundle instead.
+ *
+ * `fs` is injectable for tests; the default is `node:fs/promises`.
+ *
+ * @returns {Promise<{ migrated: boolean, reason: 'already-installed'|'legacy-missing'|'moved'|'rename-failed' }>}
+ */
+export async function migrateLegacyVersionDir({ legacyVersionDir, versionDir, fs: fsImpl = fs } = {}) {
+  if (!legacyVersionDir || !versionDir) {
+    throw new Error('migrateLegacyVersionDir requires legacyVersionDir and versionDir');
+  }
+
+  try {
+    await fsImpl.access(versionDir);
+    return { migrated: false, reason: 'already-installed' };
+  } catch {
+    // Not installed under the new root yet.
+  }
+
+  try {
+    await fsImpl.access(legacyVersionDir);
+  } catch {
+    return { migrated: false, reason: 'legacy-missing' };
+  }
+
+  await fsImpl.mkdir(path.dirname(versionDir), { recursive: true });
+  try {
+    await fsImpl.rename(legacyVersionDir, versionDir);
+    return { migrated: true, reason: 'moved' };
+  } catch {
+    try {
+      await fsImpl.rm(versionDir, { recursive: true, force: true });
+    } catch {
+      // Nothing was left behind (or it cannot be removed); the download path
+      // removes the version directory again before extracting.
+    }
+    return { migrated: false, reason: 'rename-failed' };
+  }
+}
 
 function mapArch(arch = process.arch) {
   return arch === 'arm64' ? 'arm64' : 'x64';
@@ -33,7 +84,7 @@ export class ServerInstaller {
     version,
     platform = process.platform,
     arch = process.arch,
-    installRoot = process.env.CLOUDCLI_SERVER_DIR || DEFAULT_INSTALL_ROOT,
+    installRoot,
     bundleBaseUrl = process.env.CLOUDCLI_SERVER_BUNDLE_URL || DEFAULT_BUNDLE_BASE_URL,
     bundleReleaseTag = process.env.CLOUDCLI_SERVER_BUNDLE_RELEASE_TAG || '',
     onLog,
@@ -42,7 +93,15 @@ export class ServerInstaller {
     this.version = version;
     this.platform = mapPlatform(platform);
     this.arch = mapArch(arch);
-    this.installRoot = installRoot;
+    this.installRoot = installRoot
+      || process.env.CLOUDPIT_SERVER_DIR
+      || process.env.CLOUDCLI_SERVER_DIR
+      || DEFAULT_INSTALL_ROOT;
+    this.migrateLegacyInstall = Boolean(
+      this.installRoot === DEFAULT_INSTALL_ROOT
+      && !process.env.CLOUDPIT_SERVER_DIR
+      && !process.env.CLOUDCLI_SERVER_DIR,
+    );
     this.bundleBaseUrl = bundleBaseUrl.replace(/\/+$/, '');
     this.bundleReleaseTag = bundleReleaseTag || `v${this.version}`;
     this.onLog = typeof onLog === 'function' ? onLog : () => {};
@@ -92,12 +151,23 @@ export class ServerInstaller {
    * it if needed. Returns the resolved server entry path.
    */
   async ensureInstalled() {
+    const versionDir = this.getVersionDir();
+
+    if (this.migrateLegacyInstall) {
+      const migration = await migrateLegacyVersionDir({
+        legacyVersionDir: path.join(LEGACY_INSTALL_ROOT, this.version),
+        versionDir,
+      });
+      if (migration.migrated) {
+        this.log(`Moved local server ${this.version} from ${LEGACY_INSTALL_ROOT}.`);
+      }
+    }
+
     if (await this.isInstalled()) {
       this.log(`Local server ${this.version} already installed.`);
       return this.getServerEntry();
     }
 
-    const versionDir = this.getVersionDir();
     const tmpDir = path.join(this.installRoot, `.tmp-${this.version}-${process.pid}`);
     const archivePath = path.join(tmpDir, this.getBundleName());
 

@@ -512,7 +512,7 @@
     "openInEditor": "Buka di Editor"
   },
   "mainContent": {
-    "loading": "Memuat CloudCLI",
+    "loading": "Memuat Cloudpit",
     "settingUpWorkspace": "Menyiapkan workspace...",
     "chooseProject": "Pilih Proyek",
     "selectProjectDescription": "Pilih proyek dari sidebar untuk mulai coding dengan Claude. Setiap proyek berisi sesi chat dan riwayat file.",
@@ -674,7 +674,7 @@
     "viewFullRelease": "Lihat rilis lengkap",
     "updateProgress": "Progres Pembaruan:",
     "manualUpgrade": "Pembaruan manual:",
-    "npmUpgradeCommand": "npm install -g @yalehwang/cloudcli@latest",
+    "npmUpgradeCommand": "npm install -g @yalehwang/cloudpit@latest",
     "manualUpgradeHint": "Atau klik \"Perbarui Sekarang\" untuk menjalankan pembaruan secara otomatis.",
     "updateCompleted": "Pembaruan berhasil diselesaikan!",
     "restartServer": "Mulai ulang server untuk menerapkan perubahan.",

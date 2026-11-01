@@ -4,7 +4,7 @@
   "errorTitle": "授权错误",
   "retry": "重试",
   "unknownClient": "未知应用",
-  "wantsAccess": "想要访问你的 CloudCLI 账户。",
+  "wantsAccess": "想要访问你的 Cloudpit 账户。",
   "callbackWarning": "你的授权码将发送至",
   "signingInAs": "当前登录身份：{{username}}",
   "scopesLabel": "权限",

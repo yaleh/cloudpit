@@ -321,7 +321,7 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
   const requireUri = (value: unknown) => {
     const parsed = parseObservationUri(value);
     if (parsed === null) {
-      throw invalid('`uri` must be one of cloudcli://session/<id>, cloudcli://architecture/<id>, quay://<id>/board', 'INVALID_URI');
+      throw invalid('`uri` must be one of cloudcli://session/<id> (or cloudpit://session/<id>), cloudcli://architecture/<id> (or cloudpit://architecture/<id>), quay://<id>/board', 'INVALID_URI');
     }
     return parsed;
   };

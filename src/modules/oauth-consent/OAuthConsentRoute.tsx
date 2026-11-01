@@ -36,6 +36,7 @@ import { AlertTriangle, ArrowRight, Loader2, RotateCw, ShieldAlert } from 'lucid
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 
+import { BRAND } from '@/shared/constants';
 import { Button, Input } from '@/shared/ui';
 import { useAuth } from '@/modules/auth';
 import { useOAuthConsent } from '@/modules/oauth-consent/hooks/useOAuthConsent';
@@ -282,7 +283,7 @@ export default function OAuthConsentRoute() {
     <ConsentShell>
       <div className="flex flex-col items-center text-center">
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 ring-1 ring-inset ring-white/20">
-          <img src="/logo.svg" alt="CloudCLI" className="h-8 w-8" />
+          <img src="/logo.svg" alt={BRAND.name} className="h-8 w-8" />
         </div>
         <h1 className="font-serif text-2xl font-bold tracking-tight text-foreground">
           {t('title')}

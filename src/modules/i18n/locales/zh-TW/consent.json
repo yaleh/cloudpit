@@ -4,7 +4,7 @@
   "errorTitle": "授權錯誤",
   "retry": "重試",
   "unknownClient": "未知應用程式",
-  "wantsAccess": "想要存取你的 CloudCLI 帳戶。",
+  "wantsAccess": "想要存取你的 Cloudpit 帳戶。",
   "callbackWarning": "你的授權碼將傳送至",
   "signingInAs": "目前登入身分：{{username}}",
   "scopesLabel": "權限",

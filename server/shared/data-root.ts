@@ -1,16 +1,19 @@
 /**
- * Resolve where the server's data lives, and migrate a legacy layout only when
- * an explicit root is requested.
+ * Resolve where the server's data lives, and migrate a legacy layout when the
+ * caller asks for the Cloudpit default (or names an explicit root).
  *
- * DEFAULT BEHAVIOUR IS UNCHANGED. With neither `CLOUDPIT_HOME` nor
- * `CLOUDCLI_HOME` set, the active data root stays `<home>/.cloudcli` and
- * nothing is copied or created. Only an explicitly requested root takes the
- * migration path, and even then a failed attempt falls back to the legacy root.
+ * TWO DEFAULT MODES. `defaultRoot: 'legacy'` (the default when the option is
+ * omitted) keeps the historical behaviour: with neither `CLOUDPIT_HOME` nor
+ * `CLOUDCLI_HOME` set, the active root stays `<home>/.cloudcli` and nothing is
+ * copied or created. `defaultRoot: 'cloudpit'` is what the server bootstrap now
+ * asks for: with no explicit environment root it selects `<home>/.cloudpit`,
+ * copies the legacy layout into it once, and falls back to the legacy root when
+ * the copy fails. An explicitly requested root always takes the migration path.
  *
- * This module is deliberately unwired: GOAL-054 points the CLI, database,
- * settings and Electron paths at `resolveDataRoots`. Until then the only
- * consumers are this file's sibling `data-root-migration.ts` and
- * `tests/cloudpit-data-root.test.ts`.
+ * The legacy root is only ever read: a failed attempt is rolled back by
+ * `data-root-migration.ts` and the fallback keeps the server running on the old
+ * layout. Callers that must not migrate keep passing `'legacy'` (AC-449's
+ * criterion does exactly that).
  */
 import os from 'node:os';
 import path from 'node:path';
@@ -20,12 +23,22 @@ import {
   type BackupDatabase,
   type DataRootFs,
 } from './data-root-migration.js';
-import { expandHome } from './settings-file.js';
+
+/** Which default root the caller wants when no explicit environment root is set. */
+export type DataRootMode = 'legacy' | 'cloudpit';
 
 /** Why {@link resolveDataRoots} selected the root it returned. */
 export type DataRootReason =
-  /** No explicit root was requested; the legacy default is active. */
+  /** No explicit root was requested and the caller asked for the legacy default. */
   | 'default-legacy'
+  /** The Cloudpit default was selected and the legacy layout was copied into it. */
+  | 'default-migrated'
+  /** The Cloudpit default already carries a completion marker. */
+  | 'default-already-migrated'
+  /** The Cloudpit default already held user data; it was left untouched. */
+  | 'default-user-root'
+  /** The Cloudpit default was selected but there was no legacy layout to copy. */
+  | 'default-cloudpit'
   /** The explicit root was populated from the legacy layout. */
   | 'explicit-migrated'
   /** The explicit root already carries a completion marker. */
@@ -68,6 +81,11 @@ export type ResolveDataRootsOptions = {
   env?: Readonly<Record<string, string | undefined>>;
   /** The home `~` expands against; defaults to the process home. */
   homeDir?: string;
+  /**
+   * Which default root to use when no explicit environment root is set.
+   * Defaults to `'legacy'`, so existing callers keep the historical layout.
+   */
+  defaultRoot?: DataRootMode;
   /** The filesystem seam; defaults to `node:fs`. */
   fs?: DataRootFs;
   /** The SQLite snapshot seam; defaults to a readonly `VACUUM INTO`. */
@@ -79,11 +97,44 @@ export type ResolveDataRootsOptions = {
 };
 
 /** Directory/file names the layout is built from. */
-const LEGACY_ROOT_DIRECTORY_NAME = '.cloudcli';
+export const LEGACY_ROOT_DIRECTORY_NAME = '.cloudcli';
+export const CLOUDPIT_ROOT_DIRECTORY_NAME = '.cloudpit';
+const AUTH_DATABASE_FILE_NAME = 'auth.db';
 const CONFIG_DIRECTORY_NAME = '.config';
 const LEGACY_CONFIG_DIRECTORY_NAME = 'claudecodeui';
 const EXPLICIT_CONFIG_DIRECTORY_NAME = 'cloudpit';
 const SETTINGS_FILE_NAME = 'server.settings.json';
+
+/**
+ * The Cloudpit default data root for a resolver with no environment seam (the
+ * reply-suggestions usage log and the view-events log). The bootstrap derives
+ * the same root through {@link resolveDataRoots}.
+ */
+export function defaultCloudpitDataRoot(homeDir: string = os.homedir()): string {
+  return path.join(homeDir, CLOUDPIT_ROOT_DIRECTORY_NAME);
+}
+
+/**
+ * The Cloudpit-mode database location for a resolver with no environment seam
+ * (the voice log/capture helpers). The bootstrap derives the same path through
+ * {@link resolveDataRoots}; this function only spares those call sites a second
+ * `.cloudpit` literal.
+ */
+export function defaultAuthDatabasePath(homeDir: string = os.homedir()): string {
+  return path.join(defaultCloudpitDataRoot(homeDir), AUTH_DATABASE_FILE_NAME);
+}
+
+/**
+ * Expand a leading `~` against `homeDir`. Deliberately local: importing
+ * `settings-file.ts` here would pull `shared/utils.ts` into the bootstrap before
+ * the `.env` file is read, which is the ordering constraint `load-env.ts`
+ * documents.
+ */
+function expandTildePrefix(value: string, homeDir: string): string {
+  if (value === '~') return homeDir;
+  if (value.startsWith('~/')) return path.join(homeDir, value.slice(2));
+  return value;
+}
 
 /** The first non-empty explicit-root environment value, with `~` expanded. */
 function readExplicitRoot(
@@ -94,7 +145,7 @@ function readExplicitRoot(
   for (const variableName of ['CLOUDPIT_HOME', 'CLOUDCLI_HOME'] as const) {
     const rawValue = env[variableName];
     if (typeof rawValue === 'string' && rawValue.trim() !== '') {
-      return expandHome(rawValue.trim(), homeDir);
+      return expandTildePrefix(rawValue.trim(), homeDir);
     }
   }
   return null;
@@ -135,17 +186,33 @@ function explicitReason(outcome: ReturnType<typeof migrateLegacyDataRoot>): Data
   }
 }
 
+/** The same outcome mapping for the Cloudpit default, whose reasons name that mode. */
+function defaultReason(outcome: ReturnType<typeof migrateLegacyDataRoot>): DataRootReason {
+  switch (outcome.reason) {
+    case 'migrated':
+      return 'default-migrated';
+    case 'already-migrated':
+      return 'default-already-migrated';
+    case 'user-root':
+      return 'default-user-root';
+    case 'no-legacy':
+      return 'default-cloudpit';
+  }
+}
+
 /**
- * Resolve the active data root and, for an explicit root, migrate the legacy
- * layout into it when it is safe to do so.
+ * Resolve the active data root and, for an explicit root or the Cloudpit
+ * default, migrate the legacy layout into it when it is safe to do so.
  *
- * The settings location follows the mode, not the data root: the default and
- * fallback arms keep `<home>/.config/claudecodeui/server.settings.json`, while
- * every explicit-root arm uses `<home>/.config/cloudpit/server.settings.json`.
+ * The settings location follows the mode, not the data root: the legacy default
+ * and every fallback arm keep `<home>/.config/claudecodeui/server.settings.json`,
+ * while explicit-root and Cloudpit-default arms use
+ * `<home>/.config/cloudpit/server.settings.json`.
  */
 export function resolveDataRoots(options: ResolveDataRootsOptions = {}): ResolvedDataRoots {
   const env = options.env ?? process.env;
   const homeDir = options.homeDir ?? os.homedir();
+  const mode: DataRootMode = options.defaultRoot ?? 'legacy';
   const legacyRoot = path.join(homeDir, LEGACY_ROOT_DIRECTORY_NAME);
   const legacySettingsPath = path.join(
     homeDir,
@@ -162,7 +229,36 @@ export function resolveDataRoots(options: ResolveDataRootsOptions = {}): Resolve
 
   const requestedRoot = readExplicitRoot(env, homeDir);
   if (requestedRoot === null) {
-    return buildResolvedRoots(legacyRoot, legacySettingsPath, legacySettingsPath, 'default-legacy', false);
+    if (mode === 'legacy') {
+      return buildResolvedRoots(legacyRoot, legacySettingsPath, legacySettingsPath, 'default-legacy', false);
+    }
+
+    // The Cloudpit default: migrate into `<home>/.cloudpit` exactly as an
+    // explicitly requested root would, with reasons that name this mode.
+    const cloudpitRoot = path.join(homeDir, CLOUDPIT_ROOT_DIRECTORY_NAME);
+    try {
+      const outcome = migrateLegacyDataRoot({
+        legacyRoot,
+        newRoot: cloudpitRoot,
+        legacySettingsPath,
+        newSettingsPath: explicitSettingsPath,
+        version: options.version ?? 'unknown',
+        fs: options.fs,
+        backupDatabase: options.backupDatabase,
+        now: options.now,
+      });
+      return buildResolvedRoots(
+        cloudpitRoot,
+        explicitSettingsPath,
+        legacySettingsPath,
+        defaultReason(outcome),
+        outcome.migrated,
+      );
+    } catch {
+      // The migration module rolled back everything it created; the legacy root
+      // was only ever read, so keeping it active is the safe outcome.
+      return buildResolvedRoots(legacyRoot, legacySettingsPath, legacySettingsPath, 'fallback-after-failure', false);
+    }
   }
 
   try {

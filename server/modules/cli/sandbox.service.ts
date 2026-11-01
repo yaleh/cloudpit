@@ -106,11 +106,11 @@ function readCommandError(error: unknown): string {
 
 function showSandboxHelp(output: CliOutput): void {
   output.log(`
-${terminalTextStyles.bright('CloudCLI Sandbox')} — Run CloudCLI inside Docker Sandboxes
+${terminalTextStyles.bright('Cloudpit Sandbox')} — Run Cloudpit inside Docker Sandboxes
 
 Usage:
-  cloudcli sandbox <workspace>            Create and start a sandbox
-  cloudcli sandbox <subcommand> [name]    Manage sandboxes
+  cloudpit sandbox <workspace>            Create and start a sandbox
+  cloudpit sandbox <subcommand> [name]    Manage sandboxes
 
 Subcommands:
   ${terminalTextStyles.bright('(default)')}    Create a sandbox and start the web UI
@@ -118,7 +118,7 @@ Subcommands:
   ${terminalTextStyles.bright('start')}        Restart a stopped sandbox and re-launch the web UI
   ${terminalTextStyles.bright('stop')}         Stop a sandbox (preserves state)
   ${terminalTextStyles.bright('rm')}           Remove a sandbox
-  ${terminalTextStyles.bright('logs')}         Show CloudCLI server logs
+  ${terminalTextStyles.bright('logs')}         Show Cloudpit server logs
   ${terminalTextStyles.bright('help')}         Show this help
 
 Options:
@@ -129,13 +129,13 @@ Options:
       --port <port>         Host port for the web UI (default: 3001)
 
 Examples:
-  $ cloudcli sandbox ~/my-project
-  $ cloudcli sandbox ~/my-project --agent codex --port 8080
-  $ cloudcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
-  $ cloudcli sandbox ls
-  $ cloudcli sandbox stop my-project
-  $ cloudcli sandbox start my-project
-  $ cloudcli sandbox rm my-project
+  $ cloudpit sandbox ~/my-project
+  $ cloudpit sandbox ~/my-project --agent codex --port 8080
+  $ cloudpit sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
+  $ cloudpit sandbox ls
+  $ cloudpit sandbox stop my-project
+  $ cloudpit sandbox start my-project
+  $ cloudpit sandbox rm my-project
 
 Prerequisites:
   1. Install sbx CLI: https://docs.docker.com/ai/sandboxes/get-started/
@@ -160,7 +160,7 @@ function requireSandboxName(options: SandboxOptions, output: CliOutput): string 
     return options.name;
   }
 
-  output.error(`\n${terminalTextStyles.error('❌')} Sandbox name required: cloudcli sandbox ${options.subcommand} <name>\n`);
+  output.error(`\n${terminalTextStyles.error('❌')} Sandbox name required: cloudpit sandbox ${options.subcommand} <name>\n`);
   return null;
 }
 
@@ -279,7 +279,7 @@ export function createSandboxCommandService(
           );
           dependencies.spawnDetachedSandbox(['run', sandboxName]);
           await dependencies.wait(5_000);
-          dependencies.output.log(`${terminalTextStyles.info('▶')} Launching CloudCLI web server...`);
+          dependencies.output.log(`${terminalTextStyles.info('▶')} Launching Cloudpit web server...`);
           dependencies.runSandboxCommand([
             'exec',
             sandboxName,
@@ -290,7 +290,7 @@ export function createSandboxCommandService(
           if (!publishSandboxPort(options, dependencies)) {
             return 1;
           }
-          dependencies.output.log(`\n${terminalTextStyles.ok('✔')} ${terminalTextStyles.bright('CloudCLI is ready!')}`);
+          dependencies.output.log(`\n${terminalTextStyles.ok('✔')} ${terminalTextStyles.bright('Cloudpit is ready!')}`);
           dependencies.output.log(`  ${terminalTextStyles.info('→')} ${terminalTextStyles.bright(`http://localhost:${options.port}`)}\n`);
           return 0;
         }
@@ -298,9 +298,9 @@ export function createSandboxCommandService(
         case 'create': {
           if (!options.workspace) {
             dependencies.output.error(
-              `\n${terminalTextStyles.error('❌')} Workspace path required: cloudcli sandbox <path>\n`,
+              `\n${terminalTextStyles.error('❌')} Workspace path required: cloudpit sandbox <path>\n`,
             );
-            dependencies.output.log(`   Example: ${terminalTextStyles.bright('cloudcli sandbox ~/my-project')}\n`);
+            dependencies.output.log(`   Example: ${terminalTextStyles.bright('cloudpit sandbox ~/my-project')}\n`);
             return 1;
           }
 
@@ -330,7 +330,7 @@ export function createSandboxCommandService(
             // proceed and let sbx report a credential error itself.
           }
 
-          dependencies.output.log(`\n${terminalTextStyles.bright('CloudCLI Sandbox')}`);
+          dependencies.output.log(`\n${terminalTextStyles.bright('Cloudpit Sandbox')}`);
           dependencies.output.log(terminalTextStyles.dim('─'.repeat(50)));
           dependencies.output.log(`  Agent:     ${terminalTextStyles.info(options.agent)} ${terminalTextStyles.dim(`(${secret} credentials)`)}`);
           dependencies.output.log(`  Workspace: ${terminalTextStyles.dim(workspace)}`);
@@ -381,7 +381,7 @@ export function createSandboxCommandService(
             }
           }
 
-          dependencies.output.log(`${terminalTextStyles.info('▶')} Launching CloudCLI web server...`);
+          dependencies.output.log(`${terminalTextStyles.info('▶')} Launching Cloudpit web server...`);
           dependencies.runSandboxCommand([
             'exec',
             sandboxName,
@@ -393,14 +393,14 @@ export function createSandboxCommandService(
             return 1;
           }
 
-          dependencies.output.log(`\n${terminalTextStyles.ok('✔')} ${terminalTextStyles.bright('CloudCLI is ready!')}`);
+          dependencies.output.log(`\n${terminalTextStyles.ok('✔')} ${terminalTextStyles.bright('Cloudpit is ready!')}`);
           dependencies.output.log(`  ${terminalTextStyles.info('→')} Open ${terminalTextStyles.bright(`http://localhost:${options.port}`)}`);
           dependencies.output.log(`\n${terminalTextStyles.dim('  Manage with:')}`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx ls`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx stop ${sandboxName}`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx start ${sandboxName}`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx rm ${sandboxName}`);
-          dependencies.output.log(`\n${terminalTextStyles.dim('  Or install globally:')} npm install -g @yalehwang/cloudcli\n`);
+          dependencies.output.log(`\n${terminalTextStyles.dim('  Or install globally:')} npm install -g @yalehwang/cloudpit\n`);
           return 0;
         }
 

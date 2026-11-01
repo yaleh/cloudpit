@@ -608,7 +608,7 @@ async function bootServer(input: { tempRoot: string }): Promise<ServerReading> {
   const leaderPid = child.pid;
   assert.ok(leaderPid !== undefined, 'the server child has no pid; the boot never happened');
 
-  const markerPath = path.join(input.tempRoot, 'home', '.cloudcli', 'local-server.json');
+  const markerPath = path.join(input.tempRoot, 'home', '.cloudpit', 'local-server.json');
   const reading: ServerReading = {
     leaderPid,
     port,

@@ -97,3 +97,33 @@ export const ACCESS_TOKEN_SCOPES = [
   // under that scope, and a card is a bounded summary of them.
   'cloudcli:cockpit:act',
 ] as const;
+
+/**
+ * The Cloudpit spellings of the same eight scopes. Nothing migrates stored tokens:
+ * both vocabularies are accepted on issue, and every comparison goes through
+ * {@link canonicalScope} so an old `requiredScopes` literal keeps matching a new
+ * `cloudpit:*` token (and vice versa).
+ */
+export const CLOUDPIT_SCOPE_PREFIX = 'cloudpit:';
+const CLOUDCLI_SCOPE_PREFIX = 'cloudcli:';
+
+export const CLOUDPIT_ACCESS_TOKEN_SCOPES: readonly string[] = ACCESS_TOKEN_SCOPES.map(
+  (scope) => `${CLOUDPIT_SCOPE_PREFIX}${scope.slice(CLOUDCLI_SCOPE_PREFIX.length)}`,
+);
+
+/** Every accepted spelling: the eight legacy names followed by the eight Cloudpit names. */
+export const ACCEPTED_ACCESS_TOKEN_SCOPES: readonly string[] = [
+  ...ACCESS_TOKEN_SCOPES,
+  ...CLOUDPIT_ACCESS_TOKEN_SCOPES,
+];
+
+/**
+ * Maps either spelling onto the legacy canonical one. The stored/compared value stays
+ * `cloudcli:*` because it is the key existing grants, tool `requiredScopes` and the
+ * observation/DB rows already use; only the accepted INPUT vocabulary widened.
+ */
+export function canonicalScope(scope: string): string {
+  return scope.startsWith(CLOUDPIT_SCOPE_PREFIX)
+    ? `${CLOUDCLI_SCOPE_PREFIX}${scope.slice(CLOUDPIT_SCOPE_PREFIX.length)}`
+    : scope;
+}

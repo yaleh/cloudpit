@@ -50,8 +50,9 @@ export function isAllowedImageMimeType(mimeType: string): boolean {
 
 /**
  * Creates the active upload folder if needed and returns it. Without options
- * this is the unchanged `~/.cloudcli/assets` default; an explicit
- * `CLOUDPIT_HOME`/`CLOUDCLI_HOME` opts into `<explicit>/assets`.
+ * this is the Cloudpit write root `<home>/.cloudpit/assets`; an explicit
+ * `CLOUDPIT_HOME`/`CLOUDCLI_HOME` opts into `<explicit>/assets`. The legacy
+ * `~/.cloudcli/assets` folder stays readable through the dual-read helpers.
  */
 export async function ensureImageAssetsDir(options: ImageAssetsRootsOptions = {}): Promise<string> {
   const assetsDir = getImageAssetsWriteDir(options);

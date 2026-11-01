@@ -320,7 +320,7 @@ test('the loading arm keeps the spinner and draws no panels', async () => {
     </I18nextProvider>,
   );
 
-  await waitFor(() => assert.match(container.textContent ?? '', /Loading CloudCLI/));
+  await waitFor(() => assert.match(container.textContent ?? '', /Loading Cloudpit/));
   assert.equal(container.querySelector('[data-landing-overview]'), null);
   assert.equal(container.querySelectorAll('[data-landing-panel]').length, 0);
 });

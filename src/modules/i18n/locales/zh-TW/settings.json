@@ -509,7 +509,7 @@
       "kindsHelp": {
         "value": "Stored as a literal value and passed to the spawned process unchanged.",
         "secret": "Write-only: once saved, only whether it is set is shown.",
-        "envref": "Uses a variable already present in the CloudCLI server environment instead of a value saved with this model.",
+        "envref": "Uses a variable already present in the Cloudpit server environment instead of a value saved with this model.",
         "unset": "Removes this variable from the spawned process environment."
       },
       "secretSet": "Set",
@@ -519,7 +519,7 @@
       "envrefName": "Server environment variable name",
       "envrefSet": "Set on server",
       "envrefUnset": "Not set on server",
-      "envrefHelp": "Reads this variable from the CloudCLI server process environment; restart the server after changing it.",
+      "envrefHelp": "Reads this variable from the Cloudpit server process environment; restart the server after changing it.",
       "warningEnvrefUnset": "Environment variable {{name}} is not set on the server; this row will send nothing.",
       "unsavedRow": "不會儲存——值為空。",
       "unsavedSummary": "以下變數因為值為空，不會儲存："
@@ -527,7 +527,7 @@
   },
   "accessTokens": {
     "title": "個人存取權杖",
-    "description": "建立個人存取權杖，用於向 CloudCLI API 驗證 MCP 用戶端與其他應用程式。",
+    "description": "建立個人存取權杖，用於向 Cloudpit API 驗證 MCP 用戶端與其他應用程式。",
     "newButton": "新增權杖",
     "form": {
       "namePlaceholder": "權杖名稱（例如：我的 MCP 用戶端）",
@@ -580,8 +580,8 @@
     }
   },
   "mcpGateway": {
-    "title": "CloudCLI MCP",
-    "description": "將本機 MCP 用戶端連線到這台 CloudCLI 伺服器。",
+    "title": "Cloudpit MCP",
+    "description": "將本機 MCP 用戶端連線到這台 Cloudpit 伺服器。",
     "status": {
       "enabled": "已啟用",
       "disabled": "未啟用"
@@ -589,7 +589,7 @@
     "copy": "複製",
     "copied": "已複製",
     "connectLabel": "連線命令",
-    "enableHint": "MCP 閘道未啟用。請在伺服器環境設定 MCP_ENABLED=true 並重新啟動 CloudCLI 以啟用。"
+    "enableHint": "MCP 閘道未啟用。請在伺服器環境設定 MCP_ENABLED=true 並重新啟動 Cloudpit 以啟用。"
   },
   "mcpNavigation": {
     "title": "導覽請求",
@@ -608,7 +608,7 @@
   },
   "connectedApps": {
     "title": "已連接的應用程式",
-    "description": "你已授權透過這些 CloudCLI MCP 閘道代表你行事。撤銷某個授權後，其下簽發的所有權杖會立即被拒絕。",
+    "description": "你已授權透過這些 Cloudpit MCP 閘道代表你行事。撤銷某個授權後，其下簽發的所有權杖會立即被拒絕。",
     "list": {
       "empty": "尚無已連接的應用程式。",
       "redirectHost": "回呼主機：",
@@ -622,7 +622,7 @@
   },
   "oauthClients": {
     "title": "OAuth 用戶端（進階）",
-    "description": "已註冊、可從此 CloudCLI 伺服器取得權杖的應用程式。在此停用的用戶端，其名下所有授權與權杖會立即被拒絕。",
+    "description": "已註冊、可從此 Cloudpit 伺服器取得權杖的應用程式。在此停用的用戶端，其名下所有授權與權杖會立即被拒絕。",
     "newButton": "新增用戶端",
     "form": {
       "namePlaceholder": "用戶端名稱（例如：我的整合）",

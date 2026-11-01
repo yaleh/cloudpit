@@ -8,13 +8,17 @@ import { DesktopWindowManager } from './desktopWindow.js';
 import { DesktopNotificationsController } from './desktopNotifications.js';
 import { LocalServerController } from './localServer.js';
 import { TabsController } from './tabs.js';
+import { maybeMigrateDesktopUserData } from './userDataMigration.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const APP_NAME = 'CloudCLI';
+const APP_NAME = 'Cloudpit';
 const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
+// Both schemes open the app (either build can open the desktop app); the
+// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
+const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
 const CLOUDCLI_CONTROL_PLANE_URL = process.env.CLOUDCLI_CONTROL_PLANE_URL || 'https://cloudcli.ai';
 const REMOTE_START_TIMEOUT_MS = 30000;
 const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;
@@ -247,7 +251,7 @@ async function copyDiagnostics() {
   await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
     title: 'Diagnostics copied',
-    message: 'CloudCLI desktop diagnostics were copied to the clipboard.',
+    message: 'Cloudpit desktop diagnostics were copied to the clipboard.',
   });
 }
 
@@ -259,15 +263,15 @@ async function refreshCloudEnvironments({ showErrors = false } = {}) {
   } catch (error) {
     const authState = cloud.getAuthState();
     if (authState === 'expired') {
-      const expiredError = new Error('Your CloudCLI session expired. Reconnect your account.');
+      const expiredError = new Error('Your Cloudpit session expired. Reconnect your account.');
       if (showErrors) {
-        await showError('CloudCLI login required', expiredError);
+        await showError('Cloudpit login required', expiredError);
         return [];
       }
       throw expiredError;
     }
     if (showErrors) {
-      await showError('Could not load CloudCLI environments', error);
+      await showError('Could not load Cloudpit environments', error);
       return [];
     }
     throw error;
@@ -299,13 +303,13 @@ async function handleDeepLink(url) {
   }
 
   if (!pendingCloudConnectStartedAt || Date.now() - pendingCloudConnectStartedAt > AUTH_CALLBACK_TTL_MS) {
-    await showError('CloudCLI account connection failed', new Error('No recent CloudCLI account connection was started from this app.'));
+    await showError('Cloudpit account connection failed', new Error('No recent Cloudpit account connection was started from this app.'));
     return;
   }
 
   const apiKey = parsed.searchParams.get('api_key');
   if (!apiKey) {
-    await showError('CloudCLI account connection failed', new Error('The callback did not include an API key.'));
+    await showError('Cloudpit account connection failed', new Error('The callback did not include an API key.'));
     return;
   }
 
@@ -318,8 +322,8 @@ async function handleDeepLink(url) {
 
   dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
-    title: 'CloudCLI account connected',
-    message: cloud.getAccount()?.email ? `Connected as ${cloud.getAccount().email}.` : 'CloudCLI account connected.',
+    title: 'Cloudpit account connected',
+    message: cloud.getAccount()?.email ? `Connected as ${cloud.getAccount().email}.` : 'Cloudpit account connected.',
   }).catch(() => {});
 }
 
@@ -329,7 +333,7 @@ async function copyLocalWebUrl() {
   const localUrl = localServer.getLocalServerUrl();
 
   if (!shareableUrl) {
-    throw new Error('Local CloudCLI URL is not available yet.');
+    throw new Error('Local Cloudpit URL is not available yet.');
   }
 
   clipboard.writeText(shareableUrl);
@@ -340,7 +344,7 @@ async function copyLocalWebUrl() {
     message: isLanUrl ? 'LAN web URL copied.' : 'Local web URL copied.',
     detail: isLanUrl
       ? `${shareableUrl}\n\nUse this URL from another device on the same network.`
-      : `${shareableUrl}\n\nThis URL works on this computer. Enable LAN access before starting Local CloudCLI to copy a phone-accessible URL.`,
+      : `${shareableUrl}\n\nThis URL works on this computer. Enable LAN access before starting Local Cloudpit to copy a phone-accessible URL.`,
   });
 
   return getDesktopState();
@@ -350,7 +354,7 @@ async function openLocalWebUi() {
   await localServer.ensureLocalServer();
   const url = localServer.getShareableWebUrl() || localServer.getLocalServerUrl();
   if (!url) {
-    throw new Error('Local CloudCLI URL is not available yet.');
+    throw new Error('Local Cloudpit URL is not available yet.');
   }
 
   await openExternalUrl(url);
@@ -366,7 +370,7 @@ async function updateDesktopSetting(key, value) {
       type: 'info',
       title: 'Restart local server to apply',
       message: 'LAN access changes apply the next time the local server starts.',
-      detail: 'Quit CloudCLI and stop the local server, then open Local CloudCLI again.',
+      detail: 'Quit Cloudpit and stop the local server, then open Local Cloudpit again.',
     });
   }
 
@@ -386,7 +390,7 @@ async function showEnvironmentPicker() {
     }
   }
 
-  const choices = ['Local CloudCLI', ...environments.map((environment) => {
+  const choices = ['Local Cloudpit', ...environments.map((environment) => {
     const status = environment.status === 'running' ? '' : ` (${environment.status})`;
     return `${environment.name || environment.subdomain}${status}`;
   })];
@@ -396,7 +400,7 @@ async function showEnvironmentPicker() {
     buttons: [...choices, 'Cancel'],
     defaultId: 0,
     cancelId: choices.length,
-    title: 'Switch CloudCLI Environment',
+    title: 'Switch Cloudpit Environment',
     message: 'Choose where this desktop window should connect.',
     detail: refreshError ? `Cloud environments could not be refreshed. Showing cached environments.\n\n${refreshError.message || refreshError}` : undefined,
   });
@@ -588,7 +592,7 @@ async function openEnvironmentInDesktop(environment) {
       cancelId: 1,
       title: 'Start environment?',
       message: `${pendingTarget.name} is ${environment.status}.`,
-      detail: 'CloudCLI can start it before opening the remote app.',
+      detail: 'Cloudpit can start it before opening the remote app.',
     });
 
     if (response.response !== 0) {
@@ -696,7 +700,7 @@ function getRemoteEnvironmentMenuItems() {
   const environments = cloud.getEnvironments();
 
   if (!cloudAccount?.apiKey) {
-    return [{ label: 'Connect CloudCLI Account...', click: () => void connectCloudAccount() }];
+    return [{ label: 'Connect Cloudpit Account...', click: () => void connectCloudAccount() }];
   }
 
   if (!environments.length) {
@@ -712,63 +716,65 @@ function getRemoteEnvironmentMenuItems() {
 
 function registerProtocolHandler() {
   const appEntry = path.join(getAppRoot(), 'electron', 'main.js');
-  if (process.defaultApp && process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL, process.execPath, [appEntry]);
-  } else {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL);
+  for (const scheme of DEEP_LINK_SCHEMES) {
+    if (process.defaultApp && process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient(scheme, process.execPath, [appEntry]);
+    } else {
+      app.setAsDefaultProtocolClient(scheme);
+    }
   }
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle('cloudcli-desktop:connect-cloud', async () => ({
+  ipcMain.handle('cloudpit-desktop:connect-cloud', async () => ({
     ...getDesktopState(),
     connectUrl: await connectCloudAccount(),
   }));
 
-  ipcMain.handle('cloudcli-desktop:copy-diagnostics', async () => {
+  ipcMain.handle('cloudpit-desktop:copy-diagnostics', async () => {
     await copyDiagnostics();
     return getDesktopState();
   });
 
-  ipcMain.handle('cloudcli-desktop:copy-local-web-url', async () => copyLocalWebUrl());
-  ipcMain.handle('cloudcli-desktop:get-state', () => getDesktopState());
-  ipcMain.handle('cloudcli-desktop:open-cloud-dashboard', async () => openCloudDashboard());
-  ipcMain.handle('cloudcli-desktop:run-active-environment-action', async (_event, action) => runActiveEnvironmentAction(action));
-  ipcMain.handle('cloudcli-desktop:open-environment', async (_event, environmentId) => {
+  ipcMain.handle('cloudpit-desktop:copy-local-web-url', async () => copyLocalWebUrl());
+  ipcMain.handle('cloudpit-desktop:get-state', () => getDesktopState());
+  ipcMain.handle('cloudpit-desktop:open-cloud-dashboard', async () => openCloudDashboard());
+  ipcMain.handle('cloudpit-desktop:run-active-environment-action', async (_event, action) => runActiveEnvironmentAction(action));
+  ipcMain.handle('cloudpit-desktop:open-environment', async (_event, environmentId) => {
     const environment = cloud.findEnvironment(environmentId);
     if (!environment) {
       throw new Error('Environment not found. Refresh and try again.');
     }
     return openEnvironmentInDesktop(environment);
   });
-  ipcMain.handle('cloudcli-desktop:open-local', async () => openLocalInDesktop());
-  ipcMain.handle('cloudcli-desktop:open-local-web-ui', async () => openLocalWebUi());
-  ipcMain.handle('cloudcli-desktop:refresh-environments', async () => {
+  ipcMain.handle('cloudpit-desktop:open-local', async () => openLocalInDesktop());
+  ipcMain.handle('cloudpit-desktop:open-local-web-ui', async () => openLocalWebUi());
+  ipcMain.handle('cloudpit-desktop:refresh-environments', async () => {
     await refreshCloudEnvironments({ showErrors: true });
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:disconnect-cloud', async () => clearCloudAccount());
-  ipcMain.handle('cloudcli-desktop:reload-active-tab', async () => desktopWindow.reloadActiveTab());
-  ipcMain.handle('cloudcli-desktop:show-environment-picker', async () => showEnvironmentPicker());
-  ipcMain.handle('cloudcli-desktop:show-launcher', async () => {
+  ipcMain.handle('cloudpit-desktop:disconnect-cloud', async () => clearCloudAccount());
+  ipcMain.handle('cloudpit-desktop:reload-active-tab', async () => desktopWindow.reloadActiveTab());
+  ipcMain.handle('cloudpit-desktop:show-environment-picker', async () => showEnvironmentPicker());
+  ipcMain.handle('cloudpit-desktop:show-launcher', async () => {
     await desktopWindow.showLauncher();
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:update-desktop-notifications', async (_event, settings) => {
+  ipcMain.handle('cloudpit-desktop:update-desktop-notifications', async (_event, settings) => {
     await desktopNotifications?.saveSettings(settings);
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:show-desktop-settings', async () => desktopWindow.showDesktopSettings());
-  ipcMain.handle('cloudcli-desktop:show-local-settings', async () => desktopWindow.showLocalSettings());
-  ipcMain.handle('cloudcli-desktop:close-settings-window', async () => {
+  ipcMain.handle('cloudpit-desktop:show-desktop-settings', async () => desktopWindow.showDesktopSettings());
+  ipcMain.handle('cloudpit-desktop:show-local-settings', async () => desktopWindow.showLocalSettings());
+  ipcMain.handle('cloudpit-desktop:close-settings-window', async () => {
     desktopWindow.closeSettingsWindow();
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:show-active-environment-actions-menu', async () => desktopWindow.showActiveEnvironmentActionsMenu());
-  ipcMain.handle('cloudcli-desktop:show-environment-actions-menu', async (_event, environmentId) => desktopWindow.showEnvironmentActionsMenu(environmentId));
-  ipcMain.handle('cloudcli-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
-  ipcMain.handle('cloudcli-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
-  ipcMain.handle('cloudcli-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
+  ipcMain.handle('cloudpit-desktop:show-active-environment-actions-menu', async () => desktopWindow.showActiveEnvironmentActionsMenu());
+  ipcMain.handle('cloudpit-desktop:show-environment-actions-menu', async (_event, environmentId) => desktopWindow.showEnvironmentActionsMenu(environmentId));
+  ipcMain.handle('cloudpit-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
+  ipcMain.handle('cloudpit-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
+  ipcMain.handle('cloudpit-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
 }
 
 function registerAppEvents() {
@@ -890,12 +896,19 @@ async function bootstrap() {
   app.setName(APP_NAME);
   process.title = APP_NAME;
 
+  // Copy the desktop userData JSON files before anything reads
+  // app.getPath('userData'), which already resolves under the Cloudpit folder.
+  maybeMigrateDesktopUserData({
+    appName: APP_NAME,
+    appDataDir: app.getPath('appData'),
+  });
+
   await app.whenReady();
   app.setName(APP_NAME);
   app.setAboutPanelOptions({
     applicationName: APP_NAME,
     applicationVersion: app.getVersion(),
-    copyright: 'CloudCLI',
+    copyright: 'Cloudpit',
   });
 
   localServer = new LocalServerController({
@@ -938,7 +951,7 @@ async function bootstrap() {
 
 if (registerSingleInstance()) {
   bootstrap().catch(async (error) => {
-    await showError('CloudCLI failed to start', error);
+    await showError('Cloudpit failed to start', error);
     app.quit();
   });
 }

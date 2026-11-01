@@ -1,11 +1,11 @@
 <div align="center">
- <img src="public/logo.svg" alt="CloudCLI UI" width="64" height="64">
+ <img src="public/logo.svg" alt="Cloudpit" width="64" height="64">
  <h1>Cloud CLI (aka Claude Code UI)</h1>
  <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, and <a href="https://developers.openai.com/codex">Codex</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
 </div>
 
 > **This repository is a fork of [siteboon/claudecodeui](https://github.com/siteboon/claudecodeui).**
-> It is published to npm as [`@yalehwang/cloudcli`](https://www.npmjs.com/package/@yalehwang/cloudcli).
+> It is published to npm as [`@yalehwang/cloudpit`](https://www.npmjs.com/package/@yalehwang/cloudpit).
 > Every install command below pulls this fork — the upstream CloudCLI package under the `@cloudcli-ai`
 > scope is maintained elsewhere and is **not** built from this repository.
 
@@ -99,14 +99,14 @@ The fork diverged from upstream at `v1.37.3` (commit `fd424f3f`). Since then it 
 Try it instantly with **npx** (requires **Node.js** v22+):
 
 ```
-npx @yalehwang/cloudcli
+npx @yalehwang/cloudpit
 ```
 
 Or install **globally** for regular use:
 
 ```
-npm install -g @yalehwang/cloudcli
-cloudcli
+npm install -g @yalehwang/cloudpit
+cloudpit
 ```
 
 Open `http://localhost:3001` — all your existing sessions are discovered automatically.
@@ -118,7 +118,7 @@ For general configuration, PM2 and remote-server setup, the [upstream documentat
 Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
 
 ```
-npx @yalehwang/cloudcli@latest sandbox ~/my-project
+npx @yalehwang/cloudpit@latest sandbox ~/my-project
 ```
 
 Supports Claude Code and Codex. See the [sandbox docs](docker/) for setup and advanced options.
@@ -127,15 +127,15 @@ Supports Claude Code and Codex. See the [sandbox docs](docker/) for setup and ad
 
 ### Desktop App
 
-CloudCLI Desktop is an optional native app that keeps the UI available from your tray. It ships from this repository's [GitHub Releases](https://github.com/yaleh/claudecodeui/releases) together with checksums. **Only a Windows installer is published; there is no macOS or Linux build.**
+Cloudpit Desktop is an optional native app that keeps the UI available from your tray. It ships from this repository's [GitHub Releases](https://github.com/yaleh/claudecodeui/releases) together with checksums. **Only a Windows installer is published; there is no macOS or Linux build.**
 
-Choose **Local CloudCLI** in the desktop app to use your running local server or have it start one for you. The first time, it downloads a matching local-server runtime from this repository's `cloudcli-local-server-<version>` pre-release.
+Choose **Local Cloudpit** in the desktop app to use your running local server or have it start one for you. The first time, it downloads a matching local-server runtime from this repository's `cloudcli-local-server-<version>` pre-release.
 
 ## Releasing
 
 Releases are cut from the `develop` branch by two manually triggered workflows in `.github/workflows/`:
 
-1. **Release** — bumps the version with release-it, updates `CHANGELOG.md`, tags `vX.Y.Z`, creates the GitHub Release, and publishes `@yalehwang/cloudcli` to npm (needs the `RELEASE_PAT` and `NPM_TOKEN` repository secrets).
+1. **Release** — bumps the version with release-it, updates `CHANGELOG.md`, tags `vX.Y.Z`, creates the GitHub Release, and publishes `@yalehwang/cloudpit` to npm (needs the `RELEASE_PAT` and `NPM_TOKEN` repository secrets).
 2. **Desktop Release** — run with the new tag to build the Windows installer and the local-server runtime and attach them to that release.
 
 `docker.yml` and the branch-build workflows are inherited from upstream; `docker.yml` targets upstream's Docker Hub account and should not be run from this fork.

@@ -68,7 +68,7 @@ test('the directory resolver takes an explicit override, else sits beside the da
   // A blank database path falls back to the shipped home location rather than to a relative path.
   assert.equal(
     resolveVoiceRealtimeLogDir('', '   '),
-    path.join(homedir(), '.cloudcli', 'voice-realtime-log'),
+    path.join(homedir(), '.cloudpit', 'voice-realtime-log'),
   );
   assert.equal(voiceRealtimeLogDirStartupLine('/tmp/x'), 'voice.realtime.log dir=/tmp/x');
 });

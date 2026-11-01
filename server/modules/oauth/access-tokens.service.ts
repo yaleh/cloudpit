@@ -15,7 +15,11 @@
 import crypto from 'crypto';
 
 import { accessTokensDb } from '@/modules/database/index.js';
-import { ACCESS_TOKEN_SCOPES } from '@/shared/mcp-contract/index.js';
+import {
+  ACCEPTED_ACCESS_TOKEN_SCOPES,
+  ACCESS_TOKEN_SCOPES,
+  canonicalScope,
+} from '@/shared/mcp-contract/index.js';
 import { lastUsedStamp } from '@/shared/utils.js';
 
 /** Every token minted by this service carries this prefix, per mcp-gateway-SPEC. */
@@ -133,8 +137,9 @@ function isAllowedExpiryDays(days: number | null | undefined): days is number {
 }
 
 /**
- * Validates a requested scope list against {@link ACCESS_TOKEN_SCOPES} and
- * removes duplicates, preserving first-occurrence order. This is the single
+ * Validates a requested scope list against the accepted vocabulary (both the
+ * `cloudcli:*` and `cloudpit:*` spellings) and removes duplicates, preserving
+ * first-occurrence order and the spelling the caller asked for. This is the single
  * vocabulary check and deduplication used by both issuance paths, so no caller
  * can mint an unknown, reserved, empty or duplicated scope. Consumers: this
  * module's `issueToken` and the settings module's `createAccessToken`.
@@ -149,13 +154,18 @@ export function normalizeAccessTokenScopes(
   if (!Array.isArray(scopes) || scopes.length === 0) {
     return { ok: false };
   }
-  const vocabulary: readonly string[] = ACCESS_TOKEN_SCOPES;
+  const vocabulary = new Set<string>(ACCEPTED_ACCESS_TOKEN_SCOPES);
   const normalized: string[] = [];
+  const seen = new Set<string>();
   for (const scope of scopes) {
-    if (typeof scope !== 'string' || !vocabulary.includes(scope)) {
+    if (typeof scope !== 'string' || !vocabulary.has(scope)) {
       return { ok: false };
     }
-    if (!normalized.includes(scope)) {
+    // Two spellings of the same permission are one grant: dedupe on the canonical
+    // name, but store the spelling the caller asked for.
+    const canonical = canonicalScope(scope);
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
       normalized.push(scope);
     }
   }
@@ -221,7 +231,10 @@ export function createAccessTokensService({ now }: AccessTokensServiceOptions): 
       }
 
       const scopes = JSON.parse(row.scopes) as string[];
-      if (requiredScope !== undefined && !scopes.includes(requiredScope)) {
+      if (
+        requiredScope !== undefined
+        && !scopes.some((scope) => canonicalScope(scope) === canonicalScope(requiredScope))
+      ) {
         return { ok: false, reason: 'insufficient_scope' };
       }
 

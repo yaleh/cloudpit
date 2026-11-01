@@ -4,7 +4,7 @@
   "errorTitle": "Kesalahan otorisasi",
   "retry": "Coba lagi",
   "unknownClient": "Aplikasi tidak dikenal",
-  "wantsAccess": "ingin mengakses akun CloudCLI Anda.",
+  "wantsAccess": "ingin mengakses akun Cloudpit Anda.",
   "callbackWarning": "Kode otorisasi Anda akan dikirim ke",
   "signingInAs": "Masuk sebagai {{username}}",
   "scopesLabel": "Izin",

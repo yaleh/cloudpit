@@ -44,9 +44,9 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
+import { defaultAuthDatabasePath } from '@/shared/data-root.js';
 import { directoryBytes } from '@/shared/fs-bytes.js';
 import type { VoiceDataEditLabel, VoiceSettings } from '@/shared/types.js';
 
@@ -61,9 +61,6 @@ import type { ConfidenceFlagStats } from '../../../shared/asr/confidenceFlags.js
  * one of them reaching for a second reading of the database configuration.
  */
 const VOICE_DATA_DIRECTORY_NAME = 'voice-data';
-
-/** The fallback database path the default directory is derived from, mirroring the capture store. */
-const DEFAULT_DATABASE_FILE = '.cloudcli/auth.db';
 
 /** The directory's mode and the files' mode, both applied explicitly (see the header). */
 const VOICE_DATA_DIR_MODE = 0o700;
@@ -232,7 +229,7 @@ export function resolveVoiceDataDir(raw: string | undefined, databasePath: strin
   }
 
   const database = databasePath === undefined || databasePath.trim() === ''
-    ? path.join(os.homedir(), DEFAULT_DATABASE_FILE)
+    ? defaultAuthDatabasePath()
     : databasePath;
   return path.join(path.dirname(database), VOICE_DATA_DIRECTORY_NAME);
 }

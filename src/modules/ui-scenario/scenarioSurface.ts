@@ -69,7 +69,7 @@ import type { QuayFocusableObject, QuayObjectUri, QuayViewContract } from '@/sha
  * (`import.meta.env.DEV` at the call sites in `main.tsx` / `QuayPanel.tsx`, so a production bundle
  * never reaches this module at all), and this module additionally refuses to attach or register
  * unless an operator asked for it at runtime ({@link isScenarioSurfaceRequested}). Both must be on
- * for `window.__cloudcliScenario` to exist.
+ * for `window.__cloudpitScenario` to exist.
  */
 
 /** The localStorage key an operator sets to `on` to request the surface in a dev build. */
@@ -246,7 +246,7 @@ export type ScenarioReading = {
   };
 };
 
-/** The surface installed on `window.__cloudcliScenario`. */
+/** The surface installed on `window.__cloudpitScenario`. */
 export type ScenarioSurface = {
   read: () => ScenarioReading;
   drive: (step: ScenarioDriveStep) => ScenarioReading;
@@ -274,7 +274,7 @@ export type ScenarioSurface = {
  */
 export type ScenarioWindow = Window & {
   /** The dev-only semantic surface; absent unless both gate locks are open. */
-  __cloudcliScenario?: ScenarioSurface;
+  __cloudpitScenario?: ScenarioSurface;
 };
 
 /** The page's `window`, typed with the dev-only property this module installs. */
@@ -733,7 +733,7 @@ function cloneInputPack(pack: ScenarioInputPack): ScenarioInputPack {
 }
 
 /**
- * Installs the surface on `window.__cloudcliScenario`, if and only if the runtime lock is open.
+ * Installs the surface on `window.__cloudpitScenario`, if and only if the runtime lock is open.
  *
  * Idempotent: a second call returns the surface already attached, so the app entry point and any
  * later boot path cannot end up with two surfaces whose focus state disagrees. The return value
@@ -745,7 +745,7 @@ export function attachScenarioSurface(): boolean {
   }
   if (attachedSurface === null) {
     attachedSurface = createScenarioSurface();
-    scenarioWindow().__cloudcliScenario = attachedSurface;
+    scenarioWindow().__cloudpitScenario = attachedSurface;
   }
   return true;
 }
@@ -753,7 +753,7 @@ export function attachScenarioSurface(): boolean {
 /** Removes the surface and its state. Exposed for tests and for a page teardown. */
 export function detachScenarioSurface(): void {
   if (typeof window !== 'undefined') {
-    delete scenarioWindow().__cloudcliScenario;
+    delete scenarioWindow().__cloudpitScenario;
   }
   attachedSurface = null;
   registeredViews.clear();

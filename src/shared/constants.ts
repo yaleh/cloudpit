@@ -35,9 +35,10 @@ export const CLOUDCLI_WORDMARK_FONT_FAMILY =
   'ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji';
 
 /**
- * The product's brand identity under the Cloudpit name. Nothing consumes it yet: the
- * user-visible flip from CloudCLI to Cloudpit (and the matching server/Electron wiring)
- * belongs to GOAL-054, so today this constant is read only by the brand criterion.
+ * The product's brand identity under the Cloudpit name. User-visible surfaces (the auth
+ * screens, sidebar footer and About tab) read `name` instead of spelling the product name
+ * again, so a future brand change has one source. The distribution identity (npm package and
+ * desktop artifact) lives in `package.json`.
  */
 export const BRAND = {
   name: 'Cloudpit',

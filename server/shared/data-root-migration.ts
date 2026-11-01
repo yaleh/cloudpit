@@ -18,6 +18,7 @@
  * code consumer (and the data-root criterion drives it directly). GOAL-054 is
  * what will call the resolver, not this file.
  */
+import { createRequire } from 'node:module';
 import {
   copyFileSync,
   existsSync,
@@ -29,7 +30,29 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-import Database from 'better-sqlite3';
+/**
+ * `better-sqlite3` is loaded on first use rather than at module evaluation:
+ * `server/load-env.ts` imports this module through `data-root.ts` before any
+ * database is needed, and a bootstrap must not pay for (or depend on) the
+ * native addon when no migration runs.
+ */
+const nodeRequire = createRequire(import.meta.url);
+
+type ReadonlySqliteDatabase = {
+  exec(sql: string): unknown;
+  close(): void;
+};
+
+type ReadonlySqliteDatabaseConstructor = new (
+  sourcePath: string,
+  options: { readonly: boolean; fileMustExist: boolean },
+) => ReadonlySqliteDatabase;
+
+/** Opens the legacy database readonly, loading the native addon only here. */
+function openReadonlySqlite(sourcePath: string): ReadonlySqliteDatabase {
+  const Database = nodeRequire('better-sqlite3') as ReadonlySqliteDatabaseConstructor;
+  return new Database(sourcePath, { readonly: true, fileMustExist: true });
+}
 
 /**
  * The filesystem operations the migration needs. Injectable so a criterion can
@@ -108,7 +131,7 @@ const NODE_FS: DataRootFs = {
  * a consistent snapshot surfaces as a thrown error — exactly the fallback arm.
  */
 export function backupSqliteDatabase(sourcePath: string, targetPath: string): void {
-  const database = new Database(sourcePath, { readonly: true, fileMustExist: true });
+  const database = openReadonlySqlite(sourcePath);
   try {
     const escapedTarget = targetPath.replace(/'/g, "''");
     database.exec(`VACUUM INTO '${escapedTarget}'`);

@@ -73,7 +73,7 @@ test('global npm installations update from the user home directory', async () =>
   const result = await service.updateSystem();
 
   assert.deepEqual(calls, [[
-    'npm install -g @yalehwang/cloudcli@latest',
+    'npm install -g @yalehwang/cloudpit@latest',
     '/home/cloudcli',
     dependencies.environment,
   ]]);

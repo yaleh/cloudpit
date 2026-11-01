@@ -299,25 +299,28 @@ export type ServerSettings = {
  * `env` and `defaultPath` are injectable so the criterion can drive both branches without
  * mutating the process environment or depending on the operator's home directory.
  */
-export function loadServerSettings(options: {
+type ServerSettingsFileOptions = {
   settingsPath?: string | undefined;
   env?: Record<string, string | undefined>;
   defaultPath?: string | undefined;
-} = {}): ServerSettings {
-  const reading = readServerSettings(options);
+  legacyDefaultPath?: string | undefined;
+  homeDir?: string | undefined;
+  exists?: ((filePath: string) => boolean) | undefined;
+};
+
+export function loadServerSettings(options: ServerSettingsFileOptions = {}): ServerSettings {
+  const target = resolveServerSettingsFileTarget(options);
+  const reading = readServerSettings(options, target);
   // The ONE boot read becomes the "currently in effect" reading the settings API reports, so
-  // the surface and the card `session.start` executor cannot disagree about this process.
-  recordCockpitSessionStartBoot(reading.path, reading.cockpit.sessionStart);
+  // the surface and the card `session.start` executor cannot disagree about this process;
+  // `writePath` stays on the Cloudpit default even when the reading came from the legacy file.
+  recordCockpitSessionStartBoot(reading.path, reading.cockpit.sessionStart, target.writePath);
   return reading;
 }
 
 /** The pure read behind {@link loadServerSettings}; it also backs the criterion's snapshots. */
-function readServerSettings(options: {
-  settingsPath?: string | undefined;
-  env?: Record<string, string | undefined>;
-  defaultPath?: string | undefined;
-} = {}): ServerSettings {
-  const { path: filePath, explicit } = resolveServerSettingsFileTarget(options);
+function readServerSettings(options: ServerSettingsFileOptions, target: ReturnType<typeof resolveServerSettingsFileTarget>): ServerSettings {
+  const { path: filePath, explicit } = target;
   const defaults = defaultServerSettings(filePath);
 
   let raw: string;

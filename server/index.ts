@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables before other imports execute.
-import './load-env.js';
+import { DATA_ROOTS } from './load-env.js';
 import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -318,7 +318,7 @@ installCodexMcpGatewayWiring({
 // context-event stream. The observation producer is built at module load, before this line,
 // so it reads the port at write time: an uninstalled port writes nothing. While the installed
 // fleet schema is still v0 the writer refuses both kinds (`invalid-kind`) and the adapter only
-// counts them — installing the v1 release makes them land with no further CloudCLI change.
+// counts them — installing the v1 release makes them land with no further Cloudpit change.
 installSessionAskEventWriterPort(
     createSessionAskEventWriter({
         record: (draft) => contextEvents.record(draft),
@@ -396,9 +396,9 @@ const cockpitCards = createCockpitCardsModule({
     fixtureCards: serverSettings.cockpit.fixtureCards,
     fixtureSubject: serverSettings.cockpit.fixtureSubject,
     fixtureFeedback: serverSettings.cockpit.fixtureFeedback,
-    // The feedback overlay is CloudCLI's own lifecycle state: it survives a refresh and a
+    // The feedback overlay is Cloudpit's own lifecycle state: it survives a refresh and a
     // restart, so a sent-but-unconfirmed action is still readable on the next boot.
-    feedbackFilePath: path.join(os.homedir(), '.cloudcli', 'cockpit-card-feedback.json'),
+    feedbackFilePath: DATA_ROOTS.cockpitCardFeedbackPath,
     providers: [
         createCockpitFleetProvider({
             enabled: serverSettings.cockpit.fleetCards.enabled,
@@ -417,7 +417,7 @@ const cockpitCards = createCockpitCardsModule({
 // fleet registry's per-project pin and the browser's last-opened pointer, and a confirmed send
 // goes through the SAME chat control service the composer and the MCP gateway use — the
 // cockpit opens no second send path. `quay://<project>/…`'s project segment is the fleet
-// registry id; the display reports the roster that maps it back to a CloudCLI project id.
+// registry id; the display reports the roster that maps it back to a Cloudpit project id.
 const cockpitHub = createCockpitModule({
     resolveTarget: async (state) => {
         const focusUri = state.focusUri;
@@ -509,7 +509,7 @@ setReplySuggestionsUsageObserver((record) => contextEvents.recordUsage(record));
 //   · `sendMessage` is the SAME chat control service the composer, the MCP gateway and the
 //     timer use — the liaison path opens no second send path.
 //
-// The inbox and the delivery log live under the fleet home rather than the CloudCLI data
+// The inbox and the delivery log live under the fleet home rather than the Cloudpit data
 // directory: they are the initiative's queue, and `QUAY_FLEET_HOME` is where the fleet itself
 // keeps its state.
 const liaisonFleetHome = process.env.QUAY_FLEET_HOME?.trim() || path.join(os.homedir(), '.quay-fleet');
@@ -2603,7 +2603,7 @@ const SERVER_PORT = Number.parseInt(process.env.SERVER_PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
 const VITE_PORT = process.env.VITE_PORT || 5173;
-const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
+const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudpit', 'local-server.json');
 // How long shutdown waits for session host processes to confirm they are gone.
 // A host is a child process this server spawned, so leaving one behind outlives
 // the server that could still talk to it; the grace period is short because a
@@ -2738,12 +2738,12 @@ async function startServer() {
 
             console.log('');
             console.log(terminalTextStyles.dim('═'.repeat(63)));
-            console.log(`  ${terminalTextStyles.bright('CloudCLI Server - Ready')}`);
+            console.log(`  ${terminalTextStyles.bright('Cloudpit Server - Ready')}`);
             console.log(terminalTextStyles.dim('═'.repeat(63)));
             console.log('');
             console.log(`${terminalTextStyles.info('[INFO]')} Server URL:  ${terminalTextStyles.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
             console.log(`${terminalTextStyles.info('[INFO]')} Installed at: ${terminalTextStyles.dim(appInstallPath)}`);
-            console.log(`${terminalTextStyles.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
+            console.log(`${terminalTextStyles.tip('[TIP]')}  Run "cloudpit status" for full configuration details`);
             console.log('');
 
             // Start watching the projects folder for changes

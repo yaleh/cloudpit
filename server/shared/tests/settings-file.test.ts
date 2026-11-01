@@ -222,6 +222,6 @@ test('resolveApiKey reports every failure without echoing the key', (t) => {
 test('the default server settings path honours the supplied home', () => {
   assert.equal(
     defaultServerSettingsPath('/tmp/example-home'),
-    path.join('/tmp/example-home', '.config', 'claudecodeui', 'server.settings.json'),
+    path.join('/tmp/example-home', '.config', 'cloudpit', 'server.settings.json'),
   );
 });

@@ -29,6 +29,7 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
   const fixtureServerDirectory = path.join(fixtureRoot, 'server');
   const fixtureCliDirectory = path.join(fixtureServerDirectory, 'modules', 'cli');
   const fixtureLoggingDirectory = path.join(fixtureServerDirectory, 'modules', 'logging');
+  const fixtureSharedDirectory = path.join(fixtureServerDirectory, 'shared');
   const fixtureDatabasePath = path.join(fixtureRoot, 'auth.db');
 
   try {
@@ -36,9 +37,12 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
     // This fixture copies the CLI bootstrap's own module graph by hand (the real `server/` tree
     // stays outside the sandbox), so every relative import `load-env.ts` gains has to be added
     // here too: it installs the timestamped console from `./modules/logging/index.js`, which
-    // re-exports `./timestamped-console.js` (a `node:util` wrapper and nothing more). A missing
-    // entry surfaces as `Cannot find module './modules/logging/index.js'` from the child.
+    // re-exports `./timestamped-console.js` (a `node:util` wrapper and nothing more), and it
+    // resolves the Cloudpit data root from `./shared/data-root.js`, which imports
+    // `./data-root-migration.js` (node builtins only; `better-sqlite3` is required lazily). A
+    // missing entry surfaces as `Cannot find module './shared/data-root.js'` from the child.
     await mkdir(fixtureLoggingDirectory, { recursive: true });
+    await mkdir(fixtureSharedDirectory, { recursive: true });
     await Promise.all([
       copyFile(
         path.join(applicationRoot, 'server', 'load-env.ts'),
@@ -55,6 +59,14 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
       copyFile(
         path.join(applicationRoot, 'server', 'modules', 'logging', 'timestamped-console.ts'),
         path.join(fixtureLoggingDirectory, 'timestamped-console.ts'),
+      ),
+      copyFile(
+        path.join(applicationRoot, 'server', 'shared', 'data-root.ts'),
+        path.join(fixtureSharedDirectory, 'data-root.ts'),
+      ),
+      copyFile(
+        path.join(applicationRoot, 'server', 'shared', 'data-root-migration.ts'),
+        path.join(fixtureSharedDirectory, 'data-root-migration.ts'),
       ),
     ]);
     await writeFile(
@@ -146,6 +158,12 @@ export function createCliApplication() {
     const childEnvironment = { ...process.env };
     delete childEnvironment.VITE_IS_PLATFORM;
     delete childEnvironment.DATABASE_PATH;
+    // `load-env.ts` resolves the Cloudpit default root at import time, so the child's home must
+    // be the sandbox: otherwise a developer's real `~/.cloudcli` would be migrated by a test.
+    // With HOME pointing at the empty fixture root the resolver takes its no-legacy arm and
+    // writes nothing, which is why `better-sqlite3` is never loaded here.
+    childEnvironment.HOME = fixtureRoot;
+    if ('USERPROFILE' in childEnvironment) childEnvironment.USERPROFILE = fixtureRoot;
     const stdout = execFileSync(
       process.execPath,
       [

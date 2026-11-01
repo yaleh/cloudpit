@@ -34,7 +34,7 @@
 import type { RequestHandler, Response } from 'express';
 
 import type { AccessTokensService } from '@/modules/oauth/index.js';
-import type { McpPrincipal } from '@/shared/mcp-contract/index.js';
+import { canonicalScope, type McpPrincipal } from '@/shared/mcp-contract/index.js';
 import { bearerToken } from '@/shared/utils.js';
 
 import { readMcpOauthEnabled } from './mcp-gateway.loopback.js';
@@ -167,7 +167,9 @@ function resolvePrincipal(
       userId: verified.userId,
       tokenId: verified.tokenId,
       clientId: null,
-      scopes: verified.scopes,
+      // Both spellings are accepted at issuance; every consumer compares the
+      // legacy `requiredScopes` literals, so the principal carries canonical names.
+      scopes: verified.scopes.map(canonicalScope),
     };
   }
 
@@ -180,7 +182,7 @@ function resolvePrincipal(
       userId: verified.userId,
       tokenId: verified.tokenId,
       clientId: verified.clientId,
-      scopes: verified.scopes,
+      scopes: verified.scopes.map(canonicalScope),
     };
   }
 

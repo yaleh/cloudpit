@@ -7,6 +7,7 @@ import spawn from 'cross-spawn';
 
 import type { CliApplication, CliPackageMetadata } from '@/shared/types.js';
 import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
+import { resolveDataRoots } from '@/shared/data-root.js';
 
 import { createCliService } from './cli.service.js';
 import { createSandboxCommandService } from './sandbox.service.js';
@@ -62,7 +63,7 @@ export function createCliApplication(): CliApplication {
 
   return createCliService({
     applicationRoot,
-    defaultDatabasePath: path.join(homeDirectory, '.cloudcli', 'auth.db'),
+    defaultDatabasePath: resolveDataRoots({ defaultRoot: 'cloudpit', homeDir: homeDirectory }).authDatabasePath,
     homeDirectory,
     packageMetadata,
     environment: process.env,
@@ -74,12 +75,12 @@ export function createCliApplication(): CliApplication {
       // before this best-effort npm registry check runs.
       await new Promise<void>((resolve) => setImmediate(resolve));
       return execSync(
-        'npm show @yalehwang/cloudcli version',
+        'npm show @yalehwang/cloudpit version',
         { encoding: 'utf8' },
       ).trim();
     },
     updateGlobalPackage: () => {
-      execSync('npm update -g @yalehwang/cloudcli', { stdio: 'inherit' });
+      execSync('npm update -g @yalehwang/cloudpit', { stdio: 'inherit' });
     },
     startServer: async () => {
       // The server executable is an entrypoint rather than a feature module,

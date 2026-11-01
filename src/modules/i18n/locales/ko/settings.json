@@ -487,7 +487,7 @@
     },
     "managed": {
       "badge": "관리됨",
-      "hint": "CloudCLI가 관리합니다."
+      "hint": "Cloudpit가 관리합니다."
     },
     "help": {
       "title": "Codex MCP 정보",
@@ -519,7 +519,7 @@
     "docs": "문서",
     "sections": {
       "officialTitle": "공식 플러그인",
-      "officialDescription": "CloudCLI 팀이 관리하며 바로 설치할 수 있습니다.",
+      "officialDescription": "Cloudpit 팀이 관리하며 바로 설치할 수 있습니다.",
       "unofficialTitle": "기타 플러그인",
       "unofficialDescription": "다른 사용자가 만든 비공식 플러그인과 통합입니다. 설치 전에 소스 코드를 검토하세요."
     },
@@ -550,7 +550,7 @@
     "prismCloudCLI": {
       "name": "PRISM CloudCLI",
       "badge": "비공식",
-      "description": "CloudCLI 안에서 제공되는 Claude Code용 세션 인텔리전스입니다. 브라우저를 벗어나지 않고도 세션에서 토큰이 왜 소모되는지 확인하세요.",
+      "description": "Cloudpit 안에서 제공되는 Claude Code용 세션 인텔리전스입니다. 브라우저를 벗어나지 않고도 세션에서 토큰이 왜 소모되는지 확인하세요.",
       "install": "설치"
     },
     "sessionManagerPlugin": {
@@ -614,7 +614,7 @@
       "kindsHelp": {
         "value": "Stored as a literal value and passed to the spawned process unchanged.",
         "secret": "Write-only: once saved, only whether it is set is shown.",
-        "envref": "Uses a variable already present in the CloudCLI server environment instead of a value saved with this model.",
+        "envref": "Uses a variable already present in the Cloudpit server environment instead of a value saved with this model.",
         "unset": "Removes this variable from the spawned process environment."
       },
       "secretSet": "Set",
@@ -624,7 +624,7 @@
       "envrefName": "Server environment variable name",
       "envrefSet": "Set on server",
       "envrefUnset": "Not set on server",
-      "envrefHelp": "Reads this variable from the CloudCLI server process environment; restart the server after changing it.",
+      "envrefHelp": "Reads this variable from the Cloudpit server process environment; restart the server after changing it.",
       "warningEnvrefUnset": "Environment variable {{name}} is not set on the server; this row will send nothing.",
       "unsavedRow": "저장되지 않습니다 — 값이 비어 있습니다.",
       "unsavedSummary": "값이 비어 있어 다음 행은 저장되지 않습니다:"
@@ -632,7 +632,7 @@
   },
   "accessTokens": {
     "title": "개인 액세스 토큰",
-    "description": "MCP 클라이언트와 기타 애플리케이션을 CloudCLI API에 인증하기 위한 개인 액세스 토큰을 만듭니다.",
+    "description": "MCP 클라이언트와 기타 애플리케이션을 Cloudpit API에 인증하기 위한 개인 액세스 토큰을 만듭니다.",
     "newButton": "새 토큰",
     "form": {
       "namePlaceholder": "토큰 이름 (예: 내 MCP 클라이언트)",
@@ -685,8 +685,8 @@
     }
   },
   "mcpGateway": {
-    "title": "CloudCLI MCP",
-    "description": "로컬 MCP 클라이언트를 이 CloudCLI 서버에 연결합니다.",
+    "title": "Cloudpit MCP",
+    "description": "로컬 MCP 클라이언트를 이 Cloudpit 서버에 연결합니다.",
     "status": {
       "enabled": "활성화됨",
       "disabled": "활성화되지 않음"
@@ -694,7 +694,7 @@
     "copy": "복사",
     "copied": "복사됨",
     "connectLabel": "연결 명령",
-    "enableHint": "MCP 게이트웨이가 활성화되어 있지 않습니다. 서버 환경에서 MCP_ENABLED=true를 설정하고 CloudCLI를 다시 시작하세요."
+    "enableHint": "MCP 게이트웨이가 활성화되어 있지 않습니다. 서버 환경에서 MCP_ENABLED=true를 설정하고 Cloudpit를 다시 시작하세요."
   },
   "mcpNavigation": {
     "title": "탐색 요청",
@@ -713,7 +713,7 @@
   },
   "connectedApps": {
     "title": "연결된 앱",
-    "description": "CloudCLI MCP 게이트웨이를 통해 회원님을 대신해 동작하도록 승인한 애플리케이션입니다. 승인을 취소하면 그 아래 발급된 모든 토큰이 즉시 거부됩니다.",
+    "description": "Cloudpit MCP 게이트웨이를 통해 회원님을 대신해 동작하도록 승인한 애플리케이션입니다. 승인을 취소하면 그 아래 발급된 모든 토큰이 즉시 거부됩니다.",
     "list": {
       "empty": "아직 연결된 앱이 없습니다.",
       "redirectHost": "콜백 호스트:",
@@ -727,7 +727,7 @@
   },
   "oauthClients": {
     "title": "OAuth 클라이언트 (고급)",
-    "description": "이 CloudCLI 서버에서 토큰을 받기 위해 등록된 애플리케이션입니다. 여기서 비활성화한 클라이언트는 그 아래의 모든 승인과 토큰이 즉시 거부됩니다.",
+    "description": "이 Cloudpit 서버에서 토큰을 받기 위해 등록된 애플리케이션입니다. 여기서 비활성화한 클라이언트는 그 아래의 모든 승인과 토큰이 즉시 거부됩니다.",
     "newButton": "새 클라이언트",
     "form": {
       "namePlaceholder": "클라이언트 이름 (예: 내 연동)",

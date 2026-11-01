@@ -4,7 +4,7 @@
   "errorTitle": "Erreur d'autorisation",
   "retry": "Réessayer",
   "unknownClient": "Application inconnue",
-  "wantsAccess": "souhaite accéder à votre compte CloudCLI.",
+  "wantsAccess": "souhaite accéder à votre compte Cloudpit.",
   "callbackWarning": "Votre code d'autorisation sera envoyé à",
   "signingInAs": "Connecté en tant que {{username}}",
   "scopesLabel": "Autorisations",

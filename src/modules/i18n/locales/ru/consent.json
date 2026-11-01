@@ -4,7 +4,7 @@
   "errorTitle": "Ошибка авторизации",
   "retry": "Повторить",
   "unknownClient": "Неизвестное приложение",
-  "wantsAccess": "хочет получить доступ к вашей учётной записи CloudCLI.",
+  "wantsAccess": "хочет получить доступ к вашей учётной записи Cloudpit.",
   "callbackWarning": "Ваш код авторизации будет отправлен на",
   "signingInAs": "Вы вошли как {{username}}",
   "scopesLabel": "Разрешения",

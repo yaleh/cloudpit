@@ -25,7 +25,7 @@
     "runClaudeCli": "Esegui Claude CLI in una directory di progetto per iniziare"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Cloudpit",
     "subtitle": "Interfaccia assistente di programmazione AI"
   },
   "sessions": {

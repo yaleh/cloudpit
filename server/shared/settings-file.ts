@@ -100,12 +100,23 @@ export function expandHome(filePath: string, homeDir: string): string {
 
 /**
  * The default server settings location, resolved at call time so a process HOME
- * is honoured.
+ * is honoured. Cloudpit is the write target; the legacy location stays readable
+ * through {@link legacyServerSettingsPath}.
  *
  * Consumers: `counter-voice-settings.ts`, `session-digest-llm-settings.ts` and
- * `refresh-settings.ts` (reply-suggestions names its own file instead).
+ * `refresh-settings.ts` (reply-suggestions names its own file instead), plus
+ * `modules/settings/server-settings-file.ts`, which re-exports it.
  */
 export function defaultServerSettingsPath(homeDir: string): string {
+  return path.join(homeDir, '.config', 'cloudpit', 'server.settings.json');
+}
+
+/**
+ * The pre-flip settings location. It is only ever READ (the boot loader falls
+ * back to it when the Cloudpit default does not exist yet); a save always
+ * targets {@link defaultServerSettingsPath}.
+ */
+export function legacyServerSettingsPath(homeDir: string): string {
   return path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json');
 }
 

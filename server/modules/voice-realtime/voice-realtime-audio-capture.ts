@@ -45,14 +45,12 @@
  * verification gate, no default-on switch): it is a second local artifact beside the journal.
  */
 import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
-/** The directory's leaf name under the database's parent — `~/.cloudcli/voice-realtime-capture`. */
-const CAPTURE_DIRECTORY_NAME = 'voice-realtime-capture';
+import { defaultAuthDatabasePath } from '@/shared/data-root.js';
 
-/** The fallback database path the default directory is derived from, mirroring the other stores. */
-const DEFAULT_DATABASE_FILE = '.cloudcli/auth.db';
+/** The directory's leaf name under the database's parent — `~/.cloudpit/voice-realtime-capture`. */
+const CAPTURE_DIRECTORY_NAME = 'voice-realtime-capture';
 
 /** The directory's mode and the files' mode, both applied explicitly (see the header). */
 const CAPTURE_DIR_MODE = 0o700;
@@ -195,7 +193,7 @@ export function resolveVoiceRealtimeCaptureDir(raw: string | undefined, database
 
   const database =
     databasePath === undefined || databasePath.trim() === ''
-      ? path.join(os.homedir(), DEFAULT_DATABASE_FILE)
+      ? defaultAuthDatabasePath()
       : databasePath;
   return path.join(path.dirname(database), CAPTURE_DIRECTORY_NAME);
 }

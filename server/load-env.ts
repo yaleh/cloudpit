@@ -1,10 +1,10 @@
 // Load environment variables from .env before other imports execute.
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { installTimestampedConsole } from './modules/logging/index.js';
+import { resolveDataRoots } from './shared/data-root.js';
 
 // Date every line the process writes from here on. It is installed HERE, and not in
 // `server/index.ts`, because module bodies run before the entry point's own statements: an
@@ -48,10 +48,12 @@ try {
   console.error('No .env file found or error reading it:', e.message);
 }
 
-// Keep the default database in a stable user-level location so rebuilding dist-server
-// never changes where the backend stores auth.db when DATABASE_PATH is not set explicitly.
-const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.cloudcli', 'auth.db');
+// Resolve the data root AFTER `.env` was read (module imports are hoisted, but this call is not),
+// so `CLOUDPIT_HOME` / `CLOUDCLI_HOME` from the file are honoured. The Cloudpit default migrates a
+// legacy `~/.cloudcli` layout once, and falls back to it if the copy fails. Exported so
+// `server/index.ts` reuses this single resolution instead of migrating a second time.
+export const DATA_ROOTS = resolveDataRoots({ defaultRoot: 'cloudpit' });
 
 if (!process.env.DATABASE_PATH) {
-  process.env.DATABASE_PATH = DEFAULT_DATABASE_PATH;
+  process.env.DATABASE_PATH = DATA_ROOTS.authDatabasePath;
 }

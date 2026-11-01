@@ -487,7 +487,7 @@
     },
     "managed": {
       "badge": "Gestionado",
-      "hint": "Gestionado por CloudCLI."
+      "hint": "Gestionado por Cloudpit."
     },
     "help": {
       "title": "Acerca de MCP en Codex",
@@ -519,7 +519,7 @@
     "docs": "Docs",
     "sections": {
       "officialTitle": "Plugins oficiales",
-      "officialDescription": "Mantenidos por el equipo de CloudCLI y listos para instalar directamente.",
+      "officialDescription": "Mantenidos por el equipo de Cloudpit y listos para instalar directamente.",
       "unofficialTitle": "Otros plugins",
       "unofficialDescription": "Plugins e integraciones no oficiales de otros usuarios. Revisa el código fuente antes de instalar."
     },
@@ -550,7 +550,7 @@
     "prismCloudCLI": {
       "name": "PRISM CloudCLI",
       "badge": "no oficial",
-      "description": "Inteligencia de sesiones para Claude Code, dentro de CloudCLI. Descubre por qué tus sesiones queman tokens sin salir del navegador.",
+      "description": "Inteligencia de sesiones para Claude Code, dentro de Cloudpit. Descubre por qué tus sesiones queman tokens sin salir del navegador.",
       "install": "Instalar"
     },
     "sessionManagerPlugin": {
@@ -620,7 +620,7 @@
       "kindsHelp": {
         "value": "Stored as a literal value and passed to the spawned process unchanged.",
         "secret": "Write-only: once saved, only whether it is set is shown.",
-        "envref": "Uses a variable already present in the CloudCLI server environment instead of a value saved with this model.",
+        "envref": "Uses a variable already present in the Cloudpit server environment instead of a value saved with this model.",
         "unset": "Removes this variable from the spawned process environment."
       },
       "secretSet": "Set",
@@ -630,7 +630,7 @@
       "envrefName": "Server environment variable name",
       "envrefSet": "Set on server",
       "envrefUnset": "Not set on server",
-      "envrefHelp": "Reads this variable from the CloudCLI server process environment; restart the server after changing it.",
+      "envrefHelp": "Reads this variable from the Cloudpit server process environment; restart the server after changing it.",
       "warningEnvrefUnset": "Environment variable {{name}} is not set on the server; this row will send nothing.",
       "unsavedRow": "No se guardará: el valor está vacío.",
       "unsavedSummary": "Estas filas no se guardarán porque su valor está vacío:"
@@ -638,7 +638,7 @@
   },
   "accessTokens": {
     "title": "Tokens de acceso personal",
-    "description": "Crea tokens de acceso personal para autenticar clientes MCP y otras aplicaciones con la API de CloudCLI.",
+    "description": "Crea tokens de acceso personal para autenticar clientes MCP y otras aplicaciones con la API de Cloudpit.",
     "newButton": "Nuevo token",
     "form": {
       "namePlaceholder": "Nombre del token (p. ej., Mi cliente MCP)",
@@ -691,8 +691,8 @@
     }
   },
   "mcpGateway": {
-    "title": "CloudCLI MCP",
-    "description": "Conecta un cliente MCP local a este servidor CloudCLI.",
+    "title": "Cloudpit MCP",
+    "description": "Conecta un cliente MCP local a este servidor Cloudpit.",
     "status": {
       "enabled": "Activado",
       "disabled": "No activado"
@@ -700,7 +700,7 @@
     "copy": "Copiar",
     "copied": "Copiado",
     "connectLabel": "Comando de conexión",
-    "enableHint": "La puerta de enlace MCP no está activada. Define MCP_ENABLED=true en el entorno del servidor y reinicia CloudCLI para activarla."
+    "enableHint": "La puerta de enlace MCP no está activada. Define MCP_ENABLED=true en el entorno del servidor y reinicia Cloudpit para activarla."
   },
   "mcpNavigation": {
     "title": "Solicitudes de navegación",
@@ -719,7 +719,7 @@
   },
   "connectedApps": {
     "title": "Aplicaciones conectadas",
-    "description": "Aplicaciones que has autorizado a actuar en tu nombre a través de la pasarela MCP de CloudCLI. Revocar una autorización rechaza de inmediato todos los tokens emitidos bajo ella.",
+    "description": "Aplicaciones que has autorizado a actuar en tu nombre a través de la pasarela MCP de Cloudpit. Revocar una autorización rechaza de inmediato todos los tokens emitidos bajo ella.",
     "list": {
       "empty": "Aún no hay aplicaciones conectadas.",
       "redirectHost": "Host de callback:",
@@ -733,7 +733,7 @@
   },
   "oauthClients": {
     "title": "Clientes OAuth (avanzado)",
-    "description": "Aplicaciones registradas para obtener tokens de este servidor CloudCLI. Un cliente deshabilitado aquí hace que todas sus autorizaciones y tokens sean rechazados de inmediato.",
+    "description": "Aplicaciones registradas para obtener tokens de este servidor Cloudpit. Un cliente deshabilitado aquí hace que todas sus autorizaciones y tokens sean rechazados de inmediato.",
     "newButton": "Nuevo cliente",
     "form": {
       "namePlaceholder": "Nombre del cliente (p. ej., Mi integración)",

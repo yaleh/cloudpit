@@ -114,7 +114,7 @@ const TRANSCRIPTION_PATH = '/audio/transcriptions';
 const AUDIO_BODY = 'voice-capture-process-check audio payload 0123456789';
 
 /** The marker `server/index.ts` prints once its listener is accepting. */
-const READY_MARKER = 'CloudCLI Server - Ready';
+const READY_MARKER = 'Cloudpit Server - Ready';
 
 /**
  * The ISO-8601 UTC prefix `server/load-env.ts` stamps on EVERY line the child's console writes.

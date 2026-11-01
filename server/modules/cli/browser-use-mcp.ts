@@ -311,7 +311,7 @@ async function handleMessage(message: JsonRpcRequest) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'cloudcli-browser', version: '1.0.0' },
+      serverInfo: { name: 'cloudpit-browser', version: '1.0.0' },
     };
   }
 

@@ -4,7 +4,7 @@
   "errorTitle": "認可エラー",
   "retry": "再試行",
   "unknownClient": "不明なアプリケーション",
-  "wantsAccess": "があなたの CloudCLI アカウントへのアクセスを求めています。",
+  "wantsAccess": "があなたの Cloudpit アカウントへのアクセスを求めています。",
   "callbackWarning": "認可コードの送信先:",
   "signingInAs": "{{username}} としてサインイン中",
   "scopesLabel": "権限",

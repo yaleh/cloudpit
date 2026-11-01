@@ -46,7 +46,7 @@ export type ObservationUri =
 /** One path segment: at least one character, none of the URI's structural characters. */
 const SEGMENT = '[^/?#\\s]+';
 
-const CLOUDCLI_URI = new RegExp(`^cloudcli://(session|architecture)/(${SEGMENT})$`);
+const CLOUDCLI_URI = new RegExp(`^(?:cloudcli|cloudpit)://(session|architecture)/(${SEGMENT})$`);
 const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
 /** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
 const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
@@ -98,7 +98,9 @@ export function parseObservationUri(value: unknown): ObservationUri | null {
   if (cloudcli !== null) {
     const kind = cloudcli[1] === 'session' ? 'session' : 'architecture';
     const id = cloudcli[2]!;
-    return { scheme: 'cloudcli', kind, id, uri: value };
+    // Both spellings parse, but the canonical string (and the DB key) stays the
+    // legacy `cloudcli://` one; 2.0 is a read widening, not a rename.
+    return { scheme: 'cloudcli', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
   }
   const initiative = QUAY_INITIATIVE_URI.exec(value);
   if (initiative !== null) {

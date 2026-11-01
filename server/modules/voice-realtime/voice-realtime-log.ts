@@ -41,9 +41,9 @@
  * `voice-data.ts` states for recordings, applied to the diagnostic half.
  */
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
+import { defaultAuthDatabasePath } from '@/shared/data-root.js';
 import { directoryBytes } from '@/shared/fs-bytes.js';
 
 import type { RealtimeSegmentForensics } from './voice-realtime-bridge.service.js';
@@ -57,9 +57,6 @@ import { summarizeWireObservation } from './voice-realtime-diagnose.service.js';
  * reaching for a second reading of the database configuration.
  */
 const RELAY_LOG_DIRECTORY_NAME = 'voice-realtime-log';
-
-/** The fallback database path the default directory is derived from, mirroring the other stores. */
-const DEFAULT_DATABASE_FILE = '.cloudcli/auth.db';
 
 /** The directory's mode and the files' mode, both applied explicitly (see the header). */
 const RELAY_LOG_DIR_MODE = 0o700;
@@ -332,7 +329,7 @@ export function resolveVoiceRealtimeLogDir(raw: string | undefined, databasePath
 
   const database =
     databasePath === undefined || databasePath.trim() === ''
-      ? path.join(os.homedir(), DEFAULT_DATABASE_FILE)
+      ? defaultAuthDatabasePath()
       : databasePath;
   return path.join(path.dirname(database), RELAY_LOG_DIRECTORY_NAME);
 }
