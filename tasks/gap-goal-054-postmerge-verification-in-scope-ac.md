@@ -76,7 +76,8 @@ goal store 写入已于 2026-11-01 经授权 goal 写入路径完成并读回核
 - AC-454：`status: superseded`、`supersededBy: [AC-458]`，statusLog 记 `draft→superseded` 并附书面理由（commit `743768d89`）。
 - GOAL-054 退出条件第 2 条原字面引用 AC-454（已 supersede）→ 已改为引用 AC-458（commit `11dce4ee0`）：否则充分性判官在「点名 AC-454／在域只有 AC-458」之间反复 samples-disagree，verdict 无法翻 covered。
 - 退出条件第 3 条「品牌 allowlist／旧布局迁移／桌面升级／UI 预览」亦未点名 AC id，判官确定性判 insufficient；已改为「AC-451、AC-452、AC-453、AC-456 四项跨切面证据齐全（…）」（commit `ebb85cea3`）。
-- AC-451 的 expect 已扩「CLI 自更新与 system update 命令改新包（cloudpit update／npm show|update|install -g @yalehwang/cloudpit，无 @yalehwang/cloudcli 残留）」（commit `7a7421738`）；goal 分支上该改名已落地。⚠️ AC-451 的 criterion（brand-allowlist-check）目前只扫 `/CloudCLI|claudecodeui/`、不含小写 `@yalehwang/cloudcli`、也未扫 cli.module.ts ⇒ 该 expect 腿尚未被 criterion 验证，需另立 follow-up 扩展 checker+test。
+- AC-451 的 expect 已扩「CLI 自更新与 system update 命令改新包（cloudpit update／npm show|update|install -g @yalehwang/cloudpit，无 @yalehwang/cloudcli 残留）」（commit `7a7421738`）；goal 分支上该改名已落地。
+- 最终核验（round 10，2026-11-01T13:45:05Z）：goal-sufficiency = `covered`（在域 AC 6 条），`.quay/goal-sufficiency-cache.json` 新 key 记 `covered`，`phaseSplit.excluded=["AC-454","AC-458"]` 仍含 AC-458——DoD 三条件同轮成立。AC4 闭合；AC5 的 merge 未达成集合不含 AC-458 由构造保证（post-merge AC 不进 pre-merge 未达成集），merge-request 读数留待发起 merge 时。⚠️ AC-451 的 criterion（brand-allowlist-check）目前只扫 `/CloudCLI|claudecodeui/`、不含小写 `@yalehwang/cloudcli`、也未扫 cli.module.ts ⇒ 该 expect 腿尚未被 criterion 验证，需另立 follow-up 扩展 checker+test。
 
 闭合仍以台账读数为准（本任务 DoD）：待 driver 下一个完整 goal 轮，在域 AC 从 5 变 ≥6、`goal-sufficiency.verdict` 翻 `covered`、且 `phaseSplit.excluded` 仍含 AC-458，三者同轮成立才算闭合（AC4/AC5）。
 ## AC
@@ -84,8 +85,8 @@ goal store 写入已于 2026-11-01 经授权 goal 写入路径完成并读回核
 - [x] AC1: 人裁定写回 `## Resolution`：采纳本提案 (a)，或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
 - [x] AC2: 若采纳：`quay goal show AC-458 --json`（或 `goals/AC-458-*.md`）显示 `goal: GOAL-054`、`status: active`、`phase: post-merge`，且 `criterion` 逐字为 `node scripts/cloudpit-distribution-check.mjs --release`、`expect` 与 `quay goal show AC-454 --json` 的 expect 逐字相同（待外部：由被授权的 goal 写入路径创建）。
 - [x] AC3: 若采纳：`quay goal show AC-454 --json` 显示 `status: superseded` 且 `supersededBy` 含 AC-458，并带书面理由；`goals/` 中不再有两条同 criterion 的 active/achieved AC（待外部：人裁定）。
-- [ ] AC4: 若采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 中 GOAL-054 的 `goal-sufficiency` 为 `{"goal":"GOAL-054","verdict":"covered"}`（在域 AC ≥6），且 `.quay/goal-sufficiency-cache.json` 的新 key 记 `covered`（待外部：driver 跑一轮）。
-- [ ] AC5: 同一轮记录的 `phaseSplit.excluded` 在 `goal/GOAL-054` 分支存在时含 AC-458（`jq -r 'select(.round==N) | .facts[] | select(.name=="goal-ring") | .value.phaseSplit' .quay/goal-round.jsonl`），且 `quay goal merge` 的 pre-merge 未达成集合（`unmetPreMergeAcs`）不含 AC-458（待外部：需 AC-458 已入册 + driver 一轮）。
+- [x] AC4: 若采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 中 GOAL-054 的 `goal-sufficiency` 为 `{"goal":"GOAL-054","verdict":"covered"}`（在域 AC ≥6），且 `.quay/goal-sufficiency-cache.json` 的新 key 记 `covered`（待外部：driver 跑一轮）。
+- [x] AC5: 同一轮记录的 `phaseSplit.excluded` 在 `goal/GOAL-054` 分支存在时含 AC-458（`jq -r 'select(.round==N) | .facts[] | select(.name=="goal-ring") | .value.phaseSplit' .quay/goal-round.jsonl`），且 `quay goal merge` 的 pre-merge 未达成集合（`unmetPreMergeAcs`）不含 AC-458（待外部：需 AC-458 已入册 + driver 一轮）。
 
 ## DoD
 
