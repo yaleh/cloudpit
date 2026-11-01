@@ -61,4 +61,4 @@ extra:
 - scripts/ui-scenarios/cockpit-knowledge-application.json (new)
 - docs/evidence/cockpit-knowledge-decision-handoff.md (new)
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (new)
-- tasks/cockpit-knowledge-decision-handoff.md (new)
+- tasks/cockpit-knowledge-decision-handoff.md
