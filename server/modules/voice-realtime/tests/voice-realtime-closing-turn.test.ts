@@ -272,10 +272,10 @@ test('slim: the voice plane advertises session_send with `message` alone', async
   socket.close();
 });
 
-test('slim off: the full shape (message, session, waitSeconds, correlationId) is advertised as before', async () => {
+test('slim off: the full shape (message, session, waitSeconds, correlationId, sourceSession) is advertised as before', async () => {
   const { upstream, socket } = wire({ slimSendTool: false });
   await waitFor(() => upstream.sent.some((f) => f.type === 'session.update'));
-  assert.deepEqual(sessionSendProperties(upstream), ['correlationId', 'message', 'session', 'waitSeconds']);
+  assert.deepEqual(sessionSendProperties(upstream), ['correlationId', 'message', 'session', 'sourceSession', 'waitSeconds']);
   socket.close();
 });
 
@@ -315,7 +315,12 @@ test('the descriptors: slim shrinks ONLY the voice-plane copy; the gateway mirro
   assert.deepEqual(slim.find((t) => t.name === 'session_interrupt'), full.find((t) => t.name === 'session_interrupt'));
   // The AC-2 mirror still declares the gateway's fields.
   const mirror = REALTIME_TOOLS.find((t) => t.name === 'session_send')!;
-  assert.ok('waitSeconds' in mirror.inputSchema && 'correlationId' in mirror.inputSchema && 'session' in mirror.inputSchema);
+  assert.ok(
+    'waitSeconds' in mirror.inputSchema
+      && 'correlationId' in mirror.inputSchema
+      && 'session' in mirror.inputSchema
+      && 'sourceSession' in mirror.inputSchema,
+  );
 });
 
 // ------------------------------------------------------- what actually reaches the upstream

@@ -146,7 +146,6 @@ const renderWiredChat = async (session: ProjectSession | null) => {
       currentProviderEffort: providerState.currentProviderEffort,
       isLoading: false,
       canAbortSession: false,
-      tokenBudget: null,
       sendMessage: (message: unknown) => {
         state.sent.push(message as Record<string, unknown>);
       },

@@ -44,7 +44,12 @@ type UseCommandMenuStateArgs = {
   currentSessionId: string | null;
   provider: LLMProvider;
   currentProviderModel: string;
-  tokenBudget: Record<string, unknown> | null;
+  /**
+   * The authoritative session reading `/cost` sends. The composer's live frame
+   * is deliberately not accepted here: a newest-turn occupancy must never be
+   * handed to the cost panel as the session's spend.
+   */
+  authoritativeReading: Record<string, unknown> | null;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   /** The send-time mirror of the draft, written in the same tick as the state. */
@@ -63,7 +68,7 @@ export function useCommandMenuState({
   currentSessionId,
   provider,
   currentProviderModel,
-  tokenBudget,
+  authoritativeReading,
   input,
   setInput,
   inputValueRef,
@@ -192,7 +197,7 @@ export function useCommandMenuState({
           sessionId: currentSessionId || selectedSession?.id || null,
           provider,
           model: currentProviderModel,
-          tokenUsage: tokenBudget,
+          tokenUsage: authoritativeReading,
         };
 
         const response = await api.commands.execute({
@@ -243,7 +248,7 @@ export function useCommandMenuState({
       selectedProject,
       selectedSession?.id,
       addMessage,
-      tokenBudget,
+      authoritativeReading,
       setInput,
       inputValueRef,
     ],

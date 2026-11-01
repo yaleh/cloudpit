@@ -1,0 +1,1014 @@
+{
+  "task": "knowledge-effective-config-proof",
+  "capturedAt": "2026-11-01T09:53:27.206Z",
+  "instance": {
+    "kind": "controlled-instance",
+    "baseUrl": "http://127.0.0.1:22729",
+    "isolation": "controlled",
+    "note": "Booted the production mountMcpGateway behind the production bearer-token middleware on a loopback socket, over a real better-sqlite3 file and a real transcript JSONL file in a throwaway temp directory. Run/host seams are injected at their production shapes (chatRunRegistry / sessionHostManager). No live fleet instance, operator database, operator ~/.quay-fleet stream or production configuration was read or written. Production deployment verification is left to F10.",
+    "gatewayPath": "/mcp"
+  },
+  "tool": {
+    "name": "knowledge_facts",
+    "description": "Read one versioned knowledge-application fact about this host: `peer_result` (the ask a session stated, the settling reply re-read from the transcript, and the same operation id on both readings), `effective_config` (expected, stored and actually-running model / effort / permission mode, the operation the reading is about, the ACTUAL request and response the provider recorded for that operation, and a per-field verdict — `verified` is false when the operation, any layer or any expected field is unknown, and a field the provider cannot read back is declared unavailable in `capabilities` rather than echoed from the stored row), or `inventory` (a bounded session page that keeps its filters, total and truncation, so an empty page is never reported as an empty host). Every field is either an evidence reading with its source and observation time, or an explicit `unknown` with a reason; the payload also carries the contract name and version, the build id and the running process boot id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "peer_result",
+            "effective_config",
+            "inventory"
+          ]
+        },
+        "session": {
+          "type": "string",
+          "minLength": 1
+        },
+        "peerSession": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expected": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effort": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "permissionMode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "contract": {
+              "type": "string"
+            },
+            "version": {
+              "type": "number"
+            },
+            "project": {
+              "type": "string"
+            },
+            "buildId": {
+              "type": "string"
+            },
+            "bootId": {
+              "type": "string"
+            },
+            "serverVersion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gitSha": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "builtAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "observedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract",
+            "version",
+            "project",
+            "buildId",
+            "bootId",
+            "serverVersion",
+            "gitSha",
+            "builtAt",
+            "observedAt"
+          ],
+          "additionalProperties": false
+        },
+        "reading": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  "contract": {
+    "contract": "cloudcli.knowledge-application.fact",
+    "version": 1,
+    "project": "claudecodeui",
+    "buildId": "effective-config-evidence-build-1",
+    "bootId": "effective-config-evidence-boot-1",
+    "serverVersion": "1.41.0",
+    "gitSha": "0123456789abcdef0123456789abcdef01234567",
+    "builtAt": "2026-10-31T08:00:00.000Z",
+    "observedAt": "2026-11-01T12:00:00.000Z"
+  },
+  "calls": [
+    {
+      "label": "verified: one Claude operation read back from its own transcript",
+      "arms": {},
+      "baseUrl": "http://127.0.0.1:22729",
+      "request": {
+        "kind": "effective_config",
+        "session": "knowledge-effective-config-evidence",
+        "expected": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high"
+        }
+      },
+      "identity": {
+        "contract": "cloudcli.knowledge-application.fact",
+        "version": 1,
+        "project": "claudecodeui",
+        "buildId": "effective-config-evidence-build-1",
+        "bootId": "effective-config-evidence-boot-1",
+        "serverVersion": "1.41.0",
+        "gitSha": "0123456789abcdef0123456789abcdef01234567",
+        "builtAt": "2026-10-31T08:00:00.000Z",
+        "observedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "reading": {
+        "kind": "effective_config",
+        "operationId": "op-f972da1aa3d3",
+        "expected": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": null
+          },
+          "source": "caller",
+          "sourceRef": "expectation:knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "stored": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": "default"
+          },
+          "source": "sessions.db",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T09:53:25.000Z"
+        },
+        "actual": {
+          "state": "evidence",
+          "value": {
+            "live": true,
+            "pid": 4242,
+            "startedAt": "2026-11-01T11:58:30.000Z",
+            "runId": "effective-config-evidence-run-1"
+          },
+          "source": "session-hosts",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "layers": {
+          "process": {
+            "state": "evidence",
+            "value": {
+              "pid": 4242,
+              "startedAt": "2026-11-01T11:58:30.000Z",
+              "bootId": "effective-config-evidence-boot-1"
+            },
+            "source": "session-hosts",
+            "sourceRef": "knowledge-effective-config-evidence",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "build": {
+            "state": "evidence",
+            "value": {
+              "buildId": "effective-config-evidence-build-1"
+            },
+            "source": "build-info",
+            "sourceRef": "effective-config-evidence-build-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "request": {
+            "state": "evidence",
+            "value": {
+              "sessionId": "knowledge-effective-config-evidence",
+              "runId": "effective-config-evidence-run-1",
+              "providerSessionId": "knowledge-effective-config-evidence"
+            },
+            "source": "chat-runs",
+            "sourceRef": "effective-config-evidence-run-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          }
+        },
+        "operation": {
+          "state": "evidence",
+          "value": {
+            "id": "effective-config-evidence-run-1",
+            "at": "2026-11-01T11:59:30.000Z",
+            "bootId": "effective-config-evidence-boot-1"
+          },
+          "source": "chat-runs",
+          "sourceRef": "effective-config-evidence-run-1",
+          "observedAt": "2026-11-01T11:59:30.000Z"
+        },
+        "actualRequest": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": null,
+            "requestRef": "request-1"
+          },
+          "source": "sessions.transcript",
+          "sourceRef": "/tmp/knowledge-effective-config-evidence-p1YccE/session.jsonl#assistant-turn-1",
+          "observedAt": "2026-11-01T11:59:50.000Z"
+        },
+        "actualResponse": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "responseId": "message-1",
+            "at": "2026-11-01T11:59:50.000Z"
+          },
+          "source": "sessions.transcript",
+          "sourceRef": "/tmp/knowledge-effective-config-evidence-p1YccE/session.jsonl#assistant-turn-1",
+          "observedAt": "2026-11-01T11:59:50.000Z"
+        },
+        "fields": {
+          "model": {
+            "state": "verified",
+            "expected": "claude-sonnet-5-5",
+            "actual": "claude-sonnet-5-5",
+            "source": "sessions.transcript",
+            "sourceRef": "/tmp/knowledge-effective-config-evidence-p1YccE/session.jsonl#assistant-turn-1",
+            "observedAt": "2026-11-01T11:59:50.000Z"
+          },
+          "effort": {
+            "state": "verified",
+            "expected": "high",
+            "actual": "high",
+            "source": "sessions.transcript",
+            "sourceRef": "/tmp/knowledge-effective-config-evidence-p1YccE/session.jsonl#assistant-turn-1",
+            "observedAt": "2026-11-01T11:59:50.000Z"
+          },
+          "permissionMode": {
+            "state": "unknown",
+            "reason": "the caller stated no expected permissionMode"
+          }
+        },
+        "capabilities": {
+          "provider": "claude",
+          "request": {
+            "model": "readable",
+            "effort": "readable",
+            "permissionMode": "unavailable"
+          },
+          "response": {
+            "model": "readable",
+            "effort": "unavailable"
+          },
+          "reasons": {
+            "request.permissionMode": "the Claude transcript records no permission mode, and the stored session row is not a read-back of the request",
+            "response.effort": "the Claude transcript records effort on the request side only"
+          }
+        },
+        "verified": true,
+        "unknown": [],
+        "readErrors": []
+      }
+    },
+    {
+      "label": "unverified: live process, no transcript read-back",
+      "arms": {
+        "transcript": "none"
+      },
+      "baseUrl": "http://127.0.0.1:25797",
+      "request": {
+        "kind": "effective_config",
+        "session": "knowledge-effective-config-evidence",
+        "expected": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high"
+        }
+      },
+      "identity": {
+        "contract": "cloudcli.knowledge-application.fact",
+        "version": 1,
+        "project": "claudecodeui",
+        "buildId": "effective-config-evidence-build-1",
+        "bootId": "effective-config-evidence-boot-1",
+        "serverVersion": "1.41.0",
+        "gitSha": "0123456789abcdef0123456789abcdef01234567",
+        "builtAt": "2026-10-31T08:00:00.000Z",
+        "observedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "reading": {
+        "kind": "effective_config",
+        "operationId": "op-f972da1aa3d3",
+        "expected": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": null
+          },
+          "source": "caller",
+          "sourceRef": "expectation:knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "stored": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": "default"
+          },
+          "source": "sessions.db",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T09:53:25.000Z"
+        },
+        "actual": {
+          "state": "evidence",
+          "value": {
+            "live": true,
+            "pid": 4242,
+            "startedAt": "2026-11-01T11:58:30.000Z",
+            "runId": "effective-config-evidence-run-1"
+          },
+          "source": "session-hosts",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "layers": {
+          "process": {
+            "state": "evidence",
+            "value": {
+              "pid": 4242,
+              "startedAt": "2026-11-01T11:58:30.000Z",
+              "bootId": "effective-config-evidence-boot-1"
+            },
+            "source": "session-hosts",
+            "sourceRef": "knowledge-effective-config-evidence",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "build": {
+            "state": "evidence",
+            "value": {
+              "buildId": "effective-config-evidence-build-1"
+            },
+            "source": "build-info",
+            "sourceRef": "effective-config-evidence-build-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "request": {
+            "state": "evidence",
+            "value": {
+              "sessionId": "knowledge-effective-config-evidence",
+              "runId": "effective-config-evidence-run-1",
+              "providerSessionId": null
+            },
+            "source": "chat-runs",
+            "sourceRef": "effective-config-evidence-run-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          }
+        },
+        "operation": {
+          "state": "evidence",
+          "value": {
+            "id": "effective-config-evidence-run-1",
+            "at": "2026-11-01T11:59:30.000Z",
+            "bootId": "effective-config-evidence-boot-1"
+          },
+          "source": "chat-runs",
+          "sourceRef": "effective-config-evidence-run-1",
+          "observedAt": "2026-11-01T11:59:30.000Z"
+        },
+        "actualRequest": {
+          "state": "unknown",
+          "reason": "the session row carries no transcript path, so the request and response cannot be read"
+        },
+        "actualResponse": {
+          "state": "unknown",
+          "reason": "the session row carries no transcript path, so the request and response cannot be read"
+        },
+        "fields": {
+          "model": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: the session row carries no transcript path, so the request and response cannot be read"
+          },
+          "effort": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: the session row carries no transcript path, so the request and response cannot be read"
+          },
+          "permissionMode": {
+            "state": "unknown",
+            "reason": "the caller stated no expected permissionMode"
+          }
+        },
+        "capabilities": {
+          "provider": "claude",
+          "request": {
+            "model": "readable",
+            "effort": "readable",
+            "permissionMode": "unavailable"
+          },
+          "response": {
+            "model": "readable",
+            "effort": "unavailable"
+          },
+          "reasons": {
+            "request.permissionMode": "the Claude transcript records no permission mode, and the stored session row is not a read-back of the request",
+            "response.effort": "the Claude transcript records effort on the request side only"
+          }
+        },
+        "verified": false,
+        "unknown": [
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ],
+        "readErrors": []
+      }
+    },
+    {
+      "label": "unverified: next turn (completed run) is not this operation",
+      "arms": {
+        "run": "completed"
+      },
+      "baseUrl": "http://127.0.0.1:5329",
+      "request": {
+        "kind": "effective_config",
+        "session": "knowledge-effective-config-evidence",
+        "expected": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high"
+        }
+      },
+      "identity": {
+        "contract": "cloudcli.knowledge-application.fact",
+        "version": 1,
+        "project": "claudecodeui",
+        "buildId": "effective-config-evidence-build-1",
+        "bootId": "effective-config-evidence-boot-1",
+        "serverVersion": "1.41.0",
+        "gitSha": "0123456789abcdef0123456789abcdef01234567",
+        "builtAt": "2026-10-31T08:00:00.000Z",
+        "observedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "reading": {
+        "kind": "effective_config",
+        "operationId": "op-f972da1aa3d3",
+        "expected": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": null
+          },
+          "source": "caller",
+          "sourceRef": "expectation:knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "stored": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": "default"
+          },
+          "source": "sessions.db",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T09:53:26.000Z"
+        },
+        "actual": {
+          "state": "evidence",
+          "value": {
+            "live": true,
+            "pid": 4242,
+            "startedAt": "2026-11-01T11:58:30.000Z",
+            "runId": null
+          },
+          "source": "session-hosts",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "layers": {
+          "process": {
+            "state": "evidence",
+            "value": {
+              "pid": 4242,
+              "startedAt": "2026-11-01T11:58:30.000Z",
+              "bootId": "effective-config-evidence-boot-1"
+            },
+            "source": "session-hosts",
+            "sourceRef": "knowledge-effective-config-evidence",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "build": {
+            "state": "evidence",
+            "value": {
+              "buildId": "effective-config-evidence-build-1"
+            },
+            "source": "build-info",
+            "sourceRef": "effective-config-evidence-build-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "request": {
+            "state": "unknown",
+            "reason": "no run with an id is in flight for this session"
+          }
+        },
+        "operation": {
+          "state": "unknown",
+          "reason": "no run with an id is in flight for this session"
+        },
+        "actualRequest": {
+          "state": "unknown",
+          "reason": "no request or response can be attributed: no run with an id is in flight for this session"
+        },
+        "actualResponse": {
+          "state": "unknown",
+          "reason": "no request or response can be attributed: no run with an id is in flight for this session"
+        },
+        "fields": {
+          "model": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: no request or response can be attributed: no run with an id is in flight for this session"
+          },
+          "effort": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: no request or response can be attributed: no run with an id is in flight for this session"
+          },
+          "permissionMode": {
+            "state": "unknown",
+            "reason": "the caller stated no expected permissionMode"
+          }
+        },
+        "capabilities": {
+          "provider": "claude",
+          "request": {
+            "model": "readable",
+            "effort": "readable",
+            "permissionMode": "unavailable"
+          },
+          "response": {
+            "model": "readable",
+            "effort": "unavailable"
+          },
+          "reasons": {
+            "request.permissionMode": "the Claude transcript records no permission mode, and the stored session row is not a read-back of the request",
+            "response.effort": "the Claude transcript records effort on the request side only"
+          }
+        },
+        "verified": false,
+        "unknown": [
+          "operation",
+          "request",
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ],
+        "readErrors": []
+      }
+    },
+    {
+      "label": "unverified: stored DB row only (no run, no host)",
+      "arms": {
+        "run": "completed",
+        "host": "none",
+        "transcript": "none"
+      },
+      "baseUrl": "http://127.0.0.1:5771",
+      "request": {
+        "kind": "effective_config",
+        "session": "knowledge-effective-config-evidence",
+        "expected": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high"
+        }
+      },
+      "identity": {
+        "contract": "cloudcli.knowledge-application.fact",
+        "version": 1,
+        "project": "claudecodeui",
+        "buildId": "effective-config-evidence-build-1",
+        "bootId": "effective-config-evidence-boot-1",
+        "serverVersion": "1.41.0",
+        "gitSha": "0123456789abcdef0123456789abcdef01234567",
+        "builtAt": "2026-10-31T08:00:00.000Z",
+        "observedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "reading": {
+        "kind": "effective_config",
+        "operationId": "op-f972da1aa3d3",
+        "expected": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": null
+          },
+          "source": "caller",
+          "sourceRef": "expectation:knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "stored": {
+          "state": "evidence",
+          "value": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": "default"
+          },
+          "source": "sessions.db",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T09:53:26.000Z"
+        },
+        "actual": {
+          "state": "unknown",
+          "reason": "no live-host source is wired into this fact reader"
+        },
+        "layers": {
+          "process": {
+            "state": "unknown",
+            "reason": "no live-host source is wired into this fact reader"
+          },
+          "build": {
+            "state": "evidence",
+            "value": {
+              "buildId": "effective-config-evidence-build-1"
+            },
+            "source": "build-info",
+            "sourceRef": "effective-config-evidence-build-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "request": {
+            "state": "unknown",
+            "reason": "no run with an id is in flight for this session"
+          }
+        },
+        "operation": {
+          "state": "unknown",
+          "reason": "no run with an id is in flight for this session"
+        },
+        "actualRequest": {
+          "state": "unknown",
+          "reason": "no request or response can be attributed: no run with an id is in flight for this session"
+        },
+        "actualResponse": {
+          "state": "unknown",
+          "reason": "no request or response can be attributed: no run with an id is in flight for this session"
+        },
+        "fields": {
+          "model": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: no request or response can be attributed: no run with an id is in flight for this session"
+          },
+          "effort": {
+            "state": "unknown",
+            "reason": "the actual request is unknown: no request or response can be attributed: no run with an id is in flight for this session"
+          },
+          "permissionMode": {
+            "state": "unknown",
+            "reason": "the caller stated no expected permissionMode"
+          }
+        },
+        "capabilities": {
+          "provider": "claude",
+          "request": {
+            "model": "readable",
+            "effort": "readable",
+            "permissionMode": "unavailable"
+          },
+          "response": {
+            "model": "readable",
+            "effort": "unavailable"
+          },
+          "reasons": {
+            "request.permissionMode": "the Claude transcript records no permission mode, and the stored session row is not a read-back of the request",
+            "response.effort": "the Claude transcript records effort on the request side only"
+          }
+        },
+        "verified": false,
+        "unknown": [
+          "actual",
+          "process",
+          "operation",
+          "request",
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ],
+        "readErrors": []
+      }
+    },
+    {
+      "label": "unverified: a provider with no request/response read-back source",
+      "arms": {
+        "provider": "codex",
+        "transcript": "none"
+      },
+      "baseUrl": "http://127.0.0.1:28923",
+      "request": {
+        "kind": "effective_config",
+        "session": "knowledge-effective-config-evidence",
+        "expected": {
+          "model": "gpt-5.5-codex",
+          "effort": "high"
+        }
+      },
+      "identity": {
+        "contract": "cloudcli.knowledge-application.fact",
+        "version": 1,
+        "project": "claudecodeui",
+        "buildId": "effective-config-evidence-build-1",
+        "bootId": "effective-config-evidence-boot-1",
+        "serverVersion": "1.41.0",
+        "gitSha": "0123456789abcdef0123456789abcdef01234567",
+        "builtAt": "2026-10-31T08:00:00.000Z",
+        "observedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "reading": {
+        "kind": "effective_config",
+        "operationId": "op-f972da1aa3d3",
+        "expected": {
+          "state": "evidence",
+          "value": {
+            "model": "gpt-5.5-codex",
+            "effort": "high",
+            "permissionMode": null
+          },
+          "source": "caller",
+          "sourceRef": "expectation:knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "stored": {
+          "state": "evidence",
+          "value": {
+            "model": "gpt-5.5-codex",
+            "effort": "high",
+            "permissionMode": "default"
+          },
+          "source": "sessions.db",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T09:53:27.000Z"
+        },
+        "actual": {
+          "state": "evidence",
+          "value": {
+            "live": true,
+            "pid": 4242,
+            "startedAt": "2026-11-01T11:58:30.000Z",
+            "runId": "effective-config-evidence-run-1"
+          },
+          "source": "session-hosts",
+          "sourceRef": "knowledge-effective-config-evidence",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "layers": {
+          "process": {
+            "state": "evidence",
+            "value": {
+              "pid": 4242,
+              "startedAt": "2026-11-01T11:58:30.000Z",
+              "bootId": "effective-config-evidence-boot-1"
+            },
+            "source": "session-hosts",
+            "sourceRef": "knowledge-effective-config-evidence",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "build": {
+            "state": "evidence",
+            "value": {
+              "buildId": "effective-config-evidence-build-1"
+            },
+            "source": "build-info",
+            "sourceRef": "effective-config-evidence-build-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "request": {
+            "state": "evidence",
+            "value": {
+              "sessionId": "knowledge-effective-config-evidence",
+              "runId": "effective-config-evidence-run-1",
+              "providerSessionId": null
+            },
+            "source": "chat-runs",
+            "sourceRef": "effective-config-evidence-run-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          }
+        },
+        "operation": {
+          "state": "evidence",
+          "value": {
+            "id": "effective-config-evidence-run-1",
+            "at": "2026-11-01T11:59:30.000Z",
+            "bootId": "effective-config-evidence-boot-1"
+          },
+          "source": "chat-runs",
+          "sourceRef": "effective-config-evidence-run-1",
+          "observedAt": "2026-11-01T11:59:30.000Z"
+        },
+        "actualRequest": {
+          "state": "unknown",
+          "reason": "this build has no request/response read-back source for provider \"codex\""
+        },
+        "actualResponse": {
+          "state": "unknown",
+          "reason": "this build has no request/response read-back source for provider \"codex\""
+        },
+        "fields": {
+          "model": {
+            "state": "unknown",
+            "reason": "this build has no request/response read-back source for provider \"codex\""
+          },
+          "effort": {
+            "state": "unknown",
+            "reason": "this build has no request/response read-back source for provider \"codex\""
+          },
+          "permissionMode": {
+            "state": "unknown",
+            "reason": "the caller stated no expected permissionMode"
+          }
+        },
+        "capabilities": {
+          "provider": "codex",
+          "request": {
+            "model": "unavailable",
+            "effort": "unavailable",
+            "permissionMode": "unavailable"
+          },
+          "response": {
+            "model": "unavailable",
+            "effort": "unavailable"
+          },
+          "reasons": {
+            "request": "this build has no request/response read-back source for provider \"codex\"",
+            "response": "this build has no request/response read-back source for provider \"codex\""
+          }
+        },
+        "verified": false,
+        "unknown": [
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ],
+        "readErrors": []
+      }
+    }
+  ],
+  "summary": {
+    "verifiedCall": "verified: one Claude operation read back from its own transcript",
+    "unverifiedCalls": [
+      {
+        "label": "unverified: live process, no transcript read-back",
+        "verified": false,
+        "unknown": [
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ]
+      },
+      {
+        "label": "unverified: next turn (completed run) is not this operation",
+        "verified": false,
+        "unknown": [
+          "operation",
+          "request",
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ]
+      },
+      {
+        "label": "unverified: stored DB row only (no run, no host)",
+        "verified": false,
+        "unknown": [
+          "actual",
+          "process",
+          "operation",
+          "request",
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ]
+      },
+      {
+        "label": "unverified: a provider with no request/response read-back source",
+        "verified": false,
+        "unknown": [
+          "actualRequest",
+          "actualResponse",
+          "fields.model",
+          "fields.effort"
+        ]
+      }
+    ]
+  }
+}

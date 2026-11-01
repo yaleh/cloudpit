@@ -1,6 +1,6 @@
 {
   "name": "cockpit-cards-dismiss",
-  "description": "The cards view's third choice: a person enters the cockpit through the mode switch, opens its cards view, selects the session-ask card, presses 「Ignore / discard」 and then 「Confirm discard」. Every assertion is a structured reading of the list's own `data-cockpit-cards` declaration; the dismiss verb presses the card's own two-step control (the dismiss button, then the bar's confirm), never the option bar — so the card settles without answering it. After the dismissal the card has left the visible list, every other card stays in order, the selection falls back to the first remaining card, and the list-level answer reads as a success. Run this against an instance whose `cockpit.fixtureFeedback.mode` is not `none`: the shipped `closed` arm and a `kept` arm both close a dismissed item, while `none` answers no receipt and leaves the card in place.",
+  "description": "The cards view's third choice: a person enters the cockpit through the mode switch, opens its cards view, selects the session-ask card, opens its Details drawer, and discards it FROM THE DRAWER. The drawer's own 「Ignore / discard」 control opens its in-place confirmation (first leg), cancel closes it without sending and leaves the card's shown option alone (second leg), and the final leg confirms from the drawer so the card leaves the list and the list-level answer reads as a success. Every assertion is a structured reading of the list's own `data-cockpit-cards` declaration plus the dismiss bar's own `data-dismiss-pending`/`data-card-id`; the verbs press the drawer's controls only, never the list row's (a list verb would pass even when the drawer drew no discard entry). The card settles without answering it: no option confirmation is sent. Run this against an instance whose `cockpit.fixtureFeedback.mode` is not `none`: the shipped `closed` arm and a `kept` arm both close a dismissed item, while `none` answers no receipt and leaves the card in place.",
   "steps": [
     {
       "open": "cockpit-cards",
@@ -36,10 +36,77 @@
     },
     {
       "drive": {
-        "cockpitCard.dismiss": "fixture:ask"
+        "cockpitCard.openDetails": "fixture:ask"
       },
       "checkpoint": true,
       "expect": {
+        "cockpitCardDetailsOpen": "fixture:ask"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.openDismissFromDetails": "fixture:ask"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardDismissOpen": "fixture:ask",
+        "cockpitCardsVisible": [
+          "fixture:need",
+          "fixture:stuck",
+          "fixture:fix",
+          "fixture:session-only",
+          "fixture:undeclared",
+          "fixture:content-unavailable",
+          "fixture:ask",
+          "fixture:multi",
+          "fixture:decision"
+        ]
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.cancelDismissFromDetails": "fixture:ask"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardDismissOpen": null,
+        "cockpitCardDismissNoticeOk": null,
+        "cockpitCardShownOption": {
+          "cardId": "fixture:ask",
+          "optionId": "delete"
+        },
+        "cockpitCardsVisible": [
+          "fixture:need",
+          "fixture:stuck",
+          "fixture:fix",
+          "fixture:session-only",
+          "fixture:undeclared",
+          "fixture:content-unavailable",
+          "fixture:ask",
+          "fixture:multi",
+          "fixture:decision"
+        ]
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.openDismissFromDetails": "fixture:ask"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardDismissOpen": "fixture:ask"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirmDismissFromDetails": "fixture:ask"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardDismissOpen": null,
+        "cockpitCardDetailsOpen": null,
+        "cockpitCardDismissNoticeOk": true,
+        "cockpitCardSelected": "fixture:need",
         "cockpitCardsVisible": [
           "fixture:need",
           "fixture:stuck",
@@ -49,9 +116,7 @@
           "fixture:content-unavailable",
           "fixture:multi",
           "fixture:decision"
-        ],
-        "cockpitCardSelected": "fixture:need",
-        "cockpitCardDismissNoticeOk": true
+        ]
       }
     }
   ]

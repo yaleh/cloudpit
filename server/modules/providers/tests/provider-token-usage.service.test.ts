@@ -111,13 +111,27 @@ test('token usage lookup requires only the app-facing session id for Claude', as
     assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
       used: 155,
       total: 180_000,
+      // One turn: the session total and the newest request coincide, but they
+      // are now named separately.
+      sessionSpend: {
+        inputTokens: 125,
+        outputTokens: 30,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 5,
+      },
+      contextOccupancy: { used: 155, total: 180_000 },
       inputTokens: 125,
       outputTokens: 30,
       cacheReadTokens: 20,
       cacheCreationTokens: 5,
       cacheTokens: 25,
-      // One turn: the session total and the newest request coincide.
       cumulative: {
+        inputTokens: 125,
+        outputTokens: 30,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 5,
+      },
+      lastRequest: {
         inputTokens: 125,
         outputTokens: 30,
         cacheReadTokens: 20,
@@ -168,6 +182,9 @@ test('Codex token usage uses the latest token_count snapshot', async () => {
     assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
       used: 49,
       total: 250_000,
+      sessionSpend: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
+      // Codex knows the window but no measured request occupancy.
+      contextOccupancy: { total: 250_000 },
       inputTokens: 40,
       outputTokens: 9,
       cumulative: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
@@ -460,6 +477,9 @@ test('OpenCode token usage resolves its provider-native id from the session row'
 
     assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
       used: 29,
+      // The OpenCode row is a whole-session accumulator, not a request
+      // reading; its cache-read quantity is a subset of input.
+      sessionSpend: { inputTokens: 17, outputTokens: 7, cacheReadTokens: 5 },
       inputTokens: 17,
       outputTokens: 7,
       breakdown: { input: 17, output: 7 },
@@ -511,16 +531,59 @@ test('the Claude summarizer reads the newest assistant turn, not the whole conve
     cacheReadTokens: 4000,
     cacheCreationTokens: 100,
     cacheTokens: 4100,
-    // New shape: the same turns now also answer the session-cumulative scope.
-    // Both turns are main-thread, so their prompts accumulate: 1005 + 4103.
+    // First-class session spend: both turns are main-thread, so their prompts
+    // accumulate: 1005 + 4103.
+    sessionSpend: {
+      inputTokens: 5108,
+      outputTokens: 130,
+      cacheReadTokens: 5000,
+      cacheWriteTokens: 100,
+    },
     cumulative: {
       inputTokens: 5108,
       outputTokens: 130,
       cacheReadTokens: 5000,
       cacheWriteTokens: 100,
     },
+    // First-class newest-turn occupancy: the window is independent of it.
+    contextOccupancy: { used: 4183, total: 200_000 },
+    // The newest turn also answers the context-occupancy scope in counts shape.
+    lastRequest: {
+      inputTokens: 4103,
+      outputTokens: 80,
+      cacheReadTokens: 4000,
+      cacheWriteTokens: 100,
+    },
     breakdown: { input: 4103, output: 80 },
   });
+});
+
+test('a Claude reading names its two scopes and keeps the legacy fields for older consumers', () => {
+  const entries = [
+    { type: 'assistant', message: { usage: { input_tokens: 5, cache_read_input_tokens: 1000, output_tokens: 50 } } },
+    { type: 'assistant', message: { usage: { input_tokens: 3, cache_read_input_tokens: 4000, cache_creation_input_tokens: 100, output_tokens: 80 } } },
+  ];
+  const reading = summarizeClaudeTokenUsage(entries, '200000');
+
+  // `contextOccupancy.used` is the NEWEST turn's input+output, and the window
+  // is a separate fact.
+  assert.equal(reading.contextOccupancy?.used, 4103 + 80);
+  assert.equal(reading.contextOccupancy?.total, 200_000);
+  // `sessionSpend` is the whole session's accumulated spend (1005 + 4103
+  // input, 50 + 80 output), never the newest turn's occupancy.
+  assert.deepEqual(reading.sessionSpend, {
+    inputTokens: 5108,
+    outputTokens: 130,
+    cacheReadTokens: 5000,
+    cacheWriteTokens: 100,
+  });
+  assert.notEqual(reading.contextOccupancy?.used, reading.sessionSpend?.inputTokens);
+  // Backward compatibility: the old dual-meaning fields are still emitted.
+  // Claude leaves `usageScope` unset exactly as before, so an older consumer
+  // keeps reading `used` as the context occupancy.
+  assert.equal(reading.used, 4183);
+  assert.deepEqual(reading.cumulative, reading.sessionSpend);
+  assert.equal(reading.usageScope, undefined);
 });
 
 test('the Claude summarizer skips synthetic rows that carry an all-zero usage block', () => {
@@ -669,29 +732,60 @@ function paddingLines(totalBytes: number): string {
   return Array.from({ length: Math.ceil(totalBytes / line.length) }, () => line).join('\n');
 }
 
-test('Claude token usage reads only the tail of a large transcript', async () => {
-  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-claude-tail-'));
+test('Claude token usage reads the whole transcript for cumulative when it is larger than the tail', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-claude-cumulative-full-'));
   const sessionFilePath = path.join(tempDirectory, 'provider-session.jsonl');
 
   try {
+    // Two main-thread turns separated by >4MB of padding so only the second
+    // sits inside the tail window. A tail-only read would sum just the second
+    // turn and undercount the session by the first.
+    const first = { type: 'assistant', message: { usage: { input_tokens: 100, cache_read_input_tokens: 20, output_tokens: 5 } } };
+    const last = { type: 'assistant', message: { usage: { input_tokens: 7, cache_read_input_tokens: 3, output_tokens: 2 } } };
     await writeFile(sessionFilePath, [
+      JSON.stringify(first),
       paddingLines(5 * 1024 * 1024),
-      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 7, output_tokens: 2 } } }),
+      JSON.stringify(last),
     ].join('\n'));
 
     const service = createProviderTokenUsageService({
       getSessionById: () => createSessionRow({ jsonl_path: sessionFilePath }),
       getClaudeContextWindow: () => '180000',
-      // Reading the whole file here would defeat the tail read; fail loudly.
-      readTextFile: () => { throw new Error('full read must not happen when the tail has usage'); },
     });
 
     const usage = await service.getSessionTokenUsage('app-session');
-    assert.equal(usage.inputTokens, 7);
+    // Both turns contribute: input = (100+20) + (7+3), output = 5 + 2,
+    // cacheRead = 20 + 3. Neither reported cache_creation, so cacheWriteTokens
+    // stays absent instead of being fabricated as zero.
+    assert.deepEqual(usage.cumulative, {
+      inputTokens: 130,
+      outputTokens: 7,
+      cacheReadTokens: 23,
+    });
+    // The newest-turn occupancy read still answers the last row, unchanged.
+    assert.equal(usage.inputTokens, 10);
     assert.equal(usage.outputTokens, 2);
+    assert.equal(usage.cacheReadTokens, 3);
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
+});
+
+test('the Claude summarizer omits cache subsets it never reported instead of fabricating zero', () => {
+  // Both turns report cache reads but no cache creation: the cumulative block
+  // keeps cacheReadTokens and omits cacheWriteTokens (absent ≠ reported zero).
+  const entries = [
+    { type: 'assistant', message: { usage: { input_tokens: 10, cache_read_input_tokens: 4, output_tokens: 2 } } },
+    { type: 'assistant', message: { usage: { input_tokens: 5, cache_read_input_tokens: 1, output_tokens: 3 } } },
+  ];
+
+  const reading = summarizeClaudeTokenUsage(entries, '200000');
+  assert.deepEqual(reading.cumulative, {
+    inputTokens: 20,
+    outputTokens: 5,
+    cacheReadTokens: 5,
+  });
+  assert.equal('cacheWriteTokens' in (reading.cumulative ?? {}), false);
 });
 
 test('Claude token usage falls back to the whole file when the tail has no usage row', async () => {
@@ -744,6 +838,8 @@ test('Codex token usage reads only the tail of a large rollout', async () => {
     assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
       used: 29,
       total: 150_000,
+      sessionSpend: { inputTokens: 21, outputTokens: 8, totalTokens: 29 },
+      contextOccupancy: { total: 150_000 },
       inputTokens: 21,
       outputTokens: 8,
       cumulative: { inputTokens: 21, outputTokens: 8, totalTokens: 29 },

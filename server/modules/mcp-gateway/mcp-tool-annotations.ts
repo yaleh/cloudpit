@@ -121,6 +121,13 @@ export type McpGatewayToolName =
   | 'draft_get'
   | 'draft_set'
   | 'draft_submit'
+  // knowledge-application-fact-contract: `knowledge_facts` is registered
+  // alongside the stage-3 read table through its own deps bag (the table is the
+  // frozen AC-245 read set), so it is named here. It READS stored session rows,
+  // the process host table, the chat-run registry and the context-event stream —
+  // it mutates nothing, drives no provider agent, and a repeat reads the same
+  // fact.
+  | 'knowledge_facts'
   // gap-mcp-session-steer-tool: `session_steer`, registered alongside the five
   // AC-249 write tools (it is not one of them) under the write table's
   // `cloudcli:session:control` scope, so it is named here.
@@ -232,6 +239,11 @@ export const MCP_TOOL_ANNOTATIONS: Record<McpGatewayToolName, ToolAnnotations> =
   // reads the caller's own unsent composer text out of the session_drafts store;
   // nothing is stored and a repeat over an unchanged store reads the same text.
   draft_get: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  // knowledge-application-fact-contract: reads stored session rows, the live
+  // host table, the run registry and the context-event stream; it writes none of
+  // them, asks no browser and starts no provider process, and a repeat over an
+  // unchanged store reads the same fact.
+  knowledge_facts: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   // replaces that stored text. It discards the user's unsent draft — text they
   // produced and nothing can restore — so it is marked destructive (the
   // conservative side: an extra confirmation costs a prompt, a missing one loses

@@ -278,16 +278,6 @@ export type ProviderDescriptor = {
   messageLabelKey: string;
   /** Copy to use when a locale has no value for `messageLabelKey`. */
   messageLabelDefault?: string;
-  /**
-   * How this provider accounts for cached prompt tokens in its usage reading.
-   *
-   * Every provider reports cache quantities as a SUBSET of input rather than as
-   * separate spend, but they name the quantities differently; `/cost` states the
-   * provider's own accounting beside the figures so a reader does not add the
-   * cache rows to input a second time. Stated per row here rather than as a
-   * branch in the panel.
-   */
-  cacheAccountingNote: string;
   /** Whether the transcript view strips a proposed-plan envelope from assistant text. */
   stripsProposedPlanEnvelope: boolean;
   /**
@@ -316,10 +306,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginTitle: 'Claude CLI Login',
     loginCommand: 'claude --dangerously-skip-permissions /login',
     messageLabelKey: 'messageTypes.claude',
-    cacheAccountingNote:
-      'Input already includes cache reads and cache writes. Anthropic reports them separately as '
-      + 'cache_read_input_tokens and cache_creation_input_tokens, but they are a breakdown of input, '
-      + 'never additional tokens.',
     stripsProposedPlanEnvelope: false,
     // The resident host holds the conversation and its Shell would resume it.
     residentShellClosed: true,
@@ -329,9 +315,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginTitle: 'Cursor CLI Login',
     loginCommand: 'cursor-agent login',
     messageLabelKey: 'messageTypes.cursor',
-    cacheAccountingNote:
-      'Input already includes any cached prompt tokens Cursor reports; cached quantities are a '
-      + 'subset of input, never additional tokens.',
     stripsProposedPlanEnvelope: false,
     // Not resident-capable (`lifecycleModes`), so this is never consulted.
     residentShellClosed: false,
@@ -342,9 +325,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginCommand: 'codex login',
     platformLoginCommand: 'codex login --device-auth',
     messageLabelKey: 'messageTypes.codex',
-    cacheAccountingNote:
-      'Input already includes cached input tokens (cached_input_tokens). Cache writes '
-      + '(cache_write_input_tokens) are the write half of that same prompt, so neither is added again.',
     stripsProposedPlanEnvelope: true,
     // A Codex resident session keeps an ordinary terminal: the Shell launches
     // the bare CLI and never resumes the app-server's held thread.
@@ -356,9 +336,6 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     loginCommand: 'opencode auth login',
     messageLabelKey: 'messageTypes.opencode',
     messageLabelDefault: 'OpenCode',
-    cacheAccountingNote:
-      'Input already includes cache reads and cache writes. The cache rows are a breakdown of input, '
-      + 'never additional tokens.',
     stripsProposedPlanEnvelope: false,
     // Not resident-capable (`lifecycleModes`), so this is never consulted.
     residentShellClosed: false,

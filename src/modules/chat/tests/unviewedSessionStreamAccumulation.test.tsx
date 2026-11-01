@@ -75,7 +75,7 @@ const renderChat = () => {
       provider: 'claude',
       selectedSession,
       currentSessionId: VIEWED_SESSION,
-      setTokenBudget: () => {},
+      setLiveFrame: () => {},
       pendingPermissionRequests: [],
       setPendingPermissionRequests: () => {},
       streamTimerRef,

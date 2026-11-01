@@ -12,7 +12,11 @@
  *   · the pairing is by `blockId`: a resolution names the same `<sessionId>:<requestId|turnId>`
  *     the block did;
  *   · deleting a kind from the constant is observable as `invalid-kind` (the negative form) —
- *     the same guard a typo hits, and the accepted arm proves the guard is not vacuous.
+ *     the same guard a typo hits, and the accepted arm proves the guard is not vacuous;
+ *   · a fixture/DoD synthetic session lands only in a DECLARED isolated fleet home: production
+ *     wiring refuses it before the record seam, and declaring the real home as `fixtureHome` is
+ *     refused too (the positive control: writing the real home fails); a real session id still
+ *     lands through the production adapter (the regression arm).
  *
  * Run directly:
  *   npx tsx --tsconfig server/tsconfig.json --test \
@@ -31,6 +35,8 @@ import {
   createSessionBlockedEventWriter,
   toSessionBlockedEventDraft,
   type CloudCliContextEventKind,
+  type ContextEventDraft,
+  type SessionBlockedEventAppend,
   type SessionBlockedEventWriter,
 } from '@/modules/context-events/index.js';
 import type {
@@ -89,7 +95,7 @@ type Harness = {
 
 async function withHarness(
   run: (harness: Harness) => Promise<void>,
-  options: { recordThrows?: boolean } = {},
+  options: { recordThrows?: boolean; fixture?: boolean } = {},
 ): Promise<void> {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'session-blocked-events-'));
   const eventsDir = path.join(homeDir, '.quay-fleet', 'context', 'events');
@@ -106,6 +112,9 @@ async function withHarness(
           }
         : (draft) => stream.record(draft),
       log: () => undefined,
+      // The isolated home is the temporary one this harness built; the fixture arm declares it
+      // so the adapter accepts synthetic session ids (production wiring omits it and refuses).
+      ...(options.fixture === true ? { fixtureHome: path.join(homeDir, '.quay-fleet') } : {}),
     });
     await run({ eventsDir, schemaPath, adapter });
   } finally {
@@ -133,6 +142,22 @@ const APPROVAL_BLOCK: SessionBlockedEvent = {
   blockId: 'sess-approval:req-1',
   requestId: 'req-1',
   toolName: 'commandExecution',
+};
+
+/** The synthetic session a DoD/fixture scenario mints; never a real CloudCLI session id. */
+const FIXTURE_SESSION = 'dod-codex-blocked-1793458130445';
+const FIXTURE_BLOCK: SessionBlockedEvent = {
+  kind: 'session.blocked',
+  session: FIXTURE_SESSION,
+  reason: 'failed',
+  blockId: `${FIXTURE_SESSION}:turn-1`,
+  turnId: 'turn-1',
+  errorMessage: 'the build exited 1',
+};
+const FIXTURE_RESOLVED: SessionBlockedEventRecord = {
+  kind: 'session.blocked.resolved',
+  session: FIXTURE_SESSION,
+  blockId: FIXTURE_BLOCK.blockId,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -263,4 +288,101 @@ test('a record seam that throws is counted and never thrown at the producer', as
     },
     { recordThrows: true },
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Fixture isolation: a synthetic session never reaches the real fleet home
+// ---------------------------------------------------------------------------------------------
+
+test('a fixture session lands only in the DECLARED isolated fleet home (AC1)', async () => {
+  await withHarness(
+    async ({ eventsDir, adapter }) => {
+      adapter.write(FIXTURE_BLOCK);
+      adapter.write(FIXTURE_RESOLVED);
+      await adapter.settled();
+
+      const rows = await readDay(eventsDir);
+      assert.deepEqual(rows.map((row) => row.kind), [
+        'session.blocked',
+        'session.blocked.resolved',
+      ]);
+      assert.equal(rows[0]?.session, FIXTURE_SESSION);
+      assert.deepEqual(rows[0]?.data, {
+        reason: 'failed',
+        blockId: FIXTURE_BLOCK.blockId,
+        turnId: 'turn-1',
+        errorMessage: 'the build exited 1',
+      });
+      assert.deepEqual(rows[1]?.data, { blockId: FIXTURE_BLOCK.blockId });
+      assert.deepEqual(adapter.status(), { written: 2, rejected: 0, rejectedByReason: {} });
+      console.log(`fixtureRows=${JSON.stringify(rows.map((row) => row.kind))}`);
+    },
+    { fixture: true },
+  );
+});
+
+test('a fixture session is refused before the record seam: production wiring, and a fixtureHome that is the real home (AC1 positive control)', async () => {
+  // The seam stands for the real production wiring: if it is reached with a fixture session, the
+  // real fleet home is exactly where the row would land. The assertion is that it never is.
+  const reached: ContextEventDraft[] = [];
+  const realHomeSeam: SessionBlockedEventAppend = async (draft) => {
+    reached.push(draft);
+    return { ok: true, id: 'would-be-real', path: 'would-be-real' };
+  };
+
+  const production = createSessionBlockedEventWriter({ record: realHomeSeam, log: () => undefined });
+  production.write(FIXTURE_BLOCK);
+  production.write(FIXTURE_RESOLVED);
+  await production.settled();
+  assert.deepEqual(reached, [], 'production wiring must never hand a fixture session to the record seam');
+  assert.deepEqual(production.status(), {
+    written: 0,
+    rejected: 2,
+    rejectedByReason: { 'fixture-session': 2 },
+  });
+
+  // Positive control: declaring the REAL fleet home as the fixture home must fail the same way.
+  const misdeclared = createSessionBlockedEventWriter({
+    record: realHomeSeam,
+    log: () => undefined,
+    fixtureHome: path.join(os.homedir(), '.quay-fleet'),
+  });
+  misdeclared.write(FIXTURE_BLOCK);
+  misdeclared.write(FIXTURE_RESOLVED);
+  await misdeclared.settled();
+  assert.deepEqual(reached, [], 'a fixtureHome that is the real home must be refused before the seam');
+  assert.deepEqual(misdeclared.status(), {
+    written: 0,
+    rejected: 2,
+    rejectedByReason: { 'fixture-home-is-real': 2 },
+  });
+  console.log(`fixtureRefused=${JSON.stringify(misdeclared.status())}`);
+});
+
+test('the same production adapter still writes a real session id (AC2 regression arm)', async () => {
+  // The guard must be discriminating, not a blanket refusal: a real CloudCLI session id goes
+  // through the production-wired adapter untouched, in the same run that refused the fixture.
+  const reached: ContextEventDraft[] = [];
+  const adapter = createSessionBlockedEventWriter({
+    record: async (draft) => {
+      reached.push(draft);
+      return { ok: true, id: 'real', path: 'real' };
+    },
+    log: () => undefined,
+  });
+  adapter.write(APPROVAL_BLOCK);
+  adapter.write(FIXTURE_BLOCK);
+  await adapter.settled();
+
+  assert.deepEqual(
+    reached.map((draft) => draft.session),
+    ['sess-approval'],
+    'the real session must still reach the production seam; only the fixture is refused',
+  );
+  assert.deepEqual(adapter.status(), {
+    written: 1,
+    rejected: 1,
+    rejectedByReason: { 'fixture-session': 1 },
+  });
+  console.log(`productionPassThrough=${JSON.stringify(adapter.status())}`);
 });

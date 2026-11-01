@@ -218,6 +218,10 @@ export const REALTIME_TOOLS: readonly RealtimeToolDescriptor[] = [
       // `readCorrelationId`, which answers `null` for anything outside the
       // contract instead of storing or acting on it.
       correlationId: z.string().optional(),
+      // knowledge-peer-correlation-proof mirrors the gateway's optional
+      // `sourceSession` the same way (a bare `z.string()`; the gateway's length
+      // check is invisible to `zodSignature`).
+      sourceSession: z.string().optional(),
     },
     outputSchema: {
       // AC-385 / SPEC §8.1: the handle every accepted send answers with (the id

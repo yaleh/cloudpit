@@ -252,8 +252,9 @@ function ChatInterface({
     totalMessages,
     isUserScrolledUp,
     setIsUserScrolledUp,
-    tokenBudget,
-    setTokenBudget,
+    liveFrame,
+    setLiveFrame,
+    authoritativeReading,
     visibleMessageCount,
     visibleMessages,
     loadEarlierMessages,
@@ -760,7 +761,9 @@ function ChatInterface({
     isDockTurnShown,
     processingSessions,
     canAbortSession,
-    tokenBudget,
+    // `/cost` reads the authoritative session reading. The composer's own
+    // counter is the `tokenBudget` prop on ChatComposer, fed the live frame.
+    authoritativeReading,
     sendMessage,
     // A closed socket cannot carry the send, so the composer has to know: it
     // fails such a send at once rather than arming a deadline for an answer
@@ -948,7 +951,7 @@ function ChatInterface({
     provider,
     selectedSession,
     currentSessionId,
-    setTokenBudget,
+    setLiveFrame,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamTimerRef,
@@ -1369,7 +1372,7 @@ function ChatInterface({
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
-          tokenBudget={tokenBudget}
+          tokenBudget={liveFrame ?? authoritativeReading}
           onShowTokenUsage={showCostModal}
           isEditingSentMessage={Boolean(editingAnchorId)}
           onCancelEditMessage={cancelEditMessage}

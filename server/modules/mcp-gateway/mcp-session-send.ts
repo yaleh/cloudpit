@@ -254,6 +254,29 @@ export type McpSessionSendSelection = {
  */
 export type McpSessionSendApprovals = McpApprovalReader & { now(): number };
 
+/**
+ * The one write this adapter makes on the cross-session delivery ledger.
+ *
+ * A send that names BOTH the session that asked (`sourceSession`) and a
+ * correlation label is the only kind that can later be read back as
+ * "this session's ask was handed to that peer as this delivery". The record is
+ * written HERE, at the instant the control service accepted the send, because
+ * this is the one place the server holds the delivery id, the target and the
+ * asking session together. A record reconstructed later from a transcript could
+ * not say who asked or under which correlation.
+ *
+ * Optional, like every seam here: a mount without a ledger (or a send that names
+ * neither field) records nothing and behaves exactly as before.
+ */
+export type McpSessionSendDeliveryLedger = {
+  recordDeliveryCorrelation(input: {
+    deliveryId: string;
+    correlationId: string;
+    sourceSessionId: string;
+    targetSessionId: string;
+  }): void;
+};
+
 /** The services `session_send` answers from, all injected. */
 export type McpSessionSendDeps = {
   control: McpControlSeam;
@@ -271,6 +294,11 @@ export type McpSessionSendDeps = {
    * with `blockedBy: null`.
    */
   approvals?: McpSessionSendApprovals;
+  /**
+   * The cross-session delivery ledger this task adds (see
+   * {@link McpSessionSendDeliveryLedger}). Optional: absent records nothing.
+   */
+  deliveries?: McpSessionSendDeliveryLedger;
 };
 
 // --------------------------- input and payload ---------------------------
@@ -288,6 +316,18 @@ export type McpSessionSendInput = {
    * before this field existed.
    */
   correlationId?: string;
+  /**
+   * The session that asked, when the caller is relaying one session's ask into
+   * this target. Recorded with the delivery and the correlation on the
+   * cross-session ledger; a later `knowledge_facts({ kind: 'peer_result',
+   * deliveryId })` read checks this value, not the one the reader was given.
+   *
+   * Absent is the ordinary case: a person or a local automation sends to this
+   * session, nothing is recorded, and the delivery arm stays unreadable for
+   * that send. Naming it without a `correlationId` also records nothing —
+   * neither field alone is a correlation.
+   */
+  sourceSession?: string;
   /**
    * The tier the frame THIS send writes should carry, when the caller named one.
    *
@@ -320,6 +360,10 @@ export const SESSION_SEND_INPUT_SCHEMA = {
   // AC-337: the one declaration of the label's contract, splices in verbatim so
   // `tools/list` advertises exactly what the wrapper enforces (AC-288 (f)).
   correlationId: MCP_CORRELATION_ID_INPUT_FIELD.optional(),
+  // knowledge-peer-correlation-proof: the asking session this relayed send is
+  // for. Declared so the transport accepts it; the voice plane's mirror carries
+  // the same optional field (its signature test compares the two).
+  sourceSession: z.string().min(1).optional(),
 } satisfies z.ZodRawShape;
 
 /**
@@ -413,12 +457,14 @@ export function readSessionSendInput(args: Record<string, unknown>): McpSessionS
   // refuses an unusable one on the wire, and this is a reading, never a second
   // validation rule.
   const correlationId = readCorrelationId(args.correlationId) ?? undefined;
+  const sourceSession = typeof args.sourceSession === 'string' && args.sourceSession !== '' ? args.sourceSession : undefined;
   const priority = readRequestedPriority(args.priority);
   return {
     session,
     message,
     waitSeconds,
     ...(correlationId === undefined ? {} : { correlationId }),
+    ...(sourceSession === undefined ? {} : { sourceSession }),
     ...(priority === undefined ? {} : { priority }),
   };
 }
@@ -561,8 +607,8 @@ export async function buildSessionSend(
   // would silently stamp nothing. The run-addressed write remains the fallback
   // for a mount (or a send) that named no delivery. A send that carried no label
   // takes no branch and touches the registry not at all.
+  const deliveryId = result.deliveryId ?? null;
   if (input.correlationId !== undefined) {
-    const deliveryId = result.deliveryId ?? null;
     const stamped =
       deliveryId !== null
         ? (deps.runs.setDeliveryCorrelationId?.(deliveryId, input.correlationId) ?? false)
@@ -570,6 +616,21 @@ export async function buildSessionSend(
     if (!stamped && result.runId !== null) {
       deps.runs.setRunCorrelationId?.(result.runId, input.correlationId);
     }
+  }
+
+  // knowledge-peer-correlation-proof: a RELAYED ask is recorded at the instant the
+  // control service accepted it, so a later `knowledge_facts` read can prove the
+  // chain (source session → delivery → target transcript → reply) from the
+  // server's own record instead of the reader's parameters. Both locators are
+  // required: without the asking session there is nobody to correlate, and
+  // without a label the record's correlation would be invented.
+  if (deliveryId !== null && input.correlationId !== undefined && input.sourceSession !== undefined) {
+    deps.deliveries?.recordDeliveryCorrelation({
+      deliveryId,
+      correlationId: input.correlationId,
+      sourceSessionId: input.sourceSession,
+      targetSessionId: input.session,
+    });
   }
 
   const source = deps.runs.getRun(input.session)?.source ?? 'mcp';
@@ -586,7 +647,7 @@ export async function buildSessionSend(
       ? toPendingInteraction(deps.approvals.pendingForSession(input.session), deps.approvals.now())
       : null;
   const payload: SessionSendPayload = {
-    deliveryId: result.deliveryId ?? null,
+    deliveryId,
     runId: result.runId,
     queued: result.queued,
     queuedMessageUuid: result.queuedMessageUuid,

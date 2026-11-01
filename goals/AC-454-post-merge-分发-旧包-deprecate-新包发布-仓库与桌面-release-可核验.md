@@ -1,7 +1,7 @@
 ---
 id: AC-454
 title: Post-merge 分发：旧包 deprecate、新包发布、仓库与桌面 release 可核验
-status: draft
+status: superseded
 kind: criterion
 goal: GOAL-054
 criterion: node scripts/cloudpit-distribution-check.mjs --release
@@ -14,5 +14,15 @@ expect: npm 上 @yalehwang/cloudcli@1.42.0 已 deprecate 且文案指向
 origin: docs/proposals/cloudpit-rename-SPEC.md（2026-10-31）§3 兼容矩阵、§5 运行时契约、§6
   分发与发布、§9 Stage B；人 yale 2026-10-31 裁定 GOAL-053 普通 + GOAL-054 branch-mode
   的混合推进。
+statusLog:
+  - at: 2026-11-01T12:40:30.189Z
+    from: draft
+    to: superseded
+    actor: goal-cli
+    reason: 人 yale 2026-11-01 裁定采纳 gap-goal-054-postmerge-verification-in-scope-ac
+      提案 (a)：post-merge 发布核验改由 AC-458（创建即 active）承接，判据与期望逐字相同，本 AC supersede
+      以避免两条同判据 AC 并存。
+superseded-by:
+  - AC-458
 phase: post-merge
 ---

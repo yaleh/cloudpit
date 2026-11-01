@@ -144,6 +144,11 @@ export type CockpitCardConfirmRequest = {
   revision: number;
   optionId?: string;
   replyText?: string;
+  /**
+   * The server-issued reference a knowledge suggestion's decision must present. Copied from the
+   * card's own `knowledge.confirmationRef`; the controller never invents one.
+   */
+  confirmationRef?: string;
 };
 
 /** One dismiss request's transport fields, matching `POST /api/cockpit/cards/dismiss`. */
@@ -595,6 +600,13 @@ function readMemory(memory: CockpitCardMemory | undefined): CockpitCardMemorySta
 function failureMessage(failure: unknown): string {
   if (failure instanceof Error && failure.message.trim() !== '') return failure.message;
   return String(failure);
+}
+
+/** The stable machine code a transport failure carries, when it carries one. */
+function failureCode(failure: unknown): string | null {
+  if (typeof failure !== 'object' || failure === null) return null;
+  const code = (failure as { code?: unknown }).code;
+  return typeof code === 'string' && code !== '' ? code : null;
 }
 
 /**
@@ -1214,14 +1226,23 @@ export function createCockpitCardController(
     if (confirming) return false;
     confirming = true;
     commit({ confirming: true, confirmingCardId: pending.cardId });
+    // A knowledge suggestion's decision presents the reference the SERVER minted for the card
+    // revision the person is looking at. It is copied, never constructed: a caller-supplied
+    // identity is not proof and the server refuses one.
+    const card = store.getSnapshot().cards.find((candidate) => candidate.id === pending.cardId);
+    const confirmationRef = card?.knowledge?.confirmationRef;
     const request: CockpitCardConfirmRequest = {
       cardId: pending.cardId,
       revision: pending.revision,
       ...(pending.optionId === null
         ? { replyText: pending.replyText ?? '' }
         : { optionId: pending.optionId }),
+      ...(confirmationRef === undefined ? {} : { confirmationRef }),
     };
     let outcome: CockpitCardConfirmOutcome;
+    // A stale revision is answered with the CURRENT one. The card on screen must be re-read, or
+    // the person would keep pressing a button the server already refused as outdated.
+    let staleRevision = false;
     try {
       const answer = await deps.confirm(request);
       outcome = {
@@ -1232,28 +1253,38 @@ export function createCockpitCardController(
       };
     } catch (failure) {
       outcome = { ok: false, cardId: pending.cardId, message: failureMessage(failure) };
+      staleRevision = failureCode(failure) === 'REVISION_CONFLICT';
       // A failed confirmation did not happen; closing the card avoids re-sending a revision
       // the server may already have moved past.
       commit({ pendingConfirm: null, lastOutcome: outcome });
+    }
+    try {
+      if (!outcome.ok && staleRevision) {
+        // Re-read after the request settled, so the refreshed card replaces the stale one in place.
+        await read();
+      }
+      if (outcome.ok) {
+        commit({ pendingConfirm: null, lastOutcome: outcome });
+        // A `session.start` confirmation opened a conversation: attach it to the card and announce
+        // it BEFORE the re-read, so the 「打开会话」 link is readable without waiting for a network
+        // round-trip. The announcement is outside the try above on purpose — a listener that
+        // throws is not a failed confirmation.
+        const sessionId = startedSessionIdOf(outcome.executor, outcome.result);
+        if (sessionId !== null) {
+          startedSessions.set(pending.cardId, sessionId);
+          commit({ cards: withStartedSessions(store.getSnapshot().cards) });
+          deps.onEvent?.({ type: 'sessionStarted', sessionId });
+        }
+        // Re-read so a provider that bumped the revision is reflected IN PLACE. The selection,
+        // anchor and order are preserved by `normalize`.
+        await read();
+      }
     } finally {
+      // `confirming` covers the re-read as well: the card is not settled until the reading that
+      // follows the write has landed. A scenario's settle therefore observes the provider's
+      // POST-decision state, not the batch that was in hand while the write was in flight.
       confirming = false;
       commit({ confirming: false, confirmingCardId: null });
-    }
-    if (outcome.ok) {
-      commit({ pendingConfirm: null, lastOutcome: outcome });
-      // A `session.start` confirmation opened a conversation: attach it to the card and announce
-      // it BEFORE the re-read, so the 「打开会话」 link is readable without waiting for a network
-      // round-trip. The announcement is outside the try above on purpose — a listener that
-      // throws is not a failed confirmation.
-      const sessionId = startedSessionIdOf(outcome.executor, outcome.result);
-      if (sessionId !== null) {
-        startedSessions.set(pending.cardId, sessionId);
-        commit({ cards: withStartedSessions(store.getSnapshot().cards) });
-        deps.onEvent?.({ type: 'sessionStarted', sessionId });
-      }
-      // Re-read so a provider that bumped the revision is reflected IN PLACE. The selection,
-      // anchor and order are preserved by `normalize`.
-      await read();
     }
     return outcome.ok;
   };
@@ -1580,6 +1611,8 @@ export function cockpitCardsReading(
         ownReply: shown !== undefined && shown.kind === 'ownReply',
         confirmOptionId: target?.optionId ?? null,
         confirmLabel: target?.label ?? null,
+        knowledgeState: card.knowledge?.state ?? null,
+        knowledgeVerificationState: card.knowledge?.verification?.state ?? null,
       };
     }),
   };

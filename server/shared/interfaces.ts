@@ -221,14 +221,34 @@ export type ProviderTokenUsageDependencies = {
 /** The usage reading every provider facet answers with. */
 export type ProviderTokenUsageReading = {
   /**
-   * Legacy single-number reading. For a context-scoped provider (Claude) it is
-   * the newest request's input+output; for Codex it is the session's cumulative
-   * total. `usageScope` tells the two apart — do not compare it to `total` as a
-   * fraction without reading that marker.
+   * @deprecated The dual-meaning legacy number: for a context-scoped provider
+   * (Claude) it is the newest request's input+output, for Codex the session's
+   * cumulative total, and only `usageScope` tells the two apart. New code must
+   * read {@link sessionSpend} and {@link contextOccupancy} instead, which name
+   * the two meanings explicitly. Kept on the wire for older consumers.
    */
   used: number;
-  /** Window capacity in tokens (Claude context window, Codex `model_context_window`). */
+  /**
+   * @deprecated Window capacity, kept for older consumers; the same quantity is
+   * {@link contextOccupancy}`.total` on the first-class shape.
+   */
   total?: number;
+  /**
+   * The session's whole spend, named as such: the one reading `/cost` renders
+   * as "Total tokens used". Absent when the provider reported no session
+   * snapshot at all — which is different from a snapshot that spent zero.
+   */
+  sessionSpend?: ProviderTokenUsageCounts;
+  /**
+   * What the newest request leaves in the context window, kept apart from the
+   * session's spend. `used` is that request's prompt occupancy and `total` the
+   * window capacity; a provider that only knows the window (Codex) leaves
+   * `used` absent rather than fabricating a request reading.
+   */
+  contextOccupancy?: {
+    used?: number;
+    total?: number;
+  };
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;
@@ -236,7 +256,10 @@ export type ProviderTokenUsageReading = {
   cacheTokens?: number;
   /** Reasoning tokens, a subset of `outputTokens` when the provider reports them. */
   reasoningOutputTokens?: number;
-  /** The session's cumulative usage, when the provider reports such a snapshot. */
+  /**
+   * @deprecated Legacy name for {@link sessionSpend}; providers still fill it
+   * for older consumers, new code reads `sessionSpend`.
+   */
   cumulative?: ProviderTokenUsageCounts;
   /** The newest single request's usage, for context-occupancy approximations. */
   lastRequest?: ProviderTokenUsageCounts;
@@ -248,9 +271,9 @@ export type ProviderTokenUsageReading = {
    */
   sidechain?: ProviderTokenUsageCounts;
   /**
-   * What `used` measures. `context` (or absent, for backward compatibility) is
-   * the newest request's prompt; `session-cumulative` is the whole session and
-   * must never be divided by `total` to produce an occupancy reading.
+   * @deprecated Tells older consumers what the dual-meaning `used` measures.
+   * The first-class shape no longer needs the marker: `sessionSpend` is always
+   * the session and `contextOccupancy` always the newest request.
    */
   usageScope?: 'context' | 'session-cumulative';
   /**

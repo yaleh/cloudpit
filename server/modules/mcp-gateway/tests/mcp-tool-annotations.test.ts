@@ -117,7 +117,29 @@ const authorizeWithPrincipal: RequestHandler = (_req, res, next) => {
  * the listed name set stays exactly the annotation table's keys — no handler of
  * theirs is ever entered by a `tools/list` reading.
  */
-const readTools = { draft: {} } as unknown as McpReadToolDeps;
+const readTools = {
+  draft: {},
+  // knowledge-application-fact-contract: `knowledge_facts` is registered
+  // alongside the stage-3 table when a fact source is wired, so this mount
+  // supplies one to keep `tools/list` equal to the annotation table's keys. The
+  // handler is never called by this criterion, so the source never reads.
+  knowledgeFacts: {
+    facts: {
+      identify: () => ({
+        contract: 'cloudcli.knowledge-application.fact',
+        version: 1,
+        project: 'claudecodeui',
+        buildId: 'annotations-build',
+        bootId: 'annotations-boot',
+        serverVersion: '0.0.0',
+        gitSha: null,
+        builtAt: null,
+        observedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      read: async () => null,
+    },
+  },
+} as unknown as McpReadToolDeps;
 // gap-mcp-session-steer-tool: `session_steer` registers alongside the five write
 // tools when this member is present (its handlers are never entered by a
 // `tools/list` reading), so the listed name set stays the annotation table's keys.
@@ -263,6 +285,9 @@ test('(c) the read-only set is the read tools plus approvals_list and draft_get;
     ...readToolNames,
     'approvals_list',
     'draft_get',
+    // Registered alongside the stage-3 table under the same `cloudcli:read`
+    // scope; it reads stored state and the event stream and mutates neither.
+    'knowledge_facts',
     'cockpit_cards',
     'cockpit_card',
     'cockpit_card_brief',

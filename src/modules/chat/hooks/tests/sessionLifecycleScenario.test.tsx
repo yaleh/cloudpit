@@ -209,6 +209,23 @@ const listSources = (dir: string): string[] => {
   return out;
 };
 
+/**
+ * Reads one walked path, or `null` when it vanished between `readdir` and the read.
+ *
+ * A mutation test in another worker writes a variant module under `src/` and deletes it in its
+ * `afterAll`; this walk can list that file and then lose it before reading. A vanished entry
+ * cannot be the timeline's declaration, import or copy, so ENOENT skips it — any other read
+ * error is still a failure, and the walk does not pretend the file was inspected.
+ */
+const readSource = (path: string): Source | null => {
+  try {
+    return { path, text: readFileSync(path, 'utf8') };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+};
+
 /** Every file under the given roots that re-DEFINES the timeline. */
 const timelineDefinitions = (sources: Source[]): string[] =>
   sources
@@ -236,7 +253,8 @@ describe('§AC1 the timeline is one module, imported and never copied', () => {
   // Vite rewrites to a dev-server URL that is not a filesystem path.
   const root = process.cwd();
   const sources: Source[] = [...listSources(join(root, 'src')), ...listSources(join(root, 'e2e'))]
-    .map((path) => ({ path, text: readFileSync(path, 'utf8') }));
+    .map(readSource)
+    .filter((source): source is Source => source !== null);
 
   it('defines the timeline exactly once, at the declared path', () => {
     const definitions = timelineDefinitions(sources);

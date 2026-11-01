@@ -218,7 +218,6 @@ const Harness = ({ isLoading = false, isDockTurnShown = false }: {
     isLoading,
     isDockTurnShown,
     canAbortSession: false,
-    tokenBudget: null,
     sendMessage: () => undefined,
     scrollToBottom: () => undefined,
     addMessage: () => undefined,

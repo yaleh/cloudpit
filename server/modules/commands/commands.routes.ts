@@ -4,6 +4,7 @@ import path from "path";
 import express from "express";
 
 import { parseFrontMatter } from "../../shared/frontmatter.js";
+import { buildCostView } from "../providers/index.js";
 
 type CommandsRouterDependencies = {
   fileSystem: typeof import('node:fs/promises');
@@ -16,6 +17,12 @@ type CommandsRouterDependencies = {
    * module never reaches into a transcript itself.
    */
   aiTitles: typeof import('../providers/index.js').readSessionAiTitle;
+  /**
+   * The authoritative token-usage entry point. `/cost` reads the session's
+   * usage through this, never from the composer's live frame: the frame is the
+   * newest turn's context occupancy, not the session's whole spend.
+   */
+  tokenUsage: typeof import('../providers/index.js').providerTokenUsageService;
   runtime: {
     uptime(): number;
     memoryUsage(): NodeJS.MemoryUsage;
@@ -93,112 +100,27 @@ const readCommandAiTitle = async (titlesReader, context) => {
 };
 
 /**
- * Reads one numeric usage quantity while preserving "unknown" as `undefined`.
- * A missing or unparsable field must not become a fabricated zero.
- */
-const readUsageQuantity = (value) => {
-  if (value === null || value === undefined) {
-    return undefined;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-};
-
-/**
- * Copies only the quantities a structured usage block actually reported.
+ * Reads the authoritative token-usage reading for the command's session.
  *
- * The shape matches the provider readers' cumulative/latest-request blocks;
- * snake_case fallbacks keep an old client payload readable.
+ * The session's own provider reader is the only source of the whole-session
+ * spend; the composer's live frame is a newest-turn occupancy and must never be
+ * passed off as one. `context.tokenUsage` remains as the injected fallback the
+ * tests use (and for a chat that has no session row yet) — a real session id
+ * always goes through the service, so a live frame cannot shadow it.
  */
-const readUsageCounts = (value) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const counts = {};
-  const add = (field, ...keys) => {
-    for (const key of keys) {
-      const quantity = readUsageQuantity(value[key]);
-      if (quantity !== undefined) {
-        counts[field] = quantity;
-        return;
+const readAuthoritativeTokenUsage = async (tokenUsageService, context) => {
+  const sessionId = context?.sessionId;
+  if (typeof sessionId === "string" && sessionId) {
+    try {
+      const reading = await tokenUsageService.getSessionTokenUsage(sessionId);
+      if (reading) {
+        return reading;
       }
+    } catch (error) {
+      console.error("Error reading the session token usage:", error);
     }
-  };
-
-  add("inputTokens", "inputTokens", "input_tokens");
-  add("outputTokens", "outputTokens", "output_tokens");
-  add("cacheReadTokens", "cacheReadTokens", "cache_read_input_tokens", "cached_input_tokens");
-  add("cacheWriteTokens", "cacheWriteTokens", "cache_write_input_tokens");
-  add("reasoningOutputTokens", "reasoningOutputTokens", "reasoning_output_tokens");
-  add("totalTokens", "totalTokens", "total_tokens");
-
-  return Object.keys(counts).length > 0 ? counts : undefined;
-};
-
-/**
- * Builds `/cost`'s grouped answer for a provider that reports a session
- * cumulative snapshot (Codex, Claude).
- *
- * The three quantities are kept separate by construction:
- * - `cumulative` is the whole session's spend;
- * - `lastRequest` is the newest request, an approximate context reading;
- * - `total` is the window capacity, independent of either.
- *
- * No ratio is emitted, and cached (read and written)/reasoning tokens stay
- * inside their parent totals rather than being added again. Fields the source
- * did not report are omitted, not zero-filled.
- */
-const buildStructuredCostData = (tokenUsage, provider, model, aiTitle) => {
-  const cumulative = readUsageCounts(tokenUsage.cumulative);
-  const lastRequest = readUsageCounts(tokenUsage.lastRequest);
-  const used = readUsageQuantity(tokenUsage.used)
-    ?? cumulative?.totalTokens
-    ?? (
-      cumulative?.inputTokens !== undefined && cumulative?.outputTokens !== undefined
-        ? cumulative.inputTokens + cumulative.outputTokens
-        : undefined
-    );
-  const window = readUsageQuantity(tokenUsage.total ?? tokenUsage.contextWindow);
-  const observedAt =
-    typeof tokenUsage.observedAt === "string" && tokenUsage.observedAt
-      ? tokenUsage.observedAt
-      : undefined;
-  const hasBreakdown =
-    cumulative?.inputTokens !== undefined || cumulative?.outputTokens !== undefined;
-
-  return {
-    type: "builtin",
-    action: "cost",
-    data: {
-      tokenUsage: {
-        ...(used !== undefined ? { used } : {}),
-        ...(window !== undefined ? { total: window } : {}),
-        scope: "session-cumulative",
-        ...(cumulative ? { cumulative } : {}),
-        ...(lastRequest ? { lastRequest } : {}),
-        ...(observedAt ? { observedAt } : {}),
-      },
-      ...(hasBreakdown
-        ? {
-            tokenBreakdown: {
-              ...(cumulative?.inputTokens !== undefined ? { input: cumulative.inputTokens } : {}),
-              ...(cumulative?.outputTokens !== undefined ? { output: cumulative.outputTokens } : {}),
-              ...(cumulative?.cacheReadTokens !== undefined ? { cacheRead: cumulative.cacheReadTokens } : {}),
-              ...(cumulative?.cacheWriteTokens !== undefined
-                ? { cacheWrite: cumulative.cacheWriteTokens }
-                : {}),
-              ...(cumulative?.reasoningOutputTokens !== undefined
-                ? { reasoningOutput: cumulative.reasoningOutputTokens }
-                : {}),
-            },
-          }
-        : {}),
-      provider,
-      model,
-      ...(aiTitle ? { aiTitle } : {}),
-    },
-  };
+  }
+  return context?.tokenUsage || {};
 };
 
 const executeModelsCommand = async (args, context, modelsService) => {
@@ -401,94 +323,23 @@ Custom commands can be created in:
   "/models": (args, context) => executeModelsCommand(args, context, providerModelsService),
 
   "/cost": async (args, context) => {
-    const tokenUsage = context?.tokenUsage || {};
+    // One authoritative reading for "Total tokens used", the context occupancy
+    // and the window: the provider reader resolves all three, so the panel is
+    // never shown the composer's live frame as if it were the session.
+    const tokenUsage = await readAuthoritativeTokenUsage(dependencies.tokenUsage, context);
     const provider = readModelProvider(context?.provider);
     const model = await resolveCommandModel(providerModelsService, provider, context);
     const aiTitle = await readCommandAiTitle(readSessionAiTitle, context);
 
-    // A provider that reports a cumulative snapshot (Codex, Claude) answers
-    // with the grouped shape: cumulative, latest request and window are
-    // separate facts. Providers that report a single context reading keep the
-    // legacy arithmetic below untouched.
-    const structuredCumulative = readUsageCounts(tokenUsage.cumulative);
-    const structuredLastRequest = readUsageCounts(tokenUsage.lastRequest);
-    if (
-      tokenUsage.usageScope === "session-cumulative"
-      || structuredCumulative
-      || structuredLastRequest
-    ) {
-      return buildStructuredCostData(tokenUsage, provider, model, aiTitle);
-    }
-
-    const reportedUsed =
-      Number(
-        tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0,
-      ) || 0;
-    const total =
-      Number(
-        tokenUsage.total ??
-          tokenUsage.contextWindow ??
-          0,
-      ) || 0;
-    const normalizedInputValue =
-      tokenUsage.inputTokens ??
-      tokenUsage.input ??
-      tokenUsage.cumulativeInputTokens ??
-      tokenUsage.breakdown?.input ??
-      tokenUsage.promptTokens;
-    const directInputTokens =
-      Number(
-        normalizedInputValue ??
-          tokenUsage.input_tokens ??
-          0
-      ) || 0;
-    const cacheReadTokens =
-      Number(
-        tokenUsage.cacheReadTokens ??
-          tokenUsage.cache_read_input_tokens ??
-          tokenUsage.cacheReadInputTokens ??
-          0,
-      ) || 0;
-    const cacheCreationTokens =
-      Number(
-        tokenUsage.cacheCreationTokens ??
-          tokenUsage.cache_creation_input_tokens ??
-          tokenUsage.cacheCreationInputTokens ??
-          0,
-      ) || 0;
-    const inputTokens = normalizedInputValue == null
-      ? directInputTokens + cacheReadTokens + cacheCreationTokens
-      : directInputTokens;
-    const outputTokens =
-      Number(
-        tokenUsage.outputTokens ??
-          tokenUsage.output ??
-          tokenUsage.output_tokens ??
-          tokenUsage.cumulativeOutputTokens ??
-          tokenUsage.breakdown?.output ??
-          tokenUsage.completionTokens ??
-          0,
-      ) || 0;
-    const computedUsed = inputTokens + outputTokens;
-    const hasTokenBreakdown = computedUsed > 0;
-    const used = Math.max(reportedUsed, computedUsed);
-
+    // One provider-agnostic view: the derivation (which slot `used` belongs in,
+    // the cache ratio, the fresh remainder and the provider's accounting
+    // statement) lives in the providers module, so the panel renders values
+    // and decides nothing.
     return {
       type: "builtin",
       action: "cost",
       data: {
-        tokenUsage: {
-          used,
-          total,
-        },
-        ...(hasTokenBreakdown
-          ? {
-              tokenBreakdown: {
-                input: inputTokens,
-                output: outputTokens,
-              },
-            }
-          : {}),
+        cost: buildCostView(tokenUsage, provider),
         provider,
         model,
         // Only when the transcript actually carries one: the modal renders

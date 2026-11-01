@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type {
   Clock,
   CockpitCard,
+  CockpitCardFeedback,
   CockpitCardOption,
+  CockpitKnowledgeCase,
 } from '@/shared/types';
 import {
+  cockpitCardsReading,
   createCockpitCardController,
   defaultShownOption,
 } from '@/modules/cockpit/cockpitCardController';
@@ -1426,6 +1429,96 @@ describe('the card-level 「忽略/丢弃」 target', () => {
     expect(h.snapshot().dismissTargets).toEqual({});
     expect(h.controller.requestDismiss('c1')).toBe(false);
   });
+
+  it('is one decision at a time: an open discard and an open confirmation refuse each other', async () => {
+    const h = harness([card('c1')], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    // No countdown to intercept: this card's option is reversible, so the FIRST option press
+    // arms the countdown, which the dismiss request must refuse.
+    expect(h.controller.requestConfirm('c1')).toBe(true);
+    expect(h.snapshot().sendCountdown).not.toBeNull();
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.controller.cancelConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toBeNull();
+
+    // ...and the reverse: with the discard confirmation open, the option press is refused.
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(h.controller.requestConfirm('c1')).toBe(false);
+    expect(h.snapshot().sendCountdown).toBeNull();
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.controller.cancelDismiss()).toBe(true);
+  });
+
+  it('leaves the card and its choices in place after a failed discard, and retries', async () => {
+    let attempts = 0;
+    const h = harness([card('c1')], {
+      dismiss: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('gateway answered 502');
+        return { ok: true };
+      },
+    });
+    await h.controller.load();
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(await h.controller.confirmDismiss()).toBe(false);
+
+    // The dismissal did not happen: the card is still there, its option target is untouched,
+    // and the one-line notice says why the request failed.
+    expect(h.snapshot().cards.map((subject) => subject.id)).toEqual(['c1']);
+    expect(h.snapshot().targets.c1).toMatchObject({ optionId: 'one', label: 'One' });
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.snapshot().dismissingCardId).toBeNull();
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: false });
+    expect(h.snapshot().dismissNotice?.message).toContain('502');
+    // The discard target is still offered, so the second attempt starts from the first press.
+    expect(h.snapshot().dismissTargets.c1).toMatchObject({ disabled: false });
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(await h.controller.confirmDismiss()).toBe(true);
+    expect(attempts).toBe(2);
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: true });
+  });
+
+  it('closes the details drawer when a successful discard takes its card out of the list', async () => {
+    const h = harness([card('c1'), card('c2')], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    h.controller.openDetails('c1');
+    expect(h.snapshot().detailsStack).toEqual(['c1']);
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    h.setCards([card('c2')]);
+    expect(await h.controller.confirmDismiss()).toBe(true);
+
+    // The re-read is the picture of the provider's post-dismiss state: the card is gone and the
+    // drawer that was reading it is closed, not left pointing at a card the list no longer has.
+    expect(h.snapshot().cards.map((subject) => subject.id)).toEqual(['c2']);
+    expect(h.snapshot().detailsStack).toEqual([]);
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: true });
+  });
+
+  it('withdraws the discard target once an action awaits its receipt, and carries the revision', async () => {
+    const feedback: CockpitCardFeedback = {
+      cardId: 'c1',
+      revision: 1,
+      feedbackId: 'f1',
+      optionId: 'one',
+      label: 'One',
+      sentAt: '2026-10-27T00:00:05.000Z',
+      outcome: { executor: 'test.exec', ok: true },
+      canResend: false,
+    };
+    const h = harness([card('c1', { feedback })], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    // The action already ran; discarding now would be a second, contradictory decision.
+    expect(h.snapshot().dismissTargets.c1).toMatchObject({ disabled: true });
+    expect(h.snapshot().dismissTargets.c1?.disabledReason).not.toBeNull();
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+  });
 });
 
 /**
@@ -1482,5 +1575,117 @@ describe('the controller publishes exactly the extracted selectors’ readings',
     h.controller.toggleProjectFilter('p1');
     expectSameDerivations(h.snapshot());
     expect(h.snapshot().visibleCards.map((entry) => entry.id)).toEqual(['a', 'c']);
+  });
+});
+
+/**
+ * A knowledge suggestion as the server sends it: the case evidence carries the reference the
+ * server minted for THIS revision, and the controller copies it onto the request.
+ */
+function knowledgeCard(id = 'k1', overrides: Partial<CockpitCard> = {}): CockpitCard {
+  const knowledge: CockpitKnowledgeCase = {
+    caseId: 'case-1',
+    knowledgeRevision: 2,
+    proposalRevision: 1,
+    state: 'verifying',
+    factsFingerprint: 'fp-1',
+    verification: { state: 'pending', summary: 'criterion is running' },
+    confirmationRef: 'kc1.payload.signature',
+    plan: { scope: ['server'], steps: ['apply it'], verification: 'the criterion exits 0' },
+  };
+  return card(id, {
+    kind: 'knowledge',
+    knowledge,
+    options: [
+      option('apply', 'Apply', {
+        decision: 'apply',
+        plan: knowledge.plan,
+        suggested: true,
+        // Irreversible so the leg exercises the direct confirm, not the countdown.
+        tags: [{ kind: 'irreversible', text: 'cannot be undone' }],
+      }),
+      option('defer', 'Defer', { decision: 'defer' }),
+    ],
+    ...overrides,
+  });
+}
+
+describe('a knowledge suggestion turns the person’s decision into a trusted request', () => {
+  it('presents the server-issued reference for the revision on screen', async () => {
+    const h = harness([knowledgeCard()]);
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(true);
+
+    expect(h.requests).toEqual([
+      {
+        cardId: 'k1',
+        revision: 1,
+        optionId: 'apply',
+        confirmationRef: 'kc1.payload.signature',
+      },
+    ]);
+  });
+
+  it('sends no reference for a card that carries no knowledge case', async () => {
+    const h = harness([irreversibleCard()]);
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    await h.controller.confirm();
+
+    expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
+    expect('confirmationRef' in (h.requests[0] as object)).toBe(false);
+  });
+
+  it('re-reads when the server answers a stale revision, so the card on screen catches up', async () => {
+    const conflict = Object.assign(new Error('该建议已更新'), { code: 'REVISION_CONFLICT' });
+    const h = harness([knowledgeCard()], {
+      confirm: async () => {
+        throw conflict;
+      },
+    });
+    await h.controller.load();
+    const readsAfterLoad = h.reads;
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(false);
+    expect(h.reads).toBeGreaterThan(readsAfterLoad);
+    expect(h.snapshot().lastOutcome).toMatchObject({ ok: false, cardId: 'k1' });
+  });
+
+  it('does not re-read for a failure that says nothing about the revision', async () => {
+    const h = harness([knowledgeCard()], {
+      confirm: async () => {
+        throw Object.assign(new Error('执行器失败'), { code: 'EXECUTOR_FAILED' });
+      },
+    });
+    await h.controller.load();
+    const readsAfterLoad = h.reads;
+
+    h.controller.requestConfirm();
+    await h.controller.confirm();
+
+    expect(h.reads).toBe(readsAfterLoad);
+  });
+
+  it('publishes the case and verification state in the scenario reading', async () => {
+    const h = harness([knowledgeCard(), card('plain', { rank: 2 })]);
+    await h.controller.load();
+
+    const reading = cockpitCardsReading(h.snapshot());
+    expect(reading.cards).toEqual([
+      expect.objectContaining({
+        id: 'k1',
+        knowledgeState: 'verifying',
+        knowledgeVerificationState: 'pending',
+      }),
+      expect.objectContaining({
+        id: 'plain',
+        knowledgeState: null,
+        knowledgeVerificationState: null,
+      }),
+    ]);
   });
 });

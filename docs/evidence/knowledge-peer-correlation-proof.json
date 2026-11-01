@@ -1,0 +1,1642 @@
+{
+  "task": "knowledge-peer-correlation-proof",
+  "capturedAt": "2026-11-01T10:35:31.718Z",
+  "instance": {
+    "kind": "controlled-instance",
+    "baseUrl": "http://127.0.0.1:26045",
+    "gatewayPath": "/mcp",
+    "isolation": "Real express + production mountMcpGateway + production bearer middleware on a loopback socket, with a real better-sqlite3 file, real session rows and real transcript JSONL files in a throwaway directory. The control service is scripted to answer the delivery id the transcript carries. No live fleet instance, operator database or operator ~/.quay-fleet stream was read or written; production deployment verification is left to F10."
+  },
+  "tools": [
+    {
+      "name": "knowledge_facts",
+      "description": "Read one versioned knowledge-application fact about this host: `peer_result` (the ask a session stated, the settling reply re-read from the transcript, the same operation id on both readings, and — when the query names a `deliveryId` — the cross-session delivery chain the server saved at acceptance: the delivery record, the target transcript row whose id IS that delivery, and the FIRST assistant turn after it; that chain is `verified` only when every link agrees, an answer is never borrowed from before the delivery, and a reply grants no action permission), `effective_config` (expected, stored and actually-running model / effort / permission mode, the operation the reading is about, the ACTUAL request and response the provider recorded for that operation, and a per-field verdict — `verified` is false when the operation, any layer or any expected field is unknown, and a field the provider cannot read back is declared unavailable in `capabilities` rather than echoed from the stored row), or `inventory` (a bounded session page that keeps its filters, total and truncation, so an empty page is never reported as an empty host). Every field is either an evidence reading with its source and observation time, or an explicit `unknown` with a reason; the payload also carries the contract name and version, the build id and the running process boot id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "peer_result",
+              "effective_config",
+              "inventory"
+            ]
+          },
+          "session": {
+            "type": "string",
+            "minLength": 1
+          },
+          "peerSession": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deliveryId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "correlationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expected": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effort": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "permissionMode": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "identity": {
+            "type": "object",
+            "properties": {
+              "contract": {
+                "type": "string"
+              },
+              "version": {
+                "type": "number"
+              },
+              "project": {
+                "type": "string"
+              },
+              "buildId": {
+                "type": "string"
+              },
+              "bootId": {
+                "type": "string"
+              },
+              "serverVersion": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "gitSha": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "builtAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "observedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "contract",
+              "version",
+              "project",
+              "buildId",
+              "bootId",
+              "serverVersion",
+              "gitSha",
+              "builtAt",
+              "observedAt"
+            ],
+            "additionalProperties": false
+          },
+          "reading": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "cloudcli/errorCodes": [
+          "INVALID_ARGUMENT",
+          "INSUFFICIENT_SCOPE",
+          "INTERNAL_ERROR",
+          "SESSION_NOT_FOUND"
+        ]
+      }
+    },
+    {
+      "name": "session_send",
+      "description": "Send a message to a session, returning the run id at once. A queued message does not answer a pending approval; use approval_answer to answer it. An optional opaque correlation label: it is only stored on the run and echoed on the audit record, never interpreted or advanced by the server.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "waitSeconds": {
+            "type": "number"
+          },
+          "correlationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "sourceSession": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "session",
+          "message"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued": {
+            "type": "boolean"
+          },
+          "queuedMessageUuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "blockedBy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "toolName": {
+                    "type": "string"
+                  },
+                  "inputSummary": {
+                    "type": "string"
+                  },
+                  "interactive": {
+                    "type": "boolean"
+                  },
+                  "autoTimeoutMs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "waitedMs": {
+                    "type": "number"
+                  },
+                  "questions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": {
+                          "type": "string"
+                        },
+                        "header": {
+                          "type": "string"
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "multiSelect": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "label"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "options"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "toolName",
+                  "inputSummary",
+                  "interactive",
+                  "autoTimeoutMs",
+                  "waitedMs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run": {},
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "cloudcli/errorCodes": [
+          "INVALID_ARGUMENT",
+          "INSUFFICIENT_SCOPE",
+          "INTERNAL_ERROR",
+          "SESSION_NOT_FOUND",
+          "TARGET_AMBIGUOUS",
+          "SESSION_BUSY"
+        ]
+      }
+    }
+  ],
+  "calls": [
+    {
+      "label": "send-relayed-ask",
+      "arms": "positive",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "session_send",
+        "arguments": {
+          "session": "peer-correlation-target-positive",
+          "message": "please review the fact contract",
+          "correlationId": "corr-peer-ask-1",
+          "sourceSession": "peer-correlation-source-positive"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "deliveryId": "delivery-peer-ask-1",
+        "runId": null,
+        "queued": false,
+        "queuedMessageUuid": null,
+        "source": "mcp",
+        "blockedBy": null
+      }
+    },
+    {
+      "label": "verified-correlation",
+      "arms": "positive",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-positive",
+          "peerSession": "peer-correlation-target-positive",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-b5e35c6a5785",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-positive:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-08zXFj/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-positive:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-08zXFj/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-positive:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-positive:assistant-ask-1",
+              "operationId": "op-b5e35c6a5785",
+              "sourceSessionId": "peer-correlation-source-positive",
+              "targetSessionId": "peer-correlation-target-positive",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": "delivery-peer-ask-1",
+              "correlationId": "corr-peer-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-08zXFj/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-positive:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-08zXFj/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-positive:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "evidence",
+              "value": {
+                "deliveryId": "delivery-peer-ask-1",
+                "correlationId": "corr-peer-ask-1",
+                "sourceSessionId": "peer-correlation-source-positive",
+                "targetSessionId": "peer-correlation-target-positive",
+                "bootId": "peer-correlation-boot-1",
+                "recordedAt": "2026-11-01T12:00:00.000Z"
+              },
+              "source": "session-control.send",
+              "sourceRef": "delivery:delivery-peer-ask-1",
+              "observedAt": "2026-11-01T12:00:00.000Z"
+            },
+            "originalMessage": {
+              "state": "evidence",
+              "value": {
+                "messageId": "delivery-peer-ask-1",
+                "role": "user",
+                "at": "2026-11-01T11:59:40.000Z",
+                "verifiedAgainstTranscript": true
+              },
+              "source": "sessions.transcript",
+              "sourceRef": "peer-correlation-target-positive#delivery-peer-ask-1",
+              "observedAt": "2026-11-01T11:59:40.000Z"
+            },
+            "reply": {
+              "state": "evidence",
+              "value": {
+                "messageId": "reply-assistant-1",
+                "role": "assistant",
+                "at": "2026-11-01T11:59:50.000Z",
+                "afterMessageId": "delivery-peer-ask-1",
+                "verifiedAgainstTranscript": true
+              },
+              "source": "sessions.transcript",
+              "sourceRef": "peer-correlation-target-positive#reply-assistant-1",
+              "observedAt": "2026-11-01T11:59:50.000Z"
+            },
+            "verified": true,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "wrong-target",
+      "arms": "wrong-peer",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-wrong-peer",
+          "peerSession": "peer-correlation-other-wrong-peer",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-eaacb7afb7ec",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-wrong-peer:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-FyUxxJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-peer:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-FyUxxJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-peer:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-wrong-peer:assistant-ask-1",
+              "operationId": "op-eaacb7afb7ec",
+              "sourceSessionId": "peer-correlation-source-wrong-peer",
+              "targetSessionId": "peer-correlation-other-wrong-peer",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": null,
+              "correlationId": null
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-FyUxxJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-peer:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-FyUxxJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-peer:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "unknown",
+              "reason": "the saved delivery targets session \"peer-correlation-target-wrong-peer\", not the named peer \"peer-correlation-other-wrong-peer\""
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "the saved delivery targets session \"peer-correlation-target-wrong-peer\", not the named peer \"peer-correlation-other-wrong-peer\""
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "the saved delivery targets session \"peer-correlation-target-wrong-peer\", not the named peer \"peer-correlation-other-wrong-peer\""
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery",
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "wrong-correlation",
+      "arms": "wrong-correlation",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-wrong-correlation",
+          "peerSession": "peer-correlation-target-wrong-correlation",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-some-other-ask"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-f720faba08e0",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-wrong-correlation:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-dcXsBr/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-correlation:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-dcXsBr/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-correlation:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-wrong-correlation:assistant-ask-1",
+              "operationId": "op-f720faba08e0",
+              "sourceSessionId": "peer-correlation-source-wrong-correlation",
+              "targetSessionId": "peer-correlation-target-wrong-correlation",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": null,
+              "correlationId": null
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-dcXsBr/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-correlation:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-dcXsBr/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-wrong-correlation:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "unknown",
+              "reason": "the saved delivery carries correlation \"corr-peer-ask-1\", not the named \"corr-some-other-ask\""
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "the saved delivery carries correlation \"corr-peer-ask-1\", not the named \"corr-some-other-ask\""
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "the saved delivery carries correlation \"corr-peer-ask-1\", not the named \"corr-some-other-ask\""
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery",
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "no-delivery-record",
+      "arms": "no-record",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-no-record",
+          "peerSession": "peer-correlation-target-no-record",
+          "deliveryId": "delivery-never-accepted"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-56726fd6601f",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-no-record:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-ylqDlJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-record:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-ylqDlJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-record:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-no-record:assistant-ask-1",
+              "operationId": "op-56726fd6601f",
+              "sourceSessionId": "peer-correlation-source-no-record",
+              "targetSessionId": "peer-correlation-target-no-record",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": null,
+              "correlationId": null
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-ylqDlJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-record:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-ylqDlJ/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-record:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "unknown",
+              "reason": "no cross-session delivery record is saved for this deliveryId in this process (the send did not name a sourceSession and a correlationId, or this process did not accept it)"
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "no cross-session delivery record is saved for this deliveryId in this process (the send did not name a sourceSession and a correlationId, or this process did not accept it)"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "no cross-session delivery record is saved for this deliveryId in this process (the send did not name a sourceSession and a correlationId, or this process did not accept it)"
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery",
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "old-reply",
+      "arms": "old-reply",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-old-reply",
+          "peerSession": "peer-correlation-target-old-reply",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-d21be976a2e3",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-old-reply:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-Y0WvxL/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-old-reply:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-Y0WvxL/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-old-reply:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-old-reply:assistant-ask-1",
+              "operationId": "op-d21be976a2e3",
+              "sourceSessionId": "peer-correlation-source-old-reply",
+              "targetSessionId": "peer-correlation-target-old-reply",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": "delivery-peer-ask-1",
+              "correlationId": "corr-peer-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-Y0WvxL/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-old-reply:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-Y0WvxL/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-old-reply:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "evidence",
+              "value": {
+                "deliveryId": "delivery-peer-ask-1",
+                "correlationId": "corr-peer-ask-1",
+                "sourceSessionId": "peer-correlation-source-old-reply",
+                "targetSessionId": "peer-correlation-target-old-reply",
+                "bootId": "peer-correlation-boot-1",
+                "recordedAt": "2026-11-01T12:00:00.000Z"
+              },
+              "source": "session-control.send",
+              "sourceRef": "delivery:delivery-peer-ask-1",
+              "observedAt": "2026-11-01T12:00:00.000Z"
+            },
+            "originalMessage": {
+              "state": "evidence",
+              "value": {
+                "messageId": "delivery-peer-ask-1",
+                "role": "user",
+                "at": "2026-11-01T11:59:40.000Z",
+                "verifiedAgainstTranscript": true
+              },
+              "source": "sessions.transcript",
+              "sourceRef": "peer-correlation-target-old-reply#delivery-peer-ask-1",
+              "observedAt": "2026-11-01T11:59:40.000Z"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "no assistant turn in the target transcript follows the delivered message; an assistant turn that predates it is not borrowed as the answer"
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "no-delivery-row",
+      "arms": "no-delivery-row",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-no-row",
+          "peerSession": "peer-correlation-target-no-row",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-c8648df5ba43",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-no-row:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-jSvtbP/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-row:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-jSvtbP/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-row:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-no-row:assistant-ask-1",
+              "operationId": "op-c8648df5ba43",
+              "sourceSessionId": "peer-correlation-source-no-row",
+              "targetSessionId": "peer-correlation-target-no-row",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": "delivery-peer-ask-1",
+              "correlationId": "corr-peer-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-jSvtbP/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-row:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-jSvtbP/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-no-row:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "evidence",
+              "value": {
+                "deliveryId": "delivery-peer-ask-1",
+                "correlationId": "corr-peer-ask-1",
+                "sourceSessionId": "peer-correlation-source-no-row",
+                "targetSessionId": "peer-correlation-target-no-row",
+                "bootId": "peer-correlation-boot-1",
+                "recordedAt": "2026-11-01T12:00:00.000Z"
+              },
+              "source": "session-control.send",
+              "sourceRef": "delivery:delivery-peer-ask-1",
+              "observedAt": "2026-11-01T12:00:00.000Z"
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "the target transcript window does not hold a message with id \"delivery-peer-ask-1\", so the delivery cannot be tied to a row"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "there is no delivered message to follow"
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "absent-transcript",
+      "arms": "missing-transcript",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-unreadable",
+          "peerSession": "peer-correlation-target-unreadable",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-6e1c0fb6a4c6",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-unreadable:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-GJz73F/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-unreadable:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-GJz73F/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-unreadable:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-unreadable:assistant-ask-1",
+              "operationId": "op-6e1c0fb6a4c6",
+              "sourceSessionId": "peer-correlation-source-unreadable",
+              "targetSessionId": "peer-correlation-target-unreadable",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": "delivery-peer-ask-1",
+              "correlationId": "corr-peer-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-GJz73F/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-unreadable:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-GJz73F/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-unreadable:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "evidence",
+              "value": {
+                "deliveryId": "delivery-peer-ask-1",
+                "correlationId": "corr-peer-ask-1",
+                "sourceSessionId": "peer-correlation-source-unreadable",
+                "targetSessionId": "peer-correlation-target-unreadable",
+                "bootId": "peer-correlation-boot-1",
+                "recordedAt": "2026-11-01T12:00:00.000Z"
+              },
+              "source": "session-control.send",
+              "sourceRef": "delivery:delivery-peer-ask-1",
+              "observedAt": "2026-11-01T12:00:00.000Z"
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "the target transcript window does not hold a message with id \"delivery-peer-ask-1\", so the delivery cannot be tied to a row"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "there is no delivered message to follow"
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "forgotten-delivery",
+      "arms": "forgotten",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-forgotten",
+          "peerSession": "peer-correlation-target-forgotten",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-29cda7bcac90",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-forgotten:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-vYKCls/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-forgotten:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-vYKCls/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-forgotten:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-forgotten:assistant-ask-1",
+              "operationId": "op-29cda7bcac90",
+              "sourceSessionId": "peer-correlation-source-forgotten",
+              "targetSessionId": "peer-correlation-target-forgotten",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": null,
+              "correlationId": null
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-vYKCls/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-forgotten:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-vYKCls/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-forgotten:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "unknown",
+              "reason": "the resident delivery ledger does not hold this delivery, so the send it names cannot be confirmed"
+            },
+            "originalMessage": {
+              "state": "unknown",
+              "reason": "the resident delivery ledger does not hold this delivery, so the send it names cannot be confirmed"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "the resident delivery ledger does not hold this delivery, so the send it names cannot be confirmed"
+            },
+            "verified": false,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [
+              "delivery",
+              "delivery.originalMessage",
+              "delivery.reply"
+            ],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "delivery",
+            "delivery.originalMessage",
+            "delivery.reply"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "answered-without-message",
+      "arms": "answered-unnamed",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-answered-unnamed",
+          "peerSession": "peer-correlation-target-answered-unnamed"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-6e9d0ff2e588",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-answered-unnamed:assistant-ask-1",
+              "state": "answered",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-qDdjvp/events/2026-11-01.jsonl#evt-session.answered-peer-correlation-source-answered-unnamed:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-qDdjvp/events/2026-11-01.jsonl#evt-session.answered-peer-correlation-source-answered-unnamed:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-answered-unnamed:assistant-ask-1",
+              "operationId": "op-6e9d0ff2e588",
+              "sourceSessionId": "peer-correlation-source-answered-unnamed",
+              "targetSessionId": "peer-correlation-target-answered-unnamed",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": null,
+              "correlationId": null
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-qDdjvp/events/2026-11-01.jsonl#evt-session.answered-peer-correlation-source-answered-unnamed:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "answered",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-qDdjvp/events/2026-11-01.jsonl#evt-session.answered-peer-correlation-source-answered-unnamed:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": null,
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply",
+            "answeredMessageId"
+          ],
+          "readErrors": []
+        }
+      }
+    },
+    {
+      "label": "verified-no-permission",
+      "arms": "authorization",
+      "gateway": "/mcp",
+      "request": {
+        "tool": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "peer-correlation-source-authorization",
+          "peerSession": "peer-correlation-target-authorization",
+          "deliveryId": "delivery-peer-ask-1",
+          "correlationId": "corr-peer-ask-1"
+        }
+      },
+      "isError": false,
+      "payload": {
+        "identity": {
+          "contract": "cloudcli.knowledge-application.fact",
+          "version": 1,
+          "project": "claudecodeui",
+          "buildId": "peer-correlation-build-1",
+          "bootId": "peer-correlation-boot-1",
+          "serverVersion": "1.41.0",
+          "gitSha": "89abcdef0123456789abcdef0123456789abcdef",
+          "builtAt": "2026-10-31T08:00:00.000Z",
+          "observedAt": "2026-11-01T12:00:00.000Z"
+        },
+        "reading": {
+          "kind": "peer_result",
+          "operationId": "op-55d4262122eb",
+          "activity": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-authorization:assistant-ask-1",
+              "state": "asking",
+              "at": "2026-11-01T12:00:00.000Z",
+              "lastAt": "2026-11-01T12:00:00.000Z",
+              "sourceRef": "/tmp/knowledge-peer-correlation-TUiPQW/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-authorization:assistant-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-TUiPQW/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-authorization:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "correlation": {
+            "state": "evidence",
+            "value": {
+              "askId": "peer-correlation-source-authorization:assistant-ask-1",
+              "operationId": "op-55d4262122eb",
+              "sourceSessionId": "peer-correlation-source-authorization",
+              "targetSessionId": "peer-correlation-target-authorization",
+              "askingMessageId": "assistant-ask-1",
+              "answeredMessageId": null,
+              "deliveryId": "delivery-peer-ask-1",
+              "correlationId": "corr-peer-ask-1"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-TUiPQW/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-authorization:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "waiting": {
+            "state": "evidence",
+            "value": {
+              "state": "asking",
+              "since": "2026-11-01T12:00:00.000Z"
+            },
+            "source": "context-events",
+            "sourceRef": "/tmp/knowledge-peer-correlation-TUiPQW/events/2026-11-01.jsonl#evt-session.asking-peer-correlation-source-authorization:assistant-ask-1",
+            "observedAt": "2026-11-01T12:00:00.000Z"
+          },
+          "authorization": {
+            "state": "unknown",
+            "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+          },
+          "reply": {
+            "state": "unknown",
+            "reason": "the session.answered row carries no messageId, so the settling message cannot be named"
+          },
+          "deliveryCorrelation": {
+            "delivery": {
+              "state": "evidence",
+              "value": {
+                "deliveryId": "delivery-peer-ask-1",
+                "correlationId": "corr-peer-ask-1",
+                "sourceSessionId": "peer-correlation-source-authorization",
+                "targetSessionId": "peer-correlation-target-authorization",
+                "bootId": "peer-correlation-boot-1",
+                "recordedAt": "2026-11-01T12:00:00.000Z"
+              },
+              "source": "session-control.send",
+              "sourceRef": "delivery:delivery-peer-ask-1",
+              "observedAt": "2026-11-01T12:00:00.000Z"
+            },
+            "originalMessage": {
+              "state": "evidence",
+              "value": {
+                "messageId": "delivery-peer-ask-1",
+                "role": "user",
+                "at": "2026-11-01T11:59:40.000Z",
+                "verifiedAgainstTranscript": true
+              },
+              "source": "sessions.transcript",
+              "sourceRef": "peer-correlation-target-authorization#delivery-peer-ask-1",
+              "observedAt": "2026-11-01T11:59:40.000Z"
+            },
+            "reply": {
+              "state": "evidence",
+              "value": {
+                "messageId": "reply-assistant-1",
+                "role": "assistant",
+                "at": "2026-11-01T11:59:50.000Z",
+                "afterMessageId": "delivery-peer-ask-1",
+                "verifiedAgainstTranscript": true
+              },
+              "source": "sessions.transcript",
+              "sourceRef": "peer-correlation-target-authorization#reply-assistant-1",
+              "observedAt": "2026-11-01T11:59:50.000Z"
+            },
+            "verified": true,
+            "actionPermission": {
+              "granted": false,
+              "reason": "a peer reply proves the peer answered; it is not an authorization for any further action — the authorization scope remains the fleet human authorization reference"
+            },
+            "unknown": [],
+            "readErrors": []
+          },
+          "capabilities": {
+            "deliveryCorrelation": "readable"
+          },
+          "unknown": [
+            "authorization",
+            "reply"
+          ],
+          "readErrors": []
+        }
+      }
+    }
+  ]
+}

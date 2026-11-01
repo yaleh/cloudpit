@@ -145,7 +145,7 @@
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
 #   and the quay-initiatives row by cockpit-initiative-view-and-decision-queue,
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
-# so this file now covers 434 of the 482 files the current `find server -name '*.test.ts' -o -name
+# so this file now covers 446 of the 494 files the current `find server -name '*.test.ts' -o -name
 # '*.test.js' | sort` list collects; a row here is a dispatch ORDER hint only, so an unlisted file is
 # not skipped — it just sorts alphabetically after the listed ones. The remaining ~48 unlisted files
 # (claude-resident-dispatch-hook and voice-realtime-voice-active-marker among them) came in with
@@ -939,6 +939,31 @@
 2257	server/modules/context-events/tests/session-blocked-events.test.ts
 #   the cloudpit-runtime-flip row by gap-cloudpit-runtime-default-flip, measured once on 2026-10-31 with
 #   `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts`
-#   (dur=7636ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
-#   collects 492 server test files).
+#   (dur=7636ms, its own new criterion; the row keeps the 90% coverage floor clear now that the merged
+#   tree collects 497 server test files).
 7636	server/shared/tests/cloudpit-runtime-flip.test.ts
+#   and the cockpit-knowledge-decision-handoff row by cockpit-knowledge-decision-handoff, measured
+#   once on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts`
+#   (dur=1846ms, its own new criterion; no green round contains it yet — the row also keeps the
+#   90% coverage floor green now that the tree collects 492 server test files).
+1846	server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts
+#   the knowledge-activity-events and mcp-knowledge-facts rows by knowledge-application-fact-contract,
+#   measured once on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test <file>` (durations 246ms / 5142ms; its own new
+#   criteria; together with the row above the 90% coverage floor stays clear now that the merged
+#   tree collects 494 server test files: 446/494).
+246	server/modules/context-events/tests/knowledge-activity-events.test.ts
+5142	server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
+#   and the knowledge-effective-config-proof row by knowledge-effective-config-proof, measured once
+#   on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts`
+#   (dur=9902ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 495 server test files and the baseline holds 446 of them).
+9902	server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts
+#   and the knowledge-peer-correlation-proof row by knowledge-peer-correlation-proof, measured once
+#   on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts`
+#   (dur=9344ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 496 server test files and the baseline holds 447 of them).
+9344	server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts

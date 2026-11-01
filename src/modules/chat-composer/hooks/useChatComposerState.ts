@@ -76,7 +76,8 @@ type UseChatComposerStateArgs = {
   isDockTurnShown?: boolean;
   processingSessions?: SessionActivityMap;
   canAbortSession: boolean;
-  tokenBudget: Record<string, unknown> | null;
+  /** The authoritative session reading: the ONLY reading `/cost` may send. */
+  authoritativeReading?: Record<string, unknown> | null;
   sendMessage: (message: unknown) => void;
   /**
    * Whether the app's socket is open right now. A closed socket cannot carry
@@ -213,7 +214,7 @@ export function useChatComposerState({
   isLoading,
   isDockTurnShown = false,
   canAbortSession,
-  tokenBudget,
+  authoritativeReading = null,
   sendMessage,
   isConnected = true,
   sendByCtrlEnter,
@@ -326,7 +327,9 @@ export function useChatComposerState({
     currentSessionId,
     provider,
     currentProviderModel,
-    tokenBudget,
+    // `/cost` sends the authoritative reading; the live frame is only the
+    // composer's counter and must not stand in for the session's spend.
+    authoritativeReading,
     input,
     setInput,
     inputValueRef,

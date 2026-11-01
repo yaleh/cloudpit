@@ -1,0 +1,187 @@
+{
+  "name": "cockpit-knowledge-application",
+  "description": "Cockpit cards on a Fleet-contract-compatible provider (four knowledge proposals). Decide apply / modify / defer / not-applicable through the real card controls; each confirm presents the server-issued reference. After apply, the card reads `verifying` with a pending verification, and after the provider's next reading it reads `reported` with a passed verification — progress and verdict come from the provider, never from the confirmation receipt.",
+  "steps": [
+    {
+      "open": "cockpit-cards",
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardsVisible": [
+          "knowledge:apply",
+          "knowledge:modify",
+          "knowledge:defer",
+          "knowledge:na"
+        ],
+        "cockpitCardKnowledgeStates": {
+          "knowledge:apply": "pending",
+          "knowledge:modify": "pending",
+          "knowledge:defer": "pending",
+          "knowledge:na": "pending"
+        },
+        "cockpitCardKnowledgeVerifications": {
+          "knowledge:apply": null,
+          "knowledge:modify": null,
+          "knowledge:defer": null,
+          "knowledge:na": null
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "knowledge:apply"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.showOption": {
+          "cardId": "knowledge:apply",
+          "optionId": "apply"
+        }
+      },
+      "expect": {
+        "cockpitCardShownOption": {
+          "cardId": "knowledge:apply",
+          "optionId": "apply"
+        },
+        "cockpitCardConfirmTarget": {
+          "cardId": "knowledge:apply",
+          "optionId": "apply"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirm": "knowledge:apply"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:apply": "verifying"
+        },
+        "cockpitCardKnowledgeVerifications": {
+          "knowledge:apply": "pending"
+        }
+      }
+    },
+    {
+      "reload": true,
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:apply": "reported"
+        },
+        "cockpitCardKnowledgeVerifications": {
+          "knowledge:apply": "passed"
+        }
+      },
+      "waitForCards": true
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "knowledge:modify"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.showOption": {
+          "cardId": "knowledge:modify",
+          "optionId": "modify"
+        }
+      },
+      "expect": {
+        "cockpitCardShownOption": {
+          "cardId": "knowledge:modify",
+          "optionId": "modify"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirm": "knowledge:modify"
+      },
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:modify": "verifying"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "knowledge:defer"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.showOption": {
+          "cardId": "knowledge:defer",
+          "optionId": "defer"
+        }
+      },
+      "expect": {
+        "cockpitCardShownOption": {
+          "cardId": "knowledge:defer",
+          "optionId": "defer"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirm": "knowledge:defer"
+      },
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:defer": "verifying"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.select": "knowledge:na"
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.showOption": {
+          "cardId": "knowledge:na",
+          "optionId": "not-applicable"
+        }
+      },
+      "expect": {
+        "cockpitCardShownOption": {
+          "cardId": "knowledge:na",
+          "optionId": "not-applicable"
+        }
+      }
+    },
+    {
+      "drive": {
+        "cockpitCard.confirm": "knowledge:na"
+      },
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:na": "verifying"
+        }
+      }
+    },
+    {
+      "reload": true,
+      "checkpoint": true,
+      "expect": {
+        "cockpitCardKnowledgeStates": {
+          "knowledge:apply": "reported",
+          "knowledge:modify": "reported",
+          "knowledge:defer": "reported",
+          "knowledge:na": "reported"
+        },
+        "cockpitCardKnowledgeVerifications": {
+          "knowledge:apply": "passed",
+          "knowledge:modify": "passed",
+          "knowledge:defer": "passed",
+          "knowledge:na": "passed"
+        }
+      },
+      "waitForCards": true
+    }
+  ]
+}

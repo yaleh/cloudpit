@@ -82,6 +82,7 @@ const apiMock = vi.hoisted(() => ({
   cockpitCards: vi.fn(),
   cockpitCardBrief: vi.fn(),
   cockpitConfirmCard: vi.fn(),
+  cockpitDismissCard: vi.fn(),
   system: { deployReadiness: vi.fn() },
 }));
 
@@ -313,6 +314,7 @@ beforeEach(async () => {
   apiMock.cockpitCards.mockReset();
   apiMock.cockpitCardBrief.mockReset();
   apiMock.cockpitConfirmCard.mockReset();
+  apiMock.cockpitDismissCard.mockReset();
   apiMock.system.deployReadiness.mockReset();
   readApiJsonMock.mockClear();
 
@@ -332,6 +334,7 @@ beforeEach(async () => {
       result: { total: 1 },
     }),
   );
+  apiMock.cockpitDismissCard.mockResolvedValue(okResponse({ ok: true, cardId: 'fixture:ask' }));
   apiMock.system.deployReadiness.mockResolvedValue(okResponse(DEPLOY_READING));
 });
 
@@ -524,6 +527,94 @@ describe('the phone Details sheet', () => {
       screen.getByTestId('cockpit-card-details-confirm-bar').getAttribute('data-confirm-pending'),
     ).toBe('false');
     expect(screen.getByTestId('cockpit-card-details-confirm').textContent).toContain('Confirm');
+  });
+
+  it('carries the third action inside the sheet: cancel sends nothing and leaves the arrow alone', async () => {
+    await openPhoneDetails();
+
+    // First press: an in-place confirmation inside the drawer, and neither channel has run.
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    expect(screen.getByTestId('cockpit-card-details-dismiss-confirm').textContent?.trim()).toBe(
+      'Confirm discard',
+    );
+    expect(apiMock.cockpitDismissCard).not.toHaveBeenCalled();
+    expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-cancel'));
+    expect(screen.queryByTestId('cockpit-card-details-dismiss-confirm')).toBeNull();
+    expect(apiMock.cockpitDismissCard).not.toHaveBeenCalled();
+    // The sheet and the card's shown option are untouched: cancelling a discard is not an answer.
+    expect(screen.getByTestId('cockpit-card-details')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-details-confirm').getAttribute('data-confirm-mode')).toBe(
+      'open',
+    );
+  });
+
+  it('discards from the sheet without answering, then returns to the list with the card gone', async () => {
+    const other: CockpitCard = { ...CARD, id: 'fixture:fix', kind: 'fix', ask: 'Repair the fixture?' };
+    apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [CARD, other] }));
+    restoreViewport = setViewportWidth(390);
+    renderCockpit('/cockpit?view=cards');
+    const row = await screen.findByTestId('cockpit-card-fixture:ask');
+    fireEvent.click(within(row).getByTestId('cockpit-card-zone-a'));
+    await screen.findByTestId('cockpit-card-details');
+
+    const reading = () =>
+      JSON.parse(
+        document.querySelector('[data-cockpit-cards]')?.getAttribute('data-cockpit-cards') ?? '{}',
+      );
+    expect(reading().visibleCardIds).toEqual(['fixture:ask', 'fixture:fix']);
+    expect(reading().detailsOpenCardId).toBe('fixture:ask');
+
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    // The re-read after a successful discard is the provider's post-dismiss state.
+    apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [other] }));
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-confirm'));
+
+    await waitFor(() => expect(apiMock.cockpitDismissCard).toHaveBeenCalledTimes(1));
+    expect(apiMock.cockpitDismissCard.mock.calls[0]?.[0]).toEqual({
+      cardId: 'fixture:ask',
+      revision: 1,
+    });
+    // The dismissal went through its own channel: no option answer was sent.
+    expect(apiMock.cockpitConfirmCard).not.toHaveBeenCalled();
+
+    // The card is gone, the drawer that was reading it is closed, the remaining card keeps its
+    // place, and the list states the dismissal.
+    await waitFor(() => expect(screen.queryByTestId('cockpit-card-details')).toBeNull());
+    expect(screen.queryByTestId('cockpit-card-fixture:ask')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-fixture:fix')).toBeTruthy();
+    expect(reading().visibleCardIds).toEqual(['fixture:fix']);
+    expect(reading().detailsOpenCardId).toBeNull();
+    const notice = screen.getByTestId('cockpit-card-dismiss-notice');
+    expect(notice.getAttribute('data-ok')).toBe('true');
+  });
+
+  it('keeps the card in the sheet when the discard fails, then retries from the same control', async () => {
+    await openPhoneDetails();
+    apiMock.cockpitDismissCard.mockRejectedValueOnce(new Error('gateway answered 502'));
+
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-confirm'));
+
+    await waitFor(() =>
+      expect(apiMock.cockpitDismissCard).toHaveBeenCalledTimes(1),
+    );
+    const failed = await screen.findByTestId('cockpit-card-details-dismiss-notice');
+    expect(failed.getAttribute('data-ok')).toBe('false');
+    expect(failed.textContent).toContain('502');
+    // The dismissal did not happen: the drawer, the card and the option's own bar remain.
+    expect(screen.getByTestId('cockpit-card-details')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-fixture:ask')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-details-confirm')).toBeTruthy();
+
+    // Retry starts again at the first press and settles through the dismiss channel.
+    apiMock.cockpitCards.mockResolvedValue(okResponse({ cards: [] }));
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-confirm'));
+    await waitFor(() => expect(apiMock.cockpitDismissCard).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByTestId('cockpit-card-details')).toBeNull());
+    expect(screen.queryByTestId('cockpit-card-fixture:ask')).toBeNull();
   });
 
   it('quotes the assistant’s own words with the link back into the session', async () => {

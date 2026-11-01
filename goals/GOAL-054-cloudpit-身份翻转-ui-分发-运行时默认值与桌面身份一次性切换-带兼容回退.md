@@ -23,11 +23,11 @@ branch: true
 
 ## 范围
 
-- 显示层：品牌常量翻到 Cloudpit，UI 文案、12 语言包、index.html、PWA manifest、README/文档、CLI banner、About、窗口/通知标题。
-- 分发身份：`package.json` name=`@yalehwang/cloudpit`、bin 只有 `cloudpit`、productName=`Cloudpit`、artifactName=`cloudpit-desktop-*`；CLI 自更新与 system update 命令改新包。
-- 运行时默认值：默认数据根 `~/.cloudpit`、settings 新路径、附件新根写入、`CLOUDPIT_*` 成为规范、`cloudpit://` 注册、MCP 新名、OAuth scope 双列、SW 缓存新前缀、IPC/bridge/BroadcastChannel/语义面改名。
-- 桌面：`APP_NAME=Cloudpit`、userData 迁移启用、server 缓存迁移、`local-server.json` 回退、两个 scheme 都注册。
-- 跨切面 AC：品牌 allowlist、默认翻转后的旧布局迁移、桌面升级、goal preview 上的 UI DoD。
+- 显示层（AC-451）：品牌常量翻到 Cloudpit，UI 文案、12 语言包、index.html、PWA manifest、README/文档、CLI banner、About、窗口/通知标题。
+- 分发身份（AC-451）：`package.json` name=`@yalehwang/cloudpit`、bin 只有 `cloudpit`、productName=`Cloudpit`、artifactName=`cloudpit-desktop-*`；CLI 自更新与 system update 命令改新包。
+- 运行时默认值（AC-452）：默认数据根 `~/.cloudpit`、settings 新路径、附件新根写入、`CLOUDPIT_*` 成为规范、`cloudpit://` 注册、MCP 新名、OAuth scope 双列、SW 缓存新前缀、IPC/bridge/BroadcastChannel/语义面改名。
+- 桌面（AC-453）：`APP_NAME=Cloudpit`、userData 迁移启用、server 缓存迁移、`local-server.json` 回退、两个 scheme 都注册。
+- 跨切面 AC（AC-451/452/453/456）：品牌 allowlist、默认翻转后的旧布局迁移、桌面升级、goal preview 上的 UI DoD。
 
 ## 非目标
 
@@ -60,6 +60,6 @@ branch: true
 ## 退出条件
 
 - AC-451、AC-452、AC-453 全部达成（pre-merge）。
-- AC-454 达成（post-merge，外部发布核验）。
-- 品牌 allowlist、旧布局迁移、桌面升级、UI 预览四项跨切面证据齐全。
+- AC-458 达成（post-merge，外部发布核验）。
+- AC-451、AC-452、AC-453、AC-456 四项跨切面证据齐全（品牌 allowlist／旧布局迁移／桌面升级／UI 预览）。
 - 全部 AC 达成且无 close-block 后，goal 才由现有机制翻 `achieved`。

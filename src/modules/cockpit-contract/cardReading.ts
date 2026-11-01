@@ -32,5 +32,13 @@ export type CockpitCardReading = {
     ownReply: boolean;
     confirmOptionId: string | null;
     confirmLabel: string | null;
+    /**
+     * The provider's knowledge case state for this card, when it asks a knowledge decision.
+     * Absent or `null` on every other card. Published so a scenario can assert the in-progress
+     * and final verification readings without inferring them from the DOM.
+     */
+    knowledgeState?: string | null;
+    /** The provider's verification verdict, when it stated one. */
+    knowledgeVerificationState?: string | null;
   }>;
 };

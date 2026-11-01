@@ -62,12 +62,24 @@ roles:
     mcpBlacklist:
       - chrome-devtools
       - playwright
+      # 2026-11-01 瘦身（gap-claudecodeui-profiles-driver-token-slim）：纯写代码 role 从不经 MCP
+      # 调用这三个——archguard 走 CLI、plantuml 走 plantuml-js，meta-cc 只在 fan-in 语义兜底用。
+      # 名字按 mcp-blacklist-resolve 的 raw server name 匹配（archguard/meta-cc 是插件 server 的
+      # raw 名，plantuml 是 ~/.claude.json 的裸 server）。
+      - meta-cc
+      - archguard
+      - plantuml
   selector:
     profile: worker-default
     name: claudecodeui-selector
+    # schema 强约束的窄判定 role：选一个 task，high 的推理 token 是浪费（挂 role 层，不连坐 outer）。
+    effort: low
     mcpBlacklist:
       - chrome-devtools
       - playwright
+      - meta-cc
+      - archguard
+      - plantuml
   fix-worker:
     profile: worker-default
     name: claudecodeui-fix-worker
@@ -76,9 +88,19 @@ roles:
     mcpBlacklist:
       - chrome-devtools
       - playwright
+      # 2026-11-01 确认可拉黑（gap-claudecodeui-fix-worker-meta-cc-blacklist）：fix-worker 是短命
+      # ABI 立案/修任务代理，promotion-driver buildFixWorkerPrompt、goal-driver
+      # buildGapWorkerPrompt、quality-gate-driver 三处 gap-filing prompt 均无 meta-cc；fan-in 语义
+      # 兜底是 worker-driver 驱动的 workflow，不是 fix-worker 会话（对端 quay 项目排查结论）。
+      # ⇒ 两份 carrier 的 fix-worker 黑名单集合应对齐（profiles-role-coverage-check 不报漂移）。
+      - meta-cc
+      - archguard
+      - plantuml
   pool-judge:
     profile: worker-default
     name: claudecodeui-pool-judge
+    effort: low    # 判 ready|needs-work 的窄判定，high effort 是浪费
   meta-driver:
     profile: worker-default
     name: claudecodeui-meta-driver
+    effort: low    # 提观测案的窄判定，high effort 是浪费

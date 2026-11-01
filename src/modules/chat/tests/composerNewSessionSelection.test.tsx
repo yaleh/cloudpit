@@ -94,7 +94,6 @@ const renderComposer = (overrides: {
   currentProviderEffort: EFFORT,
   isLoading: false,
   canAbortSession: false,
-  tokenBudget: null,
   sendMessage: () => undefined,
   isConnected: true,
   scrollToBottom: () => undefined,

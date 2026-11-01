@@ -8,6 +8,8 @@
  * feature directories as leaves), so those are injected instead of reached.
  */
 
+import { randomBytes } from 'node:crypto';
+
 import express, { type Router } from 'express';
 
 import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
@@ -21,6 +23,7 @@ import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixt
 import type { CockpitFixtureFeedbackSettings } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
 import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
 import type { CockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
+import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cockpit-knowledge-decision.js';
 import { createCockpitHub } from '@/modules/cockpit/cockpit-hub.service.js';
 import type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.service.js';
 import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
@@ -87,6 +90,12 @@ export type CockpitCardsModuleDeps = {
    * criterion or a bare boot, where the route then answers a named fallback instead of throwing.
    */
   briefDeps?: CockpitBriefDeps;
+  /**
+   * The HMAC secret behind a knowledge suggestion's confirmation reference. Omitted mints a
+   * fresh per-process secret: a reference issued by one boot is then not accepted by the next,
+   * and the card's next read simply issues a new one. A criterion pins it to reproduce a token.
+   */
+  knowledgeSecret?: string;
 };
 
 /**
@@ -280,10 +289,31 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
           }
           return null;
         };
+  // A provider that can drop its read cache states the capability structurally (the same
+  // discovery shape as `diagnostics`); the action channel re-reads through the registry after
+  // asking every such provider to forget the stale batch.
+  const refreshable = providers.filter(
+    (
+      provider,
+    ): provider is ICockpitCardProvider & {
+      refreshCards(): void;
+    } => typeof (provider as { refreshCards?: unknown }).refreshCards === 'function',
+  );
+  const refreshCards =
+    refreshable.length === 0
+      ? undefined
+      : (): void => {
+          for (const provider of refreshable) provider.refreshCards();
+        };
+  const knowledge = createCockpitKnowledgeAuthority({
+    secret: deps.knowledgeSecret ?? randomBytes(32).toString('hex'),
+  });
   const actions = createCockpitCardActions({
     registry,
     executors,
     feedbackStore,
+    knowledge,
+    ...(refreshCards === undefined ? {} : { refreshCards }),
     ...(resolveExecutor === undefined ? {} : { resolveExecutor }),
   });
   const brief = createCockpitBriefService(deps.briefDeps ?? {});
@@ -311,8 +341,12 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
       const diagnostics = registry.diagnostics();
       // The overlay is applied LAST and never reorders: a card the person already confirmed keeps
       // the provider's place, gains its status reading, and leaves only when the provider's
-      // reading or a matching receipt clears it.
-      const merged = feedbackStore.applyCards(cards);
+      // reading or a matching receipt clears it. A knowledge card is then STAMPED with the
+      // confirmation reference its decision must present; minting happens per read, so a card
+      // whose content moved without a revision bump still gets a fresh binding.
+      const merged = feedbackStore
+        .applyCards(cards)
+        .map((card) => knowledge.issue(card));
       // The field is omitted when no provider has anything to explain, so a bare deployment's
       // response keeps the exact `{ cards }` shape its callers already read.
       res.json(diagnostics.length === 0 ? { cards: merged } : { cards: merged, diagnostics });

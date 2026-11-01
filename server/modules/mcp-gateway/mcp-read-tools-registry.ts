@@ -48,6 +48,16 @@ import {
 } from './mcp-draft.js';
 import type { McpChangesDeps } from './mcp-changes.js';
 import { isChangesWired, registerMcpChangesTool } from './mcp-changes.js';
+import type { McpKnowledgeFactsDeps } from './mcp-knowledge-facts.js';
+import {
+  isKnowledgeFactsWired,
+  KNOWLEDGE_FACTS_DESCRIPTION,
+  KNOWLEDGE_FACTS_REQUIRED_SCOPE,
+  KNOWLEDGE_FACTS_TOOL_NAME,
+  MCP_KNOWLEDGE_FACTS_INPUT_SCHEMA,
+  MCP_KNOWLEDGE_FACTS_OUTPUT_SCHEMA,
+  registerMcpKnowledgeFactsTool,
+} from './mcp-knowledge-facts.js';
 import type { McpActivityReader } from './mcp-overview-tools.js';
 import type { McpQuayRunner } from './mcp-overview-tools.js';
 import type { McpReadToolDepsBase, McpReadToolSeam } from './mcp-read-contract.js';
@@ -87,6 +97,13 @@ export type McpReadToolDeps = McpReadToolDepsBase & {
   draft?: McpDraftDeps;
   /** gap-mcp-changes-on-demand-event-stream: the on-demand change event stream. */
   changes?: McpChangesDeps;
+  /**
+   * knowledge-application-fact-contract: the versioned fact source the
+   * `knowledge_facts` tool reads. Absent on a mount with no fact source, where
+   * the tool is not registered at all rather than answering a refusal — the
+   * name is not part of the frozen stage-3 table.
+   */
+  knowledgeFacts?: McpKnowledgeFactsDeps;
 };
 
 /**
@@ -143,6 +160,9 @@ export function registerMcpReadTools(seam: McpReadToolSeam, deps: McpReadToolDep
     : null;
   const draftDeps: McpDraftDeps | null = deps.draft ?? null;
   const changesDeps: McpChangesDeps | null = isChangesWired(deps) ? deps.changes : null;
+  const knowledgeFactsDeps: McpKnowledgeFactsDeps | null = isKnowledgeFactsWired(deps)
+    ? deps.knowledgeFacts
+    : null;
   const table = new Map<string, (typeof MCP_STAGE3_READ_TOOLS)[number]>(
     MCP_STAGE3_READ_TOOLS.map((tool) => [tool.name, tool]),
   );
@@ -252,6 +272,22 @@ export function registerMcpReadTools(seam: McpReadToolSeam, deps: McpReadToolDep
       requiredScope: READ_SCOPE,
       inputSchema: DRAFT_GET_INPUT_SCHEMA,
       outputSchema: DRAFT_GET_OUTPUT_SCHEMA,
+    });
+  }
+
+  // knowledge-application-fact-contract: another read tool registered ALONGSIDE
+  // the stage-3 table. The table is the frozen AC-245 read set (its size is
+  // pinned by its own criterion); this tool appears only on a mount that has a
+  // fact source to read, so a mount without one lists exactly what it listed
+  // before. Its scope is the same `cloudcli:read`, and its metadata lives in
+  // `mcp-knowledge-facts.ts` because it has no table row.
+  if (knowledgeFactsDeps !== null) {
+    registerMcpKnowledgeFactsTool(seam, knowledgeFactsDeps, {
+      name: KNOWLEDGE_FACTS_TOOL_NAME,
+      description: KNOWLEDGE_FACTS_DESCRIPTION,
+      requiredScope: KNOWLEDGE_FACTS_REQUIRED_SCOPE,
+      inputSchema: MCP_KNOWLEDGE_FACTS_INPUT_SCHEMA,
+      outputSchema: MCP_KNOWLEDGE_FACTS_OUTPUT_SCHEMA,
     });
   }
 }

@@ -1,8 +1,12 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CockpitCard as CockpitCardData } from '@/shared/types';
+import type {
+  CockpitCard as CockpitCardData,
+  CockpitKnowledgeCase,
+} from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
 import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
 import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
 import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
@@ -32,8 +36,32 @@ import type {
 import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
 
 /**
+ * The short cockpit copy for one knowledge case state. REPORTED is split by the provider's
+ * verification verdict, because 「已回报」 without a verdict is not the same reading as
+ * 「已核验」: only the provider's verification says the change actually held.
+ */
+function knowledgeStateLabel(knowledge: CockpitKnowledgeCase): string {
+  if (knowledge.state === 'reported') {
+    if (knowledge.verification?.state === 'passed') return '已核验';
+    if (knowledge.verification?.state === 'failed') return '核验未通过';
+    return '已回报';
+  }
+  switch (knowledge.state) {
+    case 'pending':
+      return '待执行';
+    case 'executing':
+      return '进行中';
+    case 'verifying':
+      return '核验中';
+    case 'blocked':
+      return '受阻';
+    default:
+      return '状态未知';
+  }
+}
+
+/**
  * One cockpit card, drawn as the three touch zones the design names:
- *
  *   A — header, question, situation, facts, viz: a tap opens the Details drawer. There is no
  *       separate Details button, because the whole upper body IS the affordance (the `›` is the
  *       hint).
@@ -341,6 +369,29 @@ export default function CockpitCard({
           onToggleExpanded={onToggleSituationExpanded}
         />
 
+        {/* A knowledge suggestion states where its case is: handed off (进行中), being checked
+            (核验中), and the provider's final verdict. The cockpit only DRAWS this reading; a
+            received feedback proves the decision was handed off, never that it ran or held. */}
+        {!compact && card.knowledge !== undefined && (
+          <div
+            data-testid="cockpit-card-knowledge"
+            data-knowledge-state={card.knowledge.state}
+            data-verification-state={card.knowledge.verification?.state}
+            className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
+          >
+            <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">
+              {knowledgeStateLabel(card.knowledge)}
+            </span>
+            {card.knowledge.progress?.step !== undefined && (
+              <span className="min-w-0 truncate">{card.knowledge.progress.step}</span>
+            )}
+            {card.knowledge.verification?.summary !== undefined &&
+              card.knowledge.verification.summary !== '' && (
+                <span className="min-w-0 truncate">{card.knowledge.verification.summary}</span>
+              )}
+          </div>
+        )}
+
         {/* Facts as pills (● mechanical / ○ judgement) with the small viz on the right. A pill is
             a SHORT FORM: the sentence it abbreviates stays in `title` and, untruncated, in Details;
             a fact the situation already states is not repeated here at all. Compact mode keeps the
@@ -542,44 +593,16 @@ export default function CockpitCard({
               confirmation leaves the shown option and its buttons exactly as they were. The
               first press only opens that confirmation; nothing is sent from here. */}
           {!feedbackLocked && dismissTarget !== null && (
-            <div
-              data-testid="cockpit-card-dismiss-bar"
-              data-card-id={card.id}
-              data-dismiss-pending={dismissPending ? 'true' : 'false'}
-              className="mt-1"
-            >
-              {dismissPending ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-dismiss-confirm"
-                    disabled={dismissing}
-                    onClick={onConfirmDismiss}
-                    className="rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
-                  >
-                    {dismissing ? t('cockpit.cardDismissing') : t('cockpit.cardDismissConfirm')}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-dismiss-cancel"
-                    disabled={dismissing}
-                    onClick={onCancelDismiss}
-                    className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-                  >
-                    {t('cockpit.cardConfirmCancel')}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  data-testid="cockpit-card-dismiss"
-                  onClick={onRequestDismiss}
-                  className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  {t('cockpit.cardDismiss')}
-                </button>
-              )}
-            </div>
+            <CockpitCardDismissBar
+              cardId={card.id}
+              barTestId="cockpit-card-dismiss-bar"
+              testId="cockpit-card-dismiss"
+              pending={dismissPending}
+              dismissing={dismissing}
+              onRequestDismiss={onRequestDismiss}
+              onConfirmDismiss={onConfirmDismiss}
+              onCancelDismiss={onCancelDismiss}
+            />
           )}
         </div>
       </div>

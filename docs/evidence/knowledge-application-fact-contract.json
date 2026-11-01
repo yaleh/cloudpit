@@ -1,0 +1,593 @@
+{
+  "task": "knowledge-application-fact-contract",
+  "capturedAt": "2026-11-01T06:33:10.028Z",
+  "instance": {
+    "kind": "isolated-instance",
+    "baseUrl": "http://127.0.0.1:15077",
+    "stateDir": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/state",
+    "home": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home",
+    "startReport": null,
+    "note": "Booted from this branch's built server (dist-server) with a throwaway HOME and a better-sqlite3 backup of the operator auth.db; the context-event stream the instance reads is the disposable day file under that HOME, never the operator's ~/.quay-fleet stream."
+  },
+  "tool": {
+    "name": "knowledge_facts",
+    "description": "Read one versioned knowledge-application fact about this host: `peer_result` (the ask a session stated, the settling reply re-read from the transcript, and the same operation id on both readings), `effective_config` (expected, stored and actually-running model / effort / permission mode plus the process, build and request identity — `verified` is false when any layer is unknown), or `inventory` (a bounded session page that keeps its filters, total and truncation, so an empty page is never reported as an empty host). Every field is either an evidence reading with its source and observation time, or an explicit `unknown` with a reason; the payload also carries the contract name and version, the build id and the running process boot id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "peer_result",
+            "effective_config",
+            "inventory"
+          ]
+        },
+        "session": {
+          "type": "string",
+          "minLength": 1
+        },
+        "peerSession": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expected": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effort": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "permissionMode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "contract": {
+              "type": "string"
+            },
+            "version": {
+              "type": "number"
+            },
+            "project": {
+              "type": "string"
+            },
+            "buildId": {
+              "type": "string"
+            },
+            "bootId": {
+              "type": "string"
+            },
+            "serverVersion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gitSha": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "builtAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "observedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract",
+            "version",
+            "project",
+            "buildId",
+            "bootId",
+            "serverVersion",
+            "gitSha",
+            "builtAt",
+            "observedAt"
+          ],
+          "additionalProperties": false
+        },
+        "reading": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  "contract": {
+    "contract": "cloudcli.knowledge-application.fact",
+    "version": 1,
+    "project": "claudecodeui",
+    "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+    "bootId": "70f207b4-a4fa-40f3-9188-ce0f597fbfac",
+    "serverVersion": "1.41.0",
+    "gitSha": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+    "builtAt": "2026-11-01T06:33:00.385Z",
+    "observedAt": "2026-11-01T06:33:09.611Z"
+  },
+  "calls": [
+    {
+      "label": "inventory over one project in the isolated database",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "inventory",
+          "projectId": "evid-proj-alpha"
+        }
+      },
+      "response": {
+        "isError": false,
+        "text": "{\"identity\":{\"contract\":\"cloudcli.knowledge-application.fact\",\"version\":1,\"project\":\"claudecodeui\",\"buildId\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"bootId\":\"70f207b4-a4fa-40f3-9188-ce0f597fbfac\",\"serverVersion\":\"1.41.0\",\"gitSha\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"builtAt\":\"2026-11-01T06:33:00.385Z\",\"observedAt\":\"2026-11-01T06:33:09.611Z\"},\"reading\":{\"kind\":\"inventory\",\"operationId\":\"op-44ee643e1567\",\"scope\":{\"projectId\":\"evid-proj-alpha\",\"provider\":null,\"limit\":20,\"offset\":0,\"filtersApplied\":[\"projectId\"]},\"items\":[{\"sessionId\":\"evidence-session-alpha\",\"provider\":\"claude\",\"providerSessionId\":\"evidence-session-alpha\",\"projectId\":\"evid-proj-alpha\",\"lifecycle\":{\"stored\":\"resident\",\"live\":false},\"lastActivity\":\"2026-11-01T06:28:56.000Z\"}],\"total\":1,\"truncated\":false,\"providers\":[\"claude\"],\"unknown\":[],\"readErrors\":[]}}",
+        "payload": {
+          "identity": {
+            "contract": "cloudcli.knowledge-application.fact",
+            "version": 1,
+            "project": "claudecodeui",
+            "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "bootId": "70f207b4-a4fa-40f3-9188-ce0f597fbfac",
+            "serverVersion": "1.41.0",
+            "gitSha": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "builtAt": "2026-11-01T06:33:00.385Z",
+            "observedAt": "2026-11-01T06:33:09.611Z"
+          },
+          "reading": {
+            "kind": "inventory",
+            "operationId": "op-44ee643e1567",
+            "scope": {
+              "projectId": "evid-proj-alpha",
+              "provider": null,
+              "limit": 20,
+              "offset": 0,
+              "filtersApplied": [
+                "projectId"
+              ]
+            },
+            "items": [
+              {
+                "sessionId": "evidence-session-alpha",
+                "provider": "claude",
+                "providerSessionId": "evidence-session-alpha",
+                "projectId": "evid-proj-alpha",
+                "lifecycle": {
+                  "stored": "resident",
+                  "live": false
+                },
+                "lastActivity": "2026-11-01T06:28:56.000Z"
+              }
+            ],
+            "total": 1,
+            "truncated": false,
+            "providers": [
+              "claude"
+            ],
+            "unknown": [],
+            "readErrors": []
+          }
+        }
+      }
+    },
+    {
+      "label": "peer_result for the session whose ask/answer rows are in the instance stream",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "evidence-session-alpha"
+        }
+      },
+      "response": {
+        "isError": false,
+        "text": "{\"identity\":{\"contract\":\"cloudcli.knowledge-application.fact\",\"version\":1,\"project\":\"claudecodeui\",\"buildId\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"bootId\":\"70f207b4-a4fa-40f3-9188-ce0f597fbfac\",\"serverVersion\":\"1.41.0\",\"gitSha\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"builtAt\":\"2026-11-01T06:33:00.385Z\",\"observedAt\":\"2026-11-01T06:33:09.758Z\"},\"reading\":{\"kind\":\"peer_result\",\"operationId\":\"op-42d8122575b1\",\"activity\":{\"state\":\"evidence\",\"value\":{\"askId\":\"evidence-session-alpha:assistant-evidence-ask\",\"state\":\"answered\",\"at\":\"2026-11-01T06:29:26.103Z\",\"lastAt\":\"2026-11-01T06:29:56.103Z\",\"sourceRef\":\"/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1\"},\"source\":\"context-events\",\"sourceRef\":\"/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1\",\"observedAt\":\"2026-11-01T06:29:56.103Z\"},\"correlation\":{\"state\":\"evidence\",\"value\":{\"askId\":\"evidence-session-alpha:assistant-evidence-ask\",\"operationId\":\"op-42d8122575b1\",\"sourceSessionId\":\"evidence-session-alpha\",\"targetSessionId\":null,\"askingMessageId\":\"assistant-evidence-ask\",\"answeredMessageId\":\"user-evidence-answer\"},\"source\":\"context-events\",\"sourceRef\":\"/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1\",\"observedAt\":\"2026-11-01T06:29:56.103Z\"},\"waiting\":{\"state\":\"evidence\",\"value\":{\"state\":\"answered\",\"since\":\"2026-11-01T06:29:26.103Z\"},\"source\":\"context-events\",\"sourceRef\":\"/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1\",\"observedAt\":\"2026-11-01T06:29:56.103Z\"},\"authorization\":{\"state\":\"unknown\",\"reason\":\"the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer\"},\"reply\":{\"state\":\"unknown\",\"reason\":\"the answered message is not inside the transcript window that was read\"},\"unknown\":[\"targetSessionId\",\"authorization\",\"reply\"],\"readErrors\":[]}}",
+        "payload": {
+          "identity": {
+            "contract": "cloudcli.knowledge-application.fact",
+            "version": 1,
+            "project": "claudecodeui",
+            "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "bootId": "70f207b4-a4fa-40f3-9188-ce0f597fbfac",
+            "serverVersion": "1.41.0",
+            "gitSha": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "builtAt": "2026-11-01T06:33:00.385Z",
+            "observedAt": "2026-11-01T06:33:09.758Z"
+          },
+          "reading": {
+            "kind": "peer_result",
+            "operationId": "op-42d8122575b1",
+            "activity": {
+              "state": "evidence",
+              "value": {
+                "askId": "evidence-session-alpha:assistant-evidence-ask",
+                "state": "answered",
+                "at": "2026-11-01T06:29:26.103Z",
+                "lastAt": "2026-11-01T06:29:56.103Z",
+                "sourceRef": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1"
+              },
+              "source": "context-events",
+              "sourceRef": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1",
+              "observedAt": "2026-11-01T06:29:56.103Z"
+            },
+            "correlation": {
+              "state": "evidence",
+              "value": {
+                "askId": "evidence-session-alpha:assistant-evidence-ask",
+                "operationId": "op-42d8122575b1",
+                "sourceSessionId": "evidence-session-alpha",
+                "targetSessionId": null,
+                "askingMessageId": "assistant-evidence-ask",
+                "answeredMessageId": "user-evidence-answer"
+              },
+              "source": "context-events",
+              "sourceRef": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1",
+              "observedAt": "2026-11-01T06:29:56.103Z"
+            },
+            "waiting": {
+              "state": "evidence",
+              "value": {
+                "state": "answered",
+                "since": "2026-11-01T06:29:26.103Z"
+              },
+              "source": "context-events",
+              "sourceRef": "/data/home/yale/work/claudecodeui-worktrees/knowledge-application-fact-contract/tmp/evidence-instance/home/.quay-fleet/context/events/2026-11-01.jsonl#evid-answered-1",
+              "observedAt": "2026-11-01T06:29:56.103Z"
+            },
+            "authorization": {
+              "state": "unknown",
+              "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "the answered message is not inside the transcript window that was read"
+            },
+            "unknown": [
+              "targetSessionId",
+              "authorization",
+              "reply"
+            ],
+            "readErrors": []
+          }
+        }
+      }
+    },
+    {
+      "label": "peer_result for a real session with no activity in the stream",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result",
+          "session": "evidence-session-beta"
+        }
+      },
+      "response": {
+        "isError": false,
+        "text": "{\"identity\":{\"contract\":\"cloudcli.knowledge-application.fact\",\"version\":1,\"project\":\"claudecodeui\",\"buildId\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"bootId\":\"70f207b4-a4fa-40f3-9188-ce0f597fbfac\",\"serverVersion\":\"1.41.0\",\"gitSha\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"builtAt\":\"2026-11-01T06:33:00.385Z\",\"observedAt\":\"2026-11-01T06:33:09.839Z\"},\"reading\":{\"kind\":\"peer_result\",\"operationId\":null,\"activity\":{\"state\":\"unknown\",\"reason\":\"no session.asking activity for this session is inside the stream window\"},\"correlation\":{\"state\":\"unknown\",\"reason\":\"there is no activity to correlate\"},\"waiting\":{\"state\":\"unknown\",\"reason\":\"there is no activity, so the wait cannot be read\"},\"authorization\":{\"state\":\"unknown\",\"reason\":\"the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer\"},\"reply\":{\"state\":\"unknown\",\"reason\":\"there is no activity, so there is no settled message to verify\"},\"unknown\":[\"activity\",\"targetSessionId\",\"authorization\",\"reply\"],\"readErrors\":[]}}",
+        "payload": {
+          "identity": {
+            "contract": "cloudcli.knowledge-application.fact",
+            "version": 1,
+            "project": "claudecodeui",
+            "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "bootId": "70f207b4-a4fa-40f3-9188-ce0f597fbfac",
+            "serverVersion": "1.41.0",
+            "gitSha": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "builtAt": "2026-11-01T06:33:00.385Z",
+            "observedAt": "2026-11-01T06:33:09.839Z"
+          },
+          "reading": {
+            "kind": "peer_result",
+            "operationId": null,
+            "activity": {
+              "state": "unknown",
+              "reason": "no session.asking activity for this session is inside the stream window"
+            },
+            "correlation": {
+              "state": "unknown",
+              "reason": "there is no activity to correlate"
+            },
+            "waiting": {
+              "state": "unknown",
+              "reason": "there is no activity, so the wait cannot be read"
+            },
+            "authorization": {
+              "state": "unknown",
+              "reason": "the session.asking row carries no authorization scope, and the fact reader does not infer one from an answer"
+            },
+            "reply": {
+              "state": "unknown",
+              "reason": "there is no activity, so there is no settled message to verify"
+            },
+            "unknown": [
+              "activity",
+              "targetSessionId",
+              "authorization",
+              "reply"
+            ],
+            "readErrors": []
+          }
+        }
+      }
+    },
+    {
+      "label": "effective_config with an expected layer (no live host is running)",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "effective_config",
+          "session": "evidence-session-alpha",
+          "expected": {
+            "model": "claude-sonnet-5-5",
+            "effort": "high",
+            "permissionMode": "default"
+          }
+        }
+      },
+      "response": {
+        "isError": false,
+        "text": "{\"identity\":{\"contract\":\"cloudcli.knowledge-application.fact\",\"version\":1,\"project\":\"claudecodeui\",\"buildId\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"bootId\":\"70f207b4-a4fa-40f3-9188-ce0f597fbfac\",\"serverVersion\":\"1.41.0\",\"gitSha\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"builtAt\":\"2026-11-01T06:33:00.385Z\",\"observedAt\":\"2026-11-01T06:33:09.915Z\"},\"reading\":{\"kind\":\"effective_config\",\"operationId\":\"op-6576b704e83e\",\"expected\":{\"state\":\"evidence\",\"value\":{\"model\":\"claude-sonnet-5-5\",\"effort\":\"high\",\"permissionMode\":\"default\"},\"source\":\"caller\",\"sourceRef\":\"expectation:evidence-session-alpha\",\"observedAt\":\"2026-11-01T06:33:09.915Z\"},\"stored\":{\"state\":\"evidence\",\"value\":{\"model\":\"claude-sonnet-5-5\",\"effort\":\"high\",\"permissionMode\":\"default\"},\"source\":\"sessions.db\",\"sourceRef\":\"evidence-session-alpha\",\"observedAt\":\"2026-11-01T06:28:56.000Z\"},\"actual\":{\"state\":\"evidence\",\"value\":{\"live\":false,\"pid\":null,\"startedAt\":null,\"runId\":null},\"source\":\"session-hosts\",\"sourceRef\":\"evidence-session-alpha\",\"observedAt\":\"2026-11-01T06:33:09.915Z\"},\"layers\":{\"process\":{\"state\":\"unknown\",\"reason\":\"no process is alive for this session\"},\"build\":{\"state\":\"evidence\",\"value\":{\"buildId\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\"},\"source\":\"build-info\",\"sourceRef\":\"ca240eb332eba8304f51d32247a0d465f7f6da37\",\"observedAt\":\"2026-11-01T06:33:09.915Z\"},\"request\":{\"state\":\"unknown\",\"reason\":\"no run with an id is in flight for this session\"}},\"verified\":false,\"unknown\":[\"process\",\"request\"],\"readErrors\":[]}}",
+        "payload": {
+          "identity": {
+            "contract": "cloudcli.knowledge-application.fact",
+            "version": 1,
+            "project": "claudecodeui",
+            "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "bootId": "70f207b4-a4fa-40f3-9188-ce0f597fbfac",
+            "serverVersion": "1.41.0",
+            "gitSha": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+            "builtAt": "2026-11-01T06:33:00.385Z",
+            "observedAt": "2026-11-01T06:33:09.915Z"
+          },
+          "reading": {
+            "kind": "effective_config",
+            "operationId": "op-6576b704e83e",
+            "expected": {
+              "state": "evidence",
+              "value": {
+                "model": "claude-sonnet-5-5",
+                "effort": "high",
+                "permissionMode": "default"
+              },
+              "source": "caller",
+              "sourceRef": "expectation:evidence-session-alpha",
+              "observedAt": "2026-11-01T06:33:09.915Z"
+            },
+            "stored": {
+              "state": "evidence",
+              "value": {
+                "model": "claude-sonnet-5-5",
+                "effort": "high",
+                "permissionMode": "default"
+              },
+              "source": "sessions.db",
+              "sourceRef": "evidence-session-alpha",
+              "observedAt": "2026-11-01T06:28:56.000Z"
+            },
+            "actual": {
+              "state": "evidence",
+              "value": {
+                "live": false,
+                "pid": null,
+                "startedAt": null,
+                "runId": null
+              },
+              "source": "session-hosts",
+              "sourceRef": "evidence-session-alpha",
+              "observedAt": "2026-11-01T06:33:09.915Z"
+            },
+            "layers": {
+              "process": {
+                "state": "unknown",
+                "reason": "no process is alive for this session"
+              },
+              "build": {
+                "state": "evidence",
+                "value": {
+                  "buildId": "ca240eb332eba8304f51d32247a0d465f7f6da37"
+                },
+                "source": "build-info",
+                "sourceRef": "ca240eb332eba8304f51d32247a0d465f7f6da37",
+                "observedAt": "2026-11-01T06:33:09.915Z"
+              },
+              "request": {
+                "state": "unknown",
+                "reason": "no run with an id is in flight for this session"
+              }
+            },
+            "verified": false,
+            "unknown": [
+              "process",
+              "request"
+            ],
+            "readErrors": []
+          }
+        }
+      }
+    },
+    {
+      "label": "negative: effective_config naming a session the store does not hold",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "effective_config",
+          "session": "evidence-session-missing"
+        }
+      },
+      "response": {
+        "isError": true,
+        "text": "No session has a title containing \"evidence-session-missing\".",
+        "payload": {
+          "code": "SESSION_NOT_FOUND",
+          "message": "No session has a title containing \"evidence-session-missing\".",
+          "retryable": false,
+          "details": {
+            "query": "evidence-session-missing",
+            "kind": "session",
+            "candidates": []
+          }
+        }
+      }
+    },
+    {
+      "label": "negative: peer_result without a session address",
+      "request": {
+        "name": "knowledge_facts",
+        "arguments": {
+          "kind": "peer_result"
+        }
+      },
+      "response": {
+        "isError": true,
+        "text": "The `peer_result` kind requires a non-empty `session` argument.",
+        "payload": {
+          "code": "INVALID_ARGUMENT",
+          "message": "The `peer_result` kind requires a non-empty `session` argument.",
+          "retryable": false,
+          "details": {
+            "fields": [
+              {
+                "path": "session",
+                "problem": "required"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "readings": {
+    "inventoryItems": [
+      {
+        "sessionId": "evidence-session-alpha",
+        "provider": "claude",
+        "providerSessionId": "evidence-session-alpha",
+        "projectId": "evid-proj-alpha",
+        "lifecycle": {
+          "stored": "resident",
+          "live": false
+        },
+        "lastActivity": "2026-11-01T06:28:56.000Z"
+      }
+    ],
+    "inventoryTotal": 1,
+    "peerOperationId": "op-42d8122575b1",
+    "peerUnknown": [
+      "targetSessionId",
+      "authorization",
+      "reply"
+    ],
+    "peerReplyState": "unknown",
+    "peerWithoutActivityUnknown": [
+      "activity",
+      "targetSessionId",
+      "authorization",
+      "reply"
+    ],
+    "configVerified": false,
+    "configUnknown": [
+      "process",
+      "request"
+    ],
+    "unknownSessionCode": "SESSION_NOT_FOUND",
+    "missingArgumentCode": "INVALID_ARGUMENT"
+  }
+}

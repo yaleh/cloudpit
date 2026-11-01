@@ -465,11 +465,23 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (489 + 1 = 490 collected server test files). Then
     // gap-codex-resident-blocked-context-events added its criterion
     // server/modules/context-events/tests/session-blocked-events.test.ts
-    // (490 + 1 = 491 collected server test files). Then gap-cloudpit-runtime-default-flip
-    // added its criterion server/shared/tests/cloudpit-runtime-flip.test.ts
-    // (491 + 1 = 492 collected server test files). This fixture names 3 known files,
-    // so 492 - 3 = 489.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=489$/);
+    // (490 + 1 = 491 collected server test files). Then
+    // cockpit-knowledge-decision-handoff added its criterion
+    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts and
+    // knowledge-application-fact-contract added its two criteria
+    // server/modules/context-events/tests/knowledge-activity-events.test.ts and
+    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
+    // (491 + 3 = 494 collected server test files). Then
+    // knowledge-effective-config-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts
+    // (494 + 1 = 495 collected server test files), then
+    // knowledge-peer-correlation-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
+    // (495 + 1 = 496 collected server test files). The goal branch's
+    // gap-cloudpit-runtime-default-flip adds its criterion
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (496 + 1 = 497 collected server test
+    // files). This fixture names 3 known files, so 497 - 3 = 494.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=494$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -598,11 +610,20 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // server/modules/providers/tests/codex-session-activity-restart.test.ts), then
     // gap-codex-resident-blocked-context-events added
     // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491), then
-    // gap-cloudpit-runtime-default-flip added
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (491 + 1 = 492)
-    // — but this fixture names ONE known file, so 492 - 1 = 491 (AC2 reads 489 because its
-    // fixture names 3; the 492 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=491$/);
+    // cockpit-knowledge-decision-handoff added
+    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (491 + 1 = 492),
+    // then knowledge-application-fact-contract added its two criteria
+    // server/modules/context-events/tests/knowledge-activity-events.test.ts and
+    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (492 + 2 = 494),
+    // then knowledge-effective-config-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (494 + 1 = 495),
+    // then knowledge-peer-correlation-proof added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (495 + 1 = 496),
+    // then the goal branch's gap-cloudpit-runtime-default-flip added
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (496 + 1 = 497)
+    // — but this fixture names ONE known file, so 497 - 1 = 496 (AC2 reads 494 because its
+    // fixture names 3; the 497 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=496$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

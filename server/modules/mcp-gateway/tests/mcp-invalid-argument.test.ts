@@ -657,7 +657,12 @@ test('(e) legal calls stay legal and the advertised schema is the enforced one',
     // and the audit row) — the same one-schema-two-duties rule, restated.
     sessions_list: ['project', 'state', 'correlationId', 'limit'],
     session_read: ['session', 'mode', 'limit', 'aroundId', 'before', 'after', 'cursor'],
-    session_send: ['session', 'message', 'waitSeconds', 'correlationId'],
+    // `sourceSession` joined in knowledge-peer-correlation-proof: a RELAYED ask
+    // names the session that asked, so the server can record the accepted-send
+    // correlation. It is an optional key and the advertised set is the enforced
+    // set (AC-288 (e)), so this positive control reads the new name rather than
+    // letting the schema drift silently.
+    session_send: ['session', 'message', 'waitSeconds', 'correlationId', 'sourceSession'],
     session_get: ['session'],
     // gap-mcp-changes-on-demand-event-stream (AC-335): the incremental change
     // stream declares no required argument, so its five optional keys are the

@@ -1,14 +1,14 @@
 ---
 id: AC-457
 title: 分发核验载体：cloudpit-distribution-check.mjs 可离线判定发布状态，非合规必红、合规必绿
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
   scripts/cloudpit-distribution-check.test.mjs
-expect: scripts/cloudpit-distribution-check.mjs 存在并实现 --release 模式，供 AC-454 的
+expect: scripts/cloudpit-distribution-check.mjs 存在并实现 --release 模式，供 AC-458 的
   node scripts/cloudpit-distribution-check.mjs --release
-  直接调用；发布状态读取必须可注入（fixture/reader），使本判据能在 pre-merge 零网络运行。判定覆盖 AC-454 的六项：旧包
+  直接调用；发布状态读取必须可注入（fixture/reader），使本判据能在 pre-merge 零网络运行。判定覆盖 AC-458 的六项：旧包
   @yalehwang/cloudcli@1.42.0 已 deprecate 且文案指向
   @yalehwang/cloudpit；@yalehwang/cloudpit@2.0.0 已发布且 tarball 只有 cloudpit
   bin；GitHub yaleh/cloudpit 的 URL/homepage/repository/bugs 可解析；桌面
@@ -22,5 +22,11 @@ origin: 人 yale 2026-11-01 经会话裁定采纳 gap-goal-054-post-merge-distri
   scripts/cloudpit-distribution-check.mjs 在树中不存在，capability 闸 missingCarriers
   拒绝激活。编号 AC-457（AC-451…AC-454 属 GOAL-054，AC-455 属 GOAL-053，AC-456 已存在）。
 activatedAt: 2026-11-01T03:02:51.755Z
+statusLog:
+  - at: 2026-11-01T03:22:56.749Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 phase: pre-merge
 ---
