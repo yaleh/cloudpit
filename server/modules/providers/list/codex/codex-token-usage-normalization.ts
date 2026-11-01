@@ -20,8 +20,9 @@ import { isRecord } from '@/shared/utils.js';
  *   is still an approximation, not a measured occupancy.
  *
  * Both sets carry `input_tokens`, `cached_input_tokens`, `output_tokens`,
- * `reasoning_output_tokens` and `total_tokens`. Cached input is already part of
- * input, and reasoning output is already part of output, so they are kept as
+ * `reasoning_output_tokens` and `total_tokens`, and a rollout may also report
+ * `cache_write_input_tokens`. Cached input — read and written — is already part
+ * of input, and reasoning output is already part of output, so they are kept as
  * detail reads rather than added in again. The window
  * (`model_context_window`) is independent of both totals.
  *
@@ -56,12 +57,16 @@ function readCodexUsageCounts(value: unknown): ProviderTokenUsageCounts | undefi
   const inputTokens = readQuantity(value.input_tokens);
   const outputTokens = readQuantity(value.output_tokens);
   const cacheReadTokens = readQuantity(value.cached_input_tokens);
+  const cacheWriteTokens = readQuantity(
+    value.cache_write_input_tokens ?? value.cacheWriteInputTokens,
+  );
   const reasoningOutputTokens = readQuantity(value.reasoning_output_tokens);
   const totalTokens = readQuantity(value.total_tokens);
 
   if (inputTokens !== undefined) counts.inputTokens = inputTokens;
   if (outputTokens !== undefined) counts.outputTokens = outputTokens;
   if (cacheReadTokens !== undefined) counts.cacheReadTokens = cacheReadTokens;
+  if (cacheWriteTokens !== undefined) counts.cacheWriteTokens = cacheWriteTokens;
   if (reasoningOutputTokens !== undefined) counts.reasoningOutputTokens = reasoningOutputTokens;
   if (totalTokens !== undefined) counts.totalTokens = totalTokens;
 

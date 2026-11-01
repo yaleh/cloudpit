@@ -272,6 +272,66 @@ test('cost command omits unreported Codex quantities instead of reporting zero',
   assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
 });
 
+test('cost command passes cacheWrite through from the cumulative block', async () => {
+  const tokenUsage = {
+    used: 2_400,
+    total: 258_400,
+    usageScope: 'session-cumulative',
+    cumulative: {
+      inputTokens: 2_000,
+      outputTokens: 400,
+      cacheReadTokens: 1_500,
+      cacheWriteTokens: 300,
+      totalTokens: 2_400,
+    },
+    lastRequest: {
+      inputTokens: 700,
+      outputTokens: 120,
+      cacheReadTokens: 500,
+      cacheWriteTokens: 80,
+      totalTokens: 820,
+    },
+  };
+
+  const result = await executeCommand('/cost', { provider: 'claude', sessionId: 'session-1', tokenUsage });
+  const data = result.data as Record<string, any>;
+
+  // Both scopes carry their own written-to-cache quantity unchanged.
+  assert.deepEqual(data.tokenUsage.cumulative, tokenUsage.cumulative);
+  assert.deepEqual(data.tokenUsage.lastRequest, tokenUsage.lastRequest);
+  assert.equal(data.tokenUsage.cumulative.cacheWriteTokens, 300);
+  assert.equal(data.tokenUsage.lastRequest.cacheWriteTokens, 80);
+  // The breakdown reads the session total; cacheWrite is a subset of input and
+  // is never folded into input or output as another addend.
+  assert.equal(data.tokenBreakdown.cacheWrite, data.tokenUsage.cumulative.cacheWriteTokens);
+  assert.deepEqual(data.tokenBreakdown, {
+    input: 2_000,
+    output: 400,
+    cacheRead: 1_500,
+    cacheWrite: 300,
+  });
+});
+
+test('cost command omits cacheWrite when the reading never reported it', async () => {
+  const result = await executeCommand('/cost', {
+    provider: 'claude',
+    sessionId: 'session-1',
+    tokenUsage: {
+      used: 10,
+      usageScope: 'session-cumulative',
+      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+    },
+  });
+  const data = result.data as Record<string, any>;
+
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(data.tokenBreakdown, 'cacheWrite'),
+    false,
+    'an unreported cache write must stay absent, not print as zero',
+  );
+  assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
+});
+
 test('cost command keeps the legacy Claude reading and arithmetic', async () => {
   const result = await executeCommand('/cost', {
     provider: 'claude',

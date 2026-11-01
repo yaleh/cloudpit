@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import type {
   IProviderTokenUsage,
+  ProviderTokenUsageCounts,
   ProviderTokenUsageDependencies,
   ProviderTokenUsageReading,
   ProviderTokenUsageSession,
@@ -34,72 +35,125 @@ function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
   return null;
 }
 
+/** One assistant row's usage, with its cache detail kept separate. */
+type ClaudeUsageRowTotals = {
+  /** Whole prompt: direct input + cache read + cache write. */
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+};
+
 /**
- * Latest context-window usage from a Claude transcript's already-parsed rows.
+ * Reads one assistant row's usage, or `null` for any other row.
+ *
+ * `inputTokens` is the row's whole prompt (`input_tokens + cache_read +
+ * cache_creation`), which is what the context window holds after that request.
+ * The two cache quantities are returned separately as subset detail reads.
+ */
+function readClaudeUsageRow(entry: AnyRecord): ClaudeUsageRowTotals | null {
+  const usage = entry?.type === 'assistant' ? entry.message?.usage : null;
+  if (!usage) {
+    return null;
+  }
+
+  const directInputTokens = readUsageNumber(usage.input_tokens ?? usage.inputTokens);
+  const cacheReadTokens = readUsageNumber(
+    usage.cache_read_input_tokens ?? usage.cacheReadInputTokens ?? usage.cacheReadTokens,
+  );
+  const cacheWriteTokens = readUsageNumber(
+    usage.cache_creation_input_tokens
+      ?? usage.cacheCreationInputTokens
+      ?? usage.cacheCreationTokens,
+  );
+
+  return {
+    inputTokens: directInputTokens + cacheReadTokens + cacheWriteTokens,
+    outputTokens: readUsageNumber(usage.output_tokens ?? usage.outputTokens),
+    cacheReadTokens,
+    cacheWriteTokens,
+  };
+}
+
+function addClaudeUsageTotals(target: ClaudeUsageRowTotals, row: ClaudeUsageRowTotals): void {
+  target.inputTokens += row.inputTokens;
+  target.outputTokens += row.outputTokens;
+  target.cacheReadTokens += row.cacheReadTokens;
+  target.cacheWriteTokens += row.cacheWriteTokens;
+}
+
+function toUsageCounts(totals: ClaudeUsageRowTotals): ProviderTokenUsageCounts {
+  return {
+    inputTokens: totals.inputTokens,
+    outputTokens: totals.outputTokens,
+    cacheReadTokens: totals.cacheReadTokens,
+    cacheWriteTokens: totals.cacheWriteTokens,
+  };
+}
+
+/**
+ * Usage of a Claude transcript's already-parsed rows, in two scopes:
+ * - `used`/`inputTokens`/`cache*` stay the NEWEST main-thread turn, i.e. what
+ *   the context window currently holds. Summing turns there would count the
+ *   same cached prefix once per turn.
+ * - `cumulative` is the session's total spend, summed over every main-thread
+ *   assistant turn: the same per-row arithmetic as the newest-turn read,
+ *   accumulated instead of last-wins. `sidechain` accumulates subagent turns
+ *   separately — they bill to the session but own a separate context, so
+ *   folding them into `cumulative` would mix two conversations' prompt sizes.
  *
  * Exported because the session-messages reader hands the same usage back on
  * every history page, the way the Codex and OpenCode readers do. Without that,
  * a Claude session's counter only moved when the session was reselected, and
  * the store's "this provider reports no usage" path overwrote it with zero.
- *
- * Reads the newest assistant turn only: `input_tokens + cache_read +
- * cache_creation` is that one request's whole prompt, i.e. what the context
- * window currently holds. Summing turns would count the same cached prefix
- * once per turn.
  */
 export function summarizeClaudeTokenUsage(
   entries: AnyRecord[],
   configuredContextWindow: string | undefined = process.env.CONTEXT_WINDOW,
   modelContextWindow?: number | string | null,
 ): ProviderTokenUsageReading {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheReadTokens = 0;
-  let cacheCreationTokens = 0;
+  // Newest qualifying main-thread row: the context-occupancy reading.
+  let lastRequest: ClaudeUsageRowTotals | null = null;
+  const cumulativeTotals: ClaudeUsageRowTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const sidechainTotals: ClaudeUsageRowTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let sawCumulativeUsage = false;
+  let sawSidechainUsage = false;
 
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    // A subagent's turns report the subagent's context window, not this
-    // conversation's; reading one makes the counter drop to the subagent's
-    // number and bounce back on the next main-thread turn.
-    if (entry?.isSidechain === true) {
+  for (const entry of entries) {
+    const row = readClaudeUsageRow(entry);
+    if (!row) {
       continue;
     }
-
-    const usage = entry?.type === 'assistant' ? entry.message?.usage : null;
-    if (!usage) {
-      continue;
-    }
-
-    const directInputTokens = readUsageNumber(usage.input_tokens ?? usage.inputTokens);
-    const rowCacheReadTokens = readUsageNumber(
-      usage.cache_read_input_tokens ?? usage.cacheReadInputTokens ?? usage.cacheReadTokens,
-    );
-    const rowCacheCreationTokens = readUsageNumber(
-      usage.cache_creation_input_tokens
-        ?? usage.cacheCreationInputTokens
-        ?? usage.cacheCreationTokens,
-    );
-    const rowInputTokens = directInputTokens + rowCacheReadTokens + rowCacheCreationTokens;
-    const rowOutputTokens = readUsageNumber(usage.output_tokens ?? usage.outputTokens);
 
     // `<synthetic>` rows — interrupts, API errors, "No response requested" —
     // are written with an all-zero usage block rather than none at all. They
-    // never carried a prompt, so treating one as the newest turn zeroed a
-    // counter that a live event had just set correctly.
-    if (rowInputTokens === 0 && rowOutputTokens === 0) {
+    // never carried a prompt, so letting one win the newest-turn read zeroed a
+    // counter that a live event had just set correctly; adding it to the sums
+    // would likewise contribute nothing but a lie.
+    if (row.inputTokens === 0 && row.outputTokens === 0) {
       continue;
     }
 
-    cacheReadTokens = rowCacheReadTokens;
-    cacheCreationTokens = rowCacheCreationTokens;
-    inputTokens = rowInputTokens;
-    outputTokens = rowOutputTokens;
-    break;
+    // A subagent's turns report the subagent's context window, not this
+    // conversation's; reading one as the newest turn made the counter drop to
+    // the subagent's number and bounce back on the next main-thread turn.
+    if (entry?.isSidechain === true) {
+      sawSidechainUsage = true;
+      addClaudeUsageTotals(sidechainTotals, row);
+      continue;
+    }
+
+    sawCumulativeUsage = true;
+    addClaudeUsageTotals(cumulativeTotals, row);
+    // File order is chronological, so the last qualifying row is the newest.
+    lastRequest = row;
   }
 
   const contextWindow = resolveContextWindow(modelContextWindow, configuredContextWindow);
-  const cacheTokens = cacheReadTokens + cacheCreationTokens;
+  const inputTokens = lastRequest?.inputTokens ?? 0;
+  const outputTokens = lastRequest?.outputTokens ?? 0;
+  const cacheReadTokens = lastRequest?.cacheReadTokens ?? 0;
+  const cacheCreationTokens = lastRequest?.cacheWriteTokens ?? 0;
 
   return {
     used: inputTokens + outputTokens,
@@ -108,7 +162,11 @@ export function summarizeClaudeTokenUsage(
     outputTokens,
     cacheReadTokens,
     cacheCreationTokens,
-    cacheTokens,
+    cacheTokens: cacheReadTokens + cacheCreationTokens,
+    // Only when a main-thread usage row exists: an empty transcript reported no
+    // spend snapshot, which is not the same answer as a session that spent zero.
+    ...(sawCumulativeUsage ? { cumulative: toUsageCounts(cumulativeTotals) } : {}),
+    ...(sawSidechainUsage ? { sidechain: toUsageCounts(sidechainTotals) } : {}),
     breakdown: { input: inputTokens, output: outputTokens },
   };
 }
