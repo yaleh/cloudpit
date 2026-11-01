@@ -30,9 +30,9 @@ extra:
 
 ## 验证
 
-- `CostContent.test.tsx` 7/7、`wireContractTypeSync.test.ts` 5/5、`npm run typecheck` 0、`npm run lint` 0（仅既有 warning + 两条 `react(only-export-components)`：本文件新增的纯推导/格式化函数导出，测试直接按其读数断言）、`npm run build:client` 0。
-- 场景运行器（开发构建 + 隔离后端 :3101，Codex 会话「Claude Code 会话弹出的选项 dialog」）：`node scripts/ui-scenario.mjs scripts/ui-scenarios/cost-panel-cache-ratio.json` → `ok: true`，命中率 `96%`、bar 段 `["fresh","cacheRead"]`、口径含 `Input already includes cached input tokens`；检查点 `tmp/cost-dod/scenario/step-1-open-cost-panel.png`。
-- 一次性 Playwright（`tmp/cost-dod/verify-cost-panel.mjs`，真实页面）三条腿全过：真实 Codex 累计用量 → `tmp/cost-dod/shots/real-cache-ratio.png`、`real-cache-ratio-note.png`（命中率行 / 两段占比条 / Codex 口径）；注入 `cacheWriteTokens=60000` 的夹具 → `fixture-cachewrite.png`（cacheWrite 行 + 三段 bar，宽度 2.84%）；注入 `provider=claude` → `provider-note-claude.png`（Claude 口径）。
+- `CostContent.test.tsx` 7/7、`wireContractTypeSync.test.ts` 5/5、`ui-scenario/tests` 10/10、`npm run typecheck` 0、`npm run lint` 0（仅既有 warning + 两条 `react(only-export-components)`：本文件新增的纯推导/格式化函数导出，测试直接按其读数断言）、`npm run build:client` 0、`server/shared/tests/architecture-ratchet.test.ts` 6/6。
+- 场景运行器（开发构建 + 隔离后端 :3101，Codex 会话「Claude Code 会话弹出的选项 dialog」）：`node scripts/ui-scenario.mjs scripts/ui-scenarios/cost-panel-cache-ratio.json` → `ok: true`，命中率 `96%`、bar 段 `["fresh","cacheRead","cacheWrite"]`（该夹具报 `cache_write_input_tokens: 0`，故写段宽 0，属「报了 0」而非「缺失」）、口径含 `Input already includes cached input tokens`；检查点 `tmp/cost-dod/scenario/step-1-open-cost-panel.png`。
+- 一次性 Playwright（`tmp/cost-dod/verify-cost-panel.mjs`，真实页面）三条腿全过：真实 Codex 累计用量 → `tmp/cost-dod/shots/real-cache-ratio.png`、`real-cache-ratio-note.png`（命中率行 / 三段占比条 / Codex 口径）；注入 `cacheWriteTokens=60000` 的夹具 → `fixture-cachewrite.png`（非零 cacheWrite 行 + 三段 bar，宽度 2.84%，fresh 相应收窄）；注入 `provider=claude` → `provider-note-claude.png`（Claude 口径）。
 
 ## 轴读数
 
@@ -50,4 +50,6 @@ extra:
 - server/shared/interfaces.ts (ProviderTokenUsageCounts 补 cacheWriteTokens?，让 TypeSync 两端字段集相等)
 - server/shared/tests/architecture-ratchet.baseline.json (src/shared/types.ts 4768→4772 的 RECORDED CHANGE)
 - scripts/ui-scenario.mjs (cost-panel opener 与 costPanel* 读数判据)
-- src/modules/ui-scenario/scenarioSurface.ts (ScenarioCostPanelReading 与 costPanel 读数)
+- src/modules/ui-scenario/scenarioSurface.ts (costPanel 读数接入 ScenarioReading)
+- src/modules/ui-scenario/costPanelSurface.ts (new；ScenarioCostPanelReading 与其 DOM reader，避免 surface 文件超过 800 行棘轮)
+- src/modules/ui-scenario/index.ts (barrel 重新导出新类型)
