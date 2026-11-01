@@ -61,5 +61,5 @@ branch: true
 
 - AC-451、AC-452、AC-453 全部达成（pre-merge）。
 - AC-458 达成（post-merge，外部发布核验）。
-- 品牌 allowlist、旧布局迁移、桌面升级、UI 预览四项跨切面证据齐全。
+- AC-451、AC-452、AC-453、AC-456 四项跨切面证据齐全（品牌 allowlist／旧布局迁移／桌面升级／UI 预览）。
 - 全部 AC 达成且无 close-block 后，goal 才由现有机制翻 `achieved`。
