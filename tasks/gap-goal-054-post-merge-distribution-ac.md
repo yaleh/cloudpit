@@ -1,7 +1,7 @@
 ---
 id: gap-goal-054-post-merge-distribution-ac
 title: GOAL-054 退出条件「AC-454 达成（post-merge）」无在域 AC：提议新增分发核验载体 AC（建议 AC-457）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
