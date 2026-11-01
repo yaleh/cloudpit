@@ -244,14 +244,15 @@ test('the composer counter still renders the live frame', () => {
   assert.doesNotMatch(chip.textContent ?? '', /118\.5M|119M/);
 });
 
-test('ChatInterface wires the live frame to the counter and the reading to /cost', () => {
+test('ChatInterface prefers the live counter frame, falls back to the reading, and isolates /cost', () => {
   const source = readFileSync(
     resolve(process.cwd(), 'src', 'modules', 'chat', 'ChatInterface.tsx'),
     'utf8',
   );
 
-  // The composer's own counter prop is the live frame...
-  assert.match(source, /tokenBudget=\{liveFrame\}/);
+  // c0fb922 deliberately added the authoritative fallback before a live frame
+  // arrives. Once a frame exists it must still take priority for the counter.
+  assert.match(source, /tokenBudget=\{liveFrame \?\? authoritativeReading\}/);
 
   // ...and the composer state is handed only the authoritative reading: the
   // live frame is not one of its arguments.
