@@ -3,7 +3,7 @@ id: gap-goal-054-ac459-identity-surfaces-criterion
 title: AC-459 判据缺失：新增
   electron/tests/cloudpit-runtime-identity-surfaces.test.mjs（可注入 root 的四面扫描器 +
   注入旧名负臂 + 非目标面正断言）
-status: ready
+status: done
 labels:
   - gap
 parent: null
