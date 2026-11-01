@@ -15,7 +15,7 @@ For every task that creates, modifies, refactors, or reviews frontend code under
 1. **MCP 浏览器实际操作 + 截图**：在真实运行的页面上把改动涉及的交互亲手走一遍，截图存 `tmp/`，并在任务里贴出。
 2. **场景运行器报告**：存在可用场景时，同时跑 `node scripts/ui-scenario.mjs <scenario.json> …` 并贴出 JSON 报告与检查点截图；大颗粒度的业务场景回归以运行器为准，MCP 浏览器用于视觉验证与探索。
 
-排查失败步时，优先用 `browser_evaluate('window.__cloudcliScenario.read()')` 一次取结构化读数（焦点、可见集、托盘、输入包、各步耗时），不要用整页 snapshot 反推。语义面只在开发构建、且 `?ui-scenario=1` 或 `localStorage['ui-scenario'] = 'on'` 时挂载，生产构建里不存在。
+排查失败步时，优先用 `browser_evaluate('window.__cloudpitScenario.read()')` 一次取结构化读数（焦点、可见集、托盘、输入包、各步耗时），不要用整页 snapshot 反推。语义面只在开发构建、且 `?ui-scenario=1` 或 `localStorage['ui-scenario'] = 'on'` 时挂载，生产构建里不存在。
 
 ## Running tests
 

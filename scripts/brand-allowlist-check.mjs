@@ -2,11 +2,11 @@
 /**
  * Brand allowlist checker for the Cloudpit rename (AC-451).
  *
- * The rename is only real if the legacy tokens `CloudCLI` and `claudecodeui` disappear from the
- * user-visible surfaces. `CLAUDE.md`-style documentation cannot enforce that, and a grep cannot
- * tell an allowed upstream attribution (`Based on CloudCLI UI`) from a product title that was
- * missed. This checker encodes the allowlist from
- * `docs/proposals/cloudpit-rename-SPEC.md` §2 and scans the surfaces §2.3 names.
+ * The rename is only real if the legacy tokens `CloudCLI`, `claudecodeui` and the deprecated npm
+ * package name `@yalehwang/cloudcli` disappear from the user-visible surfaces. `CLAUDE.md`-style
+ * documentation cannot enforce that, and a grep cannot tell an allowed upstream attribution
+ * (`Based on CloudCLI UI`) from a product title that was missed. This checker encodes the
+ * allowlist from `docs/proposals/cloudpit-rename-SPEC.md` §2 and scans the surfaces §2.3 names.
  *
  * What it is NOT: a blanket grep. Every hit is evaluated against an explicit allowlist span
  * (third-party services, upstream scope/image/repository, the About attribution sentence, the
@@ -17,6 +17,15 @@
  * "CloudCLI project id" is documentation, not copy a user sees. Locale bundles are scanned
  * value-by-value so changing a display string can never touch a translation KEY (the locale
  * key-set digest pins every key).
+ *
+ * The deprecated package name is matched in its lowercase spelling only (`@yalehwang/cloudcli`):
+ * the product-visible token is `CloudCLI`, while the update path is the package name the CLI and
+ * `system.service.ts` feed to npm. History-only files (CHANGELOG / `release.yml` comments /
+ * `package-lock.json` / design docs) are not user-visible surfaces and are therefore not scanned;
+ * when one of their historical reference shapes appears in a scanned surface — the migration
+ * notice a user sees is the realistic case — it is allowed only through the explicit
+ * legacy-package spans below, never by a blanket rule. An `npm show|update|install -g` line
+ * matches none of those spans and stays a violation.
  *
  * The criterion file (`brand-allowlist-check.test.mjs`) feeds synthetic violations back through
  * this same module, so a checker that silently passed would fail its own negative control.
@@ -105,6 +114,9 @@ export const SCANNED_SURFACES = [
   { glob: 'src/modules/settings/tabs/AboutTab.tsx', kind: 'code' },
   { glob: 'src/modules/mcp/McpServers.tsx', kind: 'code' },
   { glob: 'server/modules/cli/cli.service.ts', kind: 'code' },
+  // The CLI composition root is where the self-update commands live; a missed `npm update -g`
+  // target is exactly the regression this scan must catch.
+  { glob: 'server/modules/cli/cli.module.ts', kind: 'code' },
   { glob: 'server/modules/cli/sandbox.service.ts', kind: 'code' },
   { glob: 'server/modules/system/system.service.ts', kind: 'code' },
   { glob: 'server/index.ts', kind: 'code' },
@@ -143,9 +155,18 @@ export const BRAND_ALLOWLIST = [
   },
   // The unrenamed local cache directory (`~/.cache/claudecodeui`), a filesystem name, not copy.
   { name: 'local-cache-directory', pattern: /['"]\.cache['"]\s*,\s*['"]claudecodeui['"]/g },
+  // The deprecated package name is history, not an update path. These spans cover the three
+  // historical reference shapes (migration notice, release-workflow comment, changelog entry);
+  // `npm show|update|install -g @yalehwang/cloudcli` matches none of them and stays a violation.
+  { name: 'legacy-package-migration-notice', pattern: /uninstall @yalehwang\/cloudcli\b/g },
+  {
+    name: 'legacy-package-release-comment',
+    pattern: /(?:publishes the package to npm as|the) `@yalehwang\/cloudcli`/g,
+  },
+  { name: 'legacy-package-changelog-entry', pattern: /publish the fork as @yalehwang\/cloudcli on npm/g },
 ];
 
-const BRAND_TOKEN = /CloudCLI|claudecodeui/g;
+const BRAND_TOKEN = /CloudCLI|claudecodeui|@yalehwang\/cloudcli/g;
 
 /** A code line is documentation when its trimmed form opens a line/block/HTML comment. */
 const COMMENT_LINE = /^(?:\/\/|\/\*|\*|<!--)/;

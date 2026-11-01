@@ -6,7 +6,7 @@
  * step — and usually a multi-thousand-token snapshot — while the state the scenario asserts
  * (focus, the visible set, the tray, the input pack, per-step latency) is mostly NOT in the DOM.
  * This runner opens the page once, turns on the dev-only semantic surface
- * (`window.__cloudcliScenario`), and drives/reads the scenario through it. Between checkpoints a
+ * (`window.__cloudpitScenario`), and drives/reads the scenario through it. Between checkpoints a
  * contiguous run of steps executes in ONE in-page call, so the round-trip count is the number of
  * checkpoints plus one, not the number of steps.
  *
@@ -34,7 +34,7 @@
  *     continuity scenario is a real browser reload, not a re-navigation through the sidebar.
  *     With `waitForChat: true` it also waits until the reloaded page has drawn non-empty
  *     transcript rows, because a session route fetches its history after the surface mounts.
- *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudcliScenario.drive`.
+ *   · `drive`: one {@link ScenarioDriveStep} for `window.__cloudpitScenario.drive`.
  *   · `expect`: a map of reading assertions, evaluated after the step (see
  *     {@link expectationFailures}); an unsupported key is a failure, never a silent pass.
  *   · `checkpoint`: take a full-page screenshot after this step.
@@ -632,7 +632,7 @@ function expectationFailures(expect, reading) {
 async function waitForSurface(page) {
   try {
     await page.waitForFunction(
-      () => Boolean(/** @type {any} */ (globalThis).__cloudcliScenario),
+      () => Boolean(/** @type {any} */ (globalThis).__cloudpitScenario),
       undefined,
       { timeout: BOOT_TIMEOUT_MS },
     );
@@ -642,7 +642,7 @@ async function waitForSurface(page) {
     // reads like a broken app or a bad scenario, when the page was simply never drivable.
     if (error instanceof Error && error.name === 'TimeoutError') {
       throw new Error(
-        `the semantic surface (window.__cloudcliScenario) was not mounted within ${BOOT_TIMEOUT_MS}ms. `
+        `the semantic surface (window.__cloudpitScenario) was not mounted within ${BOOT_TIMEOUT_MS}ms. `
         + 'It is installed only by a development build: main.tsx gates it on import.meta.env.DEV '
         + "plus localStorage['ui-scenario']='on'. A page served from a production dist/ build (for "
         + 'example an instance started by scripts/isolated-instance.sh) has no semantic surface to '
@@ -657,7 +657,7 @@ async function waitForSurface(page) {
  * @param {import('playwright').Page} page
  */
 async function readSurface(page) {
-  return page.evaluate(() => /** @type {any} */ (globalThis).__cloudcliScenario.read());
+  return page.evaluate(() => /** @type {any} */ (globalThis).__cloudpitScenario.read());
 }
 
 /**
@@ -672,7 +672,7 @@ async function readSurface(page) {
 async function waitForPublishedView(page) {
   await page.waitForFunction(
     () => {
-      const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
+      const surface = /** @type {any} */ (globalThis).__cloudpitScenario;
       return Boolean(surface) && surface.read().views.length > 0;
     },
     undefined,
@@ -1108,7 +1108,7 @@ async function runScenario(browser, scenario, options) {
   const flushBatch = async () => {
     if (batch.length === 0) return;
     const readings = await page.evaluate(async (steps) => {
-      const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
+      const surface = /** @type {any} */ (globalThis).__cloudpitScenario;
       /** @type {any[]} */
       const results = [];
       for (const step of steps) {
@@ -1173,7 +1173,7 @@ async function runScenario(browser, scenario, options) {
             // conversation" — the two outcomes this leg exists to tell apart.
             await page.waitForFunction(
               () => {
-                const surface = /** @type {any} */ (globalThis).__cloudcliScenario;
+                const surface = /** @type {any} */ (globalThis).__cloudpitScenario;
                 return surface !== undefined
                   && Array.isArray(surface.read().chat?.messages)
                   && surface.read().chat.messages.length > 0;

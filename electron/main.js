@@ -726,55 +726,55 @@ function registerProtocolHandler() {
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle('cloudcli-desktop:connect-cloud', async () => ({
+  ipcMain.handle('cloudpit-desktop:connect-cloud', async () => ({
     ...getDesktopState(),
     connectUrl: await connectCloudAccount(),
   }));
 
-  ipcMain.handle('cloudcli-desktop:copy-diagnostics', async () => {
+  ipcMain.handle('cloudpit-desktop:copy-diagnostics', async () => {
     await copyDiagnostics();
     return getDesktopState();
   });
 
-  ipcMain.handle('cloudcli-desktop:copy-local-web-url', async () => copyLocalWebUrl());
-  ipcMain.handle('cloudcli-desktop:get-state', () => getDesktopState());
-  ipcMain.handle('cloudcli-desktop:open-cloud-dashboard', async () => openCloudDashboard());
-  ipcMain.handle('cloudcli-desktop:run-active-environment-action', async (_event, action) => runActiveEnvironmentAction(action));
-  ipcMain.handle('cloudcli-desktop:open-environment', async (_event, environmentId) => {
+  ipcMain.handle('cloudpit-desktop:copy-local-web-url', async () => copyLocalWebUrl());
+  ipcMain.handle('cloudpit-desktop:get-state', () => getDesktopState());
+  ipcMain.handle('cloudpit-desktop:open-cloud-dashboard', async () => openCloudDashboard());
+  ipcMain.handle('cloudpit-desktop:run-active-environment-action', async (_event, action) => runActiveEnvironmentAction(action));
+  ipcMain.handle('cloudpit-desktop:open-environment', async (_event, environmentId) => {
     const environment = cloud.findEnvironment(environmentId);
     if (!environment) {
       throw new Error('Environment not found. Refresh and try again.');
     }
     return openEnvironmentInDesktop(environment);
   });
-  ipcMain.handle('cloudcli-desktop:open-local', async () => openLocalInDesktop());
-  ipcMain.handle('cloudcli-desktop:open-local-web-ui', async () => openLocalWebUi());
-  ipcMain.handle('cloudcli-desktop:refresh-environments', async () => {
+  ipcMain.handle('cloudpit-desktop:open-local', async () => openLocalInDesktop());
+  ipcMain.handle('cloudpit-desktop:open-local-web-ui', async () => openLocalWebUi());
+  ipcMain.handle('cloudpit-desktop:refresh-environments', async () => {
     await refreshCloudEnvironments({ showErrors: true });
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:disconnect-cloud', async () => clearCloudAccount());
-  ipcMain.handle('cloudcli-desktop:reload-active-tab', async () => desktopWindow.reloadActiveTab());
-  ipcMain.handle('cloudcli-desktop:show-environment-picker', async () => showEnvironmentPicker());
-  ipcMain.handle('cloudcli-desktop:show-launcher', async () => {
+  ipcMain.handle('cloudpit-desktop:disconnect-cloud', async () => clearCloudAccount());
+  ipcMain.handle('cloudpit-desktop:reload-active-tab', async () => desktopWindow.reloadActiveTab());
+  ipcMain.handle('cloudpit-desktop:show-environment-picker', async () => showEnvironmentPicker());
+  ipcMain.handle('cloudpit-desktop:show-launcher', async () => {
     await desktopWindow.showLauncher();
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:update-desktop-notifications', async (_event, settings) => {
+  ipcMain.handle('cloudpit-desktop:update-desktop-notifications', async (_event, settings) => {
     await desktopNotifications?.saveSettings(settings);
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:show-desktop-settings', async () => desktopWindow.showDesktopSettings());
-  ipcMain.handle('cloudcli-desktop:show-local-settings', async () => desktopWindow.showLocalSettings());
-  ipcMain.handle('cloudcli-desktop:close-settings-window', async () => {
+  ipcMain.handle('cloudpit-desktop:show-desktop-settings', async () => desktopWindow.showDesktopSettings());
+  ipcMain.handle('cloudpit-desktop:show-local-settings', async () => desktopWindow.showLocalSettings());
+  ipcMain.handle('cloudpit-desktop:close-settings-window', async () => {
     desktopWindow.closeSettingsWindow();
     return getDesktopState();
   });
-  ipcMain.handle('cloudcli-desktop:show-active-environment-actions-menu', async () => desktopWindow.showActiveEnvironmentActionsMenu());
-  ipcMain.handle('cloudcli-desktop:show-environment-actions-menu', async (_event, environmentId) => desktopWindow.showEnvironmentActionsMenu(environmentId));
-  ipcMain.handle('cloudcli-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
-  ipcMain.handle('cloudcli-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
-  ipcMain.handle('cloudcli-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
+  ipcMain.handle('cloudpit-desktop:show-active-environment-actions-menu', async () => desktopWindow.showActiveEnvironmentActionsMenu());
+  ipcMain.handle('cloudpit-desktop:show-environment-actions-menu', async (_event, environmentId) => desktopWindow.showEnvironmentActionsMenu(environmentId));
+  ipcMain.handle('cloudpit-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
+  ipcMain.handle('cloudpit-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
+  ipcMain.handle('cloudpit-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
 }
 
 function registerAppEvents() {

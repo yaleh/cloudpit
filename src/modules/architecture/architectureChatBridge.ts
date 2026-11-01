@@ -11,7 +11,7 @@ import { isRecord } from '@/shared/utils';
  * The standalone page has no chat composer of its own. Two things still have to
  * reach the real workspace: the reader's "Put in chat input" action and the
  * "Back to session" entry. Both travel over ONE
- * `BroadcastChannel('cloudcli-architecture')`:
+ * `BroadcastChannel('cloudpit-architecture')`:
  *
  *  - `put-in-chat` carries the composed message. The workspace tab appends it to
  *    the session's draft (the same draft store the in-page action writes), shows
@@ -30,7 +30,7 @@ import { isRecord } from '@/shared/utils';
  */
 
 /** The one channel name the standalone page and the workspace tab share. */
-export const ARCHITECTURE_CHAT_CHANNEL = 'cloudcli-architecture';
+export const ARCHITECTURE_CHAT_CHANNEL = 'cloudpit-architecture';
 
 /** How long a standalone action waits for the workspace tab before falling back. */
 export const ARCHITECTURE_CHAT_ACK_TIMEOUT_MS = 1500;

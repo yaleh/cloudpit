@@ -18,6 +18,9 @@
  *          covers every file/glob the task names.
  *   AC6 — injecting `CloudCLI` into a manifest, a locale value, the CLI banner and the Electron
  *          APP_NAME turns the same scan red and names the file; the checker CLI exits 1.
+ *   AC7 — the deprecated package name `@yalehwang/cloudcli` is scanned (the CLI composition root
+ *          is a declared surface) and is a violation on any npm update path; the migration-notice
+ *          / release-comment / changelog shapes are allowed only through explicit spans.
  */
 
 import assert from 'node:assert/strict';
@@ -65,6 +68,7 @@ const REQUIRED_SURFACES = [
   'src/modules/settings/tabs/AboutTab.tsx',
   'src/modules/mcp/McpServers.tsx',
   'server/modules/cli/cli.service.ts',
+  'server/modules/cli/cli.module.ts',
   'server/modules/cli/sandbox.service.ts',
   'server/modules/system/system.service.ts',
   'server/index.ts',
@@ -263,4 +267,58 @@ test('AC6: injected legacy tokens turn the same scan red and name the file', () 
   } finally {
     rmSync(overridesDirectory, { recursive: true, force: true });
   }
+});
+
+test('AC7: the deprecated package name is a violation on update paths', () => {
+  // The CLI composition root holds the self-update commands, so it must be a code surface.
+  const cliModuleSurface = SCANNED_SURFACES.find(
+    (surface) => surface.glob === 'server/modules/cli/cli.module.ts',
+  );
+  assert.deepEqual(
+    cliModuleSurface,
+    { glob: 'server/modules/cli/cli.module.ts', kind: 'code' },
+    'cli.module.ts must be scanned as code so comment lines stay documentation',
+  );
+
+  const realResult = runBrandAllowlistCheck({ root: ROOT });
+  assert.equal(
+    realResult.exitCode,
+    0,
+    `widening the token must not red the real tree:\n${JSON.stringify(realResult.violations, null, 2)}`,
+  );
+
+  const cliModuleFile = 'server/modules/cli/cli.module.ts';
+  const moduleResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: {
+      [cliModuleFile]: "execSync('npm update -g @yalehwang/cloudcli', { stdio: 'inherit' });\n",
+    },
+  });
+  assert.equal(moduleResult.exitCode, 1, 'an update path pointing at the deprecated package must fail');
+  assert.ok(
+    moduleResult.violations.some(
+      (violation) => violation.file === cliModuleFile && violation.message.includes('@yalehwang/cloudcli'),
+    ),
+    `the violation must name the deprecated package and its file, got ${JSON.stringify(moduleResult.violations)}`,
+  );
+
+  const cliServiceFile = 'server/modules/cli/cli.service.ts';
+  const serviceResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: {
+      [cliServiceFile]: "export const UPGRADE = 'npm install -g @yalehwang/cloudcli';\n",
+    },
+  });
+  assert.equal(serviceResult.exitCode, 1, 'an install hint pointing at the deprecated package must fail');
+  assert.ok(serviceResult.violations.some((violation) => violation.file === cliServiceFile));
+
+  // Historical references are allowed only through explicit spans; an npm update path that
+  // happens to look similar stays a violation.
+  /** @param {string} text @returns {ReturnType<typeof findBrandViolations>} */
+  const violationsFor = (text) => findBrandViolations([{ file: 'synthetic.txt', label: 'synthetic:1', text }]);
+  assert.deepEqual(violationsFor('Install @yalehwang/cloudpit and uninstall @yalehwang/cloudcli.'), []);
+  assert.deepEqual(violationsFor('publishes the package to npm as `@yalehwang/cloudcli`, authenticated with'), []);
+  assert.deepEqual(violationsFor('publish the fork as @yalehwang/cloudcli on npm'), []);
+  assert.equal(violationsFor('npm show @yalehwang/cloudcli version').length, 1);
+  assert.equal(violationsFor('npm update -g @yalehwang/cloudcli').length, 1);
 });

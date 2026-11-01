@@ -44,6 +44,7 @@ import {
   readCockpitSessionStartBoot,
   resolveServerSettingsFileTarget,
 } from '@/modules/settings/index.js';
+import { createBrandEnvReader } from '@/shared/brand.js';
 import { resolveDataRoots } from '@/shared/data-root.js';
 import { getImageAssetsReadDirs, getImageAssetsWriteDir } from '@/shared/image-attachments.js';
 import { ACCESS_TOKEN_SCOPES, CLOUDPIT_ACCESS_TOKEN_SCOPES } from '@/shared/mcp-contract/index.js';
@@ -461,4 +462,135 @@ test('AC9: activation deletes both cache families and keeps unrelated caches', a
   assert.equal(deleted.includes('voice-client-asr-model-v1'), false);
   assert.equal(deleted.includes('other'), false);
   assert.equal(claimed, true);
+});
+
+test('AC10/AC11: CLOUDPIT_* is the canonical environment spelling, CLOUDCLI_* stays compatible', () => {
+  // New name only: no warning, and the reading names the canonical key.
+  const newOnlyWarnings: string[] = [];
+  const newOnly = createBrandEnvReader({
+    env: { CLOUDPIT_HOME: '/new/home' },
+    warn: (message) => newOnlyWarnings.push(message),
+  }).read('HOME');
+  assert.deepEqual(newOnly, { value: '/new/home', source: 'new', key: 'CLOUDPIT_HOME' });
+  assert.deepEqual(newOnlyWarnings, [], 'the canonical spelling must not warn');
+
+  // Both set: the Cloudpit spelling wins and the legacy one is not even read.
+  const bothWarnings: string[] = [];
+  const both = createBrandEnvReader({
+    env: { CLOUDPIT_HOME: '/new/home', CLOUDCLI_HOME: '/legacy/home' },
+    warn: (message) => bothWarnings.push(message),
+  }).read('HOME');
+  assert.deepEqual(both, { value: '/new/home', source: 'new', key: 'CLOUDPIT_HOME' });
+  assert.deepEqual(bothWarnings, [], 'a legacy value shadowed by the new spelling must not warn');
+
+  // Legacy name only: still honoured, marked as legacy, warned exactly once per key.
+  const legacyWarnings: string[] = [];
+  const legacyReader = createBrandEnvReader({
+    env: { CLOUDCLI_HOME: '/legacy/home' },
+    warn: (message) => legacyWarnings.push(message),
+  });
+  assert.deepEqual(legacyReader.read('HOME'), {
+    value: '/legacy/home',
+    source: 'legacy',
+    key: 'CLOUDCLI_HOME',
+  });
+  assert.equal(legacyWarnings.length, 1, 'using the legacy spelling warns once');
+  assert.match(legacyWarnings[0], /CLOUDCLI_HOME is deprecated; set CLOUDPIT_HOME instead\./);
+  legacyReader.read('HOME');
+  assert.equal(legacyWarnings.length, 1, 'a second read of the same key stays silent');
+
+  // Absent: the reading still names the canonical key the operator should set.
+  assert.deepEqual(createBrandEnvReader({ env: {}, warn: () => {} }).read('HOME'), {
+    value: undefined,
+    source: 'absent',
+    key: 'CLOUDPIT_HOME',
+  });
+
+  // The production resolver wires the same precedence: the Cloudpit variable wins, the legacy
+  // one is the fallback. This is the arm the CLI/bootstrap actually consume.
+  const homeDir = temporaryHome('cloudpit-runtime-env-');
+  try {
+    const newRoot = path.join(homeDir, 'explicit-new');
+    const legacyRoot = path.join(homeDir, 'explicit-legacy');
+    assert.equal(
+      resolveDataRoots({
+        defaultRoot: 'cloudpit',
+        env: { CLOUDPIT_HOME: newRoot, CLOUDCLI_HOME: legacyRoot },
+        homeDir,
+      }).activeRoot,
+      newRoot,
+      'CLOUDPIT_HOME must win over CLOUDCLI_HOME',
+    );
+    assert.equal(
+      resolveDataRoots({ defaultRoot: 'cloudpit', env: { CLOUDCLI_HOME: legacyRoot }, homeDir }).activeRoot,
+      legacyRoot,
+      'CLOUDCLI_HOME must stay a compatible fallback',
+    );
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('AC10/AC11: IPC, contextBridge, BroadcastChannel and the semantic surface carry the Cloudpit names', () => {
+  const mainSource = readApplicationFile('electron/main.js');
+  const preloadSource = readApplicationFile('electron/preload.cjs');
+  const windowSource = readApplicationFile('electron/desktopWindow.js');
+  const launcherSource = readApplicationFile('electron/launcher/launcher.js');
+
+  // Negative arm first: no live channel may still use the legacy prefix.
+  for (const [file, source] of [
+    ['electron/main.js', mainSource],
+    ['electron/preload.cjs', preloadSource],
+    ['electron/desktopWindow.js', windowSource],
+  ] as const) {
+    assert.equal(
+      source.includes('cloudcli-desktop:'),
+      false,
+      `${file} must not carry the legacy IPC channel prefix`,
+    );
+  }
+
+  // Positive arm: every registered, sent and invoked channel is a Cloudpit channel.
+  const registeredChannels = [...mainSource.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((match) => match[1]);
+  assert.ok(registeredChannels.length >= 20, `expected the IPC surface to be present, got ${registeredChannels.length}`);
+  for (const channel of registeredChannels) {
+    assert.match(channel, /^cloudpit-desktop:/, `registered channel ${channel} must use the new prefix`);
+  }
+  const sentChannels = [...windowSource.matchAll(/\.send\('([^']+)'/g)].map((match) => match[1]);
+  assert.ok(sentChannels.length > 0, 'desktopWindow.js must push state to the renderer');
+  for (const channel of sentChannels) {
+    assert.match(channel, /^cloudpit-desktop:/, `pushed channel ${channel} must use the new prefix`);
+  }
+  const invokedChannels = [...preloadSource.matchAll(/invoke\('([^']+)'/g)].map((match) => match[1]);
+  assert.ok(invokedChannels.length >= 20, `expected the preload bridge to be present, got ${invokedChannels.length}`);
+  for (const channel of invokedChannels) {
+    assert.ok(registeredChannels.includes(channel), `preload invoke ${channel} must have a registered handler`);
+    assert.match(channel, /^cloudpit-desktop:/);
+  }
+
+  // contextBridge exposure names and every live consumer.
+  assert.match(preloadSource, /exposeInMainWorld\('cloudpitDesktopNotifications'/);
+  assert.match(preloadSource, /exposeInMainWorld\('cloudpitDesktop'/);
+  assert.equal(preloadSource.includes('cloudcliDesktop'), false, 'the preload must not expose the legacy bridge names');
+  assert.ok(launcherSource.includes('window.cloudpitDesktop'), 'the launcher must read the new bridge name');
+  for (const file of ['src/modules/settings/Settings.tsx', 'src/modules/settings/hooks/useWebPush.ts']) {
+    const source = readApplicationFile(file);
+    assert.ok(source.includes('cloudpitDesktopNotifications'), `${file} must read the new bridge name`);
+    assert.equal(source.includes('cloudcliDesktop'), false, `${file} must not read the legacy bridge name`);
+  }
+
+  // The architecture BroadcastChannel.
+  const bridgeSource = readApplicationFile('src/modules/architecture/architectureChatBridge.ts');
+  assert.match(bridgeSource, /ARCHITECTURE_CHAT_CHANNEL = 'cloudpit-architecture'/);
+  assert.equal(bridgeSource.includes('cloudcli-architecture'), false, 'the channel name must not stay legacy');
+
+  // The dev-only semantic surface, and every live reader/writer of it.
+  const surfaceSource = readApplicationFile('src/modules/ui-scenario/scenarioSurface.ts');
+  assert.ok(surfaceSource.includes('__cloudpitScenario'), 'scenarioSurface.ts must install the new surface name');
+  assert.equal(surfaceSource.includes('__cloudcliScenario'), false);
+  for (const file of ['src/main.tsx', 'src/modules/ui-scenario/index.ts', 'scripts/ui-scenario.mjs']) {
+    const source = readApplicationFile(file);
+    assert.ok(source.includes('__cloudpitScenario'), `${file} must reference the new semantic surface`);
+    assert.equal(source.includes('__cloudcliScenario'), false, `${file} must not reference the legacy surface`);
+  }
 });

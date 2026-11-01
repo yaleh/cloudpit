@@ -24,7 +24,7 @@ if (import.meta.env.DEV && localStorage.getItem('react-scan') === 'on') {
   void import('react-scan').then(({ scan }) => scan({ enabled: true }))
 }
 
-// The dev-only UI scenario surface (`window.__cloudcliScenario`): an in-page semantic reading and
+// The dev-only UI scenario surface (`window.__cloudpitScenario`): an in-page semantic reading and
 // driver for business scenarios, so a long scenario costs a handful of round trips instead of one
 // snapshot per step. TWO LOCKS, ONE OF THEM STATIC: `import.meta.env.DEV` is a build-time constant,
 // so a production bundle is compiled with this branch removed and the dynamic import below is

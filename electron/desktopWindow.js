@@ -115,21 +115,21 @@ export class DesktopWindowManager {
   emitDesktopState() {
     const state = this.getDesktopState();
     if (this.mainWindow && !this.mainWindow.webContents.isDestroyed()) {
-      this.mainWindow.webContents.send('cloudcli-desktop:state-updated', state);
+      this.mainWindow.webContents.send('cloudpit-desktop:state-updated', state);
     }
     if (this.settingsWindow && !this.settingsWindow.webContents.isDestroyed()) {
-      this.settingsWindow.webContents.send('cloudcli-desktop:state-updated', state);
+      this.settingsWindow.webContents.send('cloudpit-desktop:state-updated', state);
     }
   }
 
   emitLauncherCommand(command) {
     if (!this.mainWindow || this.mainWindow.webContents.isDestroyed()) return;
-    this.mainWindow.webContents.send('cloudcli-desktop:launcher-command', command);
+    this.mainWindow.webContents.send('cloudpit-desktop:launcher-command', command);
   }
 
   emitSettingsCommand(command) {
     if (!this.settingsWindow || this.settingsWindow.webContents.isDestroyed()) return;
-    this.settingsWindow.webContents.send('cloudcli-desktop:launcher-command', command);
+    this.settingsWindow.webContents.send('cloudpit-desktop:launcher-command', command);
   }
 
   syncSettingsWindowBounds() {

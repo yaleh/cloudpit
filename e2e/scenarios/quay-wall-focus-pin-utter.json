@@ -1,6 +1,6 @@
 {
   "name": "quay-wall-focus-pin-utter",
-  "description": "The Quay wall's first business scenario: open the panel, address a focusable by the ordinal a person says, move the focus, pin it into the tray, utter into the ASR seam, and read the resulting input pack. Six steps, two checkpoint screenshots; every assertion is a structured reading from window.__cloudcliScenario, not a DOM query.",
+  "description": "The Quay wall's first business scenario: open the panel, address a focusable by the ordinal a person says, move the focus, pin it into the tray, utter into the ASR seam, and read the resulting input pack. Six steps, two checkpoint screenshots; every assertion is a structured reading from window.__cloudpitScenario, not a DOM query.",
   "steps": [
     {
       "open": "quay-panel",

@@ -187,7 +187,7 @@ function renderCards(): { surface: ScenarioSurface; ledger: ClickLedger; contain
       ),
     ),
   );
-  const surface = scenarioWindow().__cloudcliScenario;
+  const surface = scenarioWindow().__cloudpitScenario;
   assert.notEqual(surface, undefined, 'attachScenarioSurface must install the surface');
 
   const ledger: ClickLedger = { pointerdowns: [], clicks: [], inputs: [] };
@@ -313,7 +313,7 @@ test('AC1: the reading is the list declaration — fields and visible order', as
 
 test('AC1: an absent or malformed attribute reads as null, never as a guessed list', () => {
   assert.equal(attachScenarioSurface(), true);
-  const surface = scenarioWindow().__cloudcliScenario!;
+  const surface = scenarioWindow().__cloudpitScenario!;
 
   const view = render(React.createElement('div', { 'data-testid': 'cockpit-page' }));
   assert.equal(surface.read().cockpit.cards, null, 'no cards view mounted');
@@ -475,5 +475,5 @@ test('AC1: with the runtime lock closed the surface is not mounted', () => {
   detachScenarioSurface();
 
   assert.equal(attachScenarioSurface(), false);
-  assert.equal(scenarioWindow().__cloudcliScenario, undefined);
+  assert.equal(scenarioWindow().__cloudpitScenario, undefined);
 });

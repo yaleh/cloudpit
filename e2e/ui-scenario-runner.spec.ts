@@ -4,7 +4,7 @@
  * WHAT THIS FILE IS THE READING OF. A business scenario is 15–20 steps, and the state it
  * asserts — focus, the visible set, the tray, the input pack — is mostly not in the DOM.
  * `scripts/ui-scenario.mjs` drives those steps through the dev-only semantic surface
- * (`window.__cloudcliScenario`) and asserts structured readings, so this criterion boots the
+ * (`window.__cloudpitScenario`) and asserts structured readings, so this criterion boots the
  * runner against the real client and server and reads its report.
  *
  * TWO ARMS, ONE ENTRY POINT. The main arm runs a scenario file as written and expects a green
@@ -361,7 +361,7 @@ const runRunnerAsync = (
  *   · a zero-width span carrying the project name BEFORE the visible row that carries it too —
  *     the shape a flex-squeezed `truncate` display name produces in the real sidebar;
  *   · the session row, the cockpit mode switch, and the cockpit page's `data-testid`;
- *   · when `withSurface`, `window.__cloudcliScenario` returning the readings that
+ *   · when `withSurface`, `window.__cloudpitScenario` returning the readings that
  *     `cockpit-mode-switch.json` asserts.
  */
 const staticAppHtml = (pathname: string, withSurface: boolean): string => {
@@ -394,7 +394,7 @@ const staticAppHtml = (pathname: string, withSurface: boolean): string => {
   </aside>
   ${inCockpit ? '<main data-testid="cockpit-page">cockpit stage</main>' : `<main>${SESSION_NAME}</main>`}
   ${withSurface ? `<script>
-    window.__cloudcliScenario = {
+    window.__cloudpitScenario = {
       read() {${reading}
       },
       drive() {},

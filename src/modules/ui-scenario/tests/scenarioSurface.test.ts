@@ -118,7 +118,7 @@ afterEach(() => {
 const waitForPublished = async (): Promise<ScenarioSurface> => {
   let surface: ScenarioSurface | null = null;
   await waitFor(() => {
-    surface = scenarioWindow().__cloudcliScenario ?? null;
+    surface = scenarioWindow().__cloudpitScenario ?? null;
     assert.notEqual(surface, null, 'the surface must be attached once the runtime lock is open');
     assert.equal(
       surface!.read().focusables.length,
@@ -188,5 +188,5 @@ test('AC2: the surface does not exist while the runtime lock is closed', () => {
 
   assert.equal(isScenarioSurfaceRequested(), false);
   assert.equal(attachScenarioSurface(), false);
-  assert.equal(scenarioWindow().__cloudcliScenario, undefined);
+  assert.equal(scenarioWindow().__cloudpitScenario, undefined);
 });
