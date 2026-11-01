@@ -82,3 +82,11 @@ extra:
 - docs/evidence/knowledge-peer-correlation-proof.json (new)
 - server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (new)
 - tasks/knowledge-peer-correlation-proof.md
+
+## Blocker
+
+**2026-11-01T10:48:24.501Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/cloudpit-goal-exit-gate.test.ts:   AssertionError [ERR_ASSERTION]: a directory outside the frozen baseline is a NEW module directory: modules/session-control. Do not raise the baseline — GOAL-053's exit gate forbids new module directories. [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/mcp-gateway/tests/mcp-invalid-argument.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts,server/modules/mcp-gateway/tests/mcp-invalid-argument.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：2d4970ca-7dd5-48be-98ab-a74bf2243c77
