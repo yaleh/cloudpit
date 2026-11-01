@@ -43,17 +43,39 @@ AC-459 已在 GOAL-054 入册（`phase: pre-merge`），criterion 逐字为 `npx
 
 ## AC
 
-- [ ] AC1 判据文件存在且 criterion 绿：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 退出 0，汇总段含 `fail 0`，且 pass 数 ≥ 7（正臂 / IPC / contextBridge / BroadcastChannel / 语义面 / 负臂 / 非目标 / 账本至少各一条）。
-- [ ] AC2 可注入 root + 正臂非 vacuous：判据内 `scanIdentitySurfaces(root)` 以 worktree 根调用时返回 `[]`，且同一 test 断言扫描到的文件数 ≥ 20、四个新名各自出现在预期文件（少一个即红）。
-- [ ] AC3 注入旧名必红：tmp 夹具注入 `cloudcli-desktop:get-state` 与 `window.__cloudcliScenario` 后，`scan(fixture)` 各自返回点名 `electron/main.js` / `src/semantic.js` 的 violation（与 AC1 同一条命令内执行）。
-- [ ] AC4 非目标面不被误禁：同一夹具只含 `cloudcli.ai` / `cloudcli://auth/callback` / `app_surface=cloudcli_desktop` / `ai.cloudcli.desktop` / `cloudcli://session/<id>` 时 `scan(fixture)` 为空；活树非目标正断言（main.js appId 与 callback、cloud.js app_surface、两份 observation-uri 的 `(?:cloudcli|cloudpit)://` 双读）全部成立。
-- [ ] AC5 活代码面零旧名：`grep -rn "cloudcli-desktop:\|cloudcliDesktop\|cloudcli-architecture\|__cloudcliScenario" electron/ src/ scripts/ e2e/ AGENTS.md` 在任务树上 0 行，且 `grep -rn "cloudpit-desktop:\|cloudpitDesktop\|cloudpit-architecture\|__cloudpitScenario" electron/ src/ scripts/ e2e/ AGENTS.md` 覆盖全部四面。
-- [ ] AC6 历史账本未被改写：`docs/proposals/cloudpit-rename-SPEC.md` 仍含 ≥1 处 `cloudcli-desktop:` 与 ≥1 处 `__cloudcliScenario`（判据的历史账本臂）。
-- [ ] AC7 变异读数为红后恢复绿：向 `electron/main.js` 临时注入一行 `ipcMain.handle('cloudcli-desktop:probe', () => null);` 后 AC1 命令退出非 0 且失败信息点名 `electron/main.js`；还原后退出 0（临时改动不进入提交）。
+- [x] AC1 判据文件存在且 criterion 绿：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 退出 0，汇总段含 `fail 0`，且 pass 数 ≥ 7（正臂 / IPC / contextBridge / BroadcastChannel / 语义面 / 负臂 / 非目标 / 账本至少各一条）。
+- [x] AC2 可注入 root + 正臂非 vacuous：判据内 `scanIdentitySurfaces(root)` 以 worktree 根调用时返回 `[]`，且同一 test 断言扫描到的文件数 ≥ 20、四个新名各自出现在预期文件（少一个即红）。
+- [x] AC3 注入旧名必红：tmp 夹具注入 `cloudcli-desktop:get-state` 与 `window.__cloudcliScenario` 后，`scan(fixture)` 各自返回点名 `electron/main.js` / `src/semantic.js` 的 violation（与 AC1 同一条命令内执行）。
+- [x] AC4 非目标面不被误禁：同一夹具只含 `cloudcli.ai` / `cloudcli://auth/callback` / `app_surface=cloudcli_desktop` / `ai.cloudcli.desktop` / `cloudcli://session/<id>` 时 `scan(fixture)` 为空；活树非目标正断言（main.js appId 与 callback、cloud.js app_surface、两份 observation-uri 的 `(?:cloudcli|cloudpit)://` 双读）全部成立。
+- [x] AC5 活代码面零旧名：`grep -rn "cloudcli-desktop:\|cloudcliDesktop\|cloudcli-architecture\|__cloudcliScenario" electron/ src/ scripts/ e2e/ AGENTS.md` 在任务树上 0 行，且 `grep -rn "cloudpit-desktop:\|cloudpitDesktop\|cloudpit-architecture\|__cloudpitScenario" electron/ src/ scripts/ e2e/ AGENTS.md` 覆盖全部四面。
+- [x] AC6 历史账本未被改写：`docs/proposals/cloudpit-rename-SPEC.md` 仍含 ≥1 处 `cloudcli-desktop:` 与 ≥1 处 `__cloudcliScenario`（判据的历史账本臂）。
+- [x] AC7 变异读数为红后恢复绿：向 `electron/main.js` 临时注入一行 `ipcMain.handle('cloudcli-desktop:probe', () => null);` 后 AC1 命令退出非 0 且失败信息点名 `electron/main.js`；还原后退出 0（临时改动不进入提交）。
 
 ## DoD
 
 判据文件是交付物，但落地以真实读数计：在任务树上逐字运行 AC-459 的 criterion（`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`）退出 0 且含 `fail 0`；同一命令在变异注入后退出非 0、还原后退出 0（AC7），证明它不是恒绿探针；`grep` 零旧名读数与非目标面正断言读数贴进任务实施记录；非目标面（`cloudcli.ai`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、appId `ai.cloudcli.desktop`、`cloudcli://` 观测 URI 双读）与历史账本 `docs/proposals/cloudpit-rename-SPEC.md` 均未被修改。fan-in 到 `goal/GOAL-054` 与 goal gate 的职责在 driver，不作为本任务的执行项；执行者交付的是任务树上同一命令的读数与变异/还原读数。
+
+## ADR-007 暗轴记录
+
+- L_D: files_scanned=1430 legacy_hits=0 new_name_line_hits=102 tests=10 pass=10
+- L_G 该轴仍暗，理由:本任务只补判据与扫描器，不改变任何生成/模型调用路径，没有生成质量轴读数。
+
+## 实施记录（2026-11-01）
+
+执行前复核：任务树基线已含四面改名（`grep` 旧名 0 行、新名 102 行），故本任务只**新增判据**，未做任何 token 替换，未 cherry-pick 并发任务提交。新增文件 `electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`（10 条 node:test 用例）。
+
+### 读数（工作树 `/data/home/yale/work/claudecodeui-task-ac459`）
+
+1. AC1 criterion（merge develop 前后各跑一次，均同一读数）：
+   `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`
+   → exit 0；`tests 10 / pass 10 / fail 0 / duration_ms ≈ 1838`。用例覆盖：正臂 + 非 vacuous（AC2）、IPC 三处一致、contextBridge、BroadcastChannel、语义面同步面、两条注入负臂（AC3）、非目标夹具零命中与活树非目标正断言（AC4）、历史账本（AC6）。
+2. AC2 扫描量：`filesScanned=1430`（`electron/` `src/` `scripts/` `e2e/` 文本文件 + 根 `AGENTS.md`，跳过 `node_modules`/`dist`/`.git`/`test-results`/`playwright-report`，排除判据文件自身）；四个新名在预期文件里各自命中：`electron/main.js` 的 `cloudpit-desktop:get-state`、`electron/preload.cjs` 的 `cloudpitDesktop`、`architectureChatBridge.ts` 的 `cloudpit-architecture`、`scenarioSurface.ts` 的 `__cloudpitScenario`。
+3. AC5 `grep -rn "cloudcli-desktop:\|cloudcliDesktop\|cloudcli-architecture\|__cloudcliScenario" electron/ src/ scripts/ e2e/ AGENTS.md` → 0 行；新名行数 `cloudpit-desktop:` 55、`cloudpitDesktop` 13、`cloudpit-architecture` 3、`__cloudpitScenario` 31（合计 102），四面齐备。
+4. AC6 `docs/proposals/cloudpit-rename-SPEC.md` 仍含 `cloudcli-desktop:` 2 处、`__cloudcliScenario` 2 处——历史账本未改写。
+5. AC7 变异/还原：向 `electron/main.js` 末尾临时追加 `ipcMain.handle('cloudcli-desktop:probe', () => null);` → 同一 criterion exit 1、`pass 8 / fail 2`，失败读数 `{ file: 'electron/main.js', line: 959, token: 'cloudcli-desktop:' }` 点名该文件；按备份还原后 exit 0、`fail 0`，`git status` 只剩新增判据文件（变异未进入提交）。
+6. AC4 非目标面在同一命令内成立：`ai.cloudcli.desktop`、`cloudcli://auth/callback`、`https://cloudcli.ai`、`app_surface', 'cloudcli_desktop'`、两份 observation-uri 的 `(?:cloudcli|cloudpit)://` 双读与 canonical `cloudcli://session/` 全部断言通过；非目标夹具（仅含五个非目标标识）扫描 2 文件、0 violation。
+7. 与 Proposal 的一处偏差（按真实契约收口，未放宽）：Proposal 写「`desktopWindow.js` 的 `.send` 通道也都在注册集合内」；实测 `.send` 发出的是 `cloudpit-desktop:state-updated` / `cloudpit-desktop:launcher-command`，由 preload 的 `ipcRenderer.on` 消费，并非 `ipcMain.handle` 注册通道。判据按真实契约断言：`.send` 集合恰为这两条且前缀为 `cloudpit-desktop:`，preload 的 `on` 集合 ⊆ `.send` 集合，`invoke` 集合 ⊆ `ipcMain.handle` 集合（注册集合 25 条 ≥ 20）。
+8. 预合并：`git merge --no-edit develop` 无冲突（自动合并 `tasks/` 两文件）；合并后 criterion 复跑仍 10/10 pass、旧名 grep 仍 0 行。`anti-drift-touches-check` → `ANTI-DRIFT OK — 1 actual file(s), all within declared Touches (18 glob(s))`。
 
 ## Touches
 
