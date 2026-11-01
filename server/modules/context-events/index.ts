@@ -51,6 +51,27 @@ export {
   readRetractedSessionAskMessageIds,
 } from './session-ask-stream-reader.js';
 export type { OpenSessionAsk, ReadOpenSessionAsksOptions } from './session-ask-stream-reader.js';
+// consumer: the knowledge-application fact wiring — the raw ask rows, with the file they came from,
+// so the fact contract reports a source pointer for the activity it correlates
+export type { CloudCliSessionAskRow } from './session-ask-stream-reader.js';
+// consumer: server/knowledge-facts-wiring.ts (the `peer_result` reading and its transcript re-read)
+export {
+  DEFAULT_KNOWLEDGE_ACTIVITY_LOOKBACK_DAYS,
+  deriveKnowledgeOperationId,
+  KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON,
+  KNOWLEDGE_TARGET_UNKNOWN_REASON,
+  readKnowledgeActivities,
+  readKnowledgeActivity,
+  readKnowledgeActivityReply,
+} from './knowledge-activity-events.js';
+export type {
+  KnowledgeActivity,
+  KnowledgeActivityRead,
+  KnowledgeActivityReRead,
+  KnowledgeReplyReRead,
+  KnowledgeTranscriptMessage,
+  ReadKnowledgeActivitiesOptions,
+} from './knowledge-activity-events.js';
 // consumer: shadow-prediction-report.mjs (through a JSON dump), and the classifier criterion
 export { classifyUtterance, LADDER_BASELINE, UTTERANCE_CLASSES } from './utterance-classifier.js';
 export type { LadderLevel, UtteranceClass } from './utterance-classifier.js';

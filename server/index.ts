@@ -160,6 +160,11 @@ import type {
     McpUiVisibleContextDeps,
     UiNavigationToolDeps,
 } from './modules/mcp-gateway/index.js';
+// knowledge-application-fact-contract: the composition helper that binds the
+// versioned knowledge fact port (`@/shared/knowledge-facts.js`) to this
+// process's real services. It sits at the composition root because it reads
+// across the database, session-hosts, chat-run and context-event modules.
+import { createKnowledgeFactSource } from './knowledge-facts-wiring.js';
 // The MCP read tools' project readers. The gateway fills these itself from the
 // same barrel when it is handed a partial bag; index.ts states them because the
 // voice executor (AC-312) needs the full `McpReadToolDeps` — see `mcpReadToolDeps`.
@@ -789,6 +794,35 @@ const mcpReadToolDeps: McpReadToolDeps = {
         },
         now: () => Date.now(),
         bootId: () => BOOT_ID,
+    },
+    // knowledge-application-fact-contract: the versioned fact source behind the
+    // `knowledge_facts` read tool. Every source is the SAME process service a
+    // sibling read tool already uses — the session row and transcript readers,
+    // the host manager, the run registry, the project lookup and the context-event
+    // stream — so this tool cannot disagree with `session_get`, `run_get` or the
+    // ask ledger about the same fact. The build identity is captured once at
+    // startup (`RUNNING_VERSION` / `BUILD_INFO`) and the boot id is this process's
+    // own, so a reading always says which code and which process answered it.
+    knowledgeFacts: {
+        facts: createKnowledgeFactSource({
+            sessions: {
+                getSessionById: (sessionId: string) => sessionsDb.getSessionById(sessionId),
+                getAllSessions: () => sessionsDb.getAllSessions(),
+                fetchHistory: (sessionId, options) => sessionsService.fetchHistory(sessionId, options),
+            },
+            hosts: sessionHostManager,
+            runs: chatRunRegistry,
+            projects: {
+                getProjectIdByPath: (projectPath: string) =>
+                    projectsDb.getProjectPath(projectPath)?.project_id ?? null,
+            },
+            buildId: BUILD_INFO.gitSha ?? RUNNING_VERSION ?? 'unbuilt',
+            gitSha: BUILD_INFO.gitSha,
+            builtAt: BUILD_INFO.builtAt,
+            serverVersion: RUNNING_VERSION,
+            bootId: BOOT_ID,
+            now: () => Date.now(),
+        }),
     },
     now: () => Date.now(),
 };

@@ -344,6 +344,26 @@ const readTools = {
   // gap-mcp-draft-get-set-submit: registering `draft_get` keeps `tools/list`
   // equal to the declaration keys (b) reads.
   draft: { drafts: draftStore },
+  // knowledge-application-fact-contract: `knowledge_facts` registers alongside
+  // the read table when a fact source is wired, and (b) compares `tools/list`
+  // with the declaration keys — so this mount supplies a source. No probe in
+  // this criterion calls the tool, so the source never reads.
+  knowledgeFacts: {
+    facts: {
+      identify: () => ({
+        contract: 'cloudcli.knowledge-application.fact',
+        version: 1,
+        project: 'claudecodeui',
+        buildId: 'vocabulary-build',
+        bootId: 'vocabulary-boot',
+        serverVersion: '0.0.0',
+        gitSha: null,
+        builtAt: null,
+        observedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      read: async () => null,
+    },
+  },
   now: () => Date.now(),
 } as unknown as McpReadToolDeps;
 
