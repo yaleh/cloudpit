@@ -13,7 +13,7 @@
  * assistant message is never borrowed.
  *
  * Every service is injected, so this file imports only `server/shared/**` and
- * its own siblings — the new directory stays a leaf under AC-394's rule.
+ * its own siblings — context-events stays a leaf under AC-394's rule.
  */
 import {
   knowledgeEvidence,
@@ -25,11 +25,16 @@ import {
   type KnowledgeUnknownField,
 } from '@/shared/knowledge-facts.js';
 
-import type { ISessionControlLedger } from './delivery-ledger.js';
-import { readDeliveredMessage, type SessionControlTranscriptMessage } from './peer-transcript.js';
-import { pushUnknownOnce } from './unknown-fields.js';
+import type { ISessionControlLedger } from './knowledge-delivery-ledger.js';
+import { readDeliveredMessage, type SessionControlTranscriptMessage } from './knowledge-peer-transcript.js';
+import { pushUnknownOnce } from './knowledge-unknown-fields.js';
 
-/** The `source` every accepted-send evidence carries. */
+/**
+ * The `source` every accepted-send evidence carries. This is the MECHANISM's
+ * stable identity (the server-side send ledger), deliberately independent of the
+ * file layout: the code lives in `context-events/` so the server tree adds no
+ * module directory, but the evidence a consumer reads keeps one name.
+ */
 export const SESSION_CONTROL_DELIVERY_SOURCE = 'session-control.send';
 
 /** Why a chain is unknown when no record was ever saved for the delivery id. */

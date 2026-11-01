@@ -1,6 +1,6 @@
 /**
- * The `session-control` module's public face for the knowledge-facts delivery
- * arm: one capability, one read.
+ * The accepted-send ledger's public face for the knowledge-facts delivery arm:
+ * one capability, one read.
  *
  * `knowledge_facts` asks this port to augment a `peer_result` reading. The port
  * answers a `KnowledgePeerDeliveryCorrelation` (see
@@ -26,8 +26,8 @@ import {
   readPeerDeliveryCorrelation,
   type SessionControlPeerDeliveryDeps,
   type SessionPeerDeliveryInput,
-} from './peer-delivery-read.js';
-import { dropUnknown, pushUnknownOnce } from './unknown-fields.js';
+} from './knowledge-peer-delivery-read.js';
+import { dropUnknown, pushUnknownOnce } from './knowledge-unknown-fields.js';
 
 /** The read port `knowledge_facts` composes; every member is a pure read. */
 export interface ISessionControlPeerDelivery {

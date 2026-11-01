@@ -120,6 +120,8 @@ import {
     contextEvents,
     createSessionAskEventWriter,
     createSessionBlockedEventWriter,
+    createSessionControlLedger,
+    createSessionControlPeerDelivery,
     createSessionRunEventWriter,
 } from './modules/context-events/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
@@ -165,9 +167,6 @@ import type {
 // process's real services. It sits at the composition root because it reads
 // across the database, session-hosts, chat-run and context-event modules.
 import { createKnowledgeFactSource } from './knowledge-facts-wiring.js';
-// knowledge-peer-correlation-proof: the cross-session delivery ledger (one
-// instance, shared by `session_send` and the fact reader) and its reader.
-import { createSessionControlLedger, createSessionControlPeerDelivery } from './modules/session-control/index.js';
 // The MCP read tools' project readers. The gateway fills these itself from the
 // same barrel when it is handed a partial bag; index.ts states them because the
 // voice executor (AC-312) needs the full `McpReadToolDeps` — see `mcpReadToolDeps`.

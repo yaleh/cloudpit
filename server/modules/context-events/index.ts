@@ -109,3 +109,42 @@ export type {
   ShadowPredictor,
   TransitionTable,
 } from './shadow-predictor.js';
+// consumer: server/index.ts (the ONE accepted-send ledger, handed to `session_send` and
+// `knowledge_facts`), the knowledge-facts criterion, and the peer-delivery port below
+export {
+  SESSION_CONTROL_LEDGER_LIMIT,
+  createSessionControlLedger,
+} from './knowledge-delivery-ledger.js';
+export type {
+  ISessionControlLedger,
+  SessionControlSendLedger,
+  SessionDeliveryCorrelation,
+  SessionDeliveryCorrelationInput,
+} from './knowledge-delivery-ledger.js';
+// consumer: the peer-delivery chain below and the knowledge-facts criterion
+export {
+  KNOWLEDGE_REPLY_NOT_AFTER_DELIVERY_REASON,
+  KNOWLEDGE_TARGET_TRANSCRIPT_UNREADABLE_REASON,
+  readDeliveredMessage,
+} from './knowledge-peer-transcript.js';
+export type {
+  DeliveredMessageReading,
+  SessionControlTranscriptMessage,
+} from './knowledge-peer-transcript.js';
+// consumer: the peer-delivery port below and the knowledge-facts criterion
+export {
+  KNOWLEDGE_ACTION_PERMISSION_REASON,
+  KNOWLEDGE_DELIVERY_NOT_IN_LEDGER_REASON,
+  KNOWLEDGE_NO_DELIVERY_RECORD_REASON,
+  SESSION_CONTROL_DELIVERY_SOURCE,
+  readPeerDeliveryCorrelation,
+} from './knowledge-peer-delivery-read.js';
+export type {
+  SessionControlDeliveryEntry,
+  SessionControlPeerDeliveryDeps,
+  SessionPeerDeliveryInput,
+} from './knowledge-peer-delivery-read.js';
+// consumer: server/index.ts (the composition root creates the port), server/knowledge-facts-wiring.ts
+// (its `peer_result` reading composes it), and the knowledge-facts criterion
+export { createSessionControlPeerDelivery } from './knowledge-peer-delivery.js';
+export type { ISessionControlPeerDelivery } from './knowledge-peer-delivery.js';

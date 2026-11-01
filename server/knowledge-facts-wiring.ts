@@ -74,8 +74,8 @@ import {
   deriveKnowledgeOperationId,
   type KnowledgeActivity,
   type KnowledgeActivityRead,
+  type ISessionControlPeerDelivery,
 } from '@/modules/context-events/index.js';
-import type { ISessionControlPeerDelivery } from '@/modules/session-control/index.js';
 
 /** The default page size for `inventory`. */
 export const KNOWLEDGE_INVENTORY_DEFAULT_LIMIT = 20;

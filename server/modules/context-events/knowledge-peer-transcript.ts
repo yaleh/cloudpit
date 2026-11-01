@@ -24,7 +24,7 @@ import {
   type KnowledgeReadError,
   type KnowledgeUnknownField,
 } from '@/shared/knowledge-facts.js';
-import { pushUnknownOnce } from './unknown-fields.js';
+import { pushUnknownOnce } from './knowledge-unknown-fields.js';
 
 /** Why the delivered message is unverified when no assistant turn follows it. */
 export const KNOWLEDGE_REPLY_NOT_AFTER_DELIVERY_REASON =

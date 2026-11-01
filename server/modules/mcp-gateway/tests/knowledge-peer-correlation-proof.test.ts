@@ -71,20 +71,18 @@ const { createAccessTokensService } = await import('@/modules/oauth/index.js');
 const { sessionsService } = await import('@/modules/providers/index.js');
 const {
   KNOWLEDGE_ACTION_PERMISSION_REASON,
+  KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON,
   KNOWLEDGE_DELIVERY_NOT_IN_LEDGER_REASON,
   KNOWLEDGE_NO_DELIVERY_RECORD_REASON,
   KNOWLEDGE_REPLY_NOT_AFTER_DELIVERY_REASON,
   createSessionControlLedger,
   createSessionControlPeerDelivery,
-} = await import('@/modules/session-control/index.js');
+  deriveKnowledgeOperationId,
+} = await import('@/modules/context-events/index.js');
 // The composition root is a top-level wiring file with no barrel: this test
 // assembles the gateway from the SAME wiring the executable uses.
 // eslint-disable-next-line boundaries/no-unknown
 const { createKnowledgeFactSource } = await import('../../../knowledge-facts-wiring.js');
-const {
-  KNOWLEDGE_ANSWERED_MESSAGE_UNKNOWN_REASON,
-  deriveKnowledgeOperationId,
-} = await import('@/modules/context-events/index.js');
 const {
   KNOWLEDGE_FACT_CONTRACT,
   KNOWLEDGE_FACT_CONTRACT_VERSION,
