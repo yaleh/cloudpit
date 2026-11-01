@@ -34,7 +34,7 @@ extra:
 
 ## DoD
 
-在交付树上真实运行 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts`，贴出 `# tests` / `# pass` / `# fail` 与「无 `knowledge-facts-wiring.ts 基线外→842` 行」的逐字证据；`node -e` 读回基线 JSON 的条目值为 842 且 note 含 RECORDED CHANGE；`git diff --stat` 只含本任务声明的文件（基线 + 任务文件），`server/knowledge-facts-wiring.ts` 零改动。不涉及 UI。
+在交付树上真实运行 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts`，贴出 `# tests` / `# pass` / `# fail` 与「无 `knowledge-facts-wiring.ts 基线外→842` 行」的逐字证据；`node -e` 读回基线 JSON 的条目值为 842 且 note 含 RECORDED CHANGE；`git diff --stat` 只含本任务声明的文件（基线 + pin/时长基线 + 任务文件），`server/knowledge-facts-wiring.ts` 零改动。不涉及 UI。
 
 该轴仍暗,理由:本任务只登记既有的 oversize 行数读数与 note 文本，不产生可测的 L_D/L_G 读数变化。
 
@@ -42,4 +42,23 @@ extra:
 
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/architecture-ratchet.test.ts
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 - tasks/gap-ratchet-baseline-knowledge-facts-wiring.md
+
+## Evidence
+
+2026-11-02（续跑轮，分支 `task/gap-ratchet-baseline-knowledge-facts-wiring`）：
+
+- 本任务交付不变：`architecture-ratchet.baseline.json` 的 `oversizeFiles["server/knowledge-facts-wiring.ts"]=842` 与 RECORDED CHANGE note 已在 commit `66c6981aa`；`server/knowledge-facts-wiring.ts` 零改动。
+- AC1 复跑：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → `# tests 6` / `# pass 6` / `# fail 0`，stdout 无 `server/knowledge-facts-wiring.ts 基线外→842`。
+- AC2 复跑：`node -e ...` 退出 0（条目 842，note 含 RECORDED CHANGE (2026-11-02)）。
+- 续跑附带修复 develop 全局红（与任何在办任务 delta 无关；`.quay/develop-red-set.json` 已把 `quay-test-script.test.ts` 记为空签名红）：`9be415857` 新增 `knowledge-effective-config-launch-request.test.ts` 后没有移动 `quay-test-script.test.ts` 的两条 count pin，也没有补时长基线行，导致 develop tip 上 AC2/AC3 实读 `unknown=494`/`496` 而钉 `493`/`495`、AC7 实读 `447/497=89.94%` 低于 90%。本分支把它修绿：pin 移 493→494 / 495→496，时长基线追加该文件实测 `1863ms` 行（`448/497=90.14%`）。单文件复跑 `server/shared/tests/quay-test-script.test.ts`：`# tests 14` / `# pass 14` / `# fail 0`。
+
+## Blocker
+
+**2026-11-01T17:16:16.683Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: __PERFILE__ duration_ms=105609 server/shared/tests/quay-test-script.test.ts passed=false end_ms=1793552841503 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/quay-test-script.test.ts]
+- run_id：wk-prod-anchor
+- session_id：c4cb985b-34ab-45d9-b984-1f436b6bd939
