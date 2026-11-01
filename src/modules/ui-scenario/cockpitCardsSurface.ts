@@ -635,6 +635,87 @@ export function startCancellingDismissFromDetails(cardId: string): CardContinuat
   };
 }
 
+/** One cards-view drive step: each step carries exactly one card command. */
+export type CockpitCardDriveStep =
+  | { 'cockpitCard.select': string }
+  | { 'cockpitCard.showOption': ScenarioCockpitCardTarget & { optionId: string } }
+  | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
+  | { 'cockpitCard.confirm': string }
+  | { 'cockpitCard.openDetails': string }
+  | { 'cockpitCard.dismiss': string }
+  | { 'cockpitCard.openDismissFromDetails': string }
+  | { 'cockpitCard.confirmDismissFromDetails': string }
+  | { 'cockpitCard.cancelDismissFromDetails': string };
+
+/**
+ * Runs one cards-view step's first press and reports what the surface must finish.
+ *
+ * The dispatch lives here rather than in `scenarioSurface` so every `cockpitCard.*` verb — its
+ * control lookup, its continuation and its action name — is declared in the same slice as the
+ * reading, and the surface file stays under its 800-line criterion.
+ */
+export function dispatchCockpitCardStep(step: CockpitCardDriveStep): {
+  action: string;
+  pendingCardAction: CardContinuation | null;
+} {
+  if ('cockpitCard.select' in step) {
+    pressCardToSelect(step['cockpitCard.select']);
+    return { action: 'cockpitCard.select', pendingCardAction: null };
+  }
+  if ('cockpitCard.showOption' in step) {
+    const { cardId, optionId } = step['cockpitCard.showOption'];
+    return {
+      action: 'cockpitCard.showOption',
+      pendingCardAction: startShowingCardOption(cardId, optionId),
+    };
+  }
+  if ('cockpitCard.ownReply' in step) {
+    const { cardId, text } = step['cockpitCard.ownReply'];
+    return {
+      action: 'cockpitCard.ownReply',
+      pendingCardAction: startWritingCardOwnReply(cardId, text),
+    };
+  }
+  if ('cockpitCard.confirm' in step) {
+    return {
+      action: 'cockpitCard.confirm',
+      pendingCardAction: startConfirmingCard(step['cockpitCard.confirm']),
+    };
+  }
+  if ('cockpitCard.dismiss' in step) {
+    return {
+      action: 'cockpitCard.dismiss',
+      pendingCardAction: startDismissingCard(step['cockpitCard.dismiss']),
+    };
+  }
+  if ('cockpitCard.openDismissFromDetails' in step) {
+    return {
+      action: 'cockpitCard.openDismissFromDetails',
+      pendingCardAction: startOpeningDismissFromDetails(
+        step['cockpitCard.openDismissFromDetails'],
+      ),
+    };
+  }
+  if ('cockpitCard.cancelDismissFromDetails' in step) {
+    return {
+      action: 'cockpitCard.cancelDismissFromDetails',
+      pendingCardAction: startCancellingDismissFromDetails(
+        step['cockpitCard.cancelDismissFromDetails'],
+      ),
+    };
+  }
+  if ('cockpitCard.confirmDismissFromDetails' in step) {
+    return {
+      action: 'cockpitCard.confirmDismissFromDetails',
+      pendingCardAction: startConfirmingDismissFromDetails(
+        step['cockpitCard.confirmDismissFromDetails'],
+      ),
+    };
+  }
+  openCardDetails(step['cockpitCard.openDetails']);
+  return { action: 'cockpitCard.openDetails', pendingCardAction: null };
+}
+
 /** How long `settle` waits for a card confirmation's request before letting the caller read. */
 const CONFIRM_SETTLE_TIMEOUT_MS = 15_000;
 

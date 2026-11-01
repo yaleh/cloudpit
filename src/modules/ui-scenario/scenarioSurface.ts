@@ -4,17 +4,9 @@ import {
 } from '@/modules/chat';
 import type { VoiceReferencePack } from '@/modules/chat';
 import {
-  openCardDetails,
-  pressCardToSelect,
+  dispatchCockpitCardStep,
   readCockpitCardsReading,
   settleCardStep,
-  startCancellingDismissFromDetails,
-  startConfirmingCard,
-  startConfirmingDismissFromDetails,
-  startDismissingCard,
-  startOpeningDismissFromDetails,
-  startShowingCardOption,
-  startWritingCardOwnReply,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
 import {
   pressSettingsSave,
@@ -32,7 +24,7 @@ import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type { ScenarioSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type {
   CardContinuation,
-  ScenarioCockpitCardTarget,
+  CockpitCardDriveStep,
   ScenarioCockpitCardsReading,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
 import type { QuayFocusableObject, QuayObjectUri, QuayViewContract } from '@/shared/types';
@@ -95,19 +87,16 @@ export type ScenarioDriveStep =
   | { cancel: true }
   | { pin: true | string }
   | { utter: string }
-  | { 'cockpitCard.select': string }
-  | { 'cockpitCard.showOption': ScenarioCockpitCardTarget & { optionId: string } }
-  | { 'cockpitCard.ownReply': ScenarioCockpitCardTarget & { text: string } }
-  | { 'cockpitCard.confirm': string }
-  | { 'cockpitCard.openDetails': string }
-  | { 'cockpitCard.dismiss': string }
-  | { 'cockpitCard.openDismissFromDetails': string }
-  | { 'cockpitCard.confirmDismissFromDetails': string }
-  | { 'cockpitCard.cancelDismissFromDetails': string }
+  | CockpitCardDriveStep
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true }
   | { 'chat.edit': string };
+
+/** True when the step carries one of the cards view's commands (dispatched in its own slice). */
+function isCockpitCardStep(step: ScenarioDriveStep): step is CockpitCardDriveStep {
+  return Object.keys(step).some((key) => key.startsWith('cockpitCard.'));
+}
 
 /** One focusable's identity, kept beside the contract for assertions that name a label. */
 export type ScenarioFocusReading = {
@@ -698,41 +687,10 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('utter' in step) {
       action = 'utter';
       utter(step.utter);
-    } else if ('cockpitCard.select' in step) {
-      action = 'cockpitCard.select';
-      pressCardToSelect(step['cockpitCard.select']);
-    } else if ('cockpitCard.showOption' in step) {
-      action = 'cockpitCard.showOption';
-      const { cardId, optionId } = step['cockpitCard.showOption'];
-      pendingCardAction = startShowingCardOption(cardId, optionId);
-    } else if ('cockpitCard.ownReply' in step) {
-      action = 'cockpitCard.ownReply';
-      const { cardId, text } = step['cockpitCard.ownReply'];
-      pendingCardAction = startWritingCardOwnReply(cardId, text);
-    } else if ('cockpitCard.confirm' in step) {
-      action = 'cockpitCard.confirm';
-      pendingCardAction = startConfirmingCard(step['cockpitCard.confirm']);
-    } else if ('cockpitCard.dismiss' in step) {
-      action = 'cockpitCard.dismiss';
-      pendingCardAction = startDismissingCard(step['cockpitCard.dismiss']);
-    } else if ('cockpitCard.openDismissFromDetails' in step) {
-      action = 'cockpitCard.openDismissFromDetails';
-      pendingCardAction = startOpeningDismissFromDetails(
-        step['cockpitCard.openDismissFromDetails'],
-      );
-    } else if ('cockpitCard.confirmDismissFromDetails' in step) {
-      action = 'cockpitCard.confirmDismissFromDetails';
-      pendingCardAction = startConfirmingDismissFromDetails(
-        step['cockpitCard.confirmDismissFromDetails'],
-      );
-    } else if ('cockpitCard.cancelDismissFromDetails' in step) {
-      action = 'cockpitCard.cancelDismissFromDetails';
-      pendingCardAction = startCancellingDismissFromDetails(
-        step['cockpitCard.cancelDismissFromDetails'],
-      );
-    } else if ('cockpitCard.openDetails' in step) {
-      action = 'cockpitCard.openDetails';
-      openCardDetails(step['cockpitCard.openDetails']);
+    } else if (isCockpitCardStep(step)) {
+      const dispatched = dispatchCockpitCardStep(step);
+      action = dispatched.action;
+      pendingCardAction = dispatched.pendingCardAction;
     } else if ('settings.selectModel' in step) {
       action = 'settings.selectModel';
       selectSettingsModel(step['settings.selectModel']);
