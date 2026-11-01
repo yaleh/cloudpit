@@ -2,7 +2,7 @@
 id: gap-goal-054-runtime-identity-surfaces-ac
 title: GOAL-054 范围「IPC/bridge/BroadcastChannel/语义面改名」无在域 AC：提议新增运行时内部身份面翻转 AC（建议
   AC-459）
-status: needs-human
+status: done
 labels:
   - gap
 parent: null
