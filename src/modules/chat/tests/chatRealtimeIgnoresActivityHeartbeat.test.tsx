@@ -66,7 +66,7 @@ function renderHandlers(store: SessionStore) {
     provider: 'claude',
     selectedSession: SESSION,
     currentSessionId: SESSION_ID,
-    setTokenBudget: () => {},
+    setLiveFrame: () => {},
     pendingPermissionRequests: [],
     setPendingPermissionRequests: () => {},
     streamTimerRef,

@@ -28,7 +28,7 @@ const renderHandlers = () => {
     provider: 'claude',
     selectedSession: { id: 'viewed-session' } as ProjectSession,
     currentSessionId: 'viewed-session',
-    setTokenBudget: () => {},
+    setLiveFrame: () => {},
     pendingPermissionRequests: [],
     setPendingPermissionRequests: (next) => {
       pending = typeof next === 'function' ? next(pending) : next;

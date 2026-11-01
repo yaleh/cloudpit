@@ -216,7 +216,7 @@ export { requestClientToolDecision } from './list/claude/claude-runtime.provider
 // than hard-coded.
 export { describeApprovalPolicy, TOOL_APPROVAL_TIMEOUT_MS } from './list/claude/claude-runtime.provider.js';
 export type { ApprovalPolicy } from './list/claude/claude-runtime.provider.js';
-export { createProviderTokenUsageService, summarizeClaudeTokenUsage } from './services/provider-token-usage.service.js';
+export { createProviderTokenUsageService, providerTokenUsageService, summarizeClaudeTokenUsage } from './services/provider-token-usage.service.js';
 // ClaudeSessionsProvider: driven by the stream-event unwrap test, which needs the
 // normalizer's own class to prove a partial SDK frame reaches the wire as a
 // `stream_delta` without a live CLI in the loop.

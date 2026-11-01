@@ -68,7 +68,6 @@ const renderComposer = (selectedSession: ProjectSession | null) => renderHook(
     currentProviderEffort: 'medium',
     isLoading: false,
     canAbortSession: false,
-    tokenBudget: null,
     sendMessage: () => undefined,
     scrollToBottom: () => undefined,
     addMessage: () => undefined,
@@ -213,7 +212,6 @@ test('a first send with the resident switch on retires the project draft it was 
       currentProviderEffort: 'medium',
       isLoading: false,
       canAbortSession: false,
-      tokenBudget: null,
       // The switch is set for this brand-new session; the send path reads it directly rather than a
       // module-level one-shot, so the test drives it the way `ChatInterface` does.
       residentEnabled: true,

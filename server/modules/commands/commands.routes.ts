@@ -17,6 +17,12 @@ type CommandsRouterDependencies = {
    * module never reaches into a transcript itself.
    */
   aiTitles: typeof import('../providers/index.js').readSessionAiTitle;
+  /**
+   * The authoritative token-usage entry point. `/cost` reads the session's
+   * usage through this, never from the composer's live frame: the frame is the
+   * newest turn's context occupancy, not the session's whole spend.
+   */
+  tokenUsage: typeof import('../providers/index.js').providerTokenUsageService;
   runtime: {
     uptime(): number;
     memoryUsage(): NodeJS.MemoryUsage;
@@ -91,6 +97,30 @@ const readCommandAiTitle = async (titlesReader, context) => {
     console.error("Error reading the session ai-title:", error);
     return null;
   }
+};
+
+/**
+ * Reads the authoritative token-usage reading for the command's session.
+ *
+ * The session's own provider reader is the only source of the whole-session
+ * spend; the composer's live frame is a newest-turn occupancy and must never be
+ * passed off as one. `context.tokenUsage` remains as the injected fallback the
+ * tests use (and for a chat that has no session row yet) — a real session id
+ * always goes through the service, so a live frame cannot shadow it.
+ */
+const readAuthoritativeTokenUsage = async (tokenUsageService, context) => {
+  const sessionId = context?.sessionId;
+  if (typeof sessionId === "string" && sessionId) {
+    try {
+      const reading = await tokenUsageService.getSessionTokenUsage(sessionId);
+      if (reading) {
+        return reading;
+      }
+    } catch (error) {
+      console.error("Error reading the session token usage:", error);
+    }
+  }
+  return context?.tokenUsage || {};
 };
 
 const executeModelsCommand = async (args, context, modelsService) => {
@@ -293,7 +323,10 @@ Custom commands can be created in:
   "/models": (args, context) => executeModelsCommand(args, context, providerModelsService),
 
   "/cost": async (args, context) => {
-    const tokenUsage = context?.tokenUsage || {};
+    // One authoritative reading for "Total tokens used", the context occupancy
+    // and the window: the provider reader resolves all three, so the panel is
+    // never shown the composer's live frame as if it were the session.
+    const tokenUsage = await readAuthoritativeTokenUsage(dependencies.tokenUsage, context);
     const provider = readModelProvider(context?.provider);
     const model = await resolveCommandModel(providerModelsService, provider, context);
     const aiTitle = await readCommandAiTitle(readSessionAiTitle, context);

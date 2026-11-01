@@ -91,36 +91,66 @@ export type CostView = {
 /**
  * The reading `/cost` derives its view from.
  *
- * It accepts the provider readers' shape plus the snake_case and legacy field
- * names an older client payload may still carry; every quantity is `unknown`
- * because the wire can hand over a string and "unparsable" must stay absent
- * rather than become a fabricated zero.
+ * Only the first-class fields are consumed: `sessionSpend` is the whole
+ * session, `contextOccupancy` the newest request plus the window. The legacy
+ * dual-meaning fields (`used`, `usageScope`, the flat counts) stay declared so
+ * an older wire payload still parses, but this module never reads them — that
+ * is what stops one reading from meaning two things.
  */
 export type CostViewReading = {
-  used?: unknown;
-  total?: unknown;
-  contextWindow?: unknown;
-  totalUsed?: unknown;
-  total_tokens?: unknown;
-  inputTokens?: unknown;
-  input_tokens?: unknown;
-  input?: unknown;
-  cumulativeInputTokens?: unknown;
-  promptTokens?: unknown;
-  outputTokens?: unknown;
-  output_tokens?: unknown;
-  output?: unknown;
-  cumulativeOutputTokens?: unknown;
-  completionTokens?: unknown;
-  cacheReadTokens?: unknown;
-  cache_read_input_tokens?: unknown;
-  cacheReadInputTokens?: unknown;
-  cacheCreationTokens?: unknown;
-  cache_creation_input_tokens?: unknown;
-  cacheCreationInputTokens?: unknown;
-  breakdown?: { input?: unknown; output?: unknown };
-  cumulative?: unknown;
+  /** The session's whole spend; the sole source of the `session` block. */
+  sessionSpend?: unknown;
+  /** The newest request's occupancy and the window capacity. */
+  contextOccupancy?: { used?: unknown; total?: unknown };
+  /** Newest single request in the counts shape, for the detail row. */
   lastRequest?: unknown;
+  /** @deprecated Never consumed; the dual-meaning legacy number. */
+  used?: unknown;
+  /** @deprecated Never consumed; legacy window field. */
+  total?: unknown;
+  /** @deprecated Never consumed; legacy window field. */
+  contextWindow?: unknown;
+  /** @deprecated Never consumed. */
+  totalUsed?: unknown;
+  /** @deprecated Never consumed. */
+  total_tokens?: unknown;
+  /** @deprecated Never consumed. */
+  inputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  input_tokens?: unknown;
+  /** @deprecated Never consumed. */
+  input?: unknown;
+  /** @deprecated Never consumed. */
+  cumulativeInputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  promptTokens?: unknown;
+  /** @deprecated Never consumed. */
+  outputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  output_tokens?: unknown;
+  /** @deprecated Never consumed. */
+  output?: unknown;
+  /** @deprecated Never consumed. */
+  cumulativeOutputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  completionTokens?: unknown;
+  /** @deprecated Never consumed. */
+  cacheReadTokens?: unknown;
+  /** @deprecated Never consumed. */
+  cache_read_input_tokens?: unknown;
+  /** @deprecated Never consumed. */
+  cacheReadInputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  cacheCreationTokens?: unknown;
+  /** @deprecated Never consumed. */
+  cache_creation_input_tokens?: unknown;
+  /** @deprecated Never consumed. */
+  cacheCreationInputTokens?: unknown;
+  /** @deprecated Never consumed. */
+  breakdown?: { input?: unknown; output?: unknown };
+  /** @deprecated Never consumed; `sessionSpend` replaces it. */
+  cumulative?: unknown;
+  /** @deprecated Never consumed; the first-class shape names both meanings. */
   usageScope?: 'context' | 'session-cumulative';
 };
 
@@ -164,59 +194,20 @@ const readCounts = (value: unknown): ProviderTokenUsageCounts | undefined => {
   return Object.keys(counts).length > 0 ? counts : undefined;
 };
 
-/**
- * The session counts of a reading that reports one request rather than a
- * cumulative snapshot.
- *
- * The prompt total is the source's own `inputTokens` when it named one; an
- * older payload that only carried raw counts reports input excluding cache, so
- * the cached quantities are added back once to make the denominator the same
- * quantity the cache rows are a subset of.
- */
-const readRequestSessionCounts = (
-  reading: CostViewReading,
-): ProviderTokenUsageCounts | undefined => {
-  const namedInput = readQuantity(
-    reading.inputTokens ?? reading.input ?? reading.cumulativeInputTokens
-      ?? reading.breakdown?.input ?? reading.promptTokens,
-  );
-  const rawInput = readQuantity(reading.inputTokens ?? reading.input_tokens);
-  const cacheRead = readQuantity(
-    reading.cacheReadTokens ?? reading.cache_read_input_tokens ?? reading.cacheReadInputTokens,
-  );
-  // Anthropic's `cache_creation_input_tokens` is the write half of the prompt,
-  // the same quantity Codex names `cache_write_input_tokens`.
-  const cacheWrite = readQuantity(
-    reading.cacheCreationTokens
-      ?? reading.cache_creation_input_tokens
-      ?? reading.cacheCreationInputTokens,
-  );
-  const output = readQuantity(
-    reading.outputTokens ?? reading.output ?? reading.output_tokens
-      ?? reading.cumulativeOutputTokens ?? reading.breakdown?.output ?? reading.completionTokens,
-  );
-
-  const counts: ProviderTokenUsageCounts = {};
-  if (
-    namedInput !== undefined || rawInput !== undefined
-    || cacheRead !== undefined || cacheWrite !== undefined
-  ) {
-    counts.inputTokens = namedInput
-      ?? (rawInput ?? 0) + (cacheRead ?? 0) + (cacheWrite ?? 0);
-  }
-  if (output !== undefined) counts.outputTokens = output;
-  if (cacheRead !== undefined) counts.cacheReadTokens = cacheRead;
-  if (cacheWrite !== undefined) counts.cacheWriteTokens = cacheWrite;
-  return Object.keys(counts).length > 0 ? counts : undefined;
-};
+/** Reads the occupancy object only when the wire actually sent one. */
+const isRecordLike = (value: unknown): value is { used?: unknown; total?: unknown } =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /**
  * Derives the unified `/cost` view from one provider reading.
  *
- * `used` is decided once here: a `session-cumulative` reading is the whole
- * session's spend, so it lands in `session.total`; every other reading is the
- * newest request's occupancy and lands in `context.used`. The ratio and the
- * fresh remainder are derived here too, so the panel never computes them.
+ * The two meanings are read from their own fields, never inferred from one
+ * number: `sessionSpend` is the whole session's spend and is the ONLY source
+ * of the `session` block, while `contextOccupancy` is the newest request's
+ * occupancy plus the window. A reading that reports only a context occupancy
+ * therefore produces a `context` block and no `session` block — nothing is
+ * stitched from request counts (the defect this shape removes). The ratio and
+ * the fresh remainder are derived here too, so the panel computes nothing.
  *
  * Consumed by the commands module's `/cost` handler, which returns the result
  * as `data.cost`.
@@ -225,23 +216,20 @@ export function buildCostView(
   reading: CostViewReading,
   provider: string | null | undefined,
 ): CostView {
-  const isCumulativeScope = reading.usageScope === 'session-cumulative';
-  const used = readQuantity(reading.used ?? reading.totalUsed ?? reading.total_tokens);
-  const window = readQuantity(reading.total ?? reading.contextWindow);
-  const cumulative = readCounts(reading.cumulative);
+  const spend = readCounts(reading.sessionSpend);
+  const occupancy = isRecordLike(reading.contextOccupancy) ? reading.contextOccupancy : undefined;
+  const occupancyUsed = readQuantity(occupancy?.used);
+  const window = readQuantity(occupancy?.total);
   const lastRequest = readCounts(reading.lastRequest);
-  const counts = cumulative ?? readRequestSessionCounts(reading);
 
-  const input = counts?.inputTokens;
-  const output = counts?.outputTokens;
-  const cacheRead = counts?.cacheReadTokens;
-  const cacheWrite = counts?.cacheWriteTokens;
-  const reportedTotal = counts?.totalTokens;
+  const input = spend?.inputTokens;
+  const output = spend?.outputTokens;
+  const cacheRead = spend?.cacheReadTokens;
+  const cacheWrite = spend?.cacheWriteTokens;
+  const reportedTotal = spend?.totalTokens;
   const summedTotal =
     input !== undefined && output !== undefined ? input + output : undefined;
-  const sessionTotal = isCumulativeScope
-    ? used ?? reportedTotal ?? summedTotal
-    : reportedTotal ?? summedTotal;
+  const sessionTotal = reportedTotal ?? summedTotal;
 
   const session: CostViewSession = {};
   if (sessionTotal !== undefined) session.total = sessionTotal;
@@ -255,12 +243,12 @@ export function buildCostView(
     }
   }
   if (cacheWrite !== undefined) session.cacheWrite = cacheWrite;
-  if (counts?.reasoningOutputTokens !== undefined) {
-    session.reasoningOutput = counts.reasoningOutputTokens;
+  if (spend?.reasoningOutputTokens !== undefined) {
+    session.reasoningOutput = spend.reasoningOutputTokens;
   }
 
   const context: CostViewContext = {};
-  if (!isCumulativeScope && used !== undefined) context.used = used;
+  if (occupancyUsed !== undefined) context.used = occupancyUsed;
   if (window !== undefined) context.window = window;
 
   return {

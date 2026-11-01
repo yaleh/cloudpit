@@ -326,7 +326,9 @@ export function useChatSessionState({
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
+  // Live frame → composer counter; authoritative reading → `/cost`.
+  const [liveFrame, setLiveFrame] = useState<Record<string, unknown> | null>(null);
+  const [authoritativeReading, setAuthoritativeReading] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
@@ -335,11 +337,9 @@ export function useChatSessionState({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   /**
-   * Watches the transcript's geometry for growth that adds no row — a streaming
-   * answer extending the row already on screen, a markdown re-render replacing
-   * it with a taller one, an image loading into it. The row-count effects below
-   * never see any of those, so they are the one path that keeps a pinned
-   * transcript pinned. Torn down with the content column it is attached to.
+   * Watches the transcript's geometry for growth that adds no row (a streaming
+   * answer growing in place, a taller re-render, an image loading). The row-count
+   * effects never see those, so this is the one path that keeps a pinned transcript pinned.
    */
   const transcriptObserverRef = useRef<ResizeObserver | null>(null);
   /**
@@ -573,7 +573,7 @@ export function useChatSessionState({
     setHasMoreMessages(false);
     setTotalMessages(0);
     
-    setTokenBudget(null);
+    setLiveFrame(null); setAuthoritativeReading(null);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
@@ -638,7 +638,7 @@ export function useChatSessionState({
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
-        setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
+        setAuthoritativeReading((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
       }
     }
     return !result.deferred;
@@ -1302,7 +1302,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
+          setAuthoritativeReading((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
         }
 
         if (prependedCount === 0) {
@@ -1604,7 +1604,7 @@ export function useChatSessionState({
       messagesOffsetRef.current = 0;
       setHasMoreMessages(false);
       setTotalMessages(0);
-      setTokenBudget(null);
+      setLiveFrame(null); setAuthoritativeReading(null);
       lastLoadedSessionKeyRef.current = null;
       return;
     }
@@ -1664,7 +1664,7 @@ export function useChatSessionState({
     if (loadAllFinishedTimerRef.current) clearTimeout(loadAllFinishedTimerRef.current);
 
     if (sessionChanged) {
-      setTokenBudget(null);
+      setLiveFrame(null); setAuthoritativeReading(null);
     }
 
     setCurrentSessionId(selectedSessionId);
@@ -1687,7 +1687,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
+          setAuthoritativeReading((current) => pickFresherTokenUsage(current, (slot.tokenUsage as Record<string, unknown> | null) ?? null));
         }
       }
       setIsLoadingSessionMessages(false);
@@ -1943,7 +1943,7 @@ export function useChatSessionState({
   // Initial token usage fetch for providers with file-backed usage data.
   useEffect(() => {
     if (!selectedSession?.id) {
-      setTokenBudget(null);
+      setLiveFrame(null); setAuthoritativeReading(null);
       return;
     }
     const fetchInitialTokenUsage = async () => {
@@ -1952,9 +1952,9 @@ export function useChatSessionState({
         const response = await api.providers.sessionTokenUsage(selectedSession.id);
         if (response.ok) {
           const payload = await response.json();
-          setTokenBudget((current) => pickFresherTokenUsage(current, (payload.data as Record<string, unknown> | null) ?? null));
+          setAuthoritativeReading((current) => pickFresherTokenUsage(current, (payload.data as Record<string, unknown> | null) ?? null));
         } else {
-          setTokenBudget(null);
+          setAuthoritativeReading(null);
         }
       } catch (error) {
         console.error('Failed to fetch initial token usage:', error);
@@ -2104,8 +2104,8 @@ export function useChatSessionState({
     totalMessages,
     isUserScrolledUp,
     setIsUserScrolledUp,
-    tokenBudget,
-    setTokenBudget,
+    liveFrame, setLiveFrame,
+    authoritativeReading, setAuthoritativeReading,
     visibleMessageCount,
     visibleMessages,
     loadEarlierMessages,

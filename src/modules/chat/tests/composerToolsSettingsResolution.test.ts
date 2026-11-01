@@ -51,7 +51,6 @@ const submit = async (provider: LLMProvider) => {
       currentProviderEffort: 'medium',
       isLoading: false,
       canAbortSession: false,
-      tokenBudget: null,
       sendMessage: (message) => {
         sent.push(message as SentMessage);
       },

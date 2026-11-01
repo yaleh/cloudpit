@@ -207,18 +207,26 @@ export function summarizeClaudeTokenUsage(
   const outputTokens = lastRequest?.outputTokens ?? 0;
   const cacheReadTokens = lastRequest?.cacheReadTokens ?? 0;
   const cacheCreationTokens = lastRequest?.cacheWriteTokens ?? 0;
+  const sessionSpend = sawCumulativeUsage ? toUsageCounts(cumulativeTotals) : undefined;
 
   return {
+    // Legacy dual-meaning fields: kept for older consumers, new code reads the
+    // named fields below instead.
     used: inputTokens + outputTokens,
     total: contextWindow,
+    ...(sessionSpend ? { cumulative: sessionSpend, sessionSpend } : {}),
+    // Claude knows both halves: the whole session's spend and the newest
+    // request's occupancy against the model's window. A transcript with no
+    // usage row has no occupancy to report — only the window is known, so no
+    // `used: 0` is invented for it.
+    contextOccupancy: lastRequest
+      ? { used: inputTokens + outputTokens, total: contextWindow }
+      : { total: contextWindow },
     inputTokens,
     outputTokens,
     cacheReadTokens,
     cacheCreationTokens,
     cacheTokens: cacheReadTokens + cacheCreationTokens,
-    // Only when a main-thread usage row exists: an empty transcript reported no
-    // spend snapshot, which is not the same answer as a session that spent zero.
-    ...(sawCumulativeUsage ? { cumulative: toUsageCounts(cumulativeTotals) } : {}),
     ...(sawSidechainUsage ? { sidechain: toUsageCounts(sidechainTotals) } : {}),
     ...(lastRequest ? { lastRequest: toUsageCounts(lastRequest) } : {}),
     breakdown: { input: inputTokens, output: outputTokens },
