@@ -40,6 +40,7 @@ goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsco
 - DoD 读数：两条 criterion 在合并 develop 后的树上 `fail 0`（brand-allowlist 7 tests / runtime-flip 10 tests）；变异 `cli.module.ts` 的 `npm show @yalehwang/cloudpit version` → `@yalehwang/cloudcli version` 后 AC-451 criterion exit 1，cp 备份还原后 exit 0；`npm run typecheck` exit 0。
 - 合并 develop：3 处冲突按语义并集收口——`scripts/suite-duration-baseline.tsv`（保留 goal 分支的 `cloudpit-runtime-flip` 行 + develop 新增四行）、`server/shared/tests/quay-test-script.test.ts`（合并后 `find` 收集 497 个 server test，known=3→unknown=494、known=1→unknown=496）、`scripts/ui-scenario.mjs`（保留 develop 的 `waitForCards` 文档行 + 新语义面名）。
 - 结构调整说明：AC-452 expect 的「IPC/bridge/BroadcastChannel/语义面改新名」在 spec §5.5 里是 2.0.0 必达项；本任务把它连同判据一起落地，后续 AC-459 的裁决文本（另一条 needs-human 任务的 Resolution）仍可作为独立并入点，不与本实现的判据冲突。
+- 续轮修 suite 假红（2026-11-01）：fan-in 在上一次 suite 步红在 `server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts` 的 AC3「home 未被运行改动」守卫——驻留 fleet service 每个 tick 重写 `context/events/<date>.jsonl`、`behavior/attention-window.json`，带 `--knowledge-assessment` 时还重写 `knowledge/**`，而豁免集只列了单文件 + `ledgers/`/`acceptance-windows/` 前缀。隔离复跑一次即复现（七个 `knowledge/**` 文件）。修法：新增 `RESIDENT_SERVICE_DIRECTORIES` 前缀集（`behavior/`、`context/`、`knowledge/`，连同原有两个），`registry.json`/`initiatives.json`/决策账本仍走字面检查；负数控制（运行中写入 `contract-probe-untracked.json`）仍红并点名该文件；连跑 5 次全绿（各 17/17）。该文件与本任务 Touches 同属 `server/` 判据面，故并入本任务。
 
 该轴仍暗,理由:本任务是判据补强与内部标识符改名，不产生架构层代码量读数
 
@@ -48,6 +49,7 @@ goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsco
 - scripts/brand-allowlist-check.mjs
 - scripts/brand-allowlist-check.test.mjs
 - server/shared/tests/cloudpit-runtime-flip.test.ts
+- server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts
 - electron/main.js
 - electron/preload.cjs
 - electron/desktopWindow.js
@@ -67,3 +69,12 @@ goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsco
 - scripts/suite-duration-baseline.tsv
 - server/shared/tests/quay-test-script.test.ts
 - tasks/gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion.md
+
+## Blocker
+
+**2026-11-01T14:32:13.726Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts:   AssertionError [ERR_ASSERTION]: files under /data/home/yale/.quay-fleet moved during the contract run and are not written by the resident fleet service: context/events/2026-11-01.jsonl [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the goal/GOAL-054 baseline red set: added=server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6b6b6798-d463-4b0d-bd22-2cf1f6590202
+- 处置（2026-11-01 续轮）：非本任务语义引入，是该守卫豁免集与驻留 service 写盘面的竞态；已按上文「续轮修 suite 假红」修复并连跑 5 次绿。
