@@ -2,7 +2,7 @@
 id: gap-authoritative-token-reading-used-scope-elimination
 title: One authoritative token-usage reading; eliminate the used/scope
   dual-meaning; strict buildCostView
-status: todo
+status: ready
 labels:
   - gap
 parent: null
