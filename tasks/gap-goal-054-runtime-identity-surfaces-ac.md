@@ -123,16 +123,23 @@ GOAL-054 标题逐字为：
 
 - 本节闭合 AC1；AC2 已由授权 goal 写入路径闭合：AC-459 创建于 commit `84bf33894`（`goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpi.md`，`status: active`、`phase: pre-merge`，criterion 逐字一致，`expect` 读回与入册文本相同）。
 - 同批收口：AC-452 的 expect 去掉 `；IPC/bridge/BroadcastChannel/语义面改新名`（commit `464123e15`，status 仍 `achieved`），GOAL-054 `## 范围` 拆成「运行时默认值（AC-452）」与「运行时内部身份面（AC-459）」（commit `5e6746365`）。
-- AC3（实现后 criterion 绿 + 负臂）、AC4/AC5（goal 轮的 in-scope 列表与 `unmetPreMergeAcs` 读数）仍待外部，不代勾。判官 verdict 会 flap（round 10–15 在 AC-459 入册前已判 `covered`），故 AC4/DoD 以连续两轮读数为准。
-- 本任务保持 `needs-human`。四面改名已由并发任务 `gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion` 在其 task 分支完成（commit `6b2d6407f`：19 个文件改名 + `cloudpit-runtime-flip.test.ts` 的 AC10/AC11 断言，0 旧名 / 54 新名），该分支正在机械 fan-in；AC-459 专用判据 `electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 仍待新增。
+- AC3/AC4/AC5 已按下方收口读数闭合；判官 verdict 会 flap（round 10–15 在 AC-459 入册前已判 `covered`），故 AC4 以连续两轮读数为准。
+- 2026-11-01 15:05 UTC 收口：AC-459 已 `achieved`（evidence `pass` @ 15:02:42）；判据 `electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 在 goal worktree 实跑 `tests 10 / pass 10 / fail 0`；round 25 的 in-scope 列表含 AC-459 且 `verdict=covered`；round 22–24 AC-459 为 `active/fail` 且不在 `phaseSplit.excluded`，证明实现前确实挡 merge。四面改名在 `goal/GOAL-054`：`cloudcli-desktop:` 0 / `cloudpit-desktop:` 54，`__cloudcliScenario` 活代码 0 / `__cloudpitScenario` 9。剩余只有人触发的 `quay goal merge` 与 post-merge AC-458。
+
+### 收口读数（2026-11-01）
+
+- 判据口径：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` → `tests 10 / pass 10 / fail 0`（goal worktree，`duration_ms 1813`）。
+- 判据内容含：注入旧名（`cloudcli-desktop:` / `__cloudcliScenario`）必红、非目标面（`cloudcli.ai` / `cloudcli://auth/callback` / `app_surface=cloudcli_desktop` / `ai.cloudcli.desktop` / `cloudcli://` 双读）正断言、历史账本不被扫描也不被改写、扫描根排除 `tasks/ goals/ adr/ experiments/ docs/proposals/ CHANGELOG`。
+- 改名的独立实现任务：`gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion`（done，提交 `6b2d6407f`）与 `gap-goal-054-ac459-identity-surfaces-criterion`（done，提交 `853d307bf`/`08685f783`）；本任务自身的判据任务 `gap-ac459-runtime-identity-surfaces-criterion` 也已完成（`577580bef`）。三条汇入 `goal/GOAL-054`，goal tip `577580bef`。
+- GOAL-054 剩余：`quay goal merge`（branch-mode 发布顺序第 4 步，由人触发）；AC-458 是 merge 后的发布核验。
 
 ## AC
 
 - [x] AC1: 人裁定写回 `## Resolution`：采纳本提案 (a)，或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
 - [x] AC2: 若采纳：`quay goal show AC-459 --json` 显示 `goal: GOAL-054`、`status: active`、`phase: pre-merge`，`criterion` 逐字为 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`，`expect` 与 `## Resolution` 的入册文本逐字一致（已创建：commit `84bf33894`；读回 `expect_matches=true`）。
-- [ ] AC3: 若采纳：目标分支上该 criterion exit 0，且同一判据对注入旧名的合成读数变红、对非目标面（`cloudcli.ai` / appId / `cloudcli://auth/callback`）保持不变（待外部：需实现任务先落地）。
-- [ ] AC4: 采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 的 GOAL-054 记录里 In-scope AC 列表含 AC-459（在域 AC ≥7），且 `goal-sufficiency.verdict` 为 `covered`。注意判官 verdict 会 flap——AC-459 入册前已有连续 `covered` 轮次（round 10–15，源于并发把 AC-452 expect 写成纸面覆盖）——故以连续两轮同一读数为准，不以单轮为准（待外部：driver 跑一轮）。
-- [ ] AC5: 同一轮的 pre-merge 未达成读数（`unmetPreMergeAcs` 或等价字段）含 AC-459，证明它在实现前真实挡住 merge，而不是只在判官输入里凑数（待外部：driver 跑一轮）。
+- [x] AC3: 若采纳：目标分支上该 criterion exit 0，且同一判据对注入旧名的合成读数变红、对非目标面（`cloudcli.ai` / appId / `cloudcli://auth/callback`）保持不变（已满足：goal worktree `tests 10 / pass 10 / fail 0`；注入负臂与变异红/绿见 `gap-goal-054-ac459-identity-surfaces-criterion` 的 AC3/AC7；round 25 `AC-459 pass`）。
+- [x] AC4: 采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 的 GOAL-054 记录里 In-scope AC 列表含 AC-459（在域 AC ≥7），且 `goal-sufficiency.verdict` 为 `covered`（已满足：round 24 与 round 25 连续两轮 in-scope 含 AC-459，均 `covered`；round 25 `AC-459 pass`）。
+- [x] AC5: 同一轮的 pre-merge 未达成读数（`unmetPreMergeAcs` 或等价字段）含 AC-459，证明它在实现前真实挡住 merge（已满足：round 22–24 的 `criteria` 里 AC-459 为 `active/fail` 且不在 `phaseSplit.excluded`，即 pre-merge 未达成集合）。
 
 ## DoD
 
