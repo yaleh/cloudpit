@@ -42,6 +42,17 @@ export { sessionConversationsSearchService } from './services/session-conversati
 // title Claude generated for a session. Only the providers module knows a
 // transcript's shape, and only it owns the row that points at one.
 export { readSessionAiTitle } from './services/session-ai-title.service.js';
+// buildCostView: the provider-agnostic `/cost` derivation, consumed by the
+// commands module's `/cost` handler as `data.cost`. It decides the dual-meaning
+// `used` once, derives the cache ratio and fresh remainder, and resolves the
+// provider's accounting statement, so the browser panel only renders values.
+export { buildCostView } from './services/cost-view.js';
+export type {
+  CostView,
+  CostViewContext,
+  CostViewReading,
+  CostViewSession,
+} from './services/cost-view.js';
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
