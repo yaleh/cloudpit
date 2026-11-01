@@ -33,13 +33,24 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 退出码 0：正臂——`kind='ask'` 且 situation/ask 含引号时返回括号内引语；负臂——`kind ∈ {need,fix,stuck,decision,multi,knowledge,unknown}` 且 ask 含 `任务『标题』…` 或 situation 含 `「AC 集缺一条」` 时返回 `null`；`kind='ask'` 无引号时返回 `null`。
-- [ ] `npx oxlint src/modules/cockpit/cockpitCardDescriptors.ts src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 与 `npx tsc --noEmit -p tsconfig.json` 均退出码 0。
-- [ ] 只读复核：`git diff -- src/modules/cockpit/cockpitCardDescriptors.ts` 显示仅新增 `card.kind !== 'ask'` 早退与注释、无删除既有提取逻辑；`git grep -n "cockpitAssistantQuote" src/` 仍只有 `cockpitCardDescriptors.ts` 定义与 `CockpitCardDetails.tsx` 一处调用。
+- [x] `npx vitest run src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 退出码 0：正臂——`kind='ask'` 且 situation/ask 含引号时返回括号内引语；负臂——`kind ∈ {need,fix,stuck,decision,multi,knowledge,unknown}` 且 ask 含 `任务『标题』…` 或 situation 含 `「AC 集缺一条」` 时返回 `null`；`kind='ask'` 无引号时返回 `null`。
+- [x] `npx oxlint src/modules/cockpit/cockpitCardDescriptors.ts src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 与 `npx tsc --noEmit -p tsconfig.json` 均退出码 0。
+- [x] 只读复核：`git diff -- src/modules/cockpit/cockpitCardDescriptors.ts` 显示仅新增 `card.kind !== 'ask'` 早退与注释、无删除既有提取逻辑；`git grep -n "cockpitAssistantQuote" src/` 仍只有 `cockpitCardDescriptors.ts` 定义与 `CockpitCardDetails.tsx` 一处调用。
 
 ## DoD
 
 `cockpitAssistantQuote`（`src/modules/cockpit/cockpitCardDescriptors.ts`）对 `kind !== 'ask'` 返回 `null`，机械 need 卡的 Details 抽屉不再渲染「What the assistant said」；新增 `src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 覆盖正/负臂，`npx vitest run src/modules/cockpit/tests/cockpitCardDescriptors.test.ts` 全绿（6 用例）。用真实 need 卡 `gap-goal-010-exit-conditions-section`（`att_230987d02d3f`）的 ask/situation 形状喂给该函数，返回 `null`；session-ask 卡行为不变。
+
+## 验证读数
+
+- `npx vitest run src/modules/cockpit/tests/cockpitCardDescriptors.test.ts`：`6 passed (6)`，exit 0。
+- `npx oxlint`（上述两文件）：exit 0；`npx tsc --noEmit -p tsconfig.json`：exit 0。
+- `git diff`：`9 insertions(+), 1 deletion(-)`，删除行仅为文档注释改写，提取逻辑逐字节保留；`git grep -n cockpitAssistantQuote src/` 仅 `cockpitCardDescriptors.ts:282` 定义与 `CockpitCardDetails.tsx`（import + 调用）一处消费。
+- pre-merge：`git merge --no-edit develop` → `Already up to date.`；anti-drift：`ANTI-DRIFT OK — 2 actual file(s), all within declared Touches (3 glob(s))`。
+
+## ADR-007 暗轴
+
+- 该轴仍暗,理由:本任务只在前端纯函数 `cockpitAssistantQuote` 增加 `kind !== 'ask'` 早退并补一条单元测试，未改变模块拓扑、文件级分层或跨包依赖，没有 L_D/L_G 可读读数。
 
 ## Touches
 
