@@ -967,3 +967,9 @@
 #   (dur=9344ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 496 server test files and the baseline holds 447 of them).
 9344	server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
+#   and the knowledge-effective-config-launch-request row by gap-effective-config-proc-request-layer,
+#   measured once on 2026-11-02 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts`
+#   (dur=1863ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 497 server test files and the baseline holds 448 of them).
+1863	server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts

@@ -1,7 +1,7 @@
 ---
 id: AC-459
 title: 运行时内部身份面翻转：IPC/contextBridge/BroadcastChannel/语义面全局以 cloudpit- 为准，旧名零残留
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -29,5 +29,11 @@ origin: "人 yale 2026-11-01 经会话裁定采纳 gap-goal-054-runtime-identity
   AGENTS.md，历史账本（tasks/goals/adr/experiments/docs/proposals/CHANGELOG）按 GOAL-054
   非目标排除。GOAL-054 范围同步拆分：运行时默认值归 AC-452，运行时内部身份面归 AC-459。"
 activatedAt: 2026-11-01T14:26:19.159Z
+statusLog:
+  - at: 2026-11-01T15:02:42.449Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 phase: pre-merge
 ---

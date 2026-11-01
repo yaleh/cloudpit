@@ -477,11 +477,14 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (494 + 1 = 495 collected server test files), then
     // knowledge-peer-correlation-proof added its criterion
     // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
-    // (495 + 1 = 496 collected server test files). The goal branch's
+    // (495 + 1 = 496 collected server test files). Then
+    // gap-effective-config-proc-request-layer added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts
+    // (496 + 1 = 497 collected server test files). The goal branch's
     // gap-cloudpit-runtime-default-flip adds its criterion
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (496 + 1 = 497 collected server test
-    // files). This fixture names 3 known files, so 497 - 3 = 494.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=494$/);
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498 collected server test
+    // files). This fixture names 3 known files, so 498 - 3 = 495.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=495$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -618,12 +621,14 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // then knowledge-effective-config-proof added its criterion
     // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (494 + 1 = 495),
     // then knowledge-peer-correlation-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (495 + 1 = 496),
+    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (495 + 1 = 496), then
+    // gap-effective-config-proc-request-layer added its criterion
+    // server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts (496 + 1 = 497),
     // then the goal branch's gap-cloudpit-runtime-default-flip added
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (496 + 1 = 497)
-    // — but this fixture names ONE known file, so 497 - 1 = 496 (AC2 reads 494 because its
-    // fixture names 3; the 497 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=496$/);
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498)
+    // — but this fixture names ONE known file, so 498 - 1 = 497 (AC2 reads 495 because its
+    // fixture names 3; the 498 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=497$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
