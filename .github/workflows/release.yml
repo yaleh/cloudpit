@@ -9,7 +9,7 @@ on:
         default: "patch"
         type: string
       release_name:
-        description: 'Custom release name (optional, defaults to "CloudCLI UI vX.Y.Z")'
+        description: 'Custom release name (optional, defaults to "Cloudpit vX.Y.Z")'
         required: false
         type: string
 
@@ -20,9 +20,9 @@ permissions:
 # to immutable commit SHAs. The trailing comments keep the original major tag
 # visible for maintenance context.
 #
-# This is the FORK release path for yaleh/claudecodeui. It cuts a GitHub Release
-# and publishes the package to npm as `@yalehwang/cloudcli`, authenticated with
-# npm trusted publishing (OIDC): the `@yalehwang/cloudcli` package trusts this repo's
+# This is the FORK release path for yaleh/cloudpit. It cuts a GitHub Release
+# and publishes the package to npm as `@yalehwang/cloudpit`, authenticated with
+# npm trusted publishing (OIDC): the `@yalehwang/cloudpit` package trusts this repo's
 # release.yml, so no npm token is involved (npm now rejects 2FA-bypass tokens). It pushes the release commit/tag to the
 # `yaleh` remote named by .release-it.json's `git.pushRepo`, never `origin`
 # (which points at upstream siteboon/claudecodeui).

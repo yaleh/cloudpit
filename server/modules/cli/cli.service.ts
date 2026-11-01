@@ -163,10 +163,10 @@ Environment Variables:
   CONTEXT_WINDOW      Set context window size (default: 160000)
 
 Documentation:
-  ${dependencies.packageMetadata.homepage || 'https://github.com/yaleh/claudecodeui'}
+  ${dependencies.packageMetadata.homepage || 'https://github.com/yaleh/cloudpit'}
 
 Report Issues:
-  ${dependencies.packageMetadata.bugsUrl || 'https://github.com/yaleh/claudecodeui/issues'}
+  ${dependencies.packageMetadata.bugsUrl || 'https://github.com/yaleh/cloudpit/issues'}
 `);
 }
 

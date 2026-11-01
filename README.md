@@ -10,7 +10,7 @@
 > scope is maintained elsewhere and is **not** built from this repository.
 
 <p align="center">
- <a href="https://github.com/yaleh/claudecodeui/releases">Releases</a> · <a href="https://github.com/yaleh/claudecodeui/issues">Bug Reports</a> · <a href="CONTRIBUTING.md">Contributing</a>
+ <a href="https://github.com/yaleh/cloudpit/releases">Releases</a> · <a href="https://github.com/yaleh/cloudpit/issues">Bug Reports</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 <div align="right"><i><b>English</b> · <a href="./docs/README.ru.md">Русский</a> · <a href="./docs/README.de.md">Deutsch</a> · <a href="./docs/README.ko.md">한국어</a> · <a href="./docs/README.zh-CN.md">简体中文</a> · <a href="./docs/README.zh-TW.md">繁體中文</a> · <a href="./docs/README.ja.md">日本語</a> · <a href="./docs/README.tr.md">Türkçe</a></i><br><sub>The translations follow the upstream README and do not cover the fork-specific sections below.</sub></div>
@@ -127,9 +127,9 @@ Supports Claude Code and Codex. See the [sandbox docs](docker/) for setup and ad
 
 ### Desktop App
 
-Cloudpit Desktop is an optional native app that keeps the UI available from your tray. It ships from this repository's [GitHub Releases](https://github.com/yaleh/claudecodeui/releases) together with checksums. **Only a Windows installer is published; there is no macOS or Linux build.**
+Cloudpit Desktop is an optional native app that keeps the UI available from your tray. It ships from this repository's [GitHub Releases](https://github.com/yaleh/cloudpit/releases) together with checksums. **Only a Windows installer is published; there is no macOS or Linux build.**
 
-Choose **Local Cloudpit** in the desktop app to use your running local server or have it start one for you. The first time, it downloads a matching local-server runtime from this repository's `cloudcli-local-server-<version>` pre-release.
+Choose **Local Cloudpit** in the desktop app to use your running local server or have it start one for you. The first time, it downloads a matching local-server runtime from this repository's `cloudpit-local-server-v<version>` pre-release.
 
 ## Releasing
 
@@ -236,7 +236,7 @@ Yes. The UI reads from and writes to the same `~/.claude` config that Claude Cod
 
 ## Community & Support
 
-- **[GitHub Issues](https://github.com/yaleh/claudecodeui/issues)** — bug reports and feature requests
+- **[GitHub Issues](https://github.com/yaleh/cloudpit/issues)** — bug reports and feature requests
 - **[Contributing Guide](CONTRIBUTING.md)** — how to contribute to the project
 
 ## License

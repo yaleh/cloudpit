@@ -8,7 +8,7 @@ on:
         required: false
         type: string
 
-# The fork (yaleh/claudecodeui) ships Windows only: there is no Apple signing
+# The fork (yaleh/cloudpit) ships Windows only: there is no Apple signing
 # certificate, so the macOS desktop job is gone and nothing here references the
 # Apple signing secrets or the macOS disk-image artifact. The Windows job auto-selects signed vs unsigned
 # from WINDOWS_CSC_LINK/WINDOWS_CSC_KEY_PASSWORD, and the local-server runtime is
@@ -46,7 +46,7 @@ jobs:
 
           {
             echo "tag=$TAG"
-            echo "server_bundle_tag=cloudcli-local-server-${TAG}"
+            echo "server_bundle_tag=cloudpit-local-server-${TAG}"
           } >> "$GITHUB_OUTPUT"
 
   build-windows:
@@ -121,8 +121,8 @@ jobs:
           sha256sum release/desktop/*.exe > desktop-release-assets/SHASUMS256-windows.txt
           cp release/desktop/*.exe desktop-release-assets/
 
-          test -n "$(find release/local-server -maxdepth 1 -name 'cloudcli-local-server-*.tar.gz' -print -quit)"
-          test -n "$(find release/local-server -maxdepth 1 -name 'cloudcli-local-server-*.tar.gz.sha256' -print -quit)"
+          test -n "$(find release/local-server -maxdepth 1 -name 'cloudpit-local-server-v*.tar.gz' -print -quit)"
+          test -n "$(find release/local-server -maxdepth 1 -name 'cloudpit-local-server-v*.tar.gz.sha256' -print -quit)"
           cp release/local-server/* server-release-assets/
 
       - name: Upload Windows desktop assets
@@ -166,8 +166,8 @@ jobs:
         run: |
           test -n "$(find release/desktop -maxdepth 1 -name '*.exe' -print -quit)"
           test -f release/desktop/SHASUMS256-windows.txt
-          test -n "$(find release/local-server -maxdepth 1 -name 'cloudcli-local-server-*.tar.gz' -print -quit)"
-          test -n "$(find release/local-server -maxdepth 1 -name 'cloudcli-local-server-*.tar.gz.sha256' -print -quit)"
+          test -n "$(find release/local-server -maxdepth 1 -name 'cloudpit-local-server-v*.tar.gz' -print -quit)"
+          test -n "$(find release/local-server -maxdepth 1 -name 'cloudpit-local-server-v*.tar.gz.sha256' -print -quit)"
           find release -maxdepth 2 -type f -print | sort
 
       - name: Verify target GitHub release exists

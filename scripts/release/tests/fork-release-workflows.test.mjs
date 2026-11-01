@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Static guard for the fork release pipeline (yaleh/claudecodeui).
+ * Static guard for the fork release pipeline (yaleh/cloudpit).
  *
  * The fork releases diverges from upstream (siteboon) in exactly these shape decisions, and each
  * one is a decision that silently REVERTS the moment someone re-syncs a file from upstream:
@@ -186,17 +186,17 @@ test('package.json names the fork and publishes it publicly', () => {
   assert.equal(pkg.publishConfig?.access, 'public', 'a scoped package must opt into public visibility');
   assert.match(
     String(pkg.repository?.url ?? ''),
-    /yaleh\/claudecodeui/,
+    /yaleh\/cloudpit/,
     'package.json must point repository.url at the fork, not at upstream siteboon/claudecodeui',
   );
   assert.match(
     String(pkg.bugs?.url ?? ''),
-    /yaleh\/claudecodeui/,
+    /yaleh\/cloudpit/,
     'package.json must point bugs.url at the fork, not at upstream siteboon/claudecodeui',
   );
   assert.match(
     String(pkg.homepage ?? ''),
-    /yaleh\/claudecodeui/,
+    /yaleh\/cloudpit/,
     'the fork has no site of its own, so homepage must point at the fork repository',
   );
 });
@@ -254,8 +254,8 @@ test('README points every upstream-repo reference at the fork notice', () => {
     0,
     'README names upstream outside the fork-notice blockquote, so a fork user is sent to upstream downloads/issues',
   );
-  assert.match(readmeText, /github\.com\/yaleh\/claudecodeui\/releases/, 'README must link the fork GitHub Releases');
-  assert.match(readmeText, /github\.com\/yaleh\/claudecodeui\/issues/, 'README must link the fork issue tracker');
+  assert.match(readmeText, /github\.com\/yaleh\/cloudpit\/releases/, 'README must link the fork GitHub Releases');
+  assert.match(readmeText, /github\.com\/yaleh\/cloudpit\/issues/, 'README must link the fork issue tracker');
 });
 
 test('desktop-release.yml publish.needs only names real jobs', () => {

@@ -5,7 +5,7 @@
  * CloudCLI Desktop downloads its Local runtime bundle from a GitHub Release URL built by
  * `electron/serverInstaller.js`. The default base URL named the UPSTREAM repository
  * (`github.com/siteboon/claudecodeui`) while this fork publishes both the desktop installer and the
- * `cloudcli-local-server-<tag>` prerelease under `yaleh/claudecodeui` — so a user who picked
+ * `cloudpit-local-server-v<tag>` prerelease under `yaleh/cloudpit` — so a user who picked
  * "Local CloudCLI" asked a repository that never had the tag and got a 404.
  *
  * This criterion pins the two decisions that fix it, so neither can silently revert:
@@ -13,13 +13,14 @@
  *   1. the DEFAULT base URL names the fork, and no upstream org reference survives in the source;
  *   2. `CLOUDCLI_SERVER_BUNDLE_URL` still overrides it (the escape hatch admins already use).
  *
- * It also pins the URL *shape*: only the repository segment changed — the release-tag path segment
- * and the `<version>-<platform>-<arch>.tar.gz` filename are byte-identical to before.
+ * It also pins the URL *shape* the release pipeline now produces: the release-tag path segment and
+ * the `cloudpit-local-server-v<version>-<platform>-<arch>.tar.gz` filename both carry the `v`
+ * prefix the distribution criterion's `cloudpit-local-server-v2.0.0-` asset prefix expects.
  *
  * WHAT IT PRINTS. The readings are printed unconditionally, before any assertion, so a red run
  * still shows which reading was wrong:
  *
- *   bundle.default.host=github.com/yaleh/claudecodeui
+ *   bundle.default.host=github.com/yaleh/cloudpit
  *   bundle.default.upstream_refs=0
  *   bundle.env_override=honored
  */
@@ -45,18 +46,18 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 /** The upstream org whose name must not appear in the installer source or the default URL. */
 const UPSTREAM_ORG = 'siteboon';
 /** The fork's repository path, i.e. the two path segments that must follow the host. */
-const FORK_REPO_PATH = 'yaleh/claudecodeui';
+const FORK_REPO_PATH = 'yaleh/cloudpit';
 /** A deliberately non-fork base used to prove the environment override still wins. */
 const OVERRIDE_BASE = 'https://override.invalid/bundles';
 
-const VERSION = '1.38.1';
-const RELEASE_TAG = 'cloudcli-local-server-v1.38.1';
+const VERSION = '2.0.0';
+const RELEASE_TAG = 'cloudpit-local-server-v2.0.0';
 const SOURCE_REL = 'electron/serverInstaller.js';
 
-/** The full URL the fix must produce; only the repository segment differs from the old shape. */
+/** The full URL the fix must produce, with the `v` prefix on both the tag and the filename. */
 const EXPECTED_DEFAULT_URL =
   `https://github.com/${FORK_REPO_PATH}/releases/download/${RELEASE_TAG}`
-  + `/cloudcli-local-server-${VERSION}-win-x64.tar.gz`;
+  + `/cloudpit-local-server-v${VERSION}-win-x64.tar.gz`;
 
 /**
  * Read a repo-relative file as UTF-8.
@@ -144,15 +145,15 @@ test('CLOUDCLI_SERVER_BUNDLE_URL still overrides the default', () => {
   assert.equal(envOverride, 'honored', 'the environment override must win over the default base URL');
   assert.equal(
     overrideUrl,
-    `${OVERRIDE_BASE}/${RELEASE_TAG}/cloudcli-local-server-${VERSION}-win-x64.tar.gz`,
+    `${OVERRIDE_BASE}/${RELEASE_TAG}/cloudpit-local-server-v${VERSION}-win-x64.tar.gz`,
     'the override base must be used verbatim, keeping the tag/filename shape',
   );
 });
 
-test('the bundle URL shape is unchanged except for the repository segment', () => {
+test('the bundle URL shape matches the distribution asset prefix', () => {
   assert.equal(
     defaultUrl,
     EXPECTED_DEFAULT_URL,
-    'only the repository segment may change — tag path and filename must stay byte-identical',
+    'the tag path and filename must both carry the v prefix expected by cloudpit-distribution-check',
   );
 });
