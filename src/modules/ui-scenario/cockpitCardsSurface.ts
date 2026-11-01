@@ -113,6 +113,8 @@ function parseCardsReading(raw: string | null): CockpitCardReading | null {
       && typeof card.ownReply === 'boolean'
       && isIdOrNull(card.confirmOptionId)
       && isIdOrNull(card.confirmLabel)
+      && isIdOrNull(card.knowledgeState ?? null)
+      && isIdOrNull(card.knowledgeVerificationState ?? null)
     );
   });
   return cardsValid ? (parsed as CockpitCardReading) : null;

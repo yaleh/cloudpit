@@ -44,6 +44,11 @@ import {
   COCKPIT_FLEET_LOG_EXECUTOR_ID,
   type CockpitFleetExecutorDeclaration,
 } from './cockpit-fleet-executor.js';
+import {
+  readKnowledgeCase,
+  readKnowledgeDecision,
+  readKnowledgePlan,
+} from './cockpit-knowledge-reading.js';
 import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from './cockpit-session-send.executor.js';
 
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
@@ -167,6 +172,10 @@ function mapOption(raw: unknown): CockpitCardOption | null {
   const warn = text(raw.warn);
   const undo = text(raw.undo);
   const when = text(raw.when);
+  // A knowledge option's decision IS the meaning of choosing it; a word outside the contract's
+  // vocabulary is dropped (the confirmation channel then refuses the option), never guessed.
+  const decision = readKnowledgeDecision(raw.decision);
+  const plan = readKnowledgePlan(raw.plan);
   return {
     id,
     label,
@@ -178,6 +187,8 @@ function mapOption(raw: unknown): CockpitCardOption | null {
     ...(warn === '' ? {} : { warn }),
     ...(undo === '' ? {} : { undo }),
     ...(when === '' ? {} : { when }),
+    ...(decision === null ? {} : { decision }),
+    ...(plan === null ? {} : { plan }),
     ...(Array.isArray(raw.tags) ? { tags: mapTags(raw.tags) } : {}),
   };
 }
@@ -625,6 +636,10 @@ function mapCard(
       ? { system: notifyRaw.system, reason: text(notifyRaw.reason) }
       : undefined;
   const receipt = mapReceipt(raw.receipt);
+  // The knowledge case is a PROVIDER statement: readable evidence passes through verbatim and
+  // an unreadable block is simply absent. The cockpit adds nothing here; the confirmation
+  // authority stamps its signed reference on a later read (see `cockpit-knowledge-decision.ts`).
+  const knowledge = readKnowledgeCase(raw.knowledge);
 
   const card: CockpitCard = {
     id,
@@ -651,6 +666,7 @@ function mapCard(
     ...(situation === '' ? {} : { situation }),
     ...(notify === undefined ? {} : { notify }),
     ...(receipt === null ? {} : { receipt }),
+    ...(knowledge === null ? {} : { knowledge }),
   };
 
   const projected =

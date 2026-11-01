@@ -4,8 +4,10 @@ import type {
   Clock,
   CockpitCard,
   CockpitCardOption,
+  CockpitKnowledgeCase,
 } from '@/shared/types';
 import {
+  cockpitCardsReading,
   createCockpitCardController,
   defaultShownOption,
 } from '@/modules/cockpit/cockpitCardController';
@@ -1482,5 +1484,117 @@ describe('the controller publishes exactly the extracted selectors’ readings',
     h.controller.toggleProjectFilter('p1');
     expectSameDerivations(h.snapshot());
     expect(h.snapshot().visibleCards.map((entry) => entry.id)).toEqual(['a', 'c']);
+  });
+});
+
+/**
+ * A knowledge suggestion as the server sends it: the case evidence carries the reference the
+ * server minted for THIS revision, and the controller copies it onto the request.
+ */
+function knowledgeCard(id = 'k1', overrides: Partial<CockpitCard> = {}): CockpitCard {
+  const knowledge: CockpitKnowledgeCase = {
+    caseId: 'case-1',
+    knowledgeRevision: 2,
+    proposalRevision: 1,
+    state: 'verifying',
+    factsFingerprint: 'fp-1',
+    verification: { state: 'pending', summary: 'criterion is running' },
+    confirmationRef: 'kc1.payload.signature',
+    plan: { scope: ['server'], steps: ['apply it'], verification: 'the criterion exits 0' },
+  };
+  return card(id, {
+    kind: 'knowledge',
+    knowledge,
+    options: [
+      option('apply', 'Apply', {
+        decision: 'apply',
+        plan: knowledge.plan,
+        suggested: true,
+        // Irreversible so the leg exercises the direct confirm, not the countdown.
+        tags: [{ kind: 'irreversible', text: 'cannot be undone' }],
+      }),
+      option('defer', 'Defer', { decision: 'defer' }),
+    ],
+    ...overrides,
+  });
+}
+
+describe('a knowledge suggestion turns the person’s decision into a trusted request', () => {
+  it('presents the server-issued reference for the revision on screen', async () => {
+    const h = harness([knowledgeCard()]);
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(true);
+
+    expect(h.requests).toEqual([
+      {
+        cardId: 'k1',
+        revision: 1,
+        optionId: 'apply',
+        confirmationRef: 'kc1.payload.signature',
+      },
+    ]);
+  });
+
+  it('sends no reference for a card that carries no knowledge case', async () => {
+    const h = harness([irreversibleCard()]);
+    await h.controller.load();
+
+    h.controller.requestConfirm();
+    await h.controller.confirm();
+
+    expect(h.requests).toEqual([{ cardId: 'c1', revision: 1, optionId: 'one' }]);
+    expect('confirmationRef' in (h.requests[0] as object)).toBe(false);
+  });
+
+  it('re-reads when the server answers a stale revision, so the card on screen catches up', async () => {
+    const conflict = Object.assign(new Error('该建议已更新'), { code: 'REVISION_CONFLICT' });
+    const h = harness([knowledgeCard()], {
+      confirm: async () => {
+        throw conflict;
+      },
+    });
+    await h.controller.load();
+    const readsAfterLoad = h.reads;
+
+    h.controller.requestConfirm();
+    expect(await h.controller.confirm()).toBe(false);
+    expect(h.reads).toBeGreaterThan(readsAfterLoad);
+    expect(h.snapshot().lastOutcome).toMatchObject({ ok: false, cardId: 'k1' });
+  });
+
+  it('does not re-read for a failure that says nothing about the revision', async () => {
+    const h = harness([knowledgeCard()], {
+      confirm: async () => {
+        throw Object.assign(new Error('执行器失败'), { code: 'EXECUTOR_FAILED' });
+      },
+    });
+    await h.controller.load();
+    const readsAfterLoad = h.reads;
+
+    h.controller.requestConfirm();
+    await h.controller.confirm();
+
+    expect(h.reads).toBe(readsAfterLoad);
+  });
+
+  it('publishes the case and verification state in the scenario reading', async () => {
+    const h = harness([knowledgeCard(), card('plain', { rank: 2 })]);
+    await h.controller.load();
+
+    const reading = cockpitCardsReading(h.snapshot());
+    expect(reading.cards).toEqual([
+      expect.objectContaining({
+        id: 'k1',
+        knowledgeState: 'verifying',
+        knowledgeVerificationState: 'pending',
+      }),
+      expect.objectContaining({
+        id: 'plain',
+        knowledgeState: null,
+        knowledgeVerificationState: null,
+      }),
+    ]);
   });
 });
