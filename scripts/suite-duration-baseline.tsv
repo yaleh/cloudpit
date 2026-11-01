@@ -145,7 +145,7 @@
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
 #   and the quay-initiatives row by cockpit-initiative-view-and-decision-queue,
 #   measured one file at a time on 2026-10-24 (its own new criterion; no green round contains it yet),
-# so this file now covers 434 of the 482 files the current `find server -name '*.test.ts' -o -name
+# so this file now covers 445 of the 493 files the current `find server -name '*.test.ts' -o -name
 # '*.test.js' | sort` list collects; a row here is a dispatch ORDER hint only, so an unlisted file is
 # not skipped — it just sorts alphabetically after the listed ones. The remaining ~48 unlisted files
 # (claude-resident-dispatch-hook and voice-realtime-voice-active-marker among them) came in with
@@ -937,3 +937,10 @@
 #   (dur=2257ms, its own new criterion; the row keeps the 90% coverage floor clear now that the tree
 #   collects 491 server test files).
 2257	server/modules/context-events/tests/session-blocked-events.test.ts
+#   the knowledge-activity-events and mcp-knowledge-facts rows by knowledge-application-fact-contract,
+#   measured once on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test <file>` (durations 246ms / 5142ms; its own new
+#   criteria, the rows keep the 90% coverage floor clear now that the tree collects 493 server test
+#   files: 445/493).
+246	server/modules/context-events/tests/knowledge-activity-events.test.ts
+5142	server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts

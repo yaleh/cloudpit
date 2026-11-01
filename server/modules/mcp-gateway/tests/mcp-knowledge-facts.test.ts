@@ -58,6 +58,10 @@ const { closeConnection, getConnection, initializeDatabase, projectsDb, sessions
 );
 const { createAccessTokensService } = await import('@/modules/oauth/index.js');
 const { sessionsService } = await import('@/modules/providers/index.js');
+// The composition root is a top-level wiring file, not a feature module, so it has no
+// barrel contract to import through: this test assembles the gateway from the SAME
+// wiring the server executable uses, which is the behaviour under test.
+// eslint-disable-next-line boundaries/no-unknown
 const { createKnowledgeFactSource } = await import('../../../knowledge-facts-wiring.js');
 const { deriveKnowledgeOperationId } = await import('@/modules/context-events/index.js');
 const {
