@@ -78,3 +78,11 @@ extra:
 - src/modules/ui-scenario/cockpitCardsSurface.ts
 - src/modules/ui-scenario/scenarioSurface.ts
 - src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
+
+## Blocker
+
+**2026-11-01T08:36:50.751Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/ui-scenario/scenarioSurface.ts 基线外→804 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/hooks/tests/sessionLifecycleScenario.test.tsx,server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/hooks/tests/sessionLifecycleScenario.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：f72755e0-70d9-46fe-837a-826a45ff21e2
