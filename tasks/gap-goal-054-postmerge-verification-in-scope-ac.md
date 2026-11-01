@@ -2,7 +2,7 @@
 id: gap-goal-054-postmerge-verification-in-scope-ac
 title: GOAL-054 退出条件第 2 条「AC-454 达成（post-merge）」仍无在域 AC：提议新增创建即 active 的
   post-merge 发布核验 AC（建议 AC-458）
-status: todo
+status: needs-human
 labels:
   - gap
 parent: null
