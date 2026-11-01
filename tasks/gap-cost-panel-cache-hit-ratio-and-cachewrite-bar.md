@@ -53,3 +53,11 @@ extra:
 - src/modules/ui-scenario/scenarioSurface.ts (costPanel 读数接入 ScenarioReading)
 - src/modules/ui-scenario/costPanelSurface.ts (new；ScenarioCostPanelReading 与其 DOM reader，避免 surface 文件超过 800 行棘轮)
 - src/modules/ui-scenario/index.ts (barrel 重新导出新类型)
+
+## Blocker
+
+**2026-11-01T02:18:04.462Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/chat/tests/costModalAiTitle.test.tsx: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/chat/tests/costModalAiTitle.test.tsx,src/modules/chat/tests/costModalAiTitle.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：bb776d44-2186-45cf-b247-8cfa4fc9122c
