@@ -2,7 +2,7 @@
 id: gap-claude-history-reader-window-fallback
 title: Claude history reader resolves the model context window instead of the
   160K default
-status: ready
+status: done
 labels:
   - gap
 parent: null
