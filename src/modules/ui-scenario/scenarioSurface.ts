@@ -23,6 +23,8 @@ import {
 import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
 import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
+import { readCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
+import type { ScenarioCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type { ScenarioSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
 import type {
@@ -193,29 +195,6 @@ export type ScenarioQuayPulseReading = {
   taskIds: string[];
   /** Goal ids the popover lists, in the order it draws them. */
   goalIds: string[];
-};
-
-/**
- * The `/cost` command modal's cache-accounting reading.
- *
- * The modal does not import this dev-only module, so the reading is the DOM it
- * draws: each row declares `data-cost-label`/`data-cost-value` (and the derived
- * hit-rate row names itself with `data-cost-role`), the proportion bar's
- * segments declare their key and percentage, and the provider statement is its
- * own `data-testid`. A closed modal answers `open: false` with every other field
- * absent — never a fabricated ratio.
- */
-export type ScenarioCostPanelReading = {
-  /** Whether the panel is mounted right now. */
-  open: boolean;
-  /** The provider's cache-accounting sentence, or `null` when absent. */
-  accountingNote: string | null;
-  /** The hit-rate row's value (e.g. `30%`), or `null` when no ratio was drawn. */
-  cacheHitRatio: string | null;
-  /** Bar segments in draw order. */
-  segments: { key: string; percent: number }[];
-  /** Rendered usage rows in draw order. */
-  rows: { label: string; value: string; role: string | null }[];
 };
 
 /** The structured state a scenario reads. Everything here is a READING, never a screenshot. */
@@ -570,51 +549,6 @@ function readQuayPulseReading(): ScenarioQuayPulseReading {
     transcript,
     taskIds: ids('data-task-id', 'quay-pulse-task-row'),
     goalIds: ids('data-goal-id', 'quay-pulse-goal-row'),
-  };
-}
-
-/** The reading returned when the `/cost` modal is closed: every field is honestly absent. */
-const EMPTY_COST_PANEL_READING: ScenarioCostPanelReading = {
-  open: false,
-  accountingNote: null,
-  cacheHitRatio: null,
-  segments: [],
-  rows: [],
-};
-
-/**
- * Reads the `/cost` modal's cache accounting from the DOM the panel draws.
- *
- * Every quantity the panel shows declares itself (`data-cost-label`/`data-cost-value`), so a
- * scenario can assert a row's presence and value without matching translated prose. A closed
- * modal answers the empty reading — that is what lets a scenario step assert it closed again.
- */
-function readCostPanelReading(): ScenarioCostPanelReading {
-  if (typeof document === 'undefined') {
-    return { ...EMPTY_COST_PANEL_READING, segments: [], rows: [] };
-  }
-  const panel = document.querySelector('[data-testid="cost-panel"]');
-  if (!(panel instanceof HTMLElement)) {
-    return { ...EMPTY_COST_PANEL_READING, segments: [], rows: [] };
-  }
-  const rows = [...panel.querySelectorAll('[data-testid="cost-usage-row"]')].map((node) => ({
-    label: node.getAttribute('data-cost-label') ?? '',
-    value: node.getAttribute('data-cost-value') ?? '',
-    role: node.getAttribute('data-cost-role'),
-  }));
-  const segments = [...panel.querySelectorAll('[data-cost-segment]')].map((node) => ({
-    key: node.getAttribute('data-cost-segment') ?? '',
-    percent: Number(node.getAttribute('data-cost-percent') ?? '0'),
-  }));
-  const note = panel.querySelector('[data-testid="cost-cache-accounting-note"]');
-  const noteText = note instanceof HTMLElement ? note.textContent?.trim() ?? '' : '';
-  const ratioRow = rows.find((row) => row.role === 'cache-hit-ratio');
-  return {
-    open: true,
-    accountingNote: noteText === '' ? null : noteText,
-    cacheHitRatio: ratioRow?.value ?? null,
-    segments,
-    rows,
   };
 }
 

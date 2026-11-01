@@ -1,6 +1,6 @@
 {
   "name": "cost-panel-cache-ratio",
-  "description": "The `/cost` panel's cache accounting, opened the way a person opens it (the composer's own `/cost` command) on a Codex session that reports cumulative cached input. The panel must draw the derived cache hit rate as its own row, the fresh/cache-read proportion bar in the same input unit as the ratio, and the provider's cache-accounting statement; the cache rows must read as a breakdown of input rather than as addends. Every assertion reads the panel's own `data-cost-*` declarations, never translated prose.",
+  "description": "The `/cost` panel's cache accounting, opened the way a person opens it (the composer's own `/cost` command) on a Codex session that reports cumulative cached input. The panel must draw the derived cache hit rate as its own row, the fresh/cache-read/cache-write proportion bar in the same input unit as the ratio, and the provider's cache-accounting statement; the cache rows must read as a breakdown of input rather than as addends. Every assertion reads the panel's own `data-cost-*` declarations, never translated prose. This Codex fixture reports `cache_write_input_tokens: 0`, so the write row and segment are legitimately drawn at zero — the reported-zero arm, distinct from the absent-quantity arm the unit test covers.",
   "steps": [
     {
       "open": "cost-panel",
@@ -15,9 +15,10 @@
           "Cache hit rate",
           "Input tokens",
           "Cached input tokens",
+          "Cached write tokens",
           "Output tokens"
         ],
-        "costPanelSegmentKeys": ["fresh", "cacheRead"],
+        "costPanelSegmentKeys": ["fresh", "cacheRead", "cacheWrite"],
         "costPanelAccountingNoteIncludes": "Input already includes cached input tokens"
       }
     }

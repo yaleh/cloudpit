@@ -1030,7 +1030,21 @@ async function openQuayPulse(page) {
  * @param {{ project: string, session: string }} target
  */
 async function openCostPanel(page, target) {
+  // The `/cost` command forwards the client's own `tokenBudget` as the usage context, and that
+  // budget arrives from the session's token-usage fetch AFTER the workspace mounts. Executing
+  // before it lands renders the LEGACY layout (used 0 / Breakdown Unavailable) — a race in the
+  // page, not a scenario state — so the opener waits for that fetch (bounded: a session that
+  // reports none simply leaves the legacy layout, which is itself a legitimate reading).
+  const tokenUsage = page
+    .waitForResponse((response) => /\/token-usage(\?|$)/.test(new URL(response.url()).pathname), {
+      timeout: 15_000,
+    })
+    .catch(() => null);
   await openSession(page, target);
+  await tokenUsage;
+  // Let the budget's React commit reach the command handler's closure before typing.
+  await page.waitForTimeout(300);
+
   const textarea = page.locator('[data-slot="prompt-input-textarea"]:visible').first();
   await textarea.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
   await textarea.click();
