@@ -238,7 +238,23 @@ type HomeFileStamp = { mtimeMs: number; size: number };
  * including `registry.json`, `initiatives.json` and the decision ledger — to stay identical.
  * `ledgers/` and `acceptance-windows/` are wholly service/operator written, so they are matched by
  * prefix; the initiative decision ledger is checked separately below.
+ *
+ * The service also owns whole directories beyond `ledgers/`: every tick appends to
+ * `context/events/<date>.jsonl`, rewrites `behavior/attention-window.json`, and (with
+ * `--knowledge-assessment`) rewrites `knowledge/{cases,facts,intake,origins,trigger}`. Leaving those
+ * out of the prefix set made this guard red on a tick crossing the ~7s contract run — observed on
+ * 2026-11-01 as `context/events/2026-11-01.jsonl` and, on the isolated re-run, as seven
+ * `knowledge/**` files. None of the exercised verbs writes those trees (the only writing verbs run
+ * against a temporary `QUAY_FLEET_HOME`), so exempting them keeps the guard's actual target — the
+ * real `registry.json` / `initiatives.json` — fully literal.
  */
+const RESIDENT_SERVICE_DIRECTORIES = [
+  'acceptance-windows/',
+  'behavior/',
+  'context/',
+  'knowledge/',
+  'ledgers/',
+];
 const RESIDENT_SERVICE_FILES = new Set([
   'attention.json',
   'bridge-deliveries.v0.json',
@@ -264,8 +280,7 @@ const RESIDENT_SERVICE_FILES = new Set([
 
 function isResidentServiceFile(file: string): boolean {
   return RESIDENT_SERVICE_FILES.has(file)
-    || file.startsWith('ledgers/')
-    || file.startsWith('acceptance-windows/');
+    || RESIDENT_SERVICE_DIRECTORIES.some((prefix) => file.startsWith(prefix));
 }
 
 /** Every regular file under the fleet home, keyed by relative path. */
