@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-card-details-dismiss-action
 title: Cockpit 卡片详情补齐忽略/丢弃入口与结果反馈
-status: todo
+status: ready
 labels:
   - gap
   - defect
