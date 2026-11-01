@@ -23,17 +23,43 @@ extra:
 
 ## AC
 
-- [ ] AC1：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx --maxWorkers=1 退出 0。覆盖共用忽略控件与详情：ask 可用、非 ask/已有 feedback 不提供、无发送 target 仍可忽略、首次点击不发送、取消不改选项和草稿、请求中禁用重复操作。
-- [ ] AC2：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts --maxWorkers=1 退出 0。覆盖 dismiss 与发送互斥、确认请求只走 dismiss、不调用发送执行器、失败可重试、成功重读删除卡片并清理详情；保留既有 revision 与反馈锁保护。
-- [ ] AC3：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx --maxWorkers=1 与同命令单独运行 src/modules/cockpit/tests/CockpitColumn.test.tsx，分别退出 0。验证手机抽屉和桌面侧栏接入同一忽略状态，失败在详情可见，成功返回列表提示仍可见且位置与过滤条件保留。测试必须断言请求及界面结果，不能只断言新增按钮存在。
-- [ ] AC4：npm run typecheck、npm run build:client、npm run lint 分别退出 0；遵循 frontend-module-standards，忽略交互规则归 controller，控件只展示状态和转发命令。测试逐文件运行，不在会话内运行无并发限制的多文件测试或完整套件。
-- [ ] AC5：以可用的 e2e/scenarios/cockpit-cards-dismiss.json 为基础扩展详情场景，执行 node scripts/ui-scenario.mjs <scenario.json> …，JSON 报告 ok=true 且无失败步骤，检查点截图写入 tmp/。报告应可机械确认从详情发起忽略、取消、最终卡片消失和成功提示；不得只跑列表忽略代替详情验收。
+- [x] AC1：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx --maxWorkers=1 退出 0。覆盖共用忽略控件与详情：ask 可用、非 ask/已有 feedback 不提供、无发送 target 仍可忽略、首次点击不发送、取消不改选项和草稿、请求中禁用重复操作。
+- [x] AC2：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/cockpitCardController.test.ts --maxWorkers=1 退出 0。覆盖 dismiss 与发送互斥、确认请求只走 dismiss、不调用发送执行器、失败可重试、成功重读删除卡片并清理详情；保留既有 revision 与反馈锁保护。
+- [x] AC3：执行 bash scripts/with-memory-cap.sh npx vitest run src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx --maxWorkers=1 与同命令单独运行 src/modules/cockpit/tests/CockpitColumn.test.tsx，分别退出 0。验证手机抽屉和桌面侧栏接入同一忽略状态，失败在详情可见，成功返回列表提示仍可见且位置与过滤条件保留。测试必须断言请求及界面结果，不能只断言新增按钮存在。
+- [x] AC4：npm run typecheck、npm run build:client、npm run lint 分别退出 0；遵循 frontend-module-standards，忽略交互规则归 controller，控件只展示状态和转发命令。测试逐文件运行，不在会话内运行无并发限制的多文件测试或完整套件。
+- [x] AC5：以可用的 e2e/scenarios/cockpit-cards-dismiss.json 为基础扩展详情场景，执行 node scripts/ui-scenario.mjs <scenario.json> …，JSON 报告 ok=true 且无失败步骤，检查点截图写入 tmp/。报告应可机械确认从详情发起忽略、取消、最终卡片消失和成功提示；不得只跑列表忽略代替详情验收。
 
 ## DoD
 
 必须在实际运行的隔离页面通过 MCP 浏览器亲手操作桌面侧栏详情、桌面卡片页弹层和手机抽屉，至少完成进入详情、忽略、取消、重新忽略并确认；验证请求中锁定、失败提示与重试、成功返回列表及位置保留。截图保存 tmp/，在本任务完成记录贴出路径与对应场景，不能以组件测试或截图文件存在代替实际交互。
 
 真实或隔离 fleet ask 卡经详情操作后，从可见列表及 API 读数消失，原会话没有新增回答或推理回合；保存 dismiss 请求、响应和前后读数，证明没有调用发送通道。失败路径保留卡片与草稿，错误在详情可见，重试能再次请求。运行场景运行器并贴出 JSON 报告及检查点截图；失败诊断优先一次读取 window.__cloudcliScenario.read()，使用开发构建和 ui-scenario=1 开启语义面。完成记录同时提供窄范围测试、构建与静态检查结果。
+
+## 完成记录
+
+实现：新增共用 `CockpitCardDismissBar`（列表行与详情底栏共用同一组 `data-card-id`/`data-dismiss-pending` 与三条命令）；`CockpitCardDetails` 接入 `dismissTarget`/`dismissPending`/`dismissing`/`dismissNotice`，无发送 target 但存在 dismiss target 时仍渲染忽略入口；桌面内嵌列、卡片页浮层、手机抽屉三处详情共用同一 controller 状态；ui-scenario 增加详情范围内的 open/confirm/cancel 驱动与 `detailsOpenCardId`/`dismissOpenCardId` 读数，场景扩为 7 步详情流程。
+
+窄范围测试（worktree，逐文件 `bash scripts/with-memory-cap.sh npx vitest run <file> --maxWorkers=1`）：
+- `CockpitCard.test.tsx` 93 passed，exit 0（tmp/ac-CockpitCard.log）
+- `cockpitCardController.test.ts` 73 passed，exit 0（tmp/ac-cockpitCardController.test.log）
+- `cockpitCardsMobileDetails.test.tsx` 18 passed，exit 0（tmp/ac-cockpitCardsMobileDetails.log）
+- `CockpitColumn.test.tsx` 19 passed，exit 0（tmp/ac-CockpitColumn.log）
+- `cockpitCardsSurface.test.ts` 6 passed，exit 0（tmp/ac-cockpitCardsSurface.test.log）
+
+静态检查：`npm run typecheck`、`npm run build:client`、`npm run lint` 均 exit 0（tmp/ac4-typecheck.log、tmp/ac4-build-client.log、tmp/ac4-lint.log）。
+
+场景运行器（AC5）：`node scripts/ui-scenario.mjs e2e/scenarios/cockpit-cards-dismiss.json` → `ok: true`，7 steps / 5238ms，报告 `tmp/ui-scenario-dismiss/report.json`，检查点截图 `tmp/ui-scenario-dismiss/step-1-open-cockpit-cards.png` … `step-7-drive-cockpitCard.confirmDismissFromDetails.png`。步骤 3 打开详情、4 从详情发起忽略、5 从详情取消、6 重开、7 从详情确认；断言取 `data-cockpit-cards` 读数与 dismiss bar 的 `data-card-id`/`data-dismiss-pending`，驱动只按抽屉控件，不以列表行代替。
+
+真实浏览器 DoD（隔离实例 :3111 + worktree vite :5199，`tmp/dod-cockpit-dismiss.mjs`，page/fail/phone/column 四条腿）：36 checks、0 failures，报告 `tmp/dod/report.json`，截图 `tmp/dod/01-page-list.png` … `tmp/dod/16-column-dismissed.png`。
+- 桌面浮层详情：进入详情→忽略→取消→重开→确认（02/03/04/05/06）；请求中确认与取消同时禁用（05）。
+- 失败路径：502 在详情内显示且卡片/详情保留，重试可再次发起（07/08/09）。
+- 手机抽屉：进入详情→取消→确认，卡片消失（10/11/12）。
+- 真实会话页 PC 列：详情内推、取消保留详情、确认后回到列表且列表不跳回顶部（13/14/15/16）。
+- 发送通道：`confirmRequests: []`，四条腿全程零确认/回答请求。
+- dismiss 请求体：`{"cardId":"fixture:ask","revision":1}`（page）、`{"cardId":"fixture:session-only","revision":1}`（fail 首次 502）、`{"cardId":"fixture:content-unavailable","revision":1}`（phone）、`{"cardId":"fixture:session-only","revision":1}`（column）。
+- 前后读数：确认后目标卡从 `visibleCardIds` 消失（9→8；列内 6 条剩 5），`detailsOpenCardId` 回到 `null`，列表提示 `data-ok="true"`。
+
+- 该轴仍暗,理由:本任务为前端 cockpit 详情接线，未跑架构探针，L_D/L_G 无可测读数，验证面为逐文件测试、构建静态检查与真实浏览器读数。
 
 ## Touches
 
@@ -48,3 +74,7 @@ extra:
 - src/modules/cockpit/tests/cockpitCardsMobileDetails.test.tsx
 - src/modules/cockpit/tests/CockpitColumn.test.tsx
 - e2e/scenarios/cockpit-cards-dismiss.json
+- scripts/ui-scenario.mjs
+- src/modules/ui-scenario/cockpitCardsSurface.ts
+- src/modules/ui-scenario/scenarioSurface.ts
+- src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
