@@ -1,7 +1,7 @@
 ---
 id: gap-codex-resident-blocked-producer-fixture-isolation
 title: 修复 producer fixture/DoD 场景把 session.blocked 合成事件写进真实 fleet home
-status: ready
+status: done
 labels: []
 parent: null
 children: []
