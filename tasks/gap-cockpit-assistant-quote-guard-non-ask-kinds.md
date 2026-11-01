@@ -2,7 +2,7 @@
 id: gap-cockpit-assistant-quote-guard-non-ask-kinds
 title: cockpitAssistantQuote 兜底对非 ask 卡越界：机械 need/fix/stuck/decision
   卡的『任务标题』/「引号」被误读成「助手原话」
-status: todo
+status: ready
 labels:
   - gap
   - defect
