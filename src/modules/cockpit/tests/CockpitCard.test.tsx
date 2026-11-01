@@ -2016,3 +2016,170 @@ describe('presentational blocks draw precomputed props and own no state', () => 
     );
   });
 });
+
+/**
+ * The drawer is a LONGER reading of the same card, so it must carry the same third action the
+ * row does. These tests hold the details block to that contract without a controller: the target
+ * comes from the same `dismissTargetOf` derivation the controller uses, and the two presses are
+ * separate callbacks, so a drawer that folded them into one would show up here as a missing
+ * intermediate state.
+ */
+describe('Details: the third action is offered beside the shown option', () => {
+  function renderDetailsDismiss({
+    card = CARD,
+    target = confirmTargetOf(CARD, defaultShownOption(CARD) ?? undefined, ''),
+    dismissTarget = dismissTargetOf(CARD),
+    pending = false,
+    dismissing = false,
+    notice = null,
+    onRequestDismiss = vi.fn(),
+    onConfirmDismiss = vi.fn(),
+    onCancelDismiss = vi.fn(),
+  }: {
+    card?: CockpitCardData;
+    target?: ReturnType<typeof confirmTargetOf>;
+    dismissTarget?: ReturnType<typeof dismissTargetOf>;
+    pending?: boolean;
+    dismissing?: boolean;
+    notice?: { cardId: string; ok: boolean; message: string } | null;
+    onRequestDismiss?: () => void;
+    onConfirmDismiss?: () => void;
+    onCancelDismiss?: () => void;
+  } = {}) {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails
+          card={card}
+          now={NOW}
+          onClose={() => undefined}
+          target={target}
+          onRequestConfirm={vi.fn()}
+          confirmPending={false}
+          sendCountdown={null}
+          confirming={false}
+          confirmOutcome={null}
+          dismissTarget={dismissTarget}
+          dismissPending={pending}
+          dismissing={dismissing}
+          dismissNotice={notice}
+          onRequestDismiss={onRequestDismiss}
+          onConfirmDismiss={onConfirmDismiss}
+          onCancelDismiss={onCancelDismiss}
+        />
+      </I18nextProvider>,
+    );
+    return { onRequestDismiss, onConfirmDismiss, onCancelDismiss };
+  }
+
+  it('offers the discard action and its first press opens an in-place confirmation that sends nothing', () => {
+    const spies = renderDetailsDismiss();
+
+    const dismiss = screen.getByTestId('cockpit-card-details-dismiss');
+    expect(dismiss.textContent?.trim()).toBe('Ignore / discard');
+    expect(screen.queryByTestId('cockpit-card-details-dismiss-confirm')).toBeNull();
+
+    fireEvent.click(dismiss);
+    expect(spies.onRequestDismiss).toHaveBeenCalledTimes(1);
+    expect(spies.onConfirmDismiss).not.toHaveBeenCalled();
+
+    // The option's own bar is untouched by the first press: the drawer keeps both choices.
+    expect(screen.getByTestId('cockpit-card-details-confirm').textContent?.trim()).toBe('Confirm');
+
+    cleanup();
+    renderDetailsDismiss({ pending: true });
+    expect(screen.getByTestId('cockpit-card-details-dismiss-confirm').textContent?.trim()).toBe(
+      'Confirm discard',
+    );
+    expect(screen.getByTestId('cockpit-card-details-dismiss-cancel').textContent?.trim()).toBe(
+      'Cancel',
+    );
+  });
+
+  it('cancels from the drawer without disturbing the shown option or the draft', () => {
+    const onCancelDismiss = vi.fn();
+    renderDetailsDismiss({ pending: true, onCancelDismiss });
+
+    const confirmBarBefore = screen.getByTestId('cockpit-card-details-confirm-bar').outerHTML;
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-cancel'));
+    expect(onCancelDismiss).toHaveBeenCalledTimes(1);
+    // Cancel is the controller's to answer; the block only forwards it. The card's own choices
+    // are still drawn exactly as before, and the displayed ask is unchanged.
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar').outerHTML).toBe(confirmBarBefore);
+    expect(screen.getByTestId('cockpit-card-details').textContent).toContain(
+      'Should the cleanup delete the staging directory?',
+    );
+  });
+
+  it('draws the discard entry when there is no option to confirm', () => {
+    renderDetailsDismiss({ target: null });
+
+    expect(screen.queryByTestId('cockpit-card-details-confirm-bar')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-details-dismiss-bar')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-details-dismiss').textContent?.trim()).toBe(
+      'Ignore / discard',
+    );
+  });
+
+  it('offers no discard entry for a card that has none, or one already awaiting its receipt', () => {
+    renderDetailsDismiss({ card: { ...CARD, kind: 'stuck' }, dismissTarget: dismissTargetOf({ ...CARD, kind: 'stuck' }) });
+    expect(screen.queryByTestId('cockpit-card-details-dismiss-bar')).toBeNull();
+    // The option's own bar is still there: only the third choice is absent.
+    expect(screen.getByTestId('cockpit-card-details-confirm-bar')).toBeTruthy();
+
+    cleanup();
+    const sent: CockpitCardData = {
+      ...CARD,
+      feedback: {
+        cardId: CARD.id,
+        revision: CARD.revision,
+        feedbackId: 'feedback-1',
+        optionId: 'delete',
+        label: 'Delete staging',
+        sentAt: new Date(NOW).toISOString(),
+        outcome: { executor: 'fixture.record', ok: true },
+        canResend: false,
+      },
+    };
+    renderDetailsDismiss({ card: sent, dismissTarget: dismissTargetOf(sent) });
+    expect(screen.queryByTestId('cockpit-card-details-dismiss-bar')).toBeNull();
+  });
+
+  it('locks both presses while the discard is in flight', () => {
+    renderDetailsDismiss({ pending: true, dismissing: true });
+
+    expect(
+      screen.getByTestId('cockpit-card-details-dismiss-confirm').hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.getByTestId('cockpit-card-details-dismiss-cancel').hasAttribute('disabled')).toBe(
+      true,
+    );
+    expect(screen.getByTestId('cockpit-card-details-dismiss-bar').getAttribute('data-dismiss-pending')).toBe('true');
+  });
+
+  it('states a failed discard inside the drawer, with the card and its draft still shown', () => {
+    renderDetailsDismiss({
+      notice: { cardId: CARD.id, ok: false, message: 'dismiss was refused (409)' },
+    });
+
+    const notice = screen.getByTestId('cockpit-card-details-dismiss-notice');
+    expect(notice.getAttribute('role')).toBe('alert');
+    expect(notice.getAttribute('data-ok')).toBe('false');
+    expect(notice.textContent).toContain('dismiss was refused (409)');
+    // A failed discard is not a closed drawer: the card's own controls remain.
+    expect(screen.getByTestId('cockpit-card-details-confirm')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-details-dismiss')).toBeTruthy();
+  });
+
+  it('draws the same shared control in the row and the drawer, keyed to the same card', () => {
+    renderDetailsDismiss();
+    const drawerBar = screen.getByTestId('cockpit-card-details-dismiss-bar');
+    expect(drawerBar.getAttribute('data-card-id')).toBe(CARD.id);
+    expect(drawerBar.getAttribute('data-dismiss-pending')).toBe('false');
+
+    cleanup();
+    renderCard();
+    const rowBar = screen.getByTestId('cockpit-card-dismiss-bar');
+    expect(rowBar.getAttribute('data-card-id')).toBe(CARD.id);
+    expect(rowBar.getAttribute('data-dismiss-pending')).toBe('false');
+  });
+});

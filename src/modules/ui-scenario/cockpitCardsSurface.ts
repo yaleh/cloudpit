@@ -42,6 +42,13 @@ export type ScenarioCockpitCardsReading = CockpitCardReading & {
   /** The card whose confirm bar is in its confirm state, or `null` when none is. */
   confirmOpenCardId: string | null;
   /**
+   * The card whose dismiss bar is in its confirmation state, or `null` when none is.
+   *
+   * Drawn by the SAME control on the card row and in the Details drawer, so a scenario can prove
+   * the drawer's first press opened the confirmation without inferring it from a label.
+   */
+  dismissOpenCardId: string | null;
+  /**
    * The last dismiss answer's outcome, or `null` when there is no answer.
    *
    * A successful dismissal usually removes the card in the same read, so this list-level line is
@@ -150,6 +157,21 @@ function readDismissNoticeOk(): boolean | null {
   return notice instanceof HTMLElement ? notice.getAttribute('data-ok') === 'true' : null;
 }
 
+/**
+ * The card whose dismiss bar is in its confirmation state, read from that bar's own
+ * `data-card-id`.
+ *
+ * Both the card row's bar and the Details drawer's bar carry the same attributes, so this joins
+ * the two declarations and reports one card — whichever surface the person pressed.
+ */
+function readDismissOpenCardId(): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const bar = document.querySelector('[data-dismiss-pending="true"]');
+  return bar instanceof HTMLElement ? bar.getAttribute('data-card-id') : null;
+}
+
 /** Reads the cards list the page drew, or `null` when its declaration is absent or malformed. */
 export function readCockpitCardsReading(list: HTMLElement): ScenarioCockpitCardsReading | null {
   const published = parseCardsReading(list.getAttribute('data-cockpit-cards'));
@@ -158,6 +180,7 @@ export function readCockpitCardsReading(list: HTMLElement): ScenarioCockpitCards
     : {
         ...published,
         confirmOpenCardId: readConfirmOpenCardId(),
+        dismissOpenCardId: readDismissOpenCardId(),
         dismissNoticeOk: readDismissNoticeOk(),
       };
 }
@@ -501,6 +524,114 @@ export function startDismissingCard(cardId: string): CardContinuation | null {
     }
     press(confirm);
     await waitForCardToLeave(cardId);
+  };
+}
+
+/**
+ * The mounted Details drawer showing `cardId`, or `null`.
+ *
+ * The drawer declares the card it reads (`data-cockpit-card-details-id`), so a step addresses
+ * the drawer that is actually showing the named card rather than whichever one was opened last.
+ */
+function detailsElement(cardId: string): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const details = document.querySelector('[data-testid="cockpit-card-details"]');
+  return details instanceof HTMLElement
+    && details.getAttribute('data-cockpit-card-details-id') === cardId
+    ? details
+    : null;
+}
+
+/**
+ * Polls for one control INSIDE the drawer showing `cardId`; `null` when it never appeared.
+ *
+ * The lookup is scoped to the drawer on purpose: a floating drawer sits over a still-mounted
+ * list whose card row draws the same dismiss confirmation, so a document-wide query would return
+ * the ROW's button and the step would pass without the drawer offering one.
+ */
+async function waitForDetailsControl(
+  cardId: string,
+  testId: string,
+): Promise<HTMLElement | null> {
+  const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
+  for (;;) {
+    const details = detailsElement(cardId);
+    const control = details === null ? null : controlWithTestId(details, testId);
+    if (control !== null) {
+      return control;
+    }
+    if (Date.now() >= deadline) {
+      return null;
+    }
+    await delay(10);
+  }
+}
+
+/**
+ * Opens the Details drawer's own dismiss confirmation — the first press, which sends nothing.
+ *
+ * Returns `null` when the drawer is not showing this card, or when it draws no dismiss control —
+ * a card that is not a session-ask, a drawer opened without a dismiss transport, or a card whose
+ * feedback already ran. A scenario must not synthesize a request the page does not offer.
+ *
+ * The step is deliberately split from the two second presses below: a single verb that pressed
+ * 「confirm」 itself would pass on a page whose drawer never drew the confirmation at all.
+ */
+export function startOpeningDismissFromDetails(cardId: string): CardContinuation | null {
+  const details = detailsElement(cardId);
+  if (details === null) {
+    return null;
+  }
+  const trigger = controlWithTestId(details, 'cockpit-card-details-dismiss');
+  if (trigger === null || (trigger instanceof HTMLButtonElement && trigger.disabled)) {
+    return null;
+  }
+  press(trigger);
+  return async () => {
+    await waitForDetailsControl(cardId, 'cockpit-card-details-dismiss-confirm');
+  };
+}
+
+/**
+ * Presses 「Confirm discard」 in the drawer's open confirmation and waits for the card to leave.
+ *
+ * Scoped to the drawer: a floating drawer sits over a still-mounted list whose row draws the
+ * same confirmation, so a document-wide lookup could press the ROW's button and pass even if the
+ * drawer offered no discard entry.
+ */
+export function startConfirmingDismissFromDetails(cardId: string): CardContinuation | null {
+  const details = detailsElement(cardId);
+  if (details === null) {
+    return null;
+  }
+  const confirm = controlWithTestId(details, 'cockpit-card-details-dismiss-confirm');
+  if (confirm === null || (confirm instanceof HTMLButtonElement && confirm.disabled)) {
+    return null;
+  }
+  press(confirm);
+  return async () => {
+    await waitForCardToLeave(cardId);
+  };
+}
+
+/**
+ * Presses 「Cancel」 in the drawer's open confirmation — the leg that proves the first press
+ * sends nothing and leaves the card, its shown option and its draft untouched.
+ */
+export function startCancellingDismissFromDetails(cardId: string): CardContinuation | null {
+  const details = detailsElement(cardId);
+  if (details === null) {
+    return null;
+  }
+  const cancel = controlWithTestId(details, 'cockpit-card-details-dismiss-cancel');
+  if (cancel === null || (cancel instanceof HTMLButtonElement && cancel.disabled)) {
+    return null;
+  }
+  press(cancel);
+  return async () => {
+    await delay(0);
   };
 }
 

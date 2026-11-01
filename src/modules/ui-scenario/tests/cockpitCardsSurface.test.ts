@@ -470,6 +470,81 @@ test('AC1: the dismiss verb presses the card\'s own two-step control, sends no c
   );
 });
 
+test('AC5: the details verbs press the DRAWER\'s discard entry, cancel sends nothing, and confirm leaves the list', async () => {
+  let dismissed = false;
+  apiMock.cockpitCards.mockImplementation(async () =>
+    answer({ cards: dismissed ? [NEED_CARD] : [NEED_CARD, ASK_CARD] }),
+  );
+  apiMock.cockpitDismissCard.mockImplementation(
+    async (request: { cardId: string; revision: number }) => {
+      dismissed = true;
+      return answer({
+        ok: true,
+        cardId: request.cardId,
+        executor: 'fixture.feedback',
+        params: { ...request, dismiss: true },
+        result: { receipt: { disposition: 'dismissed' } },
+      });
+    },
+  );
+
+  const { surface, ledger } = renderCards();
+  await waitFor(() => {
+    assert.deepEqual(surface.read().cockpit.cards?.visibleCardIds, ['fixture:need', 'fixture:ask']);
+  });
+
+  surface.drive({ 'cockpitCard.openDetails': 'fixture:ask' });
+  await nextTask();
+  assert.equal(surface.read().cockpit.cards?.detailsOpenCardId, 'fixture:ask');
+
+  // First press, inside the drawer: its own control opens the in-place confirmation and the
+  // reading says so. Nothing was requested, and the list row's control was NOT pressed.
+  surface.drive({ 'cockpitCard.openDismissFromDetails': 'fixture:ask' });
+  await surface.settle();
+  assert.equal(
+    surface.read().cockpit.cards?.dismissOpenCardId,
+    'fixture:ask',
+    'the drawer\'s discard entry opened its own confirmation',
+  );
+  assert.equal(apiMock.cockpitDismissCard.mock.calls.length, 0, 'the first press sends nothing');
+  assert.ok(
+    ledger.clicks.includes('cockpit-card-details-dismiss'),
+    'the press landed on the drawer\'s control',
+  );
+  assert.equal(
+    ledger.clicks.includes('cockpit-card-dismiss'),
+    false,
+    'the list row\'s control was never pressed',
+  );
+
+  // Cancel: no request, no notice, the drawer and the list are unchanged.
+  surface.drive({ 'cockpitCard.cancelDismissFromDetails': 'fixture:ask' });
+  await surface.settle();
+  assert.equal(surface.read().cockpit.cards?.dismissOpenCardId, null);
+  assert.equal(surface.read().cockpit.cards?.dismissNoticeOk, null);
+  assert.deepEqual(surface.read().cockpit.cards?.visibleCardIds, ['fixture:need', 'fixture:ask']);
+  assert.equal(apiMock.cockpitDismissCard.mock.calls.length, 0, 'cancel sends nothing');
+
+  // Second round, confirmed from the drawer: the card leaves, the drawer closes with it, and the
+  // list-level notice is the answer. Only the dismiss channel ran.
+  surface.drive({ 'cockpitCard.openDismissFromDetails': 'fixture:ask' });
+  await surface.settle();
+  surface.drive({ 'cockpitCard.confirmDismissFromDetails': 'fixture:ask' });
+  await surface.settle();
+
+  assert.deepEqual(surface.read().cockpit.cards?.visibleCardIds, ['fixture:need']);
+  assert.equal(surface.read().cockpit.cards?.detailsOpenCardId, null);
+  assert.equal(surface.read().cockpit.cards?.dismissNoticeOk, true);
+  assert.deepEqual(apiMock.cockpitDismissCard.mock.calls, [
+    [{ cardId: 'fixture:ask', revision: 1 }],
+  ]);
+  assert.equal(apiMock.cockpitConfirmCard.mock.calls.length, 0);
+  assert.ok(
+    ledger.clicks.includes('cockpit-card-details-dismiss-confirm'),
+    'the confirmation press was the drawer\'s own button',
+  );
+});
+
 test('AC1: with the runtime lock closed the surface is not mounted', () => {
   window.localStorage.removeItem('ui-scenario');
   detachScenarioSurface();

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   Clock,
   CockpitCard,
+  CockpitCardFeedback,
   CockpitCardOption,
   CockpitKnowledgeCase,
 } from '@/shared/types';
@@ -1426,6 +1427,96 @@ describe('the card-level 「忽略/丢弃」 target', () => {
     await h.controller.load();
 
     expect(h.snapshot().dismissTargets).toEqual({});
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+  });
+
+  it('is one decision at a time: an open discard and an open confirmation refuse each other', async () => {
+    const h = harness([card('c1')], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    // No countdown to intercept: this card's option is reversible, so the FIRST option press
+    // arms the countdown, which the dismiss request must refuse.
+    expect(h.controller.requestConfirm('c1')).toBe(true);
+    expect(h.snapshot().sendCountdown).not.toBeNull();
+    expect(h.controller.requestDismiss('c1')).toBe(false);
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.controller.cancelConfirm()).toBe(true);
+    expect(h.snapshot().sendCountdown).toBeNull();
+
+    // ...and the reverse: with the discard confirmation open, the option press is refused.
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(h.controller.requestConfirm('c1')).toBe(false);
+    expect(h.snapshot().sendCountdown).toBeNull();
+    expect(h.snapshot().pendingConfirm).toBeNull();
+    expect(h.controller.cancelDismiss()).toBe(true);
+  });
+
+  it('leaves the card and its choices in place after a failed discard, and retries', async () => {
+    let attempts = 0;
+    const h = harness([card('c1')], {
+      dismiss: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('gateway answered 502');
+        return { ok: true };
+      },
+    });
+    await h.controller.load();
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(await h.controller.confirmDismiss()).toBe(false);
+
+    // The dismissal did not happen: the card is still there, its option target is untouched,
+    // and the one-line notice says why the request failed.
+    expect(h.snapshot().cards.map((subject) => subject.id)).toEqual(['c1']);
+    expect(h.snapshot().targets.c1).toMatchObject({ optionId: 'one', label: 'One' });
+    expect(h.snapshot().pendingDismiss).toBeNull();
+    expect(h.snapshot().dismissingCardId).toBeNull();
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: false });
+    expect(h.snapshot().dismissNotice?.message).toContain('502');
+    // The discard target is still offered, so the second attempt starts from the first press.
+    expect(h.snapshot().dismissTargets.c1).toMatchObject({ disabled: false });
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    expect(await h.controller.confirmDismiss()).toBe(true);
+    expect(attempts).toBe(2);
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: true });
+  });
+
+  it('closes the details drawer when a successful discard takes its card out of the list', async () => {
+    const h = harness([card('c1'), card('c2')], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    h.controller.openDetails('c1');
+    expect(h.snapshot().detailsStack).toEqual(['c1']);
+
+    expect(h.controller.requestDismiss('c1')).toBe(true);
+    h.setCards([card('c2')]);
+    expect(await h.controller.confirmDismiss()).toBe(true);
+
+    // The re-read is the picture of the provider's post-dismiss state: the card is gone and the
+    // drawer that was reading it is closed, not left pointing at a card the list no longer has.
+    expect(h.snapshot().cards.map((subject) => subject.id)).toEqual(['c2']);
+    expect(h.snapshot().detailsStack).toEqual([]);
+    expect(h.snapshot().dismissNotice).toMatchObject({ cardId: 'c1', ok: true });
+  });
+
+  it('withdraws the discard target once an action awaits its receipt, and carries the revision', async () => {
+    const feedback: CockpitCardFeedback = {
+      cardId: 'c1',
+      revision: 1,
+      feedbackId: 'f1',
+      optionId: 'one',
+      label: 'One',
+      sentAt: '2026-10-27T00:00:05.000Z',
+      outcome: { executor: 'test.exec', ok: true },
+      canResend: false,
+    };
+    const h = harness([card('c1', { feedback })], { dismiss: async () => ({ ok: true }) });
+    await h.controller.load();
+
+    // The action already ran; discarding now would be a second, contradictory decision.
+    expect(h.snapshot().dismissTargets.c1).toMatchObject({ disabled: true });
+    expect(h.snapshot().dismissTargets.c1?.disabledReason).not.toBeNull();
     expect(h.controller.requestDismiss('c1')).toBe(false);
   });
 });

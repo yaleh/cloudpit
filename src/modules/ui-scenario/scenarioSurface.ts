@@ -8,8 +8,11 @@ import {
   pressCardToSelect,
   readCockpitCardsReading,
   settleCardStep,
+  startCancellingDismissFromDetails,
   startConfirmingCard,
+  startConfirmingDismissFromDetails,
   startDismissingCard,
+  startOpeningDismissFromDetails,
   startShowingCardOption,
   startWritingCardOwnReply,
 } from '@/modules/ui-scenario/cockpitCardsSurface';
@@ -98,6 +101,9 @@ export type ScenarioDriveStep =
   | { 'cockpitCard.confirm': string }
   | { 'cockpitCard.openDetails': string }
   | { 'cockpitCard.dismiss': string }
+  | { 'cockpitCard.openDismissFromDetails': string }
+  | { 'cockpitCard.confirmDismissFromDetails': string }
+  | { 'cockpitCard.cancelDismissFromDetails': string }
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true }
@@ -709,6 +715,21 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('cockpitCard.dismiss' in step) {
       action = 'cockpitCard.dismiss';
       pendingCardAction = startDismissingCard(step['cockpitCard.dismiss']);
+    } else if ('cockpitCard.openDismissFromDetails' in step) {
+      action = 'cockpitCard.openDismissFromDetails';
+      pendingCardAction = startOpeningDismissFromDetails(
+        step['cockpitCard.openDismissFromDetails'],
+      );
+    } else if ('cockpitCard.confirmDismissFromDetails' in step) {
+      action = 'cockpitCard.confirmDismissFromDetails';
+      pendingCardAction = startConfirmingDismissFromDetails(
+        step['cockpitCard.confirmDismissFromDetails'],
+      );
+    } else if ('cockpitCard.cancelDismissFromDetails' in step) {
+      action = 'cockpitCard.cancelDismissFromDetails';
+      pendingCardAction = startCancellingDismissFromDetails(
+        step['cockpitCard.cancelDismissFromDetails'],
+      );
     } else if ('cockpitCard.openDetails' in step) {
       action = 'cockpitCard.openDetails';
       openCardDetails(step['cockpitCard.openDetails']);
