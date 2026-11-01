@@ -317,6 +317,65 @@ export type KnowledgeActualResponse = {
   at: string;
 };
 
+/**
+ * What a LIVE process was actually launched with, read from
+ * `/proc/<pid>/cmdline`.
+ *
+ * This is a DIFFERENT source from {@link KnowledgeActualRequest}, and the two
+ * must not stand in for each other: the transcript records what one turn asked
+ * for, while the argv records what the launcher passed when the process
+ * started. A reconfigure delivered to a running process changes the first and
+ * leaves the second as it was; a re-launch changes the second. The knowledge
+ * contract names `/proc/<pid>/cmdline` (`--model` / `--settings` /
+ * `--permission-mode`) as the request-layer source, so the reading reports it
+ * separately instead of merging it into the transcript verdict.
+ *
+ * A flag the launcher did not pass is `null`: the argv is the evidence that it
+ * was absent, so that is not a failed read.
+ */
+export type KnowledgeLaunchRequest = {
+  pid: number;
+  /** The full argv of the live process; NUL-separated fields split into strings. */
+  argv: string[];
+  /** The `--model` value the launcher passed, or null. */
+  model: string | null;
+  /** The `--settings` value as the launcher passed it (JSON text or a path), or null. */
+  settings: string | null;
+  /** The `--permission-mode` value the launcher passed, or null. */
+  permissionMode: string | null;
+};
+
+/**
+ * Extracts the launcher flags from one argv.
+ *
+ * Pure, so the reader, a criterion and a replay apply the same rule. Both
+ * `--flag value` and `--flag=value` are accepted; a bare flag with no value is
+ * `null`, never an empty string, and a following token that is itself a flag is
+ * not consumed as the value.
+ */
+export function parseLaunchRequest(argv: ReadonlyArray<string>): Omit<KnowledgeLaunchRequest, 'pid' | 'argv'> {
+  const read = (flag: string): string | null => {
+    const prefix = `${flag}=`;
+    for (let index = 0; index < argv.length; index += 1) {
+      const token = argv[index]!;
+      if (token === flag) {
+        const value = argv[index + 1];
+        return value === undefined || value === '' || value.startsWith('--') ? null : value;
+      }
+      if (token.startsWith(prefix)) {
+        const value = token.slice(prefix.length);
+        return value === '' ? null : value;
+      }
+    }
+    return null;
+  };
+  return {
+    model: read('--model'),
+    settings: read('--settings'),
+    permissionMode: read('--permission-mode'),
+  };
+}
+
 /** The configuration fields an `effective_config` reading verifies one by one. */
 export const KNOWLEDGE_CONFIG_FIELDS = ['model', 'effort', 'permissionMode'] as const;
 
@@ -494,6 +553,15 @@ export type KnowledgeEffectiveConfigReading = {
   actualRequest: KnowledgeEvidence<KnowledgeActualRequest>;
   /** What the provider actually answered for that request. */
   actualResponse: KnowledgeEvidence<KnowledgeActualResponse>;
+  /**
+   * What the live process was LAUNCHED with, read from `/proc/<pid>/cmdline`.
+   *
+   * Corroborating evidence for the request layer, deliberately NOT a member of
+   * `unknown` and not part of `verified`: `verified` is defined against the
+   * provider's transcript, and a missing /proc read must not turn a verified
+   * reading into an unverified one. Its own `state` says whether it was read.
+   */
+  launchRequest: KnowledgeEvidence<KnowledgeLaunchRequest>;
   /** Per-field verification; an unstated expected field stays `unknown`. */
   fields: Record<KnowledgeConfigField, KnowledgeConfigFieldVerdict>;
   /** What this provider can read back at all; a missing field is declared, never guessed. */

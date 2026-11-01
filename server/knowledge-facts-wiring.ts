@@ -53,6 +53,7 @@ import {
   hasActualRequestSource,
   knowledgeEvidence,
   knowledgeUnknown,
+  parseLaunchRequest,
   readClaudeTranscriptTurns,
   selectClaudeTranscriptTurn,
   type IKnowledgeFactSource,
@@ -63,6 +64,7 @@ import {
   type KnowledgeFactReading,
   type KnowledgeInventoryItem,
   type KnowledgeInventoryReading,
+  type KnowledgeLaunchRequest,
   type KnowledgePeerResultReading,
   type KnowledgeReadError,
   type KnowledgeUnknownField,
@@ -569,12 +571,14 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
     let actual: KnowledgeEffectiveConfigReading['actual'];
     let process: KnowledgeEffectiveConfigReading['layers']['process'];
     let liveStartedMs: number | null = null;
+    let liveHost: { pid: number | null; startedAt: number | string | null } | null = null;
     if (deps.hosts === undefined) {
       unknown.push('actual', 'process');
       actual = knowledgeUnknown('no live-host source is wired into this fact reader');
       process = knowledgeUnknown('no live-host source is wired into this fact reader');
     } else {
       const host = deps.hosts.liveHostForSession(sessionId);
+      liveHost = host;
       const startedAt = toIso(host?.startedAt ?? null);
       liveStartedMs = startedAt === null ? null : Date.parse(startedAt);
       actual = knowledgeEvidence(
@@ -597,6 +601,45 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
             observedAt,
           );
       if (host === null) unknown.push('process');
+    }
+
+    // ── The launch request: what the LIVE PROCESS was started with ────────────
+    // The transcript answers "what did this turn ask for"; the argv answers
+    // "what was the process launched with". A reconfigure delivered to the
+    // running process changes the first and leaves the second untouched, so the
+    // two are reported apart rather than merged. A flag that is absent from the
+    // argv is a real null (the argv is evidence of its absence), not a failure.
+    let launchRequest: KnowledgeEffectiveConfigReading['launchRequest'];
+    if (liveHost === null || liveHost.pid === null) {
+      launchRequest = knowledgeUnknown<KnowledgeLaunchRequest>(
+        'no live process is registered for this session, so /proc/<pid>/cmdline cannot be read',
+      );
+    } else {
+      const cmdlinePath = `/proc/${liveHost.pid}/cmdline`;
+      let rawCmdline: string | null = null;
+      try {
+        rawCmdline = await readFile(cmdlinePath, 'utf8');
+      } catch (error) {
+        readErrors.push({
+          source: 'proc.cmdline',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      if (rawCmdline === null) {
+        launchRequest = knowledgeUnknown<KnowledgeLaunchRequest>(
+          `${cmdlinePath} could not be read; see readErrors`,
+        );
+      } else {
+        const argv = rawCmdline.split('\u0000').filter((entry) => entry !== '');
+        launchRequest = argv.length === 0
+          ? knowledgeUnknown<KnowledgeLaunchRequest>(`${cmdlinePath} is empty, so the launcher argv is unknown`)
+          : knowledgeEvidence<KnowledgeLaunchRequest>(
+              { pid: liveHost.pid, argv, ...parseLaunchRequest(argv) },
+              'proc-cmdline',
+              cmdlinePath,
+              observedAt,
+            );
+      }
     }
 
     const build = knowledgeEvidence({ buildId: deps.buildId }, 'build-info', deps.buildId, observedAt);
@@ -672,6 +715,7 @@ export function createKnowledgeFactSource(deps: KnowledgeFactSourceDeps): IKnowl
       operation,
       actualRequest,
       actualResponse,
+      launchRequest,
       fields,
       capabilities,
       verified,
