@@ -32,7 +32,7 @@ export const KNOWLEDGE_DECISIONS: readonly CockpitKnowledgeDecision[] = [
 ];
 
 /** The decisions that change the project and therefore require a complete plan. */
-const PLANNED_DECISIONS: ReadonlySet<CockpitKnowledgeDecision> = new Set(['apply', 'modify']);
+const PLANNED_DECISIONS: readonly CockpitKnowledgeDecision[] = ['apply', 'modify'];
 
 const CASE_STATES: readonly CockpitKnowledgeCaseState[] = [
   'pending',
@@ -178,5 +178,5 @@ export function knowledgeEvidenceProblem(card: CockpitCard): string | null {
 
 /** Whether one decision must carry a complete plan. */
 export function decisionRequiresPlan(decision: CockpitKnowledgeDecision): boolean {
-  return PLANNED_DECISIONS.has(decision);
+  return PLANNED_DECISIONS.includes(decision);
 }
