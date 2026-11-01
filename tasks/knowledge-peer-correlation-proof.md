@@ -59,4 +59,4 @@ extra:
 - docs/architecture/knowledge-application/FACT-CONTRACT.md
 - docs/evidence/knowledge-peer-correlation-proof.json (new)
 - server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (new)
-- tasks/knowledge-peer-correlation-proof.md (new)
+- tasks/knowledge-peer-correlation-proof.md
