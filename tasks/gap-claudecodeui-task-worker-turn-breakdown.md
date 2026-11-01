@@ -1,7 +1,7 @@
 ---
 id: gap-claudecodeui-task-worker-turn-breakdown
 title: 测量 claudecodeui-task-worker 的 219 轮/会话去向：定位 cache_read 最大单点的轮数来源
-status: todo
+status: ready
 labels:
   - gap
 parent: null
