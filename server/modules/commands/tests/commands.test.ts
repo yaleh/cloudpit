@@ -272,6 +272,25 @@ test('cost command omits unreported Codex quantities instead of reporting zero',
   assert.deepEqual(data.tokenBreakdown, { input: 10, output: 0 });
 });
 
+test('cost command omits scope when the reader did not mark the reading as cumulative', async () => {
+  // A Claude-shaped reading: `used` is the newest turn, and the reader leaves
+  // `usageScope` unset. The endpoint must not stamp "session-cumulative" onto it.
+  const result = await executeCommand('/cost', {
+    provider: 'claude',
+    sessionId: 'session-1',
+    tokenUsage: {
+      used: 120,
+      total: 200_000,
+      cumulative: { inputTokens: 100, outputTokens: 20 },
+      lastRequest: { inputTokens: 100, outputTokens: 20 },
+    },
+  });
+  const data = result.data as Record<string, any>;
+
+  assert.equal(Object.prototype.hasOwnProperty.call(data.tokenUsage, 'scope'), false);
+  assert.deepEqual(data.tokenUsage.lastRequest, { inputTokens: 100, outputTokens: 20 });
+});
+
 test('cost command passes cacheWrite through from the cumulative block', async () => {
   const tokenUsage = {
     used: 2_400,

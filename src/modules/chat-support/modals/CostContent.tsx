@@ -331,9 +331,18 @@ export function CostContent({ data }: { data: CostCommandData }) {
     || Boolean(data.tokenUsage?.lastRequest);
 
   if (isStructured) {
-    const used = readTokenQuantity(data.tokenUsage?.used);
     const window = readTokenQuantity(data.tokenUsage?.total);
     const cumulative = data.tokenUsage?.cumulative;
+    // `used` is dual-meaning across providers (Claude: newest turn; Codex:
+    // session total). Derive the session-total row from `cumulative` so it
+    // means one thing everywhere, instead of rendering Claude's occupancy as
+    // if it were the whole-session spend.
+    const sessionTotal =
+      cumulative?.totalTokens !== undefined
+        ? cumulative.totalTokens
+        : (cumulative?.inputTokens !== undefined && cumulative?.outputTokens !== undefined
+          ? cumulative.inputTokens + cumulative.outputTokens
+          : undefined);
     // The ratio is `cacheRead / input`. Rendering it when cache read was not
     // reported would turn silence into a claimed "0% cached", so the derived
     // panel exists only when the numerator was actually reported.
@@ -360,8 +369,8 @@ export function CostContent({ data }: { data: CostCommandData }) {
         title: 'Session cumulative',
         note: 'Whole-session spend. Cached input, cache writes and reasoning output are already inside input and output.',
         rows: [
-          ...(used !== undefined
-            ? [{ label: 'Total tokens used', value: formatNumber(used), icon: Activity }]
+          ...(sessionTotal !== undefined
+            ? [{ label: 'Total tokens used', value: formatNumber(sessionTotal), icon: Activity }]
             : []),
           ...(ratioRow ? [ratioRow] : []),
           ...buildCountRows(cumulative),
