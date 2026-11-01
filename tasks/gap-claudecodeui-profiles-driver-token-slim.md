@@ -2,7 +2,7 @@
 id: gap-claudecodeui-profiles-driver-token-slim
 title: claudecodeui driver profiles 瘦身：worker MCP 黑名单加
   meta-cc/archguard/plantuml，selector/pool-judge/meta-driver 降 effort:low
-status: todo
+status: ready
 labels:
   - gap
 parent: null
