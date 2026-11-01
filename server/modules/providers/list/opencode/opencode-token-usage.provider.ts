@@ -71,8 +71,25 @@ function readOpenCodeTokenUsage(databasePath: string, providerSessionId: string)
       + readUsageNumber(row.cacheReadTokens)
       + readUsageNumber(row.cacheWriteTokens);
 
+    // OpenCode's row is a whole-session accumulator: it is `sessionSpend`,
+    // never a context-occupancy reading. Only quantities that are genuinely
+    // subsets of input/output are carried as detail reads; cache writes and
+    // reasoning are separate addends in this schema, so they stay out of the
+    // counts shape rather than misrepresenting themselves as subsets. The row
+    // has no window in this schema, so no `contextOccupancy` is claimed.
+    const sessionSpend = {
+      inputTokens,
+      outputTokens,
+      ...(row.cacheReadTokens !== null && row.cacheReadTokens !== undefined
+        ? { cacheReadTokens: readUsageNumber(row.cacheReadTokens) }
+        : {}),
+    };
+
     return {
+      // Legacy dual-meaning fields (this provider's `used` is the session
+      // total), plus the first-class session reading.
       used,
+      sessionSpend,
       inputTokens,
       outputTokens,
       breakdown: { input: inputTokens, output: outputTokens },

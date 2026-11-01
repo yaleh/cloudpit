@@ -57,7 +57,8 @@ type UseChatRealtimeHandlersArgs = {
   provider: LLMProvider;
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
-  setTokenBudget: (budget: Record<string, unknown> | null) => void;
+  /** The live token_budget frame, feeding the composer's counter (never `/cost`). */
+  setLiveFrame: (frame: Record<string, unknown> | null) => void;
   pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   streamTimerRef: MutableRefObject<number | null>;
@@ -99,7 +100,7 @@ export function useChatRealtimeHandlers({
   provider,
   selectedSession,
   currentSessionId,
-  setTokenBudget,
+  setLiveFrame,
   pendingPermissionRequests,
   setPendingPermissionRequests,
   streamTimerRef,
@@ -611,7 +612,7 @@ export function useChatRealtimeHandlers({
             // The counter shows the viewed session's context; budgets from
             // other concurrently running sessions must not overwrite it.
             if (sid === activeViewSessionId) {
-              setTokenBudget(msg.tokenBudget as Record<string, unknown>);
+              setLiveFrame(msg.tokenBudget as Record<string, unknown>);
             }
           } else if (msg.text && sid) {
             onSessionProcessing?.(sid, {
@@ -635,7 +636,7 @@ export function useChatRealtimeHandlers({
     provider,
     selectedSession,
     currentSessionId,
-    setTokenBudget,
+    setLiveFrame,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamTimerRef,

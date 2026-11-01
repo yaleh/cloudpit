@@ -114,10 +114,14 @@ export function createProviderTokenUsageService(
         !session.provider_session_id
         && dependencies.isProviderSessionSuperseded(sessionId, session.provider)
       ) {
+        // A retired transcript's spend is a real zero, so it carries the
+        // first-class session shape the `/cost` view reads; no window or
+        // occupancy is claimed because no replacement run has announced one.
         return {
           used: 0,
           inputTokens: 0,
           outputTokens: 0,
+          sessionSpend: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
           breakdown: { input: 0, output: 0 },
         };
       }

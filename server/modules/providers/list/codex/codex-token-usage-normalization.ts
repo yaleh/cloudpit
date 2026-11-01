@@ -114,8 +114,15 @@ export function normalizeCodexTokenCountInfo(
   const timestamp = readObservedAt(observedAt);
 
   return {
+    // Legacy dual-meaning fields: `used` is the session total here, and the
+    // marker says so for older consumers. New code reads `sessionSpend`.
     used: cumulative?.totalTokens ?? derivedCumulativeTotal ?? 0,
     ...(window !== undefined && window > 0 ? { total: window } : {}),
+    ...(cumulative ? { sessionSpend: cumulative } : {}),
+    // Codex knows the window but not a measured occupancy, so it reports only
+    // the capacity and leaves `used` absent rather than passing the newest
+    // request's approximation off as a real reading.
+    ...(window !== undefined && window > 0 ? { contextOccupancy: { total: window } } : {}),
     inputTokens,
     outputTokens,
     ...(cumulative?.cacheReadTokens !== undefined

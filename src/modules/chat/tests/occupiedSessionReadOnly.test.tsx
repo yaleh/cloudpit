@@ -292,7 +292,6 @@ function HeldSessionView({
     currentProviderEffort: 'medium',
     isLoading: false,
     canAbortSession: false,
-    tokenBudget: null,
     sendMessage: (message) => { harness.sent.push(message as Record<string, unknown>); },
     scrollToBottom: () => undefined,
     addMessage: () => undefined,

@@ -1,7 +1,11 @@
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 
-import { providerModelsService, readSessionAiTitle } from '@/modules/providers/index.js';
+import {
+  providerModelsService,
+  providerTokenUsageService,
+  readSessionAiTitle,
+} from '@/modules/providers/index.js';
 import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
 
 import { createCommandsRouter } from './commands.routes.js';
@@ -13,6 +17,7 @@ export const commandsRoutes = createCommandsRouter({
   appRoot: findApplicationRoot(getModuleDirectory(import.meta.url)),
   models: providerModelsService,
   aiTitles: readSessionAiTitle,
+  tokenUsage: providerTokenUsageService,
   runtime: {
     uptime: process.uptime,
     memoryUsage: process.memoryUsage,

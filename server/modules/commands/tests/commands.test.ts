@@ -45,11 +45,26 @@ function createModelsService(sessionModels: Record<string, string> = {}) {
  */
 const noAiTitle = async () => null;
 
+/**
+ * The authoritative token-usage reader `/cost` goes through. Defaults to
+ * "there is no reading for this session", which is the path that uses the
+ * `context.tokenUsage` test-injection fallback; a case that exercises the real
+ * data source passes its own reader and a conflicting live frame.
+ */
+type TokenUsageService = {
+  getSessionTokenUsage: (sessionId: string) => Promise<Record<string, unknown> | null>;
+};
+
+const noAuthoritativeReading: TokenUsageService = {
+  getSessionTokenUsage: async () => null,
+};
+
 async function executeCommand(
   commandName: string,
   context: Record<string, unknown>,
   sessionModels: Record<string, string> = {},
   aiTitles: (sessionId: string) => Promise<string | null> = noAiTitle,
+  tokenUsage: TokenUsageService = noAuthoritativeReading,
 ): Promise<Record<string, unknown>> {
   const router = createCommandsRouter({
     fileSystem: {
@@ -59,6 +74,7 @@ async function executeCommand(
     appRoot: '/app',
     models: createModelsService(sessionModels) as never,
     aiTitles: aiTitles as never,
+    tokenUsage: tokenUsage as never,
     runtime: {
       uptime: () => 0,
       memoryUsage: () => ({ rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 }),
@@ -172,7 +188,12 @@ test('cost command does not ask for an ai-title without a session', async () => 
 test('cost command still reports the derived view when the ai-title reader throws', async () => {
   const result = await executeCommand(
     '/cost',
-    { provider: 'claude', sessionId: 'session-1', tokenUsage: { used: 120, total: 200 } },
+    {
+      provider: 'claude',
+      sessionId: 'session-1',
+      // The injected fallback reading (no authoritative reader in this case).
+      tokenUsage: { contextOccupancy: { used: 120, total: 200 } },
+    },
     {},
     async () => {
       throw new Error('transcript unreadable');
@@ -190,23 +211,16 @@ test('cost command still reports the derived view when the ai-title reader throw
   assert.equal(Object.prototype.hasOwnProperty.call(data, 'aiTitle'), false);
 });
 
-test('cost command folds a cumulative reading into the session slot and keeps the window separate', async () => {
+test('cost command reads the session spend from sessionSpend and keeps the window separate', async () => {
   const tokenUsage = {
-    used: 2_400,
-    total: 258_400,
-    inputTokens: 2_000,
-    outputTokens: 400,
-    cacheReadTokens: 1_500,
-    reasoningOutputTokens: 150,
-    usageScope: 'session-cumulative',
-    observedAt: '2026-10-30T09:30:00.000Z',
-    cumulative: {
+    sessionSpend: {
       inputTokens: 2_000,
       outputTokens: 400,
       cacheReadTokens: 1_500,
       reasoningOutputTokens: 150,
       totalTokens: 2_400,
     },
+    contextOccupancy: { total: 258_400 },
     lastRequest: {
       inputTokens: 700,
       outputTokens: 120,
@@ -220,9 +234,9 @@ test('cost command folds a cumulative reading into the session slot and keeps th
   const data = result.data as Record<string, any>;
   const cost = data.cost;
 
-  // A cumulative reading's `used` IS the session total, so it lands in the
-  // session slot instead of being repeated as a context occupancy.
-  assert.equal(cost.session.total, tokenUsage.cumulative.totalTokens);
+  // `sessionSpend` is the session total, so it lands in the session slot and
+  // is never repeated as a context occupancy.
+  assert.equal(cost.session.total, tokenUsage.sessionSpend.totalTokens);
   assert.equal(cost.context.used, undefined);
   // The window is an independent fact, never a denominator applied to `used`.
   assert.equal(cost.context.window, 258_400);
@@ -243,9 +257,7 @@ test('cost command omits unreported quantities instead of reporting zero', async
     provider: 'codex',
     sessionId: 'session-1',
     tokenUsage: {
-      used: 10,
-      usageScope: 'session-cumulative',
-      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+      sessionSpend: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
     },
   });
   const data = result.data as Record<string, any>;
@@ -267,21 +279,20 @@ test('cost command omits unreported quantities instead of reporting zero', async
 });
 
 test('cost command derives one provider-agnostic view for a context-scoped reading', async () => {
-  // A Claude-shaped reading: `used` is the newest turn (context occupancy), and
-  // the reader leaves `usageScope` unset. Its cumulative block still describes
-  // the whole session, so the two facts land in different slots.
+  // A Claude-shaped first-class reading: `sessionSpend` describes the whole
+  // session and `contextOccupancy` the newest turn, so the two facts land in
+  // different slots without a scope marker to tell them apart.
   const result = await executeCommand('/cost', {
     provider: 'claude',
     sessionId: 'session-1',
     tokenUsage: {
-      used: 120,
-      total: 200_000,
-      cumulative: {
+      sessionSpend: {
         inputTokens: 100,
         outputTokens: 20,
         cacheReadTokens: 75,
         cacheWriteTokens: 5,
       },
+      contextOccupancy: { used: 120, total: 200_000 },
       lastRequest: { inputTokens: 90, outputTokens: 15, cacheReadTokens: 60 },
     },
   });
@@ -307,16 +318,14 @@ test('cost command derives one provider-agnostic view for a context-scoped readi
 
 test('cost command passes cacheWrite through as a subset of input', async () => {
   const tokenUsage = {
-    used: 2_400,
-    total: 258_400,
-    usageScope: 'session-cumulative',
-    cumulative: {
+    sessionSpend: {
       inputTokens: 2_000,
       outputTokens: 400,
       cacheReadTokens: 1_500,
       cacheWriteTokens: 300,
       totalTokens: 2_400,
     },
+    contextOccupancy: { total: 258_400 },
     lastRequest: {
       inputTokens: 700,
       outputTokens: 120,
@@ -344,9 +353,7 @@ test('cost command omits cacheWrite when the reading never reported it', async (
     provider: 'claude',
     sessionId: 'session-1',
     tokenUsage: {
-      used: 10,
-      usageScope: 'session-cumulative',
-      cumulative: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+      sessionSpend: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
     },
   });
   const data = result.data as Record<string, any>;
@@ -363,34 +370,78 @@ test('cost command omits cacheWrite when the reading never reported it', async (
   });
 });
 
-test('cost command builds a session block from a flat context reading', async () => {
+test('cost command derives no session block from a context-semantic reading', async () => {
   const result = await executeCommand('/cost', {
     provider: 'claude',
     sessionId: 'session-1',
     tokenUsage: {
+      // A context-semantic reading: no `sessionSpend`, no `usageScope`, just
+      // the newest request and the window. The legacy flat counts are present
+      // too, and must NOT be stitched into a session — that stitching is the
+      // defect this shape removes.
       used: 120,
       total: 200_000,
       inputTokens: 100,
       outputTokens: 20,
       cacheReadTokens: 10,
       cacheCreationTokens: 5,
+      contextOccupancy: { used: 120, total: 200_000 },
     },
   });
   const data = result.data as Record<string, any>;
   const cost = data.cost;
 
-  // The flat reading's own counts describe the session; `used` stays the
-  // newest-turn occupancy in the context slot.
-  assert.equal(cost.session.total, 100 + 20);
-  assert.equal(cost.session.input, 100);
-  assert.equal(cost.session.output, 20);
-  assert.equal(cost.session.cacheRead, 10);
-  // Anthropic's cache-creation quantity is the write half of the same prompt.
-  assert.equal(cost.session.cacheWrite, 5);
-  assert.equal(cost.session.cacheHitRatio, 0.1);
-  assert.equal(cost.session.fresh, 100 - 10 - 5);
+  // No session data means no session block, not one assembled from request
+  // counts. The context reading stands on its own.
+  assert.equal(cost.session, undefined);
   assert.equal(cost.context.used, 120);
   assert.equal(cost.context.window, 200_000);
   assert.equal(cost.lastRequest, undefined);
   assert.equal(data.provider, 'claude');
+});
+
+test('cost command reads the authoritative session reading, never the injected live frame', async () => {
+  const asked: string[] = [];
+  const authoritative = {
+    // The shape a Claude session's provider reader answers with: the newest
+    // turn (437K) is the context occupancy, the whole session (118.5M) is the
+    // spend. Only the session's own reader knows both.
+    used: 437_000,
+    total: 917_000,
+    sessionSpend: {
+      inputTokens: 100_000_000,
+      outputTokens: 18_500_000,
+      totalTokens: 118_500_000,
+    },
+    contextOccupancy: { used: 437_000, total: 917_000 },
+  };
+  const tokenUsage = {
+    getSessionTokenUsage: async (sessionId: string) => {
+      asked.push(sessionId);
+      return authoritative;
+    },
+  };
+
+  const result = await executeCommand(
+    '/cost',
+    {
+      provider: 'claude',
+      sessionId: 'session-1',
+      // The composer's live frame, injected through the legacy context field.
+      // It must not shadow the authoritative reading: its 437K is the newest
+      // turn, not the session.
+      tokenUsage: { used: 437_000, total: 917_000 },
+    },
+    {},
+    noAiTitle,
+    tokenUsage,
+  );
+  const data = result.data as Record<string, any>;
+  const cost = data.cost;
+
+  assert.deepEqual(asked, ['session-1'], 'the provider reader must be asked for this session');
+  // The session total is the whole-session reading, not the newest turn.
+  assert.equal(cost.session.total, 118_500_000);
+  assert.equal(cost.context.used, 437_000);
+  assert.equal(cost.context.window, 917_000);
 });
