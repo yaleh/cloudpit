@@ -68,8 +68,6 @@ GOAL-054 `## 退出条件` 第 2 条，逐字为：
 
 ## Resolution
 
-## Resolution
-
 **人 yale 2026-11-01 裁定：采纳提案 (a)。** 新建 AC-458（创建即 `active`、`phase: post-merge`，criterion/expect 与 AC-454 逐字相同），并把 AC-454 标 `superseded`（`supersededBy: [AC-458]`）。
 
 goal store 写入已于 2026-11-01 经授权 goal 写入路径完成并读回核验：
