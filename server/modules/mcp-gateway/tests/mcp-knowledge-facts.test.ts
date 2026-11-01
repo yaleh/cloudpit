@@ -221,7 +221,7 @@ function makeFactSource(eventsDir: string, options: HarnessOptions) {
       listRunningRuns: () => [],
       getRun: (sessionId: string) =>
         sessionId === SESSION_A
-          ? { runId: RUN_ID, startedAt: BASE_MS, status: 'running', providerSessionId: null }
+          ? { runId: RUN_ID, startedAt: BASE_MS, status: 'running', providerSessionId: null, bootId: BOOT_ID }
           : undefined,
     },
     projects: {
@@ -265,6 +265,31 @@ async function withKnowledgeFactsHarness(run: HarnessRun, options: HarnessOption
     permissionMode: 'acceptEdits',
     lifecycleMode: 'per-run',
   });
+
+  // The actual request/response of an operation is read back from the
+  // provider's own transcript, so session A needs a real one on disk. The
+  // assistant line lands exactly at the run's start instant: inside the
+  // operation window, after the live process started and after the build.
+  const transcriptPath = path.join(tempDirectory, 'session-a.jsonl');
+  await writeFile(
+    transcriptPath,
+    [
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: new Date(BASE_MS).toISOString(),
+        sessionId: SESSION_A,
+        uuid: 'assistant-turn-a',
+        requestRef: 'request-a',
+        requestedModel: 'claude-sonnet-5-5',
+        effort: 'high',
+        message: { id: 'msg-a', model: 'claude-sonnet-5-5' },
+      }),
+    ].join('\n') + '\n',
+    'utf8',
+  );
+  getConnection()
+    .prepare('UPDATE sessions SET jsonl_path = ?, provider_session_id = ? WHERE session_id = ?')
+    .run(transcriptPath, SESSION_A, SESSION_A);
 
   await mkdir(eventsDir, { recursive: true });
   await writeFile(
@@ -504,7 +529,7 @@ test('(d) a named peer is echoed only after the store confirms it; absent layers
   });
 });
 
-test('(e) effective_config is verified only when every layer is evidence', async () => {
+test('(e) effective_config is verified only when the operation and every expected field are evidence', async () => {
   await withKnowledgeFactsHarness(async ({ call }) => {
     const unverified = readingOf(await call('knowledge_facts', { kind: 'effective_config', session: SESSION_A }));
     assert.equal(unverified.verified, false, 'without an expected layer the reading cannot be verified');
@@ -522,10 +547,10 @@ test('(e) effective_config is verified only when every layer is evidence', async
       await call('knowledge_facts', {
         kind: 'effective_config',
         session: SESSION_A,
-        expected: { model: 'claude-sonnet-5-5', effort: 'high', permissionMode: 'default' },
+        expected: { model: 'claude-sonnet-5-5', effort: 'high' },
       }),
     );
-    assert.equal(verified.verified, true, 'every layer is evidence, so the reading is verified');
+    assert.equal(verified.verified, true, 'the operation and every STATED field are evidence, so the reading is verified');
     assert.deepEqual(verified.unknown, []);
     assert.equal(evidenceValue(verified.expected as AnyRecord).model, 'claude-sonnet-5-5');
     assert.equal((verified.expected as AnyRecord).source, 'caller');
@@ -535,6 +560,36 @@ test('(e) effective_config is verified only when every layer is evidence', async
     assert.equal(evidenceValue(layers.build as AnyRecord).buildId, BUILD_ID);
     assert.equal(evidenceValue(layers.request as AnyRecord).runId, RUN_ID);
     assert.equal(evidenceValue(layers.request as AnyRecord).sessionId, SESSION_A);
+
+    const operation = evidenceValue(verified.operation as AnyRecord);
+    assert.equal(operation.id, RUN_ID, 'the reading names the in-flight operation, not the next turn');
+    const actualRequest = evidenceValue(verified.actualRequest as AnyRecord);
+    assert.equal(actualRequest.model, 'claude-sonnet-5-5', 'the request is read back from the transcript');
+    assert.equal(actualRequest.effort, 'high');
+    assert.equal((verified.actualRequest as AnyRecord).source, 'sessions.transcript');
+    const actualResponse = evidenceValue(verified.actualResponse as AnyRecord);
+    assert.equal(actualResponse.responseId, 'msg-a');
+    assert.equal(actualResponse.model, 'claude-sonnet-5-5');
+    const fields = verified.fields as AnyRecord;
+    assert.equal((fields.model as AnyRecord).state, 'verified');
+    assert.equal((fields.effort as AnyRecord).state, 'verified');
+    assert.equal((fields.permissionMode as AnyRecord).state, 'unknown');
+
+    // Claude's transcript has no permission mode, and the stored row is not a
+    // read-back of the request: an expectation for it must NOT be called
+    // verified, and the field must be reported as a capability gap, not a
+    // mismatch and not an echo of the stored value.
+    const permission = readingOf(
+      await call('knowledge_facts', {
+        kind: 'effective_config',
+        session: SESSION_A,
+        expected: { model: 'claude-sonnet-5-5', effort: 'high', permissionMode: 'default' },
+      }),
+    );
+    assert.equal(permission.verified, false, 'an unreadable expected field cannot be verified');
+    assert.ok((permission.unknown as string[]).includes('fields.permissionMode'));
+    assert.equal(((permission.fields as AnyRecord).permissionMode as AnyRecord).state, 'unknown');
+    assert.equal(((permission.capabilities as AnyRecord).request as AnyRecord).permissionMode, 'unavailable');
   });
 });
 

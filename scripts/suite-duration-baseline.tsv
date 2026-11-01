@@ -950,3 +950,9 @@
 #   tree collects 494 server test files: 446/494).
 246	server/modules/context-events/tests/knowledge-activity-events.test.ts
 5142	server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
+#   and the knowledge-effective-config-proof row by knowledge-effective-config-proof, measured once
+#   on 2026-11-01 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts`
+#   (dur=9902ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 495 server test files and the baseline holds 446 of them).
+9902	server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts

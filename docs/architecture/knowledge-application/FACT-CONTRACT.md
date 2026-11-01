@@ -100,21 +100,62 @@ type KnowledgeEvidence<T> =
 peer 已被确认时，`targetSessionId` 不再出现在 `unknown` 里——`unknown` 描述的是**这次读取**
 回答不了的字段，而不是原始来源省略了什么。
 
-## 4. `effective_config`：expected / stored / actual 与身份三层
+## 4. `effective_config`：本次 operation 的实际请求与应答，逐字段判定
 
 | 层 | 来源 | 说明 |
 | --- | --- | --- |
 | `expected` | `caller` | 调用方声明的期望；**未声明就是 unknown** |
-| `stored` | `sessions.db` | 会话行里记录的 model / effort / permissionMode |
+| `stored` | `sessions.db` | 会话行记录的 model / effort / permissionMode——只是应用记录，**不是请求的回读** |
 | `actual` | `session-hosts` | 当前是否有活进程（`live`、`pid`、`startedAt`）及在跑 run 的 `runId` |
 | `layers.process` | `session-hosts` | 活进程的 pid / startedAt / `bootId` |
 | `layers.build` | `build-info` | `buildId` |
 | `layers.request` | `chat-runs` | 在飞 run 的 `runId` / `providerSessionId` |
+| `operation` | `chat-runs` | 本次读数针对的**在飞 operation**：`id`（run id）、`at`、`bootId` |
+| `actualRequest` | `sessions.transcript` | 该 operation 内最新 assistant 行的**请求侧**：`requestedModel` / `effort` / `requestRef` |
+| `actualResponse` | `sessions.transcript` | **同一行**的应答侧：`message.model` / `message.id` / `timestamp` |
+| `fields.*` | 组合判定 | 逐字段 verdict：`verified` / `mismatch` / `unknown`（带原因） |
+| `capabilities` | 按 provider 的数据表 | 本构建对请求/应答各字段能否回读的**能力声明**；不能即 `unavailable` + 原因 |
 
-`verified` 只有在 **expected、stored、actual、process、build、request 六层全部是 evidence**
-时才为 `true`。没有 expected 层就永远验证不了——"数据库这么写"与"下一轮会用它"都不是证据。
-run 的 id 只从 registry 的按会话查找取（`listRunningRuns` 投影的行没有 runId），拿不到就是
-unknown，绝不用开始时刻编一个 id。
+`operation` 是"本次"的唯一锚点：run 必须仍在飞（`status === 'running'`）、由**当前进程 boot**
+创建，并且当调用方传了 `operationId` 时指向它。`actualRequest` / `actualResponse` 只从
+provider 自己的 transcript 里、落在 `[operation.at, now]` 且会话匹配的 assistant 行读取；
+`sourceRef` 形如 `<jsonl 路径>#<uuid>`。Claude 的 transcript **没有** permission mode，因此
+`capabilities.request.permissionMode === 'unavailable'`，`actualRequest.permissionMode` 恒为
+`null`——stored 行里的值不会被借用。
+
+`verified` 只有在以下**全部**成立时才为 `true`：
+
+1. `expected` 是 evidence 且至少声明了一个字段；
+2. `stored`、`actual`、`layers.process`、`layers.build`、`layers.request` 都是 evidence；
+3. `operation`、`actualRequest`、`actualResponse` 都是 evidence；
+4. 每个已声明字段的 verdict 都是 `verified`。
+
+层数多不等于成功。逐字段规则：
+
+- 已声明期望但读不到 → `unknown`，并进入读数的 `unknown`（如 `fields.effort`）；
+- 读到且相等 → `verified`；读到但不等 → `mismatch`，同样进入 `unknown`；
+- **未声明**的字段不参与 `verified`，也不进 `unknown`（调用方没问，不算本次读数的缺口）；
+- transcript 行缺 `model` / `effort` / `requestRef` / response id 时，`actualRequest` /
+  `actualResponse` 仍是 evidence，但缺失子字段列入 `unknown`（如 `actualRequest.effort`），
+  不以静默 null 混过去。
+
+否定规则（每条都有判据）：
+
+- **只有 DB / stored**：没有在飞 run → `operation`、`actualRequest`、`actualResponse` unknown；
+- **next-turn**：run 已完成（`status !== 'running'`）→ `operation` unknown；stored 与可读的历史行
+  都不算"本次生效"；
+- **只有 live**：活进程在，但会话行没有 transcript 路径 → `actualRequest` unknown；
+- **旧进程**：run 的 `bootId` 与当前进程不同 → `operation` unknown；
+- **旧应答**：最新 assistant 行早于 operation 开始，或早于活进程 / 当前构建 → `actualRequest` /
+  `actualResponse` unknown，响应不被借用；
+- **未知 effort**：行内没有 `effort` → `fields.effort` unknown（同一行记录到的 model 仍可 verified）；
+- **命名了非当前 operation** → `operation` unknown；
+- **provider 没有回读来源**（首轮只有 Claude 路径）→ `capabilities` 全 `unavailable`、
+  `actualRequest` unknown、相关字段 unknown，绝不用 stored 值补造。
+
+`reading.operationId` 与 `operation.id` 不是同一个东西：前者是**可回读的地址**（调用方传入，
+否则按会话派生 `op-<hash>`），后者是本次 operation 的 run id。回读时传 `reading.operationId`
+即可重新读到同一个事实。
 
 ## 5. `inventory`：有界清单
 
@@ -134,13 +175,27 @@ unknown，绝不用开始时刻编一个 id。
 - 无活动的会话 → `activity`/`correlation`/`waiting`/`reply` 全为 `unknown`，`operationId: null`。
 - 未接 host 来源 → `actual`、`process` 为 unknown，清单 `lifecycle.live` 为 `null`，绝不读成
   "没有在跑"。
+- `effective_config` 只有 stored 行 / 只有活进程 / run 已完成（next-turn）/ run 属于旧 boot /
+  应答早于 operation / 应答早于活进程或构建 / transcript 缺 effort / 期望与可读实际不一致 /
+  调用方命名了非当前 operation / provider 无回读来源 → `verified: false`，且具体层或
+  `fields.*` 进入 `unknown`（详见 §4）。
+- transcript 读失败 → `readErrors` 里一条 `sessions.transcript`，`actualRequest` /
+  `actualResponse` unknown；**不是**"这个 operation 没有请求"。
+- 无回读来源的字段（Claude 的 permissionMode）→ `capabilities` 明确声明 `unavailable`，
+  verdict 为 `unknown`；既不是 `mismatch`，也不是 stored 值的回显。
 
 ## 7. 消费者与边界
 
 - 消费者：Fleet 的 knowledge-application run 经 MCP 网关调用 `knowledge_facts`；本仓库的
   `server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts`（真实 express + 真实 `/mcp`
-  挂载 + 真实临时库与事件目录）与
-  `server/modules/context-events/tests/knowledge-activity-events.test.ts` 是这两层的判据。
+  挂载 + 真实临时库与事件目录）、
+  `server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts`（本次 operation 的
+  正例 + 十一种"不能宣布生效"的反例）与
+  `server/modules/context-events/tests/knowledge-activity-events.test.ts` 是这几层的判据。
+- Fleet 消费样例：`docs/evidence/knowledge-effective-config-proof.json` 通过真实 `/mcp` 端口
+  记录了 `knowledge_facts` 的工具描述/输入输出 schema、一次 `verified: true` 的 Claude 操作读数
+  （`operation` / `actualRequest` / `actualResponse` / `fields` / `capabilities`）以及四种
+  `verified: false` 的读数与各自的 `unknown` 字段，可直接作为 consumer 的解析夹具。
 - **Fleet 不读取本项目的私有 home。** 事实只能经受权网关读出；事件流是触发线索，读数是权威
   事实，决定前可以按 `operationId` 回读。
 - 非目标：本契约不写 fleet 文件、不读 observation store、不推断授权范围、不把"有回复"当成
@@ -153,3 +208,11 @@ CloudCLI 实例上、经正式 `/mcp` 网关取得的请求/响应与身份（`b
 `gitSha`/`builtAt`）、`peer_result` 的关联读数与其缺失标记、`effective_config` 的未验证读数，
 以及两个反例的 `code`。实例使用一次性 HOME 与其自己的事件流目录，operator 的
 `~/.quay-fleet` 流从不被该实例读取，也从不被本任务写入。
+
+`docs/evidence/knowledge-effective-config-proof.json` 记录本次 `effective_config` 的**受控实例**
+读数：生产 `mountMcpGateway` + 生产 bearer 中间件跑在 loopback 上，真实 better-sqlite3 文件与
+真实 transcript JSONL 位于一次性临时目录；run/host 接缝按生产形状注入。文件包含工具描述与
+输入输出 schema、一次 `verified: true` 的 Claude 操作（`operation` / `actualRequest` /
+`actualResponse` 均带 `sourceRef`，`permissionMode` 由 `capabilities` 声明为
+`unavailable`），以及 live-only、next-turn、DB-only、无回读 provider 四种
+`verified: false` 读数及各自 `unknown`。它**不**证明生产部署已启用：那部分留给 F10 与当前会话。
