@@ -37,7 +37,8 @@ import {
   parseLocalCommandPayload,
   readClaudeTranscriptMessage,
 } from '@/modules/providers/list/claude/claude-transcript-format.js';
-import { summarizeClaudeTokenUsage } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
+import { summarizeClaudeTokenUsage, findNewestClaudeModelId } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
+import { resolveModelContextWindowRow } from '@/modules/providers/services/model-launch-spec.service.js';
 import { takeHistoryLoadContext } from '@/modules/providers/services/session-history-cache.service.js';
 
 const PROVIDER = 'claude';
@@ -1777,6 +1778,18 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
     const { page, hasMore } = sliceTailPage(transcript, normalizedLimit, normalizedOffset);
 
+    // The history path feeds the composer counter and the `/cost` panel, so it
+    // must resolve the window from the session's model the same way the usage
+    // service and the live `token_budget` frame do: the session row's model
+    // first, else the newest main-thread assistant turn's, then that model
+    // entry's `CLAUDE_CODE_MAX_CONTEXT_TOKENS` row. Without this the summary
+    // fell back to the 160K default for every Claude session.
+    const session = sessionsDb.getSessionById(sessionId);
+    const modelId = session?.model || findNewestClaudeModelId(rawMessages);
+    const modelContextWindow = modelId
+      ? resolveModelContextWindowRow(PROVIDER, modelId)
+      : undefined;
+
     return {
       messages: page,
       total,
@@ -1786,7 +1799,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       // Carried on every page, like the Codex and OpenCode readers do, so the
       // composer's counter tracks the conversation instead of being frozen at
       // whatever it was when the session was opened.
-      tokenUsage: summarizeClaudeTokenUsage(rawMessages),
+      tokenUsage: summarizeClaudeTokenUsage(rawMessages, process.env.CONTEXT_WINDOW, modelContextWindow),
     };
   }
 }

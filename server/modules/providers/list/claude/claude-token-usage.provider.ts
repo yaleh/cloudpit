@@ -36,8 +36,13 @@ function readReportedUsageNumber(value: unknown): number | null {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
-// Model id of the newest main-thread assistant turn; its library entry's env row supplies the window.
-function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
+/**
+ * Model id of the newest main-thread assistant turn; its library entry's env
+ * row supplies the window. Consumed by `ClaudeTokenUsageProvider` (the usage
+ * service path) and `ClaudeSessionsProvider.fetchHistory` (the history path),
+ * so both resolve the window from the transcript the same way.
+ */
+export function findNewestClaudeModelId(entries: AnyRecord[]): string | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry?.isSidechain !== true && entry?.type === 'assistant' && typeof entry.message?.model === 'string') {
