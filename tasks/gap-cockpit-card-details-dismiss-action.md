@@ -59,6 +59,11 @@ extra:
 - dismiss 请求体：`{"cardId":"fixture:ask","revision":1}`（page）、`{"cardId":"fixture:session-only","revision":1}`（fail 首次 502）、`{"cardId":"fixture:content-unavailable","revision":1}`（phone）、`{"cardId":"fixture:session-only","revision":1}`（column）。
 - 前后读数：确认后目标卡从 `visibleCardIds` 消失（9→8；列内 6 条剩 5），`detailsOpenCardId` 回到 `null`，列表提示 `data-ok="true"`。
 
+本轮（重跑落地，修复首轮 fan-in suite 红）：
+- 把整组 `cockpitCard.*` 的 drive 分发（含三个详情命令）搬进 `cockpitCardsSurface.ts` 的 `dispatchCockpitCardStep`，`scenarioSurface.ts` 804→762 行，过 architecture-ratchet「基线外文件 ≤800 行」；surface 只保留一次 `isCockpitCardStep` 判定并转发 action 与 continuation，行为不变。
+- `sessionLifecycleScenario.test.tsx` 的源码树遍历只吞 ENOENT：并行 worker 中 `voiceEditLabels.test.ts` 的 `__criterion-falsify-*` 临时模块可能在 `readdir` 与 `readFile` 之间消失，消失条目跳过、其他错误照抛，消除跨测试竞态红。
+- 复核读数：`architecture-ratchet.test.ts` 6/6 pass；`scenarioSurface.test.ts` 2/2、`cockpitCardsSurface.test.ts` 6/6、`sessionLifecycleScenario.test.tsx` 14/14 与 `voiceEditLabels.test.ts` 23/23 并行 pass；`npm run typecheck`、`npm run lint` exit 0。AC5 的场景报告与截图沿用上一轮 `tmp/ui-scenario-dismiss/report.json`（本次为纯分发搬迁，`scenarioSurface`/`cockpitCardsSurface` 驱动测试重跑覆盖同一组详情命令）。
+
 - 该轴仍暗,理由:本任务为前端 cockpit 详情接线，未跑架构探针，L_D/L_G 无可测读数，验证面为逐文件测试、构建静态检查与真实浏览器读数。
 
 ## Touches
@@ -78,6 +83,7 @@ extra:
 - src/modules/ui-scenario/cockpitCardsSurface.ts
 - src/modules/ui-scenario/scenarioSurface.ts
 - src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
+- src/modules/chat/hooks/tests/sessionLifecycleScenario.test.tsx
 
 ## Blocker
 
