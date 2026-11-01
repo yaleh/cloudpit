@@ -22,18 +22,48 @@ GOAL-054 采纳 (a) 的收尾过程中，为让充分性判官翻 `covered`，AC
 
 ## AC
 
-- [ ] AC1: `scripts/brand-allowlist-check.mjs` 的 SCANNED_SURFACES 含 `server/modules/cli/cli.module.ts`（kind=code），且 token 覆盖小写 `@yalehwang/cloudcli`（或等价包名 token），命中旧包名即 violation；intentional 历史引用（CHANGELOG、release.yml 注释、package-lock、迁移文档）走显式 allowlist span。
-- [ ] AC2: `scripts/brand-allowlist-check.test.mjs` 有负向控制：在更新路径（cli.module.ts / cli.service.ts 形）注入 `@yalehwang/cloudcli` 的合成源码，checker 必须报 violation；goal 分支当前树该 criterion 绿。
-- [ ] AC3: 核实 `cloudpit-runtime-flip.test.ts` 对 AC-452 expect 新增两条腿（`CLOUDPIT_*` 新名优先/旧 `CLOUDCLI_*` 兼容；IPC/bridge/BroadcastChannel/语义面改新名）要么已覆盖、要么补断言；补上后 goal 分支该 criterion 绿。
-- [ ] AC4: 读回 `quay goal show AC-451 --json` 与 `quay goal show AC-452 --json`，其 expect 的新增腿均有对应 criterion 验证（不再 false-form）。
+- [x] AC1: `scripts/brand-allowlist-check.mjs` 的 SCANNED_SURFACES 含 `server/modules/cli/cli.module.ts`（kind=code），且 token 覆盖小写 `@yalehwang/cloudcli`（或等价包名 token），命中旧包名即 violation；intentional 历史引用（CHANGELOG、release.yml 注释、package-lock、迁移文档）走显式 allowlist span。
+- [x] AC2: `scripts/brand-allowlist-check.test.mjs` 有负向控制：在更新路径（cli.module.ts / cli.service.ts 形）注入 `@yalehwang/cloudcli` 的合成源码，checker 必须报 violation；goal 分支当前树该 criterion 绿。
+- [x] AC3: 核实 `cloudpit-runtime-flip.test.ts` 对 AC-452 expect 新增两条腿（`CLOUDPIT_*` 新名优先/旧 `CLOUDCLI_*` 兼容；IPC/bridge/BroadcastChannel/语义面改新名）要么已覆盖、要么补断言；补上后 goal 分支该 criterion 绿。
+- [x] AC4: 读回 `quay goal show AC-451 --json` 与 `quay goal show AC-452 --json`，其 expect 的新增腿均有对应 criterion 验证（不再 false-form）。
 
 ## DoD
 
 goal/GOAL-054 分支上两条 criterion 都绿（`npx tsx --tsconfig server/tsconfig.json --test scripts/brand-allowlist-check.test.mjs` 与 `... server/shared/tests/cloudpit-runtime-flip.test.ts`）；变异（把某更新命令改回 `@yalehwang/cloudcli`）使 AC-451 criterion 红、恢复后绿；AC-451/AC-452 读回 expect 的新腿与 criterion 覆盖一致。
 
+## 实施记录
+
+- AC1：`SCANNED_SURFACES` 增 `server/modules/cli/cli.module.ts`（kind=`code`）；`BRAND_TOKEN` 扩为 `/CloudCLI|claudecodeui|@yalehwang\/cloudcli/g`；`BRAND_ALLOWLIST` 增三条显式历史引用 span（迁移提示 / release.yml 注释 / CHANGELOG 条目），`npm show|update|install -g @yalehwang/cloudcli` 不命中任何 span。
+- AC2：新增 `AC7` 臂——以 `overrides` 把 `cli.module.ts` 注入 `npm update -g @yalehwang/cloudcli`、把 `cli.service.ts` 注入 `npm install -g @yalehwang/cloudcli`，两臂都 exit 1 且点名文件；历史引用三形 exit 0，`npm show/update` 两形各 1 条 violation；同时把 `cli.module.ts` 加进 `REQUIRED_SURFACES`，surface 类型逐字钉为 `{glob, kind:'code'}`。
+- AC3：核实结论是两条腿都**未被**该 criterion 覆盖；`CLOUDPIT_*` 新名优先/旧名兼容已在 `server/shared/brand.ts` 的 reader 与 `resolveDataRoots` 生产路径上实现，故补断言；IPC/bridge/BroadcastChannel/语义面在 goal 分支**尚未改名**（`cloudcli-desktop:` 54 处、`cloudpit-desktop:` 0 处），为让「补上后该 criterion 绿」成立，本任务按 SPEC §5.5 一次性把四处内部身份面翻到新名（IPC 通道、contextBridge 暴露名、架构 BroadcastChannel、dev-only 语义面），并同步全部活消费者（electron 三文件 + launcher、settings 两消费面、ui-scenario 四面、`scripts/ui-scenario.mjs`、e2e spec/场景描述、AGENTS.md）。criterion 新增两臂：环境变量优先级（reader + `resolveDataRoots` 双层读数）与内部身份面（旧名零命中的负臂 + 每个注册/推送/调用通道都是 `cloudpit-desktop:` 的正臂）。
+- AC4：`goal_get AC-451` / `goal_get AC-452` 读回，AC-451 expect 的「更新路径无 `@yalehwang/cloudcli` 残留」由 `AC7` 臂坐实；AC-452 expect 的「`CLOUDPIT_*` 新名优先/旧 `CLOUDCLI_*` 兼容」由 `AC10/AC11` 环境臂坐实、「IPC/bridge/BroadcastChannel/语义面改新名」由 `AC10/AC11` 内部身份面臂坐实。
+- DoD 读数：两条 criterion 在合并 develop 后的树上 `fail 0`（brand-allowlist 7 tests / runtime-flip 10 tests）；变异 `cli.module.ts` 的 `npm show @yalehwang/cloudpit version` → `@yalehwang/cloudcli version` 后 AC-451 criterion exit 1，cp 备份还原后 exit 0；`npm run typecheck` exit 0。
+- 合并 develop：3 处冲突按语义并集收口——`scripts/suite-duration-baseline.tsv`（保留 goal 分支的 `cloudpit-runtime-flip` 行 + develop 新增四行）、`server/shared/tests/quay-test-script.test.ts`（合并后 `find` 收集 497 个 server test，known=3→unknown=494、known=1→unknown=496）、`scripts/ui-scenario.mjs`（保留 develop 的 `waitForCards` 文档行 + 新语义面名）。
+- 结构调整说明：AC-452 expect 的「IPC/bridge/BroadcastChannel/语义面改新名」在 spec §5.5 里是 2.0.0 必达项；本任务把它连同判据一起落地，后续 AC-459 的裁决文本（另一条 needs-human 任务的 Resolution）仍可作为独立并入点，不与本实现的判据冲突。
+
+该轴仍暗,理由:本任务是判据补强与内部标识符改名，不产生架构层代码量读数
+
 ## Touches
 
-- scripts/brand-allowlist-check.mjs (new)
-- scripts/brand-allowlist-check.test.mjs (new)
-- server/shared/tests/cloudpit-runtime-flip.test.ts (new)
+- scripts/brand-allowlist-check.mjs
+- scripts/brand-allowlist-check.test.mjs
+- server/shared/tests/cloudpit-runtime-flip.test.ts
+- electron/main.js
+- electron/preload.cjs
+- electron/desktopWindow.js
+- electron/launcher/launcher.js
+- src/modules/architecture/architectureChatBridge.ts
+- src/modules/settings/Settings.tsx
+- src/modules/settings/hooks/useWebPush.ts
+- src/main.tsx
+- src/modules/ui-scenario/index.ts
+- src/modules/ui-scenario/scenarioSurface.ts
+- src/modules/ui-scenario/tests/scenarioSurface.test.ts
+- src/modules/ui-scenario/tests/cockpitCardsSurface.test.ts
+- scripts/ui-scenario.mjs
+- e2e/ui-scenario-runner.spec.ts
+- e2e/scenarios/quay-wall-focus-pin-utter.json
+- AGENTS.md
+- scripts/suite-duration-baseline.tsv
+- server/shared/tests/quay-test-script.test.ts
 - tasks/gap-goal-054-ac451-ac452-false-form-legs-unverified-by-criterion.md
