@@ -227,6 +227,16 @@ const ROWS: readonly SyncRow[] = [
     serverFile: SERVER_TYPES,
     reader: 'union',
   },
+  {
+    // The `/cost` panel's usage blocks. The client's `TokenUsageCounts` is a
+    // hand-copied mirror of the server's `ProviderTokenUsageCounts`, so a
+    // quantity added on one end must be added on the other — including the
+    // cache-write count both ends now carry.
+    client: 'TokenUsageCounts',
+    server: 'ProviderTokenUsageCounts',
+    serverFile: path.join(repoRoot, 'server', 'shared', 'interfaces.ts'),
+    reader: 'object',
+  },
 ];
 
 /** Reads one row's type from an arbitrary source string (used for both ends). */
@@ -275,6 +285,32 @@ describe('wire contract type sync', () => {
         `${row.client} (client) and ${row.server} (server) must name the same fields`,
       );
     }
+  });
+
+  it('(c) TokenUsageCounts mirrors ProviderTokenUsageCounts, including cacheWriteTokens', () => {
+    const row = ROWSByClient('TokenUsageCounts');
+    const client = readClient(row);
+    const server = readServer(row);
+
+    assert.ok(
+      client.includes('cacheWriteTokens?'),
+      'the client mirror must declare cacheWriteTokens?',
+    );
+    assert.ok(
+      server.includes('cacheWriteTokens?'),
+      'the server wire shape must declare cacheWriteTokens?',
+    );
+    assert.deepEqual(client, server, 'the two ends must name the same usage quantities');
+
+    // A quantity removed on one end is the drift this row exists to catch.
+    const serverSource = readFile(row.serverFile);
+    const mutated = serverSource.replace('  cacheWriteTokens?: number;\n', '');
+    assert.notEqual(mutated, serverSource, 'the cache-write removal must apply to the copy');
+    assert.notDeepEqual(
+      readObjectKeysFromSource(mutated, 'ProviderTokenUsageCounts'),
+      client,
+      'a quantity removed on the server end must fail the comparison',
+    );
   });
 
   it('false-form: a mutated in-memory copy is detected for a union member and an object field', () => {

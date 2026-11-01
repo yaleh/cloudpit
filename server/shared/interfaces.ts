@@ -190,6 +190,8 @@ export type ProviderTokenUsageCounts = {
   outputTokens?: number;
   /** Cached input tokens; already contained in `inputTokens`. */
   cacheReadTokens?: number;
+  /** Cached write tokens; already contained in `inputTokens`. */
+  cacheWriteTokens?: number;
   /** Reasoning tokens; already contained in `outputTokens`. */
   reasoningOutputTokens?: number;
   /** The source's own total when it reported one, else absent (never re-derived here). */

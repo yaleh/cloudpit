@@ -2440,6 +2440,8 @@ export type TokenUsageCounts = {
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
+  /** Cached write tokens; already contained in `inputTokens`, like cache reads. */
+  cacheWriteTokens?: number;
   reasoningOutputTokens?: number;
   totalTokens?: number;
 };
@@ -2462,6 +2464,8 @@ export type CostCommandData = {
     input?: number;
     output?: number;
     cacheRead?: number;
+    /** Cached write tokens; a subset of `input`, so never added to it again. */
+    cacheWrite?: number;
     reasoningOutput?: number;
   };
   provider?: string;
