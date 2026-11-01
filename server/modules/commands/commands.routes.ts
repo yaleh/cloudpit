@@ -129,6 +129,7 @@ const readUsageCounts = (value) => {
   add("inputTokens", "inputTokens", "input_tokens");
   add("outputTokens", "outputTokens", "output_tokens");
   add("cacheReadTokens", "cacheReadTokens", "cache_read_input_tokens", "cached_input_tokens");
+  add("cacheWriteTokens", "cacheWriteTokens", "cache_write_input_tokens");
   add("reasoningOutputTokens", "reasoningOutputTokens", "reasoning_output_tokens");
   add("totalTokens", "totalTokens", "total_tokens");
 
@@ -137,16 +138,16 @@ const readUsageCounts = (value) => {
 
 /**
  * Builds `/cost`'s grouped answer for a provider that reports a session
- * cumulative snapshot (Codex).
+ * cumulative snapshot (Codex, Claude).
  *
  * The three quantities are kept separate by construction:
  * - `cumulative` is the whole session's spend;
  * - `lastRequest` is the newest request, an approximate context reading;
  * - `total` is the window capacity, independent of either.
  *
- * No ratio is emitted, and cached/reasoning tokens stay inside their parent
- * totals rather than being added again. Fields the source did not report are
- * omitted, not zero-filled.
+ * No ratio is emitted, and cached (read and written)/reasoning tokens stay
+ * inside their parent totals rather than being added again. Fields the source
+ * did not report are omitted, not zero-filled.
  */
 const buildStructuredCostData = (tokenUsage, provider, model, aiTitle) => {
   const cumulative = readUsageCounts(tokenUsage.cumulative);
@@ -184,6 +185,9 @@ const buildStructuredCostData = (tokenUsage, provider, model, aiTitle) => {
               ...(cumulative?.inputTokens !== undefined ? { input: cumulative.inputTokens } : {}),
               ...(cumulative?.outputTokens !== undefined ? { output: cumulative.outputTokens } : {}),
               ...(cumulative?.cacheReadTokens !== undefined ? { cacheRead: cumulative.cacheReadTokens } : {}),
+              ...(cumulative?.cacheWriteTokens !== undefined
+                ? { cacheWrite: cumulative.cacheWriteTokens }
+                : {}),
               ...(cumulative?.reasoningOutputTokens !== undefined
                 ? { reasoningOutput: cumulative.reasoningOutputTokens }
                 : {}),
@@ -402,10 +406,10 @@ Custom commands can be created in:
     const model = await resolveCommandModel(providerModelsService, provider, context);
     const aiTitle = await readCommandAiTitle(readSessionAiTitle, context);
 
-    // A provider that reports a cumulative snapshot (Codex) answers with the
-    // grouped shape: cumulative, latest request and window are separate facts.
-    // Providers that report a single context reading (Claude) keep the legacy
-    // arithmetic below untouched.
+    // A provider that reports a cumulative snapshot (Codex, Claude) answers
+    // with the grouped shape: cumulative, latest request and window are
+    // separate facts. Providers that report a single context reading keep the
+    // legacy arithmetic below untouched.
     const structuredCumulative = readUsageCounts(tokenUsage.cumulative);
     const structuredLastRequest = readUsageCounts(tokenUsage.lastRequest);
     if (

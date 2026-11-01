@@ -116,6 +116,13 @@ test('token usage lookup requires only the app-facing session id for Claude', as
       cacheReadTokens: 20,
       cacheCreationTokens: 5,
       cacheTokens: 25,
+      // One turn: the session total and the newest request coincide.
+      cumulative: {
+        inputTokens: 125,
+        outputTokens: 30,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 5,
+      },
       breakdown: { input: 125, output: 30 },
     });
   } finally {
@@ -328,6 +335,93 @@ test('Codex token usage skips a blank info row and a partially written tail line
   }
 });
 
+test('Codex carries cache_write_input_tokens into both usage scopes without adding it again', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-codex-cachewrite-'));
+  const withKeyPath = path.join(tempDirectory, 'with-cache-write.jsonl');
+  const withoutKeyPath = path.join(tempDirectory, 'without-cache-write.jsonl');
+
+  try {
+    await writeFile(withKeyPath, JSON.stringify({
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: {
+            input_tokens: 1_200,
+            cached_input_tokens: 900,
+            cache_write_input_tokens: 300,
+            output_tokens: 200,
+            total_tokens: 1_400,
+          },
+          last_token_usage: {
+            input_tokens: 800,
+            cached_input_tokens: 600,
+            cache_write_input_tokens: 100,
+            output_tokens: 90,
+            total_tokens: 890,
+          },
+          model_context_window: 200_000,
+        },
+      },
+    }));
+
+    const withKey = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({ provider: 'codex', jsonl_path: withKeyPath }),
+    });
+    const usage = await withKey.getSessionTokenUsage('app-session');
+
+    assert.equal(usage.cumulative?.cacheWriteTokens, 300);
+    assert.equal(usage.lastRequest?.cacheWriteTokens, 100);
+    // Written-to-cache input is a subset of input: never a second addend.
+    assert.equal(usage.cumulative?.inputTokens, 1_200);
+    assert.equal(usage.lastRequest?.inputTokens, 800);
+    assert.equal(usage.inputTokens, 1_200);
+    assert.equal(usage.outputTokens, 200);
+    assert.equal(usage.used, 1_400);
+
+    // A rollout that does not report the key keeps the field absent: "not
+    // reported" must not read as a fabricated zero.
+    await writeFile(withoutKeyPath, JSON.stringify({
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: {
+            input_tokens: 1_200,
+            cached_input_tokens: 900,
+            output_tokens: 200,
+            total_tokens: 1_400,
+          },
+          last_token_usage: {
+            input_tokens: 800,
+            cached_input_tokens: 600,
+            output_tokens: 90,
+            total_tokens: 890,
+          },
+        },
+      },
+    }));
+
+    const withoutKey = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({ provider: 'codex', jsonl_path: withoutKeyPath }),
+    });
+    const missing = await withoutKey.getSessionTokenUsage('app-session');
+    assert.equal(missing.cumulative?.cacheWriteTokens, undefined);
+    assert.equal(missing.lastRequest?.cacheWriteTokens, undefined);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(missing.cumulative, 'cacheWriteTokens'),
+      false,
+      'an unreported cache write must not be added as a zero',
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(missing.lastRequest, 'cacheWriteTokens'),
+      false,
+    );
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
 test('OpenCode token usage resolves its provider-native id from the session row', async () => {
   const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-opencode-'));
   const databasePath = path.join(tempDirectory, 'opencode.db');
@@ -417,6 +511,14 @@ test('the Claude summarizer reads the newest assistant turn, not the whole conve
     cacheReadTokens: 4000,
     cacheCreationTokens: 100,
     cacheTokens: 4100,
+    // New shape: the same turns now also answer the session-cumulative scope.
+    // Both turns are main-thread, so their prompts accumulate: 1005 + 4103.
+    cumulative: {
+      inputTokens: 5108,
+      outputTokens: 130,
+      cacheReadTokens: 5000,
+      cacheWriteTokens: 100,
+    },
     breakdown: { input: 4103, output: 80 },
   });
 });
@@ -457,6 +559,101 @@ test('the Claude summarizer skips a subagent sidechain turn', () => {
   ];
 
   assert.equal(summarizeClaudeTokenUsage(entries, '200000').used, 4083);
+});
+
+test('the Claude summarizer reports session-cumulative spend and a separate sidechain bucket', async () => {
+  const entries = [
+    {
+      type: 'assistant',
+      message: {
+        usage: {
+          input_tokens: 100,
+          cache_read_input_tokens: 20,
+          cache_creation_input_tokens: 5,
+          output_tokens: 30,
+        },
+      },
+    },
+    { type: 'user', message: { role: 'user', content: 'look into this' } },
+    {
+      type: 'assistant',
+      isSidechain: true,
+      message: {
+        usage: {
+          input_tokens: 10,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 50,
+          output_tokens: 5,
+        },
+      },
+    },
+    {
+      type: 'assistant',
+      message: {
+        usage: {
+          input_tokens: 7,
+          cache_read_input_tokens: 400,
+          cache_creation_input_tokens: 11,
+          output_tokens: 9,
+        },
+      },
+    },
+    {
+      type: 'assistant',
+      message: {
+        model: '<synthetic>',
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+    },
+  ];
+
+  const reading = summarizeClaudeTokenUsage(entries, '200000');
+  // Main-thread turns accumulate instead of last-wins:
+  // input = (100+20+5) + (7+400+11) = 543; output = 30 + 9;
+  // cacheRead = 20 + 400; cacheWrite = 5 + 11. The all-zero row adds nothing.
+  assert.deepEqual(reading.cumulative, {
+    inputTokens: 543,
+    outputTokens: 39,
+    cacheReadTokens: 420,
+    cacheWriteTokens: 16,
+  });
+  // Sidechain turns bill to the session but never enter the main-thread total:
+  // input = 10 + 900 + 50 = 960.
+  assert.deepEqual(reading.sidechain, {
+    inputTokens: 960,
+    outputTokens: 5,
+    cacheReadTokens: 900,
+    cacheWriteTokens: 50,
+  });
+  // The newest main-thread turn still answers the context-occupancy read.
+  assert.equal(reading.used, 427);
+  assert.equal(reading.inputTokens, 418);
+  assert.equal(reading.outputTokens, 9);
+
+  // Same transcript through the real JSONL -> service path (DoD), where the
+  // session-cumulative spend must be a sum rather than the newest turn.
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-claude-cumulative-'));
+  const sessionFilePath = path.join(tempDirectory, 'provider-session.jsonl');
+
+  try {
+    await writeFile(sessionFilePath, entries.map((entry) => JSON.stringify(entry)).join('\n'));
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({ jsonl_path: sessionFilePath }),
+      getClaudeContextWindow: () => '200000',
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.deepEqual(usage.cumulative, reading.cumulative);
+    assert.deepEqual(usage.sidechain, reading.sidechain);
+    assert.equal(usage.used, 427);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
 });
 
 test('the Claude summarizer reports zero for a transcript with no assistant turn yet', () => {
