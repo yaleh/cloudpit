@@ -6,6 +6,7 @@ import type {
 } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
 import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
 import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
 import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
@@ -592,44 +593,16 @@ export default function CockpitCard({
               confirmation leaves the shown option and its buttons exactly as they were. The
               first press only opens that confirmation; nothing is sent from here. */}
           {!feedbackLocked && dismissTarget !== null && (
-            <div
-              data-testid="cockpit-card-dismiss-bar"
-              data-card-id={card.id}
-              data-dismiss-pending={dismissPending ? 'true' : 'false'}
-              className="mt-1"
-            >
-              {dismissPending ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-dismiss-confirm"
-                    disabled={dismissing}
-                    onClick={onConfirmDismiss}
-                    className="rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
-                  >
-                    {dismissing ? t('cockpit.cardDismissing') : t('cockpit.cardDismissConfirm')}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="cockpit-card-dismiss-cancel"
-                    disabled={dismissing}
-                    onClick={onCancelDismiss}
-                    className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-                  >
-                    {t('cockpit.cardConfirmCancel')}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  data-testid="cockpit-card-dismiss"
-                  onClick={onRequestDismiss}
-                  className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  {t('cockpit.cardDismiss')}
-                </button>
-              )}
-            </div>
+            <CockpitCardDismissBar
+              cardId={card.id}
+              barTestId="cockpit-card-dismiss-bar"
+              testId="cockpit-card-dismiss"
+              pending={dismissPending}
+              dismissing={dismissing}
+              onRequestDismiss={onRequestDismiss}
+              onConfirmDismiss={onConfirmDismiss}
+              onCancelDismiss={onCancelDismiss}
+            />
           )}
         </div>
       </div>

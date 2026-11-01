@@ -14,12 +14,15 @@ import {
 import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
 import { OwnReplyEditor } from '@/modules/cockpit/CockpitCard';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
+import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
 import { CockpitCardStartConversation } from '@/modules/cockpit/CockpitCardStartConversation';
 import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversation';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
+  CockpitCardDismissNotice,
+  CockpitCardDismissTarget,
   CockpitCardSendCountdown,
   CockpitCardShown,
 } from '@/modules/cockpit/cockpitCardController';
@@ -75,6 +78,28 @@ export type CockpitCardDetailsProps = {
   onConfirm?: () => void;
   /** Leaves the confirm state without sending. */
   onCancelConfirm?: () => void;
+  /**
+   * The card-level 「忽略/丢弃」 target, drawn as a SECONDARY control in the same persistent
+   * footer bar. It is a separate closing choice from the shown option — discarding answers
+   * nothing — so the drawer must offer it even when the card has no confirm target. Absent or
+   * `null` means this card offers no dismiss action.
+   */
+  dismissTarget?: CockpitCardDismissTarget | null;
+  /** True when this card's dismiss confirmation is open (the first press has happened). */
+  dismissPending?: boolean;
+  /** True while this card's dismiss request is in flight. */
+  dismissing?: boolean;
+  /** The first press: opens the dismiss confirmation, sending nothing. */
+  onRequestDismiss?: () => void;
+  /** The dismiss confirmation's second press: discards the card without replying. */
+  onConfirmDismiss?: () => void;
+  /** Leaves the dismiss confirmation without sending. */
+  onCancelDismiss?: () => void;
+  /**
+   * The last dismiss answer for THIS card. A failure is drawn inside the drawer: the card stays
+   * on the list, so the reason must be readable where the person pressed and where the retry is.
+   */
+  dismissNotice?: CockpitCardDismissNotice | null;
   /**
    * The card's current shown reading — the option, or the person's own reply — which is the SAME
    * reading the card row draws. Absent falls back to the provider's suggested option, exactly what
@@ -188,6 +213,13 @@ export default function CockpitCardDetails({
   confirmOutcome = null,
   onConfirm,
   onCancelConfirm,
+  dismissTarget = null,
+  dismissPending = false,
+  dismissing = false,
+  onRequestDismiss,
+  onConfirmDismiss,
+  onCancelDismiss,
+  dismissNotice = null,
   shown,
   ownReply = '',
   onShowOption,
@@ -277,6 +309,18 @@ export default function CockpitCardDetails({
       && brief.response.reason !== null
       && SILENT_FALLBACK_REASONS.includes(brief.response.reason)
     );
+
+  // THE FOOTER IS NOT ONLY THE SEND BAR. A session-ask card offers the third choice —
+  // 「忽略/丢弃」 — and the drawer must keep it reachable even when the card has no confirm
+  // target at all: the old footer was bound to the send target alone, which removed the only
+  // discard entry from the drawer. A card whose feedback already ran draws neither control, but
+  // a dismiss answer (a failure, or the success line before the re-read removes the card) is
+  // still drawn there.
+  const confirmVisible =
+    target !== undefined && target !== null && card.feedback === undefined;
+  const dismissVisible =
+    dismissTarget !== undefined && dismissTarget !== null && card.feedback === undefined;
+  const footerVisible = confirmVisible || dismissVisible || dismissNotice !== null;
 
   // The title row. On the phone it lives INSIDE the same sticky header as the drag handle, so
   // the handle can never scroll over and cover it: the two move together as one block.
@@ -637,35 +681,66 @@ export default function CockpitCardDetails({
       </div>
 
       {/*
-        THE PERSISTENT CONFIRM BAR. It is bound to the SAME target the card's own bar is bound to
-        (the card's currently shown option), and its press opens the same in-place confirm state —
-        Details is a longer reading of one card, not a second confirmation path. It is a SIBLING
-        of the scrolling body (never inside it), so it cannot cover the reading's last lines. The
-        bar itself is the card's shared `CockpitCardConfirmBar`: one action, one control, one
-        style. A card whose feedback is already sent draws NO bar here either: its action ran, and
-        the only live control is the resend the card row offers after the window.
+        THE PERSISTENT FOOTER BAR. Its send control is bound to the SAME target the card's own bar
+        is bound to (the card's currently shown option), and its press opens the same in-place
+        confirm state — Details is a longer reading of one card, not a second confirmation path.
+        Beside it sits the card-level 「忽略/丢弃」 control, drawn by the SAME shared
+        `CockpitCardDismissBar` the card row uses: one card, one controller state, one control.
+        It is a SIBLING of the scrolling body (never inside it), so the bar cannot cover the
+        reading's last lines. A card whose feedback is already sent draws NO send bar here either:
+        its action ran, and the only live control is the resend the card row offers after the
+        window. A dismiss answer for THIS card is drawn inside the bar: a failure keeps the card
+        on the list and its reason must be readable beside the retry.
       */}
-      {target !== undefined && target !== null && card.feedback === undefined && (
+      {footerVisible && (
         <div
           data-testid="cockpit-card-details-footer"
           className="shrink-0 border-t border-border bg-card px-3 py-2"
         >
-          <div className="mx-auto w-full max-w-3xl">
-            <CockpitCardConfirmBar
-              barTestId="cockpit-card-details-confirm-bar"
-              testId="cockpit-card-details-confirm"
-              cardId={card.id}
-              target={target}
-              showingOwnReply={showingOwnReply}
-              pending={confirmPending}
-              countdown={sendCountdown}
-              confirming={confirming}
-              now={now}
-              outcome={confirmOutcome}
-              onRequestConfirm={() => onRequestConfirm?.()}
-              onConfirm={onConfirm}
-              onCancelConfirm={onCancelConfirm}
-            />
+          <div className="mx-auto w-full max-w-3xl space-y-1">
+            {dismissNotice !== null && (
+              <p
+                role={dismissNotice.ok ? 'status' : 'alert'}
+                data-testid="cockpit-card-details-dismiss-notice"
+                data-ok={dismissNotice.ok ? 'true' : 'false'}
+                className={cn(
+                  'text-[11px]',
+                  dismissNotice.ok ? 'text-muted-foreground' : 'text-destructive',
+                )}
+              >
+                {dismissNotice.message}
+              </p>
+            )}
+            {confirmVisible && (
+              <CockpitCardConfirmBar
+                barTestId="cockpit-card-details-confirm-bar"
+                testId="cockpit-card-details-confirm"
+                cardId={card.id}
+                target={target}
+                showingOwnReply={showingOwnReply}
+                pending={confirmPending}
+                countdown={sendCountdown}
+                confirming={confirming}
+                now={now}
+                outcome={confirmOutcome}
+                onRequestConfirm={() => onRequestConfirm?.()}
+                onConfirm={onConfirm}
+                onCancelConfirm={onCancelConfirm}
+              />
+            )}
+            {dismissVisible && (
+              <CockpitCardDismissBar
+                cardId={card.id}
+                barTestId="cockpit-card-details-dismiss-bar"
+                testId="cockpit-card-details-dismiss"
+                pending={dismissPending}
+                dismissing={dismissing}
+                onRequestDismiss={onRequestDismiss}
+                onConfirmDismiss={onConfirmDismiss}
+                onCancelDismiss={onCancelDismiss}
+                className="mt-0"
+              />
+            )}
           </div>
         </div>
       )}

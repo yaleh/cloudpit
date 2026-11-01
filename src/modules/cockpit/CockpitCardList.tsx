@@ -381,6 +381,15 @@ function CockpitCardListBound({
             confirmOutcome={outcomeFor(detailsCard.id)}
             onConfirm={() => void controller.confirm()}
             onCancelConfirm={() => controller.cancelConfirm()}
+            dismissTarget={snapshot.dismissTargets[detailsCard.id] ?? null}
+            dismissPending={snapshot.pendingDismiss?.cardId === detailsCard.id}
+            dismissing={snapshot.dismissingCardId === detailsCard.id}
+            dismissNotice={
+              snapshot.dismissNotice?.cardId === detailsCard.id ? snapshot.dismissNotice : null
+            }
+            onRequestDismiss={() => controller.requestDismiss(detailsCard.id)}
+            onConfirmDismiss={() => void controller.confirmDismiss()}
+            onCancelDismiss={() => controller.cancelDismiss()}
             openedInSession={openedCardId === detailsCard.id}
             currentSessionId={currentSessionId}
             onOpenConversation={(sessionId: string) => onOpenConversation?.(detailsCard, sessionId)}
@@ -675,6 +684,17 @@ function CockpitCardListBound({
                 confirmOutcome={outcomeFor(detailsCard.id)}
                 onConfirm={() => void controller.confirm()}
                 onCancelConfirm={() => controller.cancelConfirm()}
+                dismissTarget={snapshot.dismissTargets[detailsCard.id] ?? null}
+                dismissPending={snapshot.pendingDismiss?.cardId === detailsCard.id}
+                dismissing={snapshot.dismissingCardId === detailsCard.id}
+                dismissNotice={
+                  snapshot.dismissNotice?.cardId === detailsCard.id
+                    ? snapshot.dismissNotice
+                    : null
+                }
+                onRequestDismiss={() => controller.requestDismiss(detailsCard.id)}
+                onConfirmDismiss={() => void controller.confirmDismiss()}
+                onCancelDismiss={() => controller.cancelDismiss()}
                 onOpenConversation={
                   onOpenConversation === undefined
                     ? undefined

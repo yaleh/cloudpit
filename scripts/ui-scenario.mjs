@@ -334,6 +334,23 @@ function expectationFailures(expect, reading) {
         if (actual !== expected) fail(key, expected, actual);
         break;
       }
+      case 'cockpitCardDetailsOpen': {
+        // The card whose Details drawer is mounted, or `null` when it is closed. Taken from the
+        // list's own declaration, so a drawer that closed after its card left reads as `null`.
+        const actual = reading.cockpit?.cards?.detailsOpenCardId ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'cockpitCardDismissOpen': {
+        // The card whose 「忽略/丢弃」 confirmation is open, or `null`. The SAME reading is drawn
+        // by the card row's bar and the Details drawer's bar, so a scenario can prove the drawer's
+        // first press opened the confirmation rather than inferring it from a label.
+        const actual = typeof reading.cockpit?.cards?.dismissOpenCardId === 'string'
+          ? reading.cockpit.cards.dismissOpenCardId
+          : null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       case 'cockpitCardShownOption': {
         // `{ cardId, optionId }` — the option one card currently shows (`null` when none).
         if (!isRecord(expected) || typeof expected.cardId !== 'string') {

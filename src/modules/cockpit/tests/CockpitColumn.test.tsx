@@ -96,19 +96,31 @@ async function fixture(options: {
   workspaceWidth?: number;
   expanded?: boolean;
   storage?: CockpitColumnStorage | null;
+  /** Replaces the generated read, so a case can change what the next read answers. */
+  fetchCards?: () => Promise<CockpitCardData[]>;
+  /** The two transports the third action uses; omitted, the surface offers no discard. */
+  dismiss?: (request: { cardId: string; revision: number }) => Promise<{ ok: boolean }>;
+  confirm?: (request: { cardId: string; revision: number; optionId?: string }) => Promise<{
+    executor: string;
+    result: unknown;
+  }>;
 } = {}): Promise<Fixture> {
   const count = options.cardCount ?? 2;
   const rescueCount = options.rescueCount ?? 0;
   const cards = createCockpitCardController({
-    fetchCards: async () =>
-      Array.from({ length: count }, (_, index) =>
-        card(
-          `c${index + 1}`,
-          index < rescueCount ? 'rescue' : 'test',
-          options.kinds?.[index] ?? 'ask',
-        ),
-      ),
-    confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
+    fetchCards:
+      options.fetchCards ??
+      (async () =>
+        Array.from({ length: count }, (_, index) =>
+          card(
+            `c${index + 1}`,
+            index < rescueCount ? 'rescue' : 'test',
+            options.kinds?.[index] ?? 'ask',
+          ),
+        )),
+    confirm:
+      options.confirm ?? (async () => ({ executor: 'test.exec', result: { ok: true } })),
+    ...(options.dismiss === undefined ? {} : { dismiss: options.dismiss }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,
   });
@@ -296,6 +308,58 @@ describe('expanded', () => {
 
     expect(screen.getByTestId('cockpit-card-list')).toBe(list);
     expect(list.scrollTop).toBe(320);
+  });
+
+  it('offers the third action inside the pushed Details: cancel keeps it, discard returns to the list', async () => {
+    let visible = [card('c1'), card('c2')];
+    const dismissRequests: { cardId: string; revision: number }[] = [];
+    const confirmRequests: unknown[] = [];
+    const f = await fixture({
+      expanded: true,
+      fetchCards: async () => visible,
+      dismiss: async (request) => {
+        dismissRequests.push(request);
+        visible = visible.filter((entry) => entry.id !== request.cardId);
+        return { ok: true };
+      },
+      confirm: async (request) => {
+        confirmRequests.push(request);
+        return { executor: 'test.exec', result: { ok: true } };
+      },
+    });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    act(() => f.cards.openDetails('c1'));
+    // The first press opens the in-place confirmation inside the pushed Details; nothing sent.
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    expect(screen.getByTestId('cockpit-card-details-dismiss-confirm')).toBeTruthy();
+    expect(dismissRequests).toHaveLength(0);
+    expect(confirmRequests).toHaveLength(0);
+
+    // Cancel sends nothing and keeps the sheet reading the card.
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss-cancel'));
+    expect(screen.queryByTestId('cockpit-card-details-dismiss-confirm')).toBeNull();
+    expect(screen.getByTestId('cockpit-column-details')).toBeTruthy();
+    expect(dismissRequests).toHaveLength(0);
+
+    // The second round discards through the dismiss channel only, and the successful re-read
+    // returns the column to the list, where the one-line notice outlives the removed row.
+    fireEvent.click(screen.getByTestId('cockpit-card-details-dismiss'));
+    await act(async () => {
+      await f.cards.confirmDismiss();
+    });
+
+    expect(dismissRequests).toEqual([{ cardId: 'c1', revision: 1 }]);
+    expect(confirmRequests).toHaveLength(0);
+    expect(screen.queryByTestId('cockpit-column-details')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-list')).toBeTruthy();
+    expect(screen.queryByTestId('cockpit-card-c1')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-c2')).toBeTruthy();
+    expect(screen.getByTestId('cockpit-card-dismiss-notice').getAttribute('data-ok')).toBe('true');
   });
 
   it('opens the card’s conversation on the left and marks it while the squeeze layout stays open', async () => {
