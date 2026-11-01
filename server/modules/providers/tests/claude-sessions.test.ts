@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, providerModelsDb, sessionsDb } from '@/modules/database/index.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claude-session-synchronizer.provider.js';
 import { buildLookupMap } from '@/shared/utils.js';
@@ -1560,5 +1560,144 @@ test('an already-indexed row is re-derived from its transcript, not left on the 
   } finally {
     restoreHomeDir();
     await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Runs a history assertion with the host `CONTEXT_WINDOW` removed, so the
+ * 160000 default is the only fallback the assertion can observe.
+ */
+async function withDefaultContextWindow(run: () => Promise<void>): Promise<void> {
+  const previousWindow = process.env.CONTEXT_WINDOW;
+  delete process.env.CONTEXT_WINDOW;
+  try {
+    await run();
+  } finally {
+    if (previousWindow === undefined) {
+      delete process.env.CONTEXT_WINDOW;
+    } else {
+      process.env.CONTEXT_WINDOW = previousWindow;
+    }
+  }
+}
+
+/** One assistant turn carrying usage, with or without the model the CLI recorded. */
+function claudeWindowAssistantLine(model?: string): string {
+  return JSON.stringify({
+    type: 'assistant',
+    uuid: 'assistant-window-1',
+    sessionId: 'test-session-1',
+    timestamp: '2026-08-21T10:00:00.000Z',
+    message: {
+      role: 'assistant',
+      ...(model ? { model } : {}),
+      content: [{ type: 'text', text: 'window reading' }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    },
+  });
+}
+
+/** `tokenUsage` is `unknown` on the history contract; narrow it to the reading these tests assert. */
+function contextWindowTotal(result: { tokenUsage?: unknown }): number | undefined {
+  return (result.tokenUsage as { total?: number } | undefined)?.total;
+}
+
+test('Claude history reads the context window from the session model row', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-history-window-'));
+
+  try {
+    const transcriptPath = await writeSessionJsonl(tempRoot, `${SESSION_ID}.jsonl`, [
+      claudeWindowAssistantLine('v4pro'),
+    ]);
+
+    await withDefaultContextWindow(() => withIsolatedDatabase(async () => {
+      const now = new Date().toISOString();
+      const appSessionId = sessionsDb.createSession(
+        SESSION_ID,
+        'claude',
+        tempRoot,
+        'Window session',
+        now,
+        now,
+        transcriptPath,
+      );
+      sessionsDb.setSessionModel(appSessionId, 'v4pro');
+      providerModelsDb.createCustomProviderModel('claude', {
+        id: 'v4pro',
+        model: 'v4pro',
+        config: {
+          env: [{ key: 'CLAUDE_CODE_MAX_CONTEXT_TOKENS', kind: 'value', value: '917000' }],
+        },
+      });
+
+      const history = await new ClaudeSessionsProvider().fetchHistory(appSessionId, {
+        providerSessionId: SESSION_ID,
+      });
+
+      // The entry's env row is the single source of the window (AC-028); the
+      // history path must report it instead of the 160K default.
+      assert.equal(contextWindowTotal(history), 917000);
+    }));
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Claude history falls back to 160000 when no model row supplies a window', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-history-window-fallback-'));
+  const noModelSessionId = 'claude-window-no-model';
+  const noRowSessionId = 'claude-window-no-row';
+
+  try {
+    // Arm 1: neither the session row nor the transcript names a model.
+    const noModelPath = await writeSessionJsonl(tempRoot, `${noModelSessionId}.jsonl`, [
+      claudeWindowAssistantLine(),
+    ]);
+    // Arm 2: the model is named, but its entry declares no window row.
+    const noRowPath = await writeSessionJsonl(tempRoot, `${noRowSessionId}.jsonl`, [
+      claudeWindowAssistantLine('norow'),
+    ]);
+
+    await withDefaultContextWindow(() => withIsolatedDatabase(async () => {
+      const now = new Date().toISOString();
+      const noModelSession = sessionsDb.createSession(
+        noModelSessionId,
+        'claude',
+        tempRoot,
+        'No model',
+        now,
+        now,
+        noModelPath,
+      );
+      const noRowSession = sessionsDb.createSession(
+        noRowSessionId,
+        'claude',
+        tempRoot,
+        'No window row',
+        now,
+        now,
+        noRowPath,
+      );
+      sessionsDb.setSessionModel(noRowSession, 'norow');
+      providerModelsDb.createCustomProviderModel('claude', {
+        id: 'norow',
+        model: 'norow',
+        config: {
+          env: [{ key: 'ANTHROPIC_BASE_URL', kind: 'value', value: 'https://example.test' }],
+        },
+      });
+
+      const noModelHistory = await new ClaudeSessionsProvider().fetchHistory(noModelSession, {
+        providerSessionId: noModelSessionId,
+      });
+      assert.equal(contextWindowTotal(noModelHistory), 160000);
+
+      const noRowHistory = await new ClaudeSessionsProvider().fetchHistory(noRowSession, {
+        providerSessionId: noRowSessionId,
+      });
+      assert.equal(contextWindowTotal(noRowHistory), 160000);
+    }));
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
   }
 });

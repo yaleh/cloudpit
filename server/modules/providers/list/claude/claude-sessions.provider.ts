@@ -37,7 +37,7 @@ import {
   parseLocalCommandPayload,
   readClaudeTranscriptMessage,
 } from '@/modules/providers/list/claude/claude-transcript-format.js';
-import { summarizeClaudeTokenUsage } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
+import { summarizeClaudeHistoryTokenUsage } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
 import { takeHistoryLoadContext } from '@/modules/providers/services/session-history-cache.service.js';
 
 const PROVIDER = 'claude';
@@ -1786,7 +1786,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       // Carried on every page, like the Codex and OpenCode readers do, so the
       // composer's counter tracks the conversation instead of being frozen at
       // whatever it was when the session was opened.
-      tokenUsage: summarizeClaudeTokenUsage(rawMessages),
+      tokenUsage: summarizeClaudeHistoryTokenUsage(rawMessages, sessionsDb.getSessionById(sessionId)?.model),
     };
   }
 }
