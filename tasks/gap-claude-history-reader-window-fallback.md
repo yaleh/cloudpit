@@ -18,8 +18,8 @@ extra:
 
 ## AC
 
-- [ ] `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-sessions.test.ts` 退出 0，且新增负臂用例：隔离 DB seed 一条 `provider_models`（provider=claude, model_id=v4pro，config_json 含 `CLAUDE_CODE_MAX_CONTEXT_TOKENS: "917000"`），会话行 `model='v4pro'`、transcript 含带 `message.model='v4pro'` 的 assistant 行；`fetchHistory(...).tokenUsage.total === 917000`（不是 160000）。
-- [ ] 同一测试文件退出 0，且新增对照用例：会话/transcript 无模型、或模型条目无 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 时，`fetchHistory(...).tokenUsage.total` 仍回退 160000（默认行为不变，不伪造窗口）。
+- [x] `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/claude-sessions.test.ts` 退出 0，且新增负臂用例：隔离 DB seed 一条 `provider_models`（provider=claude, model_id=v4pro，config_json 含 `CLAUDE_CODE_MAX_CONTEXT_TOKENS: "917000"`），会话行 `model='v4pro'`、transcript 含带 `message.model='v4pro'` 的 assistant 行；`fetchHistory(...).tokenUsage.total === 917000`（不是 160000）。
+- [x] 同一测试文件退出 0，且新增对照用例：会话/transcript 无模型、或模型条目无 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 时，`fetchHistory(...).tokenUsage.total` 仍回退 160000（默认行为不变，不伪造窗口）。
 
 ## DoD
 
@@ -28,5 +28,8 @@ extra:
 ## Touches
 
 - server/modules/providers/list/claude/claude-sessions.provider.ts
+- server/modules/providers/list/claude/claude-token-usage.provider.ts
 - server/modules/providers/tests/claude-sessions.test.ts
 - tasks/gap-claude-history-reader-window-fallback.md
+
+该轴仍暗,理由:本任务只补 history 调用点的窗口解析，不产生可量化的 L_D/L_G 架构或文档轴读数。

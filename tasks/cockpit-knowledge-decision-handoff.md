@@ -1,7 +1,7 @@
 ---
 id: cockpit-knowledge-decision-handoff
 title: cockpit 知识建议决定交接：可信确认、修订与进展结果
-status: todo
+status: ready
 labels:
   - feature
   - knowledge-application
@@ -24,7 +24,7 @@ extra:
 
 消费 Fleet 已版本化知识建议卡与声明执行器。复用 provider/confirm/feedback 通道，保证 ruling 类可决策建议正常显示，不把信息 notify 全部显示成救援。应用/修改/推迟/不适用保留可信 UI confirmation reference，绑定卡片 revision 和用户决定；不接受调用者自填 by:human 作为证明。一次确认交付写明范围的完整计划；反馈接收只表示已交接，执行和功能核验以关联 case 状态显示。陈旧卡重新取数、重复提交同一 feedbackId、未声明执行器禁执行。
 
-本次只创建 todo，不推进 ready/done，不启动 worker。实现时遵循现有 TS/运行入口约定；已有能力优先复用。历史来源用于发现跟进对象，当前事实决定动作，记录此刻跟进什么、依据是否足够、何时应回报。
+立案初始状态为 todo，后续实现按项目正常任务生命周期推进；立案及 Goal 激活不代替开发者确认应用卡片。实现时遵循现有 TS/运行入口约定；已有能力优先复用。历史来源用于发现跟进对象，当前事实决定动作，记录此刻跟进什么、依据是否足够、何时应回报。
 
 <!-- dedup-ref -->
 复用关联任务：cockpit-fleet-card-provider；本任务交付的是新增的知识应用机制，不重建这些已交付能力。
@@ -61,4 +61,4 @@ extra:
 - scripts/ui-scenarios/cockpit-knowledge-application.json (new)
 - docs/evidence/cockpit-knowledge-decision-handoff.md (new)
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (new)
-- tasks/cockpit-knowledge-decision-handoff.md (new)
+- tasks/cockpit-knowledge-decision-handoff.md

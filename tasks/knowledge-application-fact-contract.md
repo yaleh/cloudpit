@@ -1,7 +1,7 @@
 ---
 id: knowledge-application-fact-contract
 title: 知识主动应用事实契约：关联回复、配置实际证据与活动读口
-status: todo
+status: ready
 labels:
   - feature
   - knowledge-application
@@ -25,7 +25,7 @@ extra:
 
 为 Fleet 首批三项文本知识提供正式 producer/read 契约。现有读口先做能力审计，缺失才增补：关联询问与回复的 source/target/correlation/operation，Claude 配置 expected/stored/actual 与 process/build/request identity，以及清单 scope/pagination/truncated/provider/lifecycle。事件只作触发线索，决定前可回读权威事实。来源时间、版本、未知与读取错误完整暴露；不把 Fleet 服务直接读取 CloudCLI home 作为接口。F1 契约交付后按版本实现双方兼容。
 
-本次只创建 todo，不推进 ready/done，不启动 worker。实现时遵循现有 TS/运行入口约定；已有能力优先复用。历史来源用于发现跟进对象，当前事实决定动作，记录此刻跟进什么、依据是否足够、何时应回报。
+立案初始状态为 todo，后续实现按项目正常任务生命周期推进；立案及 Goal 激活不代替开发者确认应用卡片。实现时遵循现有 TS/运行入口约定；已有能力优先复用。历史来源用于发现跟进对象，当前事实决定动作，记录此刻跟进什么、依据是否足够、何时应回报。
 
 <!-- dedup-ref -->
 粒度决定：按人已确认的十项 Fleet/两项 CloudCLI 边界独立立案；共享接线文件按 Touches 串行，保留独立验收；本项目既有开放任务无 substantive Touches 重叠。
@@ -61,5 +61,5 @@ extra:
 - server/shared/tests/architecture-ratchet.baseline.json
 - docs/evidence/knowledge-application-fact-contract.json (new)
 - server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (new)
-- tasks/knowledge-application-fact-contract.md (new)
+- tasks/knowledge-application-fact-contract.md
 - server/modules/context-events/tests/knowledge-activity-events.test.ts (new)
