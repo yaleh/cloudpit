@@ -1,11 +1,13 @@
-# Contributing to CloudCLI UI
+# Contributing to Cloudpit
 
-Thanks for your interest in contributing to CloudCLI UI! Before you start, please take a moment to read through this guide.
+Thanks for your interest in contributing to Cloudpit! Before you start, please take a moment to read through this guide.
+
+This repository is a fork of the upstream [siteboon/claudecodeui](https://github.com/siteboon/claudecodeui) project. The fork's own issues and pull requests are listed below; the upstream repository is not the contribution entry point for this codebase.
 
 ## Before You Start
 
-- **Search first.** Check [existing issues](https://github.com/siteboon/claudecodeui/issues) and [pull requests](https://github.com/siteboon/claudecodeui/pulls) to avoid duplicating work.
-- **Discuss first** for new features. Open an [issue](https://github.com/siteboon/claudecodeui/issues/new) to discuss your idea before investing time in implementation. We may already have plans or opinions on how it should work.
+- **Search first.** Check [existing issues](https://github.com/yaleh/cloudpit/issues) and [pull requests](https://github.com/yaleh/cloudpit/pulls) to avoid duplicating work.
+- **Discuss first** for new features. Open an [issue](https://github.com/yaleh/cloudpit/issues/new) to discuss your idea before investing time in implementation. We may already have plans or opinions on how it should work.
 - **Bug fixes are always welcome.** If you spot a bug, feel free to open a PR directly.
 
 ## Prerequisites
@@ -18,8 +20,8 @@ Thanks for your interest in contributing to CloudCLI UI! Before you start, pleas
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/<your-username>/claudecodeui.git
-   cd claudecodeui
+   git clone https://github.com/<your-username>/cloudpit.git
+   cd cloudpit
    ```
 3. Install dependencies:
    ```bash
@@ -37,7 +39,7 @@ Thanks for your interest in contributing to CloudCLI UI! Before you start, pleas
 ## Project Structure
 
 ```
-claudecodeui/
+cloudpit/
 ├── src/              # React frontend (Vite + Tailwind)
 │   ├── components/   # UI components
 │   ├── contexts/     # React context providers

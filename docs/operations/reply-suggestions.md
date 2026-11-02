@@ -16,7 +16,7 @@ those would write a transcript and appear in the sidebar.
 | `config/reply-suggestions.settings.example.json` | Tracked template. Contains defaults and no secret. |
 | `config/reply-suggestions.settings.json` | Development copy. Git-ignored; mode `600`. |
 | `~/.config/claudecodeui/reply-suggestions.settings.json` | Default local copy an installed deployment reads when `REPLY_SUGGESTIONS_SETTINGS_PATH` is unset. |
-| `~/.cloudcli/reply-suggestions-usage.jsonl` | Local-only usage ledger (`usageLog`). |
+| `~/.cloudpit/reply-suggestions-usage.jsonl` | Local-only usage ledger (`usageLog`). |
 
 The **only** environment entry is `REPLY_SUGGESTIONS_SETTINGS_PATH`, which names
 the settings file. Every knob lives in the file itself. If the named path does

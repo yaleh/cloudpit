@@ -639,6 +639,9 @@ function mapCard(
   // The knowledge case is a PROVIDER statement: readable evidence passes through verbatim and
   // an unreadable block is simply absent. The cockpit adds nothing here; the confirmation
   // authority stamps its signed reference on a later read (see `cockpit-knowledge-decision.ts`).
+  // The entry's title and statement are part of that same passthrough: `readKnowledgeCase`
+  // reads them verbatim and omits them when the provider states none, so this mapping needs no
+  // branch of its own.
   const knowledge = readKnowledgeCase(raw.knowledge);
 
   const card: CockpitCard = {

@@ -54,6 +54,19 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+/**
+ * A provider-stated display string, kept BYTE FOR BYTE when it has visible content.
+ *
+ * Unlike the identity fields (which are trimmed because they are compared), a title/statement
+ * is shown to the person and may be a Markdown body whose whitespace is significant. Returning
+ * it verbatim keeps the card's text exactly the provider's word; a value with no visible
+ * content is treated as unstated so the block omits the key entirely.
+ */
+function statedText(value: unknown): string {
+  const raw = text(value);
+  return raw.trim() === '' ? '' : raw;
+}
+
 function nonNegativeInteger(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
 }
@@ -132,6 +145,8 @@ export function readKnowledgeCase(value: unknown): CockpitKnowledgeCase | null {
   const progress = readProgress(value.progress);
   const verification = readVerification(value.verification);
   const knowledgeId = text(value.knowledgeId).trim();
+  const title = statedText(value.title);
+  const statement = statedText(value.statement);
   const executionId = text(value.executionId).trim();
   const nextCheckAt = text(value.nextCheckAt).trim();
   const originSessionId = text(value.originSessionId).trim();
@@ -146,6 +161,8 @@ export function readKnowledgeCase(value: unknown): CockpitKnowledgeCase | null {
       ? (state as CockpitKnowledgeCaseState)
       : 'unknown',
     ...(knowledgeId === '' ? {} : { knowledgeId }),
+    ...(title === '' ? {} : { title }),
+    ...(statement === '' ? {} : { statement }),
     ...(plan === null ? {} : { plan }),
     ...(progress === undefined ? {} : { progress }),
     ...(executionId === '' ? {} : { executionId }),
