@@ -16,7 +16,9 @@
  * THE READING IS NEVER FATAL. A missing default file is the ordinary "feature
  * off" state; a missing explicitly named file, a malformed document or a
  * malformed block field is named in `problems` and the caller's shipped defaults
- * are used. Nothing here throws, because a bad knob must never stop the server.
+ * are used. The readers never throw, because a bad knob must never stop the
+ * server. `readExpectedVersion` is the deliberate exception: it validates a
+ * WRITE's precondition and reports a caller mistake as a 400 `AppError`.
  *
  * Consumers: `modules/quay/counter-voice-settings.ts`,
  * `modules/observation/session-digest-llm-settings.ts`,
@@ -36,7 +38,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 
-import { errorMessage, isRecord } from '@/shared/utils.js';
+import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
 
 // ---------------------------- SHARED SHAPES ----------------------------
 
@@ -413,6 +415,44 @@ export function writeSettingsFileAtomically(
       // A leftover temp file is not a reason to hide the write's own error.
     }
   }
+}
+
+// ---------------------------- SAVE PRECONDITIONS ----------------------------
+
+/**
+ * The version a settings write was based on: the body's `expectedVersion`, else
+ * the `If-Match` header value.
+ *
+ * A save without a version, or with a non-string one, is a caller mistake and is
+ * refused as a 400 `AppError` (`VERSION_REQUIRED` / `INVALID_VERSION`) so a
+ * stale write can never silently overwrite another editor's save. This validates
+ * a REQUEST, not a settings document, so it deliberately throws where the
+ * readers above never do.
+ *
+ * Consumers: `modules/settings/settings.service.ts` (the cockpit session-start
+ * save) and `modules/settings/codex-model-providers.service.ts` (the Codex
+ * upstream provider registry save) — both save contracts require this same
+ * proof before touching their file.
+ */
+export function readExpectedVersion(
+  body: Record<string, unknown>,
+  headerVersion: string | undefined,
+): string {
+  if (body.expectedVersion !== undefined && typeof body.expectedVersion !== 'string') {
+    throw new AppError('expectedVersion must be a string', {
+      code: 'INVALID_VERSION',
+      statusCode: 400,
+    });
+  }
+  const fromBody = typeof body.expectedVersion === 'string' ? body.expectedVersion.trim() : '';
+  const version = fromBody || (headerVersion ?? '').trim();
+  if (!version) {
+    throw new AppError('expectedVersion is required to save', {
+      code: 'VERSION_REQUIRED',
+      statusCode: 400,
+    });
+  }
+  return version;
 }
 
 /**

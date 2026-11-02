@@ -1,5 +1,6 @@
 import type { McpAuditRouteEntry, McpGatewayGateReading } from '@/modules/mcp-gateway/index.js';
 import { normalizeAccessTokenScopes } from '@/modules/oauth/index.js';
+import { readExpectedVersion } from '@/shared/settings-file.js';
 import { AppError } from '@/shared/utils.js';
 
 import {
@@ -311,28 +312,6 @@ function readCockpitSessionStartEffort(value: unknown): string {
   return value.trim();
 }
 
-/** The version the edit was based on: the body's `expectedVersion`, else the `If-Match` header. */
-function readCockpitSessionStartVersion(
-  body: Record<string, unknown>,
-  headerVersion: string | undefined,
-): string {
-  if (body.expectedVersion !== undefined && typeof body.expectedVersion !== 'string') {
-    throw new AppError('expectedVersion must be a string', {
-      code: 'INVALID_VERSION',
-      statusCode: 400,
-    });
-  }
-  const fromBody = typeof body.expectedVersion === 'string' ? body.expectedVersion.trim() : '';
-  const version = fromBody || (headerVersion ?? '').trim();
-  if (!version) {
-    throw new AppError('expectedVersion is required to save', {
-      code: 'VERSION_REQUIRED',
-      statusCode: 400,
-    });
-  }
-  return version;
-}
-
 /** Creates settings workflows with repositories and notification effects injected. */
 export function createSettingsService(dependencies: SettingsDependencies) {
   return {
@@ -561,7 +540,7 @@ export function createSettingsService(dependencies: SettingsDependencies) {
         });
       }
 
-      const expectedVersion = readCockpitSessionStartVersion(body, input.headerVersion);
+      const expectedVersion = readExpectedVersion(body, input.headerVersion);
       const saved = await port.write({
         model,
         effort: input.partial ? effort : (effort ?? ''),

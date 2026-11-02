@@ -9,6 +9,7 @@ import spawn from 'cross-spawn';
 
 import { appConfigDb } from '@/modules/database/index.js';
 import { providerMcpService } from '@/modules/providers/index.js';
+import { createBrandEnvReader } from '@/shared/brand.js';
 import { getModuleDirectory } from '@/shared/utils.js';
 
 import { getBrowserUseRuntime } from './browser-use-runtime.js';
@@ -20,8 +21,42 @@ import {
 
 const require = createRequire(import.meta.url);
 const __dirname = getModuleDirectory(import.meta.url);
-const MAX_SESSIONS_PER_OWNER = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_MAX_SESSIONS_PER_OWNER || '3', 10);
-const SESSION_TTL_MS = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_SESSION_TTL_MS || String(30 * 60 * 1000), 10);
+const DEFAULT_MAX_SESSIONS_PER_OWNER = 3;
+const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000;
+const DEFAULT_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The brand-controlled browser-use limits, resolved once per process. */
+export type BrowserUseEnvDefaults = {
+  maxSessionsPerOwner: number;
+  sessionTtlMs: number;
+  installTimeoutMs: number;
+};
+
+/**
+ * Resolve the browser-use limits from the brand environment.
+ *
+ * Exported so the wiring criterion can drive the exact reads the service uses
+ * with an injected environment instead of mutating this process.
+ */
+export function readBrowserUseEnvDefaults(
+  env: Readonly<Record<string, string | undefined>>,
+  warn: (message: string) => void,
+): BrowserUseEnvDefaults {
+  const reader = createBrandEnvReader({ env, warn });
+  const readInteger = (name: string, fallback: number) =>
+    Number.parseInt(reader.read(name).value || String(fallback), 10);
+
+  return {
+    maxSessionsPerOwner: readInteger('BROWSER_USE_MAX_SESSIONS_PER_OWNER', DEFAULT_MAX_SESSIONS_PER_OWNER),
+    sessionTtlMs: readInteger('BROWSER_USE_SESSION_TTL_MS', DEFAULT_SESSION_TTL_MS),
+    installTimeoutMs: readInteger('BROWSER_USE_INSTALL_TIMEOUT_MS', DEFAULT_INSTALL_TIMEOUT_MS),
+  };
+}
+
+const browserUseEnvDefaults = readBrowserUseEnvDefaults(
+  process.env,
+  (message) => console.warn(`[Browser] ${message}`),
+);
 const BROWSER_USE_SETTINGS_KEY = 'browser_use_settings';
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
 
@@ -355,10 +390,7 @@ class BrowserUseRuntime {
  */
 export const browserUseRuntime = new BrowserUseRuntime();
 
-const INSTALL_COMMAND_TIMEOUT_MS = Number.parseInt(
-  process.env.CLOUDCLI_BROWSER_USE_INSTALL_TIMEOUT_MS || String(10 * 60 * 1000),
-  10,
-);
+const INSTALL_COMMAND_TIMEOUT_MS = browserUseEnvDefaults.installTimeoutMs;
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -451,7 +483,7 @@ async function expireStaleSessions(now = Date.now()): Promise<void> {
     }
 
     const updatedAt = Date.parse(session.updatedAt);
-    if (!Number.isFinite(updatedAt) || now - updatedAt <= SESSION_TTL_MS) {
+    if (!Number.isFinite(updatedAt) || now - updatedAt <= browserUseEnvDefaults.sessionTtlMs) {
       return;
     }
 
@@ -541,6 +573,8 @@ export const browserUseService = {
   async registerAgentMcp() {
     const { command, args } = getMcpCommand();
     await Promise.all(LEGACY_MCP_SERVER_NAMES.map((name) => removeMcpServerFromAllProviders(name)));
+    const mcpToken = getOrCreateMcpToken();
+    const mcpApiUrl = getMcpApiUrl();
     const results = await providerMcpService.addMcpServerToAllProviders({
       name: MCP_SERVER_NAME,
       scope: 'user',
@@ -548,8 +582,13 @@ export const browserUseService = {
       command,
       args,
       env: {
-        CLOUDCLI_BROWSER_USE_MCP_TOKEN: getOrCreateMcpToken(),
-        CLOUDCLI_BROWSER_USE_API_URL: getMcpApiUrl(),
+        CLOUDPIT_BROWSER_USE_MCP_TOKEN: mcpToken,
+        CLOUDPIT_BROWSER_USE_API_URL: mcpApiUrl,
+        // Transitional alias: an MCP config written by the previous desktop
+        // build still names the legacy spelling and is read as a fallback by
+        // `browser-use-mcp.ts` for one release window.
+        CLOUDCLI_BROWSER_USE_MCP_TOKEN: mcpToken,
+        CLOUDCLI_BROWSER_USE_API_URL: mcpApiUrl,
       },
     });
     return { name: MCP_SERVER_NAME, command, args, results };
@@ -610,8 +649,8 @@ export const browserUseService = {
     };
 
     const activeOwnerSessions = ownerSessions(AGENT_OWNER_ID).filter((item) => item.status === 'ready');
-    if (activeOwnerSessions.length >= MAX_SESSIONS_PER_OWNER) {
-      throw new Error(`Browser is limited to ${MAX_SESSIONS_PER_OWNER} active agent sessions.`);
+    if (activeOwnerSessions.length >= browserUseEnvDefaults.maxSessionsPerOwner) {
+      throw new Error(`Browser is limited to ${browserUseEnvDefaults.maxSessionsPerOwner} active agent sessions.`);
     }
 
     const readiness = browserUseRuntime.probe();
