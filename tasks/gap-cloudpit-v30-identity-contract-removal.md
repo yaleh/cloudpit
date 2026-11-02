@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v30-identity-contract-removal
 title: Cloudpit v3.0：删除 deep link/观测 URI/MCP/OAuth/SW 旧回退（保留 PAT 与 R14 itemRef）
-status: ready
+status: done
 labels:
   - gap
 parent: null
