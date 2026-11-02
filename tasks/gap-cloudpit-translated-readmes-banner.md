@@ -26,12 +26,12 @@ extra:
 
 ## AC
 
-- [ ] 7 份 `docs/README.{de,ja,ko,ru,tr,zh-CN,zh-TW}.md` 每份都含横幅标记 `<!-- cloudpit-translation-banner -->` 与可见的 `Cloudpit install:` 文本；`grep -L 'cloudpit-translation-banner'` 对这 7 个路径输出为空。
-- [ ] 7 份文件的 `<h1>` 都含 `Cloudpit`；`grep -n '<img'` 的 `alt` 均为 `Cloudpit`，不再出现 `alt="CloudCLI UI"`。
-- [ ] 7 份文件里 `npx @cloudcli-ai/cloudcli` 与 `npm install -g @cloudcli-ai/cloudcli` 零命中；安装位置改为 `@yalehwang/cloudpit`。
-- [ ] issue/PR 链接指向 `yaleh/cloudpit`；`grep -n 'siteboon/claudecodeui'` 只允许出现在明确的 upstream 归属说明行；`cloudcli.ai` 文档链接可保留。
-- [ ] 7 份文件的散文主体除上述行外零改动（`git diff --numstat` 每份新增行只来自横幅/标题/alt/安装/链接这几类）。
-- [ ] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
+- [x] 7 份 `docs/README.{de,ja,ko,ru,tr,zh-CN,zh-TW}.md` 每份都含横幅标记 `<!-- cloudpit-translation-banner -->` 与可见的 `Cloudpit install:` 文本；`grep -L 'cloudpit-translation-banner'` 对这 7 个路径输出为空。
+- [x] 7 份文件的 `<h1>` 都含 `Cloudpit`；`grep -n '<img'` 的 `alt` 均为 `Cloudpit`，不再出现 `alt="CloudCLI UI"`。
+- [x] 7 份文件里 `npx @cloudcli-ai/cloudcli` 与 `npm install -g @cloudcli-ai/cloudcli` 零命中；安装位置改为 `@yalehwang/cloudpit`。
+- [x] issue/PR 链接指向 `yaleh/cloudpit`；`grep -n 'siteboon/claudecodeui'` 只允许出现在明确的 upstream 归属说明行；`cloudcli.ai` 文档链接可保留。
+- [x] 7 份文件的散文主体除上述行外零改动（`git diff --numstat` 每份新增行只来自横幅/标题/alt/安装/链接这几类）。
+- [x] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
 
 ## DoD
 
@@ -39,6 +39,10 @@ extra:
 - 贴出 7 份文件的 `Cloudpit` 命中数（每份至少横幅+H1+安装命令）与 `npx @cloudcli-ai/cloudcli` 零命中的 grep 读数。
 - 贴出 `git diff --numstat`，证明每份文件的改动行数只覆盖上述五类。
 - 文档改动不需要浏览器实测；若改了任何 UI 才按 AGENTS.md 补截图。
+
+## ADR-007 暗轴
+
+- 该轴仍暗,理由:本任务只机械更新 7 份翻译 README 的横幅/标题/alt/安装命令/Issue 链接，不改变 L_D/L_G 的领域数据形态或模块依赖结构，无可读读数。
 
 ## Touches
 
