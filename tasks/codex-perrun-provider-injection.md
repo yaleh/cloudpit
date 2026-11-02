@@ -1,7 +1,7 @@
 ---
 id: codex-perrun-provider-injection
 title: per-run SDK 注入：queryCodex 用 CodexOptions.config/env 打到自定义 provider
-status: ready
+status: done
 labels:
   - feature
 parent: null
