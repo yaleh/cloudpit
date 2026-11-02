@@ -49,7 +49,7 @@ extra:
 - 贴出 AC4 的 `quay goal show AC-455 --json` 关键字段（title / status / expect 摘要）。
 - 贴出 AC5 整链的 `EXIT=0` 与 `fail 0` 行。
 - 贴出 anti-drift 的 `ANTI-DRIFT OK` 行与 `git diff --name-only develop...HEAD`。
-- `该轴仍暗,理由:本任务只把 AC-455 目录臂改成 recorded-change 棘轮并预声明四个待落地子目录，不改变任何生产读取、默认值或模块依赖边。`
+- 该轴仍暗,理由:本任务只把 AC-455 目录臂改成 recorded-change 棘轮并预声明四个待落地子目录，不改变任何生产读取、默认值或模块依赖边。
 - 本任务无 UI 改动，不适用浏览器 / UI 场景 DoD。
 
 ## Touches
