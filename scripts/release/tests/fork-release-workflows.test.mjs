@@ -267,4 +267,15 @@ test('desktop-release.yml publish.needs only names real jobs', () => {
   for (const id of needs) {
     assert.ok(desktopJobs[String(id)], `publish.needs references a job that does not exist: ${String(id)}`);
   }
+
+  // AC-458 reads the main v<version> release's assets (not the separate
+  // cloudpit-local-server-v<version> prerelease), so the local-server tarball and its
+  // checksum must also be attached to RELEASE_TAG.
+  const publishSteps = Array.isArray(publish.steps) ? publish.steps : [];
+  const mainReleaseUpload = publishSteps.find(
+    (step) => typeof step.run === 'string'
+      && /gh release upload "\$RELEASE_TAG"/.test(step.run)
+      && /release\/local-server/.test(step.run),
+  );
+  assert.ok(mainReleaseUpload, 'desktop-release.yml must attach the local-server assets to the main release');
 });
