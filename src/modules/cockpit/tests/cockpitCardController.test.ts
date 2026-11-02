@@ -11,7 +11,7 @@ import {
   cockpitCardsReading,
   createCockpitCardController,
   defaultShownOption,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 import {
   dismissTargetsOf,
   projectCountsOf,
@@ -19,7 +19,7 @@ import {
   targetsOf,
   typeCountsOf,
   visibleCardsOf,
-} from '@/modules/cockpit/cockpitCardDerived';
+} from '@/modules/cockpit/cards/cockpitCardDerived';
 import { createCockpitCardsDefaultOnEvent } from '@/modules/cockpit/hooks/useCockpitCards';
 import type {
   CockpitCardConfirmRequest,
@@ -31,7 +31,7 @@ import type {
   CockpitCardFilters,
   CockpitCardMemory,
   CockpitCardMemoryState,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The card controller's rules, proven without React and without a server.

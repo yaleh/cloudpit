@@ -27,7 +27,7 @@ import {
   createCockpitColumnController,
 } from '@/modules/cockpit';
 import type { CockpitCardsBinding, CockpitColumnBinding } from '@/modules/cockpit';
-import CockpitHeaderButton from '@/modules/cockpit/CockpitHeaderButton';
+import CockpitHeaderButton from '@/modules/cockpit/workspace/CockpitHeaderButton';
 
 /**
  * The phone's cockpit layer: opening it must not unmount the conversation it covers.

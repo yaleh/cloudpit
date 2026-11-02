@@ -7,7 +7,7 @@ import { describe, it } from 'vitest';
 import {
   createCockpitStartConversationController,
   type CockpitStartConversationController,
-} from '@/modules/cockpit/cockpitCardStartConversation';
+} from '@/modules/cockpit/cards/cockpitCardStartConversation';
 import type { CockpitCard } from '@/shared/types';
 
 /**

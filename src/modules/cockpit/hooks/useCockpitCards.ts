@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import type { CockpitBriefResponse, CockpitCard } from '@/shared/types';
 import { api, readApiJson } from '@/shared/api';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 import type {
   CockpitCardConfirmRequest,
   CockpitCardController,
@@ -14,7 +14,7 @@ import type {
   CockpitCardFilters,
   CockpitCardMemory,
   CockpitCardMemoryState,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 import type { CockpitCardTypeFilter } from '@/modules/cockpit-contract';
 
 /**

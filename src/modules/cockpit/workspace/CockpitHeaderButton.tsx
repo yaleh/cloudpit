@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Gauge } from 'lucide-react';
 
 import { cn } from '@/shared/utils';
-import { cockpitOverlayHistoryState } from '@/modules/cockpit/CockpitOverlay';
+import { cockpitOverlayHistoryState } from '@/modules/cockpit/workspace/CockpitOverlay';
 import { enterCockpit } from '@/modules/cockpit/cockpitEntry';
 import { useCockpitColumnContext } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';

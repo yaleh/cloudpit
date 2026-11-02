@@ -5,16 +5,16 @@ import type {
   CockpitKnowledgeCase,
 } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
-import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
-import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
-import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
-import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
+import { CockpitCardConfirmBar } from '@/modules/cockpit/cards/CockpitCardConfirmBar';
+import { CockpitCardDismissBar } from '@/modules/cockpit/cards/CockpitCardDismissBar';
+import CockpitCardFacts from '@/modules/cockpit/cards/CockpitCardFacts';
+import CockpitCardHeader from '@/modules/cockpit/cards/CockpitCardHeader';
+import CockpitCardOptions from '@/modules/cockpit/cards/CockpitCardOptions';
 import {
   canResendFeedback,
   feedbackOptionGone,
   feedbackPhaseOf,
-} from '@/modules/cockpit/cockpitCardFeedback';
+} from '@/modules/cockpit/cards/cockpitCardFeedback';
 import {
   COCKPIT_SOURCE_LABEL_KEY,
   cockpitCardAge,
@@ -23,7 +23,7 @@ import {
   cockpitCardSubjectName,
   cockpitCardTitle,
 } from '@/modules/cockpit/cockpitCardDescriptors';
-import CockpitCardSituation from '@/modules/cockpit/CockpitCardSituation';
+import CockpitCardSituation from '@/modules/cockpit/cards/CockpitCardSituation';
 import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
@@ -32,8 +32,8 @@ import type {
   CockpitCardDuplicatesState,
   CockpitCardSendCountdown,
   CockpitCardShown,
-} from '@/modules/cockpit/cockpitCardController';
-import { shownOptionOf } from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
+import { shownOptionOf } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The short cockpit copy for one knowledge case state. REPORTED is split by the provider's
@@ -83,7 +83,7 @@ function knowledgeStateLabel(knowledge: CockpitKnowledgeCase): string {
 
 // The Details drawer draws the same own-reply editor and imports it from this file; the editor
 // itself now lives with the options block that draws it on the card.
-export { OwnReplyEditor } from '@/modules/cockpit/CockpitCardOptions';
+export { OwnReplyEditor } from '@/modules/cockpit/cards/CockpitCardOptions';
 
 export type CockpitCardProps = {
   card: CockpitCardData;

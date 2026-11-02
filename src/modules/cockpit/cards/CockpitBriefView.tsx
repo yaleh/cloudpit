@@ -2,8 +2,8 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import type { CockpitBriefResponse } from '@/shared/types';
-import type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
-import { CockpitBriefBlockView } from '@/modules/cockpit/cockpitBriefBlocks';
+import type { CockpitBriefState } from '@/modules/cockpit/cards/cockpitCardController';
+import { CockpitBriefBlockView } from '@/modules/cockpit/cards/cockpitBriefBlocks';
 
 /**
  * The Details drawer's brief section: the read's four states and the block list.

@@ -10,9 +10,9 @@ import type {
   CockpitCardOption,
 } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import CockpitCardDetails from '@/modules/cockpit/cards/CockpitCardDetails';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * 「✎ 编辑」 COPIES AN OPTION INTO THE OWN-REPLY DRAFT AND FOCUSES ITS END.

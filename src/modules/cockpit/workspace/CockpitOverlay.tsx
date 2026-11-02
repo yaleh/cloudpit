@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 
 import type { CockpitCard as CockpitCardData } from '@/shared/types';
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
-import CockpitCardList from '@/modules/cockpit/CockpitCardList';
+import CockpitCardList from '@/modules/cockpit/cards/CockpitCardList';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
 
 /**

@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
-import CockpitPage from '@/modules/cockpit/CockpitPage';
+import CockpitPage from '@/modules/cockpit/workspace/CockpitPage';
 import CockpitRemote from '@/modules/cockpit/CockpitRemote';
 
 /**

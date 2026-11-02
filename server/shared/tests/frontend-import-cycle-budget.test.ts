@@ -6,6 +6,12 @@
  * 2026-10-30): chat/tools ↔ chat/tools/ContentRenderers ↔ chat/transcript;
  * cockpit ↔ cockpit/hooks ↔ project-workspace; git-panel ↔ git-panel/changes ↔
  * git-panel/history; architecture ↔ architecture/hooks; settings/hooks ↔ settings/tabs.
+ * RE-READ 2026-11-02 (task gap-routine-architecture-analysis-god-package-src-cockpit): the
+ * cockpit god-package split moved its card and workspace files into `cockpit/cards` and
+ * `cockpit/workspace`. Those files already imported each other, so the same dependency web is
+ * now read across four cockpit directories plus project-workspace; the group was re-measured and
+ * re-pinned member-for-member rather than dropped. This is the mandated re-read for a structural
+ * split, not a widened dependency: the module-level SCC below is unchanged.
  * The backend already had AC-394's directory budget, but `src` had no cycle criterion and
  * `.oxlintrc.json` enables no `import/no-cycle`, so those five could widen unmeasured.
  *
@@ -58,7 +64,9 @@ const BASELINE_PATH = path.join(TEST_DIR, 'frontend-import-cycle-budget.baseline
  */
 const CYCLE_GROUPS: readonly string[][] = [
   ['modules/chat/tools', 'modules/chat/tools/ContentRenderers', 'modules/chat/transcript'],
-  ['modules/cockpit', 'modules/cockpit/hooks', 'modules/project-workspace'],
+  // Re-read after the cockpit god-package split (2026-11-02): the card, workspace and hooks
+  // directories share one dependency web with the root barrel and project-workspace.
+  ['modules/cockpit', 'modules/cockpit/cards', 'modules/cockpit/hooks', 'modules/cockpit/workspace', 'modules/project-workspace'],
   ['modules/git-panel', 'modules/git-panel/changes', 'modules/git-panel/history'],
   ['modules/architecture', 'modules/architecture/hooks'],
   ['modules/settings/hooks', 'modules/settings/tabs'],

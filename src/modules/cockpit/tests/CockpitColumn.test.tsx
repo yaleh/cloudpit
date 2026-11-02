@@ -6,15 +6,15 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Clock, CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitColumn, { CockpitColumnRegion } from '@/modules/cockpit/CockpitColumn';
-import CockpitHeaderButton from '@/modules/cockpit/CockpitHeaderButton';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import CockpitColumn, { CockpitColumnRegion } from '@/modules/cockpit/workspace/CockpitColumn';
+import CockpitHeaderButton from '@/modules/cockpit/workspace/CockpitHeaderButton';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import { createCockpitColumnController } from '@/modules/cockpit/workspace/cockpitColumnController';
 import type {
   CockpitColumnController,
   CockpitColumnStorage,
-} from '@/modules/cockpit/cockpitColumnController';
+} from '@/modules/cockpit/workspace/cockpitColumnController';
 import { CockpitColumnContext } from '@/modules/cockpit/hooks/useCockpitColumn';
 import type { CockpitColumnBinding } from '@/modules/cockpit/hooks/useCockpitColumn';
 

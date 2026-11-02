@@ -9,11 +9,11 @@ import {
 import type { RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import { createCockpitColumnController } from '@/modules/cockpit/workspace/cockpitColumnController';
 import type {
   CockpitColumnController,
   CockpitColumnSnapshot,
-} from '@/modules/cockpit/cockpitColumnController';
+} from '@/modules/cockpit/workspace/cockpitColumnController';
 import { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
 

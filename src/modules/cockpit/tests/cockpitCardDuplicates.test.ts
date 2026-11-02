@@ -6,7 +6,7 @@ import {
   cockpitCardDuplicateGroups,
   cockpitCardQuestionOf,
   normalizeCockpitCardQuestion,
-} from '@/modules/cockpit/cockpitCardDuplicates';
+} from '@/modules/cockpit/cards/cockpitCardDuplicates';
 
 /**
  * Folding cards that ask the same question in the same session.

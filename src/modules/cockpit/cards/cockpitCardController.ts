@@ -17,8 +17,8 @@ import {
   feedbackPhasesOf,
   FEEDBACK_OPTION_GONE_REASON,
   type CockpitCardFeedbackPhase,
-} from '@/modules/cockpit/cockpitCardFeedback';
-import { cockpitCardDuplicateGroups } from '@/modules/cockpit/cockpitCardDuplicates';
+} from '@/modules/cockpit/cards/cockpitCardFeedback';
+import { cockpitCardDuplicateGroups } from '@/modules/cockpit/cards/cockpitCardDuplicates';
 import {
   cockpitCardStateKey,
   defaultShownOption,
@@ -33,7 +33,7 @@ import {
   type CockpitCardConfirmTarget,
   type CockpitCardDismissTarget,
   type CockpitCardShown,
-} from '@/modules/cockpit/cockpitCardDerived';
+} from '@/modules/cockpit/cards/cockpitCardDerived';
 
 /**
  * The pure derivations live in `cockpitCardDerived.ts`; the controller re-exports its public
@@ -47,12 +47,12 @@ export {
   isIrreversibleOption,
   shownOptionOf,
   startedSessionIdOf,
-} from '@/modules/cockpit/cockpitCardDerived';
+} from '@/modules/cockpit/cards/cockpitCardDerived';
 export type {
   CockpitCardConfirmTarget,
   CockpitCardDismissTarget,
   CockpitCardShown,
-} from '@/modules/cockpit/cockpitCardDerived';
+} from '@/modules/cockpit/cards/cockpitCardDerived';
 
 /**
  * The cockpit card list's model: cards, filters, density, the Details stack, the option each

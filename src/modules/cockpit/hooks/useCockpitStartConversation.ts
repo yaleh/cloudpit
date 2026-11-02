@@ -8,12 +8,12 @@ import type {
   QuayFleetSummary,
 } from '@/shared/types';
 import { createChatSession } from '@/modules/chat';
-import { createCockpitStartConversationController } from '@/modules/cockpit/cockpitCardStartConversation';
+import { createCockpitStartConversationController } from '@/modules/cockpit/cards/cockpitCardStartConversation';
 import type {
   CockpitStartConversationCreated,
   CockpitStartConversationProject,
   CockpitStartConversationSnapshot,
-} from '@/modules/cockpit/cockpitCardStartConversation';
+} from '@/modules/cockpit/cards/cockpitCardStartConversation';
 
 /** The LLM a card-started conversation runs on when the surface names none. */
 export const DEFAULT_COCKPIT_CARD_SESSION_PROVIDER: LLMProvider = 'claude';

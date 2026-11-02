@@ -1,6 +1,6 @@
 import type { CockpitCard } from '@/shared/types';
 import { createExternalStore } from '@/shared/utils';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The PC cockpit column's rules, with no React in the file.
