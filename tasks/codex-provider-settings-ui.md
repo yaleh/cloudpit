@@ -28,7 +28,8 @@ goal_ac: AC-465
 ## Touches
 
 - src/shared/ui/ModelLibraryPanel.tsx
-- src/modules/settings/tabs/agents-settings/sections/content/（新 CodexProviders 内容 + 分发）
+- src/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent.tsx（新）
+- src/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection.tsx（分发）
 - src/shared/constants.ts（PROVIDER_DESCRIPTORS 增数据字段）
 - src/modules/settings/tests/codexProviderSettings.test.tsx（新 vitest）
 
