@@ -27,7 +27,7 @@ goal_ac: AC-464
 - server/modules/providers/list/codex/codex-runtime.provider.ts
 - server/modules/providers/tests/codex-runtime-provider-injection.test.ts（新判据，撞 pin 则上调）
 
-## AC（红先行，落 AC-464）
+## AC
 
 - [ ] AC-464 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime-provider-injection.test.ts 退出 0、fail 0。
 - [ ] 真实 mock：Authorization 来自 tokenFile secret、宿主哨兵不泄漏；无 provider 模型不传 config。
