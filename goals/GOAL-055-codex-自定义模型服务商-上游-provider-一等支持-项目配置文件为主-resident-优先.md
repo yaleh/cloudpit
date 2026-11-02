@@ -1,7 +1,7 @@
 ---
 id: GOAL-055
 title: Codex 自定义模型服务商（上游 provider）一等支持：项目配置文件为主、resident 优先
-status: draft
+status: active
 kind: goal
 origin: 人 yale 2026-11-02 会话裁定。三条方向：① 项目运行 codex 以本项目提供的设置为准，用户 ~/.codex profile
   仅兼容、不为主场景；② 配置主要用配置文件管理（settings 文件 + 0600 tokenFile
@@ -9,6 +9,13 @@ origin: 人 yale 2026-11-02 会话裁定。三条方向：① 项目运行 codex
   实现，per-run 为第二路径。四问题裁决：Q1 provider 注册表为项目级一等配置（不 inline、不复活 launch profile）；Q2
   用户 profile 只读导入；Q3 换 provider 拒绝 + 一键 fork；Q4 wire_api 仅 responses。secret 用
   tokenFile。
+activatedAt: 2026-11-02T09:10:23.901Z
+statusLog:
+  - at: 2026-11-02T09:10:23.901Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
 ---
 ## 背景
 
