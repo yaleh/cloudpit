@@ -27,13 +27,13 @@ P3 退场计划的 v3.0 第二批：删除 R5、R7–R9、R11 的身份契约旧
 
 ## AC
 
-- [ ] `DEEP_LINK_SCHEMES` 只含 `cloudpit`；`cloudcli://auth/callback` 仍被解析/注册；`cloudpit-desktop-identity.test.mjs` 的 scheme 判据更新。
-- [ ] `parseObservationUri('cloudcli://session/x')` 与 `'cloudcli://architecture/x'` 返回 null；`cloudpit://...` 仍可解析；`cloudcli://auth/callback` 与 R14 的 `cloudcli://session/<id>/msg/...` 仍可用（R14 测试绿）。
-- [ ] MCP 名：`mcpServerNamesToRemove()` 只含 `cloudpit-browser`；`cloudcli-browser` / `cloudcli-browser-use` 不再被清理或注册；`browser-use-mcp-entry.test.ts` 更新。
-- [ ] OAuth：AS metadata 的 `scopes_supported` 只含 8 个 `cloudpit:*`；`ACCEPTED_ACCESS_TOKEN_SCOPES` 只接受新拼写；旧 scope 请求被拒；旧 token 的失效/续期策略写进 release notes；相关测试更新。
-- [ ] SW：activation 只删 `cloudpit-*`；`claude-ui-*` 不再被清理；无关 speech model 缓存保留；`cloudpit-runtime-flip.test.ts` AC9 更新。
-- [ ] release 检查：workflow/资产无旧 tag 前缀的负向判据仍绿；R14 的两个 formatter 仍写旧拼写，`replyItems.test.ts`/`cockpit-brief*.test.ts` 绿。
-- [ ] `npm run typecheck`、`npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
+- [x] `DEEP_LINK_SCHEMES` 只含 `cloudpit`；`cloudcli://auth/callback` 仍被解析/注册；`cloudpit-desktop-identity.test.mjs` 的 scheme 判据更新。
+- [x] `parseObservationUri('cloudcli://session/x')` 与 `'cloudcli://architecture/x'` 返回 null；`cloudpit://...` 仍可解析；`cloudcli://auth/callback` 与 R14 的 `cloudcli://session/<id>/msg/...` 仍可用（R14 测试绿）。
+- [x] MCP 名：`mcpServerNamesToRemove()` 只含 `cloudpit-browser`；`cloudcli-browser` / `cloudcli-browser-use` 不再被清理或注册；`browser-use-mcp-entry.test.ts` 更新。
+- [x] OAuth：AS metadata 的 `scopes_supported` 只含 8 个 `cloudpit:*`；`ACCEPTED_ACCESS_TOKEN_SCOPES` 只接受新拼写；旧 scope 请求被拒；旧 token 的失效/续期策略写进 release notes；相关测试更新。
+- [x] SW：activation 只删 `cloudpit-*`；`claude-ui-*` 不再被清理；无关 speech model 缓存保留；`cloudpit-runtime-flip.test.ts` AC9 更新。
+- [x] release 检查：workflow/资产无旧 tag 前缀的负向判据仍绿；R14 的两个 formatter 仍写旧拼写，`replyItems.test.ts`/`cockpit-brief*.test.ts` 绿。
+- [x] `npm run typecheck`、`npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
 
 ## DoD
 
@@ -42,30 +42,77 @@ P3 退场计划的 v3.0 第二批：删除 R5、R7–R9、R11 的身份契约旧
 - 贴出相关测试的 `tests/pass/fail` 末行；贴出 release 负向检查读数。
 - 贴出 typecheck/oxlint 退出码；不改 UI，不需要浏览器截图（除非改了可见文案）。
 
+## 暗轴记录
+
+该轴仍暗,理由:本任务只删除运行时兼容分支并更新判据，未新增可比较的 L_D/L_G 代码结构读数
+
 ## Touches
 
+- docs/operations/cloudpit-v3.0-release-notes.md
 - electron/main.js
+- electron/tests/cloudpit-desktop-identity.test.mjs
 - package.json
-- server/modules/observation/observation-uri.ts
-- src/modules/cockpit-contract/observationUri.ts
-- server/modules/observation/observation-store.ts
-- server/modules/observation/observation.routes.ts
-- server/modules/browser-use/mcp-server-names.ts
+- public/sw.js
+- scripts/release/tests/fork-release-workflows.test.mjs
 - server/modules/browser-use/browser-use.service.ts
+- server/modules/browser-use/index.ts
+- server/modules/browser-use/mcp-server-names.ts
 - server/modules/cli/browser-use-mcp.ts
-- server/shared/mcp-contract/types.ts
+- server/modules/cli/tests/browser-use-mcp-entry.test.ts
+- server/modules/debug-agent/tests/debug-agent-permission-popup.test.ts
+- server/modules/mcp-gateway/mcp-gateway.auth.ts
+- server/modules/mcp-gateway/oauth-metadata.gate.ts
+- server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts
+- server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
+- server/modules/mcp-gateway/tests/mcp-approvals.test.ts
+- server/modules/mcp-gateway/tests/mcp-audit-route.test.ts
+- server/modules/mcp-gateway/tests/mcp-audit.test.ts
+- server/modules/mcp-gateway/tests/mcp-auth.test.ts
+- server/modules/mcp-gateway/tests/mcp-cancel-queued.test.ts
+- server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts
+- server/modules/mcp-gateway/tests/mcp-correlation-id.test.ts
+- server/modules/mcp-gateway/tests/mcp-draft.test.ts
+- server/modules/mcp-gateway/tests/mcp-gateway-wiring.test.ts
+- server/modules/mcp-gateway/tests/mcp-insufficient-scope.test.ts
+- server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
+- server/modules/mcp-gateway/tests/mcp-not-found-semantics.test.ts
+- server/modules/mcp-gateway/tests/mcp-oauth-challenge.test.ts
+- server/modules/mcp-gateway/tests/mcp-overview.test.ts
+- server/modules/mcp-gateway/tests/mcp-pending-interaction.test.ts
+- server/modules/mcp-gateway/tests/mcp-read-tools.test.ts
+- server/modules/mcp-gateway/tests/mcp-run-get.test.ts
+- server/modules/mcp-gateway/tests/mcp-self-target.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-background.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-host-control.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-reconfigure.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-search-pruning.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-search.test.ts
+- server/modules/mcp-gateway/tests/mcp-session-send.test.ts
+- server/modules/mcp-gateway/tests/mcp-ui-last-opened.test.ts
+- server/modules/mcp-gateway/tests/mcp-usage-stats.test.ts
+- server/modules/mcp-gateway/tests/mcp-write-notification.test.ts
+- server/modules/mcp-gateway/tests/oauth-flow.e2e.test.ts
 - server/modules/oauth/access-tokens.service.ts
 - server/modules/oauth/oauth-consent.service.ts
-- server/modules/mcp-gateway/oauth-metadata.gate.ts
-- server/modules/mcp-gateway/mcp-gateway.auth.ts
-- public/sw.js
-- electron/tests/cloudpit-desktop-identity.test.mjs
-- server/modules/observation/tests/observation-store.test.ts
-- server/modules/observation/tests/observation-routes.test.ts
-- src/modules/cockpit/tests/observationUri.test.ts
-- server/modules/cli/tests/browser-use-mcp-entry.test.ts
+- server/modules/oauth/tests/access-token-scopes.test.ts
 - server/modules/oauth/tests/access-tokens.service.test.ts
-- server/shared/tests/cloudpit-runtime-flip.test.ts
+- server/modules/oauth/tests/oauth-consent-page.test.ts
+- server/modules/oauth/tests/oauth-consent-ratelimit.test.ts
+- server/modules/oauth/tests/token-info.routes.test.ts
+- server/modules/observation/observation-store.ts
+- server/modules/observation/observation-uri.ts
+- server/modules/observation/observation.routes.ts
+- server/modules/observation/tests/observation-routes.test.ts
+- server/modules/observation/tests/observation-store.test.ts
+- server/modules/settings/settings.service.ts
 - server/modules/static-assets/tests/service-worker-transient-failure.test.ts
-- scripts/release/tests/fork-release-workflows.test.mjs
+- server/shared/mcp-contract/types.ts
+- server/shared/tests/cloudpit-runtime-flip.test.ts
+- src/modules/cockpit-contract/observationUri.ts
+- src/modules/cockpit/tests/observationUri.test.ts
+- src/modules/oauth-consent/OAuthConsentRoute.tsx
+- src/modules/oauth-consent/tests/oauthConsentPage.test.tsx
+- src/modules/settings/tests/i18nMcpSettingsCompleteness.test.ts
+- src/shared/constants.ts
 - tasks/gap-cloudpit-v30-identity-contract-removal.md
