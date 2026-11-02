@@ -1,7 +1,7 @@
 ---
 id: AC-463
 title: resident 注入 + restore/resume：真实 app-server 打到本地 mock、secret 走 env_key 不进 argv
-status: draft
+status: active
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -14,4 +14,15 @@ expect: "真实打包 app-server + 本地 mock HTTP：自定义 provider 会话 
 origin: 人 yale 2026-11-02 裁定 ③ resident 优先。0.166.0 实测：thread/start 传
   modelProvider 会 modelProviderMismatch；spawn -c 才打得到 mock；resume 缺配置
   modelProviderNotConfigured。
+activatedAt: 2026-11-02T09:21:54.835Z
+statusLog:
+  - at: 2026-11-02T09:21:54.835Z
+    from: draft
+    to: active
+    actor: goal-driver
+    reason: "triage: activate"
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-11-02T09:21:54.835Z
 ---
