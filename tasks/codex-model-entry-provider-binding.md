@@ -26,16 +26,37 @@ goal_ac: AC-461
 ## Touches
 
 - tasks/codex-model-entry-provider-binding.md
-- server/shared/types.ts + src/shared/types.ts（ProviderModelConfig.codexProviderId + TypeSync）
+- server/shared/types.ts
+- src/shared/types.ts
+- src/shared/tests/wireContractTypeSync.test.ts
+- server/shared/ports/codex-provider-registry.port.ts (new)
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/provider.routes.ts
-- server/modules/providers/tests/codex-provider-model-binding.test.ts（新判据，撞 pin 则上调）
+- server/modules/providers/tests/codex-provider-model-binding.test.ts (new)
+- server/modules/settings/settings.module.ts
+- server/shared/tests/quay-test-script.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- scripts/suite-duration-baseline.tsv
 
 ## AC
 
-- [ ] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
-- [ ] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
+- [x] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
+- [x] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
 
 ## DoD
 
 判据逐字 tests/pass/fail；新 test.ts 撞 quay pin / 时长基线则等量上调并注明；typecheck 绿。
+
+## Verification
+
+- 判据逐字：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts` → `tests 7` / `pass 7` / `fail 0`，退出 0（4412ms）。
+- 负臂逐条：未知 provider `nobody` → 409 `CODEX_PROVIDER_UNKNOWN`，消息含 `nobody`，catalog 无新行；先绑定 `bob` 再从注册表删除 → update/create 均 409 且原行 model/config 不变；未声明 `codexProviderId` → label 为裸 model、存储 config 无该键、`config` 省略时仍为 null（passthrough 基线）。
+- 路由透传：真实 SQLite + 生产 router，POST `config:{env:[],codexProviderId:'bob'}` → 201 且 `config_json` 含 `codexProviderId`；`nobody` → 409 且库中无该行。
+- 目录显示：合并目录里自定义行 label 为 `Route Bound · bob`；未声明行为 `Bound Model`。
+- 注册表读取经 `shared/ports/codex-provider-registry.port.ts`（settings.module 安装），providers 不 import settings，`server-import-cycle-budget.test.ts` 21/21 绿（G1/G2/G3 未变）；服务不对 provider id 分支，architecture-ratchet 的 providerNameBranches 未变。
+- pin / 基线：`server/shared/tests/quay-test-script.test.ts` unknown 496→497、498→499（collected 499→500）；`scripts/suite-duration-baseline.tsv` 追加本判据 4412ms 行；`architecture-ratchet.baseline.json` 的 oversize 三处（provider.routes.ts 1152→1162、server/shared/types.ts 5537→5552、src/shared/types.ts 4927→4935）按 RECORDED CHANGE 上调并记录理由。
+- 其它：`architecture-ratchet` 6/6、`cloudpit-goal-exit-gate` 3/3、`wireContractTypeSync` 5/5；`tsc --noEmit -p server/tsconfig.json`、`-p tsconfig.json` 均退出 0；oxlint 无输出；既有 `provider-models.service.test.ts` + `model-config-write-path.test.ts` + `provider.routes.test.ts` 合计 44/44 pass（未声明路径不红）。
+
+## ADR-007
+
+- 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 shared/ports 端口按 AC-394 叶子规则不进入任何 SCC，周期读数由 server-import-cycle-budget.test.ts 21/21 绿代替。
