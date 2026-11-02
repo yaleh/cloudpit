@@ -29,8 +29,11 @@ goal_ac: AC-461
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/provider.routes.ts
 - server/modules/providers/tests/model-config-write-path.test.ts（扩，不新建）
+- tasks/codex-model-entry-provider-binding.md
 
-## AC（红先行，落 AC-461）
+## AC
+
+红先行，落 AC-461。
 
 - [ ] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/model-config-write-path.test.ts 退出 0、fail 0。
 - [ ] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
