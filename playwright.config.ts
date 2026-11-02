@@ -829,6 +829,17 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // ~10.6x the cold round's pre-case cost, while AC-172's gate deadline (`timeoutMs: 260000`) still
   // outlasts it by 20 s so a crossing is written down rather than SIGKILLed silently.
   'resident-status-bar.spec.ts': 240_000,
+  // The transcript-follow criterion (GOAL-004 / AC-109): one slow in-page wire double per arm (the wheel
+  // gesture and the keyboard PageUp gesture), each behind the shared server boot, the client warm-up and
+  // the service-worker settle. MEASURED 2026-11-02 on this host: a warm direct run read `1 passed (28.4s)`,
+  // `wall=29.25s`, `config-eval-ms=249`, boot observed at 3514ms. The same tree and the same criterion
+  // (treeSha 56c5ba940c871502e3ebcbb5bf10588c45d6cf34) was then killed by this watchdog twice — at
+  // 2026-11-02T22:14:58.294Z crossing 55000ms with `config-eval-ms=7122` and boot past at 21672ms, and at
+  // 2026-11-02T22:16:17.945Z crossing 55001ms with `config-eval-ms=6569` and boot past at 17703ms — so the
+  // line, not the AC-109 window assertions, decided both rounds. 240_000 is the sibling heavy-spec value
+  // (~8.5x the healthy invocation and ~11x the cold round's pre-case cost), while AC-109's gate deadline
+  // (`timeoutMs: 260000`) still outlasts it by 20 s so a crossing is written down before the gate kills it.
+  'transcript-follow.spec.ts': 240_000,
 };
 
 /**
