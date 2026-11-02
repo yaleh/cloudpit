@@ -3,7 +3,7 @@ id: gap-ac172-criterion-run-budget-below-cold-start-wall
 title: AC-172 判据仍压在 55s 默认单文件预算上：冷轮 config-eval 7469ms、直至 22659ms 才越过 boot，比热轮多
   18835ms，同树 13:43:31Z pass / 13:47:44Z 在 55006ms 被看门狗杀掉；给 resident-status-bar
   声明 SPEC_BUDGET_MS 并把 describe/钩子/自检/闸四处预算调自洽，判据命令与断言逐字不动
-status: todo
+status: ready
 labels:
   - gap
   - defect
