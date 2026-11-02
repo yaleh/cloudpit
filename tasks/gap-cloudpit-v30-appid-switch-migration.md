@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v30-appid-switch-migration
 title: Cloudpit v3.0：appId 切换到 ai.cloudpit.desktop + 一次性安装迁移器
-status: todo
+status: ready
 labels:
   - gap
 parent: null
