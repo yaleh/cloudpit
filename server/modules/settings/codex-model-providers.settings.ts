@@ -20,13 +20,24 @@
  *
  * Consumers: `settings.module.ts` (the production source), `settings.service.ts` (through the
  * port), and the resident/per-run Codex injection tasks (spawn-time `resolve`).
+ *
+ * USER PROFILE IMPORT. {@link readCodexUserProviderImports} performs the one other read this
+ * module owns: it lists the `[model_providers.*]` blocks of the operator's own
+ * `~/.codex` TOML files so the settings page can offer them as bindings. That read is
+ * deliberately one-way — it never reads an `env_key` VALUE or a token, and it never writes to
+ * the user's files. The project settings file stays the only write target.
  */
+import { readFileSync, readdirSync } from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
+
+import TOML from '@iarna/toml';
 
 import type { CodexModelProvider, CodexModelProvidersReading } from '@/shared/types.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
 
 import {
+  CODEX_PROVIDER_WIRE_API,
   parseCodexProviderEntry,
   type CodexModelProviderEntry,
 } from './codex-model-providers.schema.js';
@@ -121,6 +132,181 @@ function readProviderRegistry(
     }
   }
   return { providers: projectProviders(filePath, homeDir, entries), warnings };
+}
+
+/** The environment entry Codex itself honours for the directory holding `config.toml`. */
+export const CODEX_HOME_ENV = 'CODEX_HOME';
+
+/** One `[model_providers.<id>]` block read from the user's own Codex TOML files. */
+export type CodexUserProviderImport = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  /**
+   * The declared dialect, or `responses` when the block omits it. This project only ever writes
+   * `responses`, so a block that declares another dialect is listed but not bindable.
+   */
+  wireApi: string;
+  /** The user file the block came from; the import view names it so the origin is never lost. */
+  source: string;
+  /** True when the block can be selected as a model entry's `codexProviderId` unchanged. */
+  bindable: boolean;
+  /** Unknown fields (Codex's own `api`), and every reason the block cannot be bound. */
+  warnings: string[];
+};
+
+/**
+ * The user-profile import view: the Codex home inspected, the files actually read, every
+ * provider block, and file-level problems (an unreadable or malformed file) that belong to no
+ * single provider.
+ */
+export type CodexUserProviderImportReading = {
+  directory: string;
+  files: string[];
+  providers: CodexUserProviderImport[];
+  warnings: string[];
+};
+
+/** The user TOML files the import reads, in a stable order: `config.toml` first, then profiles. */
+function userCodexConfigFiles(directory: string): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(directory);
+  } catch (failure) {
+    const code = (failure as NodeJS.ErrnoException | null)?.code;
+    // A machine without ~/.codex is the ordinary "nothing to import" state.
+    if (code === 'ENOENT') return [];
+    throw new AppError(`could not list ${directory}: ${errorMessage(failure)}`, {
+      code: 'CODEX_USER_CONFIG_READ_FAILED',
+      statusCode: 500,
+    });
+  }
+  const names = entries
+    .filter((entry) => entry === 'config.toml' || entry.endsWith('.config.toml'))
+    .sort((left, right) => {
+      if (left === 'config.toml') return -1;
+      if (right === 'config.toml') return 1;
+      return left.localeCompare(right);
+    });
+  return names.map((name) => path.join(directory, name));
+}
+
+/** Reads a TOML string field for the import VIEW; a non-string value is left to the parser's warning. */
+function displayField(block: Record<string, unknown>, key: string): string {
+  const value = block[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** Turns one user block into an import row, reusing the project schema for every verdict. */
+function readUserProviderImport(
+  id: string,
+  raw: unknown,
+  source: string,
+  homeDir: string,
+): CodexUserProviderImport {
+  if (!isRecord(raw)) {
+    return {
+      id,
+      name: id,
+      baseUrl: '',
+      envKey: '',
+      wireApi: CODEX_PROVIDER_WIRE_API,
+      source,
+      bindable: false,
+      warnings: [`provider "${id}" in ${source} is not a TOML table; it cannot be imported`],
+    };
+  }
+
+  // The project parser owns the verdict: reserved ids, an absolute http(s) base_url, a valid
+  // env_key, a supported wire_api, and the unknown-field warning (Codex's own `api`). A
+  // tolerant parse keeps a bad block visible instead of dropping it from the import view.
+  const parsed = parseCodexProviderEntry(raw, id, { settingsPath: source, homeDir, strict: false });
+  const warnings = [...parsed.warnings];
+  const declaredEnvKey = displayField(raw, 'env_key');
+  if (declaredEnvKey === '' && parsed.entry !== null) {
+    warnings.push(
+      `provider "${id}" in ${source} declares no env_key; importing it would use ${parsed.entry.envKey}`,
+    );
+  }
+
+  return {
+    id,
+    name: displayField(raw, 'name') || id,
+    baseUrl: displayField(raw, 'base_url'),
+    envKey: declaredEnvKey || parsed.entry?.envKey || '',
+    wireApi: displayField(raw, 'wire_api') || parsed.entry?.wireApi || CODEX_PROVIDER_WIRE_API,
+    source,
+    bindable: parsed.entry !== null,
+    warnings,
+  };
+}
+
+/**
+ * Lists the `[model_providers.*]` blocks of the operator's own Codex TOML files
+ * (`$CODEX_HOME`, else `<home>/.codex`; `config.toml` plus every `<name>.config.toml`).
+ *
+ * READ-ONLY BY CONSTRUCTION. This function only opens the TOML files for reading. It never
+ * reads an `env_key`'s value, a token file, or `auth.json`, and it has no write path at all:
+ * binding an imported provider goes into the PROJECT settings file, never back into `~/.codex`.
+ *
+ * Consumers: the settings import endpoint and its criterion. Kept as a free function over
+ * injectable `homeDir`/`env` so a criterion can own a temp Codex home instead of the host's.
+ */
+export function readCodexUserProviderImports(
+  options: {
+    homeDir?: string | undefined;
+    env?: Record<string, string | undefined>;
+  } = {},
+): CodexUserProviderImportReading {
+  const homeDir = options.homeDir ?? os.homedir();
+  const env = options.env ?? process.env;
+  const configured = env[CODEX_HOME_ENV];
+  const directory = configured !== undefined && configured.trim() !== ''
+    ? configured.trim()
+    : path.join(homeDir, '.codex');
+
+  const files: string[] = [];
+  const providers: CodexUserProviderImport[] = [];
+  const warnings: string[] = [];
+
+  for (const file of userCodexConfigFiles(directory)) {
+    let text: string;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch (failure) {
+      // A file that vanished between the listing and the read is simply not imported; any
+      // other failure is a visible warning, never a silently empty import view.
+      if ((failure as NodeJS.ErrnoException | null)?.code !== 'ENOENT') {
+        warnings.push(`could not read ${file}: ${errorMessage(failure)}`);
+      }
+      continue;
+    }
+    files.push(file);
+
+    let parsed: unknown;
+    try {
+      parsed = TOML.parse(text);
+    } catch (failure) {
+      warnings.push(`${file} is not valid TOML: ${errorMessage(failure)}`);
+      continue;
+    }
+    if (!isRecord(parsed)) {
+      warnings.push(`${file} did not parse to a TOML table`);
+      continue;
+    }
+    const block = parsed.model_providers;
+    if (block === undefined) continue;
+    if (!isRecord(block)) {
+      warnings.push(`${file}: model_providers must be a TOML table`);
+      continue;
+    }
+    for (const [id, raw] of Object.entries(block)) {
+      providers.push(readUserProviderImport(id, raw, file, homeDir));
+    }
+  }
+
+  return { directory, files, providers, warnings };
 }
 
 /**

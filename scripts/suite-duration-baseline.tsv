@@ -1007,3 +1007,8 @@
 #   (dur=8469ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 504 server test files and the baseline holds 455 of them).
 8469	server/modules/providers/tests/codex-resident-provider-injection.test.ts
+#   The codex-provider-import-user-profile row: measured once on 2026-11-03 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-provider-import.test.ts`
+#   (dur=1460ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 505 server test files and the baseline holds 456 of them).
+1460	server/modules/settings/tests/codex-provider-import.test.ts
