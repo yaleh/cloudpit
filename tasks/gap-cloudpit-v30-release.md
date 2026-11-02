@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v30-release
 title: Cloudpit v3.0.0 发布准备：checker 版本化、release notes 补全、workflow/桌面资产、AC-458 复验
-status: done
+status: ready
 labels:
   - gap
 parent: null
@@ -13,6 +13,8 @@ depends_on:
   - gap-cloudpit-v30-identity-contract-removal
   - gap-cloudpit-v30-appid-switch-migration
 ---
+> **RETREATED / 搁置（仓库侧已落 develop；release-it / desktop-release / 3.0.0 checker 待人工窗口，2 条外部 AC 未勾，按任务终态约定 park needs-human）**
+
 ## Proposal
 
 v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上：`package.json` 仍是 2.0.0；分发判据 `scripts/cloudpit-distribution-check.mjs` 的 `NEW_VERSION` 仍硬编码 2.0.0；`docs/operations/cloudpit-v3.0-release-notes.md` 只写了 R5/R7/R8/R9/R11，缺 R1/R2/R3/R13 与 R4 的退场说明。本任务准备 3.0.0 发布，并把外部发布动作留给人工窗口。
@@ -34,14 +36,14 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 
 ## AC
 
-- [x] `scripts/cloudpit-distribution-check.mjs` 的版本/资产前缀/tag 由参数或常量 `3.0.0` 驱动，不再有硬编码 2.0.0 的发布目标；`--version 3.0.0` 与默认值行为一致。
-- [x] `scripts/cloudpit-distribution-check.test.mjs` 更新为 3.0.0 夹具，`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；测试里保留一条「2.0.0 历史 release 仍可被显式版本读取」的负向/兼容臂，证明没有把历史版本从 checker 里删掉。
-- [x] `docs/operations/cloudpit-v3.0-release-notes.md` 含 R1/R2/R3/R13/R4 五节与「升级路径」节；每节有 breaking/action/rollback 三类信息；明确「R4 附件双根仍保留，等 `migrate-assets --rewrite`」。
-- [x] `.github/workflows/release.yml` 的 release name 默认/描述为 Cloudpit v3.0.0；workflow/资产无 `cloudcli-local-server-*` / `cloudcli-desktop-*` 旧前缀。
-- [x] `npm pack --dry-run` 的 tarball bin 只有 `cloudpit`；`node scripts/cloudpit-distribution-check.mjs --version 3.0.0 --json` 在未发布状态只报 3.0.0 缺失，不把 2.0.0 当当前版本。
+- [ ] `scripts/cloudpit-distribution-check.mjs` 的版本/资产前缀/tag 由参数或常量 `3.0.0` 驱动，不再有硬编码 2.0.0 的发布目标；`--version 3.0.0` 与默认值行为一致。
+- [ ] `scripts/cloudpit-distribution-check.test.mjs` 更新为 3.0.0 夹具，`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；测试里保留一条「2.0.0 历史 release 仍可被显式版本读取」的负向/兼容臂，证明没有把历史版本从 checker 里删掉。
+- [ ] `docs/operations/cloudpit-v3.0-release-notes.md` 含 R1/R2/R3/R13/R4 五节与「升级路径」节；每节有 breaking/action/rollback 三类信息；明确「R4 附件双根仍保留，等 `migrate-assets --rewrite`」。
+- [ ] `.github/workflows/release.yml` 的 release name 默认/描述为 Cloudpit v3.0.0；workflow/资产无 `cloudcli-local-server-*` / `cloudcli-desktop-*` 旧前缀。
+- [ ] `npm pack --dry-run` 的 tarball bin 只有 `cloudpit`；`node scripts/cloudpit-distribution-check.mjs --version 3.0.0 --json` 在未发布状态只报 3.0.0 缺失，不把 2.0.0 当当前版本。
 - [ ] `package.json` / `package-lock.json` 的版本在发布窗口后为 `3.0.0`；由 release-it 写入，worker 不手工 publish（待外部）
 - [ ] 外部发布完成后 `GITHUB_TOKEN=... node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0` 退出 0、`violations: []`；`v3.0.0` GitHub release 与 `cloudpit-desktop-3.0.0-*` / `cloudpit-local-server-v3.0.0-*` 资产可下载（待外部）
-- [x] `npm run typecheck` 与 `npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
+- [ ] `npm run typecheck` 与 `npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
 
 ## DoD
 
