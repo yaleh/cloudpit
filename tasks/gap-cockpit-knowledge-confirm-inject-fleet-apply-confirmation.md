@@ -53,13 +53,17 @@ confirmation 形状（字段取自 `knowledge` 与 `knowledge.feedback`）：
 
 ## AC
 
-- [ ] `bash scripts/with-memory-cap.sh tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0，且其中新增/扩展的用例断言：知识卡 confirm 时，注入的 `fleet.apply` 动作执行器收到的 `params.confirmation` 满足 `actorKind==='human'`、`decisionRef===knowledge.ref`（非空）、`at` 为可解析 ISO-8601 UTC、`binding` 含 `caseId/knowledgeRevision/proposalRevision/factsFingerprint/plan/decision` 且与 `knowledge` 一致；非知识卡 confirm 的 `params` 不含 `confirmation`；非 `fleet.apply` 执行器（如 `session.send`/`fleet.hold`）params 不因本改动新增字段。
-- [ ] `npx oxlint server/modules/cockpit/cockpit-card-actions.ts server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0；`npx tsc --noEmit -p server/tsconfig.json` 退出码 0。
-- [ ] 只读复核：`git diff -- server/modules/cockpit/cockpit-card-actions.ts` 显示注入点在 `executor.execute(action.params)` 之前、只新增 confirmation 构造与 `params` 拼装，`deliverFeedback` 的 knowledge 拼接未删；`git grep -n "confirmation" server/modules/cockpit/cockpit-card-actions.ts` 能定位到注入点。
+- [x] `bash scripts/with-memory-cap.sh tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0，且其中新增/扩展的用例断言：知识卡 confirm 时，注入的 `fleet.apply` 动作执行器收到的 `params.confirmation` 满足 `actorKind==='human'`、`decisionRef===knowledge.ref`（非空）、`at` 为可解析 ISO-8601 UTC、`binding` 含 `caseId/knowledgeRevision/proposalRevision/factsFingerprint/plan/decision` 且与 `knowledge` 一致；非知识卡 confirm 的 `params` 不含 `confirmation`；非 `fleet.apply` 执行器（如 `session.send`/`fleet.hold`）params 不因本改动新增字段。
+- [x] `npx oxlint server/modules/cockpit/cockpit-card-actions.ts server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` 退出码 0；`npx tsc --noEmit -p server/tsconfig.json` 退出码 0。
+- [x] 只读复核：`git diff -- server/modules/cockpit/cockpit-card-actions.ts` 显示注入点在 `executor.execute(action.params)` 之前、只新增 confirmation 构造与 `params` 拼装，`deliverFeedback` 的 knowledge 拼接未删；`git grep -n "confirmation" server/modules/cockpit/cockpit-card-actions.ts` 能定位到注入点。
 
 ## DoD
 
 `server/modules/cockpit/cockpit-card-actions.ts` 的 `confirm` 对知识卡在动作执行器调用前注入 `confirmation`；单测证明 `fleet.apply` 收到的 `params.confirmation` 形状满足 fleet `confirmationShapeRefusals` 的全部形状要求（actorKind/decisionRef/at/binding 及其必带字段）。真实对象已被操作：用知识 apply 卡（`att_d6edb0a3400e` 或等价 knowledge-proposal 卡）走 confirm 后，读 `fleet.apply` 收到的 `params` 断言其含完整 `confirmation`（修复前只有 `{attentionId, revision, optionId, decision}` 且被 `fleet.feedback` 拒）。端到端「fleet.apply 落决定」在 fleet 侧 companion 任务 `gap-knowledge-cockpit-apply-executor-fleet-apply` 落地后联合复验，本任务不把「fleet 已落决定」写成自身 DoD。
+
+## ADR-007 dark-axis record
+
+- 该轴仍暗,理由:本任务只把 knowledge authority 已验证的决定注入 fleet.apply 的 params，不新增领域数据能力，也没有可读出的 L_D/L_G 量值。
 
 ## Touches
 
