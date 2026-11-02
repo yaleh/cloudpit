@@ -116,3 +116,11 @@ P3 退场计划的 v3.0 第二批：删除 R5、R7–R9、R11 的身份契约旧
 - src/modules/settings/tests/i18nMcpSettingsCompleteness.test.ts
 - src/shared/constants.ts
 - tasks/gap-cloudpit-v30-identity-contract-removal.md
+
+## Blocker
+
+**2026-11-02T15:48:49.498Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/cockpit/tests/ObservationWall.test.tsx: AssertionError: expected [] to have a length of 1 but got +0 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/cockpit/tests/ObservationWall.test.tsx,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/modules/cockpit/tests/ObservationWall.test.tsx,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：3964b8af-dfcf-4e5a-9e60-100089b288ee
