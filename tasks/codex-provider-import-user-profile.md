@@ -30,7 +30,7 @@ goal_ac: AC-466
 - server/modules/settings/tests/codex-provider-import.test.ts（新判据，撞 pin 则上调）
 - src/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport.tsx（导入入口，跟随 codex-provider-settings-ui）
 
-## AC（红先行，落 AC-466）
+## AC
 
 - [ ] AC-466 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-provider-import.test.ts 退出 0、fail 0。
 - [ ] 负臂：不回 secret；不写回用户文件；未知字段（api）在导入视图告警。
