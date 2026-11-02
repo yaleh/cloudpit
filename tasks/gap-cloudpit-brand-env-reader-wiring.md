@@ -71,3 +71,11 @@ P3 退场计划 R1 的前置接线任务。现状（2026-11-02 实测）：`crea
 - 合并预检：`git merge --no-edit develop` → `Already up to date.`；`git merge-base --is-ancestor develop HEAD` → 通过。
 
 该轴仍暗,理由:本任务只把既有 brand reader 接到生产读取点，没有 L_D 文档比或 L_G ArchGuard 环轴的可测读数
+
+## Blocker
+
+**2026-11-02T12:49:19.136Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/browser-use/browser-use.service.ts 920→958 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6ec6bf77-5861-4e35-bbf0-fee5ec204989
