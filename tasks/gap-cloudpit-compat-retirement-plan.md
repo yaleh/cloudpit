@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-compat-retirement-plan
 title: Cloudpit 兼容退场计划：2.1 观测 URI 新写与 3.0 回退面移除/appId 切换
-status: todo
+status: ready
 labels:
   - gap
 parent: null
