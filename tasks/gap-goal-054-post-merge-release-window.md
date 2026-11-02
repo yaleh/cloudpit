@@ -2,7 +2,7 @@
 id: gap-goal-054-post-merge-release-window
 title: GOAL-054 post-merge 发布窗口：仓库侧分发身份与 release 资产命名先落地，再执行旧包 1.42.0
   deprecate→仓库改名→新包 2.0.0→桌面资产，使 AC-458 转绿
-status: needs-human
+status: done
 labels:
   - gap
 parent: null
