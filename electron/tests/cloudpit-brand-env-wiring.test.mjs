@@ -270,7 +270,7 @@ test('localServer: CLOUDPIT_USE_INSTALLED_SERVER wins over the legacy spelling',
   assert.deepEqual(both.warnings, []);
 });
 
-test('Electron wiring: localServer.js reads through the brand reader, not process.env.CLOUDCLI_', () => {
+test('Electron wiring: localServer.js reads discovery names through the brand reader', () => {
   const source = readRepoFile('electron/localServer.js');
 
   assert.ok(
@@ -359,7 +359,7 @@ test('serverInstaller AC3: both spellings set means the new values win', () => {
   assert.deepEqual(warnings, []);
 });
 
-test('Electron wiring: serverInstaller.js reads through the brand reader, not process.env.CLOUDCLI_', () => {
+test('Electron wiring: serverInstaller.js reads bundle names through the brand reader', () => {
   const source = readRepoFile('electron/serverInstaller.js');
 
   assert.ok(source.includes('const brandEnv = createBrandEnvReader({ env, warn })'));
