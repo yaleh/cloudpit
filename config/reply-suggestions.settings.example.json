@@ -41,7 +41,7 @@
   "expansion": "off",
   "_expansion": "Experimental post-selection expansion: \"off\" (default) or \"vary\". With \"vary\", picking a model chip asks for variants of that reply, and quoting a passage asks for responses to it; both appear as chips under the textarea and replace the body when clicked. With \"off\" an expand request is refused 400 and the composer behaves as before.",
   "usageLog": true,
-  "_usageLog": "Write the local-only JSONL usage ledger (~/.cloudcli/reply-suggestions-usage.jsonl). Rotation: a file that would exceed 5 MB is renamed to .1 and the older .1 is discarded.",
+  "_usageLog": "Write the local-only JSONL usage ledger (~/.cloudpit/reply-suggestions-usage.jsonl). Rotation: a file that would exceed 5 MB is renamed to .1 and the older .1 is discarded.",
   "systemPrompt": "",
   "_systemPrompt": "Empty means the built-in prompt. A non-empty string replaces it whole."
 }
