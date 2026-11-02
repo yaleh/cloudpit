@@ -30,12 +30,12 @@ depends_on:
 
 ## AC
 
-- [ ] `scripts/brand-allowlist-check.mjs` 新增显式 `CURRENT_DOC_SURFACES`（README H1、CONTRIBUTING、7 份翻译、5 份架构文档）；`scripts/brand-allowlist-check.test.mjs` 至少新增三条 false-form：向 README H1、某份翻译 H1、某份架构文档注入 `CloudCLI` 都必须返回 `exitCode: 1` 并点名文件。
-- [ ] 真实树运行 `node scripts/brand-allowlist-check.mjs --root .` 退出 0、`violations: []`，且输出里 `docSurfaces` 计数覆盖上述全部路径。
-- [ ] 5 份当前架构文档中作为产品名的 `CloudCLI` 零命中；上游包/服务名与代码标识符不受影响（`git grep -n 'CLOUDCLI_WATCHER_MODE\|cloudcli-resident.slice\|buildCloudCliSessionName'` 仍命中）。
-- [ ] 历史面零改动：`docs/proposals/`、`docs/experiments/`、`adr/`、`CHANGELOG.md`、`NOTICE`、`LICENSE` 不在 `git diff --name-only develop...HEAD`。
-- [ ] `node --test scripts/brand-allowlist-check.test.mjs` 退出 0；`npm run typecheck` 与 `npx oxlint scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs` 退出 0。
-- [ ] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
+- [x] `scripts/brand-allowlist-check.mjs` 新增显式 `CURRENT_DOC_SURFACES`（README H1、CONTRIBUTING、7 份翻译、5 份架构文档）；`scripts/brand-allowlist-check.test.mjs` 至少新增三条 false-form：向 README H1、某份翻译 H1、某份架构文档注入 `CloudCLI` 都必须返回 `exitCode: 1` 并点名文件。
+- [x] 真实树运行 `node scripts/brand-allowlist-check.mjs --root .` 退出 0、`violations: []`，且输出里 `docSurfaces` 计数覆盖上述全部路径。
+- [x] 5 份当前架构文档中作为产品名的 `CloudCLI` 零命中；上游包/服务名与代码标识符不受影响（`git grep -n 'CLOUDCLI_WATCHER_MODE\|cloudcli-resident.slice\|buildCloudCliSessionName'` 仍命中）。
+- [x] 历史面零改动：`docs/proposals/`、`docs/experiments/`、`adr/`、`CHANGELOG.md`、`NOTICE`、`LICENSE` 不在 `git diff --name-only develop...HEAD`。
+- [x] `node --test scripts/brand-allowlist-check.test.mjs` 退出 0；`npm run typecheck` 与 `npx oxlint scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs` 退出 0。
+- [x] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
 
 ## DoD
 
@@ -44,6 +44,24 @@ depends_on:
 - 贴出 5 份架构文档改动前后的 `CloudCLI` 命中数，以及代码标识符仍命中的 grep 读数。
 - 贴出 `node --test`、`npm run typecheck`、`npx oxlint` 的退出码。
 - 文档改动不需要浏览器实测；若改了 UI 才按 AGENTS.md 补截图。
+
+## Dark axis (ADR-007)
+
+- 该轴仍暗,理由:本任务只扩展品牌检查器扫描面并替换当前架构文档中的产品名，不产生 L_D/L_G 轴读数。
+
+## Evidence
+
+- 检查器新增扫描面（`scripts/brand-allowlist-check.mjs`）：导出 `CURRENT_DOC_SURFACES`（14 项：`README.md`、`CONTRIBUTING.md`、7 份 `docs/README.*.md`、5 份当前架构文档），并入 `SCANNED_SURFACES`；README/翻译用新 `doc-head` 抽取（H1 / logo alt / 安装命令），架构文档与 CONTRIBUTING 走全文 `text`。翻译 README 正文保留的上游 `CloudCLI UI` 归属说明不在扫描面内，无需放宽 allowlist。
+- 真实树绿读数：`brand-allowlist: files=132 values=35896 localeValues=27324 allowlistHits=20 docSurfaces=14 violations=0`；`--json` 的 `readings.docSurfaceFiles` 恰为上述 14 条路径，`violations: []`、`exitCode: 0`。
+- 三条 false-form（测试实跑生产 `runBrandAllowlistCheck`）：
+  - `README.md` 注入 `<h1>CloudCLI</h1>` ⇒ `exitCode: 1`，`README.md:3 carries "CloudCLI" outside the brand allowlist: <h1>CloudCLI</h1>`
+  - `docs/README.ja.md` 注入 `<h1>CloudCLI（別名 Claude Code UI）</h1>` ⇒ `exitCode: 1`，`docs/README.ja.md:6 carries "CloudCLI" outside the brand allowlist: <h1>CloudCLI（別名 Claude Code UI）</h1>`
+  - `docs/architecture/cockpit-attention/README.md` 追加 `CloudCLI 只做只读投影。` ⇒ `exitCode: 1`，`docs/architecture/cockpit-attention/README.md:158 carries "CloudCLI" outside the brand allowlist: CloudCLI 只做只读投影。`
+  - 正臂：翻译 README 正文追加 `CloudCLI UI は上流の製品名です。` 仍 `exitCode: 0`（正文不属于 doc-head 扫描面）。
+- 5 份架构文档产品名命中数（`git show develop:<file> | grep -c 'CloudCLI'` → 当前）：`01-planes.puml` 4→0；`CARD-PROVIDERS.md` 8→0；`INTERACTION-PRINCIPLES.md` 1→0；`README.md` 13→0；`FACT-CONTRACT.md` 2→0。
+- 代码标识符不受影响：`git grep -n 'CLOUDCLI_WATCHER_MODE\|cloudcli-resident.slice\|buildCloudCliSessionName'` 仍命中（`docs/architecture/03-conversation-handoff.md`、`docs/operations/process-isolation-and-memory-caps.md`、`server/modules/debug-agent/tests/debug-agent-external-write.test.ts` 等）。
+- 历史面零改动：实现提交 `1c74478de` 的 `git diff --name-only develop...HEAD` 只有 7 个声明的 Touches 文件，`docs/proposals/`、`docs/experiments/`、`adr/`、`CHANGELOG.md`、`NOTICE`、`LICENSE` 均不在其中。
+- 退出码：`node --test scripts/brand-allowlist-check.test.mjs` → 0（9 pass / 0 fail）；`npm run typecheck` → 0；`npx oxlint scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs` → 0；anti-drift Touches check → 0（7 actual files，全部在 Touches 内）。
 
 ## Touches
 
