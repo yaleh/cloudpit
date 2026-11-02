@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-current-docs-brand-sweep
 title: Cloudpit 当前文档产品名 sweep + 品牌检查器覆盖 README/翻译/架构文档
-status: todo
+status: ready
 labels:
   - gap
 parent: null
