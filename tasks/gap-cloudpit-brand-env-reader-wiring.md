@@ -2,7 +2,7 @@
 id: gap-cloudpit-brand-env-reader-wiring
 title: Cloudpit R1 接线：createBrandEnvReader 接到
   Electron/browser-use/serverInstaller 生产读取点
-status: todo
+status: ready
 labels:
   - gap
 parent: null
