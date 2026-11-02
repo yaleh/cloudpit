@@ -668,7 +668,22 @@ async function armScenario(
   return { sessionId: data.sessionId, transcriptPath: data.transcriptPath };
 }
 
-test.describe.configure({ mode: 'serial' });
+/**
+ * The spec's declared run budget, and the number the goal gate's deadline outlasts.
+ *
+ * `playwright.config.ts` declares this same value under `SPEC_BUDGET_MS`; that table is what the
+ * watchdog kills at, and this constant carries the number into the three walls a spec owns: the
+ * describe-level test timeout, the `beforeAll` hook's own slot (a describe-level timeout does not
+ * move it, so the project's 60 s slot would otherwise still kill the setup), and the self-check
+ * below. AC-172's gate deadline (`timeoutMs: 260000`) is 20 s above this number, so a crossing is
+ * written to `watchdog-state.json` and printed before the gate kills the run. Measured 2026-11-02:
+ * healthy invocations 35.3-35.6 s over the whole invocation; the cold round that motivated this
+ * budget spent 7469ms evaluating the config and reached its first case at 22659ms against the warm
+ * round's 3824ms.
+ */
+const SPEC_BUDGET_MS = 240_000;
+
+test.describe.configure({ mode: 'serial', timeout: SPEC_BUDGET_MS });
 
 test.describe('resident status bar', () => {
   let page: Page;
@@ -679,6 +694,7 @@ test.describe('resident status bar', () => {
   let armB = '';
 
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(SPEC_BUDGET_MS);
     const clientUrl = test.info().project.use.baseURL;
     if (!clientUrl) throw new Error('playwright.config.ts must give this project a baseURL');
     const fixtureHome = process.env.QUAY_E2E_DEBUG_AGENT_HOME;
@@ -1224,7 +1240,7 @@ test.describe('resident status bar', () => {
     const runStartedAt = Number(process.env.QUAY_E2E_RUN_STARTED_AT);
     const elapsed = Date.now() - runStartedAt;
     console.log(`elapsed=${elapsed}ms`);
-    expect(elapsed, `the whole invocation, measured from the config's own start`).toBeLessThan(55_000);
+    expect(elapsed, `the whole invocation, measured from the config's own start`).toBeLessThan(SPEC_BUDGET_MS);
   });
 });
 

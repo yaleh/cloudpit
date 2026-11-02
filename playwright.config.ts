@@ -788,6 +788,17 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // so this watchdog (240_000) can write its crossing line before the gate kills the run. The same-tree
   // passing rounds six minutes apart measured 38.5s and 53.2s for the whole invocation.
   'resident-running-view.spec.ts': 240_000,
+  // The resident status-bar criterion (GOAL-013 / AC-172): the debug agent's four-state walk, the
+  // popover address/close round trip, the stop-only-aborts-one-turn leg and the unattended-turn
+  // labels, all behind one shared server boot. MEASURED 2026-11-02 on this worktree: a healthy
+  // invocation reads 35.3-35.6 s (`4 passed`, spec `elapsed=35.2-35.6 s`), but the cold round at
+  // 13:47:44Z spent 7469ms evaluating the config and did not observe the boot until 22659ms — a
+  // 18835ms gap over the warm round's 3824ms — so the same tree passed at 13:43:31Z and was killed
+  // by this watchdog at 55006ms four minutes later, before the four product assertions decided it.
+  // 240_000 is the sibling `resident-running-view.spec.ts` value: ~6.7x the healthy invocation and
+  // ~10.6x the cold round's pre-case cost, while AC-172's gate deadline (`timeoutMs: 260000`) still
+  // outlasts it by 20 s so a crossing is written down rather than SIGKILLed silently.
+  'resident-status-bar.spec.ts': 240_000,
 };
 
 /**
