@@ -46,7 +46,9 @@ P3 退场计划的 v3.0 第一批：删除 R1–R3 的**运行时回退**，保�
 - electron/localServer.js
 - electron/serverInstaller.js
 - server/modules/browser-use/browser-use.service.ts
+- server/modules/browser-use/tests/browser-use.service.test.ts
 - server/modules/cli/browser-use-mcp.ts
+- server/modules/cli/tests/browser-use-mcp-entry.test.ts
 - server/shared/data-root.ts
 - server/shared/data-root-migration.ts
 - server/load-env.ts
@@ -59,4 +61,5 @@ P3 退场计划的 v3.0 第一批：删除 R1–R3 的**运行时回退**，保�
 - server/shared/tests/cloudpit-runtime-flip.test.ts
 - server/shared/tests/settings-file.test.ts
 - electron/tests/cloudpit-brand-env-wiring.test.mjs
+- scripts/release/tests/server-installer-bundle-url.test.mjs
 - tasks/gap-cloudpit-v30-env-data-settings-removal.md
