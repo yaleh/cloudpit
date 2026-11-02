@@ -1,7 +1,7 @@
 ---
 id: gap-goal-055-ac461-criterion-vacuous
 title: "GOAL-055 退出条件 AC-461 无在域 AC 覆盖：判据空洞（fidelity: vacuous）无法激活——提议替换为专用红先行判据"
-status: needs-human
+status: done
 labels:
   - gap
 parent: null
