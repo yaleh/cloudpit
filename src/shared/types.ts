@@ -49,19 +49,27 @@ export type ProviderModelPublicEnvRow =
   | { key: string; kind: 'secret'; isSet: true }
   | { key: string; kind: 'unset' };
 
-/** The env config of a custom model as read back from the server, listing its rows in order. */
+/**
+ * The config of a custom model as read back from the server, listing its env rows in order.
+ *
+ * `codexProviderId` is the project Codex upstream provider the entry runs against (Codex
+ * models only). Absent means the Codex global default. Mirrors the server's
+ * `ProviderModelConfig`; `wireContractTypeSync` reads both declarations.
+ */
 export type ProviderModelPublicConfig = {
+  codexProviderId?: string;
   env: ProviderModelPublicEnvRow[];
 };
 
 /** Which server-process env variables are set, keyed by variable name; carries booleans only so the UI can show envref rows as set or unset. */
 export type ModelEnvStatus = Record<string, boolean>;
 
-/** User-supplied fields for creating or editing a custom provider model entry; omit `config` to leave the stored env config untouched. */
+/** User-supplied fields for creating or editing a custom provider model entry; omit `config` to leave the stored config untouched. */
 export type CustomProviderModelInput = {
   model: string;
   id: string;
-  config?: { env: ProviderModelEnvRowInput[] } | null;
+  /** `codexProviderId` binds a Codex entry to a project provider; omit it to inherit the Codex default. */
+  config?: { env: ProviderModelEnvRowInput[]; codexProviderId?: string } | null;
 };
 
 /** Mutation callbacks a model menu calls to persist custom provider models. */

@@ -537,6 +537,13 @@ const parseModelConfigPayload = (raw: unknown): ProviderModelConfig | null | und
   if (typeof raw !== 'object' || !Array.isArray(env)) {
     throw new AppError('config.env must be an array.', { code: 'INVALID_MODEL_CONFIG', statusCode: 400 });
   }
+  const codexProviderId = (raw as { codexProviderId?: unknown }).codexProviderId;
+  if (codexProviderId !== undefined && typeof codexProviderId !== 'string') {
+    throw new AppError('config.codexProviderId must be a string.', {
+      code: 'INVALID_MODEL_CONFIG',
+      statusCode: 400,
+    });
+  }
   const rows = env.map((entry): ProviderModelEnvRow => {
     const row = (entry ?? {}) as Record<string, unknown>;
     const kinds = ['value', 'secret', 'envref', 'unset'];
@@ -554,7 +561,10 @@ const parseModelConfigPayload = (raw: unknown): ProviderModelConfig | null | und
       ? { key: row.key, kind: row.kind as ProviderModelEnvRow['kind'] }
       : { key: row.key, kind: row.kind as ProviderModelEnvRow['kind'], value: row.value };
   });
-  return { env: rows };
+  return {
+    ...(codexProviderId === undefined ? {} : { codexProviderId }),
+    env: rows,
+  };
 };
 
 const parseCustomProviderModelPayload = (payload: unknown): CustomProviderModelInput => {

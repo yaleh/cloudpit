@@ -234,6 +234,16 @@ const ROWS: readonly SyncRow[] = [
     reader: 'object',
   },
   {
+    // A custom model's config crosses the wire in both directions: the editor reads the
+    // provider binding back and sends it on save. Both ends must name the same fields, or a
+    // Codex model bound to a project provider would silently lose that binding on edit. The
+    // server's stored shape is `ProviderModelConfig`; the client sees the public projection.
+    client: 'ProviderModelPublicConfig',
+    server: 'ProviderModelConfig',
+    serverFile: SERVER_TYPES,
+    reader: 'object',
+  },
+  {
     // The lifecycle vocabulary a NEW session is created with. The client spells
     // it `SessionLifecycleMode`; the server's row column and capability matrix
     // spell it `HostMode`. Both ends must name the same modes, or a create the

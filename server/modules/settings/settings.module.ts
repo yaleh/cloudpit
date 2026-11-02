@@ -18,9 +18,11 @@ import {
   notifyUserIfEnabled,
 } from '@/modules/notifications/index.js';
 import { createAccessTokensService } from '@/modules/oauth/index.js';
+import { installCodexProviderRegistryPort } from '@/shared/ports/codex-provider-registry.port.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
+import { RESERVED_CODEX_PROVIDER_IDS } from './codex-model-providers.schema.js';
 import { createCodexModelProvidersSource } from './codex-model-providers.settings.js';
 import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
 import {
@@ -38,6 +40,20 @@ const accessTokensService = createAccessTokensService({ now: () => new Date() })
  * source over the same file (reads are uncached, so both see the latest edit).
  */
 const codexModelProvidersSource = createCodexModelProvidersSource();
+
+/**
+ * The providers module refuses a model entry's `codexProviderId` unless it names a provider this
+ * registry (or Codex's built-in list) knows. It reads that judgement through a shared port rather
+ * than importing this module: `providers -> settings` would close the `providers -> settings ->
+ * mcp-gateway -> providers` cycle AC-394 pins. Reads are uncached, so a provider saved through
+ * the settings API is visible to the very next model write.
+ */
+installCodexProviderRegistryPort({
+  read: () => ({
+    providers: codexModelProvidersSource.read().providers.map((provider) => ({ id: provider.id })),
+    reservedIds: RESERVED_CODEX_PROVIDER_IDS,
+  }),
+});
 
 /**
  * The two files the cockpit settings page works with: the one THIS boot read, and the one a save

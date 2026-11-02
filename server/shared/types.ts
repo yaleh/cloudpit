@@ -532,14 +532,29 @@ export type ProviderModelPublicEnvRow =
   | { key: string; kind: 'secret'; isSet: true };
 
 export type ProviderModelPublicConfig = {
+  /**
+   * The project Codex upstream provider a Codex model entry runs against.
+   * Absent means "inherit the Codex global default" (`openai`), which is the
+   * behaviour every pre-existing row keeps. Never a secret: it is a provider
+   * id from the project-owned Codex provider registry.
+   */
+  codexProviderId?: string;
   env: ProviderModelPublicEnvRow[];
 };
 
 /**
  * Per-model config stored in `provider_models.config_json`. `env` is ordered
  * and each key may appear at most once.
+ *
+ * `codexProviderId` names the project-owned Codex upstream provider this model
+ * entry runs against. It is optional: an entry that omits it inherits the Codex
+ * global default, which is what every row written before the provider registry
+ * existed does. The Providers service refuses a value that names no existing
+ * registry entry (409) rather than persisting a dangling reference, so the id
+ * is resolved against the live registry at write time.
  */
 export type ProviderModelConfig = {
+  codexProviderId?: string;
   env: ProviderModelEnvRow[];
 };
 
