@@ -30,7 +30,7 @@ goal_ac: AC-461
 - server/modules/providers/provider.routes.ts
 - server/modules/providers/tests/codex-provider-model-binding.test.ts（新判据，撞 pin 则上调）
 
-## AC（红先行，落 AC-461）
+## AC
 
 - [ ] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
 - [ ] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
