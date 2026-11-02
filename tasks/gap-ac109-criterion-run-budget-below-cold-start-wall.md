@@ -3,7 +3,7 @@ id: gap-ac109-criterion-run-budget-below-cold-start-wall
 title: AC-109 判据仍压在 55s 默认单文件预算上：冷轮 config-eval 6569–7122ms、至 17703–21672ms 才越过
   boot，红绿两树判据物逐字相同却在 55003/55005ms 两次被看门狗杀掉；给 transcript-follow 声明
   SPEC_BUDGET_MS 并把记录 timeoutMs 抬到 260s，判据命令与断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
