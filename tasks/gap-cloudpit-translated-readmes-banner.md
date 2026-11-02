@@ -40,6 +40,60 @@ extra:
 - 贴出 `git diff --numstat`，证明每份文件的改动行数只覆盖上述五类。
 - 文档改动不需要浏览器实测；若改了任何 UI 才按 AGENTS.md 补截图。
 
+## 实施证据
+
+实现提交：`a3f0eb349`（任务分支 `task/gap-cloudpit-translated-readmes-banner`），已 merge develop 得 `f4d72a047`。
+
+**横幅（7 份相同，位于文件第 1–3 行、`<div align="center">` 之前）**
+
+```
+<!-- cloudpit-translation-banner -->
+> **This translation follows the upstream README. Cloudpit install: `npx @yalehwang/cloudpit`; see [README.md](../README.md) for the current Cloudpit-specific docs.**
+```
+
+**逐份 H1 / logo alt / 安装 / Issue 变更**
+
+| 文件 | H1 前 → 后 | alt 前 → 后 | 安装命令前 → 后 | issue 前 → 后 |
+|---|---|---|---|---|
+| de | `Cloud CLI (auch bekannt als Claude Code UI)` → `Cloudpit (auch bekannt als Claude Code UI)` | `CloudCLI UI` → `Cloudpit` | `npx @cloudcli-ai/cloudcli` / `npm install -g @cloudcli-ai/cloudcli` → `@yalehwang/cloudpit` | `siteboon/claudecodeui/issues` → `yaleh/cloudpit/issues` |
+| ja | `Cloud CLI（別名 Claude Code UI）` → `Cloudpit（別名 Claude Code UI）` | 同上 | 同上 | 同上 |
+| ko | `Cloud CLI (일명 Claude Code UI)` → `Cloudpit (일명 Claude Code UI)` | 同上 | 同上 | 同上 |
+| ru | `Cloud CLI (aka Claude Code UI)` → `Cloudpit (aka Claude Code UI)` | 同上 | 同上 | 同上 |
+| tr | `Cloud CLI (Claude Code UI olarak da bilinir)` → `Cloudpit (...)` | 同上 | 同上，表格中另含 `@latest sandbox ~/project` 两处 | 同上 |
+| zh-CN | `Cloud CLI（又名 Claude Code UI）` → `Cloudpit（又名 Claude Code UI）` | 同上 | 同上 | 同上 |
+| zh-TW | `Cloud CLI（又名 Claude Code UI）` → `Cloudpit（又名 Claude Code UI）` | 同上 | 同上 | 同上 |
+
+沙箱命令与表格内安装命令：`npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project` → `npx @yalehwang/cloudpit@latest sandbox ~/my-project`；设置行 `npx @cloudcli-ai/cloudcli` → `npx @yalehwang/cloudpit`（tr 表格亦含 sandbox 变体）。插件仓库 URL（`cloudcli-ai/cloudcli-plugin-*`）与 `cloudcli.ai` 文档链接保留未动。
+
+**grep 读数（7 份均为）**
+
+- 横幅标记：`grep -L 'cloudpit-translation-banner'` 输出为空（exit 1）；`Cloudpit install:` 每份 1 次。
+- `Cloudpit` 每份 3 次（横幅 + H1 + ...）；`@yalehwang/cloudpit` 每份 5 行命中。
+- `alt="CloudCLI UI"` 每份 0；`npx @cloudcli-ai/cloudcli` / `npm install -g @cloudcli-ai/cloudcli` 每份 0。
+- `siteboon/claudecodeui` 每份 0（全部改为 `yaleh/cloudpit/issues`，每份 2 处新链接）。
+
+**`git diff --numstat develop...HEAD`**
+
+```
+11	8	docs/README.de.md
+11	8	docs/README.ja.md
+11	8	docs/README.ko.md
+11	8	docs/README.ru.md
+11	8	docs/README.tr.md
+11	8	docs/README.zh-CN.md
+11	8	docs/README.zh-TW.md
+```
+
+每份 8 个被改行 = 2 行插入（横幅标记 + 横幅文本）+ 8 个成对替换（H1、logo alt、头部 issue、npx、npm -g、sandbox npx、表格安装（tr 含 2 处同属一行）、底部 issue），新增合计 11 行（含空行）。
+
+**anti-drift**
+
+```
+ANTI-DRIFT OK: task gap-cloudpit-translated-readmes-banner — 7 actual file(s), all within declared Touches (8 glob(s))
+```
+
+`git diff --name-only develop...HEAD` 仅输出上述 7 份 `docs/README.*.md`。
+
 ## ADR-007 暗轴
 
 - 该轴仍暗,理由:本任务只机械更新 7 份翻译 README 的横幅/标题/alt/安装命令/Issue 链接，不改变 L_D/L_G 的领域数据形态或模块依赖结构，无可读读数。
