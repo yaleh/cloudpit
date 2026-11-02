@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-observation
 title: "architecture-analysis: Fresh archguard reading (2026-11-02, scope server
   bcc56acf) flags modules/observation on all four god-package thresholds — fanIn
   18, fanOut 195 relations, 24"
-status: ready
+status: needs-human
 labels:
   - gap
   - routine-filed
@@ -59,6 +59,7 @@ Split into observation (store/routes/wall), session-digest, session-ask and prod
 - **size AC（实跑读数）：** 五个包的 fileCount 全部 ≤ 7（< minFiles 20），entityCount 全部 ≤ 24（< minEntities 50）。拆分前同一个 `modules/observation` 是 24 files / 64 entities。
 - **口径说明（诚实读数）：** 若把 fanIn/fanOut 也当作必须转绿的判据，则**拆分做不到**，且原因不是本实现有缺陷：该读数是 archguard 对**实体关系**的跨包计数，把一个目录切开只会把原本同包内的调用变成跨包关系。拆分后默认阈值下仍被点名的是关系数（`core` fanIn 63 / fanOut 62、`session-ask` 11 / 95、`producers` 0 / 48、`session-digest` 0 / 36、残留根包 16 / 26），它们的 fileCount/entityCount 全部在阈值内；同一 instrument 在 develop 上读 18 / 195，因此相对体量维度是被真实修掉的。requested action 给出的 AC 也只点名 minFiles 20 / minEntities 50。这里不声称关系数转绿。
 - **AC-394 leaf / 无新环（实跑）：** 目录图是 DAG —— 根包 → 四个子包；`session-digest` → `session-ask` + `core`；`session-ask`、`producers` → `core`；`core` 不 import 任何兄弟子包。`server-import-cycle-budget.test.ts` 18/18 通过，cycle groups 与基线逐成员一致（G1 三个成员，G2/G3 空），未新增任何 SCC。四个新子目录按 AC-394 (c) 的 escape hatch 登记进 `directoryManifest` + `MANIFEST_PIN`（nodeCount 58 → 62，第十四次 recorded change）；`modules/observation` 仍是 manifest 里已登记的目录，其 out-edge 只有自己的子包，未 import 任何兄弟 feature module。
+- **⚠ AC-455 目标退出结构门未解除（2026-11-02 复核）：** 上面按 AC-394 (c) 登记新子目录，只解除 AC-394 的叶子规则；它**不**解除 GOAL-053 的 AC-455（`server/shared/tests/cloudpit-goal-exit-gate.test.ts` + `cloudpit-goal-exit-gate.baseline.json`）。后者的目录臂要求 `server/` 下每个目录都命名单调冻结基线、且明文禁止抬基线，因此这四个新子目录会让全量 suite 硬红。冲突的裁定请求见 `## Blocker` 末条与 `## Needs-Human`。
 - **测试（实跑，见 Evidence）：** observation 模块 15 个测试文件 / 163 条全绿（含 session-digest、session-digest-llm、session-ask-*、observation-store、project-truth、architecture-delta、blind-spots、view-events）；barrel 消费者与结构棘轮另见 Evidence。
 - **探针只立案不执行：** finding 的复核与拆分/验证全部由派发链（worker 会话）执行，例程未代跑。
 
@@ -98,3 +99,23 @@ Split into observation (store/routes/wall), session-digest, session-ask and prod
 - 未落地原因：step=suite: not ok - server/shared/tests/cloudpit-goal-exit-gate.test.ts:   AssertionError [ERR_ASSERTION]: a directory outside the frozen baseline is a NEW module directory: modules/observation/core, modules/observation/producers, modules/observation/session-ask, modules/observation/session-digest. Do not raise the baseline — GOAL-053's exit gate forbids new module dir [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/cloudpit-goal-exit-gate.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：5941bd10-7247-4b37-8e9d-60daafca4432
+
+**2026-11-02T13:42:21.536Z — worker 复核：AC-455 定义性冲突，不是 flake**
+
+- 隔离复跑（非并发池）：`TSX_TSCONFIG_PATH=server/tsconfig.json node --import tsx --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` → exit 1；AC2 与 AC3 都红，`actual: ["modules/observation/core","modules/observation/producers","modules/observation/session-ask","modules/observation/session-digest"]`、`expected: []`。
+- 判据机制：`collectServerSources(server/)` 把每个含非测试 `.ts` 源文件的目录都变成 node（只剪 `tests/`），判据断言 `nodes ⊆ cloudpit-goal-exit-gate.baseline.json.moduleDirectories`；基线与测试原文都写「Never raise this file to accommodate a red」。archguard 的 package = 目录，所以「拆成四个包」与「零新增目录」定义上不可同时成立。
+- 不可用规避法：`knowledge-peer-correlation-proof`（2026-11-01）撞同一道门（`modules/session-control`）时把代码放进既有叶子 `modules/context-events/` 绕过；对 god-package 拆包不适用 —— 拆包就是要建立新包边界，放进既有叶子无法降低本包的 fileCount/entityCount。
+- AC-455 属 GOAL-053，而 `goal_get GOAL-053` 读回 `status: achieved`，不存在「活 goal 下修订 AC」的通道；改判据或抬基线需人类裁定。
+- 本分支其余读数不变（Evidence 全部为实跑）：拆分实现、106 导出名对拍、AC-394 18/18、architecture-ratchet 6/6、observation 163 条、消费者测试、tsc 0、lint 0；隔离 suite 的红集恰好只有这一条判据。anti-drift：43 actual files，全部在 Touches 内。
+
+## Needs-Human
+
+**需要人裁定：GOAL-053 achieved 之后，AC-455 的目录臂是否继续作为全仓永久不变量。**
+
+本任务按 requested action（拆四个包）实现后，AC-455 的目录臂必然红；在现判据下二者不可同时成立。请择一：
+
+- **(a) 退役/收窄 AC-455 目录臂**：GOAL-053 已 achieved，可把该臂限定为「GOAL-053 自身 delta 不新增目录」或引入 recorded-change allowlist（与 AC-394 `MANIFEST_PIN` 同形）。裁定后本分支可直接落地。
+- **(b) 显式授权 raised baseline**：批准把 `modules/observation/core`、`modules/observation/producers`、`modules/observation/session-ask`、`modules/observation/session-digest` 作为 recorded change 追加进 `cloudpit-goal-exit-gate.baseline.json.moduleDirectories`（推翻 2026-10-31 的 never-raise 口径）。裁定后本分支可直接落地。
+- **(c) 维持 AC-455 不变**：则本 finding 的 requested action 定义上不可满足，应 re-scope / supersede 该 routine finding（例如承认在此门约束下无法修 god-package 的文件/实体维度，或把目标改为不新增目录的实现）。
+
+⛔ worker 不自行抬高基线、不改 AC-455 判据、不改 goal 状态；以上均需人类裁定。裁定后重派本任务即可（分支/worktree 保留）。
