@@ -1,7 +1,7 @@
 ---
 id: codex-provider-settings-ui
 title: Settings → Agents → Codex 服务商设置 UI：CRUD + 模型编辑器 provider 区
-status: ready
+status: done
 labels:
   - feature
 parent: null
