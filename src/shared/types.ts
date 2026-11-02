@@ -4390,6 +4390,17 @@ export type CockpitKnowledgeCase = {
   caseId: string;
   /** The knowledge entry the suggestion came from. */
   knowledgeId?: string;
+  /**
+   * The knowledge entry's title, exactly as the provider stated it. A card draws it above the
+   * case state so the person can read what the suggestion is about before choosing. Omitted
+   * when the provider states none — an older card's block is unchanged field for field.
+   */
+  title?: string;
+  /**
+   * The knowledge entry revision's full statement text, verbatim from the provider (the
+   * revision's Markdown body, not a restatement). Omitted when the provider states none.
+   */
+  statement?: string;
   /** The version of the knowledge entry this proposal was derived from. */
   knowledgeRevision: number;
   /** The version of the proposal itself; both must match what the person saw. */

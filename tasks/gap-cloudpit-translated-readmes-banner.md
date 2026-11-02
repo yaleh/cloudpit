@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-translated-readmes-banner
 title: Cloudpit 翻译 README：7 份上游快照加横幅并修正标题/logo/安装/Issue 链接
-status: ready
+status: done
 labels:
   - gap
 parent: null

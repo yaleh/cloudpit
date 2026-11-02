@@ -30,6 +30,7 @@ import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-f
 import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import { createCockpitFleetProjection } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cockpit-knowledge-decision.js';
+import { readKnowledgeCase } from '@/modules/cockpit/cockpit-knowledge-reading.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type {
   CockpitCard,
@@ -279,6 +280,76 @@ test('the projection carries a knowledge card’s case, plan and per-option deci
   assert.deepEqual(card.options[0]?.plan, PLAN);
   assert.equal(card.options[1]?.decision, 'defer');
   assert.equal(card.options[1]?.plan, undefined, 'a deferred decision carries no plan');
+});
+
+test('a knowledge block’s title and statement are read verbatim, and omitted when unstated', () => {
+  // The type accepts the two display fields (compile-time part of this criterion).
+  const typed: CockpitKnowledgeCase = {
+    caseId: 'case-text',
+    knowledgeRevision: 1,
+    proposalRevision: 1,
+    state: 'pending',
+    title: '卡面显示知识标题',
+    statement: '正文第一段。\n\n- 要点',
+  };
+
+  const stated = readKnowledgeCase({ ...typed });
+  assert.equal(stated?.title, '卡面显示知识标题');
+  assert.equal(stated?.statement, '正文第一段。\n\n- 要点');
+
+  const bare = readKnowledgeCase({ caseId: 'case-bare', knowledgeRevision: 1, proposalRevision: 1 });
+  assert.ok(bare !== null);
+  assert.equal('title' in bare, false, 'an unstated title leaves NO key on the block');
+  assert.equal('statement' in bare, false, 'an unstated statement leaves NO key on the block');
+
+  const blank = readKnowledgeCase({
+    caseId: 'case-blank',
+    knowledgeRevision: 1,
+    proposalRevision: 1,
+    title: '   ',
+    statement: '\n\t ',
+  });
+  assert.ok(blank !== null);
+  assert.equal('title' in blank, false, 'a whitespace-only title is unstated');
+  assert.equal('statement' in blank, false, 'a whitespace-only statement is unstated');
+});
+
+test('the projection passes a knowledge entry’s title and statement through verbatim', () => {
+  const projection = createCockpitFleetProjection({ readSessionAsk: () => null });
+  const card = (knowledge: Record<string, unknown>) =>
+    JSON.stringify({
+      id: 'fleet-text',
+      revision: 2,
+      kind: 'knowledge',
+      group: 'ruling',
+      rank: 0,
+      state: 'open',
+      waitingSince: '2026-10-27T00:00:00.000Z',
+      surfacedAt: '2026-10-27T00:00:01.000Z',
+      subject: { uri: 'quay://knowledge/k-text' },
+      facts: [],
+      options: [],
+      knowledge: {
+        caseId: 'case-text',
+        knowledgeRevision: 6,
+        proposalRevision: 2,
+        state: 'pending',
+        ...knowledge,
+      },
+    });
+
+  const stated = projection.project(
+    card({ title: '卡面显示知识标题', statement: '正文第一段。\n\n- 要点' }),
+  );
+  assert.equal(stated.skippedLines, 0);
+  assert.equal(stated.cards[0]?.knowledge?.title, '卡面显示知识标题');
+  assert.equal(stated.cards[0]?.knowledge?.statement, '正文第一段。\n\n- 要点');
+
+  const bare = projection.project(card({}));
+  const knowledge = bare.cards[0]?.knowledge;
+  assert.ok(knowledge !== undefined);
+  assert.equal('title' in knowledge, false);
+  assert.equal('statement' in knowledge, false);
 });
 
 test('an informational card keeps its own group and is never shown as a rescue card', () => {

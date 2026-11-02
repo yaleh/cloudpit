@@ -1,11 +1,14 @@
+<!-- cloudpit-translation-banner -->
+> **This translation follows the upstream README. Cloudpit install: `npx @yalehwang/cloudpit`; see [README.md](../README.md) for the current Cloudpit-specific docs.**
+
 <div align="center">
- <img src="../public/logo.svg" alt="CloudCLI UI" width="64" height="64">
- <h1>Cloud CLI（又名 Claude Code UI）</h1>
+ <img src="../public/logo.svg" alt="Cloudpit" width="64" height="64">
+ <h1>Cloudpit（又名 Claude Code UI）</h1>
  <p><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>、<a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>、<a href="https://developers.openai.com/codex">Codex</a> 的桌面和行動裝置 UI。可在本機或遠端使用，從任何地方查看您的專案與工作階段。</p>
 </div>
 
 <p align="center">
- <a href="https://cloudcli.ai/docs">文件</a> · <a href="https://github.com/siteboon/claudecodeui/issues">Bug 回報</a> · <a href="../CONTRIBUTING.md">貢獻指南</a>
+ <a href="https://cloudcli.ai/docs">文件</a> · <a href="https://github.com/yaleh/cloudpit/issues">Bug 回報</a> · <a href="../CONTRIBUTING.md">貢獻指南</a>
 </p>
 
 <div align="right"><i><a href="../README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <b>繁體中文</b> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
@@ -70,13 +73,13 @@
 啟動 CloudCLI UI，只需一行 `npx`（需要 Node.js v22+）：
 
 ```bash
-npx @cloudcli-ai/cloudcli
+npx @yalehwang/cloudpit
 ```
 
 或進行全域安裝，便於日常使用：
 
 ```bash
-npm install -g @cloudcli-ai/cloudcli
+npm install -g @yalehwang/cloudpit
 cloudcli
 ```
 
@@ -89,7 +92,7 @@ cloudcli
 在隔離的沙箱中執行代理，具有虛擬機管理程式等級的隔離。預設啟動 Claude Code。需要 [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/)。
 
 ```bash
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+npx @yalehwang/cloudpit@latest sandbox ~/my-project
 ```
 
 支援 Claude Code 和 Codex。詳情請參閱[沙箱文件](../docker/)。
@@ -104,7 +107,7 @@ CloudCLI UI 是 CloudCLI Cloud 的開源 UI 層。你可以在本機上自架它
 |---|---|---|
 | **適合對象** | 需要為本機代理工作階段提供完整 UI 的開發者 | 需要部署在雲端，隨時從任何地方存取代理的團隊與開發者 |
 | **存取方式** | 透過 `[yourip]:port` 在瀏覽器中存取 | 瀏覽器、任意 IDE、REST API、n8n |
-| **設定** | `npx @cloudcli-ai/cloudcli` | 無需設定 |
+| **設定** | `npx @yalehwang/cloudpit` | 無需設定 |
 | **機器需保持開機嗎** | 是 | 否 |
 | **行動裝置存取** | 網路內任意瀏覽器 | 任意裝置（原生應用程式即將推出） |
 | **可用工作階段** | 自動發現 `~/.claude` 中的所有工作階段 | 雲端環境內的工作階段 |
@@ -211,7 +214,7 @@ CloudCLI UI 與 CloudCLI Cloud 是對 Claude Code 的擴充，而非旁觀 — M
 ## 社群與支援
 
 - **[文件](https://cloudcli.ai/docs)** — 安裝、設定、功能與疑難排解指南
-- **[GitHub Issues](https://github.com/siteboon/claudecodeui/issues)** — 回報 Bug 與建議功能
+- **[GitHub Issues](https://github.com/yaleh/cloudpit/issues)** — 回報 Bug 與建議功能
 - **[貢獻指南](../CONTRIBUTING.md)** — 如何參與專案貢獻
 
 ## 授權條款

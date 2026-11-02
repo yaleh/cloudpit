@@ -369,9 +369,12 @@ export default function CockpitCard({
           onToggleExpanded={onToggleSituationExpanded}
         />
 
-        {/* A knowledge suggestion states where its case is: handed off (进行中), being checked
-            (核验中), and the provider's final verdict. The cockpit only DRAWS this reading; a
-            received feedback proves the decision was handed off, never that it ran or held. */}
+        {/* A knowledge suggestion states what the entry SAYS before the person decides: the
+            provider's title and its revision statement, both drawn verbatim (the statement is
+            clamped to two lines here, its whole text kept on the element's `title`). It then
+            states where the case is: handed off (进行中), being checked (核验中), and the
+            provider's final verdict. The cockpit only DRAWS these readings; a received feedback
+            proves the decision was handed off, never that it ran or held. */}
         {!compact && card.knowledge !== undefined && (
           <div
             data-testid="cockpit-card-knowledge"
@@ -379,6 +382,24 @@ export default function CockpitCard({
             data-verification-state={card.knowledge.verification?.state}
             className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
           >
+            {card.knowledge.title !== undefined && (
+              <span
+                data-testid="cockpit-card-knowledge-title"
+                title={card.knowledge.title}
+                className="w-full min-w-0 truncate font-medium text-foreground"
+              >
+                {card.knowledge.title}
+              </span>
+            )}
+            {card.knowledge.statement !== undefined && (
+              <p
+                data-testid="cockpit-card-knowledge-statement"
+                title={card.knowledge.statement}
+                className="line-clamp-2 w-full min-w-0 whitespace-pre-line"
+              >
+                {card.knowledge.statement}
+              </p>
+            )}
             <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">
               {knowledgeStateLabel(card.knowledge)}
             </span>
