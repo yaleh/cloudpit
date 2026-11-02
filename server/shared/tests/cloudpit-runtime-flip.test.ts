@@ -286,15 +286,18 @@ test('AC6: both protocols are declared/registered and both observation URI spell
     'both schemes must reach setAsDefaultProtocolClient',
   );
 
+  // 2.1 flips the WRITE spelling: the formatters mint `cloudpit://` and either accepted read
+  // spelling normalizes onto that canonical address. The legacy spelling stays readable.
   const legacyParsed = parseObservationUri('cloudcli://session/x');
   const cloudpitParsed = parseObservationUri('cloudpit://session/x');
   assert.ok(legacyParsed && cloudpitParsed);
-  assert.deepEqual(cloudpitParsed, legacyParsed);
-  assert.equal(cloudpitParsed.uri, 'cloudcli://session/x', 'the canonical spelling stays legacy');
-  assert.equal(cloudpitParsed.scheme, 'cloudcli');
-  assert.equal(formatSessionUri('x'), 'cloudcli://session/x');
-  assert.equal(formatArchitectureUri('project-1'), 'cloudcli://architecture/project-1');
-  assert.equal(parseObservationUri('cloudpit://architecture/project-1')?.uri, 'cloudcli://architecture/project-1');
+  assert.deepEqual(cloudpitParsed, legacyParsed, 'both accepted spellings are one canonical reading');
+  assert.equal(cloudpitParsed.uri, 'cloudpit://session/x', 'the canonical spelling is the 2.1 write');
+  assert.equal(cloudpitParsed.scheme, 'cloudpit');
+  assert.equal(formatSessionUri('x'), 'cloudpit://session/x', 'the formatter writes the new spelling');
+  assert.equal(formatArchitectureUri('project-1'), 'cloudpit://architecture/project-1');
+  assert.equal(parseObservationUri('cloudcli://architecture/project-1')?.uri, 'cloudpit://architecture/project-1');
+  assert.equal(legacyParsed?.uri, formatSessionUri('x'), 'the legacy spelling still reads the same object');
 
   // The two compilers carry separate copies of the grammar; the accepted-scheme line must be
   // textually identical so a later edit cannot widen one side only.

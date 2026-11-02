@@ -38,8 +38,12 @@ import {
   withBlindSpotsInDigest,
 } from './blind-spots.js';
 import {
+  canonicalObservationUri,
+  legacyCloudUri,
+  observationUriSpellings,
   parseObservationUri,
   type ObservationKind,
+  type ObservationUri,
 } from './observation-uri.js';
 import { evaluateProducer, type ProducerReading } from './producer-liveness.js';
 
@@ -250,7 +254,9 @@ function toObservedObject(row: ObservedObjectRow): ObservedObject {
     tier,
   );
   return {
-    uri: row.uri,
+    // A 2.0 row carries the legacy `cloudcli://` key; every reading of it is normalized to the
+    // canonical `cloudpit://` address 2.1 writes (R6/R7 in the retirement plan).
+    uri: canonicalObservationUri(row.uri),
     kind,
     title: row.title,
     status,
@@ -267,12 +273,17 @@ function toObservedObject(row: ObservedObjectRow): ObservedObject {
 }
 
 function toSeenCursor(row: ObservationSeenCursorRow): SeenCursor {
-  return { userId: row.userId, uri: row.uri, revision: row.revision, at: row.at };
+  return {
+    userId: row.userId,
+    uri: canonicalObservationUri(row.uri),
+    revision: row.revision,
+    at: row.at,
+  };
 }
 
 function toObservedRevision(row: ObservedRevisionRow): ObservedRevision {
   return {
-    uri: row.uri,
+    uri: canonicalObservationUri(row.uri),
     revision: row.revision,
     at: row.at,
     deltaItems: parseDeltaItems(row.deltaItemsJson),
@@ -311,8 +322,42 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
   }
   const publish = deps.publish ?? (() => {});
 
+  const spellingsOf = (uri: string): string[] => observationUriSpellings(uri);
+
+  /**
+   * The row key a write must use. A new object lands on the canonical `cloudpit://` key (2.1's
+   * write flip); an object 2.0 already stored under the legacy key keeps that row so its
+   * revision chain is not restarted, and every read still reports the canonical address.
+   */
+  const storageUriOf = (parsed: ObservationUri): string => {
+    const legacy = legacyCloudUri(parsed.uri);
+    if (
+      legacy !== null &&
+      observationDb.readObject(parsed.uri) === null &&
+      observationDb.readObject(legacy) !== null
+    ) {
+      return legacy;
+    }
+    return parsed.uri;
+  };
+
+  /** Revisions across both storage spellings, one per revision number, oldest first. */
+  const revisionsAfter = (uri: string, afterRevision: number): ObservedRevisionRow[] => {
+    const byRevision = new Map<number, ObservedRevisionRow>();
+    for (const spelling of spellingsOf(uri)) {
+      for (const row of observationDb.listRevisionsAfter(spelling, afterRevision)) {
+        if (!byRevision.has(row.revision)) byRevision.set(row.revision, row);
+      }
+    }
+    return [...byRevision.values()].sort((left, right) => left.revision - right.revision);
+  };
+
   const publishRevision = (uri: string, revision: number, status: ObservedStatus, deltaItems: string[]): void => {
-    const recipients = new Set([...observationDb.listWatchUserIds(uri), ...observationDb.listSeenUserIds(uri)]);
+    const recipients = new Set<string>();
+    for (const spelling of spellingsOf(uri)) {
+      for (const userId of observationDb.listWatchUserIds(spelling)) recipients.add(userId);
+      for (const userId of observationDb.listSeenUserIds(spelling)) recipients.add(userId);
+    }
     for (const userId of recipients) {
       publish(userId, { kind: 'observation.update', uri, revision, seenRevision: null, deltaItems });
     }
@@ -327,8 +372,11 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
   };
 
   const readObject = (uri: string): ObservedObject | null => {
-    const row = observationDb.readObject(uri);
-    return row === null ? null : toObservedObject(row);
+    for (const spelling of spellingsOf(uri)) {
+      const row = observationDb.readObject(spelling);
+      if (row !== null) return toObservedObject(row);
+    }
+    return null;
   };
 
   return {
@@ -367,7 +415,7 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       const items = deltaItems.map((item) => item.trim()).filter((item) => item !== '');
 
       const appended = observationDb.appendRevision({
-        uri: parsed.uri,
+        uri: storageUriOf(parsed),
         kind,
         title,
         statusState: status.state,
@@ -405,7 +453,7 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       if (!Number.isInteger(afterRevision) || afterRevision < 0) {
         throw invalid('`revision` must be a non-negative integer');
       }
-      return observationDb.listRevisionsAfter(parsed.uri, afterRevision).map(toObservedRevision);
+      return revisionsAfter(parsed.uri, afterRevision).map(toObservedRevision);
     },
 
     markSeen(userId, uri, revision) {
@@ -414,14 +462,18 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       if (!Number.isInteger(revision) || revision < 1) {
         throw invalid('`revision` must be a positive integer');
       }
-      const current = observationDb.readSeenCursor(key, parsed.uri);
+      const current =
+        spellingsOf(parsed.uri)
+          .map((spelling) => observationDb.readSeenCursor(key, spelling))
+          .find((row) => row !== null) ?? null;
       // A cursor never moves backwards: a late frame from an older device must not resurrect
       // deltas the user has already cleared on another one.
       if (current !== null && revision <= current.revision) {
         return { cursor: toSeenCursor(current), advanced: false };
       }
       const at = now();
-      observationDb.writeSeenCursor(key, parsed.uri, revision, at);
+      // Continue the row the user already has (a legacy key) so one object keeps one cursor.
+      observationDb.writeSeenCursor(key, current?.uri ?? parsed.uri, revision, at);
       const cursor: SeenCursor = { userId: key, uri: parsed.uri, revision, at };
       const object = readObject(parsed.uri);
       publish(key, {
@@ -438,16 +490,19 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       const key = userKey(userId);
       const parsed = parseObservationUri(uri);
       if (parsed === null) return null;
-      const row = observationDb.readSeenCursor(key, parsed.uri);
-      return row === null ? null : toSeenCursor(row);
+      for (const spelling of spellingsOf(parsed.uri)) {
+        const row = observationDb.readSeenCursor(key, spelling);
+        if (row !== null) return toSeenCursor(row);
+      }
+      return null;
     },
 
     pin(userId, uri) {
       const key = userKey(userId);
       const parsed = requireUri(uri);
       const at = now();
-      const row = observationDb.writeWatchEntry(key, parsed.uri, at);
-      const entry: WatchEntry = { userId: row.userId, uri: row.uri, pinnedAt: row.pinnedAt };
+      const row = observationDb.writeWatchEntry(key, storageUriOf(parsed), at);
+      const entry: WatchEntry = { userId: row.userId, uri: parsed.uri, pinnedAt: row.pinnedAt };
       publish(key, {
         kind: 'observation.update',
         uri: parsed.uri,
@@ -461,7 +516,10 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
     unpin(userId, uri) {
       const key = userKey(userId);
       const parsed = requireUri(uri);
-      const removed = observationDb.deleteWatchEntry(key, parsed.uri);
+      // A pin 2.0 wrote lives under the legacy key; remove whichever spelling holds it.
+      const removed = spellingsOf(parsed.uri)
+        .map((spelling) => observationDb.deleteWatchEntry(key, spelling))
+        .some((deleted) => deleted);
       publish(key, {
         kind: 'observation.update',
         uri: parsed.uri,
@@ -474,16 +532,27 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
 
     getWall(userId) {
       const key = userKey(userId);
-      const pins = observationDb.listWatchEntries(key);
-      const pinnedUris = new Set(pins.map((pin) => pin.uri));
+      // Pins and cursors 2.0 wrote under the legacy key join the same canonical object address.
+      const pinnedUris = new Set(
+        observationDb.listWatchEntries(key).map((pin) => canonicalObservationUri(pin.uri)),
+      );
       const cursors = new Map<string, number>();
       for (const cursor of observationDb.listSeenCursors(key)) {
-        cursors.set(cursor.uri, cursor.revision);
+        const uri = canonicalObservationUri(cursor.uri);
+        cursors.set(uri, Math.max(cursors.get(uri) ?? 0, cursor.revision));
+      }
+
+      // One wall entry per canonical address even if both spellings have a row: the higher
+      // revision is the object's current state (a 2.0 row plus a post-flip row never doubles it).
+      const objects = new Map<string, ObservedObject>();
+      for (const row of observationDb.listObjects()) {
+        const object = toObservedObject(row);
+        const known = objects.get(object.uri);
+        if (known === undefined || object.revision > known.revision) objects.set(object.uri, object);
       }
 
       const candidates: ObservationWallEntry[] = [];
-      for (const row of observationDb.listObjects()) {
-        const object = toObservedObject(row);
+      for (const object of objects.values()) {
         const pinned = pinnedUris.has(object.uri);
         // An unpinned object is on the wall only while it needs attention; recovering to `ok`
         // (or to any other non-attention reading) is what makes it leave again.
@@ -491,9 +560,9 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
           continue;
         }
         const seenRevision = cursors.get(object.uri) ?? 0;
-        const deltaItems = observationDb
-          .listRevisionsAfter(object.uri, seenRevision)
-          .flatMap((revision) => parseDeltaItems(revision.deltaItemsJson));
+        const deltaItems = revisionsAfter(object.uri, seenRevision).flatMap((revision) =>
+          parseDeltaItems(revision.deltaItemsJson),
+        );
         candidates.push({ object, pinned, seenRevision, deltaItems });
       }
 

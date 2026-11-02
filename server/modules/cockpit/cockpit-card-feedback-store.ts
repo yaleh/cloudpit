@@ -21,11 +21,19 @@
  *                     closed item rather than returning to the person's queue;
  *   · a receipt for another `feedbackId` changes nothing.
  *
- * The file is CloudCLI's own state, not the provider's: the default path is
- * `~/.cloudcli/cockpit-card-feedback.json`; a criterion passes its own path, and `null` keeps
- * the store in memory (the composition root decides which one a boot gets).
+ * The file is Cloudpit's own state, not the provider's: the default path is
+ * `~/.cloudcli/cockpit-card-feedback.json` through 2.x; a criterion passes its own path, and
+ * `null` keeps the store in memory (the composition root decides which one a boot gets).
+ *
+ * 2.1 URI-KEY NORMALIZATION. Every persisted string that still starts with `cloudcli://` — the
+ * overlay `params`/`outcome`/card record fields as well as any nested `subject.uri` — is
+ * rewritten to `cloudpit://` when the store reads the file, and the rewritten document is
+ * written back after copying the pre-normalization file to `<file>.cloudcli-backup`. The rewrite
+ * is idempotent (a second store finds nothing to change), it never drops an overlay or notice,
+ * and a failed write restores/keeps the original file and reports the reason through
+ * {@link CockpitCardFeedbackStore.normalization}. Reads are normalized either way.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type {
@@ -105,6 +113,8 @@ export type CockpitCardFeedbackStore = {
   applyCards(cards: readonly CockpitCard[]): CockpitCard[];
   /** The wire reading of one stored overlay. */
   feedbackOf(record: StoredCockpitCardFeedback): CockpitCardFeedback;
+  /** The 2.1 URI-key normalization reading for this store's file (see the module header). */
+  normalization(): CockpitCardFeedbackNormalization;
   dispose(): void;
 };
 
@@ -112,6 +122,18 @@ export type CockpitCardFeedbackStore = {
 type PersistedState = {
   overlays?: unknown;
   notices?: unknown;
+};
+
+/**
+ * What the 2.1 URI-key normalization did when this store read its file. `changed` is true only
+ * in the store whose construction rewrote at least one `cloudcli://` string; `backupPath` names
+ * the pre-normalization copy; `error` is set when the rewrite could not be persisted, in which
+ * case the original file is kept on disk (and reads are still normalized in memory).
+ */
+export type CockpitCardFeedbackNormalization = {
+  changed: boolean;
+  backupPath: string | null;
+  error: string | null;
 };
 
 /** Whether a provider's answer names a disposition this lifecycle knows. */
@@ -213,6 +235,39 @@ export function readCockpitCardReceipt(value: unknown): CockpitCardReceipt | nul
 }
 
 /**
+ * Rewrites every persisted string VALUE that starts with `cloudcli://` to `cloudpit://`, walking
+ * arrays and nested records (an overlay's `params`, a card record's `subject.uri`, …). Object
+ * keys are left alone: an address is data here, never a lookup key. Returns the input unchanged
+ * when there was nothing to rewrite, so a second read is a no-op.
+ */
+function normalizeUriStrings(value: unknown): { value: unknown; changed: boolean } {
+  if (typeof value === 'string') {
+    return value.startsWith('cloudcli://')
+      ? { value: `cloudpit://${value.slice('cloudcli://'.length)}`, changed: true }
+      : { value, changed: false };
+  }
+  if (Array.isArray(value)) {
+    let changed = false;
+    const items = value.map((item) => {
+      const result = normalizeUriStrings(item);
+      changed = changed || result.changed;
+      return result.value;
+    });
+    return { value: changed ? items : value, changed };
+  }
+  const entry = record(value);
+  if (entry === null) return { value, changed: false };
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(entry)) {
+    const result = normalizeUriStrings(item);
+    changed = changed || result.changed;
+    next[key] = result.value;
+  }
+  return { value: changed ? next : value, changed };
+}
+
+/**
  * Builds one store. `filePath === null` keeps it in memory; otherwise a corrupt or missing file
  * is an empty store (never a boot failure), and every mutation rewrites it atomically enough for
  * this single-writer feature.
@@ -223,16 +278,55 @@ export function createCockpitCardFeedbackStore(options: {
   const filePath = options.filePath ?? null;
   const overlays = new Map<string, StoredCockpitCardFeedback>();
   const notices = new Map<string, CockpitCardFeedbackNotice>();
+  let normalization: CockpitCardFeedbackNormalization = {
+    changed: false,
+    backupPath: null,
+    error: null,
+  };
 
   if (filePath !== null) {
     try {
-      const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as PersistedState;
-      for (const raw of Array.isArray(parsed.overlays) ? parsed.overlays : []) {
-        const overlay = readOverlay(raw);
+      const raw = readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      const normalized = normalizeUriStrings(parsed);
+      // Reads are normalized even when the rewrite cannot be persisted: the legacy spelling is
+      // an accepted input, not the object's current address.
+      const state: PersistedState = record(normalized.value) ?? {};
+      const existingBackup = `${filePath}.cloudcli-backup`;
+      if (normalized.changed) {
+        try {
+          mkdirSync(path.dirname(filePath), { recursive: true });
+          // Keep the FIRST pre-normalization copy: a later run must not overwrite the pristine
+          // ledger with an already-normalized file.
+          if (!existsSync(existingBackup)) writeFileSync(existingBackup, raw, 'utf8');
+          writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+          normalization = { changed: true, backupPath: existingBackup, error: null };
+        } catch (error) {
+          // The original file wins: a failed rewrite leaves it byte-identical and reports why.
+          try {
+            writeFileSync(filePath, raw, 'utf8');
+          } catch {
+            // A read-only home keeps the in-memory (normalized) reading; the report says so.
+          }
+          normalization = {
+            changed: false,
+            backupPath: existsSync(existingBackup) ? existingBackup : null,
+            error: error instanceof Error ? error.message : 'the URI-key normalization write failed',
+          };
+        }
+      } else {
+        normalization = {
+          changed: false,
+          backupPath: existsSync(existingBackup) ? existingBackup : null,
+          error: null,
+        };
+      }
+      for (const rawOverlay of Array.isArray(state.overlays) ? state.overlays : []) {
+        const overlay = readOverlay(rawOverlay);
         if (overlay !== null) overlays.set(overlay.cardId, overlay);
       }
-      for (const raw of Array.isArray(parsed.notices) ? parsed.notices : []) {
-        const notice = readNotice(raw);
+      for (const rawNotice of Array.isArray(state.notices) ? state.notices : []) {
+        const notice = readNotice(rawNotice);
         if (notice !== null) notices.set(notice.cardId, notice);
       }
     } catch {
@@ -382,6 +476,7 @@ export function createCockpitCardFeedbackStore(options: {
       });
     },
     feedbackOf,
+    normalization: () => normalization,
     dispose: () => persist(),
   };
 }

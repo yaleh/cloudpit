@@ -169,10 +169,34 @@ function scanUpstreamMentions() {
 
 const upstreamMentions = scanUpstreamMentions();
 
+// ── R12: the retired runtime tag / asset prefixes ───────────────────────────
+// 2.0 never double-published the legacy tag aliases; 2.1 stops them for good. The frozen ledgers
+// (docs/, tasks/, goals/, CHANGELOG.md) keep the history, so the scan is the LIVE release surface
+// only: every workflow plus the scripts/package metadata that mint tags and asset names.
+const LEGACY_TAG_PREFIXES = ['cloudcli-local-server-', 'cloudcli-desktop-'];
+const RELEASE_SURFACE = [
+  '.github/workflows/release.yml',
+  '.github/workflows/desktop-release.yml',
+  '.github/workflows/desktop-windows-branch-build.yml',
+  '.github/workflows/desktop-macos-branch-build.yml',
+  '.github/workflows/docker.yml',
+  'scripts/release/build-server-bundle.js',
+  'scripts/release/prepare-desktop-app.js',
+  'electron/serverInstaller.js',
+  'package.json',
+];
+
+const legacyTagHits = RELEASE_SURFACE.flatMap((rel) =>
+  LEGACY_TAG_PREFIXES.flatMap((prefix) =>
+    read(rel).includes(prefix) ? [`${rel}:${prefix}`] : [],
+  ),
+);
+
 console.log(`pkg.name=${pkg.name}`);
 console.log(`npm.publish=${npmPublish}`);
 console.log(`auth.env=${authEnv}`);
 console.log(`legacy.upgradeCmds=${upstreamMentions.length}`);
+console.log(`legacy.tag_prefixes=${legacyTagHits.length}`);
 console.log(`requireBranch=${requireBranch}`);
 console.log(`pushRepo=${pushRepo}`);
 console.log(`macos.jobs=${macosJobs}`);
@@ -232,6 +256,14 @@ test('no user-facing command points at the upstream package scope', () => {
     upstreamMentions,
     [],
     `the repository still tells users to install the upstream package: ${upstreamMentions.join(', ')}`,
+  );
+});
+
+test('R12: the release surface carries no legacy runtime tag or asset prefix', () => {
+  assert.deepEqual(
+    legacyTagHits,
+    [],
+    `a release workflow or asset still mints a retired prefix (${LEGACY_TAG_PREFIXES.join(', ')}): ${legacyTagHits.join(', ')}`,
   );
 });
 

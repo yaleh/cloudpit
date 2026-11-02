@@ -13,18 +13,19 @@ import {
  * AC4 — the observation URI grammar used by the cockpit's deep links.
  *
  * The round trip is the reading that matters: the formatter and the parser must agree on the
- * EXACT spelling, including the scheme (`cloudcli://` vs `quay://`), the kind segment and the
- * `board` suffix, because that string is the server's object key. Everything outside the
- * grammar is rejected rather than coerced, so a mis-spelled link cannot address a second object
- * for the same conversation.
+ * EXACT spelling, including the scheme (`cloudpit://` vs `quay://`), the kind segment and the
+ * `board` suffix, because that string is the server's object key. Since 2.1 the formatters write
+ * `cloudpit://` while the parser still accepts the legacy `cloudcli://` spelling and normalizes
+ * it onto the same canonical address. Everything outside the grammar is rejected rather than
+ * coerced, so a mis-spelled link cannot address a second object for the same conversation.
  */
 describe('observation URI grammar', () => {
   it('round-trips a session URI', () => {
     const uri = formatSessionUri('5f0c1f3a-session');
-    expect(uri).toBe('cloudcli://session/5f0c1f3a-session');
+    expect(uri).toBe('cloudpit://session/5f0c1f3a-session');
     const parsed = parseObservationUri(uri);
     expect(parsed).toEqual({
-      scheme: 'cloudcli',
+      scheme: 'cloudpit',
       kind: 'session',
       id: '5f0c1f3a-session',
       uri,
@@ -34,15 +35,27 @@ describe('observation URI grammar', () => {
 
   it('round-trips an architecture URI', () => {
     const uri = formatArchitectureUri('fleet-project-7');
-    expect(uri).toBe('cloudcli://architecture/fleet-project-7');
+    expect(uri).toBe('cloudpit://architecture/fleet-project-7');
     const parsed = parseObservationUri(uri);
     expect(parsed).toEqual({
-      scheme: 'cloudcli',
+      scheme: 'cloudpit',
       kind: 'architecture',
       id: 'fleet-project-7',
       uri,
     });
     expect(parsed === null ? null : formatObservationUri(parsed)).toBe(uri);
+  });
+
+  it('reads the legacy cloudcli spelling as the same canonical cloudpit address', () => {
+    expect(parseObservationUri('cloudcli://session/legacy-1')).toEqual({
+      scheme: 'cloudpit',
+      kind: 'session',
+      id: 'legacy-1',
+      uri: 'cloudpit://session/legacy-1',
+    });
+    expect(parseObservationUri('cloudcli://architecture/legacy-2')?.uri).toBe(
+      'cloudpit://architecture/legacy-2',
+    );
   });
 
   it('round-trips the fleet board URI unchanged', () => {
