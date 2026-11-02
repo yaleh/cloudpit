@@ -55,11 +55,12 @@ goal_ac: AC-172
 
 ## AC
 
-- [ ] AC1 直跑稳定绿：连续 5 次 `npx playwright test e2e/resident-status-bar.spec.ts` 均 `EXIT=0`；每次贴 `N passed`、spec 自报 `elapsed=`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、跑前 `uptime` 的 load1；5 次 `elapsed` 的最大值 < `240_000`，且任何一次输出都不含 `[e2e] watchdog:` 越界行。其中至少一次跑前 load1 ≥ 60；若宿主当时给不出该负载，如实登记实际 load1，不得伪造。
-- [ ] AC2 预算自洽且逐点可读：`grep -n "'resident-status-bar.spec.ts': 240_000" playwright.config.ts` 命中 1 行；`grep -n "const SPEC_BUDGET_MS = 240_000" e2e/resident-status-bar.spec.ts` 命中 1 行；`test.describe.configure(...)` 含 `timeout: SPEC_BUDGET_MS`；`beforeAll` 体内含 `test.setTimeout(SPEC_BUDGET_MS)`；自检断言逐字为 `toBeLessThan(SPEC_BUDGET_MS)`；`quay goal get AC-172 --json --store --root <worktree>` 的 `timeoutMs` == `260000`（不带 `--store --root` 的 Provider 读法读主检出记录，改动 merge 前仍报无该字段，须用 store 方言读 worktree 里的记录）；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`；`grep -n '^  timeout: 60_000,$' playwright.config.ts` 仍命中全局那一行。以上读数全部原文贴出。
-- [ ] AC3 判据语义未动：`quay goal get AC-172 --json --store --root <worktree>` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-status-bar.spec.ts`，`expect` 逐字仍为本 Proposal 引用那一段，`status == "achieved"`、`goal == "GOAL-013"`；`git diff $(git merge-base develop HEAD) -- e2e/resident-status-bar.spec.ts | grep -c '^-.*expect('` == 0；四条产品断言仍逐字在文件中（`data-resident-state`、`ADDRESS`、`completedAborts`、`isUserStyle` 各命中行数 ≥ 1，且与 merge-base 的行数相同）；新增行中，除钩子首句 `test.setTimeout(SPEC_BUDGET_MS)` 外，匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 0；`describe`/用例标题与用例顺序不变。
-- [ ] AC4 判别性负控（预算真的接线）：(a) 把 config 的 `'resident-status-bar.spec.ts': 240_000` 临时改成 `30_000`，判据 `EXIT=1`，输出逐字含 `crossed its own 30000ms ceiling`；还原后同一条判据 `EXIT=0`。(b) 把 `beforeAll` 内的 `test.setTimeout(SPEC_BUDGET_MS)` 临时改成 `test.setTimeout(1_000)`，判据 `EXIT=1`，失败文本逐字含 `"beforeAll" hook timeout of 1000ms exceeded`；还原后 `EXIT=0`。两次原始输出（含各跑 load1 与 wall）都贴出；完成后全部回滚，`git diff` 里不残留 `30_000` / `1_000` 负控改动。
-- [ ] AC5 非目标与 diff 范围：`git diff --name-only $(git merge-base develop HEAD)` 只含 `e2e/resident-status-bar.spec.ts`、`playwright.config.ts`、`goals/AC-172-真实浏览器里常驻会话的状态标记-状态条与关闭按钮反映宿主状态-无人轮带触发类型标签.md`（以及本任务文件）；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
+- [x] AC1 直跑稳定绿：连续 5 次 `npx playwright test e2e/resident-status-bar.spec.ts` 均 `EXIT=0`；每次贴 `N passed`、spec 自报 `elapsed=`、该跑 `watchdog-state.json` 的 `{fired, ceilingMs}`、跑前 `uptime` 的 load1；5 次 `elapsed` 的最大值 < `240_000`，且任何一次输出都不含 `[e2e] watchdog:` 越界行。其中至少一次跑前 load1 ≥ 60；若宿主当时给不出该负载，如实登记实际 load1，不得伪造。
+- [x] AC2 预算自洽且逐点可读：`grep -n "'resident-status-bar.spec.ts': 240_000" playwright.config.ts` 命中 1 行；`grep -n "const SPEC_BUDGET_MS = 240_000" e2e/resident-status-bar.spec.ts` 命中 1 行；`test.describe.configure(...)` 含 `timeout: SPEC_BUDGET_MS`；`beforeAll` 体内含 `test.setTimeout(SPEC_BUDGET_MS)`；自检断言逐字为 `toBeLessThan(SPEC_BUDGET_MS)`；`quay goal get AC-172 --json --store --root <worktree>` 的 `timeoutMs` == `260000`（不带 `--store --root` 的 Provider 读法读主检出记录，改动 merge 前仍报无该字段，须用 store 方言读 worktree 里的记录）；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字为 `55_000`；`grep -n '^  timeout: 60_000,$' playwright.config.ts` 仍命中全局那一行。以上读数全部原文贴出。
+- [x] AC3 判据语义未动：`quay goal get AC-172 --json --store --root <worktree>` 的 `criterion` 逐字仍为 `npx playwright test e2e/resident-status-bar.spec.ts`，`expect` 逐字仍为本 Proposal 引用那一段，`status == "achieved"`、`goal == "GOAL-013"`；`git diff $(git merge-base develop HEAD) -- e2e/resident-status-bar.spec.ts | grep -c '^-.*expect('` == 0；四条产品断言仍逐字在文件中（`data-resident-state`、`ADDRESS`、`completedAborts`、`isUserStyle` 各命中行数 ≥ 1，且与 merge-base 的行数相同）；新增行中，除钩子首句 `test.setTimeout(SPEC_BUDGET_MS)` 外，匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的条数为 0；`describe`/用例标题与用例顺序不变。
+  - 书面收窄（自相矛盾读数的处理，原文保留）：上面的 `grep -c '^-.*expect('` 实测为 **1**，不是 0——唯一被删除的 `expect(` 行正是 AC2 要求改写的末尾自检阈值行（`toBeLessThan(55_000)` → `toBeLessThan(SPEC_BUDGET_MS)`），改它本身是 AC2 的逐字要求，两条读数不可能同时为 0 与该行不变。本 AC 真正守护的不变量是「四条产品断言的 `expect(` 一行未被删改」；按此不变量读数：`git diff BASE -- e2e/resident-status-bar.spec.ts | grep '^-.*expect(' | grep -vc 'measured from the config'` == **0**，四条产品锚 HEAD/BASE 命中行数分别为 8/8、4/4、2/2、2/2，`describe` 与全部用例标题、顺序逐字不变。
+- [x] AC4 判别性负控（预算真的接线）：(a) 把 config 的 `'resident-status-bar.spec.ts': 240_000` 临时改成 `30_000`，判据 `EXIT=1`，输出逐字含 `crossed its own 30000ms ceiling`；还原后同一条判据 `EXIT=0`。(b) 把 `beforeAll` 内的 `test.setTimeout(SPEC_BUDGET_MS)` 临时改成 `test.setTimeout(1_000)`，判据 `EXIT=1`，失败文本逐字含 `"beforeAll" hook timeout of 1000ms exceeded`；还原后 `EXIT=0`。两次原始输出（含各跑 load1 与 wall）都贴出；完成后全部回滚，`git diff` 里不残留 `30_000` / `1_000` 负控改动。
+- [x] AC5 非目标与 diff 范围：`git diff --name-only $(git merge-base develop HEAD)` 只含 `e2e/resident-status-bar.spec.ts`、`playwright.config.ts`、`goals/AC-172-真实浏览器里常驻会话的状态标记-状态条与关闭按钮反映宿主状态-无人轮带触发类型标签.md`（以及本任务文件）；`src/**`、`server/**` 无改动；`npm run typecheck` exit 0。
 
 ## DoD
 
@@ -71,6 +72,74 @@ Evidence 至少贴三张表：(1) AC1 的 5 次直跑（命令 / rc / `N passed`
 
 - `node --no-warnings /data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/scripts/dist/anti-drift-touches-check.js --task gap-ac172-criterion-run-budget-below-cold-start-wall --worktree <worktree> --merge-target develop` 通过（贴 `ANTI-DRIFT OK` 行）。
 - `npm run typecheck` exit 0；记录完成时 worktree `git status --short` 为空。
+
+## Evidence
+
+完成记录（2026-11-02 UTC，worktree `/data/home/yale/work/claudecodeui-worktrees/gap-ac172-criterion-run-budget-below-cold-start-wall`，实现 commit `27916d002`）。
+
+这次修的是**量具的预算**（55s 默认 → 本 spec 声明 240s），不是产品保证：`criterion:` 命令与 `expect:` 全文逐字未动，四条产品用例的断言与两条假形态臂一字未改，`SINGLE_SPEC_CEILING_MS = 55_000` 与全局 `timeout: 60_000` 未动。`gap-resident-status-bar-criterion-bounded-boot-guard` 只治理了启动等待的响应方式，没有声明整轮可花的墙；冷缓存 + 高负载仍能把 config 求值 + boot 从 3824ms 抬到 22659ms，让看门狗先于四条产品断言决定判据。
+
+### AC1 五次连续直跑（`npx playwright test e2e/resident-status-bar.spec.ts`）
+
+| # | 跑前 load1 | EXIT | `N passed` | spec 自报 `elapsed=` | 整轮 wall | watchdog-state `{fired, ceilingMs}` | 越界行 |
+| - | - | - | - | - | - | - | - |
+| 1（冷） | 29.38 | 0 | `4 passed (34.5s)` | `elapsed=34604ms` | 35.72s | `{fired:false, ceilingMs:240000}` | 无 |
+| 2 | 31.53 | 0 | `4 passed (33.8s)` | `elapsed=33881ms` | 34.61s | `{fired:false, ceilingMs:240000}` | 无 |
+| 3 | 27.89 | 0 | `4 passed (33.9s)` | `elapsed=33888ms` | 34.79s | `{fired:false, ceilingMs:240000}` | 无 |
+| 4 | 31.11 | 0 | `4 passed (40.1s)` | `elapsed=40251ms` | 41.16s | `{fired:false, ceilingMs:240000}` | 无 |
+| 5 | 107.18 | 0 | `4 passed (42.5s)` | `elapsed=45877ms` | 47.55s | `{fired:false, ceilingMs:240000}` | 无 |
+
+最大 `elapsed=45877ms` < `240000`；五次输出均无 `[e2e] watchdog:` 越界行（每轮只有 `[e2e] watchdog-armed: ... re-armed to 240000ms from the run start`）。第 5 次跑前 load1=107.18 ≥ 60，满足 AC1 的负载要求；其余四次如实登记实际 load1。
+
+### AC4 判别性负控（预算真的接线）
+
+| 臂 | 跑前 load1 | 原始读数 | EXIT | wall |
+| - | - | - | - | - |
+| (a) config `'resident-status-bar.spec.ts': 30_000` | 146.10 | `[e2e] watchdog: this run crossed its own 30000ms ceiling at 30003ms (config-eval-ms=1537) and is ending here with exit 1 at 30010ms — stuck at stage "browser-launch-or-cases": observed past boot at 8738ms, so this run was inside browser launch or a case; both webServers answered the 2000ms probe at the crossing.`；watchdog-state `{fired:true, ceilingMs:30000}` | 1 | 32.60s |
+| (a) 还原 240_000 | 138.23 | `4 passed (52.1s)`，`elapsed=53060ms`（无越界行） | 0 | 63.26s |
+| (b) `beforeAll` 内 `test.setTimeout(1_000)` | 119.47 | `"beforeAll" hook timeout of 1000ms exceeded.` | 1 | 12.91s |
+| (b) 还原 `test.setTimeout(SPEC_BUDGET_MS)` | 102.53 | `4 passed (33.9s)`，`elapsed=35786ms` | 0 | 36.59s |
+
+(a) 第一次还原跑在 load1=196.56 下出现一次产品断言 flake：`the mark and the listing must agree while a turn is in flight`，Expected `"idle"` / Received `"busy"`，`1 failed / 1 passed`，EXIT=1；该轮 watchdog `{fired:false, ceilingMs:240000}`、无越界行，不是预算红；同树随即在 load1=138.23 复跑 4/4 绿。如实登记，未削弱任何断言。负控改动已全部还原：`git diff` 无 `30_000` / `1_000` 残留，`git status --short` 为空。
+
+### AC2 + AC3 声明与未动读数
+
+```
+$ grep -n "'resident-status-bar.spec.ts': 240_000" playwright.config.ts
+801:  'resident-status-bar.spec.ts': 240_000,
+$ grep -n "const SPEC_BUDGET_MS = 240_000" e2e/resident-status-bar.spec.ts
+684:const SPEC_BUDGET_MS = 240_000;
+$ grep -n "test.describe.configure({ mode" e2e/resident-status-bar.spec.ts
+686:test.describe.configure({ mode: 'serial', timeout: SPEC_BUDGET_MS });
+$ grep -n "test.setTimeout(SPEC_BUDGET_MS)" e2e/resident-status-bar.spec.ts
+697:    test.setTimeout(SPEC_BUDGET_MS);
+$ grep -n "toBeLessThan(SPEC_BUDGET_MS)" e2e/resident-status-bar.spec.ts
+1243:    expect(elapsed, `the whole invocation, measured from the config's own start`).toBeLessThan(SPEC_BUDGET_MS);
+$ grep -n "SINGLE_SPEC_CEILING_MS = " playwright.config.ts
+374:const SINGLE_SPEC_CEILING_MS = 55_000;
+$ grep -n "^  timeout: 60_000,$" playwright.config.ts
+3888:  timeout: 60_000,
+$ quay goal get AC-172 --json --store --root <worktree>
+timeoutMs=260000  criterion=npx playwright test e2e/resident-status-bar.spec.ts  status=achieved  goal=GOAL-013
+```
+
+`expect` 全文与 Proposal 引用的那一段逐字一致；四条产品锚 `data-resident-state` / `ADDRESS` / `completedAborts` / `isUserStyle` 的 HEAD/BASE 命中行数为 8/8、4/4、2/2、2/2；`describe`、全部用例标题与顺序逐字不变；新增行中匹配 `test\.skip|test\.only|retries|\.setTimeout\(` 的只有钩子首句 `test.setTimeout(SPEC_BUDGET_MS)`，其余为 0。
+
+### AC5 非目标与范围
+
+`git diff --name-only $(git merge-base develop HEAD)` 只含 `e2e/resident-status-bar.spec.ts`、`playwright.config.ts`、`goals/AC-172-…md`；`src/**`、`server/**` 零改动；`npm run typecheck` EXIT=0。
+
+### DoD
+
+`node --no-warnings …/anti-drift-touches-check.js --task gap-ac172-criterion-run-budget-below-cold-start-wall --worktree <worktree> --merge-target develop`：
+
+```
+ANTI-DRIFT OK: task gap-ac172-criterion-run-budget-below-cold-start-wall — 3 actual file(s), all within declared Touches (4 glob(s))
+```
+
+`npm run typecheck` EXIT=0；记录完成时 worktree `git status --short` 为空。DoD 要求的「driver 下一轮 goal gate 重跑 AC-172 后 `.quay/gate-events.jsonl` 尾部重新是 pass」是**落地后**才产生的读数，worktree 内无法预先取得；前置证据是本任务的 `timeoutMs: 260000` 已写入 worktree 记录、判据 5/5 直跑与两次负控均按预期读数。该 GateEvent 由 driver 的下一轮 goal gate 写入。
+
+该轴仍暗,理由:本任务只调整 e2e 判据的量具预算（`SPEC_BUDGET_MS`／钩子墙／闸 deadline）与自检阈值，未新增或移除模块、依赖或跨层引用，L_D/L_G 无可比读数。
 
 ## Touches
 
