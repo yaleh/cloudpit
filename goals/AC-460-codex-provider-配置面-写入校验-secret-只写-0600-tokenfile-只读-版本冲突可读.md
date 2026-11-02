@@ -1,7 +1,7 @@
 ---
 id: AC-460
 title: Codex provider 配置面：写入校验 + secret 只写 + 0600 + tokenFile 只读 + 版本冲突可读
-status: draft
+status: active
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -12,4 +12,15 @@ expect: 项目自有 settings 文件（0600）里 codex.modelProviders 注册表
   isSet；版本冲突（expectedVersion 不匹配）返回可读冲突而非静默覆盖；文件权限 0600 实测。
 origin: 人 yale 2026-11-02 四问题裁定 Q2/Q4：项目配置为主、secret 用 tokenFile、wire_api 仅
   responses。0.166.0 实测 wire_api="chat" 拒绝加载、保留 id 不可覆盖。
+activatedAt: 2026-11-02T09:18:52.033Z
+statusLog:
+  - at: 2026-11-02T09:18:52.033Z
+    from: draft
+    to: active
+    actor: goal-driver
+    reason: "triage: activate"
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-11-02T09:18:52.033Z
 ---

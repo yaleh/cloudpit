@@ -1,7 +1,7 @@
 ---
 id: AC-464
 title: per-run SDK 注入：new Codex({config,env}) 打到本地 mock、宿主哨兵不泄漏
-status: draft
+status: active
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -11,4 +11,15 @@ expect: "per-run SDK 路径：queryCodex 以 new Codex({ config: { model_provide
   来自 tokenFile secret、宿主 env 哨兵不泄漏；无 provider 的模型沿用现行为（不传 config）。"
 origin: 人 yale 2026-11-02 裁定：per-run 是第二路径。0.166.0 实测 SDK
   CodexOptions.config/env 打得到 mock。
+activatedAt: 2026-11-02T09:22:17.629Z
+statusLog:
+  - at: 2026-11-02T09:22:17.629Z
+    from: draft
+    to: active
+    actor: goal-driver
+    reason: "triage: activate"
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-11-02T09:22:17.629Z
 ---
