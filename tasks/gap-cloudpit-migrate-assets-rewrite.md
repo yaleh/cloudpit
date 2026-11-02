@@ -31,7 +31,7 @@ R4 附件双根删除的前置任务：提供 `cloudpit migrate-assets --rewrite
 - [x] 不可改写的外部引用（如 provider transcript 中的旧路径）逐条进入 `unrewritable`，命令退出码非零或明确 warn，不静默成功。
 - [x] `--json` 的字段齐全且可被测试断言；`server/modules/cli/tests/asset-migration.service.test.ts` 覆盖 dry-run、幂等、冲突、失败回滚、unrewritable 五臂。
 - [x] `docs/operations/migrate-assets.md` 存在，含 dry-run/备份/真跑/校验/旧根保留顺序与 R4 前置条件；`npm run typecheck`、`npx oxlint` 对改动文件退出 0。
-- [ ] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
+- [x] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
 
 ## DoD
 
@@ -55,6 +55,7 @@ R4 附件双根删除的前置任务：提供 `cloudpit migrate-assets --rewrite
 - **unrewritable**：逐条列出 `…/.claude/projects/demo/session.jsonl:2`，stderr `[WARN] 1 reference(s) still point at …/.cloudcli/assets; provider transcripts are not rewritten — resolve them by hand.`，exit 3；transcript 字节未改。
 - **单测**：`npx tsx --tsconfig server/tsconfig.json --test server/modules/cli/tests/asset-migration.service.test.ts` → 7 pass / 0 fail（覆盖 dry-run、幂等、冲突、失败回滚、unrewritable 五臂；另含用法与备份改写臂）。
 - **typecheck / lint**：`npm run typecheck` exit 0；`npm run lint` exit 0（改动文件 oxlint 0 warning / 0 error）。
+- **anti-drift**：`anti-drift-touches-check.js --task gap-cloudpit-migrate-assets-rewrite --worktree <wt> --merge-target develop` → `ANTI-DRIFT OK … 12 actual file(s), all within declared Touches (14 glob(s))`，exit 0。
 - **docs 章节**：`What the command changes`、`Order of operations`、`Report and exit codes`、`Rollback`、`Precondition for R4`。
 
 ## ADR-007 暗轴
