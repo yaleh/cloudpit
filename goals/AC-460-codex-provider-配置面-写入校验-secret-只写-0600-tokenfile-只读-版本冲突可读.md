@@ -1,7 +1,7 @@
 ---
 id: AC-460
 title: Codex provider 配置面：写入校验 + secret 只写 + 0600 + tokenFile 只读 + 版本冲突可读
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -19,6 +19,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-02T09:44:09.333Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
