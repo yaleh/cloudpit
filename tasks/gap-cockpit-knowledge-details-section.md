@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-knowledge-details-section
 title: cockpit 详情抽屉补知识正文段：knowledge.title/statement 完整显示（列表只截两行，详情给全文）
-status: ready
+status: done
 labels:
   - gap
   - defect
