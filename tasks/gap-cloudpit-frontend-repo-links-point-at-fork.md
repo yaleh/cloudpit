@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-frontend-repo-links-point-at-fork
 title: Cloudpit 前端仓库链接归 fork：7 个 src 文件的 GitHub/版本检查/星标指向 yaleh/cloudpit，保留上游归属
-status: ready
+status: done
 labels:
   - gap
 parent: null
