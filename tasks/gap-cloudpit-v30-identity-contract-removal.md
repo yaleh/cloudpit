@@ -42,6 +42,14 @@ P3 退场计划的 v3.0 第二批：删除 R5、R7–R9、R11 的身份契约旧
 - 贴出相关测试的 `tests/pass/fail` 末行；贴出 release 负向检查读数。
 - 贴出 typecheck/oxlint 退出码；不改 UI，不需要浏览器截图（除非改了可见文案）。
 
+## Evidence
+
+- 观测 URI（R7）：`parseObservationUri('cloudcli://session/x')` → `null`，`parseObservationUri('cloudcli://architecture/x')` → `null`；`cloudpit://session/x` → `{scheme:'cloudpit',kind:'session',id:'x',uri:'cloudpit://session/x'}`；`observationUri.test.ts` 23/23 绿。
+- R14 保留：`replyItems.test.ts` 31/31 绿，两个 formatter 仍写 `cloudcli://session/<id>/msg/...`；`cloudpit-runtime-flip.test.ts` AC6b 同一断言绿。
+- v3.0 切片读数：`cloudpit-runtime-flip.test.ts` 的 AC6/AC7/AC8/AC9（deep link 唯一 scheme、MCP 唯一名、八条 `cloudpit:*` scope、SW 只删 `cloudpit-*`）全部绿；与 `browser-use-mcp-entry.test.ts`、`observation-routes.test.ts`、`access-token-scopes.test.ts` 合跑 26/26 pass、0 fail。
+- 本轮修复（suite 两次红）：`src/modules/cockpit/tests/ObservationWall.test.tsx` 的观测地址夹具仍写 2.1 的 `cloudcli://session|architecture`，旧读删除后预览失去身份（chat.send 不发出、raw material 不跳转）；把 19 处夹具迁到 `cloudpit://` 后该文件 22/22 绿（修复前 2 failed / 20 passed，可确定性复现）。`voiceLiveSegmenter.test.ts` 单跑 28/28 绿（36s，属满载下的时序抖动，非本任务引入）。
+- `npx oxlint src/modules/cockpit/tests/ObservationWall.test.tsx` 退出 0（仅 line 424 既有 warning）；`npm run typecheck` 退出 0。
+
 ## 暗轴记录
 
 该轴仍暗,理由:本任务只删除运行时兼容分支并更新判据，未新增可比较的 L_D/L_G 代码结构读数
@@ -110,9 +118,18 @@ P3 退场计划的 v3.0 第二批：删除 R5、R7–R9、R11 的身份契约旧
 - server/shared/mcp-contract/types.ts
 - server/shared/tests/cloudpit-runtime-flip.test.ts
 - src/modules/cockpit-contract/observationUri.ts
+- src/modules/cockpit/tests/ObservationWall.test.tsx
 - src/modules/cockpit/tests/observationUri.test.ts
 - src/modules/oauth-consent/OAuthConsentRoute.tsx
 - src/modules/oauth-consent/tests/oauthConsentPage.test.tsx
 - src/modules/settings/tests/i18nMcpSettingsCompleteness.test.ts
 - src/shared/constants.ts
 - tasks/gap-cloudpit-v30-identity-contract-removal.md
+
+## Blocker
+
+**2026-11-02T15:48:49.498Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/cockpit/tests/ObservationWall.test.tsx: AssertionError: expected [] to have a length of 1 but got +0 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/cockpit/tests/ObservationWall.test.tsx,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/modules/cockpit/tests/ObservationWall.test.tsx,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：3964b8af-dfcf-4e5a-9e60-100089b288ee
