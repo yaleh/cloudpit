@@ -1,11 +1,14 @@
+<!-- cloudpit-translation-banner -->
+> **This translation follows the upstream README. Cloudpit install: `npx @yalehwang/cloudpit`; see [README.md](../README.md) for the current Cloudpit-specific docs.**
+
 <div align="center">
- <img src="../public/logo.svg" alt="CloudCLI UI" width="64" height="64">
- <h1>Cloud CLI (auch bekannt als Claude Code UI)</h1>
+ <img src="../public/logo.svg" alt="Cloudpit" width="64" height="64">
+ <h1>Cloudpit (auch bekannt als Claude Code UI)</h1>
  <p>Eine Desktop- und Mobile-Oberfläche für <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a> und <a href="https://developers.openai.com/codex">Codex</a>.<br>Lokal oder remote nutzbar – verwalte deine aktiven Projekte und Sitzungen von überall.</p>
 </div>
 
 <p align="center">
- <a href="https://cloudcli.ai/docs">Dokumentation</a> · <a href="https://github.com/siteboon/claudecodeui/issues">Fehler melden</a> · <a href="../CONTRIBUTING.md">Mitwirken</a>
+ <a href="https://cloudcli.ai/docs">Dokumentation</a> · <a href="https://github.com/yaleh/cloudpit/issues">Fehler melden</a> · <a href="../CONTRIBUTING.md">Mitwirken</a>
 </p>
 
 <div align="right"><i><a href="../README.md">English</a> · <a href="./README.ru.md">Русский</a> · <b>Deutsch</b> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
@@ -74,13 +77,13 @@ Der schnellste Einstieg – keine lokale Einrichtung erforderlich. Erhalte eine 
 CloudCLI UI sofort mit **npx** ausprobieren (erfordert **Node.js** v22+):
 
 ```bash
-npx @cloudcli-ai/cloudcli
+npx @yalehwang/cloudpit
 ```
 
 Oder **global** installieren für regelmäßige Nutzung:
 
 ```bash
-npm install -g @cloudcli-ai/cloudcli
+npm install -g @yalehwang/cloudpit
 cloudcli
 ```
 
@@ -93,7 +96,7 @@ Die **[Dokumentation →](https://cloudcli.ai/docs)** enthält weitere Konfigura
 Agents in isolierten Sandboxes mit Hypervisor-Isolation ausführen. Standardmäßig wird Claude Code gestartet. Erfordert die [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
 
 ```
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+npx @yalehwang/cloudpit@latest sandbox ~/my-project
 ```
 
 Unterstützt Claude Code und Codex. Weitere Details in der [Sandbox-Dokumentation](../docker/).
@@ -108,7 +111,7 @@ CloudCLI UI ist die Open-Source-UI-Schicht, die CloudCLI Cloud antreibt. Du kann
 |---|---|---|
 | **Am besten für** | Entwickler:innen, die eine vollständige UI für lokale Agent-Sitzungen auf ihrem eigenen Rechner möchten | Teams und Entwickler:innen, die Agents in der Cloud betreiben möchten, überall erreichbar |
 | **Zugriff** | Browser via `[deineIP]:port` | Browser, jede IDE, REST API, n8n |
-| **Einrichtung** | `npx @cloudcli-ai/cloudcli` | Keine Einrichtung erforderlich |
+| **Einrichtung** | `npx @yalehwang/cloudpit` | Keine Einrichtung erforderlich |
 | **Rechner muss laufen** | Ja | Nein |
 | **Mobiler Zugriff** | Jeder Browser im Netzwerk | Jedes Gerät, native App in Entwicklung |
 | **Verfügbare Sitzungen** | Alle Sitzungen automatisch aus `~/.claude` erkannt | Alle Sitzungen in deiner Cloud-Umgebung |
@@ -218,7 +221,7 @@ Ja, bei Self-Hosted. CloudCLI UI liest aus und schreibt in dieselbe `~/.claude`-
 ## Community & Support
 
 - **[Dokumentation](https://cloudcli.ai/docs)** — Installation, Konfiguration, Funktionen und Fehlerbehebung
-- **[GitHub Issues](https://github.com/siteboon/claudecodeui/issues)** — Fehlerberichte und Feature-Anfragen
+- **[GitHub Issues](https://github.com/yaleh/cloudpit/issues)** — Fehlerberichte und Feature-Anfragen
 - **[Beitragsrichtlinien](../CONTRIBUTING.md)** — So kannst du zum Projekt beitragen
 
 ## Lizenz
