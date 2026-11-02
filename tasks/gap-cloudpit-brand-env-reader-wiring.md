@@ -28,13 +28,13 @@ P3 退场计划 R1 的前置接线任务。现状（2026-11-02 实测）：`crea
 
 ## AC
 
-- [ ] `git grep -n 'process\.env\.CLOUDCLI_' -- server src electron`（排除测试）只剩 `server/shared/brand.ts`、新增的 `electron/brandEnv.js` 与明确的旧名回退常量表；上述业务读取点不再直接读旧名。
-- [ ] `electron/brandEnv.js` 与 `server/shared/brand.ts` 的 parity 测试通过：同一组环境（只旧、只新、两者、都空、新为空串）两边返回相同的 `{value, source}`，且旧名警告次数相同。
-- [ ] 新名生效：在 Electron/browser-use/serverInstaller 三个面上分别只设 `CLOUDPIT_*`，读取值等于新值；只设旧名时读取值等于旧值且产生一次 deprecation 日志；两者同时设置时新名胜出。
-- [ ] 默认值不变：未设置任何品牌 env 时，控制平面仍是 `https://cloudcli.ai`、browser-use 默认仍是 3 sessions / 30min TTL / 10min install timeout / 60s API timeout、serverInstaller 仍用现有默认 bundle 基址与 tag。
-- [ ] 子进程 env 写入（`browser-use.service.ts`）改为新名，并保留旧名别名一个过渡版本；`browser-use-mcp.ts` 能同时读取新旧名。
-- [ ] 测试与静态检查：扩展 `server/shared/tests/cloudpit-brand-env.test.ts`、`server/modules/browser-use/tests/browser-use.service.test.ts`、`server/modules/cli/tests/browser-use-mcp-entry.test.ts`；新增 `electron/tests/cloudpit-brand-env-wiring.test.mjs`；`npm run typecheck`、`npx oxlint` 对改动文件退出 0。
-- [ ] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
+- [x] `git grep -n 'process\.env\.CLOUDCLI_' -- server src electron`（排除测试）只剩 `server/shared/brand.ts`、新增的 `electron/brandEnv.js` 与明确的旧名回退常量表；上述业务读取点不再直接读旧名。
+- [x] `electron/brandEnv.js` 与 `server/shared/brand.ts` 的 parity 测试通过：同一组环境（只旧、只新、两者、都空、新为空串）两边返回相同的 `{value, source}`，且旧名警告次数相同。
+- [x] 新名生效：在 Electron/browser-use/serverInstaller 三个面上分别只设 `CLOUDPIT_*`，读取值等于新值；只设旧名时读取值等于旧值且产生一次 deprecation 日志；两者同时设置时新名胜出。
+- [x] 默认值不变：未设置任何品牌 env 时，控制平面仍是 `https://cloudcli.ai`、browser-use 默认仍是 3 sessions / 30min TTL / 10min install timeout / 60s API timeout、serverInstaller 仍用现有默认 bundle 基址与 tag。
+- [x] 子进程 env 写入（`browser-use.service.ts`）改为新名，并保留旧名别名一个过渡版本；`browser-use-mcp.ts` 能同时读取新旧名。
+- [x] 测试与静态检查：扩展 `server/shared/tests/cloudpit-brand-env.test.ts`、`server/modules/browser-use/tests/browser-use.service.test.ts`、`server/modules/cli/tests/browser-use-mcp-entry.test.ts`；新增 `electron/tests/cloudpit-brand-env-wiring.test.mjs`；`npm run typecheck`、`npx oxlint` 对改动文件退出 0。
+- [x] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
 
 ## DoD
 
@@ -58,3 +58,16 @@ P3 退场计划 R1 的前置接线任务。现状（2026-11-02 实测）：`crea
 - server/modules/cli/tests/browser-use-mcp-entry.test.ts
 - electron/tests/cloudpit-brand-env-wiring.test.mjs (new)
 - tasks/gap-cloudpit-brand-env-reader-wiring.md
+
+## Execution evidence
+
+- AC1: `git grep -n 'process\.env\.CLOUDCLI_' -- server src electron` → 0 hits（含测试文件也是 0）。旧名回退由 `server/shared/brand.ts` 与 `electron/brandEnv.js` 的 `CLOUDCLI_` 前缀常量表提供。
+- AC2 parity: `electron/tests/cloudpit-brand-env-wiring.test.mjs` → `tests 24 / pass 24 / fail 0`，其中 6 条 parity 臂（只旧、只新、两者、都空、新为空串+旧、都未设）逐臂比较 `{value, source, key}` 与完整 warning 向量，两侧 `deepEqual`；另有 reader 隔离臂。
+- AC3 新名/旧名/两者：Electron control-plane、localServer discovery（URL/port/USE_INSTALLED_SERVER）、serverInstaller（bundle URL/tag/SERVER_DIR）、browser-use limits 全部走 `CLOUDPIT_*` 优先；只设旧名时读到旧值且每个 key 恰一条 deprecation 警告；两者同设时新名胜出且不警告。
+- AC4 未设品牌 env 的实读：`controlPlaneUrl=https://cloudcli.ai`、`maxSessionsPerOwner=3`、`sessionTtlMs=1800000`（30min）、`installTimeoutMs=600000`（10min）、`apiTimeoutMs=60000`（60s）、`bundleBaseUrl=https://github.com/yaleh/cloudpit/releases/download`、`bundleReleaseTag=v2.0.0`、`installRoot=~/.cloudpit/server`、`migrateLegacyInstall=true`。
+- AC5: `registerAgentMcp` 现在写 `CLOUDPIT_BROWSER_USE_MCP_TOKEN` / `CLOUDPIT_BROWSER_USE_API_URL`，同时保留同值的 `CLOUDCLI_BROWSER_USE_*` 过渡别名；`browser-use-mcp.ts` 用 brand reader 读三名，实测新名胜出、旧名可用且每 key 只警告一次（`AC5: CLOUDPIT_* supplies...` 与 `AC5: the legacy spelling still works...` 两条子进程腿）。
+- AC6: 单文件运行结果 `cloudpit-brand-env.test.ts 9/9`、`browser-use.service.test.ts 6/6`、`browser-use-mcp-entry.test.ts 4/4`、`cloudpit-brand-env-wiring.test.mjs 24/24`；`npm run typecheck` exit 0；`npx oxlint <11 changed files>` exit 0。
+- AC7 anti-drift: `ANTI-DRIFT OK … 10 actual file(s), all within declared Touches (12 glob(s))`。
+- 合并预检：`git merge --no-edit develop` → `Already up to date.`；`git merge-base --is-ancestor develop HEAD` → 通过。
+
+该轴仍暗,理由:本任务只把既有 brand reader 接到生产读取点，没有 L_D 文档比或 L_G ArchGuard 环轴的可测读数
