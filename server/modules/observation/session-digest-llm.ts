@@ -43,6 +43,7 @@ import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events
 
 import type { ObservedObject, ObservationStore } from './observation-store.js';
 import { createObservationStore } from './observation-store.js';
+import { parseObservationUri } from './observation-uri.js';
 import { createSessionAskDecisionDigest } from './session-ask-decision-digest.js';
 import { createSessionDigestProducer } from './session-digest.producer.js';
 import type { SessionDigestProducer, SessionTurnEndEvent } from './session-digest.producer.js';
@@ -348,11 +349,16 @@ export function createSessionDigestLlmTier(deps: SessionDigestLlmTierDeps): Sess
     durationMs: number;
   }): void {
     try {
+      // The ledger names the session by its id, not by the address spelling: since 2.1 the
+      // formatter writes `cloudpit://session/<id>`, while a 2.0 row may still be the legacy
+      // `cloudcli://` one. The parser normalizes both onto the canonical address, so the id is
+      // read the same way whichever spelling 2.0/2.1 stored.
+      const parsedUri = parseObservationUri(record.object.uri);
       usageLog.write({
         type: 'observation.session-digest-llm',
         at: record.at,
         uri: record.object.uri,
-        sessionId: record.object.uri.replace(/^cloudcli:\/\/session\//, ''),
+        sessionId: parsedUri?.id ?? record.object.uri,
         model: record.model,
         state: record.state,
         ...(record.reason === undefined ? {} : { reason: record.reason }),
