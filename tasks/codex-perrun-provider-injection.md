@@ -24,6 +24,7 @@ goal_ac: AC-464
 
 ## Touches
 
+- tasks/codex-perrun-provider-injection.md
 - server/modules/providers/list/codex/codex-runtime.provider.ts
 - server/modules/providers/tests/codex-runtime-provider-injection.test.ts（新判据，撞 pin 则上调）
 
