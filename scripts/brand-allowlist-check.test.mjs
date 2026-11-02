@@ -32,6 +32,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  CURRENT_DOC_SURFACES,
   SCANNED_SURFACES,
   checkDistributionIdentity,
   checkPackedManifest,
@@ -58,6 +59,19 @@ const REQUIRED_SURFACES = [
   'index.html',
   'public/manifest.json',
   'README.md',
+  'CONTRIBUTING.md',
+  'docs/README.de.md',
+  'docs/README.ja.md',
+  'docs/README.ko.md',
+  'docs/README.ru.md',
+  'docs/README.tr.md',
+  'docs/README.zh-CN.md',
+  'docs/README.zh-TW.md',
+  'docs/architecture/cockpit-attention/01-planes.puml',
+  'docs/architecture/cockpit-attention/CARD-PROVIDERS.md',
+  'docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md',
+  'docs/architecture/cockpit-attention/README.md',
+  'docs/architecture/knowledge-application/FACT-CONTRACT.md',
   'src/modules/i18n/locales/**/*.json',
   'src/shared/utils.ts',
   'src/modules/chat-session/utils/session/pageTitleNotification.ts',
@@ -321,4 +335,96 @@ test('AC7: the deprecated package name is a violation on update paths', () => {
   assert.deepEqual(violationsFor('publish the fork as @yalehwang/cloudcli on npm'), []);
   assert.equal(violationsFor('npm show @yalehwang/cloudcli version').length, 1);
   assert.equal(violationsFor('npm update -g @yalehwang/cloudcli').length, 1);
+});
+
+/**
+ * The current-documentation sweep: the docs a reader lands on today. Historical surfaces
+ * (`docs/proposals/`, `docs/experiments/`, `adr/`, `CHANGELOG.md`, `NOTICE`, `LICENSE`) are
+ * deliberately absent and must stay untouched.
+ */
+const REQUIRED_DOC_SURFACES = [
+  'README.md',
+  'CONTRIBUTING.md',
+  'docs/README.de.md',
+  'docs/README.ja.md',
+  'docs/README.ko.md',
+  'docs/README.ru.md',
+  'docs/README.tr.md',
+  'docs/README.zh-CN.md',
+  'docs/README.zh-TW.md',
+  'docs/architecture/cockpit-attention/01-planes.puml',
+  'docs/architecture/cockpit-attention/CARD-PROVIDERS.md',
+  'docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md',
+  'docs/architecture/cockpit-attention/README.md',
+  'docs/architecture/knowledge-application/FACT-CONTRACT.md',
+];
+
+test('current docs: the declared doc surfaces cover every named file and the real tree is green', () => {
+  const declaredDocGlobs = CURRENT_DOC_SURFACES.map((surface) => surface.glob).sort();
+  assert.deepEqual(
+    declaredDocGlobs,
+    [...REQUIRED_DOC_SURFACES].sort(),
+    'CURRENT_DOC_SURFACES must list exactly the current-doc surfaces the task names',
+  );
+
+  const scannedGlobs = new Set(SCANNED_SURFACES.map((surface) => surface.glob));
+  for (const required of REQUIRED_DOC_SURFACES) {
+    assert.ok(scannedGlobs.has(required), `the scan surface list must include ${required}`);
+  }
+
+  const result = runBrandAllowlistCheck({ root: ROOT });
+  assert.deepEqual(result.violations, [], JSON.stringify(result.violations, null, 2));
+  assert.equal(result.exitCode, 0);
+  assert.equal(
+    result.readings.docSurfaces,
+    REQUIRED_DOC_SURFACES.length,
+    `the docSurfaces reading must cover every named path, got ${result.readings.docSurfaces}`,
+  );
+  assert.deepEqual(
+    [...result.readings.docSurfaceFiles].sort(),
+    [...REQUIRED_DOC_SURFACES].sort(),
+    'the checked doc-surface files must be exactly the named paths',
+  );
+});
+
+test('current docs: injecting CloudCLI into a README H1, a translated H1 and an architecture doc reds the scan', () => {
+  const cases = [
+    {
+      file: 'README.md',
+      text: read('README.md').replace('<h1>Cloudpit</h1>', '<h1>CloudCLI</h1>'),
+    },
+    {
+      file: 'docs/README.ja.md',
+      text: read('docs/README.ja.md').replace('<h1>Cloudpit', '<h1>CloudCLI'),
+    },
+    {
+      file: 'docs/architecture/cockpit-attention/README.md',
+      text: `${read('docs/architecture/cockpit-attention/README.md')}\nCloudCLI 只做只读投影。\n`,
+    },
+  ];
+
+  for (const { file, text } of cases) {
+    assert.notEqual(text, read(file), `${file}: the false-form override must change the file`);
+    const result = runBrandAllowlistCheck({ root: ROOT, overrides: { [file]: text } });
+    assert.equal(result.exitCode, 1, `${file}: injecting CloudCLI must fail the check`);
+    assert.ok(
+      result.violations.some(
+        (violation) => violation.file === file && violation.message.includes('CloudCLI'),
+      ),
+      `${file}: the violation must name the file, got ${JSON.stringify(result.violations)}`,
+    );
+  }
+
+  // The head scan must not widen the allowlist: upstream attribution prose in a translated
+  // README body is expected to keep `CloudCLI UI` and stays outside the scanned lines.
+  const jaBodyOverride = `${read('docs/README.ja.md')}\nCloudCLI UI は上流の製品名です。\n`;
+  const bodyResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: { 'docs/README.ja.md': jaBodyOverride },
+  });
+  assert.equal(
+    bodyResult.exitCode,
+    0,
+    `translated-README body attribution must stay outside the head scan:\n${JSON.stringify(bodyResult.violations, null, 2)}`,
+  );
 });

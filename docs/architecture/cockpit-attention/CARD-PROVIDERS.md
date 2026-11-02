@@ -9,13 +9,13 @@
 ## 1. 三条原则（用户 2026-10-27 确定）
 
 1. **驾驶舱在本项目内是一个封装好的功能。** 界面、交互、确认流程、执行通道都在驾驶舱模块里，其它模块只经它的 barrel 使用它。
-2. **项目开发的语义尽量由 quay-fleet 提供。** 什么算卡死、什么算救援、一个提问等多久才算「在等你」、什么时候该发系统通知、事项何时结束——这些判断在 fleet，不在 CloudCLI。CloudCLI 只提供**事实**（会话在问什么、用户回答了没有）和**内容**（问题的情境与选项说明）。
+2. **项目开发的语义尽量由 quay-fleet 提供。** 什么算卡死、什么算救援、一个提问等多久才算「在等你」、什么时候该发系统通知、事项何时结束——这些判断在 fleet，不在 Cloudpit。Cloudpit 只提供**事实**（会话在问什么、用户回答了没有）和**内容**（问题的情境与选项说明）。
 3. **将来可能接入别的卡片提供方。** 驾驶舱对提供方一无所知，只认契约；加一个提供方 = 写一个实现 + 注册一行，不改驾驶舱的任何调用处。
 
 ## 2. 分层
 
 ```
- 提供方（语义）                 CloudCLI 驾驶舱（封装）                         界面
+ 提供方（语义）                 Cloudpit 驾驶舱（封装）                         界面
 ┌──────────────────┐      ┌──────────────────────────────────────────┐   ┌─────────────────┐
 │ quay-fleet       │─────▶│ CardProvider 注册表   ─▶ 卡片投影（排序、过滤 │──▶│ PC 右侧列        │
 │  （卡死/救援/    │      │                          由提供方字段决定）  │   │ 手机驾驶舱页     │
@@ -27,9 +27,9 @@
 ```
 
 - **CardProvider**（能力接口，类实现）：列出卡片、订阅变化、接收决策反馈、声明自己提供的执行器。
-- **ContentResolver**：提供方的卡片可以只带一个内容引用（例如 `cloudcli.session-ask`），由 CloudCLI 本地补全问题、情境和选项说明（T1 决策摘要）。语义在提供方，内容在本地。
-- **ActionExecutor**：每个选项绑定一个执行器 id 和参数。CloudCLI 自带 `session.send`（经 hub 的确认卡发给会话）和 `session.start`（在左侧开新会话并立即切过去）；提供方可以声明自己的执行器（例如 fleet 的 ack、任务处置）。
-- 系统通知：发不发由提供方在卡片上声明，CloudCLI 只负责经现有 Web Push 通道送达。
+- **ContentResolver**：提供方的卡片可以只带一个内容引用（例如 `cloudcli.session-ask`），由 Cloudpit 本地补全问题、情境和选项说明（T1 决策摘要）。语义在提供方，内容在本地。
+- **ActionExecutor**：每个选项绑定一个执行器 id 和参数。Cloudpit 自带 `session.send`（经 hub 的确认卡发给会话）和 `session.start`（在左侧开新会话并立即切过去）；提供方可以声明自己的执行器（例如 fleet 的 ack、任务处置）。
+- 系统通知：发不发由提供方在卡片上声明，Cloudpit 只负责经现有 Web Push 通道送达。
 
 ## 3. 卡片契约 v0（草案）
 
@@ -76,7 +76,7 @@ CockpitCard {
 ## 5. 需要 quay-fleet 提供的（待对齐）
 
 1. **卡片读口**：按契约输出卡片（或可无损投影成卡片的注意力条目），带 revision 与 state。
-2. **会话提问规则**：消费 CloudCLI 的 `session.asking` / `session.answered` 事件；等待满 **3 分钟**（用户 2026-10-27 确定）才成为卡片；用户在会话里回答后结束卡片。
+2. **会话提问规则**：消费 Cloudpit 的 `session.asking` / `session.answered` 事件；等待满 **3 分钟**（用户 2026-10-27 确定）才成为卡片；用户在会话里回答后结束卡片。
 3. **救援语义**：卡死、需人工、阻塞已修复后的重派建议，以及对应的处置动作（挂起、重派、停放、登记）。
 4. **通知策略**：哪些卡片发系统通知（用户 2026-10-27：由 quay-fleet 决定）。
 5. **反馈入口**：用户的选择与自己的回复写回为决策记录（委托阶梯与判官的数据来源）。
@@ -84,7 +84,7 @@ CockpitCard {
 ## 6. 本项目在对齐之前就能做的
 
 - 契约类型、注册表、执行通道、驾驶舱界面，全部可以先用**测试用的夹具提供方**驱动；fleet 适配器在读口确定后再接。
-- 观察层的 T1 决策摘要与 `session.asking` / `session.answered` 事件，本身就是 CloudCLI 的事实与内容，可以先做。
+- 观察层的 T1 决策摘要与 `session.asking` / `session.answered` 事件，本身就是 Cloudpit 的事实与内容，可以先做。
 
 ## 7. 与 quay-fleet 的对齐记录（2026-10-27 第一轮）
 
@@ -95,7 +95,7 @@ CockpitCard {
 - `contentRef.resolver` 与执行器 id 是声明集；`options[].source` 冻结为 assistant | judge | provider；`notify.reason` 取 fleet 规则 id。
 - `load` 从 v0 去掉。
 - 会话提问去重：`askId` = 会话 id + 提问所在助手消息 id；用户回答前再次提问沿用 askId、revision +1。
-- CloudCLI 以握手 `contracts.contextEvents` 的版本校验自己的写；新 kind 在 fleet bump schema 后才写。
+- Cloudpit 以握手 `contracts.contextEvents` 的版本校验自己的写；新 kind 在 fleet bump schema 后才写。
 - 读口需支持 `--include-resolved --since`（已处理折叠与撤销的来源）；反馈经 fleet 动词，不写文件。
 
 第二轮（同日）：

@@ -1,6 +1,6 @@
 # 知识应用事实契约 v1（`cloudcli.knowledge-application.fact`）
 
-本文件是 CloudCLI 作为 **producer** 向 Fleet 知识应用 run 提供的只读事实契约。它描述的是
+本文件是 Cloudpit 作为 **producer** 向 Fleet 知识应用 run 提供的只读事实契约。它描述的是
 **一个答案的形状**，不是"每个字段都已知"的承诺：每个字段要么是带来源与观察时刻的
 `evidence`，要么是带原因的 `unknown`。契约版本为 `1`；在 Fleet 侧
 `docs/specs/knowledge-application-contract.md` 未交付之前，本机只声明自己的版本，不冒充与
@@ -280,7 +280,7 @@ provider 自己的 transcript 里、落在 `[operation.at, now]` 且会话匹配
 ## 8. 证据
 
 `docs/evidence/knowledge-application-fact-contract.json` 记录了一次在**隔离运行**的
-CloudCLI 实例上、经正式 `/mcp` 网关取得的请求/响应与身份（`buildId`/`bootId`/`serverVersion`/
+Cloudpit 实例上、经正式 `/mcp` 网关取得的请求/响应与身份（`buildId`/`bootId`/`serverVersion`/
 `gitSha`/`builtAt`）、`peer_result` 的关联读数与其缺失标记、`effective_config` 的未验证读数，
 以及两个反例的 `code`。实例使用一次性 HOME 与其自己的事件流目录，operator 的
 `~/.quay-fleet` 流从不被该实例读取，也从不被本任务写入。

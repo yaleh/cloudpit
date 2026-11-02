@@ -22,16 +22,16 @@ package "注意力平面 Attention（fleet 拥有）" as ATP {
   queue "outbox.jsonl\n推送行" as outbox
 }
 
-package "状态平面 State（CloudCLI observation 层，已存在）" as STP {
+package "状态平面 State（Cloudpit observation 层，已存在）" as STP {
   [producers\nsession-digest / project-truth\narchitecture-delta] as prod
   database "ObservedObject\nstatus 四态 + digest + 修订 delta" as obs
   database "SeenCursor / Pin\n按用户，跨设备" as cur
 }
 
-package "CloudCLI 注意力读模型（新增，薄）" as HUBP {
+package "Cloudpit 注意力读模型（新增，薄）" as HUBP {
   [AttentionHub\n只读投影 + 归类 + 主体链接] as hub
   database "UserAttentionState\nseen / feedback(useful|noise)\n按用户" as uas
-  database "CloudCLI 自有条目\n同一 schema，命名空间 cloudcli:" as own
+  database "Cloudpit 自有条目\n同一 schema，命名空间 cloudcli:" as own
   [InterruptPolicy\n纯函数；先影子模式] as pol
 }
 
@@ -66,7 +66,7 @@ obs --> wall
 obs ..> cur
 dep --> own : 部署失败
 sess --> own : 运行失败
-att --> hub : 读（fleet 文件不由 CloudCLI 写）
+att --> hub : 读（fleet 文件不由 Cloudpit 写）
 own --> hub
 obs --> hub : about 链接
 hub --> uas

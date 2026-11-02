@@ -13,8 +13,8 @@
 
 ## 1. 结论
 
-1. **通知的生产侧已经存在，且比我之前设想的完整**：quay-fleet 主机目录里是一条 `事件 → 规则 → 注意力条目 → 推送行` 的流水线（`events.jsonl` → `decisions.jsonl` → `attention.json` → `outbox.jsonl`），条目带去重键、分级、生命周期、人的确认与反馈。CloudCLI 的 observation 层是**状态**这一侧。两者互补，但目前**没有连起来**：驾驶舱只读了 `attention.json` 里 `initiative-decision` 这一个类别。
-2. **要做的不是新模型，而是三件事**：把 fleet 的注意力条目只读投影进 CloudCLI 并**归类**；把条目**链接到被观察对象**（URI）；在其上写一个**纯函数的打断策略**。
+1. **通知的生产侧已经存在，且比我之前设想的完整**：quay-fleet 主机目录里是一条 `事件 → 规则 → 注意力条目 → 推送行` 的流水线（`events.jsonl` → `decisions.jsonl` → `attention.json` → `outbox.jsonl`），条目带去重键、分级、生命周期、人的确认与反馈。Cloudpit 的 observation 层是**状态**这一侧。两者互补，但目前**没有连起来**：驾驶舱只读了 `attention.json` 里 `initiative-decision` 这一个类别。
+2. **要做的不是新模型，而是三件事**：把 fleet 的注意力条目只读投影进 Cloudpit 并**归类**；把条目**链接到被观察对象**（URI）；在其上写一个**纯函数的打断策略**。
 3. **哪些值得打断，由实测反馈决定，不靠拍脑袋**：815 条里只有约 11% 是行动类，它们几乎 100% 被解决；而占 56% 的 digest 有 98.7% 过期未读，l1.proposal 的 67 次人工确认**全部标为 noise**。
 4. **打断是对注意力条目生命周期事件的策略，不是数据类型**；**状态不沿层级汇总，只汇总"未解决条目计数"**。
 5. **部署"待构建"是状态，不是注意力条目**：它属于项目对象的 `deploy` 层；只有"部署失败"才是行动类条目。这直接回答了最初那条 banner 的问题。
@@ -50,10 +50,10 @@
 |---|---|---|---|
 | 事件 | `events.jsonl` 类型化事件 | fleet | 只追加的证据，不直接展示 |
 | 注意力 | `attention.json` 条目 | fleet | 边沿产生、条件消失自动解决、人可确认 |
-| 状态 | `ObservedObject` | CloudCLI observation | 水平语义：当前是什么样；修订差量即未读事件 |
-| 读模型 | `AttentionHub` + 用户态 | CloudCLI（新增，薄） | 只读投影 + 归类 + 主体链接 + 用户的已读/反馈 |
+| 状态 | `ObservedObject` | Cloudpit observation | 水平语义：当前是什么样；修订差量即未读事件 |
+| 读模型 | `AttentionHub` + 用户态 | Cloudpit（新增，薄） | 只读投影 + 归类 + 主体链接 + 用户的已读/反馈 |
 
-CloudCLI **不写 fleet 的文件**（`quay-initiatives.ts` 已明文如此）。fleet 条目由 `AttentionHub` 只读；用户的"已读 / useful / noise"存 CloudCLI 库；人的**确认**经 fleet 自己的 `ack` 动词回写（outbox 的推送行里已带 `quay-fleet ack <id>`，说明该动词存在）。
+Cloudpit **不写 fleet 的文件**（`quay-initiatives.ts` 已明文如此）。fleet 条目由 `AttentionHub` 只读；用户的"已读 / useful / noise"存 Cloudpit 库；人的**确认**经 fleet 自己的 `ack` 动词回写（outbox 的推送行里已带 `quay-fleet ack <id>`，说明该动词存在）。
 
 ### D2. 待决不是独立模型（图 02）
 
@@ -90,16 +90,16 @@ CloudCLI **不写 fleet 的文件**（`quay-initiatives.ts` 已明文如此）�
 - **颜色不汇总、计数汇总**：一个会话变红不会让项目、fleet 变色；项目磁贴显示自身状态加"自身与后代的未解决条目数"。这避免一次抖动染红整面墙，同时不丢信息。
 - 条目的 `subject` 由 `projectId + entity` 推导。实测的 entity 形态有任务 id、`initiative:<slug>@…`、`<小时窗口>`、`<名>@<日期>` 几种，**推导规则在 P1 对着真实数据核对后固定**，不在本稿里拍定。
 
-### D6. CloudCLI 自有来源
+### D6. Cloudpit 自有来源
 
-部署失败、会话运行失败等来自 CloudCLI 的条目，写进 CloudCLI 自己的库，**schema 与 fleet 条目相同**，`dedupKey` 加 `cloudcli:` 命名空间，由 `AttentionHub` 在读时合并。理由：不能写 fleet 的文件，又不该为此造第二套语义。
+部署失败、会话运行失败等来自 Cloudpit 的条目，写进 Cloudpit 自己的库，**schema 与 fleet 条目相同**，`dedupKey` 加 `cloudcli:` 命名空间，由 `AttentionHub` 在读时合并。理由：不能写 fleet 的文件，又不该为此造第二套语义。
 
 部署的两面分开处理：
 
 - **待构建 / 已构建待重启**：状态，进项目对象的 `deploy` 层（`project-truth` 已有），项目磁贴上可见，**不提醒**。
 - **构建 / 重启失败、核验失败**：行动类、`escalate`、**不可忽略**，是唯一会打断的部署事件。
 
-现有 `notifications` 模块（Web Push 与桌面 WS）作为**离页通道**复用，其 stop / error 类事件改为 CloudCLI 自有条目后统一走策略，避免两条通道对同一事重复打断。
+现有 `notifications` 模块（Web Push 与桌面 WS）作为**离页通道**复用，其 stop / error 类事件改为 Cloudpit 自有条目后统一走策略，避免两条通道对同一事重复打断。
 
 ### D7. 反馈回路
 
@@ -114,7 +114,7 @@ CloudCLI **不写 fleet 的文件**（`quay-initiatives.ts` 已明文如此）�
 
 ### D9. 源头噪声归 fleet
 
-digest 占条目 56% 且 98.7% 过期，应当只进事件流 / feed，不应是注意力条目；l1.proposal 同理。这是 **quay-fleet 仓库**的改动，本仓库不实现；CloudCLI 在此之前靠归类过滤。
+digest 占条目 56% 且 98.7% 过期，应当只进事件流 / feed，不应是注意力条目；l1.proposal 同理。这是 **quay-fleet 仓库**的改动，本仓库不实现；Cloudpit 在此之前靠归类过滤。
 
 ### D10. 自身故障要响
 
@@ -129,18 +129,18 @@ digest 占条目 56% 且 98.7% 过期，应当只进事件流 / feed，不应是
 | **P2 驾驶舱队列 + 磁贴计数** | 统一"现在什么需要我"队列；项目磁贴计数徽标；策略**影子运行**，只记录"本会打断"不真打断 | 隔离实例 + MCP 浏览器；影子日志与 P0 回放同口径 |
 | **P3 打断上线 + 反馈** | 队首打断、离页 Web Push、有用 / 噪声按钮、`UserAttentionState` | 反馈经 `ack` 回写 fleet 并在 `attention.json` 可见 |
 | **P4 会话页 S0** | 标题行字形 + popover，依赖 `originated_by` 边 | 无关会话不渲染（反向测试）；聊天页顶部高度为 0 |
-| **P5 CloudCLI 自有来源** | 部署失败、会话运行失败进自有库并走同一策略 | 构造一次失败部署，只产生一条打断 |
+| **P5 Cloudpit 自有来源** | 部署失败、会话运行失败进自有库并走同一策略 | 构造一次失败部署，只产生一条打断 |
 | **跨仓库** | quay-fleet：digest / l1.proposal 不再建注意力条目 | 在 fleet 仓库立任务，不在本仓库 |
 
-**不可做**：不给 Chat 页加任何常驻条；不让 CloudCLI 写 fleet 文件；不让颜色沿层级汇总；不在 P0–P2 期间真打断。
+**不可做**：不给 Chat 页加任何常驻条；不让 Cloudpit 写 fleet 文件；不让颜色沿层级汇总；不在 P0–P2 期间真打断。
 
 ## 5. 预答：几个必然会被追问的点
 
-- **为什么不新建 Notice / Signal？** 事实源已有两个：fleet 的条目、CloudCLI 的观察对象。再建一个会形成第三份事实，违背 `context-layers` §4.1 的"唯一事实来源"。
+- **为什么不新建 Notice / Signal？** 事实源已有两个：fleet 的条目、Cloudpit 的观察对象。再建一个会形成第三份事实，违背 `context-layers` §4.1 的"唯一事实来源"。
 - **为什么颜色不汇总？** 汇总让最嘈杂的下层决定整面墙的颜色，丢掉"哪里出了事"这个最有价值的位置信息。计数汇总保留了"下面有事"，又不改色。
 - **阈值哪来的？** 来自 14 天实测与人的 `noise` 反馈，并且是可回放、可调的参数（P0 的出口）。局限见第 6 节。
 - **两个库会不会分叉？** 只读合并，schema 相同、命名空间隔离；用户态单独成表。分叉点只有"自有条目不回写 fleet"，这是有意的。
-- **fleet 不在或文件坏了怎么办？** D10：墙上有"观察层自身"条；CloudCLI 自有条目仍可用。
+- **fleet 不在或文件坏了怎么办？** D10：墙上有"观察层自身"条；Cloudpit 自有条目仍可用。
 - **多用户？** 条目是主机级；已读与反馈按用户存。
 - **为什么待构建不再提醒？** 它是状态：每次轮询都重新为真。可见但不打断；只有失败才打断。
 - **与旧 `notifications` 的关系？** 复用为离页通道；其事件源改走统一策略，避免双通道重复。

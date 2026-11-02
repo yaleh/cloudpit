@@ -42,9 +42,12 @@ import { fileURLToPath } from 'node:url';
  * `json-values`   — parsed JSON string values only (keys are not user-visible copy).
  * `locale-values` — same as `json-values`, but counted as locale copy in the readings.
  * `readme-install`— only install/upgrade command lines, so upstream attribution prose is skipped.
+ * `doc-head`      — a current document's brand-bearing head: H1 headings, logo `alt` text, and
+ *                   install/upgrade command lines. Body prose is skipped so upstream-product
+ *                   references kept for attribution do not need an allowlist span.
  * `code`          — every line except comment lines.
  *
- * @typedef {'text' | 'json-values' | 'locale-values' | 'readme-install' | 'code'} SurfaceKind
+ * @typedef {'text' | 'json-values' | 'locale-values' | 'readme-install' | 'doc-head' | 'code'} SurfaceKind
  */
 
 /**
@@ -82,6 +85,8 @@ import { fileURLToPath } from 'node:url';
  *   scannedSources: number,
  *   localeValues: number,
  *   allowlistHits: number,
+ *   docSurfaces: number,
+ *   docSurfaceFiles: string[],
  * }} CheckReadings
  * @typedef {{
  *   exitCode: number,
@@ -90,6 +95,35 @@ import { fileURLToPath } from 'node:url';
  *   sources: BrandSource[],
  * }} CheckResult
  */
+
+/**
+ * Current documentation surfaces: the docs a reader lands on today. This list is deliberately
+ * explicit (no `docs/**` glob) so the historical surface — `docs/proposals/`, `docs/experiments/`,
+ * `adr/`, `CHANGELOG.md`, `NOTICE`, `LICENSE` — stays out of the scan. Those files record the past
+ * and are not rewritten by a brand sweep.
+ *
+ * README and the translated READMEs use `doc-head` (H1 / logo alt / install block) rather than
+ * `text`: their bodies intentionally keep upstream attribution (`CloudCLI UI`, `CloudCLI Cloud`)
+ * that the allowlist must not be widened to swallow.
+ *
+ * @type {ScannedSurface[]}
+ */
+export const CURRENT_DOC_SURFACES = [
+  { glob: 'README.md', kind: 'doc-head' },
+  { glob: 'CONTRIBUTING.md', kind: 'text' },
+  { glob: 'docs/README.de.md', kind: 'doc-head' },
+  { glob: 'docs/README.ja.md', kind: 'doc-head' },
+  { glob: 'docs/README.ko.md', kind: 'doc-head' },
+  { glob: 'docs/README.ru.md', kind: 'doc-head' },
+  { glob: 'docs/README.tr.md', kind: 'doc-head' },
+  { glob: 'docs/README.zh-CN.md', kind: 'doc-head' },
+  { glob: 'docs/README.zh-TW.md', kind: 'doc-head' },
+  { glob: 'docs/architecture/cockpit-attention/01-planes.puml', kind: 'text' },
+  { glob: 'docs/architecture/cockpit-attention/CARD-PROVIDERS.md', kind: 'text' },
+  { glob: 'docs/architecture/cockpit-attention/INTERACTION-PRINCIPLES.md', kind: 'text' },
+  { glob: 'docs/architecture/cockpit-attention/README.md', kind: 'text' },
+  { glob: 'docs/architecture/knowledge-application/FACT-CONTRACT.md', kind: 'text' },
+];
 
 /**
  * Every user-visible surface AC-451 owns. Keep this list aligned with the Proposal's
@@ -101,9 +135,9 @@ import { fileURLToPath } from 'node:url';
  * @type {ScannedSurface[]}
  */
 export const SCANNED_SURFACES = [
+  ...CURRENT_DOC_SURFACES,
   { glob: 'index.html', kind: 'text' },
   { glob: 'public/manifest.json', kind: 'json-values' },
-  { glob: 'README.md', kind: 'readme-install' },
   { glob: 'src/modules/i18n/locales/**/*.json', kind: 'locale-values' },
   { glob: 'src/shared/utils.ts', kind: 'code' },
   { glob: 'src/modules/chat-session/utils/session/pageTitleNotification.ts', kind: 'code' },
@@ -155,6 +189,9 @@ export const BRAND_ALLOWLIST = [
   },
   // The unrenamed local cache directory (`~/.cache/claudecodeui`), a filesystem name, not copy.
   { name: 'local-cache-directory', pattern: /['"]\.cache['"]\s*,\s*['"]claudecodeui['"]/g },
+  // The knowledge-application fact contract's `identity.project` is a wire value consumers read,
+  // naming the repository, not the product. It stays `claudecodeui` by contract.
+  { name: 'knowledge-application-project-id', pattern: /"project"\s*:\s*"claudecodeui"/g },
   // The deprecated package name is history, not an update path. These spans cover the three
   // historical reference shapes (migration notice, release-workflow comment, changelog entry);
   // `npm show|update|install -g @yalehwang/cloudcli` matches none of them and stays a violation.
@@ -173,6 +210,24 @@ const COMMENT_LINE = /^(?:\/\/|\/\*|\*|<!--)/;
 
 /** A README line that tells a user how to install or upgrade the package. */
 const README_INSTALL_LINE = /\bnpx\s+@yalehwang\/|\bnpm\s+(?:install|update)\s+-g\b/;
+
+/**
+ * A current-document line that carries the product identity: an HTML or markdown H1, a logo
+ * `<img>` carrying `alt` text, or an install/upgrade command. Everything else in those documents
+ * is prose whose upstream attribution is intentional.
+ *
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isDocHeadLine(line) {
+  const trimmed = line.trim();
+  return (
+    /<h1\b/i.test(trimmed)
+    || /^#\s+/.test(trimmed)
+    || (/<img\b/i.test(trimmed) && /\balt=/i.test(trimmed))
+    || README_INSTALL_LINE.test(line)
+  );
+}
 
 /**
  * @param {string} dir
@@ -250,6 +305,9 @@ function extractSources(file, kind, content) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (kind === 'readme-install' && !README_INSTALL_LINE.test(line)) {
+      continue;
+    }
+    if (kind === 'doc-head' && !isDocHeadLine(line)) {
       continue;
     }
     if (kind === 'code' && COMMENT_LINE.test(line.trim())) {
@@ -448,6 +506,9 @@ export function runBrandAllowlistCheck({ root, overrides = {} } = {}) {
   const resolvedRoot = path.resolve(root ?? process.cwd());
   const sources = collectBrandSources({ root: resolvedRoot, overrides });
   const scan = scanSources(sources);
+  const docSurfaceFiles = [
+    ...new Set(CURRENT_DOC_SURFACES.flatMap((surface) => expandSurface(resolvedRoot, surface))),
+  ].sort();
   /** @type {Record<string, any>} */
   const packageJson = JSON.parse(readFileSync(path.join(resolvedRoot, 'package.json'), 'utf8'));
   const identityViolations = checkDistributionIdentity(packageJson);
@@ -470,6 +531,8 @@ export function runBrandAllowlistCheck({ root, overrides = {} } = {}) {
       scannedSources: sources.length,
       localeValues: sources.filter((source) => source.file.startsWith('src/modules/i18n/locales/')).length,
       allowlistHits: scan.allowlistHits,
+      docSurfaces: docSurfaceFiles.length,
+      docSurfaceFiles,
     },
     sources,
   };
@@ -505,7 +568,8 @@ export function main(argv = process.argv.slice(2)) {
     console.log(
       `brand-allowlist: files=${result.readings.scannedFiles} `
       + `values=${result.readings.scannedSources} localeValues=${result.readings.localeValues} `
-      + `allowlistHits=${result.readings.allowlistHits} violations=${result.violations.length}`,
+      + `allowlistHits=${result.readings.allowlistHits} docSurfaces=${result.readings.docSurfaces} `
+      + `violations=${result.violations.length}`,
     );
     for (const violation of result.violations) {
       console.error(`[brand] ${violation.message}`);
