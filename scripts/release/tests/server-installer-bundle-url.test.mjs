@@ -87,6 +87,17 @@ function installer() {
 
 const sourceText = read(SOURCE_REL);
 
+// R12 (2.1): the retired runtime tag / asset prefixes must not reappear on the release surface.
+const LEGACY_TAG_PREFIXES = ['cloudcli-local-server-', 'cloudcli-desktop-'];
+const RELEASE_SURFACE = [
+  SOURCE_REL,
+  'scripts/release/build-server-bundle.js',
+  '.github/workflows/desktop-release.yml',
+];
+const legacyTagHits = RELEASE_SURFACE.flatMap((rel) =>
+  LEGACY_TAG_PREFIXES.flatMap((prefix) => (read(rel).includes(prefix) ? [`${rel}:${prefix}`] : [])),
+);
+
 // The default reading must be taken with the override env UNSET: a stray
 // CLOUDCLI_SERVER_BUNDLE_URL in the caller's environment would otherwise masquerade as the default.
 const savedBundleUrlEnv = process.env.CLOUDCLI_SERVER_BUNDLE_URL;
@@ -112,6 +123,7 @@ const envOverride = overrideUrl.startsWith(`${OVERRIDE_BASE}/`) ? 'honored' : 'i
 console.log(`bundle.default.host=${defaultHost}`);
 console.log(`bundle.default.upstream_refs=${upstreamRefs}`);
 console.log(`bundle.env_override=${envOverride}`);
+console.log(`legacy.tag_prefixes=${legacyTagHits.length}`);
 
 // ── the assertions ───────────────────────────────────────────────────────────
 
@@ -147,6 +159,19 @@ test('CLOUDCLI_SERVER_BUNDLE_URL still overrides the default', () => {
     overrideUrl,
     `${OVERRIDE_BASE}/${RELEASE_TAG}/cloudpit-local-server-v${VERSION}-win-x64.tar.gz`,
     'the override base must be used verbatim, keeping the tag/filename shape',
+  );
+});
+
+test('R12: no legacy runtime tag or asset prefix survives on the release surface', () => {
+  assert.deepEqual(
+    legacyTagHits,
+    [],
+    `the installer/workflow/build script still mints a retired prefix: ${legacyTagHits.join(', ')}`,
+  );
+  // Positive control: the replacement prefix is what the same surface produces.
+  assert.ok(
+    defaultUrl.includes('cloudpit-local-server-'),
+    'the live release surface must produce the cloudpit-local-server- shape',
   );
 });
 

@@ -15,10 +15,14 @@
  * `shared/` tree (the AC-394 unresolved-internal budget). Keep the two spellings in step: a
  * change to one without the other makes a deep link address an object the server never wrote.
  *
- *   cloudcli://session/<id>              — one CloudCLI session
- *   cloudcli://architecture/<projectId>  — one project's architecture graph
+ *   cloudpit://session/<id>              — one Cloudpi session (canonical since 2.1)
+ *   cloudpit://architecture/<projectId>  — one project's architecture graph
  *   quay://<fleetProjectId>/board        — one fleet project's board (the fleet's grammar)
  *   quay://fleet/initiative/<slug>       — one cross-project initiative (the fleet's reserved segment)
+ *
+ * 2.1 switches the WRITE spelling only: the formatters mint `cloudpit://`, the parser keeps
+ * accepting the legacy `cloudcli://session/<id>` and `cloudcli://architecture/<id>` spellings
+ * (retired in 3.0) and normalizes either onto the canonical `cloudpit://` address.
  *
  * The initiative address is the fleet's own (`ADR-013` reserves `fleet` for it), and the
  * cockpit's initiative view pins it to the observation wall, so the grammar must mint and
@@ -36,8 +40,8 @@ export type ObservationKind = 'session' | 'project' | 'architecture';
  * value as a map key without re-formatting it.
  */
 export type ObservationUri =
-  | { scheme: 'cloudcli'; kind: 'session'; id: string; uri: string }
-  | { scheme: 'cloudcli'; kind: 'architecture'; id: string; uri: string }
+  | { scheme: 'cloudpit'; kind: 'session'; id: string; uri: string }
+  | { scheme: 'cloudpit'; kind: 'architecture'; id: string; uri: string }
   | { scheme: 'quay'; kind: 'project'; id: string; uri: string }
   | { scheme: 'quay'; kind: 'initiative'; id: string; uri: string };
 
@@ -49,14 +53,14 @@ const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
 /** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
 const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
 
-/** The canonical `cloudcli://session/<id>` spelling. */
+/** The canonical `cloudpit://session/<id>` spelling 2.1 writes. */
 export function formatSessionUri(id: string): string {
-  return `cloudcli://session/${id}`;
+  return `cloudpit://session/${id}`;
 }
 
-/** The canonical `cloudcli://architecture/<id>` spelling. */
+/** The canonical `cloudpit://architecture/<id>` spelling 2.1 writes. */
 export function formatArchitectureUri(projectId: string): string {
-  return `cloudcli://architecture/${projectId}`;
+  return `cloudpit://architecture/${projectId}`;
 }
 
 /** The canonical `quay://<fleetProjectId>/board` spelling. */
@@ -86,13 +90,13 @@ export function formatObservationUri(parsed: ObservationUri): string {
 /** Parses one URI, returning `null` for anything outside the grammar (the server's answer too). */
 export function parseObservationUri(value: unknown): ObservationUri | null {
   if (typeof value !== 'string') return null;
-  const cloudcli = CLOUDCLI_URI.exec(value);
-  if (cloudcli !== null) {
-    const kind = cloudcli[1] === 'session' ? 'session' : 'architecture';
-    const id = cloudcli[2]!;
-    // Both spellings parse, but the canonical string (and the DB key) stays the
-    // legacy `cloudcli://` one; 2.0 is a read widening, not a rename.
-    return { scheme: 'cloudcli', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
+  const cloud = CLOUDCLI_URI.exec(value);
+  if (cloud !== null) {
+    const kind = cloud[1] === 'session' ? 'session' : 'architecture';
+    const id = cloud[2]!;
+    // Both spellings parse; 2.1 normalizes them onto the canonical `cloudpit://` address so a
+    // pre-flip deep link and a freshly minted one are the same key.
+    return { scheme: 'cloudpit', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
   }
   const initiative = QUAY_INITIATIVE_URI.exec(value);
   if (initiative !== null) {

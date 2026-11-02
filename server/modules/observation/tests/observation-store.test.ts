@@ -229,3 +229,76 @@ test('AC2: past the cap the wall sorts red > attention > ok by recent revision a
     'attention entries are newest-first, so the last SHOWN one is the second-oldest',
   );
 });
+
+// ---------------------------------------------------------------------------
+// 2.1 — a DB holding 2.0-era legacy keys is read on the canonical cloudpit:// address
+// ---------------------------------------------------------------------------
+
+const LEGACY_AT = 3_000_000;
+
+/** Seeds a row exactly as the 2.0 writer would have left it: the storage key is `cloudcli://`. */
+function seedLegacyObject(uri: string, kind: 'session' | 'architecture', revision: number): void {
+  const db = getConnection();
+  db.prepare(
+    `INSERT INTO observed_objects (
+       uri, kind, title, status_state, status_reason, digest_json, revision, updated_at,
+       provenance_producer, provenance_tier, provenance_evaluated_at
+     ) VALUES (?, ?, ?, 'attention', 'waiting', '{}', ?, ?, 'legacy-producer', 'deterministic', ?)`,
+  ).run(uri, kind, `${kind} fixture`, revision, LEGACY_AT, LEGACY_AT);
+  db.prepare(
+    'INSERT INTO observed_revisions (uri, revision, at, delta_items_json) VALUES (?, ?, ?, ?)',
+  ).run(uri, revision, LEGACY_AT, JSON.stringify([`legacy-${uri}`]));
+}
+
+test('2.1: both legacy spellings in one DB read as canonical cloudpit:// objects', () => {
+  // A mixed fixture: a session row and an architecture row, each under the 2.0 legacy key.
+  seedLegacyObject('cloudcli://session/a', 'session', 2);
+  seedLegacyObject('cloudcli://architecture/b', 'architecture', 4);
+  // A pin written through the new spelling must join the legacy object row.
+  store.pin(USER_ID, 'cloudpit://session/a');
+
+  assert.equal(store.getObject('cloudcli://session/a')?.uri, 'cloudpit://session/a');
+  assert.equal(store.getObject('cloudpit://session/a')?.uri, 'cloudpit://session/a');
+  assert.equal(store.getObject('cloudcli://architecture/b')?.uri, 'cloudpit://architecture/b');
+  assert.equal(store.getObject('cloudpit://architecture/b')?.uri, 'cloudpit://architecture/b');
+
+  const revisions = store.listRevisions('cloudpit://session/a', 0);
+  assert.deepEqual(
+    revisions.map((revision) => [revision.uri, revision.revision]),
+    [['cloudpit://session/a', 2]],
+    'the revision log is read through the legacy key but reported canonically',
+  );
+
+  const wall = store.getWall(USER_ID);
+  assert.deepEqual(
+    wall.entries.map((entry) => entry.object.uri).sort(),
+    ['cloudpit://architecture/b', 'cloudpit://session/a'],
+    'the wall joins the legacy row to the new-spelling pin and reports canonical URIs',
+  );
+  assert.equal(wall.entries.find((entry) => entry.object.uri === 'cloudpit://session/a')?.pinned, true);
+});
+
+test('2.1: a write to a 2.0-era object continues its revision chain instead of restarting it', () => {
+  seedLegacyObject('cloudcli://session/chain', 'session', 2);
+
+  const written = store.writeRevision({
+    uri: 'cloudpit://session/chain',
+    kind: 'session',
+    title: 'Continued chain',
+    status: { state: 'ok' },
+    provenance: { producer: PRODUCER, tier: 'deterministic' },
+  });
+
+  assert.equal(written.uri, 'cloudpit://session/chain', 'the reading is canonical');
+  assert.equal(written.revision, 3, 'the legacy row keeps counting up, not restarting at 1');
+  assert.equal(store.getObject('cloudcli://session/chain')?.revision, 3);
+  assert.equal(
+    store.getObject('cloudpit://session/chain')?.revision,
+    3,
+    'both spellings read the same single chain',
+  );
+  assert.deepEqual(
+    store.listRevisions('cloudpit://session/chain', 0).map((revision) => revision.revision),
+    [2, 3],
+  );
+});

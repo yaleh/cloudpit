@@ -7,10 +7,16 @@
  * let a typo create a second object for the same conversation, which is exactly the
  * "unobservable-because-misaddressed" failure this layer exists to prevent.
  *
- *   cloudcli://session/<id>              — one CloudCLI session
- *   cloudcli://architecture/<projectId>  — one project's architecture graph
+ *   cloudpit://session/<id>              — one Cloudpi session (canonical since 2.1)
+ *   cloudpit://architecture/<projectId>  — one project's architecture graph
  *   quay://<fleetProjectId>/board        — one fleet project's board (the fleet's own grammar)
  *   quay://fleet/initiative/<slug>       — one cross-project initiative (the fleet's reserved segment)
+ *
+ * 2.1 SWITCHES THE WRITE SPELLING, NOT THE READ. The legacy `cloudcli://session/<id>` and
+ * `cloudcli://architecture/<id>` spellings stay accepted (retired in 3.0); the parser normalizes
+ * either spelling onto the canonical `cloudpit://` address, so a link minted before 2.1 addresses
+ * the same object row the formatters now produce. See
+ * `docs/proposals/cloudpit-compat-retirement.md` (R6/R7).
  *
  * The initiative address is the fleet's (`ADR-013` reserves `fleet` for exactly this object).
  * The cockpit's initiative view pins it to the wall, so the watch routes must accept it even
@@ -18,11 +24,11 @@
  * refusing the fleet's own address would make 「钉到观察墙」 impossible for the object the
  * initiative view is about.
  *
- * The cloudcli scheme is CloudCLI's; quay's board URI is kept verbatim because the fleet owns
- * that address space and will own its "seen" write-back later (see the task's Notes). An id
- * segment may not be empty, may not contain `/`, `?`, `#` or whitespace, and is not
- * percent-decoded here: the routes decode the path parameter once, and every other caller
- * builds the URI with the formatters below.
+ * The cloud scheme is Cloudpi's; quay's board URI is kept verbatim because the fleet owns that
+ * address space and will own its "seen" write-back later (see the task's Notes). An id segment
+ * may not be empty, may not contain `/`, `?`, `#` or whitespace, and is not percent-decoded
+ * here: the routes decode the path parameter once, and every other caller builds the URI with
+ * the formatters below.
  *
  * Consumers: `server/modules/observation/observation-store.ts` (write validation and the wall)
  * and `server/modules/observation/observation.routes.ts` (transport validation).
@@ -38,8 +44,8 @@ export type ObservationKind = 'session' | 'project' | 'architecture';
  * caller can use the parsed value as a map key without re-formatting it.
  */
 export type ObservationUri =
-  | { scheme: 'cloudcli'; kind: 'session'; id: string; uri: string }
-  | { scheme: 'cloudcli'; kind: 'architecture'; id: string; uri: string }
+  | { scheme: 'cloudpit'; kind: 'session'; id: string; uri: string }
+  | { scheme: 'cloudpit'; kind: 'architecture'; id: string; uri: string }
   | { scheme: 'quay'; kind: 'project'; id: string; uri: string }
   | { scheme: 'quay'; kind: 'initiative'; id: string; uri: string };
 
@@ -51,14 +57,14 @@ const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
 /** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
 const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
 
-/** The canonical `cloudcli://session/<id>` spelling. */
+/** The canonical `cloudpit://session/<id>` spelling 2.1 writes. */
 export function formatSessionUri(id: string): string {
-  return `cloudcli://session/${id}`;
+  return `cloudpit://session/${id}`;
 }
 
-/** The canonical `cloudcli://architecture/<id>` spelling. */
+/** The canonical `cloudpit://architecture/<id>` spelling 2.1 writes. */
 export function formatArchitectureUri(projectId: string): string {
-  return `cloudcli://architecture/${projectId}`;
+  return `cloudpit://architecture/${projectId}`;
 }
 
 /** The canonical `quay://<fleetProjectId>/board` spelling. */
@@ -94,13 +100,13 @@ export function formatObservationUri(parsed: ObservationUri): string {
  */
 export function parseObservationUri(value: unknown): ObservationUri | null {
   if (typeof value !== 'string') return null;
-  const cloudcli = CLOUDCLI_URI.exec(value);
-  if (cloudcli !== null) {
-    const kind = cloudcli[1] === 'session' ? 'session' : 'architecture';
-    const id = cloudcli[2]!;
-    // Both spellings parse, but the canonical string (and the DB key) stays the
-    // legacy `cloudcli://` one; 2.0 is a read widening, not a rename.
-    return { scheme: 'cloudcli', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
+  const cloud = CLOUDCLI_URI.exec(value);
+  if (cloud !== null) {
+    const kind = cloud[1] === 'session' ? 'session' : 'architecture';
+    const id = cloud[2]!;
+    // Both spellings parse; 2.1 normalizes them onto the canonical `cloudpit://` address, so a
+    // deep link minted before the flip keys the same object row the formatters now produce.
+    return { scheme: 'cloudpit', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
   }
   const initiative = QUAY_INITIATIVE_URI.exec(value);
   if (initiative !== null) {
@@ -111,4 +117,36 @@ export function parseObservationUri(value: unknown): ObservationUri | null {
     return { scheme: 'quay', kind: 'project', id: quay[1]!, uri: value };
   }
   return null;
+}
+
+/**
+ * The pre-2.1 `cloudcli://` spelling of a cloud object, or `null` for a fleet (`quay://`) address.
+ * The observation store uses it to keep reading rows a 2.0 producer wrote under the legacy key;
+ * consumers: `server/modules/observation/observation-store.ts`.
+ */
+export function legacyCloudUri(value: string): string | null {
+  const parsed = parseObservationUri(value);
+  if (parsed === null || parsed.scheme !== 'cloudpit') return null;
+  return `cloudcli://${parsed.kind}/${parsed.id}`;
+}
+
+/**
+ * Maps any accepted spelling of an object address onto its canonical `cloudpit://` form; a
+ * `quay://` address (or an unparseable value) is returned verbatim. Consumers: the observation
+ * store's row mapping and the wall's join keys.
+ */
+export function canonicalObservationUri(value: string): string {
+  const parsed = parseObservationUri(value);
+  return parsed === null ? value : parsed.uri;
+}
+
+/**
+ * Every storage spelling a read must try for one address, canonical first then the legacy key.
+ * A `quay://` address has exactly one (the fleet owns it verbatim). Consumers: the observation
+ * store, so a 2.0 row and a 2.1 row of the same object are both reachable.
+ */
+export function observationUriSpellings(value: string): string[] {
+  const legacy = legacyCloudUri(value);
+  if (legacy === null) return [canonicalObservationUri(value)];
+  return [canonicalObservationUri(value), legacy];
 }

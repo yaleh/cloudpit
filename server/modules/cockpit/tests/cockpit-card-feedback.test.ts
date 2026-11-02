@@ -22,7 +22,7 @@
  *     server/modules/cockpit/tests/cockpit-card-feedback.test.ts
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -613,6 +613,121 @@ test('a resend reuses the same feedbackId and never runs the action again', asyn
   assert.equal(feedback.calls.length, 2, 'the resend asks the feedback executor again');
   assert.deepEqual(feedback.calls[1], feedback.calls[0], 'the resend repeats the original params');
   assert.equal(action.calls.length, 1, 'a resend never redoes the action');
+});
+
+test('2.1: reading a file with legacy URI strings normalizes them, backs up and is idempotent', () => {
+  const { directory, filePath } = storeFile();
+  try {
+    const pristine = {
+      overlays: [
+        {
+          cardId: 'card-legacy',
+          provider: 'test',
+          revision: 1,
+          feedbackId: 'feedback-legacy',
+          optionId: 'go',
+          label: 'Go ahead',
+          sentAt: AT,
+          outcome: { executor: 'test.action', ok: true },
+          feedbackExecutor: 'test.feedback',
+          params: {
+            attentionId: 'card-legacy',
+            subject: { uri: 'cloudcli://session/a' },
+            links: ['cloudcli://architecture/b', 'quay://proj/board'],
+          },
+        },
+      ],
+      notices: [
+        {
+          cardId: 'card-legacy',
+          feedbackId: 'feedback-legacy',
+          kind: 'kept',
+          ref: 'cloudcli://session/a#item-1',
+        },
+      ],
+      cardRecords: [
+        { id: 'card-legacy', subject: { uri: 'cloudcli://architecture/b' } },
+      ],
+    };
+    writeFileSync(filePath, `${JSON.stringify(pristine, null, 2)}\n`, 'utf8');
+
+    const first = createCockpitCardFeedbackStore({ filePath });
+    const reading = first.normalization();
+    assert.equal(reading.changed, true, 'the store reports that it rewrote legacy keys');
+    assert.equal(reading.error, null);
+    assert.equal(reading.backupPath, `${filePath}.cloudcli-backup`);
+    assert.ok(existsSync(reading.backupPath!), 'the pre-normalization copy exists');
+    assert.deepEqual(
+      JSON.parse(readFileSync(reading.backupPath!, 'utf8')),
+      pristine,
+      'the backup is the pristine file, not the rewritten one',
+    );
+
+    // No entry was lost, and every nested URI string (params, card records, notice refs) moved.
+    const overlay = first.overlay('card-legacy');
+    assert.ok(overlay, 'the overlay survives the rewrite');
+    assert.deepEqual(overlay.params.subject, { uri: 'cloudpit://session/a' });
+    assert.deepEqual(overlay.params.links, ['cloudpit://architecture/b', 'quay://proj/board'], 'non-cloud schemes stay verbatim');
+    assert.equal(first.notice('card-legacy')?.kind, 'kept', 'the notice survives the rewrite');
+
+    const rewritten = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      notices: Array<{ ref: string }>;
+      cardRecords: Array<{ subject: { uri: string } }>;
+    };
+    assert.equal(rewritten.notices[0]!.ref, 'cloudpit://session/a#item-1');
+    assert.equal(rewritten.cardRecords[0]!.subject.uri, 'cloudpit://architecture/b');
+
+    // A second store finds nothing to normalize and does not overwrite the pristine backup.
+    const second = createCockpitCardFeedbackStore({ filePath });
+    assert.equal(second.normalization().changed, false, 'the normalization is idempotent');
+    assert.equal(second.normalization().error, null);
+    assert.deepEqual(
+      JSON.parse(readFileSync(reading.backupPath!, 'utf8')),
+      pristine,
+      'the first backup is still the pristine file',
+    );
+    assert.deepEqual(second.overlay('card-legacy')?.params.subject, { uri: 'cloudpit://session/a' });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('2.1: a failed normalization write keeps the original file and reports the reason', () => {
+  const { directory, filePath } = storeFile();
+  try {
+    const pristine = JSON.stringify({
+      overlays: [
+        {
+          cardId: 'card-legacy',
+          provider: 'test',
+          revision: 1,
+          feedbackId: 'feedback-legacy',
+          optionId: 'go',
+          label: 'Go ahead',
+          sentAt: AT,
+          outcome: { executor: 'test.action', ok: true },
+          feedbackExecutor: 'test.feedback',
+          params: { subject: { uri: 'cloudcli://session/a' } },
+        },
+      ],
+    });
+    writeFileSync(filePath, pristine, 'utf8');
+    chmodSync(filePath, 0o444);
+
+    const store = createCockpitCardFeedbackStore({ filePath });
+    const reading = store.normalization();
+    assert.equal(reading.changed, false, 'an unpersisted rewrite is not reported as changed');
+    assert.ok(reading.error, 'the failed write is reported');
+    assert.equal(readFileSync(filePath, 'utf8'), pristine, 'the original file is kept byte-identical');
+    assert.deepEqual(
+      store.overlay('card-legacy')?.params.subject,
+      { uri: 'cloudpit://session/a' },
+      'reads are normalized even when the file could not be rewritten',
+    );
+  } finally {
+    chmodSync(filePath, 0o644);
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('a provider without a feedback executor answers an explicit unavailable reason', async () => {
