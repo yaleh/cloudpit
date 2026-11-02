@@ -18,6 +18,17 @@ import {
 import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
 import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
+import {
+  fillCodexProviderField,
+  fillModelLibraryField,
+  pressAddCodexProvider,
+  pressModelLibrarySave,
+  pressSaveCodexProviders,
+  readCodexProvidersReading,
+  selectModelCodexProvider,
+  settleCodexProvidersStep,
+} from '@/modules/ui-scenario/codexProvidersSurface';
+import type { ScenarioCodexProvidersReading } from '@/modules/ui-scenario/codexProvidersSurface';
 import { readCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import type { ScenarioCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
@@ -91,6 +102,18 @@ export type ScenarioDriveStep =
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true }
+  | { 'codexProvider.add': true }
+  | {
+    'codexProvider.fill': {
+      index: number;
+      field: 'id' | 'name' | 'baseUrl' | 'envKey' | 'tokenFile' | 'token';
+      value: string;
+    };
+  }
+  | { 'codexProvider.save': true }
+  | { 'modelLibrary.setField': { field: 'name' | 'id'; value: string } }
+  | { 'modelLibrary.selectCodexProvider': string }
+  | { 'modelLibrary.save': true }
   | { 'chat.edit': string };
 
 /** True when the step carries one of the cards view's commands (dispatched in its own slice). */
@@ -207,6 +230,12 @@ export type ScenarioReading = {
    * `data-cockpit-session-start*` attributes the form itself draws.
    */
   settings: ScenarioSettingsReading | null;
+  /**
+   * Settings → Agents → Codex's provider registry and bound model editor, or an absent reading
+   * when that panel is not mounted. Taken from the `data-codex-*` / `data-model-library-*`
+   * attributes the panels themselves draw.
+   */
+  codexProviders: ScenarioCodexProvidersReading;
   /**
    * The rendered transcript and composer. An empty reading when the page is not a session
    * workspace, which is what lets a scenario assert the conversation after switching back.
@@ -576,6 +605,7 @@ function createScenarioSurface(): ScenarioSurface {
       quayPulse: readQuayPulseReading(),
       cockpit: readCockpitReading(),
       settings: readSettingsReading(),
+      codexProviders: readCodexProvidersReading(),
       chat: readChatReading(),
       costPanel: readCostPanelReading(),
       activeView: activeViewUri,
@@ -645,6 +675,7 @@ function createScenarioSurface(): ScenarioSurface {
     pendingCardAction = null;
     await settleCardStep(continuation);
     await settleSettingsStep();
+    await settleCodexProvidersStep();
   };
 
   const drive = (step: ScenarioDriveStep): ScenarioReading => {
@@ -700,6 +731,26 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('settings.save' in step) {
       action = 'settings.save';
       pressSettingsSave();
+    } else if ('codexProvider.add' in step) {
+      action = 'codexProvider.add';
+      pressAddCodexProvider();
+    } else if ('codexProvider.fill' in step) {
+      action = 'codexProvider.fill';
+      const fill = step['codexProvider.fill'];
+      fillCodexProviderField(fill.index, fill.field, fill.value);
+    } else if ('codexProvider.save' in step) {
+      action = 'codexProvider.save';
+      pressSaveCodexProviders();
+    } else if ('modelLibrary.setField' in step) {
+      action = 'modelLibrary.setField';
+      const fill = step['modelLibrary.setField'];
+      fillModelLibraryField(fill.field, fill.value);
+    } else if ('modelLibrary.selectCodexProvider' in step) {
+      action = 'modelLibrary.selectCodexProvider';
+      selectModelCodexProvider(step['modelLibrary.selectCodexProvider']);
+    } else if ('modelLibrary.save' in step) {
+      action = 'modelLibrary.save';
+      pressModelLibrarySave();
     } else if ('chat.edit' in step) {
       action = 'chat.edit';
       // The press itself is the product's `onEditMessage`; the composer value the step's

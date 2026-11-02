@@ -297,6 +297,22 @@ export type ProviderDescriptor = {
    * consults it — `false` is that provider's honest answer ("keep the tab").
    */
   residentShellClosed: boolean;
+  /**
+   * How the model editor configures a custom model's upstream.
+   *
+   * `env` renders the env-row editor, `codex-provider` renders the project provider picker
+   * (the registry `GET /api/settings/codex/model-providers` reports), and `none` renders
+   * neither. This is the data half of the rule that no view branches on a provider id.
+   */
+  modelConfigKind: 'env' | 'codex-provider' | 'none';
+  /** Whether the env editor offers the LLM gateway template for this provider's models. */
+  modelEnvGatewayTemplate: boolean;
+  /**
+   * Whether Settings → Agents → Models shows this provider's project-owned upstream
+   * provider registry beside the model library. Read by the agents category dispatcher so
+   * the panel is chosen from this table rather than from a provider-id branch.
+   */
+  showsUpstreamProviderRegistry: boolean;
 };
 
 /** One row per selectable provider; see {@link ProviderDescriptor}. */
@@ -309,6 +325,9 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     stripsProposedPlanEnvelope: false,
     // The resident host holds the conversation and its Shell would resume it.
     residentShellClosed: true,
+    modelConfigKind: 'env',
+    modelEnvGatewayTemplate: true,
+    showsUpstreamProviderRegistry: false,
   },
   cursor: {
     displayName: 'Cursor',
@@ -318,6 +337,9 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     stripsProposedPlanEnvelope: false,
     // Not resident-capable (`lifecycleModes`), so this is never consulted.
     residentShellClosed: false,
+    modelConfigKind: 'env',
+    modelEnvGatewayTemplate: false,
+    showsUpstreamProviderRegistry: false,
   },
   codex: {
     displayName: 'Codex',
@@ -329,6 +351,10 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     // A Codex resident session keeps an ordinary terminal: the Shell launches
     // the bare CLI and never resumes the app-server's held thread.
     residentShellClosed: false,
+    // Codex models bind to a project-owned upstream provider instead of env rows.
+    modelConfigKind: 'codex-provider',
+    modelEnvGatewayTemplate: false,
+    showsUpstreamProviderRegistry: true,
   },
   opencode: {
     displayName: 'OpenCode',
@@ -339,6 +365,9 @@ export const PROVIDER_DESCRIPTORS: Record<LLMProvider, ProviderDescriptor> = {
     stripsProposedPlanEnvelope: false,
     // Not resident-capable (`lifecycleModes`), so this is never consulted.
     residentShellClosed: false,
+    modelConfigKind: 'none',
+    modelEnvGatewayTemplate: false,
+    showsUpstreamProviderRegistry: false,
   },
 };
 

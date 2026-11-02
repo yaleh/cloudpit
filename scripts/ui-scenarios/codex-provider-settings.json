@@ -1,0 +1,77 @@
+{
+  "name": "codex-provider-settings",
+  "description": "Settings → Agents → Codex → Models: create a project upstream provider (id/baseUrl/envKey/tokenFile + a secret that must be masked), save it, then add a custom Codex model bound to that provider and save it. The instance this runs against starts from an empty CODEX_SETTINGS_PATH, so the first reading has zero providers and the model picker offers only the inherit-default choice.",
+  "steps": [
+    {
+      "open": "settings-agents-codex",
+      "checkpoint": true,
+      "expect": {
+        "codexProvidersOpen": true,
+        "codexProvidersStatus": "ready",
+        "codexProvidersError": null,
+        "codexProvidersCount": 0,
+        "codexProviderIds": [],
+        "codexProviderTokenSet": [],
+        "codexResponsesOnlyIncludes": "responses",
+        "codexModelProvider": "",
+        "codexModelProviderOptions": [""]
+      }
+    },
+    {
+      "drive": { "codexProvider.add": true },
+      "expect": { "codexProvidersCount": 1 }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "id", "value": "bob" } }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "name", "value": "Bob Endpoint" } }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "baseUrl", "value": "http://127.0.0.1:9/v1" } }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "envKey", "value": "BOB_API_KEY" } }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "tokenFile", "value": "/tmp/cloudpit-dod-bob.token" } }
+    },
+    {
+      "drive": { "codexProvider.fill": { "index": 0, "field": "token", "value": "sk-scenario-secret" } },
+      "checkpoint": true
+    },
+    {
+      "drive": { "codexProvider.save": true },
+      "checkpoint": true,
+      "expect": {
+        "codexProvidersStatus": "ready",
+        "codexProvidersError": null,
+        "codexProvidersCount": 1,
+        "codexProviderIds": ["bob"],
+        "codexProviderTokenSet": [true],
+        "codexModelProviderOptions": ["", "bob"]
+      }
+    },
+    {
+      "drive": { "modelLibrary.setField": { "field": "name", "value": "Scenario Codex Model" } }
+    },
+    {
+      "drive": { "modelLibrary.setField": { "field": "id", "value": "scenario-codex-model" } },
+      "expect": { "codexModelProviderOptions": ["", "bob"] }
+    },
+    {
+      "drive": { "modelLibrary.selectCodexProvider": "bob" },
+      "expect": { "codexModelProvider": "bob" }
+    },
+    {
+      "drive": { "modelLibrary.save": true },
+      "checkpoint": true,
+      "expect": {
+        "codexModelLibraryStatus": "saved",
+        "codexModelLibraryNoticeIncludes": "Scenario Codex Model was added.",
+        "codexModelIds": ["scenario-codex-model"],
+        "codexModelLabelsInclude": "· bob"
+      }
+    }
+  ]
+}

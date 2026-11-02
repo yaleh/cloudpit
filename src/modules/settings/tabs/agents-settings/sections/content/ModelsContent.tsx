@@ -5,6 +5,7 @@ import ModelLibraryPanel from '@/shared/ui/ModelLibraryPanel';
 import { api } from '@/shared/api';
 import type {
   AgentProvider,
+  CodexModelProvider,
   CustomProviderModelInput,
   LLMProvider,
   ModelEnvStatus,
@@ -15,6 +16,12 @@ import type {
 
 type ModelsContentProps = {
   agent: AgentProvider;
+  /**
+   * The project Codex providers a model may bind to. Supplied by
+   * `CodexProvidersContent`, which owns the registry reading; absent in the plain
+   * model-library hosts, where a Codex model keeps inheriting the global default.
+   */
+  codexProviders?: CodexModelProvider[];
 };
 
 type CatalogByProvider = Partial<Record<LLMProvider, ProviderModelsDefinition>>;
@@ -35,7 +42,7 @@ const readCatalogResponse = async (response: Response): Promise<ProviderModelsDe
 };
 
 /** Rendered by AgentCategoryContentSection for the "models" category: the Model library as a first-class Settings > Agents section for the selected provider. */
-export default function ModelsContent({ agent }: ModelsContentProps) {
+export default function ModelsContent({ agent, codexProviders }: ModelsContentProps) {
   const { t } = useTranslation('settings');
   const [catalog, setCatalog] = useState<CatalogByProvider>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,6 +104,7 @@ export default function ModelsContent({ agent }: ModelsContentProps) {
         providerModelCatalog={catalog}
         actions={actions}
         loadEnvStatus={loadEnvStatus}
+        codexProviders={codexProviders}
         hideProviderTabs
       />
     </div>

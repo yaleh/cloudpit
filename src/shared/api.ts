@@ -8,12 +8,13 @@ import {
 import type {
   ArchitectureRefreshStartResult,
   ArchitectureRefreshStatus,
+  CodexModelProviderWrite,
   ReplySuggestionsEventInput,
   ReplySuggestionsRequest,
   ReplySuggestionsResult,
   ReplySuggestionsStatus,
+  SessionMessagesQuery,
 } from '@/shared/types';
-import type { SessionMessagesQuery } from '@/shared/types';
 import type { ActivitySnapshotFrame } from '@/shared/types';
 import type { OAuthConsentDecisionRequest } from '@/shared/types';
 import type { VoiceProviderRow } from '@/shared/types';
@@ -1028,6 +1029,15 @@ export const api = {
       effort?: string;
       expectedVersion: string;
     }) => put('/api/settings/cockpit/session-start', payload),
+
+    // The project-owned Codex upstream provider registry. GET reports each provider and only
+    // whether its token file holds a secret (`tokenSet`); a save is a full replacement carrying
+    // the version it was based on, so a stale editor gets a 409 instead of overwriting.
+    codexModelProviders: () => get('/api/settings/codex/model-providers'),
+    saveCodexModelProviders: (payload: {
+      providers: CodexModelProviderWrite[];
+      expectedVersion: string;
+    }) => put('/api/settings/codex/model-providers', payload),
 
     // The OAuth surface the "connected apps" and "OAuth clients (advanced)" sections manage:
     // the signed-in user's own consent grants (list/revoke) and the registered clients
