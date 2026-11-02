@@ -24,12 +24,12 @@ Cloudpit 改名已上线，但英文主文档仍残留旧产品名，会误导�
 
 ## AC
 
-- [ ] `README.md` 的 H1 逐字为 `<h1>Cloudpit</h1>`；`grep -n '<h1>' README.md` 只命中这一行；README 的 logo alt、安装命令、fork 链接保持现状。
-- [ ] `CONTRIBUTING.md` 第一行逐字为 `# Contributing to Cloudpit`，正文中的 `CloudCLI UI` 产品名改 Cloudpit；issues/PR/clone URL 指向 `yaleh/cloudpit`；若保留一行上游归属说明，该行必须明确写 `upstream`/`fork of`，不得再作为贡献入口。
-- [ ] `config/reply-suggestions.settings.example.json` 与 `docs/operations/reply-suggestions.md` 都写 `~/.cloudpit/reply-suggestions-usage.jsonl`；这两个文件里 `grep -n '~/.cloudcli'` 为零命中。
-- [ ] `docs/nginx-subpath-template.conf` 的说明注释用 Cloudpit；`cloudcli_*` 变量名可保留，但文件里要有一行说明「变量名沿用旧名以兼容既有配置」；`grep -n 'CloudCLI UI' docs/nginx-subpath-template.conf` 为零命中。
-- [ ] `node scripts/brand-allowlist-check.mjs --root .` 退出 0；`NOTICE`、`LICENSE`、`docs/proposals/`、`docs/experiments/`、`adr/`、`CHANGELOG.md` 零改动。
-- [ ] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
+- [x] `README.md` 的 H1 逐字为 `<h1>Cloudpit</h1>`；`grep -n '<h1>' README.md` 只命中这一行；README 的 logo alt、安装命令、fork 链接保持现状。
+- [x] `CONTRIBUTING.md` 第一行逐字为 `# Contributing to Cloudpit`，正文中的 `CloudCLI UI` 产品名改 Cloudpit；issues/PR/clone URL 指向 `yaleh/cloudpit`；若保留一行上游归属说明，该行必须明确写 `upstream`/`fork of`，不得再作为贡献入口。
+- [x] `config/reply-suggestions.settings.example.json` 与 `docs/operations/reply-suggestions.md` 都写 `~/.cloudpit/reply-suggestions-usage.jsonl`；这两个文件里 `grep -n '~/.cloudcli'` 为零命中。
+- [x] `docs/nginx-subpath-template.conf` 的说明注释用 Cloudpit；`cloudcli_*` 变量名可保留，但文件里要有一行说明「变量名沿用旧名以兼容既有配置」；`grep -n 'CloudCLI UI' docs/nginx-subpath-template.conf` 为零命中。
+- [x] `node scripts/brand-allowlist-check.mjs --root .` 退出 0；`NOTICE`、`LICENSE`、`docs/proposals/`、`docs/experiments/`、`adr/`、`CHANGELOG.md` 零改动。
+- [x] anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件。
 
 ## DoD
 
@@ -37,6 +37,10 @@ Cloudpit 改名已上线，但英文主文档仍残留旧产品名，会误导�
 - 贴出 `node scripts/brand-allowlist-check.mjs --root .` 的末行读数与退出码。
 - 贴出 `git diff --name-only develop...HEAD`，逐条对照 Touches；贴出 `git diff --stat` 证明 NOTICE/LICENSE/历史账本零改动。
 - 文档改动不需要浏览器实测；若顺手改了任何用户可见 UI，才按 AGENTS.md 补 MCP 浏览器截图与场景报告。
+
+## Axis
+
+- 该轴仍暗,理由:纯文档与配置注释改名，不改变架构层级或依赖图，没有 L_D/L_G 可读数值。
 
 ## Touches
 
