@@ -78,12 +78,3 @@ goal_ac: AC-462
 ## ADR-007
 
 - 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 session-provider-binding.ts / session-model-resolver.ts 是 shared-imports-only 的同目录叶子文件，不新增目录、不进入 SCC，周期读数由 server-import-cycle-budget.test.ts 12/12 绿代替。
-
-## Blocker
-
-**2026-11-02T22:43:43.532Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: __PERFILE__ duration_ms=2334 server/modules/websocket/tests/chat-background-task.test.ts passed=false end_ms=1793659156131 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/websocket/tests/chat-background-task.test.ts,server/modules/websocket/tests/chat-stop-task.test.ts,server/modules/websocket/tests/chat-background-task.test.ts,server/modules/websocket/tests/chat-stop-task.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：365946b5-cfd7-47e2-a32a-0a6b0b77bb4f
-- 复核（本轮）：isolated 重跑两文件均确定性红，根因 `SqliteError: no such column: model_provider_id`（per-run 腿未隔离库）；已按上条修隔离并复跑 6/6 绿。
