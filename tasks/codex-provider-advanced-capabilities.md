@@ -1,7 +1,7 @@
 ---
 id: codex-provider-advanced-capabilities
 title: 连接测试 + 高级字段：headers/query_params/retries/model_catalog_url/effort/上下文窗口
-status: todo
+status: ready
 labels:
   - feature
 parent: null
