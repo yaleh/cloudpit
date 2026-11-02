@@ -5,7 +5,7 @@ status: draft
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
-  server/modules/providers/tests/model-config-write-path.test.ts
+  server/modules/providers/tests/codex-provider-model-binding.test.ts
 expect: ProviderModelConfig 可声明 codexProviderId；未声明编译为继承 Codex 全局（现行为）；声明的
   provider 不存在/已删时 create/update 返回可读 409/404（含 provider id），不落库；目录合并后自定义模型行显示
   model · provider。
