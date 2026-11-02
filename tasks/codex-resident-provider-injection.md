@@ -32,7 +32,7 @@ goal_ac: AC-463
 - server/modules/providers/services/provider-runtime.service.ts（defaultResidentLaunchOptions 带 provider id）
 - server/modules/providers/tests/codex-resident-provider-injection.test.ts（新判据，撞 pin 则上调）
 
-## AC（红先行，落 AC-463）
+## AC
 
 - [ ] AC-463 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-resident-provider-injection.test.ts 退出 0、fail 0。
 - [ ] 真实 mock 断言：Authorization 来自 tokenFile secret；宿主哨兵不泄漏；secret 不进 argv；thread/start 只传 modelProvider 的正臂红；同 provider id resume 绿；缺配置可读错误。
