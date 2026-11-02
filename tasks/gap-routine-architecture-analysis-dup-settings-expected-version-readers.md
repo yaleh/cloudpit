@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-settings-expected-version-readers
 title: "architecture-analysis: Fresh archguard duplicate group 1be6c2743c82f132
   (scope server): readExpectedVersion (lines 27-46) and
   readCockpitSessionStartVersion (lines 315-334) are byt"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
