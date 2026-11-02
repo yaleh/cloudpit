@@ -65,8 +65,26 @@ confirmation 形状（字段取自 `knowledge` 与 `knowledge.feedback`）：
 
 - 该轴仍暗,理由:本任务只把 knowledge authority 已验证的决定注入 fleet.apply 的 params，不新增领域数据能力，也没有可读出的 L_D/L_G 量值。
 
+## Evidence
+
+**2026-11-02 续跑轮（exited-not-landed 后）**
+
+- 上轮 suite 红 `server/modules/cli/tests/cli.service.test.ts :: the missing-metadata fallback must name the fork repository` 是 **develop 自己的真实基线红**，与本任务 delta（cockpit 两文件）无关：`a7942b0f9`（GOAL-054 分发身份）把 `cli.service.ts` 的 Documentation/Report Issues 回退值改成 `https://github.com/yaleh/cloudpit`，同提交没有更新 `cli.service.test.ts`，测试仍断言 `/yaleh\/claudecodeui/` ⇒ 确定性失败；`git diff develop -- server/modules/cli/` 为空可证两侧字节相同。上轮的 `changed-assertion` 是已知的 marker/tap 签名解析 artifact（baseline 单文件重跑拿到 assertion 文本，全量日志的密集 `__PERFILE__` 块拿不到），修绿才能落地。
+- 处置：把该测试的期望改为 shipped 回退值 `yaleh/cloudpit`（只改一行断言 + 一行注释），并作为 collateral 声明进 `## Touches`；未弱化任何守卫（`doesNotMatch /siteboon/` 原样保留）。
+- 本任务 AC 复验（worktree 内）：AC1 `bash scripts/with-memory-cap.sh tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts` → tests 19 / pass 19 / fail 0，退出 0；AC2 `npx oxlint …` 退出 0（仅一条 develop 既有 warning，位于未改动的 `:726`），`npx tsc --noEmit -p server/tsconfig.json` 退出 0；AC3 注入点与 `deliverFeedback` 拼接均保持。
+- collateral 复验：`bash scripts/test.sh server/modules/cli/tests/cli.service.test.ts` → `__PERFILE__ … passed=true`，tests 1 / pass 1 / fail 0。
+
 ## Touches
 
 - server/modules/cockpit/cockpit-card-actions.ts
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts
 - tasks/gap-cockpit-knowledge-confirm-inject-fleet-apply-confirmation.md
+- server/modules/cli/tests/cli.service.test.ts (collateral: develop 基线红 — a7942b0f9 改了 CLI 回退值未同步该断言，改为云 pit 分发身份)
+
+## Blocker
+
+**2026-11-02T04:12:47.658Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/cli/tests/cli.service.test.ts:   AssertionError [ERR_ASSERTION]: the missing-metadata fallback must name the fork repository [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/modules/cli/tests/cli.service.test.ts]
+- run_id：wk-prod-anchor
+- session_id：99f906f5-2c67-4400-81e5-7dc43e3bf528
