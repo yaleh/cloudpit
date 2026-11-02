@@ -3,7 +3,7 @@ id: gap-ac323-warmup-fetch-retry-and-voice-port-collision-stabilize
 title: AC-323 判据两处并发/负载假红：voice-realtime 假上游共享端口 freePort 探测-释放竞态（EADDRINUSE
   127.0.0.1:19451）+ mobile-layout 暖机 fetchWithin 首个连接级失败即抛（fetch
   failed）；改为并发安全端口分配与截止窗口内有界重试，读数逐字保留
-status: ready
+status: done
 labels:
   - gap
   - defect
