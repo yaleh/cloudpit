@@ -28,7 +28,7 @@ goal_ac: AC-466
 
 - server/modules/settings/codex-model-providers.settings.ts（只读导入解析）
 - server/modules/settings/tests/codex-provider-import.test.ts（新判据，撞 pin 则上调）
-- src/modules/settings/tabs/agents-settings/sections/content/（导入入口，跟随 codex-provider-settings-ui）
+- src/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport.tsx（导入入口，跟随 codex-provider-settings-ui）
 
 ## AC（红先行，落 AC-466）
 
