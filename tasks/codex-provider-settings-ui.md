@@ -27,6 +27,7 @@ goal_ac: AC-465
 
 ## Touches
 
+- tasks/codex-provider-settings-ui.md
 - src/shared/ui/ModelLibraryPanel.tsx
 - src/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent.tsx（新）
 - src/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection.tsx（分发）
