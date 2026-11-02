@@ -30,6 +30,8 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 2. `gh workflow run desktop-release.yml -R yaleh/cloudpit --ref develop -f tag=v3.0.0`，产出 `cloudpit-desktop-3.0.0-*` 与 `cloudpit-local-server-v3.0.0-*`。
 3. `GITHUB_TOKEN="$(gh auth login token)" node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0` 必须 `exitCode: 0`、`violations: []`；这一步等价于 AC-458 的 v3.0 复验，不覆盖 AC-458 的历史 2.0.0 读数。
 
+终态约定：仓库侧落地后本任务的正确终态是 **needs-human**，不是 done。带「（待外部）」的两条 AC 由人窗口执行后勾选；worker 不得 push yaleh、不得触发 workflow、不得 `npm publish`、不得代勾外部 AC。
+
 ## AC
 
 - [ ] `scripts/cloudpit-distribution-check.mjs` 的版本/资产前缀/tag 由参数或常量 `3.0.0` 驱动，不再有硬编码 2.0.0 的发布目标；`--version 3.0.0` 与默认值行为一致。
@@ -48,6 +50,7 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - 贴出 `npm pack --dry-run` 的 bin 片段、未发布状态下 `--version 3.0.0 --json` 的 violations 读数、workflow 旧 tag 前缀 grep 零命中。
 - 贴出 typecheck/oxlint 退出码与 anti-drift。
 - 外部发布读数（`release-it` 输出、3.0.0 npm/GitHub/桌面资产、带 token 的 checker `exitCode: 0`）由人窗口执行后贴回；执行者不得代发。
+- 仓库侧 AC 全绿后把任务 park 为 `needs-human`（不是 done），并在 NOTES 里写明「等外部窗口：release-it + desktop-release + checker --release」。
 - 本任务不改 UI，不需要 MCP 浏览器截图。
 
 ## Touches
