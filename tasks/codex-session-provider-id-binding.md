@@ -47,6 +47,8 @@ goal_ac: AC-462
 - server/modules/providers/tests/provider-models.service.test.ts
 - server/modules/websocket/services/chat-control.service.ts
 - server/modules/websocket/services/chat-websocket.service.ts
+- server/modules/websocket/tests/chat-background-task.test.ts
+- server/modules/websocket/tests/chat-stop-task.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - server/shared/tests/quay-test-script.test.ts
 - server/shared/types.ts
@@ -71,6 +73,7 @@ goal_ac: AC-462
 - 连带 pin：`quay-test-script.test.ts` 两处 collected 数 502→503（known=3 unknown=499→500、known=1 unknown=501→502）并更新注释链；`scripts/suite-duration-baseline.tsv` 追加本判据 6952ms 行（454/503 = 90.3%，覆盖率地板 90% 仍满足）。
 - oversize 棘轮：`architecture-ratchet.baseline.json` 按 RECORDED CHANGE 上调 migrations.ts 1167→1190、provider.routes.ts 1162→1173、sessions.service.ts 1390→1394、chat-control.service.ts 1116→1149、chat-websocket.service.ts 1970→1994、server/shared/types.ts 5552→5572，理由写进 baseline 的 note；`provider-models.service.ts` 765→737（拆分后低于 800，未进入 oversize 表）。
 - typecheck：`npx tsc --noEmit -p server/tsconfig.json` 与 `-p tsconfig.json` 均退出 0。
+- 未迁移库连带：`model_provider_id` 进入 `sessionRowColumns()` 后，`getSessionById` 在未跑迁移的库上不可读。`chat-background-task.test.ts` / `chat-stop-task.test.ts` 的 per-run 腿此前跑在环境库（`~/.cloudcli/auth.db`，无该列）上，现改为与同文件 assembly 腿一致的隔离库（`closeConnection` + `DATABASE_PATH`→temp + `initializeDatabase` + 真实 user 行，writer 用该 user 的 id），两文件各 `tests 6` / `pass 6` / `fail 0`。
 
 ## ADR-007
 
@@ -83,3 +86,4 @@ goal_ac: AC-462
 - 未落地原因：step=suite: __PERFILE__ duration_ms=2334 server/modules/websocket/tests/chat-background-task.test.ts passed=false end_ms=1793659156131 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/websocket/tests/chat-background-task.test.ts,server/modules/websocket/tests/chat-stop-task.test.ts,server/modules/websocket/tests/chat-background-task.test.ts,server/modules/websocket/tests/chat-stop-task.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：365946b5-cfd7-47e2-a32a-0a6b0b77bb4f
+- 复核（本轮）：isolated 重跑两文件均确定性红，根因 `SqliteError: no such column: model_provider_id`（per-run 腿未隔离库）；已按上条修隔离并复跑 6/6 绿。
