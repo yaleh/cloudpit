@@ -34,12 +34,12 @@ extra:
 
 ## AC
 
-- [ ] AC1 源码 pin：`cloudpit-goal-exit-gate.test.ts` 含 `GATE_DIRECTORY_PIN` 62 条（58 + 四个 observation 子目录），注释写明 2026-11-03 recorded change 与本任务 id；`cloudpit-goal-exit-gate.baseline.json.moduleDirectories` 恰好 62 条且每一条都在 pin 内。
-- [ ] AC2 三臂断言：单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` 退出 0，输出 `[ac455] directory arm: measured=58 frozen=62 ... missing=[四个目录]`（missing 仅打印），且三处假形态（测得多一个目录 / 基线多一个不在 pin 内的目录 / utils.ts 多一行）都由 `structuralGateViolations` 报出对应违规消息。
-- [ ] AC3 基线文档：`cloudpit-goal-exit-gate.baseline.json` 的 `measuredAt=2026-11-03`，`note` 不再写 never raise，而是写明「新增目录必须同时改源码 pin 与 JSON；只改 JSON 无效」并点名四个预声明目录。
-- [ ] AC4 AC-455 记录：`quay goal show AC-455 --json` 读回更新后的 title/expect/body，`status` 仍为 `achieved`，expect 描述 `measured ⊆ baseline ⊆ GATE_DIRECTORY_PIN` 与 recorded-change 语义。
-- [ ] AC5 整链复跑：在修订后的树上逐字运行 AC-455 的 criterion（9 文件存在性闸 + 8 个 server 文件 + electron 文件 + `npm run typecheck` + `npm run lint`）→ exit 0；贴出读数。AC-455 evidence 的新读数登记由 goal 写入路径在 fan-in 完成后处理，不是本任务的判据。
-- [ ] AC6 范围与 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件；develop 测得目录仍为 58（本任务不创建新目录）；不改生产代码、默认值或模块依赖边。
+- [x] AC1 源码 pin：`cloudpit-goal-exit-gate.test.ts` 含 `GATE_DIRECTORY_PIN` 62 条（58 + 四个 observation 子目录），注释写明 2026-11-03 recorded change 与本任务 id；`cloudpit-goal-exit-gate.baseline.json.moduleDirectories` 恰好 62 条且每一条都在 pin 内。
+- [x] AC2 三臂断言：单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` 退出 0，输出 `[ac455] directory arm: measured=58 frozen=62 ... missing=[四个目录]`（missing 仅打印），且三处假形态（测得多一个目录 / 基线多一个不在 pin 内的目录 / utils.ts 多一行）都由 `structuralGateViolations` 报出对应违规消息。
+- [x] AC3 基线文档：`cloudpit-goal-exit-gate.baseline.json` 的 `measuredAt=2026-11-03`，`note` 不再写 never raise，而是写明「新增目录必须同时改源码 pin 与 JSON；只改 JSON 无效」并点名四个预声明目录。
+- [x] AC4 AC-455 记录：`quay goal show AC-455 --json` 读回更新后的 title/expect/body，`status` 仍为 `achieved`，expect 描述 `measured ⊆ baseline ⊆ GATE_DIRECTORY_PIN` 与 recorded-change 语义。
+- [x] AC5 整链复跑：在修订后的树上逐字运行 AC-455 的 criterion（9 文件存在性闸 + 8 个 server 文件 + electron 文件 + `npm run typecheck` + `npm run lint`）→ exit 0；贴出读数。AC-455 evidence 的新读数登记由 goal 写入路径在 fan-in 完成后处理，不是本任务的判据。
+- [x] AC6 范围与 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件；develop 测得目录仍为 58（本任务不创建新目录）；不改生产代码、默认值或模块依赖边。
 
 ## DoD
 
