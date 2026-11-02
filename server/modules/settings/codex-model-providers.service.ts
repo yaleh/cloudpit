@@ -12,6 +12,7 @@
  * `If-Match`). Provider-entry validation is the file schema's job, because the same rules must
  * hold when the file is read at spawn time.
  */
+import { readExpectedVersion } from '@/shared/settings-file.js';
 import type { CodexModelProvidersReading } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
@@ -23,27 +24,6 @@ export type CodexModelProvidersPort = {
 
 /** The body keys a save may carry; everything else is refused rather than ignored. */
 const WRITE_FIELDS: readonly string[] = ['expectedVersion', 'providers'];
-
-function readExpectedVersion(
-  body: Record<string, unknown>,
-  headerVersion: string | undefined,
-): string {
-  if (body.expectedVersion !== undefined && typeof body.expectedVersion !== 'string') {
-    throw new AppError('expectedVersion must be a string', {
-      code: 'INVALID_VERSION',
-      statusCode: 400,
-    });
-  }
-  const fromBody = typeof body.expectedVersion === 'string' ? body.expectedVersion.trim() : '';
-  const version = fromBody || (headerVersion ?? '').trim();
-  if (!version) {
-    throw new AppError('expectedVersion is required to save', {
-      code: 'VERSION_REQUIRED',
-      statusCode: 400,
-    });
-  }
-  return version;
-}
 
 /**
  * Creates the registry operations over one port. A missing port is a visible 500, never an
