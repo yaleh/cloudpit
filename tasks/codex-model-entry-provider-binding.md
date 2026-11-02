@@ -53,10 +53,24 @@ goal_ac: AC-461
 - 负臂逐条：未知 provider `nobody` → 409 `CODEX_PROVIDER_UNKNOWN`，消息含 `nobody`，catalog 无新行；先绑定 `bob` 再从注册表删除 → update/create 均 409 且原行 model/config 不变；未声明 `codexProviderId` → label 为裸 model、存储 config 无该键、`config` 省略时仍为 null（passthrough 基线）。
 - 路由透传：真实 SQLite + 生产 router，POST `config:{env:[],codexProviderId:'bob'}` → 201 且 `config_json` 含 `codexProviderId`；`nobody` → 409 且库中无该行。
 - 目录显示：合并目录里自定义行 label 为 `Route Bound · bob`；未声明行为 `Bound Model`。
-- 注册表读取经 `shared/ports/codex-provider-registry.port.ts`（settings.module 安装），providers 不 import settings，`server-import-cycle-budget.test.ts` 21/21 绿（G1/G2/G3 未变）；服务不对 provider id 分支，architecture-ratchet 的 providerNameBranches 未变。
+- 注册表读取经 `shared/ports/codex-provider-registry.port.ts`（settings.module 安装），providers 不 import settings，`server-import-cycle-budget.test.ts` 绿（12/12，G1/G2/G3 未变）；服务不对 provider id 分支，architecture-ratchet 的 providerNameBranches 未变。
 - pin / 基线：`server/shared/tests/quay-test-script.test.ts` unknown 496→497、498→499（collected 499→500）；`scripts/suite-duration-baseline.tsv` 追加本判据 4412ms 行；`architecture-ratchet.baseline.json` 的 oversize 三处（provider.routes.ts 1152→1162、server/shared/types.ts 5537→5552、src/shared/types.ts 4927→4935）按 RECORDED CHANGE 上调并记录理由。
-- 其它：`architecture-ratchet` 6/6、`cloudpit-goal-exit-gate` 3/3、`wireContractTypeSync` 5/5；`tsc --noEmit -p server/tsconfig.json`、`-p tsconfig.json` 均退出 0；oxlint 无输出；既有 `provider-models.service.test.ts` + `model-config-write-path.test.ts` + `provider.routes.test.ts` 合计 44/44 pass（未声明路径不红）。
+- develop 合并后的计数（2026-11-03，本轮 exited-not-landed 的冲突解析）：develop 的 gap-cloudpit-migrate-assets-rewrite 也新增了 `server/modules/cli/tests/asset-migration.service.test.ts` 判据（tree 500 / baseline 451）。union 解析后 tree 501 / baseline 452；`quay-test-script.test.ts` 两个断言随之为 known=3 unknown=498、known=1 unknown=500，该文件 14/14 pass。
+- 合并后复跑判据：7/7 pass，fail 0（4253ms）；`provider-models.service.test.ts` + `model-config-write-path.test.ts` + `provider.routes.test.ts` 44/44 pass；`architecture-ratchet` + `cloudpit-goal-exit-gate` 9/9 pass；`wireContractTypeSync` 5/5 pass；anti-drift-touches-check 11 个实际文件全部落在 Touches 内。
+- 其它：`tsc --noEmit -p server/tsconfig.json`、`-p tsconfig.json` 均退出 0。
 
 ## ADR-007
 
-- 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 shared/ports 端口按 AC-394 叶子规则不进入任何 SCC，周期读数由 server-import-cycle-budget.test.ts 21/21 绿代替。
+- 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 shared/ports 端口按 AC-394 叶子规则不进入任何 SCC，周期读数由 server-import-cycle-budget.test.ts 12/12 绿代替。
+
+## Blocker
+
+**2026-11-02T17:38:49.405Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：9e0b6954-11cc-464e-9ae4-d7b55874a0f5
