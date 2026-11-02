@@ -86,6 +86,7 @@ type AnyRecord = Record<string, unknown>;
 // --------------------------- fixture identities ---------------------------
 
 const USER_ONE = 1;
+const wire = (scopes: string[]) => scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:'));
 const READ_SCOPE = 'cloudcli:read';
 const APPROVE_SCOPE = 'cloudcli:approve';
 /** The pinned "now" so `waitedMs` is exactly assertable. */
@@ -310,13 +311,13 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac274-read',
-    scopes: [READ_SCOPE],
+    scopes: wire([READ_SCOPE]),
     expiresInDays: 30,
   });
   const approveToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac274-approve',
-    scopes: [READ_SCOPE, APPROVE_SCOPE],
+    scopes: wire([READ_SCOPE, APPROVE_SCOPE]),
     expiresInDays: 30,
   });
   if (!readToken.ok || !approveToken.ok) {

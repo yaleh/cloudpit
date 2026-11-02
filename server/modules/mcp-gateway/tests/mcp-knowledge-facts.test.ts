@@ -302,7 +302,7 @@ async function withKnowledgeFactsHarness(run: HarnessRun, options: HarnessOption
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'mcp-knowledge-facts',
-    scopes: ['cloudcli:read'],
+    scopes: ['cloudpit:read'],
     expiresInDays: 30,
   });
   if (!readToken.ok) throw new Error('the harness must mint a read token');

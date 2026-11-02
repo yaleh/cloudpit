@@ -525,7 +525,7 @@ async function withHarness(run: (harness: Harness) => Promise<void>): Promise<vo
   const issued = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac287-criterion',
-    scopes: ALL_SCOPES,
+    scopes: ALL_SCOPES.map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
     expiresInDays: 30,
   });
   if (!issued.ok) {

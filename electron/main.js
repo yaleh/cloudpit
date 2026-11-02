@@ -17,9 +17,11 @@ const APP_NAME = 'Cloudpit';
 const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
-// Both schemes open the app (either build can open the desktop app); the
-// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
-const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
+// v3.0 registers only the Cloudpit deep-link scheme. The cloud login callback
+// itself stays on the third-party `cloudcli://auth/callback` contract, which the
+// packaged app still claims through `build.protocols` in package.json and the OS
+// routes into `handleDeepLink` below.
+const DEEP_LINK_SCHEMES = ['cloudpit'];
 const brandEnv = createProcessBrandEnvReader();
 // The control-plane address is read through the brand reader (`CLOUDPIT_CONTROL_PLANE_URL`
 // only since v3.0); the default stays the third-party `cloudcli.ai` contract this release keeps.

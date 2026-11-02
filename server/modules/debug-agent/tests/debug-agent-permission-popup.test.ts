@@ -119,8 +119,8 @@ type AnyRecord = Record<string, unknown>;
 // --------------------------- fixture identities ---------------------------
 
 const USER_ONE = 1;
-const READ_SCOPE = 'cloudcli:read';
-const APPROVE_SCOPE = 'cloudcli:approve';
+const READ_SCOPE = 'cloudpit:read';
+const APPROVE_SCOPE = 'cloudpit:approve';
 /** The instant every relative reading is measured against. */
 const NOW = Date.now();
 /** How long a leg waits for the walk to park before it reds. */

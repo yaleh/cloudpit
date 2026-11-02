@@ -278,7 +278,7 @@ async function withPruningSearch(run: (harness: Harness, fixture: Fixture) => Pr
   assert.ok(projectId, 'the fixture project must be registered');
 
   const tokens = createAccessTokensService({ now: () => new Date(NOW_MS) });
-  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-search-pruning', scopes: ['cloudcli:read'], expiresInDays: 30 });
+  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-search-pruning', scopes: ['cloudpit:read'], expiresInDays: 30 });
   if (!readToken.ok) {
     throw new Error('the harness must mint a cloudcli:read token');
   }

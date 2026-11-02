@@ -76,12 +76,12 @@ const CONSENT_CONTEXT: OAuthConsentContext = {
   callbackHost: '127.0.0.1:8765',
   redirectUri: 'http://127.0.0.1:8765/callback',
   scopes: [
-    { scope: 'cloudcli:read', description: 'read', required: true, writable: false, group: 'read', risk: null },
-    { scope: 'cloudcli:session:send', description: 'send', required: false, writable: true, group: 'write', risk: 'sessionSend' },
-    { scope: 'cloudcli:session:create', description: 'create', required: false, writable: true, group: 'write', risk: 'sessionCreate' },
-    { scope: 'cloudcli:session:control', description: 'control', required: false, writable: true, group: 'write', risk: 'sessionControl' },
-    { scope: 'cloudcli:approve', description: 'approve', required: false, writable: true, group: 'write', risk: 'approve' },
-    { scope: 'cloudcli:navigate', description: 'navigate', required: false, writable: true, group: 'write', risk: 'navigate' },
+    { scope: 'cloudpit:read', description: 'read', required: true, writable: false, group: 'read', risk: null },
+    { scope: 'cloudpit:session:send', description: 'send', required: false, writable: true, group: 'write', risk: 'sessionSend' },
+    { scope: 'cloudpit:session:create', description: 'create', required: false, writable: true, group: 'write', risk: 'sessionCreate' },
+    { scope: 'cloudpit:session:control', description: 'control', required: false, writable: true, group: 'write', risk: 'sessionControl' },
+    { scope: 'cloudpit:approve', description: 'approve', required: false, writable: true, group: 'write', risk: 'approve' },
+    { scope: 'cloudpit:navigate', description: 'navigate', required: false, writable: true, group: 'write', risk: 'navigate' },
   ],
   state: 'state-1',
   // A non-default lifetime so a hardcoded 3600 (or 60) would NOT satisfy the
@@ -129,7 +129,7 @@ describe('useOAuthConsent', () => {
     const { result } = renderHook(() => useOAuthConsent(SEARCH, vi.fn()));
 
     await waitFor(() => assert.equal(result.current.phase, 'ready'));
-    assert.deepEqual(result.current.selectedScopes, ['cloudcli:read']);
+    assert.deepEqual(result.current.selectedScopes, ['cloudpit:read']);
     assert.equal(result.current.hasWriteSelection, false);
     assert.equal(result.current.requiresPassword, false);
     assert.equal(result.current.context?.clientName, 'ChatGPT');
@@ -142,14 +142,14 @@ describe('useOAuthConsent', () => {
     const { result } = renderHook(() => useOAuthConsent(SEARCH, navigate));
     await waitFor(() => assert.equal(result.current.phase, 'ready'));
 
-    act(() => result.current.toggleScope('cloudcli:navigate', true));
+    act(() => result.current.toggleScope('cloudpit:navigate', true));
     assert.equal(result.current.hasWriteSelection, true);
     assert.equal(result.current.requiresPassword, true);
 
     await act(async () => result.current.decide('allow'));
     const decision = decideMock.mock.calls[0][0] as { scopes: string[]; action: string };
     assert.equal(decision.action, 'allow');
-    assert.deepEqual([...decision.scopes].sort(), ['cloudcli:navigate', 'cloudcli:read'].sort());
+    assert.deepEqual([...decision.scopes].sort(), ['cloudpit:navigate', 'cloudpit:read'].sort());
     assert.equal(navigate.mock.calls[0][0], 'http://127.0.0.1:8765/callback?code=abc&state=state-1');
   });
 
@@ -160,7 +160,7 @@ describe('useOAuthConsent', () => {
     const { result } = renderHook(() => useOAuthConsent(SEARCH, navigate));
     await waitFor(() => assert.equal(result.current.phase, 'ready'));
 
-    act(() => result.current.toggleScope('cloudcli:navigate', true));
+    act(() => result.current.toggleScope('cloudpit:navigate', true));
     await act(async () => result.current.decide('deny'));
 
     const decision = decideMock.mock.calls[0][0] as { scopes: string[]; action: string };
@@ -291,7 +291,7 @@ describe('OAuthConsentRoute', () => {
         ...CONSENT_CONTEXT,
         scopes: [
           {
-            scope: 'cloudcli:read',
+            scope: 'cloudpit:read',
             description: 'read',
             required: true,
             writable: false,
@@ -299,7 +299,7 @@ describe('OAuthConsentRoute', () => {
             risk: null,
           },
           {
-            scope: 'cloudcli:cockpit:act',
+            scope: 'cloudpit:cockpit:act',
             description: 'act',
             required: false,
             writable: true,
@@ -325,7 +325,7 @@ describe('OAuthConsentRoute', () => {
     render(<OAuthConsentRoute />);
     await waitFor(() => assert.ok(screen.queryByTestId('consent-allow')));
 
-    await act(async () => tickBoxFor('cloudcli:navigate').click());
+    await act(async () => tickBoxFor('cloudpit:navigate').click());
 
     await waitFor(() => assert.ok(screen.queryByTestId('consent-write-warning')));
   });
@@ -370,7 +370,7 @@ describe('OAuthConsentRoute', () => {
     assert.equal(screen.queryByTestId('consent-password'), null);
     assert.equal(allowButton().disabled, false);
 
-    await act(async () => tickBoxFor('cloudcli:navigate').click());
+    await act(async () => tickBoxFor('cloudpit:navigate').click());
 
     const field = (await screen.findByTestId('consent-password')) as HTMLInputElement;
     assert.equal(field.type, 'password');
@@ -388,7 +388,7 @@ describe('OAuthConsentRoute', () => {
     render(<OAuthConsentRoute />);
     await waitFor(() => assert.ok(screen.queryByTestId('consent-allow')));
 
-    await act(async () => tickBoxFor('cloudcli:navigate').click());
+    await act(async () => tickBoxFor('cloudpit:navigate').click());
     const field = await screen.findByTestId('consent-password');
     await act(async () => {
       fireEvent.change(field, { target: { value: 'hunter2' } });

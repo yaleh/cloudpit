@@ -362,7 +362,7 @@ export const resolveProviderDescriptor = (
  * form renders them, each paired with whether it grants write access and with
  * the `settings` i18n leaf that labels it.
  *
- * `cloudcli:read` is the required baseline every token carries and is the only
+ * `cloudpit:read` is the required baseline every token carries and is the only
  * non-writable scope; the six write scopes are opt-in, and checking any of them
  * is what makes the create form raise its write-access risk note. The vocabulary
  * mirrors the server's `ACCESS_TOKEN_SCOPES` (`server/modules/oauth`), which
@@ -375,19 +375,19 @@ export const ACCESS_TOKEN_SCOPE_OPTIONS: readonly {
   writable: boolean;
   labelKey: string;
 }[] = [
-  { scope: 'cloudcli:read', writable: false, labelKey: 'read' },
-  { scope: 'cloudcli:session:send', writable: true, labelKey: 'sessionSend' },
-  { scope: 'cloudcli:session:create', writable: true, labelKey: 'sessionCreate' },
-  { scope: 'cloudcli:session:control', writable: true, labelKey: 'sessionControl' },
-  { scope: 'cloudcli:approve', writable: true, labelKey: 'approve' },
+  { scope: 'cloudpit:read', writable: false, labelKey: 'read' },
+  { scope: 'cloudpit:session:send', writable: true, labelKey: 'sessionSend' },
+  { scope: 'cloudpit:session:create', writable: true, labelKey: 'sessionCreate' },
+  { scope: 'cloudpit:session:control', writable: true, labelKey: 'sessionControl' },
+  { scope: 'cloudpit:approve', writable: true, labelKey: 'approve' },
   // gap-mcp-ui-open-session: opens a session in one of the user's browsers. A
   // write scope — it changes what the user's screen shows.
-  { scope: 'cloudcli:navigate', writable: true, labelKey: 'navigate' },
+  { scope: 'cloudpit:navigate', writable: true, labelKey: 'navigate' },
   // gap-pat-scope-cockpit-act-ui: confirming a cockpit card runs the option's
   // declared executor, so the honest worst case is stated in the label rather
   // than softened — it can send a message, start a session (which runs commands)
   // or apply a fleet disposition. Appended last, mirroring ACCESS_TOKEN_SCOPES.
-  { scope: 'cloudcli:cockpit:act', writable: true, labelKey: 'cockpitAct' },
+  { scope: 'cloudpit:cockpit:act', writable: true, labelKey: 'cockpitAct' },
 ];
 
 // ---------------------------

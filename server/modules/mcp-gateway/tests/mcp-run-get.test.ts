@@ -321,7 +321,7 @@ async function withRunGetHarness(run: (harness: Harness) => Promise<void>): Prom
   }
 
   const tokens = createAccessTokensService({ now: () => new Date(BASE_MS) });
-  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-run-get', scopes: ['cloudcli:read'], expiresInDays: 30 });
+  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-run-get', scopes: ['cloudpit:read'], expiresInDays: 30 });
   if (!readToken.ok) {
     throw new Error('the harness must mint a read token');
   }

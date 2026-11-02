@@ -190,7 +190,7 @@ const ALLOWED_TOKEN_EXPIRY_DAYS: readonly number[] = [7, 30, 90];
 const DEFAULT_TOKEN_EXPIRY_DAYS = 30;
 
 /** Scopes applied when the caller omits them; the read scope is the required baseline. */
-const DEFAULT_TOKEN_SCOPES: readonly string[] = ['cloudcli:read'];
+const DEFAULT_TOKEN_SCOPES: readonly string[] = ['cloudpit:read'];
 
 /**
  * Projects a stored row to the client-facing token shape. Written as an

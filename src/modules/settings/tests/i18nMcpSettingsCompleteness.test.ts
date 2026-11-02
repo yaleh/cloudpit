@@ -25,7 +25,7 @@ import { ACCESS_TOKEN_SCOPE_OPTIONS } from '@/shared/constants';
  * `accessTokens.scopes.` under `src/modules/settings/tabs/api-settings/`). It is kept as an
  * independent literal rather than derived from `en`, so a locale that quietly drops one keys
  * reds even when `en` agrees with it. The scope descriptions live inside the scope labels
- * themselves (e.g. `Read (cloudcli:read)`), so "scope 的名称与说明" maps to the six
+ * themselves (e.g. `Read (cloudpit:read)`), so "scope 的名称与说明" maps to the six
  * `accessTokens.scopes.*` leaves — the landed contract, not a separate description key.
  *
  * It walks the whole `locales/*\/settings.json` glob rather than a hardcoded language list, so
@@ -223,13 +223,13 @@ describe('every locale carries a complete CloudCLI MCP block and token-scope voc
     }
   });
 
-  it('exposes cloudcli:cockpit:act last and resolves every scope labelKey in every locale', () => {
+  it('exposes cloudpit:cockpit:act last and resolves every scope labelKey in every locale', () => {
     console.log(
       `[AC2] PAT scope options (${ACCESS_TOKEN_SCOPE_OPTIONS.length}): ${JSON.stringify(ACCESS_TOKEN_SCOPE_OPTIONS)}`,
     );
 
     const cockpitActOptions = ACCESS_TOKEN_SCOPE_OPTIONS.filter(
-      (option) => option.scope === 'cloudcli:cockpit:act',
+      (option) => option.scope === 'cloudpit:cockpit:act',
     );
     expect(cockpitActOptions).toHaveLength(1);
     expect(cockpitActOptions[0]?.writable).toBe(true);
@@ -237,7 +237,7 @@ describe('every locale carries a complete CloudCLI MCP block and token-scope voc
     // The server appends new scopes so earlier positional reads keep their index;
     // the create form mirrors that order, so the newest scope is the last checkbox.
     expect(ACCESS_TOKEN_SCOPE_OPTIONS[ACCESS_TOKEN_SCOPE_OPTIONS.length - 1]?.scope).toBe(
-      'cloudcli:cockpit:act',
+      'cloudpit:cockpit:act',
     );
 
     // Every option the form renders must resolve to a real label in every locale;

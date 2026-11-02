@@ -398,7 +398,8 @@ test('(b) a valid PAT and a valid OAuth token are both admitted and the audit ro
   await withOauthChallengeServer(async (h) => {
     h.env.MCP_OAUTH_ENABLED = 'true';
 
-    const pat = h.issuePat([PROBE_SCOPE]);
+    // 3.0 mints the wire spelling; the probe tool's declaration stays canonical.
+    const pat = h.issuePat(['cloudpit:read']);
     const oauthToken = h.issueOAuthToken([PROBE_SCOPE]);
 
     const before = mcpAuditLogDb.count();
@@ -477,7 +478,7 @@ test('(e) an OAuth token missing the tool scope is denied with one denied audit 
   await withOauthChallengeServer(async (h) => {
     h.env.MCP_OAUTH_ENABLED = 'true';
 
-    const sendOnly = h.issueOAuthToken(['cloudcli:session:send']);
+    const sendOnly = h.issueOAuthToken(['cloudpit:session:send']);
     const readOk = h.issueOAuthToken([PROBE_SCOPE]);
 
     const before = mcpAuditLogDb.count();

@@ -6,11 +6,10 @@
  */
 // getBrowserUseRuntime: used by Browser Use services and environment-mode regression coverage.
 export { getBrowserUseRuntime } from './browser-use-runtime.js';
-// The MCP registration names and the cleanup set: exported from a dependency-free leaf so the
-// Cloudpit runtime criterion can assert an uninstall removes the current name AND both legacy
-// spellings without importing the service (and its database/provider singletons) through the barrel.
+// The MCP registration name and the cleanup set: exported from a dependency-free leaf so the
+// Cloudpit runtime criterion can assert an uninstall removes exactly the current name without
+// importing the service (and its database/provider singletons) through the barrel.
 export {
-  LEGACY_MCP_SERVER_NAMES,
   MCP_SERVER_NAME,
   mcpServerNamesToRemove,
 } from './mcp-server-names.js';

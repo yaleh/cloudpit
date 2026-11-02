@@ -427,13 +427,13 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
   const mainToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac249-main',
-    scopes: [READ_SCOPE, SESSION_SEND_SCOPE, APPROVE_SCOPE],
+    scopes: [READ_SCOPE, SESSION_SEND_SCOPE, APPROVE_SCOPE].map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
     expiresInDays: 30,
   });
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac249-read',
-    scopes: [READ_SCOPE],
+    scopes: [READ_SCOPE].map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
     expiresInDays: 30,
   });
   if (!mainToken.ok || !readToken.ok) {

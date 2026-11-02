@@ -202,6 +202,19 @@ test('AC3: an invalid URI or revision is a 400, not a stored object', async () =
     });
     assert.equal(badSeenUri.status, 400);
 
+    // The retired 2.x spelling is not a valid address any more, even in its well-formed shape.
+    const retiredSpelling = await fetch(`${baseUrl}/api/observation/seen`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ uri: 'cloudcli://session/retired', revision: 1 }),
+    });
+    assert.equal(retiredSpelling.status, 400);
+    const retiredWatch = await fetch(
+      `${baseUrl}/api/observation/watch/${encodeURIComponent('cloudcli://session/retired')}`,
+      { method: 'PUT' },
+    );
+    assert.equal(retiredWatch.status, 400);
+
     const badRevision = await fetch(`${baseUrl}/api/observation/seen`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

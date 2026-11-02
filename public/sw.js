@@ -2,9 +2,9 @@
 // Cache only manifest (needed for PWA install). HTML and JS are never pre-cached
 // so a rebuild + refresh always picks up the latest assets.
 const CACHE_PREFIX = 'cloudpit-';
-// The pre-flip prefix; activation still purges these so an upgrade does not pin
-// the old app-shell cache forever.
-const LEGACY_CACHE_PREFIX = 'claude-ui-';
+// 3.0 purges only this worker's own prefix. The pre-flip `claude-ui-*` family is
+// no longer cleaned: 1.x → 3.x direct upgrades are unsupported (release notes
+// require going through 2.x, which already dropped those caches).
 // Bumped from v2 so activating this worker drops the unbounded v2 asset cache once.
 const CACHE_NAME = 'cloudpit-v1';
 const urlsToCache = [
@@ -117,9 +117,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames =>
       Promise.all(
         cacheNames
-          .filter(name =>
-            (name.startsWith(CACHE_PREFIX) || name.startsWith(LEGACY_CACHE_PREFIX)) && name !== CACHE_NAME
-          )
+          .filter(name => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
           .map(name => caches.delete(name))
       )
     ).then(() => self.clients.claim())

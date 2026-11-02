@@ -353,13 +353,13 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac273-read',
-    scopes: [READ_SCOPE],
+    scopes: [READ_SCOPE].map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
     expiresInDays: 30,
   });
   const controlToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac273-control',
-    scopes: [READ_SCOPE, SESSION_CONTROL_SCOPE],
+    scopes: [READ_SCOPE, SESSION_CONTROL_SCOPE].map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
     expiresInDays: 30,
   });
   if (!readToken.ok || !controlToken.ok) {

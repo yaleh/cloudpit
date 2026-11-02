@@ -450,9 +450,9 @@ async function withMcpReadTools(
 
   // ---- the tokens ----
   const tokens = createAccessTokensService({ now: () => new Date(NOW_MS) });
-  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-read', scopes: ['cloudcli:read'], expiresInDays: 30 });
+  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-read', scopes: ['cloudpit:read'], expiresInDays: 30 });
   const scopedToken = tokens.issueToken({
-    userId: USER_ONE, name: 'mcp-other', scopes: ['cloudcli:session:send'], expiresInDays: 30,
+    userId: USER_ONE, name: 'mcp-other', scopes: ['cloudpit:session:send'], expiresInDays: 30,
   });
   if (!readToken.ok || !scopedToken.ok) {
     throw new Error('the harness must mint both tokens');
@@ -580,7 +580,7 @@ test('(a) tools/list is exactly the stage-3 read tools, none of them a write too
     }
 
     for (const tool of MCP_STAGE3_READ_TOOLS) {
-      assert.equal(tool.requiredScope, 'cloudcli:read', `${tool.name} must require cloudcli:read`);
+      assert.equal(tool.requiredScope, 'cloudcli:read', `${tool.name} must require the canonical read scope`);
     }
     for (const tool of listed.tools) {
       assert.ok(tool.description && tool.description.length > 0, `${tool.name} must carry a description`);

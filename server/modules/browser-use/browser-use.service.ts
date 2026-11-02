@@ -14,7 +14,6 @@ import { getModuleDirectory } from '@/shared/utils.js';
 
 import { getBrowserUseRuntime } from './browser-use-runtime.js';
 import {
-  LEGACY_MCP_SERVER_NAMES,
   MCP_SERVER_NAME,
   mcpServerNamesToRemove,
 } from './mcp-server-names.js';
@@ -571,7 +570,6 @@ export const browserUseService = {
 
   async registerAgentMcp() {
     const { command, args } = getMcpCommand();
-    await Promise.all(LEGACY_MCP_SERVER_NAMES.map((name) => removeMcpServerFromAllProviders(name)));
     const mcpToken = getOrCreateMcpToken();
     const mcpApiUrl = getMcpApiUrl();
     const results = await providerMcpService.addMcpServerToAllProviders({

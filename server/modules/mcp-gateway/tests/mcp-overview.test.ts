@@ -474,7 +474,7 @@ async function withOverviewHarness(
 
   // ---- the tokens ----
   const tokens = createAccessTokensService({ now: () => new Date(HOST_NOW_MS) });
-  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-overview', scopes: ['cloudcli:read'], expiresInDays: 30 });
+  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-overview', scopes: ['cloudpit:read'], expiresInDays: 30 });
   if (!readToken.ok) {
     throw new Error('the harness must mint a read token');
   }

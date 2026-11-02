@@ -137,16 +137,16 @@ function isAllowedExpiryDays(days: number | null | undefined): days is number {
 }
 
 /**
- * Validates a requested scope list against the accepted vocabulary (both the
- * `cloudcli:*` and `cloudpit:*` spellings) and removes duplicates, preserving
- * first-occurrence order and the spelling the caller asked for. This is the single
- * vocabulary check and deduplication used by both issuance paths, so no caller
- * can mint an unknown, reserved, empty or duplicated scope. Consumers: this
- * module's `issueToken` and the settings module's `createAccessToken`.
+ * Validates a requested scope list against the accepted vocabulary (3.0: the
+ * eight `cloudpit:*` spellings only) and removes duplicates, preserving
+ * first-occurrence order. This is the single vocabulary check and deduplication
+ * used by both issuance paths, so no caller can mint an unknown, reserved,
+ * retired, empty or duplicated scope. Consumers: this module's `issueToken` and
+ * the settings module's `createAccessToken`.
  *
  * Returns `{ ok: false }` for a non-array, an empty array, any non-string
- * element, or any string outside the vocabulary; otherwise `{ ok: true }` with
- * the deduplicated list.
+ * element, or any string outside the vocabulary (including the retired
+ * `cloudcli:*` spelling); otherwise `{ ok: true }` with the deduplicated list.
  */
 export function normalizeAccessTokenScopes(
   scopes: unknown,

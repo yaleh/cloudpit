@@ -111,8 +111,8 @@ type AnyRecord = Record<string, unknown>;
 // --------------------------- fixture identities ---------------------------
 
 const USER_ONE = 1;
-const READ_SCOPE = 'cloudcli:read';
-const APPROVE_SCOPE = 'cloudcli:approve';
+const READ_SCOPE = 'cloudpit:read';
+const APPROVE_SCOPE = 'cloudpit:approve';
 /** The deadline leg (b) asserts was INJECTED, not the 55000 default. */
 const INJECTED_TIMEOUT_MS = 4321;
 /** The instant every relative reading is measured against. */

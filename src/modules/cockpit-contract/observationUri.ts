@@ -20,9 +20,9 @@
  *   quay://<fleetProjectId>/board        — one fleet project's board (the fleet's grammar)
  *   quay://fleet/initiative/<slug>       — one cross-project initiative (the fleet's reserved segment)
  *
- * 2.1 switches the WRITE spelling only: the formatters mint `cloudpit://`, the parser keeps
- * accepting the legacy `cloudcli://session/<id>` and `cloudcli://architecture/<id>` spellings
- * (retired in 3.0) and normalizes either onto the canonical `cloudpit://` address.
+ * 3.0 owns one spelling: the formatters mint `cloudpit://` and the parser accepts only those
+ * canonical forms. The 2.1 legacy `cloudcli://session/<id>` and `cloudcli://architecture/<id>`
+ * read spellings are retired, in step with the server's copy.
  *
  * The initiative address is the fleet's own (`ADR-013` reserves `fleet` for it), and the
  * cockpit's initiative view pins it to the observation wall, so the grammar must mint and
@@ -48,7 +48,7 @@ export type ObservationUri =
 /** One path segment: at least one character, none of the URI's structural characters. */
 const SEGMENT = '[^/?#\\s]+';
 
-const CLOUDCLI_URI = new RegExp(`^(?:cloudcli|cloudpit)://(session|architecture)/(${SEGMENT})$`);
+const CLOUDPIT_URI = new RegExp(`^cloudpit://(session|architecture)/(${SEGMENT})$`);
 const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
 /** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
 const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
@@ -90,12 +90,10 @@ export function formatObservationUri(parsed: ObservationUri): string {
 /** Parses one URI, returning `null` for anything outside the grammar (the server's answer too). */
 export function parseObservationUri(value: unknown): ObservationUri | null {
   if (typeof value !== 'string') return null;
-  const cloud = CLOUDCLI_URI.exec(value);
+  const cloud = CLOUDPIT_URI.exec(value);
   if (cloud !== null) {
     const kind = cloud[1] === 'session' ? 'session' : 'architecture';
     const id = cloud[2]!;
-    // Both spellings parse; 2.1 normalizes them onto the canonical `cloudpit://` address so a
-    // pre-flip deep link and a freshly minted one are the same key.
     return { scheme: 'cloudpit', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
   }
   const initiative = QUAY_INITIATIVE_URI.exec(value);

@@ -99,7 +99,7 @@ function tokenRowCount(): number {
 
 test('(a) plaintext appears once in the issue result and zero times in the database', async () => {
   await withAccessTokenDb(async ({ service, userId, dbPath }) => {
-    const issued = service.issueToken({ userId, name: 'laptop', scopes: ['cloudcli:read'] });
+    const issued = service.issueToken({ userId, name: 'laptop', scopes: ['cloudpit:read'] });
     assert.equal(issued.ok, true);
     if (!issued.ok) return;
 
@@ -149,7 +149,7 @@ test('(b) a live token verifies and stamps last_used from the injected clock, th
     const issued = service.issueToken({
       userId,
       name: 'laptop',
-      scopes: ['cloudcli:read', 'cloudcli:session:send'],
+      scopes: ['cloudpit:read', 'cloudpit:session:send'],
     });
     assert.equal(issued.ok, true);
     if (!issued.ok) return;
@@ -161,11 +161,11 @@ test('(b) a live token verifies and stamps last_used from the injected clock, th
 
     assert.equal(readLastUsed(), null);
 
-    const verified = service.verifyToken(issued.token.token, 'cloudcli:read');
+    const verified = service.verifyToken(issued.token.token, 'cloudpit:read');
     assert.equal(verified.ok, true);
     if (!verified.ok) return;
     assert.equal(verified.userId, userId);
-    assert.deepEqual(verified.scopes, ['cloudcli:read', 'cloudcli:session:send']);
+    assert.deepEqual(verified.scopes, ['cloudpit:read', 'cloudpit:session:send']);
 
     // t0: the first use fills the NULL column with the clock's reading.
     const firstStamp = currentTime().toISOString();
@@ -173,12 +173,12 @@ test('(b) a live token verifies and stamps last_used from the injected clock, th
 
     // t0+59s: inside the window, so the stored instant is left alone.
     advanceTo(new Date(START.getTime() + 59_000));
-    assert.equal(service.verifyToken(issued.token.token, 'cloudcli:read').ok, true);
+    assert.equal(service.verifyToken(issued.token.token, 'cloudpit:read').ok, true);
     assert.equal(readLastUsed(), firstStamp);
 
     // t0+61s: past the window, so the instant advances to the new reading.
     advanceTo(new Date(START.getTime() + 61_000));
-    assert.equal(service.verifyToken(issued.token.token, 'cloudcli:read').ok, true);
+    assert.equal(service.verifyToken(issued.token.token, 'cloudpit:read').ok, true);
     assert.equal(readLastUsed(), new Date(START.getTime() + 61_000).toISOString());
   });
 });
@@ -190,7 +190,7 @@ test('(c) the five rejection paths yield five pairwise-distinct reasons', async 
     const results: VerifyAccessTokenResult[] = [];
 
     await t.test('expired', () => {
-      const issued = service.issueToken({ userId, scopes: ['cloudcli:read'], expiresInDays: 7 });
+      const issued = service.issueToken({ userId, scopes: ['cloudpit:read'], expiresInDays: 7 });
       assert.equal(issued.ok, true);
       if (!issued.ok) return;
       advanceTo(new Date(START.getTime() + 8 * MS_PER_DAY));
@@ -201,7 +201,7 @@ test('(c) the five rejection paths yield five pairwise-distinct reasons', async 
     });
 
     await t.test('revoked', () => {
-      const issued = service.issueToken({ userId, scopes: ['cloudcli:read'] });
+      const issued = service.issueToken({ userId, scopes: ['cloudpit:read'] });
       assert.equal(issued.ok, true);
       if (!issued.ok) return;
       assert.equal(service.revokeToken(issued.token.id), true);
@@ -211,7 +211,7 @@ test('(c) the five rejection paths yield five pairwise-distinct reasons', async 
     });
 
     await t.test('rewritten plaintext is not found', () => {
-      const issued = service.issueToken({ userId, scopes: ['cloudcli:read'] });
+      const issued = service.issueToken({ userId, scopes: ['cloudpit:read'] });
       assert.equal(issued.ok, true);
       if (!issued.ok) return;
       const rewritten =
@@ -228,7 +228,7 @@ test('(c) the five rejection paths yield five pairwise-distinct reasons', async 
     });
 
     await t.test('insufficient scope', () => {
-      const issued = service.issueToken({ userId, scopes: ['cloudcli:read'] });
+      const issued = service.issueToken({ userId, scopes: ['cloudpit:read'] });
       assert.equal(issued.ok, true);
       if (!issued.ok) return;
       const result = service.verifyToken(issued.token.token, 'cloudcli:admin');
@@ -247,14 +247,14 @@ test('(c) the five rejection paths yield five pairwise-distinct reasons', async 
 test('(d) only 7/30/90 day lifetimes are accepted; anything else writes no row', async () => {
   await withAccessTokenDb(async ({ service, userId }) => {
     for (const days of [7, 30, 90]) {
-      const result = service.issueToken({ userId, scopes: ['cloudcli:read'], expiresInDays: days });
+      const result = service.issueToken({ userId, scopes: ['cloudpit:read'], expiresInDays: days });
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(result.token.expiresAt, new Date(START.getTime() + days * MS_PER_DAY).toISOString());
     }
 
     // Omitted lifetime defaults to 30 days.
-    const defaulted = service.issueToken({ userId, scopes: ['cloudcli:read'] });
+    const defaulted = service.issueToken({ userId, scopes: ['cloudpit:read'] });
     assert.equal(defaulted.ok, true);
     if (!defaulted.ok) return;
     assert.equal(defaulted.token.expiresAt, new Date(START.getTime() + 30 * MS_PER_DAY).toISOString());
@@ -266,7 +266,7 @@ test('(d) only 7/30/90 day lifetimes are accepted; anything else writes no row',
     const rejected: (number | null)[] = [null, Infinity, 0, -1, 365];
     for (const days of rejected) {
       assert.deepEqual(
-        service.issueToken({ userId, scopes: ['cloudcli:read'], expiresInDays: days }),
+        service.issueToken({ userId, scopes: ['cloudpit:read'], expiresInDays: days }),
         { ok: false, reason: 'invalid_expiry' }
       );
     }
@@ -277,12 +277,48 @@ test('(d) only 7/30/90 day lifetimes are accepted; anything else writes no row',
 
 test('(e) revocation takes effect on the next verify, same process, no restart', async () => {
   await withAccessTokenDb(async ({ service, userId }) => {
-    const issued = service.issueToken({ userId, scopes: ['cloudcli:read'] });
+    const issued = service.issueToken({ userId, scopes: ['cloudpit:read'] });
     assert.equal(issued.ok, true);
     if (!issued.ok) return;
 
     assert.equal(service.verifyToken(issued.token.token).ok, true);
     assert.equal(service.revokeToken(issued.token.id), true);
     assert.deepEqual(service.verifyToken(issued.token.token), { ok: false, reason: 'revoked' });
+  });
+});
+
+test('(f) v3.0 refuses a legacy cloudcli:* request and still verifies a pre-3.0 token row', async () => {
+  await withAccessTokenDb(async ({ service, userId }) => {
+    // The retired spelling cannot mint a new token.
+    for (const scope of ['cloudcli:read', 'cloudcli:session:send', 'cloudcli:cockpit:act']) {
+      assert.deepEqual(
+        service.issueToken({ userId, scopes: [scope] }),
+        { ok: false, reason: 'invalid_scope' },
+        `${scope} must be refused at the issue boundary`,
+      );
+    }
+
+    // An old token row carries the canonical spelling. Seed one directly (the 2.x writer) and
+    // verify it still authenticates against the canonical required scope — no forced revocation.
+    const token = `ccp_${'a'.repeat(64)}`;
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    getConnection()
+      .prepare(
+        `INSERT INTO access_tokens (user_id, token_hash, token_prefix, name, scopes, expires_at, created_at)
+         VALUES (?, ?, ?, 'legacy', ?, ?, ?)`,
+      )
+      .run(
+        userId,
+        hash,
+        token.slice(0, 8),
+        JSON.stringify(['cloudcli:read', 'cloudcli:session:send']),
+        new Date(START.getTime() + 30 * MS_PER_DAY).toISOString(),
+        START.toISOString(),
+      );
+
+    const verified = service.verifyToken(token, 'cloudcli:read');
+    assert.equal(verified.ok, true, 'an old token row keeps working');
+    if (!verified.ok) return;
+    assert.deepEqual(verified.scopes, ['cloudcli:read', 'cloudcli:session:send']);
   });
 });

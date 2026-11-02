@@ -53,7 +53,7 @@ function invalidRequest(message: string): AppError {
 function requireBodyUri(body: unknown): string {
   const uri = body !== null && typeof body === 'object' ? (body as Record<string, unknown>).uri : undefined;
   if (parseObservationUri(uri) === null) {
-    throw invalidRequest('`uri` must be one of cloudcli://session/<id>, cloudcli://architecture/<id>, quay://<id>/board');
+    throw invalidRequest('`uri` must be one of cloudpit://session/<id>, cloudpit://architecture/<id>, quay://<id>/board');
   }
   return uri as string;
 }

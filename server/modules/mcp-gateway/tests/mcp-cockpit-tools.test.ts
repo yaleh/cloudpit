@@ -291,9 +291,13 @@ async function withArm(run: (arm: Arm) => Promise<void>): Promise<void> {
 
   const tokens = createAccessTokensService({ now: () => new Date() });
   const issued = {
-    read: issue(tokens, 'cockpit-read', [MCP_COCKPIT_READ_SCOPE]),
-    act: issue(tokens, 'cockpit-act', [MCP_COCKPIT_READ_SCOPE, MCP_COCKPIT_ACT_SCOPE]),
-    navigate: issue(tokens, 'cockpit-navigate', ['cloudcli:navigate']),
+    // 3.0 issues the wire spelling; the tool declarations stay canonical `cloudcli:*`.
+    read: issue(tokens, 'cockpit-read', [MCP_COCKPIT_READ_SCOPE.replace('cloudcli:', 'cloudpit:')]),
+    act: issue(tokens, 'cockpit-act', [
+      MCP_COCKPIT_READ_SCOPE.replace('cloudcli:', 'cloudpit:'),
+      MCP_COCKPIT_ACT_SCOPE.replace('cloudcli:', 'cloudpit:'),
+    ]),
+    navigate: issue(tokens, 'cockpit-navigate', ['cloudpit:navigate']),
   };
 
   const app = express();

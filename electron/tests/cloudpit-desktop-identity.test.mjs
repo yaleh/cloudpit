@@ -231,22 +231,27 @@ test('AC5: server/index.ts writes the marker under .cloudpit', () => {
   );
 });
 
-test('AC6: both deep-link schemes are registered in the packaged app metadata', () => {
+test('AC6: the packaged app metadata still claims both schemes (cloudcli stays for the auth callback)', () => {
   const pkg = readPackageJson();
 
+  // R5 retires the cloudcli DEEP LINK (main.js registers only cloudpit), but the
+  // third-party login callback `cloudcli://auth/callback` must still reach the
+  // app, so the OS-level declaration keeps the legacy scheme.
   const protocolSchemes = pkg.build.protocols.flatMap((protocol) => protocol.schemes);
-  assert.ok(protocolSchemes.includes('cloudcli'), 'build.protocols keeps cloudcli');
-  assert.ok(protocolSchemes.includes('cloudpit'), 'build.protocols adds cloudpit');
+  assert.ok(protocolSchemes.includes('cloudcli'), 'build.protocols keeps cloudcli for cloudcli://auth/callback');
+  assert.ok(protocolSchemes.includes('cloudpit'), 'build.protocols declares cloudpit');
 
   const macSchemes = pkg.build.mac.extendInfo.CFBundleURLTypes.flatMap((type) => type.CFBundleURLSchemes);
-  assert.ok(macSchemes.includes('cloudcli'), 'mac CFBundleURLSchemes keeps cloudcli');
-  assert.ok(macSchemes.includes('cloudpit'), 'mac CFBundleURLSchemes adds cloudpit');
+  assert.ok(macSchemes.includes('cloudcli'), 'mac CFBundleURLSchemes keeps cloudcli for the auth callback');
+  assert.ok(macSchemes.includes('cloudpit'), 'mac CFBundleURLSchemes declares cloudpit');
 });
 
-test('AC6: main.js registers both schemes in the dev and packaged branches', () => {
+test('AC6: main.js registers only the cloudpit deep link and still parses the cloudcli callback', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
-  assert.match(source, /const DEEP_LINK_SCHEMES = \['cloudcli', 'cloudpit'\];/);
+  assert.match(source, /const DEEP_LINK_SCHEMES = \['cloudpit'\];/);
+  assert.match(source, /const CALLBACK_PROTOCOL = 'cloudcli';/);
+  assert.match(source, /const CALLBACK_URL = `\$\{CALLBACK_PROTOCOL\}:\/\/auth\/callback`;/);
 
   const start = source.indexOf('function registerProtocolHandler()');
   assert.ok(start >= 0, 'registerProtocolHandler() exists');
@@ -263,6 +268,14 @@ test('AC6: main.js registers both schemes in the dev and packaged branches', () 
     /app\.setAsDefaultProtocolClient\(scheme\);/,
     'the packaged branch registers every scheme',
   );
+
+  // The cloudcli callback is still PARSED even though it is no longer registered
+  // as a deep link here; the OS association comes from build.protocols above.
+  const handleStart = source.indexOf('async function handleDeepLink(');
+  assert.ok(handleStart >= 0, 'handleDeepLink() exists');
+  const handleSource = source.slice(handleStart, source.indexOf('\n}', handleStart));
+  assert.match(handleSource, /parsed\.protocol !== `\$\{CALLBACK_PROTOCOL\}:`/);
+  assert.match(handleSource, /parsed\.hostname !== 'auth'/);
 });
 
 test('AC7: appId and the cloudcli_desktop surface are unchanged', () => {

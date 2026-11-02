@@ -94,11 +94,11 @@ const SESSION_ROWS = [
 ];
 
 /** The scope each probed tool requires, from the one `ACCESS_TOKEN_SCOPES` vocabulary. */
-const SEND_SCOPES = ['cloudcli:session:send'];
-const CREATE_SCOPES = ['cloudcli:session:create'];
-const READ_SCOPES = ['cloudcli:read'];
-const APPROVE_SCOPES = ['cloudcli:approve'];
-const NAVIGATE_SCOPES = ['cloudcli:navigate'];
+const SEND_SCOPES = ['cloudpit:session:send'];
+const CREATE_SCOPES = ['cloudpit:session:create'];
+const READ_SCOPES = ['cloudpit:read'];
+const APPROVE_SCOPES = ['cloudpit:approve'];
+const NAVIGATE_SCOPES = ['cloudpit:navigate'];
 
 type Registry = ReturnType<typeof createChatRunRegistry>;
 
@@ -567,7 +567,7 @@ test('(b2) a labelled session_create stamps the run its first message opened', {
 
 test('(c) sessions_list narrows to the sessions whose live run carries the label', { concurrency: false }, async () => {
   await withHarness(async (harness) => {
-    const token = harness.issue(['cloudcli:read', 'cloudcli:session:send']).token;
+    const token = harness.issue(['cloudpit:read', 'cloudpit:session:send']).token;
     await labelSession(harness, token, 'sess-a', LABEL);
     await labelSession(harness, token, 'sess-b', LABEL);
     // A third running session under the OTHER label proves the filter is an
@@ -611,7 +611,7 @@ test('(c) sessions_list narrows to the sessions whose live run carries the label
 
 test('(c2) mcp_usage_stats aggregates exactly the audit rows carrying the label', { concurrency: false }, async () => {
   await withHarness(async (harness) => {
-    const token = harness.issue(['cloudcli:read', 'cloudcli:session:send']).token;
+    const token = harness.issue(['cloudpit:read', 'cloudpit:session:send']).token;
     await labelSession(harness, token, 'sess-a', LABEL);
     await labelSession(harness, token, 'sess-b', LABEL);
     await labelSession(harness, token, 'sess-c', OTHER_LABEL);
@@ -646,7 +646,7 @@ test('(c2) mcp_usage_stats aggregates exactly the audit rows carrying the label'
 
 test('(d) a labelled call opens no extra run, writes only its own row and changes no state', { concurrency: false }, async () => {
   await withHarness(async (harness) => {
-    const token = harness.issue(['cloudcli:read', 'cloudcli:session:send']).token;
+    const token = harness.issue(['cloudpit:read', 'cloudpit:session:send']).token;
 
     const runsBefore = harness.registry.listRecentRuns().length;
     const rowsBefore = mcpAuditLogDb.count();

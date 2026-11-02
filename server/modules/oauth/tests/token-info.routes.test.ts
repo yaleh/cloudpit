@@ -89,7 +89,7 @@ function issueToken(harness: Harness, expiresInDays: number): IssuedToken {
   const issued = harness.tokens.issueToken({
     userId: USER_ONE,
     name: 'self-check',
-    scopes: ['cloudcli:read'],
+    scopes: ['cloudpit:read'],
     expiresInDays,
   });
   if (!issued.ok) {
@@ -111,7 +111,7 @@ test('(a) a live token answers 200 with its owner, scopes and expiry, verified p
     assert.equal(response.status, 200);
     const body = await response.json() as { userId: number; scopes: string[]; expiresAt: string };
     assert.equal(body.userId, USER_ONE);
-    assert.deepEqual(body.scopes, ['cloudcli:read']);
+    assert.deepEqual(body.scopes, ['cloudpit:read'], 'the token row keeps the issued wire spelling');
     assert.equal(body.expiresAt, token.expiresAt);
 
     // No cache: the row is read on every request, so a second call answers the

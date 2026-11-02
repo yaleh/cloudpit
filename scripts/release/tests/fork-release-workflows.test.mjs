@@ -267,6 +267,19 @@ test('R12: the release surface carries no legacy runtime tag or asset prefix', (
   );
 });
 
+test('R12 control: the legacy-prefix scan would catch a reintroduction', () => {
+  // The 3.0 gate only re-confirms the 2.1 removal, so a vacuous green would be invisible. The
+  // same predicate must flag a synthetic reintroduction, and every scanned file must be live
+  // (non-empty) so "no hits" cannot come from reading nothing.
+  /** @param {string} text @returns {string[]} */
+  const detect = (text) => LEGACY_TAG_PREFIXES.filter((prefix) => text.includes(prefix));
+  assert.deepEqual(detect('cloudpit-local-server-v3.0.0'), [], 'the live prefix is not a hit');
+  assert.deepEqual(detect('cloudcli-local-server-v3.0.0'), ['cloudcli-local-server-'], 'a retired prefix is a hit');
+  for (const rel of RELEASE_SURFACE) {
+    assert.ok(read(rel).length > 0, `${rel} must be a live release-surface file`);
+  }
+});
+
 test('desktop-release.yml drops the macOS build', () => {
   assert.equal(macosJobs, 0, `desktop-release.yml builds a macOS job again (${macosJobs})`);
   assert.equal(dmgRefs, 0, `desktop-release.yml still references a .dmg (${dmgRefs})`);

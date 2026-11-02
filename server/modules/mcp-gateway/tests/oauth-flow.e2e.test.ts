@@ -69,14 +69,14 @@ const USERNAME = 'oauth-e2e-user';
  */
 const ACCOUNT_PASSWORD = 'oauth-e2e-password';
 const REDIRECT_URI = 'https://app.example/cb';
-const READ_SCOPE = 'cloudcli:read';
+const READ_SCOPE = 'cloudpit:read';
 /**
  * A state-changing scope. Since gap-oauth-consent-flow-ux-hardening the consent
  * `allow` branch asks for the password ONLY when the grant reaches past
  * `cloudcli:read`, so the wrong-password counterexample and the password-carrying
  * mode below must submit this alongside the read scope.
  */
-const WRITE_SCOPE = 'cloudcli:session:send';
+const WRITE_SCOPE = 'cloudpit:session:send';
 
 /**
  * The same native module the auth module hashes with (`bcrypt.hash(pw, 12)` in

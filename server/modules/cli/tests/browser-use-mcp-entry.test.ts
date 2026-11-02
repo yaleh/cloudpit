@@ -343,6 +343,8 @@ test('the relocated MCP entry answers initialize as cloudpit-browser', async () 
   assert.ok(serverInfo && typeof serverInfo === 'object', `the initialize result must carry serverInfo: ${reply.rawLine}`);
   assert.equal(serverInfo.name, EXPECTED_SERVER_NAME, `serverInfo.name must stay ${EXPECTED_SERVER_NAME}: ${reply.rawLine}`);
   assert.equal(reply.result.protocolVersion, '2024-11-05', 'the MCP protocol version must stay pinned');
+  // 3.0 retired the legacy registrations: the wire identity never names one.
+  assert.equal(reply.rawLine.includes('cloudcli-browser'), false, 'no legacy MCP name may reach the client');
 });
 
 test('the relocated MCP entry still installs the root environment bootstrap', async () => {
