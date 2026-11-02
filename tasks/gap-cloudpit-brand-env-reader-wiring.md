@@ -57,6 +57,7 @@ P3 退场计划 R1 的前置接线任务。现状（2026-11-02 实测）：`crea
 - server/modules/browser-use/tests/browser-use.service.test.ts
 - server/modules/cli/tests/browser-use-mcp-entry.test.ts
 - electron/tests/cloudpit-brand-env-wiring.test.mjs (new)
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-cloudpit-brand-env-reader-wiring.md
 
 ## Execution evidence
@@ -67,7 +68,16 @@ P3 退场计划 R1 的前置接线任务。现状（2026-11-02 实测）：`crea
 - AC4 未设品牌 env 的实读：`controlPlaneUrl=https://cloudcli.ai`、`maxSessionsPerOwner=3`、`sessionTtlMs=1800000`（30min）、`installTimeoutMs=600000`（10min）、`apiTimeoutMs=60000`（60s）、`bundleBaseUrl=https://github.com/yaleh/cloudpit/releases/download`、`bundleReleaseTag=v2.0.0`、`installRoot=~/.cloudpit/server`、`migrateLegacyInstall=true`。
 - AC5: `registerAgentMcp` 现在写 `CLOUDPIT_BROWSER_USE_MCP_TOKEN` / `CLOUDPIT_BROWSER_USE_API_URL`，同时保留同值的 `CLOUDCLI_BROWSER_USE_*` 过渡别名；`browser-use-mcp.ts` 用 brand reader 读三名，实测新名胜出、旧名可用且每 key 只警告一次（`AC5: CLOUDPIT_* supplies...` 与 `AC5: the legacy spelling still works...` 两条子进程腿）。
 - AC6: 单文件运行结果 `cloudpit-brand-env.test.ts 9/9`、`browser-use.service.test.ts 6/6`、`browser-use-mcp-entry.test.ts 4/4`、`cloudpit-brand-env-wiring.test.mjs 24/24`；`npm run typecheck` exit 0；`npx oxlint <11 changed files>` exit 0。
+- AC6 ratchet（2026-11-02 本轮补）: 上一轮 fan-in 红在 `architecture-ratchet.test.ts` 的 `oversizeFiles server/modules/browser-use/browser-use.service.ts 920→958`。增长就是接线本体（默认常量 + 导出的 `readBrowserUseEnvDefaults(env, warn)` 生产读取 seam + 每进程解析一次 + MCP 子进程新名/过渡旧名 env）。按 AC-394 RECORDED CHANGE 格式把 `server/shared/tests/architecture-ratchet.baseline.json` 的该条从 920 上调到实测 958，并在 `note` 里记录理由（基线文件已补进 Touches）；随后单文件复跑 `architecture-ratchet.test.ts` → `tests 6 / pass 6 / fail 0`（唯一违规即本条，无第二条）。
 - AC7 anti-drift: `ANTI-DRIFT OK … 10 actual file(s), all within declared Touches (12 glob(s))`。
 - 合并预检：`git merge --no-edit develop` → `Already up to date.`；`git merge-base --is-ancestor develop HEAD` → 通过。
 
 该轴仍暗,理由:本任务只把既有 brand reader 接到生产读取点，没有 L_D 文档比或 L_G ArchGuard 环轴的可测读数
+
+## Blocker
+
+**2026-11-02T12:49:19.136Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/browser-use/browser-use.service.ts 920→958 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：6ec6bf77-5861-4e35-bbf0-fee5ec204989
