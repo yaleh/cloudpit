@@ -18,11 +18,11 @@ import type {
 import { buildQuayInFlightContract, useQuayStatus } from '@/modules/quay';
 import { SidebarModeSwitch } from '@/modules/sidebar';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
-import CockpitStage from '@/modules/cockpit/CockpitStage';
-import type { CockpitFleetStatus } from '@/modules/cockpit/CockpitStage';
+import CockpitStage from '@/modules/cockpit/workspace/CockpitStage';
+import type { CockpitFleetStatus } from '@/modules/cockpit/workspace/CockpitStage';
 import { parseCockpitIntent } from '@/modules/cockpit/cockpitIntent';
-import { pinCockpitTargetSession } from '@/modules/cockpit/cockpitRouting';
-import type { CockpitFleetPort, CockpitFleetReading, CockpitFleetWriteResult } from '@/modules/cockpit/cockpitRouting';
+import { pinCockpitTargetSession } from '@/modules/cockpit/workspace/cockpitRouting';
+import type { CockpitFleetPort, CockpitFleetReading, CockpitFleetWriteResult } from '@/modules/cockpit/workspace/cockpitRouting';
 import {
   buildCockpitFleetContract,
   buildInitiativeContract,

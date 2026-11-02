@@ -1,11 +1,11 @@
 // The cockpit's public surface. `App` mounts `CockpitPage` at `/cockpit` and `CockpitRemote` at
 // `/cockpit/remote`; the next cockpit task (push-to-talk + focus routing) reuses the same
 // deterministic intent parser, so it is exported here rather than deep-imported from its file.
-export { default as CockpitPage } from '@/modules/cockpit/CockpitPage';
+export { default as CockpitPage } from '@/modules/cockpit/workspace/CockpitPage';
 export { default as CockpitRemote } from '@/modules/cockpit/CockpitRemote';
 // The route gate `App` mounts for both cockpit addresses. It reads the server's boot-time
 // switch through the shared store and redirects to the workspace when the feature is off.
-export { default as CockpitRoute } from '@/modules/cockpit/CockpitRoute';
+export { default as CockpitRoute } from '@/modules/cockpit/workspace/CockpitRoute';
 export { parseCockpitIntent } from '@/modules/cockpit/cockpitIntent';
 export type { CockpitIntent, CockpitIntentContext } from '@/modules/cockpit/cockpitIntent';
 // The cockpit's address grammar, exported so the sidebar's mode switch and its project rows
@@ -112,18 +112,18 @@ export type {
 // The reading type and `cockpitCardsReading` are exported for the scenario-runner task that
 // consumes the list's `data-cockpit-cards` attribute; the controller factory is exported so a
 // sibling criterion can drive the same rules without a browser.
-export { default as CockpitCardList } from '@/modules/cockpit/CockpitCardList';
-export { default as CockpitCard } from '@/modules/cockpit/CockpitCard';
+export { default as CockpitCardList } from '@/modules/cockpit/cards/CockpitCardList';
+export { default as CockpitCard } from '@/modules/cockpit/cards/CockpitCard';
 // The card's small descriptor-driven reading, exported so a criterion can render one shape
 // without mounting the whole card.
-export { default as CockpitCardViz } from '@/modules/cockpit/CockpitCardViz';
-export { default as CockpitCardDetails } from '@/modules/cockpit/CockpitCardDetails';
+export { default as CockpitCardViz } from '@/modules/cockpit/cards/CockpitCardViz';
+export { default as CockpitCardDetails } from '@/modules/cockpit/cards/CockpitCardDetails';
 // The Details drawer's brief section. Exported for the same reason as the list: a sibling
 // criterion (or a scenario surface) renders it without mounting the whole cards view.
-export { default as CockpitBriefView } from '@/modules/cockpit/CockpitBriefView';
-export { CockpitBriefBlockView } from '@/modules/cockpit/cockpitBriefBlocks';
-export type { CockpitBriefBlockContext } from '@/modules/cockpit/cockpitBriefBlocks';
-export type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
+export { default as CockpitBriefView } from '@/modules/cockpit/cards/CockpitBriefView';
+export { CockpitBriefBlockView } from '@/modules/cockpit/cards/cockpitBriefBlocks';
+export type { CockpitBriefBlockContext } from '@/modules/cockpit/cards/cockpitBriefBlocks';
+export type { CockpitBriefState } from '@/modules/cockpit/cards/cockpitCardController';
 export {
   cockpitCardDescriptor,
   DEFAULT_COCKPIT_CARD_DESCRIPTOR,
@@ -141,7 +141,7 @@ export {
   dismissTargetOf,
   isIrreversibleOption,
   shownOptionOf,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 export type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmRequest,
@@ -156,7 +156,7 @@ export type {
   CockpitCardReading,
   CockpitCardShown,
   CockpitCardTypeFilter,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 export { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 export type {
   CockpitCardsBinding,
@@ -175,7 +175,7 @@ export {
   COCKPIT_COLUMN_MIN_WIDTH,
   COCKPIT_COLUMN_OVERLAY_MIN_WIDTH,
   COCKPIT_COLUMN_STORAGE_KEY,
-} from '@/modules/cockpit/cockpitColumnController';
+} from '@/modules/cockpit/workspace/cockpitColumnController';
 export type {
   CockpitColumnController,
   CockpitColumnControllerDeps,
@@ -183,7 +183,7 @@ export type {
   CockpitColumnLayout,
   CockpitColumnSnapshot,
   CockpitColumnStorage,
-} from '@/modules/cockpit/cockpitColumnController';
+} from '@/modules/cockpit/workspace/cockpitColumnController';
 export {
   CockpitColumnContext,
   useCockpitColumn,
@@ -194,10 +194,10 @@ export {
   default as CockpitColumn,
   CockpitColumnProvider,
   CockpitColumnRegion,
-} from '@/modules/cockpit/CockpitColumn';
-export { default as CockpitHeaderButton } from '@/modules/cockpit/CockpitHeaderButton';
+} from '@/modules/cockpit/workspace/CockpitColumn';
+export { default as CockpitHeaderButton } from '@/modules/cockpit/workspace/CockpitHeaderButton';
 // The phone's cards layer and its router binding. `App` mounts the host as a sibling of its
 // routes so the session page it covers is never unmounted by opening or closing it; the presentational
 // layer is exported for a criterion that drives it without a router.
-export { default as CockpitOverlay, CockpitOverlayHost } from '@/modules/cockpit/CockpitOverlay';
-export type { CockpitOverlayProps } from '@/modules/cockpit/CockpitOverlay';
+export { default as CockpitOverlay, CockpitOverlayHost } from '@/modules/cockpit/workspace/CockpitOverlay';
+export type { CockpitOverlayProps } from '@/modules/cockpit/workspace/CockpitOverlay';

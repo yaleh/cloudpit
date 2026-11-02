@@ -19,7 +19,7 @@
  */
 import type { CockpitCard, CockpitCardOption } from '@/shared/types';
 import type { CockpitCardTypeFilter } from '@/modules/cockpit-contract';
-import { FEEDBACK_LOCKED_REASON } from '@/modules/cockpit/cockpitCardFeedback';
+import { FEEDBACK_LOCKED_REASON } from '@/modules/cockpit/cards/cockpitCardFeedback';
 
 /** What one card currently displays in its option area. */
 export type CockpitCardShown =

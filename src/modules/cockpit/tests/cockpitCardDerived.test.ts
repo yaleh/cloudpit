@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CockpitCard, CockpitCardOption } from '@/shared/types';
-import { FEEDBACK_LOCKED_REASON } from '@/modules/cockpit/cockpitCardFeedback';
+import { FEEDBACK_LOCKED_REASON } from '@/modules/cockpit/cards/cockpitCardFeedback';
 import {
   cockpitCardStateKey,
   confirmTargetOf,
@@ -18,7 +18,7 @@ import {
   targetsOf,
   typeCountsOf,
   visibleCardsOf,
-} from '@/modules/cockpit/cockpitCardDerived';
+} from '@/modules/cockpit/cards/cockpitCardDerived';
 
 /**
  * The cockpit's pure derivations, proven from their arguments alone.

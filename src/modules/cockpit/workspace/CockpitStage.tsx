@@ -14,7 +14,7 @@ import type {
   ObservationWallEntry,
   ObservationWallView,
 } from '@/modules/cockpit/hooks/useObservationWall';
-import CockpitCardList from '@/modules/cockpit/CockpitCardList';
+import CockpitCardList from '@/modules/cockpit/cards/CockpitCardList';
 import ObservationPreview from '@/modules/cockpit/ObservationPreview';
 import ObservationWall from '@/modules/cockpit/ObservationWall';
 

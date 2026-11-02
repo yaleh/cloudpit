@@ -70,9 +70,9 @@
     "src/modules/chat-tool-configs/configs/toolConfigs.ts": 822,
     "src/modules/chat-voice/utils/voice/voiceContextPack.ts": 821,
     "src/modules/chat-voice/voice-realtime/useVoiceRealtimeSession.ts": 2833,
-    "src/modules/cockpit/CockpitCard.tsx": 983,
-    "src/modules/cockpit/cockpitCardController.ts": 1797,
-    "src/modules/cockpit/CockpitPage.tsx": 1900,
+    "src/modules/cockpit/cards/CockpitCard.tsx": 983,
+    "src/modules/cockpit/cards/cockpitCardController.ts": 1797,
+    "src/modules/cockpit/workspace/CockpitPage.tsx": 1900,
     "src/modules/git-panel/hooks/useGitPanelController.ts": 845,
     "src/modules/project-workspace/hooks/useProjectsState.ts": 1457,
     "src/modules/quay/QuayPanel.tsx": 1176,
@@ -200,7 +200,7 @@
   "hookStateHeavy": {
     "src/modules/chat-session/hooks/useChatSessionState.ts": 52,
     "src/modules/chat-voice/voice-realtime/useVoiceRealtimeSession.ts": 62,
-    "src/modules/cockpit/CockpitPage.tsx": 32,
+    "src/modules/cockpit/workspace/CockpitPage.tsx": 32,
     "src/modules/git-panel/hooks/useGitPanelController.ts": 21,
     "src/modules/project-workspace/hooks/useProjectsState.ts": 23,
     "src/modules/sidebar/hooks/useSidebarController.ts": 35

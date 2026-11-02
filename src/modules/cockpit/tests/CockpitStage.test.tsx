@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QuayFleetSummary, QuaySnapshot } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitPage, { COCKPIT_HEADER_CONTROL_SIZE_CLASS } from '@/modules/cockpit/CockpitPage';
-import CockpitRoute from '@/modules/cockpit/CockpitRoute';
+import CockpitPage, { COCKPIT_HEADER_CONTROL_SIZE_CLASS } from '@/modules/cockpit/workspace/CockpitPage';
+import CockpitRoute from '@/modules/cockpit/workspace/CockpitRoute';
 import { formatCockpitView, parseCockpitView } from '@/modules/cockpit/cockpitView';
 import type { CockpitView } from '@/modules/cockpit/cockpitView';
 

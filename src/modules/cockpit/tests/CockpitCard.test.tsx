@@ -10,11 +10,11 @@ import type {
   CockpitCardViz,
 } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCard from '@/modules/cockpit/CockpitCard';
-import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import CockpitCardFacts from '@/modules/cockpit/CockpitCardFacts';
-import CockpitCardHeader from '@/modules/cockpit/CockpitCardHeader';
-import CockpitCardOptions from '@/modules/cockpit/CockpitCardOptions';
+import CockpitCard from '@/modules/cockpit/cards/CockpitCard';
+import CockpitCardDetails from '@/modules/cockpit/cards/CockpitCardDetails';
+import CockpitCardFacts from '@/modules/cockpit/cards/CockpitCardFacts';
+import CockpitCardHeader from '@/modules/cockpit/cards/CockpitCardHeader';
+import CockpitCardOptions from '@/modules/cockpit/cards/CockpitCardOptions';
 import {
   cockpitCardDescriptor,
   cockpitTagIcon,
@@ -24,12 +24,12 @@ import type {
   CockpitCardDensity,
   CockpitCardSendCountdown,
   CockpitCardShown,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 import {
   confirmTargetOf,
   defaultShownOption,
   dismissTargetOf,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * One card's three touch zones, rendered against the real i18n bundle and real controller

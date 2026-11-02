@@ -9,10 +9,10 @@ import type {
   CockpitCard as CockpitCardData,
 } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
-import type { CockpitBriefState } from '@/modules/cockpit/cockpitCardController';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import CockpitCardDetails from '@/modules/cockpit/cards/CockpitCardDetails';
+import CockpitBriefView from '@/modules/cockpit/cards/CockpitBriefView';
+import type { CockpitBriefState } from '@/modules/cockpit/cards/cockpitCardController';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The Details drawer's brief rendering (AC-431), against the real i18n bundle.
@@ -161,7 +161,7 @@ function briefResponse(overrides: Partial<CockpitBriefResponse> = {}): CockpitBr
         title: 'Change size',
         files: [
           { path: 'server/modules/cockpit/cockpit.module.ts', add: 34, del: 6 },
-          { path: 'src/modules/cockpit/CockpitBriefView.tsx', add: 120, del: 0 },
+          { path: 'src/modules/cockpit/cards/CockpitBriefView.tsx', add: 120, del: 0 },
         ],
       },
       {

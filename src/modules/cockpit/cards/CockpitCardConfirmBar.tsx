@@ -5,7 +5,7 @@ import type {
   CockpitCardConfirmOutcome,
   CockpitCardConfirmTarget,
   CockpitCardSendCountdown,
-} from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The one confirm bar, used by the card's C zone and by `CockpitCardDetails`' persistent bottom

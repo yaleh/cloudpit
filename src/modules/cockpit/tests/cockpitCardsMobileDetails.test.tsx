@@ -12,7 +12,7 @@ import type {
   QuaySuiteState,
 } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitPage from '@/modules/cockpit/CockpitPage';
+import CockpitPage from '@/modules/cockpit/workspace/CockpitPage';
 
 /**
  * THE PHONE'S CARDS PAGE, MATCHED TO THE MOCKUP.

@@ -5,9 +5,9 @@ import { Gauge, PanelRightClose } from 'lucide-react';
 
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
 import { cn } from '@/shared/utils';
-import CockpitCardList from '@/modules/cockpit/CockpitCardList';
+import CockpitCardList from '@/modules/cockpit/cards/CockpitCardList';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
-import type { CockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import type { CockpitColumnController } from '@/modules/cockpit/workspace/cockpitColumnController';
 import { CockpitColumnVisibilityContext } from '@/modules/cockpit-contract';
 import { useCockpitHub } from '@/modules/cockpit/hooks/useCockpitHub';
 import { useCockpitPushToTalk } from '@/modules/cockpit/hooks/useCockpitPushToTalk';

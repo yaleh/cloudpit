@@ -6,14 +6,14 @@ import {
   openCockpitSendGate,
   pinCockpitTargetSession,
   routeCockpitText,
-} from '@/modules/cockpit/cockpitRouting';
+} from '@/modules/cockpit/workspace/cockpitRouting';
 import type {
   CockpitFleetPort,
   CockpitFleetReading,
   CockpitFleetWriteResult,
   CockpitRouteInput,
   CockpitSendPreview,
-} from '@/modules/cockpit/cockpitRouting';
+} from '@/modules/cockpit/workspace/cockpitRouting';
 import type { CockpitProject } from '@/modules/cockpit/cockpitView';
 import { formatCockpitView, parseCockpitView } from '@/modules/cockpit/cockpitView';
 

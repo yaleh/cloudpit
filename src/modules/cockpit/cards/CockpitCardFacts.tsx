@@ -1,5 +1,5 @@
 import { cockpitFactShortForm } from '@/modules/cockpit/cockpitCardDescriptors';
-import CockpitCardViz from '@/modules/cockpit/CockpitCardViz';
+import CockpitCardViz from '@/modules/cockpit/cards/CockpitCardViz';
 import type { CockpitCard as CockpitCardData, CockpitCardFact } from '@/shared/types';
 
 export type CockpitCardFactsProps = {

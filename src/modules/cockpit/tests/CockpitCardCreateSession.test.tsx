@@ -7,13 +7,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/shared/api';
 import type { Clock, CockpitCard as CockpitCardData } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCardList from '@/modules/cockpit/CockpitCardList';
-import type { CockpitCardListProps } from '@/modules/cockpit/CockpitCardList';
+import CockpitCardList from '@/modules/cockpit/cards/CockpitCardList';
+import type { CockpitCardListProps } from '@/modules/cockpit/cards/CockpitCardList';
 import {
   createCockpitCardController,
-} from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitStartConversationCreated } from '@/modules/cockpit/cockpitCardStartConversation';
+} from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitStartConversationCreated } from '@/modules/cockpit/cards/cockpitCardStartConversation';
 
 /**
  * THE CARD BUTTON CREATES A SESSION; IT DOES NOT ACKNOWLEDGE AN INTENT.

@@ -11,12 +11,12 @@ import {
   cockpitCardFactsBeyondSituation,
   cockpitCardTitle,
 } from '@/modules/cockpit/cockpitCardDescriptors';
-import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
-import { OwnReplyEditor } from '@/modules/cockpit/CockpitCard';
-import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
-import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
-import { CockpitCardStartConversation } from '@/modules/cockpit/CockpitCardStartConversationAction';
-import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversationAction';
+import CockpitBriefView from '@/modules/cockpit/cards/CockpitBriefView';
+import { OwnReplyEditor } from '@/modules/cockpit/cards/CockpitCard';
+import { CockpitCardConfirmBar } from '@/modules/cockpit/cards/CockpitCardConfirmBar';
+import { CockpitCardDismissBar } from '@/modules/cockpit/cards/CockpitCardDismissBar';
+import { CockpitCardStartConversation } from '@/modules/cockpit/cards/CockpitCardStartConversationAction';
+import type { CockpitStartConversationView } from '@/modules/cockpit/cards/CockpitCardStartConversationAction';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
@@ -25,8 +25,8 @@ import type {
   CockpitCardDismissTarget,
   CockpitCardSendCountdown,
   CockpitCardShown,
-} from '@/modules/cockpit/cockpitCardController';
-import { defaultShownOption } from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
+import { defaultShownOption } from '@/modules/cockpit/cards/cockpitCardController';
 import { COCKPIT_PATH, cockpitViewPath } from '@/modules/cockpit-contract';
 
 /**

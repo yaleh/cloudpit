@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Clock, CockpitCard, CockpitCardOption } from '@/shared/types';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 import { cockpitColumnCoversSession } from '@/modules/cockpit-contract';
-import { createCockpitColumnController } from '@/modules/cockpit/cockpitColumnController';
+import { createCockpitColumnController } from '@/modules/cockpit/workspace/cockpitColumnController';
 import type {
   CockpitColumnController,
   CockpitColumnStorage,
-} from '@/modules/cockpit/cockpitColumnController';
+} from '@/modules/cockpit/workspace/cockpitColumnController';
 
 /**
  * The PC column's frame rules, proven without React.

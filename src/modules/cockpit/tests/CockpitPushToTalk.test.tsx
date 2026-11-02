@@ -7,11 +7,11 @@ import type { QuayFocusableObject } from '@/shared/types';
 import type { VadEvent } from '@/shared/voiceEndpoint';
 import { i18n } from '@/modules/i18n';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
-import { routeCockpitText } from '@/modules/cockpit/cockpitRouting';
+import { routeCockpitText } from '@/modules/cockpit/workspace/cockpitRouting';
 import type {
   CockpitFleetPort,
   CockpitRouteDecision,
-} from '@/modules/cockpit/cockpitRouting';
+} from '@/modules/cockpit/workspace/cockpitRouting';
 import type { CockpitProject } from '@/modules/cockpit/cockpitView';
 import { useCockpitPushToTalk } from '@/modules/cockpit/hooks/useCockpitPushToTalk';
 import type { VoiceCaptureEngine, VoiceCaptureSink } from '@/modules/chat';

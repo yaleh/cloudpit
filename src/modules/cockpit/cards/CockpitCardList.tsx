@@ -10,16 +10,16 @@ import type {
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { cn } from '@/shared/utils';
 import { cockpitCardDescriptor } from '@/modules/cockpit/cockpitCardDescriptors';
-import type { CockpitCardTypeFilter } from '@/modules/cockpit/cockpitCardController';
-import { cockpitCardsReading } from '@/modules/cockpit/cockpitCardController';
-import CockpitCard from '@/modules/cockpit/CockpitCard';
-import { cockpitCardQuestionOf } from '@/modules/cockpit/cockpitCardDuplicates';
-import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversationAction';
+import type { CockpitCardTypeFilter } from '@/modules/cockpit/cards/cockpitCardController';
+import { cockpitCardsReading } from '@/modules/cockpit/cards/cockpitCardController';
+import CockpitCard from '@/modules/cockpit/cards/CockpitCard';
+import { cockpitCardQuestionOf } from '@/modules/cockpit/cards/cockpitCardDuplicates';
+import CockpitCardDetails from '@/modules/cockpit/cards/CockpitCardDetails';
+import type { CockpitStartConversationView } from '@/modules/cockpit/cards/CockpitCardStartConversationAction';
 import type {
   CockpitStartConversationCreated,
   CockpitStartConversationProject,
-} from '@/modules/cockpit/cockpitCardStartConversation';
+} from '@/modules/cockpit/cards/cockpitCardStartConversation';
 import { useCockpitCards } from '@/modules/cockpit/hooks/useCockpitCards';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
 import { useCockpitStartConversation } from '@/modules/cockpit/hooks/useCockpitStartConversation';

@@ -7,13 +7,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { api } from '@/shared/api';
 import type { Clock, CockpitCard as CockpitCardData } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCardList from '@/modules/cockpit/CockpitCardList';
-import type { CockpitCardListProps } from '@/modules/cockpit/CockpitCardList';
-import CockpitOverlay from '@/modules/cockpit/CockpitOverlay';
-import { createCockpitCardController } from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController } from '@/modules/cockpit/cockpitCardController';
+import CockpitCardList from '@/modules/cockpit/cards/CockpitCardList';
+import type { CockpitCardListProps } from '@/modules/cockpit/cards/CockpitCardList';
+import CockpitOverlay from '@/modules/cockpit/workspace/CockpitOverlay';
+import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 import type { CockpitCardsBinding } from '@/modules/cockpit/hooks/useCockpitCards';
-import type { CockpitStartConversationCreated } from '@/modules/cockpit/cockpitCardStartConversation';
+import type { CockpitStartConversationCreated } from '@/modules/cockpit/cards/cockpitCardStartConversation';
 
 /**
  * EVERY SURFACE THE CARD BUTTON APPEARS ON CREATES AND OPENS THE SESSION.

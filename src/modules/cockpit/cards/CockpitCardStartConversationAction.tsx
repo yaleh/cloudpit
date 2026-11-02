@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type {
   CockpitStartConversationError,
   CockpitStartConversationSnapshot,
-} from '@/modules/cockpit/cockpitCardStartConversation';
+} from '@/modules/cockpit/cards/cockpitCardStartConversation';
 
 /** What the drawer's start control reads: the attempt's state, its failure, and its one command. */
 export type CockpitStartConversationView = {

@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Clock, CockpitCard, CockpitCardFeedback } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
-import CockpitCardView from '@/modules/cockpit/CockpitCard';
-import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
+import CockpitCardView from '@/modules/cockpit/cards/CockpitCard';
+import CockpitCardDetails from '@/modules/cockpit/cards/CockpitCardDetails';
 import {
   FEEDBACK_LOCKED_REASON,
   awaitingFeedbackCount,
@@ -14,13 +14,13 @@ import {
   feedbackOptionGone,
   feedbackPhaseOf,
   isFeedbackLocked,
-} from '@/modules/cockpit/cockpitCardFeedback';
+} from '@/modules/cockpit/cards/cockpitCardFeedback';
 import {
   cockpitCardsReading,
   confirmTargetOf,
   createCockpitCardController,
-} from '@/modules/cockpit/cockpitCardController';
-import type { CockpitCardController, CockpitCardShown } from '@/modules/cockpit/cockpitCardController';
+} from '@/modules/cockpit/cards/cockpitCardController';
+import type { CockpitCardController, CockpitCardShown } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
  * The card feedback lifecycle's client reading, proven with an injected clock and no React.
