@@ -38,7 +38,7 @@ extra:
 - [ ] AC2 三臂断言：单跑 `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-goal-exit-gate.test.ts` 退出 0，输出 `[ac455] directory arm: measured=58 frozen=62 ... missing=[四个目录]`（missing 仅打印），且三处假形态（测得多一个目录 / 基线多一个不在 pin 内的目录 / utils.ts 多一行）都由 `structuralGateViolations` 报出对应违规消息。
 - [ ] AC3 基线文档：`cloudpit-goal-exit-gate.baseline.json` 的 `measuredAt=2026-11-03`，`note` 不再写 never raise，而是写明「新增目录必须同时改源码 pin 与 JSON；只改 JSON 无效」并点名四个预声明目录。
 - [ ] AC4 AC-455 记录：`quay goal show AC-455 --json` 读回更新后的 title/expect/body，`status` 仍为 `achieved`，expect 描述 `measured ⊆ baseline ⊆ GATE_DIRECTORY_PIN` 与 recorded-change 语义。
-- [ ] AC5 整链复跑：在修订后的树上逐字运行 AC-455 的 criterion（9 文件存在性闸 + 8 个 server 文件 + electron 文件 + `npm run typecheck` + `npm run lint`）→ exit 0；贴出读数。evidence 的登记由人授权的跟随步骤在 fan-in 落地后完成（GOAL-053 已 achieved，不在 driver 复验扫描内）。
+- [ ] AC5 整链复跑：在修订后的树上逐字运行 AC-455 的 criterion（9 文件存在性闸 + 8 个 server 文件 + electron 文件 + `npm run typecheck` + `npm run lint`）→ exit 0；贴出读数。AC-455 evidence 的新读数登记由 goal 写入路径在 fan-in 完成后处理，不是本任务的判据。
 - [ ] AC6 范围与 anti-drift：`git diff --name-only develop...HEAD` 只列出 `## Touches` 的文件；develop 测得目录仍为 58（本任务不创建新目录）；不改生产代码、默认值或模块依赖边。
 
 ## DoD
