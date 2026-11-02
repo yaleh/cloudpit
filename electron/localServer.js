@@ -5,6 +5,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+import { createProcessBrandEnvReader, readBrandEnvValue } from './brandEnv.js';
 import { ServerInstaller } from './serverInstaller.js';
 
 const DEFAULT_PORT = 3001;
@@ -20,14 +21,23 @@ export const SERVER_MARKER_PATHS = [
   SERVER_MARKER_PATH,
   path.join(os.homedir(), '.cloudcli', 'local-server.json'),
 ];
+const brandEnv = createProcessBrandEnvReader();
+
+// Brand-owned discovery names are read through the Cloudpit-first reader:
+// `CLOUDPIT_<NAME>` wins and `CLOUDCLI_<NAME>` stays readable for one
+// transition window. The remaining keys are not brand-owned and are read as-is.
+const LOCAL_SERVER_URL_ENV_NAMES = [
+  'DESKTOP_LOCAL_SERVER_URL',
+  'LOCAL_SERVER_URL',
+];
 const LOCAL_SERVER_URL_ENV_KEYS = [
-  'CLOUDCLI_DESKTOP_LOCAL_SERVER_URL',
-  'CLOUDCLI_LOCAL_SERVER_URL',
   'ELECTRON_LOCAL_SERVER_URL',
 ];
+const LOCAL_SERVER_PORT_ENV_NAMES = [
+  'DESKTOP_LOCAL_SERVER_PORT',
+  'SERVER_PORT',
+];
 const LOCAL_SERVER_PORT_ENV_KEYS = [
-  'CLOUDCLI_DESKTOP_LOCAL_SERVER_PORT',
-  'CLOUDCLI_SERVER_PORT',
   'SERVER_PORT',
   'PORT',
 ];
@@ -225,14 +235,33 @@ export async function readServerMarkerUrl({ markerPaths = SERVER_MARKER_PATHS, f
   return null;
 }
 
-async function getExistingServerCandidateUrls(defaultUrl) {
+/**
+ * Collect the local-server addresses advertised by the environment and the
+ * on-disk marker, in discovery order.
+ *
+ * `reader` and `markerPaths` are injectable so the wiring criterion can drive
+ * the exact reads the controller performs without touching `process.env` or
+ * the developer's real `~`.
+ */
+export async function getExistingServerCandidateUrls(
+  defaultUrl,
+  { reader = brandEnv, markerPaths = SERVER_MARKER_PATHS } = {},
+) {
   const urls = [];
+
+  for (const name of LOCAL_SERVER_URL_ENV_NAMES) {
+    addCandidateUrl(urls, readBrandEnvValue(reader, name, undefined));
+  }
 
   for (const key of LOCAL_SERVER_URL_ENV_KEYS) {
     addCandidateUrl(urls, process.env[key]);
   }
 
-  addCandidateUrl(urls, await readServerMarkerUrl());
+  addCandidateUrl(urls, await readServerMarkerUrl({ markerPaths }));
+
+  for (const name of LOCAL_SERVER_PORT_ENV_NAMES) {
+    addCandidatePort(urls, readBrandEnvValue(reader, name, undefined));
+  }
 
   for (const key of LOCAL_SERVER_PORT_ENV_KEYS) {
     addCandidatePort(urls, process.env[key]);
@@ -240,6 +269,11 @@ async function getExistingServerCandidateUrls(defaultUrl) {
 
   addCandidateUrl(urls, defaultUrl);
   return urls;
+}
+
+/** Whether the operator asked the desktop app to use an installed server. */
+export function isInstalledServerRequested(reader = brandEnv) {
+  return readBrandEnvValue(reader, 'USE_INSTALLED_SERVER', '') === '1';
 }
 
 async function waitForCloudCliServer(baseUrl, timeoutMs) {
@@ -388,7 +422,7 @@ export class LocalServerController {
     }
 
     const bundledEntry = path.join(this.appRoot, 'dist-server', 'server', 'index.js');
-    if (process.env.CLOUDCLI_USE_INSTALLED_SERVER !== '1' && await pathExists(bundledEntry)) {
+    if (!isInstalledServerRequested() && await pathExists(bundledEntry)) {
       return bundledEntry;
     }
 

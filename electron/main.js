@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createProcessBrandEnvReader, readBrandEnvValue } from './brandEnv.js';
 import { CloudController } from './cloud.js';
 import { DesktopWindowManager } from './desktopWindow.js';
 import { DesktopNotificationsController } from './desktopNotifications.js';
@@ -19,7 +20,10 @@ const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
 // Both schemes open the app (either build can open the desktop app); the
 // cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
 const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
-const CLOUDCLI_CONTROL_PLANE_URL = process.env.CLOUDCLI_CONTROL_PLANE_URL || 'https://cloudcli.ai';
+const brandEnv = createProcessBrandEnvReader();
+// The control-plane address keeps its legacy spelling as a readable fallback;
+// the default stays the third-party `cloudcli.ai` contract this release keeps.
+const CONTROL_PLANE_URL = readBrandEnvValue(brandEnv, 'CONTROL_PLANE_URL', 'https://cloudcli.ai');
 const REMOTE_START_TIMEOUT_MS = 30000;
 const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;
 
@@ -84,7 +88,7 @@ function getCloudState() {
   return {
     account: cloud.getAccount(),
     environments: cloud.getEnvironments(),
-    controlPlaneUrl: CLOUDCLI_CONTROL_PLANE_URL,
+    controlPlaneUrl: CONTROL_PLANE_URL,
   };
 }
 
@@ -210,7 +214,7 @@ function isCloudAuthRedirect(url) {
   if (!url) return false;
   try {
     const parsed = new URL(url);
-    const controlPlane = new URL(CLOUDCLI_CONTROL_PLANE_URL);
+    const controlPlane = new URL(CONTROL_PLANE_URL);
     return parsed.origin === controlPlane.origin
       && (parsed.pathname === '/login' || parsed.pathname.startsWith('/auth/'));
   } catch {
@@ -242,7 +246,7 @@ function getDiagnosticsText() {
     cloudRunningEnvironmentCount: getRunningEnvironmentUrls().length,
     cloudAuthState: cloud.getAuthState(),
     cloudAccountPath: getStorePath(),
-    controlPlaneUrl: CLOUDCLI_CONTROL_PLANE_URL,
+    controlPlaneUrl: CONTROL_PLANE_URL,
   }, null, 2);
 }
 
@@ -518,7 +522,7 @@ async function copyEnvironmentMobileUrl(environment) {
 }
 
 async function openCloudDashboard() {
-  await openExternalUrl(CLOUDCLI_CONTROL_PLANE_URL);
+  await openExternalUrl(CONTROL_PLANE_URL);
   return getDesktopState();
 }
 
@@ -920,7 +924,7 @@ async function bootstrap() {
   });
   cloud = new CloudController({
     storePath: getStorePath(),
-    controlPlaneUrl: CLOUDCLI_CONTROL_PLANE_URL,
+    controlPlaneUrl: CONTROL_PLANE_URL,
     callbackUrl: CALLBACK_URL,
     onChange: syncDesktopState,
   });
