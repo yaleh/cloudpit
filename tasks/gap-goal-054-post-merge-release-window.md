@@ -110,3 +110,11 @@ AC-451（achieved）的判据 `scripts/brand-allowlist-check.test.mjs` 只静态
 - scripts/release/tests/server-installer-bundle-url.test.mjs
 - scripts/release/tests/fork-release-workflows.test.mjs
 - README.md
+
+## Blocker
+
+**2026-11-01T23:06:59.669Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 7/12，剩余未勾 5）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：f0791299-9106-4a60-bd3a-a8ee09de79f5
