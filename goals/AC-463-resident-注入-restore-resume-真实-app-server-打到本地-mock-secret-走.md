@@ -1,7 +1,7 @@
 ---
 id: AC-463
 title: resident 注入 + restore/resume：真实 app-server 打到本地 mock、secret 走 env_key 不进 argv
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -21,6 +21,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-02T23:30:18.747Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
