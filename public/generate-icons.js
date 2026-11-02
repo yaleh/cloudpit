@@ -1,49 +1,69 @@
-const fs = require('fs');
-const path = require('path');
+// public/generate-icons.js — regenerate the Cloudpit favicon/logo/PWA icon set from the
+// committed raster source `public/logo-source.png` (glossy blue airfoil canopy on navy, 1254×1254).
+//
+// The source is raster-only (no vector), so the SVG favicon/logo are thin wrappers that embed a
+// raster PNG; browsers render them identically to the PNG while keeping the existing
+// `type="image/svg+xml"` link in index.html valid.
+//
+// Layout: full airfoil, full width, vertically centered, navy field above and below. No cropping
+// and no zoom — the wide shape is the mark; maskable icon consumers accept the tip crop.
+//
+// Run from the repo root:  node public/generate-icons.js
 
-// Icon sizes needed
-const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 
-// SVG template function
-function createIconSVG(size) {
-  const cornerRadius = Math.round(size * 0.25); // 25% corner radius
-  const strokeWidth = Math.max(2, Math.round(size * 0.06)); // Scale stroke width
-  
-  // MessageSquare path scaled to size
-  const padding = Math.round(size * 0.25);
-  const iconSize = size - (padding * 2);
-  const startX = padding;
-  const startY = Math.round(padding * 0.7);
-  const endX = startX + iconSize;
-  const endY = startY + Math.round(iconSize * 0.6);
-  const tailX = startX;
-  const tailY = endY + Math.round(iconSize * 0.3);
-  
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background with rounded corners -->
-  <rect width="${size}" height="${size}" rx="${cornerRadius}" fill="hsl(262.1 83.3% 57.8%)"/>
-  
-  <!-- MessageSquare icon -->
-  <path d="M${startX} ${startY}C${startX} ${startY - 10} ${startX + 10} ${startY - 20} ${startX + 20} ${startY - 20}H${endX - 20}C${endX - 10} ${startY - 20} ${endX} ${startY - 10} ${endX} ${startY}V${endY - 20}C${endX} ${endY - 10} ${endX - 10} ${endY} ${endX - 20} ${endY}H${startX + Math.round(iconSize * 0.4)}L${tailX} ${tailY}V${startY}Z" 
-        stroke="white" 
-        stroke-width="${strokeWidth}" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        fill="none"/>
-</svg>`;
+const here = path.dirname(fileURLToPath(import.meta.url));
+const SOURCE = path.join(here, 'logo-source.png');
+
+// Navy background sampled from the source corners, used to build the square canvas.
+const BG = { r: 2, g: 20, b: 44 };
+
+// Airfoil content bbox on the 1254×1254 source (measured vs the navy background).
+const CONTENT = { left: 36, top: 312, width: 1218, height: 583 };
+
+/** Render the full airfoil centered in an `size`×`size` navy square, no crop/zoom. */
+async function renderSquare(size) {
+  const stripHeight = Math.round((size * CONTENT.height) / CONTENT.width);
+  const strip = await sharp(SOURCE)
+    .extract(CONTENT)
+    .resize(size, stripHeight)
+    .png()
+    .toBuffer();
+  const top = Math.round((size - stripHeight) / 2);
+  return sharp({ create: { width: size, height: size, channels: 3, background: BG } })
+    .composite([{ input: strip, left: 0, top }])
+    .png()
+    .toBuffer();
 }
 
-// Generate SVG files for each size
-sizes.forEach(size => {
-  const svgContent = createIconSVG(size);
-  const filename = `icon-${size}x${size}.svg`;
-  const filepath = path.join(__dirname, 'icons', filename);
-  
-  fs.writeFileSync(filepath, svgContent);
-  console.log(`Created ${filename}`);
-});
+/** Wrap a raster PNG in a minimal SVG so `type="image/svg+xml"` links keep working. */
+async function renderSvgWrapper(size) {
+  const png = await renderSquare(size);
+  const b64 = png.toString('base64');
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+      `<image href="data:image/png;base64,${b64}" width="${size}" height="${size}"/></svg>`,
+  );
+}
 
-console.log('\nSVG icons created! To convert to PNG, you can use:');
-console.log('1. Online converter like cloudconvert.com');
-console.log('2. If you have ImageMagick: convert icon.svg icon.png');
-console.log('3. If you have Inkscape: inkscape --export-type=png icon.svg');
+await fs.mkdir(path.join(here, 'icons'), { recursive: true });
+
+// Favicon + wordmark/logo SVGs.
+await fs.writeFile(path.join(here, 'favicon.png'), await renderSquare(64));
+await fs.writeFile(path.join(here, 'favicon.svg'), await renderSvgWrapper(64));
+await fs.writeFile(path.join(here, 'logo.svg'), await renderSvgWrapper(128));
+
+// README/desktop launcher logos.
+for (const size of [32, 64, 128, 256, 512]) {
+  await fs.writeFile(path.join(here, `logo-${size}.png`), await renderSquare(size));
+}
+
+// PWA + apple-touch icons (maskable: the wide airfoil's tips crop under a circular mask).
+for (const size of [72, 96, 128, 144, 152, 192, 384, 512]) {
+  await fs.writeFile(path.join(here, 'icons', `icon-${size}x${size}.png`), await renderSquare(size));
+}
+
+console.log('public/generate-icons.js: regenerated favicon, logo and PWA icons from logo-source.png');

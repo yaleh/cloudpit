@@ -1,36 +1,39 @@
+// electron/scripts/generate-macos-icon.js — build the macOS window icon and .icns bundle from the
+// committed raster source `public/logo-source.png` (glossy blue airfoil canopy on navy).
+//
+// Run from the repo root:  node electron/scripts/generate-macos-icon.js
+
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-const size = 1024;
-const assetsDir = 'electron/assets';
-const iconPath = 'electron/assets/logo-macos.png';
-const icnsPath = 'electron/assets/logo-macos.icns';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const assetsDir = path.join(here, '..', 'assets');
+const SOURCE = path.join(here, '..', '..', 'public', 'logo-source.png');
 
-function renderSvg(entrySize) {
-  const scale = entrySize / 32;
-  return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${entrySize}" height="${entrySize}" viewBox="0 0 ${entrySize} ${entrySize}">
-  <rect width="${entrySize}" height="${entrySize}" fill="#2563eb"/>
-  <path
-    d="M${8 * scale} ${9 * scale}C${8 * scale} ${8.44772 * scale} ${8.44772 * scale} ${8 * scale} ${9 * scale} ${8 * scale}H${23 * scale}C${23.5523 * scale} ${8 * scale} ${24 * scale} ${8.44772 * scale} ${24 * scale} ${9 * scale}V${18 * scale}C${24 * scale} ${18.5523 * scale} ${23.5523 * scale} ${19 * scale} ${23 * scale} ${19 * scale}H${12 * scale}L${8 * scale} ${23 * scale}V${9 * scale}Z"
-    stroke="white"
-    stroke-width="${2 * scale}"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    fill="none"
-  />
-</svg>`;
-}
+const BG = { r: 2, g: 20, b: 44 };
+const CONTENT = { left: 36, top: 312, width: 1218, height: 583 };
 
-async function renderPng(entrySize) {
-  return sharp(Buffer.from(renderSvg(entrySize)))
+/** Full airfoil centered in an `size`×`size` navy square, no crop/zoom. */
+async function renderSquare(size) {
+  const stripHeight = Math.round((size * CONTENT.height) / CONTENT.width);
+  const strip = await sharp(SOURCE)
+    .extract(CONTENT)
+    .resize(size, stripHeight)
+    .png()
+    .toBuffer();
+  const top = Math.round((size - stripHeight) / 2);
+  return sharp({ create: { width: size, height: size, channels: 3, background: BG } })
+    .composite([{ input: strip, left: 0, top }])
     .png()
     .toBuffer();
 }
 
 await fs.mkdir(assetsDir, { recursive: true });
-await fs.writeFile(iconPath, await renderPng(size));
+await fs.writeFile(path.join(assetsDir, 'logo-macos.png'), await renderSquare(1024));
 
+// ICNS entries — same set the original script emitted (retina variants included).
 const icnsEntries = [
   ['icp4', 16],
   ['icp5', 32],
@@ -45,18 +48,21 @@ const icnsEntries = [
   ['ic14', 512],
 ];
 
-const blocks = await Promise.all(icnsEntries.map(async ([type, entrySize]) => {
-  const png = await renderPng(entrySize);
+const blocks = [];
+for (const [type, entrySize] of icnsEntries) {
+  const png = await renderSquare(entrySize);
   const block = Buffer.alloc(8 + png.length);
   block.write(type, 0, 4, 'ascii');
   block.writeUInt32BE(block.length, 4);
   png.copy(block, 8);
-  return block;
-}));
+  blocks.push(block);
+}
 
 const totalLength = 8 + blocks.reduce((sum, block) => sum + block.length, 0);
 const header = Buffer.alloc(8);
 header.write('icns', 0, 4, 'ascii');
 header.writeUInt32BE(totalLength, 4);
 
-await fs.writeFile(icnsPath, Buffer.concat([header, ...blocks], totalLength));
+await fs.writeFile(path.join(assetsDir, 'logo-macos.icns'), Buffer.concat([header, ...blocks]));
+
+console.log('electron/scripts/generate-macos-icon.js: regenerated logo-macos.png and logo-macos.icns');

@@ -1,53 +1,17 @@
-# Convert SVG Icons to PNG
+# Cloudpit icons
 
-I've created SVG versions of the app icons that match the MessageSquare design from the sidebar. To convert them to PNG format, you can use one of these methods:
+The favicon, logo and PWA icons are generated from one committed raster source:
 
-## Method 1: Online Converter (Easiest)
-1. Go to https://cloudconvert.com/svg-to-png
-2. Upload each SVG file from the `/icons/` directory
-3. Download the PNG versions
-4. Replace the existing PNG files
+- `public/logo-source.png` — glossy blue airfoil canopy on navy (1254×1254, raster only).
 
-## Method 2: Using Node.js (if you have it)
+Regenerate the whole set from the repo root:
+
 ```bash
-npm install sharp
-node -e "
-const sharp = require('sharp');
-const fs = require('fs');
-const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
-sizes.forEach(size => {
-  const svgPath = \`./icons/icon-\${size}x\${size}.svg\`;
-  const pngPath = \`./icons/icon-\${size}x\${size}.png\`;
-  if (fs.existsSync(svgPath)) {
-    sharp(svgPath).png().toFile(pngPath);
-    console.log(\`Converted \${svgPath} to \${pngPath}\`);
-  }
-});
-"
+node public/generate-icons.js                 # favicon, logo, PWA icons
+node electron/scripts/generate-macos-icon.js  # logo-macos.png + .icns
+node electron/scripts/generate-windows-icon.js# logo-windows.ico
 ```
 
-## Method 3: Using ImageMagick (if installed)
-```bash
-cd public/icons
-for size in 72 96 128 144 152 192 384 512; do
-  convert "icon-${size}x${size}.svg" "icon-${size}x${size}.png"
-done
-```
-
-## Method 4: Using Inkscape (if installed)
-```bash
-cd public/icons
-for size in 72 96 128 144 152 192 384 512; do
-  inkscape --export-type=png "icon-${size}x${size}.svg"
-done
-```
-
-## Icon Design
-The new icons feature:
-- Clean MessageSquare (chat bubble) design matching the sidebar
-- Primary color background with rounded corners
-- White stroke icon that's clearly visible
-- Consistent sizing and proportions across all sizes
-- Proper PWA-compliant format
-
-Once converted, the PNG files will replace the existing ones and provide a consistent icon experience across all platforms.
+The wide airfoil is used at full width with a centered navy field; maskable icon
+consumers accept the tip crop. There is no vector source yet, so `favicon.svg` and
+`logo.svg` are thin wrappers that embed a raster PNG.
