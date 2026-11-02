@@ -97,6 +97,18 @@ function knowledgeCard(overrides: Partial<CockpitCard> = {}): CockpitCard {
   };
 }
 
+/** The same card with its apply option routed to another declared executor. */
+function withApplyExecutor(card: CockpitCard, executor: string): CockpitCard {
+  return {
+    ...card,
+    options: card.options.map((option) =>
+      option.id === 'apply'
+        ? { ...option, action: { executor, params: { caseId: 'case-1' } } }
+        : option,
+    ),
+  };
+}
+
 /** A provider over a mutable card list, with a refresh counter. */
 class MutableProvider implements ICockpitCardProvider {
   readonly id = 'test';
@@ -112,7 +124,15 @@ class MutableProvider implements ICockpitCardProvider {
   }
 
   declaredExecutors(): readonly string[] {
-    return ['test.apply', 'test.modify', 'test.defer', 'test.not-applicable', 'test.feedback'];
+    return [
+      'test.apply',
+      'test.modify',
+      'test.defer',
+      'test.not-applicable',
+      'test.feedback',
+      'fleet.apply',
+      'session.send',
+    ];
   }
 
   feedbackExecutor(): string | null {
@@ -145,6 +165,8 @@ function setup(cards: readonly CockpitCard[]) {
   const actionExecutors = ['apply', 'modify', 'defer', 'not-applicable'].map((id) =>
     countingExecutor(`test.${id}`),
   );
+  const fleetApply = countingExecutor('fleet.apply');
+  const sessionSend = countingExecutor('session.send');
   const feedback = countingExecutor('test.feedback');
   feedback.execute = (params) => {
     feedback.calls.push(structuredClone(params));
@@ -158,13 +180,23 @@ function setup(cards: readonly CockpitCard[]) {
   const store = createCockpitCardFeedbackStore();
   const actions = createCockpitCardActions({
     registry,
-    executors: [...actionExecutors, feedback],
+    executors: [...actionExecutors, fleetApply, sessionSend, feedback],
     feedbackStore: store,
     knowledge,
     refreshCards: () => provider.refreshCards(),
     now: () => new Date(AT),
   });
-  return { provider, registry, knowledge, actions, store, feedback, actionExecutors };
+  return {
+    provider,
+    registry,
+    knowledge,
+    actions,
+    store,
+    feedback,
+    fleetApply,
+    sessionSend,
+    actionExecutors,
+  };
 }
 
 /** The reference the card list route would mint for this card. */
@@ -323,6 +355,11 @@ test('a complete apply decision delivers the plan under a derived feedback id', 
   assert.equal(answer.executor, 'test.apply');
   const action = actionExecutors[0];
   assert.equal(action?.calls.length, 1, 'the action runs exactly once');
+  assert.equal(
+    'confirmation' in ((action?.calls[0] ?? {}) as Record<string, unknown>),
+    false,
+    'a non-fleet.apply executor gains no confirmation field',
+  );
   assert.equal(feedback.calls.length, 1, 'the feedback call is made exactly once');
 
   const params = feedback.calls[0] as Record<string, unknown>;
@@ -341,6 +378,100 @@ test('a complete apply decision delivers the plan under a derived feedback id', 
   assert.equal(stored.decision, 'apply');
   assert.equal(stored.knowledgeCaseId, 'case-1');
   assert.equal(stored.feedbackId, params.feedbackId);
+});
+
+test('a knowledge apply decision injects the trusted confirmation into fleet.apply params', async () => {
+  const card = withApplyExecutor(knowledgeCard(), 'fleet.apply');
+  const ref = issuedRef(card);
+  const { actions, fleetApply, feedback } = setup([card]);
+
+  const answer = await actions.confirm({
+    cardId: card.id,
+    revision: card.revision,
+    optionId: 'apply',
+    confirmationRef: ref,
+  });
+
+  assert.equal(answer.executor, 'fleet.apply');
+  assert.equal(fleetApply.calls.length, 1);
+  const params = fleetApply.calls[0] as Record<string, unknown>;
+  assert.equal(params.caseId, 'case-1', 'the option’s declared params are kept');
+
+  const confirmation = params.confirmation as Record<string, unknown>;
+  assert.ok(confirmation, 'fleet.apply receives a confirmation');
+  assert.equal(confirmation.actorKind, 'human');
+  assert.equal(typeof confirmation.decisionRef, 'string');
+  assert.equal(confirmation.decisionRef, ref);
+  assert.notEqual(confirmation.decisionRef, '');
+
+  const at = confirmation.at as string;
+  assert.equal(Number.isNaN(Date.parse(at)), false, '`at` parses as a date');
+  assert.equal(new Date(at).toISOString(), at, '`at` is an ISO-8601 UTC instant');
+
+  // `binding` is the case evidence the confirmation authority verified, minus its token, and
+  // every field fleet's `confirmationShapeRefusals` requires is present.
+  assert.deepEqual(confirmation.binding, {
+    caseId: 'case-1',
+    knowledgeRevision: 4,
+    proposalRevision: 2,
+    decision: 'apply',
+    factsFingerprint: 'fingerprint-a',
+    plan: PLAN,
+  });
+  assert.deepEqual(answer.params.confirmation, confirmation, 'the answer states what ran');
+
+  // The feedback receipt is still the SECOND call, and its params did not gain a confirmation.
+  assert.equal(feedback.calls.length, 1);
+  assert.equal(feedback.calls[0]?.confirmation, undefined);
+});
+
+test('a knowledge decision routed to another executor gains no confirmation', async () => {
+  const card = withApplyExecutor(knowledgeCard(), 'session.send');
+  const ref = issuedRef(card);
+  const { actions, sessionSend } = setup([card]);
+
+  await actions.confirm({
+    cardId: card.id,
+    revision: card.revision,
+    optionId: 'apply',
+    confirmationRef: ref,
+  });
+
+  assert.deepEqual(sessionSend.calls[0], { caseId: 'case-1' });
+  assert.equal(
+    'confirmation' in (sessionSend.calls[0] as Record<string, unknown>),
+    false,
+  );
+});
+
+test('a non-knowledge confirmation passes its declared params unchanged', async () => {
+  const card: CockpitCard = {
+    ...knowledgeCard({ kind: 'ask', knowledge: undefined }),
+    options: [
+      {
+        id: 'send',
+        label: 'send',
+        does: 'send the reply',
+        suggested: false,
+        source: 'provider',
+        action: { executor: 'session.send', params: { sessionId: 'session-1', text: 'go' } },
+      },
+    ],
+  };
+  const { actions, sessionSend } = setup([card]);
+
+  const answer = await actions.confirm({
+    cardId: card.id,
+    revision: card.revision,
+    optionId: 'send',
+  });
+
+  assert.equal(answer.executor, 'session.send');
+  assert.deepEqual(sessionSend.calls[0], { sessionId: 'session-1', text: 'go' });
+  assert.equal(
+    'confirmation' in (sessionSend.calls[0] as Record<string, unknown>),
+    false,
+  );
 });
 
 test('the trusted chain is readable back on the next card read', async () => {

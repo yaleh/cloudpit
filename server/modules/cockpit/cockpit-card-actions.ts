@@ -18,7 +18,8 @@
  * An option's declared `params` are passed to the executor VERBATIM (the
  * criterion compares them with `deepEqual`). A free-text reply has no declared
  * params of its own for the text, so the text joins `ownReply.params` under
- * `reply` — that is the one field the channel adds.
+ * `reply`. A knowledge decision routed to `fleet.apply` is the one addition:
+ * its server-verified `confirmation` is injected before the executor runs.
  *
  * Errors are `AppError`s, so the thin route just forwards them to the server's
  * existing error middleware and a caller reads a status + a stable code.
@@ -119,6 +120,9 @@ export const NO_FEEDBACK_EXECUTOR_REASON =
 /** Why a resend cannot run after the provider stopped declaring the original executor. */
 export const FEEDBACK_EXECUTOR_GONE_REASON =
   '该提供方已不再声明原来的反馈执行器，无法重发';
+
+/** The fleet executor that consumes a trusted knowledge decision's `confirmation`. */
+const KNOWLEDGE_DECISION_EXECUTOR_ID = 'fleet.apply';
 
 type ParsedConfirmRequest = {
   cardId: string;
@@ -556,9 +560,22 @@ export function createCockpitCardActions(deps: {
     }
 
     accepted.add(key);
+    // A knowledge decision routed to `fleet.apply` carries the server-verified confirmation the
+    // fleet validates; every other executor keeps its declared params byte-for-byte.
+    const params = { ...action.params };
+    if (knowledge !== undefined && action.executor === KNOWLEDGE_DECISION_EXECUTOR_ID) {
+      const binding: Record<string, unknown> = { ...knowledge.feedback };
+      delete binding.confirmationRef;
+      params.confirmation = {
+        actorKind: 'human',
+        decisionRef: knowledge.ref,
+        at: now().toISOString(),
+        binding,
+      };
+    }
     let result: unknown;
     try {
-      result = await executor.execute(action.params);
+      result = await executor.execute(params);
     } catch (failure) {
       // The action did not happen, so the revision stays confirmable.
       accepted.delete(key);
@@ -596,7 +613,7 @@ export function createCockpitCardActions(deps: {
       ok: true,
       cardId: card.id,
       executor: action.executor,
-      params: action.params,
+      params,
       result,
     };
   };
