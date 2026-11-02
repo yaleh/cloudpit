@@ -18,16 +18,20 @@
  * `env` is supplied, so the child sees only the plumbing allowlist plus the one
  * provider credential.
  *
- * Consumed by `codex-runtime.provider.ts` (queryCodex). The resolver is read
- * from the shared port at call time; the runtime never imports the settings
- * module (that edge would close the AC-394 providers/settings cycle).
+ * Consumed by `codex-runtime.provider.ts` (queryCodex, the per-run SDK path)
+ * and `codex-host-driver.provider.ts` (the resident app-server path, which needs
+ * `-c` spawn args instead of constructor options). The resolver is read from the
+ * shared port at call time; neither consumer imports the settings module (that
+ * edge would close the AC-394 providers/settings cycle).
  */
 import type { CodexOptions } from '@openai/codex-sdk';
 
+import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 import {
   readCodexProviderRegistryPort,
   type ResolvedCodexUpstreamProvider,
 } from '@/shared/ports/codex-provider-registry.port.js';
+import { AppError } from '@/shared/utils.js';
 
 /**
  * Host variables a non-interactive Codex process needs that are plumbing, not
@@ -117,25 +121,89 @@ export function codexOptionsForProvider(
 }
 
 /**
- * Resolves one model's `codexProviderId` and compiles its launch options.
+ * Resolves one provider id against the installed project registry.
  *
  * Throws a readable error instead of falling back to Codex's `openai` default:
  * after a user bound a model to a custom endpoint, dialling the default one
  * silently would send the conversation to a different account and endpoint.
- * An unwired registry is reported the same way — a focused test that never
- * installed the port cannot accidentally "pass" by omitting the injection.
+ * The `CODEX_PROVIDER_NOT_CONFIGURED` code is what a launch surface maps to the
+ * app-server's own `modelProviderNotConfigured` reading; the sentence is the
+ * registry's (it names the id and the settings file). An unwired registry is
+ * reported the same way — a focused test that never installed the port cannot
+ * accidentally "pass" by omitting the injection.
  */
-export function compileCodexProviderOptions(providerId: string): CodexOptions {
+export function resolveCodexUpstreamProvider(providerId: string): ResolvedCodexUpstreamProvider {
   const registry = readCodexProviderRegistryPort();
   if (registry === null || typeof registry.resolve !== 'function') {
-    throw new Error(
+    throw new AppError(
       `Codex provider "${providerId}" cannot be resolved: the project Codex provider registry is not wired in this process.`,
+      { code: 'CODEX_PROVIDER_NOT_CONFIGURED', statusCode: 409 },
     );
   }
 
   const resolution = registry.resolve(providerId);
   if (!resolution.ok) {
-    throw new Error(resolution.problem);
+    throw new AppError(resolution.problem, {
+      code: 'CODEX_PROVIDER_NOT_CONFIGURED',
+      statusCode: 409,
+    });
   }
-  return codexOptionsForProvider(resolution.provider);
+  return resolution.provider;
+}
+
+/** A TOML basic string, so a value Codex reads as config cannot break the `-c` line. */
+function tomlBasicString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * The `-c` overrides a resident `codex app-server` is spawned with.
+ *
+ * Codex 0.166 refuses `turn/start` with `modelProviderMismatch` when the
+ * provider is only named on `thread/start`; the process-global provider has to
+ * be selected at spawn time. The endpoint table is written as an inline TOML
+ * table because that is the same document `~/.codex/config.toml` carries, and
+ * the secret is deliberately NOT here: `env_key` only names the child
+ * environment variable (see {@link buildCodexProviderEnv}), because an argv
+ * value is visible to every `ps` on the machine.
+ */
+export function codexProviderSpawnArgs(provider: ResolvedCodexUpstreamProvider): string[] {
+  const entry = [
+    `name = ${tomlBasicString(provider.name)}`,
+    `base_url = ${tomlBasicString(provider.baseUrl)}`,
+    `env_key = ${tomlBasicString(provider.envKey)}`,
+    `wire_api = ${tomlBasicString(provider.wireApi)}`,
+  ].join(', ');
+  return [
+    '-c', `model_provider=${tomlBasicString(provider.id)}`,
+    '-c', `model_providers.${provider.id}={ ${entry} }`,
+  ];
+}
+
+/**
+ * The launch one resident app-server is spawned with for a bound provider.
+ *
+ * `base` is the driver-wide transport launch (working directory and the like);
+ * the provider overrides are appended to its args. The environment is REPLACED
+ * with the plumbing allowlist plus the one provider credential rather than
+ * merged with `base.env`: `spawn` treats an explicit env as the whole child
+ * environment, and a host sentinel surviving into the child is exactly what the
+ * isolation reading forbids. The MCP-gateway wrapper composes its own variable
+ * on top of this launch afterwards.
+ */
+export function compileCodexProviderLaunch(
+  providerId: string,
+  base: CodexAppServerLaunch = {},
+): CodexAppServerLaunch {
+  const provider = resolveCodexUpstreamProvider(providerId);
+  return {
+    ...base,
+    args: [...(base.args ?? []), ...codexProviderSpawnArgs(provider)],
+    env: buildCodexProviderEnv(provider),
+  };
+}
+
+/** Resolves one model's `codexProviderId` and compiles its per-run SDK options. */
+export function compileCodexProviderOptions(providerId: string): CodexOptions {
+  return codexOptionsForProvider(resolveCodexUpstreamProvider(providerId));
 }

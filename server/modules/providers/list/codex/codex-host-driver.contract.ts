@@ -123,6 +123,13 @@ export type ResidentSession = {
 export type PendingResidentLaunch = {
   providerSessionId: string | null;
   threadDefaults: CodexThreadDefaults;
+  /**
+   * The process launch this session's host must be spawned with, or null for
+   * the driver-wide launch. Compiled by `codex-resident-provider-launch.ts`:
+   * Codex 0.166 checks the process-global provider on every turn and again on
+   * resume, so a bound session needs `-c model_provider` at spawn time.
+   */
+  launch: CodexAppServerLaunch | null;
 };
 
 /** Reads `{ thread: { id } }` from a thread start/resume result. */

@@ -493,10 +493,12 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (500 + 1 = 501 collected server test files). Then codex-perrun-provider-injection
     // added its criterion server/modules/providers/tests/codex-runtime-provider-injection.test.ts
     // (501 + 1 = 502 collected server test files), then codex-session-provider-id-binding
-    // added its criterion server/modules/providers/tests/codex-session-provider-id-binding.test.ts
-    // (502 + 1 = 503 collected server test files). This fixture names 3 known files, so
-    // 503 - 3 = 500.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=500$/);
+    // added its criterion server/modules/providers/tests/codex-session-provider-binding.test.ts
+    // (502 + 1 = 503 collected server test files), then codex-resident-provider-injection
+    // added its criterion server/modules/providers/tests/codex-resident-provider-injection.test.ts
+    // (503 + 1 = 504 collected server test files). This fixture names 3 known files, so
+    // 504 - 3 = 501.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=501$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -647,10 +649,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // codex-perrun-provider-injection added
     // server/modules/providers/tests/codex-runtime-provider-injection.test.ts (501 + 1 = 502),
     // then codex-session-provider-id-binding added
-    // server/modules/providers/tests/codex-session-provider-id-binding.test.ts (502 + 1 = 503)
-    // — but this fixture names ONE known file, so 503 - 1 = 502 (AC2 reads 500 because its
-    // fixture names 3; the 503 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=502$/);
+    // server/modules/providers/tests/codex-session-provider-id-binding.test.ts (502 + 1 = 503),
+    // then codex-resident-provider-injection added
+    // server/modules/providers/tests/codex-resident-provider-injection.test.ts (503 + 1 = 504)
+    // — but this fixture names ONE known file, so 504 - 1 = 503 (AC2 reads 501 because its
+    // fixture names 3; the 504 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=503$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

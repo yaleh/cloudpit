@@ -321,6 +321,9 @@ async function defaultResidentLaunchOptions(
     model: selection.model,
     effort: selection.effort ?? undefined,
     permissionMode: selection.permissionMode ?? undefined,
+    // The upstream provider the session's model was bound to (row
+    // `model_provider_id`); the resident driver compiles it into `-c` spawn args.
+    ...(selection.modelProviderId ? { modelProviderId: selection.modelProviderId } : {}),
   };
 }
 
