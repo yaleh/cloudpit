@@ -36,8 +36,7 @@ import { AlertTriangle, ArrowRight, Loader2, RotateCw, ShieldAlert } from 'lucid
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 
-import { BRAND } from '@/shared/constants';
-import { Button, Input } from '@/shared/ui';
+import { Button, BrandMark, Input } from '@/shared/ui';
 import { useAuth } from '@/modules/auth';
 import { useOAuthConsent } from '@/modules/oauth-consent/hooks/useOAuthConsent';
 import type { OAuthConsentError } from '@/modules/oauth-consent/hooks/useOAuthConsent';
@@ -183,7 +182,7 @@ function ConsentShell({ children }: { children: React.ReactNode }) {
   return (
     <div data-testid="consent-scroll" className="relative h-dvh overflow-y-auto overflow-x-hidden bg-background">
       <div aria-hidden className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-40 left-1/2 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute -top-40 left-1/2 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(hsl(var(--foreground)/0.04)_1px,transparent_1px)] opacity-60 [background-size:22px_22px]" />
       </div>
       <main className="relative mx-auto flex min-h-full w-full max-w-md flex-col justify-center p-4 py-8">
@@ -282,8 +281,8 @@ export default function OAuthConsentRoute() {
   return (
     <ConsentShell>
       <div className="flex flex-col items-center text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 ring-1 ring-inset ring-white/20">
-          <img src="/logo.svg" alt={BRAND.name} className="h-8 w-8" />
+        <div className="mb-4">
+          <BrandMark size="sm" />
         </div>
         <h1 className="font-serif text-2xl font-bold tracking-tight text-foreground">
           {t('title')}
