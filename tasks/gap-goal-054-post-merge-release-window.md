@@ -66,11 +66,11 @@ AC-451（achieved）的判据 `scripts/brand-allowlist-check.test.mjs` 只静态
 - [x] AC5 判据未放宽：`npx tsx --tsconfig server/tsconfig.json --test scripts/cloudpit-distribution-check.test.mjs` 退出 0（8/8）；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空。
 - [x] AC6 归属声明仍在：`grep -c "fork of" README.md` ≥1 且匹配 `/fork of\s+\[?siteboon\/claudecodeui/i`；`grep -c "CloudCLI UI" NOTICE LICENSE` 各 ≥1。
 - [x] AC7 静态检查：`npm run typecheck` 退出 0；`npx oxlint` 对本次改动文件退出 0（仅基线 warning）。
-- [ ] AC8 旧包最终版：`@yalehwang/cloudcli@1.42.0` 已发布且已 deprecate，deprecation 文案含 `@yalehwang/cloudpit`；`node -e` 读 `registry.npmjs.org/@yalehwang%2fcloudcli/1.42.0` 的 `deprecated` 并打印该文案（人工窗口项，人 yale 执行）。
-- [ ] AC9 仓库改名：`gh api repos/yaleh/cloudpit --jq .full_name` 打印 `yaleh/cloudpit`（人工窗口项，人 yale 执行）。
-- [ ] AC10 新包发布：`@yalehwang/cloudpit@2.0.0` 单版本文档 200，`https://unpkg.com/@yalehwang/cloudpit@2.0.0/package.json` 的 `bin` 键集合恰为 `["cloudpit"]`（人工窗口项，人 yale 执行）。
-- [ ] AC11 桌面资产：`gh release view v2.0.0 -R yaleh/cloudpit --json assets` 同时含可下载的 `cloudpit-desktop-*` 与 `cloudpit-local-server-v2.0.0-*` 资产（人工窗口项，人 yale 执行）。
-- [ ] AC12 判据终态：`node scripts/cloudpit-distribution-check.mjs --release --json` 退出 0、`violations: []`、`checks` 六项（人工窗口项，人 yale 执行）。
+- [x] AC8 旧包最终版：`@yalehwang/cloudcli@1.42.0` 已发布且已 deprecate，deprecation 文案含 `@yalehwang/cloudpit`；`node -e` 读 `registry.npmjs.org/@yalehwang%2fcloudcli/1.42.0` 的 `deprecated` 并打印该文案（人工窗口项，人 yale 执行）。
+- [x] AC9 仓库改名：`gh api repos/yaleh/cloudpit --jq .full_name` 打印 `yaleh/cloudpit`（人工窗口项，人 yale 执行）。
+- [x] AC10 新包发布：`@yalehwang/cloudpit@2.0.0` 单版本文档 200，`https://unpkg.com/@yalehwang/cloudpit@2.0.0/package.json` 的 `bin` 键集合恰为 `["cloudpit"]`（人工窗口项，人 yale 执行）。
+- [x] AC11 桌面资产：`gh release view v2.0.0 -R yaleh/cloudpit --json assets` 同时含可下载的 `cloudpit-desktop-*` 与 `cloudpit-local-server-v2.0.0-*` 资产（人工窗口项，人 yale 执行）。
+- [x] AC12 判据终态：`node scripts/cloudpit-distribution-check.mjs --release --json` 退出 0、`violations: []`、`checks` 六项（人工窗口项，人 yale 执行）。
 
 ## DoD
 
@@ -110,6 +110,18 @@ AC-451（achieved）的判据 `scripts/brand-allowlist-check.test.mjs` 只静态
 - scripts/release/tests/server-installer-bundle-url.test.mjs
 - scripts/release/tests/fork-release-workflows.test.mjs
 - README.md
+
+## 完成读数（2026-11-02）
+
+发布窗口已执行并核验，AC8–AC12 全部满足：
+
+- AC8：`@yalehwang/cloudcli@1.42.0` 已发布（registry 单版本文档 200）；`deprecated` = `CloudCLI has been renamed to Cloudpit. Install @yalehwang/cloudpit.`；`dist-tags.latest = 1.42.0`。
+- AC9：`gh api repos/yaleh/cloudpit --jq .full_name` → `yaleh/cloudpit`。
+- AC10：`@yalehwang/cloudpit@2.0.0` 已发布；`https://unpkg.com/@yalehwang/cloudpit@2.0.0/package.json` 的 `bin` = `{"cloudpit":"dist-server/server/modules/cli/cli.js"}`。
+- AC11：`v2.0.0` release assets = `cloudpit-desktop-2.0.0-win-x64.exe`、`cloudpit-local-server-v2.0.0-win-x64.tar.gz`、`cloudpit-local-server-v2.0.0-win-x64.tar.gz.sha256`、`SHASUMS256-windows.txt`，state 均为 `uploaded`。
+- AC12：`GITHUB_TOKEN=$(gh auth token) node scripts/cloudpit-distribution-check.mjs --release --json` → `exitCode: 0`、`violations: []`、6 项 checks 全绿。
+- 关联终态：AC-458 `achieved`（evidence pass 2026-11-02T03:55:37Z，criterion 已注入 gh token）；GOAL-054 `achieved`（2026-11-02T03:40:58Z，goal-driver，"I2: all ACs achieved + sufficiency covered"）。
+- 仓库侧修复：`30bca4990` 修复 Windows 大小写冲突；Desktop Release run `41382740554` success。
 
 ## Blocker
 
