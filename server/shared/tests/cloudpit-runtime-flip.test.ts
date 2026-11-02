@@ -3,10 +3,15 @@
  *
  * GOAL-053 left the Cloudpit pipeline DARK: the resolver, the settings fallback, the dual asset
  * roots and the scope alias table existed, but every runtime default still pointed at the legacy
- * layout. This file drives the flip — default `~/.cloudpit`, settings read-legacy/write-new,
- * uploads to the new asset root, both observation URI spellings, the new MCP server name, the two
- * scope vocabularies and the two service-worker cache prefixes — against temp homes and fakes, so
- * it never reads or writes the developer's real `~`.
+ * layout. This file drives the flip — default `~/.cloudpit`, one-time settings migration, uploads
+ * to the new asset root, both observation URI spellings, the new MCP server name, the two scope
+ * vocabularies and the two service-worker cache prefixes — against temp homes and fakes, so it
+ * never reads or writes the developer's real `~`.
+ *
+ * v3.0 retired the runtime fallbacks: `defaultRoot: 'legacy'`, the failed-migration fallback to
+ * `~/.cloudcli`, the legacy settings read fallback and the `CLOUDCLI_*` environment spellings are
+ * all gone. The arms below assert the one-time migrations still work and that the retired paths
+ * are ignored.
  *
  * Run directly:
  *   npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-runtime-flip.test.ts
@@ -62,7 +67,7 @@ function temporaryHome(prefix: string): string {
   return mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-test('AC2/AC11: the Cloudpit default root migrates a legacy layout, and the legacy mode stays', () => {
+test('AC2/AC11 (v3.0): the Cloudpit default root migrates a legacy layout; no legacy mode is selectable', () => {
   const homeDir = temporaryHome('cloudpit-runtime-root-');
   try {
     const legacyRoot = path.join(homeDir, '.cloudcli');
@@ -71,7 +76,6 @@ test('AC2/AC11: the Cloudpit default root migrates a legacy layout, and the lega
     writeFileSync(path.join(legacyRoot, 'cockpit-card-feedback.json'), '{"kept":true}\n');
 
     const plan = resolveDataRoots({
-      defaultRoot: 'cloudpit',
       env: {},
       homeDir,
       version: 'criterion',
@@ -99,11 +103,16 @@ test('AC2/AC11: the Cloudpit default root migrates a legacy layout, and the lega
     // The legacy root is only ever READ.
     assert.equal(readFileSync(path.join(legacyRoot, 'auth.db'), 'utf8'), 'legacy-database');
 
-    // AC11's negative control: the legacy mode is still selectable and is unchanged.
-    const legacyPlan = resolveDataRoots({ defaultRoot: 'legacy', env: {}, homeDir });
-    assert.equal(legacyPlan.activeRoot, legacyRoot);
-    assert.equal(legacyPlan.reason, 'default-legacy');
-    assert.equal(legacyPlan.migrated, false);
+    // AC11's negative control: the retired `defaultRoot: 'legacy'` option no longer moves the
+    // default back to the old root — it is not part of the resolver's public shape, so a caller
+    // that still passes it keeps the Cloudpit root.
+    const ignoredMode = resolveDataRoots({
+      defaultRoot: 'legacy',
+      env: {},
+      homeDir,
+    } as unknown as Parameters<typeof resolveDataRoots>[0]);
+    assert.equal(ignoredMode.activeRoot, path.join(homeDir, '.cloudpit'));
+    assert.equal(ignoredMode.reason, 'default-already-migrated');
   } finally {
     rmSync(homeDir, { recursive: true, force: true });
   }
@@ -114,8 +123,7 @@ test('AC2/AC11: the Cloudpit default root migrates a legacy layout, and the lega
     mkdirSync(failingLegacyRoot, { recursive: true });
     writeFileSync(path.join(failingLegacyRoot, 'auth.db'), 'legacy-database');
 
-    const fallback = resolveDataRoots({
-      defaultRoot: 'cloudpit',
+    const failure = resolveDataRoots({
       env: {},
       homeDir: failingHome,
       backupDatabase: () => {
@@ -123,9 +131,10 @@ test('AC2/AC11: the Cloudpit default root migrates a legacy layout, and the lega
       },
     });
 
-    assert.equal(fallback.activeRoot, failingLegacyRoot);
-    assert.equal(fallback.reason, 'fallback-after-failure');
-    assert.equal(fallback.migrated, false);
+    assert.equal(failure.activeRoot, path.join(failingHome, '.cloudpit'), 'no fallback to ~/.cloudcli');
+    assert.equal(failure.reason, 'migration-failed');
+    assert.equal(failure.migrated, false);
+    assert.match(failure.migrationError ?? '', /SQLITE_BUSY/);
     assert.equal(
       existsSync(path.join(failingHome, '.cloudpit')),
       false,
@@ -142,8 +151,8 @@ test('AC3: the bootstrap and the CLI derive the default database from the resolv
   const indexSource = readApplicationFile('server/index.ts');
 
   assert.ok(
-    loadEnvSource.includes("resolveDataRoots({ defaultRoot: 'cloudpit' })"),
-    'load-env.ts must resolve the Cloudpit default',
+    loadEnvSource.includes('resolveDataRoots()'),
+    'load-env.ts must resolve the one Cloudpit default',
   );
   assert.ok(
     loadEnvSource.includes('process.env.DATABASE_PATH = DATA_ROOTS.authDatabasePath'),
@@ -155,7 +164,7 @@ test('AC3: the bootstrap and the CLI derive the default database from the resolv
   );
 
   assert.ok(
-    cliModuleSource.includes("resolveDataRoots({ defaultRoot: 'cloudpit', homeDir: homeDirectory })"),
+    cliModuleSource.includes('resolveDataRoots({ homeDir: homeDirectory })'),
     'cli.module.ts must derive its default database path from the resolver',
   );
   assert.ok(
@@ -179,7 +188,7 @@ test('AC3: the bootstrap and the CLI derive the default database from the resolv
   );
 });
 
-test('AC4/AC11: settings read the legacy file but always write the Cloudpit path', () => {
+test('AC4/AC11 (v3.0): the legacy settings file is copied once, then only the Cloudpit file is read', () => {
   const homeDir = temporaryHome('cloudpit-runtime-settings-');
   try {
     const newDefault = path.join(homeDir, '.config', 'cloudpit', 'server.settings.json');
@@ -191,21 +200,40 @@ test('AC4/AC11: settings read the legacy file but always write the Cloudpit path
       legacyDefault,
       `${JSON.stringify({ cockpit: { sessionStart: { model: 'legacy-model', effort: 'high' } } }, null, 2)}\n`,
     );
+    assert.equal(existsSync(newDefault), false, 'the Cloudpit file does not exist before the first boot');
 
+    // The first boot copies the legacy file to the Cloudpit path and reads the new one.
     const settings = loadServerSettings({ homeDir, env: {} });
     assert.equal(settings.cockpit.sessionStart.model, 'legacy-model');
     assert.equal(settings.cockpit.sessionStart.effort, 'high');
-    assert.deepEqual(settings.problems, [], 'a legacy fallback is not a configuration problem');
+    assert.deepEqual(settings.problems, []);
+    assert.equal(existsSync(newDefault), true, 'the first boot must create the Cloudpit settings file');
+    assert.deepEqual(
+      readFileSync(newDefault),
+      readFileSync(legacyDefault),
+      'the one-time migration copies the legacy document verbatim',
+    );
 
     const boot = readCockpitSessionStartBoot();
     assert.ok(boot, 'the boot loader must record its reading');
-    assert.equal(boot.path, legacyDefault, 'the effective values come from the legacy file');
-    assert.equal(boot.writePath, newDefault, 'a save must land in the Cloudpit default');
+    assert.equal(boot.path, newDefault, 'the effective values come from the Cloudpit file');
+    assert.equal(boot.writePath, newDefault, 'a save lands in the same Cloudpit file');
 
     const target = resolveServerSettingsFileTarget({ homeDir, env: {} });
-    assert.equal(target.path, legacyDefault);
-    assert.equal(target.writePath, newDefault);
-    assert.equal(target.explicit, false);
+    assert.deepEqual(target, { path: newDefault, writePath: newDefault, explicit: false });
+
+    // Editing the legacy file afterwards has no effect: only the Cloudpit file is read.
+    writeFileSync(
+      legacyDefault,
+      `${JSON.stringify({ cockpit: { sessionStart: { model: 'edited-legacy', effort: 'low' } } })}\n`,
+    );
+    assert.equal(loadServerSettings({ homeDir, env: {} }).cockpit.sessionStart.model, 'legacy-model');
+
+    // A save made after the copy is never clobbered by a later resolution (idempotent migration).
+    const savedDocument = `${JSON.stringify({ cockpit: { sessionStart: { model: 'saved-cloudpit' } } }, null, 2)}\n`;
+    writeFileSync(newDefault, savedDocument);
+    resolveServerSettingsFileTarget({ homeDir, env: {} });
+    assert.equal(readFileSync(newDefault, 'utf8'), savedDocument, 'the second run must not overwrite the user file');
 
     // Explicit overrides are unchanged: the named file is both read and written.
     const explicitPath = path.join(homeDir, 'operator', 'custom.settings.json');
@@ -216,11 +244,6 @@ test('AC4/AC11: settings read the legacy file but always write the Cloudpit path
       env: { SERVER_SETTINGS_PATH: explicitPath },
     });
     assert.deepEqual(byEnvironment, { path: explicitPath, writePath: explicitPath, explicit: true });
-
-    // With both files present the Cloudpit default wins.
-    mkdirSync(path.dirname(newDefault), { recursive: true });
-    writeFileSync(newDefault, `${JSON.stringify({ cockpit: { sessionStart: { model: 'new-model' } } })}\n`);
-    assert.equal(loadServerSettings({ homeDir, env: {} }).cockpit.sessionStart.model, 'new-model');
   } finally {
     rmSync(homeDir, { recursive: true, force: true });
   }
@@ -467,57 +490,40 @@ test('AC9: activation deletes both cache families and keeps unrelated caches', a
   assert.equal(claimed, true);
 });
 
-test('AC10/AC11: CLOUDPIT_* is the canonical environment spelling, CLOUDCLI_* stays compatible', () => {
-  // New name only: no warning, and the reading names the canonical key.
-  const newOnlyWarnings: string[] = [];
+test('AC10/AC11 (v3.0): CLOUDPIT_* is the only environment spelling read', () => {
+  // New name only: the reading names the canonical key.
   const newOnly = createBrandEnvReader({
     env: { CLOUDPIT_HOME: '/new/home' },
-    warn: (message) => newOnlyWarnings.push(message),
   }).read('HOME');
   assert.deepEqual(newOnly, { value: '/new/home', source: 'new', key: 'CLOUDPIT_HOME' });
-  assert.deepEqual(newOnlyWarnings, [], 'the canonical spelling must not warn');
 
-  // Both set: the Cloudpit spelling wins and the legacy one is not even read.
-  const bothWarnings: string[] = [];
+  // Both set: the Cloudpit spelling wins and the legacy one is not read.
   const both = createBrandEnvReader({
     env: { CLOUDPIT_HOME: '/new/home', CLOUDCLI_HOME: '/legacy/home' },
-    warn: (message) => bothWarnings.push(message),
   }).read('HOME');
   assert.deepEqual(both, { value: '/new/home', source: 'new', key: 'CLOUDPIT_HOME' });
-  assert.deepEqual(bothWarnings, [], 'a legacy value shadowed by the new spelling must not warn');
 
-  // Legacy name only: still honoured, marked as legacy, warned exactly once per key.
-  const legacyWarnings: string[] = [];
-  const legacyReader = createBrandEnvReader({
-    env: { CLOUDCLI_HOME: '/legacy/home' },
-    warn: (message) => legacyWarnings.push(message),
-  });
-  assert.deepEqual(legacyReader.read('HOME'), {
-    value: '/legacy/home',
-    source: 'legacy',
-    key: 'CLOUDCLI_HOME',
-  });
-  assert.equal(legacyWarnings.length, 1, 'using the legacy spelling warns once');
-  assert.match(legacyWarnings[0], /CLOUDCLI_HOME is deprecated; set CLOUDPIT_HOME instead\./);
-  legacyReader.read('HOME');
-  assert.equal(legacyWarnings.length, 1, 'a second read of the same key stays silent');
+  // Legacy name only: no fallback any more — the read is absent (the shipped default applies).
+  assert.deepEqual(
+    createBrandEnvReader({ env: { CLOUDCLI_HOME: '/legacy/home' } }).read('HOME'),
+    { value: undefined, source: 'absent', key: 'CLOUDPIT_HOME' },
+  );
 
   // Absent: the reading still names the canonical key the operator should set.
-  assert.deepEqual(createBrandEnvReader({ env: {}, warn: () => {} }).read('HOME'), {
+  assert.deepEqual(createBrandEnvReader({ env: {} }).read('HOME'), {
     value: undefined,
     source: 'absent',
     key: 'CLOUDPIT_HOME',
   });
 
-  // The production resolver wires the same precedence: the Cloudpit variable wins, the legacy
-  // one is the fallback. This is the arm the CLI/bootstrap actually consume.
+  // The production resolver reads the same one spelling: CLOUDPIT_HOME wins, and a
+  // CLOUDCLI_HOME-only environment selects the default `~/.cloudpit` root instead.
   const homeDir = temporaryHome('cloudpit-runtime-env-');
   try {
     const newRoot = path.join(homeDir, 'explicit-new');
     const legacyRoot = path.join(homeDir, 'explicit-legacy');
     assert.equal(
       resolveDataRoots({
-        defaultRoot: 'cloudpit',
         env: { CLOUDPIT_HOME: newRoot, CLOUDCLI_HOME: legacyRoot },
         homeDir,
       }).activeRoot,
@@ -525,9 +531,9 @@ test('AC10/AC11: CLOUDPIT_* is the canonical environment spelling, CLOUDCLI_* st
       'CLOUDPIT_HOME must win over CLOUDCLI_HOME',
     );
     assert.equal(
-      resolveDataRoots({ defaultRoot: 'cloudpit', env: { CLOUDCLI_HOME: legacyRoot }, homeDir }).activeRoot,
-      legacyRoot,
-      'CLOUDCLI_HOME must stay a compatible fallback',
+      resolveDataRoots({ env: { CLOUDCLI_HOME: legacyRoot }, homeDir }).activeRoot,
+      path.join(homeDir, '.cloudpit'),
+      'CLOUDCLI_HOME must no longer select a root',
     );
   } finally {
     rmSync(homeDir, { recursive: true, force: true });

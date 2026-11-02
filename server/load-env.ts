@@ -49,10 +49,21 @@ try {
 }
 
 // Resolve the data root AFTER `.env` was read (module imports are hoisted, but this call is not),
-// so `CLOUDPIT_HOME` / `CLOUDCLI_HOME` from the file are honoured. The Cloudpit default migrates a
-// legacy `~/.cloudcli` layout once, and falls back to it if the copy fails. Exported so
-// `server/index.ts` reuses this single resolution instead of migrating a second time.
-export const DATA_ROOTS = resolveDataRoots({ defaultRoot: 'cloudpit' });
+// so `CLOUDPIT_HOME` from the file is honoured. The Cloudpit default (`~/.cloudpit`) is the only
+// default and migrates a legacy `~/.cloudcli` layout once; a failed migration is reported below
+// and does NOT fall back to the old root (v3.0). Exported so `server/index.ts` reuses this single
+// resolution instead of migrating a second time.
+export const DATA_ROOTS = resolveDataRoots();
+
+if (DATA_ROOTS.migrationError !== null) {
+  // v3.0: a failed one-time migration is an explicit error, never a silent fallback to
+  // `~/.cloudcli`. The server keeps running on the Cloudpit root so the operator can fix
+  // the cause (e.g. an occupied SQLite database) and restart.
+  console.error(
+    `Cloudpit data-root migration failed (${DATA_ROOTS.reason}): ${DATA_ROOTS.migrationError}. ` +
+      `Continuing with ${DATA_ROOTS.activeRoot}; the legacy root was left untouched.`,
+  );
+}
 
 if (!process.env.DATABASE_PATH) {
   process.env.DATABASE_PATH = DATA_ROOTS.authDatabasePath;

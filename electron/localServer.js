@@ -23,9 +23,9 @@ export const SERVER_MARKER_PATHS = [
 ];
 const brandEnv = createProcessBrandEnvReader();
 
-// Brand-owned discovery names are read through the Cloudpit-first reader:
-// `CLOUDPIT_<NAME>` wins and `CLOUDCLI_<NAME>` stays readable for one
-// transition window. The remaining keys are not brand-owned and are read as-is.
+// Brand-owned discovery names are read through the Cloudpit reader: only
+// `CLOUDPIT_<NAME>` is consulted (the legacy `CLOUDCLI_<NAME>` spelling was
+// retired in v3.0). The remaining keys are not brand-owned and are read as-is.
 const LOCAL_SERVER_URL_ENV_NAMES = [
   'DESKTOP_LOCAL_SERVER_URL',
   'LOCAL_SERVER_URL',

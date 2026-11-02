@@ -21,8 +21,8 @@ const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
 // cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
 const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
 const brandEnv = createProcessBrandEnvReader();
-// The control-plane address keeps its legacy spelling as a readable fallback;
-// the default stays the third-party `cloudcli.ai` contract this release keeps.
+// The control-plane address is read through the brand reader (`CLOUDPIT_CONTROL_PLANE_URL`
+// only since v3.0); the default stays the third-party `cloudcli.ai` contract this release keeps.
 const CONTROL_PLANE_URL = readBrandEnvValue(brandEnv, 'CONTROL_PLANE_URL', 'https://cloudcli.ai');
 const REMOTE_START_TIMEOUT_MS = 30000;
 const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;

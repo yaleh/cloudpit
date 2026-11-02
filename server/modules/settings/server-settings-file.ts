@@ -28,6 +28,7 @@ import { homedir } from 'node:os';
 import {
   defaultServerSettingsPath as defaultServerSettingsPathForHome,
   legacyServerSettingsPath,
+  migrateLegacyServerSettingsFile,
   writeSettingsFileAtomically,
 } from '@/shared/settings-file.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
@@ -59,10 +60,11 @@ export function defaultServerSettingsPath(): string {
  * Resolves the file the boot reader and the settings API share. Same order as
  * `loadServerSettings`: an explicit path > `SERVER_SETTINGS_PATH` > the shipped location.
  *
- * The shipped location is now `<home>/.config/cloudpit/server.settings.json`. When that file does
- * not exist yet but the legacy `<home>/.config/claudecodeui/server.settings.json` does, the READ
- * falls back to the legacy file while `writePath` stays on the Cloudpit default: an upgrade keeps
- * its effective configuration and the next save lands in the new tree, never back in the old one.
+ * The shipped location is `<home>/.config/cloudpit/server.settings.json`. v3.0 deleted the
+ * runtime read fallback to `<home>/.config/claudecodeui/server.settings.json`: on the first
+ * resolution the legacy file is COPIED to the Cloudpit path once (never overwriting an existing
+ * Cloudpit file), and every read afterwards uses only the Cloudpit file. `path` and `writePath`
+ * are therefore always the same for the default target, and a save lands in the new tree.
  *
  * Consumers: `server-settings.ts` (the boot read) and `settings.module.ts` (the API's target).
  */
@@ -70,7 +72,6 @@ export function resolveServerSettingsFileTarget(options: {
   settingsPath?: string | undefined;
   env?: Record<string, string | undefined>;
   defaultPath?: string | undefined;
-  legacyDefaultPath?: string | undefined;
   homeDir?: string | undefined;
   exists?: ((filePath: string) => boolean) | undefined;
 } = {}): ServerSettingsFileTarget {
@@ -85,12 +86,19 @@ export function resolveServerSettingsFileTarget(options: {
   }
 
   const defaultPath = options.defaultPath ?? defaultServerSettingsPathForHome(homeDir);
-  // An injected defaultPath without an injected legacy path is a hermetic caller: do not consult
-  // the process HOME behind its back.
-  const legacyDefaultPath = options.legacyDefaultPath
-    ?? (options.defaultPath === undefined ? legacyServerSettingsPath(homeDir) : defaultPath);
-  const path_ = exists(defaultPath) || !exists(legacyDefaultPath) ? defaultPath : legacyDefaultPath;
-  return { path: path_, writePath: defaultPath, explicit: false };
+  // One-time upgrade aid: copy the pre-flip file into the Cloudpit tree when the latter is
+  // absent. The legacy file is never read again after this and is left on disk.
+  // An INJECTED defaultPath marks a hermetic caller (the criteria drive an arbitrary temp file);
+  // it must not consult the process HOME behind its back, so migration runs only for the shipped
+  // default derived from `homeDir`.
+  if (options.defaultPath === undefined) {
+    migrateLegacyServerSettingsFile({
+      legacyPath: legacyServerSettingsPath(homeDir),
+      targetPath: defaultPath,
+      exists,
+    });
+  }
+  return { path: defaultPath, writePath: defaultPath, explicit: false };
 }
 
 /**

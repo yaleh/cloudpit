@@ -63,7 +63,7 @@ export function createCliApplication(): CliApplication {
 
   return createCliService({
     applicationRoot,
-    defaultDatabasePath: resolveDataRoots({ defaultRoot: 'cloudpit', homeDir: homeDirectory }).authDatabasePath,
+    defaultDatabasePath: resolveDataRoots({ homeDir: homeDirectory }).authDatabasePath,
     homeDirectory,
     packageMetadata,
     environment: process.env,

@@ -90,11 +90,10 @@ export class ServerInstaller {
     bundleBaseUrl,
     bundleReleaseTag,
     env = process.env,
-    warn = (message) => console.warn(message),
     onLog,
   } = {}) {
     if (!version) throw new Error('ServerInstaller requires the app version');
-    const brandEnv = createBrandEnvReader({ env, warn });
+    const brandEnv = createBrandEnvReader({ env });
     this.version = version;
     this.platform = mapPlatform(platform);
     this.arch = mapArch(arch);
@@ -103,8 +102,9 @@ export class ServerInstaller {
     this.migrateLegacyInstall = Boolean(
       this.installRoot === DEFAULT_INSTALL_ROOT && !serverDir,
     );
-    // An explicit constructor argument wins; otherwise read the brand name with
-    // `CLOUDCLI_SERVER_BUNDLE_*` kept as the legacy fallback.
+    // An explicit constructor argument wins; otherwise read the canonical
+    // `CLOUDPIT_SERVER_BUNDLE_*` names (the v3.0 retirement deleted the legacy
+    // `CLOUDCLI_SERVER_BUNDLE_*` fallback).
     const resolvedBaseUrl = bundleBaseUrl === undefined
       ? readBrandEnvValue(brandEnv, 'SERVER_BUNDLE_URL', DEFAULT_BUNDLE_BASE_URL)
       : bundleBaseUrl;

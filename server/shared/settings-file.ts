@@ -123,9 +123,11 @@ export function defaultServerSettingsPath(homeDir: string): string {
 }
 
 /**
- * The pre-flip settings location. It is only ever READ (the boot loader falls
- * back to it when the Cloudpit default does not exist yet); a save always
- * targets {@link defaultServerSettingsPath}.
+ * The pre-flip settings location. In v3.0 it is only a ONE-TIME MIGRATION SOURCE:
+ * {@link migrateLegacyServerSettingsFile} copies it to
+ * {@link defaultServerSettingsPath} when the Cloudpit file does not exist yet, and
+ * every reader then reads only the Cloudpit file. A runtime read fallback to this
+ * path was retired with the rest of the 2.x compatibility layer.
  */
 export function legacyServerSettingsPath(homeDir: string): string {
   return path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json');
@@ -414,6 +416,76 @@ export function writeSettingsFileAtomically(
     } catch {
       // A leftover temp file is not a reason to hide the write's own error.
     }
+  }
+}
+
+// ---------------------------- ONE-TIME MIGRATION ----------------------------
+
+/** What one legacy-settings copy attempt decided. */
+export type LegacyServerSettingsMigration = {
+  /** True only when this call created the Cloudpit file from the legacy one. */
+  migrated: boolean;
+  /**
+   * `copied` — the Cloudpit file was created from the legacy copy;
+   * `target-exists` — the Cloudpit file is already there (idempotent second run);
+   * `no-legacy` — there is no legacy file to copy;
+   * `copy-failed` — the read or write threw; `error` carries the reason.
+   */
+  reason: 'copied' | 'target-exists' | 'no-legacy' | 'copy-failed';
+  /** The failure message for `copy-failed`; never set for the other reasons. */
+  error?: string;
+};
+
+/**
+ * Copy the legacy `~/.config/claudecodeui/server.settings.json` to the Cloudpit
+ * default exactly once.
+ *
+ * v3.0 REPLACEMENT FOR THE READ FALLBACK. Up to 2.x the boot loader read the
+ * legacy file whenever the Cloudpit file was missing, so an upgrade kept its
+ * effective configuration. The runtime fallback is gone; this one-time copy keeps
+ * the upgrade working and then leaves only the Cloudpit file to be read.
+ *
+ * IDEMPOTENT BY CONSTRUCTION. The copy never overwrites: an existing Cloudpit
+ * file is the user's current settings (`target-exists`), so a second run is a
+ * no-op and a save made after the first run is never clobbered. The legacy file
+ * stays on disk untouched.
+ *
+ * The copy goes through {@link writeSettingsFileAtomically} so the new file is
+ * created `0600` and a reader never observes a half-written document. Every
+ * outcome is returned, never thrown: a failed copy must not stop the server.
+ *
+ * Consumers: `modules/settings/server-settings-file.ts`'s target resolver (the
+ * boot path) and the settings criteria.
+ */
+export function migrateLegacyServerSettingsFile(options: {
+  /** The pre-flip file (`~/.config/claudecodeui/server.settings.json`). */
+  legacyPath: string;
+  /** The Cloudpit file (`~/.config/cloudpit/server.settings.json`). */
+  targetPath: string;
+  /** Existence seam; defaults to `node:fs`. */
+  exists?: (filePath: string) => boolean;
+  /** Read seam; defaults to `node:fs` UTF-8. */
+  readFile?: (filePath: string) => string;
+  /** Write seam; defaults to {@link writeSettingsFileAtomically} with mode 0600. */
+  writeTarget?: (filePath: string, contents: string) => void;
+}): LegacyServerSettingsMigration {
+  const exists = options.exists ?? existsSync;
+  if (exists(options.targetPath)) return { migrated: false, reason: 'target-exists' };
+  if (!exists(options.legacyPath)) return { migrated: false, reason: 'no-legacy' };
+
+  try {
+    const readFile = options.readFile ?? ((filePath: string) => readFileSync(filePath, 'utf8'));
+    const writeTarget = options.writeTarget
+      ?? ((filePath: string, contents: string) =>
+        writeSettingsFileAtomically(filePath, contents, { mode: 0o600 }));
+    writeTarget(options.targetPath, readFile(options.legacyPath));
+    return { migrated: true, reason: 'copied' };
+  } catch (failure) {
+    return {
+      migrated: false,
+      reason: 'copy-failed',
+      error: errorMessage(failure),
+    };
   }
 }
 

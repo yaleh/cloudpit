@@ -303,7 +303,6 @@ type ServerSettingsFileOptions = {
   settingsPath?: string | undefined;
   env?: Record<string, string | undefined>;
   defaultPath?: string | undefined;
-  legacyDefaultPath?: string | undefined;
   homeDir?: string | undefined;
   exists?: ((filePath: string) => boolean) | undefined;
 };
@@ -312,8 +311,8 @@ export function loadServerSettings(options: ServerSettingsFileOptions = {}): Ser
   const target = resolveServerSettingsFileTarget(options);
   const reading = readServerSettings(options, target);
   // The ONE boot read becomes the "currently in effect" reading the settings API reports, so
-  // the surface and the card `session.start` executor cannot disagree about this process;
-  // `writePath` stays on the Cloudpit default even when the reading came from the legacy file.
+  // the surface and the card `session.start` executor cannot disagree about this process.
+  // v3.0 removed the legacy read fallback, so `path` and `writePath` are the same default file.
   recordCockpitSessionStartBoot(reading.path, reading.cockpit.sessionStart, target.writePath);
   return reading;
 }
