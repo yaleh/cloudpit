@@ -706,12 +706,22 @@ test('the per-run runtime places backgroundTasks on the live instance and does n
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'chat-background-task-per-run-'));
   const savedHome = process.env.HOME;
   const savedConfigDir = process.env.CLAUDE_CONFIG_DIR;
+  const savedDatabasePath = process.env.DATABASE_PATH;
   const savedFactory = claudeQueryFactory.current;
   const fixture = createPerRunFixture();
 
   try {
+    // The run's wind-down reads its session row through the notifications path,
+    // so this leg needs a migrated database of its own: the ambient one may
+    // predate the latest added column, and a run must not depend on that.
+    closeConnection();
+    process.env.DATABASE_PATH = path.join(tempDirectory, 'auth.db');
     process.env.HOME = tempDirectory;
     process.env.CLAUDE_CONFIG_DIR = tempDirectory;
+    await initializeDatabase();
+    // A real user row, so the run's own wind-down can read its notification
+    // preferences without an FK failure (the SQLite foreign key is on user_id).
+    const user = userDb.createUser('background-task-per-run', 'unused-hash');
     claudeQueryFactory.current = (() => fixture.factory()) as unknown as typeof claudeQueryFactory.current;
 
     const appSessionId = PER_RUN_SESSION_ID;
@@ -720,7 +730,7 @@ test('the per-run runtime places backgroundTasks on the live instance and does n
     void queryClaudeSDK(
       'hold',
       { sessionId: appSessionId },
-      createWriter(),
+      { send: () => undefined, setSessionId: () => undefined, userId: Number(user.id) },
       RUNTIME_CONTEXT,
     );
 
@@ -758,6 +768,12 @@ test('the per-run runtime places backgroundTasks on the live instance and does n
     if (getActiveClaudeSDKSessions().includes(PER_RUN_SESSION_ID)) {
       await abortClaudeSDKSession(PER_RUN_SESSION_ID);
     }
+    if (savedDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = savedDatabasePath;
+    }
+    closeConnection();
     await rm(tempDirectory, { recursive: true, force: true });
   }
 });
