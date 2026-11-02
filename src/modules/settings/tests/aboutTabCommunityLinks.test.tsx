@@ -39,3 +39,10 @@ test('the About tab links to Report Issue and Join Community in a new tab, witho
     );
   }
 });
+
+test('the About tab renders the Cloudpit logo mark', () => {
+  const { container } = render(<AboutTab />);
+  const logo = container.querySelector('img[src="/logo.svg"]');
+  assert.ok(logo, 'the About tab must render the Cloudpit logo');
+  assert.equal(logo.getAttribute('alt'), 'Cloudpit', 'the logo alt text must name the product');
+});

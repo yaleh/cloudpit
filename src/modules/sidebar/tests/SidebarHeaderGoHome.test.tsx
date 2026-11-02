@@ -61,3 +61,23 @@ test('the mobile drawer exposes a labelled overview entry that also goes home', 
   fireEvent.click(entry);
   assert.equal(onGoHome.mock.calls.length, 1);
 });
+
+test('the wordmark renders the Cloudpit logo, not the old MessageSquare mark', () => {
+  const { container } = render(<SidebarHeader {...baseProps()} onGoHome={() => {}} />);
+
+  const logos = container.querySelectorAll('img[src="/logo.svg"]');
+  assert.ok(logos.length >= 1, 'the sidebar header must render the Cloudpit logo');
+
+  for (const logo of Array.from(logos)) {
+    assert.equal(logo.getAttribute('alt'), 'Cloudpit', 'the logo alt text must name the product');
+  }
+
+  // Scope the old-mark check to the logo block: the header still legitimately uses
+  // MessageSquare lucide icons for the search-mode tabs.
+  const logoBlock = logos[0].closest('div');
+  assert.ok(logoBlock, 'the logo must sit in a container');
+  assert.ok(
+    !logoBlock.querySelector('svg'),
+    'the logo block must render the image, not the old inline chat-bubble mark',
+  );
+});

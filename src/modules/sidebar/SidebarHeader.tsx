@@ -2,7 +2,7 @@ import { Activity, Archive, Folder, FolderPlus, LayoutGrid, MessageSquare, Plus,
 import type { TFunction } from 'i18next';
 
 import { Button, Input, Tooltip } from '@/shared/ui';
-import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
+import { BRAND, CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
 import { IS_PLATFORM,cn } from '@/shared/utils';
 import type { SidebarSearchMode } from '@/shared/types';
 import GitHubStarBadge from '@/modules/sidebar/GitHubStarBadge';
@@ -41,11 +41,7 @@ type SidebarHeaderProps = {
 function LogoBlock({ t }: { t: TFunction }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      </div>
+      <img src="/logo.svg" alt={BRAND.name} className="h-7 w-7 flex-shrink-0 rounded-lg shadow-sm" />
       <h1
         className="truncate text-sm font-bold tracking-tight text-foreground"
         style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
