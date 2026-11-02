@@ -1,7 +1,7 @@
 ---
 id: AC-467
 title: 连接测试 + 高级字段：headers/query_params/retries/model_catalog_url/effort/上下文窗口
-status: draft
+status: active
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -12,4 +12,15 @@ expect: 连接测试（向 base_url 发最小请求，区分 DNS/401/404/非 Res
   model_context_window/model_auto_compact_token_limit 由条目解析并生效。
 origin: 人 yale 2026-11-02：P2 明确延期范围，但列为本 goal 退出条件，由
   codex-provider-advanced-capabilities 落地。
+activatedAt: 2026-11-02T09:25:12.354Z
+statusLog:
+  - at: 2026-11-02T09:25:12.354Z
+    from: draft
+    to: active
+    actor: goal-driver
+    reason: "triage: activate"
+fidelity:
+  verdict: faithful
+  reason: "fidelity judge: faithful"
+  at: 2026-11-02T09:25:12.354Z
 ---
