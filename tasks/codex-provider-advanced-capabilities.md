@@ -30,7 +30,7 @@ goal_ac: AC-467
 - server/modules/providers/list/codex/codex-models.provider.ts（effort/窗口）
 - src/modules/settings/tabs/agents-settings/sections/content/CodexProviderAdvanced.tsx（高级表单，跟随 codex-provider-settings-ui）
 
-## AC（红先行，落 AC-467）
+## AC
 
 - [ ] AC-467 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-provider-advanced.test.ts 退出 0、fail 0。
 
