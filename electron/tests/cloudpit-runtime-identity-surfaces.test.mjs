@@ -23,9 +23,11 @@
  * by path, so a future edit cannot make the criterion self-red).
  *
  * The non-goal identity (`cloudcli.ai`, the `cloudcli://auth/callback` login
- * callback, `app_surface=cloudcli_desktop`, the `ai.cloudcli.desktop` app id and
- * the dual-read `cloudcli://` observation URIs) is asserted *present* in the
- * same run — a zero-hit scan must not be achieved by renaming it away.
+ * callback, `app_surface=cloudcli_desktop`, the legacy `ai.cloudcli.desktop`
+ * app-id spelling and the dual-read `cloudcli://` observation URIs) is asserted
+ * *present* in the same run — a zero-hit scan must not be achieved by renaming
+ * it away. (v3.0's R13 keeps that legacy spelling as the migration constant in
+ * `electron/appIdMigration.js`; the live `APP_USER_MODEL_ID` is the new id.)
  */
 import assert from 'node:assert/strict';
 import {
@@ -425,7 +427,11 @@ test('AC4: a tmp fixture holding only the non-goal cloudcli identifiers stays cl
 
 test('AC4: the live non-goal identity pins are untouched', () => {
   const mainSource = readRepoFile('electron/main.js');
-  assert.match(mainSource, /const APP_USER_MODEL_ID = 'ai\.cloudcli\.desktop';/, 'the app id is unchanged');
+  assert.match(
+    mainSource,
+    /const APP_USER_MODEL_ID = 'ai\.cloudpit\.desktop';/,
+    'the live app id follows the v3.0 switch (its legacy spelling is a non-goal token, not the live pin)',
+  );
   assert.match(mainSource, /const CALLBACK_PROTOCOL = 'cloudcli';/, 'the login callback scheme is unchanged');
   assert.ok(
     mainSource.includes('const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;'),

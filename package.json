@@ -73,7 +73,7 @@
     "update:platform": "./update-platform.sh"
   },
   "build": {
-    "appId": "ai.cloudcli.desktop",
+    "appId": "ai.cloudpit.desktop",
     "productName": "Cloudpit",
     "asar": false,
     "artifactName": "cloudpit-desktop-${version}-${os}-${arch}.${ext}",

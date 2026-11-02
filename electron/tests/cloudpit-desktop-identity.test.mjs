@@ -5,9 +5,10 @@
  *   npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-desktop-identity.test.mjs
  *
  * Covers the flipped display identity (`APP_NAME` / `productName`), the
- * one-time userData copy, the movable local-server cache, the new-then-legacy
- * marker lookup, dual deep-link scheme registration, and the pinned invariants
- * (`appId`, the `cloudcli://auth/callback` URL, `app_surface=cloudcli_desktop`).
+ * one-time userData copy (now owned by `appIdMigration.js`), the movable
+ * local-server cache, the new-then-legacy marker lookup, dual deep-link scheme
+ * registration, the v3.0 `appId` switch, and the pinned cloud-contract
+ * invariants (`cloudcli://auth/callback`, `app_surface=cloudcli_desktop`).
  * File operations use real temp directories; only the failing-rename arm
  * injects an `fs` whose `rename` rejects.
  */
@@ -75,8 +76,8 @@ test('AC2/AC7: main.js names the app Cloudpit while pinning the cloud identity',
   assert.match(source, /const APP_NAME = 'Cloudpit';/, 'APP_NAME is Cloudpit');
   assert.match(
     source,
-    /const APP_USER_MODEL_ID = 'ai\.cloudcli\.desktop';/,
-    'the Windows app user model id is unchanged',
+    /const APP_USER_MODEL_ID = 'ai\.cloudpit\.desktop';/,
+    'the Windows app user model id follows the v3.0 app id',
   );
   assert.match(source, /const CALLBACK_PROTOCOL = 'cloudcli';/, 'the cloud callback scheme is unchanged');
   assert.ok(
@@ -90,13 +91,13 @@ test('AC2/AC7: main.js names the app Cloudpit while pinning the cloud identity',
   );
 });
 
-test('AC3: bootstrap wires maybeMigrateDesktopUserData before app.whenReady()', () => {
+test('AC3: bootstrap wires the app-id migration (and its userData copy) before app.whenReady()', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
   assert.match(
     source,
-    /import \{ maybeMigrateDesktopUserData \} from '\.\/userDataMigration\.js';/,
-    'the migration helper is imported',
+    /import \{ maybeMigrateDesktopAppId \} from '\.\/appIdMigration\.js';/,
+    'the v3.0 app-id migration entry point is imported',
   );
 
   const bootstrapStart = source.indexOf('async function bootstrap()');
@@ -104,15 +105,24 @@ test('AC3: bootstrap wires maybeMigrateDesktopUserData before app.whenReady()', 
   const bootstrapSource = source.slice(bootstrapStart, source.indexOf('\n}', bootstrapStart));
 
   const titleIndex = bootstrapSource.indexOf('process.title = APP_NAME');
-  const callIndex = bootstrapSource.indexOf('maybeMigrateDesktopUserData({');
+  const callIndex = bootstrapSource.indexOf('maybeMigrateDesktopAppId({');
   const readyIndex = bootstrapSource.indexOf('await app.whenReady()');
   assert.ok(titleIndex >= 0, 'the app name is assigned first');
   assert.ok(callIndex > titleIndex, 'migration runs after the app name is assigned');
   assert.ok(readyIndex > callIndex, 'migration runs before app.whenReady()');
 
   const callSource = bootstrapSource.slice(callIndex, readyIndex);
-  assert.match(callSource, /appName: APP_NAME,/, 'the call passes the flipped app name');
   assert.match(callSource, /appDataDir: app\.getPath\('appData'\)/, 'the call targets appData');
+
+  // appIdMigration owns the three-file userData copy and still goes through the
+  // shared, app-name-guarded helper.
+  const migrationSource = readFileSync(path.join(ELECTRON_DIR, '..', 'appIdMigration.js'), 'utf8');
+  assert.match(
+    migrationSource,
+    /import \{[^}]*maybeMigrateDesktopUserData[^}]*\} from '\.\/userDataMigration\.js';/,
+    'the app-id migration reuses the userData helper',
+  );
+  assert.match(migrationSource, /appName: DESKTOP_PRODUCT_NAME,/, 'the helper runs under the Cloudpit name');
 });
 
 test('AC2: package.json names the app Cloudpit', () => {
@@ -278,9 +288,9 @@ test('AC6: main.js registers only the cloudpit deep link and still parses the cl
   assert.match(handleSource, /parsed\.hostname !== 'auth'/);
 });
 
-test('AC7: appId and the cloudcli_desktop surface are unchanged', () => {
+test('AC7: appId follows the v3.0 identity while the cloudcli_desktop surface is unchanged', () => {
   const pkg = readPackageJson();
-  assert.equal(pkg.build.appId, 'ai.cloudcli.desktop');
+  assert.equal(pkg.build.appId, 'ai.cloudpit.desktop');
 
   const cloudSource = readFileSync(CLOUD_SOURCE_PATH, 'utf8');
   assert.match(cloudSource, /app_surface', 'cloudcli_desktop'\)/);

@@ -9,12 +9,12 @@ import { DesktopWindowManager } from './desktopWindow.js';
 import { DesktopNotificationsController } from './desktopNotifications.js';
 import { LocalServerController } from './localServer.js';
 import { TabsController } from './tabs.js';
-import { maybeMigrateDesktopUserData } from './userDataMigration.js';
+import { maybeMigrateDesktopAppId } from './appIdMigration.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = 'Cloudpit';
-const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
+const APP_USER_MODEL_ID = 'ai.cloudpit.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
 // v3.0 registers only the Cloudpit deep-link scheme. The cloud login callback
@@ -902,12 +902,24 @@ async function bootstrap() {
   app.setName(APP_NAME);
   process.title = APP_NAME;
 
-  // Copy the desktop userData JSON files before anything reads
-  // app.getPath('userData'), which already resolves under the Cloudpit folder.
-  maybeMigrateDesktopUserData({
-    appName: APP_NAME,
+  // One-time v3.0 app-id switch. This copies the three desktop userData JSON
+  // files out of the legacy CloudCLI folder and migrates the install-level
+  // identity (Windows registry/shortcuts, macOS keychain, Linux .desktop) before
+  // anything reads app.getPath('userData'), which already resolves under the
+  // Cloudpit folder. The legacy installation is never removed, so a failed
+  // migration falls back to it.
+  const appIdMigration = maybeMigrateDesktopAppId({
+    platform: process.platform,
     appDataDir: app.getPath('appData'),
+    homeDir: app.getPath('home'),
+    appVersion: app.getVersion(),
+    execPath:
+      process.platform === 'linux' ? process.env.APPIMAGE || process.execPath : process.execPath,
+    installLocation: app.isPackaged ? path.dirname(process.execPath) : getAppRoot(),
   });
+  if (appIdMigration.error) {
+    console.warn('[appIdMigration] fell back to the legacy installation:', appIdMigration.error);
+  }
 
   await app.whenReady();
   app.setName(APP_NAME);
