@@ -90,3 +90,11 @@ Split into observation (store/routes/wall), session-digest, session-ask and prod
 - `server/shared/tests/architecture-ratchet.baseline.json`
 - `server/shared/tests/cloudpit-runtime-flip.test.ts`
 - `tasks/gap-routine-architecture-analysis-god-package-server-observation.md`
+
+## Blocker
+
+**2026-11-02T13:13:03.272Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/cloudpit-goal-exit-gate.test.ts:   AssertionError [ERR_ASSERTION]: a directory outside the frozen baseline is a NEW module directory: modules/observation/core, modules/observation/producers, modules/observation/session-ask, modules/observation/session-digest. Do not raise the baseline — GOAL-053's exit gate forbids new module dir [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/cloudpit-goal-exit-gate.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：5941bd10-7247-4b37-8e9d-60daafca4432
