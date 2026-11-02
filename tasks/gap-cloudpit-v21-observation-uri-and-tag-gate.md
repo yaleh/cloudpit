@@ -80,7 +80,7 @@ depends_on:
 - 重试轮补漏（上一轮 suite 的 task-introduced-red）：`server/modules/observation/session-digest-llm.ts` 的用量账本用 `/^cloudcli:\/\/session\//` 剥前缀取会话 id；2.1 写 `cloudpit://` 后 `sessionId` 变成整条 URI，`session-digest-llm.test.ts` AC1 断言 `actual='cloudpit://session/llm-success' expected='llm-success'` 红。改为 `parseObservationUri(...).id`（两种拼写都归一），该文件补进 Touches。修后 `session-digest-llm.test.ts`：`tests 9 / pass 9 / fail 0`。
 - release：`node --test scripts/release/tests/fork-release-workflows.test.mjs scripts/release/tests/server-installer-bundle-url.test.mjs` → `tests 12 / pass 12 / fail 0`，两文件的 `legacy.tag_prefixes=0`。生产 release 面（`.github/workflows` + `scripts/release/build-server-bundle.js` + `electron/serverInstaller.js` + `package.json`）对 `cloudcli-local-server-|cloudcli-desktop-` 零命中；2.0 未补发旧 tag，无「停止补发 commit」可记。
 - `git grep -n 'cloudcli://'` 残余命中（2.1 保留的读取/契约）：`observation-uri.ts` 的解析正则与 `legacyCloudUri` 归一化；`observation-store.ts` 的 INVALID_URI 双拼写文案；`cockpit-card-feedback-store.ts` 的归一化路径；`observation.routes.ts` 的 400 文案；`electron/main.js` 的 `cloudcli://auth/callback`；chat 的 `cloudcli://session/<id>/msg/...` itemRef 契约；cockpit fixture/deep-link 夹具与 docs/goals/tasks 历史账本。`cloudcli://auth/callback` 仍在。
-- `npm run typecheck` exit 0；`npx oxlint <改动文件>` exit 0；anti-drift：`ANTI-DRIFT OK ... 10 actual file(s), all within declared Touches (13 glob(s))`。
+- `npm run typecheck` exit 0；`npx oxlint <改动文件>` exit 0；anti-drift：`ANTI-DRIFT OK ... 11 actual file(s), all within declared Touches (14 glob(s))`。
 - 未改 UI，无需浏览器截图。
 
 ## Notes
