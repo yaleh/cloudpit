@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-knowledge-title-statement-on-card
 title: cockpit 卡面透传知识标题与正文：knowledge.title/statement 从 fleet 读到前端显示
-status: ready
+status: done
 labels:
   - gap
   - defect
