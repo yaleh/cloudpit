@@ -3302,23 +3302,6 @@ export type CodexModelProvidersReading = {
   warnings: string[];
 };
 
-/**
- * One provider entry a save sends to `PUT /api/settings/codex/model-providers`.
- *
- * `wireApi` is the only dialect the server accepts; `token` is write-only and is persisted to
- * the entry's token file, never back into the settings document. Omit `token` (or send `''`)
- * to keep the stored secret. Mirrors the server schema's accepted fields.
- */
-export type CodexModelProviderWrite = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  envKey: string;
-  tokenFile: string;
-  wireApi: 'responses';
-  token?: string;
-};
-
 /** A project as the settings dialog needs it - a required identifier in `name` plus optional display name and paths - passed down to the MCP and skills panels so they can scope configuration to a project. */
 export type AgentSettingsProject = {
   name: string;

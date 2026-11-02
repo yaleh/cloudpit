@@ -1,9 +1,26 @@
 import { errorMessage } from '@/shared/utils';
 import type {
   CodexModelProvider,
-  CodexModelProviderWrite,
   CodexModelProvidersReading,
 } from '@/shared/types';
+
+/**
+ * One provider entry a save sends to `PUT /api/settings/codex/model-providers`.
+ *
+ * `wireApi` is the only dialect the server accepts; `token` is write-only and is persisted to
+ * the entry's token file, never back into the settings document (omit it to keep the stored
+ * secret). This is the controller's dependency-seam type, so the hook imports it from here —
+ * `src/shared/types.ts` is an oversize-ratchet file whose baseline may only fall.
+ */
+export type CodexModelProviderWrite = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  tokenFile: string;
+  wireApi: 'responses';
+  token?: string;
+};
 
 /**
  * The Settings → Agents → Codex provider registry form's rules.

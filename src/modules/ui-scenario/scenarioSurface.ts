@@ -19,16 +19,15 @@ import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurf
 import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
 import {
-  fillCodexProviderField,
-  fillModelLibraryField,
-  pressAddCodexProvider,
-  pressModelLibrarySave,
-  pressSaveCodexProviders,
+  dispatchCodexProviderStep,
+  isCodexProviderStep,
   readCodexProvidersReading,
-  selectModelCodexProvider,
   settleCodexProvidersStep,
 } from '@/modules/ui-scenario/codexProvidersSurface';
-import type { ScenarioCodexProvidersReading } from '@/modules/ui-scenario/codexProvidersSurface';
+import type {
+  CodexProviderDriveStep,
+  ScenarioCodexProvidersReading,
+} from '@/modules/ui-scenario/codexProvidersSurface';
 import { readCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import type { ScenarioCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
@@ -102,18 +101,7 @@ export type ScenarioDriveStep =
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true }
-  | { 'codexProvider.add': true }
-  | {
-    'codexProvider.fill': {
-      index: number;
-      field: 'id' | 'name' | 'baseUrl' | 'envKey' | 'tokenFile' | 'token';
-      value: string;
-    };
-  }
-  | { 'codexProvider.save': true }
-  | { 'modelLibrary.setField': { field: 'name' | 'id'; value: string } }
-  | { 'modelLibrary.selectCodexProvider': string }
-  | { 'modelLibrary.save': true }
+  | CodexProviderDriveStep
   | { 'chat.edit': string };
 
 /** True when the step carries one of the cards view's commands (dispatched in its own slice). */
@@ -731,26 +719,9 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('settings.save' in step) {
       action = 'settings.save';
       pressSettingsSave();
-    } else if ('codexProvider.add' in step) {
-      action = 'codexProvider.add';
-      pressAddCodexProvider();
-    } else if ('codexProvider.fill' in step) {
-      action = 'codexProvider.fill';
-      const fill = step['codexProvider.fill'];
-      fillCodexProviderField(fill.index, fill.field, fill.value);
-    } else if ('codexProvider.save' in step) {
-      action = 'codexProvider.save';
-      pressSaveCodexProviders();
-    } else if ('modelLibrary.setField' in step) {
-      action = 'modelLibrary.setField';
-      const fill = step['modelLibrary.setField'];
-      fillModelLibraryField(fill.field, fill.value);
-    } else if ('modelLibrary.selectCodexProvider' in step) {
-      action = 'modelLibrary.selectCodexProvider';
-      selectModelCodexProvider(step['modelLibrary.selectCodexProvider']);
-    } else if ('modelLibrary.save' in step) {
-      action = 'modelLibrary.save';
-      pressModelLibrarySave();
+    } else if (isCodexProviderStep(step)) {
+      // The Codex provider registry and its model editor own their own verbs (sibling slice).
+      action = dispatchCodexProviderStep(step);
     } else if ('chat.edit' in step) {
       action = 'chat.edit';
       // The press itself is the product's `onEditMessage`; the composer value the step's

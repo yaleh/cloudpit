@@ -5,10 +5,10 @@ import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
+import type { CodexModelProviderWrite } from '@/modules/settings/utils/codexProvidersController';
 import type * as SharedApi from '@/shared/api';
 import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import type {
-  CodexModelProviderWrite,
   CodexModelProvidersReading,
   ProviderModelsDefinition,
 } from '@/shared/types';
@@ -37,8 +37,7 @@ import type {
  */
 
 const apiMocks = vi.hoisted(() => ({
-  read: vi.fn(),
-  save: vi.fn(),
+  fetch: vi.fn(),
   models: vi.fn(),
   updateModel: vi.fn(),
   createModel: vi.fn(),
@@ -51,13 +50,12 @@ vi.mock('@/shared/api', async (importOriginal) => {
   const actual = await importOriginal<typeof SharedApi>();
   return {
     ...actual,
+    // The registry slice goes through `authenticatedFetch`; its own transport is the only
+    // request this file intercepts. `readApiJson` stays real so a 409 arrives as an
+    // ApiRequestError exactly as production parses it.
+    authenticatedFetch: apiMocks.fetch,
     api: {
       ...actual.api,
-      settings: {
-        ...actual.api.settings,
-        codexModelProviders: apiMocks.read,
-        saveCodexModelProviders: apiMocks.save,
-      },
       providers: {
         ...actual.api.providers,
         models: apiMocks.models,
@@ -118,10 +116,25 @@ const CATALOG: ProviderModelsDefinition = {
   ],
 };
 
+/** Every PUT body the panel sent, captured through the intercepted transport. */
+let saveBodies: Array<{ providers: CodexModelProviderWrite[]; expectedVersion: string }> = [];
+/** The answer a PUT gets; a case swaps it to drive a conflict. */
+let saveResponder: () => Promise<Response> = () => ok(READING);
+
 beforeEach(() => {
   Object.values(apiMocks).forEach((mock) => mock.mockReset());
-  apiMocks.read.mockImplementation(() => ok(READING));
-  apiMocks.save.mockImplementation(() => ok(READING));
+  saveBodies = [];
+  saveResponder = () => ok(READING);
+  apiMocks.fetch.mockImplementation((url: string, options: { method?: string; body?: string } = {}) => {
+    if (url !== '/api/settings/codex/model-providers') {
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
+    }
+    if (options.method === 'PUT') {
+      saveBodies.push(JSON.parse(options.body ?? '{}'));
+      return saveResponder();
+    }
+    return ok(READING);
+  });
   apiMocks.models.mockImplementation(() => ok({ success: true, data: { models: CATALOG } }));
   apiMocks.updateModel.mockImplementation(() => ok({ success: true, data: { models: CATALOG } }));
   apiMocks.createModel.mockImplementation(() => ok({ success: true, data: { models: CATALOG } }));
@@ -202,11 +215,8 @@ test('a save is a full replacement carrying the reading version, and only typed 
 
   fireEvent.click(view.getByText('Save providers'));
 
-  await waitFor(() => assert.equal(apiMocks.save.mock.calls.length, 1));
-  const payload = apiMocks.save.mock.calls[0][0] as {
-    providers: CodexModelProviderWrite[];
-    expectedVersion: string;
-  };
+  await waitFor(() => assert.equal(saveBodies.length, 1));
+  const payload = saveBodies[0]!;
 
   assert.equal(payload.expectedVersion, 'version-1', 'the save proves which file it was based on');
   assert.deepEqual(payload.providers, [
@@ -301,7 +311,7 @@ test('the negative arm: descriptor data chooses the panel and the editor, not a 
 });
 
 test('a stale save is a visible conflict and the edited rows survive', async () => {
-  apiMocks.save.mockImplementation(() => failure(409, 'VERSION_CONFLICT', 'changed since read'));
+  saveResponder = () => failure(409, 'VERSION_CONFLICT', 'changed since read');
   const view = renderModels('codex');
   await waitFor(() => assert.ok(view.getByText('Codex providers')));
 

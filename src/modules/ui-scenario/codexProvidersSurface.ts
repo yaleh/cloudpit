@@ -126,6 +126,56 @@ export function readCodexProvidersReading(): ScenarioCodexProvidersReading {
   };
 }
 
+/** One step this slice can drive. Each carries exactly one action. */
+export type CodexProviderDriveStep =
+  | { 'codexProvider.add': true }
+  | {
+    'codexProvider.fill': {
+      index: number;
+      field: 'id' | 'name' | 'baseUrl' | 'envKey' | 'tokenFile' | 'token';
+      value: string;
+    };
+  }
+  | { 'codexProvider.save': true }
+  | { 'modelLibrary.setField': { field: 'name' | 'id'; value: string } }
+  | { 'modelLibrary.selectCodexProvider': string }
+  | { 'modelLibrary.save': true };
+
+/** True when the step carries one of this slice's commands. */
+export function isCodexProviderStep(step: object): step is CodexProviderDriveStep {
+  return Object.keys(step).some(
+    (key) => key.startsWith('codexProvider.') || key.startsWith('modelLibrary.'),
+  );
+}
+
+/** Dispatches one step's real presses and answers the action name for the timing report. */
+export function dispatchCodexProviderStep(step: CodexProviderDriveStep): string {
+  if ('codexProvider.add' in step) {
+    pressAddCodexProvider();
+    return 'codexProvider.add';
+  }
+  if ('codexProvider.fill' in step) {
+    const fill = step['codexProvider.fill'];
+    fillCodexProviderField(fill.index, fill.field, fill.value);
+    return 'codexProvider.fill';
+  }
+  if ('codexProvider.save' in step) {
+    pressSaveCodexProviders();
+    return 'codexProvider.save';
+  }
+  if ('modelLibrary.setField' in step) {
+    const fill = step['modelLibrary.setField'];
+    fillModelLibraryField(fill.field, fill.value);
+    return 'modelLibrary.setField';
+  }
+  if ('modelLibrary.selectCodexProvider' in step) {
+    selectModelCodexProvider(step['modelLibrary.selectCodexProvider']);
+    return 'modelLibrary.selectCodexProvider';
+  }
+  pressModelLibrarySave();
+  return 'modelLibrary.save';
+}
+
 /**
  * Sets one controlled input's value and fires the events React's `onChange` listens to.
  *
