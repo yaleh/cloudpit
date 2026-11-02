@@ -318,6 +318,7 @@ test('AC1: real auth rejects anonymous and invalid callers; the GET is an allowl
       { label: 'non-string model', reply: await harness.put({ model: 42, expectedVersion: version }), code: 'INVALID_MODEL' },
       { label: 'non-string effort', reply: await harness.patch({ effort: 5, expectedVersion: version }), code: 'INVALID_EFFORT' },
       { label: 'missing version', reply: await harness.put({ model: 'x' }), code: 'VERSION_REQUIRED' },
+      { label: 'non-string version', reply: await harness.put({ model: 'x', expectedVersion: 42 }), code: 'INVALID_VERSION' },
       { label: 'PUT without a model', reply: await harness.put({ effort: 'high', expectedVersion: version }), code: 'MODEL_REQUIRED' },
       { label: 'empty PATCH', reply: await harness.patch({ expectedVersion: version }), code: 'NOTHING_TO_UPDATE' },
     ];

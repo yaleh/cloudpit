@@ -304,6 +304,24 @@ test('AC-460 a stale expectedVersion is a readable conflict and leaves the file 
   });
 });
 
+test('AC-460 a save without a usable expectedVersion is refused before it touches the file', async () => {
+  await withHarness(async (harness) => {
+    const tokenFile = path.join(path.dirname(harness.settingsPath), 'bob.token');
+    const providers = [provider({}, tokenFile)];
+
+    const missing = await harness.put({ providers });
+    assert.equal(missing.status, 400, missing.text);
+    assert.equal(errorBody(missing).code, 'VERSION_REQUIRED');
+
+    const nonString = await harness.put({ expectedVersion: 42, providers });
+    assert.equal(nonString.status, 400, nonString.text);
+    assert.equal(errorBody(nonString).code, 'INVALID_VERSION');
+
+    // Neither refusal wrote a registry: the same version proof is still required.
+    assert.equal((await harness.get()).body.version, 'missing');
+  });
+});
+
 test('AC-460 If-Match is accepted as the version a save was based on', async () => {
   await withHarness(async (harness) => {
     const version = (await harness.get()).body.version as string;
