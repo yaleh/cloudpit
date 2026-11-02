@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v30-release
 title: Cloudpit v3.0.0 发布准备：checker 版本化、release notes 补全、workflow/桌面资产、AC-458 复验
-status: ready
+status: done
 labels:
   - gap
 parent: null
