@@ -544,6 +544,50 @@ export type ProviderModelConfig = {
 };
 
 // ---------------------------
+//----------------- CODEX UPSTREAM MODEL PROVIDER TYPES ------------
+/**
+ * One Codex upstream provider as `GET /api/settings/codex/model-providers` returns it.
+ *
+ * `id` is the key Codex uses in `model_providers.<id>`; the built-in ids (`openai`, `ollama`,
+ * `lmstudio`) are reserved and can never appear. `baseUrl` is the Responses API root, `envKey`
+ * is the child environment variable the secret is handed over in, and `tokenFile` is the
+ * resolved path the runtime reads the secret from. The secret itself is NEVER part of this
+ * reading: `tokenSet` says only whether the token file currently holds a non-empty value.
+ * `wireApi` is always `responses` because Codex 0.166 refuses to load a provider that asks for
+ * Chat Completions. `warnings` names fields the project file carried that this surface does not
+ * understand (for example Codex's own `api`) plus an unusable token file, so neither is lost
+ * silently.
+ *
+ * Mirrored by hand in `src/shared/types.ts` and compared field-for-field by
+ * `src/shared/tests/wireContractTypeSync.test.ts`.
+ */
+export type CodexModelProvider = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  tokenFile: string;
+  wireApi: 'responses';
+  tokenSet: boolean;
+  warnings: string[];
+};
+
+/**
+ * The whole `GET /api/settings/codex/model-providers` reading.
+ *
+ * `path` is the project settings file this process reads and writes, `version` is its content
+ * hash (the value a save must send back as `expectedVersion`), `providers` is the sorted
+ * registry, and top-level `warnings` reports document-level problems (a provider entry that was
+ * skipped). Mirrored by hand in `src/shared/types.ts` (TypeSync row).
+ */
+export type CodexModelProvidersReading = {
+  path: string;
+  version: string;
+  providers: CodexModelProvider[];
+  warnings: string[];
+};
+
+// ---------------------------
 //----------------- PROVIDER ACTIVE MODEL TYPES ------------
 /**
  * Provider-neutral result for the model that is actively driving a session or

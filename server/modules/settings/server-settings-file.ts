@@ -21,22 +21,14 @@
  * top-level key and every other `cockpit`/`sessionStart` field, and committed by writing a
  * sibling temp file and renaming it over the target, so a reader never observes a half file.
  */
-import { createHash, randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import path from 'node:path';
 
 import {
   defaultServerSettingsPath as defaultServerSettingsPathForHome,
   legacyServerSettingsPath,
+  writeSettingsFileAtomically,
 } from '@/shared/settings-file.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
 
@@ -293,30 +285,18 @@ function createSerialQueue(): { run<T>(operation: () => T): Promise<T> } {
 
 const cockpitSessionStartWrites = createSerialQueue();
 
-/** Writes a sibling temp file and renames it over the target, so no reader sees a half file. */
-function writeAtomically(filePath: string, contents: string, replacing: boolean): void {
-  const directory = path.dirname(filePath);
-  const temporary = path.join(
-    directory,
-    `.${path.basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
-  );
+/**
+ * Writes the document through the shared atomic replace, wrapping a filesystem failure in this
+ * module's own error code. An existing file keeps its mode; a new one is created `0600`.
+ */
+function writeAtomically(filePath: string, contents: string): void {
   try {
-    mkdirSync(directory, { recursive: true });
-    const mode = replacing ? statSync(filePath).mode & 0o777 : 0o600;
-    writeFileSync(temporary, contents, { encoding: 'utf8', mode });
-    renameSync(temporary, filePath);
+    writeSettingsFileAtomically(filePath, contents);
   } catch (failure) {
     throw new AppError(`could not write ${filePath}: ${errorMessage(failure)}`, {
       code: 'SERVER_SETTINGS_WRITE_FAILED',
       statusCode: 500,
     });
-  } finally {
-    // The rename consumed the temp name on success; this removes it only after a failed write.
-    try {
-      rmSync(temporary, { force: true });
-    } catch {
-      // A leftover temp file is not a reason to hide the write's own error.
-    }
   }
 }
 
@@ -377,7 +357,7 @@ export function writeCockpitSessionStart(
     document.cockpit = cockpit;
 
     const serialized = `${JSON.stringify(document, null, 2)}\n`;
-    writeAtomically(filePath, serialized, existsSync(filePath));
+    writeAtomically(filePath, serialized);
     return { path: filePath, ...savedFieldsOf(document), version: versionOf(serialized) };
   });
 }

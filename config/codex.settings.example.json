@@ -1,0 +1,13 @@
+{
+  "_comment": "Template for the project-owned Codex upstream provider settings file. Copy it to ~/.config/cloudpit/codex.settings.json (or name another file with CODEX_SETTINGS_PATH) and edit the registry. The file is read at EVERY spawn, so an edit reaches the next Codex launch without a restart. The server writes this file with mode 0600; no secret is ever stored here — a provider names a tokenFile, which the runtime reads, and GET /api/settings/codex/model-providers reports only whether that file holds a value. Provider ids `openai`, `ollama` and `lmstudio` are reserved by Codex and are refused; `wireApi` accepts only `responses` (Chat Completions is not supported by Codex 0.166). Unknown fields are reported as warnings instead of being silently dropped.",
+  "modelProviders": {
+    "my-responses-provider": {
+      "name": "My Responses Provider",
+      "baseUrl": "https://api.example.test/v1",
+      "envKey": "MY_RESPONSES_PROVIDER_API_KEY",
+      "tokenFile": "~/.config/cloudpit/codex.secrets/my-responses-provider.token",
+      "wireApi": "responses"
+    }
+  },
+  "_modelProviders": "A registry keyed by provider id. Each entry is handed to Codex as model_providers.<id>. `baseUrl` is required and must be an absolute http(s) URL. `envKey` is the child environment variable the secret is placed in (defaults to CODEX_<ID>_API_KEY); the secret itself never appears in argv. `tokenFile` names a 0600 file holding the secret (defaults to codex.secrets/<id>.token beside this file); a missing or empty file leaves the provider unusable and is reported, never silently replaced by Codex's `openai` endpoint. `name` is display-only and defaults to the id. Both camelCase and Codex's snake_case spellings are accepted; naming both with different values is refused."
+}

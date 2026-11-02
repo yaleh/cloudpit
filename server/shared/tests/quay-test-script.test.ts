@@ -483,8 +483,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // (496 + 1 = 497 collected server test files). The goal branch's
     // gap-cloudpit-runtime-default-flip adds its criterion
     // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498 collected server test
-    // files). This fixture names 3 known files, so 498 - 3 = 495.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=495$/);
+    // files), then codex-provider-config-surface added its criterion
+    // server/modules/settings/tests/codex-model-providers-settings.test.ts
+    // (498 + 1 = 499 collected server test files). This fixture names 3 known files, so
+    // 499 - 3 = 496.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=496$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -625,10 +628,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // gap-effective-config-proc-request-layer added its criterion
     // server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts (496 + 1 = 497),
     // then the goal branch's gap-cloudpit-runtime-default-flip added
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498)
-    // — but this fixture names ONE known file, so 498 - 1 = 497 (AC2 reads 495 because its
-    // fixture names 3; the 498 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=497$/);
+    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498), then
+    // codex-provider-config-surface added
+    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499)
+    // — but this fixture names ONE known file, so 499 - 1 = 498 (AC2 reads 496 because its
+    // fixture names 3; the 499 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=498$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -218,6 +218,22 @@ const ROWS: readonly SyncRow[] = [
     reader: 'object',
   },
   {
+    // The project-owned Codex upstream provider registry: the settings UI renders this shape and
+    // a save sends the same fields back, so a field added on one end without the other would make
+    // the form silently drop or invent configuration. The server's copy lives in shared/types.ts
+    // beside the other provider types.
+    client: 'CodexModelProvider',
+    server: 'CodexModelProvider',
+    serverFile: SERVER_TYPES,
+    reader: 'object',
+  },
+  {
+    client: 'CodexModelProvidersReading',
+    server: 'CodexModelProvidersReading',
+    serverFile: SERVER_TYPES,
+    reader: 'object',
+  },
+  {
     // The lifecycle vocabulary a NEW session is created with. The client spells
     // it `SessionLifecycleMode`; the server's row column and capability matrix
     // spell it `HostMode`. Both ends must name the same modes, or a create the

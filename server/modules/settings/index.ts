@@ -42,6 +42,24 @@ export type {
   ServerSettings,
 } from './server-settings.js';
 export type { CodexMcpGatewaySettings } from './codex-mcp-gateway.settings.js';
+// createCodexModelProvidersSource / CodexModelProvidersSource: the project-owned Codex upstream
+// provider registry (`~/.config/cloudpit/codex.settings.json`). The settings API writes through
+// the one instance `settings.module.ts` owns; the resident/per-run Codex injection tasks create
+// their own source over the same file and call `resolve(id)` AT SPAWN TIME (reads are uncached),
+// so an edit reaches the next launch without a restart.
+export {
+  createCodexModelProvidersSource,
+  type CodexModelProviderResolution,
+  type CodexModelProvidersSource,
+  type ResolvedCodexModelProvider,
+} from './codex-model-providers.settings.js';
+// The registry's own vocabulary, exported so a sibling task names the same reserved ids and the
+// same one accepted wire dialect instead of restating them.
+export {
+  CODEX_PROVIDER_WIRE_API,
+  RESERVED_CODEX_PROVIDER_IDS,
+} from './codex-model-providers.schema.js';
+export { CODEX_SETTINGS_PATH_ENV } from './codex-model-providers.store.js';
 // readCockpitSessionStartBoot / resolveServerSettingsFileTarget: the dual read/write target the
 // cockpit session-start settings use when the legacy file is the source. Exported so the
 // Cloudpit runtime criterion can drive the legacy-read → Cloudpit-write contract over a temp home.

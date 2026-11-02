@@ -23,7 +23,16 @@
  * `modules/reply-suggestions/reply-suggestions-settings.ts` and
  * `modules/architecture/refresh-settings.ts`.
  */
-import { readFileSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -364,6 +373,46 @@ export function resolveApiKey(
   const firstLine = lines[0]!;
   const firstMatch = KEY_ASSIGNMENT.exec(firstLine);
   return (firstMatch ? unquote(firstMatch[2] ?? '') : unquote(firstLine)).trim();
+}
+
+/**
+ * Write one settings file by replacing it atomically.
+ *
+ * The bytes go to a sibling temp file (same directory, so the rename cannot cross a filesystem)
+ * and are renamed over the target, so a reader never observes a half-written document. Without
+ * an explicit `mode`, an existing file keeps its current permissions and a new file is created
+ * `0600` — settings files can carry operator credentials. Callers that own a secret-bearing file
+ * pass `mode: 0o600` to widen-proof it even when the file already existed.
+ *
+ * Throws the filesystem error unchanged: each caller wraps it in its own domain `AppError`, so
+ * this shared helper does not invent a settings-specific error code.
+ *
+ * Consumers: `settings/server-settings-file.ts` (the cockpit session-start writer) and
+ * `settings/codex-model-providers.store.ts` (the Codex provider settings and secret files).
+ */
+export function writeSettingsFileAtomically(
+  filePath: string,
+  contents: string,
+  options: { mode?: number } = {},
+): void {
+  const directory = path.dirname(filePath);
+  const temporary = path.join(
+    directory,
+    `.${path.basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    mkdirSync(directory, { recursive: true });
+    const mode = options.mode ?? (existsSync(filePath) ? statSync(filePath).mode & 0o777 : 0o600);
+    writeFileSync(temporary, contents, { encoding: 'utf8', mode });
+    renameSync(temporary, filePath);
+  } finally {
+    // The rename consumed the temp name on success; this removes it only after a failed write.
+    try {
+      rmSync(temporary, { force: true });
+    } catch {
+      // A leftover temp file is not a reason to hide the write's own error.
+    }
+  }
 }
 
 /**

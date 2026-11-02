@@ -21,6 +21,7 @@ import { createAccessTokensService } from '@/modules/oauth/index.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
+import { createCodexModelProvidersSource } from './codex-model-providers.settings.js';
 import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
 import {
   readCockpitSessionStart,
@@ -30,6 +31,13 @@ import {
 } from './server-settings-file.js';
 
 const accessTokensService = createAccessTokensService({ now: () => new Date() });
+
+/**
+ * The project-owned Codex provider registry. One instance owns the file path and the write
+ * queue; the settings API writes through it and the Codex injection tasks create their own
+ * source over the same file (reads are uncached, so both see the latest edit).
+ */
+const codexModelProvidersSource = createCodexModelProvidersSource();
 
 /**
  * The two files the cockpit settings page works with: the one THIS boot read, and the one a save
@@ -175,6 +183,10 @@ const settingsService = createSettingsService({
       const boot = readCockpitSessionStartBoot();
       return boot === null ? null : { model: boot.model, effort: boot.effort };
     },
+  },
+  codexModelProviders: {
+    read: () => codexModelProvidersSource.read(),
+    write: (input) => codexModelProvidersSource.write(input),
   },
 });
 

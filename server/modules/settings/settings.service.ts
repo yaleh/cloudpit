@@ -2,6 +2,11 @@ import type { McpAuditRouteEntry, McpGatewayGateReading } from '@/modules/mcp-ga
 import { normalizeAccessTokenScopes } from '@/modules/oauth/index.js';
 import { AppError } from '@/shared/utils.js';
 
+import {
+  createCodexModelProvidersOperations,
+  type CodexModelProvidersPort,
+} from './codex-model-providers.service.js';
+
 type NotificationPreferences = Record<string, unknown> & {
   channels?: Record<string, unknown> & { webPush?: boolean };
 };
@@ -167,6 +172,14 @@ type SettingsDependencies = {
    * model with the shipped default, so this module never restates it.
    */
   cockpitSessionStart?: CockpitSessionStartPort;
+  /**
+   * The project-owned Codex provider registry (Settings → Agents → Codex).
+   *
+   * Optional so the existing service criteria keep constructing the dependency object they
+   * always have; `settings.module.ts` always supplies it. The operations live in a sibling
+   * file so this assembled service does not grow the registry's file and transport rules.
+   */
+  codexModelProviders?: CodexModelProvidersPort;
 };
 
 /** The only lifetimes a personal access token may request, in days. */
@@ -323,6 +336,9 @@ function readCockpitSessionStartVersion(
 /** Creates settings workflows with repositories and notification effects injected. */
 export function createSettingsService(dependencies: SettingsDependencies) {
   return {
+    // The Codex provider registry's two endpoints are a distinct file-backed concern; they are
+    // composed here so `settings.module.ts` still builds one service.
+    ...createCodexModelProvidersOperations(dependencies.codexModelProviders),
     listCredentials(userId: number, credentialType: string | null) {
       return { credentials: dependencies.credentials.list(userId, credentialType) };
     },

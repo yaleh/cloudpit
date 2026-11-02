@@ -973,3 +973,9 @@
 #   (dur=1863ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 497 server test files and the baseline holds 448 of them).
 1863	server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts
+#   and the codex-model-providers-settings row by codex-provider-config-surface,
+#   measured once on 2026-11-02 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-model-providers-settings.test.ts`
+#   (dur=2206ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 499 server test files and the baseline holds 450 of them).
+2206	server/modules/settings/tests/codex-model-providers-settings.test.ts

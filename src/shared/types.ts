@@ -3259,6 +3259,41 @@ export type AgentCategory = 'account' | 'permissions' | 'mcp' | 'skills' | 'mode
 /** How much Codex may do without asking, from prompting on every edit to bypassing permission checks entirely; persisted as the Codex agent's permission setting. */
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
+/**
+ * One Codex upstream provider as `GET /api/settings/codex/model-providers` returns it.
+ *
+ * `id` is the key Codex uses in `model_providers.<id>`; `baseUrl` is the Responses API root,
+ * `envKey` is the child environment variable the secret is handed over in, and `tokenFile` is
+ * the resolved path the runtime reads the secret from. The secret itself is NEVER part of this
+ * reading: `tokenSet` says only whether the token file currently holds a non-empty value.
+ * `wireApi` is always `responses`. `warnings` names fields the project file carried that this
+ * surface does not understand, plus an unusable token file. Mirrors the server's
+ * `CodexModelProvider` (compared by `wireContractTypeSync.test.ts`).
+ */
+export type CodexModelProvider = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  tokenFile: string;
+  wireApi: 'responses';
+  tokenSet: boolean;
+  warnings: string[];
+};
+
+/**
+ * The whole `GET /api/settings/codex/model-providers` reading: the file this process reads and
+ * writes, its content hash (`version`, which a save must send back as `expectedVersion`), the
+ * sorted registry, and document-level warnings. Mirrors the server's
+ * `CodexModelProvidersReading` (compared by `wireContractTypeSync.test.ts`).
+ */
+export type CodexModelProvidersReading = {
+  path: string;
+  version: string;
+  providers: CodexModelProvider[];
+  warnings: string[];
+};
+
 /** A project as the settings dialog needs it - a required identifier in `name` plus optional display name and paths - passed down to the MCP and skills panels so they can scope configuration to a project. */
 export type AgentSettingsProject = {
   name: string;

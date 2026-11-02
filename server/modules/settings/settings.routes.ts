@@ -100,5 +100,24 @@ export function createSettingsRouter(
     };
   router.put('/cockpit/session-start', writeCockpitSessionStart(false));
   router.patch('/cockpit/session-start', writeCockpitSessionStart(true));
+
+  // The project-owned Codex upstream provider registry. GET reports each provider's fields and
+  // only whether its token file holds a secret (`tokenSet`); PUT is a full replacement guarded by
+  // the content hash it was based on (`expectedVersion` in the body, or `If-Match`), so a second
+  // editor's stale save is a 409 rather than a silent overwrite.
+  router.get('/codex/model-providers', respond(() => service.getCodexModelProviders()));
+  router.put('/codex/model-providers', async (req, res, next) => {
+    try {
+      const header = req.get('if-match');
+      const headerVersion = header === undefined
+        ? undefined
+        : header.replace(/^W\//, '').replace(/^"|"$/g, '');
+      const reading = await service.updateCodexModelProviders({
+        body: req.body,
+        headerVersion,
+      });
+      res.status(200).set('ETag', `"${reading.version}"`).json(reading);
+    } catch (error) { next(error); }
+  });
   return router;
 }
