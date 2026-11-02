@@ -123,6 +123,9 @@ const createService = (read: () => CodexProviderRegistryReading | null) => {
     sessions: {
       getSessionById: () => null,
       setSessionModel: () => undefined,
+      // No row in this file's fixture, so no session-binding write can land;
+      // the method exists to satisfy the service's narrowed store seam.
+      setSessionModelProviderId: () => false,
       setSessionEffort: () => undefined,
       setSessionPermissionMode: () => false,
     },

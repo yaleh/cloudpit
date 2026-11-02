@@ -615,6 +615,10 @@ export const sessionsService = {
       // differently from the conversation it was branched from.
       model: source.model,
       effort: source.effort,
+      // The branch continues a thread the provider started under one upstream
+      // provider: resuming it under the process default is the mismatch this
+      // column exists to prevent, so the binding comes along.
+      modelProviderId: source.model_provider_id ?? null,
       // Same reasoning for the permission mode: a fork inherits how the
       // conversation it branches from was actually being run.
       permissionMode: source.permission_mode,

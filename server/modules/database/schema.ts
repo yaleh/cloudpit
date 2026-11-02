@@ -176,6 +176,20 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- restores its exact runtime configuration instead of provider defaults.
     model TEXT,
     effort TEXT,
+    -- The upstream provider this session's model is bound to, written once by
+    -- the session's first send (a custom model entry may name one through its
+    -- \`codexProviderId\`, AC-461). It is a property of the SESSION because a
+    -- provider runtime records it inside the conversation it starts and checks
+    -- it again on every resume: switching the model to one from another
+    -- provider would not switch providers, it would break the thread.
+    --
+    -- NULL means no binding has been recorded: the selection ran under the
+    -- provider's own default, or the session predates this column. NULL is not
+    -- "the default provider", so a later selection may still establish a
+    -- binding; once a value is recorded it never changes in place (see the
+    -- session-provider-binding.ts switch guard) — a fork or a new session is
+    -- how a conversation moves to another upstream provider.
+    model_provider_id TEXT,
     -- Permission mode this session last sent a message with (one of the
     -- modes the provider's capabilities declare: default, auto, acceptEdits,
     -- bypassPermissions, plan). Unlike model and effort there is no picker

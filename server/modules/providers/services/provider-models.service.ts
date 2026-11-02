@@ -20,12 +20,30 @@ import {
 } from '@/shared/ports/codex-provider-registry.port.js';
 import { AppError } from '@/shared/utils.js';
 
+import {
+  createSessionModelResolver,
+  type RecordedSessionSelection,
+} from './session-model-resolver.js';
+import {
+  assertProviderAvailable,
+  assertProviderSwitchAllowed,
+  readRecordedProviderBinding,
+  resolveModelProviderId,
+} from './session-provider-binding.js';
+
 /** Session-row access the service needs, narrowed so tests can stub it. */
 type ProviderModelsSessionStore = {
   getSessionById(
     sessionId: string,
-  ): { model: string | null; effort: string | null; permission_mode: string | null } | null;
+  ): {
+    model: string | null;
+    effort: string | null;
+    permission_mode: string | null;
+    model_provider_id?: string | null;
+  } | null;
   setSessionModel(sessionId: string, model: string): void;
+  /** Returns false when the row already carries a binding (the column is write-once). */
+  setSessionModelProviderId(sessionId: string, modelProviderId: string): boolean;
   setSessionEffort(sessionId: string, effort: string): void;
   /** Returns false when no session row matched. */
   setSessionPermissionMode(sessionId: string, permissionMode: string): boolean;
@@ -507,9 +525,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     };
   };
 
-  const readRecordedSessionSelection = (
-    sessionId: string,
-  ): { model: string | null; effort: string | null; permissionMode: string | null } | null => {
+  const readRecordedSessionSelection = (sessionId: string): RecordedSessionSelection | null => {
     const session = sessions.getSessionById(sessionId);
     if (!session) {
       return null;
@@ -519,8 +535,19 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
       model: session.model?.trim() || null,
       effort: session.effort?.trim() || null,
       permissionMode: session.permission_mode?.trim() || null,
+      modelProviderId: session.model_provider_id?.trim() || null,
     };
   };
+
+  // The display/resume half of the service: which model a session is on, and
+  // which model a resume should launch. Composed here because it reads the same
+  // catalog and row access this service owns.
+  const { resolveSessionModel, resolveResumeModel } = createSessionModelResolver({
+    readRecordedSelection: readRecordedSessionSelection,
+    readCodexRegistry,
+    getProviderModels,
+    getCurrentActiveModel,
+  });
 
   /**
    * Records the model one session runs with.
@@ -530,6 +557,14 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
    * ran with. Sessions the app has not created yet (no row) are ignored rather
    * than treated as an error: the client keeps its own pending selection and
    * the value lands on the row with the first send.
+   *
+   * The session's upstream provider is recorded here too, on the first write
+   * that names a model bound to one (`model_provider_id`). This is the send
+   * funnel, so it is the one place every first turn passes through. A later
+   * selection that would run under a DIFFERENT provider is refused — with the
+   * fork/new-session action in the message — because the provider runtime
+   * cannot switch it in place; the same selection on the same provider is an
+   * ordinary model change.
    */
   const setSessionModel = (
     provider: LLMProvider,
@@ -547,15 +582,54 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
       return null;
     }
 
+    const registry = readCodexRegistry();
+    const requestedProviderId = resolveModelProviderId(catalog, provider, normalizedModel);
+    assertProviderSwitchAllowed(recordedSelection.modelProviderId, requestedProviderId, normalizedModel);
+    assertProviderAvailable(registry, requestedProviderId, normalizedModel);
+
     sessions.setSessionModel(normalizedSessionId, normalizedModel);
+    if (requestedProviderId && !recordedSelection.modelProviderId) {
+      sessions.setSessionModelProviderId(normalizedSessionId, requestedProviderId);
+    }
     return {
       provider,
       sessionId: normalizedSessionId,
       model: normalizedModel,
       effort: recordedSelection.effort,
       permissionMode: recordedSelection.permissionMode,
+      ...readRecordedProviderBinding(registry, recordedSelection.modelProviderId ?? requestedProviderId),
       source: 'session',
     };
+  };
+
+  /**
+   * Answers whether a send may name this model for this session, throwing the
+   * same readable refusal the record path throws.
+   *
+   * `chat-websocket.service.ts` calls this BEFORE the session's run is admitted.
+   * The record path (`setSessionModel`) would refuse the equal case, but it runs
+   * after the run is reserved — and a throw there would leave a `running` run
+   * with no process behind it. A missing row, or a session with no recorded
+   * binding, is not a refusal: the first send of a session is exactly where a
+   * binding is allowed to be established.
+   */
+  const assertSessionProviderSwitch = (
+    provider: LLMProvider,
+    sessionId: string,
+    model: string,
+  ): void => {
+    const normalizedSessionId = sessionId.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedSessionId || !normalizedModel) {
+      return;
+    }
+    const recordedSelection = readRecordedSessionSelection(normalizedSessionId);
+    if (!recordedSelection) {
+      return;
+    }
+    const requestedProviderId = resolveModelProviderId(catalog, provider, normalizedModel);
+    assertProviderSwitchAllowed(recordedSelection.modelProviderId, requestedProviderId, normalizedModel);
+    assertProviderAvailable(readCodexRegistry(), requestedProviderId, normalizedModel);
   };
 
   /**
@@ -633,109 +707,6 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   };
 
   /**
-   * Answers "which model is this session using?" for every display surface.
-   *
-   * Precedence, highest first:
-   *   1. the model recorded on the session row;
-   *   2. the provider's own session state for externally-created sessions;
-   *   3. `requestedModel`, the client's current default;
-   *   4. the source-controlled provider catalog default.
-   *
-   * The permission mode rides along unchanged: it has no provider-side source
-   * and no client-supplied fallback (the client is not allowed to persist one),
-   * so the only two answers are the recorded mode or NULL for "never sent one".
-   */
-  const resolveSessionModel = async (
-    provider: LLMProvider,
-    options: { sessionId?: string | null; requestedModel?: string | null } = {},
-  ): Promise<ProviderSessionModel> => {
-    const normalizedSessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
-    const normalizedRequestedModel = typeof options.requestedModel === 'string'
-      ? options.requestedModel.trim()
-      : '';
-
-    if (normalizedSessionId) {
-      const recordedSelection = readRecordedSessionSelection(normalizedSessionId);
-      if (recordedSelection?.model) {
-        return {
-          provider,
-          sessionId: normalizedSessionId,
-          model: recordedSelection.model,
-          effort: recordedSelection.effort,
-          permissionMode: recordedSelection.permissionMode,
-          source: 'session',
-        };
-      }
-
-      const providerCatalog = await getProviderModels(provider);
-      const providerModel = await getCurrentActiveModel(provider, normalizedSessionId);
-      const resolvedProviderModel = providerModel.model?.trim();
-      if (resolvedProviderModel && resolvedProviderModel !== providerCatalog.DEFAULT) {
-        return {
-          provider,
-          sessionId: normalizedSessionId,
-          model: resolvedProviderModel,
-          effort: recordedSelection?.effort ?? null,
-          permissionMode: recordedSelection?.permissionMode ?? null,
-          source: 'provider',
-        };
-      }
-
-      return {
-        provider,
-        sessionId: normalizedSessionId,
-        model: normalizedRequestedModel || providerCatalog.DEFAULT,
-        effort: recordedSelection?.effort ?? null,
-        permissionMode: recordedSelection?.permissionMode ?? null,
-        source: normalizedRequestedModel ? 'session' : 'default',
-      };
-    }
-
-    if (normalizedRequestedModel) {
-      return {
-        provider,
-        sessionId: null,
-        model: normalizedRequestedModel,
-        effort: null,
-        permissionMode: null,
-        source: 'session',
-      };
-    }
-
-    const providerCatalog = await getProviderModels(provider);
-    return {
-      provider,
-      sessionId: null,
-      model: providerCatalog.DEFAULT,
-      effort: null,
-      permissionMode: null,
-      source: 'default',
-    };
-  };
-
-  /**
-   * Picks the model one resumed provider run should use.
-   *
-   * Provider-global state is deliberately ignored because it must never
-   * override the model explicitly selected in the composer.
-   */
-  const resolveResumeModel = async (
-    provider: LLMProvider,
-    sessionId: string | undefined,
-    requestedModel?: string | null,
-  ): Promise<string | undefined> => {
-    void provider;
-    const normalizedRequestedModel = typeof requestedModel === 'string' ? requestedModel.trim() : '';
-    const normalizedSessionId = sessionId?.trim();
-    if (!normalizedSessionId) {
-      return normalizedRequestedModel || undefined;
-    }
-
-    const recordedModel = readRecordedSessionSelection(normalizedSessionId)?.model;
-    return recordedModel || normalizedRequestedModel || undefined;
-  };
-
-  /**
    * SERVER-INTERNAL ONLY: returns the stored config including secret values
    * for the launch compiler. Never mount this on a route or return its result
    * to a client; every client-facing read goes through `getProviderModels`.
@@ -753,6 +724,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     updateCustomModel,
     deleteCustomModel,
     setSessionModel,
+    assertSessionProviderSwitch,
     setSessionEffort,
     setSessionPermissionMode,
     resolveSessionModel,

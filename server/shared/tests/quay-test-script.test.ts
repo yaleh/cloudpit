@@ -492,9 +492,11 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // added its criterion server/modules/providers/tests/codex-provider-model-binding.test.ts
     // (500 + 1 = 501 collected server test files). Then codex-perrun-provider-injection
     // added its criterion server/modules/providers/tests/codex-runtime-provider-injection.test.ts
-    // (501 + 1 = 502 collected server test files). This fixture names 3 known files, so
-    // 502 - 3 = 499.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=499$/);
+    // (501 + 1 = 502 collected server test files), then codex-session-provider-id-binding
+    // added its criterion server/modules/providers/tests/codex-session-provider-id-binding.test.ts
+    // (502 + 1 = 503 collected server test files). This fixture names 3 known files, so
+    // 503 - 3 = 500.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=500$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -643,10 +645,12 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // codex-model-entry-provider-binding added
     // server/modules/providers/tests/codex-provider-model-binding.test.ts (500 + 1 = 501), then
     // codex-perrun-provider-injection added
-    // server/modules/providers/tests/codex-runtime-provider-injection.test.ts (501 + 1 = 502)
-    // — but this fixture names ONE known file, so 502 - 1 = 501 (AC2 reads 499 because its
-    // fixture names 3; the 502 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=501$/);
+    // server/modules/providers/tests/codex-runtime-provider-injection.test.ts (501 + 1 = 502),
+    // then codex-session-provider-id-binding added
+    // server/modules/providers/tests/codex-session-provider-id-binding.test.ts (502 + 1 = 503)
+    // — but this fixture names ONE known file, so 503 - 1 = 502 (AC2 reads 500 because its
+    // fixture names 3; the 503 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=502$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

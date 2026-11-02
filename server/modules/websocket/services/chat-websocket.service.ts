@@ -62,7 +62,7 @@ import type {
   ProviderRuntimeWriter,
   RealtimeClientConnection,
 } from '@/shared/types.js';
-import { parseIncomingJsonObject, residentRunIsTurn } from '@/shared/utils.js';
+import { AppError, parseIncomingJsonObject, residentRunIsTurn } from '@/shared/utils.js';
 
 /**
  * Trust boundary for client-supplied image attachments: chat.send options come
@@ -860,6 +860,30 @@ export async function dispatchRun(
   source?: ChatRunSource,
 ): Promise<{ started: boolean; error: string | null }> {
   const provider = session.provider as LLMProvider;
+
+  // A session's upstream provider is part of what the provider started its
+  // thread with, and it cannot be moved to another one in place (Codex answers
+  // `modelProviderMismatch` on the turn; the thread is already bound). The
+  // switch is therefore refused HERE — before the run is reserved — because the
+  // recording write below (`setSessionModel`) refuses the same selection and
+  // runs after `startRun`: a throw there would leave a `running` run with no
+  // process behind it. Every send funnels through this function (`chat.send`
+  // and `chat.edit-send` alike), so this is the one admission gate. A session
+  // with no recorded binding — every session's first send — passes.
+  const requestedModel = (data.options as AnyRecord | undefined)?.model;
+  if (typeof requestedModel === 'string' && requestedModel.trim()) {
+    try {
+      providerModelsService.assertSessionProviderSwitch(provider, sessionId, requestedModel);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code = error instanceof AppError ? error.code : 'SESSION_PROVIDER_MISMATCH';
+      if (ws) {
+        sendProtocolError(ws, code, message, sessionId);
+      }
+      onRefuse?.({ code, message });
+      return { started: false, error: message };
+    }
+  }
 
   const runIsTurn = residentRunIsTurn();
   // Whether a busy send from this provider would be taken by a process that is

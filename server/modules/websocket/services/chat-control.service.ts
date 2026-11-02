@@ -182,7 +182,18 @@ type SendResult =
     }
   | {
       ok: false;
-      code: 'SESSION_NOT_FOUND' | 'UNSUPPORTED_PROVIDER' | 'RUN_IN_PROGRESS' | 'FORBIDDEN';
+      code:
+        | 'SESSION_NOT_FOUND'
+        | 'UNSUPPORTED_PROVIDER'
+        | 'RUN_IN_PROGRESS'
+        | 'FORBIDDEN'
+        // A send whose model would move the session to another upstream
+        // provider (`SESSION_PROVIDER_MISMATCH`), or whose model is bound to a
+        // provider that no longer exists (`SESSION_PROVIDER_UNKNOWN`). Both are
+        // decided by `dispatchRun` before it reserves a run and are handed back
+        // here rather than relabelled RUN_IN_PROGRESS.
+        | 'SESSION_PROVIDER_MISMATCH'
+        | 'SESSION_PROVIDER_UNKNOWN';
       message: string;
     };
 
@@ -658,6 +669,11 @@ export function createChatControlService(deps: ChatControlDependencies) {
       resolveRunId = resolve;
     });
     let busyAccepted = false;
+    // The dispatch-level refusal (busy session, upstream-provider switch),
+    // remembered so the result can carry its real code: the race below only
+    // knows "the dispatch settled instead of registering a run". Held in an
+    // object because the only write happens inside the `onRefuse` callback.
+    const dispatchVerdict: { refusal: { code: string; message: string } | null } = { refusal: null };
 
     // What the delivery-shaped answer needs, read BEFORE the dispatch: run=turn
     // is the mode in which a send is a DELIVERY, and "would this session take a
@@ -703,7 +719,12 @@ export function createChatControlService(deps: ChatControlDependencies) {
       // A run in progress is `dispatchRun`'s own refusal and it is decided
       // before its first `await`, so the verdict can be handed back on this
       // tick. `ws` is null above, so this is the only channel that reports it.
-      input.onRefuse,
+      // Kept as well as forwarded, because the result below has to repeat the
+      // refusal's own code (a provider switch is not "busy").
+      (refusal) => {
+        dispatchVerdict.refusal = refusal;
+        input.onRefuse?.(refusal);
+      },
       // The run's recorded origin. Derived from `caller.via` and passed
       // explicitly because `ws`/connection are both null here: the
       // connection-derived default cannot tell a WebSocket send from an MCP or
@@ -724,6 +745,18 @@ export function createChatControlService(deps: ChatControlDependencies) {
     ]);
 
     if (!outcome.registered) {
+      // The refusal dispatchRun reported, when it is one this result's own
+      // vocabulary can state. Anything else (including no refusal at all) keeps
+      // the historical answer.
+      const refused = dispatchVerdict.refusal;
+      if (
+        refused !== null
+        && (refused.code === 'RUN_IN_PROGRESS'
+          || refused.code === 'SESSION_PROVIDER_MISMATCH'
+          || refused.code === 'SESSION_PROVIDER_UNKNOWN')
+      ) {
+        return { ok: false, code: refused.code, message: refused.message };
+      }
       return {
         ok: false,
         code: 'RUN_IN_PROGRESS',

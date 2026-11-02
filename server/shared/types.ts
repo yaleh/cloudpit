@@ -652,6 +652,26 @@ export type ProviderSessionModel = {
    * default" rather than as a mode of its own.
    */
   permissionMode: string | null;
+  /**
+   * The upstream provider this session's model is bound to (a Codex
+   * `model_providers.<id>` id, recorded by the session's first send). NULL
+   * means no binding has been recorded — the run uses the provider's own
+   * default — and is not the same answer as "the default provider".
+   *
+   * The id is part of the conversation's identity: a session cannot move to a
+   * different one in place, so a composer that offers a model from another
+   * provider must fork or start a new session instead.
+   */
+  modelProviderId: string | null;
+  /**
+   * A readable statement of why the recorded provider id cannot be used any
+   * more (the provider was deleted or renamed), or NULL when it still resolves.
+   *
+   * It is a MARK, not a fallback: `model` keeps the value the session actually
+   * ran with, so the client can offer the fork/new-session action instead of
+   * silently showing a default model the conversation never used.
+   */
+  modelProviderProblem: string | null;
   source: ProviderSessionModelSource;
 };
 

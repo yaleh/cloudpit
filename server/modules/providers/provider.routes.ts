@@ -709,7 +709,18 @@ router.post(
     // A session with no row has no recorded permission mode either, so that
     // answer is null rather than a mode the session never sent with.
     res.json(createApiSuccessResponse(
-      stored ?? { provider, sessionId, model, effort: null, permissionMode: null, source: 'session' as const },
+      stored ?? {
+        provider,
+        sessionId,
+        model,
+        effort: null,
+        permissionMode: null,
+        // No row yet, so no binding has been recorded either; the first send
+        // that reaches a row is what writes one.
+        modelProviderId: null,
+        modelProviderProblem: null,
+        source: 'session' as const,
+      },
     ));
   }),
 );
