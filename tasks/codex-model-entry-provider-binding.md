@@ -25,6 +25,7 @@ goal_ac: AC-461
 
 ## Touches
 
+- tasks/codex-model-entry-provider-binding.md
 - server/shared/types.ts + src/shared/types.ts（ProviderModelConfig.codexProviderId + TypeSync）
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/provider.routes.ts
