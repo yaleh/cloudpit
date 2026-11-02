@@ -5,11 +5,17 @@
  * AC-454 asks whether the *external* release actually happened:
  *
  *   - `@yalehwang/cloudcli@1.42.0` is deprecated and the notice points at the new package;
- *   - `@yalehwang/cloudpit@2.0.0` is published and its packed tarball exposes only the
+ *   - `@yalehwang/cloudpit@<version>` is published and its packed tarball exposes only the
  *     `cloudpit` bin;
  *   - the `yaleh/cloudpit` repository URL, homepage, repository and bugs fields resolve;
- *   - the desktop `cloudpit-desktop-*` and `cloudpit-local-server-v2.0.0-*` release assets
- *     are downloadable;
+ *   - the desktop `cloudpit-desktop-*` and `cloudpit-local-server-v<version>-*` release
+ *     assets are downloadable;
+ *
+ * VERSIONED READING. The release being verified is a parameter, not a baked-in target:
+ * `NEW_VERSION` (3.0.0) is the default, and `--version <x.y.z>` reads any other release
+ * (for example the historical `--version 2.0.0` reading of AC-458's 2.0.0 release). The
+ * npm version document, the packed-manifest lookup, the GitHub release tag and the
+ * local-server asset prefix all derive from that one value.
  *   - README/NOTICE/LICENSE still carry the upstream CloudCLI UI attribution.
  *
  * ONE JUDGEMENT PATH. `distributionViolations(snapshot)` is the only place those six checks are
@@ -35,16 +41,23 @@ import { fileURLToPath } from 'node:url';
 /** The final legacy package, deprecated in favour of the new name. */
 export const OLD_PACKAGE = '@yalehwang/cloudcli';
 export const OLD_VERSION = '1.42.0';
-/** The renamed package and the version the release sequence publishes. */
+/** The renamed package and the default version this verifier reads. */
 export const NEW_PACKAGE = '@yalehwang/cloudpit';
-export const NEW_VERSION = '2.0.0';
+/** The release the default reading targets; `--version` overrides it per invocation. */
+export const NEW_VERSION = '3.0.0';
 /** The repository the rename points every URL field at. */
 export const REPOSITORY = 'yaleh/cloudpit';
 /** The attribution token the upstream licence terms require the documents to keep. */
 export const ATTRIBUTION = 'CloudCLI UI';
 /** Asset-name prefixes the desktop release must publish. */
 export const DESKTOP_ASSET_PREFIX = 'cloudpit-desktop-';
-export const LOCAL_SERVER_ASSET_PREFIX = `cloudpit-local-server-v${NEW_VERSION}-`;
+/** The local-server asset prefix for one release version (defaults to {@link NEW_VERSION}). */
+export function localServerAssetPrefix(version = NEW_VERSION) {
+  return `cloudpit-local-server-v${version}-`;
+}
+export const LOCAL_SERVER_ASSET_PREFIX = localServerAssetPrefix(NEW_VERSION);
+/** A semver-shaped release version accepted by `--version`. */
+const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 /** The repository fields AC-454 names. */
 export const REQUIRED_REPOSITORY_FIELDS = ['url', 'homepage', 'repository', 'bugs'];
 /** The six check groups, in one place so a count in a reading cannot drift from the judgements. */
@@ -128,9 +141,10 @@ const EXPECTED_REPOSITORY_PATHS = {
  * `collectReleaseSnapshot`, callers that want an offline reading use `loadSnapshotFromFile`.
  *
  * @param {DistributionSnapshot | null | undefined} snapshot
+ * @param {{ version?: string }} [options] release version to judge (defaults to NEW_VERSION)
  * @returns {DistributionViolation[]}
  */
-export function distributionViolations(snapshot) {
+export function distributionViolations(snapshot, { version = NEW_VERSION } = {}) {
   /** @type {DistributionViolation[]} */
   const violations = [];
   const npm = snapshot?.npm;
@@ -160,12 +174,12 @@ export function distributionViolations(snapshot) {
   if (
     !newPackage
     || newPackage.name !== NEW_PACKAGE
-    || newPackage.version !== NEW_VERSION
+    || newPackage.version !== version
     || newPackage.published !== true
   ) {
     violations.push(violation(
       'new-package',
-      `new package ${NEW_PACKAGE}@${NEW_VERSION} is not published`,
+      `new package ${NEW_PACKAGE}@${version} is not published`,
     ));
   }
   if (newPackage) {
@@ -226,7 +240,7 @@ export function distributionViolations(snapshot) {
     && asset.name.startsWith(prefix)
     && asset.downloadable === true
   ));
-  for (const prefix of [DESKTOP_ASSET_PREFIX, LOCAL_SERVER_ASSET_PREFIX]) {
+  for (const prefix of [DESKTOP_ASSET_PREFIX, localServerAssetPrefix(version)]) {
     if (!downloadable(prefix)) {
       violations.push(violation(
         'desktop-assets',
@@ -396,16 +410,17 @@ async function repositoryField(fetchImpl, field, url) {
 /**
  * @param {typeof fetch} fetchImpl
  * @param {any} release
+ * @param {string} version
  * @returns {Promise<ReleaseAssetSnapshot[]>}
  */
-async function releaseAssets(fetchImpl, release) {
+async function releaseAssets(fetchImpl, release, version) {
   /** @type {any[]} */
   const raw = Array.isArray(release?.assets) ? release.assets : [];
   return Promise.all(raw.map(async (asset) => {
     const name = String(asset?.name ?? '');
     const url = String(asset?.browser_download_url ?? '');
     const isCandidate = name.startsWith(DESKTOP_ASSET_PREFIX)
-      || name.startsWith(LOCAL_SERVER_ASSET_PREFIX);
+      || name.startsWith(localServerAssetPrefix(version));
     const downloadable = asset?.state === 'uploaded'
       && (isCandidate ? await resolves(fetchImpl, url) : true);
     return { name, url, downloadable };
@@ -428,6 +443,7 @@ async function releaseAssets(fetchImpl, release) {
  *   root?: string,
  *   fetchImpl?: typeof fetch,
  *   githubToken?: string | undefined,
+ *   version?: string,
  * }} [options]
  * @returns {Promise<DistributionSnapshot>}
  */
@@ -435,6 +451,7 @@ export async function collectReleaseSnapshot({
   root = process.cwd(),
   fetchImpl = globalThis.fetch,
   githubToken = process.env.GITHUB_TOKEN,
+  version = NEW_VERSION,
 } = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('no fetch implementation is available for --release');
@@ -445,10 +462,10 @@ export async function collectReleaseSnapshot({
   const [oldMetadata, newMetadata, packedManifest, repoMetadata, releaseMetadata] =
     await Promise.all([
       requestJson(fetchImpl, `https://registry.npmjs.org/${encodeURIComponent(OLD_PACKAGE)}/${OLD_VERSION}`),
-      requestJson(fetchImpl, `https://registry.npmjs.org/${encodeURIComponent(NEW_PACKAGE)}/${NEW_VERSION}`),
-      requestJson(fetchImpl, `https://unpkg.com/${NEW_PACKAGE}@${NEW_VERSION}/package.json`),
+      requestJson(fetchImpl, `https://registry.npmjs.org/${encodeURIComponent(NEW_PACKAGE)}/${version}`),
+      requestJson(fetchImpl, `https://unpkg.com/${NEW_PACKAGE}@${version}/package.json`),
       requestJson(fetchImpl, `https://api.github.com/repos/${REPOSITORY}`, { headers: githubHeaders }),
-      requestJson(fetchImpl, `https://api.github.com/repos/${REPOSITORY}/releases/tags/v${NEW_VERSION}`, {
+      requestJson(fetchImpl, `https://api.github.com/repos/${REPOSITORY}/releases/tags/v${version}`, {
         headers: githubHeaders,
       }),
     ]);
@@ -468,7 +485,7 @@ export async function collectReleaseSnapshot({
       },
       newPackage: {
         name: NEW_PACKAGE,
-        version: NEW_VERSION,
+        version,
         published: newMetadata.ok,
         tarballBin,
       },
@@ -486,7 +503,7 @@ export async function collectReleaseSnapshot({
         repositoryField(fetchImpl, 'bugs', packageJson?.bugs?.url),
       ]),
     },
-    release: { assets: await releaseAssets(fetchImpl, releaseMetadata.body) },
+    release: { assets: await releaseAssets(fetchImpl, releaseMetadata.body, version) },
     ownership: {
       readme: readTextOrEmpty(path.join(root, 'README.md')),
       notice: readTextOrEmpty(path.join(root, 'NOTICE')),
@@ -501,14 +518,16 @@ export function usage() {
     'Cloudpit distribution verifier (AC-457 carrier / AC-454 criterion)',
     '',
     'Usage:',
-    '  node scripts/cloudpit-distribution-check.mjs --release',
-    '  node scripts/cloudpit-distribution-check.mjs --fixture <snapshot.json> [--json]',
+    '  node scripts/cloudpit-distribution-check.mjs --release [--version <x.y.z>]',
+    '  node scripts/cloudpit-distribution-check.mjs --fixture <snapshot.json> [--version <x.y.z>] [--json]',
     '  node scripts/cloudpit-distribution-check.mjs --help',
     '',
     'Modes:',
     '  --release            read npm, GitHub secrets/URLs and the local documents, then judge',
     '  --fixture <path>     judge a recorded snapshot without network access',
     '  --root <dir>         repository root for local documents (default: current directory)',
+    `  --version <x.y.z>    release version to verify (default: ${NEW_VERSION}; e.g. 2.0.0`,
+    '                       reads the historical 2.0.0 release)',
     '  --json               print the verdict and violations as JSON',
     '  --help               print this help and exit 0',
     '',
@@ -521,6 +540,7 @@ export function usage() {
  *   mode: 'release' | 'fixture' | null,
  *   fixture: string | null,
  *   root: string,
+ *   version: string | null,
  *   json: boolean,
  *   help: boolean,
  *   error: string | null,
@@ -532,6 +552,7 @@ function parseArgs(argv) {
     mode: null,
     fixture: null,
     root: process.cwd(),
+    version: null,
     json: false,
     help: false,
     error: null,
@@ -552,6 +573,18 @@ function parseArgs(argv) {
     } else if (arg === '--root') {
       options.root = path.resolve(argv[index + 1] ?? '.');
       if (argv[index + 1] !== undefined) index += 1;
+    } else if (arg === '--version') {
+      options.version = argv[index + 1] ?? null;
+      if (options.version === null) {
+        if (options.error === null) options.error = '--version needs a semver value';
+      } else if (!VERSION_PATTERN.test(options.version)) {
+        if (options.error === null) {
+          options.error = `--version must be a semver version, got ${JSON.stringify(options.version)}`;
+        }
+        index += 1;
+      } else {
+        index += 1;
+      }
     } else if (arg === '--json') {
       options.json = true;
     } else if (arg === '--help' || arg === '-h') {
@@ -593,6 +626,7 @@ export async function main(argv = process.argv.slice(2), {
     return 2;
   }
 
+  const version = options.version ?? NEW_VERSION;
   /** @type {DistributionSnapshot} */
   let snapshot;
   /** @type {string} */
@@ -602,7 +636,7 @@ export async function main(argv = process.argv.slice(2), {
       snapshot = loadSnapshotFromFile(/** @type {string} */ (options.fixture));
       source = `fixture:${options.fixture}`;
     } else {
-      snapshot = await collectReleaseSnapshot({ root: options.root, fetchImpl });
+      snapshot = await collectReleaseSnapshot({ root: options.root, fetchImpl, version });
       source = 'release';
     }
   } catch (error) {
@@ -610,14 +644,14 @@ export async function main(argv = process.argv.slice(2), {
     return 2;
   }
 
-  const violations = distributionViolations(snapshot);
+  const violations = distributionViolations(snapshot, { version });
   const exitCode = violations.length === 0 ? 0 : 1;
 
   if (options.json) {
-    stdout.log(JSON.stringify({ source, exitCode, checks: CHECKS, violations }, null, 2));
+    stdout.log(JSON.stringify({ source, version, exitCode, checks: CHECKS, violations }, null, 2));
   } else {
     stdout.log(
-      `cloudpit-distribution: source=${source} checks=${CHECKS.length} `
+      `cloudpit-distribution: source=${source} version=${version} checks=${CHECKS.length} `
         + `violations=${violations.length}`,
     );
     for (const item of violations) {
