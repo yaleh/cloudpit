@@ -19,6 +19,14 @@ type CliServiceDependencies = {
   fileSystem: CliFileSystem;
   output: CliOutput;
   sandboxService: SandboxCommandService;
+  /**
+   * The `migrate-assets` subcommand. It is a separate command object like the
+   * sandbox service so tests can stub the filesystem-heavy migration instead of
+   * running it.
+   */
+  assetMigrationService: {
+    execute(argumentsList: string[]): Promise<number>;
+  };
   getLatestPackageVersion(): Promise<string>;
   updateGlobalPackage(): void;
   startServer(): Promise<void>;
@@ -57,7 +65,9 @@ function parseCliArguments(argumentsList: string[]): ParsedCliArguments {
       parsedArguments.command = 'version';
     } else if (!argument.startsWith('-')) {
       parsedArguments.command = argument;
-      if (argument === 'sandbox') {
+      // Subcommands that own their remaining arguments (flags such as
+      // `--dry-run` or `-p` belong to them, not to the top-level parser).
+      if (argument === 'sandbox' || argument === 'migrate-assets') {
         parsedArguments.remainingArguments = argumentsList.slice(argumentIndex + 1);
         break;
       }
@@ -137,6 +147,7 @@ Usage:
 Commands:
   start            Start the Cloudpit server (default)
   sandbox          Manage Docker sandbox environments
+  migrate-assets   Copy legacy ~/.cloudcli/assets into the Cloudpit root
   browser-use-mcp  Run Browser MCP stdio server
   status           Show configuration and data locations
   update           Update to the latest version
@@ -235,6 +246,8 @@ export function createCliService(dependencies: CliServiceDependencies): CliAppli
           return 0;
         case 'sandbox':
           return dependencies.sandboxService.execute(parsedArguments.remainingArguments);
+        case 'migrate-assets':
+          return dependencies.assetMigrationService.execute(parsedArguments.remainingArguments);
         case 'browser-use-mcp':
           await dependencies.startBrowserUseMcp();
           return 0;
