@@ -298,7 +298,13 @@ test('an injected write failure keeps the original files and creates no half-rew
     readDocuments: () => backingStore.readDocuments(),
     backup: () => backingStore.backup(),
     restore: (backupPaths) => backingStore.restore(backupPaths),
-    writeDocuments: () => {
+    writeDocuments: (updates) => {
+      // Write the JSON half first so the failure happens mid-batch: a command
+      // that only reported the error would leave the settings file rewritten
+      // while the database row still held the legacy path.
+      backingStore.writeDocuments(
+        updates.filter((update) => update.document.handle.kind === 'json-file'),
+      );
       throw new Error('injected write failure');
     },
   };
