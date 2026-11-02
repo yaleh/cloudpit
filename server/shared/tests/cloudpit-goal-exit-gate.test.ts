@@ -9,13 +9,27 @@
  *
  * It pins exactly the two STRUCTURAL facts the exit condition names:
  *
- *   1. ZERO NEW MODULE DIRECTORIES. The same scanner AC-394 budgets
- *      (`collectServerSources` + `scanImportGraph`) reports the tree's directory set; every
- *      measured directory must be named by the frozen baseline
- *      (`cloudpit-goal-exit-gate.baseline.json.moduleDirectories`). `extra=[]` is green.
+ *   1. A RECORDED-CHANGE DIRECTORY RATCHET. The same scanner AC-394 budgets
+ *      (`collectServerSources` + `scanImportGraph`) reports the tree's directory set; the
+ *      assertion chain is `measured ⊆ baseline.moduleDirectories ⊆ GATE_DIRECTORY_PIN`:
+ *        - every measured directory must be named by the frozen baseline
+ *          (`cloudpit-goal-exit-gate.baseline.json.moduleDirectories`), so `extra=[]` is green;
+ *        - every baseline directory must be named by the SOURCE pin below, so editing the JSON
+ *          alone cannot bless a new directory. A new directory is a RECORDED CHANGE: the same
+ *          reviewed source edit must add it to `GATE_DIRECTORY_PIN` AND to the JSON (the shape
+ *          AC-394's `MANIFEST_PIN` already uses).
  *      The reading is MONOTONIC: a directory may disappear (a sibling task shrinking the tree
- *      must not red this criterion), so `missing=[]` is printed but NOT asserted, and the
- *      count is not required to equal AC-394's roster — that manifest may only shrink too.
+ *      must not red this criterion), so `missing=[...]` is printed but NOT asserted — a
+ *      pre-declared directory that has not landed yet is a legitimate `missing` reading, not a
+ *      red. The count is not required to equal AC-394's roster — that manifest is a
+ *      cross-reading and may only shrink too.
+ *
+ *   2026-11-03 recorded change: human yale narrowed this arm from "never add a module
+ *   directory" to this ratchet (task `gap-ac455-directory-arm-recorded-change`), because an
+ *   achieved GOAL-053 left the permanent ban in the full suite and made every deliberate
+ *   module split a `task-introduced-red`. The first recorded change pre-declares
+ *   `modules/observation/{core,producers,session-ask,session-digest}`, landed by
+ *   `gap-routine-architecture-analysis-god-package-server-observation`.
  *   2. `server/shared/utils.ts` DID NOT GROW. Its physical line count must stay `<=` the
  *      frozen `utilsLineCount` AND `<=` the committed oversize reading in
  *      `architecture-ratchet.baseline.json.oversizeFiles['server/shared/utils.ts']`. Again
@@ -27,9 +41,11 @@
  * baseline rather than running the ratchet criterion.
  *
  * FALSE FORM: the `structuralGateViolations` function below is the single assertion path used
- * by BOTH real-tree arms AND the negative control. The control feeds it a synthetic
- * directory set with one extra directory and a synthetic line count with one extra line and
- * asserts each is reported as a violation — so `extra=[]` cannot be vacuously green.
+ * by BOTH real-tree arms AND the negative controls. The controls feed it (a) a synthetic
+ * directory set with one extra directory, (b) a synthetic baseline carrying one directory that
+ * is not in the source pin, and (c) a synthetic line count with one extra line, and assert each
+ * is reported as a violation — so `extra=[]` / `missing=[...]` cannot be vacuously green and the
+ * JSON-vs-pin arm is proven to be load-bearing rather than decorative.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,6 +66,82 @@ const RATCHET_BASELINE_PATH = path.join(TEST_DIR, 'architecture-ratchet.baseline
 
 const UTILS_RATCHET_KEY = 'server/shared/utils.ts';
 
+/**
+ * The SOURCE pin the committed baseline may never exceed — the same recorded-change shape
+ * AC-394's `MANIFEST_PIN` uses. 58 directories measured on 2026-11-03 plus the first recorded
+ * change: the four `modules/observation/*` subdirectories pre-declared by human yale's
+ * 2026-11-03 ruling (task `gap-ac455-directory-arm-recorded-change`), landed by
+ * `gap-routine-architecture-analysis-god-package-server-observation`.
+ *
+ * Adding a module directory means editing THIS array and `cloudpit-goal-exit-gate.baseline.json`
+ * in the same reviewed change. Editing the JSON alone is refused by the assertion chain below;
+ * this array is the human-reviewable record of what was allowed to change and when.
+ */
+const GATE_DIRECTORY_PIN: readonly string[] = [
+  '.',
+  'modules/architecture',
+  'modules/assets',
+  'modules/assets/services',
+  'modules/auth',
+  'modules/browser-use',
+  'modules/cli',
+  'modules/cockpit',
+  'modules/commands',
+  'modules/context-events',
+  'modules/database',
+  'modules/database/core',
+  'modules/database/repositories',
+  'modules/debug-agent',
+  'modules/file-tree',
+  'modules/git',
+  'modules/liaison',
+  'modules/llm-gateway',
+  'modules/logging',
+  'modules/mcp-gateway',
+  'modules/notices',
+  'modules/notifications',
+  'modules/notifications/services',
+  'modules/notifications/websocket',
+  'modules/oauth',
+  'modules/observation',
+  'modules/observation/core',
+  'modules/observation/producers',
+  'modules/observation/session-ask',
+  'modules/observation/session-digest',
+  'modules/plugins',
+  'modules/projects',
+  'modules/projects/services',
+  'modules/providers',
+  'modules/providers/list/claude',
+  'modules/providers/list/codex',
+  'modules/providers/list/cursor',
+  'modules/providers/list/opencode',
+  'modules/providers/services',
+  'modules/providers/shared/base',
+  'modules/providers/shared/mcp',
+  'modules/providers/shared/skills',
+  'modules/quay',
+  'modules/reply-suggestions',
+  'modules/resident-ledger',
+  'modules/scheduled-messages',
+  'modules/scheduled-messages/services',
+  'modules/session-hosts',
+  'modules/settings',
+  'modules/static-assets',
+  'modules/system',
+  'modules/taskmaster',
+  'modules/user',
+  'modules/voice',
+  'modules/voice-realtime',
+  'modules/websocket',
+  'modules/websocket/services',
+  'modules/worktrees',
+  'modules/worktrees/services',
+  'shared',
+  'shared/mcp-contract',
+  'shared/ports',
+];
+
 // ---------------------------------------------------------------------------
 // Readings
 // ---------------------------------------------------------------------------
@@ -66,6 +158,7 @@ type GateBaseline = {
 type GateReading = {
   measuredDirectories: readonly string[];
   frozenDirectories: readonly string[];
+  pinDirectories: readonly string[];
   measuredUtilsLines: number;
   frozenUtilsLines: number;
   ratchetUtilsLines: number;
@@ -159,10 +252,20 @@ function unexpectedDirectories(measured: readonly string[], frozen: readonly str
   return measured.filter((directory) => !known.has(directory));
 }
 
+/** Every frozen (baseline) directory the SOURCE pin does not name — the JSON-only raise. */
+function baselineOutsidePin(frozen: readonly string[], pin: readonly string[]): string[] {
+  const pinned = new Set(pin);
+  return frozen.filter((directory) => !pinned.has(directory));
+}
+
 /**
  * The exit gate's structural reading. Returns one message per violation; `[]` means green.
- * Both real-tree arms and the false form go through this function, so the control cannot
- * pass by exercising a different code path than the criterion.
+ * Both real-tree arms and the false forms go through this function, so no control can pass by
+ * exercising a different code path than the criterion.
+ *
+ * Directory arm = `measured ⊆ frozen ⊆ pin`. The middle link is what makes this a
+ * recorded-change ratchet: a JSON edit alone cannot bless a new directory because the frozen
+ * set would then step outside the source pin.
  */
 function structuralGateViolations(reading: GateReading): string[] {
   const violations: string[] = [];
@@ -171,7 +274,17 @@ function structuralGateViolations(reading: GateReading): string[] {
   if (extra.length > 0) {
     violations.push(
       `new module director${extra.length === 1 ? 'y' : 'ies'} outside the frozen baseline: ${extra.join(', ')} — ` +
-        `GOAL-053's exit gate forbids adding module directories (AC-394 only requires a new leaf; this gate forbids the directory at all)`,
+        `the directory arm is a recorded-change ratchet: add the directory to ` +
+        `cloudpit-goal-exit-gate.baseline.json.moduleDirectories AND to GATE_DIRECTORY_PIN in the same change`,
+    );
+  }
+
+  const unpinned = baselineOutsidePin(reading.frozenDirectories, reading.pinDirectories);
+  if (unpinned.length > 0) {
+    violations.push(
+      `baseline director${unpinned.length === 1 ? 'y' : 'ies'} outside the source pin GATE_DIRECTORY_PIN: ${unpinned.join(', ')} — ` +
+        `the JSON may only be lowered against the source pin, never raised: a recorded change must ` +
+        `edit GATE_DIRECTORY_PIN and cloudpit-goal-exit-gate.baseline.json together`,
     );
   }
 
@@ -196,30 +309,49 @@ function structuralGateViolations(reading: GateReading): string[] {
 // AC2 — zero new module directories
 // ---------------------------------------------------------------------------
 
-test('AC2: every directory in the server tree is named by the frozen exit-gate baseline', () => {
+test('AC2: the measured tree is inside the frozen baseline, which is inside the source pin', () => {
   const baseline = readGateBaseline();
   const graph = realGraphOnce();
   const manifest = readDirectoryManifest();
 
   const extra = unexpectedDirectories(graph.nodes, baseline.moduleDirectories);
   const missing = baseline.moduleDirectories.filter((directory) => !graph.nodes.includes(directory));
+  const unpinned = baselineOutsidePin(baseline.moduleDirectories, GATE_DIRECTORY_PIN);
 
   console.log(
     `[ac455] directory arm: measured=${graph.nodes.length} frozen=${baseline.moduleDirectories.length} ` +
       `cycleManifest=${manifest.length} extra=${JSON.stringify(extra)} missing=${JSON.stringify(missing)}`,
   );
+  console.log(
+    `[ac455] directory pin: pin=${GATE_DIRECTORY_PIN.length} baselineOutsidePin=${JSON.stringify(unpinned)} ` +
+      `duplicatePinEntries=${GATE_DIRECTORY_PIN.length - new Set(GATE_DIRECTORY_PIN).size}`,
+  );
   assert.ok(graph.nodes.length > 0, 'the scan must have seen directories — an empty tree would make the subset check vacuous');
   assert.ok(baseline.moduleDirectories.length > 0, 'the frozen baseline must name directories');
+  assert.ok(GATE_DIRECTORY_PIN.length > 0, 'the source pin must name directories');
+  assert.equal(
+    new Set(GATE_DIRECTORY_PIN).size,
+    GATE_DIRECTORY_PIN.length,
+    'GATE_DIRECTORY_PIN must not carry duplicate entries',
+  );
   assert.deepEqual(
     extra,
     [],
     `a directory outside the frozen baseline is a NEW module directory: ${extra.join(', ')}. ` +
-      `Do not raise the baseline — GOAL-053's exit gate forbids new module directories.`,
+      `This is a recorded-change ratchet: add it to cloudpit-goal-exit-gate.baseline.json.moduleDirectories ` +
+      `AND to GATE_DIRECTORY_PIN in the same reviewed change.`,
+  );
+  assert.deepEqual(
+    unpinned,
+    [],
+    `the frozen baseline names directories outside GATE_DIRECTORY_PIN: ${unpinned.join(', ')}. ` +
+      `Editing the JSON alone cannot bless a directory — the source pin and the JSON must move together.`,
   );
 
   const violations = structuralGateViolations({
     measuredDirectories: graph.nodes,
     frozenDirectories: baseline.moduleDirectories,
+    pinDirectories: GATE_DIRECTORY_PIN,
     measuredUtilsLines: baseline.utilsLineCount,
     frozenUtilsLines: baseline.utilsLineCount,
     ratchetUtilsLines: readUtilsRatchetLineCount(),
@@ -250,6 +382,7 @@ test('AC3: server/shared/utils.ts is not longer than the frozen exit-gate baseli
   const violations = structuralGateViolations({
     measuredDirectories: realGraphOnce().nodes,
     frozenDirectories: baseline.moduleDirectories,
+    pinDirectories: GATE_DIRECTORY_PIN,
     measuredUtilsLines: measured,
     frozenUtilsLines: baseline.utilsLineCount,
     ratchetUtilsLines: ratchetLines,
@@ -261,7 +394,7 @@ test('AC3: server/shared/utils.ts is not longer than the frozen exit-gate baseli
 // False form — the negative control proves the gate can red
 // ---------------------------------------------------------------------------
 
-test('AC2/AC3 false form: a synthetic extra directory and a synthetic extra line each red the gate', () => {
+test('AC2/AC3 false form: an extra measured directory, a JSON-only baseline raise, and an extra line each red the gate', () => {
   const baseline = readGateBaseline();
   const ratchetLines = readUtilsRatchetLineCount();
 
@@ -273,6 +406,7 @@ test('AC2/AC3 false form: a synthetic extra directory and a synthetic extra line
   const clean = structuralGateViolations({
     measuredDirectories: baseline.moduleDirectories,
     frozenDirectories: baseline.moduleDirectories,
+    pinDirectories: baseline.moduleDirectories,
     measuredUtilsLines: syntheticLines,
     frozenUtilsLines: syntheticLines,
     ratchetUtilsLines: syntheticLines,
@@ -282,20 +416,48 @@ test('AC2/AC3 false form: a synthetic extra directory and a synthetic extra line
   const directoryViolations = structuralGateViolations({
     measuredDirectories: syntheticDirectories,
     frozenDirectories: baseline.moduleDirectories,
+    pinDirectories: baseline.moduleDirectories,
     measuredUtilsLines: syntheticLines,
     frozenUtilsLines: syntheticLines,
     ratchetUtilsLines: syntheticLines,
   });
-  console.log(`[ac455] false form (extra directory): ${JSON.stringify(directoryViolations)}`);
-  assert.ok(directoryViolations.length > 0, 'one extra directory must red the gate');
+  console.log(`[ac455] false form (extra measured directory): ${JSON.stringify(directoryViolations)}`);
+  assert.ok(directoryViolations.length > 0, 'one extra measured directory must red the gate');
   assert.ok(
     directoryViolations.some((message) => message.includes(syntheticDirectory)),
     'the directory violation must name the extra directory',
   );
 
+  // The recorded-change arm: the synthetic directory IS in the frozen baseline, but the source
+  // pin was not edited with it — the exact "only the JSON was raised" shape. It must red, and
+  // the message must name the offending directory and the source pin.
+  const pinViolations = structuralGateViolations({
+    measuredDirectories: syntheticDirectories,
+    frozenDirectories: syntheticDirectories,
+    pinDirectories: baseline.moduleDirectories,
+    measuredUtilsLines: syntheticLines,
+    frozenUtilsLines: syntheticLines,
+    ratchetUtilsLines: syntheticLines,
+  });
+  console.log(`[ac455] false form (baseline outside source pin): ${JSON.stringify(pinViolations)}`);
+  assert.ok(pinViolations.length > 0, 'a baseline directory outside the source pin must red the gate');
+  assert.ok(
+    pinViolations.some((message) => message.includes(syntheticDirectory)),
+    'the pin violation must name the unpinned directory',
+  );
+  assert.ok(
+    pinViolations.some((message) => message.includes('GATE_DIRECTORY_PIN')),
+    'the pin violation must name the source pin it failed to edit',
+  );
+  assert.ok(
+    !pinViolations.some((message) => message.includes('outside the frozen baseline')),
+    'the pin arm must fire on the JSON-vs-pin link, not on the measured-vs-JSON link (that would prove the wrong arm)',
+  );
+
   const lineViolations = structuralGateViolations({
     measuredDirectories: baseline.moduleDirectories,
     frozenDirectories: baseline.moduleDirectories,
+    pinDirectories: baseline.moduleDirectories,
     measuredUtilsLines: syntheticLines + 1,
     frozenUtilsLines: syntheticLines,
     ratchetUtilsLines: syntheticLines,

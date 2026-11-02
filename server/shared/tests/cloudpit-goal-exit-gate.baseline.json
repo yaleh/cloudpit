@@ -1,6 +1,6 @@
 {
-  "measuredAt": "2026-10-31",
-  "note": "AC-455 frozen baseline for the GOAL-053 exit structural gate. MONOTONIC reading: the measured reading must be a SUBSET of moduleDirectories and the utils.ts line count must be <= utilsLineCount. Directories/lines may disappear; they may never be added. Never raise this file to accommodate a red — a new module directory or a grown utils.ts is exactly what the exit condition forbids.",
+  "measuredAt": "2026-11-03",
+  "note": "AC-455 recorded-change ratchet for the GOAL-053 exit structural gate. Reading chain: measured directory set <= moduleDirectories <= the SOURCE pin GATE_DIRECTORY_PIN in cloudpit-goal-exit-gate.test.ts; utils.ts line count <= utilsLineCount. A new module directory is a RECORDED CHANGE: it must be added to GATE_DIRECTORY_PIN and to this JSON in the same reviewed change — editing only this JSON is refused (the baseline would step outside the source pin). Directories may disappear (missing is recorded, not asserted); pre-declared directories that have not landed yet are a legitimate missing reading. First recorded change (2026-11-03 human ruling, task gap-ac455-directory-arm-recorded-change): modules/observation/core, modules/observation/producers, modules/observation/session-ask, modules/observation/session-digest, landed by gap-routine-architecture-analysis-god-package-server-observation.",
   "moduleDirectories": [
     ".",
     "modules/architecture",
@@ -28,6 +28,10 @@
     "modules/notifications/websocket",
     "modules/oauth",
     "modules/observation",
+    "modules/observation/core",
+    "modules/observation/producers",
+    "modules/observation/session-ask",
+    "modules/observation/session-digest",
     "modules/plugins",
     "modules/projects",
     "modules/projects/services",
