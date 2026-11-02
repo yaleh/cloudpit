@@ -1445,6 +1445,85 @@ describe('confirmability, missing content and the title fallback', () => {
   });
 });
 
+describe('Details: the knowledge entry is readable in full', () => {
+  const KNOWLEDGE_TITLE = '归档后在 staging 复用冷备机';
+  // Newlines on purpose: the revision's statement is Markdown-shaped prose, and the drawer must
+  // keep its paragraphs rather than collapsing them into one line.
+  const KNOWLEDGE_STATEMENT =
+    '第一段：把 1.2 GB 的 staging 目录归档到冷备机。\n第二段：归档通过核验后删除源目录，并复用该机器承接下一轮。';
+
+  function renderDetailsCard(card: CockpitCardData) {
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <CockpitCardDetails card={card} now={NOW} onClose={() => undefined} />
+      </I18nextProvider>,
+    );
+  }
+
+  it('draws the provider’s title and full statement, unclamped, after Situation and before Facts', () => {
+    const card: CockpitCardData = {
+      ...CARD,
+      kind: 'knowledge',
+      knowledge: {
+        caseId: 'case-1',
+        knowledgeRevision: 2,
+        proposalRevision: 1,
+        state: 'verifying',
+        title: KNOWLEDGE_TITLE,
+        statement: KNOWLEDGE_STATEMENT,
+      },
+    };
+    renderDetailsCard(card);
+
+    const title = screen.getByTestId('cockpit-card-details-knowledge-title');
+    const statement = screen.getByTestId('cockpit-card-details-knowledge-statement');
+    // Verbatim, not a restatement and not shortened: the whole statement is in the DOM text.
+    expect(title.textContent).toBe(KNOWLEDGE_TITLE);
+    expect(statement.textContent).toBe(KNOWLEDGE_STATEMENT);
+    // No clamp of either kind: `line-clamp-2` is what hides the body on the list card, and
+    // `truncate` would hide the title. `whitespace-pre-line` keeps the statement's paragraphs.
+    expect(statement.className).not.toMatch(/line-clamp|truncate/);
+    expect(title.className).not.toMatch(/line-clamp|truncate/);
+    expect(statement.className).toContain('whitespace-pre-line');
+
+    // Where it sits: after the Situation section, before the Facts section.
+    const section = screen.getByTestId('cockpit-card-details-knowledge');
+    const situation = screen.getByText(i18n.t('cockpit.cardDetailsSituation')).closest('section');
+    const facts = screen.getByTestId('cockpit-card-details-facts').closest('section');
+    expect(situation).not.toBeNull();
+    expect(facts).not.toBeNull();
+    expect(
+      situation!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      section.compareDocumentPosition(facts!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('draws no knowledge section on a card that is not a knowledge card', () => {
+    renderDetailsCard(CARD);
+
+    expect(screen.queryByTestId('cockpit-card-details-knowledge')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-details-knowledge-title')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-details-knowledge-statement')).toBeNull();
+  });
+
+  it('draws no knowledge section when the case states neither title nor statement', () => {
+    renderDetailsCard({
+      ...CARD,
+      kind: 'knowledge',
+      knowledge: {
+        caseId: 'case-2',
+        knowledgeRevision: 1,
+        proposalRevision: 1,
+        state: 'pending',
+      },
+    });
+
+    expect(screen.queryByTestId('cockpit-card-details-knowledge')).toBeNull();
+  });
+});
+
 describe('unknown kinds', () => {
   it('renders the default descriptor without throwing and keeps the options usable', () => {
     const card: CockpitCardData = {
