@@ -26,6 +26,7 @@ goal_ac: AC-463
 
 ## Touches
 
+- tasks/codex-resident-provider-injection.md
 - server/modules/providers/list/codex/codex-host-driver.provider.ts
 - server/modules/providers/list/codex/codex-host-driver.contract.ts
 - server/modules/providers/list/codex/codex.provider.ts（createConnection 缝）
