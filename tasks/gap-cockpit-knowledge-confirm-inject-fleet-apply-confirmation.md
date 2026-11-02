@@ -70,3 +70,11 @@ confirmation 形状（字段取自 `knowledge` 与 `knowledge.feedback`）：
 - server/modules/cockpit/cockpit-card-actions.ts
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts
 - tasks/gap-cockpit-knowledge-confirm-inject-fleet-apply-confirmation.md
+
+## Blocker
+
+**2026-11-02T04:12:47.658Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/cli/tests/cli.service.test.ts:   AssertionError [ERR_ASSERTION]: the missing-metadata fallback must name the fork repository [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/modules/cli/tests/cli.service.test.ts]
+- run_id：wk-prod-anchor
+- session_id：99f906f5-2c67-4400-81e5-7dc43e3bf528
