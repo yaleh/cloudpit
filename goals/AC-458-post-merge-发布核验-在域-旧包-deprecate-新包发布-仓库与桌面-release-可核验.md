@@ -1,7 +1,7 @@
 ---
 id: AC-458
 title: Post-merge 发布核验（在域）：旧包 deprecate、新包发布、仓库与桌面 release 可核验
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: node scripts/cloudpit-distribution-check.mjs --release
@@ -16,5 +16,11 @@ origin: 人 yale 2026-11-01 经会话裁定采纳
   能力闸判定根不含 goal 分支载体而无法进入在域集合，创建即 active 的 post-merge 发布核验 AC，判据/期望与 AC-454
   逐字相同；AC-454 同步 supersede。
 activatedAt: 2026-11-01T12:40:29.696Z
+statusLog:
+  - at: 2026-11-02T03:38:39.211Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 phase: post-merge
 ---
