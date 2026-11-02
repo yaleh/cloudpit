@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-primary-docs-rename
 title: Cloudpit 主文档改名：README H1、CONTRIBUTING、回复建议路径与 nginx 模板注释
-status: ready
+status: done
 labels:
   - gap
 parent: null
