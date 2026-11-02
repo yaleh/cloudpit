@@ -15,7 +15,7 @@ import { cockpitCardsReading } from '@/modules/cockpit/cockpitCardController';
 import CockpitCard from '@/modules/cockpit/CockpitCard';
 import { cockpitCardQuestionOf } from '@/modules/cockpit/cockpitCardDuplicates';
 import CockpitCardDetails from '@/modules/cockpit/CockpitCardDetails';
-import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversation';
+import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversationAction';
 import type {
   CockpitStartConversationCreated,
   CockpitStartConversationProject,

@@ -15,8 +15,8 @@ import CockpitBriefView from '@/modules/cockpit/CockpitBriefView';
 import { OwnReplyEditor } from '@/modules/cockpit/CockpitCard';
 import { CockpitCardConfirmBar } from '@/modules/cockpit/CockpitCardConfirmBar';
 import { CockpitCardDismissBar } from '@/modules/cockpit/CockpitCardDismissBar';
-import { CockpitCardStartConversation } from '@/modules/cockpit/CockpitCardStartConversation';
-import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversation';
+import { CockpitCardStartConversation } from '@/modules/cockpit/CockpitCardStartConversationAction';
+import type { CockpitStartConversationView } from '@/modules/cockpit/CockpitCardStartConversationAction';
 import type {
   CockpitBriefState,
   CockpitCardConfirmOutcome,
