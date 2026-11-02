@@ -91,12 +91,14 @@ test('returns a failure code for an unknown command without exiting the process'
 
 test('help text falls back to the fork repository when package metadata is missing', async () => {
   // No homepage/bugsUrl: the help text must use its own fallbacks, not the upstream repository.
+  // The fork's distribution identity is yaleh/cloudpit (a7942b0f9) — pin the shipped fallback, not
+  // the pre-rename repository name.
   const harness = createHarness({ version: '1.2.3' });
 
   const exitCode = await harness.service.run(['help']);
 
   assert.equal(exitCode, 0);
   const helpText = harness.logMessages.join('\n');
-  assert.match(helpText, /yaleh\/claudecodeui/, 'the missing-metadata fallback must name the fork repository');
+  assert.match(helpText, /yaleh\/cloudpit/, 'the missing-metadata fallback must name the fork repository');
   assert.doesNotMatch(helpText, /siteboon/, 'the missing-metadata fallback must not name upstream siteboon');
 });
