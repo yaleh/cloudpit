@@ -33,11 +33,11 @@ goal_ac: AC-465
 - src/shared/constants.ts（PROVIDER_DESCRIPTORS 增数据字段）
 - src/modules/settings/tests/codexProviderSettings.test.tsx（新 vitest）
 
-## AC（红先行，落 AC-465）
+## AC
 
 - [ ] AC-465 判据绿：npx vitest run src/modules/settings/tests/codexProviderSettings.test.tsx 退出 0。
 - [ ] 负臂：secret 掩码、未知字段告警、Responses-only 提示；假形态（分支绕过 PROVIDER_DESCRIPTORS）红。
 
-## DoD（AGENTS.md UI DoD）
+## DoD
 
 MCP 浏览器实际操作 + 截图存 tmp/（建 provider、绑模型、发送）；scripts/ui-scenario.mjs 场景报告 + 检查点截图；pageErrors=[]。真实页面走一遍，不是只组件测试。
