@@ -1,7 +1,7 @@
 ---
 id: AC-462
 title: 会话记录 model_provider_id：首发送落库、换 provider 拒绝 + 一键 fork、删除/改名保护
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-02T09:30:09.621Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
