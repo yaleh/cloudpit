@@ -58,10 +58,10 @@ GOAL-055 `## 退出条件` 中 AC-461 一条，逐字为：
 
 ## AC
 
-- [ ] AC1: 人裁定写回 `## Resolution`：采纳本提案（替换 AC-461 criterion + 同步 `codex-model-entry-provider-binding` 的 Touches），或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
-- [ ] AC2: 若采纳：`quay goal show AC-461 --json`（或 `goals/AC-461-*.md`）的 criterion 逐字为 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts`，且 title / expect / goal / phase 与判定前逐字相同（待外部：被授权 goal 写入路径）。
+- [x] AC1: 人裁定写回 `## Resolution`：采纳本提案（替换 AC-461 criterion + 同步 `codex-model-entry-provider-binding` 的 Touches），或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
+- [x] AC2: 若采纳：`quay goal show AC-461 --json`（或 `goals/AC-461-*.md`）的 criterion 逐字为 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts`，且 title / expect / goal / phase 与判定前逐字相同（待外部：被授权 goal 写入路径）。
 - [ ] AC3: 若采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 中 GOAL-055 记录里 `goal-sufficiency` 为 `{"goal":"GOAL-055","verdict":"covered"}`，且同一记录 `goal-ring.criteria` 中 AC-461 的 status ∈ {active, achieved, needs-human}（待外部：goal-driver 跑一轮）。
-- [ ] AC4: 若采纳：`codex-model-entry-provider-binding` 的 `## Touches` 含 `server/modules/providers/tests/codex-provider-model-binding.test.ts`，且其 AC 判据命令与 AC-461 新 criterion 逐字一致（待外部：被授权 task_write）。
+- [x] AC4: 若采纳：`codex-model-entry-provider-binding` 的 `## Touches` 含 `server/modules/providers/tests/codex-provider-model-binding.test.ts`，且其 AC 判据命令与 AC-461 新 criterion 逐字一致（待外部：被授权 task_write）。
 - [ ] AC5: 若否决：`## Resolution` 写出否决理由，并说明 AC-461 将以什么路径进入在域集合（或退出条件 / AC 集如何另改）；本任务不得以「已提议」完结（待外部：人 yale 裁定）。
 
 ## DoD
@@ -73,3 +73,29 @@ GOAL-055 `## 退出条件` 中 AC-461 一条，逐字为：
 - tasks/gap-goal-055-ac461-criterion-vacuous.md
 - goals/AC-461-codex-模型条目挂-codexproviderid-未声明继承全局-未知-已删-provider-可读拒绝.md
 - tasks/codex-model-entry-provider-binding.md
+
+## Resolution
+
+2026-11-02，裁定：**采纳选型 (a)** —— 原地替换 AC-461 的 criterion（AC id / title / expect / goal / phase 不变），不 supersede、不新建同 expect 的第二条 AC、不改退出条件文本。批准人：yale（本会话授权）。提案未被否决，AC5 不适用。
+
+### 已执行的写入（被授权路径 + 读回）
+
+- `goal_write AC-461`：criterion 现为 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts`；status 仍 `draft`，title / expect / goal / phase 读回逐字未变（`goals/AC-461-…md` 同步落盘）。
+- `task_write codex-model-entry-provider-binding`：Touches 把「扩 model-config-write-path.test.ts，不新建」改为新建 `server/modules/providers/tests/codex-provider-model-binding.test.ts`，并补 `server/shared/tests/quay-test-script.test.ts` 与 `scripts/suite-duration-baseline.tsv`（新 server 测试文件的 pin / 时长地板连带；提案正文未列，采纳时一并补齐）；AC 判据命令与 AC-461 新 criterion 逐字一致，并补「四个面逐条断言」；DoD 的「不新建 server 测试文件」同步改为新建该文件。
+
+### 裁定前复核的读数（均在本轮重新读取，不是转述提案）
+
+- 在域口径确为 status ∈ {active, achieved, needs-human}（已安装 quay 0.31.1 `scripts/dist/goal-driver.js` 的 `inScopeAcsOf`）；`goalFlipDecision = goalAchievedFromRecords && sufficiency === 'covered'`。
+- `.quay/goal-round.jsonl` round 287 / 288 / 289 / 292（09:25:12Z / 09:28:56Z / 09:32:41Z / 09:51:34Z）：AC-461 的 `goal-ring.flips` 每次都逐字带 `cannot activate AC-461: criterion vacuous (fidelity judge: vacuous)`，`activationBlocked` 为 `[]`；`goal-sufficiency` 四轮均 `insufficient`。
+- `grep -c codexProviderId server/modules/providers/tests/model-config-write-path.test.ts` = 0，且该文件判据在 round 292 仍是 `pass`（exit 0）⇒ vacuous-but-green，`--force` 会在功能未实现时假绿翻 achieved，故不采用 force。
+- 新判据文件当前不存在；capability 闸只对被解释器直接执行的第一个字面路径做存在性检查，`npx tsx --test <file>` 不被当作解释器 ⇒ 可激活且先红；fidelity 对缺失机制走 LLM 判官，同形 sibling AC-463 / 464 / 466 / 467 的判据文件同样不存在且均已 activation ok。
+- 依赖 `codex-provider-config-surface` 读回为 `done`，本实现任务已可派发。
+
+### 提案读数的两处过期/缺口（已在执行中修正）
+
+1. 提案称「AC-460 active」：现为 `achieved`（round 292），不影响结论。
+2. 提案只要求同步实现任务的 `## Touches` 与 AC 命令；实际其 `## DoD` 仍写「不新建 server 测试文件」，且新 server 测试文件会撞 `quay-test-script.test.ts` 两条 unknown pin 与 `scripts/suite-duration-baseline.tsv` 覆盖率地板。已在同一 `task_write` 中修正 DoD 并把两个连带文件补进 Touches。
+
+### 剩余外部验证（AC3 / 本任务 DoD）
+
+AC-461 现为 `draft` + 新 criterion；下一轮 goal-driver 应 triage 激活它（criterion 因文件缺失而 fail，fidelity 判 faithful），进入在域集合后 GOAL-055 的 `goal-sufficiency` 应从 `insufficient` 翻 `covered`。该读数只能由 driver 的下一轮产生，故 AC3 保持未勾并由 driver 侧闭合；本任务不以「已提议」完结，待该轮读数确认后由外部闭合。
