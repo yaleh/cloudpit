@@ -28,13 +28,14 @@ goal_ac: AC-462
 - server/modules/database/schema.ts + migrations.ts
 - server/modules/providers/services/provider-models.service.ts（session selection）
 - server/modules/providers/services/sessions.service.ts
-- server/modules/providers/tests/provider-models.service.test.ts（扩）+ server/modules/database/tests/migrations-ensure-columns.test.ts（补列断言）
+- server/modules/providers/tests/codex-session-provider-binding.test.ts（新判据，撞 pin 则上调）
+- server/modules/database/tests/migrations-ensure-columns.test.ts（补列断言）
 
 ## AC（红先行，落 AC-462）
 
-- [ ] AC-462 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-models.service.test.ts 退出 0、fail 0。
+- [ ] AC-462 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-session-provider-binding.test.ts 退出 0、fail 0。
 - [ ] 负臂：换 provider 被拒；删除被引用 provider 不静默回退默认。
 
 ## DoD
 
-判据逐字 tests/pass/fail；迁移对升级与全新安装结构一致；不新建 server 测试文件（扩既有 + migrations 断言）。
+判据逐字 tests/pass/fail；迁移对升级与全新安装结构一致；新 test.ts 撞 quay pin / 时长基线则等量上调并注明；migrations-ensure-columns.test.ts 补列断言。
