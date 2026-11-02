@@ -41,6 +41,24 @@ const MODEL_NAME_MAX_LENGTH = 80;
 const MODEL_ID_MAX_LENGTH = 200;
 
 /**
+ * The name a custom model's form should start with.
+ *
+ * The server labels a model bound to a project Codex provider as `model · provider` so two
+ * entries with the same name stay distinguishable in the merged catalog. That suffix is a
+ * DISPLAY composition, not the stored name: prefilling the form with it would rename the row
+ * to include the binding the next time it is saved. The bare name is the label with the
+ * provider suffix of its own `codexProviderId` removed.
+ */
+const modelNameOf = (option: ProviderModelOption): string => {
+  const providerId = option.config?.codexProviderId;
+  if (providerId === undefined) {
+    return option.label;
+  }
+  const suffix = ` · ${providerId}`;
+  return option.label.endsWith(suffix) ? option.label.slice(0, -suffix.length) : option.label;
+};
+
+/**
  * Suggests the model id a copy of `base` should take: `-copy`, then `-copy-2`,
  * `-copy-3`… for the first candidate nothing already uses.
  *
@@ -178,7 +196,7 @@ export default function ModelLibraryPanel({
   const startEditing = (option: ProviderModelOption) => {
     setEditing(option);
     setDuplicatingFrom(null);
-    setModel(option.label);
+    setModel(modelNameOf(option));
     setModelId(option.value);
     setEnvRows(toEditorRows(option.config));
     setEnvDirty(false);
@@ -198,7 +216,7 @@ export default function ModelLibraryPanel({
   const startDuplicating = (option: ProviderModelOption) => {
     setEditing(null);
     setDuplicatingFrom(option);
-    setModel(tSettings('modelLibrary.duplicate.name', { source: option.label }).slice(0, MODEL_NAME_MAX_LENGTH));
+    setModel(tSettings('modelLibrary.duplicate.name', { source: modelNameOf(option) }).slice(0, MODEL_NAME_MAX_LENGTH));
     setModelId(suggestCopyId(option.value, takenModelIds));
     setEnvRows(toEditorRows(option.config));
     setEnvDirty(false);

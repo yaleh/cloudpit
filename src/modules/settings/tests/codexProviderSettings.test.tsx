@@ -108,7 +108,9 @@ const CATALOG: ProviderModelsDefinition = {
     { value: 'gpt-5', label: 'GPT-5', isCustom: false },
     {
       value: 'bob-model',
-      label: 'Bob Model',
+      // A bound model's catalog label carries the provider suffix; the EDIT FORM must prefill
+      // the bare name or the next save would rename the row to include it.
+      label: 'Bob Model · bob',
       recordId: 9,
       isCustom: true,
       config: { codexProviderId: 'bob', env: [] },
@@ -231,9 +233,15 @@ test('a save is a full replacement carrying the reading version, and only typed 
 
 test('the Codex model editor shows the provider picker instead of the env editor', async () => {
   const view = renderModels('codex');
-  await waitFor(() => assert.ok(view.getByText('Bob Model')));
+  await waitFor(() => assert.ok(view.getByText('Bob Model · bob')));
 
-  fireEvent.click(view.getByLabelText('Edit Bob Model'));
+  fireEvent.click(view.getByLabelText('Edit Bob Model · bob'));
+
+  assert.equal(
+    (view.getByLabelText('Model name') as HTMLInputElement).value,
+    'Bob Model',
+    'the edit form prefills the bare name, not the catalog display label',
+  );
 
   const picker = view.getByTestId('model-codex-provider-select') as HTMLSelectElement;
   assert.equal(picker.value, 'bob', 'the picker starts on the stored binding');
@@ -271,8 +279,8 @@ test('the negative arm: descriptor data chooses the panel and the editor, not a 
   };
   const fromData = renderModels('cursor');
   await waitFor(() => assert.ok(fromData.getByText('Codex providers')));
-  await waitFor(() => assert.ok(fromData.getByText('Bob Model')));
-  fireEvent.click(fromData.getByLabelText('Edit Bob Model'));
+  await waitFor(() => assert.ok(fromData.getByText('Bob Model · bob')));
+  fireEvent.click(fromData.getByLabelText('Edit Bob Model · bob'));
   assert.ok(fromData.getByTestId('model-codex-provider-select'));
   fromData.unmount();
 
@@ -285,9 +293,9 @@ test('the negative arm: descriptor data chooses the panel and the editor, not a 
     modelEnvGatewayTemplate: false,
   };
   const fromDataToo = renderModels('codex');
-  await waitFor(() => assert.ok(fromDataToo.getByText('Bob Model')));
+  await waitFor(() => assert.ok(fromDataToo.getByText('Bob Model · bob')));
   assert.equal(fromDataToo.queryByText('Codex providers'), null);
-  fireEvent.click(fromDataToo.getByLabelText('Edit Bob Model'));
+  fireEvent.click(fromDataToo.getByLabelText('Edit Bob Model · bob'));
   assert.equal(fromDataToo.queryByTestId('model-codex-provider-select'), null);
   assert.ok(fromDataToo.getByTestId('model-env-editor'), 'the env editor is what this descriptor asks for');
 });

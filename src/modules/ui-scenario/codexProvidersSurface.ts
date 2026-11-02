@@ -126,13 +126,26 @@ export function readCodexProvidersReading(): ScenarioCodexProvidersReading {
   };
 }
 
-/** Sets one input's value and fires the events React's controlled inputs listen to. */
+/**
+ * Sets one controlled input's value and fires the events React's `onChange` listens to.
+ *
+ * THE NATIVE SETTER IS THE MECHANISM. React installs a value tracker on each controlled input;
+ * writing `input.value` directly updates that tracker, so the following `input` event looks
+ * unchanged and `onChange` never runs (the DOM shows the typed text while the component state
+ * stays empty). Calling the prototype setter bypasses the tracker, exactly as a real keypress
+ * does — the same technique Playwright's `fill` uses.
+ */
 function setInput(selector: string, value: string): void {
   const input = document.querySelector(selector) as HTMLInputElement | null;
   if (input === null || input.disabled) {
     return;
   }
-  input.value = value;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter !== undefined) {
+    setter.call(input, value);
+  } else {
+    input.value = value;
+  }
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
@@ -176,7 +189,12 @@ export function selectModelCodexProvider(value: string): void {
   if (select === null || select.disabled) {
     return;
   }
-  select.value = value;
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+  if (setter !== undefined) {
+    setter.call(select, value);
+  } else {
+    select.value = value;
+  }
   select.dispatchEvent(new Event('input', { bubbles: true }));
   select.dispatchEvent(new Event('change', { bubbles: true }));
 }
