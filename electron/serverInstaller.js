@@ -6,6 +6,8 @@ import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 
+import { createBrandEnvReader, readBrandEnvValue } from './brandEnv.js';
+
 /**
  * Installs the versioned local server runtime used by Cloudpit Desktop.
  *
@@ -85,25 +87,32 @@ export class ServerInstaller {
     platform = process.platform,
     arch = process.arch,
     installRoot,
-    bundleBaseUrl = process.env.CLOUDCLI_SERVER_BUNDLE_URL || DEFAULT_BUNDLE_BASE_URL,
-    bundleReleaseTag = process.env.CLOUDCLI_SERVER_BUNDLE_RELEASE_TAG || '',
+    bundleBaseUrl,
+    bundleReleaseTag,
+    env = process.env,
+    warn = (message) => console.warn(message),
     onLog,
   } = {}) {
     if (!version) throw new Error('ServerInstaller requires the app version');
+    const brandEnv = createBrandEnvReader({ env, warn });
     this.version = version;
     this.platform = mapPlatform(platform);
     this.arch = mapArch(arch);
-    this.installRoot = installRoot
-      || process.env.CLOUDPIT_SERVER_DIR
-      || process.env.CLOUDCLI_SERVER_DIR
-      || DEFAULT_INSTALL_ROOT;
+    const serverDir = readBrandEnvValue(brandEnv, 'SERVER_DIR', undefined);
+    this.installRoot = installRoot || serverDir || DEFAULT_INSTALL_ROOT;
     this.migrateLegacyInstall = Boolean(
-      this.installRoot === DEFAULT_INSTALL_ROOT
-      && !process.env.CLOUDPIT_SERVER_DIR
-      && !process.env.CLOUDCLI_SERVER_DIR,
+      this.installRoot === DEFAULT_INSTALL_ROOT && !serverDir,
     );
-    this.bundleBaseUrl = bundleBaseUrl.replace(/\/+$/, '');
-    this.bundleReleaseTag = bundleReleaseTag || `v${this.version}`;
+    // An explicit constructor argument wins; otherwise read the brand name with
+    // `CLOUDCLI_SERVER_BUNDLE_*` kept as the legacy fallback.
+    const resolvedBaseUrl = bundleBaseUrl === undefined
+      ? readBrandEnvValue(brandEnv, 'SERVER_BUNDLE_URL', DEFAULT_BUNDLE_BASE_URL)
+      : bundleBaseUrl;
+    const resolvedReleaseTag = bundleReleaseTag === undefined
+      ? readBrandEnvValue(brandEnv, 'SERVER_BUNDLE_RELEASE_TAG', '')
+      : bundleReleaseTag;
+    this.bundleBaseUrl = String(resolvedBaseUrl).replace(/\/+$/, '');
+    this.bundleReleaseTag = resolvedReleaseTag || `v${this.version}`;
     this.onLog = typeof onLog === 'function' ? onLog : () => {};
   }
 

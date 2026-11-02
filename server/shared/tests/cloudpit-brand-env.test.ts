@@ -141,3 +141,56 @@ test('AC3 reader isolation: two readers each warn once for the same legacy key',
   assert.equal(first.warnings.length, 1);
   assert.equal(second.warnings.length, 1);
 });
+
+/**
+ * Every brand name the production wiring points read (Electron main/localServer,
+ * serverInstaller, browser-use service and its MCP entry) resolved through the
+ * reader: the new spelling wins, the legacy spelling is the fallback, and an
+ * absent pair reads absent. This pins the *names* as well as the semantics, so
+ * a wiring point that invents a name the reader does not recognise turns red
+ * here instead of silently reading `undefined`.
+ */
+const WIRED_BRAND_ENV_NAMES = [
+  'CONTROL_PLANE_URL',
+  'DESKTOP_LOCAL_SERVER_URL',
+  'LOCAL_SERVER_URL',
+  'DESKTOP_LOCAL_SERVER_PORT',
+  'SERVER_PORT',
+  'USE_INSTALLED_SERVER',
+  'SERVER_BUNDLE_URL',
+  'SERVER_BUNDLE_RELEASE_TAG',
+  'SERVER_DIR',
+  'BROWSER_USE_MAX_SESSIONS_PER_OWNER',
+  'BROWSER_USE_SESSION_TTL_MS',
+  'BROWSER_USE_INSTALL_TIMEOUT_MS',
+  'BROWSER_USE_API_URL',
+  'BROWSER_USE_MCP_TOKEN',
+  'BROWSER_USE_API_TIMEOUT_MS',
+];
+
+test('AC3 wiring names: each brand name resolves new > legacy > absent', () => {
+  for (const name of WIRED_BRAND_ENV_NAMES) {
+    const both = readWith({ [`CLOUDPIT_${name}`]: 'new', [`CLOUDCLI_${name}`]: 'old' });
+    assert.deepEqual(
+      both.reader.read(name),
+      { value: 'new', source: 'new', key: `CLOUDPIT_${name}` },
+      `${name}: the new spelling must win`,
+    );
+    assert.deepEqual(both.warnings, [], `${name}: a shadowed legacy value must not warn`);
+
+    const legacy = readWith({ [`CLOUDCLI_${name}`]: 'old' });
+    assert.deepEqual(
+      legacy.reader.read(name),
+      { value: 'old', source: 'legacy', key: `CLOUDCLI_${name}` },
+      `${name}: the legacy spelling must stay readable`,
+    );
+    assert.equal(legacy.warnings.length, 1, `${name}: using the legacy spelling warns once`);
+
+    const absent = readWith({});
+    assert.deepEqual(
+      absent.reader.read(name),
+      { value: undefined, source: 'absent', key: `CLOUDPIT_${name}` },
+      `${name}: an unset pair reads absent`,
+    );
+  }
+});

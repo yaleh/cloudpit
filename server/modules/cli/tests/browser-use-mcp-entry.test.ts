@@ -22,6 +22,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import http from 'node:http';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -193,6 +194,148 @@ async function readBootstrapEnvironment(): Promise<{ databasePath: string | null
   }
 }
 
+// ── brand-env wiring legs (gap-cloudpit-brand-env-reader-wiring) ───────────
+
+/** One HTTP request the MCP entry forwarded to the Browser API. */
+type CapturedApiRequest = {
+  path: string;
+  authorization: string | undefined;
+};
+
+/**
+ * Start a fake Browser API that records what the entry forwards.
+ *
+ * `browser_list_sessions` needs no arguments and reaches the API immediately,
+ * so an authorize/path reading here is a direct observation of the
+ * `apiUrl`/`apiToken` the entry resolved on start-up.
+ */
+async function startBrowserApiCapture(): Promise<{
+  baseUrl: string;
+  requests: CapturedApiRequest[];
+  close: () => Promise<void>;
+}> {
+  const requests: CapturedApiRequest[] = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk: string) => {
+      body += chunk;
+    });
+    request.on('end', () => {
+      requests.push({ path: request.url || '', authorization: request.headers.authorization });
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ success: true, data: [] }));
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    throw new Error('the fake Browser API did not bind to a TCP port');
+  }
+
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+/** Every browser-use brand variable this criterion controls. */
+const BROWSER_USE_BRAND_ENV_KEYS = [
+  'CLOUDPIT_BROWSER_USE_API_URL',
+  'CLOUDCLI_BROWSER_USE_API_URL',
+  'CLOUDPIT_BROWSER_USE_MCP_TOKEN',
+  'CLOUDCLI_BROWSER_USE_MCP_TOKEN',
+  'CLOUDPIT_BROWSER_USE_API_TIMEOUT_MS',
+  'CLOUDCLI_BROWSER_USE_API_TIMEOUT_MS',
+];
+
+/** A child environment with every browser-use brand variable cleared, then `overrides`. */
+function browserUseEnvironment(
+  overrides: Record<string, string>,
+  homeDirectory: string,
+): NodeJS.ProcessEnv {
+  const environment = environmentWithoutDatabasePath(homeDirectory);
+  for (const key of BROWSER_USE_BRAND_ENV_KEYS) {
+    delete environment[key];
+  }
+  return { ...environment, ...overrides };
+}
+
+/** Call `browser_list_sessions` through the entry and return the child's output. */
+function requestBrowserListSessions(
+  environment: NodeJS.ProcessEnv,
+  timeoutMs = 60_000,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawnWithTsx(ENTRY_PATH, environment);
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const finish = (error: Error | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      if (error) reject(error);
+      else resolve({ stdout, stderr });
+    };
+
+    const timer = setTimeout(() => {
+      finish(new Error(`the MCP entry did not answer tools/call within ${timeoutMs}ms\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, timeoutMs);
+
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      for (const line of stdout.split('\n')) {
+        if (!line.trim()) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue; // Not a JSON-RPC frame; keep reading.
+        }
+        const frame = parsed as { id?: unknown };
+        if (frame.id === 2) finish(null);
+      }
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', (error) => finish(error instanceof Error ? error : new Error(String(error))));
+    child.on('exit', (code) => {
+      finish(new Error(`the MCP entry exited (code ${String(code)}) before answering tools/call\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    });
+
+    child.stdin.write(`${JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {},
+    })}\n`);
+    child.stdin.write(`${JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'browser_list_sessions', arguments: {} },
+    })}\n`);
+  });
+}
+
+/** Count non-overlapping occurrences of `needle` in `haystack`. */
+function countOccurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
 test('the relocated MCP entry answers initialize as cloudpit-browser', async () => {
   const reply = await requestInitialize();
   console.log(`(d) initialize reply: ${reply.rawLine}`);
@@ -217,4 +360,65 @@ test('the relocated MCP entry still installs the root environment bootstrap', as
     expectedDefault,
     'importing the entry must run server/load-env.ts, which installs the user-level default DATABASE_PATH',
   );
+});
+
+test('AC5: CLOUDPIT_* supplies the MCP entry API URL and token', async () => {
+  const capture = await startBrowserApiCapture();
+  const homeDirectory = await mkdtemp(path.join(os.tmpdir(), 'cloudpit-mcp-brand-env-'));
+  try {
+    const output = await requestBrowserListSessions(browserUseEnvironment({
+      CLOUDPIT_BROWSER_USE_API_URL: `${capture.baseUrl}/api/new`,
+      CLOUDPIT_BROWSER_USE_MCP_TOKEN: 'new-token',
+      CLOUDCLI_BROWSER_USE_API_URL: `${capture.baseUrl}/api/old`,
+      CLOUDCLI_BROWSER_USE_MCP_TOKEN: 'old-token',
+    }, homeDirectory));
+
+    assert.equal(
+      capture.requests.length,
+      1,
+      `the entry must reach the fake API exactly once\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`,
+    );
+    assert.equal(
+      capture.requests[0].path,
+      '/api/new/tools/browser_list_sessions',
+      'the CLOUDPIT_BROWSER_USE_API_URL spelling must win',
+    );
+    assert.equal(capture.requests[0].authorization, 'Bearer new-token');
+  } finally {
+    await capture.close();
+    await rm(homeDirectory, { recursive: true, force: true });
+  }
+});
+
+test('AC5: the legacy spelling still works and warns once per key', async () => {
+  const capture = await startBrowserApiCapture();
+  const homeDirectory = await mkdtemp(path.join(os.tmpdir(), 'cloudpit-mcp-brand-env-'));
+  try {
+    const output = await requestBrowserListSessions(browserUseEnvironment({
+      CLOUDCLI_BROWSER_USE_API_URL: `${capture.baseUrl}/api/legacy`,
+      CLOUDCLI_BROWSER_USE_MCP_TOKEN: 'legacy-token',
+    }, homeDirectory));
+
+    assert.equal(
+      capture.requests.length,
+      1,
+      `the entry must reach the fake API exactly once\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`,
+    );
+    assert.equal(capture.requests[0].path, '/api/legacy/tools/browser_list_sessions');
+    assert.equal(capture.requests[0].authorization, 'Bearer legacy-token');
+
+    assert.equal(
+      countOccurrences(output.stderr, 'CLOUDCLI_BROWSER_USE_API_URL is deprecated'),
+      1,
+      `the legacy API URL must warn exactly once\nstderr:\n${output.stderr}`,
+    );
+    assert.equal(
+      countOccurrences(output.stderr, 'CLOUDCLI_BROWSER_USE_MCP_TOKEN is deprecated'),
+      1,
+      `the legacy token must warn exactly once\nstderr:\n${output.stderr}`,
+    );
+  } finally {
+    await capture.close();
+    await rm(homeDirectory, { recursive: true, force: true });
+  }
 });
