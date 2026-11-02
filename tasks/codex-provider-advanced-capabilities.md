@@ -28,7 +28,7 @@ goal_ac: AC-467
 - server/modules/settings/codex-model-providers.settings.ts（高级字段 + 连接测试）
 - server/modules/settings/tests/codex-provider-advanced.test.ts（新判据，撞 pin 则上调）
 - server/modules/providers/list/codex/codex-models.provider.ts（effort/窗口）
-- src/modules/settings/tabs/agents-settings/sections/content/（高级表单，跟随 codex-provider-settings-ui）
+- src/modules/settings/tabs/agents-settings/sections/content/CodexProviderAdvanced.tsx（高级表单，跟随 codex-provider-settings-ui）
 
 ## AC（红先行，落 AC-467）
 
