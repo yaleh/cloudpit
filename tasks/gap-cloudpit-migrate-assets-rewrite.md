@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-migrate-assets-rewrite
 title: cloudpit migrate-assets --rewrite：附件旧根复制与持久化路径改写（R4 前置）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
