@@ -1,7 +1,7 @@
 ---
 id: codex-provider-config-surface
 title: Codex 上游 provider 配置面：settings 文件 + 0600 + tokenFile secret + 读写路由与校验
-status: todo
+status: ready
 labels:
   - feature
 parent: null
