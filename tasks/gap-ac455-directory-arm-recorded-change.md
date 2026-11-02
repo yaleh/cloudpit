@@ -2,7 +2,7 @@
 id: gap-ac455-directory-arm-recorded-change
 title: AC-455 directory arm becomes a recorded-change ratchet (source pin +
   shrink-only JSON), unblocking deliberate module splits
-status: todo
+status: ready
 labels:
   - gap
 parent: null
