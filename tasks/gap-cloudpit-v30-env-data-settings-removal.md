@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v30-env-data-settings-removal
 title: Cloudpit v3.0：删除 env/数据根/settings 旧回退（保留一次性迁移与旧文件）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
