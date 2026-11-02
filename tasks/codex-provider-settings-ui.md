@@ -29,16 +29,38 @@ goal_ac: AC-465
 
 - tasks/codex-provider-settings-ui.md
 - src/shared/ui/ModelLibraryPanel.tsx
+- src/shared/constants.ts
+- src/shared/api.ts
+- src/shared/types.ts
 - src/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent.tsx（新）
-- src/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection.tsx（分发）
-- src/shared/constants.ts（PROVIDER_DESCRIPTORS 增数据字段）
-- src/modules/settings/tests/codexProviderSettings.test.tsx（新 vitest）
+- src/modules/settings/tabs/agents-settings/sections/content/ModelsContent.tsx
+- src/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection.tsx
+- src/modules/settings/tabs/agents-settings/sections/AgentCategoryTabsSection.tsx
+- src/modules/settings/tabs/agents-settings/sections/AgentSelectorSection.tsx
+- src/modules/settings/utils/codexProvidersController.ts（新）
+- src/modules/settings/hooks/useCodexProviders.ts（新）
+- src/modules/settings/tests/codexProviderSettings.test.tsx（新）
+- src/modules/ui-scenario/codexProvidersSurface.ts（新）
+- src/modules/ui-scenario/scenarioSurface.ts
+- scripts/ui-scenario.mjs
+- scripts/ui-scenarios/codex-provider-settings.json（新）
 
 ## AC
 
-- [ ] AC-465 判据绿：npx vitest run src/modules/settings/tests/codexProviderSettings.test.tsx 退出 0。
-- [ ] 负臂：secret 掩码、未知字段告警、Responses-only 提示；假形态（分支绕过 PROVIDER_DESCRIPTORS）红。
+- [x] AC-465 判据绿：npx vitest run src/modules/settings/tests/codexProviderSettings.test.tsx 退出 0。
+- [x] 负臂：secret 掩码、未知字段告警、Responses-only 提示；假形态（分支绕过 PROVIDER_DESCRIPTORS）红。
 
 ## DoD
 
 MCP 浏览器实际操作 + 截图存 tmp/（建 provider、绑模型、发送）；scripts/ui-scenario.mjs 场景报告 + 检查点截图；pageErrors=[]。真实页面走一遍，不是只组件测试。
+
+Evidence（2026-11-03；隔离实例 :3217，worktree vite :5217，CODEX_SETTINGS_PATH 指向 tmp/iso-codex-ui/codex.settings.json，未触碰真实 ~/.config/cloudpit）：
+
+- 场景运行器：`node scripts/ui-scenario.mjs scripts/ui-scenarios/codex-provider-settings.json --base-url http://127.0.0.1:5217 …` → `passed (13 steps, 4 checkpoints)`；报告 `tmp/dod-codex/report.json`，checkpoint 截图 `tmp/dod-codex/step-1-open-settings-agents-codex.png`、`tmp/dod-codex/step-8-drive-codexProvider.fill.png`、`tmp/dod-codex/step-9-drive-codexProvider.save.png`、`tmp/dod-codex/step-13-drive-modelLibrary.save.png`。
+- 浏览器实际操作（一次性 Playwright 驱动，本会话无 MCP 浏览器工具时的等价路径）：读回已保存 provider、secret 仅以 password 输入 + tokenSet 呈现（页面与 reading 均无明文）、wire_api 锁定 responses、改 baseUrl 后落盘、模型编辑器出现 provider 选择器且无 env 编辑器、清除绑定后目录标签由 `Scenario Codex Model · bob` 回到 `Scenario Codex Model`。报告 `tmp/dod-codex-browser/report.json`，截图 `tmp/dod-codex-browser/01-provider-read.png`…`04-binding-cleared.png`；pageErrors=[]，unhandledRejections=[]（仅一条与本次无关的 SidebarProjectMenu validateDOMNesting console 警告）。
+- 服务端落盘读数：`tmp/iso-codex-ui/codex.settings.json` 与 `/tmp/cloudpit-dod-bob.token` 均为 0600；unknown-field 告警、Responses-only 文案与 provider 行由场景断言覆盖。
+
+ADR-007：
+
+- L_D 该轴仍暗,理由:本任务是 Codex 服务商设置 UI 与模型编辑器 provider 区，读数是 AC 判据、场景运行器 13 步与浏览器探针，没有可量化的领域数据轴读数。
+- L_G 该轴仍暗,理由:本任务不新增 goal 判据；目标层读数由 GOAL-055 的 AC-465 自己承担，本任务不另立目标质量指标。
