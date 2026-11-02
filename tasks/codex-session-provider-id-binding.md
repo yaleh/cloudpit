@@ -31,7 +31,7 @@ goal_ac: AC-462
 - server/modules/providers/tests/codex-session-provider-binding.test.ts（新判据，撞 pin 则上调）
 - server/modules/database/tests/migrations-ensure-columns.test.ts（补列断言）
 
-## AC（红先行，落 AC-462）
+## AC
 
 - [ ] AC-462 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-session-provider-binding.test.ts 退出 0、fail 0。
 - [ ] 负臂：换 provider 被拒；删除被引用 provider 不静默回退默认。
