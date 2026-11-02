@@ -30,6 +30,7 @@ goal_ac: AC-462
 - server/modules/providers/services/sessions.service.ts
 - server/modules/providers/tests/codex-session-provider-binding.test.ts（新判据，撞 pin 则上调）
 - server/modules/database/tests/migrations-ensure-columns.test.ts（补列断言）
+- tasks/codex-session-provider-id-binding.md
 
 ## AC
 
