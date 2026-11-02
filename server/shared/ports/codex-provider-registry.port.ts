@@ -25,8 +25,9 @@
  * added or removed through the settings API is seen by the next model write.
  *
  * Consumers: `modules/providers/services/provider-models.service.ts` (the
- * `codexProviderId` reference check) and `modules/settings/settings.module.ts`
- * (installs the production reading).
+ * `codexProviderId` reference check), `modules/providers/list/codex/` (the
+ * per-run spawn-time `resolve`), and `modules/settings/settings.module.ts`
+ * (installs the production reading and resolution).
  */
 
 /** One provider id the project registry defines; the model entry binds by id only. */
@@ -43,9 +44,41 @@ export type CodexProviderRegistryReading = {
   reservedIds: readonly string[];
 };
 
-/** The one registry surface the models service reads. */
+/**
+ * One provider resolved for a spawn-time injection: the endpoint fields Codex's
+ * `model_providers.<id>` config needs plus the secret read from its token file.
+ *
+ * The secret is handed to the caller in memory, under the provider's `envKey`;
+ * it never appears in a config document or on a command line.
+ */
+export type ResolvedCodexUpstreamProvider = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  wireApi: 'responses';
+  secret: string;
+};
+
+/**
+ * A spawn-time lookup. A false `ok` always carries the readable line a run
+ * reports instead of silently dialling Codex's default endpoint.
+ */
+export type CodexUpstreamProviderResolution =
+  | { ok: true; provider: ResolvedCodexUpstreamProvider }
+  | { ok: false; problem: string };
+
+/**
+ * The registry surface the providers module reads.
+ *
+ * `read()` answers the model-write reference check; `resolve()` is the
+ * per-run/resident spawn-time lookup. `resolve` is optional so an install that
+ * only answers reference checks keeps working; a Codex run that needs an
+ * injection treats its absence as "the registry cannot resolve providers".
+ */
 export type CodexProviderRegistryPort = {
   read(): CodexProviderRegistryReading;
+  resolve?(id: string): CodexUpstreamProviderResolution;
 };
 
 /**

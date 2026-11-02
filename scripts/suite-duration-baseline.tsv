@@ -991,3 +991,9 @@
 #   (dur=4412ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 501 server test files and the baseline holds 452 of them).
 4412	server/modules/providers/tests/codex-provider-model-binding.test.ts
+#   and the codex-perrun-provider-injection row by codex-perrun-provider-injection,
+#   measured once on 2026-11-03 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-runtime-provider-injection.test.ts`
+#   (dur=6729ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 502 server test files and the baseline holds 453 of them).
+6729	server/modules/providers/tests/codex-runtime-provider-injection.test.ts

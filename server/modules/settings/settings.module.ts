@@ -47,12 +47,17 @@ const codexModelProvidersSource = createCodexModelProvidersSource();
  * than importing this module: `providers -> settings` would close the `providers -> settings ->
  * mcp-gateway -> providers` cycle AC-394 pins. Reads are uncached, so a provider saved through
  * the settings API is visible to the very next model write.
+ *
+ * The same install carries `resolve`, the spawn-time lookup a per-run/resident Codex injection
+ * uses to read the endpoint and the token-file secret. It resolves against the live file on every
+ * call, so an edit reaches the next launch without a restart.
  */
 installCodexProviderRegistryPort({
   read: () => ({
     providers: codexModelProvidersSource.read().providers.map((provider) => ({ id: provider.id })),
     reservedIds: RESERVED_CODEX_PROVIDER_IDS,
   }),
+  resolve: (id) => codexModelProvidersSource.resolve(id),
 });
 
 /**
