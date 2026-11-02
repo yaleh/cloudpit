@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-knowledge-confirm-inject-fleet-apply-confirmation
 title: cockpit confirm 对知识卡注入 confirmation 给 fleet.apply（可信决定执行，而非只进反馈回执）
-status: todo
+status: ready
 labels:
   - gap
   - defect
