@@ -1,7 +1,7 @@
 ---
 id: codex-session-provider-id-binding
 title: 会话记录 model_provider_id：首发送落库、换 provider 拒绝 + 一键 fork、删除/改名保护
-status: ready
+status: done
 labels:
   - feature
 parent: null
