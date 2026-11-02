@@ -30,9 +30,11 @@ import express, {
 import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 
-import { formatSessionUri } from '../observation-uri.js';
+import {
+  formatSessionUri,
+  createObservationStore,
+} from '../core/index.js';
 import { createObservationRoutes } from '../observation.routes.js';
-import { createObservationStore } from '../observation-store.js';
 
 const USER_ID = '7';
 const SESSION_URI = formatSessionUri('routes-session');

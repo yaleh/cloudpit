@@ -15,7 +15,7 @@ import express, { type Router } from 'express';
 import { readCockpitEnabled } from '@/shared/ports/cockpit-enabled.port.js';
 
 import { createObservationRoutes } from './observation.routes.js';
-import { createObservationStore, type ObservationStoreDeps } from './observation-store.js';
+import { createObservationStore, type ObservationStoreDeps } from './core/index.js';
 import { createViewEventRoutes } from './view-events.routes.js';
 import {
   createViewEventService,

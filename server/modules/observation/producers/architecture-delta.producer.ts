@@ -29,8 +29,11 @@ import {
   readStructureSnapshot,
   type ArchitectureStructuralDiff,
 } from './architecture-delta.js';
-import { formatArchitectureUri } from './observation-uri.js';
-import type { ObservedObject, ObservationStore } from './observation-store.js';
+import {
+  formatArchitectureUri,
+  type ObservedObject,
+  type ObservationStore,
+} from '../core/index.js';
 import { refreshAllOf } from './producer-batch.js';
 
 /** The producer name every architecture revision is stamped with. */

@@ -40,17 +40,15 @@ import {
   ARCHITECTURE_GROWTH_TOP_N,
   ARCHITECTURE_SIZE_CALIBER,
   diffArchitectureStructures,
-} from '../architecture-delta.js';
-import {
   ARCHITECTURE_DELTA_REFRESH_MS,
   createArchitectureDeltaProducer,
-} from '../architecture-delta.producer.js';
-import { formatArchitectureUri } from '../observation-uri.js';
+} from '../producers/index.js';
 import {
+  formatArchitectureUri,
   createObservationStore,
   type ObservationStore,
   type ObservedObject,
-} from '../observation-store.js';
+} from '../core/index.js';
 
 /** A fixed instant; every fixture time is expressed relative to it. */
 const NOW = 1_700_000_000_000;

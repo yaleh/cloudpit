@@ -22,16 +22,17 @@ import test from 'node:test';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
-import type { ObservedObject, ObservationStore } from '../observation-store.js';
 import {
   prefilterAssistantAsk,
+  type ObservedObject,
+  type ObservationStore,
   type AskPrefilterReading,
-} from '../session-digest.js';
+} from '../core/index.js';
 import {
   SESSION_ASK_NOT_ASKING_REASON,
   type SessionAskDecisionDigest,
-} from '../session-ask-decision-digest.js';
-import { createSessionDigestProducer } from '../session-digest.producer.js';
+} from '../session-ask/index.js';
+import { createSessionDigestProducer } from '../session-digest/index.js';
 
 const CLOCK = 1_800_000_100_000;
 const SESSION_ID = 'semantic-gate-session';

@@ -25,8 +25,8 @@ import express, { type Request, type Response, type Router } from 'express';
 
 import { AppError } from '@/shared/utils.js';
 
-import { parseObservationUri } from './observation-uri.js';
-import type { ObservationStore } from './observation-store.js';
+import { parseObservationUri } from './core/index.js';
+import type { ObservationStore } from './core/index.js';
 
 type AuthenticatedRequest = Request & { user?: { id?: number | string } };
 

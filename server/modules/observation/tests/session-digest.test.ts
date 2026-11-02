@@ -36,26 +36,28 @@ import {
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
 import type { OpenSessionAsk } from '../../context-events/index.js';
-import { formatSessionUri } from '../observation-uri.js';
-import { createObservationStore, type ObservedObject, type ObservationStore } from '../observation-store.js';
 import {
   analyzeAsking,
   analyzeAssistantAsk,
   buildSessionDigest,
+  createObservationStore,
+  formatSessionUri,
   parseTestOutput,
   SESSION_DIGEST_CONCLUSION_CHARS,
-} from '../session-digest.js';
+  type ObservedObject,
+  type ObservationStore,
+} from '../core/index.js';
 import {
   createSessionDigestProducer,
   readSessionAskEventLedger,
   SESSION_ASK_EVENTS_DIGEST_KEY,
   type SessionAskEventLedger,
   type SessionAskSweepableProducer,
-} from '../session-digest.producer.js';
+} from '../session-digest/index.js';
 import {
   SESSION_ASK_NOT_ASKING_REASON,
   type SessionAskDecisionDigest,
-} from '../session-ask-decision-digest.js';
+} from '../session-ask/index.js';
 
 const TEST_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.join(TEST_DIRECTORY, 'fixtures', 'session-transcript.jsonl');

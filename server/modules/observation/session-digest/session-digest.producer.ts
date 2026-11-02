@@ -28,24 +28,31 @@ import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events
 import type { SessionUserTurnEvent } from '@/shared/ports/session-user-turn.port.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
-import { formatSessionUri, parseObservationUri } from './observation-uri.js';
-import { createObservationStore, type ObservedObject, type ObservationStore } from './observation-store.js';
-import { createSessionAskLedgerOwner } from './session-ask-ledger.js';
-import { createSessionAskRecovery, type SessionAskSweepSummary } from './session-ask-recovery.js';
-import { createSessionAskRetraction } from './session-ask-retraction.js';
 import {
+  formatSessionUri,
+  parseObservationUri,
+  createObservationStore,
+  buildSessionDigest,
+  type ObservedObject,
+  type ObservationStore,
+  type SessionDigest,
+} from '../core/index.js';
+import {
+  createSessionAskLedgerOwner,
+  createSessionAskRecovery,
+  createSessionAskRetraction,
   carryAskDecisionHistory,
   createSessionAskDecisionDigest,
   readSessionAsk,
   readSessionAsks,
   rememberAskDecision,
+  type SessionAskSweepSummary,
   type SessionAskDecisionDigest,
-} from './session-ask-decision-digest.js';
-import { buildSessionDigest, type SessionDigest } from './session-digest.js';
+} from '../session-ask/index.js';
 
-export { readSessionAskEventLedger, SESSION_ASK_EVENTS_DIGEST_KEY } from './session-ask-ledger.js';
-export type { SessionAskEventLedger } from './session-ask-ledger.js';
-export type { SessionAskSweepSummary } from './session-ask-recovery.js';
+export { readSessionAskEventLedger, SESSION_ASK_EVENTS_DIGEST_KEY } from '../session-ask/index.js';
+export type { SessionAskEventLedger } from '../session-ask/index.js';
+export type { SessionAskSweepSummary } from '../session-ask/index.js';
 
 /** The producer name every digest revision is stamped with. */
 export const SESSION_DIGEST_PRODUCER = 'session-digest';

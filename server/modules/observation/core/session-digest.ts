@@ -12,7 +12,7 @@
  * rows are `user` rows in Claude's transcript but they are not prompts, so a turn that ends in a
  * long test run still reads as the turn that started with the person's message.
  *
- * Consumers: `server/modules/observation/session-digest.producer.ts` (the write path) and
+ * Consumers: `server/modules/observation/session-digest/session-digest.producer.ts` (the write path) and
  * `server/modules/observation/tests/session-digest.test.ts` (the criterion).
  */
 

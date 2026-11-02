@@ -24,7 +24,7 @@
  * percent-decoded here: the routes decode the path parameter once, and every other caller
  * builds the URI with the formatters below.
  *
- * Consumers: `server/modules/observation/observation-store.ts` (write validation and the wall)
+ * Consumers: `server/modules/observation/core/observation-store.ts` (write validation and the wall)
  * and `server/modules/observation/observation.routes.ts` (transport validation).
  */
 

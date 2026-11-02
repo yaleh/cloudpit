@@ -32,10 +32,11 @@ import {
   transcriptRowMessageId,
   transcriptRowRole,
   transcriptRowText,
-} from './session-digest.js';
+  createSessionDigestLlmSettingsSource,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
 import type { ParsedAskAnswer } from './session-ask-decision-answer.js';
 import { buildAskDecision, parseAskDecisionAnswer, SYSTEM_PROMPT } from './session-ask-decision-answer.js';
-import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from './session-digest-llm-settings.js';
 
 /** How many user turns of transcript the model is shown; older turns are left out. */
 export const SESSION_ASK_CONTEXT_TURNS = 3;

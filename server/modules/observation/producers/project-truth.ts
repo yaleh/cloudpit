@@ -26,12 +26,12 @@
  * task list, its `landed.since` is carried forward instead (the producer's job), so a failed
  * read never swallows the landings that happened while it was failing.
  *
- * Consumers: `server/modules/observation/project-truth.producer.ts` (the write path) and
+ * Consumers: `server/modules/observation/producers/project-truth.producer.ts` (the write path) and
  * `server/modules/observation/tests/project-truth.test.ts` (the criterion).
  */
 import type { QuayFleetLivenessReading } from '@/modules/quay/index.js';
 
-import type { ObservedStatus } from './observation-store.js';
+import type { ObservedStatus } from '../core/index.js';
 
 /** One project as the producer addresses it. `fleetProjectId` is the `quay://` project segment. */
 export type ProjectTruthProjectRef = {

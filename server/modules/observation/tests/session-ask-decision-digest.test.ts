@@ -30,8 +30,16 @@ import { ApiCredential, createReplySuggestionsSettingsSource } from '@/modules/r
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
-import type { ObservedObject, ObservationStore } from '../observation-store.js';
-import { formatSessionUri } from '../observation-uri.js';
+import {
+  formatSessionUri,
+  createSessionDigestLlmSettingsSource,
+  analyzeAssistantAsk,
+  buildSessionDigest,
+  prefilterAssistantAsk,
+  type ObservedObject,
+  type ObservationStore,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
 import {
   assistantQuoteOf,
   createSessionAskDecisionDigest,
@@ -40,23 +48,19 @@ import {
   SESSION_ASK_OUTPUT_UNUSABLE_REASON,
   SESSION_ASK_DECISION_HISTORY_LIMIT,
   stableOptionId,
-  type SessionAskDecisionDigest,
-} from '../session-ask-decision-digest.js';
-import {
   createSessionAskDecisionReader,
   SESSION_ASK_DECISION_ASK_MISSING_REASON,
   SESSION_ASK_DECISION_ASK_RETRY_LIMIT,
   SESSION_ASK_DECISION_LIMIT_REASON,
   SESSION_ASK_DECISION_NOT_GENERATED_REASON,
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
-} from '../session-ask-decision-reader.js';
+  type SessionAskDecisionDigest,
+} from '../session-ask/index.js';
 import {
   buildSessionAskingData,
   createSessionDigestProducer,
   readSessionAskEventLedger,
-} from '../session-digest.producer.js';
-import { createSessionDigestLlmSettingsSource, type SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
-import { analyzeAssistantAsk, buildSessionDigest, prefilterAssistantAsk } from '../session-digest.js';
+} from '../session-digest/index.js';
 
 const CLOCK = 1_800_000_000_000;
 const SESSION_ID = 'ask-session';

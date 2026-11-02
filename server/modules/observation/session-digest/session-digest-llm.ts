@@ -41,15 +41,16 @@ import { createReplySuggestionsUsageLog } from '@/modules/reply-suggestions/inde
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import { readSessionAskEventWriterPort } from '@/shared/ports/session-ask-events.port.js';
 
-import type { ObservedObject, ObservationStore } from './observation-store.js';
-import { createObservationStore } from './observation-store.js';
-import { createSessionAskDecisionDigest } from './session-ask-decision-digest.js';
+import {
+  createObservationStore,
+  createSessionDigestLlmSettingsSource,
+  type ObservedObject,
+  type ObservationStore,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
+import { createSessionAskDecisionDigest } from '../session-ask/index.js';
 import { createSessionDigestProducer } from './session-digest.producer.js';
 import type { SessionDigestProducer, SessionTurnEndEvent } from './session-digest.producer.js';
-import {
-  createSessionDigestLlmSettingsSource,
-  type SessionDigestLlmSettings,
-} from './session-digest-llm-settings.js';
 
 /** The producer name stamped on every revision this tier writes. */
 export const SESSION_DIGEST_LLM_PRODUCER = 'session-digest-llm';

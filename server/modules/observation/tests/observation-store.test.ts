@@ -23,9 +23,13 @@ import Database from 'better-sqlite3';
 
 import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 
-import { formatSessionUri, parseObservationUri } from '../observation-uri.js';
-import { createObservationStore, DEFAULT_OBSERVATION_WALL_LIMIT } from '../observation-store.js';
-import type { ObservedStatus } from '../observation-store.js';
+import {
+  formatSessionUri,
+  parseObservationUri,
+  createObservationStore,
+  DEFAULT_OBSERVATION_WALL_LIMIT,
+  type ObservedStatus,
+} from '../core/index.js';
 
 const USER_ID = 'user-1';
 const PRODUCER = 'session-digest';

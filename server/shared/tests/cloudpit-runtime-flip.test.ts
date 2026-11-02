@@ -304,11 +304,11 @@ test('AC6: both protocols are declared/registered and both observation URI spell
     return line.trim();
   };
   assert.equal(
-    regexLineOf(readApplicationFile('server/modules/observation/observation-uri.ts')),
+    regexLineOf(readApplicationFile('server/modules/observation/core/observation-uri.ts')),
     regexLineOf(readApplicationFile('src/modules/cockpit-contract/observationUri.ts')),
   );
 
-  const storeSource = readApplicationFile('server/modules/observation/observation-store.ts');
+  const storeSource = readApplicationFile('server/modules/observation/core/observation-store.ts');
   assert.ok(storeSource.includes('cloudpit://session/<id>'), 'the INVALID_URI message names both spellings');
 });
 
