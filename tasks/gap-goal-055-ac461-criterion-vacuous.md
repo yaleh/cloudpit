@@ -60,7 +60,7 @@ GOAL-055 `## 退出条件` 中 AC-461 一条，逐字为：
 
 - [x] AC1: 人裁定写回 `## Resolution`：采纳本提案（替换 AC-461 criterion + 同步 `codex-model-entry-provider-binding` 的 Touches），或明确否决并给出理由；本任务停在 `needs-human`，不被当执行任务派发（待外部：人 yale 裁定）。
 - [x] AC2: 若采纳：`quay goal show AC-461 --json`（或 `goals/AC-461-*.md`）的 criterion 逐字为 `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts`，且 title / expect / goal / phase 与判定前逐字相同（待外部：被授权 goal 写入路径）。
-- [ ] AC3: 若采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 中 GOAL-055 记录里 `goal-sufficiency` 为 `{"goal":"GOAL-055","verdict":"covered"}`，且同一记录 `goal-ring.criteria` 中 AC-461 的 status ∈ {active, achieved, needs-human}（待外部：goal-driver 跑一轮）。
+- [x] AC3: 若采纳后的第一个完整 goal 轮：`.quay/goal-round.jsonl` 中 GOAL-055 记录里 `goal-sufficiency` 为 `{"goal":"GOAL-055","verdict":"covered"}`，且同一记录 `goal-ring.criteria` 中 AC-461 的 status ∈ {active, achieved, needs-human}（待外部：goal-driver 跑一轮）。
 - [x] AC4: 若采纳：`codex-model-entry-provider-binding` 的 `## Touches` 含 `server/modules/providers/tests/codex-provider-model-binding.test.ts`，且其 AC 判据命令与 AC-461 新 criterion 逐字一致（待外部：被授权 task_write）。
 - [ ] AC5: 若否决：`## Resolution` 写出否决理由，并说明 AC-461 将以什么路径进入在域集合（或退出条件 / AC 集如何另改）；本任务不得以「已提议」完结（待外部：人 yale 裁定）。
 
@@ -96,6 +96,8 @@ GOAL-055 `## 退出条件` 中 AC-461 一条，逐字为：
 1. 提案称「AC-460 active」：现为 `achieved`（round 292），不影响结论。
 2. 提案只要求同步实现任务的 `## Touches` 与 AC 命令；实际其 `## DoD` 仍写「不新建 server 测试文件」，且新 server 测试文件会撞 `quay-test-script.test.ts` 两条 unknown pin 与 `scripts/suite-duration-baseline.tsv` 覆盖率地板。已在同一 `task_write` 中修正 DoD 并把两个连带文件补进 Touches。
 
-### 剩余外部验证（AC3 / 本任务 DoD）
+### 外部验证读数（AC3 / 本任务 DoD，已同轮成立）
 
-AC-461 现为 `draft` + 新 criterion；下一轮 goal-driver 应 triage 激活它（criterion 因文件缺失而 fail，fidelity 判 faithful），进入在域集合后 GOAL-055 的 `goal-sufficiency` 应从 `insufficient` 翻 `covered`。该读数只能由 driver 的下一轮产生，故 AC3 保持未勾并由 driver 侧闭合；本任务不以「已提议」完结，待该轮读数确认后由外部闭合。
+- round 293（09:57:44Z）：AC-461 激活成功（`flips: {to:"active", ok:true}`；`fidelity: faithful`）。该轮的 criteria 采样早于写入（`status:"draft"` / `verdict:"pass"` 是旧判据的轮内快照），`goal-sufficiency` 仍 `insufficient`。
+- round 294（10:00:29Z）：同一轮记录同时满足 —— `goal-ring.criteria` 中 AC-461 `status: "active"` 且 `verdict: "fail"`（`Could not find 'server/modules/providers/tests/codex-provider-model-binding.test.ts'`，即新判据、红先行，排除旧判据 pass 假绿）；`flips` 无 AC-461（未被 I2 翻 achieved）；`goal-sufficiency: {"goal":"GOAL-055","verdict":"covered"}`。
+- 结论：AC-461 已在域，退出条件这一条对充分性判官可见且可判伪；GOAL-055 的 sufficiency 由 `insufficient` 翻 `covered`。实现落地（新建该测试文件）后判据转绿，driver 才会翻 achieved。
