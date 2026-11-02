@@ -26,9 +26,10 @@ goal_ac: AC-466
 
 ## Touches
 
+- tasks/codex-provider-import-user-profile.md
 - server/modules/settings/codex-model-providers.settings.ts（只读导入解析）
-- server/modules/settings/tests/codex-provider-import.test.ts（新判据，撞 pin 则上调）
-- src/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport.tsx（导入入口，跟随 codex-provider-settings-ui）
+- server/modules/settings/tests/codex-provider-import.test.ts (new)（新判据，撞 pin 则上调）
+- src/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport.tsx (new)（导入入口，跟随 codex-provider-settings-ui）
 
 ## AC
 
