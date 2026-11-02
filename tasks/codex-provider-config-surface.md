@@ -22,13 +22,18 @@ goal_ac: AC-460
 
 ## Touches
 
-- server/modules/settings/codex-model-providers.settings.ts（新 loader）
-- server/modules/settings/settings.routes.ts / settings.service.ts（读写路由 + 版本冲突）
-- server/modules/settings/tests/codex-model-providers-settings.test.ts（新判据，撞 pin 则等量上调）
-- config/codex.settings.example.json（示例 + _comment）
-- server/shared/types.ts + src/shared/types.ts（CodexModelProvider 类型 + TypeSync）
+- server/modules/settings/codex-model-providers.settings.ts (new)（新 loader）
+- server/modules/settings/settings.routes.ts（读写路由 + 版本冲突）
+- server/modules/settings/settings.service.ts（读写路由 + 版本冲突）
+- server/modules/settings/tests/codex-model-providers-settings.test.ts (new)（新判据，撞 pin 则等量上调）
+- config/codex.settings.example.json (new)（示例 + _comment）
+- server/shared/types.ts（CodexModelProvider 类型 + TypeSync）
+- src/shared/types.ts（CodexModelProvider 类型 + TypeSync）
+- tasks/codex-provider-config-surface.md
 
-## AC（红先行，落 AC-460）
+## AC
+
+红先行，落 AC-460。
 
 - [ ] AC-460 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-model-providers-settings.test.ts 退出 0、fail 0。
 - [ ] 负臂：保留 id / wire_api=chat / 空 baseUrl 拒绝；未知字段告警；secret GET 只回 isSet；文件 0600；版本冲突可读——各自假形态红。
