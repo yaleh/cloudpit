@@ -60,3 +60,15 @@ goal_ac: AC-461
 ## ADR-007
 
 - 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 shared/ports 端口按 AC-394 叶子规则不进入任何 SCC，周期读数由 server-import-cycle-budget.test.ts 21/21 绿代替。
+
+## Blocker
+
+**2026-11-02T17:38:49.405Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=merge-develop: Auto-merging scripts/suite-duration-baseline.tsv
+CONFLICT (content): Merge conflict in scripts/suite-duration-baseline.tsv
+Auto-merging server/shared/tests/quay-test-script.test.ts
+CONFLICT (content): Merge conflict in server/shared/tests/quay-test-script.test.ts
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：9e0b6954-11cc-464e-9ae4-d7b55874a0f5
