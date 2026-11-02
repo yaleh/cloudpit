@@ -979,9 +979,15 @@
 #   (dur=2206ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 499 server test files and the baseline holds 450 of them).
 2206	server/modules/settings/tests/codex-model-providers-settings.test.ts
-
-# codex-model-entry-provider-binding's criterion (AC-461), measured 2026-11-03 with
+#   and the asset-migration.service row by gap-cloudpit-migrate-assets-rewrite,
+#   measured once on 2026-11-03 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/cli/tests/asset-migration.service.test.ts`
+#   (dur=1409ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 500 server test files and the baseline holds 451 of them).
+1409	server/modules/cli/tests/asset-migration.service.test.ts
+#   and the codex-provider-model-binding row by codex-model-entry-provider-binding,
+#   measured once on 2026-11-03 with
 #   `npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts`
-# (dur=4412ms; the tree now collects 500 server test files and this baseline holds 451 of them,
-# clear of the 90% coverage floor in server/shared/tests/quay-test-script.test.ts).
+#   (dur=4412ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 501 server test files and the baseline holds 452 of them).
 4412	server/modules/providers/tests/codex-provider-model-binding.test.ts

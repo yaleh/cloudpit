@@ -485,11 +485,14 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498 collected server test
     // files), then codex-provider-config-surface added its criterion
     // server/modules/settings/tests/codex-model-providers-settings.test.ts
-    // (498 + 1 = 499 collected server test files). Then codex-model-entry-provider-binding
+    // (498 + 1 = 499 collected server test files). Then
+    // gap-cloudpit-migrate-assets-rewrite added its criterion
+    // server/modules/cli/tests/asset-migration.service.test.ts
+    // (499 + 1 = 500 collected server test files). Then codex-model-entry-provider-binding
     // added its criterion server/modules/providers/tests/codex-provider-model-binding.test.ts
-    // (499 + 1 = 500 collected server test files). This fixture names 3 known files, so
-    // 500 - 3 = 497.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=497$/);
+    // (500 + 1 = 501 collected server test files). This fixture names 3 known files, so
+    // 501 - 3 = 498.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=498$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -632,12 +635,14 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // then the goal branch's gap-cloudpit-runtime-default-flip added
     // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498), then
     // codex-provider-config-surface added
-    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499),
-    // then codex-model-entry-provider-binding added
-    // server/modules/providers/tests/codex-provider-model-binding.test.ts (499 + 1 = 500)
-    // — but this fixture names ONE known file, so 500 - 1 = 499 (AC2 reads 497 because its
-    // fixture names 3; the 500 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=499$/);
+    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499), then
+    // gap-cloudpit-migrate-assets-rewrite added its criterion
+    // server/modules/cli/tests/asset-migration.service.test.ts (499 + 1 = 500), then
+    // codex-model-entry-provider-binding added
+    // server/modules/providers/tests/codex-provider-model-binding.test.ts (500 + 1 = 501)
+    // — but this fixture names ONE known file, so 501 - 1 = 500 (AC2 reads 498 because its
+    // fixture names 3; the 501 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=500$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
