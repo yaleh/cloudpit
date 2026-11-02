@@ -28,19 +28,13 @@ goal_ac: AC-461
 - server/shared/types.ts + src/shared/types.ts（ProviderModelConfig.codexProviderId + TypeSync）
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/provider.routes.ts
-- server/modules/providers/tests/codex-provider-model-binding.test.ts（new；AC-461 专用判据文件，红先行）
-- server/shared/tests/quay-test-script.test.ts（新 server 测试文件 ⇒ 两条 unknown pin 等量上调）
-- scripts/suite-duration-baseline.tsv（追加本文件实测 duration 行）
-- tasks/codex-model-entry-provider-binding.md
+- server/modules/providers/tests/codex-provider-model-binding.test.ts（新判据，撞 pin 则上调）
 
-## AC
-
-红先行，落 AC-461。（2026-11-02 人裁定采纳 gap-goal-055-ac461-criterion-vacuous 的选型 (a)：AC-461 判据改为本任务新建的专用文件。）
+## AC（红先行，落 AC-461）
 
 - [ ] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
-- [ ] 判据文件逐条断言 expect 的四个面：可声明 codexProviderId；未声明编译为继承 Codex 全局（passthrough 基线）；声明不存在/已删 provider ⇒ create/update 可读 409/404（含 provider id）且不落库；目录合并后自定义模型行显示 model · provider。
 - [ ] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
 
 ## DoD
 
-判据逐字 tests/pass/fail；新建 AC-461 专用判据文件 server/modules/providers/tests/codex-provider-model-binding.test.ts（不再以扩 model-config-write-path.test.ts 充当 AC-461 判据）；typecheck 绿；新 server 测试文件撞 quay-test-script pin / 时长基线时同任务等量上调并注明。
+判据逐字 tests/pass/fail；新 test.ts 撞 quay pin / 时长基线则等量上调并注明；typecheck 绿。
