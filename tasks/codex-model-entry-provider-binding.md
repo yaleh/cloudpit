@@ -1,7 +1,7 @@
 ---
 id: codex-model-entry-provider-binding
 title: Codex 模型条目挂 codexProviderId：绑定与校验、目录显示 model · provider
-status: todo
+status: ready
 labels:
   - feature
 parent: null
