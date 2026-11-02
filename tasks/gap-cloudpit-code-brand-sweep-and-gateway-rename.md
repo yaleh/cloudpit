@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-code-brand-sweep-and-gateway-rename
 title: Cloudpit 代码面品牌清扫 + MCP gateway server 名/令牌环境变量改名（无别名）
-status: todo
+status: ready
 labels:
   - gap
 parent: null
