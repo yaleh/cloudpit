@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import net from 'node:net';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
@@ -239,34 +240,6 @@ const listen = () => new Promise((resolve, reject) => {
 };
 
 /**
- * One kernel-assigned port, for a server the SPEC hosts rather than this file.
- *
- * The same reasoning as `freePortPair`, with one extra consequence: a spec that
- * binds a socket has to be told which port, so the value travels through the
- * environment (published below) rather than being read back by the spec. Kept
- * separate from the pair because it is the stand-in upstream the voice criterion
- * dials — the server holding it and the client holding the browser are both
- * already addressed by the pair above.
- */
-const freePort = (): number => {
-  const stdout = execFileSync(
-    process.execPath,
-    [
-      '-e',
-      `const net = require('node:net');
-const server = net.createServer();
-server.once('error', (error) => { console.error(error.message); process.exit(1); });
-server.listen(0, '127.0.0.1', () => {
-  process.stdout.write(String(server.address().port));
-  server.close();
-});`,
-    ],
-    { encoding: 'utf8', timeout: 10_000 },
-  );
-  return Number(stdout.trim());
-};
-
-/**
  * Workers re-evaluate this file, and `baseURL` is read there — so the pair has to travel through the
  * environment like `dataDir` does, or a worker would address a server nobody started. Only the process that
  * allocated publishes it, and only that process announces it.
@@ -308,6 +281,63 @@ const probe = (port) => new Promise((resolve) => {
     { encoding: 'utf8', timeout: 10_000 },
   );
   return stdout.trim().split(/\s+/).filter(Boolean).map(Number);
+};
+
+/**
+ * The range the stand-in Realtime upstream's port is drawn from, and how many neighbours are tried.
+ *
+ * `20_000..29_999` sits below the kernel's ephemeral range on this host (32768 and up), so a derived port can
+ * never be one the kernel hands this run's own server/client pair; the pair is excluded from the candidates
+ * anyway, because "below the ephemeral range" is a property of this host, not a guarantee.
+ */
+const VOICE_UPSTREAM_PORT_BASE = 20_000;
+const VOICE_UPSTREAM_PORT_SPAN = 10_000;
+const VOICE_UPSTREAM_PORT_PROBES = 64;
+
+/**
+ * The candidate ports for THIS run, in the order they are tried.
+ *
+ * Derived from the run's data directory, which is unique per run by construction (`mkdtemp` under the selected
+ * parent) — so two concurrent runs start from different candidates, and the probe below is a collision guard
+ * rather than the allocator. SHA-256 rather than a sum: data-directory names differ in one random suffix, and a
+ * weak mix would cluster neighbours onto adjacent ports.
+ */
+const voiceUpstreamPortCandidates = (dataDirPath: string): number[] => {
+  const digest = createHash('sha256').update(path.resolve(dataDirPath)).digest();
+  const offset = digest.readUInt32BE(0) % VOICE_UPSTREAM_PORT_SPAN;
+  return Array.from(
+    { length: VOICE_UPSTREAM_PORT_PROBES },
+    (_, step) => VOICE_UPSTREAM_PORT_BASE + ((offset + step) % VOICE_UPSTREAM_PORT_SPAN),
+  );
+};
+
+/**
+ * This run's stand-in Realtime upstream port: derived from the data directory, then the first candidate that can
+ * be bound right now.
+ *
+ * THE DEFECT THIS REPLACES. The port used to be kernel-assigned: a short-lived child bound port 0, printed the
+ * number and CLOSED the socket before returning. Between that close and the spec's own `startFakeUpstream(port)`
+ * the number belonged to nobody, so the kernel could hand the same just-released port to a second, overlapping
+ * run — and when it did, the loser died in `startFakeUpstream` with
+ * `listen EADDRINUSE: address already in use 127.0.0.1:19451` (the 2026-11-02 red recorded in
+ * `tasks/gap-ac323-warmup-fetch-retry-and-voice-port-collision-stabilize.md`). Two runs can no longer choose the
+ * same number by luck, because the number is a function of which run is asking.
+ *
+ * The probe is still a bind-and-release, but it now only answers "is my derived port already held by something
+ * else on this host?" — an exclusion, not an allocation; the uniqueness comes from the derivation. `neverPorts`
+ * are the ports this run has already reserved for its own servers.
+ */
+const deriveVoiceUpstreamPort = (dataDirPath: string, neverPorts: number[]): number => {
+  const candidates = voiceUpstreamPortCandidates(dataDirPath).filter((port) => !neverPorts.includes(port));
+  const taken = new Set(findTakenPorts(candidates));
+  const free = candidates.find((port) => !taken.has(port));
+  if (free === undefined) {
+    throw new Error(
+      `none of the ${candidates.length} voice-upstream candidate ports (derived from ${dataDirPath}) can be bound, `
+      + 'so this run cannot host its stand-in upstream. Failing now rather than dying later with EADDRINUSE.',
+    );
+  }
+  return free;
 };
 
 /**
@@ -3613,7 +3643,15 @@ const voiceRealtimeSelection =
   // blanks it also applies are inert for a spec that never opens a voice session.
   selectedSpecFiles().includes('session-lifecycle-scenario.spec.ts');
 if (voiceRealtimeSelection && process.env.QUAY_E2E_VOICE_REALTIME_PORT === undefined) {
-  process.env.QUAY_E2E_VOICE_REALTIME_PORT = String(freePort());
+  // Derived from THIS run's data directory (see `deriveVoiceUpstreamPort`), so a second run that overlaps this
+  // one starts from different candidates instead of racing this one for a just-released kernel port. The probe
+  // excludes this run's own server/client pair, which are already chosen above.
+  const voiceUpstreamPort = deriveVoiceUpstreamPort(dataDir, [serverPort, clientPort]);
+  process.env.QUAY_E2E_VOICE_REALTIME_PORT = String(voiceUpstreamPort);
+  // On stdout, like the server/client pair: an overlapping run's red is read back by asking which port each
+  // run held, and a spec's own `playwright.config.ts must publish QUAY_E2E_VOICE_REALTIME_PORT` guard can only
+  // say that it is missing, never what it was.
+  console.log(`[e2e] QUAY_E2E_VOICE_REALTIME_PORT=${voiceUpstreamPort} (derived from ${dataDir})`);
 }
 
 /**
