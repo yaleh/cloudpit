@@ -5,7 +5,7 @@ import { DiscordIcon } from '@/shared/ui';
 import SidebarModeSwitch from '@/modules/sidebar/SidebarModeSwitch';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
-const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
+const GITHUB_ISSUES_URL = 'https://github.com/yaleh/cloudpit/issues/new';
 
 type SidebarCollapsedProps = {
   onExpand: () => void;

@@ -7,8 +7,11 @@ import { DiscordIcon } from '@/shared/ui';
 import { useVersionCheck } from '@/shared/hooks/useVersionCheck';
 import PremiumFeatureCard from '@/modules/settings/ui/PremiumFeatureCard';
 
-const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
-const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
+// Upstream attribution kept intact: the e2e brand criterion (AC-456) requires the About panel
+// to keep linking to the original project, while every functional link below points at the fork.
+const UPSTREAM_REPO_URL = 'https://github.com/siteboon/claudecodeui';
+const GITHUB_REPO_URL = 'https://github.com/yaleh/cloudpit';
+const GITHUB_ISSUES_URL = 'https://github.com/yaleh/cloudpit/issues/new';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';
 const DOCS_URL = 'https://cloudcli.ai/docs/plugin-overview';
 const CLOUDCLI_URL = 'https://cloudcli.ai';
@@ -24,7 +27,7 @@ function GitHubIcon({ className }: { className?: string }) {
 /** Rendered by Settings for the "about" tab, showing version, links and premium upsell cards. */
 export default function AboutTab() {
   const { t } = useTranslation('settings');
-  const { updateAvailable, latestVersion, currentVersion, releaseInfo } = useVersionCheck('siteboon', 'claudecodeui');
+  const { updateAvailable, latestVersion, currentVersion, releaseInfo } = useVersionCheck('yaleh', 'cloudpit');
   const releasesUrl = releaseInfo?.htmlUrl || `${GITHUB_REPO_URL}/releases`;
 
   return (
@@ -165,9 +168,19 @@ export default function AboutTab() {
         </div>
       )}
 
-      {/* License */}
+      {/* License + upstream attribution: the AGPL line stays, and the upstream project keeps a
+          visible link so the fork's provenance is not erased by the repo-link rename. */}
       <div className="border-t border-border/50 pt-4">
         <p className="text-xs text-muted-foreground/60">
+          <a
+            href={UPSTREAM_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-muted-foreground"
+          >
+            Based on CloudCLI UI
+          </a>
+          {' · '}
           {t('about.licensed')}
         </p>
       </div>

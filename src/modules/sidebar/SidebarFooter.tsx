@@ -5,7 +5,7 @@ import { IS_PLATFORM } from '@/shared/utils';
 import { BRAND } from '@/shared/constants';
 import type { ReleaseInfo } from '@/shared/types';
 
-const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
+const GITHUB_REPO_URL = 'https://github.com/yaleh/cloudpit';
 
 type SidebarFooterProps = {
   updateAvailable: boolean;

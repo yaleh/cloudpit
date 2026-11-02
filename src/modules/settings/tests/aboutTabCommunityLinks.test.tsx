@@ -21,7 +21,7 @@ vi.mock('@/shared/hooks/useVersionCheck', () => ({
   }),
 }));
 
-const ISSUE_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
+const ISSUE_URL = 'https://github.com/yaleh/cloudpit/issues/new';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';
 
 test('the About tab links to Report Issue and Join Community in a new tab, without opener access', () => {
