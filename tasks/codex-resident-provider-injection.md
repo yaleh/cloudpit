@@ -2,7 +2,7 @@
 id: codex-resident-provider-injection
 title: resident 注入 + restore/resume：app-server spawn -c 注入 provider、secret 走
   env_key、按会话重注入
-status: todo
+status: ready
 labels:
   - feature
 parent: null
