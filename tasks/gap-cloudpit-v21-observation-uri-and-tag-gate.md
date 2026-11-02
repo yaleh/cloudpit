@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-v21-observation-uri-and-tag-gate
 title: Cloudpit v2.1：观测 URI 改新写 + cockpit 反馈键归一化 + 旧 release tag 检查
-status: ready
+status: done
 labels:
   - gap
 parent: null
