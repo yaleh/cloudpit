@@ -84,3 +84,11 @@ depends_on:
 ## Notes
 
 该轴仍暗,理由:本任务只切换观测 URI 的写入拼写、补旧键归一化与 release tag 负向检查，不新增领域数据能力也不改模块依赖图，AC 内没有 L_D/L_G 探针可读。
+
+## Blocker
+
+**2026-11-02T13:28:27.278Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/observation/tests/session-digest-llm.test.ts:   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/observation/tests/session-digest-llm.test.ts,server/modules/observation/tests/session-digest-llm.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：e9b51997-13de-408a-9872-c49b4765565b
