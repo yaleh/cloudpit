@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-src-cockpit
 title: "architecture-analysis: Fresh archguard reading (2026-11-02, scope src
   93e0a992) flags modules/cockpit on all four god-package thresholds — fanIn 19,
   fanOut 363 relations, 41 files,"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
