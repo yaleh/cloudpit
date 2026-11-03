@@ -21,21 +21,24 @@ import test from 'node:test';
 
 import type { SessionAskDecisionReading, SessionAskEvent } from '@/shared/types.js';
 
-import type { ObservedObject, ObservationStore, WriteObservationInput } from '../observation-store.js';
-import { formatSessionUri } from '../observation-uri.js';
+import {
+  formatSessionUri,
+  type ObservedObject,
+  type ObservationStore,
+  type WriteObservationInput,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
 import {
   createSessionAskLedgerOwner,
   SESSION_ASK_EVENTS_DIGEST_KEY,
-  type SessionAskEventLedger,
-  type SessionAskLedgerOwner,
-} from '../session-ask-ledger.js';
-import { createSessionAskRecovery, type SessionAskRecovery } from '../session-ask-recovery.js';
-import { createSessionAskRetraction } from '../session-ask-retraction.js';
-import {
+  createSessionAskRecovery,
+  createSessionAskRetraction,
   createSessionAskDecisionReader,
   SESSION_ASK_DECISION_TRANSCRIPT_MISSING_REASON,
-} from '../session-ask-decision-reader.js';
-import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
+  type SessionAskEventLedger,
+  type SessionAskLedgerOwner,
+  type SessionAskRecovery,
+} from '../session-ask/index.js';
 
 type HarnessOptions = {
   /** Transcript text keyed by session id; `null` means the file is unreadable. */

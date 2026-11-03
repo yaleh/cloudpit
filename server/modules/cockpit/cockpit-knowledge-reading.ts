@@ -130,21 +130,35 @@ function readVerification(value: unknown): CockpitKnowledgeVerification | undefi
 /**
  * One knowledge case block, or `null` when its identity or version is unreadable.
  *
- * `caseId`, `knowledgeRevision` and `proposalRevision` are the evidence a trusted confirmation
- * binds to; without all three the card can be shown but never confirmed.
+ * `caseId` and `proposalRevision` are the identity a trusted confirmation always binds to. A
+ * `knowledgeRevision` is required ONLY when the card names a registered `knowledgeId`: a
+ * discovery-sourced suggestion comes from a knowledge entry that does not exist yet, so the
+ * provider honestly states `knowledgeRevision: null` rather than inventing revision 1, and the
+ * confirmation binds `caseId + proposalRevision` alone. Any other unreadable revision value is
+ * refused in both arms — the reader never repairs a provider's word into evidence.
+ *
+ * @returns the block, or `null` when the card can be shown but never confirmed.
  */
 export function readKnowledgeCase(value: unknown): CockpitKnowledgeCase | null {
   if (!isRecord(value)) return null;
   const caseId = text(value.caseId).trim();
-  const knowledgeRevision = nonNegativeInteger(value.knowledgeRevision);
+  const knowledgeId = text(value.knowledgeId).trim();
   const proposalRevision = nonNegativeInteger(value.proposalRevision);
-  if (caseId === '' || knowledgeRevision === null || proposalRevision === null) return null;
+  const statedRevision = value.knowledgeRevision;
+  const knowledgeRevision = nonNegativeInteger(statedRevision);
+  if (caseId === '' || proposalRevision === null) return null;
+  // An unstated revision is legitimate ONLY where no registered entry is named (a discovery
+  // suggestion); elsewhere it is required evidence, and a stated value that is not a
+  // non-negative integer is never evidence in either arm.
+  if (knowledgeRevision === null) {
+    const revisionUnstated = statedRevision === null || statedRevision === undefined;
+    if (knowledgeId !== '' || !revisionUnstated) return null;
+  }
 
   const state = text(value.state);
   const plan = readKnowledgePlan(value.plan);
   const progress = readProgress(value.progress);
   const verification = readVerification(value.verification);
-  const knowledgeId = text(value.knowledgeId).trim();
   const title = statedText(value.title);
   const statement = statedText(value.statement);
   const executionId = text(value.executionId).trim();

@@ -1,7 +1,7 @@
 ---
 id: codex-model-provider-option-composition
 title: Codex 模型目录 model×provider 选项 + 会话模型写路径接受显式 provider id
-status: ready
+status: done
 labels:
   - feature
 parent: null
@@ -25,21 +25,25 @@ goal_ac: AC-468
 - tasks/codex-model-provider-option-composition.md
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/services/session-provider-binding.ts
+- server/modules/providers/list/codex/codex-models.provider.ts
 - server/modules/providers/provider.routes.ts
-- server/modules/providers/tests/provider-models.service.test.ts
-- server/modules/providers/tests/codex-session-provider-binding.test.ts
-- server/modules/providers/tests/provider.routes.test.ts
+- server/modules/providers/tests/codex-model-provider-option.test.ts（新）
+- server/shared/types.ts
+- server/shared/interfaces.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 
 ## AC
 
-- [ ] AC-468 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/provider-models.service.test.ts 退出 0。
-- [ ] 正臂：getProviderModels('codex') 内置模型展开裸名+每个注册 provider 变体、自定义模型单条带 codexProviderId；setSessionModel 显式 modelProviderId 落库 model_provider_id。
-- [ ] 负臂：换 provider 拒绝（SESSION_PROVIDER_MISMATCH）、未知 provider 拒绝（SESSION_PROVIDER_UNKNOWN）；显式 id 与既有会话绑定冲突拒绝。
-- [ ] 假形态：目录不展开（只裸名）或 setSessionModel 忽略显式 id 时判据红。
+- [x] AC-468 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-model-provider-option.test.ts 退出 0。
+- [x] 正臂：getProviderModels('codex') 内置模型展开裸名+每个注册 provider 变体、自定义模型单条带 codexProviderId；setSessionModel 显式 modelProviderId 落库 model_provider_id。
+- [x] 负臂：换 provider 拒绝（SESSION_PROVIDER_MISMATCH）、未知 provider 拒绝（SESSION_PROVIDER_UNKNOWN）；显式 id 与既有会话绑定冲突拒绝。
+- [x] 假形态：目录不展开（只裸名）或 setSessionModel 忽略显式 id 时判据红。
 
 ## DoD
 
-tsc --noEmit -p server/tsconfig.json 通过；tsx --test 单文件绿；扩现有 provider-models.service.test.ts 与 codex-session-provider-binding.test.ts，不新增 server 测试文件（避免时长基线/未知 pin 红）。
+tsc --noEmit -p server/tsconfig.json 通过；tsx --test 单文件绿；新增 server 测试文件后更新 quay test script unknown-pin 基线与时长基线（coverage floor）。
 
 ## ADR-007
 

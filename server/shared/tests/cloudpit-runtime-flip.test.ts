@@ -336,11 +336,11 @@ test('AC6 (v3.0): cloudpit is the only deep link and the only observation URI sp
     return line.trim();
   };
   assert.equal(
-    regexLineOf(readApplicationFile('server/modules/observation/observation-uri.ts')),
+    regexLineOf(readApplicationFile('server/modules/observation/core/observation-uri.ts')),
     regexLineOf(readApplicationFile('src/modules/cockpit-contract/observationUri.ts')),
   );
 
-  const storeSource = readApplicationFile('server/modules/observation/observation-store.ts');
+  const storeSource = readApplicationFile('server/modules/observation/core/observation-store.ts');
   assert.ok(storeSource.includes('cloudpit://session/<id>'), 'the INVALID_URI message names the grammar');
   assert.equal(
     storeSource.includes('cloudcli://session/<id>'),

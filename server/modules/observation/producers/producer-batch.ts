@@ -13,7 +13,7 @@
  *
  * Consumers: `architecture-delta.producer.ts` and `project-truth.producer.ts`.
  */
-import type { ObservedObject } from './observation-store.js';
+import type { ObservedObject } from '../core/index.js';
 
 /**
  * Refreshes every target through `refreshOne`, one at a time, and answers the revisions that

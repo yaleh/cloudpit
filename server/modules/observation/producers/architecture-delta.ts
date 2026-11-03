@@ -20,7 +20,7 @@
  * the largest package-level fan-in; the reading says `true` when that package is among the
  * top-five growers, and reports the central package's own `additionsShare` either way.
  *
- * Consumers: `server/modules/observation/architecture-delta.producer.ts` (the write path) and
+ * Consumers: `server/modules/observation/producers/architecture-delta.producer.ts` (the write path) and
  * `server/modules/observation/tests/architecture-delta.test.ts` (the criterion).
  */
 import type {

@@ -282,6 +282,16 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/notifications/services',
   'modules/notifications/websocket',
   'modules/observation',
+  // FOURTEENTH RECORDED CHANGE (2026-11-02,
+  // gap-routine-architecture-analysis-god-package-server-observation): `modules/observation`
+  // was split by concern into these four subpackages. They are registered rather than left to
+  // the new-directory leaf rule because the root barrel legitimately imports each of them and
+  // `session-digest` imports `session-ask` + `core`; the directory graph stays acyclic (no SCC
+  // member added), which is what the (b) case below measures.
+  'modules/observation/core',
+  'modules/observation/producers',
+  'modules/observation/session-ask',
+  'modules/observation/session-digest',
   'modules/oauth',
   'modules/plugins',
   'modules/projects',

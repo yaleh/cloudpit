@@ -21,11 +21,17 @@ import test from 'node:test';
 import type { LlmCompletion, LlmCompletionRequest } from '@/modules/llm-gateway/index.js';
 import type { SessionAskDecisionReading } from '@/shared/types.js';
 
-import type { ObservedObject, ObservationStore } from '../observation-store.js';
-import { formatSessionUri } from '../observation-uri.js';
-import { createSessionAskDecisionDigest, stableOptionId } from '../session-ask-decision-digest.js';
-import { createSessionAskDecisionReader } from '../session-ask-decision-reader.js';
-import type { SessionDigestLlmSettings } from '../session-digest-llm-settings.js';
+import {
+  formatSessionUri,
+  type ObservedObject,
+  type ObservationStore,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
+import {
+  createSessionAskDecisionDigest,
+  stableOptionId,
+  createSessionAskDecisionReader,
+} from '../session-ask/index.js';
 
 const CLOCK = 1_800_000_000_000;
 const SESSION_ID = 'judge-session';

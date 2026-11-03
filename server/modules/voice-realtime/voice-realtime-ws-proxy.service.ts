@@ -497,7 +497,7 @@ export class VoiceRealtimeConnection {
   endedSegmentSeqs!: Set<number>;
   heldDelivery!: { seq: number; isReplay: boolean; args: Record<string, unknown>; resolve: (value: unknown) => void; } | null;
   heldTimer!: NodeJS.Timeout | null;
-  transcriptGraceMs!: any;
+  transcriptGraceMs!: number;
   segmentSeqForCaption!: (itemId: string) => number | null;
   base!: Readonly<Record<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>>;
   waitingForBusySession!: boolean;
@@ -537,7 +537,7 @@ export class VoiceRealtimeConnection {
   pollDrain!: () => void;
   runEndSummary!: VoiceRealtimeRunEndSummarySeams | undefined;
   runEndAck!: VoiceRealtimeRunEndAckSeam | undefined;
-  runEndSettleMs!: any;
+  runEndSettleMs!: number;
   runEndOutputWaitMs!: number;
   runEndPollMs!: number;
   runEndVerbatimTailMax!: number;
