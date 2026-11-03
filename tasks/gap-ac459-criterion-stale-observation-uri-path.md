@@ -101,3 +101,14 @@ fan-in-ff-merge:    M scripts/test.sh
 fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
 - run_id：wk-prod-anchor
 - session_id：530f5b67-1453-487e-b45c-55bf0612774b
+
+## Needs-Human
+
+**2026-11-04T03:25+08:00 — worker 复验：任务侧已无可做工作，唯一阻塞是共享主检出的未提交 WIP（交主检出所有者）**
+
+- 任务侧无剩余工作：worktree `gap-ac459-criterion-stale-observation-uri-path` 已把 develop（`293ad9e3f`）合入分支（`git merge --no-edit develop`，无冲突），AC1–AC7 在合并后的树上逐条复验全绿：AC1 `tests 10 / pass 10 / fail 0`（EXIT=0）、AC2 old=0/new=1、AC3 canonical=1/retired=0（两份副本）、AC4 负向控制 `NEGATIVE CONTROL PASS`、AC5 零命中（grep exit 1）、AC6 仅 2 文件各 1 行、AC7 `23 passed (23)`。`task_check` → `ok:true acTotal:7 acChecked:7`；anti-drift → `ANTI-DRIFT OK`（3 actual files 全在 Touches 内）。
+- 上一轮机械 fan-in 的 merge-develop / anti-drift / delta / typecheck / ac-precheck / suite（223s 绿）/ flip-done 全部通过，唯一失败步是最后的 `ff`。
+- 阻塞原因不在任务侧：共享主检出 `/data/home/yale/work/claudecodeui` 有两个**已跟踪文件的未提交修改** —— `M scripts/test.sh`、`M server/shared/tests/quay-test-script.test.ts`。ff 的 cleanTreeCheck 只放行 `.quay/` 与 runtime artifact 的 `??`；对已跟踪修改一律判 dirty（`.git/info/exclude` 无效）。
+- 这两处修改属于**同一工作区里另一个会话的在飞工作**：Codex/VSCode 会话 `01a1a21a-241c-7593-989f-3aaf10017fe2`（`~/.codex/sessions/2026/11/03/rollout-2026-11-03T23-49-44-01a1a21a-241c-7593-989f-3aaf10017fe2.jsonl`，2026-11-04 01:16 CST 落盘），内容是 opt-in server/client 并行 canary（`QUAY_TEST_PARALLEL_SERVER_CLIENT=1`，含 AC8 用例）。该会话自述其验证已通过（contract 单文件 15/15、typecheck、oxlint、`bash -n`、dry-run），但**该内容不存在于任何分支或提交**（`git log --all -S'QUAY_TEST_PARALLEL_SERVER_CLIENT'` 为空）。它不是本任务的产物，worker 不 stash / 不 commit / 不 assume-unchanged（shared lesson `fan-in-ff-clean-check-tracked-modifications-need-owner`）。
+- 解阻（由该 WIP 的所有者执行，二选一，均保留完整内容）：(a) 把它提交（建议作为独立任务/分支落地）；(b) `git -C /data/home/yale/work/claudecodeui stash push -m "server-client canary WIP" -- scripts/test.sh server/shared/tests/quay-test-script.test.ts`。
+- 之后主检出 `git status --porcelain` 为空即可重跑本任务：**无需重新实现**，任务分支已就绪，fan-in 剩下的 `ff` 会通过。若本任务已被机械标为 needs-human，请把它拉回 ready 再重派。
