@@ -2,7 +2,7 @@
 id: gap-ac254-criterion-scope-vocabulary-cloudpit
 title: AC-254 判据在 scope 词汇表更名后仍钉已退役的 cloudcli:* 五个名字：无界 isChecked 吃满 55s
   watchdog；改为 cloudpit:* 七个 + 有界集合读数
-status: todo
+status: ready
 labels:
   - gap
   - defect
