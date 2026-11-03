@@ -12,10 +12,8 @@ children: []
 extra:
   schema: execution
   needs_human_cause: human-adjudication
-  park_reason: AC2 的墙钟上限 <118000ms 结构性不可达：criterion 本身 exit 0 / 19 passed，但 8
-    次独立实跑为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 /
-    174457ms；playwright workers:1 + 60s 绝对时钟使逐条耗时之和 ≈158s。需人裁定 AC-331 record 的
-    timeoutMs 与驱动 CRITERION_TIMEOUT_MS=12e4 硬闸（或改写判据）。
+  park_reason: 已裁定并解决（2026-11-03）：AC-331 record timeoutMs 118000→300000；真实 goal
+    gate verdict=pass（exit 0）；任务工作树逐字复跑 19 passed / 176717ms < 300000ms。
 depends_on:
   - gap-ac323-e2e-import-after-voice-realtime-frames-split
 goal_ac: AC-331
