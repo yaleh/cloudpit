@@ -4,6 +4,7 @@ import { authenticatedFetch, readApiJson } from '@/shared/api';
 import type { CodexModelProvidersReading } from '@/shared/types';
 import {
   createCodexProvidersController,
+  type CodexConnectionProbe,
   type CodexModelProviderWrite,
   type CodexProviderDraft,
   type CodexProvidersSnapshot,
@@ -58,6 +59,21 @@ async function importCodexProviders(input: {
   }));
 }
 
+/**
+ * The connection probe for one SAVED provider. The server resolves the provider and its
+ * token-file secret and sends the real request, so the form never carries a secret here.
+ */
+const CODEX_PROVIDER_CONNECTION_TEST_ROUTE = `${CODEX_PROVIDERS_ROUTE}/test`;
+
+async function testCodexProviderConnection(providerId: string): Promise<CodexConnectionProbe> {
+  return readApiJson<CodexConnectionProbe>(
+    await authenticatedFetch(CODEX_PROVIDER_CONNECTION_TEST_ROUTE, {
+      method: 'POST',
+      body: JSON.stringify({ id: providerId }),
+    }),
+  );
+}
+
 export type UseCodexProvidersResult = {
   snapshot: CodexProvidersSnapshot;
   load: () => Promise<void>;
@@ -67,6 +83,7 @@ export type UseCodexProvidersResult = {
   save: () => Promise<void>;
   loadImports: () => Promise<void>;
   bindImportedProvider: (providerId: string) => Promise<void>;
+  testConnection: (providerId: string) => Promise<void>;
 };
 
 export function useCodexProviders(): UseCodexProvidersResult {
@@ -76,6 +93,7 @@ export function useCodexProviders(): UseCodexProvidersResult {
       save: saveCodexProviders,
       readImports: readCodexProviderImports,
       importProviders: importCodexProviders,
+      testConnection: testCodexProviderConnection,
     }),
     [],
   );
@@ -103,5 +121,6 @@ export function useCodexProviders(): UseCodexProvidersResult {
     save: controller.save,
     loadImports: controller.loadImports,
     bindImportedProvider: controller.bindImportedProvider,
+    testConnection: controller.testConnection,
   };
 }

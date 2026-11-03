@@ -21,12 +21,14 @@ import {
 } from '@/modules/notifications/index.js';
 import { createAccessTokensService } from '@/modules/oauth/index.js';
 import { installCodexProviderRegistryPort } from '@/shared/ports/codex-provider-registry.port.js';
+import { AppError } from '@/shared/utils.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
 import { RESERVED_CODEX_PROVIDER_IDS } from './codex-model-providers.schema.js';
 import {
   createCodexModelProvidersSource,
+  probeCodexProviderConnection,
   readCodexUserProviderImports,
 } from './codex-model-providers.settings.js';
 import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
@@ -216,6 +218,19 @@ const settingsService = createSettingsService({
     // The composition root decides WHOSE profile is imported: this process's operator. The read
     // is one-way (the user's TOML files are never written); the bind goes to the project source.
     readUserImports: () => readCodexUserProviderImports({ homeDir: os.homedir(), env: process.env }),
+    // The probe resolves the SAVED entry and its token-file secret here, so a browser request
+    // only names an id. The probe is a real POST /responses; the settings page shows the
+    // billing sentence before it is pressed.
+    testConnection: async (providerId) => {
+      const resolved = codexModelProvidersSource.resolve(providerId);
+      if (!resolved.ok) {
+        throw new AppError(resolved.problem, {
+          code: 'CODEX_PROVIDER_CONNECTION_UNRESOLVED',
+          statusCode: 400,
+        });
+      }
+      return probeCodexProviderConnection(resolved.provider);
+    },
   },
 });
 

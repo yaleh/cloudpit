@@ -51,9 +51,11 @@ import {
   CODEX_CONNECTION_BILLING_NOTE,
   createCodexModelProvidersSource,
   probeCodexProviderConnection,
+  type CodexConnectionProbe,
   type CodexModelProvidersSource,
   type ResolvedCodexModelProvider,
 } from '../codex-model-providers.settings.js';
+import { runCodexConnectionTest } from '../codex-model-providers.connection.js';
 
 const PROVIDER_ID = 'bob';
 const ENV_KEY = 'BOB_API_KEY';
@@ -537,4 +539,42 @@ test('AC-467: a catalog entry effort metadata and windows are the launch fact so
   } finally {
     if (mock) await mock.close();
   }
+});
+
+test('the probe action forwards only the saved id and refuses a stray field before any request', async () => {
+  const probe: CodexConnectionProbe = {
+    outcome: 'ok',
+    ok: true,
+    url: 'https://bob.example/v1/responses',
+    status: 200,
+    billable: true,
+    billingNote: CODEX_CONNECTION_BILLING_NOTE,
+    detail: 'Responses-shaped reply received',
+  };
+  const seen: string[] = [];
+  const port = {
+    testConnection: async (id: string): Promise<CodexConnectionProbe> => {
+      seen.push(id);
+      return probe;
+    },
+  };
+
+  // The browser sends the id only; the answer is the probe's own reading.
+  assert.deepEqual(await runCodexConnectionTest(port, { body: { id: ' bob ' } }), probe);
+  assert.deepEqual(seen, ['bob']);
+
+  // A stray field (a browser trying to smuggle a secret) is refused, never forwarded.
+  await assert.rejects(
+    () => runCodexConnectionTest(port, { body: { id: 'bob', token: 'sk-leak' } }),
+    /unknown field/,
+  );
+  await assert.rejects(
+    () => runCodexConnectionTest(port, { body: { id: '   ' } }),
+    /id must name the saved Codex provider/,
+  );
+  await assert.rejects(
+    () => runCodexConnectionTest({}, { body: { id: 'bob' } }),
+    /not configured/,
+  );
+  assert.deepEqual(seen, ['bob'], 'a refused request never reaches the probe seam');
 });

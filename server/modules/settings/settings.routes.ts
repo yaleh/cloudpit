@@ -124,6 +124,13 @@ export function createSettingsRouter(
     } catch (error) { next(error); }
   });
   router.get('/codex/model-providers', respond(() => service.getCodexModelProviders()));
+  // One REAL probe of a SAVED provider's `/responses` endpoint. The body carries only the id:
+  // the server resolves the entry and its token-file secret, and the reading says whether the
+  // request was billable so the panel can keep that warning in front of the operator.
+  router.post(
+    '/codex/model-providers/test',
+    respond((req) => service.testCodexProviderConnection({ body: req.body })),
+  );
   router.put('/codex/model-providers', async (req, res, next) => {
     try {
       const header = req.get('if-match');

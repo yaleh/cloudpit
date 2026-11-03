@@ -20,7 +20,69 @@ export type CodexModelProviderWrite = {
   tokenFile: string;
   wireApi: 'responses';
   token?: string;
+  /** Static request headers (`http_headers`); omitted when the form has no rows. */
+  httpHeaders?: Record<string, string>;
+  /** Header name → environment variable holding that header's value. */
+  envHttpHeaders?: Record<string, string>;
+  /** Query parameters appended to every request (`query_params`). */
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  modelCatalogUrl?: string;
 };
+
+/** One key/value row of an advanced map field (`http_headers`, `query_params`, ...). */
+export type CodexProviderKeyValue = {
+  name: string;
+  value: string;
+};
+
+/**
+ * What a connection probe concluded. A structural mirror of the server's
+ * `CodexConnectionOutcome` (`codex-model-providers.settings.ts`), defined here for the same
+ * reason as the import types above: `src/shared/types.ts` is an oversize-ratchet file whose
+ * baseline may only fall. The server is the one that decides the outcome; the panel only
+ * translates it.
+ */
+export type CodexConnectionOutcome =
+  | 'ok'
+  | 'dns'
+  | 'unauthorized'
+  | 'not-found'
+  | 'not-responses'
+  | 'server-error'
+  | 'unreachable';
+
+/**
+ * One connection-test answer, mirroring the server's `CodexConnectionProbe`. `billable` is
+ * always true: the probe is a REAL `POST /responses`, so the panel must show `billingNote`
+ * beside the button BEFORE the operator presses it.
+ */
+export type CodexConnectionProbe = {
+  outcome: CodexConnectionOutcome;
+  ok: boolean;
+  url: string;
+  status?: number;
+  billable: true;
+  billingNote: string;
+  detail: string;
+};
+
+/** The last probe, keyed by the SAVED provider id it tested. */
+export type CodexConnectionTest = {
+  providerId: string;
+  probe: CodexConnectionProbe;
+};
+
+/**
+ * The sentence the connection-test button must show; it is the server's
+ * `CODEX_CONNECTION_BILLING_NOTE` verbatim. Duplicated rather than imported because the
+ * frontend bundle cannot read server code, and kept here so the panel and its criterion read
+ * one value.
+ */
+export const CODEX_CONNECTION_BILLING_NOTE =
+  'This connection test sends one real request to your upstream provider; the provider may bill it.';
 
 /**
  * One `[model_providers.<id>]` block the server read from the operator's own `~/.codex` TOML
@@ -64,7 +126,14 @@ export type CodexUserProviderImportReading = {
  * keeps the stored secret. The reading exposes `tokenSet`, never a value.
  */
 
-/** One editable provider row. `token` is write-only; `''` means "keep the stored secret". */
+/**
+ * One editable provider row. `token` is write-only; `''` means "keep the stored secret".
+ *
+ * The advanced fields are held as the FORM edits them: maps are row lists (so a key can be
+ * added or removed before it is a valid record), and the three integer fields are strings so
+ * an empty box means "unset" rather than zero. `draftToWrite` is the one place that turns
+ * these shapes into the wire record, dropping blank rows.
+ */
 export type CodexProviderDraft = {
   id: string;
   name: string;
@@ -74,6 +143,13 @@ export type CodexProviderDraft = {
   token: string;
   /** Whether the token file currently holds a secret, as the reading reported it. */
   tokenSet: boolean;
+  httpHeaders: CodexProviderKeyValue[];
+  envHttpHeaders: CodexProviderKeyValue[];
+  queryParams: CodexProviderKeyValue[];
+  requestMaxRetries: string;
+  streamMaxRetries: string;
+  streamIdleTimeoutMs: string;
+  modelCatalogUrl: string;
 };
 
 /** Why the form could not read or save. The panel translates each kind. */
@@ -95,6 +171,12 @@ export type CodexProvidersSnapshot = {
   importStatus: 'loading' | 'ready' | 'importing' | 'failed';
   /** Why the last import read or bind failed, or `null`. Never a secret value. */
   importError: string | null;
+  /** The last connection-test answer, or `null` before the first one. */
+  connection: CodexConnectionTest | null;
+  /** The connection test's in-flight state; independent of the registry/import statuses. */
+  connectionStatus: 'idle' | 'testing';
+  /** Why the last connection test could not run or answer, or `null`. Never a secret value. */
+  connectionError: string | null;
 };
 
 /** What the outside world hands the controller; the settings API is the shipped binding. */
@@ -111,6 +193,11 @@ export type CodexProvidersDeps = {
     ids: string[];
     expectedVersion: string;
   }) => Promise<CodexModelProvidersReading>;
+  /**
+   * Probes the SAVED provider's endpoint (server: `POST .../model-providers/test`). The server
+   * resolves the token-file secret itself, so the form never carries a secret to this call.
+   */
+  testConnection: (providerId: string) => Promise<CodexConnectionProbe>;
 };
 
 export type CodexProvidersController = {
@@ -132,10 +219,38 @@ export type CodexProvidersController = {
    * answer so the model editor's provider picker sees it immediately.
    */
   bindImportedProvider: (providerId: string) => Promise<void>;
+  /**
+   * Probes one SAVED provider's endpoint and publishes the answer. The draft's unsaved edits
+   * are deliberately not sent: the server tests the registry entry it can resolve, secret
+   * included.
+   */
+  testConnection: (providerId: string) => Promise<void>;
   /** Re-arms the SAME controller after React StrictMode's cleanup/setup pass. */
   activate: () => void;
   dispose: () => void;
 };
+
+/** Turns a wire map into the form's row list, preserving the document's key order. */
+function pairsFromRecord(record: Record<string, string> | undefined): CodexProviderKeyValue[] {
+  return Object.entries(record ?? {}).map(([name, value]) => ({ name, value }));
+}
+
+/** `''` means "unset"; the server rejects a non-integer, so a typo stays visible rather than silent. */
+function integerFromText(text: string): number | undefined {
+  const trimmed = text.trim();
+  return trimmed === '' ? undefined : Number(trimmed);
+}
+
+/** `undefined` when no row carries a key, so an untouched form never writes empty maps. */
+function recordFromPairs(pairs: CodexProviderKeyValue[]): Record<string, string> | undefined {
+  const record: Record<string, string> = {};
+  for (const pair of pairs) {
+    const name = pair.name.trim();
+    if (name === '') continue;
+    record[name] = pair.value;
+  }
+  return Object.keys(record).length === 0 ? undefined : record;
+}
 
 /** A draft starts from the reading, with no typed secret and the stored one flagged. */
 function draftFromProvider(provider: CodexModelProvider): CodexProviderDraft {
@@ -147,12 +262,28 @@ function draftFromProvider(provider: CodexModelProvider): CodexProviderDraft {
     tokenFile: provider.tokenFile,
     token: '',
     tokenSet: provider.tokenSet,
+    httpHeaders: pairsFromRecord(provider.httpHeaders),
+    envHttpHeaders: pairsFromRecord(provider.envHttpHeaders),
+    queryParams: pairsFromRecord(provider.queryParams),
+    requestMaxRetries: provider.requestMaxRetries === undefined ? '' : String(provider.requestMaxRetries),
+    streamMaxRetries: provider.streamMaxRetries === undefined ? '' : String(provider.streamMaxRetries),
+    streamIdleTimeoutMs: provider.streamIdleTimeoutMs === undefined
+      ? ''
+      : String(provider.streamIdleTimeoutMs),
+    modelCatalogUrl: provider.modelCatalogUrl ?? '',
   };
 }
 
 /** The write entry one draft sends; trimmed, with `wire_api` fixed to the one accepted dialect. */
 export function draftToWrite(draft: CodexProviderDraft): CodexModelProviderWrite {
   const token = draft.token.trim();
+  const httpHeaders = recordFromPairs(draft.httpHeaders);
+  const envHttpHeaders = recordFromPairs(draft.envHttpHeaders);
+  const queryParams = recordFromPairs(draft.queryParams);
+  const requestMaxRetries = integerFromText(draft.requestMaxRetries);
+  const streamMaxRetries = integerFromText(draft.streamMaxRetries);
+  const streamIdleTimeoutMs = integerFromText(draft.streamIdleTimeoutMs);
+  const modelCatalogUrl = draft.modelCatalogUrl.trim();
   return {
     id: draft.id.trim(),
     name: draft.name.trim(),
@@ -161,6 +292,13 @@ export function draftToWrite(draft: CodexProviderDraft): CodexModelProviderWrite
     tokenFile: draft.tokenFile.trim(),
     wireApi: 'responses',
     ...(token === '' ? {} : { token }),
+    ...(httpHeaders === undefined ? {} : { httpHeaders }),
+    ...(envHttpHeaders === undefined ? {} : { envHttpHeaders }),
+    ...(queryParams === undefined ? {} : { queryParams }),
+    ...(requestMaxRetries === undefined ? {} : { requestMaxRetries }),
+    ...(streamMaxRetries === undefined ? {} : { streamMaxRetries }),
+    ...(streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs }),
+    ...(modelCatalogUrl === '' ? {} : { modelCatalogUrl }),
   };
 }
 
@@ -181,6 +319,9 @@ const INITIAL: CodexProvidersSnapshot = {
   imports: null,
   importStatus: 'loading',
   importError: null,
+  connection: null,
+  connectionStatus: 'idle',
+  connectionError: null,
 };
 
 const EMPTY_DRAFT: CodexProviderDraft = {
@@ -191,6 +332,13 @@ const EMPTY_DRAFT: CodexProviderDraft = {
   tokenFile: '',
   token: '',
   tokenSet: false,
+  httpHeaders: [],
+  envHttpHeaders: [],
+  queryParams: [],
+  requestMaxRetries: '',
+  streamMaxRetries: '',
+  streamIdleTimeoutMs: '',
+  modelCatalogUrl: '',
 };
 
 /**
@@ -205,6 +353,7 @@ export function createCodexProvidersController(
   let disposed = false;
   let saving = false;
   let importing = false;
+  let testingConnection = false;
 
   const publish = (next: CodexProvidersSnapshot): void => {
     if (disposed) return;
@@ -360,6 +509,39 @@ export function createCodexProvidersController(
     save,
     loadImports,
     bindImportedProvider,
+    /**
+     * Runs one connection probe against a SAVED provider. A failure is the panel's own line
+     * (`connectionError`) and leaves the registry and its drafts untouched; the previous probe
+     * is cleared at the start so a network failure never leaves an old outcome on screen.
+     */
+    testConnection: async (providerId: string): Promise<void> => {
+      const id = providerId.trim();
+      if (testingConnection || id === '') return;
+      testingConnection = true;
+      publish({
+        ...snapshot,
+        connection: null,
+        connectionStatus: 'testing',
+        connectionError: null,
+      });
+      try {
+        const probe = await deps.testConnection(id);
+        publish({
+          ...snapshot,
+          connection: { providerId: id, probe },
+          connectionStatus: 'idle',
+          connectionError: null,
+        });
+      } catch (error) {
+        publish({
+          ...snapshot,
+          connectionStatus: 'idle',
+          connectionError: errorMessage(error, 'unknown error'),
+        });
+      } finally {
+        testingConnection = false;
+      }
+    },
     activate: () => {
       disposed = false;
     },

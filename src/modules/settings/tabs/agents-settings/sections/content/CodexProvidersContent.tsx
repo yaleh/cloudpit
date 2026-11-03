@@ -2,6 +2,7 @@ import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
 import ModelsContent from '@/modules/settings/tabs/agents-settings/sections/content/ModelsContent';
 import CodexProviderImport from '@/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport';
+import CodexProviderAdvanced from '@/modules/settings/tabs/agents-settings/sections/content/CodexProviderAdvanced';
 import { useCodexProviders } from '@/modules/settings/hooks/useCodexProviders';
 import { Button, Input } from '@/shared/ui';
 import type { AgentProvider } from '@/shared/types';
@@ -29,7 +30,7 @@ const fieldClass = 'h-9 rounded-lg bg-background font-mono text-xs';
  */
 export default function CodexProvidersContent({ agent }: CodexProvidersContentProps) {
   const {
-    snapshot, load, addDraft, updateDraft, removeDraft, save, bindImportedProvider,
+    snapshot, load, addDraft, updateDraft, removeDraft, save, bindImportedProvider, testConnection,
   } = useCodexProviders();
   const reading = snapshot.reading;
   const providers = reading?.providers ?? [];
@@ -262,6 +263,16 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
               ))}
             </ul>
           )}
+
+          <CodexProviderAdvanced
+            draft={draft}
+            disabled={busy}
+            canTest={providers.some((provider) => provider.id === draft.id)}
+            testing={snapshot.connectionStatus === 'testing'}
+            connection={snapshot.connection?.providerId === draft.id ? snapshot.connection : null}
+            onChange={(patch) => updateDraft(index, patch)}
+            onTestConnection={() => void testConnection(draft.id)}
+          />
         </section>
       ))}
 
@@ -299,6 +310,15 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
       {snapshot.error?.kind === 'save' && (
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           Could not save the Codex providers: {snapshot.error.message}
+        </p>
+      )}
+      {snapshot.connectionError !== null && (
+        <p
+          role="alert"
+          data-testid="codex-connection-error"
+          className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
+          Could not run the connection test: {snapshot.connectionError}
         </p>
       )}
 

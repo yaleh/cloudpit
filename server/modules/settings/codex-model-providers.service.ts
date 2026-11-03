@@ -16,7 +16,11 @@ import { readExpectedVersion } from '@/shared/settings-file.js';
 import type { CodexModelProvidersReading } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
-import type { CodexUserProviderImportReading } from './codex-model-providers.settings.js';
+import { runCodexConnectionTest } from './codex-model-providers.connection.js';
+import type {
+  CodexConnectionProbe,
+  CodexUserProviderImportReading,
+} from './codex-model-providers.settings.js';
 
 /** The file seam behind the registry endpoints; supplied by `settings.module.ts`. */
 export type CodexModelProvidersPort = {
@@ -31,6 +35,12 @@ export type CodexModelProvidersPort = {
    * profile that would read as "nothing to import".
    */
   readUserImports?(): CodexUserProviderImportReading;
+  /**
+   * Probes one SAVED provider's endpoint (the file's entry + its token-file secret). Optional
+   * for the same reason as `readUserImports`: a criterion driving only the CRUD endpoints need
+   * not open a socket, and a caller that needs the probe gets an explicit 500.
+   */
+  testConnection?(providerId: string): Promise<CodexConnectionProbe>;
 };
 
 /** The body keys a save may carry; everything else is refused rather than ignored. */
@@ -230,6 +240,17 @@ export function createCodexModelProvidersOperations(port: CodexModelProvidersPor
         })),
       ];
       return registry.write({ providers: merged, expectedVersion });
+    },
+    /**
+     * Probes one SAVED provider's `/responses` endpoint. The transport checks (body shape,
+     * unknown fields, a non-empty id) live in `codex-model-providers.connection.ts`; this
+     * method only enforces that the registry itself is configured and delegates.
+     *
+     * Consumers: `settings.routes.ts`'s `POST .../model-providers/test` and the advanced form's
+     * criterion.
+     */
+    async testCodexProviderConnection(input: { body: unknown }): Promise<CodexConnectionProbe> {
+      return runCodexConnectionTest(requirePort(), input);
     },
   };
 }
