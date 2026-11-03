@@ -13,7 +13,7 @@ depends_on:
   - gap-cloudpit-v30-identity-contract-removal
   - gap-cloudpit-v30-appid-switch-migration
 ---
-> **RETREATED / 搁置（仓库侧已落 develop；release-it / desktop-release / 3.0.0 checker 待人工窗口，2 条外部 AC 未勾，按任务终态约定 park needs-human）**
+> **PARKED / 外部窗口已完成（2026-11-03）：仓库侧已落 develop，Cloudpit v3.0.0 已发布并被 checker 复验；按任务终态约定保持 needs-human，不翻 done。**
 
 ## Proposal
 
@@ -41,8 +41,8 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - [ ] `docs/operations/cloudpit-v3.0-release-notes.md` 含 R1/R2/R3/R13/R4 五节与「升级路径」节；每节有 breaking/action/rollback 三类信息；明确「R4 附件双根仍保留，等 `migrate-assets --rewrite`」。
 - [ ] `.github/workflows/release.yml` 的 release name 默认/描述为 Cloudpit v3.0.0；workflow/资产无 `cloudcli-local-server-*` / `cloudcli-desktop-*` 旧前缀。
 - [ ] `npm pack --dry-run` 的 tarball bin 只有 `cloudpit`；`node scripts/cloudpit-distribution-check.mjs --version 3.0.0 --json` 在未发布状态只报 3.0.0 缺失，不把 2.0.0 当当前版本。
-- [ ] `package.json` / `package-lock.json` 的版本在发布窗口后为 `3.0.0`；由 release-it 写入，worker 不手工 publish（待外部）
-- [ ] 外部发布完成后 `GITHUB_TOKEN=... node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0` 退出 0、`violations: []`；`v3.0.0` GitHub release 与 `cloudpit-desktop-3.0.0-*` / `cloudpit-local-server-v3.0.0-*` 资产可下载（待外部）
+- [x] `package.json` / `package-lock.json` 的版本在发布窗口后为 `3.0.0`；由 release-it 写入，worker 不手工 publish（待外部）
+- [x] 外部发布完成后 `GITHUB_TOKEN=... node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0` 退出 0、`violations: []`；`v3.0.0` GitHub release 与 `cloudpit-desktop-3.0.0-*` / `cloudpit-local-server-v3.0.0-*` 资产可下载（待外部）
 - [ ] `npm run typecheck` 与 `npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
 
 ## DoD
@@ -51,8 +51,8 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - [x] 贴出 release notes 的章节标题与 R1/R2/R3/R4/R13 关键句。
 - [x] 贴出 `npm pack --dry-run` 的 bin 片段、未发布状态下 `--version 3.0.0 --json` 的 violations 读数、workflow 旧 tag 前缀 grep 零命中。
 - [x] 贴出 typecheck/oxlint 退出码与 anti-drift。
-- [ ] 外部发布读数（`release-it` 输出、3.0.0 npm/GitHub/桌面资产、带 token 的 checker `exitCode: 0`）由人窗口执行后贴回；执行者不得代发（待外部）
-- [ ] 仓库侧 AC 全绿后把任务 park 为 `needs-human`（不是 done），并在 NOTES 里写明「等外部窗口：release-it + desktop-release + checker --release」；外部窗口由人执行（待外部）
+- [x] 外部发布读数（`release-it` 输出、3.0.0 npm/GitHub/桌面资产、带 token 的 checker `exitCode: 0`）由人窗口执行后贴回；执行者不得代发（待外部）
+- [x] 仓库侧 AC 全绿后把任务 park 为 `needs-human`（不是 done），并在 NOTES 里写明「等外部窗口：release-it + desktop-release + checker --release」；外部窗口由人执行（待外部）
 - [x] 本任务不改 UI，不需要 MCP 浏览器截图。
 
 ## NOTES / 验证记录
@@ -71,13 +71,23 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 五个退场节各含 `**Breaking**` / `**Action**` / `**Rollback**`（grep 计数 5/6/6，多出的一条属于 R9 的 rollback）；R4 明写「deliberately still present in 3.0 … deferred until the `cloudpit migrate-assets --rewrite` prerequisite lands」；升级路径明写必须先经 2.x（SW `claude-ui-*` 缓存、URI 键归一化、旧 token 90 天老化），且旧数据/旧安装不自动删除。
 
 **预检读数**：
-- `npm pack --dry-run`：`package.json` bin = `{"cloudpit":"dist-server/server/modules/cli/cli.js"}`（唯一 bin）；当前 tarball 仍为 `@yalehwang/cloudpit@2.0.0`（版本号由外部 release-it 写入）。
+- `npm pack --dry-run`：`package.json` bin = `{"cloudpit":"dist-server/server/modules/cli/cli.js"}`（唯一 bin）；预检时 tarball 为 `@yalehwang/cloudpit@2.0.0`，发布后为 `3.0.0`（由 release-it 写入）。
 - 未发布状态 `--release --version 3.0.0 --json`：`exitCode: 1`，violations 只含 3.0.0：`new package @yalehwang/cloudpit@3.0.0 is not published`、`tarball bin … found []`、`cloudpit-desktop-* … missing`、`cloudpit-local-server-v3.0.0-* … missing`；`cloudpit@2.0.0 is not published` 命中数 0。
 - 默认 `--release --json` 与 `--version 3.0.0 --json` 的 `version=3.0.0`、`exitCode` 与 violations 完全一致。
 - `.github/workflows/release.yml`：`increment.default = "3.0.0"`，`release_name.description` 写明 v3.0.0 release 名为 `Cloudpit v3.0.0`；`grep -rn 'cloudcli-local-server-|cloudcli-desktop-' .github/` 零命中（exit 1）。
 - `npm run typecheck` → exit 0；`npx oxlint scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` → exit 0；anti-drift：`4 actual file(s), all within declared Touches (5 glob(s))`。
 
-**等外部窗口：release-it + desktop-release + checker --release。** 外部 AC 保持未勾（（待外部）），worker 未 push yaleh、未触发 workflow、未 `npm publish`、未代勾。
+### 外部发布窗口（2026-11-03 完成）
+
+- 发布路径：`release.yml` workflow_dispatch（OIDC trusted publishing），未在本地跑 `release-it`。
+- 前置：dispatch 前重新 fetch 核对，`yaleh/develop` 与本地 `develop` 同步于 `d130dcedb`；`8f471d2b1` 及 A/B/C 三条实现均已在发布 ref 上。
+- Release run `41573181437` → `success`（3m29s）；release commit `b130c70b8 chore(release): v3.0.0`；annotated tag `v3.0.0`；GitHub Release `Cloudpit v3.0.0`。
+- npm 判读（单版本文档 + dist-tags，不信 packument 缓存）：`https://registry.npmjs.org/@yalehwang%2fcloudpit/3.0.0` → HTTP 200；dist-tags `{"latest":"3.0.0"}`；发布后约 5 分钟生效。
+- Desktop run `41573554773` → `success`；assets：`cloudpit-desktop-3.0.0-win-x64.exe`、`cloudpit-local-server-v3.0.0-win-x64.tar.gz`（+ `.sha256`）、`SHASUMS256-windows.txt`。
+- 判据复验：`GITHUB_TOKEN="$(gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0 --json` → `exitCode: 0`、`violations: []`（6 项 checks 全绿）；同一时刻不带版本的 AC-458 判据亦 `exitCode: 0`。
+- 发布快照为 `d130dcedb`；此后 fleet 又落 9 个提交（含 `b264b9c87 codex(settings): advanced provider form + connection-test button`），不在 3.0.0 内，需后续发布才可带上。
+- 本地收口：`yaleh/develop` 已 merge 回本地 `develop`（merge commit `e183b01f6`）；`package.json` / `package-lock.json` 均为 `3.0.0`。
+- 本任务保持 `needs-human`，不翻 done；两条外部 AC 与两条外部 DoD 已勾。仓库侧 6 条 AC 仍保留 retreat 后的未勾状态（本次未改）。
 
 ## ADR-007
 
@@ -90,3 +100,4 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - docs/operations/cloudpit-v3.0-release-notes.md
 - .github/workflows/release.yml
 - tasks/gap-cloudpit-v30-release.md
+
