@@ -2,7 +2,7 @@
 id: gap-ac109-detach-window-liveness-before-gesture
 title: AC-109 判据在负载下偶发假红（driver 本轮 `movedUpBy` 读到
   0）：脱离窗口的「回复仍在流式」前提只在窗口结束后才断言，手势落地也没有独立读数；把前提在窗口两端都构造出来并让失败信息带读数
-status: ready
+status: done
 labels:
   - gap
   - defect
