@@ -41,12 +41,28 @@ Error: Cannot find module '/data/home/yale/work/claudecodeui/server/modules/voic
 
 ## AC
 
-- [ ] AC1 旧路径清零、新路径就位：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`npx playwright test e2e/voice-realtime-live-session-send.spec.ts --list` exit 0（只加载测试模块图，不运行用例）。
-- [ ] AC2 判据第一条命令 exit 0：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit 0，记录 passed 数/耗时。
-- [ ] AC3 判据第二条命令 exit 0：`npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit 0。
-- [ ] AC4 判据第三条命令 exit 0：`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 0（含 @320 长模型名不溢出）。
-- [ ] AC5 承重（假形态）：在同一工作树里把 import 临时改回旧路径，`npx playwright test e2e/voice-realtime-live-session-send.spec.ts --list` 非零退出且原文含 `Cannot find module`；还原后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务改动。
-- [ ] AC6 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；diff 内无 `test.skip`/`retries`/`page.route(`/期望值改动（`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0）；`goals/**` 一个字节未动（`git diff develop -- goals/ | wc -c` = 0）；`npm run typecheck` exit 0。
+- [x] AC1 旧路径清零、新路径就位：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`npx playwright test e2e/voice-realtime-live-session-send.spec.ts --list` exit 0（只加载测试模块图，不运行用例）。
+- [x] AC2 判据第一条命令 exit 0：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit 0，记录 passed 数/耗时。
+- [x] AC3 判据第二条命令 exit 0：`npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit 0。
+- [x] AC4 判据第三条命令 exit 0：`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 0（含 @320 长模型名不溢出）。
+- [x] AC5 承重（假形态）：在同一工作树里把 import 临时改回旧路径，`npx playwright test e2e/voice-realtime-live-session-send.spec.ts --list` 非零退出且原文含 `Cannot find module`；还原后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务改动。
+- [x] AC6 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；diff 内无 `test.skip`/`retries`/`page.route(`/期望值改动（`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0）；`goals/**` 一个字节未动（`git diff develop -- goals/ | wc -c` = 0）；`npm run typecheck` exit 0。
+
+## Evidence
+
+工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-ac323-e2e-import-after-voice-realtime-frames-split`（分支 `task/gap-ac323-e2e-import-after-voice-realtime-frames-split`）。实现 commit `189697047`（`e2e: point voice-realtime live-session spec at frames/voice-realtime-mode`，1 file changed, 1 insertion(+), 1 deletion(-)）；pre-merge 合入 develop 的 merge commit `51039ed7a`。
+
+红态读数（本任务修复前，Proposal 已逐字保留）：`Error: Cannot find module '/data/home/yale/work/claudecodeui/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui/e2e/voice-realtime-live-session-send.spec.ts`。
+
+逐条复跑读数（merge develop 之后）：
+- AC1：旧路径 grep=0，新路径 grep=1；`npx playwright test e2e/voice-realtime-live-session-send.spec.ts --list` → exit 0，`Total: 4 tests in 1 file`。
+- AC2：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit 0，`19 passed (2.9m)`。
+- AC3：`npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit 0，`Test Files 22 passed (22)` / `Tests 219 passed (219)`，Duration 4.20s。
+- AC4：`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit 0，`6 passed (26.6s)`（@320/@360/@390/@767/@768/@1280 全过，@320 日志行 `[layout] @320 idle ...` 无溢出）。
+- AC5 承重配对：临时把 import 改回旧路径后 `--list` → exit 1，原文含 `Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac323-e2e-import-after-voice-realtime-frames-split/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac323-e2e-import-after-voice-realtime-frames-split/e2e/voice-realtime-live-session-send.spec.ts`；还原新路径后同一命令 → exit 0，`Total: 4 tests in 1 file`；两次之间 `git status --porcelain` 为空（还原后无残留）。
+- AC6：`git diff develop --name-only` → 仅 `e2e/voice-realtime-live-session-send.spec.ts`（本任务 task 文件由 `task_write` 自行提交，同属 `## Touches`）；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` → 0；`git diff develop -- goals/ | wc -c` → 0；`npm run typecheck` → exit 0（tsc 三个 program 全过）。
+
+该轴仍暗,理由:本任务只修 e2e spec 的一处 import 路径漂移，未改动产品能力、goal 判据或模块依赖图，L_D/L_G 没有本任务可记的量化读数。
 
 ## DoD
 
