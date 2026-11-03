@@ -60,7 +60,7 @@ cockpit 现有两条卡通道：
 - AC-3：改动只有 molten descriptor、投影（熔融逻辑抽到新兄弟文件 `cockpit-fleet-molten.ts` 由投影调用）、`fleet.molten-decide` 执行器声明与两端类型同步；`git grep -n "fleet.apply" server/modules/cockpit/` 的非测试命中全部是既有知识路径（`cockpit-card-actions.ts`）与本次新增的「不是 fleet.apply」注释/负向断言，无新增调用；`git grep -n "molten" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
 - 架构棘轮：新增实现文件后投影文件 855→744 行（<800）；两端 `shared/types.ts` 各 +44 行按 AC-394 RECORDED CHANGE 格式上调基线（记录在该 baseline 的 note 内）；`architecture-ratchet.test.ts` 与 `server-import-cycle-budget.test.ts` 全绿。
 - DoD：卡片渲染（结论 + 选项 + confirm bar）由组件判据与 12 语言 i18n 完整性判据覆盖；真实熔融触发 → 浏览器确认 → fleet 结晶的端到端联合复验按 DoD 所述为（待外部），等待 GOAL-012 落地。
-- ADR-007：该轴仍暗,理由:本任务只做 cockpit 卡片渲染、执行器声明与 wire 类型同步，未产生 L_D 或 L_G 的依赖/分层读数
+- 该轴仍暗,理由:本任务只做 cockpit 卡片渲染、执行器声明与 wire 类型同步，未产生 L_D 或 L_G 的依赖/分层读数
 
 ## Touches
 
