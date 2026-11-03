@@ -80,6 +80,13 @@ inside the 30000ms startup budget (This operation was aborted)
 
 **非目标。** 不改 MCP 区块与令牌 scope 的产品面（`src/**`）；不碰其它判据；不把 `SINGLE_SPEC_CEILING_MS` 全局抬高（它按设计必须低于 gate kill）。
 
+## Touches
+
+- e2e/mcp-settings.spec.ts（warm 预算、启动编排与用例体所在的判据文件）
+- playwright.config.ts（`SPEC_BUDGET_MS` / `RUN_CEILING_MS` 的声明处）
+- goals/AC-254-真实浏览器里设置页的-cloudcli-mcp-区块-显示端点与启用状态-给出-claude-code-的接入命令-令牌.md（只加 `timeoutMs` 预算字段）
+- tasks/gap-ac254-criterion-load-headroom-budget.md（本任务自身，状态翻转归属）
+
 ## AC
 
 - [ ] AC1 红态机械入档：完成记录逐字含 `2026-11-03T02:07:08.740Z`（tree `81c0e596…`，`crossed its own 55000ms ceiling at 55005ms`）与 `2026-11-03T02:10:06.455Z`（**同一 tree**，pass）这一对，以及 `02:13:22.965Z` 的 `did not answer … react_jsx-dev-runtime.js?v=f6f818e6 inside the 30000ms startup budget`；并记录立案时 `HEAD^{tree}` 与 `git diff <fail-tree> HEAD -- e2e/mcp-settings.spec.ts` 的输出。
