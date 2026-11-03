@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -92,16 +92,17 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 - AC3（满足）：`git diff --exit-code ec621a2b^1 ec621a2b -- <四文件>` → rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <四文件>` → rc=0。
 - AC4（满足）：`git diff develop --name-only` → 空（任务文件由 ABI 提交，同属 `## Touches`）；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` → 0；`git diff develop -- goals/ | wc -c` → 0。
 - AC5 假形态配对（满足）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 → `--list` → **exit 1**，原文：`Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`；`git checkout --` 还原新路径后同一命令 → **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空（注入未 commit）。
+- 本轮续做复验（2026-11-03，HEAD `1b795a0b33eb06b1151a4e49a258d142f4a8f169`，工作树 clean）：AC1/AC3/AC4 读数复现不变——旧路径 `grep -c` = 0、新路径 `grep -c` = 1，两条四文件白名单守卫 rc=0，`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0，`git diff develop -- goals/ | wc -c` = 0。AC2 逐字第三次实跑 → **exit 0**，`19 passed (3.1m)`，墙钟 **185826ms**（三次为 175405 / 205472 / 185826ms，同一 19 passed）。AC5 假形态配对复验 → 旧路径 `--list` **exit 1** 且含 `Cannot find module '.../server/modules/voice-realtime/voice-realtime-mode'`（`Total: 0 tests in 0 files`）；还原新路径后同命令 **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空（注入未 commit）。结论：AC2 的 118000ms 墙钟上限结构性不成立（三次独立实跑均超），且驱动 `CRITERION_TIMEOUT_MS = 12e4` 硬闸（120000ms 对 spawn 发 SIGKILL）使单纯上调 record `timeoutMs` 无效——需人裁定，见 Needs-Human；本轮不勾选 AC2。
 
 该轴仍暗,理由:本任务只复验既有 AC-331 判据与守卫，未改产品能力、模块依赖图或 goal 判据文本，L_D/L_G 没有本任务可记的量化读数。
 
 ## Needs-Human
 
-需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树两次实跑分别为 175405ms / 205472ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
+需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树三次实跑分别为 175405ms / 205472ms / 185826ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
 
 判据本身是绿的：**19 passed，exit 0**，且假形态证明它会因 import 漂移而红（`Cannot find module` 非零退出）。唯一未满足的是 AC2 的墙钟上限。按 Proposal「预算风险」的明示要求，worker 不得自行放宽 criterion、改 `expect` 或改记录 `timeoutMs`，故停在此处。
 
-待裁定项（二选一，均需记录层/人动作）：(a) 把 AC-331 record 的 `timeoutMs` 上调到能覆盖当前结构性下限的数值（例如 ≥240000，并保留驱动 `CRITERION_TIMEOUT_MS` 之下的余量）；(b) 接受该 deadline 已被后续测试内容变更作废，并改写或拆分判据。⛔ 不得把 175405ms / 205472ms 的绿读写成“满足 118000ms 预算”。
+待裁定项（二选一，均需记录层/人动作）：(a) 把 AC-331 record 的 `timeoutMs` 上调到能覆盖当前结构性下限的数值（例如 ≥240000），**并同步上调驱动 `CRITERION_TIMEOUT_MS = 12e4` 的硬闸**（步骤 (a) 提到的「≥240000 并留在驱动闸之下」在当前 12e4 下不可同时成立，故 240000+ 与驱动闸必须一起改）；(b) 接受该 deadline 已被后续测试内容变更作废，并改写或拆分判据。⛔ 不得把 175405ms / 205472ms / 185826ms 的绿读写成“满足 118000ms 预算”。
 
 
 ## DoD
