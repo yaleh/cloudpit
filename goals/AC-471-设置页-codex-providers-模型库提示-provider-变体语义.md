@@ -1,7 +1,7 @@
 ---
 id: AC-471
 title: 设置页 Codex providers/模型库提示 provider 变体语义
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-056
 criterion: npx vitest run src/modules/settings/tests/codexModelProviderHint.test.tsx
@@ -16,6 +16,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T13:15:48.992Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
