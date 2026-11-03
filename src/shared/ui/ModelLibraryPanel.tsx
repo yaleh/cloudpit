@@ -134,6 +134,12 @@ export default function ModelLibraryPanel({
   // The provider descriptor's `modelConfigKind` decides which upstream editor this form draws
   // (`env` rows, a Codex provider picker, or nothing) — a view never branches on a provider id.
   const descriptor = PROVIDER_DESCRIPTORS[selectedProvider];
+  // How many upstream providers a built-in model of THIS descriptor is mirrored for. The count
+  // is the host's registry reading (`codexProviders`), never a literal: a provider added in
+  // Settings raises it without a code change, and a host that supplies no registry shows 0.
+  // The descriptor (not a provider-id branch) decides whether the concept applies at all.
+  const providerVariantCount = codexProviders.length;
+  const showsProviderVariants = descriptor.modelConfigKind === 'codex-provider';
   // The project Codex provider this model binds to; '' keeps the Codex global default.
   const [codexProviderId, setCodexProviderId] = useState('');
   const [editing, setEditing] = useState<ProviderModelOption | null>(null);
@@ -660,6 +666,14 @@ export default function ModelLibraryPanel({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-foreground">{option.label}</p>
                     <p className="truncate font-mono text-[10px] text-muted-foreground">{option.value}</p>
+                    {showsProviderVariants && (
+                      <p
+                        className="truncate text-[10px] text-muted-foreground"
+                        data-testid="builtin-model-provider-variants"
+                      >
+                        built-in · {providerVariantCount} provider variants
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
