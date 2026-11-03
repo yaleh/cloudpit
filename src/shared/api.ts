@@ -868,6 +868,12 @@ export const api = {
        * created without a model runs whatever the provider CLI defaults to.
        */
       model?: string;
+      /**
+       * The upstream provider id the model runs under, when the picker stated
+       * one (a built-in model's `(provider)` variant). Absent/`null` means the
+       * model inherits the provider's own default.
+       */
+      modelProviderId?: string | null;
       effort?: string;
       permissionMode?: string;
       /**

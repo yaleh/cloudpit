@@ -729,6 +729,15 @@ export type ProviderSessionModel = {
 export type SessionLaunchSelection = {
   /** The model id every run of this session launches with, unless a run overrides it. */
   model?: string;
+  /**
+   * The upstream provider id the model runs under, when the picker stated one.
+   *
+   * A built-in model's provider variant shares the bare `value` and differs
+   * only by provider, so the id cannot be re-derived from `model` and must be
+   * carried verbatim onto the minted row. Absent means the model inherits the
+   * provider's own default.
+   */
+  modelProviderId?: string;
   /** The reasoning effort recorded for the session; omitted leaves it unrecorded. */
   effort?: string;
   /** The permission mode the session's first run should launch under. */

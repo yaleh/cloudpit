@@ -134,6 +134,32 @@ test('a new session records the selection the gateway call carried', async () =>
   });
 });
 
+test('a gateway call records the explicit upstream provider id on the minted row', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    providerModelsDb.createCustomProviderModel('claude', {
+      id: CUSTOM_MODEL,
+      model: CUSTOM_MODEL,
+      config: { env: CUSTOM_MODEL_ENV },
+    });
+
+    const created = await createSession(baseUrl, workspacePath, {
+      initialMessage: 'first turn under a named upstream provider',
+      model: CUSTOM_MODEL,
+      modelProviderId: 'fjdac',
+    });
+
+    // The picker states (model, modelProviderId) together: a built-in model's
+    // variant shares the bare `value` and differs only by provider, so the id
+    // cannot be re-derived from the model and must be recorded verbatim on the
+    // row the gateway mints — the same row the first send later reads from.
+    assert.equal(
+      created.row?.model_provider_id,
+      'fjdac',
+      `the minted row must carry the explicit upstream provider id; got model_provider_id=${JSON.stringify(created.row?.model_provider_id)}`,
+    );
+  });
+});
+
 test('an unknown model is refused and mints no row', async () => {
   await withProviderServer(async (baseUrl, workspacePath) => {
     providerModelsDb.createCustomProviderModel('claude', {

@@ -45,6 +45,12 @@ export async function createChatSession(payload: {
    * to record one, so its runs would launch as the provider CLI's own default.
    */
   model?: string;
+  /**
+   * The upstream provider id the model runs under, when the picker stated one.
+   * Carried verbatim on the creation so the row records it before the first
+   * turn (the id cannot be re-derived from a built-in model's bare value).
+   */
+  modelProviderId?: string | null;
   effort?: string;
   permissionMode?: string;
   /**

@@ -564,14 +564,15 @@ export const sessionsDb = {
 
     // Every selection field defaults to NULL: a caller that states nothing leaves its reader as before.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, transcript_name, transcript_name_source, project_path, jsonl_path, model, effort, permission_mode, lifecycle_mode, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, ?, 'derived', ?, NULL, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      `INSERT INTO sessions (session_id, provider, provider_session_id, transcript_name, transcript_name_source, project_path, jsonl_path, model, model_provider_id, effort, permission_mode, lifecycle_mode, isArchived, created_at, updated_at)
+       VALUES (?, ?, NULL, ?, 'derived', ?, NULL, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     ).run(
       sessionId,
       provider,
       customName ?? null,
       normalizedProjectPath,
       selection?.model ?? null,
+      selection?.modelProviderId ?? null,
       selection?.effort ?? null,
       selection?.permissionMode ?? null,
       // NULL keeps the column's DB default for a caller that stated nothing.

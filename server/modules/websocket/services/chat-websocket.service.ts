@@ -871,9 +871,15 @@ export async function dispatchRun(
   // and `chat.edit-send` alike), so this is the one admission gate. A session
   // with no recorded binding — every session's first send — passes.
   const requestedModel = (data.options as AnyRecord | undefined)?.model;
+  const requestedModelProviderId = (data.options as AnyRecord | undefined)?.modelProviderId;
   if (typeof requestedModel === 'string' && requestedModel.trim()) {
     try {
-      providerModelsService.assertSessionProviderSwitch(provider, sessionId, requestedModel);
+      providerModelsService.assertSessionProviderSwitch(
+        provider,
+        sessionId,
+        requestedModel,
+        typeof requestedModelProviderId === 'string' ? requestedModelProviderId : undefined,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const code = error instanceof AppError ? error.code : 'SESSION_PROVIDER_MISMATCH';
@@ -993,7 +999,12 @@ export async function dispatchRun(
   // same model and reasoning effort, and so the resume path has a
   // session-scoped model answer to use.
   if (typeof clientOptions.model === 'string' && clientOptions.model.trim()) {
-    providerModelsService.setSessionModel(provider, sessionId, clientOptions.model);
+    providerModelsService.setSessionModel(
+      provider,
+      sessionId,
+      clientOptions.model,
+      typeof clientOptions.modelProviderId === 'string' ? clientOptions.modelProviderId : undefined,
+    );
   }
   if (typeof clientOptions.effort === 'string' && clientOptions.effort.trim()) {
     providerModelsService.setSessionEffort(provider, sessionId, clientOptions.effort);

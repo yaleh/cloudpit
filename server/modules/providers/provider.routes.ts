@@ -910,6 +910,7 @@ const parseSessionLaunchSelection = (payload: unknown): SessionLaunchSelection =
 
   const body = payload as Record<string, unknown>;
   const model = readOptionalQueryString(body.model);
+  const modelProviderId = readOptionalQueryString(body.modelProviderId);
   const effort = readOptionalQueryString(body.effort);
   const permissionMode = readOptionalQueryString(body.permissionMode);
   // The lifecycle selection is checked against the same vocabulary the
@@ -921,6 +922,7 @@ const parseSessionLaunchSelection = (payload: unknown): SessionLaunchSelection =
 
   return {
     ...(model ? { model } : {}),
+    ...(modelProviderId ? { modelProviderId } : {}),
     ...(effort ? { effort } : {}),
     ...(permissionMode ? { permissionMode } : {}),
     ...(lifecycleMode ? { lifecycleMode } : {}),

@@ -62,6 +62,12 @@ type UseChatComposerStateArgs = {
    * is one, otherwise the user's per-provider selection.
    */
   currentProviderModel: string;
+  /**
+   * The upstream provider id the model runs under, or `null` when the model
+   * inherits the provider default. Carried on the send options and the session
+   * creation so a built-in model's `(provider)` variant survives the first turn.
+   */
+  currentProviderModelProviderId?: string | null;
   currentProviderEffort: string;
   isLoading: boolean;
   /**
@@ -210,6 +216,7 @@ export function useChatComposerState({
   cyclePermissionMode,
   resolvePermissionModeForProvider,
   currentProviderModel,
+  currentProviderModelProviderId = null,
   currentProviderEffort,
   isLoading,
   isDockTurnShown = false,
@@ -426,6 +433,7 @@ export function useChatComposerState({
 
     return {
       model: currentProviderModel,
+      modelProviderId: currentProviderModelProviderId,
       effort: currentProviderEffort,
       permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
       toolsSettings,
@@ -435,6 +443,7 @@ export function useChatComposerState({
   }, [
     currentProviderEffort,
     currentProviderModel,
+    currentProviderModelProviderId,
     permissionMode,
     provider,
     resolvePermissionModeForProvider,
@@ -665,6 +674,7 @@ export function useChatComposerState({
             // rather than to whichever message happened to open it: Live Voice and
             // MCP open first turns that carry none (see `createChatSession`).
             model: currentProviderModel,
+            modelProviderId: currentProviderModelProviderId,
             effort: currentProviderEffort,
             permissionMode: String(permissionMode),
             // The switch's position for THIS session. Absent means "follow the
@@ -890,11 +900,13 @@ export function useChatComposerState({
       onNewSessionLifecycleSpent,
       setIsUserScrolledUp,
       slashCommands,
-      // The three selections the session allocation states. Read here rather than
+      // The four selections the session allocation states. Read here rather than
       // only inside `buildSendOptions` (whose own memo carries them), because the
       // allocation is the write that has to be current: a submit holding a stale
-      // model would mint the row with the model the page showed a render ago.
+      // model/provider would mint the row with the selection the page showed a
+      // render ago.
       currentProviderModel,
+      currentProviderModelProviderId,
       currentProviderEffort,
       permissionMode,
     ],

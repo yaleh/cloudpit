@@ -755,6 +755,7 @@ function ChatInterface({
     permissionMode,
     cyclePermissionMode,
     currentProviderModel,
+    currentProviderModelProviderId,
     currentProviderEffort,
     isLoading: isProcessing,
     // The chips' idle-only reading comes from the dock, not from the local
