@@ -37,7 +37,7 @@ goal_ac: AC-254
 ## AC
 
 - [ ] `! grep -q 'cloudcli:' e2e/mcp-settings.spec.ts` 退出 0（判据文件不再钉已退役拼写）。
-- [ ] `diff <(grep -oP "scope: '\''\K[^'\'']+" src/shared/constants.ts) <(sed -n "/const SCOPE_VOCABULARY = \[/,/\] as const;/p" e2e/mcp-settings.spec.ts | grep -oP "'\''\K[^'\'']+")` 退出 0（判据的七个名字与 `ACCESS_TOKEN_SCOPE_OPTIONS` 同序同名）。
+- [ ] `test "$(grep -oE "scope: '[^']+'" src/shared/constants.ts | cut -d"'" -f2 | tr '\n' ' ')" = "$(sed -n "/const SCOPE_VOCABULARY/,/as const/p" e2e/mcp-settings.spec.ts | grep -oE "'[^']+'" | cut -d"'" -f2 | tr '\n' ' ')"` 退出 0（判据的七个名字与 `ACCESS_TOKEN_SCOPE_OPTIONS` 同序同名）。
 - [ ] `npx playwright test e2e/mcp-settings.spec.ts` 退出 0，且在 55s watchdog 以内；输出含 (a) 端点与复制按钮、(b) 未启用且无接入命令、(c) 命令含端点与 `Authorization: Bearer <token>` 且页面真实令牌命中 0、(d) 只读默认勾选/六个写默认不勾且风险提示 0→1、(e) token-info scopes 与所选一致。
 - [ ] 有界集合读数可判别（先提交实现，再变异）：把 `SCOPE_VOCABULARY` 里的 `cloudpit:read` 改成 `cloudpit:reed` 后重跑，判据在 ≤15s 内红，失败行给出 observed vs expected 的 scope 名字（而不是 55000ms watchdog）；记录逐字 diff / 失败行 / 恢复命令 `git checkout -- e2e/mcp-settings.spec.ts`，恢复后重跑回到 exit 0。
 
