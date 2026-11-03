@@ -81,9 +81,10 @@ type ProviderSelectionEmptyStateProps = {
   setProviderModel: (provider: LLMProvider, model: string, modelProviderId?: string | null) => void;
   /**
    * Upstream provider id of the active selection, from the host that owns the
-   * selection. Absent is not an error: the picker derives the identity itself
-   * when the catalog offers exactly one row for the active model, and otherwise
-   * shows the bare model — which is what the host is then known to hold.
+   * selection. Absent is not an error: the picker falls back to the row this
+   * picker just picked, then to the catalog when exactly one row serves the
+   * active model; otherwise it shows the bare model rather than guessing
+   * between variants.
    */
   currentModelProviderId?: string | null;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
