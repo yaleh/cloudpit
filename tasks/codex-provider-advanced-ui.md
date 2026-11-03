@@ -1,7 +1,7 @@
 ---
 id: codex-provider-advanced-ui
 title: Codex 高级表单 UI：高级字段编辑 + 连接测试按钮（补齐 scoped-out 的 CodexProviderAdvanced.tsx）
-status: ready
+status: done
 labels:
   - feature
 parent: null
