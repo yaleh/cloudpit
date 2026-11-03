@@ -58,3 +58,11 @@ extra:
 - server/modules/cockpit/cockpit-knowledge-reading.ts
 - server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts
 - tasks/gap-cockpit-knowledge-discovery-null-revision.md
+
+## Blocker
+
+**2026-11-03T09:18:37.439Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/shared/types.ts 5595→5602 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：294840d3-d765-415b-bfe1-37283d562e9a
