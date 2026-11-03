@@ -1,7 +1,7 @@
 ---
 id: AC-469
 title: composer 模型菜单渲染 model×provider 单选择项并发送 model + provider id
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-056
 criterion: npx vitest run src/modules/chat/tests/composerModelProviderOption.test.tsx
@@ -17,6 +17,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T13:55:03.068Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
