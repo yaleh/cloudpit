@@ -55,6 +55,8 @@ const MCP_ACCEPT = 'application/json, text/event-stream';
 const USER_ONE = 1;
 const START = new Date('2026-01-01T00:00:00.000Z');
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// The canonical spelling a stored token row and the principal carry; the harness
+// mints its wire equivalent (`cloudpit:read`) through the real issue path.
 const VALID_SCOPES = ['cloudcli:read'];
 
 // --------------------------- HTTP ---------------------------
@@ -245,7 +247,7 @@ async function withMcpAuthServer(run: (harness: Harness) => Promise<void>): Prom
   const address = server.address() as AddressInfo;
 
   const issue = (expiresInDays: number): IssuedAccessToken => {
-    const issued = tokens.issueToken({ userId: USER_ONE, name: 'mcp', scopes: VALID_SCOPES, expiresInDays });
+    const issued = tokens.issueToken({ userId: USER_ONE, name: 'mcp', scopes: VALID_SCOPES.map((scope) => scope.replace('cloudcli:', 'cloudpit:')), expiresInDays });
     if (!issued.ok) {
       throw new Error('the harness issued a token with a lifetime the service rejects');
     }

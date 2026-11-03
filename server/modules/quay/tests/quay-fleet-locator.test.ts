@@ -28,7 +28,7 @@ import {
  * include is `src/**` and would find no tests here.
  */
 
-/** The handshake this CloudCLI build speaks. */
+/** The handshake this Cloudpit build speaks. */
 const SUPPORTED = { wallUri: 'v0', registry: 1, interfaceSession: 'v0' } as const;
 
 /** A `quay-fleet --version --json` document. */

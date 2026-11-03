@@ -235,7 +235,7 @@ test('AC2: past the cap the wall sorts red > attention > ok by recent revision a
 });
 
 // ---------------------------------------------------------------------------
-// 2.1 — a DB holding 2.0-era legacy keys is read on the canonical cloudpit:// address
+// 3.0 — one spelling: the legacy cloudcli:// read and storage fallback are gone
 // ---------------------------------------------------------------------------
 
 const LEGACY_AT = 3_000_000;
@@ -254,55 +254,40 @@ function seedLegacyObject(uri: string, kind: 'session' | 'architecture', revisio
   ).run(uri, revision, LEGACY_AT, JSON.stringify([`legacy-${uri}`]));
 }
 
-test('2.1: both legacy spellings in one DB read as canonical cloudpit:// objects', () => {
-  // A mixed fixture: a session row and an architecture row, each under the 2.0 legacy key.
+test('3.0: a legacy cloudcli:// read is refused and never falls back to a legacy storage row', () => {
+  // A 2.0-era row, seeded under the legacy key exactly as the 2.0 writer left it.
   seedLegacyObject('cloudcli://session/a', 'session', 2);
   seedLegacyObject('cloudcli://architecture/b', 'architecture', 4);
-  // A pin written through the new spelling must join the legacy object row.
-  store.pin(USER_ID, 'cloudpit://session/a');
 
-  assert.equal(store.getObject('cloudcli://session/a')?.uri, 'cloudpit://session/a');
-  assert.equal(store.getObject('cloudpit://session/a')?.uri, 'cloudpit://session/a');
-  assert.equal(store.getObject('cloudcli://architecture/b')?.uri, 'cloudpit://architecture/b');
-  assert.equal(store.getObject('cloudpit://architecture/b')?.uri, 'cloudpit://architecture/b');
+  assert.equal(store.getObject('cloudcli://session/a'), null, 'the retired spelling no longer parses');
+  assert.equal(store.getObject('cloudpit://session/a'), null, 'the store no longer reads the legacy key');
+  assert.equal(store.getObject('cloudcli://architecture/b'), null);
+  assert.equal(store.getObject('cloudpit://architecture/b'), null);
 
-  const revisions = store.listRevisions('cloudpit://session/a', 0);
-  assert.deepEqual(
-    revisions.map((revision) => [revision.uri, revision.revision]),
-    [['cloudpit://session/a', 2]],
-    'the revision log is read through the legacy key but reported canonically',
+  assert.throws(
+    () => store.listRevisions('cloudcli://session/a', 0),
+    /must be one of cloudpit:\/\/session\/<id>/,
+    'the retired spelling is not a valid address for a read',
   );
-
-  const wall = store.getWall(USER_ID);
-  assert.deepEqual(
-    wall.entries.map((entry) => entry.object.uri).sort(),
-    ['cloudpit://architecture/b', 'cloudpit://session/a'],
-    'the wall joins the legacy row to the new-spelling pin and reports canonical URIs',
-  );
-  assert.equal(wall.entries.find((entry) => entry.object.uri === 'cloudpit://session/a')?.pinned, true);
+  assert.deepEqual(store.getWall(USER_ID).entries, [], 'a legacy-key row does not surface on the wall');
 });
 
-test('2.1: a write to a 2.0-era object continues its revision chain instead of restarting it', () => {
+test('3.0: a write addresses only the canonical key; a legacy row is not continued', () => {
   seedLegacyObject('cloudcli://session/chain', 'session', 2);
 
   const written = store.writeRevision({
     uri: 'cloudpit://session/chain',
     kind: 'session',
-    title: 'Continued chain',
+    title: 'Fresh canonical chain',
     status: { state: 'ok' },
     provenance: { producer: PRODUCER, tier: 'deterministic' },
   });
 
   assert.equal(written.uri, 'cloudpit://session/chain', 'the reading is canonical');
-  assert.equal(written.revision, 3, 'the legacy row keeps counting up, not restarting at 1');
-  assert.equal(store.getObject('cloudcli://session/chain')?.revision, 3);
-  assert.equal(
-    store.getObject('cloudpit://session/chain')?.revision,
-    3,
-    'both spellings read the same single chain',
-  );
+  assert.equal(written.revision, 1, 'the legacy row is not the canonical chain');
+  assert.equal(store.getObject('cloudpit://session/chain')?.revision, 1);
   assert.deepEqual(
     store.listRevisions('cloudpit://session/chain', 0).map((revision) => revision.revision),
-    [2, 3],
+    [1],
   );
 });

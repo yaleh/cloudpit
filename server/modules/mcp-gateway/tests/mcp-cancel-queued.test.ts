@@ -130,6 +130,7 @@ type RuntimeService = ReturnType<typeof createProviderRuntimeService>;
 
 const USER_ONE = 1;
 const DEBUG_PROVIDER = DEBUG_AGENT_PROVIDER_ID as LLMProvider;
+const wire = (scopes: string[]) => scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:'));
 const READ_SCOPE = 'cloudcli:read';
 const SESSION_SEND_SCOPE = 'cloudcli:session:send';
 const SESSION_CONTROL_SCOPE = 'cloudcli:session:control';
@@ -410,13 +411,13 @@ async function withHarness(arm: ArmOptions, run: (harness: Harness) => Promise<v
   const mainToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac271-main',
-    scopes: [READ_SCOPE, SESSION_SEND_SCOPE, SESSION_CONTROL_SCOPE],
+    scopes: wire([READ_SCOPE, SESSION_SEND_SCOPE, SESSION_CONTROL_SCOPE]),
     expiresInDays: 30,
   });
   const sendOnlyToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'ac271-send-only',
-    scopes: [READ_SCOPE, SESSION_SEND_SCOPE],
+    scopes: wire([READ_SCOPE, SESSION_SEND_SCOPE]),
     expiresInDays: 30,
   });
   if (!mainToken.ok || !sendOnlyToken.ok) {

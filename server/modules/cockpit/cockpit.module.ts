@@ -79,7 +79,7 @@ export type CockpitCardsModuleDeps = {
   fixtureFeedback?: Partial<CockpitFixtureFeedbackSettings>;
   /**
    * Where the feedback overlay persists. Omitted keeps it in memory — which is what a criterion
-   * wants; `server/index.ts` passes CloudCLI's own file so a refresh/restart keeps the overlay.
+   * wants; `server/index.ts` passes Cloudpit's own file so a refresh/restart keeps the overlay.
    */
   feedbackFilePath?: string | null;
   /** A store the caller already built (a criterion reads it after a request). */
@@ -269,7 +269,7 @@ export function createCockpitCardsModule(deps: CockpitCardsModuleDeps): CockpitC
     fixtureBriefFor = fixture.brief;
   }
 
-  // The feedback overlay is CloudCLI's own lifecycle state. It is built here, once per module,
+  // The feedback overlay is Cloudpit's own lifecycle state. It is built here, once per module,
   // so both the read route and the resend command reach the same one.
   const feedbackStore =
     deps.feedbackStore ??

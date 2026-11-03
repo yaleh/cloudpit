@@ -23,7 +23,7 @@
  * declares `fixtureHome` — an isolated fleet home, checked against the real `~/.quay-fleet` (and
  * an operator's `QUAY_FLEET_HOME`) and refused when it resolves to the real one. This is the same
  * discipline as ADR-003's "fixture HOME 隔离与清理": the fixture root is declared, never defaulted
- * to the real home. Real CloudCLI session ids are unaffected. The failure that motivated the guard
+ * to the real home. Real Cloudpit session ids are unaffected. The failure that motivated the guard
  * was a DoD run writing `dod-codex-blocked-*` rows through the production adapter into the real
  * `~/.quay-fleet/context/events/`, where the fleet upgraded them into ghost cards.
  *
@@ -99,13 +99,13 @@ export function toSessionBlockedEventDraft(event: SessionBlockedEventRecord): Co
 
 /**
  * The marker a fixture/DoD scenario puts on a session id it synthesised, as opposed to a real
- * CloudCLI session (a UUID or ULID). The repository's DoD scenarios name their sessions `dod-*`
+ * Cloudpit session (a UUID or ULID). The repository's DoD scenarios name their sessions `dod-*`
  * (`dod-codex-session`, `dod-codex-blocked-<epoch>`); `fixture-*` and `synthetic-*` are the same
  * declaration under other spellings.
  */
 const FIXTURE_SESSION_ID = /(^|[-_.])(dod|fixture|synthetic)([-_.]|$)/i;
 
-/** True when the session id declares itself a fixture rather than a real CloudCLI session. */
+/** True when the session id declares itself a fixture rather than a real Cloudpit session. */
 function isFixtureSession(session: string | null | undefined): boolean {
   return typeof session === 'string' && FIXTURE_SESSION_ID.test(session);
 }

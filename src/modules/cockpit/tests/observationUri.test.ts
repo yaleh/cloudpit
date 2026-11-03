@@ -14,10 +14,10 @@ import {
  *
  * The round trip is the reading that matters: the formatter and the parser must agree on the
  * EXACT spelling, including the scheme (`cloudpit://` vs `quay://`), the kind segment and the
- * `board` suffix, because that string is the server's object key. Since 2.1 the formatters write
- * `cloudpit://` while the parser still accepts the legacy `cloudcli://` spelling and normalizes
- * it onto the same canonical address. Everything outside the grammar is rejected rather than
- * coerced, so a mis-spelled link cannot address a second object for the same conversation.
+ * `board` suffix, because that string is the server's object key. 3.0 owns one cloud spelling:
+ * the formatters write `cloudpit://` and the retired 2.x `cloudcli://` read is rejected, in step
+ * with the server's copy. Everything outside the grammar is rejected rather than coerced, so a
+ * mis-spelled link cannot address a second object for the same conversation.
  */
 describe('observation URI grammar', () => {
   it('round-trips a session URI', () => {
@@ -46,16 +46,12 @@ describe('observation URI grammar', () => {
     expect(parsed === null ? null : formatObservationUri(parsed)).toBe(uri);
   });
 
-  it('reads the legacy cloudcli spelling as the same canonical cloudpit address', () => {
-    expect(parseObservationUri('cloudcli://session/legacy-1')).toEqual({
-      scheme: 'cloudpit',
-      kind: 'session',
-      id: 'legacy-1',
-      uri: 'cloudpit://session/legacy-1',
-    });
-    expect(parseObservationUri('cloudcli://architecture/legacy-2')?.uri).toBe(
-      'cloudpit://architecture/legacy-2',
-    );
+  it('rejects the retired cloudcli spelling (3.0 owns one cloud scheme)', () => {
+    expect(parseObservationUri('cloudcli://session/legacy-1')).toBeNull();
+    expect(parseObservationUri('cloudcli://architecture/legacy-2')).toBeNull();
+    // The R14 reply-item address is a different grammar and is NOT this parser's business;
+    // it also does not become an observation URI.
+    expect(parseObservationUri('cloudcli://session/legacy-1/msg/msg-1#item-1')).toBeNull();
   });
 
   it('round-trips the fleet board URI unchanged', () => {

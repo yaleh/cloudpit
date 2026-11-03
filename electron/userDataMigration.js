@@ -24,6 +24,9 @@ export const DESKTOP_USER_DATA_FILES = [
 const LEGACY_APP_DATA_DIRECTORY_NAME = 'CloudCLI';
 const CLOUDPIT_APP_DATA_DIRECTORY_NAME = 'Cloudpit';
 
+/** Exported so the app-id migration can name the legacy rollback folder. */
+export const LEGACY_DESKTOP_USER_DATA_DIRECTORY = LEGACY_APP_DATA_DIRECTORY_NAME;
+
 /**
  * Copies the three desktop userData files from the CloudCLI folder into the
  * Cloudpit folder.

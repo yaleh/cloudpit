@@ -213,7 +213,7 @@ export class CodexAppServerConnection {
       ? { experimentalApi: true }
       : {};
     await this.request('initialize', {
-      clientInfo: { name: 'cloudcli', title: 'CloudCLI', version: '1' },
+      clientInfo: { name: 'cloudpit', title: 'Cloudpit', version: '1' },
       capabilities,
     });
     this.experimentalApiDeclaredFlag = capabilities.experimentalApi === true;

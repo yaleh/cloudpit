@@ -225,7 +225,7 @@ async function withStatsServer(run: (server: StatsServer) => Promise<void>): Pro
   const port = (httpServer.address() as AddressInfo).port;
 
   const issue = (userId: number, scopes: string[]): { id: number; token: string } => {
-    const issued = tokens.issueToken({ userId, name: 'self-check', scopes, expiresInDays: 30 });
+    const issued = tokens.issueToken({ userId, name: 'self-check', scopes: scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:')), expiresInDays: 30 });
     if (!issued.ok) {
       throw new Error('the harness issued a token with a lifetime the service rejects');
     }

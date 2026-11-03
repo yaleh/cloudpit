@@ -12,11 +12,10 @@
  *   quay://<fleetProjectId>/board        — one fleet project's board (the fleet's own grammar)
  *   quay://fleet/initiative/<slug>       — one cross-project initiative (the fleet's reserved segment)
  *
- * 2.1 SWITCHES THE WRITE SPELLING, NOT THE READ. The legacy `cloudcli://session/<id>` and
- * `cloudcli://architecture/<id>` spellings stay accepted (retired in 3.0); the parser normalizes
- * either spelling onto the canonical `cloudpit://` address, so a link minted before 2.1 addresses
- * the same object row the formatters now produce. See
- * `docs/proposals/cloudpit-compat-retirement.md` (R6/R7).
+ * 3.0 OWNS ONE SPELLING. 2.1 switched the write and kept the legacy `cloudcli://session/<id>` /
+ * `cloudcli://architecture/<id>` read spellings; this release retires those reads, so the parser
+ * accepts only the canonical `cloudpit://` forms. The 2.1 key normalization already moved stored
+ * object rows onto that spelling. See `docs/proposals/cloudpit-compat-retirement.md` (R6/R7).
  *
  * The initiative address is the fleet's (`ADR-013` reserves `fleet` for exactly this object).
  * The cockpit's initiative view pins it to the wall, so the watch routes must accept it even
@@ -52,7 +51,7 @@ export type ObservationUri =
 /** One path segment: at least one character, none of the URI's structural characters. */
 const SEGMENT = '[^/?#\\s]+';
 
-const CLOUDCLI_URI = new RegExp(`^(?:cloudcli|cloudpit)://(session|architecture)/(${SEGMENT})$`);
+const CLOUDPIT_URI = new RegExp(`^cloudpit://(session|architecture)/(${SEGMENT})$`);
 const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
 /** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
 const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
@@ -100,12 +99,10 @@ export function formatObservationUri(parsed: ObservationUri): string {
  */
 export function parseObservationUri(value: unknown): ObservationUri | null {
   if (typeof value !== 'string') return null;
-  const cloud = CLOUDCLI_URI.exec(value);
+  const cloud = CLOUDPIT_URI.exec(value);
   if (cloud !== null) {
     const kind = cloud[1] === 'session' ? 'session' : 'architecture';
     const id = cloud[2]!;
-    // Both spellings parse; 2.1 normalizes them onto the canonical `cloudpit://` address, so a
-    // deep link minted before the flip keys the same object row the formatters now produce.
     return { scheme: 'cloudpit', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
   }
   const initiative = QUAY_INITIATIVE_URI.exec(value);
@@ -120,33 +117,11 @@ export function parseObservationUri(value: unknown): ObservationUri | null {
 }
 
 /**
- * The pre-2.1 `cloudcli://` spelling of a cloud object, or `null` for a fleet (`quay://`) address.
- * The observation store uses it to keep reading rows a 2.0 producer wrote under the legacy key;
- * consumers: `server/modules/observation/observation-store.ts`.
- */
-export function legacyCloudUri(value: string): string | null {
-  const parsed = parseObservationUri(value);
-  if (parsed === null || parsed.scheme !== 'cloudpit') return null;
-  return `cloudcli://${parsed.kind}/${parsed.id}`;
-}
-
-/**
- * Maps any accepted spelling of an object address onto its canonical `cloudpit://` form; a
- * `quay://` address (or an unparseable value) is returned verbatim. Consumers: the observation
- * store's row mapping and the wall's join keys.
+ * Maps an accepted object address onto its canonical `cloudpit://` form; a `quay://` address (or
+ * an unparseable value) is returned verbatim. Consumers: the observation store's row mapping and
+ * the wall's join keys.
  */
 export function canonicalObservationUri(value: string): string {
   const parsed = parseObservationUri(value);
   return parsed === null ? value : parsed.uri;
-}
-
-/**
- * Every storage spelling a read must try for one address, canonical first then the legacy key.
- * A `quay://` address has exactly one (the fleet owns it verbatim). Consumers: the observation
- * store, so a 2.0 row and a 2.1 row of the same object are both reachable.
- */
-export function observationUriSpellings(value: string): string[] {
-  const legacy = legacyCloudUri(value);
-  if (legacy === null) return [canonicalObservationUri(value)];
-  return [canonicalObservationUri(value), legacy];
 }

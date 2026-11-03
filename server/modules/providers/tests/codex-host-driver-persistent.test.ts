@@ -484,11 +484,11 @@ test('driver conforms to IProviderHostDriver with multiplexedHost=false (AC8)', 
 });
 
 /**
- * The failure this criterion pins: CloudCLI's `default` effort sentinel is not
+ * The failure this criterion pins: Cloudpit's `default` effort sentinel is not
  * a codex effort, and the locked 0.153.4 app-server refuses the whole turn with
  * `Invalid value: 'default'` rather than ignoring the field.
  */
-test("turn/start omits CloudCLI's 'default' effort and forwards a codex value (AC1)", () => {
+test("turn/start omits Cloudpit's 'default' effort and forwards a codex value (AC1)", () => {
   const withDefault = turnParams('thread-effort', { command: 'hi', options: { effort: 'default' } });
   const withHigh = turnParams('thread-effort', { command: 'hi', options: { effort: 'high' } });
   const withUltracode = turnParams('thread-effort', { command: 'hi', options: { effort: 'ultracode' } });

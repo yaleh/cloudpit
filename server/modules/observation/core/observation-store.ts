@@ -39,8 +39,6 @@ import {
 } from './blind-spots.js';
 import {
   canonicalObservationUri,
-  legacyCloudUri,
-  observationUriSpellings,
   parseObservationUri,
   type ObservationKind,
   type ObservationUri,
@@ -254,8 +252,8 @@ function toObservedObject(row: ObservedObjectRow): ObservedObject {
     tier,
   );
   return {
-    // A 2.0 row carries the legacy `cloudcli://` key; every reading of it is normalized to the
-    // canonical `cloudpit://` address 2.1 writes (R6/R7 in the retirement plan).
+    // Stored rows are canonical `cloudpit://` keys (the 2.1 normalization moved the 2.0 rows);
+    // the projection normalizes once more so every reading of an object is one string.
     uri: canonicalObservationUri(row.uri),
     kind,
     title: row.title,
@@ -322,42 +320,22 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
   }
   const publish = deps.publish ?? (() => {});
 
-  const spellingsOf = (uri: string): string[] => observationUriSpellings(uri);
-
   /**
-   * The row key a write must use. A new object lands on the canonical `cloudpit://` key (2.1's
-   * write flip); an object 2.0 already stored under the legacy key keeps that row so its
-   * revision chain is not restarted, and every read still reports the canonical address.
+   * The row key a write must use. 3.0 has exactly one spelling: a new object lands on (and an
+   * existing object continues) the canonical `cloudpit://` key. The 2.1 key normalization already
+   * moved the rows a 2.0 producer wrote, so no read has to try a legacy key any more.
    */
-  const storageUriOf = (parsed: ObservationUri): string => {
-    const legacy = legacyCloudUri(parsed.uri);
-    if (
-      legacy !== null &&
-      observationDb.readObject(parsed.uri) === null &&
-      observationDb.readObject(legacy) !== null
-    ) {
-      return legacy;
-    }
-    return parsed.uri;
-  };
+  const storageUriOf = (parsed: ObservationUri): string => parsed.uri;
 
-  /** Revisions across both storage spellings, one per revision number, oldest first. */
+  /** Revisions for the one canonical spelling, oldest first. */
   const revisionsAfter = (uri: string, afterRevision: number): ObservedRevisionRow[] => {
-    const byRevision = new Map<number, ObservedRevisionRow>();
-    for (const spelling of spellingsOf(uri)) {
-      for (const row of observationDb.listRevisionsAfter(spelling, afterRevision)) {
-        if (!byRevision.has(row.revision)) byRevision.set(row.revision, row);
-      }
-    }
-    return [...byRevision.values()].sort((left, right) => left.revision - right.revision);
+    return observationDb.listRevisionsAfter(uri, afterRevision);
   };
 
   const publishRevision = (uri: string, revision: number, status: ObservedStatus, deltaItems: string[]): void => {
     const recipients = new Set<string>();
-    for (const spelling of spellingsOf(uri)) {
-      for (const userId of observationDb.listWatchUserIds(spelling)) recipients.add(userId);
-      for (const userId of observationDb.listSeenUserIds(spelling)) recipients.add(userId);
-    }
+    for (const userId of observationDb.listWatchUserIds(uri)) recipients.add(userId);
+    for (const userId of observationDb.listSeenUserIds(uri)) recipients.add(userId);
     for (const userId of recipients) {
       publish(userId, { kind: 'observation.update', uri, revision, seenRevision: null, deltaItems });
     }
@@ -366,17 +344,14 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
   const requireUri = (value: unknown) => {
     const parsed = parseObservationUri(value);
     if (parsed === null) {
-      throw invalid('`uri` must be one of cloudcli://session/<id> (or cloudpit://session/<id>), cloudcli://architecture/<id> (or cloudpit://architecture/<id>), quay://<id>/board', 'INVALID_URI');
+      throw invalid('`uri` must be one of cloudpit://session/<id>, cloudpit://architecture/<id>, quay://<id>/board', 'INVALID_URI');
     }
     return parsed;
   };
 
   const readObject = (uri: string): ObservedObject | null => {
-    for (const spelling of spellingsOf(uri)) {
-      const row = observationDb.readObject(spelling);
-      if (row !== null) return toObservedObject(row);
-    }
-    return null;
+    const row = observationDb.readObject(uri);
+    return row === null ? null : toObservedObject(row);
   };
 
   return {
@@ -462,18 +437,15 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       if (!Number.isInteger(revision) || revision < 1) {
         throw invalid('`revision` must be a positive integer');
       }
-      const current =
-        spellingsOf(parsed.uri)
-          .map((spelling) => observationDb.readSeenCursor(key, spelling))
-          .find((row) => row !== null) ?? null;
+      const current = observationDb.readSeenCursor(key, parsed.uri);
       // A cursor never moves backwards: a late frame from an older device must not resurrect
       // deltas the user has already cleared on another one.
       if (current !== null && revision <= current.revision) {
         return { cursor: toSeenCursor(current), advanced: false };
       }
       const at = now();
-      // Continue the row the user already has (a legacy key) so one object keeps one cursor.
-      observationDb.writeSeenCursor(key, current?.uri ?? parsed.uri, revision, at);
+      // One spelling, one row: the cursor always lives under the canonical address.
+      observationDb.writeSeenCursor(key, parsed.uri, revision, at);
       const cursor: SeenCursor = { userId: key, uri: parsed.uri, revision, at };
       const object = readObject(parsed.uri);
       publish(key, {
@@ -490,11 +462,8 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       const key = userKey(userId);
       const parsed = parseObservationUri(uri);
       if (parsed === null) return null;
-      for (const spelling of spellingsOf(parsed.uri)) {
-        const row = observationDb.readSeenCursor(key, spelling);
-        if (row !== null) return toSeenCursor(row);
-      }
-      return null;
+      const row = observationDb.readSeenCursor(key, parsed.uri);
+      return row === null ? null : toSeenCursor(row);
     },
 
     pin(userId, uri) {
@@ -516,10 +485,7 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
     unpin(userId, uri) {
       const key = userKey(userId);
       const parsed = requireUri(uri);
-      // A pin 2.0 wrote lives under the legacy key; remove whichever spelling holds it.
-      const removed = spellingsOf(parsed.uri)
-        .map((spelling) => observationDb.deleteWatchEntry(key, spelling))
-        .some((deleted) => deleted);
+      const removed = observationDb.deleteWatchEntry(key, parsed.uri);
       publish(key, {
         kind: 'observation.update',
         uri: parsed.uri,
@@ -532,7 +498,7 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
 
     getWall(userId) {
       const key = userKey(userId);
-      // Pins and cursors 2.0 wrote under the legacy key join the same canonical object address.
+      // Pins and cursors are already canonical; normalization keeps the join key one string.
       const pinnedUris = new Set(
         observationDb.listWatchEntries(key).map((pin) => canonicalObservationUri(pin.uri)),
       );
@@ -546,6 +512,9 @@ export function createObservationStore(deps: ObservationStoreDeps = {}): Observa
       // revision is the object's current state (a 2.0 row plus a post-flip row never doubles it).
       const objects = new Map<string, ObservedObject>();
       for (const row of observationDb.listObjects()) {
+        // 3.0 reads one spelling: a pre-normalization row still keyed `cloudcli://` is not an
+        // address this release can show (the 2.1 migration moved the rows it could reach).
+        if (parseObservationUri(row.uri) === null) continue;
         const object = toObservedObject(row);
         const known = objects.get(object.uri);
         if (known === undefined || object.revision > known.revision) objects.set(object.uri, object);

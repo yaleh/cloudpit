@@ -5,7 +5,7 @@
  *
  * WHY A KNOB HERE. A Codex resident process is spawned from the app-server
  * launcher with only `cwd`/`env`, so out of the box it sees nothing but the
- * operator's `~/.codex/config.toml` servers. Injecting CloudCLI's gateway makes
+ * operator's `~/.codex/config.toml` servers. Injecting Cloudpit's gateway makes
  * the same tools a Claude client gets available to a Codex session — but only
  * when an operator has minted a credential for it, which is why the shipped
  * default is OFF.

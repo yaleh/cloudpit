@@ -18,7 +18,7 @@ import {
 } from '@/shared/utils.js';
 
 /**
- * Curated OpenCode catalog shipped as immutable CloudCLI defaults.
+ * Curated OpenCode catalog shipped as immutable Cloudpit defaults.
  *
  * OpenCode routes by `<providerID>/<modelID>`, so this list mirrors the
  * providers `opencode models --verbose` reports: the OpenCode Zen gateway, the

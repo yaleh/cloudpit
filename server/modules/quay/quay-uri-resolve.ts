@@ -20,7 +20,7 @@ import { locateQuayFleetCli } from './quay-fleet-locator.js';
  *    `wall summary` to it VERBATIM — the same project-scoped address
  *    (`quay://<project>/…`) the wall mints, because that is the only form the fleet parses.
  *    When that read port is unavailable, a TASK reference
- *    falls back to the snapshot CloudCLI already reads for the Quay panel, which is honest
+ *    falls back to the snapshot Cloudpit already reads for the Quay panel, which is honest
  *    stored data — never a summary generated on the spot. `wall resolve` never consults the
  *    registry, so the fleet's `project-not-registered` refusal can only arrive from
  *    `wall summary`; it is read as its own fallback reason rather than as a broken reader.
@@ -78,7 +78,7 @@ function reject(reason: QuayUriRejection): QuayUriParseResult {
  * Parses one `quay://` reference into its L1 shape, or names why it is not one.
  *
  * The project segment is a quay-fleet REGISTRY ID (`claudecodeui`, `quay-fleet`), never
- * CloudCLI's internal project UUID — see `quay-fleet-project-id.ts` for the join.
+ * Cloudpit's internal project UUID — see `quay-fleet-project-id.ts` for the join.
  *
  * Accepted forms (project segment mandatory):
  *   quay://<fleet-project-id>/task/<id>
@@ -512,7 +512,7 @@ export type QuayUriSummaryResult = QuayUriSummarySuccess | QuayUriFailure;
  * `root` is the registered workspace root the segment joins to. It is passed to `wall
  * summary` as its OPTIONAL `--root` consistency override; a blank root means the segment
  * alone selects the workspace. `projectId`
- * is the CloudCLI project at that root, when this instance knows one; the snapshot fallback
+ * is the Cloudpit project at that root, when this instance knows one; the snapshot fallback
  * reads that project, and `null` means there is no snapshot to fall back to.
  */
 export type QuayUriFleetProject = {
@@ -526,7 +526,7 @@ export type QuayUriResolveDependencies = {
   fleetWallReader: QuayFleetWallReader | null;
   /**
    * Resolves a reference's project segment — a quay-fleet REGISTRY ID (`claudecodeui`), never
-   * a CloudCLI project id — to the registered root and the CloudCLI project at it. `null` when
+   * a Cloudpit project id — to the registered root and the Cloudpit project at it. `null` when
    * the registry does not know the segment.
    */
   resolveFleetProject(projectSegment: string): Promise<QuayUriFleetProject | null>;
@@ -591,7 +591,7 @@ export function createQuayUriResolver(dependencies: QuayUriResolveDependencies):
    * The optional `--root` consistency override for a summary read.
    *
    * The URI's PROJECT SEGMENT is authoritative: the fleet resolves it to a workspace root
-   * through its own registry. CloudCLI knows a root only through that same registry join
+   * through its own registry. Cloudpit knows a root only through that same registry join
    * ({@link QuayUriResolveDependencies.resolveFleetProject}), so the root passed here is by
    * construction the segment's own root — a consistency override, never a competing one. A
    * join without a root therefore sends no override (the segment alone selects the
@@ -625,7 +625,7 @@ export function createQuayUriResolver(dependencies: QuayUriResolveDependencies):
    * port answered (a summary miss keeps its type/actions/fragment); it is absent when the
    * port could not be read, in which case no action set is forwarded.
    *
-   * A registered fleet project CloudCLI has no project for still has an L1 reading; only the
+   * A registered fleet project Cloudpit has no project for still has an L1 reading; only the
    * fallback's CONTENT is missing, which is reported as `snapshot-unavailable`.
    */
   const resolveFromSnapshot = async (
@@ -639,7 +639,7 @@ export function createQuayUriResolver(dependencies: QuayUriResolveDependencies):
       return reference === undefined
         ? failure(
             'snapshot-unavailable',
-            `fleet project '${address.project}' is registered but no CloudCLI project is open at '${project.root}'`,
+            `fleet project '${address.project}' is registered but no Cloudpit project is open at '${project.root}'`,
           )
         : fleetAnswer(address, uri, reference);
     }
@@ -677,7 +677,7 @@ export function createQuayUriResolver(dependencies: QuayUriResolveDependencies):
     const { address } = parsed;
     const canonical = formatQuayAddress(address);
 
-    // The project segment is a fleet REGISTRY ID. An unresolvable segment (a CloudCLI UUID is
+    // The project segment is a fleet REGISTRY ID. An unresolvable segment (a Cloudpit UUID is
     // the usual shape) is named as such before any read is attempted.
     const project = await dependencies.resolveFleetProject(address.project);
     if (project === null) {

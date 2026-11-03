@@ -1,3 +1,5 @@
+import os from 'node:os';
+
 import {
   accessTokensDb,
   credentialsDb,
@@ -18,10 +20,17 @@ import {
   notifyUserIfEnabled,
 } from '@/modules/notifications/index.js';
 import { createAccessTokensService } from '@/modules/oauth/index.js';
+import { installCodexProviderRegistryPort } from '@/shared/ports/codex-provider-registry.port.js';
+import { AppError } from '@/shared/utils.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
-import { createCodexModelProvidersSource } from './codex-model-providers.settings.js';
+import { RESERVED_CODEX_PROVIDER_IDS } from './codex-model-providers.schema.js';
+import {
+  createCodexModelProvidersSource,
+  probeCodexProviderConnection,
+  readCodexUserProviderImports,
+} from './codex-model-providers.settings.js';
 import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
 import {
   readCockpitSessionStart,
@@ -38,6 +47,25 @@ const accessTokensService = createAccessTokensService({ now: () => new Date() })
  * source over the same file (reads are uncached, so both see the latest edit).
  */
 const codexModelProvidersSource = createCodexModelProvidersSource();
+
+/**
+ * The providers module refuses a model entry's `codexProviderId` unless it names a provider this
+ * registry (or Codex's built-in list) knows. It reads that judgement through a shared port rather
+ * than importing this module: `providers -> settings` would close the `providers -> settings ->
+ * mcp-gateway -> providers` cycle AC-394 pins. Reads are uncached, so a provider saved through
+ * the settings API is visible to the very next model write.
+ *
+ * The same install carries `resolve`, the spawn-time lookup a per-run/resident Codex injection
+ * uses to read the endpoint and the token-file secret. It resolves against the live file on every
+ * call, so an edit reaches the next launch without a restart.
+ */
+installCodexProviderRegistryPort({
+  read: () => ({
+    providers: codexModelProvidersSource.read().providers.map((provider) => ({ id: provider.id })),
+    reservedIds: RESERVED_CODEX_PROVIDER_IDS,
+  }),
+  resolve: (id) => codexModelProvidersSource.resolve(id),
+});
 
 /**
  * The two files the cockpit settings page works with: the one THIS boot read, and the one a save
@@ -187,6 +215,22 @@ const settingsService = createSettingsService({
   codexModelProviders: {
     read: () => codexModelProvidersSource.read(),
     write: (input) => codexModelProvidersSource.write(input),
+    // The composition root decides WHOSE profile is imported: this process's operator. The read
+    // is one-way (the user's TOML files are never written); the bind goes to the project source.
+    readUserImports: () => readCodexUserProviderImports({ homeDir: os.homedir(), env: process.env }),
+    // The probe resolves the SAVED entry and its token-file secret here, so a browser request
+    // only names an id. The probe is a real POST /responses; the settings page shows the
+    // billing sentence before it is pressed.
+    testConnection: async (providerId) => {
+      const resolved = codexModelProvidersSource.resolve(providerId);
+      if (!resolved.ok) {
+        throw new AppError(resolved.problem, {
+          code: 'CODEX_PROVIDER_CONNECTION_UNRESOLVED',
+          statusCode: 400,
+        });
+      }
+      return probeCodexProviderConnection(resolved.provider);
+    },
   },
 });
 

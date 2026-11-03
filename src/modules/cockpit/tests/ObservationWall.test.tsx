@@ -248,7 +248,7 @@ vi.mock('@/shared/api', () => ({
   authenticatedFetch: httpMock.authenticatedFetch,
 }));
 
-/** The CloudCLI project id an older cockpit URL stored (a UUID). The URL must not keep it. */
+/** The Cloudpit project id an older cockpit URL stored (a UUID). The URL must not keep it. */
 const PROJECT_UUID = 'c5a57036-de6c-4f0a-9d3e-123456789abc';
 
 const FLEET: QuayFleetSummary = {
@@ -347,7 +347,7 @@ const entry = (
 /** Five tiles covering all three kinds and all four states, one pinned and one automatic. */
 const WALL: ObservationWallData = {
   entries: [
-    entry('cloudcli://session/s1', 'session', 'Fix login', 'attention', {
+    entry('cloudpit://session/s1', 'session', 'Fix login', 'attention', {
       pinned: true,
       deltaItems: ['one', 'two'],
       digest: { summary: 'Login fails on refresh', recentTurn: 'The token refresh loop', changes: ['auth.ts'], tests: ['login.spec: pass'] },
@@ -355,11 +355,11 @@ const WALL: ObservationWallData = {
     entry('quay://claudecodeui/board', 'project', 'claudecodeui', 'attention', {
       digest: { summary: '2 tasks ready', layers: { tests: 'green', fanIn: 'idle' } },
     }),
-    entry('cloudcli://architecture/p1', 'architecture', 'claudecodeui architecture', 'unevaluated', {
+    entry('cloudpit://architecture/p1', 'architecture', 'claudecodeui architecture', 'unevaluated', {
       reason: 'graph not built yet',
       digest: { diffs: ['pkg::auth +2'], sessionId: 's-arch', entityId: 'pkg::auth' },
     }),
-    entry('cloudcli://session/s2', 'session', 'Release notes', 'ok', { pinned: true }),
+    entry('cloudpit://session/s2', 'session', 'Release notes', 'ok', { pinned: true }),
     entry('quay://quay-fleet/board', 'project', 'quay-fleet', 'red', {
       digest: { summary: 'driver crashed' },
     }),
@@ -487,7 +487,7 @@ describe('the wall draws every kind and every state honestly', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    const unevaluated = tileByUri('cloudcli://architecture/p1');
+    const unevaluated = tileByUri('cloudpit://architecture/p1');
     expect(unevaluated.getAttribute('data-observation-state')).toBe('unevaluated');
     expect(within(unevaluated).getByTestId('observation-tile-reason').textContent).toContain(
       'graph not built yet',
@@ -506,14 +506,14 @@ describe('the wall draws every kind and every state honestly', () => {
     expect(within(automatic).getByTestId('observation-tile-temporary')).toBeTruthy();
 
     // The pinned attention session is resident: it is not temporary.
-    const pinned = tileByUri('cloudcli://session/s1');
+    const pinned = tileByUri('cloudpit://session/s1');
     expect(pinned.getAttribute('data-observation-pinned')).toBe('true');
     expect(pinned.getAttribute('data-observation-temporary')).toBe('false');
   });
 
   it('folds past twelve tiles and shows the folded count', async () => {
     const entries = Array.from({ length: 13 }, (_, index) =>
-      entry(`cloudcli://session/s${index}`, 'session', `Session ${index}`, 'ok'),
+      entry(`cloudpit://session/s${index}`, 'session', `Session ${index}`, 'ok'),
     );
     wallState = { ...WALL, entries, collapsedCount: 0 };
 
@@ -530,7 +530,7 @@ describe('the wall draws every kind and every state honestly', () => {
 describe('the observation layer itself', () => {
   it('puts a 「观察层自身」 tile at the head when a producer is stale, outside the twelve slots', async () => {
     const entries = Array.from({ length: 12 }, (_, index) =>
-      entry(`cloudcli://session/s${index}`, 'session', `Session ${index}`, 'ok'),
+      entry(`cloudpit://session/s${index}`, 'session', `Session ${index}`, 'ok'),
     );
     wallState = {
       ...WALL,
@@ -577,18 +577,18 @@ describe('seen and pins', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    const tile = tileByUri('cloudcli://session/s1');
+    const tile = tileByUri('cloudpit://session/s1');
     fireEvent.click(within(tile).getByTestId('observation-tile-open'));
 
     const preview = await screen.findByTestId('cockpit-observation-preview');
-    expect(preview.getAttribute('data-observation-uri')).toBe('cloudcli://session/s1');
+    expect(preview.getAttribute('data-observation-uri')).toBe('cloudpit://session/s1');
     // The latest turn and its changes/tests are on the stage.
     expect(within(preview).getByTestId('observation-preview-recent-turn').textContent).toContain(
       'The token refresh loop',
     );
 
     await waitFor(() => expect(seenCalls).toHaveLength(1));
-    expect(seenCalls[0]).toEqual({ uri: 'cloudcli://session/s1', revision: 3 });
+    expect(seenCalls[0]).toEqual({ uri: 'cloudpit://session/s1', revision: 3 });
 
     // 「稍后再看」 closes without moving the cursor.
     fireEvent.click(within(preview).getByTestId('observation-preview-later'));
@@ -606,9 +606,9 @@ describe('seen and pins', () => {
     expect(watchCalls[0]).toEqual({ method: 'PUT', uri: 'quay://claudecodeui/board' });
 
     // The pinned session → DELETE.
-    fireEvent.click(within(tileByUri('cloudcli://session/s1')).getByTestId('observation-tile-pin'));
+    fireEvent.click(within(tileByUri('cloudpit://session/s1')).getByTestId('observation-tile-pin'));
     await waitFor(() => expect(watchCalls).toHaveLength(2));
-    expect(watchCalls[1]).toEqual({ method: 'DELETE', uri: 'cloudcli://session/s1' });
+    expect(watchCalls[1]).toEqual({ method: 'DELETE', uri: 'cloudpit://session/s1' });
   });
 });
 
@@ -626,7 +626,7 @@ describe('the LLM digest tier', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    fireEvent.click(within(tileByUri('cloudcli://session/s1')).getByTestId('observation-tile-open'));
+    fireEvent.click(within(tileByUri('cloudpit://session/s1')).getByTestId('observation-tile-open'));
     const preview = await screen.findByTestId('cockpit-observation-preview');
 
     const options = within(preview).getAllByTestId('observation-preview-llm-option');
@@ -667,7 +667,7 @@ describe('the LLM digest tier', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    fireEvent.click(within(tileByUri('cloudcli://session/s1')).getByTestId('observation-tile-open'));
+    fireEvent.click(within(tileByUri('cloudpit://session/s1')).getByTestId('observation-tile-open'));
     const preview = await screen.findByTestId('cockpit-observation-preview');
 
     expect(within(preview).queryByTestId('observation-preview-llm-option')).toBeNull();
@@ -683,10 +683,10 @@ describe('blind spots and the raw material', () => {
     await screen.findByTestId('observation-wall-tiles');
 
     const cases: Array<{ uri: string; kind: WallEntry['object']['kind']; phrase: string }> = [
-      { uri: 'cloudcli://session/s1', kind: 'session', phrase: '看不见会话是否偏离意图' },
+      { uri: 'cloudpit://session/s1', kind: 'session', phrase: '看不见会话是否偏离意图' },
       { uri: 'quay://claudecodeui/board', kind: 'project', phrase: '看不见未登记到 quay-fleet 的项目' },
       {
-        uri: 'cloudcli://architecture/p1',
+        uri: 'cloudpit://architecture/p1',
         kind: 'architecture',
         phrase: '看不见运行时依赖与动态 import',
       },
@@ -728,7 +728,7 @@ describe('blind spots and the raw material', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    fireEvent.click(within(tileByUri('cloudcli://session/s1')).getByTestId('observation-tile-open'));
+    fireEvent.click(within(tileByUri('cloudpit://session/s1')).getByTestId('observation-tile-open'));
     const preview = await screen.findByTestId('cockpit-observation-preview');
     fireEvent.click(within(preview).getByTestId('observation-preview-raw-material'));
 
@@ -750,7 +750,7 @@ describe('blind spots and the raw material', () => {
     renderCockpit();
     await screen.findByTestId('observation-wall-tiles');
 
-    fireEvent.click(within(tileByUri('cloudcli://architecture/p1')).getByTestId('observation-tile-open'));
+    fireEvent.click(within(tileByUri('cloudpit://architecture/p1')).getByTestId('observation-tile-open'));
     const preview = await screen.findByTestId('cockpit-observation-preview');
     fireEvent.click(within(preview).getByTestId('observation-preview-raw-material'));
 
@@ -779,7 +779,7 @@ describe('views are browser history', () => {
   });
 
   it('writes the fleet registry id into the URL and replaces a stored UUID link', async () => {
-    // `p1` is the CloudCLI project id an older link carried; `claudecodeui` is the fleet id.
+    // `p1` is the Cloudpit project id an older link carried; `claudecodeui` is the fleet id.
     renderCockpit(`/cockpit?view=board&project=${PROJECT_UUID}`);
 
     await waitFor(() => expect(path()).toBe('/cockpit?view=board&project=claudecodeui'));
@@ -887,7 +887,7 @@ describe('every input gets an echo', () => {
         text: '看看这个',
         visible: [],
         viewUri: null,
-        focusUri: 'cloudcli://session/s1',
+        focusUri: 'cloudpit://session/s1',
         target: {
           sessionId: 's1',
           projectId: 'p1',

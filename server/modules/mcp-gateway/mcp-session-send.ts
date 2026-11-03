@@ -95,12 +95,24 @@ import type { McpRunGetDeps, RunGetPayload } from './mcp-run-get.js';
  */
 export type { McpControlCaller };
 
-/** The refusals `session_send` translates. The vocabulary is the control service's own. */
+/**
+ * The refusals `session_send` translates. The vocabulary is the control
+ * service's own.
+ *
+ * The last two are the session's upstream-provider guard (AC-462): a model that
+ * would move the session to another provider, or one bound to a provider that
+ * no longer exists. The adapter does not pass them through verbatim — it maps
+ * both to the gateway's own `INVALID_ARGUMENT` so every tool keeps emitting a
+ * canonical `MCP_ERROR_CODES` value — but the seam has to state them, because
+ * the control service's result now carries them.
+ */
 export type McpControlRefusalCode =
   | 'SESSION_NOT_FOUND'
   | 'UNSUPPORTED_PROVIDER'
   | 'RUN_IN_PROGRESS'
-  | 'FORBIDDEN';
+  | 'FORBIDDEN'
+  | 'SESSION_PROVIDER_MISMATCH'
+  | 'SESSION_PROVIDER_UNKNOWN';
 
 /**
  * The control service result `session_send` reads, declared structurally.
@@ -594,6 +606,13 @@ export async function buildSessionSend(
         runId: current?.runId ?? null,
         hint: RUN_IN_PROGRESS_HINT,
       });
+    }
+    if (result.code === 'SESSION_PROVIDER_MISMATCH' || result.code === 'SESSION_PROVIDER_UNKNOWN') {
+      // The selection is unusable for THIS session (its thread is bound to the
+      // provider it started under, or the bound provider is gone). The message
+      // already names the fork/new-session action, so the envelope only has to
+      // state the class in the gateway's own vocabulary.
+      throw new McpToolError(MCP_ERROR_CODES.INVALID_ARGUMENT, result.message, true);
     }
     throw new McpToolError(result.code, result.message, true);
   }

@@ -56,7 +56,7 @@ export type CockpitVisibleSet = {
   focusables: CockpitFocusable[];
   /**
    * The project roster the display can address, so the hub can map a `quay://` project
-   * segment back to the CloudCLI project id the fleet registry is keyed by. Optional: a
+   * segment back to the Cloudpit project id the fleet registry is keyed by. Optional: a
    * report without it still contributes focusables; target resolution then fails honestly.
    */
   projects: CockpitVisibleProject[];

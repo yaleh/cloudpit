@@ -22,10 +22,7 @@
  * objects in one process, and a process-lifetime cache would collapse them.
  */
 
-import {
-  ACCESS_TOKEN_SCOPES,
-  CLOUDPIT_ACCESS_TOKEN_SCOPES,
-} from '@/shared/mcp-contract/index.js';
+import { CLOUDPIT_ACCESS_TOKEN_SCOPES } from '@/shared/mcp-contract/index.js';
 
 import { readMcpOauthEnabled } from './mcp-gateway.loopback.js';
 
@@ -183,7 +180,9 @@ export function buildAuthorizationServerMetadata(options: {
     code_challenge_methods_supported: ['S256'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
-    scopes_supported: [...CLOUDPIT_ACCESS_TOKEN_SCOPES, ...ACCESS_TOKEN_SCOPES],
+    // 3.0 advertises exactly the one wire vocabulary. The canonical `cloudcli:*` names are
+    // internal (stored grants and `requiredScopes`), never an accepted request spelling.
+    scopes_supported: [...CLOUDPIT_ACCESS_TOKEN_SCOPES],
   };
 
   if (dcrMode !== 'off') {

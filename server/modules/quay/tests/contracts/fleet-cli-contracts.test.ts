@@ -1,7 +1,7 @@
 /**
- * Cross-repository contract tests: CloudCLI against the INSTALLED quay-fleet.
+ * Cross-repository contract tests: Cloudpit against the INSTALLED quay-fleet.
  *
- * WHAT THIS FILE PROVES. Every `quay-fleet` invocation CloudCLI consumes is run against the real
+ * WHAT THIS FILE PROVES. Every `quay-fleet` invocation Cloudpit consumes is run against the real
  * binary on this host, and its JSON answer is checked against the declaration in `shapes.ts`.
  * The handshake goes first: if the fleet declares a contract this build does not speak, the run
  * reds and names the contract instead of exercising verbs whose output may have moved under us.
@@ -475,7 +475,7 @@ if (binPath === null) {
       );
       assertShape(contract.id, document, contract.shape);
 
-      // `wall resolve` was asked for the `#ac-<n>` form; validate the branch CloudCLI renders,
+      // `wall resolve` was asked for the `#ac-<n>` form; validate the branch Cloudpit renders,
       // not merely its presence (the shape declaration already pins kind/index).
       if (contract.id === 'wall-resolve') {
         const fragment = document?.fragment as { kind?: unknown; index?: unknown } | undefined;

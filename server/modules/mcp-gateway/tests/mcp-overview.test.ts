@@ -474,7 +474,7 @@ async function withOverviewHarness(
 
   // ---- the tokens ----
   const tokens = createAccessTokensService({ now: () => new Date(HOST_NOW_MS) });
-  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-overview', scopes: ['cloudcli:read'], expiresInDays: 30 });
+  const readToken = tokens.issueToken({ userId: USER_ONE, name: 'mcp-overview', scopes: ['cloudpit:read'], expiresInDays: 30 });
   if (!readToken.ok) {
     throw new Error('the harness must mint a read token');
   }
@@ -752,7 +752,7 @@ test('(f) quay_snapshot carries the in-flight reading and overview deliberately 
     assert.equal(refreshed.isError, false, 'the refreshing read must not error');
     const snapshot = (refreshed.payload as AnyRecord).snapshot as AnyRecord;
     console.log(`[f] quay_snapshot.inFlight = ${JSON.stringify(snapshot.inFlight)}`);
-    // The in-flight task reaches the CloudCLI client verbatim, through the real mount.
+    // The in-flight task reaches the Cloudpit client verbatim, through the real mount.
     assert.deepEqual(snapshot.inFlight, IN_FLIGHT_READING, 'the in-flight reading must round-trip verbatim');
 
     // Scope guard: `overview`'s per-project summary is AC-247's and this task must not

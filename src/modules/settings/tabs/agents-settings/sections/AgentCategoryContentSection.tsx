@@ -1,7 +1,9 @@
 import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, McpProject, SkillsProject } from '@/shared/types';
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
+import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
+import CodexProvidersContent from '@/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent';
 import ModelsContent from '@/modules/settings/tabs/agents-settings/sections/content/ModelsContent';
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
 
@@ -100,7 +102,11 @@ export default function AgentCategoryContentSection({
       )}
 
       {selectedCategory === 'models' && (
-        <ModelsContent agent={selectedAgent} />
+        // The panel is chosen from the provider table, not from a provider-id branch: a provider
+        // whose descriptor declares an upstream registry gets the registry + bound model library.
+        PROVIDER_DESCRIPTORS[selectedAgent].showsUpstreamProviderRegistry
+          ? <CodexProvidersContent agent={selectedAgent} />
+          : <ModelsContent agent={selectedAgent} />
       )}
 
       {selectedCategory === 'skills' && selectedAgent !== 'opencode' && (

@@ -76,6 +76,16 @@ type SessionRow = {
   /** Reasoning effort this session runs with; NULL until the app records one. */
   effort: string | null;
   /**
+   * The upstream provider the session's model is bound to; NULL when no binding
+   * has been recorded. Written once, by the session's first send.
+   *
+   * Optional in the type the way `transcript_name` is — a hand-built row (a
+   * test stub or an in-memory lookup) written before the column existed stays a
+   * valid `SessionRow` — but never absent from one this repository read out of
+   * the database.
+   */
+  model_provider_id?: string | null;
+  /**
    * Permission mode the session last sent a message with; NULL until a send
    * records one. NULL is a real answer, not "unknown": it means no message has
    * carried a mode for this session yet.
@@ -221,7 +231,8 @@ function sessionRowColumns(prefix = ''): string {
   ${displayNameSql(prefix)} AS custom_name,
   ${displayNameSourceSql(prefix)} AS name_source,
   ${prefix}transcript_name, ${prefix}transcript_name_source,
-  ${prefix}model, ${prefix}effort, ${prefix}permission_mode, ${prefix}lifecycle_mode,
+  ${prefix}model, ${prefix}effort, ${prefix}model_provider_id, ${prefix}permission_mode,
+  ${prefix}lifecycle_mode,
   ${prefix}forked_from_session_id, ${prefix}isArchived, ${prefix}created_at, ${prefix}updated_at`;
 }
 
@@ -522,7 +533,7 @@ export const sessionsDb = {
    * `session_id` is the stable app-facing id, while `provider_session_id`
    * stays NULL until the provider runtime announces its own id and
    * `assignProviderSessionId` records the mapping. `customName` is derived
-   * from the first visible CloudCLI message by the sessions service.
+   * from the first visible Cloudpit message by the sessions service.
    *
    * `selection` is the model/effort/permission-mode the session is being created
    * WITH, written in the same statement that mints the row. It is a parameter
@@ -594,6 +605,8 @@ export const sessionsDb = {
     forkedFromSessionId: string;
     model: string | null;
     effort: string | null;
+    /** The source's upstream-provider binding; copied so the branch resumes it. */
+    modelProviderId?: string | null;
     permissionMode: string | null;
     lifecycleMode: HostMode;
   }): string {
@@ -609,8 +622,8 @@ export const sessionsDb = {
       db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
         .run(input.providerSessionId, input.sessionId);
       db.prepare(
-        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, model, effort, permission_mode, lifecycle_mode, forked_from_session_id, isArchived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, model, effort, model_provider_id, permission_mode, lifecycle_mode, forked_from_session_id, isArchived, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       ).run(
         input.sessionId,
         input.provider,
@@ -620,6 +633,7 @@ export const sessionsDb = {
         input.jsonlPath,
         input.model,
         input.effort,
+        input.modelProviderId ?? null,
         input.permissionMode,
         input.lifecycleMode,
         input.forkedFromSessionId,
@@ -744,6 +758,29 @@ export const sessionsDb = {
        SET model = ?
        WHERE session_id = ?`
     ).run(model, sessionId);
+  },
+
+  /**
+   * Records the upstream provider a session's model is bound to.
+   *
+   * Write-once by construction, not by convention: the UPDATE only matches a
+   * row whose binding is still NULL or blank, so a second call cannot move a
+   * conversation to another provider behind the switch guard's back. Returns
+   * whether the binding was actually written.
+   *
+   * The service is the one that decides WHEN a binding exists
+   * (`providerModelsService.setSessionModel`), so this stays an ordinary row
+   * write with no provider knowledge of its own.
+   */
+  setSessionModelProviderId(sessionId: string, modelProviderId: string): boolean {
+    const db = getConnection();
+    const result = db.prepare(
+      `UPDATE sessions
+       SET model_provider_id = ?
+       WHERE session_id = ?
+         AND (model_provider_id IS NULL OR trim(model_provider_id) = '')`
+    ).run(modelProviderId, sessionId);
+    return result.changes > 0;
   },
 
   /**

@@ -56,7 +56,7 @@ const BOARD_NOUN_PATTERN = /(任务板|看板|board)/;
  *
  * The display NAME and the quay-fleet REGISTRY ID are matched — the same segment a `quay://`
  * address carries, so 「看 claudecodeui」 and `quay://claudecodeui/board` name one project. The
- * CloudCLI project id is deliberately NOT matched: a UUID is not pronounceable (and matching it
+ * Cloudpit project id is deliberately NOT matched: a UUID is not pronounceable (and matching it
  * would let a stray hex fragment in a sentence open a project nobody named).
  */
 function namedProject(

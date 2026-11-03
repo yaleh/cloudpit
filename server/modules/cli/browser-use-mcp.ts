@@ -44,11 +44,9 @@ const readNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
 // The environment bootstrap above has already loaded `.env`; the reader is
-// built here so the two spellings resolve against the final process env.
-const brandEnv = createBrandEnvReader({
-  env: process.env,
-  warn: (message) => console.warn(`[browser-use-mcp] ${message}`),
-});
+// built here so the canonical `CLOUDPIT_*` names resolve against the final
+// process env. The legacy `CLOUDCLI_*` spellings are no longer read (v3.0).
+const brandEnv = createBrandEnvReader({ env: process.env });
 const apiUrl = (brandEnv.read('BROWSER_USE_API_URL').value || 'http://127.0.0.1:3001/api/browser-use-mcp').replace(/\/$/, '');
 const apiToken = brandEnv.read('BROWSER_USE_MCP_TOKEN').value || '';
 const API_TIMEOUT_MS = Number.parseInt(brandEnv.read('BROWSER_USE_API_TIMEOUT_MS').value || '60000', 10);

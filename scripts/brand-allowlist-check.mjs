@@ -18,6 +18,19 @@
  * value-by-value so changing a display string can never touch a translation KEY (the locale
  * key-set digest pins every key).
  *
+ * The `brand-lines` kind is the code-wide sweep instrument: it matches ONLY the uppercase
+ * product token `CloudCLI`, on EVERY line including comments, and it expands directory globs
+ * (`server/**`, `src/**`, ...) over text extensions only — never `.json`, `.md` or binaries.
+ * Directory expansion never descends into `node_modules` or `.git`: installed packages and
+ * build caches (the e2e bundle cache under `server/node_modules/.cache`) are generated
+ * artifacts, not surfaces a sweep can or should fix, and walking them made the reading depend
+ * on which caches happened to exist in the checkout.
+ * That is deliberately narrower and wider at once than `code`: narrower in tokens (`claudecodeui`
+ * and `@yalehwang/cloudcli` keep their existing `code`-surface treatment), wider in lines (a
+ * stale comment in shipped source is still part of the brand surface). Its allowlist spans are
+ * FILE-SCOPED, so the legacy install directory literal is permitted only in the two migration
+ * modules and their tests, never as a global rule that would also swallow product copy.
+ *
  * The deprecated package name is matched in its lowercase spelling only (`@yalehwang/cloudcli`):
  * the product-visible token is `CloudCLI`, while the update path is the package name the CLI and
  * `system.service.ts` feed to npm. History-only files (CHANGELOG / `release.yml` comments /
@@ -46,8 +59,12 @@ import { fileURLToPath } from 'node:url';
  *                   install/upgrade command lines. Body prose is skipped so upstream-product
  *                   references kept for attribution do not need an allowlist span.
  * `code`          — every line except comment lines.
+ * `brand-lines`   — every line, comments included, matched against `CloudCLI` only. A surface
+ *                   of this kind may name a directory glob (`server/**` or `server/**\/*.ts`);
+ *                   it expands over text extensions, skips the checker's own files, and never
+ *                   descends into `node_modules` or `.git`.
  *
- * @typedef {'text' | 'json-values' | 'locale-values' | 'readme-install' | 'doc-head' | 'code'} SurfaceKind
+ * @typedef {'text' | 'json-values' | 'locale-values' | 'readme-install' | 'doc-head' | 'code' | 'brand-lines'} SurfaceKind
  */
 
 /**
@@ -59,9 +76,10 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * One piece of brand-bearing text extracted from a surface. `label` is the line number for
- * line-oriented surfaces and the JSON path for value-oriented ones.
+ * line-oriented surfaces and the JSON path for value-oriented ones. `brandLines` marks a source
+ * from a `brand-lines` surface, which matches `CloudCLI` alone instead of the full token set.
  *
- * @typedef {{ file: string, label: string, text: string }} BrandSource
+ * @typedef {{ file: string, label: string, text: string, brandLines?: boolean }} BrandSource
  */
 
 /**
@@ -87,6 +105,7 @@ import { fileURLToPath } from 'node:url';
  *   allowlistHits: number,
  *   docSurfaces: number,
  *   docSurfaceFiles: string[],
+ *   brandLineFiles: number,
  * }} CheckReadings
  * @typedef {{
  *   exitCode: number,
@@ -136,6 +155,13 @@ export const CURRENT_DOC_SURFACES = [
  */
 export const SCANNED_SURFACES = [
   ...CURRENT_DOC_SURFACES,
+  // Code-wide sweep surfaces. These expand over text extensions only (see TEXT_EXTENSIONS),
+  // scan comments too, and match only the uppercase `CloudCLI` token.
+  { glob: 'server/**', kind: 'brand-lines' },
+  { glob: 'src/**', kind: 'brand-lines' },
+  { glob: 'electron/**', kind: 'brand-lines' },
+  { glob: 'scripts/**', kind: 'brand-lines' },
+  { glob: 'public/**', kind: 'brand-lines' },
   { glob: 'index.html', kind: 'text' },
   { glob: 'public/manifest.json', kind: 'json-values' },
   { glob: 'src/modules/i18n/locales/**/*.json', kind: 'locale-values' },
@@ -166,7 +192,12 @@ export const SCANNED_SURFACES = [
  * these matches. Spans (not whole lines) keep a line that mixes allowed and disallowed copy from
  * passing: `CloudCLI Cloud and CloudCLI` still reports the second token.
  *
- * @type {{ name: string, pattern: RegExp }[]}
+ * `files` scopes a span to a set of repo-relative paths / `dir/**` prefixes. An entry without
+ * `files` applies to every surface, which is what the upstream-attribution spans need. The
+ * legacy-install spans are scoped because the only legitimate `CloudCLI` left in shipped code
+ * names an OLD on-disk directory or Windows shortcut, not the product.
+ *
+ * @type {{ name: string, pattern: RegExp, files?: string[] }[]}
  */
 export const BRAND_ALLOWLIST = [
   // Third-party / external services that keep their own name.
@@ -201,9 +232,78 @@ export const BRAND_ALLOWLIST = [
     pattern: /(?:publishes the package to npm as|the) `@yalehwang\/cloudcli`/g,
   },
   { name: 'legacy-package-changelog-entry', pattern: /publish the fork as @yalehwang\/cloudcli on npm/g },
+  // The OLD desktop installation name. `userDataMigration.js` and `appIdMigration.js` read it to
+  // move an existing install; their tests pin the literal. File-scoped so no other file can use
+  // `CloudCLI` as copy. The tests' broad allowance covers the directory, shortcut and .desktop
+  // shapes without enumerating each one.
+  {
+    name: 'legacy-install-name',
+    pattern: /CloudCLI/g,
+    files: [
+      'electron/userDataMigration.js',
+      'electron/appIdMigration.js',
+      'electron/tests/**',
+    ],
+  },
+  // Two comments that describe the legacy install rather than the product: the old userData
+  // folder read by main.js and the old local-server path localServer.js still keeps readable.
+  { name: 'legacy-install-comment', pattern: /legacy CloudCLI folder/g, files: ['electron/main.js'] },
+  {
+    name: 'legacy-install-comment',
+    pattern: /the CloudCLI path stays readable/g,
+    files: ['electron/localServer.js'],
+  },
+  // The distribution checker asserts the README/NOTICE attribution string; it is upstream copy,
+  // not a product title.
+  {
+    name: 'upstream-ui-attribution',
+    pattern: /CloudCLI UI/g,
+    files: ['scripts/cloudpit-distribution-check.mjs'],
+  },
+  // Third-party plugin repository URL and its i18n key: the upstream project is called
+  // `CloudCLI-GLM-Usage`, and the key spelling is part of the locale contract.
+  {
+    name: 'third-party-plugin-repository',
+    pattern: /CloudCLI-GLM-Usage/g,
+    files: ['src/modules/plugins/PluginSettingsTab.tsx'],
+  },
+  {
+    name: 'third-party-plugin-i18n-key',
+    pattern: /prismCloudCLI/g,
+    files: ['src/modules/plugins/PluginSettingsTab.tsx'],
+  },
 ];
 
 const BRAND_TOKEN = /CloudCLI|claudecodeui|@yalehwang\/cloudcli/g;
+
+/** The only token a `brand-lines` surface matches. */
+const BRAND_LINE_TOKEN = /CloudCLI/g;
+
+/**
+ * Extensions a `brand-lines` directory glob expands over. Data (`.json`), prose (`.md`) and
+ * binaries are deliberately absent: the frozen ratchet baseline and historical records keep
+ * their old text, and a locale bundle is already covered value-by-value by its own surface.
+ */
+const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.sh', '.html']);
+
+/**
+ * Directory names a glob expansion never descends into. `node_modules` holds installed packages
+ * and generated build caches — including the e2e bundle cache this checker was red on — and
+ * `.git` holds repository internals. Neither carries shipped source, and walking them made the
+ * reading depend on which caches a checkout happened to contain (the main checkout had three
+ * stale bundles that a fresh task worktree did not).
+ */
+const EXCLUDED_DIRECTORIES = new Set(['node_modules', '.git']);
+
+/**
+ * The checker and its criterion are the scanning instrument and its negative control. Their
+ * prose necessarily names `CloudCLI`; excluding the pair keeps the instrument from scanning
+ * itself (the Proposal's whitelist item 3).
+ */
+const BRAND_LINE_EXCLUDED_FILES = new Set([
+  'scripts/brand-allowlist-check.mjs',
+  'scripts/brand-allowlist-check.test.mjs',
+]);
 
 /** A code line is documentation when its trimmed form opens a line/block/HTML comment. */
 const COMMENT_LINE = /^(?:\/\/|\/\*|\*|<!--)/;
@@ -237,6 +337,9 @@ function listFilesRecursive(dir) {
   /** @type {string[]} */
   const files = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory() && EXCLUDED_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...listFilesRecursive(full));
@@ -258,8 +361,30 @@ function expandSurface(root, surface) {
     return [surface.glob];
   }
   const dir = path.join(root, surface.glob.slice(0, wildcardIndex));
+  // A glob may carry an extension filter after the wildcard (`server/**/*.ts`); otherwise the
+  // surface kind decides (`brand-lines` uses every text extension, the rest stay JSON-only).
+  const suffix = surface.glob.slice(wildcardIndex + 3);
+  const extensionMatch = /^\/(?:\*\*\/)?\*(\.[A-Za-z0-9.]+)$/.exec(suffix);
+  const extension = extensionMatch ? extensionMatch[1].toLowerCase() : null;
   return listFilesRecursive(dir)
-    .filter((file) => file.endsWith('.json'))
+    .filter((file) => {
+      if (surface.kind === 'brand-lines') {
+        const relative = path.relative(root, file).split(path.sep).join('/');
+        if (BRAND_LINE_EXCLUDED_FILES.has(relative)) {
+          return false;
+        }
+        // Defense in depth: a glob whose own root sits under `node_modules`/`.git` never
+        // descends (listFilesRecursive already skips those directories), but a file path that
+        // still carries such a segment must not enter the sweep either.
+        if (relative.split('/').some((segment) => EXCLUDED_DIRECTORIES.has(segment))) {
+          return false;
+        }
+        return extension === null
+          ? TEXT_EXTENSIONS.has(path.extname(file).toLowerCase())
+          : file.endsWith(extension);
+      }
+      return file.endsWith('.json');
+    })
     .map((file) => path.relative(root, file).split(path.sep).join('/'))
     .sort();
 }
@@ -313,7 +438,12 @@ function extractSources(file, kind, content) {
     if (kind === 'code' && COMMENT_LINE.test(line.trim())) {
       continue;
     }
-    sources.push({ file, label: `${file}:${index + 1}`, text: line });
+    sources.push({
+      file,
+      label: `${file}:${index + 1}`,
+      text: line,
+      ...(kind === 'brand-lines' ? { brandLines: true } : {}),
+    });
   }
   return sources;
 }
@@ -330,13 +460,14 @@ export function scanSources(sources) {
   let allowlistHits = 0;
 
   for (const source of sources) {
-    const tokenPattern = new RegExp(BRAND_TOKEN.source, BRAND_TOKEN.flags);
+    const declaredToken = source.brandLines ? BRAND_LINE_TOKEN : BRAND_TOKEN;
+    const tokenPattern = new RegExp(declaredToken.source, declaredToken.flags);
     let match;
     while ((match = tokenPattern.exec(source.text)) !== null) {
       const token = match[0];
       const start = match.index;
       const end = start + token.length;
-      const allowlistEntry = findAllowlistSpan(source.text, start, end);
+      const allowlistEntry = findAllowlistSpan(source.text, start, end, source.file);
       if (allowlistEntry !== null) {
         allowlistHits += 1;
         continue;
@@ -366,15 +497,20 @@ export function findBrandViolations(sources) {
 }
 
 /**
- * The allowlist entry whose span contains `[start, end)`, or null.
+ * The allowlist entry whose span contains `[start, end)` and whose file scope admits `file`,
+ * or null.
  *
  * @param {string} text
  * @param {number} start
  * @param {number} end
+ * @param {string} file
  * @returns {string | null}
  */
-function findAllowlistSpan(text, start, end) {
+function findAllowlistSpan(text, start, end, file) {
   for (const entry of BRAND_ALLOWLIST) {
+    if (entry.files && !entry.files.some((pattern) => fileMatches(pattern, file))) {
+      continue;
+    }
     const pattern = new RegExp(entry.pattern.source, entry.pattern.flags);
     let match;
     while ((match = pattern.exec(text)) !== null) {
@@ -387,6 +523,22 @@ function findAllowlistSpan(text, start, end) {
     }
   }
   return null;
+}
+
+/**
+ * Whether a repo-relative path is admitted by an allowlist file scope. The only wildcard shape
+ * is a trailing `/**`, matching the directory itself and everything under it.
+ *
+ * @param {string} pattern
+ * @param {string} file
+ * @returns {boolean}
+ */
+function fileMatches(pattern, file) {
+  if (pattern.endsWith('/**')) {
+    const dir = pattern.slice(0, -3);
+    return file === dir || file.startsWith(`${dir}/`);
+  }
+  return file === pattern;
 }
 
 /**
@@ -533,6 +685,11 @@ export function runBrandAllowlistCheck({ root, overrides = {} } = {}) {
       allowlistHits: scan.allowlistHits,
       docSurfaces: docSurfaceFiles.length,
       docSurfaceFiles,
+      // How many source files the code-wide `CloudCLI` sweep actually covered. A directory glob
+      // that silently expanded to nothing would otherwise look like a green sweep.
+      brandLineFiles: new Set(
+        sources.filter((source) => source.brandLines).map((source) => source.file),
+      ).size,
     },
     sources,
   };
@@ -569,7 +726,7 @@ export function main(argv = process.argv.slice(2)) {
       `brand-allowlist: files=${result.readings.scannedFiles} `
       + `values=${result.readings.scannedSources} localeValues=${result.readings.localeValues} `
       + `allowlistHits=${result.readings.allowlistHits} docSurfaces=${result.readings.docSurfaces} `
-      + `violations=${result.violations.length}`,
+      + `brandLineFiles=${result.readings.brandLineFiles} violations=${result.violations.length}`,
     );
     for (const violation of result.violations) {
       console.error(`[brand] ${violation.message}`);

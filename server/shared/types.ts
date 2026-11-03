@@ -458,7 +458,7 @@ export type ProviderModelOption = {
   description?: string;
   /** Stable SQLite row id used only by model-management actions. */
   recordId?: number;
-  /** True for user-created rows; false for immutable CloudCLI defaults. */
+  /** True for user-created rows; false for immutable Cloudpit defaults. */
   isCustom?: boolean;
   /** Custom-model env config as returned to clients; secret values are never included. */
   config?: ProviderModelPublicConfig | null;
@@ -469,6 +469,14 @@ export type ProviderModelOption = {
       description?: string;
     }[];
   };
+  /**
+   * The context window a catalog entry declares for this model, in tokens.
+   * When present it is the fact source a Codex launch passes as
+   * `model_context_window`, the same tier a Claude profile's window occupies.
+   */
+  contextWindow?: number;
+  /** The catalog entry's auto-compaction threshold (`model_auto_compact_token_limit`). */
+  autoCompactTokenLimit?: number;
 };
 
 /**
@@ -532,14 +540,29 @@ export type ProviderModelPublicEnvRow =
   | { key: string; kind: 'secret'; isSet: true };
 
 export type ProviderModelPublicConfig = {
+  /**
+   * The project Codex upstream provider a Codex model entry runs against.
+   * Absent means "inherit the Codex global default" (`openai`), which is the
+   * behaviour every pre-existing row keeps. Never a secret: it is a provider
+   * id from the project-owned Codex provider registry.
+   */
+  codexProviderId?: string;
   env: ProviderModelPublicEnvRow[];
 };
 
 /**
  * Per-model config stored in `provider_models.config_json`. `env` is ordered
  * and each key may appear at most once.
+ *
+ * `codexProviderId` names the project-owned Codex upstream provider this model
+ * entry runs against. It is optional: an entry that omits it inherits the Codex
+ * global default, which is what every row written before the provider registry
+ * existed does. The Providers service refuses a value that names no existing
+ * registry entry (409) rather than persisting a dangling reference, so the id
+ * is resolved against the live registry at write time.
  */
 export type ProviderModelConfig = {
+  codexProviderId?: string;
   env: ProviderModelEnvRow[];
 };
 
@@ -568,6 +591,21 @@ export type CodexModelProvider = {
   envKey: string;
   tokenFile: string;
   wireApi: 'responses';
+  /** Static request headers Codex sends to this provider (`http_headers`). */
+  httpHeaders?: Record<string, string>;
+  /** Header name → environment variable holding that header's value. */
+  envHttpHeaders?: Record<string, string>;
+  /** Query parameters appended to every request (`query_params`). */
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  /** A Codex-native model catalog URL this provider serves (`model_catalog_url`). */
+  modelCatalogUrl?: string;
+  /** Top-level Codex `model_context_window` override for this provider's models. */
+  modelContextWindow?: number;
+  /** Top-level Codex `model_auto_compact_token_limit` override. */
+  modelAutoCompactTokenLimit?: number;
   tokenSet: boolean;
   warnings: string[];
 };
@@ -637,6 +675,26 @@ export type ProviderSessionModel = {
    * default" rather than as a mode of its own.
    */
   permissionMode: string | null;
+  /**
+   * The upstream provider this session's model is bound to (a Codex
+   * `model_providers.<id>` id, recorded by the session's first send). NULL
+   * means no binding has been recorded — the run uses the provider's own
+   * default — and is not the same answer as "the default provider".
+   *
+   * The id is part of the conversation's identity: a session cannot move to a
+   * different one in place, so a composer that offers a model from another
+   * provider must fork or start a new session instead.
+   */
+  modelProviderId: string | null;
+  /**
+   * A readable statement of why the recorded provider id cannot be used any
+   * more (the provider was deleted or renamed), or NULL when it still resolves.
+   *
+   * It is a MARK, not a fallback: `model` keeps the value the session actually
+   * ran with, so the client can offer the fork/new-session action instead of
+   * silently showing a default model the conversation never used.
+   */
+  modelProviderProblem: string | null;
   source: ProviderSessionModelSource;
 };
 
@@ -1549,7 +1607,7 @@ export type WorktreePorcelainEntry = {
  *
  * Extends the porcelain entry with everything the Worktrees panel renders:
  * dirty-file count, ahead/behind relative to the base branch (the branch
- * checked out in the main worktree), last-commit metadata, and the CloudCLI
+ * checked out in the main worktree), last-commit metadata, and the Cloudpit
  * project row linked to the worktree directory (if one was registered).
  */
 export type WorktreeDescriptor = {
@@ -1628,7 +1686,7 @@ export type CreateAndOpenWorktreeResult = CreateWorktreeResult & {
 };
 
 /**
- * Input accepted when registering an existing worktree as a CloudCLI project.
+ * Input accepted when registering an existing worktree as a Cloudpit project.
  *
  * The service verifies that `worktreePath` belongs to the repository containing
  * `projectPath` before it creates or restores any project record.
@@ -1639,7 +1697,7 @@ export type OpenWorktreeInput = {
 };
 
 /**
- * Project view returned after a worktree is opened in CloudCLI.
+ * Project view returned after a worktree is opened in Cloudpit.
  *
  * This deliberately mirrors the project-selection payload used by the Projects
  * module so the frontend can switch to the worktree without another lookup.
@@ -2537,7 +2595,7 @@ export type VoiceLogPort = {
  * One stored frequency row of the U-source lexicon.
  *
  * `tokenLower` is the lookup key (`canonical` lowercased) and `canonical` is the
- * spelling first seen — the pair is what lets `CloudCLI` and `cloudcli` be one
+ * spelling first seen — the pair is what lets `Cloudpit` and `cloudcli` be one
  * token that still displays a real casing. `firstSeenAt` / `lastSeenAt` are epoch
  * milliseconds supplied by the service's clock, not `CURRENT_TIMESTAMP`, so a
  * caller can pin them. `projectKey` is the path the message was sent from, which
@@ -4599,7 +4657,7 @@ export type QuaySnapshot = {
   /**
    * The project's quay-fleet registry id, joined from the fleet registry by matching the
    * project root. It is the ONLY project segment a `quay://` reference may carry: the fleet
-   * dereferences by its own registry id, so CloudCLI's project UUID would read `unknown-project`
+   * dereferences by its own registry id, so Cloudpit's project UUID would read `unknown-project`
    * there. `null` means the root is not registered with quay-fleet, and the panel then declares
    * no addressable objects (「未登记到 quay-fleet」) rather than minting a UUID reference.
    */
@@ -5041,7 +5099,7 @@ export type CockpitCardFeedbackOutcome = {
 /**
  * One sent-but-unacknowledged feedback call, as the display reads it.
  *
- * This is CloudCLI's own lifecycle state, not a provider statement: the provider only answers a
+ * This is Cloudpit's own lifecycle state, not a provider statement: the provider only answers a
  * receipt. The card keeps its place in the provider's order, but its options and confirmation
  * are locked while this overlay exists (the action already ran; only the feedback may be resent).
  */
@@ -5524,7 +5582,7 @@ export type SessionAskEventKind = 'session.asking' | 'session.answered' | 'sessi
  * text, the UNTRUNCATED full text, omitted when the text is blank. `questionText`
  * exists ONLY so fleet can dedup by 「session + normalised question text」 (it hashes that text
  * into the key, falling back to the old askId key when absent). It is NOT a display field: the
- * cockpit renders the question from its own card/`contentRef` resolution, and no CloudCLI UI
+ * cockpit renders the question from its own card/`contentRef` resolution, and no Cloudpit UI
  * reads `questionText`. Do NOT truncate it for size — a cut merges distinct questions into one key.
  */
 export type SessionAskEvent = {

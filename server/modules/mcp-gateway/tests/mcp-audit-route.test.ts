@@ -214,7 +214,7 @@ async function withAuditServer(run: (harness: Harness) => Promise<void>): Promis
   const address = server.address() as AddressInfo;
 
   const issue = (userId: number, name: string): { id: number; token: string } => {
-    const issued = tokens.issueToken({ userId, name, scopes: ['cloudcli:read'], expiresInDays: 30 });
+    const issued = tokens.issueToken({ userId, name, scopes: ['cloudpit:read'], expiresInDays: 30 });
     if (!issued.ok) {
       throw new Error('the harness issued a token with a lifetime the service rejects');
     }

@@ -439,7 +439,7 @@ test('the declaration is what switches thread/queue/add on and off (AC3)', async
     jsonrpc: '2.0',
     id: 1,
     method: 'initialize',
-    params: { clientInfo: { name: 'cloudcli', version: '1' }, capabilities: {} },
+    params: { clientInfo: { name: 'cloudpit', version: '1' }, capabilities: {} },
   }));
   undeclared.write(JSON.stringify({
     jsonrpc: '2.0',

@@ -31,10 +31,10 @@ import { createQuayService } from '../quay.service.js';
  * of it. The fleet side is a stub whose payloads use quay-fleet's v0 enum
  * (`config/object-uri.types.v0.json`) verbatim.
  *
- * THE TWO IDENTITIES ARE DELIBERATELY DIFFERENT. `CLOUD_PROJECT_ID` is what CloudCLI's database
+ * THE TWO IDENTITIES ARE DELIBERATELY DIFFERENT. `CLOUD_PROJECT_ID` is what Cloudpit's database
  * keys the project by; `FLEET_PROJECT_ID` is the registry id a `quay://` reference carries. A
  * UUID-shaped project segment must NOT resolve (it is the shape this task removed), and the
- * snapshot fallback must still be read through the CloudCLI id — the join is what proves both.
+ * snapshot fallback must still be read through the Cloudpit id — the join is what proves both.
  *
  * RUNNER NOTE: this is a server test, so it runs under the repository's canonical server
  * runner (`tsx --test`, `scripts/test.sh`), not vitest — vitest's `include` is `src/**` only
@@ -48,7 +48,7 @@ const AC_URI = `quay://${FLEET_PROJECT_ID}/task/T-42#ac-3`;
 const GOAL_URI = `quay://${FLEET_PROJECT_ID}/goal/G-1`;
 const PROJECT_ROOT = '/workspace/claudecodeui';
 
-/** A project segment in the shape the removed mapping used to accept: CloudCLI's own UUID. */
+/** A project segment in the shape the removed mapping used to accept: Cloudpit's own UUID. */
 const UUID_URI = `quay://${CLOUD_PROJECT_ID}/task/T-42`;
 
 /** quay-fleet's v0 action enum, copied from its `config/object-uri.types.v0.json` fixture. */
@@ -146,9 +146,9 @@ function createStubFleet(available = true, calls: string[] = []): QuayFleetWallR
 }
 
 /**
- * Resolves the one fixture fleet project to its registered root and CloudCLI project.
+ * Resolves the one fixture fleet project to its registered root and Cloudpit project.
  *
- * Only the fleet REGISTRY id resolves; the CloudCLI project id (a UUID) is deliberately absent,
+ * Only the fleet REGISTRY id resolves; the Cloudpit project id (a UUID) is deliberately absent,
  * which is what makes a UUID-shaped project segment an `unknown-project`.
  */
 function resolveFleetProject(
@@ -162,8 +162,8 @@ function resolveFleetProject(
 }
 
 /**
- * The project-id seam the service composes: the CloudCLI id joins to the fleet registry id
- * only through the registry, and the fleet id joins back to this fixture's root + CloudCLI id.
+ * The project-id seam the service composes: the Cloudpit id joins to the fleet registry id
+ * only through the registry, and the fleet id joins back to this fixture's root + Cloudpit id.
  */
 const fleetProjectIdResolver: QuayFleetProjectIdResolver = {
   async resolveFleetProjectId(projectId) {
@@ -610,7 +610,7 @@ test('AC4: the project segment is a fleet registry id, and a UUID segment is unk
   assert.equal(resolved.uri, TASK_URI);
   assert.deepEqual(roots, [PROJECT_ROOT], 'the fleet summary must be called with the registered root');
 
-  // The removed shape: a CloudCLI UUID as the project segment. The registry does not know it,
+  // The removed shape: a Cloudpit UUID as the project segment. The registry does not know it,
   // so the reference is named `unknown-project` and no fleet read is attempted for it.
   const before = roots.length;
   for (const result of [await resolver.resolve(UUID_URI), await resolver.summary(UUID_URI)]) {
@@ -668,7 +668,7 @@ test('AC3: the routes answer invalid references with 4xx and no read port with 5
     const unavailableBody = (await unavailable.json()) as { error: { code: string } };
     assert.equal(unavailableBody.error.code, 'fleet-unavailable');
 
-    // A project segment the fleet does not register (CloudCLI's UUID, the removed shape) is
+    // A project segment the fleet does not register (Cloudpit's UUID, the removed shape) is
     // a 404 naming `unknown-project` — never a UUID-addressed read.
     const unknown = await fetch(`${base}/resolve?uri=${encodeURIComponent(UUID_URI)}`);
     assert.equal(unknown.status, 404);
@@ -709,7 +709,7 @@ test('AC1: the service composes the injected fleet reader into its dereference m
   assert.equal(resolved.source, 'fleet');
 
   // The Tier-2 snapshot carries the same join: its project segment is the registry id, never
-  // the CloudCLI id the request was keyed by.
+  // the Cloudpit id the request was keyed by.
   const snapshot = await service.getQuaySnapshot(CLOUD_PROJECT_ID);
   assert.equal(snapshot?.projectId, CLOUD_PROJECT_ID);
   assert.equal(snapshot?.fleetProjectId, FLEET_PROJECT_ID);

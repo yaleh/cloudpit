@@ -58,7 +58,21 @@ export type CodexModelDescriptor = {
   hidden?: boolean;
   isDefault?: boolean;
   defaultReasoningEffort?: string;
-  supportedReasoningEfforts?: Array<{ reasoningEffort?: string }>;
+  supportedReasoningEfforts?: Array<{ reasoningEffort?: string; description?: string }>;
+  /**
+   * A custom catalog (`model_catalog_url`) may declare the model's window and
+   * auto-compaction threshold per entry. Codex 0.166's own `model/list` reply
+   * does not carry them, so they stay optional and are read from either the
+   * Codex-native snake_case or the app's camelCase spelling.
+   */
+  modelContextWindow?: number;
+  modelAutoCompactTokenLimit?: number;
+};
+
+/** Reads a positive integer quantity a catalog entry may report; anything else is absent. */
+const readPositiveModelQuantity = (value: unknown): number | undefined => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 const readModelDescriptor = (value: unknown): CodexModelDescriptor | null => {
@@ -72,10 +86,24 @@ const readModelDescriptor = (value: unknown): CodexModelDescriptor | null => {
 
   const efforts = Array.isArray(record.supportedReasoningEfforts)
     ? record.supportedReasoningEfforts
-      .map((entry) => readOptionalString(readObjectRecord(entry)?.reasoningEffort))
-      .filter((effort): effort is string => effort !== undefined)
-      .map((reasoningEffort) => ({ reasoningEffort }))
+      .map((entry) => {
+        const effort = readOptionalString(readObjectRecord(entry)?.reasoningEffort);
+        if (effort === undefined) return undefined;
+        const description = readOptionalString(readObjectRecord(entry)?.description);
+        return {
+          reasoningEffort: effort,
+          ...(description === undefined ? {} : { description }),
+        };
+      })
+      .filter((effort): effort is { reasoningEffort: string; description?: string } => effort !== undefined)
     : undefined;
+
+  const contextWindow = readPositiveModelQuantity(
+    record.model_context_window ?? record.modelContextWindow,
+  );
+  const autoCompactTokenLimit = readPositiveModelQuantity(
+    record.model_auto_compact_token_limit ?? record.modelAutoCompactTokenLimit,
+  );
 
   return {
     id,
@@ -85,6 +113,10 @@ const readModelDescriptor = (value: unknown): CodexModelDescriptor | null => {
     isDefault: typeof record.isDefault === 'boolean' ? record.isDefault : undefined,
     defaultReasoningEffort: readOptionalString(record.defaultReasoningEffort),
     supportedReasoningEfforts: efforts,
+    ...(contextWindow === undefined ? {} : { modelContextWindow: contextWindow }),
+    ...(autoCompactTokenLimit === undefined
+      ? {}
+      : { modelAutoCompactTokenLimit: autoCompactTokenLimit }),
   };
 };
 
@@ -278,7 +310,7 @@ async function withAppServer<T>(
     // in the stable protocol; only `beforeTurnId` and the turn-listing methods
     // are gated behind `experimentalApi`, and neither is needed here.
     await call('initialize', {
-      clientInfo: { name: 'cloudcli', title: 'CloudCLI', version: '1' },
+      clientInfo: { name: 'cloudpit', title: 'Cloudpit', version: '1' },
       capabilities: {},
     });
     child.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} })}\n`);

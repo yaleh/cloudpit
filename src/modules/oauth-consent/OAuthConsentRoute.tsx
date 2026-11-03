@@ -52,12 +52,12 @@ import type { OAuthConsentScopeOption } from '@/shared/types';
  * rather than disappearing.
  */
 const SCOPE_MESSAGE_KEYS: Record<string, string> = {
-  'cloudcli:read': 'scopes.read',
-  'cloudcli:session:send': 'scopes.sessionSend',
-  'cloudcli:session:create': 'scopes.sessionCreate',
-  'cloudcli:session:control': 'scopes.sessionControl',
-  'cloudcli:approve': 'scopes.approve',
-  'cloudcli:navigate': 'scopes.navigate',
+  'cloudpit:read': 'scopes.read',
+  'cloudpit:session:send': 'scopes.sessionSend',
+  'cloudpit:session:create': 'scopes.sessionCreate',
+  'cloudpit:session:control': 'scopes.sessionControl',
+  'cloudpit:approve': 'scopes.approve',
+  'cloudpit:navigate': 'scopes.navigate',
 };
 
 /** The i18n key for a failed load or decision; the page shows one readable line per cause. */

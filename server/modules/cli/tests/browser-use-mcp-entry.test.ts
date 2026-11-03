@@ -255,7 +255,6 @@ const BROWSER_USE_BRAND_ENV_KEYS = [
   'CLOUDPIT_BROWSER_USE_API_TIMEOUT_MS',
   'CLOUDCLI_BROWSER_USE_API_TIMEOUT_MS',
 ];
-
 /** A child environment with every browser-use brand variable cleared, then `overrides`. */
 function browserUseEnvironment(
   overrides: Record<string, string>,
@@ -344,6 +343,8 @@ test('the relocated MCP entry answers initialize as cloudpit-browser', async () 
   assert.ok(serverInfo && typeof serverInfo === 'object', `the initialize result must carry serverInfo: ${reply.rawLine}`);
   assert.equal(serverInfo.name, EXPECTED_SERVER_NAME, `serverInfo.name must stay ${EXPECTED_SERVER_NAME}: ${reply.rawLine}`);
   assert.equal(reply.result.protocolVersion, '2024-11-05', 'the MCP protocol version must stay pinned');
+  // 3.0 retired the legacy registrations: the wire identity never names one.
+  assert.equal(reply.rawLine.includes('cloudcli-browser'), false, 'no legacy MCP name may reach the client');
 });
 
 test('the relocated MCP entry still installs the root environment bootstrap', async () => {
@@ -390,7 +391,7 @@ test('AC5: CLOUDPIT_* supplies the MCP entry API URL and token', async () => {
   }
 });
 
-test('AC5: the legacy spelling still works and warns once per key', async () => {
+test('AC5 (v3.0): the legacy spelling is ignored, so the entry refuses without a token', async () => {
   const capture = await startBrowserApiCapture();
   const homeDirectory = await mkdtemp(path.join(os.tmpdir(), 'cloudpit-mcp-brand-env-'));
   try {
@@ -401,21 +402,18 @@ test('AC5: the legacy spelling still works and warns once per key', async () => 
 
     assert.equal(
       capture.requests.length,
-      1,
-      `the entry must reach the fake API exactly once\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`,
+      0,
+      `the retired spelling must not reach the fake API\nstdout:\n${output.stdout}\nstderr:\n${output.stderr}`,
     );
-    assert.equal(capture.requests[0].path, '/api/legacy/tools/browser_list_sessions');
-    assert.equal(capture.requests[0].authorization, 'Bearer legacy-token');
-
-    assert.equal(
-      countOccurrences(output.stderr, 'CLOUDCLI_BROWSER_USE_API_URL is deprecated'),
-      1,
-      `the legacy API URL must warn exactly once\nstderr:\n${output.stderr}`,
+    assert.match(
+      output.stdout,
+      /CLOUDPIT_BROWSER_USE_MCP_TOKEN is not configured\./,
+      `the entry must report the missing canonical token\nstdout:\n${output.stdout}`,
     );
     assert.equal(
-      countOccurrences(output.stderr, 'CLOUDCLI_BROWSER_USE_MCP_TOKEN is deprecated'),
-      1,
-      `the legacy token must warn exactly once\nstderr:\n${output.stderr}`,
+      countOccurrences(output.stderr, 'is deprecated'),
+      0,
+      'the retired spelling must not emit a deprecation warning',
     );
   } finally {
     await capture.close();

@@ -167,8 +167,9 @@ function resolvePrincipal(
       userId: verified.userId,
       tokenId: verified.tokenId,
       clientId: null,
-      // Both spellings are accepted at issuance; every consumer compares the
-      // legacy `requiredScopes` literals, so the principal carries canonical names.
+      // 3.0 issues only `cloudpit:*`, but every consumer compares the canonical
+      // `requiredScopes` literals, so the principal carries canonical names. An old
+      // token whose row holds the legacy spelling passes through unchanged.
       scopes: verified.scopes.map(canonicalScope),
     };
   }

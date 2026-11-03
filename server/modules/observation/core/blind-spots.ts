@@ -40,7 +40,7 @@ const SESSION_LLM_BLIND_SPOTS: readonly string[] = [
 /** What the layered project-truth reading cannot see. */
 const PROJECT_BLIND_SPOTS: readonly string[] = [
   '看不见未登记到 quay-fleet 的项目与不经 quay 的工作',
-  '部署层只对 CloudCLI 自身有意义',
+  '部署层只对 Cloudpit 自身有意义',
   '验证层只反映 gate 的判据，不反映判据本身是否判别',
 ];
 

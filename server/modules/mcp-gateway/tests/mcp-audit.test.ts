@@ -293,8 +293,8 @@ function assertIdentity(row: ReturnType<typeof lastRow>, tokenId: number): void 
 
 test('(a) every tool call writes exactly one row, for ok, denied and error', async () => {
   await withAuditServer(async (server) => {
-    const full = server.issue(['cloudcli:read', 'cloudcli:session:send']);
-    const readOnly = server.issue(['cloudcli:read']);
+    const full = server.issue(['cloudpit:read', 'cloudpit:session:send']);
+    const readOnly = server.issue(['cloudpit:read']);
     const authorization = `Bearer ${full.token}`;
 
     const readings: string[] = [];
@@ -383,7 +383,7 @@ test('(a) every tool call writes exactly one row, for ok, denied and error', asy
 
 test('(b) the digest keeps ids verbatim and reduces free text to length + 40 chars', async () => {
   await withAuditServer(async (server) => {
-    const full = server.issue(['cloudcli:session:send']);
+    const full = server.issue(['cloudpit:session:send']);
     const message = 'A'.repeat(500);
     const sessionId = 'sess-id-123';
     const projectId = 'proj-id-456';
@@ -421,7 +421,7 @@ test('(b) the digest keeps ids verbatim and reduces free text to length + 40 cha
 
 test('(c) unauthenticated calls answer 401, write no row, and leave the server alive', async () => {
   await withAuditServer(async (server) => {
-    const valid = server.issue(['cloudcli:read']);
+    const valid = server.issue(['cloudpit:read']);
     const before = mcpAuditLogDb.count();
 
     const cases: { label: string; authorization?: string }[] = [

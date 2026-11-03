@@ -14,10 +14,11 @@
 /** The name this build registers with every provider. */
 export const MCP_SERVER_NAME = 'cloudpit-browser';
 
-/** Spellings earlier builds registered; an uninstall removes them as well. */
-export const LEGACY_MCP_SERVER_NAMES: string[] = ['cloudcli-browser', 'cloudcli-browser-use'];
-
-/** The names an uninstall must remove: the current registration plus every legacy spelling. */
+/**
+ * The names an uninstall must remove. 3.0 registers and cleans exactly one name: the 2.x
+ * uninstall path already removed the `cloudcli-browser` / `cloudcli-browser-use` registrations,
+ * so no legacy spelling is touched here any more.
+ */
 export function mcpServerNamesToRemove(): string[] {
-  return [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES];
+  return [MCP_SERVER_NAME];
 }

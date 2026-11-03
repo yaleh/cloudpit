@@ -20,10 +20,13 @@ expect: Electron IPC 通道全部为 `cloudpit-desktop:*`（`electron/main.js` �
   root：正臂对 worktree 活代码根取证，负臂在 `tmp/` 夹具（旧名由常量拼接或置于夹具数据，判据文件自身不进入扫描）上验证，注入一条
   `cloudcli-desktop:` / `__cloudcliScenario`
   必须变红。非目标面保持原样并在同一判据中断言其存在：`cloudcli.ai`
-  域名判定、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、appId
-  `ai.cloudcli.desktop`，以及 AC-452 已管的 `cloudcli://` 观测 URI 双读；零命中扫描不得把
-  `cloudcli://`
-  一并禁掉。取假形态：活代码面任一面仍残留旧名、或同一判据对注入旧名的合成读数不变红、或把上述非目标面一并改掉（包括为凑零命中而改写历史账本），均红。
+  域名判定、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、旧 appId 拼写
+  `ai.cloudcli.desktop` 作为 v3.0 迁移常量保留在 `electron/appIdMigration.js` 的
+  `LEGACY_DESKTOP_APP_ID`（活值 `APP_USER_MODEL_ID` 已是
+  `ai.cloudpit.desktop`）；零命中扫描不得把 `cloudcli://` 一并禁掉。观测 URI 按 v3.0 R7 只接受
+  `cloudpit://session|architecture`，旧拼写 `cloudcli://session|architecture` 必须解析为
+  null（`src/modules/cockpit/tests/observationUri.test.ts`
+  同钉）。取假形态：活代码面任一面仍残留旧名、或同一判据对注入旧名的合成读数不变红、或把上述非目标面一并改掉（包括为凑零命中而改写历史账本），均红。
 origin: "人 yale 2026-11-01 经会话裁定采纳 gap-goal-054-runtime-identity-surfaces-ac 提案
   (a)；expect 按该任务 ## Resolution 的入册文本：零命中作用域为活代码面 electron/ src/ scripts/ e2e/
   AGENTS.md，历史账本（tasks/goals/adr/experiments/docs/proposals/CHANGELOG）按 GOAL-054

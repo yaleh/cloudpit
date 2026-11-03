@@ -1,7 +1,7 @@
 ---
 id: AC-461
 title: Codex 模型条目挂 codexProviderId：未声明继承全局、未知/已删 provider 可读拒绝
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-02T17:53:21.665Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"

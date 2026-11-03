@@ -4,7 +4,7 @@
  *
  * A resident host holds one CLI across turns, and every CLI process registers a
  * name for itself when it starts: other sessions on the machine can address it
- * by that name. Claude Code picks that name; **CloudCLI does not**. It used to
+ * by that name. Claude Code picks that name; **Cloudpit does not**. It used to
  * (`--name <slug>-<id6>`, proposal §12), and that is the design this criterion
  * was rewritten for: an app-invented name outranked the session's own `ai-title`
  * and grew a new suffix on every restart. The app now launches the process with
@@ -1462,7 +1462,7 @@ test('a resident session publishes the address it answers to, and a peer reaches
       null,
       'the registry entry must carry the socket the address resolves to, or the address is not reachable',
     );
-    // The pollution shape itself, read on the published address: CloudCLI's
+    // The pollution shape itself, read on the published address: Cloudpit's
     // suffix was the app session id's first six characters appended to a slug.
     // A derived name is the CLI's and has no such tail.
     assert.strictEqual(

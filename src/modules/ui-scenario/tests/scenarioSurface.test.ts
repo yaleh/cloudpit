@@ -34,7 +34,7 @@ import type { QuayInFlightTask, QuaySnapshot } from '@/shared/types';
 
 const PROJECT_ID = 'project-1';
 // The `quay://` project segment is the quay-fleet registry id the snapshot carries, not the
-// CloudCLI id the panel is keyed by.
+// Cloudpit id the panel is keyed by.
 const FLEET_PROJECT_ID = 'claudecodeui';
 
 const IN_FLIGHT: QuayInFlightTask[] = [

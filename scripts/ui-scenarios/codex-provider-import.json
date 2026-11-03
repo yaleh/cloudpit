@@ -1,0 +1,60 @@
+{
+  "name": "codex-provider-import",
+  "description": "Settings → Agents → Codex: the user-profile import panel lists the operator's own ~/.codex providers (variable NAMES only, never a secret), one Bind writes the selected provider into the PROJECT registry AND selects it in the model editor's upstream picker (no second selection), and the model saved next carries that provider. The isolated instance this runs against starts from an empty CODEX_SETTINGS_PATH and a HOME whose .codex/config.toml declares `bob` and whose bob-gpt.config.toml declares `bob-gpt`.",
+  "steps": [
+    {
+      "open": "settings-agents-codex",
+      "checkpoint": true,
+      "expect": {
+        "codexProvidersOpen": true,
+        "codexProvidersStatus": "ready",
+        "codexProvidersError": null,
+        "codexProvidersCount": 0,
+        "codexProviderIds": [],
+        "codexModelProvider": "",
+        "codexModelProviderOptions": [""],
+        "codexImportOpen": true,
+        "codexImportStatus": "ready",
+        "codexImportCount": 2,
+        "codexImportIds": ["bob", "bob-gpt"],
+        "codexImportBindable": [true, true],
+        "codexImportEnvKeys": ["BOB_API_KEY", "BOB_GPT_API_KEY"],
+        "codexImportBaseUrls": ["http://127.0.0.1:9/v1", "http://127.0.0.1:9/gpt/v1"],
+        "codexImportWireApis": ["responses", "responses"],
+        "codexImportDirectoryIncludes": ".codex",
+        "codexImportError": null
+      }
+    },
+    {
+      "drive": { "codexProvider.import": "bob" },
+      "checkpoint": true,
+      "expect": {
+        "codexProvidersStatus": "ready",
+        "codexProvidersError": null,
+        "codexProvidersCount": 1,
+        "codexProviderIds": ["bob"],
+        "codexModelProviderOptions": ["", "bob"],
+        "codexModelProvider": "bob",
+        "codexImportStatus": "ready",
+        "codexImportError": null
+      }
+    },
+    {
+      "drive": { "modelLibrary.setField": { "field": "name", "value": "Scenario Imported Model" } }
+    },
+    {
+      "drive": { "modelLibrary.setField": { "field": "id", "value": "scenario-imported-model" } },
+      "expect": { "codexModelProviderOptions": ["", "bob"], "codexModelProvider": "bob" }
+    },
+    {
+      "drive": { "modelLibrary.save": true },
+      "checkpoint": true,
+      "expect": {
+        "codexModelLibraryStatus": "saved",
+        "codexModelLibraryNoticeIncludes": "Scenario Imported Model was added.",
+        "codexModelIds": ["scenario-imported-model"],
+        "codexModelLabelsInclude": "· bob"
+      }
+    }
+  ]
+}

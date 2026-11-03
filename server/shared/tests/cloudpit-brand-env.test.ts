@@ -1,10 +1,14 @@
 /**
- * The Cloudpit brand criterion: the `BRAND` identity table and the
- * `CLOUDPIT_*` → `CLOUDCLI_*` environment fallback reader.
+ * The Cloudpit brand criterion: the `BRAND` identity table and the v3.0
+ * `CLOUDPIT_*`-only environment reader.
  *
  * Every leg drives the real reader with an in-memory environment; the `BRAND`
  * reading comes from the TypeScript syntax tree so a comment or a string
  * literal that merely spells a field cannot satisfy the assertion.
+ *
+ * v3.0 RETIREMENT: the reader no longer accepts the legacy `CLOUDCLI_*`
+ * spelling. A legacy-only environment reads absent (and the caller's shipped
+ * default applies); there is no fallback reading and no deprecation warning.
  *
  * Run directly:
  *   npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-brand-env.test.ts
@@ -68,11 +72,9 @@ function readBrandFields(): Record<string, string> {
   return fields;
 }
 
-/** Build a reader over `env` plus the warnings it emitted, in order. */
+/** Build a reader over `env`. */
 function readWith(env: Record<string, string | undefined>) {
-  const warnings: string[] = [];
-  const reader = createBrandEnvReader({ env, warn: (message) => warnings.push(message) });
-  return { reader, warnings };
+  return createBrandEnvReader({ env });
 }
 
 test('AC1: BRAND carries the Cloudpit identity read from the syntax tree', () => {
@@ -85,70 +87,87 @@ test('AC1: BRAND carries the Cloudpit identity read from the syntax tree', () =>
   });
 });
 
-test('AC2 legacy-only: CLOUDCLI_X supplies the value, is marked legacy and warns once', () => {
-  const { reader, warnings } = readWith({ CLOUDCLI_X: 'old' });
+test('AC2 legacy-only: CLOUDCLI_X is ignored and the read is absent', () => {
+  const reader = readWith({ CLOUDCLI_X: 'old' });
 
-  assert.deepEqual(reader.read('X'), { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' });
-  assert.equal(warnings.length, 1, 'using the legacy spelling must warn exactly once');
+  assert.deepEqual(reader.read('X'), { value: undefined, source: 'absent', key: 'CLOUDPIT_X' });
 });
 
-test('AC2 new-only: CLOUDPIT_X supplies the value, is marked new and does not warn', () => {
-  const { reader, warnings } = readWith({ CLOUDPIT_X: 'new' });
+test('AC2 new-only: CLOUDPIT_X supplies the value and is marked new', () => {
+  const reader = readWith({ CLOUDPIT_X: 'new' });
 
   assert.deepEqual(reader.read('X'), { value: 'new', source: 'new', key: 'CLOUDPIT_X' });
-  assert.deepEqual(warnings, [], 'the new spelling is not deprecated');
 });
 
-test('AC2 both-set: the new spelling wins and emits no warning', () => {
-  const { reader, warnings } = readWith({ CLOUDPIT_X: 'new', CLOUDCLI_X: 'old' });
+test('AC2 both-set: the new spelling wins and the legacy value is never consulted', () => {
+  const reader = readWith({ CLOUDPIT_X: 'new', CLOUDCLI_X: 'old' });
 
   assert.deepEqual(reader.read('X'), { value: 'new', source: 'new', key: 'CLOUDPIT_X' });
-  assert.deepEqual(warnings, [], 'a legacy value shadowed by the new one must not warn');
 });
 
 test('AC3 absent: neither spelling set reads absent with no value', () => {
-  const { reader, warnings } = readWith({});
+  const reader = readWith({});
 
   const reading = reader.read('X');
   assert.equal(reading.value, undefined);
   assert.equal(reading.source, 'absent');
   assert.equal(reading.key, 'CLOUDPIT_X', 'absent reads name the canonical key to set');
-  assert.deepEqual(warnings, []);
 });
 
-test('AC3 empty new value: CLOUDPIT_X="" falls back to the legacy value', () => {
-  const { reader, warnings } = readWith({ CLOUDPIT_X: '', CLOUDCLI_X: 'old' });
+test('AC3 empty new value: CLOUDPIT_X="" reads absent and does NOT fall back to the legacy value', () => {
+  const reader = readWith({ CLOUDPIT_X: '', CLOUDCLI_X: 'old' });
 
-  assert.deepEqual(reader.read('X'), { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' });
-  assert.equal(warnings.length, 1);
+  assert.deepEqual(reader.read('X'), { value: undefined, source: 'absent', key: 'CLOUDPIT_X' });
 });
 
-test('AC3 warn-once: reading the same legacy key twice on one reader warns once', () => {
-  const { reader, warnings } = readWith({ CLOUDCLI_X: 'old' });
-
-  assert.equal(reader.read('X').value, 'old');
-  assert.equal(reader.read('X').value, 'old');
-  assert.equal(warnings.length, 1, 'the warned-key set is per reader, not per read');
+test('AC1: neither reader source carries the legacy env spelling in code', () => {
+  const sources: Array<[string, ts.ScriptKind]> = [
+    ['server/shared/brand.ts', ts.ScriptKind.TS],
+    ['electron/brandEnv.js', ts.ScriptKind.JS],
+  ];
+  for (const [relativePath, kind] of sources) {
+    const filePath = path.join(REPO_ROOT, relativePath);
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      readFileSync(filePath, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      kind,
+    );
+    const literals: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isStringLiteral(node)
+        || ts.isNoSubstitutionTemplateLiteral(node)
+        || ts.isTemplateHead(node)
+        || ts.isTemplateMiddle(node)
+        || ts.isTemplateTail(node)
+      ) {
+        literals.push(node.text);
+      }
+      node.forEachChild(visit);
+    };
+    sourceFile.forEachChild(visit);
+    assert.deepEqual(
+      literals.filter((literal) => literal.includes('CLOUDCLI_')),
+      [],
+      `${relativePath} must not build a legacy env key (comments are not evaluated)`,
+    );
+    assert.ok(
+      literals.some((literal) => literal.includes('CLOUDPIT_')),
+      `${relativePath} must still build the canonical env key`,
+    );
+  }
 });
 
-test('AC3 reader isolation: two readers each warn once for the same legacy key', () => {
-  const first = readWith({ CLOUDCLI_X: 'old' });
-  const second = readWith({ CLOUDCLI_X: 'old' });
-
-  first.reader.read('X');
-  second.reader.read('X');
-
-  assert.equal(first.warnings.length, 1);
-  assert.equal(second.warnings.length, 1);
-});
 
 /**
  * Every brand name the production wiring points read (Electron main/localServer,
  * serverInstaller, browser-use service and its MCP entry) resolved through the
- * reader: the new spelling wins, the legacy spelling is the fallback, and an
- * absent pair reads absent. This pins the *names* as well as the semantics, so
- * a wiring point that invents a name the reader does not recognise turns red
- * here instead of silently reading `undefined`.
+ * reader: the canonical spelling supplies the value, the legacy spelling is
+ * ignored, and an absent pair reads absent. This pins the *names* as well as the
+ * semantics, so a wiring point that invents a name the reader does not recognise
+ * turns red here instead of silently reading `undefined`.
  */
 const WIRED_BRAND_ENV_NAMES = [
   'CONTROL_PLANE_URL',
@@ -168,27 +187,25 @@ const WIRED_BRAND_ENV_NAMES = [
   'BROWSER_USE_API_TIMEOUT_MS',
 ];
 
-test('AC3 wiring names: each brand name resolves new > legacy > absent', () => {
+test('AC3 wiring names: each brand name resolves new > absent, never legacy', () => {
   for (const name of WIRED_BRAND_ENV_NAMES) {
     const both = readWith({ [`CLOUDPIT_${name}`]: 'new', [`CLOUDCLI_${name}`]: 'old' });
     assert.deepEqual(
-      both.reader.read(name),
+      both.read(name),
       { value: 'new', source: 'new', key: `CLOUDPIT_${name}` },
       `${name}: the new spelling must win`,
     );
-    assert.deepEqual(both.warnings, [], `${name}: a shadowed legacy value must not warn`);
 
     const legacy = readWith({ [`CLOUDCLI_${name}`]: 'old' });
     assert.deepEqual(
-      legacy.reader.read(name),
-      { value: 'old', source: 'legacy', key: `CLOUDCLI_${name}` },
-      `${name}: the legacy spelling must stay readable`,
+      legacy.read(name),
+      { value: undefined, source: 'absent', key: `CLOUDPIT_${name}` },
+      `${name}: the legacy spelling must no longer be read`,
     );
-    assert.equal(legacy.warnings.length, 1, `${name}: using the legacy spelling warns once`);
 
     const absent = readWith({});
     assert.deepEqual(
-      absent.reader.read(name),
+      absent.read(name),
       { value: undefined, source: 'absent', key: `CLOUDPIT_${name}` },
       `${name}: an unset pair reads absent`,
     );

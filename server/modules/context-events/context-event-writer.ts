@@ -1,5 +1,5 @@
 /**
- * The host-level context event writer — the CloudCLI side of the shared
+ * The host-level context event writer — the Cloudpit side of the shared
  * `~/.quay-fleet/context/events/<YYYY-MM-DD>.jsonl` stream.
  *
  * WHAT THIS OWNS. One append-only file per UTC day, one JSON object per line, and
@@ -24,7 +24,7 @@
  * `write(2)` on a handle opened `O_APPEND`. Two writers in two processes can
  * interleave whole lines but never halves of one. There is no per-event fsync:
  * the stream is evidence, not a write-ahead log, and the fleet's retention job
- * owns rotation and cleanup — CloudCLI never deletes a context event.
+ * owns rotation and cleanup — Cloudpit never deletes a context event.
  *
  * BOUND. One line is at most {@link CONTEXT_EVENT_MAX_LINE_BYTES} (16 KB). An
  * over-long text field is truncated (and `data.truncated` set) rather than
@@ -52,14 +52,14 @@ import path from 'node:path';
 import type { ISessionAskEventWriter } from '@/shared/interfaces.js';
 import type { SessionAskEvent } from '@/shared/types.js';
 
-/** The only `source` this writer may mint: this process is the CloudCLI producer. */
+/** The only `source` this writer may mint: this process is the Cloudpit producer. */
 export const CONTEXT_EVENT_SOURCE = 'cloudcli';
 
 /** One line's ceiling, in UTF-8 bytes, exactly as the task's write discipline states. */
 export const CONTEXT_EVENT_MAX_LINE_BYTES = 16 * 1024;
 
 /**
- * Every kind CloudCLI may produce. A kind outside this list is a programming
+ * Every kind Cloudpit may produce. A kind outside this list is a programming
  * error in a producer, and the writer rejects it even before the schema is read,
  * so a typo cannot enter the stream while the fleet release is absent.
  */
@@ -112,7 +112,7 @@ export type ContextEventDraft = {
  * The `data` payload of a `session.asking` row, as quay-fleet's v1 schema states it.
  *
  * `askId` is `<sessionId>:<assistantMessageId>` — the identity the fleet dedups on — and
- * `contentRef` names the CloudCLI resolver a fleet consumer can call to read the question.
+ * `contentRef` names the Cloudpit resolver a fleet consumer can call to read the question.
  */
 export type SessionAskingEventData = {
   askId: string;
@@ -733,7 +733,7 @@ export function createContextEventWriter(options: ContextEventWriterOptions = {}
   const append = async (draft: ContextEventDraft): Promise<AppendContextEventResult> => {
     if (!(CLOUDCLI_CONTEXT_EVENT_KINDS as readonly string[]).includes(draft.kind)) {
       rejected += 1;
-      return { ok: false, reason: 'invalid-kind', detail: `"${draft.kind}" is not a CloudCLI-produced kind` };
+      return { ok: false, reason: 'invalid-kind', detail: `"${draft.kind}" is not a Cloudpit-produced kind` };
     }
     const document = loadSchema();
     if (document === null) {

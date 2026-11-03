@@ -98,15 +98,28 @@ test('AC7: the CloudCLI app-name guard never touches the filesystem', (t) => {
   assert.equal(existsSync(path.join(newUserDataDir, 'cache.bin')), false);
 });
 
-test('AC7: electron/main.js imports and calls the helper and declares APP_NAME = Cloudpit', () => {
+test('AC7: main.js runs the app-id migration, which reuses the guarded helper under Cloudpit', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
   assert.match(
     source,
-    /import \{ maybeMigrateDesktopUserData \} from '\.\/userDataMigration\.js';/,
-    'the helper module is imported',
+    /import \{ maybeMigrateDesktopAppId \} from '\.\/appIdMigration\.js';/,
+    'the v3.0 app-id migration entry point is imported',
   );
-  assert.match(source, /maybeMigrateDesktopUserData\(\{/, 'the helper is called');
-  assert.match(source, /appName: APP_NAME,/, 'the call passes the flipped app name');
+  assert.match(source, /maybeMigrateDesktopAppId\(\{/, 'the migration is called from bootstrap()');
   assert.match(source, /const APP_NAME = 'Cloudpit';/, 'APP_NAME is flipped to Cloudpit');
+
+  // The three-file copy moved into the app-id migration in v3.0 but still goes
+  // through the shared helper (and therefore through its app-name guard).
+  const migrationSource = readFileSync(
+    fileURLToPath(new URL('../appIdMigration.js', import.meta.url)),
+    'utf8',
+  );
+  assert.match(
+    migrationSource,
+    /import \{[^}]*maybeMigrateDesktopUserData[^}]*\} from '\.\/userDataMigration\.js';/,
+    'appIdMigration imports the helper',
+  );
+  assert.match(migrationSource, /maybeMigrateDesktopUserData\(\{/, 'appIdMigration calls the helper');
+  assert.match(migrationSource, /appName: DESKTOP_PRODUCT_NAME,/, 'the helper runs under Cloudpit');
 });

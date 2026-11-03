@@ -16,6 +16,9 @@
  *   AC2e — the desktop/local-server assets are missing     → red names both asset prefixes.
  *   AC2f — the ownership notice is deleted from each doc   → red names `ownership`.
  *   AC4 — `--help` exits 0 and lists `--release`.
+ *   AC5 — a 2.0.0 snapshot is red under the 3.0.0 default and green with
+ *         `--version 2.0.0`: the historical release stays readable without being
+ *         mistaken for the current one.
  *
  * NOTHING HERE TOUCHES THE NETWORK. Fixture mode reads a JSON file; no arm runs `--release`.
  * The compliant snapshot reads the real README/NOTICE/LICENSE, so a document that loses its
@@ -40,6 +43,7 @@ import {
   OLD_VERSION,
   REPOSITORY,
   distributionViolations,
+  localServerAssetPrefix,
 } from './cloudpit-distribution-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -86,7 +90,7 @@ function compliantSnapshot() {
     },
     release: {
       assets: [
-        { name: `${DESKTOP_ASSET_PREFIX}2.0.0-linux-x64.deb`, downloadable: true },
+        { name: `${DESKTOP_ASSET_PREFIX}${NEW_VERSION}-linux-x64.deb`, downloadable: true },
         { name: `${LOCAL_SERVER_ASSET_PREFIX}linux-x64.tar.gz`, downloadable: true },
       ],
     },
@@ -102,14 +106,15 @@ function compliantSnapshot() {
  * Run the production CLI against one snapshot in fixture mode.
  *
  * @param {any} snapshot
+ * @param {string[]} [extraArgs] additional CLI arguments (e.g. `--version`)
  * @returns {{ status: number | null, stdout: string, stderr: string }}
  */
-function runFixture(snapshot) {
+function runFixture(snapshot, extraArgs = []) {
   const directory = mkdtempSync(path.join(tmpdir(), 'cloudpit-distribution-'));
   try {
     const fixture = path.join(directory, 'snapshot.json');
     writeFileSync(fixture, JSON.stringify(snapshot), 'utf8');
-    const result = spawnSync(process.execPath, [SCRIPT, '--fixture', fixture], {
+    const result = spawnSync(process.execPath, [SCRIPT, '--fixture', fixture, ...extraArgs], {
       encoding: 'utf8',
       // The fixture path is the only input; no environment switch can reach the live reader.
       env: { ...process.env, GITHUB_TOKEN: '' },
@@ -154,7 +159,7 @@ test('AC2b: a new package that is not published reds', () => {
   assert.equal(result.status, 1, result.stderr);
   assert.match(
     result.stderr,
-    /new-package: new package @yalehwang\/cloudpit@2\.0\.0 is not published/,
+    new RegExp(`new-package: new package @yalehwang/cloudpit@${NEW_VERSION.replaceAll('.', '\\.')} is not published`),
     result.stderr,
   );
 });
@@ -197,7 +202,7 @@ test('AC2d: each unresolvable repository field reds and is named', () => {
 test('AC2e: missing desktop and local-server assets red and name both prefixes', () => {
   const snapshot = compliantSnapshot();
   snapshot.release.assets = [
-    { name: `${DESKTOP_ASSET_PREFIX}2.0.0-linux-x64.deb`, downloadable: false },
+    { name: `${DESKTOP_ASSET_PREFIX}${NEW_VERSION}-linux-x64.deb`, downloadable: false },
   ];
 
   const result = runFixture(snapshot);
@@ -207,9 +212,10 @@ test('AC2e: missing desktop and local-server assets red and name both prefixes',
     /desktop release asset cloudpit-desktop-\* is missing or not downloadable/,
     result.stderr,
   );
-  assert.match(
-    result.stderr,
-    /desktop release asset cloudpit-local-server-v2\.0\.0-\* is missing or not downloadable/,
+  assert.ok(
+    result.stderr.includes(
+      `desktop release asset ${localServerAssetPrefix(NEW_VERSION)}* is missing or not downloadable`,
+    ),
     result.stderr,
   );
 });
@@ -248,8 +254,35 @@ test('AC2f: deleting the ownership notice from each document reds', () => {
   }
 });
 
-test('AC4: --help exits 0 and lists --release', () => {
+test('AC4: --help exits 0 and lists --release and --version', () => {
   const result = spawnSync(process.execPath, [SCRIPT, '--help'], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /--release/, result.stdout);
+  assert.match(result.stdout, /--version/, result.stdout);
+  assert.ok(result.stdout.includes(NEW_VERSION), result.stdout);
+});
+
+test('AC5: the historical 2.0.0 release is readable only through an explicit --version', () => {
+  /** @param {string} version @returns {any} */
+  const historicalSnapshot = (version) => {
+    const snapshot = compliantSnapshot();
+    snapshot.npm.newPackage.version = version;
+    snapshot.release.assets[0].name = `${DESKTOP_ASSET_PREFIX}${version}-linux-x64.deb`;
+    snapshot.release.assets[1].name = `${localServerAssetPrefix(version)}linux-x64.tar.gz`;
+    return snapshot;
+  };
+
+  // Negative arm: under the 3.0.0 default the 2.0.0 snapshot is NOT read as the current
+  // release — the red names 3.0.0, so a stale 2.0.0 fixture cannot make the default green.
+  const asCurrent = runFixture(historicalSnapshot('2.0.0'));
+  assert.equal(asCurrent.status, 1, asCurrent.stderr);
+  assert.ok(
+    asCurrent.stderr.includes(`new package @yalehwang/cloudpit@${NEW_VERSION} is not published`),
+    asCurrent.stderr,
+  );
+
+  // Positive arm: the historical release remains verifiable when asked for explicitly.
+  const historical = runFixture(historicalSnapshot('2.0.0'), ['--version', '2.0.0']);
+  assert.equal(historical.status, 0, historical.stderr);
+  assert.match(historical.stdout, /violations=0/, historical.stdout);
 });

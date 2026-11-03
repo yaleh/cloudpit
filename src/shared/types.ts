@@ -28,6 +28,14 @@ export type ProviderModelOption = {
       description?: string;
     }[];
   };
+  /**
+   * The context window a catalog entry declares for this model, in tokens.
+   * When present it is the fact source a Codex launch passes as
+   * `model_context_window`, the same tier a Claude profile's window occupies.
+   */
+  contextWindow?: number;
+  /** The catalog entry's auto-compaction threshold (`model_auto_compact_token_limit`). */
+  autoCompactTokenLimit?: number;
 };
 
 /** The full model catalog for one provider: every option plus the value used when the user has not chosen one. */
@@ -49,19 +57,27 @@ export type ProviderModelPublicEnvRow =
   | { key: string; kind: 'secret'; isSet: true }
   | { key: string; kind: 'unset' };
 
-/** The env config of a custom model as read back from the server, listing its rows in order. */
+/**
+ * The config of a custom model as read back from the server, listing its env rows in order.
+ *
+ * `codexProviderId` is the project Codex upstream provider the entry runs against (Codex
+ * models only). Absent means the Codex global default. Mirrors the server's
+ * `ProviderModelConfig`; `wireContractTypeSync` reads both declarations.
+ */
 export type ProviderModelPublicConfig = {
+  codexProviderId?: string;
   env: ProviderModelPublicEnvRow[];
 };
 
 /** Which server-process env variables are set, keyed by variable name; carries booleans only so the UI can show envref rows as set or unset. */
 export type ModelEnvStatus = Record<string, boolean>;
 
-/** User-supplied fields for creating or editing a custom provider model entry; omit `config` to leave the stored env config untouched. */
+/** User-supplied fields for creating or editing a custom provider model entry; omit `config` to leave the stored config untouched. */
 export type CustomProviderModelInput = {
   model: string;
   id: string;
-  config?: { env: ProviderModelEnvRowInput[] } | null;
+  /** `codexProviderId` binds a Codex entry to a project provider; omit it to inherit the Codex default. */
+  config?: { env: ProviderModelEnvRowInput[]; codexProviderId?: string } | null;
 };
 
 /** Mutation callbacks a model menu calls to persist custom provider models. */
@@ -663,7 +679,7 @@ export type QuaySnapshot = {
   /**
    * The project's quay-fleet registry id, read from the fleet registry by matching the project
    * root. It is the ONLY project segment a `quay://` reference may carry, because the fleet
-   * dereferences references by its own registry id and a CloudCLI UUID reads `unknown-project`
+   * dereferences references by its own registry id and a Cloudpit UUID reads `unknown-project`
    * there. `null` means the root is not registered with quay-fleet: the panel then declares no
    * addressable objects and says so, rather than minting a UUID reference. Absent is the same
    * reading as `null` (a snapshot from an older backend).
@@ -759,7 +775,7 @@ export type QuayProjectStatus = {
 /**
  * The object kinds a `quay://` URI can address, per quay-fleet's contract #1
  * (`fleet-wall-object-uri-address-space`): a task, a goal, one ledger event, or the
- * project's board. CloudCLI renders and focuses these objects; it never invents a kind the
+ * project's board. Cloudpit renders and focuses these objects; it never invents a kind the
  * fleet side does not publish.
  */
 export type QuayObjectKind = 'task' | 'goal' | 'ledger' | 'board';
@@ -841,7 +857,7 @@ export type QuayFocusableObject = {
  * the voice input pack carries the same objects as references.
  *
  * Zooming into a focusable object replaces this contract with that object's own sub-view;
- * zooming back out returns the parent contract. CloudCLI ships the declaration side first —
+ * zooming back out returns the parent contract. Cloudpit ships the declaration side first —
  * the zoom navigation itself is the wall's later work.
  */
 export type QuayViewContract = {
@@ -873,7 +889,7 @@ export type QuayFleetProjectSummary = {
   /**
    * The project's quay-fleet registry id — the `quay://` project segment. `null` (or absent)
    * means its root is not registered with quay-fleet, so the project declares no addressable
-   * objects. Never fall back to `projectId`: a CloudCLI UUID is not a fleet handle.
+   * objects. Never fall back to `projectId`: a Cloudpit UUID is not a fleet handle.
    */
   fleetProjectId?: string | null;
   /** The worker driver reading; `unavailable` means the status command did not answer. */
@@ -1030,7 +1046,7 @@ export type ReleaseInfo = {
   publishedAt: string;
 };
 
-/** How this CloudCLI install was obtained; decides whether the UI offers a self-update action. */
+/** How this Cloudpit install was obtained; decides whether the UI offers a self-update action. */
 export type InstallMode = 'git' | 'npm';
 
 // ---------------------------
@@ -3069,7 +3085,7 @@ type McpImportMode = 'form' | 'json';
 
 //----------------- PLUGINS ------------
 
-/** An installed CloudCLI plugin's manifest and runtime status (entry point, slot, permissions, enabled and server-running flags); always import this type explicitly from `@/shared/types`, because `Plugin` is also a DOM global and an unimported reference silently resolves to that instead. */
+/** An installed Cloudpit plugin's manifest and runtime status (entry point, slot, permissions, enabled and server-running flags); always import this type explicitly from `@/shared/types`, because `Plugin` is also a DOM global and an unimported reference silently resolves to that instead. */
 export type Plugin = {
   name: string;
   displayName: string;
@@ -3277,6 +3293,21 @@ export type CodexModelProvider = {
   envKey: string;
   tokenFile: string;
   wireApi: 'responses';
+  /** Static request headers Codex sends to this provider (`http_headers`). */
+  httpHeaders?: Record<string, string>;
+  /** Header name → environment variable holding that header's value. */
+  envHttpHeaders?: Record<string, string>;
+  /** Query parameters appended to every request (`query_params`). */
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  /** A Codex-native model catalog URL this provider serves (`model_catalog_url`). */
+  modelCatalogUrl?: string;
+  /** Top-level Codex `model_context_window` override for this provider's models. */
+  modelContextWindow?: number;
+  /** Top-level Codex `model_auto_compact_token_limit` override. */
+  modelAutoCompactTokenLimit?: number;
   tokenSet: boolean;
   warnings: string[];
 };
@@ -3380,7 +3411,7 @@ export type OAuthTokenItem = {
   revokedAt: string | null;
 };
 
-/** The CloudCLI MCP gateway's read-only status as `GET /api/settings/mcp-gateway` returns it: whether the gateway is enabled, the path it answers on, and the base url an MCP client should dial. */
+/** The Cloudpit MCP gateway's read-only status as `GET /api/settings/mcp-gateway` returns it: whether the gateway is enabled, the path it answers on, and the base url an MCP client should dial. */
 export type McpGatewayStatus = {
   enabled: boolean;
   path: string;
@@ -3940,7 +3971,7 @@ export type CockpitHubView = { type: 'fleet' } | { type: 'board'; project: strin
 
 /**
  * One project the display can address, with both identities the server's target rules need:
- * the CloudCLI project id the fleet registry is keyed by, and the fleet registry id that
+ * the Cloudpit project id the fleet registry is keyed by, and the fleet registry id that
  * appears in a `quay://` address.
  */
 export type CockpitVisibleProject = {
@@ -4550,7 +4581,7 @@ export type CockpitCardFeedbackOutcome = {
 /**
  * One sent-but-unacknowledged feedback call, as the display reads it.
  *
- * This is CloudCLI's own lifecycle state, not a provider statement: the provider only answers a
+ * This is Cloudpit's own lifecycle state, not a provider statement: the provider only answers a
  * receipt. The card keeps its place in the provider's order, but its options and confirmation
  * are locked while this overlay exists (the action already ran; only the feedback may be resent).
  */

@@ -1,7 +1,7 @@
 ---
 id: AC-465
 title: Settings → Agents → Codex 服务商设置 UI：CRUD + 模型编辑器 provider 区（真实浏览器 + 场景运行器）
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx vitest run src/modules/settings/tests/codexProviderSettings.test.tsx
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T00:03:55.607Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"

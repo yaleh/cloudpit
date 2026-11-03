@@ -616,8 +616,8 @@ test('(b) the three barrels export the GOAL-020 symbols and the gateway consumes
 
 const USER_ONE = 1;
 const DEBUG_PROVIDER = DEBUG_AGENT_PROVIDER_ID as LLMProvider;
-const WRITE_SCOPE = 'cloudcli:session:send';
-const READ_SCOPE = 'cloudcli:read';
+const WRITE_SCOPE = 'cloudpit:session:send';
+const READ_SCOPE = 'cloudpit:read';
 const RUN_ALIVE_MS = 1_200;
 
 type SpyCaller = { userId: string | number | null; via: string };

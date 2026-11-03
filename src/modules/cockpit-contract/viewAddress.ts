@@ -188,9 +188,9 @@ export function cockpitViewPath(view: CockpitView): string {
  * focused (a board whose snapshot failed still names the board it is showing).
  *
  * The project segment is the board project's quay-fleet REGISTRY ID, passed in because the
- * view description itself carries the CloudCLI project id (the id the snapshot route is keyed
+ * view description itself carries the Cloudpit project id (the id the snapshot route is keyed
  * by). `null` when the fleet does not register the project: there is no honest address, and
- * the fleet view — a CloudCLI-level view — has none either.
+ * the fleet view — a Cloudpit-level view — has none either.
  */
 export function cockpitViewUri(view: CockpitView, fleetProjectId: string | null): string | null {
   return view.type === 'board' && fleetProjectId !== null

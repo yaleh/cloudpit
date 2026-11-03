@@ -5,7 +5,7 @@ import { useFleetSummaryReading } from '@/modules/sidebar/hooks/useFleetTaskCoun
 
 /** One registered project that has work waiting for a person, named the way the fleet names it. */
 export type FleetAttentionProject = {
-  /** The quay-fleet registry id (`quay-fleet`, `archguard`, …), never the CloudCLI UUID. */
+  /** The quay-fleet registry id (`quay-fleet`, `archguard`, …), never the Cloudpit UUID. */
   name: string;
   /** How many of this project's tasks need a person. */
   needsHuman: number;

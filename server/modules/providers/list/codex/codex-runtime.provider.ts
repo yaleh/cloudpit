@@ -22,6 +22,7 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
+import { compileCodexProviderOptions } from '@/modules/providers/list/codex/codex-provider-injection.js';
 import { readCodexSessionTokenUsage } from '@/modules/providers/list/codex/codex-token-usage-files.js';
 import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
@@ -340,6 +341,16 @@ async function queryCodex(
     ? effort as ModelReasoningEffort
     : undefined;
 
+  // A model entry bound to a project Codex provider must be launched under that
+  // provider: Codex 0.166 rejects a turn whose provider differs from the one the
+  // process started with (`modelProviderMismatch`), so the injection has to be on
+  // the SDK options, not only on ThreadOptions. An unbound model keeps the exact
+  // previous behaviour — `new Codex()` with no options, inheriting Codex's global
+  // default. A bound model whose provider cannot be resolved throws inside the try
+  // below, which surfaces the readable line instead of silently dialling the
+  // default endpoint.
+  const codexProviderId = selectedModel?.config?.codexProviderId;
+
   let codex: Codex;
   let thread: Thread;
   // Provider-native thread id (starts as the resume id, or is captured from
@@ -359,7 +370,15 @@ async function queryCodex(
   const sessionKey = () => sessionId || capturedSessionId || null;
 
   try {
-    codex = new Codex();
+    codex = codexProviderId
+      ? new Codex(compileCodexProviderOptions(codexProviderId, {
+        // The selected catalog entry is the most specific context-window fact
+        // source (the tier a Claude launch profile occupies), falling back to
+        // the provider entry's own default inside the compiler.
+        contextWindow: selectedModel?.contextWindow,
+        autoCompactTokenLimit: selectedModel?.autoCompactTokenLimit,
+      }))
+      : new Codex();
 
     const threadOptions: ThreadOptions = {
       workingDirectory,

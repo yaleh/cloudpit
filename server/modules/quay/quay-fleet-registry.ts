@@ -10,12 +10,12 @@ import { locateQuayFleetCli } from './quay-fleet-locator.js';
 /**
  * The fleet registry's per-project 「对人接口会话」, as the cockpit reads and writes it.
  *
- * THE FLEET IS THE AUTHORITY, and this module is the CloudCLI side of that contract. The registry
+ * THE FLEET IS THE AUTHORITY, and this module is the Cloudpit side of that contract. The registry
  * keeps the field as `projects[].interfaceSessionId` and exposes it through
  * `quay-fleet registry interface-session get|set|clear <project> --json`; the browser cannot spawn
  * that CLI, so the server is where the two calls live. Nothing here invents a project identity:
- * the CloudCLI project id is mapped to the fleet's own registry id by comparing the registered
- * ROOT with the project's path, because a CloudCLI UUID is not a fleet handle.
+ * the Cloudpit project id is mapped to the fleet's own registry id by comparing the registered
+ * ROOT with the project's path, because a Cloudpit UUID is not a fleet handle.
  *
  * A FLEET THAT CANNOT ANSWER IS AN ANSWER. Every failure — no binary, a non-zero exit, malformed
  * output — is reported as `{ok:false, reason}`, never thrown: the cockpit falls back to the
@@ -33,7 +33,7 @@ export type QuayFleetInterfaceSessionWrite =
   | { ok: true; project: string; interfaceSessionId: string | null }
   | { ok: false; reason: string; detail?: string };
 
-/** The two operations the cockpit needs, both addressed by the CloudCLI project id. */
+/** The two operations the cockpit needs, both addressed by the Cloudpit project id. */
 export type QuayFleetRegistryService = {
   /** Reads the project's pinned target conversation; `interfaceSessionId: null` means none. */
   readInterfaceSession(projectId: string): Promise<QuayFleetInterfaceSessionReading>;
@@ -45,7 +45,7 @@ export type QuayFleetRegistryService = {
 };
 
 export type QuayFleetRegistryDependencies = {
-  /** CloudCLI project id → absolute project path; `null` for an unknown project. */
+  /** Cloudpit project id → absolute project path; `null` for an unknown project. */
   resolveProjectPathById: (projectId: string) => string | null | undefined;
   /** The fleet CLI to spawn. Defaults to the shared locator, which owns the lookup order. */
   binPath?: string;
@@ -69,7 +69,7 @@ function isProjectRow(value: unknown): value is { id: string; root: string } {
  * Builds the fleet-registry service.
  *
  * The binary is resolved per call rather than captured at boot so an operator can install the
- * fleet CLI (or point `QUAY_FLEET_BIN` at a checkout) without restarting CloudCLI; a missing
+ * fleet CLI (or point `QUAY_FLEET_BIN` at a checkout) without restarting Cloudpit; a missing
  * binary is the ordinary `fleet-cli-unavailable` answer, not a boot failure.
  */
 export function createQuayFleetRegistry(
@@ -91,10 +91,10 @@ export function createQuayFleetRegistry(
   const run = createQuayFleetRunner({ resolveBinPath, exec: dependencies.exec });
 
   /**
-   * Resolves the CloudCLI project to the fleet's own registry id.
+   * Resolves the Cloudpit project to the fleet's own registry id.
    *
    * The path comes from the database, never from the request, and the fleet id is matched by root
-   * so a project CloudCLI knows but the fleet does not register is `unknown-project` rather than
+   * so a project Cloudpit knows but the fleet does not register is `unknown-project` rather than
    * being guessed from the display name.
    */
   const resolveFleetProject = async (

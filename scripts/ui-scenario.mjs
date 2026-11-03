@@ -23,6 +23,10 @@
  *       `settings`   — the Settings dialog's Cockpit tab, opened from the sidebar's Settings
  *                      button; the opener waits until the form's own reading is `ready`/`failed`,
  *                      so the first step never catches it mid-load.
+ *       `settings-agents-codex` — Settings → Agents → Codex → Models: the project provider
+ *                      registry with the bound model library and the user-profile import
+ *                      panel; waits until BOTH the registry's and the import panel's own
+ *                      statuses settle (`ready`/`failed`).
  *       `quay-pulse` — the title-bar Loop pulse popover of the session the page is already on;
  *                      the opener presses the trigger and waits for the mention list to settle,
  *                      because that list arrives over the network after the popover mounts.
@@ -550,6 +554,151 @@ function expectationFailures(expect, reading) {
         if (actual !== expected) fail(key, expected, actual);
         break;
       }
+      case 'codexProvidersOpen': {
+        const actual = reading.codexProviders?.open === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProvidersStatus': {
+        const actual = reading.codexProviders?.status ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProvidersError': {
+        const actual = reading.codexProviders?.error ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProvidersCount': {
+        const actual = reading.codexProviders?.count ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProviderIds': {
+        // The registry's ids IN DRAW ORDER: a row that silently disappears is observable.
+        const actual = Array.isArray(reading.codexProviders?.ids) ? reading.codexProviders.ids : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProviderTokenSet': {
+        // Per row, whether a secret is stored — never the secret itself.
+        const actual = Array.isArray(reading.codexProviders?.tokenSet)
+          ? reading.codexProviders.tokenSet
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexProviderWarningsInclude': {
+        const warnings = Array.isArray(reading.codexProviders?.warnings)
+          ? reading.codexProviders.warnings.join('\n')
+          : '';
+        if (!warnings.includes(String(expected))) fail(key, expected, warnings);
+        break;
+      }
+      case 'codexResponsesOnlyIncludes': {
+        const actual = reading.codexProviders?.responsesOnly ?? null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelProvider': {
+        const actual = reading.codexProviders?.modelProvider ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelProviderOptions': {
+        const actual = Array.isArray(reading.codexProviders?.modelProviderOptions)
+          ? reading.codexProviders.modelProviderOptions
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelLibraryStatus': {
+        const actual = reading.codexProviders?.modelLibraryStatus ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelLibraryNoticeIncludes': {
+        const actual = reading.codexProviders?.modelLibraryNotice ?? null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelIds': {
+        const actual = Array.isArray(reading.codexProviders?.modelIds)
+          ? reading.codexProviders.modelIds
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexModelLabelsInclude': {
+        const labels = Array.isArray(reading.codexProviders?.modelLabels)
+          ? reading.codexProviders.modelLabels.join('\n')
+          : '';
+        if (!labels.includes(String(expected))) fail(key, expected, labels);
+        break;
+      }
+      case 'codexImportOpen': {
+        const actual = reading.codexProviders?.importOpen === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportStatus': {
+        const actual = reading.codexProviders?.importStatus ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportCount': {
+        const actual = reading.codexProviders?.importCount ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportIds': {
+        // The user-profile rows IN DRAW ORDER (`config.toml` first, then profiles).
+        const actual = Array.isArray(reading.codexProviders?.importIds)
+          ? reading.codexProviders.importIds
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportBindable': {
+        // A row this project refuses (reserved id / Chat Completions) reads `false` here.
+        const actual = Array.isArray(reading.codexProviders?.importBindable)
+          ? reading.codexProviders.importBindable
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportEnvKeys': {
+        // The variable NAMES only; a value would have to be a different string.
+        const actual = Array.isArray(reading.codexProviders?.importEnvKeys)
+          ? reading.codexProviders.importEnvKeys
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportBaseUrls': {
+        const actual = Array.isArray(reading.codexProviders?.importBaseUrls)
+          ? reading.codexProviders.importBaseUrls
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportWireApis': {
+        const actual = Array.isArray(reading.codexProviders?.importWireApis)
+          ? reading.codexProviders.importWireApis
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportDirectoryIncludes': {
+        const actual = reading.codexProviders?.importDirectory ?? null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportError': {
+        const actual = reading.codexProviders?.importError ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       case 'cockpitCardDismissNoticeOk': {
         // The last dismiss answer's outcome, read from the list-level line that outlives the card.
         // `null` (no dismiss attempted yet) is a real reading, not "skip".
@@ -1044,6 +1193,51 @@ async function openSettingsCockpit(page) {
 }
 
 /**
+ * Opens Settings → Agents → Codex → Models: the project provider registry with the bound model
+ * library below it.
+ *
+ * The dialog has no route of its own, so the opener presses the same four controls a person
+ * does: the sidebar's Settings button, the Agents tab, the Codex agent pill, and the Models
+ * category tab. It then waits for the registry's own published status to settle (`ready` or
+ * `failed`), because the reading arrives over the network and a scenario's first `expect` must
+ * not catch it in `loading`.
+ *
+ * @param {import('playwright').Page} page
+ */
+async function openSettingsAgentsCodex(page) {
+  if (!page.url().startsWith('http')) {
+    await page.goto('/');
+  }
+  await waitForSurface(page);
+  const opener = page.locator('[data-testid="open-settings"]:visible').first();
+  await opener.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await opener.click();
+  const tab = page.locator('[data-settings-tab="agents"]:visible').first();
+  await tab.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await tab.click();
+  const agent = page.locator('[data-settings-agent="codex"]:visible').first();
+  await agent.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await agent.click();
+  const category = page.locator('[data-settings-category="models"]:visible').first();
+  await category.waitFor({ state: 'visible', timeout: BOOT_TIMEOUT_MS });
+  await category.click();
+  await page.waitForFunction(
+    () => {
+      const root = /** @type {any} */ (globalThis).document.querySelector('[data-codex-providers]');
+      if (root === null) return false;
+      const status = root.getAttribute('data-codex-providers');
+      // The user-profile import is a second, independent read; a scenario whose first step
+      // asserts it must not catch it mid-load.
+      const importStatus = root.getAttribute('data-codex-import-status');
+      return (status === 'ready' || status === 'failed')
+        && (importStatus === 'ready' || importStatus === 'failed');
+    },
+    undefined,
+    { timeout: PANEL_TIMEOUT_MS },
+  );
+}
+
+/**
  * Opens the title-bar Loop pulse popover for the session already on screen.
  *
  * The popover is the product's own dashboard entry (the header trigger), and its mention list is
@@ -1282,6 +1476,7 @@ async function runScenario(browser, scenario, options) {
             cockpit: () => openCockpit(page),
             'cockpit-cards': () => openCockpitCards(page),
             settings: () => openSettingsCockpit(page),
+            'settings-agents-codex': () => openSettingsAgentsCodex(page),
             'quay-pulse': () => openQuayPulse(page),
             'cost-panel': () => openCostPanel(page, target),
           };

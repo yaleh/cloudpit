@@ -18,6 +18,16 @@ import {
 import type { ScenarioSettingsReading } from '@/modules/ui-scenario/settingsSurface';
 import { readChatReading, startEditingMessage } from '@/modules/ui-scenario/chatSurface';
 import type { ScenarioChatReading } from '@/modules/ui-scenario/chatSurface';
+import {
+  dispatchCodexProviderStep,
+  isCodexProviderStep,
+  readCodexProvidersReading,
+  settleCodexProvidersStep,
+} from '@/modules/ui-scenario/codexProvidersSurface';
+import type {
+  CodexProviderDriveStep,
+  ScenarioCodexProvidersReading,
+} from '@/modules/ui-scenario/codexProvidersSurface';
 import { readCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import type { ScenarioCostPanelReading } from '@/modules/ui-scenario/costPanelSurface';
 import { readSidebarReading } from '@/modules/ui-scenario/sidebarSurface';
@@ -91,6 +101,7 @@ export type ScenarioDriveStep =
   | { 'settings.selectModel': string }
   | { 'settings.selectEffort': string }
   | { 'settings.save': true }
+  | CodexProviderDriveStep
   | { 'chat.edit': string };
 
 /** True when the step carries one of the cards view's commands (dispatched in its own slice). */
@@ -207,6 +218,12 @@ export type ScenarioReading = {
    * `data-cockpit-session-start*` attributes the form itself draws.
    */
   settings: ScenarioSettingsReading | null;
+  /**
+   * Settings → Agents → Codex's provider registry and bound model editor, or an absent reading
+   * when that panel is not mounted. Taken from the `data-codex-*` / `data-model-library-*`
+   * attributes the panels themselves draw.
+   */
+  codexProviders: ScenarioCodexProvidersReading;
   /**
    * The rendered transcript and composer. An empty reading when the page is not a session
    * workspace, which is what lets a scenario assert the conversation after switching back.
@@ -576,6 +593,7 @@ function createScenarioSurface(): ScenarioSurface {
       quayPulse: readQuayPulseReading(),
       cockpit: readCockpitReading(),
       settings: readSettingsReading(),
+      codexProviders: readCodexProvidersReading(),
       chat: readChatReading(),
       costPanel: readCostPanelReading(),
       activeView: activeViewUri,
@@ -645,6 +663,7 @@ function createScenarioSurface(): ScenarioSurface {
     pendingCardAction = null;
     await settleCardStep(continuation);
     await settleSettingsStep();
+    await settleCodexProvidersStep();
   };
 
   const drive = (step: ScenarioDriveStep): ScenarioReading => {
@@ -700,6 +719,9 @@ function createScenarioSurface(): ScenarioSurface {
     } else if ('settings.save' in step) {
       action = 'settings.save';
       pressSettingsSave();
+    } else if (isCodexProviderStep(step)) {
+      // The Codex provider registry and its model editor own their own verbs (sibling slice).
+      action = dispatchCodexProviderStep(step);
     } else if ('chat.edit' in step) {
       action = 'chat.edit';
       // The press itself is the product's `onEditMessage`; the composer value the step's

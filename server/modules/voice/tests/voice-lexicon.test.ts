@@ -62,7 +62,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const SHAPE_TABLE: Array<[string, boolean]> = [
   ['needs-human', true],
   ['AC-103', true],
-  ['CloudCLI', true],
+  ['CLOUDPIT-CLI', true],
   ['GOAL-013', true],
   ['provider_models', true],
   ['MCP', true],
@@ -127,7 +127,7 @@ const JWT_SENTINEL =
  * summing is exercised rather than assumed.
  */
 const HISTORY_FIXTURE: VoiceHumanMessage[] = [
-  { id: 'm1', projectKey: '/proj/a', text: 'Please fix needs-human and CloudCLI wiring, zebraquokka' },
+  { id: 'm1', projectKey: '/proj/a', text: 'Please fix needs-human and CLOUDPIT-CLI wiring, zebraquokka' },
   { id: 'm2', projectKey: '/proj/a', text: 'needs-human again: AC-103 blocked. zebraquokka' },
   // The same id a second time, with a body that would change the counts if it were counted.
   { id: 'm2', projectKey: '/proj/a', text: 'needs-human needs-human MCP in server.ts' },
@@ -165,7 +165,7 @@ const HISTORY_FIXTURE: VoiceHumanMessage[] = [
 const EXPECTED_LIST = [
   { token: 'needs-human', count: 2 },
   { token: 'AC-103', count: 1 },
-  { token: 'CloudCLI', count: 1 },
+  { token: 'CLOUDPIT-CLI', count: 1 },
   { token: 'MCP', count: 1 },
   { token: 'provider_models', count: 1 },
 ];
@@ -248,8 +248,8 @@ test('a credential blob is refused by token while the words around it survive', 
   // and conflating the two rules would make a long message lose its words.
   assert.deepEqual(extractSentIdentifiers(JWT_SENTINEL), [], 'a bare JWT is not vocabulary');
   assert.deepEqual(
-    extractSentIdentifiers(`deploy CloudCLI ${JWT_SENTINEL} now`),
-    ['CloudCLI'],
+    extractSentIdentifiers(`deploy CLOUDPIT-CLI ${JWT_SENTINEL} now`),
+    ['CLOUDPIT-CLI'],
     'the words a message does contain are unaffected by the blob it also contains',
   );
 
@@ -358,21 +358,21 @@ test('a sent message records only its identifier-shaped tokens', async () => {
   await withIsolatedDatabase(async () => {
     const service = createService([]);
 
-    service.observeSentText('deploy CloudCLI to prod now', '/proj/x');
+    service.observeSentText('deploy CLOUDPIT-CLI to prod now', '/proj/x');
     // Two plain words and one identifier, so the increment is attributable to
     // the identifier rather than to "the message was long enough".
     service.observeSentText('please check needs-human', '/proj/x');
     // A credential-style message and an injected prompt must each contribute
-    // nothing — CloudCLI stays at its one sighting from the first send.
+    // nothing — CLOUDPIT-CLI stays at its one sighting from the first send.
     service.observeSentText(`use ${CREDENTIAL_SENTINEL} here`, '/proj/x');
-    service.observeSentText('<system-reminder>CloudCLI</system-reminder>', '/proj/x');
+    service.observeSentText('<system-reminder>CLOUDPIT-CLI</system-reminder>', '/proj/x');
     // A second sighting, to show the count is a frequency and not a flag.
-    service.observeSentText('CloudCLI again', '/proj/x');
+    service.observeSentText('CLOUDPIT-CLI again', '/proj/x');
 
     assert.deepEqual(
       service.list(100).map((row) => ({ token: row.token, count: row.count })),
       [
-        { token: 'CloudCLI', count: 2 },
+        { token: 'CLOUDPIT-CLI', count: 2 },
         { token: 'needs-human', count: 1 },
       ],
       'only the identifiers of the accepted sends may be counted',

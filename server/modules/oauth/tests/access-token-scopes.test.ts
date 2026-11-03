@@ -8,10 +8,10 @@
  * temp directory. Covers:
  *   (a) any non-empty subset of the vocabulary issues 201, the response scopes
  *       equal the requested set with no duplicates, and the stored scopes match;
- *   (b) a mistyped scope, an unprefixed `read`, `cloudcli:admin`, an empty list
+ *   (b) a mistyped scope, an unprefixed `read`, `cloudpit:admin`, an empty list
  *       and a non-string element are all 400 with the same `INVALID_SCOPE` code
  *       and write no row;
- *   (c) an omitted scope list still defaults to `cloudcli:read`;
+ *   (c) an omitted scope list still defaults to `cloudpit:read`;
  *   (d) the service's own `issueToken` rejects the same illegal scopes and still
  *       issues a valid one — bypassing the route cannot mint a bad scope.
  */
@@ -29,6 +29,7 @@ import express from 'express';
 
 import { accessTokensDb, closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 import { ACCESS_TOKEN_SCOPES, createAccessTokensService } from '@/modules/oauth/index.js';
+import { CLOUDPIT_ACCESS_TOKEN_SCOPES } from '@/shared/mcp-contract/index.js';
 import type { AccessTokensService } from '@/modules/oauth/index.js';
 import { createSettingsRouter, createSettingsService } from '@/modules/settings/index.js';
 import { AppError } from '@/shared/utils.js';
@@ -37,50 +38,50 @@ const OWNER_ID = 1;
 
 /**
  * The eight issuable scopes written out literally, so a source change that adds
- * `cloudcli:admin` (or drops a scope) is caught here rather than silently
+ * `cloudpit:admin` (or drops a scope) is caught here rather than silently
  * changing what the criterion expects.
  */
 const VOCABULARY = [
-  'cloudcli:read',
-  'cloudcli:session:send',
-  'cloudcli:session:create',
-  'cloudcli:session:control',
-  'cloudcli:approve',
+  'cloudpit:read',
+  'cloudpit:session:send',
+  'cloudpit:session:create',
+  'cloudpit:session:control',
+  'cloudpit:approve',
   // gap-mcp-ui-open-session: appended last, so the five positional reads in the
   // gateway's write-tool table keep their index.
-  'cloudcli:navigate',
+  'cloudpit:navigate',
   // gap-ui-visible-context-extended-fields: appended after navigate for the same
   // reason — every positional read in the gateway keeps its index.
-  'cloudcli:selection',
+  'cloudpit:selection',
   // gap-mcp-cockpit-card-tools: the confirm scope for cockpit cards, appended
-  // LAST for the same positional reason. There is no `cloudcli:cockpit:read`:
-  // the three cockpit read tools use `cloudcli:read`.
-  'cloudcli:cockpit:act',
+  // LAST for the same positional reason. There is no `cloudpit:cockpit:read`:
+  // the three cockpit read tools use the canonical read scope.
+  'cloudpit:cockpit:act',
 ] as const;
 
 /** A non-empty subset request and the unique scopes it must resolve to. */
 const SUBSET_REQUESTS: { requested: string[]; expectedUnique: string[] }[] = [
-  { requested: ['cloudcli:read'], expectedUnique: ['cloudcli:read'] },
-  { requested: ['cloudcli:session:send'], expectedUnique: ['cloudcli:session:send'] },
-  { requested: ['cloudcli:session:create'], expectedUnique: ['cloudcli:session:create'] },
-  { requested: ['cloudcli:session:control'], expectedUnique: ['cloudcli:session:control'] },
-  { requested: ['cloudcli:approve'], expectedUnique: ['cloudcli:approve'] },
-  { requested: ['cloudcli:read', 'cloudcli:approve'], expectedUnique: ['cloudcli:read', 'cloudcli:approve'] },
+  { requested: ['cloudpit:read'], expectedUnique: ['cloudpit:read'] },
+  { requested: ['cloudpit:session:send'], expectedUnique: ['cloudpit:session:send'] },
+  { requested: ['cloudpit:session:create'], expectedUnique: ['cloudpit:session:create'] },
+  { requested: ['cloudpit:session:control'], expectedUnique: ['cloudpit:session:control'] },
+  { requested: ['cloudpit:approve'], expectedUnique: ['cloudpit:approve'] },
+  { requested: ['cloudpit:read', 'cloudpit:approve'], expectedUnique: ['cloudpit:read', 'cloudpit:approve'] },
   { requested: [...VOCABULARY], expectedUnique: [...VOCABULARY] },
   {
     // First-occurrence order is preserved: read then approve.
-    requested: ['cloudcli:read', 'cloudcli:read', 'cloudcli:approve'],
-    expectedUnique: ['cloudcli:read', 'cloudcli:approve'],
+    requested: ['cloudpit:read', 'cloudpit:read', 'cloudpit:approve'],
+    expectedUnique: ['cloudpit:read', 'cloudpit:approve'],
   },
 ];
 
 /** The five illegal scope payloads that must all share one 400 code. */
 const ILLEGAL_SCOPES: unknown[] = [
-  ['cloudcli:reed'],
+  ['cloudpit:reed'],
   ['read'],
-  ['cloudcli:admin'],
+  ['cloudpit:admin'],
   [],
-  ['cloudcli:read', 42],
+  ['cloudpit:read', 42],
 ];
 
 type HttpResponse = { status: number; body: Record<string, unknown>; text: string };
@@ -234,10 +235,13 @@ async function withSettingsServer(run: (harness: Harness) => Promise<void>): Pro
   }
 }
 
-test('(vocabulary) ACCESS_TOKEN_SCOPES is exactly the eight issuable scopes, admin absent', () => {
-  assert.deepEqual([...ACCESS_TOKEN_SCOPES], [...VOCABULARY]);
+test('(vocabulary) the eight issuable scopes are the cloudpit:* spellings, admin absent', () => {
+  assert.deepEqual([...CLOUDPIT_ACCESS_TOKEN_SCOPES], [...VOCABULARY]);
+  assert.equal((CLOUDPIT_ACCESS_TOKEN_SCOPES as readonly string[]).includes('cloudpit:admin'), false);
+  // The canonical table is internal, still eight names, and never the request vocabulary.
+  assert.equal(ACCESS_TOKEN_SCOPES.length, 8);
   assert.equal((ACCESS_TOKEN_SCOPES as readonly string[]).includes('cloudcli:admin'), false);
-  console.log(`(vocabulary) ACCESS_TOKEN_SCOPES = ${JSON.stringify(ACCESS_TOKEN_SCOPES)}`);
+  console.log(`(vocabulary) CLOUDPIT_ACCESS_TOKEN_SCOPES = ${JSON.stringify(CLOUDPIT_ACCESS_TOKEN_SCOPES)}`);
 });
 
 test('(a) any non-empty vocabulary subset issues 201 with set-equal, deduplicated, stored scopes', async () => {
@@ -300,7 +304,24 @@ test('(b) the five illegal scope payloads are all 400 INVALID_SCOPE and write no
   });
 });
 
-test('(c) an omitted scope list still defaults to cloudcli:read', async () => {
+test('(b2) the retired cloudcli:* spelling is a 400 INVALID_SCOPE and writes no row', async () => {
+  await withSettingsServer(async (harness) => {
+    for (const scopes of [['cloudcli:read'], ['cloudcli:session:send'], ['cloudcli:cockpit:act']]) {
+      const beforeCount = harness.countRows();
+      const response = await postJson(harness, '/api/settings/access-tokens', {
+        name: 'retired',
+        expiresInDays: 30,
+        scopes,
+      });
+      assert.equal(response.status, 400);
+      assert.equal(errorCode(response.body), 'INVALID_SCOPE');
+      assert.equal(harness.countRows(), beforeCount);
+      console.log(`(b2) scopes=${JSON.stringify(scopes)} status=${response.status} code=${errorCode(response.body)}`);
+    }
+  });
+});
+
+test('(c) an omitted scope list still defaults to cloudpit:read', async () => {
   await withSettingsServer(async (harness) => {
     const response = await postJson(harness, '/api/settings/access-tokens', {
       name: 'default-scope',
@@ -308,10 +329,10 @@ test('(c) an omitted scope list still defaults to cloudcli:read', async () => {
     });
     const scopes = responseScopes(response.body);
     assert.equal(response.status, 201);
-    assert.deepEqual(scopes, ['cloudcli:read']);
+    assert.deepEqual(scopes, ['cloudpit:read']);
 
     const stored = harness.storedScopes((response.body.token as { id: number }).id);
-    assert.deepEqual(stored, ['cloudcli:read']);
+    assert.deepEqual(stored, ['cloudpit:read']);
 
     console.log(`(c) status=${response.status} token.scopes=${JSON.stringify(scopes)} stored=${JSON.stringify(stored)}`);
   });
@@ -322,8 +343,8 @@ test('(d) service-level issueToken rejects illegal scopes and still issues a val
     const beforeCount = harness.countRows();
 
     const illegal = [
-      { scopes: ['cloudcli:reed'] },
-      { scopes: ['cloudcli:admin'] },
+      { scopes: ['cloudpit:reed'] },
+      { scopes: ['cloudpit:admin'] },
       { scopes: [] },
     ];
     for (const { scopes } of illegal) {
@@ -333,11 +354,11 @@ test('(d) service-level issueToken rejects illegal scopes and still issues a val
     }
     assert.equal(harness.countRows(), beforeCount);
 
-    const valid = harness.tokens.issueToken({ userId: OWNER_ID, scopes: ['cloudcli:read'] });
+    const valid = harness.tokens.issueToken({ userId: OWNER_ID, scopes: ['cloudpit:read'] });
     assert.equal(valid.ok, true);
     assert.equal(harness.countRows(), beforeCount + 1);
     console.log(
-      `(d) issueToken(['cloudcli:read']) = ok=${valid.ok} id=${valid.ok ? valid.token.id : '-'} `
+      `(d) issueToken(['cloudpit:read']) = ok=${valid.ok} id=${valid.ok ? valid.token.id : '-'} `
       + `rows ${beforeCount}->${harness.countRows()}`,
     );
   });

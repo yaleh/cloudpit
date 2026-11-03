@@ -87,7 +87,7 @@ function makeProject(overrides: Partial<ProjectTruthProjectRef> = {}): ProjectTr
   return {
     projectId: CLOUD_PROJECT_ID,
     projectPath: '/data/home/yale/work/claudecodeui',
-    title: 'CloudCLI',
+    title: 'Cloudpit',
     fleetProjectId: FLEET_PROJECT_ID,
     deploy: { healthUrl: 'http://127.0.0.1:3001', ref: 'HEAD' },
     ...overrides,
@@ -237,7 +237,7 @@ test('AC1: a snapshot fixture yields all five layers, each from its own source',
   assert.ok(!reading.deltaItems.includes('落地 landed earlier'));
 });
 
-test('AC1: a non-CloudCLI project reads deploy as not-applicable, is not green and is not reddened by the reader', () => {
+test('AC1: a non-Cloudpit project reads deploy as not-applicable, is not green and is not reddened by the reader', () => {
   const reading = build({
     project: makeProject({ fleetProjectId: 'plantuml-js', deploy: null }),
     // Deliberately a failing reader: a project with no deployment concept must not be turned

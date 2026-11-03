@@ -68,7 +68,7 @@ const SCHEMA = {
       source: 'the writer: cloudcli | fleet',
       kind: 'one of `kinds` below',
       project: 'optional Quay project id',
-      session: 'optional CloudCLI session id',
+      session: 'optional Cloudpit session id',
       refs: 'optional array of references',
       data: 'kind-specific payload (a JSON object)',
     },
@@ -144,7 +144,7 @@ const APPROVAL_BLOCK: SessionBlockedEvent = {
   toolName: 'commandExecution',
 };
 
-/** The synthetic session a DoD/fixture scenario mints; never a real CloudCLI session id. */
+/** The synthetic session a DoD/fixture scenario mints; never a real Cloudpit session id. */
 const FIXTURE_SESSION = 'dod-codex-blocked-1793458130445';
 const FIXTURE_BLOCK: SessionBlockedEvent = {
   kind: 'session.blocked',
@@ -360,7 +360,7 @@ test('a fixture session is refused before the record seam: production wiring, an
 });
 
 test('the same production adapter still writes a real session id (AC2 regression arm)', async () => {
-  // The guard must be discriminating, not a blanket refusal: a real CloudCLI session id goes
+  // The guard must be discriminating, not a blanket refusal: a real Cloudpit session id goes
   // through the production-wired adapter untouched, in the same run that refused the fixture.
   const reached: ContextEventDraft[] = [];
   const adapter = createSessionBlockedEventWriter({

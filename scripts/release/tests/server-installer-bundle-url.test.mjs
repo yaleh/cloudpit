@@ -2,16 +2,17 @@
 /**
  * Criterion for gap-desktop-local-server-bundle-url-points-at-fork.
  *
- * CloudCLI Desktop downloads its Local runtime bundle from a GitHub Release URL built by
+ * Cloudpit Desktop downloads its Local runtime bundle from a GitHub Release URL built by
  * `electron/serverInstaller.js`. The default base URL named the UPSTREAM repository
  * (`github.com/siteboon/claudecodeui`) while this fork publishes both the desktop installer and the
  * `cloudpit-local-server-v<tag>` prerelease under `yaleh/cloudpit` — so a user who picked
- * "Local CloudCLI" asked a repository that never had the tag and got a 404.
+ * "Local Cloudpit" asked a repository that never had the tag and got a 404.
  *
  * This criterion pins the two decisions that fix it, so neither can silently revert:
  *
  *   1. the DEFAULT base URL names the fork, and no upstream org reference survives in the source;
- *   2. `CLOUDCLI_SERVER_BUNDLE_URL` still overrides it (the escape hatch admins already use).
+ *   2. `CLOUDPIT_SERVER_BUNDLE_URL` still overrides it (the escape hatch admins already use);
+ *      v3.0 retired the legacy `CLOUDCLI_SERVER_BUNDLE_URL` spelling, which is now ignored.
  *
  * It also pins the URL *shape* the release pipeline now produces: the release-tag path segment and
  * the `cloudpit-local-server-v<version>-<platform>-<arch>.tar.gz` filename both carry the `v`
@@ -99,17 +100,26 @@ const legacyTagHits = RELEASE_SURFACE.flatMap((rel) =>
 );
 
 // The default reading must be taken with the override env UNSET: a stray
-// CLOUDCLI_SERVER_BUNDLE_URL in the caller's environment would otherwise masquerade as the default.
-const savedBundleUrlEnv = process.env.CLOUDCLI_SERVER_BUNDLE_URL;
+// CLOUDPIT_SERVER_BUNDLE_URL in the caller's environment would otherwise masquerade as the default.
+const savedBundleUrlEnv = process.env.CLOUDPIT_SERVER_BUNDLE_URL;
+const savedLegacyBundleUrlEnv = process.env.CLOUDCLI_SERVER_BUNDLE_URL;
+delete process.env.CLOUDPIT_SERVER_BUNDLE_URL;
 delete process.env.CLOUDCLI_SERVER_BUNDLE_URL;
 const defaultUrl = installer().getBundleUrl();
 const defaultBaseUrl = installer().bundleBaseUrl;
 
-process.env.CLOUDCLI_SERVER_BUNDLE_URL = OVERRIDE_BASE;
+process.env.CLOUDPIT_SERVER_BUNDLE_URL = OVERRIDE_BASE;
 const overrideUrl = installer().getBundleUrl();
 
-if (savedBundleUrlEnv === undefined) delete process.env.CLOUDCLI_SERVER_BUNDLE_URL;
-else process.env.CLOUDCLI_SERVER_BUNDLE_URL = savedBundleUrlEnv;
+// v3.0 negative control: the retired legacy spelling must not override anything.
+delete process.env.CLOUDPIT_SERVER_BUNDLE_URL;
+process.env.CLOUDCLI_SERVER_BUNDLE_URL = 'https://legacy.invalid/bundles';
+const legacyOnlyUrl = installer().getBundleUrl();
+
+if (savedBundleUrlEnv === undefined) delete process.env.CLOUDPIT_SERVER_BUNDLE_URL;
+else process.env.CLOUDPIT_SERVER_BUNDLE_URL = savedBundleUrlEnv;
+if (savedLegacyBundleUrlEnv === undefined) delete process.env.CLOUDCLI_SERVER_BUNDLE_URL;
+else process.env.CLOUDCLI_SERVER_BUNDLE_URL = savedLegacyBundleUrlEnv;
 
 const defaultParsed = new URL(defaultUrl);
 const defaultRepoPath = defaultParsed.pathname.split('/').filter(Boolean).slice(0, 2).join('/');
@@ -153,12 +163,25 @@ test('the default bundle address points at the fork, not upstream', () => {
   );
 });
 
-test('CLOUDCLI_SERVER_BUNDLE_URL still overrides the default', () => {
+test('CLOUDPIT_SERVER_BUNDLE_URL still overrides the default', () => {
   assert.equal(envOverride, 'honored', 'the environment override must win over the default base URL');
   assert.equal(
     overrideUrl,
     `${OVERRIDE_BASE}/${RELEASE_TAG}/cloudpit-local-server-v${VERSION}-win-x64.tar.gz`,
     'the override base must be used verbatim, keeping the tag/filename shape',
+  );
+});
+
+test('v3.0: CLOUDCLI_SERVER_BUNDLE_URL is ignored', () => {
+  assert.equal(
+    legacyOnlyUrl.startsWith(`${OVERRIDE_BASE}/`),
+    false,
+    'the retired legacy spelling must not override the base URL',
+  );
+  assert.equal(
+    legacyOnlyUrl,
+    defaultUrl,
+    'a legacy-only environment must resolve the same URL as no environment',
   );
 });
 

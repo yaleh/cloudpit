@@ -38,6 +38,9 @@ function createHarness(
         return 7;
       },
     },
+    assetMigrationService: {
+      execute: async () => 0,
+    },
     getLatestPackageVersion: async () => '1.2.3',
     updateGlobalPackage: () => undefined,
     startServer: async () => {

@@ -13,7 +13,7 @@ type McpGatewaySectionProps = {
 
 /**
  * Rendered by CredentialsSettingsTab above the personal access token section: the
- * CloudCLI MCP endpoint, its enabled/disabled state, a copy button and — only
+ * Cloudpit MCP endpoint, its enabled/disabled state, a copy button and — only
  * while the gateway is enabled — the local connect command. The command carries
  * a literal `Bearer <token>` placeholder and never a real token, so nothing on
  * the page leaks a credential.
@@ -41,7 +41,7 @@ export default function McpGatewaySection({ status }: McpGatewaySectionProps) {
   // The connect command a user runs on their own machine. The token is a
   // placeholder the user replaces with their own personal access token.
   const connectCommand =
-    `claude mcp add --transport http cloudcli ${endpoint} `
+    `claude mcp add --transport http cloudpit ${endpoint} `
     + '--header "Authorization: Bearer <token>"';
 
   return (

@@ -36,7 +36,7 @@
  *
  *   `startup-line-missing` deletes the one call that announces the mode. It is NOT a bare
  *   deletion: `voiceCapture` is read again eight lines later, so removing the statement outright
- *   makes the module throw at load, the child never prints `CloudCLI Server - Ready`, and the
+ *   makes the module throw at load, the child never prints `Cloudpit Server - Ready`, and the
  *   criterion exits 2 with no readings at all — a red that names nothing, which is the failure
  *   shape this AC is written against. The mutation therefore deletes the announcing call and
  *   inlines the single field the rest of the file reads, which is the smallest single-site change

@@ -38,6 +38,7 @@
 | **R11** SW 缓存前缀 `claude-ui-*` | `cloudpit-*` | 激活时同时删除 `cloudpit-*` 旧缓存与 `claude-ui-*` 家族，保留 speech model 等无关缓存（`public/sw.js:4,7,9,114-132`） | 3.0 | `server/shared/tests/cloudpit-runtime-flip.test.ts` AC9；`server/modules/static-assets/tests/service-worker-transient-failure.test.ts` | 恢复 `LEGACY_CACHE_PREFIX` 清理；被删旧缓存只会重新下载 |
 | **R12** 旧 release tag / runtime 资产 `cloudcli-local-server-*`、`cloudcli-desktop-*` | `cloudpit-local-server-*`、`cloudpit-desktop-*` | 现状核实：工作流与打包脚本只产新名（`.github/workflows/desktop-release.yml:49`；`scripts/release/build-server-bundle.js:112`；`package.json:79`），2.0 未双发旧 tag 别名；安装器只迁移旧安装目录，不解析旧 tag（`electron/serverInstaller.js:19-21,39-59`） | 2.1 | `scripts/release/tests/fork-release-workflows.test.mjs`；`scripts/cloudpit-distribution-check.test.mjs`；「workflow 中无旧 tag 前缀」负向判据本任务不新增，执行时新增 | 若某渠道仍引用旧 tag，补发一次旧 tag 别名；旧桌面按自身版本找 tag 的兼容不变 |
 | **R13** Electron appId `ai.cloudcli.desktop` | `ai.cloudpit.desktop` | appId 保持旧值（`package.json:76`；`electron/main.js:16`）；app name/productName 已是 Cloudpit，首次启动由 `maybeMigrateDesktopUserData` 复制 3 个 userData JSON（`electron/main.js:895-903`；`electron/userDataMigration.js:17-48`）；安装、注册表、钥匙串、卸载项仍属旧 appId。3.0 切换 appId 并配一次性安装迁移 | 3.0 | `electron/tests/cloudpit-desktop-identity.test.mjs` AC7；`electron/tests/cloudpit-userdata-migration.test.mjs` AC6/AC7；appId 安装器迁移判据本任务不新增，执行时新增 | 保留旧 appId 安装包与旧卸载项；迁移安装器失败则回退旧安装；userData 旧目录不删除 |
+| **R14** brief/reply itemRef 契约 `cloudcli://session/<id>`、`cloudcli://session/<id>/msg/<messageId>#item-<n>` | 保留旧拼写（K 类，不进入观测 URI 的 R6/R7 退场） | 这是**独立于观测 URI 语法**的 item 寻址契约：`cockpit-brief-result.ts:117` 生成 brief `itemRef`，`replyItems.ts:124` 生成回复项 URI；两者随消息/卡片持久化，下游按旧拼写解析。2.1 的观测 URI 新写不覆盖这两处 | 3.0 | `src/modules/chat/utils/tests/replyItems.test.ts`；`server/modules/cockpit/tests/cockpit-brief.test.ts`；`server/modules/cockpit/tests/cockpit-brief-spec.test.ts`；3.0 执行时补「批量删除 `cloudcli://` 不得命中这两个 formatter」的负向判据 | 无需迁移；保持旧写。若未来产品要求改名，必须另立任务并同时提供双读、持久化键归一化与 UI deep-link 兼容，禁止随 3.0 的 blanket 删除一起清掉 |
 
 ## v2.1 门
 
@@ -84,6 +85,7 @@ v3.0 是**兼容删除版**。总原则：删除的是「运行时回退」，�
     - 安装迁移：Windows 的 NSIS 卸载注册表项、开始菜单与任务栏固定、`app.setAppUserModelId`；macOS 的 bundle identifier 与钥匙串条目；Linux 的 `.desktop` 文件。安装新 appId 后首次启动检测旧 appId 安装，复制凭据（钥匙串/注册表）并保留旧安装，不自动卸载；失败时回退旧安装。
     - 判据：`cloudpit-desktop-identity.test.mjs` AC7 改为断言新 appId；新增安装器迁移判据（本任务不新增，执行时新增）。
     - 回滚：保留 2.x 安装包与旧 appId 注册项；用户可卸载新 app 重装旧版。
+13. **R14 brief/reply itemRef 契约**：**3.0 不清洗、不删除**。`cockpit-brief-result.ts:117` 的 brief `itemRef` 与 `replyItems.ts:124` 的回复项 URI 继续写 `cloudcli://session/...`；这是独立于观测 URI 的 item 寻址语法，不在 R6/R7 的退场范围。任何「批量删除 `cloudcli://`」的 3.0 清理都必须显式排除这两处 formatter，并保留双读。判据：`replyItems.test.ts`、`cockpit-brief.test.ts`、`cockpit-brief-spec.test.ts` 对旧拼写的 round-trip 仍绿；新增「blanket 删除不得命中这两个 formatter」的负向判据（执行时新增）。若未来产品要求把 itemRef 也改为 `cloudpit://`，另立任务，必须同时交付双读、持久化键归一化与 UI deep-link 兼容，不得搭 3.0 的车。回滚：无需迁移；保持旧写。
 
 ### 发布顺序
 
@@ -105,6 +107,7 @@ v3.0 是**兼容删除版**。总原则：删除的是「运行时回退」，�
 - **SPEC §3 第 8 行（附件「不删」）与 §13 末段（`~/.cloudcli/assets` 只读支持建议长期保留）**：本计划把 R4 的**代码双读**定为 `3.0` 可退场，但以 `migrate-assets --rewrite` 任务为前置；数据文件永不删除。这是对 SPEC「长期保留」的收窄：退场的是查找回退，不是数据。冲突以本计划为准。
 - **SPEC §3 第 21 行（SW 缓存「2.0.0 即完成」）**：本计划把 `claude-ui-*` 清理的删除定为 `3.0`，并加「不支持 1.x 直升 3.x」的前置。SPEC 的「即完成」指 2.0 已经开始清理，不是指清理代码可以立刻删除。
 - **SPEC §3 第 17 行（PAT `ccp_` 保留，K 类）**：一致；本计划 R10 的 `3.0` 是复核门，不是删除动作。
+- **SPEC §5.2（内部观测 URI 双读/写切换）**：SPEC 只覆盖观测 URI 语法；本计划新增 R14，把 brief/reply itemRef 作为**独立契约**在 3.0 保留，明确它不属于 R6/R7 的退场范围。这是对 SPEC 未区分两种 `cloudcli://` 语法的补充，不是冲突。
 - **SPEC §0.3 / 冻结账本**：SPEC 把 `docs/proposals/` 列为冻结；因此 SPEC §13 要求的「回写差异说明」以本节交付，不直接改 SPEC 文件。执行 2.1/3.0 的任务若需要更新 SPEC，必须另立任务并显式解冻。
 
 ## 验证映射
@@ -124,10 +127,11 @@ v3.0 是**兼容删除版**。总原则：删除的是「运行时回退」，�
 - R11：`server/shared/tests/cloudpit-runtime-flip.test.ts`（存在；AC9）、`server/modules/static-assets/tests/service-worker-transient-failure.test.ts`（存在）。
 - R12：`scripts/release/tests/fork-release-workflows.test.mjs`（存在）、`scripts/cloudpit-distribution-check.test.mjs`（存在）。「workflow 中无旧 tag 前缀」的负向判据：本任务不新增，执行时新增。
 - R13：`electron/tests/cloudpit-desktop-identity.test.mjs`（存在；AC7）、`electron/tests/cloudpit-userdata-migration.test.mjs`（存在；AC6/AC7）。appId 安装器迁移判据：本任务不新增，执行时新增。
+- R14：`src/modules/chat/utils/tests/replyItems.test.ts`（存在；回复项 URI round-trip）、`server/modules/cockpit/tests/cockpit-brief.test.ts`（存在；brief `itemRef`）、`server/modules/cockpit/tests/cockpit-brief-spec.test.ts`（存在；spec 检查）。「blanket 删除不得命中 brief/reply formatter」的负向判据：本任务不新增，执行时新增。
 
 ### 机械校验
 
 - 矩阵列数：每行（含表头）按 `|` 切分后去掉首尾空段必须恰好 6 个单元格，且无空单元格。
-- 行数：矩阵数据行 13 行，覆盖 Proposal 列出的 11 项（观测 URI 拆成写入与双读两行，另含本地 deep link 与 appId 两行）。
-- 版本列：每行只取 `2.1` 或 `3.0`；R6 为 `2.1`，R13 为 `3.0` 且写明 userData 与安装迁移。
-- 文件内唯一的 markdown 表格就是矩阵，因此 `grep -c '^|'` 的读数可直接用于矩阵行数核对（等于表头 1 行 + 分隔行 1 行 + 数据行 13 行 = 15）。
+- 行数：矩阵数据行 14 行。R1–R13 覆盖 Proposal 列出的 11 项（观测 URI 拆成写入与双读两行，另含本地 deep link 与 appId 两行）；R14 是 2.1 完成后补入的独立 brief/reply itemRef 契约行。
+- 版本列：每行只取 `2.1` 或 `3.0`；R6 为 `2.1`，R13 为 `3.0` 且写明 userData 与安装迁移，R14 为 `3.0` 的「复核、不删除」契约。
+- 文件内唯一的 markdown 表格就是矩阵，因此 `grep -c '^|'` 的读数可直接用于矩阵行数核对（等于表头 1 行 + 分隔行 1 行 + 数据行 14 行 = 16）。

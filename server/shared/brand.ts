@@ -1,24 +1,31 @@
 /**
- * Brand-owned environment variables, read under the new Cloudpit names with a
- * fallback to the legacy CloudCLI names.
+ * Brand-owned environment variables, read under the Cloudpit spelling only.
  *
- * This module is deliberately unwired: GOAL-053 builds the reader so a later
- * task can point the CLI, database, settings and Electron paths at it without
- * changing any default in this change. Because no production module imports it
- * yet, the only consumer is `tests/cloudpit-brand-env.test.ts`.
+ * v3.0 RETIREMENT. Up to 2.x this reader also accepted the legacy `CLOUDCLI_<NAME>`
+ * spelling and emitted one deprecation warning per legacy key. The runtime fallback is
+ * gone: a process that exports only `CLOUDCLI_<NAME>` reads as absent, so the caller's
+ * shipped default applies. Setting the legacy name is not an error and produces no
+ * warning — it is simply not consulted.
+ *
+ * There is no `warn` dependency any more: every reading is either the canonical key's
+ * value or absent, so the reader has nothing to report. Callers that still pass a
+ * warning sink would be compiling against the retired API, hence the narrower shape.
+ *
+ * The production wiring points (Electron main/localServer/serverInstaller, the
+ * browser-use service and its MCP entry) all read through this module, and
+ * `electron/brandEnv.js` carries the same semantics for the Electron runtime.
  */
 
 /** Which spelling an environment read resolved through. */
-export type BrandEnvSource = 'new' | 'legacy' | 'absent';
+export type BrandEnvSource = 'new' | 'absent';
 
 /**
  * One resolved environment read.
  *
  * `value` is `undefined` only for `source: 'absent'`; an empty string is never
  * returned as a value, because `.env` files routinely carry `NAME=` and that
- * must not read as an enabled setting. `key` is the spelling that supplied the
- * value (`CLOUDPIT_…` or `CLOUDCLI_…`), or the canonical `CLOUDPIT_…` key when
- * nothing was set.
+ * must not read as an enabled setting. `key` is always the canonical
+ * `CLOUDPIT_…` spelling the operator should set.
  */
 export type BrandEnvReading = {
   value: string | undefined;
@@ -26,35 +33,25 @@ export type BrandEnvReading = {
   key: string;
 };
 
-/** Dependencies of {@link createBrandEnvReader}; both are injected so the reader is testable. */
+/** Dependencies of {@link createBrandEnvReader}; injectable so the reader is testable. */
 export type BrandEnvReaderDeps = {
   /** The environment to read (typically `process.env`). */
   env: Readonly<Record<string, string | undefined>>;
-  /** Called once per legacy key that is actually used. */
-  warn: (message: string) => void;
 };
 
-/** A reader bound to one environment and one warning sink. */
+/** A reader bound to one environment. */
 export type BrandEnvReader = {
-  /**
-   * Read `<NAME>`: `CLOUDPIT_<NAME>` wins, then `CLOUDCLI_<NAME>`, then absent.
-   *
-   * Using the legacy spelling emits one warning for that key on this reader;
-   * a second read of the same key stays silent. Separate readers keep separate
-   * warning state, so draining one does not silence a sibling.
-   */
+  /** Read `CLOUDPIT_<NAME>`; anything else (including `CLOUDCLI_<NAME>`) reads absent. */
   read: (name: string) => BrandEnvReading;
 };
 
 /**
  * Build a brand environment reader.
  *
- * The warned-key set lives in this factory's closure, not at module scope: the
- * state belongs to the reader instance, and two readers never share it.
+ * The reader holds no state: the canonical spelling either supplies a non-empty value
+ * or the reading is absent. A legacy `CLOUDCLI_<NAME>` is never consulted.
  */
-export function createBrandEnvReader({ env, warn }: BrandEnvReaderDeps): BrandEnvReader {
-  const warnedLegacyKeys = new Set<string>();
-
+export function createBrandEnvReader({ env }: BrandEnvReaderDeps): BrandEnvReader {
   return {
     read(name) {
       const canonicalKey = `CLOUDPIT_${name}`;
@@ -62,18 +59,7 @@ export function createBrandEnvReader({ env, warn }: BrandEnvReaderDeps): BrandEn
       if (canonical !== undefined && canonical !== '') {
         return { value: canonical, source: 'new', key: canonicalKey };
       }
-
-      const legacyKey = `CLOUDCLI_${name}`;
-      const legacy = env[legacyKey];
-      if (legacy === undefined || legacy === '') {
-        return { value: undefined, source: 'absent', key: canonicalKey };
-      }
-
-      if (!warnedLegacyKeys.has(legacyKey)) {
-        warnedLegacyKeys.add(legacyKey);
-        warn(`${legacyKey} is deprecated; set ${canonicalKey} instead.`);
-      }
-      return { value: legacy, source: 'legacy', key: legacyKey };
+      return { value: undefined, source: 'absent', key: canonicalKey };
     },
   };
 }

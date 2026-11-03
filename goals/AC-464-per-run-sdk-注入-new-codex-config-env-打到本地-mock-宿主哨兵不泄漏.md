@@ -1,7 +1,7 @@
 ---
 id: AC-464
 title: per-run SDK 注入：new Codex({config,env}) 打到本地 mock、宿主哨兵不泄漏
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -18,6 +18,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-02T18:11:39.191Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"

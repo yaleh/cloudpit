@@ -11,7 +11,7 @@ import NewAccessTokenAlert from '@/modules/settings/tabs/api-settings/sections/N
 import NewOAuthClientAlert from '@/modules/settings/tabs/api-settings/sections/NewOAuthClientAlert';
 import OAuthClientsSection from '@/modules/settings/tabs/api-settings/sections/OAuthClientsSection';
 
-/** Rendered by Settings for the "api" tab, managing CloudCLI personal access tokens, connected apps (OAuth grants and clients) and GitHub credentials. */
+/** Rendered by Settings for the "api" tab, managing Cloudpit personal access tokens, connected apps (OAuth grants and clients) and GitHub credentials. */
 export default function CredentialsSettingsTab() {
   const { t } = useTranslation('settings');
   const {

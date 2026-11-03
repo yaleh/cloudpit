@@ -27,7 +27,7 @@
  *    behaviour; otherwise left false (the spec default).
  *  - `openWorldHint` (spec default `true`): true when the tool's effect is
  *    delivered OUTSIDE this server's own store — it drives, starts, stops or
- *    authorizes a provider agent/process. False for tools confined to CloudCLI's
+ *    authorizes a provider agent/process. False for tools confined to Cloudpit's
  *    stored state (its database, its lease table, its queue, its cached
  *    snapshot).
  *
@@ -163,18 +163,18 @@ export const MCP_TOOL_ANNOTATIONS: Record<McpGatewayToolName, ToolAnnotations> =
   // asks the connected browsers what they are showing and reads their answers:
   // nothing is stored, and a repeat with no browser state change reads the same
   // fact. The question reaches the browsers, but it drives no provider agent and
-  // mutates no CloudCLI state, so the world stays closed.
+  // mutates no Cloudpit state, so the world stays closed.
   ui_visible_context: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   // lists the connected browsers and status, reading their answers to one
   // round-trip question: nothing is stored, and a repeat with no browser state
   // change reads the same roster. The question reaches the browsers, but it
-  // drives no provider agent and mutates no CloudCLI state, so the world stays
+  // drives no provider agent and mutates no Cloudpit state, so the world stays
   // closed — the same reading `ui_visible_context` above carries.
   ui_clients_list: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   // scans the stored provider transcripts and titles and reads nothing else:
   // nothing is stored, and a repeat over an unchanged store reads the same
   // matches. The scan touches files on disk, but it drives no provider agent and
-  // mutates no CloudCLI state, so the world stays closed.
+  // mutates no Cloudpit state, so the world stays closed.
   session_search: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   // reads the user's transcript SELECTION through the same browser round trip as
   // `ui_visible_context`: nothing is stored, and a repeat with no browser state

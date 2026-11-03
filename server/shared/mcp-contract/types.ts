@@ -55,9 +55,13 @@ export type McpControlCaller = {
 // --------------------------- the authorization vocabulary ---------------------------
 
 /**
- * The complete vocabulary of scopes a personal access token may be issued with,
- * per mcp-gateway-SPEC. `cloudcli:admin` is deliberately absent: it is reserved
- * and cannot be minted.
+ * The CANONICAL scope names: the stable internal vocabulary every stored grant,
+ * tool `requiredScope` and principal comparison uses. Since 3.0 it is no longer
+ * the wire vocabulary — a client issues `cloudpit:*` (see
+ * {@link CLOUDPIT_ACCESS_TOKEN_SCOPES} and {@link ACCEPTED_ACCESS_TOKEN_SCOPES})
+ * and {@link canonicalScope} maps it onto this table.
+ *
+ * `cloudcli:admin` is deliberately absent: it is reserved and cannot be minted.
  *
  * Re-homed verbatim from `server/modules/oauth/access-tokens.service.ts`
  * (proposal `docs/proposals/mcp-gateway-tool-architecture.md` stage 1) so a
@@ -99,10 +103,13 @@ export const ACCESS_TOKEN_SCOPES = [
 ] as const;
 
 /**
- * The Cloudpit spellings of the same eight scopes. Nothing migrates stored tokens:
- * both vocabularies are accepted on issue, and every comparison goes through
- * {@link canonicalScope} so an old `requiredScopes` literal keeps matching a new
- * `cloudpit:*` token (and vice versa).
+ * The Cloudpit spellings of the same eight scopes: the wire vocabulary a client
+ * asks for, the AS metadata advertises and the consent screen offers.
+ *
+ * Stored tokens are NOT migrated: an old token carries the canonical
+ * `cloudcli:*` strings in its row and still verifies, which is the 3.0 policy
+ * stated in the release notes. Only the INPUT vocabulary narrowed — a request
+ * naming a legacy spelling is refused.
  */
 export const CLOUDPIT_SCOPE_PREFIX = 'cloudpit:';
 const CLOUDCLI_SCOPE_PREFIX = 'cloudcli:';
@@ -111,16 +118,14 @@ export const CLOUDPIT_ACCESS_TOKEN_SCOPES: readonly string[] = ACCESS_TOKEN_SCOP
   (scope) => `${CLOUDPIT_SCOPE_PREFIX}${scope.slice(CLOUDCLI_SCOPE_PREFIX.length)}`,
 );
 
-/** Every accepted spelling: the eight legacy names followed by the eight Cloudpit names. */
-export const ACCEPTED_ACCESS_TOKEN_SCOPES: readonly string[] = [
-  ...ACCESS_TOKEN_SCOPES,
-  ...CLOUDPIT_ACCESS_TOKEN_SCOPES,
-];
+/** The one accepted spelling at issue time: the eight Cloudpit names. */
+export const ACCEPTED_ACCESS_TOKEN_SCOPES: readonly string[] = [...CLOUDPIT_ACCESS_TOKEN_SCOPES];
 
 /**
- * Maps either spelling onto the legacy canonical one. The stored/compared value stays
- * `cloudcli:*` because it is the key existing grants, tool `requiredScopes` and the
- * observation/DB rows already use; only the accepted INPUT vocabulary widened.
+ * Maps the wire spelling onto the canonical one. The stored/compared value
+ * stays `cloudcli:*` because it is the key existing grants, tool `requiredScopes`
+ * and the observation/DB rows already use. A canonical value passes through
+ * unchanged, so an old token still matches a required scope.
  */
 export function canonicalScope(scope: string): string {
   return scope.startsWith(CLOUDPIT_SCOPE_PREFIX)

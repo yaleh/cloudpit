@@ -26,6 +26,7 @@ export default function AgentCategoryTabsSection({
           <button
             key={category}
             role="tab"
+            data-settings-category={category}
             aria-selected={selectedCategory === category}
             onClick={() => onSelectCategory(category)}
             className={cn(

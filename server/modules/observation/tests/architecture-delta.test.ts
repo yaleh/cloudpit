@@ -309,7 +309,7 @@ test('AC1: the producer writes the snapshot and diff, and throttles a second tri
   const target = {
     projectId: CLOUD_PROJECT_ID,
     fleetProjectId: FLEET_PROJECT_ID,
-    title: 'CloudCLI',
+    title: 'Cloudpit',
     sessionId: 'session-42',
   };
 

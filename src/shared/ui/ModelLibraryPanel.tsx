@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -19,7 +19,9 @@ import ModelEnvEditor, {
   toRequestRows,
   type ModelEnvEditorRow,
 } from '@/shared/ui/ModelEnvEditor';
+import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import type {
+  CodexModelProvider,
   LLMProvider,
   ModelEnvStatus,
   ProviderModelActions,
@@ -39,6 +41,24 @@ const MODEL_NAME_MAX_LENGTH = 80;
 const MODEL_ID_MAX_LENGTH = 200;
 
 /**
+ * The name a custom model's form should start with.
+ *
+ * The server labels a model bound to a project Codex provider as `model · provider` so two
+ * entries with the same name stay distinguishable in the merged catalog. That suffix is a
+ * DISPLAY composition, not the stored name: prefilling the form with it would rename the row
+ * to include the binding the next time it is saved. The bare name is the label with the
+ * provider suffix of its own `codexProviderId` removed.
+ */
+const modelNameOf = (option: ProviderModelOption): string => {
+  const providerId = option.config?.codexProviderId;
+  if (providerId === undefined) {
+    return option.label;
+  }
+  const suffix = ` · ${providerId}`;
+  return option.label.endsWith(suffix) ? option.label.slice(0, -suffix.length) : option.label;
+};
+
+/**
  * Suggests the model id a copy of `base` should take: `-copy`, then `-copy-2`,
  * `-copy-3`… for the first candidate nothing already uses.
  *
@@ -56,6 +76,16 @@ const suggestCopyId = (base: string, taken: ReadonlySet<string>): string => {
   }
 };
 
+/**
+ * A one-click bind requested by the Settings import panel: the provider the person just bound
+ * becomes the model editor's upstream provider. `requestId` makes a second bind of the SAME
+ * provider re-apply (a provider id alone would not be a new value).
+ */
+export type CodexProviderBindRequest = {
+  providerId: string;
+  requestId: number;
+};
+
 type ModelLibraryPanelProps = {
   initialProvider: LLMProvider;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
@@ -63,6 +93,18 @@ type ModelLibraryPanelProps = {
   onDone?: () => void;
   /** Resolves which server env variables are set; when absent, envref rows show no live status. */
   loadEnvStatus?: (names: string[]) => Promise<ModelEnvStatus>;
+  /**
+   * The project upstream providers a Codex model may bind to. Supplied by the Settings host
+   * that owns the registry reading; other hosts leave it out, so a Codex model keeps
+   * inheriting the Codex global default.
+   */
+  codexProviders?: CodexModelProvider[];
+  /**
+   * The most recent one-click bind from the Settings import panel. It moves the picker the
+   * person can see; absent in every host that has no import panel, so those keep their form
+   * state untouched.
+   */
+  bindCodexProviderRequest?: CodexProviderBindRequest;
   /** Hides the provider switcher when the host already fixes the provider (Settings > Agents). */
   hideProviderTabs?: boolean;
 };
@@ -82,11 +124,18 @@ export default function ModelLibraryPanel({
   actions,
   onDone,
   loadEnvStatus,
+  codexProviders = [],
+  bindCodexProviderRequest,
   hideProviderTabs = false,
 }: ModelLibraryPanelProps) {
   const { t } = useTranslation();
   const { t: tSettings } = useTranslation('settings');
   const [selectedProvider, setSelectedProvider] = useState(initialProvider);
+  // The provider descriptor's `modelConfigKind` decides which upstream editor this form draws
+  // (`env` rows, a Codex provider picker, or nothing) — a view never branches on a provider id.
+  const descriptor = PROVIDER_DESCRIPTORS[selectedProvider];
+  // The project Codex provider this model binds to; '' keeps the Codex global default.
+  const [codexProviderId, setCodexProviderId] = useState('');
   const [editing, setEditing] = useState<ProviderModelOption | null>(null);
   // The custom model the form is copying, or null. `editing` stays null while it
   // is set, so the form keeps create semantics; only the labels, the prefill and
@@ -150,6 +199,7 @@ export default function ModelLibraryPanel({
     setModelId('');
     setEnvRows([]);
     setEnvDirty(false);
+    setCodexProviderId('');
     setError(null);
   };
 
@@ -163,10 +213,11 @@ export default function ModelLibraryPanel({
   const startEditing = (option: ProviderModelOption) => {
     setEditing(option);
     setDuplicatingFrom(null);
-    setModel(option.label);
+    setModel(modelNameOf(option));
     setModelId(option.value);
     setEnvRows(toEditorRows(option.config));
     setEnvDirty(false);
+    setCodexProviderId(option.config?.codexProviderId ?? '');
     setConfirmDeleteRecordId(null);
     setNotice(null);
     setError(null);
@@ -182,10 +233,11 @@ export default function ModelLibraryPanel({
   const startDuplicating = (option: ProviderModelOption) => {
     setEditing(null);
     setDuplicatingFrom(option);
-    setModel(tSettings('modelLibrary.duplicate.name', { source: option.label }).slice(0, MODEL_NAME_MAX_LENGTH));
+    setModel(tSettings('modelLibrary.duplicate.name', { source: modelNameOf(option) }).slice(0, MODEL_NAME_MAX_LENGTH));
     setModelId(suggestCopyId(option.value, takenModelIds));
     setEnvRows(toEditorRows(option.config));
     setEnvDirty(false);
+    setCodexProviderId(option.config?.codexProviderId ?? '');
     setConfirmDeleteRecordId(null);
     setNotice(null);
     setError(null);
@@ -194,6 +246,23 @@ export default function ModelLibraryPanel({
   // Whether this submit carries `config.env` at all: the same predicate that
   // builds it below. When it is false no row is dropped, so nothing is reported.
   const sendsEnvConfig = envDirty || (!editing && envRows.length > 0);
+  // A Codex model's upstream is its bound provider, so its form always carries `config`:
+  // omitting it on an edit would keep a binding the person just cleared.
+  const sendsCodexProvider = descriptor.modelConfigKind === 'codex-provider';
+  // The bind request already applied, so a later registry refresh cannot pull the picker back
+  // to a provider the person has since changed. `0` is "nothing applied yet".
+  const appliedBindRequest = useRef(0);
+  useEffect(() => {
+    // The import panel owns when a bind happens; this form owns the picker. A request is
+    // applied only while the picker is drawn AND the provider is in the registry answer — a
+    // failed bind therefore leaves the picker exactly where the person left it.
+    if (!bindCodexProviderRequest || !sendsCodexProvider) return;
+    if (bindCodexProviderRequest.requestId === appliedBindRequest.current) return;
+    if (!codexProviders.some((provider) => provider.id === bindCodexProviderRequest.providerId)) return;
+    appliedBindRequest.current = bindCodexProviderRequest.requestId;
+    setCodexProviderId(bindCodexProviderRequest.providerId);
+  }, [bindCodexProviderRequest, codexProviders, sendsCodexProvider]);
+  const sendsConfig = sendsEnvConfig || sendsCodexProvider;
   // Rows the request will leave out for an empty value — the user must see them
   // before submitting, or a named variable silently never reaches the server.
   const unsavedEnvKeys = sendsEnvConfig ? getUnsavedEnvRows(envRows).map((row) => row.key.trim()) : [];
@@ -220,8 +289,16 @@ export default function ModelLibraryPanel({
     setSaving(true);
     setError(null);
     setNotice(null);
-    const configInput = sendsEnvConfig
-      ? { config: { env: toRequestRows(envRows) } }
+    const normalizedCodexProviderId = codexProviderId.trim();
+    const configInput = sendsConfig
+      ? {
+        config: {
+          env: toRequestRows(envRows),
+          ...(sendsCodexProvider && normalizedCodexProviderId !== ''
+            ? { codexProviderId: normalizedCodexProviderId }
+            : {}),
+        },
+      }
       : {};
     try {
       if (editing) {
@@ -280,7 +357,12 @@ export default function ModelLibraryPanel({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div
+      className="flex h-full min-h-0 flex-col gap-4"
+      data-model-library-status={saving ? 'saving' : error ? 'failed' : notice ? 'saved' : 'idle'}
+      data-model-library-notice={notice ?? ''}
+      data-model-library-error={error ?? ''}
+    >
       <div className="flex shrink-0 flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -396,14 +478,41 @@ export default function ModelLibraryPanel({
             </div>
           </div>
 
-          {selectedProvider !== 'opencode' && (
+          {descriptor.modelConfigKind === 'env' && (
             <ModelEnvEditor
               rows={envRows}
               envStatus={envStatus}
-              showGatewayTemplate={selectedProvider === 'claude'}
+              showGatewayTemplate={descriptor.modelEnvGatewayTemplate}
               reportUnsavedRows={sendsEnvConfig}
               onChange={(rows) => { setEnvRows(rows); setEnvDirty(true); }}
             />
+          )}
+
+          {descriptor.modelConfigKind === 'codex-provider' && (
+            <div className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3">
+              <label className="block text-xs font-semibold text-foreground" htmlFor="custom-model-codex-provider">
+                Upstream provider
+              </label>
+              <select
+                id="custom-model-codex-provider"
+                data-testid="model-codex-provider-select"
+                value={codexProviderId}
+                onChange={(event) => setCodexProviderId(event.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+              >
+                <option value="">Codex default (inherit global)</option>
+                {codexProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name === provider.id ? provider.id : `${provider.name} (${provider.id})`}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                {codexProviders.length === 0
+                  ? 'No project providers configured yet — the model inherits the Codex global default until one is added.'
+                  : 'This model dials the selected project provider. Only wire_api = responses is supported.'}
+              </p>
+            </div>
           )}
 
           {unsavedEnvKeys.length > 0 && (
@@ -435,7 +544,7 @@ export default function ModelLibraryPanel({
             </div>
           )}
 
-          <Button type="submit" disabled={saving} className="mt-4 w-full rounded-xl">
+          <Button type="submit" data-model-library-save disabled={saving} className="mt-4 w-full rounded-xl">
             {saving
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : editing ? <Check className="h-4 w-4" /> : duplicatingFrom ? <Copy className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -466,7 +575,12 @@ export default function ModelLibraryPanel({
                   const confirming = confirmDeleteRecordId === option.recordId;
                   const deleting = deletingRecordId === option.recordId;
                   return (
-                    <div key={option.recordId ?? option.value} className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-3">
+                    <div
+                      key={option.recordId ?? option.value}
+                      className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-3"
+                      data-model-library-model={option.value}
+                      data-model-library-model-label={option.label}
+                    >
                       <div className="flex items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -535,7 +649,7 @@ export default function ModelLibraryPanel({
             <div className="mb-2 flex items-center justify-between gap-3 px-1">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground">Built-in models</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Maintained by CloudCLI and read-only</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Maintained by Cloudpit and read-only</p>
               </div>
               <Badge variant="secondary" className="rounded-full text-[10px]">{predefinedModels.length}</Badge>
             </div>

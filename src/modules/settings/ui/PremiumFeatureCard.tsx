@@ -11,7 +11,7 @@ type PremiumFeatureCardProps = {
   ctaText?: string;
 };
 
-/** Rendered by the settings module's about tab to advertise a paid CloudCLI feature. */
+/** Rendered by the settings module's about tab to advertise a paid Cloudpit feature. */
 export default function PremiumFeatureCard({
   icon,
   title,

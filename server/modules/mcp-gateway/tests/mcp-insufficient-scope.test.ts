@@ -406,7 +406,7 @@ async function withGateway(run: (harness: Harness) => Promise<void>): Promise<vo
   const clients = new Set<Client>();
 
   const issue = (scopes: string[]): { id: number; token: string } => {
-    const issued = tokens.issueToken({ userId: USER_ONE, name: 'ac286', scopes, expiresInDays: 30 });
+    const issued = tokens.issueToken({ userId: USER_ONE, name: 'ac286', scopes: scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:')), expiresInDays: 30 });
     if (!issued.ok) {
       throw new Error('the harness issued a token with a lifetime the service rejects');
     }

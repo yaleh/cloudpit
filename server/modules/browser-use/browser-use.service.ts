@@ -14,7 +14,6 @@ import { getModuleDirectory } from '@/shared/utils.js';
 
 import { getBrowserUseRuntime } from './browser-use-runtime.js';
 import {
-  LEGACY_MCP_SERVER_NAMES,
   MCP_SERVER_NAME,
   mcpServerNamesToRemove,
 } from './mcp-server-names.js';
@@ -35,14 +34,16 @@ export type BrowserUseEnvDefaults = {
 /**
  * Resolve the browser-use limits from the brand environment.
  *
+ * v3.0: only the `CLOUDPIT_*` spelling is read; a deployment that still exports
+ * `CLOUDCLI_*` gets these shipped defaults.
+ *
  * Exported so the wiring criterion can drive the exact reads the service uses
  * with an injected environment instead of mutating this process.
  */
 export function readBrowserUseEnvDefaults(
   env: Readonly<Record<string, string | undefined>>,
-  warn: (message: string) => void,
 ): BrowserUseEnvDefaults {
-  const reader = createBrandEnvReader({ env, warn });
+  const reader = createBrandEnvReader({ env });
   const readInteger = (name: string, fallback: number) =>
     Number.parseInt(reader.read(name).value || String(fallback), 10);
 
@@ -53,10 +54,7 @@ export function readBrowserUseEnvDefaults(
   };
 }
 
-const browserUseEnvDefaults = readBrowserUseEnvDefaults(
-  process.env,
-  (message) => console.warn(`[Browser] ${message}`),
-);
+const browserUseEnvDefaults = readBrowserUseEnvDefaults(process.env);
 const BROWSER_USE_SETTINGS_KEY = 'browser_use_settings';
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
 
@@ -438,7 +436,7 @@ function runCommand(command: string, args: string[]): Promise<void> {
 function formatInstallError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes('sudo') && message.includes('password')) {
-    return 'Installing Chromium system dependencies requires administrator privileges. Run `npx playwright install-deps chromium` on the machine where CloudCLI runs, then try again.';
+    return 'Installing Chromium system dependencies requires administrator privileges. Run `npx playwright install-deps chromium` on the machine where Cloudpit runs, then try again.';
   }
   return message || 'Failed to install Browser runtime.';
 }
@@ -572,7 +570,6 @@ export const browserUseService = {
 
   async registerAgentMcp() {
     const { command, args } = getMcpCommand();
-    await Promise.all(LEGACY_MCP_SERVER_NAMES.map((name) => removeMcpServerFromAllProviders(name)));
     const mcpToken = getOrCreateMcpToken();
     const mcpApiUrl = getMcpApiUrl();
     const results = await providerMcpService.addMcpServerToAllProviders({
@@ -584,11 +581,6 @@ export const browserUseService = {
       env: {
         CLOUDPIT_BROWSER_USE_MCP_TOKEN: mcpToken,
         CLOUDPIT_BROWSER_USE_API_URL: mcpApiUrl,
-        // Transitional alias: an MCP config written by the previous desktop
-        // build still names the legacy spelling and is read as a fallback by
-        // `browser-use-mcp.ts` for one release window.
-        CLOUDCLI_BROWSER_USE_MCP_TOKEN: mcpToken,
-        CLOUDCLI_BROWSER_USE_API_URL: mcpApiUrl,
       },
     });
     return { name: MCP_SERVER_NAME, command, args, results };

@@ -10,6 +10,9 @@ import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
 import { resolveDataRoots } from '@/shared/data-root.js';
 
 import { createCliService } from './cli.service.js';
+import { createNodeAssetMigrationFileSystem } from './asset-migration-files.js';
+import { createAssetMigrationService } from './asset-migration.service.js';
+import { createAppAssetPathStore } from './asset-migration-store.js';
 import { createSandboxCommandService } from './sandbox.service.js';
 
 /**
@@ -40,6 +43,7 @@ export function createCliApplication(): CliApplication {
     error: (message?: string) => console.error(message),
   };
   const homeDirectory = os.homedir();
+  const dataRoots = resolveDataRoots({ homeDir: homeDirectory });
   const sandboxService = createSandboxCommandService({
     homeDirectory,
     fileSystem,
@@ -63,13 +67,29 @@ export function createCliApplication(): CliApplication {
 
   return createCliService({
     applicationRoot,
-    defaultDatabasePath: resolveDataRoots({ defaultRoot: 'cloudpit', homeDir: homeDirectory }).authDatabasePath,
+    defaultDatabasePath: dataRoots.authDatabasePath,
     homeDirectory,
     packageMetadata,
     environment: process.env,
     fileSystem,
     output,
     sandboxService,
+    assetMigrationService: createAssetMigrationService({
+      environment: process.env,
+      homeDirectory,
+      fileSystem: createNodeAssetMigrationFileSystem(),
+      pathStore: createAppAssetPathStore({
+        // The server may have been started with an explicit database; the command
+        // must rewrite that same store, not the default one.
+        databasePath: process.env.DATABASE_PATH || dataRoots.authDatabasePath,
+        jsonFilePaths: [
+          dataRoots.settingsPath,
+          dataRoots.cockpitCardFeedbackPath,
+          path.join(dataRoots.voiceDataDir, 'manifest.json'),
+        ],
+      }),
+      output,
+    }),
     getLatestPackageVersion: async () => {
       // Yield first so the default `start` command can begin loading the server
       // before this best-effort npm registry check runs.

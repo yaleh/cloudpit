@@ -40,6 +40,8 @@ const createSessionStore = (
       model,
       effort: efforts[sessionId] ?? null,
       permission_mode: permissionModes[sessionId] ?? null,
+      // The upstream provider a session is bound to; NULL until recorded.
+      model_provider_id: null as string | null,
     },
   ]));
   return {
@@ -51,6 +53,15 @@ const createSessionStore = (
       if (session) {
         session.model = model;
       }
+    },
+    // Write-once, like the column: a second call cannot move the binding.
+    setSessionModelProviderId: (sessionId: string, modelProviderId: string) => {
+      const session = sessions.get(sessionId);
+      if (!session || session.model_provider_id) {
+        return false;
+      }
+      session.model_provider_id = modelProviderId;
+      return true;
     },
     setSessionEffort: (sessionId: string, effort: string) => {
       const session = sessions.get(sessionId);
@@ -396,6 +407,10 @@ test('setSessionModel records the model on the session row', () => {
     model: 'opus',
     effort: null,
     permissionMode: null,
+    // The fixture installs no provider registry and binds no model entry, so
+    // no upstream provider is recorded and there is nothing to mark.
+    modelProviderId: null,
+    modelProviderProblem: null,
     source: 'session',
   });
   assert.equal(sessions.sessions.get('session-1')?.model, 'opus');

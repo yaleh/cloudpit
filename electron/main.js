@@ -9,20 +9,22 @@ import { DesktopWindowManager } from './desktopWindow.js';
 import { DesktopNotificationsController } from './desktopNotifications.js';
 import { LocalServerController } from './localServer.js';
 import { TabsController } from './tabs.js';
-import { maybeMigrateDesktopUserData } from './userDataMigration.js';
+import { maybeMigrateDesktopAppId } from './appIdMigration.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = 'Cloudpit';
-const APP_USER_MODEL_ID = 'ai.cloudcli.desktop';
+const APP_USER_MODEL_ID = 'ai.cloudpit.desktop';
 const CALLBACK_PROTOCOL = 'cloudcli';
 const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
-// Both schemes open the app (either build can open the desktop app); the
-// cloud login callback itself stays on the legacy `cloudcli://auth/callback`.
-const DEEP_LINK_SCHEMES = ['cloudcli', 'cloudpit'];
+// v3.0 registers only the Cloudpit deep-link scheme. The cloud login callback
+// itself stays on the third-party `cloudcli://auth/callback` contract, which the
+// packaged app still claims through `build.protocols` in package.json and the OS
+// routes into `handleDeepLink` below.
+const DEEP_LINK_SCHEMES = ['cloudpit'];
 const brandEnv = createProcessBrandEnvReader();
-// The control-plane address keeps its legacy spelling as a readable fallback;
-// the default stays the third-party `cloudcli.ai` contract this release keeps.
+// The control-plane address is read through the brand reader (`CLOUDPIT_CONTROL_PLANE_URL`
+// only since v3.0); the default stays the third-party `cloudcli.ai` contract this release keeps.
 const CONTROL_PLANE_URL = readBrandEnvValue(brandEnv, 'CONTROL_PLANE_URL', 'https://cloudcli.ai');
 const REMOTE_START_TIMEOUT_MS = 30000;
 const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;
@@ -900,12 +902,24 @@ async function bootstrap() {
   app.setName(APP_NAME);
   process.title = APP_NAME;
 
-  // Copy the desktop userData JSON files before anything reads
-  // app.getPath('userData'), which already resolves under the Cloudpit folder.
-  maybeMigrateDesktopUserData({
-    appName: APP_NAME,
+  // One-time v3.0 app-id switch. This copies the three desktop userData JSON
+  // files out of the legacy CloudCLI folder and migrates the install-level
+  // identity (Windows registry/shortcuts, macOS keychain, Linux .desktop) before
+  // anything reads app.getPath('userData'), which already resolves under the
+  // Cloudpit folder. The legacy installation is never removed, so a failed
+  // migration falls back to it.
+  const appIdMigration = maybeMigrateDesktopAppId({
+    platform: process.platform,
     appDataDir: app.getPath('appData'),
+    homeDir: app.getPath('home'),
+    appVersion: app.getVersion(),
+    execPath:
+      process.platform === 'linux' ? process.env.APPIMAGE || process.execPath : process.execPath,
+    installLocation: app.isPackaged ? path.dirname(process.execPath) : getAppRoot(),
   });
+  if (appIdMigration.error) {
+    console.warn('[appIdMigration] fell back to the legacy installation:', appIdMigration.error);
+  }
 
   await app.whenReady();
   app.setName(APP_NAME);

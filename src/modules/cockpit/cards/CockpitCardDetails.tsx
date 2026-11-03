@@ -310,6 +310,17 @@ export default function CockpitCardDetails({
       && SILENT_FALLBACK_REASONS.includes(brief.response.reason)
     );
 
+  // THE DETAILS DRAWER IS WHERE THE KNOWLEDGE ENTRY IS READ IN FULL. The list card draws the
+  // provider's title and statement verbatim but clamps the statement to two lines (its whole
+  // text lives on the element's `title`), so the entry's body is only readable here. The two
+  // fields are drawn exactly as the provider stated them — `whitespace-pre-line` keeps the
+  // revision's paragraphs, and NO line-clamp is applied. A card that states neither field (or
+  // is not a knowledge card at all) draws no section, rather than an empty one.
+  const knowledge = card.knowledge;
+  const knowledgeVisible =
+    knowledge !== undefined
+    && (knowledge.title !== undefined || knowledge.statement !== undefined);
+
   // THE FOOTER IS NOT ONLY THE SEND BAR. A session-ask card offers the third choice —
   // 「忽略/丢弃」 — and the drawer must keep it reachable even when the card has no confirm
   // target at all: the old footer was bound to the send target alone, which removed the only
@@ -451,6 +462,31 @@ export default function CockpitCardDetails({
           {card.situation !== undefined && (
             <Section title={t('cockpit.cardDetailsSituation')}>
               <p className="text-xs text-foreground">{card.situation}</p>
+            </Section>
+          )}
+
+          {/* The knowledge entry the suggestion was derived from, before the facts: what the
+              entry SAYS is the context the facts are weighed against. The section title stays a
+              literal, like the list card's own knowledge state labels, because the knowledge
+              vocabulary in this module is not routed through the i18n bundle yet. */}
+          {knowledgeVisible && knowledge !== undefined && (
+            <Section title="知识" testId="cockpit-card-details-knowledge">
+              {knowledge.title !== undefined && (
+                <p
+                  data-testid="cockpit-card-details-knowledge-title"
+                  className="whitespace-pre-line text-xs font-medium text-foreground"
+                >
+                  {knowledge.title}
+                </p>
+              )}
+              {knowledge.statement !== undefined && (
+                <p
+                  data-testid="cockpit-card-details-knowledge-statement"
+                  className="mt-1 whitespace-pre-line text-xs text-foreground"
+                >
+                  {knowledge.statement}
+                </p>
+              )}
             </Section>
           )}
 

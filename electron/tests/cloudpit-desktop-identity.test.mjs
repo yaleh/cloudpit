@@ -5,9 +5,10 @@
  *   npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-desktop-identity.test.mjs
  *
  * Covers the flipped display identity (`APP_NAME` / `productName`), the
- * one-time userData copy, the movable local-server cache, the new-then-legacy
- * marker lookup, dual deep-link scheme registration, and the pinned invariants
- * (`appId`, the `cloudcli://auth/callback` URL, `app_surface=cloudcli_desktop`).
+ * one-time userData copy (now owned by `appIdMigration.js`), the movable
+ * local-server cache, the new-then-legacy marker lookup, dual deep-link scheme
+ * registration, the v3.0 `appId` switch, and the pinned cloud-contract
+ * invariants (`cloudcli://auth/callback`, `app_surface=cloudcli_desktop`).
  * File operations use real temp directories; only the failing-rename arm
  * injects an `fs` whose `rename` rejects.
  */
@@ -75,8 +76,8 @@ test('AC2/AC7: main.js names the app Cloudpit while pinning the cloud identity',
   assert.match(source, /const APP_NAME = 'Cloudpit';/, 'APP_NAME is Cloudpit');
   assert.match(
     source,
-    /const APP_USER_MODEL_ID = 'ai\.cloudcli\.desktop';/,
-    'the Windows app user model id is unchanged',
+    /const APP_USER_MODEL_ID = 'ai\.cloudpit\.desktop';/,
+    'the Windows app user model id follows the v3.0 app id',
   );
   assert.match(source, /const CALLBACK_PROTOCOL = 'cloudcli';/, 'the cloud callback scheme is unchanged');
   assert.ok(
@@ -90,13 +91,13 @@ test('AC2/AC7: main.js names the app Cloudpit while pinning the cloud identity',
   );
 });
 
-test('AC3: bootstrap wires maybeMigrateDesktopUserData before app.whenReady()', () => {
+test('AC3: bootstrap wires the app-id migration (and its userData copy) before app.whenReady()', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
   assert.match(
     source,
-    /import \{ maybeMigrateDesktopUserData \} from '\.\/userDataMigration\.js';/,
-    'the migration helper is imported',
+    /import \{ maybeMigrateDesktopAppId \} from '\.\/appIdMigration\.js';/,
+    'the v3.0 app-id migration entry point is imported',
   );
 
   const bootstrapStart = source.indexOf('async function bootstrap()');
@@ -104,15 +105,24 @@ test('AC3: bootstrap wires maybeMigrateDesktopUserData before app.whenReady()', 
   const bootstrapSource = source.slice(bootstrapStart, source.indexOf('\n}', bootstrapStart));
 
   const titleIndex = bootstrapSource.indexOf('process.title = APP_NAME');
-  const callIndex = bootstrapSource.indexOf('maybeMigrateDesktopUserData({');
+  const callIndex = bootstrapSource.indexOf('maybeMigrateDesktopAppId({');
   const readyIndex = bootstrapSource.indexOf('await app.whenReady()');
   assert.ok(titleIndex >= 0, 'the app name is assigned first');
   assert.ok(callIndex > titleIndex, 'migration runs after the app name is assigned');
   assert.ok(readyIndex > callIndex, 'migration runs before app.whenReady()');
 
   const callSource = bootstrapSource.slice(callIndex, readyIndex);
-  assert.match(callSource, /appName: APP_NAME,/, 'the call passes the flipped app name');
   assert.match(callSource, /appDataDir: app\.getPath\('appData'\)/, 'the call targets appData');
+
+  // appIdMigration owns the three-file userData copy and still goes through the
+  // shared, app-name-guarded helper.
+  const migrationSource = readFileSync(path.join(ELECTRON_DIR, '..', 'appIdMigration.js'), 'utf8');
+  assert.match(
+    migrationSource,
+    /import \{[^}]*maybeMigrateDesktopUserData[^}]*\} from '\.\/userDataMigration\.js';/,
+    'the app-id migration reuses the userData helper',
+  );
+  assert.match(migrationSource, /appName: DESKTOP_PRODUCT_NAME,/, 'the helper runs under the Cloudpit name');
 });
 
 test('AC2: package.json names the app Cloudpit', () => {
@@ -231,22 +241,27 @@ test('AC5: server/index.ts writes the marker under .cloudpit', () => {
   );
 });
 
-test('AC6: both deep-link schemes are registered in the packaged app metadata', () => {
+test('AC6: the packaged app metadata still claims both schemes (cloudcli stays for the auth callback)', () => {
   const pkg = readPackageJson();
 
+  // R5 retires the cloudcli DEEP LINK (main.js registers only cloudpit), but the
+  // third-party login callback `cloudcli://auth/callback` must still reach the
+  // app, so the OS-level declaration keeps the legacy scheme.
   const protocolSchemes = pkg.build.protocols.flatMap((protocol) => protocol.schemes);
-  assert.ok(protocolSchemes.includes('cloudcli'), 'build.protocols keeps cloudcli');
-  assert.ok(protocolSchemes.includes('cloudpit'), 'build.protocols adds cloudpit');
+  assert.ok(protocolSchemes.includes('cloudcli'), 'build.protocols keeps cloudcli for cloudcli://auth/callback');
+  assert.ok(protocolSchemes.includes('cloudpit'), 'build.protocols declares cloudpit');
 
   const macSchemes = pkg.build.mac.extendInfo.CFBundleURLTypes.flatMap((type) => type.CFBundleURLSchemes);
-  assert.ok(macSchemes.includes('cloudcli'), 'mac CFBundleURLSchemes keeps cloudcli');
-  assert.ok(macSchemes.includes('cloudpit'), 'mac CFBundleURLSchemes adds cloudpit');
+  assert.ok(macSchemes.includes('cloudcli'), 'mac CFBundleURLSchemes keeps cloudcli for the auth callback');
+  assert.ok(macSchemes.includes('cloudpit'), 'mac CFBundleURLSchemes declares cloudpit');
 });
 
-test('AC6: main.js registers both schemes in the dev and packaged branches', () => {
+test('AC6: main.js registers only the cloudpit deep link and still parses the cloudcli callback', () => {
   const source = readFileSync(MAIN_SOURCE_PATH, 'utf8');
 
-  assert.match(source, /const DEEP_LINK_SCHEMES = \['cloudcli', 'cloudpit'\];/);
+  assert.match(source, /const DEEP_LINK_SCHEMES = \['cloudpit'\];/);
+  assert.match(source, /const CALLBACK_PROTOCOL = 'cloudcli';/);
+  assert.match(source, /const CALLBACK_URL = `\$\{CALLBACK_PROTOCOL\}:\/\/auth\/callback`;/);
 
   const start = source.indexOf('function registerProtocolHandler()');
   assert.ok(start >= 0, 'registerProtocolHandler() exists');
@@ -263,11 +278,19 @@ test('AC6: main.js registers both schemes in the dev and packaged branches', () 
     /app\.setAsDefaultProtocolClient\(scheme\);/,
     'the packaged branch registers every scheme',
   );
+
+  // The cloudcli callback is still PARSED even though it is no longer registered
+  // as a deep link here; the OS association comes from build.protocols above.
+  const handleStart = source.indexOf('async function handleDeepLink(');
+  assert.ok(handleStart >= 0, 'handleDeepLink() exists');
+  const handleSource = source.slice(handleStart, source.indexOf('\n}', handleStart));
+  assert.match(handleSource, /parsed\.protocol !== `\$\{CALLBACK_PROTOCOL\}:`/);
+  assert.match(handleSource, /parsed\.hostname !== 'auth'/);
 });
 
-test('AC7: appId and the cloudcli_desktop surface are unchanged', () => {
+test('AC7: appId follows the v3.0 identity while the cloudcli_desktop surface is unchanged', () => {
   const pkg = readPackageJson();
-  assert.equal(pkg.build.appId, 'ai.cloudcli.desktop');
+  assert.equal(pkg.build.appId, 'ai.cloudpit.desktop');
 
   const cloudSource = readFileSync(CLOUD_SOURCE_PATH, 'utf8');
   assert.match(cloudSource, /app_surface', 'cloudcli_desktop'\)/);

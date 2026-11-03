@@ -13,7 +13,7 @@
  *     --test server/shared/tests/settings-file.test.ts
  */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -21,6 +21,8 @@ import test from 'node:test';
 import {
   createSettingsBlockSource,
   defaultServerSettingsPath,
+  legacyServerSettingsPath,
+  migrateLegacyServerSettingsFile,
   readBoolean,
   readInteger,
   readString,
@@ -224,4 +226,84 @@ test('the default server settings path honours the supplied home', () => {
     defaultServerSettingsPath('/tmp/example-home'),
     path.join('/tmp/example-home', '.config', 'cloudpit', 'server.settings.json'),
   );
+  assert.equal(
+    legacyServerSettingsPath('/tmp/example-home'),
+    path.join('/tmp/example-home', '.config', 'claudecodeui', 'server.settings.json'),
+  );
+});
+
+// ── v3.0: the one-time legacy-settings migration ───────────────────────────
+
+test('AC4 migration: the first run copies the legacy settings to the Cloudpit path, 0600', (t) => {
+  const directory = temporaryDirectory(t, 'settings-migration-copy-');
+  const legacyPath = legacyServerSettingsPath(directory);
+  const targetPath = defaultServerSettingsPath(directory);
+  mkdirSync(path.dirname(legacyPath), { recursive: true });
+  writeFileSync(legacyPath, '{"cockpit":{"sessionStart":{"model":"legacy"}}}\n');
+
+  const outcome = migrateLegacyServerSettingsFile({ legacyPath, targetPath });
+
+  assert.deepEqual(outcome, { migrated: true, reason: 'copied' });
+  assert.equal(readFileSync(targetPath, 'utf8'), '{"cockpit":{"sessionStart":{"model":"legacy"}}}\n');
+  assert.equal(
+    statSync(targetPath).mode & 0o777,
+    0o600,
+    'a migrated settings file may carry credentials and is created 0600',
+  );
+  assert.ok(existsSync(legacyPath), 'the legacy file stays on disk');
+});
+
+test('AC4 migration: a second run is a no-op and never overwrites the user file', (t) => {
+  const directory = temporaryDirectory(t, 'settings-migration-idempotent-');
+  const legacyPath = legacyServerSettingsPath(directory);
+  const targetPath = defaultServerSettingsPath(directory);
+  mkdirSync(path.dirname(legacyPath), { recursive: true });
+  writeFileSync(legacyPath, '{"cockpit":{"sessionStart":{"model":"legacy"}}}\n');
+
+  assert.deepEqual(migrateLegacyServerSettingsFile({ legacyPath, targetPath }), {
+    migrated: true,
+    reason: 'copied',
+  });
+
+  const userDocument = '{"cockpit":{"sessionStart":{"model":"saved-by-user"}}}\n';
+  writeFileSync(targetPath, userDocument);
+  const second = migrateLegacyServerSettingsFile({ legacyPath, targetPath });
+
+  assert.deepEqual(second, { migrated: false, reason: 'target-exists' });
+  assert.equal(
+    readFileSync(targetPath, 'utf8'),
+    userDocument,
+    'the second run must not overwrite the newer Cloudpit file',
+  );
+});
+
+test('AC4 migration: no legacy file means nothing is written', (t) => {
+  const directory = temporaryDirectory(t, 'settings-migration-none-');
+  const outcome = migrateLegacyServerSettingsFile({
+    legacyPath: legacyServerSettingsPath(directory),
+    targetPath: defaultServerSettingsPath(directory),
+  });
+
+  assert.deepEqual(outcome, { migrated: false, reason: 'no-legacy' });
+  assert.equal(existsSync(defaultServerSettingsPath(directory)), false);
+});
+
+test('AC4 migration: a copy failure is reported, not thrown', (t) => {
+  const directory = temporaryDirectory(t, 'settings-migration-failed-');
+  const legacyPath = legacyServerSettingsPath(directory);
+  const targetPath = defaultServerSettingsPath(directory);
+  mkdirSync(path.dirname(legacyPath), { recursive: true });
+  writeFileSync(legacyPath, '{}\n');
+
+  const outcome = migrateLegacyServerSettingsFile({
+    legacyPath,
+    targetPath,
+    writeTarget: () => {
+      throw new Error('EROFS: read-only file system');
+    },
+  });
+
+  assert.equal(outcome.migrated, false);
+  assert.equal(outcome.reason, 'copy-failed');
+  assert.match(outcome.error ?? '', /EROFS: read-only file system/);
 });

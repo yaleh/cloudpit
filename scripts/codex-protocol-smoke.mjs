@@ -222,7 +222,7 @@ class AppServerConnection {
 async function handshake(connection, experimentalApi) {
   const capabilities = experimentalApi ? { experimentalApi: true } : {};
   const reply = await connection.request('initialize', {
-    clientInfo: { name: 'cloudcli', title: 'CloudCLI', version: '1' },
+    clientInfo: { name: 'cloudpit', title: 'Cloudpit', version: '1' },
     capabilities,
   });
   connection.notify('initialized', {});

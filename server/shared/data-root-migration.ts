@@ -1,5 +1,5 @@
 /**
- * Copies a legacy CloudCLI data root into an explicitly requested Cloudpit data
+ * Copies a legacy Cloudpit data root into an explicitly requested Cloudpit data
  * root.
  *
  * WHY THIS FINISHES BEFORE THE MARKER. A half-copied data root must never read
@@ -7,7 +7,8 @@
  * presence is the single fact that means "every earlier step succeeded". The
  * legacy root is only ever read — it is never renamed, unlinked, checkpointed
  * or written to, so a failed attempt (including an occupied SQLite database)
- * leaves it exactly as it was and the caller can fall back to it.
+ * leaves it exactly as it was. v3.0 does NOT fall back to it at runtime: the
+ * caller reports the thrown failure instead.
  *
  * ROLLBACK ON FAILURE. Every file and directory this module creates is recorded
  * before it is written and removed in reverse order when any step throws. The

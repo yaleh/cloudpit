@@ -1087,7 +1087,7 @@ export function deriveBackgroundWorkTrigger(
 // The address a resident process answers to used to be *computed* here and
 // handed to the CLI as `--name`. That is gone: in the CLI's ladder a launch name
 // is both the session's `agent-name` and its `custom-title`, so writing one
-// pinned the session's name at launch, let a CloudCLI-invented address outrank
+// pinned the session's name at launch, let a Cloudpit-invented address outrank
 // an `ai-title` the session had earned, and grew another `-<id6>` on every
 // restart. The app no longer names anything; it reads the name the CLI derived
 // for the process, in `readCliSessionRegistration` below.

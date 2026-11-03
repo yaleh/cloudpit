@@ -293,6 +293,65 @@ const startRecognizer = async (): Promise<http.Server> => {
  * --------------------------------------------------------------------------------------------------------- */
 
 /**
+ * How long the warm-up waits before re-asking a client that refused the connection, and the ceiling its backoff
+ * grows to.
+ *
+ * The delay only decides how many attempts `CLIENT_WARM_DEADLINE_MS` is spent as; it never extends that budget.
+ * Base 250 ms doubling to a 2 s cap gives ~18 attempts inside the 30 s window (measured: 18 against a refused
+ * port, see the task's AC2 evidence) — enough for a transient socket refusal to clear, few enough that a genuinely
+ * absent client still pays exactly the deadline it always has.
+ */
+const CLIENT_WARM_RETRY_DELAY_MS = 250;
+const CLIENT_WARM_RETRY_DELAY_CAP_MS = 2_000;
+
+/**
+ * The socket-level `code`s that mean "no answer was read", as opposed to an answer this warm-up can judge.
+ *
+ * Node's fetch reports a refused or reset connection as `TypeError: fetch failed` with the underlying code on its
+ * `cause` chain (a single error, or an `AggregateError`'s `errors`); the undici layer names are included because a
+ * connect timeout surfaces as one of those rather than an errno.
+ */
+const CLIENT_WARM_CONNECTION_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ECONNABORTED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'EAI_AGAIN',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_SOCKET',
+  'UND_ERR_HEADERS_TIMEOUT',
+]);
+
+/**
+ * Whether `error` is a CONNECTION-LEVEL failure — i.e. the probe read no answer at all, so re-asking is a reading
+ * rather than a mask.
+ *
+ * `fetch failed` is undici's own summary of "no valid response was received"; it carries the specific code on its
+ * cause chain when there is one, so both the codes above and that bare summary count. A deadline abort is NOT this
+ * shape (it is an `AbortError`), which is what makes "the budget ran out" and "the socket never connected"
+ * distinguishable failures instead of one retried forever.
+ */
+const isConnectionLevelClientFailure = (error: unknown): boolean => {
+  const codes: string[] = [];
+  const seen = new Set<unknown>();
+  const visit = (current: unknown): void => {
+    if (current === null || current === undefined || typeof current !== 'object' || seen.has(current)) return;
+    seen.add(current);
+    const { code, cause, errors } = current as { code?: unknown; cause?: unknown; errors?: unknown };
+    if (typeof code === 'string') codes.push(code);
+    visit(cause);
+    if (Array.isArray(errors)) for (const nested of errors) visit(nested);
+  };
+  visit(error);
+  if (codes.some((code) => CLIENT_WARM_CONNECTION_CODES.has(code))) return true;
+  return error instanceof Error && error.message === 'fetch failed';
+};
+
+/**
  * Takes this run's first dependency optimization out of the measurement window: the html shell, the app's entry
  * module, and then one optimized dependency — all requested against this run's own client before any page of this run
  * exists.
@@ -306,24 +365,52 @@ const startRecognizer = async (): Promise<http.Server> => {
  * 42 in-flight module requests of one document, and ES modules do not retry. What responds to that is the bounded
  * replay below. Both levers are ported from sibling specs (`session-filter`, `access-tokens-settings`), not invented
  * here.
+ *
+ * ONE ATTEMPT IS NOT A READING. A connection-level failure says nothing about the client — the socket never reached
+ * it — and the same request a moment later can answer: this file's own red on 2026-11-02 was a single
+ * `fetch failed` at the first probe under a concurrent gate evaluation, which turned the whole `beforeAll` (and so
+ * all six cases) red although the client came up seconds later. So the probes below re-ask inside the SAME
+ * `CLIENT_WARM_DEADLINE_MS` budget when the failure is connection-level, and only a budget spent on that shape ends
+ * the warm-up. An ANSWERED failure is not re-asked: a non-2xx status is the reading these probes exist to make, and
+ * retrying it would turn a real red into a wait.
  */
 const warmClientStartup = async (clientUrl: string): Promise<number> => {
   const startedAt = Date.now();
   const deadline = startedAt + CLIENT_WARM_DEADLINE_MS;
   const budgetMs = () => Math.max(1, deadline - Date.now());
   const fetchWithin = async (url: string): Promise<Response> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), budgetMs());
-    try {
-      return await fetch(url, { signal: controller.signal });
-    } catch (error) {
-      throw new Error(
-        `the client did not answer ${url} inside the ${CLIENT_WARM_DEADLINE_MS}ms startup budget `
-        + `(${error instanceof Error ? error.message : String(error)})`,
-      );
-    } finally {
-      clearTimeout(timer);
+    let attempts = 0;
+    let lastFailure: unknown = new Error('no attempt was made before the startup budget was spent');
+    while (Date.now() < deadline) {
+      attempts += 1;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), budgetMs());
+      try {
+        return await fetch(url, { signal: controller.signal });
+      } catch (error) {
+        lastFailure = error;
+        // Only the connection-level shape is re-asked. A deadline abort, a TLS refusal the client answered, or
+        // any other error ends the probe here, with the same named failure as before.
+        if (!isConnectionLevelClientFailure(error)) break;
+        console.log(
+          `[e2e] client warm-up: ${url} attempt ${attempts} did not connect `
+          + `(${error instanceof Error ? error.message : String(error)}); retrying inside the `
+          + `${CLIENT_WARM_DEADLINE_MS}ms startup budget`,
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+      // Back off, but never past the deadline this probe shares with the rest of the warm-up: the retry window
+      // IS the startup budget, not a second one, so a probe that cannot connect still fails in bounded time.
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const backoff = Math.min(CLIENT_WARM_RETRY_DELAY_MS * 2 ** (attempts - 1), CLIENT_WARM_RETRY_DELAY_CAP_MS);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(backoff, remaining)));
     }
+    throw new Error(
+      `the client did not answer ${url} inside the ${CLIENT_WARM_DEADLINE_MS}ms startup budget `
+      + `(${lastFailure instanceof Error ? lastFailure.message : String(lastFailure)})`,
+    );
   };
 
   const shellUrl = new URL('/', clientUrl).href;

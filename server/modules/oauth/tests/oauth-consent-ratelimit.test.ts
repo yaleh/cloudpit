@@ -65,13 +65,13 @@ import type { OAuthProvider } from '@/modules/oauth/index.js';
 
 const CLIENT_ID = 'client-ratelimit';
 const REDIRECT_URI = 'https://app.example/cb';
-const READ_SCOPE = 'cloudcli:read';
+const READ_SCOPE = 'cloudpit:read';
 /**
  * A state-changing scope. The password branch is now reached ONLY by a grant that
  * goes past `cloudcli:read`, so the legs that are about the password (a–h below)
  * must submit this rather than the read scope.
  */
-const WRITE_SCOPE = 'cloudcli:session:send';
+const WRITE_SCOPE = 'cloudpit:session:send';
 /** Fifteen minutes, the AC's window; also the amount leg (b) advances past. */
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;

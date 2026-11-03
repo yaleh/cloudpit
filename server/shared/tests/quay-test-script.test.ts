@@ -485,9 +485,24 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498 collected server test
     // files), then codex-provider-config-surface added its criterion
     // server/modules/settings/tests/codex-model-providers-settings.test.ts
-    // (498 + 1 = 499 collected server test files). This fixture names 3 known files, so
-    // 499 - 3 = 496.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=496$/);
+    // (498 + 1 = 499 collected server test files). Then
+    // gap-cloudpit-migrate-assets-rewrite added its criterion
+    // server/modules/cli/tests/asset-migration.service.test.ts
+    // (499 + 1 = 500 collected server test files). Then codex-model-entry-provider-binding
+    // added its criterion server/modules/providers/tests/codex-provider-model-binding.test.ts
+    // (500 + 1 = 501 collected server test files). Then codex-perrun-provider-injection
+    // added its criterion server/modules/providers/tests/codex-runtime-provider-injection.test.ts
+    // (501 + 1 = 502 collected server test files), then codex-session-provider-id-binding
+    // added its criterion server/modules/providers/tests/codex-session-provider-binding.test.ts
+    // (502 + 1 = 503 collected server test files), then codex-resident-provider-injection
+    // added its criterion server/modules/providers/tests/codex-resident-provider-injection.test.ts
+    // (503 + 1 = 504 collected server test files). Then codex-provider-import-user-profile added
+    // its criterion server/modules/settings/tests/codex-provider-import.test.ts
+    // (504 + 1 = 505 collected server test files), then codex-provider-advanced-capabilities
+    // added its criterion server/modules/settings/tests/codex-provider-advanced.test.ts
+    // (505 + 1 = 506 collected server test files). This fixture names 3 known files, so
+    // 506 - 3 = 503.
+    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=503$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -630,10 +645,24 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     // then the goal branch's gap-cloudpit-runtime-default-flip added
     // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498), then
     // codex-provider-config-surface added
-    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499)
-    // — but this fixture names ONE known file, so 499 - 1 = 498 (AC2 reads 496 because its
-    // fixture names 3; the 499 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=498$/);
+    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499), then
+    // gap-cloudpit-migrate-assets-rewrite added its criterion
+    // server/modules/cli/tests/asset-migration.service.test.ts (499 + 1 = 500), then
+    // codex-model-entry-provider-binding added
+    // server/modules/providers/tests/codex-provider-model-binding.test.ts (500 + 1 = 501), then
+    // codex-perrun-provider-injection added
+    // server/modules/providers/tests/codex-runtime-provider-injection.test.ts (501 + 1 = 502),
+    // then codex-session-provider-id-binding added
+    // server/modules/providers/tests/codex-session-provider-id-binding.test.ts (502 + 1 = 503),
+    // then codex-resident-provider-injection added
+    // server/modules/providers/tests/codex-resident-provider-injection.test.ts (503 + 1 = 504),
+    // then codex-provider-import-user-profile added
+    // server/modules/settings/tests/codex-provider-import.test.ts (504 + 1 = 505), then
+    // codex-provider-advanced-capabilities added
+    // server/modules/settings/tests/codex-provider-advanced.test.ts (505 + 1 = 506)
+    // — but this fixture names ONE known file, so 506 - 1 = 505 (AC2 reads 503 because its
+    // fixture names 3; the 506 is the number the tree collects with these criteria).
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=505$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

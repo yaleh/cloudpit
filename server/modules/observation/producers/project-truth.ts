@@ -35,7 +35,7 @@ import type { ObservedStatus } from '../core/index.js';
 
 /** One project as the producer addresses it. `fleetProjectId` is the `quay://` project segment. */
 export type ProjectTruthProjectRef = {
-  /** CloudCLI's own project id, used only to ask the quay service for a snapshot. */
+  /** Cloudpit's own project id, used only to ask the quay service for a snapshot. */
   projectId: string;
   /** Absolute project root; the deploy reader resolves its own script relative to it. */
   projectPath: string;
@@ -48,7 +48,7 @@ export type ProjectTruthProjectRef = {
   fleetProjectId: string | null;
   /**
    * The deployment target, or `null` when the project has no deployment concept. Today only
-   * CloudCLI itself does; every other project's deploy layer is `not-applicable`.
+   * Cloudpit itself does; every other project's deploy layer is `not-applicable`.
    */
   deploy: ProjectTruthDeployTarget | null;
 };
@@ -221,7 +221,7 @@ const PROJECT_TRUTH_LAYER_LABELS = {
 } as const satisfies Record<keyof ProjectTruthLayers, string>;
 
 /** The deploy layer's "no deployment concept" state, excluded from aggregation. */
-export const PROJECT_TRUTH_NOT_APPLICABLE_REASON = '该项目没有部署概念（目前只有 CloudCLI 自身有部署）';
+export const PROJECT_TRUTH_NOT_APPLICABLE_REASON = '该项目没有部署概念（目前只有 Cloudpit 自身有部署）';
 
 /** One criterion row counts as a gate only while it is a live, runnable criterion. */
 const GATE_EXCLUDED_GOAL_STATUSES = new Set(['draft', 'superseded', 'retired']);

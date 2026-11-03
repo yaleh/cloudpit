@@ -284,7 +284,7 @@ async function withHarness(arms: Arms, run: HarnessRun): Promise<void> {
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'knowledge-effective-config-proof',
-    scopes: ['cloudcli:read'],
+    scopes: ['cloudpit:read'],
     expiresInDays: 30,
   });
   if (!readToken.ok) throw new Error('the harness must mint a read token');

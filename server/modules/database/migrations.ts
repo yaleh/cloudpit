@@ -786,7 +786,7 @@ const reclassifySelfAssignedSessionNames = (db: Database): void => {
   }
   if (readings.length + overrides.length > 0) {
     console.log(
-      `Running migration: Re-filing ${readings.length + overrides.length} session(s) named after a CloudCLI resident address`
+      `Running migration: Re-filing ${readings.length + overrides.length} session(s) named after a legacy resident address`
     );
   }
 };
@@ -823,6 +823,26 @@ const addSessionEffortColumn = (db: Database): void => {
  */
 const addSessionPermissionModeColumn = (db: Database): void => {
   ensureColumns(db, 'sessions', [['permission_mode', 'TEXT']]);
+};
+
+/**
+ * Adds the `model_provider_id` column: the upstream provider a session's model
+ * is bound to, recorded by the first send after the row exists.
+ *
+ * Existing rows stay NULL on purpose. A session that has already run under a
+ * bound provider is the only case where a backfill could be right, and it
+ * cannot be told apart from one that ran under the provider default without
+ * re-reading every model entry's config — a guess written into the column would
+ * then be enforced as if the session had really recorded it. NULL keeps its
+ * documented meaning ("no binding recorded"), and the switch guard only ever
+ * refuses a session that RECORDED a different provider.
+ *
+ * Runs after every sessions-table rebuild: `dropLaunchProfileStructures` copies
+ * an explicit column list, so a column added before it would be dropped with
+ * the old table.
+ */
+const addSessionModelProviderIdColumn = (db: Database): void => {
+  ensureColumns(db, 'sessions', [['model_provider_id', 'TEXT']]);
 };
 
 /**
@@ -1083,6 +1103,9 @@ export const runMigrations = (db: Database) => {
     // lifecycle_mode added before it would be dropped along with the old table
     // and every existing session would come back with the column missing.
     addSessionLifecycleModeColumn(db);
+    // After every rebuild for the same reason: this column is appended, so a
+    // rebuild that copies an explicit column list would drop it.
+    addSessionModelProviderIdColumn(db);
     ensureProjectsForSessionPaths(db);
     db.exec(SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL);
     // OAuth storage (mcp-gateway-SPEC stage 5, AC-258). Order matters: the

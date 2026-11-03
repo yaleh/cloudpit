@@ -318,7 +318,7 @@ export function buildObservationWallContract(
  * mirrors the stage's grid classes (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`).
  *
  * A project whose root is not registered with quay-fleet is absent from the set: there is no
- * fleet id to mint an address from, and the CloudCLI project id is not a fleet handle. Its
+ * fleet id to mint an address from, and the Cloudpit project id is not a fleet handle. Its
  * tile still renders (with the counts) but carries no address and cannot receive focus.
  */
 export function buildCockpitFleetContract(
@@ -381,7 +381,7 @@ export function buildInitiativeContract(
  * Resolves the project a view's `project` segment names.
  *
  * BOTH handles are accepted because both are minted by this app: the cockpit's own URL uses
- * the CloudCLI project id (the id the snapshot route is keyed by), while the sidebar's entry
+ * the Cloudpit project id (the id the snapshot route is keyed by), while the sidebar's entry
  * links speak the quay-fleet registry id (the same segment every `quay://` address carries).
  * Matching projectId first keeps an id that could be either from being re-read as the other.
  */

@@ -99,7 +99,7 @@ function descriptiveSchema(version: number, kinds: Record<string, unknown>): Rec
         source: 'the writer: cloudcli | fleet',
         kind: 'one of `kinds` below',
         project: 'optional Quay project id',
-        session: 'optional CloudCLI session id',
+        session: 'optional Cloudpit session id',
         refs: 'optional array of references',
         data: 'kind-specific payload (a JSON object)',
       },

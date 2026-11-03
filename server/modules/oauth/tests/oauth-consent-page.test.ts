@@ -21,14 +21,14 @@
  *       contains HTML — plus the correct callback host (AC4). [was the AC-260 (a)
  *       HTML-escaping leg: the server renders no HTML any more, so escaping has no
  *       subject; the honest translation is that the value is structured data.]
- *   (c) GET context returns the whole scope vocabulary, `cloudcli:read` flagged
+ *   (c) GET context returns the whole scope vocabulary, `cloudpit:read` flagged
  *       `required:true`/`writable:false`, the rest `required:false`/`writable:true`,
  *       and never `cloudcli:admin` (AC4; old (b)/(m)'s intent).
  *   (d) decision deny → `redirectTo` carries `error=access_denied` and the verbatim
  *       state, no code, no new code row (AC6; old (d)).
  *   (e) decision allow → `redirectTo` carries a non-empty code and the verbatim
  *       state, and the grant row's scopes are exactly the submitted set ∪
- *       `cloudcli:read`, once each (AC5; old (c)/(e)).
+ *       the canonical `cloudcli:read`, once each (AC5; old (c)/(e)).
  *   (f) an unregistered `redirect_uri` is refused at GET /oauth/authorize (400
  *       error page, NO Location), at context (400 JSON) and at decision for BOTH
  *       allow and deny (400, no `redirectTo`, no code row) — the deny branch is
@@ -107,6 +107,9 @@ import { OAUTH_CONSENT_SPA_PATH } from '../../../../shared/oauthConsent.js';
 const PUBLIC_BASE_URL = 'https://cli.example';
 const REDIRECT_URI = 'https://app.example/cb';
 const START_MS = Date.UTC(2026, 0, 1, 0, 0, 0);
+// 3.0 splits the two vocabularies: the consent screen OFFERS the wire spelling
+// (`cloudpit:*`), while a granted decision is STORED under the canonical name
+// (`cloudcli:*`) so the existing `requiredScopes` literals keep matching.
 const READ_SCOPE = 'cloudcli:read';
 const WRITE_SCOPE = 'cloudcli:session:send';
 const CREATE_SCOPE = 'cloudcli:session:create';
@@ -114,12 +117,14 @@ const CONTROL_SCOPE = 'cloudcli:session:control';
 const NAVIGATE_SCOPE = 'cloudcli:navigate';
 const APPROVE_SCOPE = 'cloudcli:approve';
 // gap-ui-visible-context-extended-fields: the appended content scope, offered by
-// the consent screen since it maps the whole ACCESS_TOKEN_SCOPES vocabulary.
+// the consent screen since it maps the whole wire vocabulary.
 const SELECTION_SCOPE = 'cloudcli:selection';
 // gap-mcp-cockpit-card-tools: the appended confirm scope. It is a WRITE scope —
 // confirming a card runs the option's declared executor — so leg (c) requires it
 // to carry a `write` group and a non-empty risk badge, which it does.
 const COCKPIT_ACT_SCOPE = 'cloudcli:cockpit:act';
+
+/** The wire spelling of each canonical constant: what the consent screen offers and accepts. */
 const VOCABULARY = [
   READ_SCOPE,
   WRITE_SCOPE,
@@ -129,6 +134,9 @@ const VOCABULARY = [
   NAVIGATE_SCOPE,
   SELECTION_SCOPE,
   COCKPIT_ACT_SCOPE,
+].map((scope) => scope.replace('cloudcli:', 'cloudpit:'));
+const [READ_WIRE, WRITE_WIRE, CREATE_WIRE, , , NAVIGATE_WIRE] = VOCABULARY as [
+  string, string, string, string, string, string, string, string,
 ];
 const USER_ID = 1;
 const OWNER = 'owner';
@@ -271,7 +279,7 @@ function latestGrantScopes(): string[] {
 function authorizeQuery(
   clientId: string,
   challenge: string,
-  scopes: string[] = [READ_SCOPE],
+  scopes: string[] = [READ_WIRE],
   state = 'xyz',
   redirectUri: string = REDIRECT_URI
 ): string {
@@ -336,7 +344,7 @@ test('(a) GET /oauth/authorize 302s to the relative SPA route, query preserved i
   await withConsentServer(async (harness) => {
     const clientId = harness.registerClient('consent-app');
     const pair = pkcePair();
-    const query = authorizeQuery(clientId, pair.challenge, [READ_SCOPE, WRITE_SCOPE], 'state-abc');
+    const query = authorizeQuery(clientId, pair.challenge, [READ_WIRE, WRITE_WIRE], 'state-abc');
     const response = await fetch(`${harness.baseUrl}/oauth/authorize?${query}`, { redirect: 'manual' });
     assert.equal(response.status, 302);
     const location = response.headers.get('location') ?? '';
@@ -368,7 +376,7 @@ test('(b) GET context returns the client name as JSON data (verbatim) and the ri
   });
 });
 
-test('(c) GET context returns the whole vocabulary with cloudcli:read required and non-writable', async () => {
+test('(c) GET context returns the whole wire vocabulary with cloudpit:read required and non-writable', async () => {
   await withConsentServer(async (harness) => {
     const clientId = harness.registerClient('consent-app');
     const reading = await getContext(harness, clientId);
@@ -377,7 +385,7 @@ test('(c) GET context returns the whole vocabulary with cloudcli:read required a
     assert.deepEqual(scopes.map((entry) => entry.scope), VOCABULARY, 'the whole vocabulary, in order');
     for (const entry of scopes) {
       assert.ok(entry.description.length > 0, `${entry.scope} must carry an English description`);
-      if (entry.scope === READ_SCOPE) {
+      if (entry.scope === READ_WIRE) {
         assert.equal(entry.required, true, 'the read-only scope is pinned');
         assert.equal(entry.writable, false, 'the read-only scope is not removable');
       } else {
@@ -391,7 +399,7 @@ test('(c) GET context returns the whole vocabulary with cloudcli:read required a
     // and, for a state-changing scope, a risk code the badge renders from. The
     // existing assertions above are untouched; these are additive.
     for (const entry of scopes) {
-      if (entry.scope === READ_SCOPE) {
+      if (entry.scope === READ_WIRE) {
         assert.equal(entry.group, 'read', 'the pinned scope is filed under the read group');
         assert.equal(entry.risk, null, 'a read scope carries no risk badge');
       } else {
@@ -416,7 +424,7 @@ test('(d) decision deny returns error=access_denied with the verbatim state and 
       state: 'state-deny-1',
       code_challenge: pkcePair().challenge,
       code_challenge_method: 'S256',
-      scopes: [READ_SCOPE],
+      scopes: [READ_WIRE],
       action: 'deny',
     });
     assert.equal(denied.status, 200);
@@ -430,7 +438,7 @@ test('(d) decision deny returns error=access_denied with the verbatim state and 
   });
 });
 
-test('(e) decision allow returns a code and stores the submitted set plus cloudcli:read', async () => {
+test('(e) decision allow returns a code and stores the canonical set plus the read scope', async () => {
   await withConsentServer(async (harness) => {
     const clientId = harness.registerClient('consent-app');
     const pair = pkcePair();
@@ -443,7 +451,7 @@ test('(e) decision allow returns a code and stores the submitted set plus cloudc
       code_challenge_method: 'S256',
       // The read-only box is pinned on the client, so it is not submitted; the
       // control scope was left unchecked.
-      scopes: [WRITE_SCOPE],
+      scopes: [WRITE_WIRE],
       action: 'allow',
     });
     assert.equal(allowed.status, 200);
@@ -469,7 +477,7 @@ test('(f) an unregistered redirect_uri is refused at authorize, context and deci
 
     // GET /oauth/authorize: an error page and NO Location header.
     const getResponse = await fetch(
-      `${harness.baseUrl}/oauth/authorize?${authorizeQuery(clientId, pkcePair().challenge, [READ_SCOPE], 'xyz', evil)}`,
+      `${harness.baseUrl}/oauth/authorize?${authorizeQuery(clientId, pkcePair().challenge, [READ_WIRE], 'xyz', evil)}`,
       { redirect: 'manual' }
     );
     const getBody = await getResponse.text();
@@ -492,7 +500,7 @@ test('(f) an unregistered redirect_uri is refused at authorize, context and deci
         state: 'xyz',
         code_challenge: pkcePair().challenge,
         code_challenge_method: 'S256',
-        scopes: [READ_SCOPE],
+        scopes: [READ_WIRE],
         action,
       });
       assert.equal(response.status, 400, `decision ${action} to an unregistered callback must be refused`);
@@ -518,7 +526,7 @@ test('(g) the JSON API carries the anti-framing and no-store headers', async () 
       state: 'xyz',
       code_challenge: pkcePair().challenge,
       code_challenge_method: 'S256',
-      scopes: [READ_SCOPE],
+      scopes: [READ_WIRE],
       action: 'deny',
     });
     assert.equal(decision.headers.get('x-frame-options'), 'DENY');
@@ -542,7 +550,7 @@ test('(g) the JSON API carries the anti-framing and no-store headers', async () 
 test('(h) the SPA document at /oauth/consent carries the three headers over the static layer', async () => {
   await withConsentServer(async (harness) => {
     const clientId = harness.registerClient('consent-app');
-    const query = authorizeQuery(clientId, pkcePair().challenge, [READ_SCOPE], 'state-doc');
+    const query = authorizeQuery(clientId, pkcePair().challenge, [READ_WIRE], 'state-doc');
     const response = await fetch(`${harness.baseUrl}${OAUTH_CONSENT_SPA_PATH}?${query}`);
     assert.equal(response.status, 200, 'the SPA document is served from dist/index.html');
     assert.match(response.headers.get('content-type') ?? '', /text\/html/);
@@ -616,7 +624,7 @@ test('(k) context and decision without a JWT are 401 and create no code row', as
         state: 'xyz',
         code_challenge: pkcePair().challenge,
         code_challenge_method: 'S256',
-        scopes: [READ_SCOPE],
+        scopes: [READ_WIRE],
         action: 'allow',
       },
       null
@@ -637,7 +645,7 @@ test('(m) a forged scope outside the vocabulary never reaches the grant', async 
       state: 'xyz',
       code_challenge: pkcePair().challenge,
       code_challenge_method: 'S256',
-      scopes: ['cloudcli:admin', 'bogus', CREATE_SCOPE, CREATE_SCOPE, NAVIGATE_SCOPE],
+      scopes: ['cloudcli:admin', 'bogus', CREATE_WIRE, CREATE_WIRE, NAVIGATE_WIRE],
       action: 'allow',
     });
     assert.equal(allowed.status, 200);
@@ -696,7 +704,7 @@ test('(o) a read-only allow with no password and no injected verifier mints a co
       state: 'state-readonly',
       code_challenge: pkcePair().challenge,
       code_challenge_method: 'S256',
-      scopes: [READ_SCOPE],
+      scopes: [READ_WIRE],
       action: 'allow',
       password: '',
     });
@@ -720,7 +728,7 @@ test('(p) a deny carrying a write scope and no password is still access_denied',
       state: 'state-deny-write',
       code_challenge: pkcePair().challenge,
       code_challenge_method: 'S256',
-      scopes: [WRITE_SCOPE],
+      scopes: [WRITE_WIRE],
       action: 'deny',
       password: '',
     });
@@ -773,7 +781,7 @@ test('(l) in a real browser the 302 lands on the SPA route and the window.locati
       body: JSON.stringify({
         client_id: q.get('client_id'), redirect_uri: q.get('redirect_uri'), state: q.get('state'),
         code_challenge: q.get('code_challenge'), code_challenge_method: 'S256',
-        scopes: ['cloudcli:read'], action: 'allow',
+        scopes: ['cloudpit:read'], action: 'allow',
       }),
     }).then((r) => r.json());
     window.location.href = decision.redirectTo;
@@ -802,7 +810,7 @@ test('(l) in a real browser the 302 lands on the SPA route and the window.locati
       const callback = `${callbackOrigin}/cb`;
       const clientId = harness.registerClient('browser-app', callback);
       const pair = pkcePair();
-      const query = authorizeQuery(clientId, pair.challenge, [READ_SCOPE], 'state-browser', callback);
+      const query = authorizeQuery(clientId, pair.challenge, [READ_WIRE], 'state-browser', callback);
 
       const page = await browser.newPage();
       await page.goto(`${harness.baseUrl}/oauth/authorize?${query}`);

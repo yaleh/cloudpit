@@ -356,13 +356,13 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
     const fullToken = tokens.issueToken({
       userId: USER_ONE,
       name: FULL_TOKEN_NAME,
-      scopes: [...ACCESS_TOKEN_SCOPES],
+      scopes: ACCESS_TOKEN_SCOPES.map((scope) => scope.replace('cloudcli:', 'cloudpit:')),
       expiresInDays: 30,
     });
     const readOnlyToken = tokens.issueToken({
       userId: USER_ONE,
       name: 'ac303-read',
-      scopes: [ACCESS_TOKEN_SCOPES[0]],
+      scopes: [ACCESS_TOKEN_SCOPES[0].replace('cloudcli:', 'cloudpit:')],
       expiresInDays: 30,
     });
     if (!fullToken.ok || !readOnlyToken.ok) {

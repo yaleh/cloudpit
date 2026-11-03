@@ -376,7 +376,7 @@ async function withHarness(run: (harness: Harness) => Promise<void>): Promise<vo
 
   const tokens = createAccessTokensService({ now: () => new Date() });
   const mint = (name: string, scopes: string[]): string => {
-    const issued = tokens.issueToken({ userId: USER_ONE, name, scopes, expiresInDays: 30 });
+    const issued = tokens.issueToken({ userId: USER_ONE, name, scopes: scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:')), expiresInDays: 30 });
     if (!issued.ok) {
       throw new Error(`the harness must mint the ${name} token`);
     }

@@ -1,5 +1,5 @@
 import { MCP_SUPPORTED_TRANSPORTS, MCP_SUPPORTS_WORKING_DIRECTORY } from '@/shared/constants';
-import type { KeyValueMap, McpFormState, McpProvider, McpScope, McpTransport, UpsertProviderMcpServerPayload } from '@/shared/types';
+import type { KeyValueMap, McpFormState, McpProvider, McpScope, McpTransport, ProviderMcpServer, UpsertProviderMcpServerPayload } from '@/shared/types';
 
 type CreateMcpPayloadOptions = {
   supportedTransports?: McpTransport[];
@@ -144,6 +144,22 @@ export const parseJsonMcpPayload = (
       : undefined,
   };
 };
+
+/**
+ * Whether the app owns the server row (and therefore shows it read-only).
+ *
+ * Servers prefixed with `cloudpit-` are written and removed automatically by a
+ * Cloudpit feature toggle (e.g. the Browser tab), not added by the user. The
+ * legacy `cloudcli-` prefix is still recognised so an entry written by an older
+ * build keeps its read-only badge until the feature re-registers it. Used by the
+ * MCP Servers list and its managed-prefix criterion.
+ *
+ * @param server the provider MCP server row
+ * @returns true when the row must not be edited or deleted by the user
+ */
+export const isManagedServer = (server: ProviderMcpServer): boolean => (
+  server.name.startsWith('cloudpit-') || server.name.startsWith('cloudcli-')
+);
 
 export const createMcpPayloadFromForm = (
   provider: McpProvider,

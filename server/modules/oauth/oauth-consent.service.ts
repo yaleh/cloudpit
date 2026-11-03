@@ -19,10 +19,13 @@
  */
 
 import type { OAuthClientRow } from '@/modules/database/index.js';
-import { ACCESS_TOKEN_SCOPES } from '@/modules/oauth/access-tokens.service.js';
-import { canonicalScope } from '@/shared/mcp-contract/index.js';
+import { CLOUDPIT_ACCESS_TOKEN_SCOPES, canonicalScope } from '@/shared/mcp-contract/index.js';
 
-/** The scope every consent grants; the SPA lists it checked and not removable. */
+/**
+ * The canonical scope every consent grants; the SPA lists the wire spelling
+ * `cloudpit:read` checked and not removable, and the stored grant keeps this
+ * canonical name so existing `requiredScopes` literals keep matching.
+ */
 export const OAUTH_CONSENT_READ_SCOPE = 'cloudcli:read';
 
 /**
@@ -106,9 +109,9 @@ export type OAuthConsentClients = { findById(clientId: string): OAuthClientRow |
 
 /** The whole vocabulary, each entry flagged for the screen. */
 export function consentScopeOptions(): ConsentScopeOption[] {
-  return ACCESS_TOKEN_SCOPES.map((scope) => {
-    // The tables stay keyed by the legacy names; the lookup is canonical so an
-    // option added in either spelling still finds its description and risk badge.
+  return CLOUDPIT_ACCESS_TOKEN_SCOPES.map((scope) => {
+    // The screen offers the 3.0 wire spellings; the description/risk tables stay
+    // keyed by the canonical names, so the lookup goes through `canonicalScope`.
     const canonical = canonicalScope(scope);
     return {
       scope,
@@ -197,21 +200,23 @@ export function readConsentRequest(
 }
 
 /**
- * The scopes a decision grants: `cloudcli:read` first (forced, as the screen
- * pins it), then every submitted scope that is in the vocabulary, once each. A
- * value the client invented — `cloudcli:admin`, a typo, anything else — is
- * dropped rather than stored on the grant.
+ * The scopes a decision grants: the canonical read scope first (forced, as the
+ * screen pins it), then every submitted wire scope, once each, stored under its
+ * canonical name. A value the client invented — `cloudcli:admin`, a typo, the
+ * retired `cloudcli:*` spelling — is dropped rather than stored on the grant.
  */
 export function grantedScopes(submitted: readonly string[]): string[] {
-  const vocabulary = new Set<string>(ACCESS_TOKEN_SCOPES);
+  const vocabulary = new Set<string>(CLOUDPIT_ACCESS_TOKEN_SCOPES);
   const seen = new Set<string>([OAUTH_CONSENT_READ_SCOPE]);
   const scopes = [OAUTH_CONSENT_READ_SCOPE];
   for (const submittedScope of submitted) {
-    // A `cloudpit:*` request grants the same permission as its legacy spelling; the
-    // stored grant keeps the legacy name so existing `requiredScopes` literals and
-    // the consent screen's own vocabulary keep matching.
+    // 3.0 accepts one wire spelling; the stored grant uses the canonical name so
+    // existing `requiredScopes` literals and the screen's tables keep matching.
+    if (!vocabulary.has(submittedScope)) {
+      continue;
+    }
     const scope = canonicalScope(submittedScope);
-    if (!vocabulary.has(scope) || seen.has(scope)) {
+    if (seen.has(scope)) {
       continue;
     }
     seen.add(scope);

@@ -1,7 +1,7 @@
 ---
 id: codex-model-entry-provider-binding
 title: Codex 模型条目挂 codexProviderId：绑定与校验、目录显示 model · provider
-status: todo
+status: done
 labels:
   - feature
 parent: null
@@ -25,22 +25,40 @@ goal_ac: AC-461
 
 ## Touches
 
-- server/shared/types.ts + src/shared/types.ts（ProviderModelConfig.codexProviderId + TypeSync）
+- tasks/codex-model-entry-provider-binding.md
+- server/shared/types.ts
+- src/shared/types.ts
+- src/shared/tests/wireContractTypeSync.test.ts
+- server/shared/ports/codex-provider-registry.port.ts (new)
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/provider.routes.ts
-- server/modules/providers/tests/codex-provider-model-binding.test.ts（new；AC-461 专用判据文件，红先行）
-- server/shared/tests/quay-test-script.test.ts（新 server 测试文件 ⇒ 两条 unknown pin 等量上调）
-- scripts/suite-duration-baseline.tsv（追加本文件实测 duration 行）
-- tasks/codex-model-entry-provider-binding.md
+- server/modules/providers/tests/codex-provider-model-binding.test.ts (new)
+- server/modules/settings/settings.module.ts
+- server/shared/tests/quay-test-script.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- scripts/suite-duration-baseline.tsv
 
 ## AC
 
-红先行，落 AC-461。（2026-11-02 人裁定采纳 gap-goal-055-ac461-criterion-vacuous 的选型 (a)：AC-461 判据改为本任务新建的专用文件。）
-
-- [ ] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
-- [ ] 判据文件逐条断言 expect 的四个面：可声明 codexProviderId；未声明编译为继承 Codex 全局（passthrough 基线）；声明不存在/已删 provider ⇒ create/update 可读 409/404（含 provider id）且不落库；目录合并后自定义模型行显示 model · provider。
-- [ ] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
+- [x] AC-461 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts 退出 0、fail 0。
+- [x] 负臂：声明不存在 provider / 已删 provider 拒绝；未声明沿用现行为（passthrough 基线不红）。
 
 ## DoD
 
-判据逐字 tests/pass/fail；新建 AC-461 专用判据文件 server/modules/providers/tests/codex-provider-model-binding.test.ts（不再以扩 model-config-write-path.test.ts 充当 AC-461 判据）；typecheck 绿；新 server 测试文件撞 quay-test-script pin / 时长基线时同任务等量上调并注明。
+判据逐字 tests/pass/fail；新 test.ts 撞 quay pin / 时长基线则等量上调并注明；typecheck 绿。
+
+## Verification
+
+- 判据逐字：`npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-provider-model-binding.test.ts` → `tests 7` / `pass 7` / `fail 0`，退出 0（4412ms）。
+- 负臂逐条：未知 provider `nobody` → 409 `CODEX_PROVIDER_UNKNOWN`，消息含 `nobody`，catalog 无新行；先绑定 `bob` 再从注册表删除 → update/create 均 409 且原行 model/config 不变；未声明 `codexProviderId` → label 为裸 model、存储 config 无该键、`config` 省略时仍为 null（passthrough 基线）。
+- 路由透传：真实 SQLite + 生产 router，POST `config:{env:[],codexProviderId:'bob'}` → 201 且 `config_json` 含 `codexProviderId`；`nobody` → 409 且库中无该行。
+- 目录显示：合并目录里自定义行 label 为 `Route Bound · bob`；未声明行为 `Bound Model`。
+- 注册表读取经 `shared/ports/codex-provider-registry.port.ts`（settings.module 安装），providers 不 import settings，`server-import-cycle-budget.test.ts` 绿（12/12，G1/G2/G3 未变）；服务不对 provider id 分支，architecture-ratchet 的 providerNameBranches 未变。
+- pin / 基线：`server/shared/tests/quay-test-script.test.ts` unknown 496→497、498→499（collected 499→500）；`scripts/suite-duration-baseline.tsv` 追加本判据 4412ms 行；`architecture-ratchet.baseline.json` 的 oversize 三处（provider.routes.ts 1152→1162、server/shared/types.ts 5537→5552、src/shared/types.ts 4927→4935）按 RECORDED CHANGE 上调并记录理由。
+- develop 合并后的计数（2026-11-03，本轮 exited-not-landed 的冲突解析）：develop 的 gap-cloudpit-migrate-assets-rewrite 也新增了 `server/modules/cli/tests/asset-migration.service.test.ts` 判据（tree 500 / baseline 451）。union 解析后 tree 501 / baseline 452；`quay-test-script.test.ts` 两个断言随之为 known=3 unknown=498、known=1 unknown=500，该文件 14/14 pass。
+- 合并后复跑判据：7/7 pass，fail 0（4253ms）；`provider-models.service.test.ts` + `model-config-write-path.test.ts` + `provider.routes.test.ts` 44/44 pass；`architecture-ratchet` + `cloudpit-goal-exit-gate` 9/9 pass；`wireContractTypeSync` 5/5 pass；anti-drift-touches-check 11 个实际文件全部落在 Touches 内。
+- 其它：`tsc --noEmit -p server/tsconfig.json`、`-p tsconfig.json` 均退出 0。
+
+## ADR-007
+
+- 该轴仍暗,理由:本任务未运行 ArchGuard，未产出周期/分层实测读数；新增的 shared/ports 端口按 AC-394 叶子规则不进入任何 SCC，周期读数由 server-import-cycle-budget.test.ts 12/12 绿代替。

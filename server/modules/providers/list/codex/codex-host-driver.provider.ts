@@ -23,6 +23,7 @@ import {
   type PendingTurn,
   type ResidentSession,
 } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+import { pendingLaunchForHost, residentLaunchForOptions } from '@/modules/providers/list/codex/codex-resident-provider-launch.js';
 import {
   createCodexLiveSettings,
   type CodexLiveSettings,
@@ -95,6 +96,8 @@ export class CodexHostDriver implements IProviderHostDriver {
   private readonly sessions = new Map<string, ResidentSession>();
   /** Launches carried from `startResidentSession` to the `bind` it causes. */
   private readonly pendingLaunches = new Map<string, PendingResidentLaunch>();
+  /** The per-session launch each host was spawned with; absent = the driver-wide launch. */
+  private readonly hostLaunches = new Map<string, CodexAppServerLaunch>();
   /** The `process/*` verbs and the `background-task` leases they report. */
   private readonly background: CodexBackgroundProcesses;
   /** Serial for the `turn` lease's `runId`; unique per turn of this instance. */
@@ -170,6 +173,12 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.closedHostIds.delete(host.hostId);
     this.host = host;
     this.sink = sink;
+    // The connection (and so the process) is created before `bind` runs, so the
+    // pending per-session launch has to move onto the host id first.
+    const pendingLaunch = pendingLaunchForHost(host, this.pendingLaunches);
+    if (pendingLaunch) {
+      this.hostLaunches.set(host.hostId, pendingLaunch);
+    }
     const connection = this.connectionFor(host.hostId);
     await connection.initialize();
     host.pid = connection.pid;
@@ -402,6 +411,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       this.pendingLaunches.delete(session.appSessionId);
     }
     this.connections.delete(host.hostId);
+    this.hostLaunches.delete(host.hostId);
     if (this.connection === connection) {
       this.connection = null;
     }
@@ -437,6 +447,10 @@ export class CodexHostDriver implements IProviderHostDriver {
     this.pendingLaunches.set(appSessionId, {
       providerSessionId: launch.context.resolveProviderSessionId(appSessionId),
       threadDefaults: residentThreadDefaults(launch.options),
+      // Compile BEFORE opening the host: a session bound to a provider the
+      // registry no longer defines must fail readably here (no process, no
+      // silent fall-back to Codex's `openai`), not on the first turn.
+      launch: residentLaunchForOptions(launch.options, this.launch),
     });
     try {
       const host = await hostPort.openHost({
@@ -797,7 +811,7 @@ export class CodexHostDriver implements IProviderHostDriver {
     if (existing) {
       return existing;
     }
-    const connection = this.createConnection(this.launch);
+    const connection = this.createConnection(this.hostLaunches.get(hostId) ?? this.launch);
     this.connections.set(hostId, connection);
     this.connection = connection;
     connection.onNotification((method, params) => this.handleNotification(method, params));

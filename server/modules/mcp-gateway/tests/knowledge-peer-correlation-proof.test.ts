@@ -157,8 +157,8 @@ const CORRELATION = 'corr-peer-ask-1';
 const DELIVERY_ID = 'delivery-peer-ask-1';
 const REPLY_UUID = 'reply-assistant-1';
 const ASK_MESSAGE_ID = 'assistant-ask-1';
-const READ_SCOPE = 'cloudcli:read';
-const SEND_SCOPE = 'cloudcli:session:send';
+const READ_SCOPE = 'cloudpit:read';
+const SEND_SCOPE = 'cloudpit:session:send';
 
 function idsOf(tag: string) {
   return {

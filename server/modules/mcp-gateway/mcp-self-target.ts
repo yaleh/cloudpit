@@ -2,8 +2,8 @@
  * The MCP gateway's self-referential guard (AC-252; SPEC
  * `docs/proposals/mcp-gateway-SPEC.md` v3.1 §290–§300).
  *
- * A gateway client can itself be a CloudCLI session — the canonical nesting is
- * "a Claude Code session opened inside CloudCLI calling CloudCLI's own MCP
+ * A gateway client can itself be a Cloudpit session — the canonical nesting is
+ * "a Claude Code session opened inside Cloudpit calling Cloudpit's own MCP
  * server". When that session calls a WRITE tool against ITSELF it does not just
  * act on a stranger: `session_send` queues a message behind the round that is
  * waiting for this very tool result, and `session_interrupt` / `session_close`

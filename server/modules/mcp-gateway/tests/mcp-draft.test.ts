@@ -109,6 +109,7 @@ type ChatControlService = ReturnType<typeof createChatControlService>;
 const USER_ONE = 1;
 const DEBUG_PROVIDER = DEBUG_AGENT_PROVIDER_ID as LLMProvider;
 const SESSION_SEND_SCOPE = 'cloudcli:session:send';
+const wire = (scopes: string[]) => scopes.map((scope) => scope.replace('cloudcli:', 'cloudpit:'));
 const READ_SCOPE = 'cloudcli:read';
 
 /** The seed turn the scenario opens with. Not what the draft tools submit. */
@@ -298,13 +299,13 @@ async function withHarness(options: HarnessOptions, run: (harness: Harness) => P
   const mainToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'gap-mcp-draft-main',
-    scopes: [READ_SCOPE, SESSION_SEND_SCOPE],
+    scopes: wire([READ_SCOPE, SESSION_SEND_SCOPE]),
     expiresInDays: 30,
   });
   const readToken = tokens.issueToken({
     userId: USER_ONE,
     name: 'gap-mcp-draft-read',
-    scopes: [READ_SCOPE],
+    scopes: wire([READ_SCOPE]),
     expiresInDays: 30,
   });
   if (!mainToken.ok || !readToken.ok) {

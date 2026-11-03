@@ -104,7 +104,7 @@ const EXAMPLE = `{
 
 /** The fixed instructions; the same text is sent every round. */
 export const BRIEF_SYSTEM_PROMPT = [
-  '你是 CloudCLI 驾驶舱的简报生成器。为一张等待用户决定的卡片写一份 BriefSpec v0 JSON。',
+  '你是 Cloudpit 驾驶舱的简报生成器。为一张等待用户决定的卡片写一份 BriefSpec v0 JSON。',
   '',
   '只输出 JSON 对象本身：不要代码围栏，不要解释，不要前后缀文字。',
   '',

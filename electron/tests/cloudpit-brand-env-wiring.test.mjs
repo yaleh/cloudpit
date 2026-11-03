@@ -1,5 +1,5 @@
 /**
- * Criterion file for `gap-cloudpit-brand-env-reader-wiring`.
+ * Criterion file for `gap-cloudpit-brand-env-reader-wiring` (v3.0 update).
  *
  *   npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-brand-env-wiring.test.mjs
  *
@@ -9,11 +9,14 @@
  *
  *   1. a cross-runtime PARITY table: one environment table drives both
  *      `createBrandEnvReader` implementations and compares `{value, source,
- *      key}` plus the legacy-warning list, so the semantics cannot drift;
+ *      key}` so the semantics cannot drift;
  *   2. the WIRING arms: the Electron control-plane resolver, the local-server
- *      discovery keys and `ServerInstaller` resolve `CLOUDPIT_*` first, keep
- *      `CLOUDCLI_*` readable with exactly one deprecation warning, and keep
- *      their shipped defaults when no brand variable is set.
+ *      discovery keys and `ServerInstaller` resolve `CLOUDPIT_*` and keep their
+ *      shipped defaults when no brand variable is set.
+ *
+ * v3.0 RETIREMENT: the legacy `CLOUDCLI_*` spelling is no longer read anywhere.
+ * Every arm below that used to assert the fallback now asserts the ignored
+ * spelling leaves the shipped default in force.
  *
  * The production wiring is driven through the same functions the modules use.
  * `electron/main.js` imports Electron and cannot be loaded by node, so the
@@ -45,30 +48,18 @@ function readRepoFile(relativePath) {
   return readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
-/** Build a reader over `env` plus the warnings it emitted, in order. */
+/** Build a reader over `env`. */
 function readWith(createReader, env) {
-  const warnings = [];
-  const reader = createReader({ env, warn: (message) => warnings.push(message) });
-  return { reader, warnings };
+  return createReader({ env });
 }
 
 // ── parity: the two createBrandEnvReader implementations ───────────────────
 
 /**
- * The shared three-arm table. `expectedReadings` is what both implementations
- * must return when the same key is read twice (the second read is what pins
- * warn-once), and `expectedWarnings` is the warning list both must emit.
+ * The shared table. `expectedReadings` is what both implementations must return
+ * when the same key is read twice.
  */
 const PARITY_ARMS = [
-  {
-    label: 'legacy only',
-    env: { CLOUDCLI_X: 'old' },
-    expectedReadings: [
-      { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' },
-      { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' },
-    ],
-    expectedWarnings: ['CLOUDCLI_X is deprecated; set CLOUDPIT_X instead.'],
-  },
   {
     label: 'new only',
     env: { CLOUDPIT_X: 'new' },
@@ -76,7 +67,6 @@ const PARITY_ARMS = [
       { value: 'new', source: 'new', key: 'CLOUDPIT_X' },
       { value: 'new', source: 'new', key: 'CLOUDPIT_X' },
     ],
-    expectedWarnings: [],
   },
   {
     label: 'both set',
@@ -85,7 +75,14 @@ const PARITY_ARMS = [
       { value: 'new', source: 'new', key: 'CLOUDPIT_X' },
       { value: 'new', source: 'new', key: 'CLOUDPIT_X' },
     ],
-    expectedWarnings: [],
+  },
+  {
+    label: 'legacy only',
+    env: { CLOUDCLI_X: 'old' },
+    expectedReadings: [
+      { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
+      { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
+    ],
   },
   {
     label: 'both empty',
@@ -94,16 +91,14 @@ const PARITY_ARMS = [
       { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
       { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
     ],
-    expectedWarnings: [],
   },
   {
     label: 'new empty with legacy set',
     env: { CLOUDPIT_X: '', CLOUDCLI_X: 'old' },
     expectedReadings: [
-      { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' },
-      { value: 'old', source: 'legacy', key: 'CLOUDCLI_X' },
+      { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
+      { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
     ],
-    expectedWarnings: ['CLOUDCLI_X is deprecated; set CLOUDPIT_X instead.'],
   },
   {
     label: 'neither set',
@@ -112,7 +107,6 @@ const PARITY_ARMS = [
       { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
       { value: undefined, source: 'absent', key: 'CLOUDPIT_X' },
     ],
-    expectedWarnings: [],
   },
 ];
 
@@ -121,27 +115,14 @@ for (const arm of PARITY_ARMS) {
     const server = readWith(createServerBrandEnvReader, arm.env);
     const electron = readWith(createElectronBrandEnvReader, arm.env);
 
-    const serverReadings = [server.reader.read('X'), server.reader.read('X')];
-    const electronReadings = [electron.reader.read('X'), electron.reader.read('X')];
+    const serverReadings = [server.read('X'), server.read('X')];
+    const electronReadings = [electron.read('X'), electron.read('X')];
 
     assert.deepEqual(serverReadings, arm.expectedReadings, 'server implementation reads the arm');
     assert.deepEqual(electronReadings, arm.expectedReadings, 'Electron implementation reads the arm');
     assert.deepEqual(electronReadings, serverReadings, 'the two runtimes must return the same readings');
-    assert.deepEqual(electron.warnings, server.warnings, 'the two runtimes must warn identically');
-    assert.deepEqual(server.warnings, arm.expectedWarnings);
   });
 }
-
-test('parity isolation: each reader instance keeps its own warned-key set', () => {
-  const first = readWith(createElectronBrandEnvReader, { CLOUDCLI_X: 'old' });
-  const second = readWith(createElectronBrandEnvReader, { CLOUDCLI_X: 'old' });
-
-  first.reader.read('X');
-  second.reader.read('X');
-
-  assert.equal(first.warnings.length, 1);
-  assert.equal(second.warnings.length, 1);
-});
 
 // ── Electron main: the control-plane resolver ──────────────────────────────
 
@@ -149,8 +130,7 @@ const DEFAULT_CONTROL_PLANE_URL = 'https://cloudcli.ai';
 
 /** Resolve the control-plane URL through the same expression main.js binds. */
 function resolveControlPlaneUrl(env) {
-  const { reader } = readWith(createElectronBrandEnvReader, env);
-  return readBrandEnvValue(reader, 'CONTROL_PLANE_URL', DEFAULT_CONTROL_PLANE_URL);
+  return readBrandEnvValue(readWith(createElectronBrandEnvReader, env), 'CONTROL_PLANE_URL', DEFAULT_CONTROL_PLANE_URL);
 }
 
 test('Electron AC3: only CLOUDPIT_CONTROL_PLANE_URL set reads the new value', () => {
@@ -160,15 +140,12 @@ test('Electron AC3: only CLOUDPIT_CONTROL_PLANE_URL set reads the new value', ()
   );
 });
 
-test('Electron AC3: only CLOUDCLI_CONTROL_PLANE_URL set reads the old value and warns once', () => {
-  const { reader, warnings } = readWith(createElectronBrandEnvReader, {
-    CLOUDCLI_CONTROL_PLANE_URL: 'https://legacy.example',
-  });
+test('Electron AC3 (v3.0): only CLOUDCLI_CONTROL_PLANE_URL set keeps the shipped default', () => {
   assert.equal(
-    readBrandEnvValue(reader, 'CONTROL_PLANE_URL', DEFAULT_CONTROL_PLANE_URL),
-    'https://legacy.example',
+    resolveControlPlaneUrl({ CLOUDCLI_CONTROL_PLANE_URL: 'https://legacy.example' }),
+    DEFAULT_CONTROL_PLANE_URL,
+    'the retired legacy spelling must not supply the control-plane address',
   );
-  assert.deepEqual(warnings, ['CLOUDCLI_CONTROL_PLANE_URL is deprecated; set CLOUDPIT_CONTROL_PLANE_URL instead.']);
 });
 
 test('Electron AC3: both set means the new value wins', () => {
@@ -206,27 +183,25 @@ const DEFAULT_LOCAL_SERVER_URL = 'http://127.0.0.1:3001';
 const NO_MARKERS = { markerPaths: [] };
 
 test('localServer AC3: only CLOUDPIT_DESKTOP_LOCAL_SERVER_URL is discovered first', async () => {
-  const { reader, warnings } = readWith(createElectronBrandEnvReader, {
+  const reader = readWith(createElectronBrandEnvReader, {
     CLOUDPIT_DESKTOP_LOCAL_SERVER_URL: 'http://127.0.0.1:4401',
   });
 
   const urls = await getExistingServerCandidateUrls(DEFAULT_LOCAL_SERVER_URL, { reader, ...NO_MARKERS });
   assert.equal(urls[0], 'http://127.0.0.1:4401');
-  assert.deepEqual(warnings, []);
 });
 
-test('localServer AC3: only CLOUDCLI_DESKTOP_LOCAL_SERVER_URL is discovered and warns once', async () => {
-  const { reader, warnings } = readWith(createElectronBrandEnvReader, {
+test('localServer AC3 (v3.0): a legacy-only discovery variable is ignored', async () => {
+  const reader = readWith(createElectronBrandEnvReader, {
     CLOUDCLI_DESKTOP_LOCAL_SERVER_URL: 'http://127.0.0.1:4402',
   });
 
   const urls = await getExistingServerCandidateUrls(DEFAULT_LOCAL_SERVER_URL, { reader, ...NO_MARKERS });
-  assert.equal(urls[0], 'http://127.0.0.1:4402');
-  assert.deepEqual(warnings, ['CLOUDCLI_DESKTOP_LOCAL_SERVER_URL is deprecated; set CLOUDPIT_DESKTOP_LOCAL_SERVER_URL instead.']);
+  assert.deepEqual(urls, [DEFAULT_LOCAL_SERVER_URL], 'the retired spelling must not add a candidate');
 });
 
 test('localServer AC3: both spellings set means the new address is the only candidate', async () => {
-  const { reader } = readWith(createElectronBrandEnvReader, {
+  const reader = readWith(createElectronBrandEnvReader, {
     CLOUDPIT_DESKTOP_LOCAL_SERVER_URL: 'http://127.0.0.1:4401',
     CLOUDCLI_DESKTOP_LOCAL_SERVER_URL: 'http://127.0.0.1:4402',
   });
@@ -237,7 +212,7 @@ test('localServer AC3: both spellings set means the new address is the only cand
 });
 
 test('localServer AC3: CLOUDPIT_SERVER_PORT supplies the port candidate', async () => {
-  const { reader } = readWith(createElectronBrandEnvReader, {
+  const reader = readWith(createElectronBrandEnvReader, {
     CLOUDPIT_SERVER_PORT: '4403',
   });
 
@@ -246,28 +221,24 @@ test('localServer AC3: CLOUDPIT_SERVER_PORT supplies the port candidate', async 
 });
 
 test('localServer AC4: no discovery env means only the default URL', async () => {
-  const { reader, warnings } = readWith(createElectronBrandEnvReader, {});
+  const reader = readWith(createElectronBrandEnvReader, {});
 
   const urls = await getExistingServerCandidateUrls(DEFAULT_LOCAL_SERVER_URL, { reader, ...NO_MARKERS });
   assert.deepEqual(urls, [DEFAULT_LOCAL_SERVER_URL]);
-  assert.deepEqual(warnings, []);
 });
 
-test('localServer: CLOUDPIT_USE_INSTALLED_SERVER wins over the legacy spelling', () => {
+test('localServer (v3.0): CLOUDPIT_USE_INSTALLED_SERVER is read, the legacy spelling is ignored', () => {
   const newOnly = readWith(createElectronBrandEnvReader, { CLOUDPIT_USE_INSTALLED_SERVER: '1' });
-  assert.equal(isInstalledServerRequested(newOnly.reader), true);
-  assert.deepEqual(newOnly.warnings, []);
+  assert.equal(isInstalledServerRequested(newOnly), true);
 
   const legacyOnly = readWith(createElectronBrandEnvReader, { CLOUDCLI_USE_INSTALLED_SERVER: '1' });
-  assert.equal(isInstalledServerRequested(legacyOnly.reader), true);
-  assert.equal(legacyOnly.warnings.length, 1);
+  assert.equal(isInstalledServerRequested(legacyOnly), false, 'the retired spelling must not opt in');
 
   const both = readWith(createElectronBrandEnvReader, {
     CLOUDPIT_USE_INSTALLED_SERVER: '0',
     CLOUDCLI_USE_INSTALLED_SERVER: '1',
   });
-  assert.equal(isInstalledServerRequested(both.reader), false, 'the new value wins');
-  assert.deepEqual(both.warnings, []);
+  assert.equal(isInstalledServerRequested(both), false, 'the new value wins');
 });
 
 test('Electron wiring: localServer.js reads discovery names through the brand reader', () => {
@@ -287,29 +258,25 @@ test('Electron wiring: localServer.js reads discovery names through the brand re
 // ── serverInstaller ────────────────────────────────────────────────────────
 
 function installerWith(env) {
-  const warnings = [];
-  const installer = new ServerInstaller({
+  return new ServerInstaller({
     version: '2.0.0',
     platform: 'linux',
     arch: 'x64',
     env,
-    warn: (message) => warnings.push(message),
   });
-  return { installer, warnings };
 }
 
 test('serverInstaller AC4: no brand env keeps the shipped bundle defaults', () => {
-  const { installer, warnings } = installerWith({});
+  const installer = installerWith({});
 
   assert.equal(installer.bundleBaseUrl, 'https://github.com/yaleh/cloudpit/releases/download');
   assert.equal(installer.bundleReleaseTag, 'v2.0.0');
   assert.equal(installer.installRoot, DEFAULT_INSTALL_ROOT);
   assert.equal(installer.migrateLegacyInstall, true);
-  assert.deepEqual(warnings, []);
 });
 
 test('serverInstaller AC3: only CLOUDPIT_* set reads the new values', () => {
-  const { installer, warnings } = installerWith({
+  const installer = installerWith({
     CLOUDPIT_SERVER_BUNDLE_URL: 'https://bundles.example/new',
     CLOUDPIT_SERVER_BUNDLE_RELEASE_TAG: 'v9',
     CLOUDPIT_SERVER_DIR: '/opt/cloudpit-new',
@@ -319,32 +286,23 @@ test('serverInstaller AC3: only CLOUDPIT_* set reads the new values', () => {
   assert.equal(installer.bundleReleaseTag, 'v9');
   assert.equal(installer.installRoot, '/opt/cloudpit-new');
   assert.equal(installer.migrateLegacyInstall, false);
-  assert.deepEqual(warnings, []);
 });
 
-test('serverInstaller AC3: only CLOUDCLI_* set reads the old values and warns once per key', () => {
-  const { installer, warnings } = installerWith({
+test('serverInstaller AC3 (v3.0): only CLOUDCLI_* set keeps the shipped values', () => {
+  const installer = installerWith({
     CLOUDCLI_SERVER_BUNDLE_URL: 'https://bundles.example/old',
     CLOUDCLI_SERVER_BUNDLE_RELEASE_TAG: 'v8',
     CLOUDCLI_SERVER_DIR: '/opt/cloudcli-old',
   });
 
-  assert.equal(installer.bundleBaseUrl, 'https://bundles.example/old');
-  assert.equal(installer.bundleReleaseTag, 'v8');
-  assert.equal(installer.installRoot, '/opt/cloudcli-old');
-  assert.equal(warnings.length, 3, 'one warning per legacy key');
-  assert.deepEqual(
-    warnings.map((warning) => warning.slice(0, warning.indexOf(' is deprecated'))).sort(),
-    [
-      'CLOUDCLI_SERVER_BUNDLE_RELEASE_TAG',
-      'CLOUDCLI_SERVER_BUNDLE_URL',
-      'CLOUDCLI_SERVER_DIR',
-    ],
-  );
+  assert.equal(installer.bundleBaseUrl, 'https://github.com/yaleh/cloudpit/releases/download');
+  assert.equal(installer.bundleReleaseTag, 'v2.0.0');
+  assert.equal(installer.installRoot, DEFAULT_INSTALL_ROOT);
+  assert.equal(installer.migrateLegacyInstall, true);
 });
 
 test('serverInstaller AC3: both spellings set means the new values win', () => {
-  const { installer, warnings } = installerWith({
+  const installer = installerWith({
     CLOUDPIT_SERVER_BUNDLE_URL: 'https://bundles.example/new',
     CLOUDCLI_SERVER_BUNDLE_URL: 'https://bundles.example/old',
     CLOUDPIT_SERVER_BUNDLE_RELEASE_TAG: 'v9',
@@ -356,12 +314,11 @@ test('serverInstaller AC3: both spellings set means the new values win', () => {
   assert.equal(installer.bundleBaseUrl, 'https://bundles.example/new');
   assert.equal(installer.bundleReleaseTag, 'v9');
   assert.equal(installer.installRoot, '/opt/cloudpit-new');
-  assert.deepEqual(warnings, []);
 });
 
 test('Electron wiring: serverInstaller.js reads bundle names through the brand reader', () => {
   const source = readRepoFile('electron/serverInstaller.js');
 
-  assert.ok(source.includes('const brandEnv = createBrandEnvReader({ env, warn })'));
+  assert.ok(source.includes('const brandEnv = createBrandEnvReader({ env })'));
   assert.doesNotMatch(source, /process\.env\.CLOUDCLI_/);
 });

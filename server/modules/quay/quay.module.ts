@@ -94,9 +94,9 @@ const probeWebService = async (host: string, port: number): Promise<boolean> => 
 };
 
 /**
- * The CloudCLI project id → quay-fleet registry id join behind every `quay://` project segment.
+ * The Cloudpit project id → quay-fleet registry id join behind every `quay://` project segment.
  * The fleet is the authority for project identity: a reference must say `quay://claudecodeui/…`,
- * never the CloudCLI UUID, so the registry id is looked up per registered root and cached for a
+ * never the Cloudpit UUID, so the registry id is looked up per registered root and cached for a
  * short TTL. A host without the fleet CLI reads every project as unregistered instead of failing.
  */
 export const quayFleetProjectIds = createQuayFleetProjectIdResolver({
@@ -294,7 +294,7 @@ taskIndexReadListener.current = quayTaskEvents.noteProjectRead;
 
 /**
  * The fleet registry seam the cockpit's pinned-target read/write goes through. It maps a
- * CloudCLI project id to the fleet's own registry id by comparing registered roots, and every
+ * Cloudpit project id to the fleet's own registry id by comparing registered roots, and every
  * failure is an answer (`{ok:false, reason}`) rather than a thrown error — a host without the
  * fleet CLI still renders and routes, falling back to the last-opened session.
  */

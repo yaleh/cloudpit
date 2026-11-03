@@ -1,10 +1,11 @@
 /**
- * The Cloudpit data-root criterion (AC-449's judgement file).
+ * The Cloudpit data-root criterion (AC-449's judgement file; v3.0 update).
  *
- * Every leg drives the real resolver against a temp home: the unchanged legacy
- * default, the full migration, the legacy root staying byte-identical, new
- * writes landing in the new root, re-entrancy through the completion marker,
- * the two safety arms, and the failure fallback.
+ * Every leg drives the real resolver against a temp home: the Cloudpit default,
+ * the full migration, the legacy root staying byte-identical, new writes landing
+ * in the new root, re-entrancy through the completion marker, the two safety
+ * arms, and the v3.0 rule that a failed migration is REPORTED rather than
+ * falling back to the legacy root.
  *
  * Run directly:
  *   npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/cloudpit-data-root.test.ts
@@ -119,20 +120,24 @@ const MIGRATED_DATA_FILES = [
   'reply-suggestions-usage.jsonl',
 ] as const;
 
-test('AC2: with no explicit root the legacy default is active and ~/.cloudpit stays absent', (t) => {
+test('AC2: with no explicit root the Cloudpit default is active and nothing is created', (t) => {
   const root = temporaryRoot(t, 'cloudpit-ac2-');
   const homeDir = path.join(root, 'home');
   mkdirSync(homeDir, { recursive: true });
 
   const plan = resolveDataRoots({ env: {}, homeDir });
 
-  assert.notEqual(plan.activeRoot, path.join(homeDir, '.cloudpit'), 'the default must not move to ~/.cloudpit');
-  assert.equal(plan.activeRoot, path.join(homeDir, '.cloudcli'));
-  assert.equal(plan.reason, 'default-legacy');
+  assert.equal(plan.activeRoot, path.join(homeDir, '.cloudpit'), 'the default root is ~/.cloudpit');
+  assert.equal(plan.reason, 'default-cloudpit');
   assert.equal(plan.migrated, false);
+  assert.equal(plan.migrationError, null);
   assert.equal(existsSync(path.join(homeDir, '.cloudpit')), false);
-  assert.equal(plan.settingsPath, path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json'));
-  assert.equal(plan.legacySettingsPath, plan.settingsPath);
+  assert.equal(plan.settingsPath, path.join(homeDir, '.config', 'cloudpit', 'server.settings.json'));
+  assert.equal(
+    plan.legacySettingsPath,
+    path.join(homeDir, '.config', 'claudecodeui', 'server.settings.json'),
+    'the legacy settings path stays available as the one-time migration source',
+  );
   assert.equal(plan.authDatabasePath, path.join(plan.activeRoot, 'auth.db'));
   assert.equal(plan.voiceDataDir, path.join(plan.activeRoot, 'voice-data'));
 });
@@ -178,15 +183,16 @@ test('AC3: an explicit root receives the whole legacy layout', (t) => {
   assert.equal(typeof marker.version, 'string');
 });
 
-test('AC3: CLOUDCLI_HOME is the fallback spelling for the explicit root', (t) => {
+test('AC2 (v3.0): CLOUDCLI_HOME no longer selects a root; the Cloudpit default migrates', (t) => {
   const root = temporaryRoot(t, 'cloudpit-ac3-legacy-env-');
   const fixture = seedLegacyFixture(root);
 
   const plan = resolveDataRoots({ env: { CLOUDCLI_HOME: fixture.newRoot }, homeDir: fixture.homeDir });
 
-  assert.equal(plan.activeRoot, fixture.newRoot);
-  assert.equal(plan.reason, 'explicit-migrated');
+  assert.equal(plan.activeRoot, path.join(fixture.homeDir, '.cloudpit'));
+  assert.equal(plan.reason, 'default-migrated');
   assert.equal(plan.migrated, true);
+  assert.equal(existsSync(fixture.newRoot), false, 'the retired spelling must not receive a root');
 });
 
 test('AC4: the legacy root is byte-for-byte unchanged after migrating', (t) => {
@@ -271,7 +277,7 @@ test('AC7: an explicit root with no legacy layout is active but not marked', (t)
   assert.equal(existsSync(path.join(newRoot, '.migrated-from-cloudcli')), false);
 });
 
-test('AC8: a SQLITE_BUSY backup falls back to the legacy root and rolls the new root back', (t) => {
+test('AC8 (v3.0): a SQLITE_BUSY backup is reported and does NOT fall back to the legacy root', (t) => {
   const root = temporaryRoot(t, 'cloudpit-ac8-');
   const fixture = seedLegacyFixture(root);
   const before = snapshotLegacyLayout(fixture);
@@ -287,12 +293,30 @@ test('AC8: a SQLITE_BUSY backup falls back to the legacy root and rolls the new 
     },
   });
 
-  assert.equal(plan.activeRoot, path.join(fixture.homeDir, '.cloudcli'));
-  assert.equal(plan.reason, 'fallback-after-failure');
+  assert.equal(plan.activeRoot, fixture.newRoot, 'the explicit Cloudpit root stays active');
+  assert.equal(plan.reason, 'migration-failed');
   assert.equal(plan.migrated, false);
-  assert.equal(plan.settingsPath, path.join(fixture.homeDir, '.config', 'claudecodeui', 'server.settings.json'));
+  assert.match(plan.migrationError ?? '', /SQLITE_BUSY: database is locked/);
+  assert.equal(plan.settingsPath, fixture.explicitSettingsPath);
   assert.equal(existsSync(fixture.newRoot), false, 'the newly created root must be removed');
   assert.equal(existsSync(fixture.explicitSettingsPath), false, 'the new settings file must not be left behind');
   assert.equal(existsSync(path.join(fixture.newRoot, '.migrated-from-cloudcli')), false);
   assert.deepEqual(snapshotLegacyLayout(fixture), before, 'the legacy root must survive the failed attempt');
+});
+
+test('AC8 (v3.0): a failed DEFAULT migration reports too and never activates ~/.cloudcli', (t) => {
+  const root = temporaryRoot(t, 'cloudpit-ac8-default-');
+  const fixture = seedLegacyFixture(root);
+
+  const plan = resolveDataRoots({
+    env: {},
+    homeDir: fixture.homeDir,
+    backupDatabase: () => {
+      throw new Error('SQLITE_BUSY');
+    },
+  });
+
+  assert.equal(plan.activeRoot, path.join(fixture.homeDir, '.cloudpit'));
+  assert.equal(plan.reason, 'migration-failed');
+  assert.match(plan.migrationError ?? '', /SQLITE_BUSY/);
 });

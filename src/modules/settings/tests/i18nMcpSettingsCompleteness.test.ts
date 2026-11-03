@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { ACCESS_TOKEN_SCOPE_OPTIONS } from '@/shared/constants';
 
 /**
- * The Settings → API tab renders the CloudCLI MCP block through `McpGatewaySection.tsx`
+ * The Settings → API tab renders the Cloudpit MCP block through `McpGatewaySection.tsx`
  * (`useTranslation('settings')`) and the personal-access-token scope checkboxes through
  * `AccessTokensSection.tsx`. Every locale `settings.json` bundle therefore has to carry the
  * whole MCP block and the scope vocabulary: react-i18next renders a missing key verbatim,
@@ -25,7 +25,7 @@ import { ACCESS_TOKEN_SCOPE_OPTIONS } from '@/shared/constants';
  * `accessTokens.scopes.` under `src/modules/settings/tabs/api-settings/`). It is kept as an
  * independent literal rather than derived from `en`, so a locale that quietly drops one keys
  * reds even when `en` agrees with it. The scope descriptions live inside the scope labels
- * themselves (e.g. `Read (cloudcli:read)`), so "scope 的名称与说明" maps to the six
+ * themselves (e.g. `Read (cloudpit:read)`), so "scope 的名称与说明" maps to the six
  * `accessTokens.scopes.*` leaves — the landed contract, not a separate description key.
  *
  * It walks the whole `locales/*\/settings.json` glob rather than a hardcoded language list, so
@@ -40,7 +40,7 @@ const LOCALES_DIR = resolve(process.cwd(), 'src', 'modules', 'i18n', 'locales');
 const REFERENCE_LOCALE = 'en';
 
 /**
- * The namespaces this criterion owns. `mcpGateway` is the CloudCLI MCP block; `accessTokens.scopes`
+ * The namespaces this criterion owns. `mcpGateway` is the Cloudpit MCP block; `accessTokens.scopes`
  * is the token-scope vocabulary the scope checkboxes render; `mcpNavigation` is the per-device
  * navigation-policy / device-name section added beside the gateway block. Read (b) compares each
  * locale's flattened key set across exactly these subtrees against `en`.
@@ -54,7 +54,7 @@ const OWNED_NAMESPACES = ['mcpGateway', 'accessTokens.scopes', 'mcpNavigation'] 
  * `accessTokens` list predates (the scope leaves were added by AC-254).
  */
 const REQUIRED_MCP_KEYS = [
-  // McpGatewaySection — the CloudCLI MCP block (namespace `mcpGateway`).
+  // McpGatewaySection — the Cloudpit MCP block (namespace `mcpGateway`).
   'mcpGateway.title', // 区块标题
   'mcpGateway.description', // 端点 / 区块说明
   'mcpGateway.status.enabled', // 已启用
@@ -164,7 +164,7 @@ function completeBundle(keys: readonly string[] = REQUIRED_MCP_KEYS): SettingsBu
   return root;
 }
 
-describe('every locale carries a complete CloudCLI MCP block and token-scope vocabulary', () => {
+describe('every locale carries a complete Cloudpit MCP block and token-scope vocabulary', () => {
   const localeDirs = readdirSync(LOCALES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -223,13 +223,13 @@ describe('every locale carries a complete CloudCLI MCP block and token-scope voc
     }
   });
 
-  it('exposes cloudcli:cockpit:act last and resolves every scope labelKey in every locale', () => {
+  it('exposes cloudpit:cockpit:act last and resolves every scope labelKey in every locale', () => {
     console.log(
       `[AC2] PAT scope options (${ACCESS_TOKEN_SCOPE_OPTIONS.length}): ${JSON.stringify(ACCESS_TOKEN_SCOPE_OPTIONS)}`,
     );
 
     const cockpitActOptions = ACCESS_TOKEN_SCOPE_OPTIONS.filter(
-      (option) => option.scope === 'cloudcli:cockpit:act',
+      (option) => option.scope === 'cloudpit:cockpit:act',
     );
     expect(cockpitActOptions).toHaveLength(1);
     expect(cockpitActOptions[0]?.writable).toBe(true);
@@ -237,7 +237,7 @@ describe('every locale carries a complete CloudCLI MCP block and token-scope voc
     // The server appends new scopes so earlier positional reads keep their index;
     // the create form mirrors that order, so the newest scope is the last checkbox.
     expect(ACCESS_TOKEN_SCOPE_OPTIONS[ACCESS_TOKEN_SCOPE_OPTIONS.length - 1]?.scope).toBe(
-      'cloudcli:cockpit:act',
+      'cloudpit:cockpit:act',
     );
 
     // Every option the form renders must resolve to a real label in every locale;

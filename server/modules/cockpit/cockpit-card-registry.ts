@@ -29,7 +29,7 @@
  * The action channel reads the same projection (`getCard`), so a confirmation can
  * only act on a card the registry currently shows, and the provider's declared
  * executor set is the union of its providers' declarations plus the two built-in
- * content-default executors (they are CloudCLI's own, not any provider's).
+ * content-default executors (they are Cloudpit's own, not any provider's).
  *
  * A new provider is one implementation plus one `register` (or one element in the
  * constructor array); no call site in the cockpit changes.
@@ -246,7 +246,7 @@ export function createCockpitCardRegistry(
   for (const provider of providers) register(provider);
 
   const declaredExecutors = (): ReadonlySet<string> => {
-    // The two built-in executors are CloudCLI's own content defaults; no provider
+    // The two built-in executors are Cloudpit's own content defaults; no provider
     // declares them, yet every card whose subject names a session/project reaches
     // them, so the declared set must include them or the action channel would
     // refuse the very defaults this projection fills in.

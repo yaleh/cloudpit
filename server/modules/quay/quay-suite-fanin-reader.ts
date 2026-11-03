@@ -11,7 +11,7 @@ import { readNullableNumber, readNullableString } from '@/shared/utils.js';
 /**
  * The Tests and Fan-in readings, taken through quay's own read-only verbs.
  *
- * CloudCLI used to parse three `.quay/` carrier files itself (`full-suite-state.json`,
+ * Cloudpit used to parse three `.quay/` carrier files itself (`full-suite-state.json`,
  * `verification-round.jsonl`, `worker-outcome.jsonl`) — including a ~100 MB tail scan of the
  * rounds ledger. quay 0.24.0 publishes both readings as bounded JSON instead:
  *

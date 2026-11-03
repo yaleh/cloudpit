@@ -80,7 +80,7 @@ export function cleanSentText(text: string): string {
  * file name (a `.ext` tail). Beyond that it qualifies if it carries a camel-case
  * boundary, a `_` or `-`, or a digit — or is an all-caps run of at least two
  * letters. `main.ts`, `a/b`, `plain`, `https://x.y` and a bare hash all fail it;
- * `needs-human`, `AC-103`, `CloudCLI`, `GOAL-013`, `provider_models` and `MCP`
+ * `needs-human`, `AC-103`, `CLOUDPIT`, `GOAL-013`, `provider_models` and `MCP`
  * pass.
  *
  * Exported because the shape criterion's known-answer table is the only other
