@@ -219,9 +219,13 @@ const defaultCatalogCacheKey = (): string => `${resolvePackagedCliVersion()}|${p
 
 const toCodexModelOption = (model: CodexModelDescriptor): ProviderModelOption => {
   const effortValues = (model.supportedReasoningEfforts ?? [])
-    .map((effort) => effort.reasoningEffort)
-    .filter((value): value is string => typeof value === 'string' && value.length > 0)
-    .map((value) => ({ value }));
+    .filter((effort): effort is { reasoningEffort: string; description?: string } => (
+      typeof effort.reasoningEffort === 'string' && effort.reasoningEffort.length > 0
+    ))
+    .map((effort) => ({
+      value: effort.reasoningEffort,
+      ...(effort.description === undefined ? {} : { description: effort.description }),
+    }));
 
   return {
     value: model.id,
@@ -235,6 +239,15 @@ const toCodexModelOption = (model: CodexModelDescriptor): ProviderModelOption =>
         values: effortValues,
       },
     }),
+    // A catalog entry's own window/threshold is the fact source for the launch
+    // when it declares one; the Codex runtime lifts these into
+    // `model_context_window` / `model_auto_compact_token_limit` overrides.
+    ...(model.modelContextWindow === undefined
+      ? {}
+      : { contextWindow: model.modelContextWindow }),
+    ...(model.modelAutoCompactTokenLimit === undefined
+      ? {}
+      : { autoCompactTokenLimit: model.modelAutoCompactTokenLimit }),
   };
 };
 
