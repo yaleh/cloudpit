@@ -49,3 +49,13 @@ tsc --noEmit -p server/tsconfig.json 通过；tsx --test 单文件绿；新增 s
 
 - L_D 该轴仍暗,理由:本任务是目录/写路径机制，读数是 AC 判据，没有可量化的领域数据轴读数。
 - L_G 该轴仍暗,理由:本任务不新增 goal 判据；目标层读数由 GOAL-056 的 AC-468 承担。
+
+## Blocker
+
+**2026-11-03T13:12:02.609Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
+CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：b554a10e-971c-4eb7-a779-d5a6176bfb8e
