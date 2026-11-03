@@ -26,6 +26,32 @@ export const RESERVED_CODEX_PROVIDER_IDS: readonly string[] = ['openai', 'ollama
 /** The one wire dialect this project accepts; Chat Completions is a Codex 0.166 load error. */
 export const CODEX_PROVIDER_WIRE_API = 'responses' as const;
 
+/**
+ * The optional connection settings a provider entry may declare.
+ *
+ * These are Codex's own `[model_providers.<id>]` fields (0.166 reads every one
+ * of them from `-c` overrides), plus the two context-window keys Codex keeps at
+ * the top level of its config. The project file spells them camelCase and the
+ * schema accepts Codex's snake_case spelling too, exactly like the core fields.
+ *
+ * `modelContextWindow` / `modelAutoCompactTokenLimit` are TOP-LEVEL Codex keys,
+ * not members of the provider table; the entry carries them because a project
+ * gateway usually serves one fixed window, and the compiler lifts them out of
+ * the table when it builds the spawn/config overrides. A selected model entry's
+ * own limits win over them (see `codex-provider-injection.ts`).
+ */
+export type CodexProviderAdvancedSettings = {
+  httpHeaders?: Record<string, string>;
+  envHttpHeaders?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  modelCatalogUrl?: string;
+  modelContextWindow?: number;
+  modelAutoCompactTokenLimit?: number;
+};
+
 /** One provider entry after validation: the value the runtime is handed. */
 export type CodexModelProviderEntry = {
   id: string;
@@ -34,7 +60,7 @@ export type CodexModelProviderEntry = {
   envKey: string;
   tokenFile: string;
   wireApi: typeof CODEX_PROVIDER_WIRE_API;
-};
+} & CodexProviderAdvancedSettings;
 
 /** What one entry parse produced: a valid entry or null, its warnings, and a write-only secret. */
 export type ParsedCodexProvider = {
@@ -69,6 +95,26 @@ const KNOWN_FIELDS: readonly string[] = [
   'wireApi',
   'wire_api',
   'token',
+  // Advanced connection settings; Codex's snake_case spelling is the canonical
+  // one on the wire, the camelCase one is the project file's spelling.
+  'httpHeaders',
+  'http_headers',
+  'envHttpHeaders',
+  'env_http_headers',
+  'queryParams',
+  'query_params',
+  'requestMaxRetries',
+  'request_max_retries',
+  'streamMaxRetries',
+  'stream_max_retries',
+  'streamIdleTimeoutMs',
+  'stream_idle_timeout_ms',
+  'modelCatalogUrl',
+  'model_catalog_url',
+  'modelContextWindow',
+  'model_context_window',
+  'modelAutoCompactTokenLimit',
+  'model_auto_compact_token_limit',
 ];
 
 /** Reads a field that may be spelled camelCase or snake_case, refusing a disagreeing pair. */
@@ -98,6 +144,112 @@ function readStringField(value: unknown, fieldName: string): string | null {
 /** A default env var name so a provider never launches without a place to put its secret. */
 function defaultEnvKey(providerId: string): string {
   return `CODEX_${providerId.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_API_KEY`;
+}
+
+/** Reads an alias pair whose values may be objects: a disagreement is still refused. */
+function readAliasDeep(record: Record<string, unknown>, camel: string, snake: string): unknown {
+  const camelValue = record[camel];
+  const snakeValue = record[snake];
+  if (
+    camelValue !== undefined
+    && snakeValue !== undefined
+    && JSON.stringify(camelValue) !== JSON.stringify(snakeValue)
+  ) {
+    throw new AppError(`provider fields \`${camel}\` and \`${snake}\` disagree`, {
+      code: 'CODEX_PROVIDER_ALIAS_CONFLICT',
+      statusCode: 400,
+    });
+  }
+  return camelValue !== undefined ? camelValue : snakeValue;
+}
+
+/**
+ * Reads an optional string→string map (`http_headers`, `query_params`, ...).
+ *
+ * Every key must be non-empty and every value a string: Codex deserialises
+ * these as `HashMap<String, …>`, so a non-string value would fail the whole
+ * provider load rather than that one header. `envNames` additionally requires
+ * each VALUE to be a usable environment-variable name, because
+ * `env_http_headers` maps a header to the variable that carries its value.
+ */
+function readStringMap(
+  value: unknown,
+  fieldName: string,
+  options: { envNames?: boolean } = {},
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    throw new AppError(`${fieldName} must be a JSON object of string values`, {
+      code: 'CODEX_PROVIDER_INVALID_FIELD',
+      statusCode: 400,
+    });
+  }
+  const entries: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (key.trim() === '') {
+      throw new AppError(`${fieldName} must not carry an empty key`, {
+        code: 'CODEX_PROVIDER_INVALID_FIELD',
+        statusCode: 400,
+      });
+    }
+    if (typeof raw !== 'string') {
+      throw new AppError(`${fieldName}.${key} must be a string`, {
+        code: 'CODEX_PROVIDER_INVALID_FIELD',
+        statusCode: 400,
+      });
+    }
+    if (options.envNames === true) {
+      if (!ENV_KEY_PATTERN.test(raw.trim())) {
+        throw new AppError(`${fieldName}.${key} must name an environment variable`, {
+          code: 'CODEX_PROVIDER_INVALID_FIELD',
+          statusCode: 400,
+        });
+      }
+      entries[key] = raw.trim();
+      continue;
+    }
+    entries[key] = raw;
+  }
+  return entries;
+}
+
+/** Reads an optional integer with a lower bound (retries may be 0, windows may not). */
+function readInteger(value: unknown, fieldName: string, minimum: number): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum) {
+    throw new AppError(`${fieldName} must be an integer >= ${minimum}`, {
+      code: 'CODEX_PROVIDER_INVALID_FIELD',
+      statusCode: 400,
+    });
+  }
+  return value;
+}
+
+/** Reads an optional absolute http(s) URL (`model_catalog_url`). */
+function readHttpUrl(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new AppError(`${fieldName} must be a string`, {
+      code: 'CODEX_PROVIDER_INVALID_FIELD',
+      statusCode: 400,
+    });
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    throw new AppError(`${fieldName} "${value}" is not an absolute URL`, {
+      code: 'CODEX_PROVIDER_INVALID_FIELD',
+      statusCode: 400,
+    });
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new AppError(`${fieldName} must use http or https; got "${parsed.protocol}"`, {
+      code: 'CODEX_PROVIDER_INVALID_FIELD',
+      statusCode: 400,
+    });
+  }
+  return value.trim();
 }
 
 /**
@@ -218,13 +370,90 @@ export function parseCodexProviderEntry(
       `provider "${id}" wire_api must be "${CODEX_PROVIDER_WIRE_API}" (Chat Completions is not supported); got ${JSON.stringify(wireApi)}`,
     );
   }
+
+  // Advanced settings are optional and independent of the core fields, so in
+  // tolerant mode one bad optional value is a warning that drops that field
+  // instead of hiding a provider whose endpoint is perfectly usable.
+  const advanced: CodexProviderAdvancedSettings = {};
+  const readAdvanced = (name: string, read: () => void): void => {
+    try {
+      read();
+    } catch (failure) {
+      if (context.strict) throw failure;
+      warnings.push((failure as Error).message);
+    }
+  };
+  readAdvanced('http_headers', () => {
+    const parsed = readStringMap(readAliasDeep(raw, 'httpHeaders', 'http_headers'), `provider "${id}" httpHeaders`);
+    if (parsed !== undefined) advanced.httpHeaders = parsed;
+  });
+  readAdvanced('env_http_headers', () => {
+    const parsed = readStringMap(
+      readAliasDeep(raw, 'envHttpHeaders', 'env_http_headers'),
+      `provider "${id}" envHttpHeaders`,
+      { envNames: true },
+    );
+    if (parsed !== undefined) advanced.envHttpHeaders = parsed;
+  });
+  readAdvanced('query_params', () => {
+    const parsed = readStringMap(readAliasDeep(raw, 'queryParams', 'query_params'), `provider "${id}" queryParams`);
+    if (parsed !== undefined) advanced.queryParams = parsed;
+  });
+  readAdvanced('request_max_retries', () => {
+    const parsed = readInteger(
+      readAliasDeep(raw, 'requestMaxRetries', 'request_max_retries'),
+      `provider "${id}" requestMaxRetries`,
+      0,
+    );
+    if (parsed !== undefined) advanced.requestMaxRetries = parsed;
+  });
+  readAdvanced('stream_max_retries', () => {
+    const parsed = readInteger(
+      readAliasDeep(raw, 'streamMaxRetries', 'stream_max_retries'),
+      `provider "${id}" streamMaxRetries`,
+      0,
+    );
+    if (parsed !== undefined) advanced.streamMaxRetries = parsed;
+  });
+  readAdvanced('stream_idle_timeout_ms', () => {
+    const parsed = readInteger(
+      readAliasDeep(raw, 'streamIdleTimeoutMs', 'stream_idle_timeout_ms'),
+      `provider "${id}" streamIdleTimeoutMs`,
+      1,
+    );
+    if (parsed !== undefined) advanced.streamIdleTimeoutMs = parsed;
+  });
+  readAdvanced('model_catalog_url', () => {
+    const parsed = readHttpUrl(
+      readAliasDeep(raw, 'modelCatalogUrl', 'model_catalog_url'),
+      `provider "${id}" modelCatalogUrl`,
+    );
+    if (parsed !== undefined) advanced.modelCatalogUrl = parsed;
+  });
+  readAdvanced('model_context_window', () => {
+    const parsed = readInteger(
+      readAliasDeep(raw, 'modelContextWindow', 'model_context_window'),
+      `provider "${id}" modelContextWindow`,
+      1,
+    );
+    if (parsed !== undefined) advanced.modelContextWindow = parsed;
+  });
+  readAdvanced('model_auto_compact_token_limit', () => {
+    const parsed = readInteger(
+      readAliasDeep(raw, 'modelAutoCompactTokenLimit', 'model_auto_compact_token_limit'),
+      `provider "${id}" modelAutoCompactTokenLimit`,
+      1,
+    );
+    if (parsed !== undefined) advanced.modelAutoCompactTokenLimit = parsed;
+  });
+
   if (context.strict && raw.token !== undefined && raw.token === '') {
     warnings.push(`provider "${id}" sent an empty token; the existing secret is left unchanged`);
   }
 
   const token = typeof raw.token === 'string' && raw.token !== '' ? raw.token : undefined;
   return {
-    entry: { id, name, baseUrl, envKey, tokenFile, wireApi: CODEX_PROVIDER_WIRE_API },
+    entry: { id, name, baseUrl, envKey, tokenFile, wireApi: CODEX_PROVIDER_WIRE_API, ...advanced },
     warnings,
     ...(token === undefined ? {} : { token }),
   };

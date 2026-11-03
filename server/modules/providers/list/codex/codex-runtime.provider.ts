@@ -371,7 +371,13 @@ async function queryCodex(
 
   try {
     codex = codexProviderId
-      ? new Codex(compileCodexProviderOptions(codexProviderId))
+      ? new Codex(compileCodexProviderOptions(codexProviderId, {
+        // The selected catalog entry is the most specific context-window fact
+        // source (the tier a Claude launch profile occupies), falling back to
+        // the provider entry's own default inside the compiler.
+        contextWindow: selectedModel?.contextWindow,
+        autoCompactTokenLimit: selectedModel?.autoCompactTokenLimit,
+      }))
       : new Codex();
 
     const threadOptions: ThreadOptions = {

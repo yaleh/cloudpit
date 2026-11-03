@@ -28,6 +28,14 @@ export type ProviderModelOption = {
       description?: string;
     }[];
   };
+  /**
+   * The context window a catalog entry declares for this model, in tokens.
+   * When present it is the fact source a Codex launch passes as
+   * `model_context_window`, the same tier a Claude profile's window occupies.
+   */
+  contextWindow?: number;
+  /** The catalog entry's auto-compaction threshold (`model_auto_compact_token_limit`). */
+  autoCompactTokenLimit?: number;
 };
 
 /** The full model catalog for one provider: every option plus the value used when the user has not chosen one. */
@@ -3285,6 +3293,21 @@ export type CodexModelProvider = {
   envKey: string;
   tokenFile: string;
   wireApi: 'responses';
+  /** Static request headers Codex sends to this provider (`http_headers`). */
+  httpHeaders?: Record<string, string>;
+  /** Header name → environment variable holding that header's value. */
+  envHttpHeaders?: Record<string, string>;
+  /** Query parameters appended to every request (`query_params`). */
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  /** A Codex-native model catalog URL this provider serves (`model_catalog_url`). */
+  modelCatalogUrl?: string;
+  /** Top-level Codex `model_context_window` override for this provider's models. */
+  modelContextWindow?: number;
+  /** Top-level Codex `model_auto_compact_token_limit` override. */
+  modelAutoCompactTokenLimit?: number;
   tokenSet: boolean;
   warnings: string[];
 };

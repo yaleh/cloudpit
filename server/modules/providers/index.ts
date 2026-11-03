@@ -2,6 +2,19 @@ export { sessionSynchronizerService } from './services/session-synchronizer.serv
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
 export { providerRuntimeService, createProviderRuntimeService } from './services/provider-runtime.service.js';
+// The Codex upstream-provider adapter and its two injection compilers. They are
+// public because the Settings module's AC-467 criterion drives the end-to-end
+// path across a module boundary (where the boundaries lint requires this
+// barrel), and because a settings surface that renders the same advanced fields
+// needs one compiler rather than a second copy. `codexRuntime` is the per-run
+// entry the registry composes, re-exported for the same criterion.
+export { codexRuntime } from './list/codex/codex-runtime.provider.js';
+export { CodexProviderModels, CODEX_PREDEFINED_MODELS } from './list/codex/codex-models.provider.js';
+export {
+  codexOptionsForProvider,
+  codexProviderSpawnArgs,
+  type CodexModelLimits,
+} from './list/codex/codex-provider-injection.js';
 // ControlStopTaskOutcome: the answer the runtime gateway's stop-task verb gives
 // (`requested` / `unsupported` / `timeout` / `error`). Exported so the websocket
 // control handler types its pass-through against the one union rather than
