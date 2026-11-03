@@ -16,6 +16,7 @@ import CockpitCardFacts from '@/modules/cockpit/cards/CockpitCardFacts';
 import CockpitCardHeader from '@/modules/cockpit/cards/CockpitCardHeader';
 import CockpitCardOptions from '@/modules/cockpit/cards/CockpitCardOptions';
 import {
+  DEFAULT_COCKPIT_CARD_DESCRIPTOR,
   cockpitCardDescriptor,
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
@@ -1575,6 +1576,123 @@ describe('descriptor-driven small visualization', () => {
         expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
       }
     }
+  });
+});
+
+/**
+ * The molten short-loop decision (`molten-decision` is an OPEN kind, not a member of
+ * `CockpitCardKind`).
+ *
+ * The fixture is the shape the fleet projection emits for GOAL-012's molten card: the open kind
+ * is kept, the contract block sits under `molten` with its six fields verbatim, and the confirm
+ * surface is exactly the contract's three decisions, each carrying the card's attention address.
+ * The card is deliberately NOT a knowledge card: it carries no `knowledge` block, so the
+ * knowledge renderer and the knowledge confirmation branch must not fire on it.
+ */
+describe('the molten decision card', () => {
+  const ATTENTION_ID = 'att-molten-1';
+  const REVISION = 2;
+  const MOLTEN_DECISIONS = ['crystallize-task', 'decline', 'modify'] as const;
+  const MOLTEN_BLOCK = {
+    proposalId: 'proposal-7',
+    project: 'quay-fleet',
+    belief: ['B-1 先验证再派发', 'B-3 落地判据必须可运行'],
+    action: { kind: 'needs-human', summary: '补一条判据再派发', scope: 'claudecodeui' },
+    taskSpec: {
+      title: '补齐落地判据',
+      proposal: '熔融短环判断只差一条可验证的落地判据。',
+      ac: '- [ ] 判据可运行',
+      dod: '真实对象被操作',
+      touches: ['src/modules/cockpit/cockpitCardDescriptors.ts'],
+    },
+    evidenceRefs: ['journal#7', 'transcript#42'],
+  };
+
+  const MOLTEN_CARD: CockpitCardData = {
+    ...CARD,
+    id: ATTENTION_ID,
+    kind: 'molten-decision',
+    subject: { uri: 'quay://molten/proposal-7', project: 'quay-fleet' },
+    situation: '信念 B-3 被违反：落地判据缺失。',
+    facts: [],
+    options: MOLTEN_DECISIONS.map((decision) => ({
+      id: decision,
+      label: decision === 'crystallize-task' ? '立任务' : decision === 'decline' ? '不立任务' : '改 spec',
+      does: '把人的决定交给 fleet 结晶',
+      suggested: false,
+      source: 'provider' as const,
+      action: {
+        executor: 'fleet.molten-decide',
+        params: { attentionId: ATTENTION_ID, revision: REVISION, decision },
+      },
+    })),
+    molten: MOLTEN_BLOCK,
+  };
+
+  it('renders its own descriptor badge, tone and kind label instead of the default row', () => {
+    const descriptor = cockpitCardDescriptor('molten-decision');
+    expect(descriptor).not.toBe(DEFAULT_COCKPIT_CARD_DESCRIPTOR);
+    expect(descriptor.badgeKey).toBe('cockpit.cardBadgeMolten');
+    expect(descriptor.labelKey).toBe('cockpit.cardKindMolten');
+    expect(descriptor.tone).toBe('molten');
+
+    renderCard({ card: MOLTEN_CARD });
+
+    const badge = screen.getByTestId('cockpit-card-kind-badge');
+    expect(badge.textContent).toBe('MLT');
+    expect(badge.getAttribute('data-kind')).toBe('molten-decision');
+    expect(badge.getAttribute('data-tone')).toBe('molten');
+    // The kind label is the badge's accessible title — the translated descriptor label.
+    expect(badge.getAttribute('title')).toBe('Molten decision');
+  });
+
+  it('keeps the projected kind and passes the molten block through byte for byte', () => {
+    // The projection's output is what this fixture is: the open kind is not folded into another,
+    // and every contract field (taskSpec's ac/dod/touches and evidenceRefs included) is intact.
+    expect(MOLTEN_CARD.kind).toBe('molten-decision');
+    expect(MOLTEN_CARD.molten).toEqual(MOLTEN_BLOCK);
+    expect(MOLTEN_CARD.molten?.taskSpec.ac).toBe('- [ ] 判据可运行');
+    expect(MOLTEN_CARD.molten?.taskSpec.dod).toBe('真实对象被操作');
+    expect(MOLTEN_CARD.molten?.taskSpec.touches).toEqual([
+      'src/modules/cockpit/cockpitCardDescriptors.ts',
+    ]);
+    expect(MOLTEN_CARD.molten?.evidenceRefs).toEqual(['journal#7', 'transcript#42']);
+    expect(MOLTEN_CARD.situation).toContain('B-3');
+
+    renderCard({ card: MOLTEN_CARD });
+    expect(screen.getByTestId('cockpit-card-kind-badge').getAttribute('data-kind')).toBe(
+      'molten-decision',
+    );
+  });
+
+  it('offers exactly the three contract decisions, all routed to fleet.molten-decide', () => {
+    expect(MOLTEN_CARD.options.map((option) => option.id)).toEqual([...MOLTEN_DECISIONS]);
+    for (const option of MOLTEN_CARD.options) {
+      expect(option.action.executor).toBe('fleet.molten-decide');
+      expect(option.action.params.attentionId).toBe(ATTENTION_ID);
+      expect(option.action.params.revision).toBe(REVISION);
+      expect(MOLTEN_DECISIONS).toContain(option.action.params.decision);
+    }
+
+    renderCard({ card: MOLTEN_CARD });
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    const list = screen.getByTestId('cockpit-card-option-list');
+    for (const decision of MOLTEN_DECISIONS) {
+      expect(within(list).getByTestId(`cockpit-card-option-${decision}`)).toBeDefined();
+    }
+  });
+
+  it('creates no knowledge block and never routes a confirm through the knowledge executor', () => {
+    // The card carries the molten block and NO knowledge block: the knowledge confirmation
+    // branch is keyed on `card.knowledge`, so it cannot fire on this card.
+    expect(MOLTEN_CARD.knowledge).toBeUndefined();
+    expect(MOLTEN_CARD.options.every((option) => option.action.executor === 'fleet.molten-decide')).toBe(
+      true,
+    );
+
+    renderCard({ card: MOLTEN_CARD });
+    expect(screen.queryByTestId('cockpit-card-knowledge')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-knowledge-title')).toBeNull();
   });
 });
 

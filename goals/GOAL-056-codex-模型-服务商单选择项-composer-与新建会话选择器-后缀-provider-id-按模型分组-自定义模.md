@@ -1,10 +1,17 @@
 ---
 id: GOAL-056
 title: Codex 模型×服务商单选择项：composer 与新建会话选择器（后缀=provider id、按模型分组、自定义模型不展开）
-status: draft
+status: active
 kind: goal
 origin: 人 yale 2026-11-03 会话裁定：composer 与新建会话都为 codex 提供 provider+model 单选择项；4
   点确认：单选择项、后缀用 provider id、按 model 分组、自定义模型不展开。
+activatedAt: 2026-11-03T12:55:36.305Z
+statusLog:
+  - at: 2026-11-03T12:55:36.305Z
+    from: draft
+    to: active
+    actor: goal-cli
+    reason: ""
 ---
 ## 背景
 

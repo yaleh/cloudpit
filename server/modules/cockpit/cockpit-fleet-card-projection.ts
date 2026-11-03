@@ -15,13 +15,16 @@
  *      and reports `skippedLines` in its diagnostic.
  *   2. The projection INVENTIONS NOTHING. Fleet fields pass through verbatim; the local
  *      additions are content completions the fleet leaves to this side: the session-ask content
- *      (`ask`, `situation`, content options) with its `contentUnavailable` reason, and the digest
- *      reading's headline/row text plus one disposal option. A session-ask default option is
- *      whichever content option the observation layer marked `suggested` — the assistant's own
- *      recommendation (`source: 'assistant'`) or, when it gave none, the same call's judge pick
- *      (`source: 'judge'`, with its `why`). The projection passes that decision through but never
- *      invents one: no marked option means no default. The digest completion reads only the
- *      entry's own evidence and the fleet's executor declaration, never a fact of its own.
+ *      (`ask`, `situation`, content options) with its `contentUnavailable` reason, the digest
+ *      reading's headline/row text plus one disposal option, and the molten decision's fixed
+ *      three-way confirm surface (`crystallize-task`/`decline`/`modify`). A session-ask default
+ *      option is whichever content option the observation layer marked `suggested` — the
+ *      assistant's own recommendation (`source: 'assistant'`) or, when it gave none, the same
+ *      call's judge pick (`source: 'judge'`, with its `why`). The projection passes that
+ *      decision through but never invents one: no marked option means no default. The digest
+ *      completion reads only the entry's own evidence and the fleet's executor declaration,
+ *      never a fact of its own; the molten completion reads only the block's own ids and the
+ *      card's own attention address, and adds no reading the loop did not state.
  *
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
@@ -44,6 +47,10 @@ import {
   COCKPIT_FLEET_LOG_EXECUTOR_ID,
   type CockpitFleetExecutorDeclaration,
 } from './cockpit-fleet-executor.js';
+import {
+  readMoltenDecision,
+  withMoltenDecision,
+} from './cockpit-fleet-molten.js';
 import {
   readKnowledgeCase,
   readKnowledgeDecision,
@@ -608,7 +615,13 @@ function mapCard(
 ): { card: CockpitCard; content: ContentAddress | null } | null {
   if (!isRecord(raw)) return null;
   const id = text(raw.id);
-  const kind = text(raw.kind);
+  const rawKind = text(raw.kind);
+  // A molten decision is recognised by its block, not by a fleet-side category rename: the fleet
+  // emits the open kind `molten-decision` and this projection keeps it, so the browser's
+  // descriptor table can give it its own badge and tone. The block is what the confirm surface is
+  // built from; a card with no readable block keeps the fleet's own kind and options.
+  const molten = readMoltenDecision(raw.molten);
+  const kind = rawKind;
   const state = cardState(raw.state);
   const subject = mapSubject(raw.subject);
   if (id === '' || kind === '' || state === null || subject === null) return null;
@@ -642,7 +655,9 @@ function mapCard(
   // The entry's title and statement are part of that same passthrough: `readKnowledgeCase`
   // reads them verbatim and omits them when the provider states none, so this mapping needs no
   // branch of its own.
-  const knowledge = readKnowledgeCase(raw.knowledge);
+  // A molten card never carries a knowledge block: its confirm goes to `fleet.molten-decide`, so
+  // reading one would hand the action channel a knowledge branch it must not take.
+  const knowledge = molten === null ? readKnowledgeCase(raw.knowledge) : null;
 
   const card: CockpitCard = {
     id,
@@ -670,13 +685,19 @@ function mapCard(
     ...(notify === undefined ? {} : { notify }),
     ...(receipt === null ? {} : { receipt }),
     ...(knowledge === null ? {} : { knowledge }),
+    ...(molten === null ? {} : { molten }),
   };
 
   const projected =
     content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
       ? withSessionAskContent(card, content, readSessionAsk)
       : card;
-  return { card: withFleetOwnReply(withDigestReading(projected, mappedFacts, declarations)), content };
+  return {
+    card: withFleetOwnReply(
+      withDigestReading(withMoltenDecision(projected, molten, raw.options), mappedFacts, declarations),
+    ),
+    content,
+  };
 }
 
 /**

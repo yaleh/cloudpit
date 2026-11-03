@@ -4930,9 +4930,9 @@ export type CockpitKnowledgeVerification = {
  * reference bound to the card revision and the person's choice; a caller-supplied identity is
  * never accepted as proof of a human decision.
  *
- * A card whose block is missing or lacks `caseId`/`knowledgeRevision`/`proposalRevision` cannot
- * be confirmed: the action channel refuses it with `KNOWLEDGE_EVIDENCE_MISSING` rather than
- * inventing a case.
+ * A card lacking `caseId`/`proposalRevision` (or naming `knowledgeId` without a usable
+ * `knowledgeRevision`) is refused with `KNOWLEDGE_EVIDENCE_MISSING`; a discovery-sourced
+ * suggestion states `knowledgeRevision: null` and binds `caseId + proposalRevision` alone.
  */
 export type CockpitKnowledgeCase = {
   /** The provider's stable case id; one per suggestion under decision. */
@@ -4950,8 +4950,8 @@ export type CockpitKnowledgeCase = {
    * revision's Markdown body, not a restatement). Omitted when the provider states none.
    */
   statement?: string;
-  /** The version of the knowledge entry this proposal was derived from. */
-  knowledgeRevision: number;
+  /** Version derived from; `null` when discovered (no entry to version yet). */
+  knowledgeRevision: number | null;
   /** The version of the proposal itself; both must match what the person saw. */
   proposalRevision: number;
   state: CockpitKnowledgeCaseState;
@@ -5149,6 +5149,43 @@ export type CockpitCardFeedbackNotice = {
   reason?: string;
 };
 
+/** The action a molten decision judged: `kind`/`summary`/`scope` verbatim; `null` means unstated.
+ * Matches the fleet's wire, which uses `null` (never `''`) for a field the loop left out. */
+export type CockpitMoltenAction = {
+  kind: string | null;
+  summary: string | null;
+  scope: string | null;
+};
+
+/**
+ * The task a molten decision would crystallise in `project`'s quay store. The four bodies pass to
+ * the task file verbatim and `touches` is the file list; none of them is trimmed here.
+ */
+export type CockpitMoltenTaskSpec = {
+  title: string | null;
+  proposal: string | null;
+  ac: string | null;
+  dod: string | null;
+  touches: string[];
+};
+
+/**
+ * One molten short-loop decision (ADR-016), as the fleet states it on a card.
+ *
+ * `belief` and `evidenceRefs` are string lists; `action` is what the loop judged and `taskSpec`
+ * is what `crystallize-task` would write. Absent on every non-molten card, and a molten card
+ * carries no `knowledge` block: its confirm goes to `fleet.molten-decide`, never the knowledge
+ * executor.
+ */
+export type CockpitMoltenDecision = {
+  proposalId: string | null;
+  project: string | null;
+  belief: string[];
+  action: CockpitMoltenAction;
+  taskSpec: CockpitMoltenTaskSpec;
+  evidenceRefs: string[];
+};
+
 /**
  * One thing waiting for the person, as a provider states it.
  *
@@ -5236,6 +5273,13 @@ export type CockpitCard = {
    * confirmed (the action channel refuses it as missing evidence).
    */
   knowledge?: CockpitKnowledgeCase;
+  /**
+   * The molten short-loop decision this card asks the person to sign off, when it is one.
+   * Absent on every other card. A card carrying this block renders with the `molten-decision`
+   * kind descriptor (its own badge and tone) and routes its confirm to `fleet.molten-decide`; it
+   * is NOT a knowledge card and carries no `knowledge` block.
+   */
+  molten?: CockpitMoltenDecision;
 };
 
 // ---------------------------
