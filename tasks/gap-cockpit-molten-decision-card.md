@@ -81,8 +81,9 @@ cockpit 现有两条卡通道：
 
 ## Blocker
 
-**2026-11-03T11:07:52.045Z — worker 未落地（exited-not-landed）**
+**2026-11-03T11:16:19.241Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/services/provider-runtime.service.ts 1291→1301 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M server/modules/providers/tests/codex-resident-provider-injection.test.ts
 - run_id：wk-prod-anchor
-- session_id：1bb56e4c-406d-404a-ab42-426ec16151e2
+- session_id：292a546b-2eab-492a-b1e6-65447aefb9de
