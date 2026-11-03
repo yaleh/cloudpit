@@ -36,14 +36,14 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 
 ## AC
 
-- [ ] `scripts/cloudpit-distribution-check.mjs` 的版本/资产前缀/tag 由参数或常量 `3.0.0` 驱动，不再有硬编码 2.0.0 的发布目标；`--version 3.0.0` 与默认值行为一致。
-- [ ] `scripts/cloudpit-distribution-check.test.mjs` 更新为 3.0.0 夹具，`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；测试里保留一条「2.0.0 历史 release 仍可被显式版本读取」的负向/兼容臂，证明没有把历史版本从 checker 里删掉。
-- [ ] `docs/operations/cloudpit-v3.0-release-notes.md` 含 R1/R2/R3/R13/R4 五节与「升级路径」节；每节有 breaking/action/rollback 三类信息；明确「R4 附件双根仍保留，等 `migrate-assets --rewrite`」。
-- [ ] `.github/workflows/release.yml` 的 release name 默认/描述为 Cloudpit v3.0.0；workflow/资产无 `cloudcli-local-server-*` / `cloudcli-desktop-*` 旧前缀。
-- [ ] `npm pack --dry-run` 的 tarball bin 只有 `cloudpit`；`node scripts/cloudpit-distribution-check.mjs --version 3.0.0 --json` 在未发布状态只报 3.0.0 缺失，不把 2.0.0 当当前版本。
+- [x] `scripts/cloudpit-distribution-check.mjs` 的版本/资产前缀/tag 由参数或常量 `3.0.0` 驱动，不再有硬编码 2.0.0 的发布目标；`--version 3.0.0` 与默认值行为一致。
+- [x] `scripts/cloudpit-distribution-check.test.mjs` 更新为 3.0.0 夹具，`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；测试里保留一条「2.0.0 历史 release 仍可被显式版本读取」的负向/兼容臂，证明没有把历史版本从 checker 里删掉。
+- [x] `docs/operations/cloudpit-v3.0-release-notes.md` 含 R1/R2/R3/R13/R4 五节与「升级路径」节；每节有 breaking/action/rollback 三类信息；明确「R4 附件双根仍保留，等 `migrate-assets --rewrite`」。
+- [x] `.github/workflows/release.yml` 的 release name 默认/描述为 Cloudpit v3.0.0；workflow/资产无 `cloudcli-local-server-*` / `cloudcli-desktop-*` 旧前缀。
+- [x] `npm pack --dry-run` 的 tarball bin 只有 `cloudpit`；`node scripts/cloudpit-distribution-check.mjs --version 3.0.0 --json` 在未发布状态只报 3.0.0 缺失，不把 2.0.0 当当前版本。
 - [x] `package.json` / `package-lock.json` 的版本在发布窗口后为 `3.0.0`；由 release-it 写入，worker 不手工 publish（待外部）
 - [x] 外部发布完成后 `GITHUB_TOKEN=... node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0` 退出 0、`violations: []`；`v3.0.0` GitHub release 与 `cloudpit-desktop-3.0.0-*` / `cloudpit-local-server-v3.0.0-*` 资产可下载（待外部）
-- [ ] `npm run typecheck` 与 `npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
+- [x] `npm run typecheck` 与 `npx oxlint` 对改动文件退出 0；anti-drift 只列 Touches。
 
 ## DoD
 
@@ -88,6 +88,12 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - 发布快照为 `d130dcedb`；此后 fleet 又落 9 个提交（含 `b264b9c87 codex(settings): advanced provider form + connection-test button`），不在 3.0.0 内，需后续发布才可带上。
 - 本地收口：`yaleh/develop` 已 merge 回本地 `develop`（merge commit `e183b01f6`）；`package.json` / `package-lock.json` 均为 `3.0.0`。
 - 本任务保持 `needs-human`，不翻 done；两条外部 AC 与两条外部 DoD 已勾。仓库侧 6 条 AC 仍保留 retreat 后的未勾状态（本次未改）。
+
+### AC 收口（2026-11-03）
+
+- 仓库侧 6 条 AC 已勾：AC1–AC5 由 `8f471d2b1` 落地并在本次收口时复读（checker `NEW_VERSION='3.0.0'` / `--version`、夹具 9/9、notes 章节与三类信息、workflow 文案与旧前缀零命中、bin 仅 `cloudpit` 与未发布态读数）；AC8 本次复跑 `npm run typecheck` → exit 0、`npx oxlint scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` → exit 0。
+- AC8 的 anti-drift 读数沿用任务期 delta：`4 actual file(s), all within declared Touches (5 glob(s))`。发布后 release-it 写入的 `package.json` / `package-lock.json` / `CHANGELOG.md` 属外部窗口产物，不在 Touches 声明面内；若要求 anti-drift 对最终 delta 也字面成立，需把这三项补进 Touches。
+- 至此 8 条 AC 全绿；状态按任务终态约定仍为 `needs-human`，关闭与否是独立的人工裁定。
 
 ## ADR-007
 
