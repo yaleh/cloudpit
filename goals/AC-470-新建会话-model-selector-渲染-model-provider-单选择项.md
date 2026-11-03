@@ -1,7 +1,7 @@
 ---
 id: AC-470
 title: 新建会话 Model Selector 渲染 model×provider 单选择项
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-056
 criterion: npx vitest run src/modules/chat/tests/newSessionModelProviderOption.test.tsx
@@ -16,6 +16,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T14:05:47.864Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
