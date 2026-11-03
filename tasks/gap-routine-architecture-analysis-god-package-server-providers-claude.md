@@ -91,3 +91,11 @@ Extract the driver's turn/lifecycle collaborator entities into a lifecycle/ subd
 - `server/shared/tests/cloudpit-goal-exit-gate.test.ts`
 - `server/shared/tests/cloudpit-goal-exit-gate.baseline.json`
 - `tasks/gap-routine-architecture-analysis-god-package-server-providers-claude.md`
+
+## Blocker
+
+**2026-11-03T13:26:29.511Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts:   AssertionError [ERR_ASSERTION]: every barrel export must name a consumer, and that consumer must import it through the barrel [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts,server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：419d1234-af0b-421d-aa1d-a636052ea47a
