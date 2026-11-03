@@ -1,7 +1,7 @@
 ---
 id: gap-ac459-criterion-stale-v30-identity-pins
 title: AC-459 判据 AC4 仍钉住 v3.0 已退役的观测 URI 双读与旧 appId 活值：按 R7/R13 现意图改钉并同步 AC expect
-status: ready
+status: done
 labels:
   - gap
 parent: null
