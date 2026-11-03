@@ -46,7 +46,7 @@ import { WebSocketServer } from 'ws';
 // The relay mode this run will actually get, from the PRODUCT's own resolver rather than a copy of
 // its default — see `segmentedRelayExpected` below. The module is pure (it imports nothing), and
 // `e2e/` belongs to no typecheck program, so this adds no server code to the run but the function.
-import { resolveVoiceRealtimeMode } from '../server/modules/voice-realtime/voice-realtime-mode';
+import { resolveVoiceRealtimeMode } from '../server/modules/voice-realtime/frames/voice-realtime-mode';
 
 import { reloadPaneBounded } from './support/pane-reload';
 
