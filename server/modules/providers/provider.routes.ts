@@ -403,7 +403,17 @@ const parseBoundedIntegerQuery = <T extends number | null>(
   return parsed;
 };
 
-const parseSessionModelPayload = (payload: unknown): string => {
+/**
+ * The model write body: `model` plus the picker's optional `modelProviderId`.
+ *
+ * A built-in model is offered once per registered upstream provider, so those
+ * rows share `model` and the provider id is the only thing telling them apart.
+ * The pair is returned as the transport input; validating the id against the
+ * registry is the service's job.
+ */
+const parseSessionModelPayload = (
+  payload: unknown,
+): { model: string; modelProviderId?: string } => {
   if (!payload || typeof payload !== 'object') {
     throw new AppError('Request body must be an object.', {
       code: 'INVALID_REQUEST_BODY',
@@ -420,7 +430,8 @@ const parseSessionModelPayload = (payload: unknown): string => {
     });
   }
 
-  return model;
+  const modelProviderId = readOptionalQueryString(body.modelProviderId);
+  return modelProviderId === undefined ? { model } : { model, modelProviderId };
 };
 
 const parseSessionEffortPayload = (payload: unknown): string => {
@@ -702,8 +713,8 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const sessionId = parseSessionId(req.params.sessionId);
-    const model = parseSessionModelPayload(req.body);
-    const stored = providerModelsService.setSessionModel(provider, sessionId, model);
+    const { model, modelProviderId } = parseSessionModelPayload(req.body);
+    const stored = providerModelsService.setSessionModel(provider, sessionId, model, modelProviderId);
     // A session row only exists once the gateway has allocated one. Report the
     // selection back either way so the client can hold it until the first send.
     // A session with no row has no recorded permission mode either, so that

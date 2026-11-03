@@ -536,6 +536,19 @@ export interface IProviderModels {
    * provider-specific lookup finds nothing.
    */
   getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel>;
+
+  /**
+   * Whether a model selection may name the upstream provider it runs under.
+   *
+   * Codex records `model_providers.<id>` in the thread it starts and checks it
+   * again on resume, so a built-in model can be offered once per
+   * project-registered provider and the chosen id must reach the session row.
+   * An adapter for a provider with no such concept omits this flag, and the
+   * model write path then ignores an explicit id rather than persisting a
+   * binding the runtime could not honour. Implemented by
+   * `CodexProviderModels`; consumed by `provider-models.service.ts`.
+   */
+  readonly bindsUpstreamProvider?: boolean;
 }
 
 // ---------------------------

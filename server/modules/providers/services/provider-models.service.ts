@@ -29,6 +29,7 @@ import {
   assertProviderSwitchAllowed,
   readRecordedProviderBinding,
   resolveModelProviderId,
+  resolveRequestedProviderId,
 } from './session-provider-binding.js';
 
 /** Session-row access the service needs, narrowed so tests can stub it. */
@@ -103,16 +104,20 @@ const toPublicConfig = (config: ProviderModelConfig | null): ProviderModelPublic
  *
  * A model bound to a project Codex provider carries the provider id in its label
  * (`model · provider`) so two entries with the same display name — one bound to
- * each endpoint — stay distinguishable in the merged catalog. An entry with no
- * binding keeps its bare name: it inherits the Codex global default.
+ * each endpoint — stay distinguishable in the merged catalog. The same id is
+ * published as `modelProviderId`, the identity field the picker sends back on a
+ * model write; a custom entry is never expanded into variants (its binding is
+ * already specific). An entry with no binding keeps its bare name: it inherits
+ * the Codex global default.
  */
 const toCustomProviderModelOption = (
   record: CustomProviderModelRecord,
 ): ProviderModelOption => {
-  const providerId = record.config?.codexProviderId;
+  const providerId = record.config?.codexProviderId?.trim() || undefined;
   return {
     value: record.modelId,
     label: providerId === undefined ? record.model : `${record.model} · ${providerId}`,
+    ...(providerId === undefined ? {} : { modelProviderId: providerId }),
     recordId: record.recordId,
     isCustom: true,
     config: toPublicConfig(record.config),
@@ -559,7 +564,11 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
    * the value lands on the row with the first send.
    *
    * The session's upstream provider is recorded here too, on the first write
-   * that names a model bound to one (`model_provider_id`). This is the send
+   * that names one (`model_provider_id`). `modelProviderId` is the picker's
+   * explicit choice for a built-in model: those rows share the bare `value` and
+   * differ only by provider, so the id cannot be derived from the catalog entry
+   * and must be handed in. An explicit id wins over a custom entry's declared
+   * `codexProviderId` and is validated like any other binding. This is the send
    * funnel, so it is the one place every first turn passes through. A later
    * selection that would run under a DIFFERENT provider is refused — with the
    * fork/new-session action in the message — because the provider runtime
@@ -570,6 +579,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     provider: LLMProvider,
     sessionId: string,
     model: string,
+    modelProviderId?: string | null,
   ): ProviderSessionModel | null => {
     const normalizedSessionId = sessionId.trim();
     const normalizedModel = model.trim();
@@ -583,7 +593,13 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     }
 
     const registry = readCodexRegistry();
-    const requestedProviderId = resolveModelProviderId(catalog, provider, normalizedModel);
+    const requestedProviderId = resolveRequestedProviderId(
+      catalog,
+      provider,
+      normalizedModel,
+      modelProviderId,
+      resolveProvider(provider).models.bindsUpstreamProvider === true,
+    );
     assertProviderSwitchAllowed(recordedSelection.modelProviderId, requestedProviderId, normalizedModel);
     assertProviderAvailable(registry, requestedProviderId, normalizedModel);
 
@@ -617,6 +633,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     provider: LLMProvider,
     sessionId: string,
     model: string,
+    modelProviderId?: string | null,
   ): void => {
     const normalizedSessionId = sessionId.trim();
     const normalizedModel = model.trim();
@@ -627,7 +644,15 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     if (!recordedSelection) {
       return;
     }
-    const requestedProviderId = resolveModelProviderId(catalog, provider, normalizedModel);
+    // Same resolution as the record path: the send that follows this guard
+    // must be judged against the provider it will actually be recorded under.
+    const requestedProviderId = resolveRequestedProviderId(
+      catalog,
+      provider,
+      normalizedModel,
+      modelProviderId,
+      resolveProvider(provider).models.bindsUpstreamProvider === true,
+    );
     assertProviderSwitchAllowed(recordedSelection.modelProviderId, requestedProviderId, normalizedModel);
     assertProviderAvailable(readCodexRegistry(), requestedProviderId, normalizedModel);
   };

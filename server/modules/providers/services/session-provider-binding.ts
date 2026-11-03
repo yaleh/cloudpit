@@ -78,6 +78,36 @@ export function resolveModelProviderId(
 }
 
 /**
+ * The upstream provider a model WRITE names.
+ *
+ * An explicit id from the caller wins over the one the catalog entry declares:
+ * the picker offers a built-in model once per registered provider, and a
+ * built-in entry has no catalog binding, so the caller's id is the only
+ * statement of which endpoint that selection means. When the explicit id
+ * disagrees with a custom entry's declared `codexProviderId`, the explicit id
+ * still wins — the person picked that combination, and `assertProviderAvailable`
+ * still refuses an id the registry does not define.
+ *
+ * `bindsUpstreamProvider` gates the whole thing: the column is a Codex thread
+ * fact, so an adapter that declares no such capability keeps deriving the id
+ * from the catalog alone and an explicit id is ignored rather than persisted as
+ * a binding its runtime cannot launch under.
+ */
+export function resolveRequestedProviderId(
+  catalog: SessionProviderBindingCatalog,
+  provider: LLMProvider,
+  modelId: string,
+  explicitProviderId: string | null | undefined,
+  bindsUpstreamProvider: boolean,
+): string | null {
+  const explicit = explicitProviderId?.trim();
+  if (bindsUpstreamProvider && explicit) {
+    return explicit;
+  }
+  return resolveModelProviderId(catalog, provider, modelId);
+}
+
+/**
  * Whether the registry defines this id.
  *
  * A project entry and a Codex built-in both count: a model may bind either

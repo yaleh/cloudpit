@@ -10,6 +10,10 @@ import {
   type CodexModelDescriptor,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
+import {
+  readCodexProviderRegistryPort,
+  type CodexProviderRegistryReading,
+} from '@/shared/ports/codex-provider-registry.port.js';
 import type {
   ProviderCurrentActiveModel,
   ProviderModelOption,
@@ -174,11 +178,13 @@ const CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
 /** Where the catalog answered by the most recent read came from. */
 export type CodexCatalogSource = 'live' | 'cache' | 'fallback';
 
-/** Injection seams for the discovery read and its clock. */
+/** Injection seams for the discovery read, its clock, and the provider registry. */
 export type CodexProviderModelsDependencies = {
   listModels?: () => Promise<CodexModelDescriptor[] | null>;
   now?: () => number;
   cacheKey?: () => string;
+  /** The project-registered upstream providers each built-in model is expanded across. */
+  readProviders?: () => CodexProviderRegistryReading | null;
 };
 
 /** How long a successfully discovered catalog is reused. */
@@ -267,6 +273,49 @@ const toProviderModelsDefinition = (models: CodexModelDescriptor[]): ProviderMod
 };
 
 /**
+ * Expands each built-in model into the picker's full identity — `(model,
+ * provider id)` — for a provider whose sessions are bound to an upstream
+ * `model_providers.<id>`.
+ *
+ * Every model keeps its bare row first (`modelProviderId` absent: inherit
+ * Codex's global default) and gains one row per project-registered provider,
+ * labelled `name · provider` so two rows that send the same `value` stay
+ * distinguishable. Only `providers` is expanded, never `reservedIds`: the bare
+ * row already selects Codex's default built-in, and the reserved ids are not
+ * project-configurable endpoints. `DEFAULT` is unchanged, because the catalog
+ * default is still the bare model — the expansion adds choices, not a new
+ * default.
+ *
+ * `null` (the port is not installed in a focused criterion) and an empty
+ * provider list both leave the catalog bare, which is the pre-expansion
+ * behavior.
+ */
+const expandProviderVariants = (
+  definition: ProviderModelsDefinition,
+  registry: CodexProviderRegistryReading | null,
+): ProviderModelsDefinition => {
+  const providerIds = [...new Set(
+    (registry?.providers ?? [])
+      .map((provider) => provider.id.trim())
+      .filter((id) => id.length > 0),
+  )];
+  if (providerIds.length === 0) {
+    return definition;
+  }
+  return {
+    OPTIONS: definition.OPTIONS.flatMap((option) => [
+      option,
+      ...providerIds.map((providerId) => ({
+        ...option,
+        label: `${option.label} · ${providerId}`,
+        modelProviderId: providerId,
+      })),
+    ]),
+    DEFAULT: definition.DEFAULT,
+  };
+};
+
+/**
  * Provider registry model adapter for Codex.
  *
  * The source-controlled catalog is no longer the only source: the adapter asks
@@ -276,11 +325,19 @@ const toProviderModelsDefinition = (models: CodexModelDescriptor[]): ProviderMod
  * CLI is not respawned on every catalog read.
  */
 export class CodexProviderModels implements IProviderModels {
+  /**
+   * Codex threads record the upstream provider they started under, so a model
+   * selection may name one; the model write path records it on the session row.
+   */
+  readonly bindsUpstreamProvider = true;
+
   private readonly listModels: () => Promise<CodexModelDescriptor[] | null>;
 
   private readonly now: () => number;
 
   private readonly cacheKey: () => string;
+
+  private readonly readProviders: () => CodexProviderRegistryReading | null;
 
   private cached: CatalogCacheEntry | null = null;
 
@@ -292,6 +349,9 @@ export class CodexProviderModels implements IProviderModels {
     this.listModels = dependencies.listModels ?? (() => codexAppServer.listModels());
     this.now = dependencies.now ?? Date.now;
     this.cacheKey = dependencies.cacheKey ?? defaultCatalogCacheKey;
+    // Read lazily like every other port consumer: the settings module installs
+    // the reading at boot, which may evaluate after this adapter is constructed.
+    this.readProviders = dependencies.readProviders ?? (() => readCodexProviderRegistryPort()?.read() ?? null);
   }
 
   /**
@@ -305,7 +365,19 @@ export class CodexProviderModels implements IProviderModels {
     return this.source;
   }
 
+  /**
+   * The picker catalog: the discovered/fallback built-ins expanded into
+   * `(model, provider id)` rows for the project's registered providers.
+   *
+   * The expansion is applied to the ANSWER, not to the cache: discovery is a
+   * property of the CLI binary and account, while the registered providers come
+   * from the settings file and change independently of it.
+   */
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
+    return expandProviderVariants(await this.readCatalog(), this.readProviders());
+  }
+
+  private async readCatalog(): Promise<ProviderModelsDefinition> {
     const key = this.cacheKey();
     if (this.cached?.key === key && this.now() < this.cached.expiresAt) {
       this.source = this.cached.source === 'live' ? 'cache' : 'fallback';
