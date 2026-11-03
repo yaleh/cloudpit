@@ -7,7 +7,6 @@ import { beforeEach, test, vi } from 'vitest';
 import type { UseCodexProvidersResult } from '@/modules/settings/hooks/useCodexProviders';
 import CodexProvidersContent from '@/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent';
 import type { CodexProviderDraft } from '@/modules/settings/utils/codexProvidersController';
-import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import ModelLibraryPanel from '@/shared/ui/ModelLibraryPanel';
 import type {
   AgentProvider,
@@ -114,14 +113,6 @@ const actions: ProviderModelActions = {
   remove: vi.fn(async () => {}),
 };
 
-const CATALOG: ProviderModelsDefinition = {
-  OPTIONS: [
-    { value: 'gpt-5-codex', label: 'GPT-5 Codex' },
-    { value: 'gpt-5', label: 'GPT-5' },
-  ],
-  DEFAULT: 'gpt-5-codex',
-};
-
 const registry = (ids: string[]): CodexModelProvider[] => ids.map((id) => ({
   id,
   name: id.toUpperCase(),
@@ -162,106 +153,27 @@ test('two provider cards read their own ids — the hint is not a copied name', 
   assert.ok(hints[1].includes('(alice)'), `second card should name alice, got: ${hints[1]}`);
 });
 
-test('built-in model rows show built-in · N provider variants for the registry length', () => {
+test('the built-in models section lists a provider\'s own models by their provider-id label', () => {
+  const catalogWithProviderModel: ProviderModelsDefinition = {
+    OPTIONS: [
+      { value: 'gpt-5-codex', label: 'GPT-5 Codex' },
+      { value: 'gpt-5.6-terra', label: 'gpt-5.6-terra · fjdac', modelProviderId: 'fjdac' },
+    ],
+    DEFAULT: 'gpt-5-codex',
+  };
+
   render(
     <ModelLibraryPanel
       initialProvider="codex"
-      providerModelCatalog={{ codex: CATALOG }}
+      providerModelCatalog={{ codex: catalogWithProviderModel }}
       actions={actions}
-      codexProviders={registry(['bob', 'alice'])}
+      codexProviders={registry(['fjdac'])}
       hideProviderTabs
     />,
   );
 
-  const counts = screen.getAllByTestId('builtin-model-provider-variants').map((node) => node.textContent);
-  assert.equal(counts.length, CATALOG.OPTIONS.length);
-  for (const count of counts) {
-    assert.equal(count, 'built-in · 2 provider variants');
-  }
-});
-
-test('negative arm: no registered provider reads N=0, not a stale count', () => {
-  render(
-    <ModelLibraryPanel
-      initialProvider="codex"
-      providerModelCatalog={{ codex: CATALOG }}
-      actions={actions}
-      codexProviders={[]}
-      hideProviderTabs
-    />,
-  );
-
-  const counts = screen.getAllByTestId('builtin-model-provider-variants').map((node) => node.textContent);
-  assert.equal(counts.length, CATALOG.OPTIONS.length);
-  for (const count of counts) {
-    assert.equal(count, 'built-in · 0 provider variants');
-  }
-});
-
-test('false form: a third registered provider moves N — it is not a literal', () => {
-  const { rerender } = render(
-    <ModelLibraryPanel
-      initialProvider="codex"
-      providerModelCatalog={{ codex: CATALOG }}
-      actions={actions}
-      codexProviders={registry(['bob', 'alice'])}
-      hideProviderTabs
-    />,
-  );
-  assert.equal(
-    screen.getAllByTestId('builtin-model-provider-variants')[0]?.textContent,
-    'built-in · 2 provider variants',
-  );
-
-  rerender(
-    <ModelLibraryPanel
-      initialProvider="codex"
-      providerModelCatalog={{ codex: CATALOG }}
-      actions={actions}
-      codexProviders={registry(['bob', 'alice', 'carol'])}
-      hideProviderTabs
-    />,
-  );
-  assert.equal(
-    screen.getAllByTestId('builtin-model-provider-variants')[0]?.textContent,
-    'built-in · 3 provider variants',
-  );
-});
-
-test('false form: the descriptor decides which provider shows variant rows', () => {
-  // Swap the two descriptor rows: a view that branched on the provider id would keep drawing
-  // the variant row for Codex and hide it for Claude, and fail both assertions below.
-  const claude = PROVIDER_DESCRIPTORS.claude;
-  const codex = PROVIDER_DESCRIPTORS.codex;
-  const originalClaudeKind = claude.modelConfigKind;
-  const originalCodexKind = codex.modelConfigKind;
-  try {
-    claude.modelConfigKind = 'codex-provider';
-    codex.modelConfigKind = 'env';
-
-    const { rerender } = render(
-      <ModelLibraryPanel
-        initialProvider="claude"
-        providerModelCatalog={{ claude: CATALOG }}
-        actions={actions}
-        codexProviders={registry(['bob', 'alice'])}
-        hideProviderTabs
-      />,
-    );
-    assert.equal(screen.getAllByTestId('builtin-model-provider-variants').length, CATALOG.OPTIONS.length);
-
-    rerender(
-      <ModelLibraryPanel
-        initialProvider="codex"
-        providerModelCatalog={{ codex: CATALOG }}
-        actions={actions}
-        codexProviders={registry(['bob', 'alice'])}
-        hideProviderTabs
-      />,
-    );
-    assert.equal(screen.queryByTestId('builtin-model-provider-variants'), null);
-  } finally {
-    claude.modelConfigKind = originalClaudeKind;
-    codex.modelConfigKind = originalCodexKind;
-  }
+  // The old "built-in · N provider variants" mirror count is gone: built-ins are
+  // no longer mirrored across providers — each provider's own models are listed.
+  assert.equal(screen.queryByTestId('builtin-model-provider-variants'), null);
+  assert.equal(screen.getAllByText('gpt-5.6-terra · fjdac').length, 1);
 });
