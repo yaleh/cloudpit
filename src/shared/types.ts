@@ -4631,6 +4631,43 @@ export type CockpitCardFeedbackNotice = {
   reason?: string;
 };
 
+/** The action a molten decision judged: `kind`/`summary`/`scope` verbatim; `null` means unstated.
+ * Matches the fleet's wire, which uses `null` (never `''`) for a field the loop left out. */
+export type CockpitMoltenAction = {
+  kind: string | null;
+  summary: string | null;
+  scope: string | null;
+};
+
+/**
+ * The task a molten decision would crystallise in `project`'s quay store. The four bodies pass to
+ * the task file verbatim and `touches` is the file list; none of them is trimmed here.
+ */
+export type CockpitMoltenTaskSpec = {
+  title: string | null;
+  proposal: string | null;
+  ac: string | null;
+  dod: string | null;
+  touches: string[];
+};
+
+/**
+ * One molten short-loop decision (ADR-016), as the fleet states it on a card.
+ *
+ * `belief` and `evidenceRefs` are string lists; `action` is what the loop judged and `taskSpec`
+ * is what `crystallize-task` would write. Absent on every non-molten card, and a molten card
+ * carries no `knowledge` block: its confirm goes to `fleet.molten-decide`, never the knowledge
+ * executor.
+ */
+export type CockpitMoltenDecision = {
+  proposalId: string | null;
+  project: string | null;
+  belief: string[];
+  action: CockpitMoltenAction;
+  taskSpec: CockpitMoltenTaskSpec;
+  evidenceRefs: string[];
+};
+
 /**
  * One thing waiting for the person, as a provider states it.
  *
@@ -4718,6 +4755,13 @@ export type CockpitCard = {
    * confirmed (the action channel refuses it as missing evidence).
    */
   knowledge?: CockpitKnowledgeCase;
+  /**
+   * The molten short-loop decision this card asks the person to sign off, when it is one.
+   * Absent on every other card. A card carrying this block renders with the `molten-decision`
+   * kind descriptor (its own badge and tone) and routes its confirm to `fleet.molten-decide`; it
+   * is NOT a knowledge card and carries no `knowledge` block.
+   */
+  molten?: CockpitMoltenDecision;
 };
 
 // ---------------------------

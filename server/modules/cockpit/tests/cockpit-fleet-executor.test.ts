@@ -37,6 +37,7 @@ import {
 import {
   COCKPIT_FLEET_EXECUTORS_ARGS,
   COCKPIT_FLEET_LOG_EXECUTOR_ID,
+  COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
   CockpitFleetExecutor,
   readCockpitFleetExecutors,
   type CockpitFleetCommandResult,
@@ -198,7 +199,13 @@ test('AC: the declaration set comes from `rescue executors --json`, one executor
     reading.declarations.map((declaration) => declaration.id),
     DECLARED_IDS,
   );
-  assert.deepEqual(fleet.provider.declaredExecutors(), DECLARED_IDS);
+  // The CLI's reading above stays verbatim; the provider's DECLARED set adds the one cockpit-side
+  // contract (the molten decision executor the fleet has not shipped yet), which is what keeps a
+  // molten card's options confirmable.
+  assert.deepEqual(fleet.provider.declaredExecutors(), [
+    ...DECLARED_IDS,
+    COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
+  ]);
 
   // Every declared id resolves to an executor whose own id is the declared one. The third id is
   // not a fleet-shipped id, so a hard-coded four would fail to produce it at all.
