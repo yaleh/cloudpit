@@ -57,13 +57,13 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 
 ## AC
 
-- [ ] 先 `git merge develop` 进任务分支，再跑 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`：退出码 0，tests 10 / pass 10 / fail 0，贴摘要输出。
-- [ ] `grep -c 'modules/observation/observation-uri' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 0，且 `grep -c 'modules/observation/core/observation-uri' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 1：判据只读拆分后的包边界。
-- [ ] 两条 R7 断言仍非空转：对 `server/modules/observation/core/observation-uri.ts` 与 `src/modules/cockpit-contract/observationUri.ts` 各跑 `grep -c '\^cloudpit://(session|architecture)/'`（期望 1）与 `grep -c '(?:cloudcli|cloudpit)://'`（期望 0），四个读数全部贴出。
-- [ ] 负向控制：用 `node --input-type=module -e` 读取同一份 `core/observation-uri.ts` 源文本，在内存中注入一条已退役双读分支后跑判据所用的 `includes` 谓词，结果必须为「红」（即负断言失败）；同一次命令里对未注入的原文本结果为「绿」。不改动盘上文件。
-- [ ] `grep -rn 'modules/observation/observation-uri' electron src scripts e2e AGENTS.md` 零命中：活代码面不再引用拆分前路径。
-- [ ] 非目标面未被改动：`git diff` 不出现 `cloudcli.ai`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、`LEGACY_DESKTOP_APP_ID` 的删除或改名，也不出现 `tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG` 的改动。
-- [ ] `npx vitest run src/modules/cockpit/tests/observationUri.test.ts`（或本仓等价单文件前端命令）保持全绿，证明附带注释改动没有碰运行时行为。
+- [x] 先 `git merge develop` 进任务分支，再跑 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`：退出码 0，tests 10 / pass 10 / fail 0，贴摘要输出。
+- [x] `grep -c 'modules/observation/observation-uri' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 0，且 `grep -c 'modules/observation/core/observation-uri' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 1：判据只读拆分后的包边界。
+- [x] 两条 R7 断言仍非空转：对 `server/modules/observation/core/observation-uri.ts` 与 `src/modules/cockpit-contract/observationUri.ts` 各跑 `grep -c '\^cloudpit://(session|architecture)/'`（期望 1）与 `grep -c '(?:cloudcli|cloudpit)://'`（期望 0），四个读数全部贴出。
+- [x] 负向控制：用 `node --input-type=module -e` 读取同一份 `core/observation-uri.ts` 源文本，在内存中注入一条已退役双读分支后跑判据所用的 `includes` 谓词，结果必须为「红」（即负断言失败）；同一次命令里对未注入的原文本结果为「绿」。不改动盘上文件。
+- [x] `grep -rn 'modules/observation/observation-uri' electron src scripts e2e AGENTS.md` 零命中：活代码面不再引用拆分前路径。
+- [x] 非目标面未被改动：`git diff` 不出现 `cloudcli.ai`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、`LEGACY_DESKTOP_APP_ID` 的删除或改名，也不出现 `tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG` 的改动。
+- [x] `npx vitest run src/modules/cockpit/tests/observationUri.test.ts`（或本仓等价单文件前端命令）保持全绿，证明附带注释改动没有碰运行时行为。
 
 ## DoD
 
@@ -71,6 +71,20 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - 同一次收尾里 AC4 的两个副本（server `core/observation-uri.ts` 与前端 `cockpit-contract/observationUri.ts`）都被真实读取；负向控制在盘上原文件上不变红、在内存注入后变红，两条读数一并贴出。
 - `git diff --stat` 显示 `src/modules/cockpit-contract/observationUri.ts` 只有一行注释改动，`electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 只有路径与（如有）必要的行内说明改动；无运行时行为变化。
 - 无 UI 改动，UI DoD 不适用；本任务不修改 `server/` 代码，后端模块标准不引入新约束；前端模块标准仅覆盖那一行注释改写。
+
+## Evidence（2026-11-04，worktree `gap-ac459-criterion-stale-observation-uri-path`）
+
+- AC1：`git merge --no-edit develop` → `Already up to date.`；`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` → `ℹ tests 10 / ℹ pass 10 / ℹ fail 0`，`EXIT=0`。
+- AC2：`old-path-cnt=0 new-path-cnt=1`。
+- AC3：`server/modules/observation/core/observation-uri.ts canonical=1 retireddual=0`；`src/modules/cockpit-contract/observationUri.ts canonical=1 retireddual=0`。
+- AC4：`unmodified predicate=green`；`in-memory-injected predicate=red`；`NEGATIVE CONTROL PASS`；`git status --porcelain` 只有两个被修改文件。
+- AC5：`grep -rn 'modules/observation/observation-uri' electron src scripts e2e AGENTS.md` 零行输出（grep exit 1）。
+- AC6：`git diff --stat` → 2 files changed, 2 insertions(+), 2 deletions(-)；非目标名与账本路径 grep 均 exit 1（无命中）。
+- AC7：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` → `Test Files 1 passed (1) / Tests 23 passed (23)`，`EXIT=0`。
+
+## Axis Record
+
+该轴仍暗,理由:本任务只改判据读取路径与一行注释,无设计/架构轴增量可计量
 
 ## Touches
 
