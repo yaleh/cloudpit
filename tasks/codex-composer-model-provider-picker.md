@@ -1,7 +1,7 @@
 ---
 id: codex-composer-model-provider-picker
 title: composer 模型菜单渲染 model×provider 单选择项并发送 model + provider id
-status: ready
+status: done
 labels:
   - feature
 parent: null
@@ -50,12 +50,13 @@ MCP 浏览器实际操作 + 截图存 tmp/（composer 选 gpt-5.6-terra (fjdac) 
 - L_D 该轴仍暗,理由:本任务是 composer 选择器 UI，读数是 AC 判据与场景运行器，没有可量化的领域数据轴读数。
 - L_G 该轴仍暗,理由:本任务不新增 goal 判据；目标层读数由 GOAL-056 的 AC-469 承担。
 
-## Blocker
+## Evidence
 
-**2026-11-03T13:26:30.800Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
-CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
-Automatic merge failed; fix conflicts and then commit the result.
-- run_id：wk-prod-anchor
-- session_id：954df0b9-7e24-4d61-98dc-baabe6bbb94f
+- AC-469 判据：`npx vitest run src/modules/chat/tests/composerModelProviderOption.test.tsx` → 1 file passed / 8 tests passed，exit 0（用例 a/b/c/c2/c3/d/d2/d3 覆盖展开、变体发送、裸名不带 id、已删 provider 无行、按 model 分组、claude 同形、无 provider === 'codex' 分支）。
+- wire 镜像：`npx vitest run src/shared/tests/wireContractTypeSync.test.ts` → 5 tests passed，exit 0。
+- `npm run typecheck`（tsconfig + server/tsconfig + scripts/tsconfig）→ exit 0。
+- `npx oxlint` 本任务 7 个文件 → exit 0（仅存量 warning）。
+- 合并解冲突：`server/shared/tests/architecture-ratchet.baseline.json` 取 develop note + 本任务 RECORDED CHANGE 段；oversizeFiles 两侧各自新增互不相交（本任务 4 条 / develop 2 条）取并集，无 re-key 删除；JSON 校验通过，diff MERGE_HEAD 仅本任务 5 行。
+- anti-drift Touches：`anti-drift-touches-check` → OK，8 个实际文件全部在声明的 Touches 内。
+- UI DoD（MCP 浏览器，tmp/ui-dod/）：`01-session-loaded.png` … `06-message-sent.png` 六张检查点截图；`report.json` 记录 groups=10 / rows=20、选中变体 `GPT-6.1-Sol (fjdac)`、收起态触发标签同值、发送后 composer 清空，写路径 body `{"model":"gpt-6.1-sol","modelProviderId":"fjdac"}`，`pageErrors=[]`；场景运行器报告与检查点截图见 `tmp/ui-dod/scenario/report.json` 与 `step-1..3-*.png`。
+- 上一轮 exited-not-landed 的 Blocker（baseline 合并冲突）已在本轮解冲突后清除。

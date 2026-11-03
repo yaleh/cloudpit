@@ -90,6 +90,17 @@ const DRIVER_FILE = path.join(SERVER_DIR, DRIVER_REL);
 const LEGACY_REL = 'modules/providers/list/claude/claude-resident-ledger.ts';
 const LEGACY_FILE = path.join(SERVER_DIR, LEGACY_REL);
 
+/**
+ * The driver's implementation PACKAGE — the concrete driver plus the `lifecycle/`
+ * subpackage its turn/lifecycle collaborators were split into. Reading (d) asks
+ * that the dispatcher's own `ResidentRound` record be named on the DRIVER side
+ * only; since that side now spans the package (the dispatcher code moved into
+ * `lifecycle/` base classes during the god-package split), the reading is
+ * "outside the package", not "outside the one file". Nothing outside — above
+ * all the ledger module — may name it.
+ */
+const DRIVER_PACKAGE_REL = 'modules/providers/list/claude';
+
 /** The scanner must come from this module — the reading `scannerSource` prints. */
 const SCANNER_SPECIFIER = '@/shared/import-graph.js';
 const SCANNER_SOURCE = 'server/shared/import-graph.ts';
@@ -423,6 +434,12 @@ type LegacyReading = {
   residentRoundRefsOutsideDriver: number;
 };
 
+/** Is `repoRelative` inside the driver's implementation package (root or `lifecycle/`)? */
+function isDriverPackagePath(repoRelative: string): boolean {
+  const dir = dirOf(repoRelative);
+  return dir === DRIVER_PACKAGE_REL || dir.startsWith(`${DRIVER_PACKAGE_REL}/`);
+}
+
 /** `absent` (gone), `forwarder` (only re-exports the barrel), or `present` (it still holds code). */
 function legacyPathReading(): 'absent' | 'forwarder' | 'present' {
   if (!existsSync(LEGACY_FILE)) return 'absent';
@@ -459,7 +476,7 @@ function legacyReading(): LegacyReading {
     const parsed = parse(source.path, source.text);
     const occurrences = identifierOccurrences(parsed, 'ResidentRound');
     if (dirOf(source.path) === MODULE_REL) newModuleResidentRoundRefs += occurrences;
-    if (source.path !== DRIVER_REL) residentRoundRefsOutsideDriver += occurrences;
+    if (!isDriverPackagePath(source.path)) residentRoundRefsOutsideDriver += occurrences;
   }
 
   return {
@@ -489,7 +506,7 @@ function printLegacy(reading: LegacyReading): void {
         `(it holds the run writer and the settle/fail promise) — AC-395 deliberately KEPT it on the driver side when it removed ` +
         `\`round: ResidentRound\` from ResidentLedgerDelivery, and AC-396 (d)'s own second clause forbids the new module from naming it. ` +
         `Deleting it would break the dispatcher, so the reading asserted here is the invariant (d) exists to protect: the driver declares no ` +
-        `ledger type, no file outside the driver names ResidentRound (${reading.residentRoundRefsOutsideDriver}), and the new module names it ` +
+        `ledger type, no file outside the claude driver package names ResidentRound (${reading.residentRoundRefsOutsideDriver}), and the new module names it ` +
         `zero times (${reading.newModuleResidentRoundRefs}).`,
     );
   }
@@ -544,7 +561,7 @@ test('AC-396 (d) the legacy path is absent, the driver declares no ledger type, 
   assert.strictEqual(
     reading.residentRoundRefsOutsideDriver,
     0,
-    'nothing outside the driver may name ResidentRound — the ledger type must not carry a driver type',
+    'nothing outside the claude driver package may name ResidentRound — the ledger type must not carry a driver type',
   );
 });
 

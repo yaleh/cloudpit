@@ -47,7 +47,7 @@ import {
   type ClaudeResidentLifecycleOutcomeHandler,
   type ClaudeResidentLifecycleRound,
   type ClaudeResidentLifecycleHeldWorkLease,
-} from './claude-resident-lifecycle-outcome-registry.js';
+} from './lifecycle/claude-resident-lifecycle-outcome-registry.js';
 
 
 /**

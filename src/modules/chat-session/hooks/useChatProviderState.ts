@@ -41,6 +41,32 @@ const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
 const providerModelStorageKey = (provider: LLMProvider): string => `${provider}-model`;
 
 /**
+ * localStorage key holding the upstream provider id of that default model.
+ *
+ * Written beside the model rather than merged into it: `value` stays the model
+ * id the provider runtime receives, and the pair — not the model alone — is the
+ * composer's selection identity. Absent/empty means the bare choice, which
+ * inherits the provider's own default.
+ */
+const providerModelProviderStorageKey = (provider: LLMProvider): string => `${provider}-model-provider`;
+
+/**
+ * One provider's remembered model choice: the model id plus the upstream
+ * provider it runs under (`null` for the bare, inherit-the-default identity).
+ * A built-in model is offered once per provider, so these two fields together
+ * are what tells two rows with the same `value` apart.
+ */
+type ProviderModelSelection = {
+  model: string;
+  modelProviderId: string | null;
+};
+
+/** Reads a provider id off the wire or storage, treating blank as "the bare choice". */
+const readModelProviderId = (value: unknown): string | null => (
+  typeof value === 'string' && value.trim() ? value.trim() : null
+);
+
+/**
  * Fallback permission-mode matrix used only until the backend capability
  * matrix (`GET /api/providers/capabilities`) has loaded. The backend is the
  * source of truth; this mirror exists so the composer renders sensibly on
@@ -111,6 +137,13 @@ type SessionSelectionApiResponse = {
      */
     permissionMode?: string | null;
     /**
+     * The upstream provider the session's model is bound to (a Codex
+     * `model_providers.<id>` id, recorded by the session's first send). Absent or
+     * null means no binding was recorded — the run inherits the provider's own
+     * default — which is not the same answer as "the default provider".
+     */
+    modelProviderId?: string | null;
+    /**
      * `session` and `provider` are real answers for this session; `default`
      * means the backend had nothing recorded and returned the catalog default,
      * which the composer replaces with the user's per-provider selection.
@@ -125,6 +158,8 @@ type SessionProviderSelection = {
   model: string | null;
   effort: string | null;
   permissionMode: PermissionMode | null;
+  /** The upstream provider the open session's model runs under, or null when none was recorded. */
+  modelProviderId: string | null;
 };
 
 /** Reads a recorded mode out of an API answer, rejecting anything unusable. */
@@ -145,14 +180,32 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [provider, setProvider] = useState<LLMProvider>(readSelectedProvider);
   // Every provider's chosen model, not just the active one: switching provider
   // must restore the model that provider was last used with, and the catalogue
-  // that validates them arrives asynchronously per provider.
-  const [providerModels, setProviderModels] = useState<Record<LLMProvider, string>>(() => {
-    return PROVIDERS.reduce<Record<LLMProvider, string>>((acc, targetProvider) => {
-      acc[targetProvider] = localStorage.getItem(providerModelStorageKey(targetProvider))
-        || FALLBACK_DEFAULT_MODEL[targetProvider];
+  // that validates them arrives asynchronously per provider. The stored value is
+  // the full selection — model plus upstream provider id — because a built-in
+  // model is offered once per provider and the bare model id alone cannot say
+  // which row was picked.
+  const [providerModelSelections, setProviderModelSelections] = useState<
+    Record<LLMProvider, ProviderModelSelection>
+  >(() => {
+    return PROVIDERS.reduce<Record<LLMProvider, ProviderModelSelection>>((acc, targetProvider) => {
+      acc[targetProvider] = {
+        model: localStorage.getItem(providerModelStorageKey(targetProvider))
+          || FALLBACK_DEFAULT_MODEL[targetProvider],
+        modelProviderId: readModelProviderId(
+          localStorage.getItem(providerModelProviderStorageKey(targetProvider)),
+        ),
+      };
       return acc;
-    }, {} as Record<LLMProvider, string>);
+    }, {} as Record<LLMProvider, ProviderModelSelection>);
   });
+  /** The bare model ids, the shape every consumer that only needs the model already takes. */
+  const providerModels = useMemo(
+    () => PROVIDERS.reduce<Record<LLMProvider, string>>((acc, targetProvider) => {
+      acc[targetProvider] = providerModelSelections[targetProvider].model;
+      return acc;
+    }, {} as Record<LLMProvider, string>),
+    [providerModelSelections],
+  );
   const [providerEfforts, setProviderEfforts] = useState<Partial<Record<LLMProvider, string>>>(() => {
     return PROVIDERS.reduce<Partial<Record<LLMProvider, string>>>((acc, targetProvider) => {
       acc[targetProvider] = localStorage.getItem(`${targetProvider}-effort`) || DEFAULT_EFFORT_VALUE;
@@ -181,13 +234,27 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const sessionModelMutationIdRef = useRef(0);
   const sessionEffortMutationIdRef = useRef(0);
 
-  const setStoredProviderModel = useCallback((targetProvider: LLMProvider, model: string) => {
-    setProviderModels((previous) => (
-      previous[targetProvider] === model
-        ? previous
-        : { ...previous, [targetProvider]: model }
-    ));
+  const setStoredProviderModel = useCallback((
+    targetProvider: LLMProvider,
+    model: string,
+    modelProviderId: string | null = null,
+  ) => {
+    const nextProviderId = readModelProviderId(modelProviderId);
+    setProviderModelSelections((previous) => {
+      const current = previous[targetProvider];
+      if (current.model === model && current.modelProviderId === nextProviderId) {
+        return previous;
+      }
+      return { ...previous, [targetProvider]: { model, modelProviderId: nextProviderId } };
+    });
     localStorage.setItem(providerModelStorageKey(targetProvider), model);
+    // The pair is stored together: a stale provider id beside a newly chosen
+    // model would resurrect a variant that model may not even offer.
+    if (nextProviderId === null) {
+      localStorage.removeItem(providerModelProviderStorageKey(targetProvider));
+    } else {
+      localStorage.setItem(providerModelProviderStorageKey(targetProvider), nextProviderId);
+    }
   }, []);
 
   const setStoredProviderEffort = useCallback((targetProvider: LLMProvider, effort: string) => {
@@ -372,7 +439,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   // One reconciliation pass over every provider, mirroring the effort effect
   // below. This was four copy-pasted eleven-line effects, one per provider.
   useEffect(() => {
-    const reconciledModels: Partial<Record<LLMProvider, string>> = {};
+    const reconciledSelections: Partial<Record<LLMProvider, ProviderModelSelection>> = {};
 
     for (const targetProvider of PROVIDERS) {
       const catalog = providerModelCatalog[targetProvider];
@@ -381,21 +448,47 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       }
 
       const storageKey = providerModelStorageKey(targetProvider);
-      const currentModel = providerModels[targetProvider];
+      const currentSelection = providerModelSelections[targetProvider];
+      const currentModel = currentSelection.model;
       const nextModel = pickStoredOrCurrent(storageKey, currentModel, catalog);
 
+      // The provider half of the identity is checked against the catalog, not a
+      // provider list: a variant exists only while the catalogue still offers
+      // that (model, provider) row. A model that fell back to another id cannot
+      // keep a provider id that was chosen for the old one.
+      let nextProviderId = readModelProviderId(currentSelection.modelProviderId);
       if (nextModel !== currentModel) {
-        reconciledModels[targetProvider] = nextModel;
+        nextProviderId = null;
+      } else if (
+        nextProviderId !== null
+        && !catalog.OPTIONS.some((option) => (
+          option.value === nextModel && readModelProviderId(option.modelProviderId) === nextProviderId
+        ))
+      ) {
+        nextProviderId = null;
+      }
+
+      if (nextModel !== currentModel || nextProviderId !== currentSelection.modelProviderId) {
+        reconciledSelections[targetProvider] = {
+          model: nextModel,
+          modelProviderId: nextProviderId,
+        };
       }
       if (localStorage.getItem(storageKey) !== nextModel) {
         localStorage.setItem(storageKey, nextModel);
       }
+      const providerStorageKey = providerModelProviderStorageKey(targetProvider);
+      if (nextProviderId === null) {
+        localStorage.removeItem(providerStorageKey);
+      } else if (localStorage.getItem(providerStorageKey) !== nextProviderId) {
+        localStorage.setItem(providerStorageKey, nextProviderId);
+      }
     }
 
-    if (Object.keys(reconciledModels).length > 0) {
-      setProviderModels((previous) => ({ ...previous, ...reconciledModels }));
+    if (Object.keys(reconciledSelections).length > 0) {
+      setProviderModelSelections((previous) => ({ ...previous, ...reconciledSelections }));
     }
-  }, [providerModelCatalog, providerModels]);
+  }, [providerModelCatalog, providerModelSelections]);
 
   useEffect(() => {
     const nextEfforts: Partial<Record<LLMProvider, string>> = {};
@@ -541,12 +634,22 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
 
         const resolvedModel = body.data?.model?.trim();
         const resolvedEffort = body.data?.effort?.trim() || null;
+        const recordedModel = body.success && resolvedModel && body.data?.source !== 'default'
+          ? resolvedModel
+          : null;
         setSessionSelection({
           provider: targetProvider,
           sessionId: selectedSessionId,
-          model: body.success && resolvedModel && body.data?.source !== 'default' ? resolvedModel : null,
+          model: recordedModel,
           effort: body.success ? resolvedEffort : null,
           permissionMode: body.success ? readRecordedPermissionMode(body.data?.permissionMode) : null,
+          // The binding is part of the session's identity, and the server keeps
+          // reporting it even after the provider is deleted — so it is read
+          // verbatim, never re-derived from the catalog, and never paired with a
+          // fallback model the session did not actually run.
+          modelProviderId: recordedModel !== null && body.success
+            ? readModelProviderId(body.data?.modelProviderId)
+            : null,
         });
       } catch (error) {
         if (
@@ -561,6 +664,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
             model: null,
             effort: null,
             permissionMode: null,
+            modelProviderId: null,
           });
         }
       }
@@ -625,18 +729,24 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
    *
    * The pick always becomes the per-provider default so the next new chat
    * inherits it, and — when a session is open — is also recorded against that
-   * session so reopening it later restores this model.
+   * session so reopening it later restores this model. The choice is the pair
+   * `(model, modelProviderId)`: a built-in model is offered once bare and once
+   * per registered provider, so two clicks on the same model can mean different
+   * upstream providers. `modelProviderId` is explicit rather than derived from
+   * the catalog because the row — not the model id — is what was clicked.
    */
   const selectProviderModel = useCallback(async (
     targetProvider: LLMProvider,
     model: string,
     sessionId?: string | null,
+    modelProviderId?: string | null,
   ) => {
-    setStoredProviderModel(targetProvider, model);
+    const normalizedProviderId = readModelProviderId(modelProviderId);
+    setStoredProviderModel(targetProvider, model, normalizedProviderId);
 
     const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
     if (!normalizedSessionId) {
-      return { scope: 'default' as const, model };
+      return { scope: 'default' as const, model, modelProviderId: normalizedProviderId };
     }
 
     // A pending GET represents the state before this click and must not win
@@ -650,6 +760,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       targetProvider,
       normalizedSessionId,
       model,
+      normalizedProviderId,
     );
 
     const body = (await response.json()) as SessionSelectionApiResponse;
@@ -658,6 +769,12 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
 
     const storedModel = body.data?.model?.trim() || model;
+    // The server echoes the binding it recorded; a null answer means the
+    // session's row has not been created yet, where the click is still the
+    // best answer and the first send writes it.
+    const storedProviderId = body.data?.modelProviderId === null
+      ? normalizedProviderId
+      : readModelProviderId(body.data?.modelProviderId) ?? normalizedProviderId;
     if (
       sessionModelMutationIdRef.current === mutationId
       && selectedSessionKeyRef.current === targetSessionKey
@@ -674,9 +791,10 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
         permissionMode: current?.provider === targetProvider && current.sessionId === normalizedSessionId
           ? current.permissionMode
           : readRecordedPermissionMode(body.data?.permissionMode),
+        modelProviderId: storedProviderId,
       }));
     }
-    return { scope: 'session' as const, model: storedModel };
+    return { scope: 'session' as const, model: storedModel, modelProviderId: storedProviderId };
   }, [setStoredProviderModel]);
 
   /**
@@ -711,6 +829,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       model: previousSelection?.model ?? null,
       effort,
       permissionMode: previousSelection?.permissionMode ?? null,
+      modelProviderId: previousSelection?.modelProviderId ?? null,
     });
 
     try {
@@ -740,6 +859,12 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
             && current.sessionId === normalizedSessionId
             ? current.permissionMode
             : previousSelection?.permissionMode ?? null,
+          // Choosing an effort is not an occasion to change the model's
+          // upstream provider, so that half of the identity rides along.
+          modelProviderId: current?.provider === targetProvider
+            && current.sessionId === normalizedSessionId
+            ? current.modelProviderId
+            : previousSelection?.modelProviderId ?? null,
         }));
       }
 
@@ -764,6 +889,15 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   // The open session's model wins over the per-provider default, so switching
   // sessions shows (and sends) what each session actually runs with.
   const currentProviderModel = sessionModel ?? providerModels[provider];
+  // The other half of that identity. The session's recorded binding is the
+  // answer whenever the session itself named a model — including after its
+  // provider was deleted, which is exactly when re-deriving it from the catalog
+  // would lie. A session that has not recorded a model yet falls back to the
+  // per-provider default as a PAIR, so model and provider id never come from
+  // different answers.
+  const currentProviderModelProviderId = sessionModel !== null
+    ? activeSessionSelection?.modelProviderId ?? null
+    : providerModelSelections[provider].modelProviderId;
   const currentProviderEffortOptions = useMemo(() => {
     return getEffortOptionsForModel(provider, currentProviderModel);
   }, [currentProviderModel, getEffortOptionsForModel, provider]);
@@ -842,12 +976,13 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     applyProviderCatalog(targetProvider, result.models);
 
     if (providerModels[targetProvider] === existing.value) {
-      setStoredProviderModel(targetProvider, result.model.value);
+      setStoredProviderModel(targetProvider, result.model.value, result.model.modelProviderId ?? null);
     }
     if (provider === targetProvider && sessionModel === existing.value) {
       setSessionSelection((current) => current ? {
         ...current,
         model: result.model.value,
+        modelProviderId: readModelProviderId(result.model.modelProviderId),
       } : current);
     }
   }, [
@@ -878,6 +1013,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       setSessionSelection((current) => current ? {
         ...current,
         model: result.models.DEFAULT,
+        modelProviderId: null,
       } : current);
     }
   }, [
@@ -904,6 +1040,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     currentProviderEffort,
     currentProviderEffortOptions,
     currentProviderModel,
+    currentProviderModelProviderId,
     currentProviderModelOptions,
     permissionMode,
     pendingPermissionRequests,
