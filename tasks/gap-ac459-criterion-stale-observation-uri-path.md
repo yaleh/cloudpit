@@ -2,7 +2,7 @@
 id: gap-ac459-criterion-stale-observation-uri-path
 title: AC-459 判据 AC4 仍读 observation god-package 拆分前的旧路径：改钉
   core/observation-uri.ts 并保留 R7 不变式
-status: ready
+status: needs-human
 labels:
   - gap
 parent: null
@@ -112,3 +112,15 @@ fan-in-ff-merge:    M scripts/test.sh
 fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
 - run_id：wk-prod-anchor
 - session_id：5ef78394-7ed1-460f-93b7-fbdb04d76153
+
+## Needs-Human
+
+**执行 2026-11-03T19:21:58.877Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+- run_id：wk-prod-anchor
+- session_id：5ef78394-7ed1-460f-93b7-fbdb04d76153
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac459-criterion-stale-observation-uri-path-wk-prod-anchor.log
