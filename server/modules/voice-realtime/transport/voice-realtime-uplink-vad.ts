@@ -342,7 +342,7 @@ function defaultWeightsExist(path: string): boolean {
  * A verdict for a frame no model judged. Always speech — see the file header for why the fail-open
  * direction is the only defensible one here.
  *
- * Exported because the streaming gate (`voice-realtime-uplink-vad-gate.ts`) fabricates the same verdict
+ * Exported because the streaming gate (`frames/voice-realtime-uplink-vad-gate.ts`) fabricates the same verdict
  * when a stream ends inside a window that never ran, and a second literal there could drift from this
  * one — the two must agree on what "unjudged" means for the fail-open reading to hold at both ends.
  */

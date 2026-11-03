@@ -32,8 +32,8 @@ import {
   readUplinkVadBackend,
   type UplinkVadClassifier,
   type UplinkVadFrameVerdict,
-} from '../voice-realtime-uplink-vad.js';
-import { uplinkHeadKeepFrames } from '../voice-realtime-uplink-vad-gate.js';
+} from "../transport/voice-realtime-uplink-vad.js";
+import { uplinkHeadKeepFrames } from "../frames/voice-realtime-uplink-vad-gate.js";
 import {
   UPLINK_VAD_OFF,
   VOICE_REALTIME_UPLINK_VAD_ENV,
@@ -45,16 +45,16 @@ import {
   readUplinkVadState,
   resolveUplinkVad,
   type UplinkVadArmPoint,
-} from '../voice-realtime-uplink-vad-arm-point.js';
+} from "../frames/voice-realtime-uplink-vad-arm-point.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,
   type VoiceRealtimeOutboundFrame,
   type VoiceRealtimeProxySeams,
 } from '../voice-realtime-ws-proxy.service.js';
-import { DEFAULT_TURN_DETECTION, resolveTurnDetection } from '../voice-realtime-turn-detection.js';
-import { resolveVoiceRealtimeMode } from '../voice-realtime-mode.js';
-import { SILENCE_TAIL_ENV, resolveSilenceTail } from '../voice-realtime-silence-tail.js';
+import { DEFAULT_TURN_DETECTION, resolveTurnDetection } from "../transport/voice-realtime-turn-detection.js";
+import { resolveVoiceRealtimeMode } from "../frames/voice-realtime-mode.js";
+import { SILENCE_TAIL_ENV, resolveSilenceTail } from "../transport/voice-realtime-silence-tail.js";
 import type { RealtimeToolExecutor, UpstreamPoolRotation } from '../index.js';
 
 import { createFakeTransport, waitFor, type FakeTransport } from './realtime-bridge-harness.js';
@@ -292,12 +292,24 @@ async function loadFalseForm<T>(form: FalseForm): Promise<T> {
   const source = readFileSync(shipping, 'utf8');
   const occurrences = source.split(form.anchor).length - 1;
   assert.equal(occurrences, 1, `the "${form.label}" false form's anchor is not in ${form.file} exactly once`);
-  const target = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-${process.pid}.ts`);
+  // Beside the shipping module, so the copy's own relative imports keep resolving.
+  const target = path.join(path.dirname(shipping), `__criterion-falsify-${form.label}-${process.pid}.ts`);
   writeFileSync(target, source.replace(form.anchor, form.replacement), 'utf8');
+  // A mutated CONNECTION CHUNK alone would never run: the handler imports the shipping chunk. Copy
+  // the proxy too, retargeting its one import of that chunk at the mutant.
+  const connectionChunk = /^voice-realtime-connection-[a-z]+\.ts$/.test(form.file);
+  const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+  const importAnchor = `} from './${path.basename(shipping, '.ts')}.js';`;
+  const proxyTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-proxy-${process.pid}.ts`);
   try {
-    return (await import(pathToFileURL(target).href)) as T;
+    if (!connectionChunk) return (await import(pathToFileURL(target).href)) as T;
+    const proxySource = readFileSync(proxyShipping, 'utf8');
+    assert.equal(proxySource.split(importAnchor).length - 1, 1, 'the proxy must import the mutated chunk exactly once');
+    writeFileSync(proxyTarget, proxySource.replace(importAnchor, `} from './${path.basename(target, '.ts')}.js';`), 'utf8');
+    return (await import(pathToFileURL(proxyTarget).href)) as T;
   } finally {
     rmSync(target, { force: true });
+    rmSync(proxyTarget, { force: true });
   }
 }
 
@@ -367,7 +379,7 @@ test('AC1 — the assembly point hands the seam over ONLY when the environment a
 
 test('AC1 false form — a default that resolves to a non-off backend turns the identity reading red', async () => {
   const form: FalseForm = {
-    file: 'voice-realtime-uplink-vad-arm-point.ts',
+    file: 'frames/voice-realtime-uplink-vad-arm-point.ts',
     label: 'default-on',
     anchor: [
       "  if (value === '' || value === UPLINK_VAD_OFF) {",
@@ -533,7 +545,7 @@ test('AC3 — the same corpus with an unavailable backend forwards everything (t
 
 test('AC3 false form — a catch that consumes the error without a flush LOSES the frame, so the reading goes red', async () => {
   const form: FalseForm = {
-    file: 'voice-realtime-ws-proxy.service.ts',
+    file: 'voice-realtime-connection-transport.ts',
     label: 'lost-failing-frame',
     anchor: ['        try {', '          const tail = await gate.flush();'].join('\n'),
     replacement: ['        try {', '          const tail = { frames: [] as string[], sent: 0, headKept: 0, dropped: 0, bypassed: 0, preRoll: 0 };'].join(
@@ -602,12 +614,12 @@ test('AC4 — a closing connection logs ONE line with sent/headKept/dropped/bypa
 
 test('AC4 false form — deleting the summary line leaves the connection with no reading, so it goes red', async () => {
   const form: FalseForm = {
-    file: 'voice-realtime-ws-proxy.service.ts',
+    file: 'voice-realtime-connection-transport.ts',
     label: 'no-summary-line',
-    anchor: ['    if (uplinkVad !== null) {', '      const stats = uplinkVadStats ?? { sent: 0, headKept: 0, heldOpen: 0, dropped: 0, bypassed: 0, preRoll: 0 };'].join(
+    anchor: ['    if (this.uplinkVad !== null) {', '      const stats = this.uplinkVadStats ?? { sent: 0, headKept: 0, heldOpen: 0, dropped: 0, bypassed: 0, preRoll: 0 };'].join(
       '\n',
     ),
-    replacement: ['    if (false) {', '      const stats = uplinkVadStats ?? { sent: 0, headKept: 0, heldOpen: 0, dropped: 0, bypassed: 0, preRoll: 0 };'].join('\n'),
+    replacement: ['    if (false) {', '      const stats = this.uplinkVadStats ?? { sent: 0, headKept: 0, heldOpen: 0, dropped: 0, bypassed: 0, preRoll: 0 };'].join('\n'),
     why: 'the per-connection summary was deleted, so a closing connection reports nothing',
   };
   const mutated = await loadFalseForm<ProxyModule>(form);
@@ -705,7 +717,7 @@ test('AC6 — each backend name resolves on, and a mis-spelling falls back to `o
 
 test('AC6 false form — dropping the `invalid` report turns a typo into a silent OFF, so it goes red', async () => {
   const form: FalseForm = {
-    file: 'voice-realtime-uplink-vad-arm-point.ts',
+    file: 'frames/voice-realtime-uplink-vad-arm-point.ts',
     label: 'typo-silent',
     anchor: '  return { enabled: false, backend: null, weightsPath, invalid: raw as string };',
     replacement: '  return { enabled: false, backend: null, weightsPath, invalid: null };',
@@ -890,7 +902,7 @@ test('AC9 — the real WebRTC backend reaches ready and judges frames over a con
 test('the arm point lives in its OWN file: the pure classifier still names no production seam', () => {
   // The classifier’s criterion greps it for allocation primitives and for the proxy; this file must not
   // reintroduce either, which is why the arm point is a sibling rather than an addition to it.
-  const pure = readFileSync(path.join(MODULE_DIR, 'voice-realtime-uplink-vad.ts'), 'utf8');
+  const pure = readFileSync(path.join(MODULE_DIR, 'transport/voice-realtime-uplink-vad.ts'), 'utf8');
   assert.equal(pure.split('voice-realtime-ws-proxy').length - 1, 0, 'the classifier must not name the proxy');
   assert.equal(
     (pure.match(/Buffer\.(alloc|allocUnsafe|concat|from)\(/g) ?? []).length,

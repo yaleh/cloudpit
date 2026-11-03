@@ -24,7 +24,7 @@
 
 import { createRequire } from 'node:module';
 
-import { errorMessage } from '@/shared/utils.js';
+import { errorMessage } from "../../shared/utils.js";
 
 import {
   createSessionAttractor,
@@ -32,23 +32,23 @@ import {
   rejectSpeakerEmbedding,
   speakerCosine,
   type SessionAttractor,
-} from './voice-speaker-attractor.js';
+} from "./transport/voice-speaker-attractor.js";
 import {
   createSpeakerBank,
   observeSpeakerBank,
   type SpeakerBank,
-} from './voice-speaker-bank.js';
+} from "./frames/voice-speaker-bank.js";
 import {
   decideSpeakerTracking,
   selectSpeakerSample,
   type SpeakerSampleSelection,
   type SpeakerTrackingDecision,
   type SpeakerWindowReading,
-} from './voice-speaker-selector.js';
+} from "./transport/voice-speaker-selector.js";
 import {
   SPEAKER_TRACKING_THRESHOLDS,
   type SpeakerTrackingThresholds,
-} from './voice-speaker-tracking-arm.js';
+} from "./transport/voice-speaker-tracking-arm.js";
 
 // ── the analysis window ──────────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ export const SPEAKER_WINDOW_MS = 2_000;
 export const SPEAKER_SPEECH_SUBFRAME_MS = 20;
 /**
  * The RMS floor for a 20 ms subframe to count as voiced, on the SAME PCM16 scale and with the same
- * absolute value as `voice-realtime-local-speech.ts`'s `LOCAL_SPEECH_RMS_THRESHOLD`: the 2026-10-12
+ * absolute value as `transport/voice-realtime-local-speech.ts`'s `LOCAL_SPEECH_RMS_THRESHOLD`: the 2026-10-12
  * measurement put silence at 1–26 and speech at 400–640. It is a coarse QUALITY gate for the selector
  * (is this window mostly speech?) — not a VAD, and never consulted by anything that forwards audio.
  */

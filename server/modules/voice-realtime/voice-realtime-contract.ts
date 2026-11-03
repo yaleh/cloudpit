@@ -19,20 +19,20 @@
  * (`index.ts`). The browser side mirrors these shapes in
  * `src/modules/chat-voice/voice-realtime/useVoiceRealtimeSession.ts`.
  */
-import type { VoiceRealtimeAudioCapture } from './voice-realtime-audio-capture.js';
+import type { VoiceRealtimeAudioCapture } from "./transport/voice-realtime-audio-capture.js";
 import type {
   RealtimeBridgeState,
   RealtimeSegmentCommitMode,
   RealtimeSegmentEndReason,
   RealtimeToolExecutor,
   RealtimeTransport,
-} from './voice-realtime-bridge.service.js';
-import type { VoiceRealtimeClosingTurn } from './voice-realtime-closing-turn.js';
+} from "./frames/voice-realtime-bridge.service.js";
+import type { VoiceRealtimeClosingTurn } from "./frames/voice-realtime-closing-turn.js";
 import type { VoiceRealtimeFrameRegistry } from './voice-realtime-frame-registry.js';
-import type { VoiceRealtimeTransport } from './voice-realtime-mode.js';
-import type { OmissionFillParams } from './voice-realtime-omission-fill.js';
+import type { VoiceRealtimeTransport } from "./frames/voice-realtime-mode.js";
+import type { OmissionFillParams } from "./frames/voice-realtime-omission-fill.js";
 import type { VoiceRealtimeSettings } from './voice-realtime-settings.js';
-import type { SilenceTailOptions } from './voice-realtime-silence-tail.js';
+import type { SilenceTailOptions } from "./transport/voice-realtime-silence-tail.js";
 import type { VoiceSpeakerTrackerSeam } from './voice-realtime-speaker-seam.js';
 import type {
   VoiceRealtimeTtsFrame,
@@ -40,8 +40,8 @@ import type {
   VoiceRealtimeTtsResult,
 } from './voice-realtime-tts.js';
 import type { VoiceRealtimeTrunkStepRegistry } from './voice-realtime-trunk-steps.js';
-import type { TurnDetectionValues } from './voice-realtime-turn-detection.js';
-import type { UplinkVadClassifier } from './voice-realtime-uplink-vad.js';
+import type { TurnDetectionValues } from "./transport/voice-realtime-turn-detection.js";
+import type { UplinkVadClassifier } from "./transport/voice-realtime-uplink-vad.js";
 import type { UpstreamPoolRotation } from './voice-realtime-upstream-pool.js';
 
 //----------------- the relay queue's byte bound ------------
@@ -659,7 +659,7 @@ export type VoiceRealtimeNarratorSeams = {
    */
   interruptOnUserSpeech?: boolean;
   /**
-   * Whether a LOCAL speech boundary (`voice-realtime-local-speech.ts`) may also stop the narrator.
+   * Whether a LOCAL speech boundary (`transport/voice-realtime-local-speech.ts`) may also stop the narrator.
    *
    * OMITTED MEANS NO — and no is the shipped rule since the 2026-10-19 live capture: the local gate
    * is deliberately coarse (its own header: "not a VAD and must not become one"), and on that
@@ -694,7 +694,7 @@ export type VoiceRealtimeNarratorSeams = {
  * exists, `uplinkVad === undefined` is the shipped state, and the criterion is what fires it.
  *
  * THE CLASSIFIER BELONGS TO THE CONNECTION. All three backends carry per-stream state (see
- * `voice-realtime-uplink-vad.ts`), so a caller builds a FRESH classifier per connection and hands it
+ * `transport/voice-realtime-uplink-vad.ts`), so a caller builds a FRESH classifier per connection and hands it
  * over here; the connection then owns it and releases it at teardown. A classifier shared between two
  * connections would attribute one stream's verdicts to the other's audio.
  */
@@ -705,7 +705,7 @@ export type UplinkVadSeam = {
    * The RESOLVED `turn_detection.silence_duration_ms` the head-keep window `a` derives from.
    *
    * OMITTED MEANS "READ THE ENVIRONMENT" — the proxy then resolves it through
-   * `voice-realtime-turn-detection.ts`, the single source, exactly as the transport's own default is
+   * `transport/voice-realtime-turn-detection.ts`, the single source, exactly as the transport's own default is
    * resolved. A caller that already holds the resolved value (the diagnosis route's per-run override)
    * passes it so the window follows THAT, not the deployment default.
    */
@@ -982,7 +982,7 @@ export type VoiceRealtimeProxySeams = {
    */
   transport?: VoiceRealtimeTransport;
   /**
-   * THIS connection's uplink audio capture, or absent (see `voice-realtime-audio-capture.ts`).
+   * THIS connection's uplink audio capture, or absent (see `transport/voice-realtime-audio-capture.ts`).
    *
    * A SIDE CHANNEL, never a replacement: the proxy tells it what crossed the wire and it decides what
    * lands on disk. Every call below is `?.`-guarded and the recorder behind the seam is fail-open, so a

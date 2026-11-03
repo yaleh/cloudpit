@@ -51,7 +51,7 @@ import {
   type RealtimeToolExecutor,
 } from '../index.js';
 import { summarizeWireObservation } from '../voice-realtime-diagnose.service.js';
-import { VOICE_REALTIME_MODE_ENV, resolveVoiceRealtimeMode } from '../voice-realtime-mode.js';
+import { VOICE_REALTIME_MODE_ENV, resolveVoiceRealtimeMode } from "../frames/voice-realtime-mode.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,

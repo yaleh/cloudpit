@@ -15,7 +15,7 @@ import test from 'node:test';
 import { WebSocket as WS } from 'ws';
 
 import { connect, createDashscopeTransport, type RealtimeToolExecutor } from '../index.js';
-import { VOICE_REALTIME_TOOLS } from '../voice-realtime-tools.js';
+import { VOICE_REALTIME_TOOLS } from "../frames/voice-realtime-tools.js";
 import {
   handleVoiceRealtimeConnection,
   VOICE_REALTIME_INSTRUCTIONS,

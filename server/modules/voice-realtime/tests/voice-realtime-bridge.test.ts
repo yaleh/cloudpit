@@ -64,7 +64,7 @@ import {
   type VoiceRealtimeLogEntry,
   type VoiceRealtimeLogStore,
 } from '../voice-realtime-log.js';
-import { VOICE_ONLY_TOOLS, VOICE_REALTIME_TOOLS } from '../voice-realtime-tools.js';
+import { VOICE_ONLY_TOOLS, VOICE_REALTIME_TOOLS } from "../frames/voice-realtime-tools.js";
 
 /** The six tool names, in the order the descriptors declare them. */
 const TOOL_NAMES = REALTIME_TOOLS.map((tool) => tool.name);
@@ -688,7 +688,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** This module's directory — where a mutant copy must sit so its relative imports resolve. */
 const MODULE_DIR = path.resolve(HERE, '..');
 /** The shipping bridge: what the mutation copies. */
-const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'voice-realtime-bridge.service.ts');
+const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'frames/voice-realtime-bridge.service.ts');
 /** The shipping proxy: what the import retarget copies. */
 const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
@@ -701,7 +701,7 @@ const HOLD_ANCHOR = '          holdMalformed(fault);';
 /** The same statement with the hold removed — report on arrival, exactly the pre-task behaviour. */
 const IMMEDIATE_MUTANT = '          emitError(fault);';
 /** The proxy's single import of the bridge: retargeted so the mutant proxy drives the mutant bridge. */
-const BRIDGE_IMPORT_ANCHOR = "} from './voice-realtime-bridge.service.js';";
+const BRIDGE_IMPORT_ANCHOR = "} from \"./frames/voice-realtime-bridge.service.js\";";
 
 /** Rewrites ONE anchor in the shipping source, refusing to proceed unless it occurs exactly once. */
 function mutate(source: string, anchor: string, replacement: string): string {
@@ -720,7 +720,7 @@ test('AC4 false form: reporting a truncated call on arrival puts the MALFORMED_F
   const bridgeSource = readFileSync(SHIPPING_BRIDGE_MODULE, 'utf8');
   const mutatedBridge = mutate(bridgeSource, HOLD_ANCHOR, IMMEDIATE_MUTANT);
 
-  const bridgeCopyPath = ownCopy('bridge-hold');
+  const bridgeCopyPath = path.join(path.dirname(SHIPPING_BRIDGE_MODULE), `${TEMP_PREFIX}bridge-hold-${process.pid}.ts`);
   const proxyCopyPath = ownCopy('proxy-immediate');
   // The mutant proxy imports the mutant bridge BY NAME: the shipping proxy hard-codes the shipping
   // module's specifier, so a copy of the bridge alone would never be the one the proxy runs.
@@ -728,7 +728,7 @@ test('AC4 false form: reporting a truncated call on arrival puts the MALFORMED_F
   const mutatedProxy = mutate(
     proxySource,
     BRIDGE_IMPORT_ANCHOR,
-    `} from './${path.basename(bridgeCopyPath, '.ts')}.js';`,
+    `} from './frames/${path.basename(bridgeCopyPath, '.ts')}.js';`,
   );
 
   try {

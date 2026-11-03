@@ -4,7 +4,7 @@
  * TWO SURFACES, ONE BARREL. This module offers a lean half and a runtime half:
  *
  *  - the LEAN half — the Realtime bridge, the six mirrored tool descriptors and
- *    the DashScope transport. `voice-realtime-bridge.service.ts` reaches no
+ *    the DashScope transport. `frames/voice-realtime-bridge.service.ts` reaches no
  *    module at runtime, so the bridge itself stays an offline-provable leaf.
  *  - the RUNTIME half — {@link createVoiceRealtimeLiveExecutor}, which by design
  *    imports the MCP gateway's barrel (and, through it, the services a real send
@@ -21,12 +21,12 @@
  * descriptors through `REALTIME_TOOLS` and drive the executor over fake
  * services.
  */
-import { registerVoiceRule } from '@shared/voice/voiceSettingsRegistry.js';
+import { registerVoiceRule } from "@shared/voice/voiceSettingsRegistry.js";
 
-import { installVoiceRulesPort } from '@/shared/ports/voice-rules.port.js';
+import { installVoiceRulesPort } from "../../shared/ports/voice-rules.port.js";
 
-import { isVoiceSessionActive } from './voice-realtime-active.js';
-import { VOICE_MODE_RULE_REGISTRATIONS, rulesFor } from './voice-mode-rules.js';
+import { isVoiceSessionActive } from "./frames/voice-realtime-active.js";
+import { VOICE_MODE_RULE_REGISTRATIONS, rulesFor } from "./frames/voice-mode-rules.js";
 
 // THE RULES ARE REGISTERED WHERE THE MODULE IS ASSEMBLED, not as a side effect of importing the
 // table that declares them. This barrel is the one assembly point every consumer already enters,
@@ -100,7 +100,7 @@ export {
   // `tasks/gap-live-voice-caption-segment-attribution-by-item-id.md`.
   type RealtimeCommitRejected,
   type RealtimeUserAudioCommitted,
-} from './voice-realtime-bridge.service.js';
+} from "./frames/voice-realtime-bridge.service.js";
 export {
   REALTIME_TOOLS,
   REALTIME_TOOLS_BY_NAME,
@@ -113,7 +113,7 @@ export {
   type SchemaFieldMismatch,
   type SchemaFieldMismatchKind,
   type ToolSchemaSection,
-} from './voice-realtime-tools.js';
+} from "./frames/voice-realtime-tools.js";
 export {
   VoiceRealtimeSessionRefusalError,
   createVoiceRealtimeLiveExecutor,
@@ -164,7 +164,7 @@ export {
   type SilenceTailResolution,
   type SilenceTailStage,
   type SilenceTailTransition,
-} from './voice-realtime-silence-tail.js';
+} from "./transport/voice-realtime-silence-tail.js";
 export {
   VOICE_REALTIME_CALLER_SCOPES,
   VOICE_REALTIME_INSTRUCTIONS,
@@ -192,11 +192,11 @@ export {
   clearVoiceSessionActive,
   isVoiceSessionActive,
   markVoiceSessionActive,
-} from './voice-realtime-active.js';
+} from "./frames/voice-realtime-active.js";
 // The dispatch rules text itself, so the launch can inject it without a second copy: the resident
 // launch's `UserPromptSubmit` callback returns `rulesFor(...)`, and the criterion pins that injected
 // text against `VOICE_MODE_RULES` (the byte-for-byte migration of `hooks/voice-mode-context.mjs`).
-export { VOICE_MODE_RULES, rulesFor } from './voice-mode-rules.js';
+export { VOICE_MODE_RULES, rulesFor } from "./frames/voice-mode-rules.js";
 // The uplink VAD's production arm point (scheme §5): the environment switch that turns the continuous
 // wire's per-frame speech gate on (OFF unless a deployment names a backend), and the connection-level
 // state machine the proxy reads per frame. Consumed by `server/index.ts`, which resolves the switch once
@@ -216,7 +216,7 @@ export {
   type UplinkVadArmPointOptions,
   type UplinkVadArmResolution,
   type UplinkVadConnectionState,
-} from './voice-realtime-uplink-vad-arm-point.js';
+} from "./frames/voice-realtime-uplink-vad-arm-point.js";
 // THE SPEAKER TRACKING ARM (Phase 1, shadow): the settings-file block (`speakerTracking`) that
 // decides whether this deployment observes speakers at all, the calibrated thresholds it observes
 // at, the environment escape hatch that overrides mode/model path, the CAM++ model and the
@@ -242,7 +242,7 @@ export {
   type SpeakerTrackingThresholdSettings,
   type SpeakerTrackingThresholds,
   type SpeakerTrackingValueSource,
-} from './voice-speaker-tracking-arm.js';
+} from "./transport/voice-speaker-tracking-arm.js";
 export {
   SpeakerTrackerRegistry,
   createSpeakerTrackerModel,
@@ -270,7 +270,7 @@ export {
   type VoiceSpeakerModelService,
   type VoiceSpeakerModelState,
   type VoiceSpeakerModelStatus,
-} from './voice-realtime-speaker-model.js';
+} from "./frames/voice-realtime-speaker-model.js";
 // The P4 rollout switch (GOAL-034 / AC-322): which relay a deployment offers a browser, resolved as a
 // pure function of the environment. `server/index.ts` calls it at the assembly point; the ws proxy
 // calls it when a caller passes no `segmentedRelay` seam; the criterion reads the default from it.
@@ -286,7 +286,7 @@ export {
   type VoiceRealtimeMode,
   type VoiceRealtimeModeResolution,
   type VoiceRealtimeTransport,
-} from './voice-realtime-mode.js';
+} from "./frames/voice-realtime-mode.js";
 // The closing turn and the slim `session_send`: two independent deployment switches, resolved as pure
 // functions of the environment. `server/index.ts` calls them at the assembly point and hands the result
 // to the prompt, the proxy seams and the transport's declared intent (`respondToToolOutputs`; the
@@ -304,7 +304,7 @@ export {
   type VoiceRealtimeClosingTurn,
   type VoiceRealtimeClosingTurnResolution,
   type VoiceRealtimeSlimSendToolResolution,
-} from './voice-realtime-closing-turn.js';
+} from "./frames/voice-realtime-closing-turn.js";
 // The narrator layer's assembly: the per-connection queue the announce closing turn and the run-end
 // summary speak through, plus the stand-in producer a criterion can name. `server/index.ts` builds one
 // wiring per connection at the assembly point; `null` keeps the pre-narrator wire byte-for-byte.
@@ -345,7 +345,7 @@ export {
   type SpendGuardFileValues,
   type SpendWindowLimitResolution,
   type SpendWindowLimitSource,
-} from './voice-realtime-spend-guard.js';
+} from "./voice-realtime-spend-guard.js";
 // The HTTP-layer Live Voice diagnosis (an audio file through the same proxy a microphone
 // uses). `server/index.ts` mounts the router and reuses `summarizeWireObservation` for the
 // always-on upstream log; the criterion drives `runVoiceRealtimeDiagnosis` directly.
@@ -398,7 +398,7 @@ export {
   type TurnDetectionOverride,
   type TurnDetectionResolution,
   type TurnDetectionType,
-} from './voice-realtime-turn-detection.js';
+} from "./transport/voice-realtime-turn-detection.js";
 // The uplink audio capture (one WAV per browser connection, beside the endpoint's judgement timeline
 // on the same clock). `server/index.ts` resolves the directory and the switch at the assembly point,
 // builds one recorder per connection from the SAME id the journal used, and wires its `frame`/
@@ -426,7 +426,7 @@ export {
   type VoiceRealtimeCaptureRecorder,
   type VoiceRealtimeCaptureStore,
   type VoiceRealtimeCaptureStoreOptions,
-} from './voice-realtime-audio-capture.js';
+} from "./transport/voice-realtime-audio-capture.js";
 export { createVoiceRealtimeRouter, type VoiceRealtimeRoutesDeps } from './voice-realtime.routes.js';
 // The Live Voice TTS leaf (GOAL-047 / AC-405, wired by AC-408). The composition root builds its
 // options (credential, voice, endpoint override) and hands `streamVoiceRealtimeSpeech` to the
@@ -468,7 +468,7 @@ export {
   pickAnnouncePhraseFrom,
   resolveAnnouncePhrases,
   type AnnouncePhraseResolution,
-} from './voice-realtime-announce-phrases.js';
+} from "./voice-realtime-announce-phrases.js";
 // The settings file's loader. `server/index.ts` reads it ONCE per connection at assembly: the TTS
 // cache warms the same `announcePhrases` table the proxy's announce gate speaks, and the run-end
 // `summaryModel` / `runEndAck` keys are read from that same reading (environment > file > default,
@@ -505,4 +505,4 @@ export {
   type OmissionFillPlan,
   type OmissionFillSkip,
   type OmissionFillSkipReason,
-} from './voice-realtime-omission-fill.js';
+} from "./frames/voice-realtime-omission-fill.js";

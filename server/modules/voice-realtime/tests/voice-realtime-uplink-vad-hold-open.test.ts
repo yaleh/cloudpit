@@ -16,21 +16,21 @@ import {
   UPLINK_VAD_FRAME_BYTES,
   type UplinkVadClassifier,
   type UplinkVadFrameVerdict,
-} from '../voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 import {
   UPLINK_VAD_FRAME_MS,
   UPLINK_VAD_HOLD_OPEN_MAX_MS,
   createUplinkVadGate,
   uplinkHeadKeepFrames,
   type UplinkVadGate,
-} from '../voice-realtime-uplink-vad-gate.js';
+} from "../frames/voice-realtime-uplink-vad-gate.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,
   type VoiceRealtimeOutboundFrame,
   type VoiceRealtimeProxySeams,
 } from '../voice-realtime-ws-proxy.service.js';
-import { DEFAULT_TURN_DETECTION } from '../voice-realtime-turn-detection.js';
+import { DEFAULT_TURN_DETECTION } from "../transport/voice-realtime-turn-detection.js";
 import type { RealtimeToolExecutor } from '../index.js';
 
 import { createFakeTransport, waitFor, type FakeTransport } from './realtime-bridge-harness.js';

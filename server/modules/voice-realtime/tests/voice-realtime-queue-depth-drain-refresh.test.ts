@@ -40,10 +40,10 @@ import test from 'node:test';
 
 import { WebSocket as WS } from 'ws';
 
-import type { IProvider } from '@/shared/interfaces.js';
-import type { HostPendingQueuedInputs, LLMProvider, ProcessHost } from '@/shared/types.js';
-import { createProviderRuntimeService } from '@/modules/providers/index.js';
-import type { SessionHostManager } from '@/modules/session-hosts/index.js';
+import type { IProvider } from "../../../shared/interfaces.js";
+import type { HostPendingQueuedInputs, LLMProvider, ProcessHost } from "../../../shared/types.js";
+import { createProviderRuntimeService } from "../../providers/index.js";
+import type { SessionHostManager } from "../../session-hosts/index.js";
 
 import {
   createVoiceRealtimeLiveExecutor,

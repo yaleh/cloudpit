@@ -1,7 +1,7 @@
 /**
  * Uplink VAD, node side — the grid contract, three backends on a known input, and the bypass reading.
  *
- * WHAT THIS FILE PINS. `voice-realtime-uplink-vad.ts` is the relay's speech / non-speech layer: three
+ * WHAT THIS FILE PINS. `transport/voice-realtime-uplink-vad.ts` is the relay's speech / non-speech layer: three
  * interchangeable engines behind ONE frame contract, plus an honest reading for an engine that cannot
  * run. A VAD has two failure modes it is not allowed to have, and each gets its own group below rather
  * than a sentence in a comment: a frame that is not on the grid must be REFUSED rather than
@@ -58,13 +58,13 @@ import {
   type UplinkVadBackendId,
   type UplinkVadClassifierOptions,
   type UplinkVadFrameVerdict,
-} from '../voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 
 // ── fixtures ─────────────────────────────────────────────────────────────────────────────────────
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The module under audit, as a PATH, because AC5 and AC7 read it with a grep and not from a claim. */
-const MODULE_FILE = path.join(HERE, '..', 'voice-realtime-uplink-vad.ts');
+const MODULE_FILE = path.join(HERE, '..', 'transport/voice-realtime-uplink-vad.ts');
 
 const ENGINES_DIR = process.env.VOICE_VAD_ENGINES_DIR ?? '/data/home/yale/work/voice-vad-engines';
 const CORPUS_PATH =

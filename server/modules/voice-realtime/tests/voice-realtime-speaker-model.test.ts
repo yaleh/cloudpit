@@ -39,7 +39,7 @@ import {
   type VoiceSpeakerModelDownloadResult,
   type VoiceSpeakerModelService,
   type VoiceSpeakerModelStatus,
-} from '../voice-realtime-speaker-model.js';
+} from "../frames/voice-realtime-speaker-model.js";
 import { createVoiceRealtimeRouter } from '../voice-realtime.routes.js';
 
 /** The bytes every case downloads: small enough to be a fixture, real enough to hash. */

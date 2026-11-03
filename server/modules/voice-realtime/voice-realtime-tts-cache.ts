@@ -2,7 +2,7 @@
  * The per-connection TTS cache for the narrator's FIXED announce sentences.
  *
  * WHY THIS EXISTS. The announce closing turn speaks one of a handful of short, known sentences
- * (`voice-realtime-announce-phrases.ts`). Synthesizing each one when it is first needed pays a
+ * (`frames/voice-realtime-announce-phrases.ts`). Synthesizing each one when it is first needed pays a
  * network round trip and a service queue wait on every announcement (0.66–3.53 s on the
  * 2026-10-19 live capture). This cache pre-synthesizes the whole table as soon as a connection's
  * TTS credential is known ({@link VoiceRealtimeTtsCache.warm}) and replays the audio bytes when the

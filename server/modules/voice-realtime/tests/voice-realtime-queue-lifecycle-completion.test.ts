@@ -50,16 +50,16 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import { ClaudeSessionsProvider, forwardNormalizedFrames } from '@/modules/providers/index.js';
+import { closeConnection, initializeDatabase, sessionsDb } from "../../database/index.js";
+import { ClaudeSessionsProvider, forwardNormalizedFrames } from "../../providers/index.js";
 import {
   WS_OPEN_STATE,
   chatRunRegistry,
   createChatControlService,
   createChatRunRegistry,
-} from '@/modules/websocket/index.js';
-import type { ProviderRuntimeGateway } from '@/modules/websocket/index.js';
-import type { AnyRecord, LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
+} from "../../websocket/index.js";
+import type { ProviderRuntimeGateway } from "../../websocket/index.js";
+import type { AnyRecord, LLMProvider, RealtimeClientConnection } from "../../../shared/types.js";
 
 const SESSION_ID = 'voice-queue-lifecycle-session';
 const PROVIDER = 'claude';

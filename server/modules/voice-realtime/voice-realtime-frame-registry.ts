@@ -38,11 +38,11 @@
  * `voice-realtime-frame-handlers.ts` (the registration half) and
  * `tests/voice-realtime-frame-registry.test.ts` (the criterion).
  */
-import type { RealtimeBridge } from './voice-realtime-bridge.service.js';
-import type { LocalSpeechBoundary, LocalSpeechGate } from './voice-realtime-local-speech.js';
-import type { SilenceTailGate, SilenceTailOptions } from './voice-realtime-silence-tail.js';
+import type { RealtimeBridge } from "./frames/voice-realtime-bridge.service.js";
+import type { LocalSpeechBoundary, LocalSpeechGate } from "./transport/voice-realtime-local-speech.js";
+import type { SilenceTailGate, SilenceTailOptions } from "./transport/voice-realtime-silence-tail.js";
 import type { SpeakerWindowAccumulator } from './voice-realtime-speaker-seam.js';
-import type { UplinkVadGate } from './voice-realtime-uplink-vad-gate.js';
+import type { UplinkVadGate } from "./frames/voice-realtime-uplink-vad-gate.js";
 import type {
   VoiceRealtimeInboundFrame,
   VoiceRealtimeNarratorQueue,

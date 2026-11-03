@@ -36,10 +36,10 @@ import test from 'node:test';
 // a TDZ (`Cannot access 'dashscopeOmniId' before initialization`). The barrel below pulls the same
 // pair through the transport, but the explicit side-effect import makes this file's order correct
 // on its own — the same discipline `server/modules/voice/tests/voice-dashscope-usage.test.ts` uses.
-import '../../../../shared/asr/asrRegistry.js';
+import "@shared/asr/asrRegistry.js";
 // The endpoint rule module's SINGLE source for the address this service is reached at (AC-140). The
 // transport composes `DASHSCOPE_REALTIME_ENDPOINT` from this export rather than typing the host.
-import { PUBLIC_HOSTNAME as DASHSCOPE_PUBLIC_HOSTNAME } from '../../../../shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js';
+import { PUBLIC_HOSTNAME as DASHSCOPE_PUBLIC_HOSTNAME } from "@shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js";
 import {
   argumentSchemaViolation,
   connect,

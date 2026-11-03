@@ -43,10 +43,10 @@
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { defaultAuthDatabasePath } from '@/shared/data-root.js';
-import { directoryBytes } from '@/shared/fs-bytes.js';
+import { defaultAuthDatabasePath } from "../../shared/data-root.js";
+import { directoryBytes } from "../../shared/fs-bytes.js";
 
-import type { RealtimeSegmentForensics } from './voice-realtime-bridge.service.js';
+import type { RealtimeSegmentForensics } from "./frames/voice-realtime-bridge.service.js";
 import { estimateRealtimeCostCny } from './voice-realtime-dashscope-transport.js';
 import { summarizeWireObservation } from './voice-realtime-diagnose.service.js';
 

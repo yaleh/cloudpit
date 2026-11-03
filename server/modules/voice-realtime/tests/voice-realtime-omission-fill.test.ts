@@ -1,7 +1,7 @@
 /**
  * The omission-fill planner (rule v2) — the table-driven rule cases and the Python-parity corpus.
  *
- * WHAT THIS FILE PINS. `voice-realtime-omission-fill.ts` is a port of
+ * WHAT THIS FILE PINS. `frames/voice-realtime-omission-fill.ts` is a port of
  * `experiments/voice-relay-qb/replay_rule.py`'s `_plan_R2`, so it has two ways to be wrong: it can get
  * a rule branch wrong on its own, and it can DRIFT from the reference implementation the rule was
  * measured with. The file therefore has two groups, and each exists for one of those failures:

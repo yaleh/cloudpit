@@ -1,7 +1,7 @@
 /**
  * Silence Tail Suppression (STS) — the continuous wire's upload state machine, read end to end.
  *
- * WHAT THIS FILE PINS. `voice-realtime-silence-tail.ts` decides, per browser frame, whether the frame
+ * WHAT THIS FILE PINS. `transport/voice-realtime-silence-tail.ts` decides, per browser frame, whether the frame
  * crosses the wire; `voice-realtime-ws-proxy.service.ts` hands it the continuous wire's frames and
  * forwards whatever it returns. The decision is a TRADE — audio that does not cross costs nothing and
  * can never be recovered — so every leg below is written against the one thing that must never happen
@@ -10,7 +10,7 @@
  *
  * THE CORPUS. One PCM16 square-wave generator serves every arm: a square wave's RMS and its peak are
  * both its amplitude, so a single number says what each detector gates on — the gate reads RMS
- * (`voice-realtime-silence-tail.ts`), the scripted endpoint reads peak
+ * (`transport/voice-realtime-silence-tail.ts`), the scripted endpoint reads peak
  * (`voice-realtime-scripted-upstream.ts`), and the proxy's local speech gate reads RMS against its own
  * measured 250 threshold. Room tone is RMS 12, the corpus's speech RMS 500, and one AC3 arm adds RMS 90
  * speech — quiet, but above the loudest threshold this module can ever hold: the clamp's ceiling is
@@ -56,7 +56,7 @@ import {
   type SilenceTailDecision,
   type SilenceTailGate,
   type SilenceTailOptions,
-} from '../voice-realtime-silence-tail.js';
+} from "../transport/voice-realtime-silence-tail.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,
@@ -284,9 +284,9 @@ function assertS2Coverage(run: Run, frames: readonly CorpusFrame[], options: { p
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULE_DIR = path.resolve(HERE, '..');
-const SHIPPING_SOURCE = path.join(MODULE_DIR, 'voice-realtime-silence-tail.ts');
+const SHIPPING_SOURCE = path.join(MODULE_DIR, 'transport/voice-realtime-silence-tail.ts');
 
-type StsModule = typeof import('../voice-realtime-silence-tail.js');
+type StsModule = typeof import("../transport/voice-realtime-silence-tail.js");
 
 /**
  * One false form: a textual mutation of the shipping source, and the plausible implementation it stands

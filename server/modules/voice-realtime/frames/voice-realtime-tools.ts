@@ -21,7 +21,7 @@
  * a drift on either side is a red, and the AC-2 false form proves that
  * comparison names the field it caught.
  *
- * Consumers: `voice-realtime-bridge.service.ts` (the descriptors are advertised
+ * Consumers: `frames/voice-realtime-bridge.service.ts` (the descriptors are advertised
  * in `session.update`), and `tests/voice-realtime-bridge.test.ts` (the AC-2
  * comparison against the captured gateway registrations).
  */

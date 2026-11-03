@@ -26,7 +26,7 @@ import {
   createVoiceRealtimeCaptureRecorder,
   createVoiceRealtimeCaptureStore,
   type VoiceRealtimeCaptureEvent,
-} from '../voice-realtime-audio-capture.js';
+} from "../transport/voice-realtime-audio-capture.js";
 import { handleVoiceRealtimeConnection, VOICE_REALTIME_INSTRUCTIONS, type VoiceRealtimeOutboundFrame } from '../voice-realtime-ws-proxy.service.js';
 
 import { waitFor } from './realtime-bridge-harness.js';

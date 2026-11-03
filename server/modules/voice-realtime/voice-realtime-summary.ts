@@ -28,7 +28,7 @@
  * "there is nothing to say" is the correct and unremarkable answer.
  */
 
-import { completeLlm, credentialFromKey, openaiProtocol } from '@/modules/llm-gateway/index.js';
+import { completeLlm, credentialFromKey, openaiProtocol } from "../llm-gateway/index.js";
 
 // The service's address has ONE shipping source: the endpoint rule module. AC-140's
 // `endpoint-rule.single-implementation` reading scans `src/`, `shared/` and `server/` for a second

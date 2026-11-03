@@ -156,7 +156,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** This test module's directory — where a mutant copy must sit so its relative imports resolve. */
 const MODULE_DIR = path.resolve(HERE, '..');
 /** The shipping proxy: what the AC2 mutation copies. */
-const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-connection-transport.ts');
 
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';
@@ -164,7 +164,7 @@ const TEMP_PREFIX = '__criterion-falsify-';
 const ownCopy = (label: string): string => path.join(MODULE_DIR, `${TEMP_PREFIX}${label}-${process.pid}.ts`);
 
 /** The disposition's one send — the line whose removal returns the reply to the old silent `return`. */
-const DISPOSITION_SEND = "send({ type: 'heard_not_forwarded' });";
+const DISPOSITION_SEND = "this.send({ type: 'heard_not_forwarded' });";
 
 /** Imports a proxy module by path. The specifier is dynamic, so TS types it structurally here. */
 async function importProxy(modulePath: string): Promise<{ handleVoiceRealtimeConnection: HandleConnection }> {
@@ -189,8 +189,24 @@ test('AC2 false form: removing the disposition send returns MODEL_TEXT_REPLY to 
   try {
     writeFileSync(basePath, source, 'utf8');
     writeFileSync(mutPath, mutatedSource, 'utf8');
-    const base = await importProxy(basePath);
-    const mut = await importProxy(mutPath);
+    // The chunk is imported by the proxy, so copy the proxy twice with its connection-frames import
+    // retargeted at the base/mutant chunk.
+    const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+    const proxySource = readFileSync(proxyShipping, 'utf8');
+    const importAnchor = "} from './voice-realtime-connection-transport.js';";
+    assert.equal(proxySource.split(importAnchor).length - 1, 1, 'the proxy must import the connection chunk exactly once');
+    writeFileSync(
+      ownCopy('unforwarded-proxy-base'),
+      proxySource.replace(importAnchor, `} from './${path.basename(basePath, '.ts')}.js';`),
+      'utf8',
+    );
+    writeFileSync(
+      ownCopy('unforwarded-proxy-mut'),
+      proxySource.replace(importAnchor, `} from './${path.basename(mutPath, '.ts')}.js';`),
+      'utf8',
+    );
+    const base = await importProxy(ownCopy('unforwarded-proxy-base'));
+    const mut = await importProxy(ownCopy('unforwarded-proxy-mut'));
 
     // Unmutated: the copy still speaks, so the reading is not green for a reason of its own (green).
     const baseSocket = await driveTextReply(base.handleVoiceRealtimeConnection, quietUpstream());
@@ -208,6 +224,8 @@ test('AC2 false form: removing the disposition send returns MODEL_TEXT_REPLY to 
   } finally {
     rmSync(basePath, { force: true });
     rmSync(mutPath, { force: true });
+    rmSync(ownCopy('unforwarded-proxy-base'), { force: true });
+    rmSync(ownCopy('unforwarded-proxy-mut'), { force: true });
   }
 });
 

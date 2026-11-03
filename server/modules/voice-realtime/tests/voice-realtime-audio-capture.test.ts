@@ -34,7 +34,7 @@ import {
   voiceRealtimeCaptureStartupLine,
   voiceRealtimeCaptureWarningLine,
   type VoiceRealtimeCaptureStore,
-} from '../voice-realtime-audio-capture.js';
+} from "../transport/voice-realtime-audio-capture.js";
 import { createVoiceRealtimeRouter } from '../voice-realtime.routes.js';
 
 function tempDir(prefix: string): string {

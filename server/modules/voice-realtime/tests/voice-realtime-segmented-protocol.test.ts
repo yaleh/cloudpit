@@ -737,8 +737,9 @@ test('AC7 CLI: `--segments` splits the clip here and prints each segment seq/dur
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The shipping module directory — where a mutant copy must sit so its relative imports resolve. */
 const MODULE_DIR = path.resolve(HERE, '..');
-const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
-const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'voice-realtime-bridge.service.ts');
+const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-connection-frames.ts');
+const SHIPPING_TRANSPORT_MODULE = path.join(MODULE_DIR, 'voice-realtime-connection-transport.ts');
+const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'frames/voice-realtime-bridge.service.ts');
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';
 const ownCopy = (label: string): string => path.join(MODULE_DIR, `${TEMP_PREFIX}${label}-${process.pid}.ts`);
@@ -764,13 +765,22 @@ async function withMutantCopy<T>(
   assert.equal(countOccurrences(source, anchor), 1, `the ${label} anchor must occur exactly once`);
   const basePath = ownCopy(`${label}-base`);
   const mutPath = ownCopy(`${label}-mut`);
+  const connectionChunk = path.basename(modulePath).startsWith('voice-realtime-connection-');
+  const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+  const importAnchor = `} from './${path.basename(modulePath, '.ts')}.js';`;
+  const proxyBase = ownCopy(`${label}-proxy-base`);
+  const proxyMut = ownCopy(`${label}-proxy-mut`);
   try {
     writeFileSync(basePath, source, 'utf8');
     writeFileSync(mutPath, source.replace(anchor, mutation), 'utf8');
-    return await body(basePath, mutPath);
+    if (!connectionChunk) return await body(basePath, mutPath);
+    const proxySource = readFileSync(proxyShipping, 'utf8');
+    assert.equal(countOccurrences(proxySource, importAnchor), 1, `the proxy must import ${path.basename(modulePath)} exactly once`);
+    writeFileSync(proxyBase, proxySource.replace(importAnchor, `} from './${path.basename(basePath, '.ts')}.js';`), 'utf8');
+    writeFileSync(proxyMut, proxySource.replace(importAnchor, `} from './${path.basename(mutPath, '.ts')}.js';`), 'utf8');
+    return await body(proxyBase, proxyMut);
   } finally {
-    rmSync(basePath, { force: true });
-    rmSync(mutPath, { force: true });
+    for (const copy of [basePath, mutPath, proxyBase, proxyMut]) rmSync(copy, { force: true });
   }
 }
 
@@ -788,7 +798,7 @@ test('AC8 false form (a): removing the seq dedup makes the idempotency case red'
   // The gate reads the seq/isReplay pair the caller passed into `proceedRelay` rather than the live
   // connection state: the empty-transcript guard releases a held relay for the segment it was HELD
   // for, which by then is not necessarily the active one (see the `proceedRelay` doc comment).
-  const DEDUP_GATE = 'if (segmentSeq !== null && segmentIsReplay && deliveredSegmentSeqs.has(segmentSeq)) {';
+  const DEDUP_GATE = 'if (segmentSeq !== null && segmentIsReplay && this.deliveredSegmentSeqs.has(segmentSeq)) {';
   await withMutantCopy(SHIPPING_PROXY_MODULE, DEDUP_GATE, 'if (false) {', 'no-seq-dedup', async (basePath, mutPath) => {
     const base = await importProxy(basePath);
     const mutant = await importProxy(mutPath);
@@ -841,13 +851,13 @@ test('AC8 false form (b): committing before the segment`s last append makes the 
 
 test('AC8 false form (c): removing the teardown flush makes the End/Mute case red', async () => {
   const FLUSH_ANCHOR = [
-    '    const flushedSeq = bridge.flushOpenSegment();',
+    '    const flushedSeq = this.bridge.flushOpenSegment();',
     '    if (flushedSeq !== null) {',
-    '      seams.log?.(`teardown: closed the open segment seq=${flushedSeq} with the frames received`);',
+    '      this.seams.log?.(`teardown: closed the open segment seq=${flushedSeq} with the frames received`);',
     '    }',
     '',
   ].join('\n');
-  await withMutantCopy(SHIPPING_PROXY_MODULE, FLUSH_ANCHOR, '', 'no-close-flush', async (basePath, mutPath) => {
+  await withMutantCopy(SHIPPING_TRANSPORT_MODULE, FLUSH_ANCHOR, '', 'no-close-flush', async (basePath, mutPath) => {
     const base = await importProxy(basePath);
     const mutant = await importProxy(mutPath);
     for (const via of ['frame', 'socket'] as const) {

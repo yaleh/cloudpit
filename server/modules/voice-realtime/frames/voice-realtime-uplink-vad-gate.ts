@@ -1,11 +1,11 @@
 // The streaming head-keep gate (scheme §5) and the exit path's order (scheme §6.3).
 //
 // WHY THIS IS ITS OWN FILE. The grid, the classifier and the verdict vocabulary live in the pure module
-// beside it (`voice-realtime-uplink-vad.ts`), which is contractually ALLOCATION-FREE and reaches for no
+// beside it (`transport/voice-realtime-uplink-vad.ts`), which is contractually ALLOCATION-FREE and reaches for no
 // production path — its criterion greps that module for a `Buffer.from(` call site and requires zero.
 // The streaming gate cannot live there: it decodes one browser frame back to PCM to feed the classifier,
 // so it allocates. Splitting the two keeps the classifier's contract readable as a contract, and it
-// mirrors the STS gate beside it (`voice-realtime-silence-tail.ts`) — the other standalone file that owns
+// mirrors the STS gate beside it (`transport/voice-realtime-silence-tail.ts`) — the other standalone file that owns
 // its own base64 decode for exactly this reason.
 //
 // Consumers: `voice-realtime-ws-proxy.service.ts` (the continuous audio branch and the exit path), and
@@ -18,7 +18,7 @@ import {
   bypassedVerdict,
   type UplinkVadClassifier,
   type UplinkVadFrameVerdict,
-} from './voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 
 // ── the head-keep streaming gate (scheme §5) ──────────────────────────────────────────────────────
 //
@@ -107,7 +107,7 @@ const UPLINK_VAD_TAIL_MARGIN_MS = 200;
  * Derives the head-keep window `a`, in FRAMES, from the RESOLVED `turn_detection.silence_duration_ms`
  * plus {@link UPLINK_VAD_TAIL_MARGIN_MS}.
  *
- * ⛔ MUST be derived from the resolved value and never hard-coded: `voice-realtime-turn-detection.ts` is
+ * ⛔ MUST be derived from the resolved value and never hard-coded: `transport/voice-realtime-turn-detection.ts` is
  * the single source of that number, and a deployment that sets
  * `VOICE_REALTIME_TURN_DETECTION_SILENCE_MS=800` must move this window with it (the criterion's false
  * form pins exactly this by writing a literal and watching the window stop following).

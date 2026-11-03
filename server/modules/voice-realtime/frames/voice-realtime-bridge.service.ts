@@ -23,7 +23,7 @@
  * redden. Consumers: discovered through this module's barrel and wired (in a
  * later task) to a real Realtime client; the criteria drive it over a fake.
  */
-import type { RealtimeToolDescriptor } from './voice-realtime-tools.js';
+import type { RealtimeToolDescriptor } from "./voice-realtime-tools.js";
 
 /** The bridge's connection state. `open` is the only state a message may arrive in. */
 export type RealtimeBridgeState = 'connecting' | 'open' | 'closing' | 'closed';
@@ -1127,7 +1127,7 @@ export function connect(
    * with it on again. A failure to send is reported and NOT remembered, so the next open retries.
    *
    * THIS FRAME IS THE WHOLE SWITCH, AND THE TRANSPORT KEEPS IT. It is the ONE door to
-   * `turn_detection: null` (`voice-realtime-turn-detection.ts`), and the transport re-states the
+   * `turn_detection: null` (`transport/voice-realtime-turn-detection.ts`), and the transport re-states the
    * value it carried into every later full `session.update` — so the state injection
    * (`readvertiseSession` on a reconnect, `sendSessionUpdate` on a status change) can no longer
    * re-open the endpoint's detector behind this frame's back. That was the 2026-10-12 defect

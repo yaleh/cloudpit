@@ -47,7 +47,7 @@
 import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import path from 'node:path';
 
-import { defaultAuthDatabasePath } from '@/shared/data-root.js';
+import { defaultAuthDatabasePath } from "../../../shared/data-root.js";
 
 /** The directory's leaf name under the database's parent — `~/.cloudpit/voice-realtime-capture`. */
 const CAPTURE_DIRECTORY_NAME = 'voice-realtime-capture';

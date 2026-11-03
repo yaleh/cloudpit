@@ -17,7 +17,7 @@
  * installs them from the fixed source. Neither verb reads a request field: the path comes
  * from the deployment's settings and the source is the service's constant, so a client
  * cannot point a download anywhere. The work is the service's
- * (`voice-realtime-speaker-model.ts`); these routes only call it and format the answer.
+ * (`frames/voice-realtime-speaker-model.ts`); these routes only call it and format the answer.
  *
  * Body (JSON):
  *   sessionId   string   required — the session the run is bound to
@@ -47,8 +47,8 @@ import {
 import type {
   VoiceSpeakerModelDownloadResult,
   VoiceSpeakerModelStatus,
-} from './voice-realtime-speaker-model.js';
-import type { TurnDetectionOverride } from './voice-realtime-turn-detection.js';
+} from "./frames/voice-realtime-speaker-model.js";
+import type { TurnDetectionOverride } from "./transport/voice-realtime-turn-detection.js";
 
 /** What the route needs from the composition root. */
 export type VoiceRealtimeRoutesDeps = {
@@ -62,7 +62,7 @@ export type VoiceRealtimeRoutesDeps = {
    */
   clearLog?(): { deleted: number };
   /**
-   * Removes the uplink audio capture (see `voice-realtime-audio-capture.ts`) and answers how many
+   * Removes the uplink audio capture (see `transport/voice-realtime-audio-capture.ts`) and answers how many
    * connection captures went with it.
    *
    * OPTIONAL for the same reason as `clearLog`: a deployment that turned the capture off has nothing

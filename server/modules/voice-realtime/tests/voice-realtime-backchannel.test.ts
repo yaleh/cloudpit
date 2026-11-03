@@ -6,12 +6,12 @@
  * THE PREREQUISITE, AND WHICH ARM THIS FILE PINS. The task's first step was to verify whether
  * `semantic_vad` can observe the intermediate "the user may not be finished" state. It cannot, on this
  * endpoint: the wire's whole server-VAD surface is `speech_started` / `speech_stopped` / `committed`
- * (`voice-realtime-bridge.service.ts`, `TOLERATED_ENDPOINT_EVENTS`, enumerated from the preserved live
+ * (`frames/voice-realtime-bridge.service.ts`, `TOLERATED_ENDPOINT_EVENTS`, enumerated from the preserved live
  * capture), and the C-1 calibration (`docs/operations/voice-realtime-continuous-calibration.md`) shows
  * `semantic_vad` deciding LATER — `speech_started` at 11673 ms with `speech_stopped` 2 ms behind it — not
  * narrating an in-flight uncertain state. The task explicitly allows this outcome and names the fallback:
  * PAUSE DETECTION + a proactive `response.create`. That fallback is what
- * `voice-realtime-turn-detection.ts` encodes, and {@link SEMANTIC_VAD_EXPOSES_UNCERTAIN_PAUSE} records the
+ * `transport/voice-realtime-turn-detection.ts` encodes, and {@link SEMANTIC_VAD_EXPOSES_UNCERTAIN_PAUSE} records the
  * verdict so a later re-verification has to flip it deliberately rather than assume it.
  *
  * WHAT THIS FILE PINS, and why each reading is the one that matters:
@@ -50,11 +50,11 @@ import {
   SILENCE_DURATION_MS_RANGE,
   decideBackchannel,
   type BackchannelDecision,
-} from '../voice-realtime-turn-detection.js';
+} from "../transport/voice-realtime-turn-detection.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The shipping policy module — the file the false form mutates. */
-const SHIPPING_MODULE = path.resolve(HERE, '../voice-realtime-turn-detection.ts');
+const SHIPPING_MODULE = path.resolve(HERE, '../transport/voice-realtime-turn-detection.ts');
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';
 const ownCopy = (label: string): string => path.resolve(HERE, `../${TEMP_PREFIX}${label}-${process.pid}.ts`);

@@ -63,8 +63,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket as WS } from 'ws';
 import { z } from 'zod';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import type { LLMProvider } from '@/shared/types.js';
+import { closeConnection, initializeDatabase, sessionsDb } from "../../database/index.js";
+import type { LLMProvider } from "../../../shared/types.js";
 import {
   buildRunGet,
   buildSessionInterruptDeps,
@@ -73,9 +73,9 @@ import {
   type McpRunGetDeps,
   type McpSessionBackgroundDeps,
   type McpUiVisibleContextDeps,
-} from '@/modules/mcp-gateway/index.js';
-import { createProviderRuntimeService } from '@/modules/providers/index.js';
-import { chatRunRegistry, createChatControlService } from '@/modules/websocket/index.js';
+} from "../../mcp-gateway/index.js";
+import { createProviderRuntimeService } from "../../providers/index.js";
+import { chatRunRegistry, createChatControlService } from "../../websocket/index.js";
 
 import {
   createVoiceRealtimeLiveExecutor,

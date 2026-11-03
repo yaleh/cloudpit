@@ -33,7 +33,7 @@ import test from 'node:test';
 import { WebSocket as WS } from 'ws';
 
 import type { RealtimeToolExecutor } from '../index.js';
-import { clearVoiceSessionActive, isVoiceSessionActive, markVoiceSessionActive } from '../voice-realtime-active.js';
+import { clearVoiceSessionActive, isVoiceSessionActive, markVoiceSessionActive } from "../frames/voice-realtime-active.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,

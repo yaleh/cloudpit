@@ -23,7 +23,7 @@
  * same shape `shared/asr/asrRegistry.ts` gives providers: an owner declares a row, an assembly
  * point registers it, a consumer names an id, and no consumer keeps a copy of the text.
  */
-import { tryResolveVoiceRule, type VoiceRule } from '@shared/voice/voiceSettingsRegistry.js';
+import { tryResolveVoiceRule, type VoiceRule } from "@shared/voice/voiceSettingsRegistry.js";
 
 export const VOICE_MODE_RULES = [
   '[Live Voice 模式] 用户正在用语音和你对话，随时会接着说下一句。前台被你占住的每一秒，他新说的话都要排队等你。所以：',

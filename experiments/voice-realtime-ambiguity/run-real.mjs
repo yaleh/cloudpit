@@ -82,7 +82,7 @@ const MODULE_PATHS = {
   ),
   bridgeBarrel: fileURLToPath(new URL('../../server/modules/voice-realtime/index.ts', import.meta.url)),
   bridge: fileURLToPath(
-    new URL('../../server/modules/voice-realtime/voice-realtime-bridge.service.ts', import.meta.url),
+    new URL('../../server/modules/voice-realtime/frames/voice-realtime-bridge.service.ts', import.meta.url),
   ),
   transport: fileURLToPath(
     new URL('../../server/modules/voice-realtime/voice-realtime-dashscope-transport.ts', import.meta.url),

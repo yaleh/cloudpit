@@ -43,7 +43,7 @@ import {
   acceptedResultTail,
   afterStopSentence,
   resolveVoiceRealtimeClosingTurn,
-} from '../voice-realtime-closing-turn.js';
+} from "../frames/voice-realtime-closing-turn.js";
 
 /** An obviously fake credential, so a leak would be unmistakable. */
 const TEST_KEY = 'test-key-not-a-real-credential';
