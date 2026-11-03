@@ -87,7 +87,7 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 - 判据复验：`GITHUB_TOKEN="$(gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 3.0.0 --json` → `exitCode: 0`、`violations: []`（6 项 checks 全绿）；同一时刻不带版本的 AC-458 判据亦 `exitCode: 0`。
 - 发布快照为 `d130dcedb`；此后 fleet 又落 9 个提交（含 `b264b9c87 codex(settings): advanced provider form + connection-test button`），不在 3.0.0 内，需后续发布才可带上。
 - 本地收口：`yaleh/develop` 已 merge 回本地 `develop`（merge commit `e183b01f6`）；`package.json` / `package-lock.json` 均为 `3.0.0`。
-- 本任务保持 `needs-human`，不翻 done；两条外部 AC 与两条外部 DoD 已勾。仓库侧 6 条 AC 在外部窗口写回时仍保留 retreat 后的未勾状态，随后已在「AC 收口」节一并勾选。
+- 外部窗口写回时本任务保持 `needs-human`，不翻 done；两条外部 AC 与两条外部 DoD 已勾。仓库侧 6 条 AC 在外部窗口写回时仍保留 retreat 后的未勾状态，随后已在「AC 收口」节一并勾选。
 
 ### AC 收口（2026-11-03）
 
