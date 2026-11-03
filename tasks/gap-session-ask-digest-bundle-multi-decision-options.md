@@ -1,7 +1,7 @@
 ---
 id: gap-session-ask-digest-bundle-multi-decision-options
 title: session-ask 摘要把多子决定压平成 6 条单选：改为打包成 3–5 个组合选项
-status: todo
+status: ready
 labels:
   - gap
   - defect
