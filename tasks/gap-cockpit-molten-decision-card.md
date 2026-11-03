@@ -2,7 +2,7 @@
 id: gap-cockpit-molten-decision-card
 title: cockpit 熔融需人决策卡：新 kind molten-decision 渲染 + confirm 结晶执行器（不复用 knowledge
   confirm）
-status: ready
+status: needs-human
 labels:
   - gap
   - feature
@@ -87,3 +87,14 @@ cockpit 现有两条卡通道：
 fan-in-ff-merge:    M server/modules/providers/tests/codex-resident-provider-injection.test.ts
 - run_id：wk-prod-anchor
 - session_id：292a546b-2eab-492a-b1e6-65447aefb9de
+
+## Needs-Human
+
+**执行 2026-11-03T11:16:20.094Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M server/modules/providers/tests/codex-resident-provider-injection.test.ts
+- run_id：wk-prod-anchor
+- session_id：292a546b-2eab-492a-b1e6-65447aefb9de
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-cockpit-molten-decision-card-wk-prod-anchor.log
