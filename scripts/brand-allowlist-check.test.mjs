@@ -25,7 +25,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -510,4 +510,84 @@ test('AC8: the code-wide CloudCLI sweep scans every text line and its allowlist 
     overrides: { 'electron/cloud.js': "throw new Error('CloudCLI');\n" },
   });
   assert.equal(productResult.exitCode, 1, 'the legacy allowlist must not leak into another file');
+});
+
+/**
+ * Build a deterministic checkout fixture for the generated-cache regression. The real main
+ * checkout carried the e2e bundle cache under `server/node_modules/.cache`; a task worktree did
+ * not, so an arm that read the real tree would be green or red depending on where it ran. This
+ * fixture models both shapes at once — a generated cache next to real source — and supplies
+ * every declared surface the fixture does not model as an override, so no read ever depends on
+ * the host checkout.
+ *
+ * @returns {{ root: string, overrides: Record<string, string>, staleModule: string, gitHook: string, sourceFile: string }}
+ */
+function makeCacheFixture() {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'cloudpit-brand-fixture-'));
+  for (const surface of SCANNED_SURFACES) {
+    const wildcardIndex = surface.glob.indexOf('/**');
+    if (wildcardIndex !== -1) {
+      mkdirSync(path.join(root, surface.glob.slice(0, wildcardIndex)), { recursive: true });
+    }
+  }
+
+  const staleModule = 'server/node_modules/.cache/quay-e2e-build/stale.mjs';
+  const gitHook = 'server/.git/hooks/pre-commit.sh';
+  const sourceFile = 'server/modules/demo/source.ts';
+  mkdirSync(path.dirname(path.join(root, staleModule)), { recursive: true });
+  mkdirSync(path.dirname(path.join(root, gitHook)), { recursive: true });
+  mkdirSync(path.dirname(path.join(root, sourceFile)), { recursive: true });
+  writeFileSync(path.join(root, staleModule), "export const stale = 'CloudCLI';\n");
+  writeFileSync(path.join(root, gitHook), 'echo CloudCLI\n');
+  writeFileSync(path.join(root, sourceFile), "export const brand = 'Cloudpit';\n");
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+    name: '@yalehwang/cloudpit',
+    bin: { cloudpit: 'dist-server/server/modules/cli/cli.js' },
+    productName: 'Cloudpit',
+    build: { productName: 'Cloudpit', artifactName: 'cloudpit-desktop-fixture' },
+  }));
+
+  /** @type {Record<string, string>} */
+  const overrides = {};
+  for (const surface of SCANNED_SURFACES) {
+    if (surface.glob.includes('/**')) continue;
+    if (existsSync(path.join(root, surface.glob))) continue;
+    overrides[surface.glob] = surface.kind === 'json-values' ? '{}' : '';
+  }
+
+  return { root, overrides, staleModule, gitHook, sourceFile };
+}
+
+test('regression: the code-wide sweep skips node_modules and .git caches but still reds real source', () => {
+  const { root, overrides, staleModule, gitHook, sourceFile } = makeCacheFixture();
+  try {
+    // The fixture is only meaningful if the skipped files really carry the swept token.
+    assert.match(readFileSync(path.join(root, staleModule), 'utf8'), /CloudCLI/, 'the cache fixture must carry CloudCLI');
+    assert.match(readFileSync(path.join(root, gitHook), 'utf8'), /CloudCLI/, 'the .git fixture must carry CloudCLI');
+
+    const green = runBrandAllowlistCheck({ root, overrides });
+    assert.deepEqual(green.violations, [], JSON.stringify(green.violations, null, 2));
+    assert.equal(green.exitCode, 0, 'a generated node_modules cache must not red the brand sweep');
+
+    const scannedFiles = new Set(green.sources.map((source) => source.file));
+    assert.ok(scannedFiles.has(sourceFile), 'the sweep must still reach real source under server/');
+    assert.ok(!scannedFiles.has(staleModule), 'the generated cache must stay outside the sweep');
+    assert.ok(!scannedFiles.has(gitHook), '.git internals must stay outside the sweep');
+    assert.ok(
+      [...scannedFiles].every((file) => !file.split('/').includes('node_modules')),
+      'no file with a node_modules path segment may be scanned',
+    );
+
+    const red = runBrandAllowlistCheck({
+      root,
+      overrides: { ...overrides, [sourceFile]: "export const brand = 'CloudCLI';\n" },
+    });
+    assert.equal(red.exitCode, 1, 'real source carrying CloudCLI must still red the sweep');
+    assert.ok(
+      red.violations.some((violation) => violation.file === sourceFile),
+      `the violation must name the source file, got ${JSON.stringify(red.violations)}`,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

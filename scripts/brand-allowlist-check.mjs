@@ -21,6 +21,10 @@
  * The `brand-lines` kind is the code-wide sweep instrument: it matches ONLY the uppercase
  * product token `CloudCLI`, on EVERY line including comments, and it expands directory globs
  * (`server/**`, `src/**`, ...) over text extensions only — never `.json`, `.md` or binaries.
+ * Directory expansion never descends into `node_modules` or `.git`: installed packages and
+ * build caches (the e2e bundle cache under `server/node_modules/.cache`) are generated
+ * artifacts, not surfaces a sweep can or should fix, and walking them made the reading depend
+ * on which caches happened to exist in the checkout.
  * That is deliberately narrower and wider at once than `code`: narrower in tokens (`claudecodeui`
  * and `@yalehwang/cloudcli` keep their existing `code`-surface treatment), wider in lines (a
  * stale comment in shipped source is still part of the brand surface). Its allowlist spans are
@@ -57,7 +61,8 @@ import { fileURLToPath } from 'node:url';
  * `code`          — every line except comment lines.
  * `brand-lines`   — every line, comments included, matched against `CloudCLI` only. A surface
  *                   of this kind may name a directory glob (`server/**` or `server/**\/*.ts`);
- *                   it expands over text extensions and skips the checker's own files.
+ *                   it expands over text extensions, skips the checker's own files, and never
+ *                   descends into `node_modules` or `.git`.
  *
  * @typedef {'text' | 'json-values' | 'locale-values' | 'readme-install' | 'doc-head' | 'code' | 'brand-lines'} SurfaceKind
  */
@@ -282,6 +287,15 @@ const BRAND_LINE_TOKEN = /CloudCLI/g;
 const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.sh', '.html']);
 
 /**
+ * Directory names a glob expansion never descends into. `node_modules` holds installed packages
+ * and generated build caches — including the e2e bundle cache this checker was red on — and
+ * `.git` holds repository internals. Neither carries shipped source, and walking them made the
+ * reading depend on which caches a checkout happened to contain (the main checkout had three
+ * stale bundles that a fresh task worktree did not).
+ */
+const EXCLUDED_DIRECTORIES = new Set(['node_modules', '.git']);
+
+/**
  * The checker and its criterion are the scanning instrument and its negative control. Their
  * prose necessarily names `CloudCLI`; excluding the pair keeps the instrument from scanning
  * itself (the Proposal's whitelist item 3).
@@ -323,6 +337,9 @@ function listFilesRecursive(dir) {
   /** @type {string[]} */
   const files = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory() && EXCLUDED_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...listFilesRecursive(full));
@@ -354,6 +371,12 @@ function expandSurface(root, surface) {
       if (surface.kind === 'brand-lines') {
         const relative = path.relative(root, file).split(path.sep).join('/');
         if (BRAND_LINE_EXCLUDED_FILES.has(relative)) {
+          return false;
+        }
+        // Defense in depth: a glob whose own root sits under `node_modules`/`.git` never
+        // descends (listFilesRecursive already skips those directories), but a file path that
+        // still carries such a segment must not enter the sweep either.
+        if (relative.split('/').some((segment) => EXCLUDED_DIRECTORIES.has(segment))) {
           return false;
         }
         return extension === null
