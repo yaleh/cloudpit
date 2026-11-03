@@ -76,7 +76,7 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 ## AC
 
 - [x] AC1 依赖就位、旧路径清零：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts --list` exit 0 且输出 `Total: N tests in M files` 的 N > 0。
-- [ ] AC2 判据逐字 exit 0：`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）exit 0；记录 passed 数与墙钟毫秒，且墙钟 < 118000ms。读数逐字写入 Evidence。若超时，按 Proposal「预算风险」先判负载假红。
+- [x] AC2 判据逐字 exit 0：`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）exit 0；记录 passed 数与墙钟毫秒，且墙钟 < 300000ms（AC-331 record `timeoutMs` 的 2026-11-03 人裁定值；原 118000ms 已被 866f9c482/c8d17e79e 的测试内容变更作废）。读数逐字写入 Evidence。
 - [x] AC3 白名单守卫为空：`git diff --exit-code ec621a2b^1 ec621a2b -- e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-composer-embedded.spec.ts e2e/mobile-workspace-composer-layout.spec.ts src/modules/chat/tests/composerCompactTier.test.tsx` rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <同上四文件>` rc=0。
 - [x] AC4 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
 - [x] AC5 承重（假形态，本地临时注入、不 commit）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 ⇒ `VOICE_REALTIME_MODE=continuous npx playwright test <三文件> --list` 非零退出且 stdout 含 `Cannot find module`；还原为新路径后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务声明的改动。
@@ -148,6 +148,10 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
   - AC5：注入旧路径 → `--list` **exit 1**，原文 `Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`，`Total: 0 tests in 0 files`；`cp` 备份还原新路径 → 同命令 **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空。
   - 结论：AC1/AC3/AC4/AC5 满足；AC2 判据语义满足（exit 0 / 19 passed）而 118000ms 墙钟上限结构性不可达（第 8 次独立实跑 174457ms）⇒ 按 Proposal「预算风险」停手，本轮不勾 AC2，park `needs-human`。
 
+- 裁定与落地（2026-11-03，人 yale 选择「上调 record timeoutMs」）：
+  - AC-331 record `timeoutMs` 118000→300000（commit `dd28d6d93`）。核实：goal driver 的 gate 子进程超时由 `goalDriverChildTimeoutMs(record.timeoutMs)` = record + 15s grace 派生（0.24.0 与 0.30.1 同），`CRITERION_TIMEOUT_MS = 12e4` 不在 gate 这条路径上 ⇒ record-only 生效；原 Needs-Human (a) 的「必须同时改驱动硬闸」前提不成立。
+  - 真实 goal gate 复跑：`2026-11-03T15:49:36.801Z`，`verdict: pass`，`reason: acceptance passed (exit 0)`，`timeoutMs: 300000`，`evaluationRoot=/data/home/yale/work/claudecodeui`，`treeSha=50a7391e33aab3207b10733ca8f13ca7aaeb06d1`；此前 `15:43:31.928Z` 同一 gate 仍为 `not-evaluated (timeout) after 118000ms`。
+  - 任务工作树逐字 AC2 复跑（fast-forward 到 develop `dd28d6d93`，`git status --porcelain` 为空）：命令原文同 AC2，`RC=0`，`19 passed (2.9m)`，墙钟 **176717ms < 300000ms**。
 ## Needs-Human
 
 需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树七次实跑分别为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
@@ -169,6 +173,8 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 ⛔ 后续复验轮次：读数请只写进叙述区（`## Evidence` / `## Needs-Human` / `## Blocker`）；不要改 `## Proposal` / `## Touches` / `## AC` / `## DoD` 的字节——改契约会重置续处理计数。按当前机制，本任务最多还会被自动续处理 2 次，随后 `cappedAt` 触发并停在 `hold`（human-required）。在裁定前不建议再改契约段。
 
 补充（2026-11-03 第 8 轮，上限终局读数）：本轮读数与前七轮一致——criterion **exit 0 / 19 passed**，墙钟 **174457ms**（八次 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 / 174457ms）。契约指纹已稳定为 `2a5fbdb0…`，`/data/home/yale/.quay-fleet/needs-human-autoresume-resume-cap.json` 中本任务条目为 `count: 2 / limit: 2 / cappedAt: null` ⇒ 本轮 park 后下一次 fleet tick 应写入 `cappedAt` 并把本任务归入 `human-required`，自动退回/重派链应在此停止。若本轮仍被退回 `todo`，说明上限计数又被重置，请人工核对该 cap 条目与 `Criterion` 段字节是否被改动。裁定项仍为二选一：(a) 同步上调 record `timeoutMs` 与驱动 `CRITERION_TIMEOUT_MS`，或 (b) 改写/拆分判据。
+
+补充（2026-11-03 裁定落地）：人选择 (a) 的上调 record 路径，并取其最小形态——只改 record `timeoutMs`（gate 子进程超时由 record 派生），未改 `CRITERION_TIMEOUT_MS`；300000ms 对最大实测 205472ms 留 ≈1.46× 余量。真实 gate 已验证 `pass`；AC2 的墙钟条款随之改为「< record 截止线」，工作树逐字复跑 exit 0 / 19 passed / 176717ms。本任务按正常 fan-in 落地后不再 park。
 
 ## Blocker
 
