@@ -13,7 +13,7 @@ depends_on:
   - gap-cloudpit-v30-identity-contract-removal
   - gap-cloudpit-v30-appid-switch-migration
 ---
-> **PARKED / 外部窗口已完成（2026-11-03）：仓库侧已落 develop，Cloudpit v3.0.0 已发布并被 checker 复验；按任务终态约定保持 needs-human，不翻 done。**
+> **CLOSED（2026-11-03）：仓库侧已落 develop，Cloudpit v3.0.0 已发布并被 checker 复验；人工裁定关闭为 done（completeReason 记载于 complete GateEvent）。**
 
 ## Proposal
 
@@ -93,7 +93,7 @@ v3.0 的三条实现任务（A/B/C）已落 develop，但发布面还没跟上�
 
 - 仓库侧 6 条 AC 已勾：AC1–AC5 由 `8f471d2b1` 落地并在本次收口时复读（checker `NEW_VERSION='3.0.0'` / `--version`、夹具 9/9、notes 章节与三类信息、workflow 文案与旧前缀零命中、bin 仅 `cloudpit` 与未发布态读数）；AC8 本次复跑 `npm run typecheck` → exit 0、`npx oxlint scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` → exit 0。
 - AC8 的 anti-drift 读数沿用任务期 delta：`4 actual file(s), all within declared Touches (5 glob(s))`。发布后 release-it 写入的 `package.json` / `package-lock.json` / `CHANGELOG.md` 属外部窗口产物，不在 Touches 声明面内；若要求 anti-drift 对最终 delta 也字面成立，需把这三项补进 Touches。
-- 至此 8 条 AC 全绿；状态按任务终态约定仍为 `needs-human`，关闭与否是独立的人工裁定。
+- 至此 8 条 AC 全绿；2026-11-03 人工裁定关闭为 `done`（走 `completeReason` 带外完成通道，落 `complete` GateEvent）。
 
 ## ADR-007
 
