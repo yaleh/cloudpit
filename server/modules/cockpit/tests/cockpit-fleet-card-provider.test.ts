@@ -40,6 +40,7 @@ import {
   type CockpitFleetCardProvider,
   type CockpitFleetCommandResult,
 } from '../cockpit-fleet-card-provider.js';
+import { COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID } from '../cockpit-fleet-executor.js';
 import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from '../cockpit-session-send.executor.js';
 
 const WAITING = '2026-10-27T00:01:00.000Z';
@@ -1109,4 +1110,85 @@ test('AC7: the live 62d card is not suppressed while no retraction row names its
   } finally {
     await rm(home, { recursive: true, force: true });
   }
+});
+
+/**
+ * One molten short-loop decision exactly as the fleet states it: the category lives in the open
+ * `kind` string (`molten-decision`), the four readings live in the `molten` block, and the entry
+ * emits no options of its own — the cockpit builds them from the loop's actions.
+ */
+const MOLTEN_DECISION_CARD = {
+  id: 'att-molten-1',
+  provider: 'quay-fleet',
+  revision: 1,
+  kind: 'molten-decision',
+  group: 'ruling',
+  rank: 1,
+  state: 'open',
+  waitingSince: WAITING,
+  surfacedAt: SURFACED,
+  subject: { project: 'claudecodeui', uri: 'quay://claudecodeui/molten/1' },
+  facts: [],
+  options: [],
+  molten: {
+    judgement: '本轮判断：先补判据再派发',
+    conclusion: '只差一条落地的判据',
+    actions: [{ id: 'adopt-task', label: '立 quay 任务', does: '把动作立成任务' }],
+    dispatch: '补一条判据后派发',
+  },
+};
+
+test('AC: a molten-decision category projects to the molten kind with its four readings', async () => {
+  const fleet = created({
+    runCards: runnerReturning(`${JSON.stringify(MOLTEN_DECISION_CARD)}\n`),
+    // A successful declaration read is what makes the molten executor's cockpit-side declaration
+    // enter the provider's DECLARED set.
+    runExecutors: declarationsRunner(),
+  });
+
+  const card = byId(await fleet.provider.listCards(), 'att-molten-1');
+  assert.equal(card.kind, 'molten', 'the fleet category maps to the cockpit kind');
+  assert.deepEqual(card.molten, MOLTEN_DECISION_CARD.molten, 'the block passes through verbatim');
+
+  // 判断 → ask (the card's own headline); no separate 判断 fact is invented when it becomes the ask.
+  assert.equal(card.ask, '本轮判断：先补判据再派发');
+  // 结论 → one non-mechanical fact (the loop's reading, not a machine observation).
+  const conclusion = card.facts.find((fact) => fact.text === '结论：只差一条落地的判据');
+  assert.ok(conclusion !== undefined, 'the conclusion is carried as a fact');
+  assert.equal(conclusion.mechanical, false);
+
+  // 动作 + dispatch 提议 → confirm options, both routed to fleet.molten-decide.
+  assert.deepEqual(optionById(card, 'adopt-task').action, {
+    executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
+    params: { cardId: 'att-molten-1', decision: 'adopt-task' },
+  });
+  assert.deepEqual(optionById(card, 'dispatch').action, {
+    executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
+    params: {
+      cardId: 'att-molten-1',
+      decision: 'dispatch',
+      dispatch: '补一条判据后派发',
+    },
+  });
+  // ⛔ The knowledge path is not reused: no knowledge block, no fleet.apply anywhere.
+  assert.equal(card.knowledge, undefined);
+  assert.equal(
+    card.options.some((option) => option.action.executor === 'fleet.apply'),
+    false,
+  );
+
+  // The declared set names the molten executor, so the registry leaves every option confirmable
+  // instead of marking it 「尚未接入」.
+  const registry = createCockpitCardRegistry([fleet.provider]);
+  const projected = byId(await registry.listCards(), 'att-molten-1');
+  assert.equal(registry.declaredExecutors().has(COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID), true);
+  assert.equal(
+    projected.options.every((option) => option.confirmable !== false),
+    true,
+  );
+
+  // And the late binding resolves it to a real fleet executor over the cockpit's declaration.
+  const executor = await fleet.provider.resolveExecutor(COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
+  assert.ok(executor !== null, 'the molten executor resolves');
+  assert.equal(executor.id, COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
 });

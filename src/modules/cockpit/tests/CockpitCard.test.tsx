@@ -16,6 +16,7 @@ import CockpitCardFacts from '@/modules/cockpit/cards/CockpitCardFacts';
 import CockpitCardHeader from '@/modules/cockpit/cards/CockpitCardHeader';
 import CockpitCardOptions from '@/modules/cockpit/cards/CockpitCardOptions';
 import {
+  DEFAULT_COCKPIT_CARD_DESCRIPTOR,
   cockpitCardDescriptor,
   cockpitTagIcon,
 } from '@/modules/cockpit/cockpitCardDescriptors';
@@ -1575,6 +1576,113 @@ describe('descriptor-driven small visualization', () => {
         expect(screen.queryByTestId('cockpit-card-viz')).toBeNull();
       }
     }
+  });
+});
+
+/**
+ * The molten short-loop decision (`molten` is an OPEN kind, not a member of `CockpitCardKind`).
+ *
+ * The fixture is the shape the fleet projection produces for a `molten-decision` category: the
+ * judgement is the card's headline, the one-line conclusion is a fact, and the loop's actions
+ * plus its dispatch proposal are confirm options, all routed to `fleet.molten-decide`. The card
+ * is deliberately NOT a knowledge card: it carries no `knowledge` block, so the knowledge
+ * renderer and the knowledge confirmation branch must not fire on it.
+ */
+describe('the molten decision card', () => {
+  const MOLTEN_CARD: CockpitCardData = {
+    ...CARD,
+    id: 'fixture:molten',
+    kind: 'molten',
+    ask: '把本轮判断采纳成一条任务？',
+    facts: [
+      { text: '结论：只差一条落地的判据', mechanical: false },
+      { text: 'staging 仍是 1.2 GB', mechanical: true },
+    ],
+    options: [
+      {
+        id: 'adopt-task',
+        label: '立 quay 任务',
+        does: '把判断下的动作立成一条任务',
+        suggested: true,
+        source: 'provider',
+        action: {
+          executor: 'fleet.molten-decide',
+          params: { cardId: 'fixture:molten', decision: 'adopt-task' },
+        },
+      },
+      {
+        id: 'dispatch',
+        label: '采纳 dispatch 提议',
+        does: '补一条判据再派发',
+        suggested: false,
+        source: 'provider',
+        action: {
+          executor: 'fleet.molten-decide',
+          params: {
+            cardId: 'fixture:molten',
+            decision: 'dispatch',
+            dispatch: '补一条判据再派发',
+          },
+        },
+      },
+    ],
+    molten: {
+      judgement: '把本轮判断采纳成一条任务？',
+      conclusion: '只差一条落地的判据',
+      actions: [{ id: 'adopt-task', label: '立 quay 任务', does: '把判断下的动作立成一条任务' }],
+      dispatch: '补一条判据再派发',
+    },
+  };
+
+  it('renders its own descriptor badge, tone and kind label instead of the default row', () => {
+    const descriptor = cockpitCardDescriptor('molten');
+    expect(descriptor).not.toBe(DEFAULT_COCKPIT_CARD_DESCRIPTOR);
+    expect(descriptor.badgeKey).toBe('cockpit.cardBadgeMolten');
+    expect(descriptor.labelKey).toBe('cockpit.cardKindMolten');
+    expect(descriptor.tone).toBe('molten');
+
+    renderCard({ card: MOLTEN_CARD });
+
+    const badge = screen.getByTestId('cockpit-card-kind-badge');
+    expect(badge.textContent).toBe('MLT');
+    expect(badge.getAttribute('data-kind')).toBe('molten');
+    expect(badge.getAttribute('data-tone')).toBe('molten');
+    // The kind label is the badge's accessible title — the translated descriptor label.
+    expect(badge.getAttribute('title')).toBe('Molten decision');
+  });
+
+  it('carries the judgement, the conclusion and the dispatch proposal into ask/facts/options', () => {
+    renderCard({ card: MOLTEN_CARD });
+
+    // 判断 → the headline question (ask).
+    expect(screen.getByTestId('cockpit-card-zone-a-question').textContent).toContain(
+      '把本轮判断采纳成一条任务？',
+    );
+    // 结论 → a fact pill, marked non-mechanical (it is the loop's reading, not an observation).
+    const facts = screen.getAllByTestId('cockpit-card-fact').map((node) => node.textContent ?? '');
+    expect(facts.some((text) => text.includes('结论：只差一条落地的判据'))).toBe(true);
+    // dispatch 提议 → a selectable option that names the proposal as what choosing it does.
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    const list = screen.getByTestId('cockpit-card-option-list');
+    expect(within(list).getByTestId('cockpit-card-option-dispatch').textContent).toContain(
+      '采纳 dispatch 提议',
+    );
+    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
+  });
+
+  it('routes every option to fleet.molten-decide, never fleet.apply, and creates no knowledge block', () => {
+    // The wire statement: each option names the molten executor, not the knowledge one.
+    const executors = MOLTEN_CARD.options.map((option) => option.action.executor);
+    expect(executors).toEqual(['fleet.molten-decide', 'fleet.molten-decide']);
+    expect(executors).not.toContain('fleet.apply');
+    // The card carries the molten block and NO knowledge block: the knowledge confirmation
+    // branch is keyed on `card.knowledge`, so it cannot fire on this card.
+    expect(MOLTEN_CARD.molten?.conclusion).toBe('只差一条落地的判据');
+    expect(MOLTEN_CARD.knowledge).toBeUndefined();
+
+    renderCard({ card: MOLTEN_CARD });
+    expect(screen.queryByTestId('cockpit-card-knowledge')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-knowledge-title')).toBeNull();
   });
 });
 

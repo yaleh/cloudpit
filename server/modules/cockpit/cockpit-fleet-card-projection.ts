@@ -15,13 +15,16 @@
  *      and reports `skippedLines` in its diagnostic.
  *   2. The projection INVENTIONS NOTHING. Fleet fields pass through verbatim; the local
  *      additions are content completions the fleet leaves to this side: the session-ask content
- *      (`ask`, `situation`, content options) with its `contentUnavailable` reason, and the digest
- *      reading's headline/row text plus one disposal option. A session-ask default option is
- *      whichever content option the observation layer marked `suggested` — the assistant's own
- *      recommendation (`source: 'assistant'`) or, when it gave none, the same call's judge pick
- *      (`source: 'judge'`, with its `why`). The projection passes that decision through but never
- *      invents one: no marked option means no default. The digest completion reads only the
- *      entry's own evidence and the fleet's executor declaration, never a fact of its own.
+ *      (`ask`, `situation`, content options) with its `contentUnavailable` reason, the digest
+ *      reading's headline/row text plus one disposal option, and the molten decision's
+ *      judgement/conclusion/actions placed into `ask`/`facts`/options. A session-ask default
+ *      option is whichever content option the observation layer marked `suggested` — the
+ *      assistant's own recommendation (`source: 'assistant'`) or, when it gave none, the same
+ *      call's judge pick (`source: 'judge'`, with its `why`). The projection passes that
+ *      decision through but never invents one: no marked option means no default. The digest
+ *      completion reads only the entry's own evidence and the fleet's executor declaration,
+ *      never a fact of its own; the molten completion wraps the block's own text in the card's
+ *      display labels (`结论：`) and adds no reading the loop did not state.
  *
  * Consumers: `cockpit-fleet-card-provider.ts` (the only caller) and its criterion.
  */
@@ -44,6 +47,12 @@ import {
   COCKPIT_FLEET_LOG_EXECUTOR_ID,
   type CockpitFleetExecutorDeclaration,
 } from './cockpit-fleet-executor.js';
+import {
+  MOLTEN_CATEGORY,
+  MOLTEN_KIND,
+  readMoltenDecision,
+  withMoltenDecision,
+} from './cockpit-fleet-molten.js';
 import {
   readKnowledgeCase,
   readKnowledgeDecision,
@@ -608,7 +617,13 @@ function mapCard(
 ): { card: CockpitCard; content: ContentAddress | null } | null {
   if (!isRecord(raw)) return null;
   const id = text(raw.id);
-  const kind = text(raw.kind);
+  const rawKind = text(raw.kind);
+  // A molten decision is recognised by its block as well as by its category: the fleet names the
+  // category in the open `kind` string (as it does for `digest`), and this projection maps it to
+  // the cockpit's own `molten` kind. Either signal is enough, so a category rename on the fleet
+  // side cannot silently drop the card's dedicated badge.
+  const molten = readMoltenDecision(raw.molten);
+  const kind = molten !== null || rawKind === MOLTEN_CATEGORY ? MOLTEN_KIND : rawKind;
   const state = cardState(raw.state);
   const subject = mapSubject(raw.subject);
   if (id === '' || kind === '' || state === null || subject === null) return null;
@@ -670,13 +685,19 @@ function mapCard(
     ...(notify === undefined ? {} : { notify }),
     ...(receipt === null ? {} : { receipt }),
     ...(knowledge === null ? {} : { knowledge }),
+    ...(molten === null ? {} : { molten }),
   };
 
   const projected =
     content !== null && content.cardRef.resolver === SESSION_ASK_RESOLVER
       ? withSessionAskContent(card, content, readSessionAsk)
       : card;
-  return { card: withFleetOwnReply(withDigestReading(projected, mappedFacts, declarations)), content };
+  return {
+    card: withFleetOwnReply(
+      withDigestReading(withMoltenDecision(projected, molten), mappedFacts, declarations),
+    ),
+    content,
+  };
 }
 
 /**

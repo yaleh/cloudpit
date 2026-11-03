@@ -28,7 +28,15 @@ export type { CockpitCardVizKind } from '@/shared/types';
  */
 
 /** The scarce colour vocabulary the badge draws with. */
-export type CockpitCardTone = 'ask' | 'multi' | 'need' | 'stuck' | 'fix' | 'decision' | 'other';
+export type CockpitCardTone =
+  | 'ask'
+  | 'multi'
+  | 'need'
+  | 'stuck'
+  | 'fix'
+  | 'decision'
+  | 'molten'
+  | 'other';
 
 export type CockpitCardDescriptor = {
   /** The i18n key of the badge drawn in the card header. The kind label, translated. */
@@ -52,6 +60,9 @@ const TONE_CLASSES: Record<CockpitCardTone, string> = {
   stuck: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   fix: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
   decision: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+  // The molten short-loop decision wears its own colour: it is a sign-off on a loop's judgement,
+  // distinct from both the knowledge `apply/modify/defer` decision and the initiative audit.
+  molten: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
   other: 'bg-muted text-muted-foreground',
 };
 
@@ -67,13 +78,37 @@ export function cockpitCardToneClass(tone: CockpitCardTone): string {
  * repair carry an `attempts` reading (the dots of what has already been tried). The other kinds
  * draw none — a reading the provider did not state is not invented here.
  */
-const DESCRIPTORS: Record<CockpitCardKind, CockpitCardDescriptor> = {
+const KNOWN_DESCRIPTORS: Record<CockpitCardKind, CockpitCardDescriptor> = {
   ask: { labelKey: 'cockpit.cardKindAsk', badgeKey: 'cockpit.cardBadgeAsk', tone: 'ask', viz: null },
   multi: { labelKey: 'cockpit.cardKindMulti', badgeKey: 'cockpit.cardBadgeMulti', tone: 'multi', viz: null },
   need: { labelKey: 'cockpit.cardKindNeed', badgeKey: 'cockpit.cardBadgeNeed', tone: 'need', viz: null },
   stuck: { labelKey: 'cockpit.cardKindStuck', badgeKey: 'cockpit.cardBadgeStuck', tone: 'stuck', viz: 'attempts' },
   fix: { labelKey: 'cockpit.cardKindFix', badgeKey: 'cockpit.cardBadgeFix', tone: 'fix', viz: 'attempts' },
   decision: { labelKey: 'cockpit.cardKindDecision', badgeKey: 'cockpit.cardBadgeDecision', tone: 'decision', viz: null },
+};
+
+/**
+ * Kinds the wire's closed `CockpitCardKind` union deliberately does NOT name.
+ *
+ * `kind` is an open string so a provider may ship a category this build never learned (the
+ * fleet's `digest` and `knowledge` cards are the existing examples). A kind that IS known here
+ * gets its own badge and tone without widening the wire union — exactly how `molten` works: the
+ * fleet's `molten-decision` category is projected to this kind, and the renderer reads its row
+ * from the same table as every known kind. Every other unknown kind keeps the default row.
+ */
+const OPEN_KIND_DESCRIPTORS: Record<string, CockpitCardDescriptor> = {
+  molten: {
+    labelKey: 'cockpit.cardKindMolten',
+    badgeKey: 'cockpit.cardBadgeMolten',
+    tone: 'molten',
+    viz: null,
+  },
+};
+
+/** Every kind this build renders — the closed union plus the documented open kinds. */
+const DESCRIPTORS: Record<string, CockpitCardDescriptor> = {
+  ...KNOWN_DESCRIPTORS,
+  ...OPEN_KIND_DESCRIPTORS,
 };
 
 /** The shape an unknown kind draws: a plain card, a generic badge, no viz. */
@@ -95,7 +130,7 @@ export function cockpitCardDescriptor(kind: string): CockpitCardDescriptor {
   if (!Object.prototype.hasOwnProperty.call(DESCRIPTORS, kind)) {
     return DEFAULT_COCKPIT_CARD_DESCRIPTOR;
   }
-  return DESCRIPTORS[kind as CockpitCardKind];
+  return DESCRIPTORS[kind];
 }
 
 /**

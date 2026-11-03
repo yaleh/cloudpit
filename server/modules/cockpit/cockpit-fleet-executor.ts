@@ -8,7 +8,9 @@
  * content, not a Cloudpit constant. Hard-coding them here would drift the moment the fleet adds
  * or renames one, and a declaration the consumer cannot see is exactly the failure this task
  * exists to remove. This module therefore PARSES the declaration and instantiates one executor
- * per entry; nothing below names an id except `fleet.log`, which the own-reply contract names.
+ * per entry. Two ids are named below, each for a stated reason: `fleet.log`, which the own-reply
+ * contract names, and `fleet.molten-decide`, the cockpit side of the still-unshipped GOAL-012
+ * molten contract (see its declaration).
  *
  * THE EXIT CODE IS THE RESULT. The fleet validates before writing, so:
  *
@@ -70,6 +72,35 @@ export type CockpitFleetExecutorReading = {
   declarations: readonly CockpitFleetExecutorDeclaration[];
   /** Why the declaration set is empty, when that is known. */
   reason: string | null;
+};
+
+/**
+ * The molten short-loop decision executor (fleet GOAL-012's tentative contract).
+ *
+ * WHY THIS ID IS DECLARED HERE, NOT READ FROM THE CLI. Every other fleet executor id is the
+ * declaration document's content. The molten decision surface is the cockpit side of a contract
+ * the fleet has not shipped yet: the projection builds the card's confirm options against
+ * `fleet.molten-decide`, so the declared set must name it or every option would render
+ * unconfirmable. The id and params are therefore the cockpit's own statement of the agreed
+ * contract; once the fleet's `rescue executors --json` lists the same id, that declaration wins
+ * (see the provider's resolver) and this one becomes the fallback.
+ *
+ * ⛔ THIS IS NOT `fleet.apply`. A molten decision crystallises through the fleet's molten
+ * channel (task/card split); routing it to the knowledge executor would mix a knowledge
+ * suggestion's apply/modify/defer vocabulary into a loop judgement it does not describe.
+ */
+export const COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID = 'fleet.molten-decide';
+
+/** The molten decision executor's declared parameters, aligned with the GOAL-012 contract. */
+export const COCKPIT_MOLTEN_DECIDE_DECLARATION: CockpitFleetExecutorDeclaration = {
+  id: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
+  action: 'molten-decide',
+  does: '把人的决定交给 fleet 结晶（task/card 分流），不经过知识执行器',
+  params: [
+    { name: 'cardId', type: 'string', required: true },
+    { name: 'decision', type: 'string', required: true },
+    { name: 'dispatch', type: 'string', required: false },
+  ],
 };
 
 /** The outside world one fleet executor needs: the child runner. */
