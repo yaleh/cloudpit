@@ -1211,7 +1211,7 @@ export const api = {
 
 /**
  * Builds a URL against the user's own OpenAI-compatible voice endpoint. Private to the
- * voice helpers below, which bypass the CloudCLI proxy when a base URL is configured.
+ * voice helpers below, which bypass the Cloudpit proxy when a base URL is configured.
  */
 function voiceDirectUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`;
@@ -1227,7 +1227,7 @@ export function voiceConfigSignature(): string {
 
 /**
  * Transcribes recorded audio, posting directly to the user's configured OpenAI-compatible
- * endpoint when one is set and otherwise going through the CloudCLI voice proxy.
+ * endpoint when one is set and otherwise going through the Cloudpit voice proxy.
  */
 /**
  * The provider the last health reading named, held here because this is where the direct path
@@ -1545,7 +1545,7 @@ function routedProvider(
 /**
  * Whether the shared backend settings may be used for a recogniser with these capabilities: only a
  * remote recogniser the browser can address itself. A recogniser that runs on the server's own
- * machine has no address to be given one, and a proxy-only one is called by CloudCLI with its own
+ * machine has no address to be given one, and a proxy-only one is called by Cloudpit with its own
  * stored credentials.
  */
 function sharedBackendApplies(capabilities: AsrCapabilities): boolean {
@@ -1662,7 +1662,7 @@ export async function transcribeVoice(
   const profile = routed;
   if (profile !== null && !sharedBackendApplies(profile.capabilities)) {
     // The proxy hop is a different protocol from the one below: this is the client talking to
-    // CloudCLI (field `audio`, model and key in headers), not to the recogniser's endpoint. The
+    // Cloudpit (field `audio`, model and key in headers), not to the recogniser's endpoint. The
     // routing header is assembled HERE rather than inside `voiceConfigHeaders()`, which returns an
     // empty map when there is no window: a routing header that vanished there would hand the
     // recording to whatever provider the server defaults to, which is the very thing this branch
@@ -1715,7 +1715,7 @@ export async function transcribeVoice(
   }
 
   // The proxy hop is a different protocol from the one above: this is the client talking to
-  // CloudCLI (field `audio`, model and key in headers), not to the recogniser's endpoint.
+  // Cloudpit (field `audio`, model and key in headers), not to the recogniser's endpoint.
   const body = new FormData();
   body.append('audio', blob, filename);
   if (listenId !== undefined) body.append('listenId', listenId);
@@ -1734,7 +1734,7 @@ export async function transcribeVoice(
  * IT GOES THROUGH THE PROXY ONLY, and that is the whole routing decision: raw capture is the
  * DEPLOYMENT's corpus — kept by the server that owns the capture directory — so unlike a
  * transcription there is no user's own backend to send it to. A direct-backend deployment with raw
- * capture on still uploads raw here, to the CloudCLI it is already authenticated against.
+ * capture on still uploads raw here, to the Cloudpit it is already authenticated against.
  *
  * NOTHING IS READ FROM THE ANSWER. The server writes a row and (when the switch is on for it) a file;
  * the bytes of the response carry nothing the recording path acts on. The promise still rejects when
@@ -1780,7 +1780,7 @@ export async function parseTranscriptionResponse(response: Response): Promise<st
 
 /**
  * Synthesizes speech for the given text, using the user's configured OpenAI-compatible
- * endpoint when one is set and otherwise the CloudCLI voice proxy.
+ * endpoint when one is set and otherwise the Cloudpit voice proxy.
  */
 export async function synthesizeVoice(text: string, signal: AbortSignal): Promise<Response> {
   // Same reason as transcribeVoice: choose the direct endpoint only from a copy

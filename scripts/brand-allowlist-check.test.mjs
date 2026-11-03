@@ -428,3 +428,86 @@ test('current docs: injecting CloudCLI into a README H1, a translated H1 and an 
     `translated-README body attribution must stay outside the head scan:\n${JSON.stringify(bodyResult.violations, null, 2)}`,
   );
 });
+
+test('AC8: the code-wide CloudCLI sweep scans every text line and its allowlist is file-scoped', () => {
+  const brandLineGlobs = SCANNED_SURFACES
+    .filter((surface) => surface.kind === 'brand-lines')
+    .map((surface) => surface.glob);
+  for (const required of ['server/**', 'src/**', 'electron/**', 'scripts/**', 'public/**']) {
+    assert.ok(brandLineGlobs.includes(required), `the code-wide sweep must cover ${required}`);
+  }
+
+  const result = runBrandAllowlistCheck({ root: ROOT });
+  assert.equal(result.exitCode, 0, JSON.stringify(result.violations, null, 2));
+  assert.ok(
+    result.readings.brandLineFiles > 1500,
+    `the code-wide sweep must expand over the source tree, got ${result.readings.brandLineFiles} files`,
+  );
+
+  const brandLineFiles = new Set(
+    result.sources.filter((source) => source.brandLines).map((source) => source.file),
+  );
+  for (const unscannable of [
+    'server/shared/tests/architecture-ratchet.baseline.json',
+    'server/modules/quay/tests/contracts/README.md',
+    'scripts/brand-allowlist-check.mjs',
+    'scripts/brand-allowlist-check.test.mjs',
+  ]) {
+    assert.ok(!brandLineFiles.has(unscannable), `${unscannable} must stay outside the sweep`);
+  }
+  for (const file of brandLineFiles) {
+    assert.match(file, /\.(?:ts|tsx|js|mjs|cjs|sh|html)$/, `${file} is not a text source extension`);
+  }
+
+  // Negative control 1: a user-visible notification title.
+  const notificationFile = 'server/modules/notifications/services/notification-orchestrator.service.js';
+  const notificationResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: {
+      [notificationFile]: read(notificationFile)
+        .replace("title: sessionName || 'Cloudpit'", "title: sessionName || 'CloudCLI'"),
+    },
+  });
+  assert.equal(notificationResult.exitCode, 1, 'a CloudCLI notification title must red the sweep');
+  assert.ok(notificationResult.violations.some((violation) => violation.file === notificationFile));
+
+  // Negative control 2: a comment line in shipped backend source (the `code` kind skips these,
+  // the code-wide sweep must not).
+  const schemaFile = 'server/modules/database/schema.ts';
+  const commentResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: { [schemaFile]: ' * the CloudCLI project id.\n' },
+  });
+  assert.equal(commentResult.exitCode, 1, 'a CloudCLI comment must red the sweep');
+  assert.ok(
+    commentResult.violations.some(
+      (violation) => violation.file === schemaFile && violation.message.includes('CloudCLI'),
+    ),
+  );
+
+  // Positive control: the third-party plugin name stays green in the same sweep.
+  const prismResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: { [notificationFile]: `${read(notificationFile)}\n// PRISM CloudCLI\n` },
+  });
+  assert.equal(
+    prismResult.exitCode,
+    0,
+    `PRISM CloudCLI must stay allowlisted:\n${JSON.stringify(prismResult.violations, null, 2)}`,
+  );
+
+  // File scoping: the legacy literal is allowed inside the migration module and its tests, but
+  // the same token in product code is a violation.
+  const legacyFile = 'electron/userDataMigration.js';
+  const legacyResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: { [legacyFile]: `${read(legacyFile)}\nconst legacyTitle = 'CloudCLI';\n` },
+  });
+  assert.equal(legacyResult.exitCode, 0, 'the legacy install literal must stay allowed in its own file');
+
+  const productResult = runBrandAllowlistCheck({
+    root: ROOT,
+    overrides: { 'electron/cloud.js': "throw new Error('CloudCLI');\n" },
+  });
+  assert.equal(productResult.exitCode, 1, 'the legacy allowlist must not leak into another file');
+});

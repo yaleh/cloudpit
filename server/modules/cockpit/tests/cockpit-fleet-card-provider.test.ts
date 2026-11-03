@@ -583,14 +583,14 @@ test('AC-432: a session-ask card is filled from the digest, and its options answ
   assert.equal(
     fleet.provider.declaredExecutors().includes(COCKPIT_SESSION_SEND_EXECUTOR_ID),
     false,
-    'session.send is CloudCLI’s own content default, not a provider declaration',
+    'session.send is Cloudpit’s own content default, not a provider declaration',
   );
 });
 
 test('AC: a completed session-ask option answers its own session with 「label — does」', async () => {
   // Selecting an option on a session-ask card IS answering the assistant in that session: the
   // action is the ordinary `session.send`, addressed to the card's own session, and its text is
-  // the option name plus what choosing it does. `session.send` is CloudCLI's own declared
+  // the option name plus what choosing it does. `session.send` is Cloudpit's own declared
   // content default, so the registry must NOT mark these options unconfirmable.
   const reading: SessionAskDecisionReading = {
     state: 'evaluated',

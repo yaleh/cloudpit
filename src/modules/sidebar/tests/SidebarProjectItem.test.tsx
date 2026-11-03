@@ -13,7 +13,7 @@ import type { SidebarProjectItemProps } from '@/modules/sidebar/SidebarProjectIt
  * The project row's actions, readings and geometry contract.
  *
  * The REAL row and the REAL shared fleet store run; only the fleet transport is replaced.
- * The fleet registry id — not the CloudCLI project id — is the address the board action must
+ * The fleet registry id — not the Cloudpit project id — is the address the board action must
  * carry, and a project the fleet does not register must not draw that action at all.
  *
  * WHY THE VISIBILITY READINGS ARE CLASS TOKENS, NOT INLINE STYLE VALUES. The ⋯ trigger is
@@ -250,7 +250,7 @@ test('a registered project reaches its cockpit board through the ⋯ menu, addre
       '/cockpit?view=board&project=claudecodeui',
     ),
   );
-  // The CloudCLI id is not an address: it must never appear in the menu's route.
+  // The Cloudpit id is not an address: it must never appear in the menu's route.
   assert.doesNotMatch(screen.getByTestId('location').textContent ?? '', /project=registered/);
 });
 

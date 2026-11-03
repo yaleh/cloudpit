@@ -118,7 +118,7 @@ export function parseFleetJsonObject(text: string): Record<string, unknown> | nu
 /**
  * A path canonicalized for root comparison: symlinks resolved, trailing separators dropped.
  * Consumers: the project-id join and the registry, both matching a registered root against a
- * CloudCLI project path. An unresolvable path falls back to a lexical absolute form so a
+ * Cloudpit project path. An unresolvable path falls back to a lexical absolute form so a
  * project that has been moved still compares as itself.
  */
 export function canonicalFleetPath(filePath: string): string {

@@ -1167,7 +1167,7 @@ function extractStringLiterals(source: string): SourceLiteral[] {
  * router renders).
  *
  * `mcp-write-notification.ts` is DELIBERATELY excluded: it composes the
- * notification a write call raises for the CloudCLI USER (title / body of an
+ * notification a write call raises for the Cloudpit USER (title / body of an
  * in-app notification), not copy sent to the MCP caller, and it is outside
  * AC-289's field list. Translating it would change user-facing product copy in
  * a task that is about the caller-facing contract. `mcp-client-name.ts` carries

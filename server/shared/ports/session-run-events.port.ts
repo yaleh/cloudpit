@@ -31,7 +31,7 @@ export type SessionRunOutcome = 'completed' | 'aborted' | 'failed';
 /** One completed run: which session, which run, how it ended, and when. */
 export type SessionRunEndedEvent = {
   kind: 'session.run.ended';
-  /** The CloudCLI application session id. */
+  /** The Cloudpit application session id. */
   session: string;
   /** The run id the shared registry minted for this turn. */
   runId: string;
@@ -51,7 +51,7 @@ export type SessionRunEndedEvent = {
  */
 export type SessionClosedEvent = {
   kind: 'session.closed';
-  /** The CloudCLI application session id. */
+  /** The Cloudpit application session id. */
   session: string;
   /** Why the session is closed; see above. */
   reason: string;

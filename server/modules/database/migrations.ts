@@ -786,7 +786,7 @@ const reclassifySelfAssignedSessionNames = (db: Database): void => {
   }
   if (readings.length + overrides.length > 0) {
     console.log(
-      `Running migration: Re-filing ${readings.length + overrides.length} session(s) named after a CloudCLI resident address`
+      `Running migration: Re-filing ${readings.length + overrides.length} session(s) named after a legacy resident address`
     );
   }
 };

@@ -42,7 +42,7 @@ export const ARCHITECTURE_DELTA_REFRESH_MS = 60 * 60 * 1000;
 /**
  * The project the producer observes.
  *
- * `projectId` addresses the CloudCLI project the architecture service resolves to a root;
+ * `projectId` addresses the Cloudpit project the architecture service resolves to a root;
  * `fleetProjectId` is what the `cloudcli://architecture/<id>` URI (and therefore the wall) uses.
  * A project without a fleet id has no addressable tile and is skipped — the same rule the
  * project-truth producer applies to its unregistered projects.

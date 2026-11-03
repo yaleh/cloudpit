@@ -2,7 +2,7 @@
  * QUAY DISPLAY ROUTES
  * ===================
  *
- * Endpoints that expose a project's quay state to the CloudCLI UI:
+ * Endpoints that expose a project's quay state to the Cloudpit UI:
  * - `GET  /api/quay/fleet-summary`                        — the eager cross-project reading.
  * - `GET  /api/quay/resolve`                              — dereference one `quay://` reference.
  * - `GET  /api/quay/summary`                              — a reference's summary reading.

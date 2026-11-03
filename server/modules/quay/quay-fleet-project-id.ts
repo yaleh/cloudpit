@@ -14,19 +14,19 @@ import {
 } from './quay-fleet-locator.js';
 
 /**
- * The CloudCLI project id → quay-fleet registry id mapping.
+ * The Cloudpit project id → quay-fleet registry id mapping.
  *
  * WHY THIS EXISTS. A `quay://` reference's project segment is spoken out loud and dereferenced
  * by quay-fleet, so it must be the fleet's own stable identity (`projects[].id` in
- * `~/.quay-fleet/registry.json`, e.g. `claudecodeui`), never CloudCLI's internal project UUID.
- * The fleet registers projects by their ROOT path; CloudCLI addresses them by a database id.
- * This module is the single place that joins the two: the CloudCLI project's path (canonicalized,
+ * `~/.quay-fleet/registry.json`, e.g. `claudecodeui`), never Cloudpit's internal project UUID.
+ * The fleet registers projects by their ROOT path; Cloudpit addresses them by a database id.
+ * This module is the single place that joins the two: the Cloudpit project's path (canonicalized,
  * so a trailing separator or a symlinked checkout still matches) is looked up in the registry's
  * project rows, and the registry id found there is the only project segment the wall may mint.
  *
  * The same join answers the other direction: given a registry id from an incoming reference,
- * it names the registered root (quay-fleet's `--root`) and, when CloudCLI knows that root, the
- * CloudCLI project whose snapshot can answer the read.
+ * it names the registered root (quay-fleet's `--root`) and, when Cloudpit knows that root, the
+ * Cloudpit project whose snapshot can answer the read.
  *
  * A FLEET THAT CANNOT ANSWER IS AN ANSWER. No binary, a non-zero exit, malformed output — every
  * failure reads `null`, never throws. `null` is the honest "this project is not registered"
@@ -60,9 +60,9 @@ export type QuayFleetRegisteredProject = {
 };
 
 /**
- * One registry id joined to the CloudCLI project it names.
+ * One registry id joined to the Cloudpit project it names.
  *
- * `projectId` is `null` when CloudCLI does not know the registered root (an archived project,
+ * `projectId` is `null` when Cloudpit does not know the registered root (an archived project,
  * or a fleet host whose registry lists a checkout this instance never added). The root is
  * still authoritative for the fleet read port; only the snapshot fallback needs `projectId`.
  */
@@ -90,9 +90,9 @@ export type QuayFleetAvailability = QuayFleetCliReading;
  * Both methods return `null` for "no such project" and never throw.
  */
 export type QuayFleetProjectIdResolver = {
-  /** CloudCLI project id → fleet registry id, or `null` when its root is not registered. */
+  /** Cloudpit project id → fleet registry id, or `null` when its root is not registered. */
   resolveFleetProjectId(projectId: string): Promise<string | null>;
-  /** Fleet registry id → registered root + the CloudCLI project at that root. */
+  /** Fleet registry id → registered root + the Cloudpit project at that root. */
   resolveFleetProject(projectSegment: string): Promise<QuayFleetProjectMatch | null>;
   /**
    * Whether the fleet CLI answered at all, and why not when it did not.
@@ -106,11 +106,11 @@ export type QuayFleetProjectIdResolver = {
 
 /** The seams the mapper reads through; every one of them is replaceable in a test. */
 export type QuayFleetProjectIdDependencies = {
-  /** CloudCLI project id → absolute project path; `null`/absent for an unknown project. */
+  /** Cloudpit project id → absolute project path; `null`/absent for an unknown project. */
   resolveProjectPathById: (projectId: string) => string | null | undefined;
   /**
-   * Every project this CloudCLI instance knows, used only for the reverse join
-   * (registry id → CloudCLI project). Absent leaves `projectId: null` on every match, which
+   * Every project this Cloudpit instance knows, used only for the reverse join
+   * (registry id → Cloudpit project). Absent leaves `projectId: null` on every match, which
    * still resolves references through the fleet read port but has no snapshot fallback.
    */
   listProjects?: () => readonly { projectId: string; projectPath: string }[];
@@ -152,7 +152,7 @@ function readProjectRow(value: unknown): { id: string; root: string } | null {
  * Builds the mapping service.
  *
  * The binary is resolved per call rather than captured at boot so an operator can install the
- * fleet CLI (or point `QUAY_FLEET_BIN` at a checkout) without restarting CloudCLI; a missing
+ * fleet CLI (or point `QUAY_FLEET_BIN` at a checkout) without restarting Cloudpit; a missing
  * binary is the ordinary "nothing is registered here" answer, not a boot failure.
  */
 export function createQuayFleetProjectIdResolver(

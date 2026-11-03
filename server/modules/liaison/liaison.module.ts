@@ -94,7 +94,7 @@ export type LiaisonModule = {
  * The real `quay-fleet` runner.
  *
  * The binary is looked up per call rather than captured at boot, so an operator can install
- * (or re-point `QUAY_FLEET_BIN` at) a fleet without restarting CloudCLI. A missing binary is
+ * (or re-point `QUAY_FLEET_BIN` at) a fleet without restarting Cloudpit. A missing binary is
  * the ordinary unavailable answer; the caller turns it into the explicit registry error AC2
  * requires rather than a silent drop.
  */

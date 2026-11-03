@@ -69,7 +69,8 @@ vi.mock('@/modules/settings/hooks/useCredentialsSettings', () => ({
     copiedToken: false,
     createAccessToken: () => {},
     revokeAccessToken: () => {},
-    mcpGatewayStatus: null,
+    // An enabled gateway, so the same rendering test can read the connect command.
+    mcpGatewayStatus: { enabled: true, path: '/mcp', baseUrl: 'http://127.0.0.1:3001' },
     newTokenScopes: [],
     toggleNewTokenScope: () => {},
     showNewGithubForm: false,
@@ -227,6 +228,18 @@ test('a blank device name falls back to a User-Agent default that carries no ver
   for (const name of ['Chrome · Linux', 'Safari · macOS']) {
     assert.doesNotMatch(name, /\d/, `${name} must not carry a version number`);
   }
+});
+
+test('the Settings → API tab renders the cloudpit MCP connect command with no legacy alias', () => {
+  const view = render(<CredentialsSettingsTab />);
+  const command = view.getByTestId('mcp-gateway-command');
+  assert.equal(
+    command.textContent,
+    'claude mcp add --transport http cloudpit http://127.0.0.1:3001/mcp '
+      + '--header "Authorization: Bearer <token>"',
+  );
+  assert.doesNotMatch(command.textContent ?? '', /cloudcli/i, 'the old server name must not be shown');
+  console.log(`[mcp-navigation] connectCommand=${JSON.stringify(command.textContent)}`);
 });
 
 test('the Settings → API tab renders the choice and the name box, and edits reach localStorage', async () => {

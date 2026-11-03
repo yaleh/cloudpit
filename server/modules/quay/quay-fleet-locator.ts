@@ -40,10 +40,10 @@ import {
  * because every consumer is a server surface that must keep answering when the fleet is absent.
  */
 
-/** The environment variable an operator uses to point CloudCLI at one exact binary. */
+/** The environment variable an operator uses to point Cloudpit at one exact binary. */
 export const QUAY_FLEET_BIN_ENV = 'QUAY_FLEET_BIN';
 
-/** The contract versions THIS build of CloudCLI speaks. */
+/** The contract versions THIS build of Cloudpit speaks. */
 export const QUAY_FLEET_SUPPORTED_CONTRACTS = {
   wallUri: 'v0',
   registry: 1,

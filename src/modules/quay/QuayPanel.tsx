@@ -314,7 +314,7 @@ const CIRCLED_ORDINALS = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱
  *
  * THE PROJECT SEGMENT IS THE FLEET REGISTRY ID. `null` means the project's root is not
  * registered with quay-fleet: no address can be minted for these tasks (the fleet would read a
- * CloudCLI id as `unknown-project`), so the tile declares NO focusable set at all rather than
+ * Cloudpit id as `unknown-project`), so the tile declares NO focusable set at all rather than
  * declaring objects nobody can dereference. An unread tile (`inFlight === null`) likewise has
  * no focusable set: `null` is "no lane reading", not "nothing is running", and the renderer
  * publishes the contract attribute only for an actual, addressable reading.
@@ -666,7 +666,7 @@ function InFlightCard({
     >
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">In flight</h3>
       {fleetProjectId === null && fleetState !== 'missing' && fleetState !== 'incompatible' ? (
-        // The reference's project segment must be a fleet registry id. CloudCLI's own project
+        // The reference's project segment must be a fleet registry id. Cloudpit's own project
         // id is NOT an honest fallback — the fleet would reject it — so the tile says the
         // project is unregistered and declares no focusable objects. When the CLI itself is
         // missing/incompatible the notice above states that ONE cause instead, so this card

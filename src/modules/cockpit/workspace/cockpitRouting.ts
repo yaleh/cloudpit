@@ -183,7 +183,7 @@ export type CockpitRouteInput = {
  * Resolves the project a `quay://` address belongs to.
  *
  * The project segment is the project's quay-fleet REGISTRY ID; the display name is accepted as
- * a spoken alias because both name the same project to the person. The CloudCLI project id is
+ * a spoken alias because both name the same project to the person. The Cloudpit project id is
  * NOT matched — no address carries it any more, and treating a UUID as a handle is exactly the
  * drift this mapping exists to remove.
  */

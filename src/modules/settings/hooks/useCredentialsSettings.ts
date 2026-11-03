@@ -68,7 +68,7 @@ export function useCredentialsSettings({
   // note from this same set rather than keeping a second copy of the selection.
   const [newTokenScopes, setNewTokenScopes] = useState<string[]>(defaultNewTokenScopes);
 
-  // The CloudCLI MCP block's status; null until the first read answers, so the
+  // The Cloudpit MCP block's status; null until the first read answers, so the
   // section can distinguish "still loading" from a real enabled/disabled reading.
   const [mcpGatewayStatus, setMcpGatewayStatus] = useState<McpGatewayStatus | null>(null);
 

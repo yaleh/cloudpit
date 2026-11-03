@@ -248,7 +248,7 @@ vi.mock('@/shared/api', () => ({
   authenticatedFetch: httpMock.authenticatedFetch,
 }));
 
-/** The CloudCLI project id an older cockpit URL stored (a UUID). The URL must not keep it. */
+/** The Cloudpit project id an older cockpit URL stored (a UUID). The URL must not keep it. */
 const PROJECT_UUID = 'c5a57036-de6c-4f0a-9d3e-123456789abc';
 
 const FLEET: QuayFleetSummary = {
@@ -779,7 +779,7 @@ describe('views are browser history', () => {
   });
 
   it('writes the fleet registry id into the URL and replaces a stored UUID link', async () => {
-    // `p1` is the CloudCLI project id an older link carried; `claudecodeui` is the fleet id.
+    // `p1` is the Cloudpit project id an older link carried; `claudecodeui` is the fleet id.
     renderCockpit(`/cockpit?view=board&project=${PROJECT_UUID}`);
 
     await waitFor(() => expect(path()).toBe('/cockpit?view=board&project=claudecodeui'));

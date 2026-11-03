@@ -2,11 +2,11 @@
 /**
  * Criterion for gap-desktop-local-server-bundle-url-points-at-fork.
  *
- * CloudCLI Desktop downloads its Local runtime bundle from a GitHub Release URL built by
+ * Cloudpit Desktop downloads its Local runtime bundle from a GitHub Release URL built by
  * `electron/serverInstaller.js`. The default base URL named the UPSTREAM repository
  * (`github.com/siteboon/claudecodeui`) while this fork publishes both the desktop installer and the
  * `cloudpit-local-server-v<tag>` prerelease under `yaleh/cloudpit` — so a user who picked
- * "Local CloudCLI" asked a repository that never had the tag and got a 404.
+ * "Local Cloudpit" asked a repository that never had the tag and got a 404.
  *
  * This criterion pins the two decisions that fix it, so neither can silently revert:
  *

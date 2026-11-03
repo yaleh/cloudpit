@@ -12,10 +12,10 @@ import {
 import { createQuayService } from '../quay.service.js';
 
 /**
- * The CloudCLI project id → quay-fleet registry id join (quay-fleet-project-id).
+ * The Cloudpit project id → quay-fleet registry id join (quay-fleet-project-id).
  *
  * THE MATCH IS BY ROOT, NOT BY NAME. The fleet registry is the authority for project identity,
- * and it registers a project by its root path; CloudCLI knows projects by a database id. The
+ * and it registers a project by its root path; Cloudpit knows projects by a database id. The
  * join therefore canonicalizes BOTH sides — a trailing separator and a symlinked checkout are
  * the same project — and only an exact (canonical) root match yields a registry id.
  *
@@ -60,7 +60,7 @@ function staticExec(stdout: string, calls: ExecCall[] = []): QuayFleetProjectIdD
 
 /**
  * A temp workspace: `real/` is the checkout, `link/` a symlink to it. The registry registers
- * `real/` (with a trailing slash) while CloudCLI addresses the project through `link/` — the
+ * `real/` (with a trailing slash) while Cloudpit addresses the project through `link/` — the
  * two spellings must still join.
  */
 function createWorkspace(): {
@@ -86,7 +86,7 @@ test('AC3: a registered root matches through a trailing separator and a symlink'
     const resolver = createQuayFleetProjectIdResolver({
       resolveProjectPathById: (projectId) =>
         projectId === 'cloud-project'
-          // CloudCLI stored the SYMLINKED path, with a trailing separator of its own.
+          // Cloudpit stored the SYMLINKED path, with a trailing separator of its own.
           ? `${workspace.link}${path.sep}`
           : null,
       listProjects: () => [{ projectId: 'cloud-project', projectPath: workspace.link }],
@@ -127,9 +127,9 @@ test('AC3: an unregistered root and an unregistered segment are null, never a gu
     });
 
     assert.equal(await resolver.resolveFleetProjectId('elsewhere'), null);
-    // An unknown CloudCLI project is null without even reading the registry.
+    // An unknown Cloudpit project is null without even reading the registry.
     assert.equal(await resolver.resolveFleetProjectId('no-such-project'), null);
-    // A registry id nobody registered is null; CloudCLI ids are never accepted as segments.
+    // A registry id nobody registered is null; Cloudpit ids are never accepted as segments.
     assert.equal(await resolver.resolveFleetProject('cloud-uuid'), null);
   } finally {
     fs.rmSync(workspace.directory, { recursive: true, force: true });

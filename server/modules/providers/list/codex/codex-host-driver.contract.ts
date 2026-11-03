@@ -183,7 +183,7 @@ export function residentThreadDefaults(options: AnyRecord): CodexThreadDefaults 
 }
 
 /**
- * The `thread/start` fields a CloudCLI permission mode asks for.
+ * The `thread/start` fields a Cloudpit permission mode asks for.
  *
  * `thread/start` takes a `sandbox` *string* (`workspace-write`,
  * `danger-full-access`), while live settings take an object `sandboxPolicy`
@@ -246,11 +246,13 @@ export function threadDefaultsFromLaunchOptions(options: AnyRecord): CodexThread
 /**
  * The MCP server name this server's gateway is injected under.
  *
- * `cloudcli` is the name the settings page tells a Claude user to connect
- * (`claude mcp add --transport http cloudcli …`), so a Codex session and a Claude
+ * `cloudpit` is the name the settings page tells a Claude user to connect
+ * (`claude mcp add --transport http cloudpit …`), so a Codex session and a Claude
  * session name the same backend the same way; nothing in the driver reads it.
+ * An existing `claude mcp add … cloudcli` entry keeps working: the server name is
+ * a client-local key and authentication comes from the URL plus the PAT.
  */
-export const CODEX_MCP_GATEWAY_SERVER_NAME = 'cloudcli';
+export const CODEX_MCP_GATEWAY_SERVER_NAME = 'cloudpit';
 
 /**
  * The child environment variable that carries the gateway credential.
@@ -260,7 +262,7 @@ export const CODEX_MCP_GATEWAY_SERVER_NAME = 'cloudcli';
  * never appears in the process arguments — an argv token is visible to every
  * `ps` on the machine and to the app-server's own logs.
  */
-export const CODEX_MCP_GATEWAY_TOKEN_ENV = 'CLOUDCLI_MCP_GATEWAY_TOKEN';
+export const CODEX_MCP_GATEWAY_TOKEN_ENV = 'CLOUDPIT_MCP_GATEWAY_TOKEN';
 
 /** One `-c key=value` config override, with the value written as a TOML basic string. */
 function codexConfigArg(key: string, value: string): string[] {
@@ -281,8 +283,8 @@ function tomlBasicString(value: string): string {
  *
  * When a target is present the child is told about one extra HTTP MCP server:
  *
- *   -c mcp_servers.cloudcli.url="http://127.0.0.1:<port>/mcp"
- *   -c mcp_servers.cloudcli.bearer_token_env_var="CLOUDCLI_MCP_GATEWAY_TOKEN"
+ *   -c mcp_servers.cloudpit.url="http://127.0.0.1:<port>/mcp"
+ *   -c mcp_servers.cloudpit.bearer_token_env_var="CLOUDPIT_MCP_GATEWAY_TOKEN"
  *
  * and the token is placed in the child's environment. That is the same config
  * shape `codex.mcp` writes to `config.toml` (`url` + `bearer_token_env_var`), so
@@ -356,7 +358,7 @@ export function threadParams(
  * app-server, copied from its own refusal: "Supported values are: 'none',
  * 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'."
  *
- * CloudCLI's vocabulary is wider than this: `default` is its "use the model's
+ * Cloudpit's vocabulary is wider than this: `default` is its "use the model's
  * default" sentinel (`DEFAULT_EFFORT_VALUE` in `src/shared/constants.ts`) and
  * `ultracode` is a Claude-only pseudo-level. Neither is a codex effort, and the
  * server rejects the whole `turn/start` with a 400 for one unknown value, so a
@@ -372,7 +374,7 @@ const CODEX_EFFORT_VALUES: Readonly<Record<string, true>> = {
   max: true,
 };
 
-/** The codex `effort` for one CloudCLI effort, or undefined to leave the field off. */
+/** The codex `effort` for one Cloudpit effort, or undefined to leave the field off. */
 function codexTurnEffort(effort: unknown): string | undefined {
   return typeof effort === 'string' && CODEX_EFFORT_VALUES[effort] === true ? effort : undefined;
 }

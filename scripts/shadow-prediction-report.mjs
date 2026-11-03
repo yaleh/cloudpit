@@ -14,7 +14,7 @@
  *     absent, so a damage line cannot quietly look like a hit.
  *
  * `--json` prints the same reading as one JSON document. The report is READ-ONLY:
- * it never writes the stream (the fleet owns retention and CloudCLI never deletes
+ * it never writes the stream (the fleet owns retention and Cloudpit never deletes
  * an event).
  *
  * Consumers: `scripts/shadow-prediction-report.test.mjs` (AC4, which drives the

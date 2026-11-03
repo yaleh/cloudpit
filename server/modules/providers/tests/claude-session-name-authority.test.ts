@@ -22,9 +22,9 @@ import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claud
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 
 /**
- * Who owns a session's name: a human, Claude Code, or CloudCLI.
+ * Who owns a session's name: a human, Claude Code, or Cloudpit.
  *
- * CloudCLI does not own it. That is the settled design ((a) in the task
+ * Cloudpit does not own it. That is the settled design ((a) in the task
  * record): the app no longer hands the CLI a `--name` at all, and the name a
  * session has is the one Claude Code gives it. What remains to guard here is
  * everything an *older* build left behind — the launch address it wrote into
@@ -41,7 +41,7 @@ import { sessionsService } from '@/modules/providers/services/sessions.service.j
  * - a real `agent-name` an agent chose, and a name the user chose, both still
  *   outrank it — without those two, the simplest way to pass the case above
  *   would be to demote every name the CLI writes;
- * - the rank table itself has to keep CloudCLI's own sources below `ai`, or the
+ * - the rank table itself has to keep Cloudpit's own sources below `ai`, or the
  *   ladder above is unreachable through the other door into the same row.
  *
  * The fixtures are real transcript lines in a real temporary Claude home,
@@ -687,7 +687,7 @@ test('the discriminator is anchored on the session it is asked about', () => {
   assert.strictEqual(isSelfAssignedSessionName('The Agent That Owns This', appSessionId), false);
 });
 
-test('the rank table keeps every CloudCLI-made source below a real title', async () => {
+test('the rank table keeps every Cloudpit-made source below a real title', async () => {
   await withIsolatedDatabase(async () => {
     const projectPath = await mkdtemp(path.join(os.tmpdir(), 'claude-name-authority-rank-'));
     projectsDb.createProjectPath(projectPath);

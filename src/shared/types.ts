@@ -679,7 +679,7 @@ export type QuaySnapshot = {
   /**
    * The project's quay-fleet registry id, read from the fleet registry by matching the project
    * root. It is the ONLY project segment a `quay://` reference may carry, because the fleet
-   * dereferences references by its own registry id and a CloudCLI UUID reads `unknown-project`
+   * dereferences references by its own registry id and a Cloudpit UUID reads `unknown-project`
    * there. `null` means the root is not registered with quay-fleet: the panel then declares no
    * addressable objects and says so, rather than minting a UUID reference. Absent is the same
    * reading as `null` (a snapshot from an older backend).
@@ -775,7 +775,7 @@ export type QuayProjectStatus = {
 /**
  * The object kinds a `quay://` URI can address, per quay-fleet's contract #1
  * (`fleet-wall-object-uri-address-space`): a task, a goal, one ledger event, or the
- * project's board. CloudCLI renders and focuses these objects; it never invents a kind the
+ * project's board. Cloudpit renders and focuses these objects; it never invents a kind the
  * fleet side does not publish.
  */
 export type QuayObjectKind = 'task' | 'goal' | 'ledger' | 'board';
@@ -857,7 +857,7 @@ export type QuayFocusableObject = {
  * the voice input pack carries the same objects as references.
  *
  * Zooming into a focusable object replaces this contract with that object's own sub-view;
- * zooming back out returns the parent contract. CloudCLI ships the declaration side first —
+ * zooming back out returns the parent contract. Cloudpit ships the declaration side first —
  * the zoom navigation itself is the wall's later work.
  */
 export type QuayViewContract = {
@@ -889,7 +889,7 @@ export type QuayFleetProjectSummary = {
   /**
    * The project's quay-fleet registry id — the `quay://` project segment. `null` (or absent)
    * means its root is not registered with quay-fleet, so the project declares no addressable
-   * objects. Never fall back to `projectId`: a CloudCLI UUID is not a fleet handle.
+   * objects. Never fall back to `projectId`: a Cloudpit UUID is not a fleet handle.
    */
   fleetProjectId?: string | null;
   /** The worker driver reading; `unavailable` means the status command did not answer. */
@@ -1046,7 +1046,7 @@ export type ReleaseInfo = {
   publishedAt: string;
 };
 
-/** How this CloudCLI install was obtained; decides whether the UI offers a self-update action. */
+/** How this Cloudpit install was obtained; decides whether the UI offers a self-update action. */
 export type InstallMode = 'git' | 'npm';
 
 // ---------------------------
@@ -3085,7 +3085,7 @@ type McpImportMode = 'form' | 'json';
 
 //----------------- PLUGINS ------------
 
-/** An installed CloudCLI plugin's manifest and runtime status (entry point, slot, permissions, enabled and server-running flags); always import this type explicitly from `@/shared/types`, because `Plugin` is also a DOM global and an unimported reference silently resolves to that instead. */
+/** An installed Cloudpit plugin's manifest and runtime status (entry point, slot, permissions, enabled and server-running flags); always import this type explicitly from `@/shared/types`, because `Plugin` is also a DOM global and an unimported reference silently resolves to that instead. */
 export type Plugin = {
   name: string;
   displayName: string;
@@ -3411,7 +3411,7 @@ export type OAuthTokenItem = {
   revokedAt: string | null;
 };
 
-/** The CloudCLI MCP gateway's read-only status as `GET /api/settings/mcp-gateway` returns it: whether the gateway is enabled, the path it answers on, and the base url an MCP client should dial. */
+/** The Cloudpit MCP gateway's read-only status as `GET /api/settings/mcp-gateway` returns it: whether the gateway is enabled, the path it answers on, and the base url an MCP client should dial. */
 export type McpGatewayStatus = {
   enabled: boolean;
   path: string;
@@ -3971,7 +3971,7 @@ export type CockpitHubView = { type: 'fleet' } | { type: 'board'; project: strin
 
 /**
  * One project the display can address, with both identities the server's target rules need:
- * the CloudCLI project id the fleet registry is keyed by, and the fleet registry id that
+ * the Cloudpit project id the fleet registry is keyed by, and the fleet registry id that
  * appears in a `quay://` address.
  */
 export type CockpitVisibleProject = {
@@ -4581,7 +4581,7 @@ export type CockpitCardFeedbackOutcome = {
 /**
  * One sent-but-unacknowledged feedback call, as the display reads it.
  *
- * This is CloudCLI's own lifecycle state, not a provider statement: the provider only answers a
+ * This is Cloudpit's own lifecycle state, not a provider statement: the provider only answers a
  * receipt. The card keeps its place in the provider's order, but its options and confirmation
  * are locked while this overlay exists (the action already ran; only the feedback may be resent).
  */

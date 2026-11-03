@@ -221,7 +221,7 @@ function currentViewportWidth(): number {
 
 /**
  * The hub's view → the page's view. The hub speaks in `quay://` project segments (fleet
- * registry ids); the page fetches and links by CloudCLI project id. An unregistered segment
+ * registry ids); the page fetches and links by Cloudpit project id. An unregistered segment
  * has no board to show, so it stays on the fleet rather than inventing a URL.
  */
 function cockpitViewForHubView(
@@ -236,7 +236,7 @@ function cockpitViewForHubView(
     projects.find((candidate) => candidate.name.toLowerCase() === hubView.project.toLowerCase()) ??
     null;
   // The URL carries the FLEET registry id (the project segment every `quay://` address uses),
-  // never the CloudCLI project id — a stored UUID link is rewritten by the page's own effect.
+  // never the Cloudpit project id — a stored UUID link is rewritten by the page's own effect.
   return project === null
     ? { type: 'wall' }
     : { type: 'board', project: project.fleetProjectId ?? project.projectId };
@@ -558,13 +558,13 @@ export default function CockpitPage() {
   );
 
   // The view's project segment may be either handle: the cockpit's own URL writes the
-  // CloudCLI id, while the sidebar's entry links speak the fleet registry id. Resolve it once
-  // so the snapshot request, the board contract and the hub all use the CloudCLI id.
+  // Cloudpit id, while the sidebar's entry links speak the fleet registry id. Resolve it once
+  // so the snapshot request, the board contract and the hub all use the Cloudpit id.
   const viewProject = useMemo(
     () => (view.type === 'board' ? resolveCockpitProject(projects, view.project) : null),
     [projects, view],
   );
-  // The snapshot route is keyed by the CloudCLI project id. While the roster is still loading
+  // The snapshot route is keyed by the Cloudpit project id. While the roster is still loading
   // a deep-linked fleet id cannot be translated yet; wait instead of requesting a 404 under the
   // wrong id (a later roster failure falls back to the raw segment, so the stage still tries).
   const boardProjectId =
@@ -596,7 +596,7 @@ export default function CockpitPage() {
     [fleet, orderedProjects, viewportWidth],
   );
 
-  // The board's project segment: the fleet registry id, never the CloudCLI project id.
+  // The board's project segment: the fleet registry id, never the Cloudpit project id.
   const boardFleetProjectId: string | null = view.type === 'board'
     ? viewProject?.fleetProjectId
       ?? (boardView.status === 'loaded' ? boardView.snapshot.fleetProjectId ?? null : null)
@@ -787,7 +787,7 @@ export default function CockpitPage() {
     viewReconcileNonce,
   ]);
 
-  // A URL stored by an older cockpit carries the CloudCLI project id. Once the roster can
+  // A URL stored by an older cockpit carries the Cloudpit project id. Once the roster can
   // translate it, rewrite it to the fleet registry id with REPLACE — the same view, spelled in
   // the address space the rest of the app uses, so no history entry is added for the rename.
   useEffect(() => {

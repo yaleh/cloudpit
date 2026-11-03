@@ -1703,7 +1703,7 @@ export class ClaudeSessionOccupiedError extends Error {
 
   constructor(owner: ClaudeBackgroundSessionOwner) {
     super(
-      `该会话正由 Claude Code 后台任务占用（job ${owner.jobId}，pid ${owner.pid}），CloudCLI 无法接管。` +
+      `该会话正由 Claude Code 后台任务占用（job ${owner.jobId}，pid ${owner.pid}），Cloudpit 无法接管。` +
         `请先执行 \`claude stop ${owner.jobId}\` 停止它后重试，或 fork 该会话。`,
     );
     this.name = 'ClaudeSessionOccupiedError';

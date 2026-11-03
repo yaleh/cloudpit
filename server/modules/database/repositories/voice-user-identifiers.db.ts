@@ -26,7 +26,7 @@ export const voiceUserIdentifiersDb = {
    * frequency that no single message explains. The `canonical` spelling is kept
    * from the FIRST sighting (the conflict branch deliberately does not overwrite
    * it), so a later message that spells `cloudcli` does not rename a token the
-   * listing already showed as `CloudCLI`.
+   * listing already showed as `Cloudpit`.
    */
   incrementTokens(entries: VoiceIdentifierIncrement[]): void {
     if (entries.length === 0) {

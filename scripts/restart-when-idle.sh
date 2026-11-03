@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restart the claudecodeui server once NO CloudCLI session is running a turn.
+# Restart the claudecodeui server once NO Cloudpit session is running a turn.
 #
 # Why this script exists: restarting the server unit kills every claude process under it, so doing
 # it while another session is mid-turn loses that turn. It runs as a systemd USER transient unit

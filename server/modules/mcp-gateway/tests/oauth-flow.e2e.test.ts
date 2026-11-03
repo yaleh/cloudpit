@@ -251,7 +251,7 @@ type ServerContext = {
 };
 
 /**
- * Seeds a temp database with ONE CloudCLI user, boots a real `server/index.ts`
+ * Seeds a temp database with ONE Cloudpit user, boots a real `server/index.ts`
  * process against it on a temp port, waits for the ready line, and hands the
  * context to `run`. The user row is what `oauth_grants.user_id` references and
  * what `authenticateToken` loads for the minted JWT; since AC-261 it is also what

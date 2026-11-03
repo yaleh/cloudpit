@@ -24,8 +24,9 @@ first.
 - **Two deliberate exceptions**: the attachment dual root still accepts
   `CLOUDCLI_HOME` alongside `CLOUDPIT_HOME` (R4, retained in 3.0), and a few
   internal, non-operator identifiers that merely carry the old prefix
-  (`CLOUDCLI_WATCHER_MODE`, the MCP gateway token name, the build-time
-  `CLOUDCLI_BUNDLE_*` switches) were not renamed by this release.
+  (`CLOUDCLI_WATCHER_MODE`, the build-time `CLOUDCLI_BUNDLE_*` switches) were
+  not renamed by this release. The MCP gateway token variable is no longer in
+  this group: it is `CLOUDPIT_MCP_GATEWAY_TOKEN` (see R8/R11).
 - **Action**: before upgrading, rename the keys in systemd drop-ins, `.env` files
   and launcher scripts. `grep -rn 'CLOUDCLI_' /etc/systemd/system/*.d \
   ~/.config/systemd/user/ .env*` should return only the two exception groups above.
@@ -129,10 +130,19 @@ first.
 
 ## MCP server name and service-worker cache — R8/R11
 
+- The Settings → API connect command and the Codex gateway injection both name
+  the server `cloudpit` (`claude mcp add --transport http cloudpit …`,
+  `-c mcp_servers.cloudpit.url=…`), and the child token variable is
+  `CLOUDPIT_MCP_GATEWAY_TOKEN`. **No migration is needed**: the MCP server name
+  is a client-local key, authentication comes from the URL and the PAT, and a
+  Codex `-c` override is applied fresh on every launch. An existing
+  `claude mcp add … cloudcli` entry keeps working and may be left in place.
 - Browser Use registers and uninstalls exactly `cloudpit-browser`. The legacy
   `cloudcli-browser` / `cloudcli-browser-use` registrations were removed by the
   2.x uninstall path; re-running the Browser Use install is enough on a machine
-  that skipped it.
+  that skipped it. The app still recognises a legacy `cloudcli-` prefix as a
+  managed MCP server, so such a row keeps its read-only badge rather than
+  becoming editable.
 - The service worker purges only its own `cloudpit-*` caches. Upgrading directly
   from 1.x to 3.x is not supported: go through a 2.x release once so the
   `claude-ui-*` caches are dropped there.

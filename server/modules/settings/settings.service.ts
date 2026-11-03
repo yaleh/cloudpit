@@ -139,7 +139,7 @@ type SettingsDependencies = {
     list(userId: number): StoredOAuthToken[];
   };
   /**
-   * The read-only seams the Settings → API page's CloudCLI MCP block needs.
+   * The read-only seams the Settings → API page's Cloudpit MCP block needs.
    *
    * Optional so the existing service criteria keep constructing the dependency
    * object they always have; the module always supplies it (see
@@ -454,7 +454,7 @@ export function createSettingsService(dependencies: SettingsDependencies) {
       return { success: true };
     },
     /**
-     * The Settings → API page's CloudCLI MCP block: whether the gateway is
+     * The Settings → API page's Cloudpit MCP block: whether the gateway is
      * enabled, the path it answers on, and the base url an MCP client should
      * dial. The gate is read through the mcp-gateway module (the single place
      * `MCP_ENABLED` is parsed) rather than re-derived here.

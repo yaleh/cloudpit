@@ -3,18 +3,18 @@
  *
  * The mechanism this file implements is small on purpose: given an initiative and a target
  * project, ask the fleet registry which session is that pair's LIAISON session, and hand the
- * message to CloudCLI's existing session send service — or, when nobody is there to take it,
+ * message to Cloudpit's existing session send service — or, when nobody is there to take it,
  * queue it in the initiative's inbox until the session comes back.
  *
  * ## Why the resolution is a REGISTRY READ and never a name
  *
  * `fleet-liaison-stable-addressing-probe` (2026-10-24) measured what is stable across a
- * restart: the CloudCLI session id is the only identity a registry row can hold that survives
+ * restart: the Cloudpit session id is the only identity a registry row can hold that survives
  * the process, while `pid` changes every launch (and can be reused) and `name` is not an
  * address at all — three live sessions shared one name on the observed host. So this service
  * never looks a peer up by name: it reads the (initiative, project) two-key mapping
  * (`registry.json`'s `liaisonSessions`, written by `registry sessions add --role liaison`),
- * and the registry's `sessionId` is the CloudCLI session id. Liveness is then the ONE
+ * and the registry's `sessionId` is the Cloudpit session id. Liveness is then the ONE
  * question the host registry answers (`liveHostForSession`), which is authoritative in this
  * process in a way a local `~/.claude/sessions/<pid>.json` cross-check is not.
  *
@@ -299,7 +299,7 @@ export type LiaisonRecoveryOutcome = {
 export type LiaisonDeliverDeps = {
   /** The fleet CLI seam (production: a real `quay-fleet` child). */
   runFleet: LiaisonFleetRun;
-  /** Whether CloudCLI is currently serving this session (production: the host registry). */
+  /** Whether Cloudpit is currently serving this session (production: the host registry). */
   isSessionLive: (sessionId: string) => boolean;
   /** The existing session send service. */
   sendMessage: LiaisonSendMessage;

@@ -458,7 +458,7 @@ export type ProviderModelOption = {
   description?: string;
   /** Stable SQLite row id used only by model-management actions. */
   recordId?: number;
-  /** True for user-created rows; false for immutable CloudCLI defaults. */
+  /** True for user-created rows; false for immutable Cloudpit defaults. */
   isCustom?: boolean;
   /** Custom-model env config as returned to clients; secret values are never included. */
   config?: ProviderModelPublicConfig | null;
@@ -1607,7 +1607,7 @@ export type WorktreePorcelainEntry = {
  *
  * Extends the porcelain entry with everything the Worktrees panel renders:
  * dirty-file count, ahead/behind relative to the base branch (the branch
- * checked out in the main worktree), last-commit metadata, and the CloudCLI
+ * checked out in the main worktree), last-commit metadata, and the Cloudpit
  * project row linked to the worktree directory (if one was registered).
  */
 export type WorktreeDescriptor = {
@@ -1686,7 +1686,7 @@ export type CreateAndOpenWorktreeResult = CreateWorktreeResult & {
 };
 
 /**
- * Input accepted when registering an existing worktree as a CloudCLI project.
+ * Input accepted when registering an existing worktree as a Cloudpit project.
  *
  * The service verifies that `worktreePath` belongs to the repository containing
  * `projectPath` before it creates or restores any project record.
@@ -1697,7 +1697,7 @@ export type OpenWorktreeInput = {
 };
 
 /**
- * Project view returned after a worktree is opened in CloudCLI.
+ * Project view returned after a worktree is opened in Cloudpit.
  *
  * This deliberately mirrors the project-selection payload used by the Projects
  * module so the frontend can switch to the worktree without another lookup.
@@ -2595,7 +2595,7 @@ export type VoiceLogPort = {
  * One stored frequency row of the U-source lexicon.
  *
  * `tokenLower` is the lookup key (`canonical` lowercased) and `canonical` is the
- * spelling first seen — the pair is what lets `CloudCLI` and `cloudcli` be one
+ * spelling first seen — the pair is what lets `Cloudpit` and `cloudcli` be one
  * token that still displays a real casing. `firstSeenAt` / `lastSeenAt` are epoch
  * milliseconds supplied by the service's clock, not `CURRENT_TIMESTAMP`, so a
  * caller can pin them. `projectKey` is the path the message was sent from, which
@@ -4657,7 +4657,7 @@ export type QuaySnapshot = {
   /**
    * The project's quay-fleet registry id, joined from the fleet registry by matching the
    * project root. It is the ONLY project segment a `quay://` reference may carry: the fleet
-   * dereferences by its own registry id, so CloudCLI's project UUID would read `unknown-project`
+   * dereferences by its own registry id, so Cloudpit's project UUID would read `unknown-project`
    * there. `null` means the root is not registered with quay-fleet, and the panel then declares
    * no addressable objects (「未登记到 quay-fleet」) rather than minting a UUID reference.
    */
@@ -5099,7 +5099,7 @@ export type CockpitCardFeedbackOutcome = {
 /**
  * One sent-but-unacknowledged feedback call, as the display reads it.
  *
- * This is CloudCLI's own lifecycle state, not a provider statement: the provider only answers a
+ * This is Cloudpit's own lifecycle state, not a provider statement: the provider only answers a
  * receipt. The card keeps its place in the provider's order, but its options and confirmation
  * are locked while this overlay exists (the action already ran; only the feedback may be resent).
  */
@@ -5582,7 +5582,7 @@ export type SessionAskEventKind = 'session.asking' | 'session.answered' | 'sessi
  * text, the UNTRUNCATED full text, omitted when the text is blank. `questionText`
  * exists ONLY so fleet can dedup by 「session + normalised question text」 (it hashes that text
  * into the key, falling back to the old askId key when absent). It is NOT a display field: the
- * cockpit renders the question from its own card/`contentRef` resolution, and no CloudCLI UI
+ * cockpit renders the question from its own card/`contentRef` resolution, and no Cloudpit UI
  * reads `questionText`. Do NOT truncate it for size — a cut merges distinct questions into one key.
  */
 export type SessionAskEvent = {

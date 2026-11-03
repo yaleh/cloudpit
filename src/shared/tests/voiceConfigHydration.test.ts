@@ -18,7 +18,7 @@ import {
  * Three things have to hold, and none of them can be checked from the store's
  * own file: the settings come from the server; the first voice call of a session
  * waits for them instead of mistaking "not loaded yet" for "no backend
- * configured" and quietly posting the recording to the CloudCLI proxy; and the
+ * configured" and quietly posting the recording to the Cloudpit proxy; and the
  * pre-server `voiceConfig` localStorage key is imported once and then removed,
  * so the API key stops living in browser storage without the user losing the
  * configuration they already had.
@@ -120,7 +120,7 @@ const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
   // Everything else, including the proxy, answers but is never expected: the
   // assertions below name the URLs they require, so a call that lands here shows
   // up as a missing direct call rather than as a silent success.
-  return jsonResponse({ text: 'transcribed by the CloudCLI proxy' });
+  return jsonResponse({ text: 'transcribed by the Cloudpit proxy' });
 });
 
 beforeEach(() => {

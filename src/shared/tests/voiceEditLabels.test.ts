@@ -158,7 +158,7 @@ test('the region widens across an identifier joiner, so a partial correction kee
  * Every expectation below was produced by the Python function itself, not by reading it — the
  * command is `python3 -I -c "<is_id>"` over this exact list — so a disagreement here is a real
  * disagreement between the two implementations rather than a disagreement with this file's author.
- * The six the acceptance criteria name by hand are `needs-human`, `AC-103`, `CloudCLI`, `server.ts`,
+ * The six the acceptance criteria name by hand are `needs-human`, `AC-103`, `CLOUDPIT`, `server.ts`,
  * `plain` and `a/b`; the rest are here so the rule is pinned on the boundaries and not only on the
  * examples — `v1.2` and `voice-routes.ts` for the file-suffix rule, `x` and `ab` for the length
  * floor, `...` for the "no letters at all" case, `UPPER` and `AC` for the all-caps run.
@@ -166,7 +166,7 @@ test('the region widens across an identifier joiner, so a partial correction kee
 const SHAPE_ANSWERS: [string, boolean][] = [
   ['needs-human', true],
   ['AC-103', true],
-  ['CloudCLI', true],
+  ['CLOUDPIT', true],
   ['quayFleet', true],
   ['snake_case', true],
   ['AC1', true],

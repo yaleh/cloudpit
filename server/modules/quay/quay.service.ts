@@ -343,7 +343,7 @@ export type QuayFleetProjectSummary = {
   /**
    * The project's quay-fleet REGISTRY id — the only project segment a `quay://` reference may
    * mint. `null` means the root is not registered in the fleet, so this project declares no
-   * addressable objects (falling back to the CloudCLI UUID would mint a reference the fleet
+   * addressable objects (falling back to the Cloudpit UUID would mint a reference the fleet
    * cannot dereference).
    */
   fleetProjectId: string | null;
@@ -611,7 +611,7 @@ export const QUAY_READ_ONLY_COMMANDS: readonly (readonly string[])[] = [
   ['goal', 'list', '--json'],
   ['adr', 'list', '--json'],
   // The Tests and Fan-in cards' readings. quay 0.24.0 publishes both as bounded JSON from its
-  // own readers, so CloudCLI no longer parses `.quay/` carrier files itself. Exact-match entries
+  // own readers, so Cloudpit no longer parses `.quay/` carrier files itself. Exact-match entries
   // (no prefix rule): the window is part of the reading, and any other flag combination is
   // refused before a child is spawned.
   QUAY_SUITE_READ_COMMAND,
@@ -1109,7 +1109,7 @@ type QuayServiceDependencies = {
    */
   fleetWallReader?: QuayFleetWallReader | null;
   /**
-   * The CloudCLI project id → quay-fleet registry id join (`quay-fleet-project-id.ts`), behind
+   * The Cloudpit project id → quay-fleet registry id join (`quay-fleet-project-id.ts`), behind
    * the wall's project segment and the per-project `fleetProjectId` reading. OPTIONAL so a
    * composition that does not run a fleet still works: absent means every project is
    * unregistered (`fleetProjectId: null`), which the UI renders as 「未登记到 quay-fleet」
@@ -1936,7 +1936,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   };
 
   /**
-   * The CloudCLI project id → fleet registry id join. A composition without a fleet answers
+   * The Cloudpit project id → fleet registry id join. A composition without a fleet answers
    * `null` for every project — the honest "nothing is registered here" reading that makes the
    * UI render 「未登记到 quay-fleet」 instead of minting a UUID reference the fleet cannot read.
    */
@@ -2655,7 +2655,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
    * The Tier-2 snapshot as `GET /api/quay/:projectId/snapshot` answers it: the stored reading
    * plus the project's `fleetProjectId`. The join is stamped here, on every branch, because it
    * is what the wall mints its project segment from — a cached snapshot body carrying a stale
-   * (or absent) join would let the renderer fall back to the CloudCLI id.
+   * (or absent) join would let the renderer fall back to the Cloudpit id.
    */
   const getQuaySnapshot = async (
     projectId: string,
@@ -2933,7 +2933,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   const quayUriResolver = createQuayUriResolver({
     fleetWallReader,
     // The project segment is a quay-fleet REGISTRY ID. The join names the registered root the
-    // fleet read port is called with, and the CloudCLI project (if any) whose snapshot can
+    // fleet read port is called with, and the Cloudpit project (if any) whose snapshot can
     // supplement a task reference.
     resolveFleetProject: (projectSegment) => fleetProjectIds.resolveFleetProject(projectSegment),
     // Cached first, so dereferencing a URI the panel just rendered spawns nothing. A cold

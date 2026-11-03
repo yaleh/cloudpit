@@ -142,7 +142,7 @@ const ROWS: readonly SyncRow[] = [
   { typeName: 'CockpitCardVizAttempt', reader: 'object' },
   { typeName: 'CockpitCardViz', reader: 'object' },
   { typeName: 'CockpitCardState', reader: 'union' },
-  // The feedback receipt lifecycle: the provider's acknowledgement, the overlay CloudCLI keeps
+  // The feedback receipt lifecycle: the provider's acknowledgement, the overlay Cloudpit keeps
   // while awaiting it, and the notice a kept/rejected receipt leaves behind. A browser that
   // does not know a disposition cannot render it, so both ends must agree.
   { typeName: 'CockpitCardReceiptDisposition', reader: 'union' },

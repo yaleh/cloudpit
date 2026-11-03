@@ -129,7 +129,7 @@ const SCOPE_TIMEOUT_MS = 15_000;
  *
  * It used to be a bare 60_000, which the three boots alone (75_000) already
  * exceeded: on 2026-10-02 a run whose servers had each reached
- * `CloudCLI Server - Ready` was killed at the 60s boundary with `exit=3` because
+ * `Cloudpit Server - Ready` was killed at the 60s boundary with `exit=3` because
  * the budget, not the boot, was too small — and a process-level kill names no
  * `node:test` case, which is why that red could not be attributed.
  *

@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- \`name_source\`: 'manual' there means the user renamed it *in this app*,
     -- a claim the transcript cannot make.
     --
-    -- 'self-assigned' is the app's own rung: the address CloudCLI handed the CLI
+    -- 'self-assigned' is the app's own rung: the address Cloudpit handed the CLI
     -- as \`--name\`, which the CLI writes back into the transcript as both
     -- \`agent-name\` and \`custom-title\`. It is a name the app invented rather
     -- than one the session earned, so it ranks below 'ai' and above 'derived' —
@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS user_voice_settings (
  * two rows, which is what lets a future per-project view exist without a
  * migration, while `listTop` sums across them for the one global list the API
  * returns today. `token_lower` is the lookup key and `canonical` keeps the
- * spelling first seen, so `CloudCLI` and `cloudcli` count as one token and the
+ * spelling first seen, so `Cloudpit` and `cloudcli` count as one token and the
  * listing still shows a real casing.
  *
  * `first_seen_at` / `last_seen_at` are epoch milliseconds written by the

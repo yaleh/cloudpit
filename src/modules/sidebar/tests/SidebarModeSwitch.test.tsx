@@ -187,7 +187,7 @@ describe('AC1: one two-segment control, in every sidebar layout', () => {
       `cockpit href must start with /ccui/cockpit, got ${cockpit.getAttribute('href')}`,
     );
     // ...and the selected, REGISTERED project turns the cockpit link into its board, addressed
-    // by the fleet registry id (never the CloudCLI project id). The fleet reading arrives after
+    // by the fleet registry id (never the Cloudpit project id). The fleet reading arrives after
     // the first render, so the link settles once the store publishes it.
     await waitFor(() =>
       assert.match(cockpit.getAttribute('href') ?? '', /project=claudecodeui/),

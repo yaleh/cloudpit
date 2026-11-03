@@ -95,7 +95,7 @@
     ],
     "protocols": [
       {
-        "name": "CloudCLI",
+        "name": "Cloudpit",
         "schemes": [
           "cloudcli"
         ]
@@ -115,11 +115,11 @@
         "dmg"
       ],
       "extendInfo": {
-        "CFBundleName": "CloudCLI",
-        "CFBundleDisplayName": "CloudCLI",
+        "CFBundleName": "Cloudpit",
+        "CFBundleDisplayName": "Cloudpit",
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "CloudCLI",
+            "CFBundleURLName": "Cloudpit",
             "CFBundleURLSchemes": [
               "cloudcli",
               "cloudpit"

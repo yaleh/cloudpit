@@ -1,10 +1,10 @@
 /**
- * The context event stream — the CloudCLI side of the host-level interaction
+ * The context event stream — the Cloudpit side of the host-level interaction
  * ledger, plus the shadow predictor that runs on top of it.
  *
  * TWO JOBS, ONE SEAM.
  *
- *   1. Append CloudCLI-produced events (an utterance, a chip, a cockpit focus or
+ *   1. Append Cloudpit-produced events (an utterance, a chip, a cockpit focus or
  *      send, later a build/restart) to `~/.quay-fleet/context/events`.
  *   2. For every utterance, classify it, score the previous prediction, and mint
  *      the next `shadow.prediction`. Predictions go to the same file and to

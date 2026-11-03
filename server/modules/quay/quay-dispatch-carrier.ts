@@ -48,7 +48,7 @@ export type QuayDispatchSet =
 
 /** The injectable boundaries of the dispatch carrier reader. */
 export type QuayDispatchCarrierDependencies = {
-  /** CloudCLI project id → the project root the carrier path is joined under. */
+  /** Cloudpit project id → the project root the carrier path is joined under. */
   resolveProjectPathById(projectId: string): string | null;
   /** The service's read-only filesystem boundary (stat size + whole-file UTF-8 read). */
   readFile: QuayFileReader;

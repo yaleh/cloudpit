@@ -36,7 +36,7 @@ export type SessionBlockedReason = 'approval' | 'failed' | 'interrupted';
 /**
  * One blocked session.
  *
- * `session` is the CloudCLI application session id. `blockId` is `<sessionId>:<requestId|turnId>`
+ * `session` is the Cloudpit application session id. `blockId` is `<sessionId>:<requestId|turnId>`
  * and is the identity a later `session.blocked.resolved` names. The approval arm carries
  * `requestId`/`toolName` (plus `question` when the protocol states one); the turn arm carries
  * `turnId` (plus `errorMessage` on `failed` only).

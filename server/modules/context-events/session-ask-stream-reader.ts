@@ -1,7 +1,7 @@
 /**
  * Reads BACK the two session-ask kinds from the context-event stream.
  *
- * The writer beside this file is the CloudCLI producer's only route into
+ * The writer beside this file is the Cloudpit producer's only route into
  * `~/.quay-fleet/context/events/<day>.jsonl`. This reader is the boot-time consumer: it answers
  * which asks this host stated as `session.asking` and never followed with `session.answered`.
  *

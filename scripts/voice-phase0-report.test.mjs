@@ -446,7 +446,7 @@ test('error forms: every class is counted, rewrites are separated from correctio
   const directory = scratchDir();
   const pairs = [
     ['fan in', 'fan-in', 'form'],
-    ['cloud cli', 'CloudCLI', 'form'],
+    ['needs human', 'needs-human', 'form'],
     ['AC 零零二', 'AC-002', 'spoken-form'],
     ['GOAL 十三', 'GOAL-13', 'spoken-form'],
     ['翻译', 'fan-in', 'cjk-rendering'],

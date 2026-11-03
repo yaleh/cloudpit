@@ -107,7 +107,7 @@ export type SessionTaskStoreRecord = {
  * production classification with stubs and no filesystem, git or deployment state.
  */
 export type SessionTaskChainDependencies = {
-  /** The CloudCLI project path for a project id, or `null` when the project is unknown. */
+  /** The Cloudpit project path for a project id, or `null` when the project is unknown. */
   resolveProjectPath(projectId: string): string | null;
   /** The session's transcript (JSONL) path, or `null` when it has none yet. */
   resolveTranscriptPath(input: { projectId: string; sessionId: string }): string | null;

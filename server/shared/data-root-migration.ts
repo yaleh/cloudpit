@@ -1,5 +1,5 @@
 /**
- * Copies a legacy CloudCLI data root into an explicitly requested Cloudpit data
+ * Copies a legacy Cloudpit data root into an explicitly requested Cloudpit data
  * root.
  *
  * WHY THIS FINISHES BEFORE THE MARKER. A half-copied data root must never read

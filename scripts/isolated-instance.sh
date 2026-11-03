@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# A THROWAWAY, SAFE-TO-BOOT CloudCLI instance for verification work.
+# A THROWAWAY, SAFE-TO-BOOT Cloudpit instance for verification work.
 #
 # WHY IT EXISTS. Verifying a UI/API change by hand used to mean copying the live auth.db and
 # starting a second server on it. The resident-restore pass is ON by default, so that second

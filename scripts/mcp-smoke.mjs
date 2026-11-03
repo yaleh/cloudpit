@@ -487,7 +487,7 @@ export function upsertSection(filePath, title, body) {
  */
 function recordHeader() {
   return [
-    '# CloudCLI MCP 网关嵌套冒烟记录（AC-256）',
+    '# Cloudpit MCP 网关嵌套冒烟记录（AC-256）',
     '',
     '本文件由 `scripts/mcp-smoke.mjs` 写入：八节各含**原始**读数与一行结论。读数来自一次真跑——真服务',
     '实例（临时 `DATABASE_PATH`、`HOST=127.0.0.1`、端口 `listen(0)` 探得且 ≠ 3001）+ 一个真 PAT +',
@@ -506,7 +506,7 @@ function recordHeader() {
  */
 function residentRecordHeader() {
   return [
-    '# CloudCLI MCP 网关常驻专有能力冒烟记录（AC-276）',
+    '# Cloudpit MCP 网关常驻专有能力冒烟记录（AC-276）',
     '',
     '本文件由 `scripts/mcp-smoke.mjs --run-resident` 写入：八节各含**原始**读数与一行结论。读数来自一次',
     '真跑——真服务实例（临时 `DATABASE_PATH`、`HOST=127.0.0.1`、端口 `listen(0)` 探得且 ≠ 3001）+',

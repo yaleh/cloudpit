@@ -21,7 +21,7 @@ type SidebarModeSwitchProps = {
   /** The surface this instance is rendered on; its segment is the highlighted one. */
   mode: SidebarMode;
   /**
-   * The selected CloudCLI project. When the fleet registry lists it, the cockpit segment
+   * The selected Cloudpit project. When the fleet registry lists it, the cockpit segment
    * deep-links straight to that project's board instead of the fleet overview.
    */
   selectedProjectId?: string | null;

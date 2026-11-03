@@ -6,7 +6,7 @@ import { IS_PLATFORM } from '@/shared/utils';
 import { ActionMenu, Badge, Button } from '@/shared/ui';
 import { BRAND, MCP_GLOBAL_SUPPORTED_TRANSPORTS, MCP_PROVIDER_NAMES } from '@/shared/constants';
 import { useMcpServers } from '@/modules/mcp/hooks/useMcpServers';
-import { maskSecret } from '@/modules/mcp/utils/mcpFormatting';
+import { isManagedServer, maskSecret } from '@/modules/mcp/utils/mcpFormatting';
 import McpServerFormModal from '@/modules/mcp/McpServerFormModal';
 
 type McpServersProps = {
@@ -54,11 +54,6 @@ const getScopeLabel = (scope: McpScope): string => {
 const getServerKey = (server: ProviderMcpServer): string => (
   `${server.provider}:${server.scope}:${server.workspacePath || 'global'}:${server.name}`
 );
-
-// Servers prefixed with `cloudcli-` are written and removed automatically by a
-// CloudCLI feature toggle (e.g. the Browser tab), not added by the user. They are
-// shown read-only so users don't edit/delete them out of sync with the feature.
-const isManagedServer = (server: ProviderMcpServer): boolean => server.name.startsWith('cloudcli-');
 
 function ConfigLine({ label, children }: { label: string; children: string }) {
   if (!children) {

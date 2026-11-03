@@ -7,7 +7,7 @@
 // load-on-demand path the `quay_snapshot` tool's explicit refresh uses.
 // quayFleetRegistry: the fleet's per-project 「对人接口会话」 pin, read/written by the cockpit
 // hub's target resolver (injected at the composition root, so the cockpit module itself stays
-// a leaf). It maps a CloudCLI project id to the fleet registry id and answers failures as
+// a leaf). It maps a Cloudpit project id to the fleet registry id and answers failures as
 // values rather than throwing.
 // quayCapabilities / quayDispatchCarrier / quayTaskEvents: the event-driven refresh's three
 // composed pieces. `quayCapabilities` answers whether a project's pinned quay has `task log`;

@@ -1,7 +1,7 @@
 /**
- * The JSON shape declarations for every `quay-fleet` CLI contract CloudCLI consumes.
+ * The JSON shape declarations for every `quay-fleet` CLI contract Cloudpit consumes.
  *
- * WHY THIS FILE EXISTS. CloudCLI talks to a separately versioned program — the installed
+ * WHY THIS FILE EXISTS. Cloudpit talks to a separately versioned program — the installed
  * `quay-fleet` — through plain JSON on stdout. Until this file, every consumer parsed that JSON
  * with its own hand-written reader and no test ever compared the READER against the REAL CLI:
  * the two sides were validated independently, so a rename in the fleet's output was discovered
@@ -9,19 +9,19 @@
  * project-segment disagreement (`quay://task/<id>` vs `quay://<project>/task/<id>`): each side's
  * own tests were green, and the breakage only appeared when the two real programs met.
  *
- * A contract here is therefore (a) the exact argv CloudCLI runs and (b) a declared shape for the
+ * A contract here is therefore (a) the exact argv Cloudpit runs and (b) a declared shape for the
  * JSON it must answer with. `fleet-cli-contracts.test.ts` invokes the INSTALLED fleet and checks
  * every answer against these declarations, so an incompatible change on either side reds before
  * merge instead of in production.
  *
  * THE LYING RISK THIS FILE MUST NOT HAVE. A shape that accepts everything protects nothing. The
- * declarations below therefore name the fields CloudCLI actually reads as REQUIRED, pin the
+ * declarations below therefore name the fields Cloudpit actually reads as REQUIRED, pin the
  * closed-vocabulary ones to their legal values (the trivalent readings the fleet uses throughout:
  * `ok` / `absent` / `invalid`, and `string | null`), and let UNDECLARED fields through on purpose
  * — a fleet that ADDS a field stays compatible, which is exactly the forward-compatibility rule
  * the contract must encode.
  *
- * ADDING A CONSUMER. Whenever CloudCLI starts invoking a new `quay-fleet` verb (or starts reading
+ * ADDING A CONSUMER. Whenever Cloudpit starts invoking a new `quay-fleet` verb (or starts reading
  * a new field from an existing one), add the invocation and its shape here AND a case to
  * `fleet-cli-contracts.test.ts`. The rule and its rationale are repeated in `README.md`, which is
  * where a human adding a consumer is expected to look first.
@@ -250,7 +250,7 @@ export type FleetCliContractContext = {
 export type FleetCliContract = {
   /** Stable id printed in every failure and per-contract report line. */
   id: string;
-  /** The CloudCLI reader that consumes this invocation. */
+  /** The Cloudpit reader that consumes this invocation. */
   consumer: string;
   /** True when the verb mutates the fleet home (must run against a temporary home). */
   writes: boolean;
@@ -293,7 +293,7 @@ export const HANDSHAKE_SHAPE: Shape = {
  * `quay-fleet wall resolve <uri> --json` — the L1 reference.
  *
  * The test always asks for the fragment form (`#ac-<n>`), so `fragment` is REQUIRED here rather
- * than optional: dropping it would silently stop exercising the branch CloudCLI renders.
+ * than optional: dropping it would silently stop exercising the branch Cloudpit renders.
  */
 export const WALL_RESOLVE_SHAPE: Shape = {
   type: 'object',
@@ -318,7 +318,7 @@ export const WALL_RESOLVE_SHAPE: Shape = {
  * `quay-fleet wall summary <uri> --root <dir> --json` — the L2 reading.
  *
  * Three-valued on purpose: `ok` carries the stored summary, `absent` is an honest reading of the
- * write path (no row stored yet), and `invalid` means the URI itself was rejected. CloudCLI's
+ * write path (no row stored yet), and `invalid` means the URI itself was rejected. Cloudpit's
  * `readFleetL2` treats `ok`/`absent` as readings and everything else as unreadable, so the three
  * states must stay distinguishable here.
  */
@@ -595,7 +595,7 @@ export const LIVENESS_SHAPE: Shape = {
   },
 };
 
-// The fleet's `status` document is the largest contract, but CloudCLI consumes it section by
+// The fleet's `status` document is the largest contract, but Cloudpit consumes it section by
 // section. Every field below is one a reader or the cockpit displays; nested extras (the outbox's
 // per-class attribution detail, for example) are deliberately not declared — they may grow.
 const DRIVER_READ_SHAPE: Shape = {
@@ -784,7 +784,7 @@ export const STATUS_SHAPE: Shape = {
 };
 
 /**
- * Every contract CloudCLI consumes. Order is the report order; the handshake is first because a
+ * Every contract Cloudpit consumes. Order is the report order; the handshake is first because a
  * listener reading the output needs the negotiated version before the verb results.
  */
 export const FLEET_CLI_CONTRACTS: readonly FleetCliContract[] = [

@@ -33,9 +33,9 @@ beforeEach(() => {
 const DASHBOARD_URL = 'http://172.28.0.1:3651/';
 
 /**
- * The two project identities, deliberately different shapes: CloudCLI keys its database by a
+ * The two project identities, deliberately different shapes: Cloudpit keys its database by a
  * UUID, while a `quay://` reference must carry the quay-fleet REGISTRY id. The panel receives
- * the CloudCLI id as its prop and the fleet id inside the snapshot; every address it mints has
+ * the Cloudpit id as its prop and the fleet id inside the snapshot; every address it mints has
  * to use the latter, and a UUID project segment in a declared URI is the drift this guards.
  */
 const CLOUD_PROJECT_ID = '86168fbf-16c9-4178-b23b-36b74c2eb695';
@@ -1091,7 +1091,7 @@ test('a round and a fan-in attempt outside the shared window are not drawn', () 
  * `{uri, label, display}` and at least one real QuayPanel tile — here the in-flight tile —
  * declares them. Each row's URI is the project-segmented task form
  * `quay://<fleetProjectId>/task/<id>` — the segment is the quay-fleet registry id, NOT the
- * CloudCLI project UUID the panel is keyed by — and its display attributes are derived from the SAME reading
+ * Cloudpit project UUID the panel is keyed by — and its display attributes are derived from the SAME reading
  * the row draws: the phase's status, the phase marker's colour, the spatial ordinal and its
  * top-left position. The tile publishes the contract once as JSON and once per row; both
  * must describe the same objects, or the wall advertises addresses its rows do not answer.
@@ -1171,14 +1171,14 @@ test('an unread In-flight tile declares nothing, while an empty reading declares
 
 /* ── the project segment is the fleet registry id ───────────────────────────────────────────
  *
- * AC1 of quay-uri-project-segment-is-fleet-registry-id. The panel is keyed by CloudCLI's
+ * AC1 of quay-uri-project-segment-is-fleet-registry-id. The panel is keyed by Cloudpit's
  * project id (a UUID) because that is what its snapshot route takes, but every `quay://`
  * address it mints must carry the quay-fleet REGISTRY id: the fleet dereferences by its own
  * id, so a UUID segment reads `unknown-project` there. A project the fleet does not register
  * has no honest address at all, and the tile says so instead of falling back to the UUID.
  */
 
-/** A project segment in CloudCLI's own identity shape; it must never appear in an address. */
+/** A project segment in Cloudpit's own identity shape; it must never appear in an address. */
 const UUID_SEGMENT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 /** Every declared reference in a rendered panel (the tile contract and each row's own). */
@@ -1197,7 +1197,7 @@ function declaredUris(container: HTMLElement): string[] {
   return uris;
 }
 
-test('AC1: the declared task URIs carry the fleet registry id, never the CloudCLI UUID', () => {
+test('AC1: the declared task URIs carry the fleet registry id, never the Cloudpit UUID', () => {
   const snapshot: QuaySnapshot = {
     ...SNAPSHOT,
     inFlight: [

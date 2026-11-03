@@ -5,7 +5,7 @@
  * WHY THE IDS COME FROM THE CLI. The fleet owns the executor surface: `rescue executors --json`
  * answers `{ ok, executors: [{ id, action, does, params }] }`, and the four ids it currently
  * ships (`fleet.hold`, `fleet.park`, `fleet.redispatch`, `fleet.log`) are that document's
- * content, not a CloudCLI constant. Hard-coding them here would drift the moment the fleet adds
+ * content, not a Cloudpit constant. Hard-coding them here would drift the moment the fleet adds
  * or renames one, and a declaration the consumer cannot see is exactly the failure this task
  * exists to remove. This module therefore PARSES the declaration and instantiates one executor
  * per entry; nothing below names an id except `fleet.log`, which the own-reply contract names.

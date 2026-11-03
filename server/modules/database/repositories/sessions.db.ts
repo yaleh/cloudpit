@@ -533,7 +533,7 @@ export const sessionsDb = {
    * `session_id` is the stable app-facing id, while `provider_session_id`
    * stays NULL until the provider runtime announces its own id and
    * `assignProviderSessionId` records the mapping. `customName` is derived
-   * from the first visible CloudCLI message by the sessions service.
+   * from the first visible Cloudpit message by the sessions service.
    *
    * `selection` is the model/effort/permission-mode the session is being created
    * WITH, written in the same statement that mints the row. It is a parameter
