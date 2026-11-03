@@ -1,7 +1,7 @@
 ---
 id: codex-provider-import-ui-wiring
 title: Codex 导入 provider 的父级接线：挂到设置页 + 一键绑定到模型编辑器的 codexProviderId
-status: todo
+status: ready
 labels:
   - feature
 parent: null
