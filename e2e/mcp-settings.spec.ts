@@ -53,13 +53,25 @@ type GateState = {
 const ENABLED_STATE: GateState = { label: 'enabled', mcpEnabled: 'true' };
 const DISABLED_STATE: GateState = { label: 'disabled', mcpEnabled: 'false' };
 
-/** The five scope vocabulary values, in the order the create form renders them. */
+/**
+ * The create form's scope vocabulary, in render order — the APPLICATION's list, not this file's own.
+ *
+ * Source of truth: `ACCESS_TOKEN_SCOPE_OPTIONS` in `src/shared/constants.ts`. Commit `cd528d09c` (R9,
+ * 2026-11-02) replaced the retired five-name spelling here with the current seven names; the widening to
+ * seven came from `gap-mcp-ui-open-session` (navigate) and `gap-pat-scope-cockpit-act-ui` (cockpit:act).
+ * The bounded set reading in `readRenderedScopeVocabulary` compares the rendered `data-scope` values
+ * against this list by name, so the next rename reds in seconds naming observed vs expected instead of
+ * leaving an unbounded `isChecked()` to eat the 55s watchdog. Keep this list in lockstep with
+ * `ACCESS_TOKEN_SCOPE_OPTIONS`; it is a mirror of the app's vocabulary, never a second definition of it.
+ */
 const SCOPE_VOCABULARY = [
-  'cloudcli:read',
-  'cloudcli:session:send',
-  'cloudcli:session:create',
-  'cloudcli:session:control',
-  'cloudcli:approve',
+  'cloudpit:read',
+  'cloudpit:session:send',
+  'cloudpit:session:create',
+  'cloudpit:session:control',
+  'cloudpit:approve',
+  'cloudpit:navigate',
+  'cloudpit:cockpit:act',
 ] as const;
 
 /** How long a spawned child is given to answer before the criterion gives up on it, naming its own log tail. */
@@ -562,6 +574,29 @@ const openApiTokensTab = async (page: Page): Promise<void> => {
   await expect(page.getByRole('heading', { name: 'Personal Access Tokens' })).toBeVisible({ timeout: 15_000 });
 };
 
+/**
+ * The rendered scope set, read once as a bounded, named comparison BEFORE any `isChecked()` runs.
+ *
+ * Asking each expected name for its own checkbox (`isChecked()`) is not a reading of the vocabulary: when a
+ * name changes, the locator simply waits out its default timeout, and the first thing to end the run is the
+ * 55s watchdog. Here the whole set is bounded (`toHaveCount`, 5s) and read back as `data-scope` values, then
+ * compared against `SCOPE_VOCABULARY` exactly — so a rename reds in seconds, and the message names the
+ * observed and the expected names rather than reporting "stuck at browser-launch-or-cases".
+ */
+const readRenderedScopeVocabulary = async (page: Page): Promise<string[]> => {
+  const boxes = page.locator('[data-testid="access-token-scope"]');
+  await expect(boxes).toHaveCount(SCOPE_VOCABULARY.length, { timeout: 5_000 });
+  const observed = await boxes.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-scope') ?? ''),
+  );
+  expect(
+    observed,
+    "the create form's rendered scope names differ from ACCESS_TOKEN_SCOPE_OPTIONS "
+    + `(observed=${JSON.stringify(observed)} expected=${JSON.stringify([...SCOPE_VOCABULARY])})`,
+  ).toEqual([...SCOPE_VOCABULARY]);
+  return observed;
+};
+
 /** Every text node of the document, joined — the whole-page surface the token-leak scan reads. */
 const readAllTextNodes = (page: Page): Promise<string> => page.evaluate(() => {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -800,36 +835,43 @@ test.describe('CloudCLI MCP block and token scopes in settings', () => {
       expect(commandText).toContain(endpointText);
       expect(commandText).toMatch(/Authorization:\s*Bearer\s*<token>/);
 
-      // (d) Five scope checkboxes: only the read baseline starts checked; the risk note appears on the first write scope.
+      // (d) Seven scope checkboxes: only the read baseline starts checked; the risk note appears on the first
+      // write scope. The rendered set is read back BY NAME first (bounded) — a renamed vocabulary reds there in
+      // seconds naming observed vs expected, rather than hanging an `isChecked()` on a name that no longer exists.
       await page.getByRole('button', { name: 'New Token', exact: true }).click();
+      const renderedScopes = await readRenderedScopeVocabulary(page);
       const boxFor = (scope: string) =>
         page.locator(`[data-testid="access-token-scope"][data-scope="${scope}"]`);
       const initialChecked: Record<string, boolean> = {};
-      for (const scope of SCOPE_VOCABULARY) {
+      for (const scope of renderedScopes) {
         initialChecked[scope] = await boxFor(scope).isChecked();
       }
+      const [readScope] = SCOPE_VOCABULARY;
+      const sendScope = SCOPE_VOCABULARY[1];
+      const createScope = SCOPE_VOCABULARY[2];
       const riskNote = page.getByTestId('access-token-scope-risk');
       const riskBefore = await riskNote.count();
 
-      await boxFor('cloudcli:session:send').check();
+      await boxFor(sendScope).check();
       await expect(riskNote).toBeVisible();
       const riskAfter = await riskNote.count();
 
       console.log(
-        `(d) initial checked=${JSON.stringify(initialChecked)}; risk note before=${riskBefore} `
-        + `after checking cloudcli:session:send=${riskAfter}; risk text="${(await riskNote.innerText()).trim()}"`,
+        `(d) rendered scopes=${JSON.stringify(renderedScopes)}; initial checked=${JSON.stringify(initialChecked)}; `
+        + `risk note before=${riskBefore} after checking ${sendScope}=${riskAfter}; `
+        + `risk text="${(await riskNote.innerText()).trim()}"`,
       );
 
-      expect(initialChecked['cloudcli:read']).toBe(true);
-      for (const scope of SCOPE_VOCABULARY.slice(1)) {
+      expect(initialChecked[readScope]).toBe(true);
+      for (const scope of renderedScopes.slice(1)) {
         expect(initialChecked[scope]).toBe(false);
       }
       expect(riskBefore).toBe(0);
       expect(riskAfter).toBe(1);
 
       // (e) A multi-scope positive: create a token with the read baseline plus two write scopes.
-      await boxFor('cloudcli:session:create').check();
-      const selectedScopes = ['cloudcli:read', 'cloudcli:session:send', 'cloudcli:session:create'];
+      await boxFor(createScope).check();
+      const selectedScopes = [readScope, sendScope, createScope];
       const tokenName = `e2e-mcp-${Date.now()}`;
       await page.getByPlaceholder('Token name (e.g., My MCP client)').fill(tokenName);
       await page.getByTestId('access-token-expiry').selectOption('30');
