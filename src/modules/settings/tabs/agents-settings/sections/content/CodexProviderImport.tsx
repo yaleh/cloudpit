@@ -44,8 +44,15 @@ export default function CodexProviderImport({
           <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
             Providers declared in your own <code className="font-mono">~/.codex</code> TOML files.
             The import is read-only: it never reads a secret and never writes back to those files.
-            Binding copies the provider into this project&apos;s settings, which stays the only
+            That binding is written into this project&apos;s settings, which stays the only
             write target.
+          </p>
+          <p
+            className="mt-1 max-w-2xl text-[11px] leading-5 text-muted-foreground"
+            data-testid="codex-import-bind-hint"
+          >
+            Bind imports the provider into this project and selects it in the model editor
+            below, so the next model you save runs against it.
           </p>
         </div>
         <span

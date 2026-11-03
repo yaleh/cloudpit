@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
 import ModelsContent from '@/modules/settings/tabs/agents-settings/sections/content/ModelsContent';
 import CodexProviderImport from '@/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport';
 import CodexProviderAdvanced from '@/modules/settings/tabs/agents-settings/sections/content/CodexProviderAdvanced';
 import { useCodexProviders } from '@/modules/settings/hooks/useCodexProviders';
+import type { CodexProviderBindRequest } from '@/shared/ui/ModelLibraryPanel';
 import { Button, Input } from '@/shared/ui';
 import type { AgentProvider } from '@/shared/types';
 
@@ -35,7 +37,21 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
   const reading = snapshot.reading;
   const providers = reading?.providers ?? [];
   const busy = snapshot.status === 'loading' || snapshot.status === 'saving';
+  // The latest one-click bind, carried down to the model editor so its picker selects the
+  // provider the person just bound. `requestId` makes a second bind of the same id re-apply;
+  // the draft rows themselves stay the controller's, never this state's.
+  const [bindRequest, setBindRequest] = useState<CodexProviderBindRequest | null>(null);
   const storedWarnings = new Map(providers.map((provider) => [provider.id, provider.warnings]));
+
+  const handleBindImportedProvider = (providerId: string) => {
+    // Published first: the model editor applies it once the registry answer contains the
+    // provider, so a refused import never moves the picker.
+    setBindRequest((previous) => ({
+      providerId,
+      requestId: (previous?.requestId ?? 0) + 1,
+    }));
+    void bindImportedProvider(providerId);
+  };
 
   return (
     <div
@@ -116,7 +132,7 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
 
       <CodexProviderImport
         reading={snapshot.imports}
-        onBind={(providerId) => void bindImportedProvider(providerId)}
+        onBind={handleBindImportedProvider}
         busy={snapshot.importStatus === 'importing' || busy}
       />
 
@@ -322,7 +338,11 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
         </p>
       )}
 
-      <ModelsContent agent={agent} codexProviders={providers} />
+      <ModelsContent
+        agent={agent}
+        codexProviders={providers}
+        bindCodexProviderRequest={bindRequest ?? undefined}
+      />
     </div>
   );
 }
