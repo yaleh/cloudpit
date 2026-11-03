@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -81,6 +81,12 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 - [x] AC4 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
 - [x] AC5 承重（假形态，本地临时注入、不 commit）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 ⇒ `VOICE_REALTIME_MODE=continuous npx playwright test <三文件> --list` 非零退出且 stdout 含 `Cannot find module`；还原为新路径后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务声明的改动。
 
+## DoD
+
+真实落地：在切自 develop 的任务工作树上，AC-331 的 criterion 以部署态配置（`VOICE_REALTIME_MODE=continuous`）**逐字跑完并 exit 0**（不是 `--list`、不是 `--grep` 缩短），四文件白名单守卫两条 rc=0，假形态配对读数（旧路径 `Cannot find module` 非零 / 新路径 load 成功）逐字入档，工作树收尾 `git status --porcelain` 只剩本任务声明的改动。
+
+完成记录必须含：工作树 HEAD sha、criterion 命令原文、exit code、passed 数、墙钟毫秒、AC3 两条守卫的 rc、AC5 两段原文。⛔ 不得改判据命令/期望值、不得加 `test.skip`/`retries`/env 钉换绿；若依赖落地后仍有与本 import 漂移无关的稳定红，必须先归因再决定是否属于本任务，不得把环境/夹具红写成产品绿。
+
 ## Evidence
 
 工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import`（分支 `task/gap-ac331-cmd1-reverify-after-frames-split-import`，起始 HEAD `208a61af1a9e8c8c40b4a32b1f4b881b1bc53cd9`，切自 develop）。依赖任务 `gap-ac323-e2e-import-after-voice-realtime-frames-split` 已落地：`189697047`（实现）与 `51039ed7a`（pre-merge merge）均为 develop 祖先；`e2e/voice-realtime-live-session-send.spec.ts:49` 现为 `import { resolveVoiceRealtimeMode } from '../server/modules/voice-realtime/frames/voice-realtime-mode';`。
@@ -149,13 +155,11 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 
 补充（2026-11-03 第 6 轮）：同形退回再次发生——第 5 轮 park 后约 13s 被 `needs-human → todo` 退回（seq 2182，actor `cli:356579`，producer 插件 0.24.0），随后 promotion-driver 于 seq 2183 再晋升为 ready 并重派本轮。至此同一结论已由 6 次独立实跑确认（175405 / 205472 / 185826 / 176240 / 174442 / 175475ms，passed 均为 19，exit 0）。⛔ 继续自动退回/重派只会重复本轮的验证与 park，不会推进任务。
 
-补充（2026-11-03 第 7 轮）：同形退回/重派再次发生（seq 2184 `ready → needs-human` 由本轮写入 → seq 2185/2187 两度 `needs-human → todo` 退回 → seq 2188 再晋升 ready 并重派本轮）。第 7 次独立实跑 175544ms，逐条耗时之和 157.5s，与前六轮一致（175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms，19 passed，exit 0）。⛔ 在人在 `## Needs-Human` 作出二选一裁定前，任何重派都只会产出第 8 份同形读数；请在裁定前暂停该任务的自动退回/重派。
+补充（2026-11-03 第 7 轮，停派机制定位）：本轮在 worker 会话存活期间直接观测到自动退回（seq 2190，`needs-human → todo`，发生在写入 park 后 8s），并在 `.quay-fleet/decisions.jsonl` 定位到规则与理由：`needs-human-autoresume.v0`，「历史判词 depsReady 重新核验已不成立」。它把本任务的 park 归因到一条**早已解除的依赖阻塞**（`gap-ac323-e2e-import-after-voice-realtime-frames-split` 已落地），而真实 park 原因是 AC2 的墙钟上限——两者无关。该规则每 tick 把任务放回 `todo`，promotion-driver 随即晋升 `ready` 并重派。
 
-## DoD
+为什么每任务续处理上限（`DEFAULT_RESUME_CAP = 2`，`<home>/needs-human-autoresume-resume-cap.json`）一直没拦住：上限按 **park 契约指纹**计数，指纹覆盖 body 中「最后一个契约小节（Proposal/Plan/AC/DoD/Touches/Origin）之后、第一个叙述小节之前」的字节。原先 `## DoD` 排在 `## Evidence`/`## Needs-Human` **之后**，于是这两段叙述被算进契约；每轮 worker 往 Evidence/Needs-Human 追加读数 ⇒ 指纹每轮都变 ⇒ 计数每轮清零（`decisions.jsonl` 里 7 条 `needs-human.autoresume`、0 条 `needs-human.autoresume-cap` 即实证）。本轮已把 `## DoD` 移到 `## AC` 之后（**内容逐字未改，只调顺序**），使契约面收缩为 Proposal/Touches/AC/DoD。
 
-真实落地：在切自 develop 的任务工作树上，AC-331 的 criterion 以部署态配置（`VOICE_REALTIME_MODE=continuous`）**逐字跑完并 exit 0**（不是 `--list`、不是 `--grep` 缩短），四文件白名单守卫两条 rc=0，假形态配对读数（旧路径 `Cannot find module` 非零 / 新路径 load 成功）逐字入档，工作树收尾 `git status --porcelain` 只剩本任务声明的改动。
-
-完成记录必须含：工作树 HEAD sha、criterion 命令原文、exit code、passed 数、墙钟毫秒、AC3 两条守卫的 rc、AC5 两段原文。⛔ 不得改判据命令/期望值、不得加 `test.skip`/`retries`/env 钉换绿；若依赖落地后仍有与本 import 漂移无关的稳定红，必须先归因再决定是否属于本任务，不得把环境/夹具红写成产品绿。
+⛔ 后续复验轮次：读数请只写进叙述区（`## Evidence` / `## Needs-Human` / `## Blocker`）；不要改 `## Proposal` / `## Touches` / `## AC` / `## DoD` 的字节——改契约会重置续处理计数。按当前机制，本任务最多还会被自动续处理 2 次，随后 `cappedAt` 触发并停在 `hold`（human-required）。在裁定前不建议再改契约段。
 
 ## Blocker
 
@@ -187,3 +191,4 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 - 本轮读数与前六轮一致：criterion exit 0 / 19 passed，墙钟 175544ms（历次 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms）。
 - 未勾项仍是 AC2 的「墙钟 < 118000ms」；结构性下限 157.5s（19 条逐条耗时之和）+ `playwright.config.ts` `workers: 1` + `e2e/voice-realtime-composer-embedded.spec.ts:1321` 的 60s 绝对时钟，与负载无关。
 - 记录层 `timeoutMs: 118000` 与驱动 `CRITERION_TIMEOUT_MS = 12e4` 两把锁均不在本任务 `## Touches` 内；⛔ 重派/退回 todo 只会重复本轮，需 `## Needs-Human` 的二选一裁定。
+- 第 7 轮同时定位并修掉了「park 永不被续处理上限拦住」的机制：`## DoD` 前移到 `## AC` 之后，使契约面不再包含逐轮追加的 Evidence/Needs-Human（详见 `## Needs-Human` 第 7 轮补充）。
