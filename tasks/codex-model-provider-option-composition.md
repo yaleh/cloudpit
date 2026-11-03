@@ -25,15 +25,21 @@ goal_ac: AC-468
 - tasks/codex-model-provider-option-composition.md
 - server/modules/providers/services/provider-models.service.ts
 - server/modules/providers/services/session-provider-binding.ts
+- server/modules/providers/list/codex/codex-models.provider.ts
 - server/modules/providers/provider.routes.ts
 - server/modules/providers/tests/codex-model-provider-option.test.ts（新）
+- server/shared/types.ts
+- server/shared/interfaces.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- server/shared/tests/quay-test-script.test.ts
+- scripts/suite-duration-baseline.tsv
 
 ## AC
 
-- [ ] AC-468 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-model-provider-option.test.ts 退出 0。
-- [ ] 正臂：getProviderModels('codex') 内置模型展开裸名+每个注册 provider 变体、自定义模型单条带 codexProviderId；setSessionModel 显式 modelProviderId 落库 model_provider_id。
-- [ ] 负臂：换 provider 拒绝（SESSION_PROVIDER_MISMATCH）、未知 provider 拒绝（SESSION_PROVIDER_UNKNOWN）；显式 id 与既有会话绑定冲突拒绝。
-- [ ] 假形态：目录不展开（只裸名）或 setSessionModel 忽略显式 id 时判据红。
+- [x] AC-468 判据绿：npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/codex-model-provider-option.test.ts 退出 0。
+- [x] 正臂：getProviderModels('codex') 内置模型展开裸名+每个注册 provider 变体、自定义模型单条带 codexProviderId；setSessionModel 显式 modelProviderId 落库 model_provider_id。
+- [x] 负臂：换 provider 拒绝（SESSION_PROVIDER_MISMATCH）、未知 provider 拒绝（SESSION_PROVIDER_UNKNOWN）；显式 id 与既有会话绑定冲突拒绝。
+- [x] 假形态：目录不展开（只裸名）或 setSessionModel 忽略显式 id 时判据红。
 
 ## DoD
 
