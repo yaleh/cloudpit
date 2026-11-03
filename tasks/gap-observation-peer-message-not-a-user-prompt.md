@@ -1,7 +1,7 @@
 ---
 id: gap-observation-peer-message-not-a-user-prompt
 title: observation 把跨会话 peer 消息当成真人 prompt，提前 settle pending ask 导致卡片永远 open
-status: ready
+status: done
 labels:
   - gap
   - defect
