@@ -2,7 +2,7 @@
 id: gap-ac458-criterion-version-pin-drift
 title: AC-458 判据版本漂移：checker 默认 NEW_VERSION 升到 3.0.0 后无版本判据红，经 ABI 把判据钉到
   --version 2.0.0 并复核台账翻绿
-status: ready
+status: done
 labels:
   - gap
 parent: null
@@ -69,11 +69,11 @@ GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit
 
 ## AC
 
-- [ ] AC1 判据已钉版本（经 ABI）：`quay goal show AC-458 --json`（或 `quay goal get AC-458 --json`）的 `criterion` 逐字为 `GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 2.0.0`；`expect` 与写前逐字相同（仍含 `@yalehwang/cloudpit@2.0.0` 与 `cloudpit-local-server-v2.0.0-*`）；`status` 仍为 `achieved`、`longTerm` 仍为 false；`git log -1 -- goals/` 显示该写入由 goal 写入路径提交。
-- [ ] AC2 判据逐字跑绿：`GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 2.0.0 --json` 退出 0，`version: "2.0.0"`，`violations: []`，`checks` 六项齐全。
-- [ ] AC3 判据非空转（负臂）：同命令把版本改为 `--version 3.0.0` 后退出非 0，violations 只点名 3.0.0（如 `new package @yalehwang/cloudpit@3.0.0 is not published`），不把 2.0.0 当当前版本；证明 pin 选中历史 release 而非放宽判定。
-- [ ] AC4 台账翻绿：`quay goal gate AC-458`（或 `goal_gate` MCP）返回 pass，且 `.quay/gate-events.jsonl` 中 AC-458 最新 `gate: goal` 事件为 `verdict: pass`、`payload.treeSha` 等于 `git rev-parse HEAD^{tree}`（同树自证，不是旧 pass 尾巴）。
-- [ ] AC5 无回归：`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空（未改默认值与夹具）。
+- [x] AC1 判据已钉版本（经 ABI）：`quay goal show AC-458 --json`（或 `quay goal get AC-458 --json`）的 `criterion` 逐字为 `GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 2.0.0`；`expect` 与写前逐字相同（仍含 `@yalehwang/cloudpit@2.0.0` 与 `cloudpit-local-server-v2.0.0-*`）；`status` 仍为 `achieved`、`longTerm` 仍为 false；`git log -1 -- goals/` 显示该写入由 goal 写入路径提交。
+- [x] AC2 判据逐字跑绿：`GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 2.0.0 --json` 退出 0，`version: "2.0.0"`，`violations: []`，`checks` 六项齐全。
+- [x] AC3 判据非空转（负臂）：同命令把版本改为 `--version 3.0.0` 后退出非 0，violations 只点名 3.0.0（如 `new package @yalehwang/cloudpit@3.0.0 is not published`），不把 2.0.0 当当前版本；证明 pin 选中历史 release 而非放宽判定。
+- [x] AC4 台账翻绿：`quay goal gate AC-458`（或 `goal_gate` MCP）返回 pass，且 `.quay/gate-events.jsonl` 中 AC-458 最新 `gate: goal` 事件为 `verdict: pass`、`payload.treeSha` 等于 `git rev-parse HEAD^{tree}`（同树自证，不是旧 pass 尾巴）。
+- [x] AC5 无回归：`node --test scripts/cloudpit-distribution-check.test.mjs` 退出 0；`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs` 为空（未改默认值与夹具）。
 
 ## DoD
 
@@ -84,6 +84,61 @@ GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit
 - 贴出 AC5 的测试末行（pass/fail 计数）与 `git diff --stat` 空输出。
 - 真实落地判据：AC-458 的记录判据本身变成可复跑且通过，driver 下一轮独立复验拿到 pass；不是「脚本改好了」或「2.0.0 曾经通过」代替。
 - 只改 `goals/AC-458-*.md` 与 `tasks/gap-ac458-criterion-version-pin-drift.md`；不改 `goals/GOAL-054-*.md`、不改 checker 默认值/夹具、不做任何外部发布。
+
+## Evidence
+
+ADR-007 暗轴声明（fan-in 的暗轴判据扫全正文，只要求一条可读声明）：
+
+- 该轴仍暗,理由: 本任务只把 AC-458 的判据命令钉到 --version 2.0.0，不改代码、不新增领域数据通路或架构边，无 L_D/L_G 数值读数可报；判定面是 AC1–AC5 的命令读数与 gate 台账。
+
+### 写前 / 写后（goal_get AC-458）
+
+- 写前 criterion: `GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release`
+- 写后 criterion: `GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node scripts/cloudpit-distribution-check.mjs --release --version 2.0.0`
+- expect: 写前写后逐字相同（仍含 `@yalehwang/cloudpit@2.0.0` 与 `cloudpit-local-server-v2.0.0-*`）
+- status: 写前写后均 `achieved`；longTerm: 写前写后均 `false`；goal: `GOAL-054`
+- 写入提交：`git log -1 -- goals/` = `fc706ee6a goals: AC-458 field:criterion by cli:3463719`，`git show --stat` 为 1 file changed, 1 insertion(+), 1 deletion(-)。
+
+### AC2 正臂（判据逐字，--version 2.0.0）
+
+`EXIT=0`：
+
+```json
+{
+  "source": "release",
+  "version": "2.0.0",
+  "exitCode": 0,
+  "checks": ["old-package", "new-package", "tarball-bin", "repository", "desktop-assets", "ownership"],
+  "violations": []
+}
+```
+
+### AC3 负臂（同命令 --version 3.0.0）
+
+`EXIT=1`，violations 只点名 3.0.0，不出现 2.0.0：
+
+```
+[distribution] desktop-assets: desktop release asset cloudpit-desktop-* is missing or not downloadable
+[distribution] desktop-assets: desktop release asset cloudpit-local-server-v3.0.0-* is missing or not downloadable
+```
+
+说明：此刻 npm registry 上 3.0.0 的版本文档已存在（HTTP 200），因此负臂由 3.0.0 的 desktop release 资产缺失承担；`localServerAssetPrefix(3.0.0)` 点名 `v3.0.0`，说明 pin 选中历史 2.0.0 release，而不是把判定放宽。
+
+### AC4 台账
+
+tick 前的同树 pass（`quay goal gate AC-458`，evaluationRoot 主检出）：
+
+```json
+{"id":"f38faf68-b255-4e65-92c5-71d27c011d90","item_id":"AC-458","pipeline_id":"AC-458","gate":"goal","actor":"goal-cli","verdict":"pass","timestamp":"2026-11-03T03:51:06.737Z","payload":{"reason":"acceptance passed (exit 0)","evaluationRoot":"/data/home/yale/work/claudecodeui","treeSha":"44e68ec849566ed80d05e4dc4d826fb49fb6a3a9"}}
+```
+
+该 `treeSha` 与当时 `git rev-parse HEAD^{tree}` 相同。tick 提交会再推进一次 develop，因此在 tick + merge 之后再次执行 `quay goal gate AC-458`，使 `.quay/gate-events.jsonl` 中 AC-458 的最新 `gate: goal` 事件的 `treeSha` 等于最终 `git rev-parse HEAD^{tree}`（读数见本轮 worker 报告）。
+
+### AC5 无回归
+
+`node --test scripts/cloudpit-distribution-check.test.mjs` 末行：`tests 9` / `pass 9` / `fail 0` / `cancelled 0` / `skipped 0`。
+
+`git diff --stat -- scripts/cloudpit-distribution-check.mjs scripts/cloudpit-distribution-check.test.mjs`：空输出。
 
 ## Touches
 
