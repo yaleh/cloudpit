@@ -3,7 +3,7 @@ id: gap-ac323-e2e-import-after-voice-realtime-frames-split
 title: AC-323 判据红：god-package 拆段把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ 第一条命令模块加载即 Cannot find module；修正 import
   并逐条复跑三条判据
-status: ready
+status: done
 labels:
   - gap
   - defect
