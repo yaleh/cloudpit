@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-voice-realtime
 title: "architecture-analysis: archguard: 41 files / 155 entities, fanIn 73,
   fanOut 322; voice-realtime-ws-proxy.service.ts is 5569 lines and
   handleVoiceRealtimeConnection has outDegree 69"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
