@@ -2,7 +2,7 @@
 id: gap-ac458-criterion-version-pin-drift
 title: AC-458 判据版本漂移：checker 默认 NEW_VERSION 升到 3.0.0 后无版本判据红，经 ABI 把判据钉到
   --version 2.0.0 并复核台账翻绿
-status: ready
+status: done
 labels:
   - gap
 parent: null
