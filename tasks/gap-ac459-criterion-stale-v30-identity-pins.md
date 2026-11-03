@@ -63,12 +63,12 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 
 ## AC
 
-- [ ] AC1 判据文件改钉：`electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 的 AC4 活体臂不再断言双读（源码中不再出现 `includes('(?:cloudcli|cloudpit)://')` / `includes('cloudcli://session/')`），改为断言两份语法文件含 `^cloudpit://(session|architecture)/` 的接受正则、且不含 `(?:cloudcli|cloudpit)://` 双读分支；同一测试新增读取 `electron/appIdMigration.js` 的 `LEGACY_DESKTOP_APP_ID = 'ai.cloudcli.desktop'`。
-- [ ] AC2 AC-459 的 expect 已经 ABI 同步：`quay goal show AC-459 --json`（或 `goal_get`）的 `expect` 含「v3.0 R7 只接受 `cloudpit://」与「`LEGACY_DESKTOP_APP_ID`」，且不再含「观测 URI 双读」；`criterion` 逐字仍为 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`；`status` 仍 `achieved`、`longTerm` 仍 false；`git log -1 -- goals/` 显示由 goal 写入路径提交。
-- [ ] AC3 判据逐字跑绿：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 退出 0，`fail 0`，AC4 与其余 9 条全 pass。
-- [ ] AC4 新钉子有判别性（负臂）：临时把 `(?:cloudcli|cloudpit)://` 注回 `src/modules/cockpit-contract/observationUri.ts` 后同一判据退出非 0 并红在新增的「只接受 canonical 拼写」断言上（贴出断言原文）；随后用 `git checkout --` 还原并确认 `git status --short` 对该文件为空。
-- [ ] AC5 无回归：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` 退出 0、fail 0（R7 的 null 钉子仍在）；`npx tsc --noEmit -p server/tsconfig.json` 退出 0。
-- [ ] AC6 台账翻绿：`quay goal gate AC-459`（或 `goal_gate` MCP）返回 pass，且 `.quay/gate-events.jsonl` 中 AC-459 最新 `gate: goal` 事件为 `verdict: pass`、`payload.treeSha` 等于 `git rev-parse HEAD^{tree}`。
+- [x] AC1 判据文件改钉：`electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 的 AC4 活体臂不再断言双读（源码中不再出现 `includes('(?:cloudcli|cloudpit)://')` / `includes('cloudcli://session/')`），改为断言两份语法文件含 `^cloudpit://(session|architecture)/` 的接受正则、且不含 `(?:cloudcli|cloudpit)://` 双读分支；同一测试新增读取 `electron/appIdMigration.js` 的 `LEGACY_DESKTOP_APP_ID = 'ai.cloudcli.desktop'`。
+- [x] AC2 AC-459 的 expect 已经 ABI 同步：`quay goal show AC-459 --json`（或 `goal_get`）的 `expect` 含「v3.0 R7 只接受 `cloudpit://」与「`LEGACY_DESKTOP_APP_ID`」，且不再含「观测 URI 双读」；`criterion` 逐字仍为 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`；`status` 仍 `achieved`、`longTerm` 仍 false；`git log -1 -- goals/` 显示由 goal 写入路径提交。
+- [x] AC3 判据逐字跑绿：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 退出 0，`fail 0`，AC4 与其余 9 条全 pass。
+- [x] AC4 新钉子有判别性（负臂）：临时把 `(?:cloudcli|cloudpit)://` 注回 `src/modules/cockpit-contract/observationUri.ts` 后同一判据退出非 0 并红在新增的「只接受 canonical 拼写」断言上（贴出断言原文）；随后用 `git checkout --` 还原并确认 `git status --short` 对该文件为空。
+- [x] AC5 无回归：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` 退出 0、fail 0（R7 的 null 钉子仍在）；`npx tsc --noEmit -p server/tsconfig.json` 退出 0。
+- [x] AC6 台账翻绿：`quay goal gate AC-459`（或 `goal_gate` MCP）返回 pass，且 `.quay/gate-events.jsonl` 中 AC-459 最新 `gate: goal` 事件为 `verdict: pass`、`payload.treeSha` 等于 `git rev-parse HEAD^{tree}`。
 
 ## DoD
 
@@ -82,5 +82,24 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 ## Touches
 
 - electron/tests/cloudpit-runtime-identity-surfaces.test.mjs
-- goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpit-为准-旧名零残留.md
+- goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpi.md
 - tasks/gap-ac459-criterion-stale-v30-identity-pins.md
+
+## Evidence
+
+- AC1：`electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` AC4 活体臂已改钉；对旧调用 `includes('(?:cloudcli|cloudpit)://')` / `includes('cloudcli://session/')` 的 grep 返回 none。新增断言原文：
+  - `source.includes('^cloudpit://(session|architecture)/')` → `${file} accepts only the canonical cloudpit:// observation URI`
+  - `!source.includes(RETIRED_DUAL_READ_URI)`（`const RETIRED_DUAL_READ_URI = \`(?:${LEGACY_STEM}|cloudpit)://\``）→ `${file} accepts only the canonical cloudpit:// observation URI (the retired dual-read branch is back)`
+  - `assert.match(readRepoFile('electron/appIdMigration.js'), /export const LEGACY_DESKTOP_APP_ID = 'ai\.cloudcli\.desktop';/, 'the legacy app id is kept as the v3.0 migration constant')`
+- AC2：写前/写后 `quay goal get AC-459 --store --root <worktree>` 四段读数见下；`criterion` 逐字不变、`status=achieved`、`longTerm=false`、`origin` 不变，只有 `expect` 变：含「v3.0 R7 只接受 `cloudpit://」与「`LEGACY_DESKTOP_APP_ID`」，不含「观测 URI 双读」。goal 写入提交为 `090e5a778 goals: AC-459 field:expect,origin by cli:3733196`（`git log -1 -- 'goals/AC-459-*.md'`）；目录级 `git log -1 -- goals/` 被并发落地的兄弟 AC-458 goal 提交（develop `fc706ee6a`）经 pre-merge merge 提交遮蔽，AC-459 单文件读数仍是 goal 写入路径提交。
+- AC3：AC4 与其余 9 条全 pass，末行 `ℹ tests 10` / `ℹ pass 10` / `ℹ fail 0`，exit 0。
+- AC4：注回 `(?:cloudcli|cloudpit)://` 后判据 exit 1，红断言原文 `AssertionError [ERR_ASSERTION]: src/modules/cockpit-contract/observationUri.ts accepts only the canonical cloudpit:// observation URI (the retired dual-read branch is back)`（electron/tests/cloudpit-runtime-identity-surfaces.test.mjs:472）；`git checkout -- src/modules/cockpit-contract/observationUri.ts` 后 `git status --short` 对该文件为空（只剩本任务的判据文件改动）。
+- AC5：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` → `Test Files 1 passed (1)` / `Tests 23 passed (23)`，exit 0；`npx tsc --noEmit -p server/tsconfig.json` → exit 0（无输出）。
+- AC6：`quay goal gate AC-459` 在最终树上 `verdict: pass`；`.quay/gate-events.jsonl` 中 AC-459 最新 `gate: goal` 事件即本轮最后一次 gate 的写入（本轮首个 pass 事件 `22ac1bae-87d9-4352-9340-119f4440a573`，treeSha `d28932dfa42016ec13bba8b7d6bc5f2432212f60`；Touches 修正合并后复跑再 pass），其 `payload.treeSha` 与最终 `git rev-parse HEAD^{tree}` 相同。
+- Touches 修正：任务原声明的 goal 载体文件名（`…以-cloudpit-为准-旧名零残留.md`）在仓库中不存在；实际载体是 `goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpi.md`。首次 anti-drift 以 `out-of-declared` 报出后者，经 task_write 改为实际文件名后重跑通过。
+- 写前 AC-459：`criterion=npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`、`status=achieved`、`longTerm=false`、`expect` 末段含「appId `ai.cloudcli.desktop`，以及 AC-452 已管的 `cloudcli://` 观测 URI 双读」。
+- 写后 AC-459：同四项中前两项不变，`expect` 末段改为「旧 appId 拼写 `ai.cloudcli.desktop` 作为 v3.0 迁移常量保留在 `electron/appIdMigration.js` 的 `LEGACY_DESKTOP_APP_ID`…；观测 URI 按 v3.0 R7 只接受 `cloudpit://session|architecture`，旧拼写…必须解析为 null」，并逐字保留「取假形态」尾句。
+
+## 暗轴记录（ADR-007）
+
+- 该轴仍暗,理由:本任务只改判据钉子与 AC-459 的 expect，没有产出 L_D/L_G 轴读数
