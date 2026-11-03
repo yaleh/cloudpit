@@ -24,11 +24,11 @@ goal_ac: AC-471
 - tasks/codex-model-provider-settings-hint.md
 - src/modules/settings/tabs/agents-settings/sections/content/CodexProvidersContent.tsx
 - src/shared/ui/ModelLibraryPanel.tsx
-- src/modules/settings/tests/codexProviderSettings.test.tsx
+- src/modules/settings/tests/codexModelProviderHint.test.tsx（新）
 
 ## AC
 
-- [ ] AC-471 判据绿：npx vitest run src/modules/settings/tests/codexProviderSettings.test.tsx 退出 0。
+- [ ] AC-471 判据绿：npx vitest run src/modules/settings/tests/codexModelProviderHint.test.tsx 退出 0。
 - [ ] 正臂：provider 卡片含变体提示；模型库内置模型行显示 built-in · N provider variants 且 N=注册 provider 数。
 - [ ] 负臂：无注册 provider 时 N=0 或行不显示变体数。
 - [ ] 假形态：硬编码 provider 名或写死 N 红。
