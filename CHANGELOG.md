@@ -3,6 +3,65 @@
 All notable changes to Cloudpit will be documented in this file.
 
 
+## [3.0.0](https://github.com/yaleh/cloudpit/compare/v2.0.0...v3.0.0) (2026-11-03)
+
+### ⚠ BREAKING CHANGES
+
+* **desktop:** switch appId to ai.cloudpit.desktop with one-time migration
+* **cloudpit:** tokens and consent requests naming cloudcli:* are refused at
+issuance (existing stored tokens keep verifying until their own expiry or
+revocation); observation links must use cloudpit://, and only cloudpit-browser
+is registered.
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+### New Features
+
+* **ac455:** make the directory arm a recorded-change ratchet ([dbb088c](https://github.com/yaleh/cloudpit/commit/dbb088c59b70f3be38dd6587b8fc3b942da26dbe))
+* **brand:** render the Cloudpit logo in the sidebar and About ([13a3f35](https://github.com/yaleh/cloudpit/commit/13a3f35808524315364fc753fed204aa695eb160))
+* **cli:** add migrate-assets command for legacy attachment paths ([06c182e](https://github.com/yaleh/cloudpit/commit/06c182e04f0b0b451aac142c19cc8d209474109b))
+* **cloudpit:** retire v3.0 identity-contract fallbacks ([cd528d0](https://github.com/yaleh/cloudpit/commit/cd528d09c33427118875bdc937eacd88c87fd451))
+* **cloudpit:** wire brand env reader into Electron and browser-use reads ([be434dc](https://github.com/yaleh/cloudpit/commit/be434dcec6dc6248e87a1f67f2c1591c3406fc8d))
+* **codex:** read-only import of user ~/.codex providers ([a46fb04](https://github.com/yaleh/cloudpit/commit/a46fb04fb21723998f129fd689ff0966018ef177))
+* **codex:** record a session's upstream provider id and guard switches (AC-462) ([2ee2a82](https://github.com/yaleh/cloudpit/commit/2ee2a827cd3b9cc5e91ec309f27488766d03e26f))
+* **desktop:** switch appId to ai.cloudpit.desktop with one-time migration ([ace4e47](https://github.com/yaleh/cloudpit/commit/ace4e47cccb0fe2f0c146bb1e84be26ec44b71a0))
+* **observation:** flip URI writes to cloudpit:// and normalize 2.0 keys ([31708e9](https://github.com/yaleh/cloudpit/commit/31708e9a5d14b49ff4757fd6cb7609c4c40e3698))
+* **settings:** project-owned Codex upstream provider registry (AC-460) ([e678b99](https://github.com/yaleh/cloudpit/commit/e678b99aa6bea97a9fd979c3effe2e336fee998e))
+* **settings:** wire the codex user-profile provider import (AC-466) ([4b9bd7a](https://github.com/yaleh/cloudpit/commit/4b9bd7ac2d8319c5175caf3a565c6b911ea7ebac))
+
+### Bug Fixes
+
+* **cloudpit:** record the browser-use service growth in the oversize ratchet ([c331578](https://github.com/yaleh/cloudpit/commit/c3315786f917e530d1ae48ed46065c08695e1ba6))
+* **cockpit:** rename the start-conversation component off the Windows case collision ([30bca49](https://github.com/yaleh/cloudpit/commit/30bca4990ea74c37bd31482428cf9c08610a6d76))
+* **observation:** read the digest ledger's session id from either URI spelling ([1b41451](https://github.com/yaleh/cloudpit/commit/1b41451fdc2c9bf30c7d3cafb190daf1a7f53085))
+* **observation:** stop reading peer cross-session rows as user prompts ([f7b402c](https://github.com/yaleh/cloudpit/commit/f7b402c4fcc30942ca4e72527ba59cb27f534bcf))
+* **ui:** render the brand mark on its own navy field ([2d076f8](https://github.com/yaleh/cloudpit/commit/2d076f84198239028afeba8f1fe4a9068411210f))
+
+### Refactoring
+
+* **settings:** one shared expectedVersion reader for both save contracts ([27b1ab0](https://github.com/yaleh/cloudpit/commit/27b1ab0c0eb0eed025c51cc8866849ba1ea81d74))
+
+### Documentation
+
+* 7 份翻译 README 加 Cloudpit 横幅并修正标题/logo/安装/Issue 链接 ([a3f0eb3](https://github.com/yaleh/cloudpit/commit/a3f0eb349e02e0e61c5b78953bc4dcf54932d0cd))
+* Cloudpit 兼容退场计划（2.1/3.0 版本门与逐行判据映射） ([552a2ac](https://github.com/yaleh/cloudpit/commit/552a2ac1ee4db2fb2eeba4ab673bca47349cdf7f))
+* **proposal:** add R14 brief/reply itemRef contract to the retirement plan ([f7b5d4c](https://github.com/yaleh/cloudpit/commit/f7b5d4c96ddaf93c2a70282cda528fddb1b67f1b))
+* rename primary docs surfaces to Cloudpit ([f765c75](https://github.com/yaleh/cloudpit/commit/f765c752b7450d16cc28bf2a926897b582fc6fab))
+
+### Maintenance
+
+* **assets:** replace CloudCLI MessageSquare icons with the Cloudpit blue airfoil logo ([ddb202d](https://github.com/yaleh/cloudpit/commit/ddb202d3d02357e1a0e177314f2427b5d5d5e3a9))
+* **release:** prepare Cloudpit v3.0.0 distribution verification ([8f471d2](https://github.com/yaleh/cloudpit/commit/8f471d2b12cfcff9981d9ee8b64a6903c851bf92))
+
+### Tests
+
+* **cli:** pin the cloudpit fallback after the distribution identity flip ([722e1cd](https://github.com/yaleh/cloudpit/commit/722e1cd3cf9299f6ea7ab04d6cbd55a4dd2aef6e))
+* **cloudpit:** keep the legacy-read grep reading empty ([8321c20](https://github.com/yaleh/cloudpit/commit/8321c206fbbbe11fbfd7d44e75851b0d76c4665f))
+* **cockpit:** migrate observation-wall fixtures to the cloudpit:// spelling ([003e8e2](https://github.com/yaleh/cloudpit/commit/003e8e218be1a4d7a624936198dd1f118ca43434))
+* exercise a half-written batch in the migrate-assets rollback arm ([fdee9c9](https://github.com/yaleh/cloudpit/commit/fdee9c999416ace570b37aa3a3846734609946fd))
+* move the server dispatch pins for the new criterion file ([fc23032](https://github.com/yaleh/cloudpit/commit/fc230328982e47da2352b53642a67be80c2ea6ba))
+* **websocket:** isolate the per-run control legs' database (AC-462) ([f71cac1](https://github.com/yaleh/cloudpit/commit/f71cac19ebef655256ffeabc64b4ddc7355fb285))
+
 ## [2.0.0](https://github.com/yaleh/cloudpit/compare/v1.41.0...v2.0.0) (2026-11-02)
 
 ### New Features
