@@ -28,6 +28,13 @@
 #                                  unreadable, or unparseable => plain alphabetical order (fail-open).
 #      QUAY_TEST_STOP_AFTER=order     print the effective server dispatch order (one path per line)
 #                                  to stdout and exit 0 — collection + ordering only, no stage runs.
+#      QUAY_TEST_SERVER_FILES_FIXTURE=<path>  test seam, honoured ONLY together with
+#                                  QUAY_TEST_STOP_AFTER=order: read the collected server list from
+#                                  <path> (one repo-relative path per line, in collection order)
+#                                  instead of `find`. It lets the order/algorithm criteria drive a
+#                                  LARGE synthetic list without paying for (or depending on) this
+#                                  checkout's own collection. Ignored on every other path — a plain
+#                                  run always collects from the repository with the `find` below.
 #      QUAY_TEST_STOP_AFTER=stages    run only the two static stages, then report normally and skip
 #                                  the server and client phases (the structural C1 check's seam).
 #      QUAY_TEST_STOP_AFTER=e2e       the complementary seam: run ONLY the e2e lane below, then
@@ -992,9 +999,23 @@ run_static_stages_parallel() {
 #
 # Only the full-collection path calls this. Positional / --for-task files are the caller's choice and
 # keep the caller's order — never reordered.
+#
+# COST (gap-quay-test-script-runner-self-overhead). The first implementation matched the two lists
+# with a nested loop per side (baseline × collected, twice) and insertion-sorted the known side:
+# measured 0.89s + 0.93s + 0.36s ≈ 2.2s of PURE BASH per full-collection invocation at 507 files ×
+# 458 baseline rows. The self-test file invokes this entrypoint a dozen times, so that was ~30s of
+# its own runtime paying for an ordering hint. The implementation below is the same contract in
+# O(n + m): one associative-array pass per side, and GNU sort for the duration order. Measured
+# 21ms on the identical input, output byte-for-byte identical (ties included — the baseline index is
+# the second sort key, which is what the old insertion sort's stability produced).
+#
+# DUPLICATES. A collected path listed twice is dispatched ONCE (first occurrence keeps its position);
+# a baseline path listed twice is dispatched ONCE (first occurrence supplies the duration). The old
+# nested loops happened to collapse duplicated baseline rows but let a duplicated collected row
+# through twice — "no file lost or duplicated" is the invariant, so both sides now say so explicitly.
 dispatch_server_files() {
   local baseline="${QUAY_SUITE_DURATION_BASELINE:-$ROOT_DIR/scripts/suite-duration-baseline.tsv}"
-  local tab=$'\t' reason="" line dur path okpath i j f cd cp
+  local tab=$'\t' reason="" line dur path okpath i f known=0
   DISPATCH_ORDER="alphabetical"; DISPATCH_SOURCE=""; DISPATCH_KNOWN=0; DISPATCH_UNKNOWN=0
 
   if [ ! -e "$baseline" ]; then reason="baseline not found: $baseline"
@@ -1025,37 +1046,39 @@ dispatch_server_files() {
     return 0
   fi
 
-  # known = baseline entries still present in the collected list ("still exists"), longest first.
-  # A baseline path that is not in the list (deleted, or excluded from the find) is ignored.
-  local -a kd=() kp=() rest=()
+  # path -> duration, and path -> its baseline line index. The index is the tie-break key: the old
+  # insertion sort was stable, so equal durations kept the baseline's own order.
+  local -A dur_of=() idx_of=()
   for ((i = 0; i < ${#bpath[@]}; i++)); do
-    for f in "${SERVER_FILES[@]+"${SERVER_FILES[@]}"}"; do
-      if [ "$f" = "${bpath[$i]}" ]; then kd+=("${bdur[$i]}"); kp+=("$f"); break; fi
-    done
+    f="${bpath[$i]}"
+    [ -n "${dur_of[$f]+x}" ] && continue
+    dur_of["$f"]="${bdur[$i]}"; idx_of["$f"]="$i"
   done
-  # Insertion sort, duration descending. Stable on ties, so equal-duration files keep the baseline's
-  # own (duration desc, path asc) order — deterministic without a second comparison key here.
-  for ((i = 1; i < ${#kp[@]}; i++)); do
-    cd="${kd[$i]}"; cp="${kp[$i]}"; j=$((i - 1))
-    while [ "$j" -ge 0 ] && [ "${kd[$j]}" -lt "$cd" ]; do
-      kd[$((j + 1))]="${kd[$j]}"; kp[$((j + 1))]="${kp[$j]}"; j=$((j - 1))
-    done
-    kd[$((j + 1))]="$cd"; kp[$((j + 1))]="$cp"
-  done
-  # unknown = collected files the baseline does not mention, in their existing (alphabetical) order.
+
+  # known = collected paths the baseline still lists ("still exists"), carried with their duration
+  # and baseline index; unknown = the rest, kept in their collected order. One pass, deduped.
+  local -a rest=() known_lines=()
+  local -A seen=()
   for f in "${SERVER_FILES[@]+"${SERVER_FILES[@]}"}"; do
-    local inbase=0
-    for path in "${bpath[@]+"${bpath[@]}"}"; do
-      if [ "$path" = "$f" ]; then inbase=1; break; fi
-    done
-    [ "$inbase" = "1" ] || rest+=("$f")
+    [ -n "${seen[$f]+x}" ] && continue
+    seen["$f"]=1
+    if [ -n "${dur_of[$f]+x}" ]; then
+      known_lines+=("${dur_of[$f]}"$'\t'"${idx_of[$f]}"$'\t'"$f")
+      known=$((known + 1))
+    else
+      rest+=("$f")
+    fi
   done
 
   SERVER_FILES=()
-  if [ ${#kp[@]} -gt 0 ]; then SERVER_FILES+=("${kp[@]}"); fi
+  if [ "$known" -gt 0 ]; then
+    # duration DESC, then baseline index ASC (the old stability), then the path is the payload.
+    while IFS= read -r f; do SERVER_FILES+=("$f"); done \
+      < <(printf '%s\n' "${known_lines[@]}" | sort -t "$tab" -k1,1nr -k2,2n | cut -f3-)
+  fi
   if [ ${#rest[@]} -gt 0 ]; then SERVER_FILES+=("${rest[@]}"); fi
   DISPATCH_ORDER="longest-first"; DISPATCH_SOURCE="$baseline"
-  DISPATCH_KNOWN=${#kp[@]}; DISPATCH_UNKNOWN=${#rest[@]}
+  DISPATCH_KNOWN=$known; DISPATCH_UNKNOWN=${#rest[@]}
   printf 'test.sh: server dispatch order=longest-first source=%s known=%s unknown=%s\n' \
     "$DISPATCH_SOURCE" "$DISPATCH_KNOWN" "$DISPATCH_UNKNOWN" >&2
 }
@@ -1068,7 +1091,30 @@ if [ ${#FILES[@]} -gt 0 ]; then
     case "$f" in server/*) SERVER_FILES+=("$f") ;; *) CLIENT_FILES+=("$f") ;; esac
   done
 else
-  while IFS= read -r f; do SERVER_FILES+=("$f"); done < <(find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | sort)
+  # Test seam (order only): a caller-supplied collected list, so the ordering criteria can run a
+  # LARGE synthetic manifest without depending on — or paying for — this checkout's own collection.
+  # ⛔ Confined to the order seam on purpose: a plain run always collects from the repository below,
+  # so the seam cannot hide a collection change from the real suite.
+  if [ -n "${QUAY_TEST_SERVER_FILES_FIXTURE:-}" ] && [ "${QUAY_TEST_STOP_AFTER:-}" = "order" ]; then
+    if [ ! -f "$QUAY_TEST_SERVER_FILES_FIXTURE" ]; then
+      printf 'test.sh: server-files fixture not found: %s\n' "$QUAY_TEST_SERVER_FILES_FIXTURE" >&2
+      exit 2
+    fi
+    # The collected list is a SET: a repeated row (a fixture can carry one, `find` never does) is
+    # read once, at its first position. Keeping that true here — rather than only inside the
+    # dispatch — is what lets the fail-open path return "the collected order" for a manifest that
+    # contains a duplicate without the duplicate becoming a second dispatched file.
+    declare -A _fixture_seen=()
+    while IFS= read -r f || [ -n "$f" ]; do
+      [ -n "$f" ] || continue
+      [ -n "${_fixture_seen[$f]+x}" ] && continue
+      _fixture_seen["$f"]=1
+      SERVER_FILES+=("$f")
+    done < "$QUAY_TEST_SERVER_FILES_FIXTURE"
+    unset _fixture_seen
+  else
+    while IFS= read -r f; do SERVER_FILES+=("$f"); done < <(find server -name '*.test.ts' -o -name '*.test.js' | grep -v node_modules | sort)
+  fi
   # Full-collection path only: reorder server files longest-first from the duration baseline
   # (fail-open => the list above is left untouched). Positional / --for-task files keep the
   # caller's order, so this is deliberately not called for them.

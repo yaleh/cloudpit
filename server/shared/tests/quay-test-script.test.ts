@@ -17,7 +17,7 @@ function runScript(args: string[]) {
 
 // Runs scripts/test.sh for real (no QUAY_TEST_DRY) with extra env — the dispatch-order and
 // static-stage test seams. QUAY_TEST_STOP_AFTER=order stops after collection and =stages after
-// the two static stages, so neither seam executes a test file.
+// the two static stages, so neither seam executes the server test files.
 function runSuite(args: string[], env: Record<string, string> = {}, timeoutMs = 120_000) {
   return spawnSync('bash', ['scripts/test.sh', ...args], {
     cwd: REPO_ROOT,
@@ -28,7 +28,7 @@ function runSuite(args: string[], env: Record<string, string> = {}, timeoutMs = 
 }
 
 // The exact list scripts/test.sh collects on the full path. Spelled the same way test.sh spells
-// it, because AC3/AC4 compare the `order` seam against it byte-for-byte.
+// it, because AC1/AC3 compare the `order` seam against it byte-for-byte.
 function collectedServerFiles(): string {
   const r = spawnSync(
     'bash',
@@ -43,7 +43,14 @@ function tempDir(prefix: string): string {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
-// The stderr lines the dispatch block emits — the ones AC3 pins, one per run.
+// Writes one entry per line (with a trailing newline when non-empty) and returns the path — the
+// shape both the collected-list seam and the duration baseline read.
+function writeLines(file: string, lines: string[]): string {
+  writeFileSync(file, lines.length ? lines.join('\n') + '\n' : '');
+  return file;
+}
+
+// The stderr lines the dispatch block emits — the ones AC2/AC3 pin, one per run.
 function dispatchLines(stderr: string): string[] {
   return stderr.split('\n').filter((line) => line.startsWith('test.sh: server dispatch '));
 }
@@ -138,8 +145,14 @@ test('AC7: the committed duration baseline is valid data, covers the suite, and 
   assert.match(header, /round[: ]+[0-9]+/i, 'the header must name the source round number');
 });
 
-test('AC2: a valid baseline dispatches known files longest-first, keeps the rest alphabetical, and drops missing paths', () => {
-  const dir = tempDir('quay-ac2-');
+// ── server dispatch: the collected-list seam ───────────────────────────────────────────────────
+// QUAY_TEST_SERVER_FILES_FIXTURE (honoured by test.sh ONLY at QUAY_TEST_STOP_AFTER=order) supplies
+// the collected list, so the ordering criteria can drive a large synthetic manifest instead of
+// re-collecting this checkout's ~507 files for every case. Two plain (no-fixture) runs remain: the
+// AC1 permutation check runs on the real collection, and AC3 pins the un-seamed collection to `find`.
+
+test('AC1 (merged AC2+AC4): a valid baseline dispatches known files longest-first, keeps the rest in collected order, drops missing paths, loses or duplicates nothing, and positional files keep their given order', () => {
+  const dir = tempDir('quay-ac1-');
   try {
     const fixture = path.join(dir, 'baseline.tsv');
     const slow = 'server/shared/tests/quay-test-script.test.ts';
@@ -148,372 +161,60 @@ test('AC2: a valid baseline dispatches known files longest-first, keeps the rest
     const gone = 'server/does/not/exist.test.ts';
     writeFileSync(fixture, [`9000\t${slow}`, `7000\t${mid}`, `5000\t${fast}`, `1234\t${gone}`].join('\n') + '\n');
 
+    // The expected tail is COMPUTED from the list test.sh itself collects, never pinned as a
+    // literal: a sibling task adding a test file must not red this criterion for an unrelated
+    // reason (and no 400-line history of count bumps is needed to keep it honest).
+    const collected = collectedServerFiles().split('\n').filter(Boolean);
+    const rest = collected.filter((f) => f !== slow && f !== mid && f !== fast);
+
     const r = runSuite([], { QUAY_TEST_STOP_AFTER: 'order', QUAY_SUITE_DURATION_BASELINE: fixture });
     assert.equal(r.status, 0, r.stderr);
     const out = r.stdout.split('\n').filter(Boolean);
-    assert.deepEqual(out.slice(0, 3), [slow, mid, fast], 'the first 3 lines must be the listed files by descending duration');
 
-    const rest = collectedServerFiles().split('\n').filter((f) => f && f !== slow && f !== mid && f !== fast);
-    assert.deepEqual(out.slice(3), rest, 'baseline-unlisted files must follow in alphabetical order');
+    // AC2's readings, unchanged by the merge: descending known head, collected-order tail, and a
+    // listed path that does not exist is dropped rather than dispatched.
+    assert.deepEqual(out.slice(0, 3), [slow, mid, fast], 'the first 3 lines must be the listed files by descending duration');
+    assert.deepEqual(out.slice(3), rest, 'baseline-unlisted files must follow in the collected (alphabetical) order');
     assert.ok(!out.includes(gone), 'a listed path that does not exist must not appear');
+
+    // AC4's set reading, unchanged by the merge: the dispatch is a PERMUTATION of the collected list.
+    assert.equal(out.length, collected.length, 'no file lost or duplicated');
+    assert.deepEqual([...out].sort(), [...collected].sort(), 'the file set must be unchanged');
 
     const lines = dispatchLines(r.stderr);
     assert.equal(lines.length, 1, 'exactly one dispatch line on stderr');
-    // the tree collects 404 server test files (a moving target, so the pin is re-measured, never
-    // derived); re-measured 2026-10-23 after quay-uri-project-segment-is-fleet-registry-id added
-    // server/modules/quay/tests/quay-fleet-project-id.test.ts (403 + 1 = 404). Before that,
-    // re-measured 2026-10-23 after quay-wall-uri-dereference-with-snapshot-fallback added
-    // server/modules/quay/tests/quay-uri-resolve.test.ts (402 + 1 = 403). Before that, re-measured
-    // 2026-10-23 after gap-providers-websocket-cycle-port-break added
-    // server/modules/providers/tests/providers-websocket-cycle.test.ts (401 + 1 = 402). Before
-    // that, re-measured 2026-10-22 after gap-voice-realtime-ws-proxy-trunk-steps added
-    // server/modules/voice-realtime/tests/voice-realtime-trunk-steps.test.ts (400 + 1 = 401). Before
-    // that, re-measured 2026-10-22 after gap-projects-services-cycle-port-break added
-    // server/modules/projects/tests/projects-session-fetch-cycle.test.ts (399 + 1 = 400). Before
-    // that, re-measured 2026-10-22 after gap-voice-provider-cycle-port-break added
-    // server/modules/voice/tests/voice-provider-cycle.test.ts (398 + 1 = 399). Before that,
-    // re-measured 2026-10-22 after gap-voice-realtime-ws-proxy-frame-extension-point
-    // added server/modules/voice-realtime/tests/voice-realtime-frame-registry.test.ts
-    // (397 + 1 = 398). Before that, re-measured 2026-10-22 after
-    // gap-claude-host-driver-lifecycle-extension-point
-    // added server/modules/providers/tests/claude-resident-lifecycle-outcome-registry.test.ts
-    // (396 + 1 = 397). Before that, gap-claude-host-driver-extension-point added
-    // server/modules/providers/tests/claude-resident-outcome-registry.test.ts (395 + 1 = 396).
-    // Before that, re-measured 2026-10-21 after architecture-graph-cache added
-    // server/modules/architecture/tests/cache-invalidation.test.ts (391 + 1 = 392), then
-    // gap-architecture-seed-extraction-from-transcript added
-    // server/modules/architecture/tests/seed-extraction.test.ts (392 + 1 = 393), then
-    // gap-architecture-graph-generator-seeded-subgraph added
-    // server/modules/architecture/tests/generator.test.ts (393 + 1 = 394).
-    // Before that, re-measured 2026-10-21 after gap-files-tab-unfiltered-decouple-index added
-    // server/modules/file-tree/tests/file-tree-search-index.test.ts (390 + 1 = 391).
-    // Before that, re-measured 2026-10-21 after voice-speaker-model-provisioning added
-    // server/modules/voice-realtime/tests/voice-realtime-speaker-model.test.ts (389 + 1 = 390).
-    // Before that, re-measured 2026-10-21 after voice-speaker-tracker-shadow added
-    // server/modules/voice-realtime/tests/voice-realtime-speaker-tracker.test.ts (388 + 1 = 389).
-    // Before that, re-measured 2026-10-21 after file-tree-lazy-directory-listing added
-    // server/modules/file-tree/tests/file-tree-lazy-listing.test.ts (387 + 1 = 388).
-    // Before that file-tree-git-backed-file-index added
-    // server/modules/file-tree/tests/file-tree-index.test.ts (386 + 1 = 387).
-    // Before that, re-measured 2026-10-20 after gap-server-root-browser-use-cycle-relocate-mcp-entry
-    // added server/modules/cli/tests/browser-use-mcp-entry.test.ts (385 + 1 = 386).
-    // Before that gap-server-provider-websocket-init-cycle-ports added
-    // server/shared/tests/server-composition-startup.test.ts (384 + 1 = 385).
-    // Before that gap-shared-bounded-approval-ledger-and-directory-bytes
-    // added server/shared/tests/bounded-approval-ledger.test.ts (383 + 1 = 384).
-    // Before that gap-claude-transcript-parsing-dedupe added
-    // server/modules/providers/tests/claude-transcript-format.test.ts (382 + 1 = 383).
-    // Before that gap-voice-run-end-summary-side-model added
-    // server/modules/voice-realtime/tests/voice-realtime-summary.test.ts (381 + 1 = 382).
-    // Before that, voice-realtime-tts-local added
-    // server/modules/voice-realtime/tests/voice-realtime-tts-local.test.ts (380 + 1 = 381).
-    // Before that, voice-realtime-model-reply-narrator added
-    // server/modules/voice-realtime/tests/voice-realtime-model-reply-narrator.test.ts (379 + 1 = 380).
-    // Before that, gap-narrator-announce-phrase-cache added
-    // server/modules/voice-realtime/tests/voice-realtime-tts-cache.test.ts and
-    // server/modules/voice-realtime/tests/voice-realtime-announce-phrases.test.ts (377 + 2 = 379).
-    // Before that, gap-narrator-tts-stream-first-frame added
-    // server/modules/voice-realtime/tests/voice-realtime-tts-stream.test.ts (376 + 1 = 377).
-    // Before that, gap-narrator-local-gate-no-interrupt added
-    // server/modules/voice-realtime/tests/voice-realtime-narrator-local-gate.test.ts (375 + 1 = 376).
-    // Before that, gap-omission-fill-pure-module-and-parity added
-    // server/modules/voice-realtime/tests/voice-realtime-omission-fill.test.ts (363 + 1 = 364).
-    // Re-measured 2026-10-17 after eighteen tasks each added one criterion file — the
-    // five above (gap-ac377 claude-resident-cold-head-merge.test.ts, gap-ac378
-    // claude-resident-ledger-invariants.test.ts, gap-ac379 claude-resident-cli-contract.test.ts,
-    // gap-ac381 claude-resident-unattended-after-turns.test.ts and gap-ac380
-    // claude-resident-interrupt-ledger.test.ts), gap-ac382-run-is-turn-resident-init-minted-run
-    // (chat-run-turn-semantics.test.ts), gap-ac383-delivery-activity-snapshot-channel
-    // (activity-deliveries-snapshot.test.ts), gap-ac384-processing-single-writer
-    // (processing-single-writer.test.ts), gap-ac385-send-deliveryid-runid-compat-window
-    // (mcp-session-send-delivery.test.ts), gap-ac386-run-get-dual-id-delivery-wait
-    // (mcp-run-get-delivery.test.ts), gap-ac393-resident-legacy-path-ratchet
-    // (resident-legacy-path-ratchet.test.ts), gap-ac395-ledger-transitions-extraction
-    // (claude-resident-ledger-transitions.test.ts), gap-ac390-resident-reconcile-observability
-    // (claude-resident-reconcile.test.ts), gap-ac392-resident-run-is-turn-single-reader
-    // (resident-run-is-turn-single-reader.test.ts), gap-ac394-server-import-cycle-budget
-    // (server-import-cycle-budget.test.ts), gap-ac391-resident-semantics-doc-anchors
-    // (resident-semantics-doc-anchors.test.ts), gap-ac396-ledger-leaf-module
-    // (server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts) and
-    // gap-ac397-composition-root-wiring (server/shared/tests/composition-root-wiring.test.ts).
-    // The same day gap-live-voice-stream-delivery-not-command removed ONE: the settle producer
-    // replaced the fragment heuristic, so voice-realtime-partial-relay-fragments.test.ts went with
-    // it (364 - 1 = 363). Then gap-omission-fill-pure-module-and-parity put one back
-    // (363 + 1 = 364), and gap-omission-fill-wire-into-ws-proxy put one more
-    // (364 + 1 = 365). Then gap-omission-fill-params-owned-by-server added the AC-402 source test
-    // (365 + 1 = 366). Then gap-voice-realtime-silent-closing-orphans-tool-resume-overflow added
-    // server/modules/voice-realtime/tests/voice-realtime-tool-resume-always-sent.test.ts
-    // (366 + 1 = 367). Then two independent tasks each added one criterion file:
-    // voice-output-tts-cosyvoice added the AC-405 TTS criterion
-    // server/modules/voice-realtime/tests/voice-realtime-tts.test.ts (367 + 1 = 368) and
-    // voice-output-backchannel added its AC-407 criterion
-    // server/modules/voice-realtime/tests/voice-realtime-backchannel.test.ts (368 + 1 = 369).
-    // Then voice-output-narrator-interrupt added its AC-406 criterion
-    // server/modules/voice-realtime/tests/voice-realtime-narrator-interrupt.test.ts (369 + 1 = 370).
-    // Then voice-output-run-end-summary added its AC-404 criterion
-    // server/modules/voice-realtime/tests/voice-realtime-run-end-summary.test.ts (370 + 1 = 371).
-    // Then the announce-wiring commit f18c966ee added its narrator criterion
-    // server/modules/voice-realtime/tests/voice-realtime-announce-narrator.test.ts (371 + 1 = 372).
-    // Then fleet-overview-p2-project-task-counts-fleet-summary added its criterion
-    // server/modules/quay/tests/quay-fleet-summary.test.ts (372 + 1 = 373).
-    // Then fleet-overview-p3-landing-overview-session-terminal added its criterion
-    // server/modules/resident-ledger/tests/terminal-state.test.ts (373 + 1 = 374).
-    // Then gap-voice-realtime-per-user-key added its criterion
-    // server/modules/voice-realtime/tests/voice-realtime-api-key-resolution.test.ts (374 + 1 = 375).
-    // Then gap-narrator-local-gate-no-interrupt added its criterion
-    // server/modules/voice-realtime/tests/voice-realtime-narrator-local-gate.test.ts (375 + 1 = 376).
-    // Then the four GOAL-049 architecture criteria (seed extraction, generator, cache, and
-    // architecture-graph-endpoint's route criterion) brought the collection to 395 files.
-    // Then gap-claude-host-driver-extension-point added its criterion
-    // server/modules/providers/tests/claude-resident-outcome-registry.test.ts (395 + 1 = 396).
-    // Then cockpit-hub-cross-device-state added its two criteria
-    // server/modules/cockpit/tests/cockpit-reducer.test.ts and cockpit-hub.test.ts
-    // (404 + 2 = 406 collected server test files).
-    // Then gap-resident-restore-after-restart added its criterion
-    // server/modules/session-hosts/tests/resident-restore.service.test.ts (406 + 1 = 407).
-    // Then quay-fleet-cli-locator-and-handshake added its locator criterion
-    // server/modules/quay/tests/quay-fleet-locator.test.ts (407 + 1 = 408).
-    // Re-measured 2026-10-24 after gap-reply-suggestions-backend-llm-service added four
-    // criteria under server/modules/reply-suggestions/tests/ — reply-suggestions-settings,
-    // reply-suggestions-client, reply-suggestions-service and reply-suggestions-routes
-    // (408 + 4 = 412 collected server test files).
-    // Then observation-object-model-seen-cursor-and-delta added its three criteria
-    // server/modules/observation/tests/observation-store.test.ts,
-    // observation-routes.test.ts and producer-liveness.test.ts (412 + 3 = 415 collected
-    // server test files).
-    // Re-measured 2026-10-24 after fleet-cli-cross-repo-contract-tests added its cross-repo
-    // criterion server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts
-    // (415 + 1 = 416 collected server test files).
-    // Then observation-session-digest-deterministic added its criterion
-    // server/modules/observation/tests/session-digest.test.ts and
-    // liaison-delivery-by-initiative-and-project added its criterion
-    // server/modules/liaison/tests/liaison-deliver.test.ts (416 + 2 = 418 collected
-    // server test files).
-    // Then observation-p0-view-instrumentation-and-weekly-report added its criterion
-    // server/modules/observation/tests/view-events.test.ts (418 + 1 = 419 collected
-    // server test files).
-    // Then observation-project-layered-truth added its criterion
-    // server/modules/observation/tests/project-truth.test.ts (419 + 1 = 420 collected
-    // server test files).
-    // Then observation-blind-spots-declaration added its criterion
-    // server/modules/observation/tests/blind-spots.test.ts (420 + 1 = 421 collected
-    // server test files).
-    // Then observation-session-digest-llm-tier added its criterion
-    // server/modules/observation/tests/session-digest-llm.test.ts (421 + 1 = 422 collected
-    // server test files).
-    // Then context-event-stream-and-shadow-predictor added its four criteria under
-    // server/modules/context-events/tests/ — context-event-writer,
-    // utterance-classifier, shadow-predictor and production-wiring
-    // (422 + 4 = 426 collected server test files).
-    // Then observation-architecture-structural-delta added its criterion
-    // server/modules/observation/tests/architecture-delta.test.ts (426 + 1 = 427 collected
-    // server test files), and cockpit-initiative-view-and-decision-queue added its criterion
-    // server/modules/quay/tests/quay-initiatives.test.ts (427 + 1 = 428 collected
-    // server test files).
-    // Then deploy-readiness-build-and-safe-restart added its criterion
-    // server/modules/system/tests/deploy-readiness.test.ts (428 + 1 = 429 collected
-    // server test files), and gap-reply-suggestions-backend-encapsulation added three
-    // criteria under server/modules/reply-suggestions/tests/ — reply-suggestions-guard,
-    // reply-suggestions-draw-store and reply-suggestions-usage-log
-    // (429 + 3 = 432 collected server test files).
-    // Then session-task-flow-chain-status added its criterion
-    // server/modules/quay/tests/session-task-chain.test.ts (432 + 1 = 433 collected
-    // server test files), and quay-pulse-strip-compact-health-view added its criterion
-    // server/modules/quay/tests/quay-blockers-summary.test.ts (433 + 1 = 434 collected
-    // server test files).
-    // Then cockpit-decision-counter-voice added its criterion
-    // server/modules/quay/tests/counter-voice.test.ts (434 + 1 = 435 collected server test
-    // files), and architecture-archguard-refresh-trigger added its two criteria
-    // server/modules/architecture/tests/refreshJob.test.ts and refreshRoutes.test.ts
-    // (435 + 2 = 437 collected server test files).
-    // Then gap-notices-server-registry-and-dismissal added its two criteria
-    // server/modules/notices/tests/notice-registry.test.ts and
-    // server/modules/system/tests/deploy-notice-provider.test.ts (437 + 2 = 439 collected
-    // server test files).
-    // Then gap-quay-session-mentions-and-lanes-only-readings added its criterion
-    // server/modules/quay/tests/session-mentions.test.ts (439 + 1 = 440 collected
-    // server test files).
-    // Then gap-quay-event-driven-refresh-capability-probe-and-dispatch-reading added its
-    // criterion server/modules/quay/tests/quay-live-refresh.test.ts (440 + 1 = 441
-    // collected server test files).
-    // Then gap-quay-entrypoint-resolver-via-claude-plugin-scopes added its criterion
-    // server/modules/quay/tests/quay-entrypoint-resolver.test.ts (441 + 1 = 442 collected
-    // server test files).
-    // Then gap-settings-file-shared-reader added its criterion
-    // server/shared/tests/settings-file.test.ts (442 + 1 = 443 collected server test
-    // files). Then gap-llm-gateway-leaf-module added
-    // server/modules/llm-gateway/tests/llm-client.test.ts (443 + 1 = 444 collected
-    // server test files). Then gap-provider-capability-facets-replace-name-branches
-    // added its shell-facet criterion server/modules/providers/tests/provider-shell-facet.test.ts
-    // (444 + 1 = 445 collected server test files). Then gap-architecture-ratchet-census added
-    // server/shared/tests/architecture-ratchet.test.ts, then
-    // gap-codex-transcript-format-shared-helpers added its criterion
-    // server/modules/providers/tests/codex-transcript-format.test.ts
-    // (446 + 1 = 447 collected server test files). Then
-    // gap-quay-fleet-cli-runner-consolidation added its criterion
-    // server/modules/quay/tests/quay-fleet-cli.test.ts (447 + 1 = 448 collected server test
-    // files), then gap-architecture-refresh-duplicates-per-scope added its criterion
-    // server/modules/architecture/tests/refresh-duplicates.test.ts (448 + 1 = 449 collected
-    // server test files). Then gap-shared-utils-small-helpers-dedup added
-    // server/shared/tests/shared-utils-helpers.test.ts (449 + 1 = 450 collected
-    // server test files). Then gap-database-migration-column-and-flag-helpers added its
-    // criterion server/modules/database/tests/migrations-ensure-columns.test.ts
-    // (450 + 1 = 451 collected server test files). Then
-    // cockpit-card-provider-contract-and-registry added its criterion
-    // server/modules/cockpit/tests/cockpit-card-registry.test.ts (451 + 1 = 452 collected
-    // server test files). Then observation-session-ask-decision-digest added its criterion
-    // server/modules/observation/tests/session-ask-decision-digest.test.ts
-    // (452 + 1 = 453 collected server test files). Then cockpit-session-ask-brief added its two
-    // criteria server/modules/cockpit/tests/cockpit-brief-spec.test.ts and
-    // server/modules/cockpit/tests/cockpit-brief.test.ts
-    // (453 + 2 = 455 collected server test files). Then cockpit-card-session-executors added its
-    // criterion server/modules/cockpit/tests/cockpit-session-executors.test.ts
-    // (455 + 1 = 456 collected server test files). Then
-    // observation-session-ask-event-writer-wiring added its criterion
-    // server/modules/context-events/tests/session-ask-event-writer.test.ts
-    // (456 + 1 = 457 collected server test files). Then cockpit-fleet-card-provider added its
-    // criterion server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
-    // (457 + 1 = 458 collected server test files). Then cockpit-fleet-rescue-executors added its
-    // criterion server/modules/cockpit/tests/cockpit-fleet-executor.test.ts
-    // (458 + 1 = 459 collected server test files). Then
-    // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added its criterion
-    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts
-    // (459 + 1 = 460 collected server test files). Then
-    // gap-cockpit-ask-cards-judge-default-suggestion added its criterion
-    // server/modules/observation/tests/session-ask-judge-default.test.ts
-    // (460 + 1 = 461 collected server test files). Then gap-mcp-cockpit-card-tools added its
-    // criterion server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts
-    // (461 + 1 = 462 collected server test files). Then
-    // gap-cockpit-session-start-background-resident-and-run-events added its criterion
-    // server/modules/context-events/tests/session-run-events.test.ts
-    // (462 + 1 = 463 collected server test files). Then
-    // gap-cockpit-card-feedback-receipt-lifecycle added its criterion
-    // server/modules/cockpit/tests/cockpit-card-feedback.test.ts
-    // (463 + 1 = 464 collected server test files). Then
-    // gap-ac435-codex-resident-host-driver-persistent added its criterion
-    // server/modules/providers/tests/codex-host-driver-persistent.test.ts
-    // (464 + 1 = 465 collected server test files). Then
-    // gap-ac439-codex-resident-background-leases added its criterion
-    // server/modules/providers/tests/codex-resident-background-leases.test.ts
-    // (465 + 1 = 466 collected server test files). Then
-    // gap-ac437-codex-resident-live-settings added its criterion
-    // server/modules/providers/tests/codex-host-driver-settings.test.ts
-    // (466 + 1 = 467 collected server test files), then
-    // gap-ac440-codex-app-server-protocol-gate added its criterion
-    // server/modules/providers/tests/codex-app-server-protocol.test.ts
-    // (467 + 1 = 468 collected server test files). Then
-    // gap-ac441-codex-resident-host-lifecycle added its criterion
-    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts
-    // (468 + 1 = 469 collected server test files). Then
-    // gap-ac442-codex-resident-capabilities added its criterion
-    // server/modules/providers/tests/codex-resident-capabilities.test.ts
-    // (469 + 1 = 470 collected server test files). Then
-    // gap-ac438-codex-resident-approvals-broker added its criterion
-    // server/modules/providers/tests/codex-resident-approvals.test.ts
-    // (470 + 1 = 471 collected server test files). Then
-    // gap-ac436-codex-resident-queue-reland added its criterion
-    // server/modules/providers/tests/codex-host-driver-queue.test.ts
-    // (471 + 1 = 472 collected server test files). Then
-    // gap-ac444-codex-resident-turn-steer added its criterion
-    // server/modules/providers/tests/codex-host-driver-steer.test.ts
-    // (472 + 1 = 473 collected server test files). Then
-    // gap-cockpit-ask-semantic-gate added its criterion
-    // server/modules/observation/tests/session-ask-semantic-gate.test.ts
-    // (473 + 1 = 474 collected server test files). Then
-    // gap-observation-ask-ledger-owner added its two criteria
-    // server/modules/observation/tests/session-ask-ledger.test.ts and
-    // server/modules/observation/tests/session-ask-recovery.test.ts
-    // (474 + 2 = 476 collected server test files). Then
-    // gap-cockpit-session-start-model-settings added its criterion
-    // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts
-    // (476 + 1 = 477 collected server test files). Then
-    // gap-cockpit-session-start-model-settings-ui added its criterion
-    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts
-    // (477 + 1 = 478 collected server test files). This fixture names 3 known files, so
-    // 478 - 3 = 475.
-    // Re-measured 2026-10-31 after gap-routine-architecture-analysis-src-import-cycles-unpinned
-    // added the frontend cycle ratchet server/shared/tests/frontend-import-cycle-budget.test.ts
-    // (478 + 1 = 479 collected server test files). Then
-    // gap-codex-resident-normalize-app-server-frames added its criterion
-    // server/modules/providers/tests/codex-resident-normalize.test.ts
-    // (479 + 1 = 480 collected server test files). Then
-    // gap-codex-resident-closehost-orphans-other-sessions added its criterion
-    // server/modules/providers/tests/codex-host-driver-multihost.test.ts
-    // (480 + 1 = 481 collected server test files). Then
-    // gap-session-edit-preparation added its criterion
-    // server/modules/websocket/tests/chat-edit-preparation.test.ts
-    // (481 + 1 = 482 collected server test files). Then
-    // gap-session-binding-consistency added its criterion
-    // server/modules/providers/tests/session-binding-consistency.test.ts
-    // (482 + 1 = 483 collected server test files). Then
-    // gap-cloudpit-brand-env-fallback added its criterion
-    // server/shared/tests/cloudpit-brand-env.test.ts (483 + 1 = 484 collected
-    // server test files). Then gap-cloudpit-data-root-migration added its criterion
-    // server/shared/tests/cloudpit-data-root.test.ts (484 + 1 = 485 collected
-    // server test files). Then gap-session-edit-continuity-e2e added its two criteria
-    // server/modules/websocket/tests/session-edit-continuity.test.ts and
-    // server/modules/providers/tests/session-edit-real-cli.test.ts
-    // (485 + 2 = 487 collected server test files). Then
-    // gap-cloudpit-assets-dual-root-and-userdata-helper added its criterion
-    // server/modules/assets/tests/cloudpit-assets-dual-root.test.ts
-    // (487 + 1 = 488 collected server test files). Then
-    // gap-goal-053-exit-structural-gate-not-an-ac added its criterion
-    // server/shared/tests/cloudpit-goal-exit-gate.test.ts
-    // (488 + 1 = 489 collected server test files). Then
-    // gap-codex-restart-sync-last-activity added its criterion
-    // server/modules/providers/tests/codex-session-activity-restart.test.ts
-    // (489 + 1 = 490 collected server test files). Then
-    // gap-codex-resident-blocked-context-events added its criterion
-    // server/modules/context-events/tests/session-blocked-events.test.ts
-    // (490 + 1 = 491 collected server test files). Then
-    // cockpit-knowledge-decision-handoff added its criterion
-    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts and
-    // knowledge-application-fact-contract added its two criteria
-    // server/modules/context-events/tests/knowledge-activity-events.test.ts and
-    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts
-    // (491 + 3 = 494 collected server test files). Then
-    // knowledge-effective-config-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts
-    // (494 + 1 = 495 collected server test files), then
-    // knowledge-peer-correlation-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts
-    // (495 + 1 = 496 collected server test files). Then
-    // gap-effective-config-proc-request-layer added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts
-    // (496 + 1 = 497 collected server test files). The goal branch's
-    // gap-cloudpit-runtime-default-flip adds its criterion
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498 collected server test
-    // files), then codex-provider-config-surface added its criterion
-    // server/modules/settings/tests/codex-model-providers-settings.test.ts
-    // (498 + 1 = 499 collected server test files). Then
-    // gap-cloudpit-migrate-assets-rewrite added its criterion
-    // server/modules/cli/tests/asset-migration.service.test.ts
-    // (499 + 1 = 500 collected server test files). Then codex-model-entry-provider-binding
-    // added its criterion server/modules/providers/tests/codex-provider-model-binding.test.ts
-    // (500 + 1 = 501 collected server test files). Then codex-perrun-provider-injection
-    // added its criterion server/modules/providers/tests/codex-runtime-provider-injection.test.ts
-    // (501 + 1 = 502 collected server test files), then codex-session-provider-id-binding
-    // added its criterion server/modules/providers/tests/codex-session-provider-binding.test.ts
-    // (502 + 1 = 503 collected server test files), then codex-resident-provider-injection
-    // added its criterion server/modules/providers/tests/codex-resident-provider-injection.test.ts
-    // (503 + 1 = 504 collected server test files). Then codex-provider-import-user-profile added
-    // its criterion server/modules/settings/tests/codex-provider-import.test.ts
-    // (504 + 1 = 505 collected server test files), then codex-provider-advanced-capabilities
-    // added its criterion server/modules/settings/tests/codex-provider-advanced.test.ts
-    // (505 + 1 = 506 collected server test files), then codex-model-provider-option-composition
-    // added its criterion server/modules/providers/tests/codex-model-provider-option.test.ts
-    // (506 + 1 = 507 collected server test files). This fixture names 3 known files, so
-    // 507 - 3 = 504.
-    assert.match(lines[0], /^test\.sh: server dispatch order=longest-first source=.* known=3 unknown=504$/);
+    assert.match(
+      lines[0],
+      new RegExp(`^test\\.sh: server dispatch order=longest-first source=.* known=3 unknown=${rest.length}$`),
+    );
+
+    // AC4's positional arm: a reverse-alphabetical given order must be printed verbatim, never reordered.
+    const first = slow;
+    const second = fast;
+    assert.ok(first > second, 'the fixture must give the alphabetically LATER file first');
+    const rp = runSuite([first, second], { QUAY_TEST_STOP_AFTER: 'order' });
+    assert.equal(rp.status, 0, rp.stderr);
+    assert.deepEqual(rp.stdout.split('\n').filter(Boolean), [first, second]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and says why on stderr', (t) => {
-  const dir = tempDir('quay-ac3-');
+test('AC2: every broken-baseline case fails open to the collected order byte-for-byte, and says why on stderr', (t) => {
+  const dir = tempDir('quay-ac2-');
   try {
-    const expected = collectedServerFiles();
+    // ONE collected list for every case, deliberately NOT alphabetical: "fails open to the
+    // collected order" must be distinguishable from "re-sorted alphabetically". The expected
+    // output is computed exactly once here — each case below only swaps the baseline it is given,
+    // so the per-case assertions can stay byte-exact without re-deriving the list.
+    const manifest = [
+      'server/zzz/late.test.ts',
+      'server/aaa/early.test.ts',
+      'server/mmm/middle.test.ts',
+      'server/bbb/second.test.ts',
+    ];
+    const collectedFile = writeLines(path.join(dir, 'collected.txt'), manifest);
+    const expected = manifest.join('\n') + '\n';
     const cases: Array<{ name: string; file: string; lines?: string }> = [
       { name: 'missing', file: path.join(dir, 'missing.tsv') },
       { name: 'empty', file: path.join(dir, 'empty.tsv'), lines: '' },
@@ -522,9 +223,13 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
     ];
     for (const c of cases) {
       if (c.lines !== undefined) writeFileSync(c.file, c.lines);
-      const r = runSuite([], { QUAY_TEST_STOP_AFTER: 'order', QUAY_SUITE_DURATION_BASELINE: c.file });
+      const r = runSuite([], {
+        QUAY_TEST_STOP_AFTER: 'order',
+        QUAY_TEST_SERVER_FILES_FIXTURE: collectedFile,
+        QUAY_SUITE_DURATION_BASELINE: c.file,
+      });
       assert.equal(r.status, 0, `${c.name}: ${r.stderr}`);
-      assert.equal(r.stdout, expected, `${c.name}: stdout must stay byte-for-byte alphabetical`);
+      assert.equal(r.stdout, expected, `${c.name}: stdout must stay byte-for-byte the collected order`);
       const lines = dispatchLines(r.stderr);
       assert.equal(lines.length, 1, `${c.name}: exactly one dispatch line`);
       assert.match(lines[0], /^test\.sh: server dispatch order=alphabetical reason=.+$/, c.name);
@@ -532,168 +237,122 @@ test('AC3: a broken baseline fails open to alphabetical order byte-for-byte, and
 
     // ④ unreadable. Mode bits cannot defeat a root runner, so probe before trusting the case.
     const unreadable = path.join(dir, 'unreadable.tsv');
-    writeFileSync(unreadable, `9000\tserver/shared/tests/quay-test-script.test.ts\n`);
+    writeFileSync(unreadable, `9000\tserver/mmm/middle.test.ts\n`);
     chmodSync(unreadable, 0o000);
     const probe = spawnSync('bash', ['-c', 'test -r "$1"', '_', unreadable], { encoding: 'utf8' });
     if (probe.status === 0) {
       t.diagnostic('running as root: mode 000 is still readable, so the unreadable-baseline case is skipped here');
     } else {
-      const r = runSuite([], { QUAY_TEST_STOP_AFTER: 'order', QUAY_SUITE_DURATION_BASELINE: unreadable });
+      const r = runSuite([], {
+        QUAY_TEST_STOP_AFTER: 'order',
+        QUAY_TEST_SERVER_FILES_FIXTURE: collectedFile,
+        QUAY_SUITE_DURATION_BASELINE: unreadable,
+      });
       assert.equal(r.status, 0, r.stderr);
-      assert.equal(r.stdout, expected, 'unreadable: stdout must stay byte-for-byte alphabetical');
+      assert.equal(r.stdout, expected, 'unreadable: stdout must stay byte-for-byte the collected order');
       const lines = dispatchLines(r.stderr);
       assert.equal(lines.length, 1, 'unreadable: exactly one dispatch line');
       assert.match(lines[0], /^test\.sh: server dispatch order=alphabetical reason=/, 'unreadable');
     }
 
     // A VALID baseline announces longest-first with its source path and its known/unknown counts.
+    // It carries a DUPLICATED row for the same path: first occurrence wins, so the file is
+    // dispatched exactly once — never twice — and the unordered tail keeps the collected order.
     const valid = path.join(dir, 'valid.tsv');
-    writeFileSync(valid, `9000\tserver/shared/tests/quay-test-script.test.ts\n`);
-    const rv = runSuite([], { QUAY_TEST_STOP_AFTER: 'order', QUAY_SUITE_DURATION_BASELINE: valid });
+    writeFileSync(valid, `9000\tserver/mmm/middle.test.ts\n7000\tserver/mmm/middle.test.ts\n`);
+    const rv = runSuite([], {
+      QUAY_TEST_STOP_AFTER: 'order',
+      QUAY_TEST_SERVER_FILES_FIXTURE: collectedFile,
+      QUAY_SUITE_DURATION_BASELINE: valid,
+    });
     assert.equal(rv.status, 0, rv.stderr);
+    assert.deepEqual(
+      rv.stdout.split('\n').filter(Boolean),
+      ['server/mmm/middle.test.ts', 'server/zzz/late.test.ts', 'server/aaa/early.test.ts', 'server/bbb/second.test.ts'],
+      'valid: the known file first, then the rest in collected order, the duplicated row dispatched once',
+    );
     const vl = dispatchLines(rv.stderr);
     assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
-    // Same collection as AC2 — 465 files on this tree (gap-architecture-ratchet-census
-    // added server/shared/tests/architecture-ratchet.test.ts, then
-    // gap-codex-transcript-format-shared-helpers added
-    // server/modules/providers/tests/codex-transcript-format.test.ts, then
-    // gap-quay-fleet-cli-runner-consolidation added
-    // server/modules/quay/tests/quay-fleet-cli.test.ts, then
-    // gap-architecture-refresh-duplicates-per-scope added its refresh-duplicates criterion,
-    // then gap-shared-utils-small-helpers-dedup added
-    // server/shared/tests/shared-utils-helpers.test.ts, then
-    // gap-database-migration-column-and-flag-helpers added
-    // server/modules/database/tests/migrations-ensure-columns.test.ts, then
-    // cockpit-card-provider-contract-and-registry added
-    // server/modules/cockpit/tests/cockpit-card-registry.test.ts, then
-    // cockpit-session-ask-brief added
-    // server/modules/cockpit/tests/cockpit-brief.test.ts and
-    // server/modules/cockpit/tests/cockpit-brief-spec.test.ts), then
-    // cockpit-card-session-executors added
-    // server/modules/cockpit/tests/cockpit-session-executors.test.ts, then
-    // observation-session-ask-event-writer-wiring added
-    // server/modules/context-events/tests/session-ask-event-writer.test.ts, then
-    // cockpit-fleet-card-provider added
-    // server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts, then
-    // cockpit-fleet-rescue-executors added
-    // server/modules/cockpit/tests/cockpit-fleet-executor.test.ts, then
-    // gap-quay-tests-fanin-read-via-suite-verb-and-driver-log added
-    // server/modules/quay/tests/quay-suite-fanin-reader.test.ts), then
-    // gap-cockpit-ask-cards-judge-default-suggestion added
-    // server/modules/observation/tests/session-ask-judge-default.test.ts, then
-    // gap-mcp-cockpit-card-tools added
-    // server/modules/mcp-gateway/tests/mcp-cockpit-tools.test.ts, then
-    // gap-cockpit-session-start-background-resident-and-run-events added
-    // server/modules/context-events/tests/session-run-events.test.ts, then
-    // gap-ac435-codex-resident-host-driver-persistent added
-    // server/modules/providers/tests/codex-host-driver-persistent.test.ts, then
-    // gap-ac439-codex-resident-background-leases added
-    // server/modules/providers/tests/codex-resident-background-leases.test.ts, then
-    // gap-ac437-codex-resident-live-settings added
-    // server/modules/providers/tests/codex-host-driver-settings.test.ts, then
-    // gap-ac440-codex-app-server-protocol-gate added
-    // server/modules/providers/tests/codex-app-server-protocol.test.ts, then
-    // gap-ac441-codex-resident-host-lifecycle added
-    // server/modules/session-hosts/tests/codex-resident-lifecycle.test.ts, then
-    // gap-ac442-codex-resident-capabilities added
-    // server/modules/providers/tests/codex-resident-capabilities.test.ts, then
-    // gap-ac438-codex-resident-approvals-broker added
-    // server/modules/providers/tests/codex-resident-approvals.test.ts, then
-    // gap-ac436-codex-resident-queue-reland added
-    // server/modules/providers/tests/codex-host-driver-queue.test.ts, then
-    // gap-ac444-codex-resident-turn-steer added
-    // server/modules/providers/tests/codex-host-driver-steer.test.ts, then
-    // gap-cockpit-ask-semantic-gate added
-    // server/modules/observation/tests/session-ask-semantic-gate.test.ts, then
-    // gap-observation-ask-ledger-owner added
-    // server/modules/observation/tests/session-ask-ledger.test.ts and
-    // server/modules/observation/tests/session-ask-recovery.test.ts), then
-    // gap-cockpit-session-start-model-settings added
-    // server/modules/cockpit/tests/cockpit-session-start-model-selection.test.ts), then
-    // gap-cockpit-session-start-model-settings-ui added
-    // server/modules/settings/tests/cockpit-session-start-settings.routes.test.ts), then
-    // gap-codex-resident-normalize-app-server-frames added
-    // server/modules/providers/tests/codex-resident-normalize.test.ts), then
-    // gap-codex-resident-closehost-orphans-other-sessions added
-    // server/modules/providers/tests/codex-host-driver-multihost.test.ts), then
-    // gap-session-edit-preparation added
-    // server/modules/websocket/tests/chat-edit-preparation.test.ts), then
-    // gap-session-binding-consistency added
-    // server/modules/providers/tests/session-binding-consistency.test.ts), then
-    // gap-cloudpit-brand-env-fallback added
-    // server/shared/tests/cloudpit-brand-env.test.ts), then
-    // gap-cloudpit-data-root-migration added
-    // server/shared/tests/cloudpit-data-root.test.ts), then gap-session-edit-continuity-e2e
-    // added its two criteria (session-edit-continuity.test.ts, session-edit-real-cli.test.ts),
-    // then gap-cloudpit-assets-dual-root-and-userdata-helper added
-    // server/modules/assets/tests/cloudpit-assets-dual-root.test.ts), then
-    // gap-goal-053-exit-structural-gate-not-an-ac added
-    // server/shared/tests/cloudpit-goal-exit-gate.test.ts)
-    // (489 + 1 = 490 after gap-codex-restart-sync-last-activity added
-    // server/modules/providers/tests/codex-session-activity-restart.test.ts), then
-    // gap-codex-resident-blocked-context-events added
-    // server/modules/context-events/tests/session-blocked-events.test.ts (490 + 1 = 491), then
-    // cockpit-knowledge-decision-handoff added
-    // server/modules/cockpit/tests/cockpit-knowledge-decision-handoff.test.ts (491 + 1 = 492),
-    // then knowledge-application-fact-contract added its two criteria
-    // server/modules/context-events/tests/knowledge-activity-events.test.ts and
-    // server/modules/mcp-gateway/tests/mcp-knowledge-facts.test.ts (492 + 2 = 494),
-    // then knowledge-effective-config-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-effective-config-proof.test.ts (494 + 1 = 495),
-    // then knowledge-peer-correlation-proof added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-peer-correlation-proof.test.ts (495 + 1 = 496), then
-    // gap-effective-config-proc-request-layer added its criterion
-    // server/modules/mcp-gateway/tests/knowledge-effective-config-launch-request.test.ts (496 + 1 = 497),
-    // then the goal branch's gap-cloudpit-runtime-default-flip added
-    // server/shared/tests/cloudpit-runtime-flip.test.ts (497 + 1 = 498), then
-    // codex-provider-config-surface added
-    // server/modules/settings/tests/codex-model-providers-settings.test.ts (498 + 1 = 499), then
-    // gap-cloudpit-migrate-assets-rewrite added its criterion
-    // server/modules/cli/tests/asset-migration.service.test.ts (499 + 1 = 500), then
-    // codex-model-entry-provider-binding added
-    // server/modules/providers/tests/codex-provider-model-binding.test.ts (500 + 1 = 501), then
-    // codex-perrun-provider-injection added
-    // server/modules/providers/tests/codex-runtime-provider-injection.test.ts (501 + 1 = 502),
-    // then codex-session-provider-id-binding added
-    // server/modules/providers/tests/codex-session-provider-id-binding.test.ts (502 + 1 = 503),
-    // then codex-resident-provider-injection added
-    // server/modules/providers/tests/codex-resident-provider-injection.test.ts (503 + 1 = 504),
-    // then codex-provider-import-user-profile added
-    // server/modules/settings/tests/codex-provider-import.test.ts (504 + 1 = 505), then
-    // codex-provider-advanced-capabilities added
-    // server/modules/settings/tests/codex-provider-advanced.test.ts (505 + 1 = 506), then
-    // codex-model-provider-option-composition added
-    // server/modules/providers/tests/codex-model-provider-option.test.ts (506 + 1 = 507)
-    // — but this fixture names ONE known file, so 507 - 1 = 506 (AC2 reads 504 because its
-    // fixture names 3; the 507 is the number the tree collects with these criteria).
-    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=506$/);
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=1 unknown=3$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('AC4: reordering neither loses nor duplicates a file, and positional files keep their given order', () => {
-  const dir = tempDir('quay-ac4-');
+test('AC3: a large synthetic manifest drives the order seam — valid and broken baselines, duplicate and missing paths — and a plain run still collects exactly what `find` does', () => {
+  const dir = tempDir('quay-ac3-');
   try {
-    const fixture = path.join(dir, 'baseline.tsv');
-    writeFileSync(
-      fixture,
-      `9000\tserver/shared/tests/quay-test-script.test.ts\n500\tserver/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts\n`,
-    );
-    const expected = collectedServerFiles().split('\n').filter(Boolean);
-    const r = runSuite([], { QUAY_TEST_STOP_AFTER: 'order', QUAY_SUITE_DURATION_BASELINE: fixture });
-    assert.equal(r.status, 0, r.stderr);
-    const out = r.stdout.split('\n').filter(Boolean);
-    assert.equal(out.length, expected.length, 'no file lost or duplicated');
-    assert.deepEqual([...out].sort(), [...expected].sort(), 'the file set must be unchanged');
+    // 507 collected paths in a deliberately scrambled (non-alphabetical) order, plus ONE duplicated
+    // row: the collected list is a SET, so the duplicate must not become a second dispatch.
+    const unique: string[] = [];
+    for (let i = 0; i < 507; i += 1) unique.push(`server/synthetic/unit-${String((i * 173) % 507).padStart(3, '0')}.test.ts`);
+    assert.equal(new Set(unique).size, 507, 'the generator must produce 507 distinct paths');
+    assert.notDeepEqual([...unique].sort(), unique, 'the manifest must not already be alphabetical');
+    const manifest = [...unique.slice(0, 250), unique[0], ...unique.slice(250)];
+    const collectedFile = writeLines(path.join(dir, 'collected.txt'), manifest);
+    const collectedOrder = unique.join('\n') + '\n';
 
-    // Positional: a reverse-alphabetical given order must be printed verbatim, never reordered.
+    // ① valid baseline: six known files with dashed durations (one of them repeated), plus one path
+    // the manifest does NOT contain — the "missing" boundary.
+    const knownPaths = [unique[400], unique[10], unique[300], unique[77], unique[250], unique[1]];
+    const missing = 'server/synthetic/not-collected.test.ts';
+    const valid = writeLines(path.join(dir, 'valid.tsv'), [
+      `9000\t${knownPaths[0]}`,
+      `8000\t${knownPaths[1]}`,
+      `7000\t${knownPaths[2]}`,
+      `6000\t${knownPaths[3]}`,
+      `5000\t${knownPaths[4]}`,
+      `4000\t${knownPaths[5]}`,
+      `1\t${knownPaths[0]}`,
+      `1234\t${missing}`,
+    ]);
+
+    const rv = runSuite([], {
+      QUAY_TEST_STOP_AFTER: 'order',
+      QUAY_TEST_SERVER_FILES_FIXTURE: collectedFile,
+      QUAY_SUITE_DURATION_BASELINE: valid,
+    });
+    assert.equal(rv.status, 0, rv.stderr);
+    const out = rv.stdout.split('\n').filter(Boolean);
+    const knownSet = new Set(knownPaths);
+    const tail = unique.filter((f) => !knownSet.has(f));
+
+    assert.deepEqual(out.slice(0, knownPaths.length), knownPaths, 'known files first, by descending duration');
+    assert.deepEqual(out.slice(knownPaths.length), tail, 'the rest keep the collected order');
+    assert.ok(!out.includes(missing), 'a baseline path the collection does not contain is dropped');
+    assert.equal(out.length, 507, 'the duplicated collected row and the duplicated baseline row did not add a file');
+    assert.deepEqual([...out].sort(), [...unique].sort(), 'no file lost or duplicated');
+    const vl = dispatchLines(rv.stderr);
+    assert.equal(vl.length, 1, 'valid: exactly one dispatch line');
+    assert.match(vl[0], /^test\.sh: server dispatch order=longest-first source=.* known=6 unknown=501$/);
+
+    // ② broken baseline over the SAME manifest: fail open to the collected order, byte-for-byte.
+    const broken = writeLines(path.join(dir, 'broken.tsv'), ['not-a-baseline-line']);
+    const rb = runSuite([], {
+      QUAY_TEST_STOP_AFTER: 'order',
+      QUAY_TEST_SERVER_FILES_FIXTURE: collectedFile,
+      QUAY_SUITE_DURATION_BASELINE: broken,
+    });
+    assert.equal(rb.status, 0, rb.stderr);
+    assert.equal(rb.stdout, collectedOrder, 'fail-open must return the collected order untouched');
+    assert.match(dispatchLines(rb.stderr)[0] ?? '', /^test\.sh: server dispatch order=alphabetical reason=.+$/);
+
+    // ③ no fixture: the plain order seam still collects exactly what `find` collects. The baseline
+    // is pinned to a path that does not exist, so a valid one cannot reorder the comparison.
+    const rp = runSuite([], {
+      QUAY_TEST_STOP_AFTER: 'order',
+      QUAY_SUITE_DURATION_BASELINE: path.join(dir, 'absent.tsv'),
+    });
+    assert.equal(rp.status, 0, rp.stderr);
+    assert.equal(rp.stdout, collectedServerFiles(), 'the un-seamed collection must equal `find … | sort` byte-for-byte');
+
+    // ④ positional files still leave the seam entirely: the caller's order, verbatim.
     const first = 'server/shared/tests/quay-test-script.test.ts';
     const second = 'server/modules/mcp-gateway/tests/mcp-session-lifecycle.test.ts';
     assert.ok(first > second, 'the fixture must give the alphabetically LATER file first');
-    const rp = runSuite([first, second], { QUAY_TEST_STOP_AFTER: 'order' });
-    assert.equal(rp.status, 0, rp.stderr);
-    assert.deepEqual(rp.stdout.split('\n').filter(Boolean), [first, second]);
+    const rpos = runSuite([first, second], { QUAY_TEST_STOP_AFTER: 'order' });
+    assert.equal(rpos.status, 0, rpos.stderr);
+    assert.deepEqual(rpos.stdout.split('\n').filter(Boolean), [first, second]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -723,6 +382,10 @@ exit 7
       PATH: `${bin}:${process.env.PATH ?? ''}`,
       QUAY_TEST_NPM_MARK: mark,
       QUAY_TEST_STOP_AFTER: 'stages',
+      // The static-stage criteria are not browser criteria: the e2e lane rides the same seam and
+      // would boot Chromium (measured ≈10s) for a reading nothing here asserts. Its own three
+      // criteria (e2e-lane AC1/AC2 and the false form) pin the lane; this stub makes it a free unit.
+      QUAY_TEST_E2E_CMD: 'true',
     });
     assert.equal(r.status, 0, `stub exits 7 unless both stages ran at once; stdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
   } finally {
@@ -749,6 +412,8 @@ exit 0
       PATH: `${bin}:${process.env.PATH ?? ''}`,
       QUAY_TEST_NPM_MARK: mark,
       QUAY_TEST_STOP_AFTER: 'stages',
+      // Same reason as AC5: the e2e lane is not what this criterion reads (see its own criteria).
+      QUAY_TEST_E2E_CMD: 'true',
     });
     assert.notEqual(r.status, 0, `a red stage must make the run red; stdout:\n${r.stdout}`);
     assert.match(r.stdout, /__PERFILE__ duration_ms=\d+ typecheck passed=false end_ms=\d+/);
