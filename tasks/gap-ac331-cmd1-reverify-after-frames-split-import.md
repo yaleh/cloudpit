@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -12,9 +12,9 @@ children: []
 extra:
   schema: execution
   needs_human_cause: human-adjudication
-  park_reason: AC2 的墙钟上限 <118000ms 结构性不可达：criterion 本身 exit 0 / 19 passed，但 7
-    次独立实跑为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 /
-    175544ms；playwright workers:1 + 60s 绝对时钟使逐条耗时之和 ≈158s。需人裁定 AC-331 record 的
+  park_reason: AC2 的墙钟上限 <118000ms 结构性不可达：criterion 本身 exit 0 / 19 passed，但 8
+    次独立实跑为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 /
+    174457ms；playwright workers:1 + 60s 绝对时钟使逐条耗时之和 ≈158s。需人裁定 AC-331 record 的
     timeoutMs 与驱动 CRITERION_TIMEOUT_MS=12e4 硬闸（或改写判据）。
 depends_on:
   - gap-ac323-e2e-import-after-voice-realtime-frames-split
@@ -140,6 +140,13 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
   - 结论：AC1/AC3/AC4/AC5 满足；AC2 判据语义满足（exit 0 / 19 passed）而 118000ms 墙钟上限结构性不可达（第 7 次独立实跑 175544ms）⇒ 按 Proposal「预算风险」停手，本轮不勾 AC2，park `needs-human`。
 
 该轴仍暗,理由:本任务只复验既有 AC-331 判据与守卫，未改产品能力、模块依赖图或 goal 判据文本，L_D/L_G 没有本任务可记的量化读数。
+- 本轮第 8 次复验（2026-11-03，工作树 fast-forward 到 develop `4a41e652b681d32a37b3e5f0b5d6175ba0784038`，`git status --porcelain` 为空）：
+  - AC1：旧路径 `grep -c` = 0（rc=1）；新路径 `grep -c` = 1（rc=0）；`--list` → **exit 0**，`Total: 19 tests in 3 files`。
+  - AC2：判据逐字实跑 → **exit 0**，`19 passed (2.9m)`，墙钟 **174457ms**（八次：175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 / 174457ms，同一 19 passed）。本轮逐条耗时之和 = **158.3s**（2.8+15.2+2.8+0.420+2.2+66+3.2+5.1+3.1+3.2+4.1+3.8+3.2+0.224+7.6+7.2+2.5+3.4+22.3），其中 66s 是 `e2e/voice-realtime-composer-embedded.spec.ts:1304:3` 的设计性绝对时钟；单这一项即 > 118000ms，尚未计 `boot: both webServers answered at 3691ms` 与 teardown。
+  - AC3：两条白名单守卫均 rc=0。
+  - AC4：`git diff develop --name-only` 为空；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
+  - AC5：注入旧路径 → `--list` **exit 1**，原文 `Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`，`Total: 0 tests in 0 files`；`cp` 备份还原新路径 → 同命令 **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空。
+  - 结论：AC1/AC3/AC4/AC5 满足；AC2 判据语义满足（exit 0 / 19 passed）而 118000ms 墙钟上限结构性不可达（第 8 次独立实跑 174457ms）⇒ 按 Proposal「预算风险」停手，本轮不勾 AC2，park `needs-human`。
 
 ## Needs-Human
 
@@ -160,6 +167,8 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 为什么每任务续处理上限（`DEFAULT_RESUME_CAP = 2`，`<home>/needs-human-autoresume-resume-cap.json`）一直没拦住：上限按 **park 契约指纹**计数，指纹覆盖 body 中「最后一个契约小节（Proposal/Plan/AC/DoD/Touches/Origin）之后、第一个叙述小节之前」的字节。原先 `## DoD` 排在 `## Evidence`/`## Needs-Human` **之后**，于是这两段叙述被算进契约；每轮 worker 往 Evidence/Needs-Human 追加读数 ⇒ 指纹每轮都变 ⇒ 计数每轮清零（`decisions.jsonl` 里 7 条 `needs-human.autoresume`、0 条 `needs-human.autoresume-cap` 即实证）。本轮已把 `## DoD` 移到 `## AC` 之后（**内容逐字未改，只调顺序**），使契约面收缩为 Proposal/Touches/AC/DoD。
 
 ⛔ 后续复验轮次：读数请只写进叙述区（`## Evidence` / `## Needs-Human` / `## Blocker`）；不要改 `## Proposal` / `## Touches` / `## AC` / `## DoD` 的字节——改契约会重置续处理计数。按当前机制，本任务最多还会被自动续处理 2 次，随后 `cappedAt` 触发并停在 `hold`（human-required）。在裁定前不建议再改契约段。
+
+补充（2026-11-03 第 8 轮，上限终局读数）：本轮读数与前七轮一致——criterion **exit 0 / 19 passed**，墙钟 **174457ms**（八次 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 / 174457ms）。契约指纹已稳定为 `2a5fbdb0…`，`/data/home/yale/.quay-fleet/needs-human-autoresume-resume-cap.json` 中本任务条目为 `count: 2 / limit: 2 / cappedAt: null` ⇒ 本轮 park 后下一次 fleet tick 应写入 `cappedAt` 并把本任务归入 `human-required`，自动退回/重派链应在此停止。若本轮仍被退回 `todo`，说明上限计数又被重置，请人工核对该 cap 条目与 `Criterion` 段字节是否被改动。裁定项仍为二选一：(a) 同步上调 record `timeoutMs` 与驱动 `CRITERION_TIMEOUT_MS`，或 (b) 改写/拆分判据。
 
 ## Blocker
 
@@ -192,3 +201,9 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 - 未勾项仍是 AC2 的「墙钟 < 118000ms」；结构性下限 157.5s（19 条逐条耗时之和）+ `playwright.config.ts` `workers: 1` + `e2e/voice-realtime-composer-embedded.spec.ts:1321` 的 60s 绝对时钟，与负载无关。
 - 记录层 `timeoutMs: 118000` 与驱动 `CRITERION_TIMEOUT_MS = 12e4` 两把锁均不在本任务 `## Touches` 内；⛔ 重派/退回 todo 只会重复本轮，需 `## Needs-Human` 的二选一裁定。
 - 第 7 轮同时定位并修掉了「park 永不被续处理上限拦住」的机制：`## DoD` 前移到 `## AC` 之后，使契约面不再包含逐轮追加的 Evidence/Needs-Human（详见 `## Needs-Human` 第 7 轮补充）。
+
+**2026-11-03（第 8 轮）— 复验后仍 park `needs-human`（重派不会改变结论）**
+
+- 本轮读数与前七轮一致：criterion exit 0 / 19 passed，墙钟 174457ms（历次 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544 / 174457ms）。
+- 未勾项仍是 AC2 的「墙钟 < 118000ms」；结构性下限 158.3s（19 条逐条耗时之和，含 `e2e/voice-realtime-composer-embedded.spec.ts:1304:3` 的 66s 绝对时钟）+ `playwright.config.ts` 的 `workers: 1`，与负载无关。
+- 记录层 `timeoutMs: 118000` 与驱动 `CRITERION_TIMEOUT_MS = 12e4` 两把锁均不在本任务 `## Touches` 内；需 `## Needs-Human` 的二选一裁定。
