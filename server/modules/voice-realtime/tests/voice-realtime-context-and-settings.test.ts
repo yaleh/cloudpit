@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { WebSocket as WS } from 'ws';
 
-import { truncateRenderedVoiceContext } from '@shared/voice/voiceContextTruncation.js';
+import { truncateRenderedVoiceContext } from "@shared/voice/voiceContextTruncation.js";
 
 import { createVoiceService } from '../../voice/index.js';
 
@@ -42,7 +42,7 @@ import {
   type VoiceRealtimeOutboundFrame,
   type VoiceRealtimeProxySeams,
 } from '../voice-realtime-ws-proxy.service.js';
-import { ANNOUNCE_PHRASES } from '../voice-realtime-announce-phrases.js';
+import { ANNOUNCE_PHRASES } from "../voice-realtime-announce-phrases.js";
 import { VOICE_REALTIME_CONTEXT_HEADER, loadVoiceRealtimeSettings } from '../voice-realtime-settings.js';
 import {
   SPEAKER_TRACKING_MODEL_DIR_DEFAULT,
@@ -51,7 +51,7 @@ import {
   SPEAKER_TRACKING_THRESHOLD_DEFAULTS,
   resolveSpeakerTrackingSettings,
   type SpeakerTrackingSettingsBlock,
-} from '../voice-speaker-tracking-arm.js';
+} from "../transport/voice-speaker-tracking-arm.js";
 import {
   DEFAULT_TURN_DETECTION,
   VOICE_REALTIME_TURN_DETECTION_SILENCE_MS_ENV,
@@ -59,7 +59,7 @@ import {
   describeTurnDetection,
   resolveTurnDetection,
   type TurnDetectionValues,
-} from '../voice-realtime-turn-detection.js';
+} from "../transport/voice-realtime-turn-detection.js";
 
 import { createFakeTransport, waitFor, type FakeTransport } from './realtime-bridge-harness.js';
 import { SCRIPTED_ENDPOINT_URL, createScriptedUpstream } from './voice-realtime-scripted-upstream.js';

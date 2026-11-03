@@ -13,7 +13,7 @@
  * paired.md`) came back GO, so the next step it named is this one: a real
  * session_send, not a fixture.
  *
- * WHY IT IS A SEPARATE MODULE FROM THE BRIDGE. `voice-realtime-bridge.service.ts`
+ * WHY IT IS A SEPARATE MODULE FROM THE BRIDGE. `frames/voice-realtime-bridge.service.ts`
  * imports only a type and reaches no module at runtime — it must stay an
  * offline-provable leaf. THIS file is the opposite by design: it imports the MCP
  * gateway's barrel (and therefore express, the database and the whole server
@@ -56,9 +56,9 @@ import {
   type McpSessionSendDeps,
   type McpUiVisibleContextDeps,
   type McpUiVisibleContextInput,
-} from '@/modules/mcp-gateway/index.js';
+} from "../mcp-gateway/index.js";
 
-import type { RealtimeToolExecutor } from './voice-realtime-bridge.service.js';
+import type { RealtimeToolExecutor } from "./frames/voice-realtime-bridge.service.js";
 import {
   VOICE_QUEUE_MAX_BYTES,
   type VoiceRealtimeExecStatusReading,
@@ -67,7 +67,7 @@ import {
 /**
  * The VOICE plane's own `session_interrupt` fields — the ones the MCP gateway's declaration does
  * not have (SPEC §6.2: `intent` — the reading behind the stop — and `heard`; §18.4 G1 adds the
- * optional `message` correction, GOAL-041 AC-342 — see `voice-realtime-tools.ts`).
+ * optional `message` correction, GOAL-041 AC-342 — see `frames/voice-realtime-tools.ts`).
  *
  * They live in one list because they are removed in one place: the executor's `session_interrupt`
  * route hands the gateway a bag with the voice plane's fields gone. Declaring the set once is what

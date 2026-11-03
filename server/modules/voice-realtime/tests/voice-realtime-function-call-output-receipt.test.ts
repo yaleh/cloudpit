@@ -53,7 +53,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import '../../../../shared/asr/asrRegistry.js';
+import "@shared/asr/asrRegistry.js";
 import {
   connect,
   REALTIME_TOOLS,

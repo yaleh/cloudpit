@@ -55,7 +55,7 @@ import {
   DEFAULT_ENTER_FRAMES,
   LOCAL_SPEECH_FLOOR_FACTOR,
   LOCAL_SPEECH_RMS_THRESHOLD,
-} from '../voice-realtime-local-speech.js';
+} from "../transport/voice-realtime-local-speech.js";
 
 /** One 20 ms frame of 16 kHz mono PCM16 at the given amplitude, base64 — what the browser sends. */
 function frame(amplitude: number): string {

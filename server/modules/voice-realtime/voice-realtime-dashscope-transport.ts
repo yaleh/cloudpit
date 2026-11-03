@@ -1,7 +1,7 @@
 /**
  * The real DashScope WebSocket transport for the Realtime bridge.
  *
- * WHY THIS FILE EXISTS. `voice-realtime-bridge.service.ts` is deliberately
+ * WHY THIS FILE EXISTS. `frames/voice-realtime-bridge.service.ts` is deliberately
  * transport-injected: it speaks a WebSocket-shaped interface but never opens a
  * socket itself, so the bridge's behaviour is provable offline. This file is the
  * ONE place that turns that interface into a real socket: it dials DashScope's
@@ -119,11 +119,11 @@ import { z } from 'zod';
 // The side-effect import below makes the registry — and with it every registered adapter —
 // evaluate first; `voice.module.ts` and `voice-dashscope-usage.test.ts` follow the same discipline
 // for the same cycle.
-import '../../../shared/asr/asrRegistry.js';
+import "@shared/asr/asrRegistry.js";
 // The endpoint's own hostname, read from the endpoint rule's SINGLE source: AC-140 holds that no
 // shipping file outside the rule module spells the addresses this service is reached at, so the
 // literal lives there and this transport composes its URL from it rather than typing it again.
-import { PUBLIC_HOSTNAME } from '../../../shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js';
+import { PUBLIC_HOSTNAME } from "@shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js";
 
 import type {
   RealtimeClientMessage,
@@ -132,8 +132,8 @@ import type {
   RealtimeFunctionDeclaration,
   RealtimeServerMessage,
   RealtimeTransport,
-} from './voice-realtime-bridge.service.js';
-import { DEFAULT_TURN_DETECTION } from './voice-realtime-turn-detection.js';
+} from "./frames/voice-realtime-bridge.service.js";
+import { DEFAULT_TURN_DETECTION } from "./transport/voice-realtime-turn-detection.js";
 
 /**
  * DashScope's Qwen realtime WebSocket endpoint (China/Beijing region).
@@ -581,7 +581,7 @@ function withInterruptResponse(turnDetection: unknown): unknown {
  * applied over `sessionDefaults` on the full-update path so a body composed after the switch cannot
  * turn the endpoint's detector back on. Every other message ignores it: the switch only ever travels
  * as `session.turn_detection`, which is the ONE door to `turn_detection: null` (see
- * `voice-realtime-turn-detection.ts`).
+ * `transport/voice-realtime-turn-detection.ts`).
  */
 export function toDashscopeFrames(
   message: RealtimeClientMessage,

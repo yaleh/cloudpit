@@ -24,7 +24,7 @@
  *     builds), the call is NOT rejected with `TOOL_ARGUMENT_SCHEMA_VIOLATION`, the execution plane
  *     receives the abort, and the `message` is confirmed-enqueued BEFORE the abort. The false form
  *     that must redden it — `intent` made required again — is run below against the advertised
- *     schema itself, and is ALSO what reverting `voice-realtime-tools.ts` does to this very case.
+ *     schema itself, and is ALSO what reverting `frames/voice-realtime-tools.ts` does to this very case.
  *   · AC2 — A MISSING `intent` IS RECORDED, NOT REFUSED. The audit writes exactly ONE `kind:interrupt`
  *     record with `intent === null` and `intentMissing === true`, never `''` and never a fabricated
  *     reason; a call that DID state one is recorded as before (`intentMissing === false`).
@@ -282,7 +282,7 @@ test('AC1: the verbatim b5d01c21 stop (no `intent`, a `message`) is not rejected
     // ── THE FALSE FORM AC1 NAMES: with `intent` made REQUIRED again, the very same args go red. ──
     // Run against the advertised shape, so what is proven is that the acceptance above is caused by
     // the OPTIONALITY and not by the args being lenient. This is exactly the shape
-    // `voice-realtime-tools.ts` declared before this task, and exactly what reverting it does to the
+    // `frames/voice-realtime-tools.ts` declared before this task, and exactly what reverting it does to the
     // live case below: the transport would reject the call and the executor would never be reached.
     const requiredIntentShape = z.object({ ...advertisedInterruptSchema().shape, intent: z.string() });
     assert.equal(

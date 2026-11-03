@@ -35,7 +35,7 @@ import {
   rejectSpeakerEmbedding,
   speakerAngleDegrees,
   speakerCosine,
-} from '../voice-speaker-attractor.js';
+} from "../transport/voice-speaker-attractor.js";
 import {
   addSpeakerCandidate,
   createSpeakerBank,
@@ -44,20 +44,20 @@ import {
   mergeSpeakerClusters,
   observeSpeakerBank,
   promoteSpeakerCandidate,
-} from '../voice-speaker-bank.js';
+} from "../frames/voice-speaker-bank.js";
 import {
   decideSpeakerTracking,
   selectSpeakerSample,
   speakerWindowPassesQuality,
   type SpeakerWindowReading,
-} from '../voice-speaker-selector.js';
+} from "../transport/voice-speaker-selector.js";
 import {
   SPEAKER_TRACKING_THRESHOLDS,
   describeSpeakerTracking,
   resolveSpeakerTracking,
   resolveSpeakerTrackingSettings,
   type SpeakerTrackingSettingsBlock,
-} from '../voice-speaker-tracking-arm.js';
+} from "../transport/voice-speaker-tracking-arm.js";
 import {
   createSpeakerTrackerModel,
   createSpeakerTrackerSeam,

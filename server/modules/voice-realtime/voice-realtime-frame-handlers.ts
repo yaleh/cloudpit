@@ -20,7 +20,7 @@
  */
 import { fileURLToPath } from 'node:url';
 
-import { SEGMENTED_RELAY_PROTOCOL, VOICE_REALTIME_MODE_ENV } from './voice-realtime-mode.js';
+import { SEGMENTED_RELAY_PROTOCOL, VOICE_REALTIME_MODE_ENV } from "./frames/voice-realtime-mode.js";
 import { describeSpeakerShadowObservation } from './voice-realtime-speaker-seam.js';
 import {
   VoiceRealtimeFrameRegistry,
@@ -203,7 +203,7 @@ function handleAudio(
     }
   }
   if (frame.seq === undefined) {
-    // THE UPLINK CAPTURE'S ONE FEED (see `voice-realtime-audio-capture.ts`). The continuous path is
+    // THE UPLINK CAPTURE'S ONE FEED (see `transport/voice-realtime-audio-capture.ts`). The continuous path is
     // the full microphone stream — silence included — which is the material an offline VAD study
     // needs; the segmented path below is deliberately NOT captured, because a segmenter has already
     // dropped its silence and a corpus of speech-only clips cannot answer a detector question.

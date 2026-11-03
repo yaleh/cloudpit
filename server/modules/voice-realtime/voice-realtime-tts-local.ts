@@ -26,7 +26,7 @@
 import { join } from 'node:path';
 import { statSync } from 'node:fs';
 
-import { errorMessage } from '@/shared/utils.js';
+import { errorMessage } from "../../shared/utils.js";
 
 import {
   emitVoiceRealtimeSynthesisFrames,

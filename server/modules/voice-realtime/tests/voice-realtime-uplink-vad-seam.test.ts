@@ -1,7 +1,7 @@
 /**
  * Uplink VAD in the PRODUCTION SEAM — the continuous wire's per-frame speech gate, read end to end.
  *
- * WHAT THIS FILE PINS. `voice-realtime-uplink-vad.ts` derives, per frame, whether a browser frame is
+ * WHAT THIS FILE PINS. `transport/voice-realtime-uplink-vad.ts` derives, per frame, whether a browser frame is
  * speech and (for a non-speech run) whether it is inside the opening `a` window; the proxy
  * (`voice-realtime-ws-proxy.service.ts`) feeds it the continuous wire's frames and forwards whatever it
  * lets through. The whole point of this task is that the feature is DEFAULT OFF and, off, the relay is
@@ -51,7 +51,7 @@ import {
   UPLINK_VAD_FRAME_BYTES,
   type UplinkVadClassifier,
   type UplinkVadFrameVerdict,
-} from '../voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 import {
   createUplinkVadGate,
   uplinkHeadKeepFrames,
@@ -61,15 +61,15 @@ import {
   uplinkVadExitIsWellFormed,
   UPLINK_VAD_FRAME_MS,
   type UplinkVadGate,
-} from '../voice-realtime-uplink-vad-gate.js';
+} from "../frames/voice-realtime-uplink-vad-gate.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeInboundFrame,
   type VoiceRealtimeOutboundFrame,
   type VoiceRealtimeProxySeams,
 } from '../voice-realtime-ws-proxy.service.js';
-import { type SilenceTailOptions } from '../voice-realtime-silence-tail.js';
-import { DEFAULT_TURN_DETECTION } from '../voice-realtime-turn-detection.js';
+import { type SilenceTailOptions } from "../transport/voice-realtime-silence-tail.js";
+import { DEFAULT_TURN_DETECTION } from "../transport/voice-realtime-turn-detection.js";
 import type { RealtimeToolExecutor, UpstreamPoolRotation } from '../index.js';
 
 import { createFakeTransport, waitFor, type FakeTransport } from './realtime-bridge-harness.js';
@@ -117,7 +117,7 @@ function build(specs: readonly { speech: boolean; count: number }[], startIndex 
 
 /** The head-keep window the shipped default resolves to, DERIVED rather than written down. */
 const A_DEFAULT = uplinkHeadKeepFrames(DEFAULT_TURN_DETECTION.silence_duration_ms);
-/** The local speech gate's own closing run (`voice-realtime-local-speech.ts`, `DEFAULT_EXIT_FRAMES`). */
+/** The local speech gate's own closing run (`transport/voice-realtime-local-speech.ts`, `DEFAULT_EXIT_FRAMES`). */
 const LOCAL_EXIT_FRAMES = 25;
 
 // ── the scripted classifier ───────────────────────────────────────────────────────────────────────
@@ -402,38 +402,58 @@ async function loadFalseForm<T>(form: FalseForm): Promise<T> {
   assert.equal(occurrences, 1, `the "${form.label}" false form's anchor is not in ${form.file} exactly once`);
 
   if (form.file !== 'voice-realtime-frame-handlers.ts') {
-    const target = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-${process.pid}.ts`);
+    // Beside the shipping module, so the copy's own relative imports keep resolving.
+    const target = path.join(path.dirname(shipping), `__criterion-falsify-${form.label}-${process.pid}.ts`);
     writeFileSync(target, source.replace(form.anchor, form.replacement), 'utf8');
+    // A mutated CONNECTION CHUNK is imported by the proxy, so a mutant alone would never run: copy
+    // the proxy too, retargeting its one import of that chunk at the mutant.
+    if (!/^voice-realtime-connection-[a-z]+\.ts$/.test(form.file)) {
+      try {
+        return (await import(pathToFileURL(target).href)) as T;
+      } finally {
+        rmSync(target, { force: true });
+      }
+    }
+    const chunkShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+    const chunkAnchor = `} from './${path.basename(shipping, '.ts')}.js';`;
+    const proxyTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-proxy-${process.pid}.ts`);
+    const chunkSource = readFileSync(chunkShipping, 'utf8');
+    assert.equal(chunkSource.split(chunkAnchor).length - 1, 1, 'the proxy must import the mutated chunk exactly once');
+    writeFileSync(proxyTarget, chunkSource.replace(chunkAnchor, `} from './${path.basename(target, '.ts')}.js';`), 'utf8');
     try {
-      return (await import(pathToFileURL(target).href)) as T;
+      return (await import(pathToFileURL(proxyTarget).href)) as T;
     } finally {
       rmSync(target, { force: true });
+      rmSync(proxyTarget, { force: true });
     }
   }
 
+  // The handler set is imported by the CONNECTION CHUNK (the handler bodies moved there in the
+  // 2026-11-03 split), and the proxy imports the chunk. Copy both links: mutant handlers, a
+  // connection-frames copy pointed at them, and a proxy copy pointed at that chunk copy.
+  const handlersTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-handlers-${process.pid}.ts`);
+  const chunkShipping = path.join(MODULE_DIR, 'voice-realtime-connection-frames.ts');
+  const chunkSource = readFileSync(chunkShipping, 'utf8');
+  const chunkAnchor = "} from './voice-realtime-frame-handlers.js';";
+  assert.equal(chunkSource.split(chunkAnchor).length - 1, 1, 'the connection chunk must import the handler set exactly once');
+  const chunkTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-chunk-${process.pid}.ts`);
   const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
   const proxySource = readFileSync(proxyShipping, 'utf8');
-  assert.equal(
-    proxySource.split(HANDLERS_IMPORT_SPECIFIER).length - 1,
-    1,
-    'the proxy must import the handler set exactly once, so the mutation copy can retarget it',
-  );
-
-  const handlersTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-handlers-${process.pid}.ts`);
+  const proxyAnchor = "} from './voice-realtime-connection-frames.js';";
+  assert.equal(proxySource.split(proxyAnchor).length - 1, 1, 'the proxy must import the connection chunk exactly once');
   const proxyTarget = path.join(MODULE_DIR, `__criterion-falsify-${form.label}-${process.pid}.ts`);
   writeFileSync(handlersTarget, source.replace(form.anchor, form.replacement), 'utf8');
   writeFileSync(
-    proxyTarget,
-    proxySource.replace(
-      HANDLERS_IMPORT_SPECIFIER,
-      `'./${path.basename(handlersTarget, '.ts')}.js'`,
-    ),
+    chunkTarget,
+    chunkSource.replace(chunkAnchor, `} from './${path.basename(handlersTarget, '.ts')}.js';`),
     'utf8',
   );
+  writeFileSync(proxyTarget, proxySource.replace(proxyAnchor, `} from './${path.basename(chunkTarget, '.ts')}.js';`), 'utf8');
   try {
     return (await import(pathToFileURL(proxyTarget).href)) as T;
   } finally {
     rmSync(handlersTarget, { force: true });
+    rmSync(chunkTarget, { force: true });
     rmSync(proxyTarget, { force: true });
   }
 }
@@ -481,7 +501,7 @@ function wireWith(module: ProxyModule, options: Parameters<typeof wire>[0] = {})
 
 // ── the source, read for the code-path evidence AC2 asks for ───────────────────────────────────────
 
-const PROXY_SOURCE = readFileSync(path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts'), 'utf8');
+const PROXY_SOURCE = readFileSync(path.join(MODULE_DIR, 'voice-realtime-connection-transport.ts'), 'utf8');
 /**
  * The inbound-frame handler set, read for the same code-path evidence.
  *
@@ -801,7 +821,7 @@ test('AC8 — the connection logs the window it DERIVED from the environment, no
 
 test('AC8 false form — writing the 400 literal makes `a` stop following the resolved window, so the reading goes red', async () => {
   const form: FalseForm = {
-    file: 'voice-realtime-uplink-vad-gate.ts',
+    file: 'frames/voice-realtime-uplink-vad-gate.ts',
     label: 'hardcoded-400',
     anchor: '  return Math.round((silenceDurationMs + UPLINK_VAD_TAIL_MARGIN_MS) / frameMs) + UPLINK_VAD_HEAD_BOUNDARY_FRAMES;',
     replacement: '  return Math.round((400 + UPLINK_VAD_TAIL_MARGIN_MS) / frameMs) + UPLINK_VAD_HEAD_BOUNDARY_FRAMES;',
@@ -854,12 +874,12 @@ test('AC2 — with the switch off NO gate is built and NO classifier is consulte
   assert.equal(HANDLERS_SOURCE.split(fastPath).length - 1, 1, 'the gate-neutral fast path must exist exactly once');
   assert.match(
     PROXY_SOURCE,
-    /const uplinkVadRequested = seams\.uplinkVad !== undefined && !segmentedRelay;/,
+    /this\.uplinkVadRequested = this\.seams\.uplinkVad !== undefined && !this\.segmentedRelay;/,
     'the gate is built only from a PRESENT seam — absent means no gate',
   );
   assert.match(
     PROXY_SOURCE,
-    /uplinkVad = createUplinkVadGate\(\{/,
+    /this\.uplinkVad = createUplinkVadGate\(\{/,
     'the only construction of a gate is inside the seam-present branch',
   );
 
@@ -1264,8 +1284,26 @@ async function loadPreSeamProxy(): Promise<ProxyModule> {
     !source.includes('uplinkVad'),
     `the derived pre-seam revision ${rev} must not mention \`uplinkVad\` (the derivation is stale)`,
   );
+  // The historical proxy's relative imports still name the pre-split root files. Rewrite them to the
+  // subdirectories the 2026-11-03 split created, so the old code can be imported beside today's tree.
+  const movedByDir: Record<string, string> = {
+    'voice-realtime-tools': 'frames', 'voice-realtime-closing-turn': 'frames',
+    'voice-realtime-announce-phrases': 'frames', 'voice-realtime-mode': 'frames',
+    'voice-realtime-omission-fill': 'frames', 'voice-realtime-bridge.service': 'frames',
+    'voice-speaker-bank': 'frames', 'voice-realtime-uplink-vad-gate': 'frames',
+    'voice-realtime-uplink-vad-arm-point': 'frames', 'voice-realtime-speaker-model': 'frames',
+    'voice-realtime-active': 'frames',
+    'voice-realtime-audio-capture': 'transport', 'voice-realtime-local-speech': 'transport',
+    'voice-realtime-silence-tail': 'transport', 'voice-realtime-uplink-vad': 'transport',
+    'voice-realtime-turn-detection': 'transport', 'voice-speaker-attractor': 'transport',
+    'voice-speaker-selector': 'transport', 'voice-speaker-tracking-arm': 'transport',
+  };
+  let ported = source;
+  for (const [base, dir] of Object.entries(movedByDir)) {
+    ported = ported.split(`'./${base}.js'`).join(`'./${dir}/${base}.js'`);
+  }
   const target = path.join(MODULE_DIR, `__criterion-falsify-preseam-${process.pid}.ts`);
-  writeFileSync(target, source, 'utf8');
+  writeFileSync(target, ported, 'utf8');
   try {
     return (await import(pathToFileURL(target).href)) as ProxyModule;
   } finally {
@@ -1402,12 +1440,12 @@ test('AC5 — short-circuiting the criterion makes AC1`s "exactly one" reading r
   // ONLY difference the leg reads is the missing recovery. The same forced-commit fixture as AC1 is
   // driven through the mutated module; `0` is exactly what AC1`s `1` asserts.
   const form: FalseForm = {
-    file: 'voice-realtime-ws-proxy.service.ts',
+    file: 'voice-realtime-connection-transport.ts',
     label: 'forced-commit-recovery-short-circuit',
     anchor:
-      '        if (!segmentedRelay && forcedCommit !== null && upstreamTurnCloseCount === forcedCommit + 1) {',
+      '        if (!this.segmentedRelay && forcedCommit !== null && this.upstreamTurnCloseCount === forcedCommit + 1) {',
     replacement:
-      '        if (false && !segmentedRelay && forcedCommit !== null && upstreamTurnCloseCount === forcedCommit + 1) {',
+      '        if (false && !this.segmentedRelay && forcedCommit !== null && this.upstreamTurnCloseCount === forcedCommit + 1) {',
     why: 'the recovery is short-circuited, so a forced commit answered with no speech_stopped draws no response',
   };
   const mutated = await loadFalseForm<ProxyModule>(form);

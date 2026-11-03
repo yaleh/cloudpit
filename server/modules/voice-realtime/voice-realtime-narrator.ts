@@ -33,7 +33,7 @@
  * a `null` answer or a refused summary all leave the ack in the queue. Ordering and the duplex rule
  * are the queue's — this wiring only enqueues with its own id family (`run-end-ack-N`).
  */
-import type { VoiceRealtimeClosingTurn } from './voice-realtime-closing-turn.js';
+import type { VoiceRealtimeClosingTurn } from "./frames/voice-realtime-closing-turn.js";
 import type { VoiceRealtimeRunEndSummarizer } from './voice-realtime-summary.js';
 import type {
   VoiceRealtimeNarratorQueue,

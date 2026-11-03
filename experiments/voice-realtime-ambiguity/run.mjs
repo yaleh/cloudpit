@@ -17,7 +17,7 @@
  *          （见下面「离线替身」一节），适配器自己的完整性检查、请求体构造、答案解析**原样跑**。
  *          Arm A 的通道里**没有工具**——`capabilities.honors.context === false`，且适配器的契约里
  *          没有函数调用这一格；这个「没有」是从出货声明里**读出来**的，不是这里写死的。
- *   Arm B  Realtime bridge：`server/modules/voice-realtime/voice-realtime-bridge.service.ts#connect`
+ *   Arm B  Realtime bridge：`server/modules/voice-realtime/frames/voice-realtime-bridge.service.ts#connect`
  *          （经该模块的 barrel）。bridge 被驱动在一个**假 WS 服务端**上（`tests/
  *          realtime-bridge-harness.ts` 的那一只，bridge 自己的判据用的同一只），工具调用的
  *          **路由是 bridge 的**（工装不重写 executor 查表），executor 读的是每条 entry 的冻结夹具状态。
@@ -74,10 +74,10 @@ const MODULE_PATHS = {
     new URL('../../shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts', import.meta.url),
   ),
   bridge: fileURLToPath(
-    new URL('../../server/modules/voice-realtime/voice-realtime-bridge.service.ts', import.meta.url),
+    new URL('../../server/modules/voice-realtime/frames/voice-realtime-bridge.service.ts', import.meta.url),
   ),
   tools: fileURLToPath(
-    new URL('../../server/modules/voice-realtime/voice-realtime-tools.ts', import.meta.url),
+    new URL('../../server/modules/voice-realtime/frames/voice-realtime-tools.ts', import.meta.url),
   ),
   bridgeBarrel: fileURLToPath(new URL('../../server/modules/voice-realtime/index.ts', import.meta.url)),
   fakeTransport: fileURLToPath(

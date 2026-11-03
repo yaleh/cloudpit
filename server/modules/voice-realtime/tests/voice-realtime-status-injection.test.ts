@@ -174,7 +174,7 @@ function numField(line: string, name: string): number {
  * and then the `session_send` tool call the model emits for it.
  *
  * The transcription event is not decoration. The bridge's `TOOL_LOOP_GUARD` counts tool calls SINCE
- * THE LAST UTTERANCE (`voice-realtime-bridge.service.ts`, `MAX_CALLS_PER_UTTERANCE = 6`) and resets
+ * THE LAST UTTERANCE (`frames/voice-realtime-bridge.service.ts`, `MAX_CALLS_PER_UTTERANCE = 6`) and resets
  * the count on `conversation.item.input_audio_transcription.completed` — a relay of twelve spoken
  * things is twelve utterances, not a tool loop, and driving only the tool calls would have the guard
  * stop the run at the seventh.

@@ -394,7 +394,7 @@ export function describeTurnDetection(resolution: TurnDetectionResolution, origi
  *
  *   · THE WIRE HAS NO INTERMEDIATE EVENT. The endpoint's observed server-VAD surface is exactly
  *     `input_audio_buffer.speech_started`, `.speech_stopped` and `.committed`
- *     (`voice-realtime-bridge.service.ts`, `TOLERATED_ENDPOINT_EVENTS`, enumerated from the preserved
+ *     (`frames/voice-realtime-bridge.service.ts`, `TOLERATED_ENDPOINT_EVENTS`, enumerated from the preserved
  *     live capture `experiments/voice-realtime-ambiguity/real-trace/qwen38-omni-realtime-trace.json`).
  *     There is no "maybe" frame between speaking and silence.
  *   · `semantic_vad` DECIDES LATER; IT DOES NOT NARRATE THE DECISION. `docs/operations/
@@ -421,7 +421,7 @@ export const SEMANTIC_VAD_EXPOSES_UNCERTAIN_PAUSE = false;
  * The acknowledgement. ONE character — never a sentence, never a filler phrase.
  *
  * WHY IT MUST STAY ONE CHARACTER. Each acknowledgement is a proactive `response.create`: the model
- * re-reads the whole context to say it, exactly the spend `voice-realtime-closing-turn.ts` exists to
+ * re-reads the whole context to say it, exactly the spend `frames/voice-realtime-closing-turn.ts` exists to
  * remove (the closing turn was 46% of the 2026-10-15 journal's spend). A one-character receipt is the
  * smallest possible version of that cost; anything longer turns this mechanism into the expense it is
  * meant to buy time for.

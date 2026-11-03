@@ -287,8 +287,8 @@ const deliveredSends = (entries: readonly VoiceRealtimeLogEntry[]) =>
 /** Where the shipping modules and their falsify copies live. */
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULE_DIR = path.resolve(HERE, '..');
-const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
-const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'voice-realtime-bridge.service.ts');
+const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-connection-frames.ts');
+const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'frames/voice-realtime-bridge.service.ts');
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';
 const ownCopy = (label: string): string => path.join(MODULE_DIR, `${TEMP_PREFIX}${label}-${process.pid}.ts`);
@@ -312,15 +312,27 @@ async function withMutantCopy<T>(
 ): Promise<T> {
   const source = readFileSync(modulePath, 'utf8');
   assert.equal(countOccurrences(source, anchor), 1, `the ${label} anchor must occur exactly once`);
-  const basePath = ownCopy(`${label}-base`);
-  const mutPath = ownCopy(`${label}-mut`);
+  const dir = path.dirname(modulePath);
+  const basePath = path.join(dir, `${TEMP_PREFIX}${label}-base-${process.pid}.ts`);
+  const mutPath = path.join(dir, `${TEMP_PREFIX}${label}-mut-${process.pid}.ts`);
+  const connectionChunk = path.basename(modulePath).startsWith('voice-realtime-connection-');
+  const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+  const importAnchor = `} from './${path.basename(modulePath, '.ts')}.js';`;
+  const proxyBase = ownCopy(`${label}-proxy-base`);
+  const proxyMut = ownCopy(`${label}-proxy-mut`);
   try {
     writeFileSync(basePath, source, 'utf8');
     writeFileSync(mutPath, source.replace(anchor, mutation), 'utf8');
-    return await body(basePath, mutPath);
+    if (!connectionChunk) return await body(basePath, mutPath);
+    // The chunk is imported by the proxy, so a mutant chunk alone would never be driven. Copy the
+    // proxy twice with the one chunk specifier retargeted at the base/mutant chunk.
+    const proxySource = readFileSync(proxyShipping, 'utf8');
+    assert.equal(countOccurrences(proxySource, importAnchor), 1, `the proxy must import ${path.basename(modulePath)} exactly once`);
+    writeFileSync(proxyBase, proxySource.replace(importAnchor, `} from './${path.basename(basePath, '.ts')}.js';`), 'utf8');
+    writeFileSync(proxyMut, proxySource.replace(importAnchor, `} from './${path.basename(mutPath, '.ts')}.js';`), 'utf8');
+    return await body(proxyBase, proxyMut);
   } finally {
-    rmSync(basePath, { force: true });
-    rmSync(mutPath, { force: true });
+    for (const copy of [basePath, mutPath, proxyBase, proxyMut]) rmSync(copy, { force: true });
   }
 }
 
@@ -342,21 +354,21 @@ async function importBridge(modulePath: string): Promise<{ connect: typeof conne
  * item with a `seq` — so restoring it is what makes every reading below a reading of the fix.
  */
 const ACTIVE_SEGMENT_BODY = [
-  '  const segmentSeqForCaption = (itemId: string): number | null => {',
+  '  this.segmentSeqForCaption = (itemId: string): number | null => {',
   '    void itemId;',
-  '    return activeSegmentSeq;',
+  '    return this.activeSegmentSeq;',
   '  };',
 ].join('\n');
 
 /** The shipping rule, verbatim, so a mutation can be expressed as a replacement of it. */
 const ITEM_ID_BODY = [
-  '  const segmentSeqForCaption = (itemId: string): number | null => {',
-  "    const mapped = itemId === '' ? undefined : segmentSeqByItemId.get(itemId);",
+  '  this.segmentSeqForCaption = (itemId: string): number | null => {',
+  "    const mapped = itemId === '' ? undefined : this.segmentSeqByItemId.get(itemId);",
   '    if (mapped !== undefined) {',
   '      return mapped;',
   '    }',
-  "    if (segmentCommitMode === 'server-vad') {",
-  '      return awaitingTranscriptionSeqs[0] ?? null;',
+  "    if (this.segmentCommitMode === 'server-vad') {",
+  '      return this.awaitingTranscriptionSeqs[0] ?? null;',
   '    }',
   '    return null;',
   '  };',

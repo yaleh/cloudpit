@@ -2,7 +2,7 @@
  * The LONG-TERM SPEAKER BANK: the enrolled core plus the clusters a deployment has learned, with the
  * state transitions the dual-key rule needs.
  *
- * WHAT IT IS FOR. The session attractor (`voice-speaker-attractor.ts`) can only say "this turn sounds
+ * WHAT IT IS FOR. The session attractor (`transport/voice-speaker-attractor.ts`) can only say "this turn sounds
  * like what this connection has heard". The bank holds the other key: the CORE — the enrollment
  * centroid(s) belonging to the real user — plus the satellites learned around it. The offline readings
  * that fix the transitions (`experiments/voice-tse-eval/CONFIRMED-LABELS.md` §3 and §6):
@@ -27,7 +27,7 @@ import {
   normalizeSpeakerVector,
   speakerCosine,
   clampSpeakerStep,
-} from './voice-speaker-attractor.js';
+} from "../transport/voice-speaker-attractor.js";
 
 /** Where a cluster came from. `core` is enrollment; the other two are learned. */
 export type SpeakerClusterKind = 'core' | 'satellite' | 'candidate';

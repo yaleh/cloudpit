@@ -431,36 +431,40 @@ test('AC6 false form: refusing to declare makes the escape-hatch case red', asyn
   const DECLARE_GATE = 'if (context.segmentedRelay && frame.protocol === SEGMENTED_RELAY_PROTOCOL) {';
   const handlersSource = readFileSync(SHIPPING_HANDLERS_MODULE, 'utf8');
   assert.equal(countOccurrences(handlersSource, DECLARE_GATE), 1, 'the declare anchor must occur exactly once');
+  // The handler set is imported by the CONNECTION CHUNK (2026-11-03 split), and the proxy imports
+  // the chunk. Build the mutant chain: mutant handlers -> chunk copy -> proxy copy.
+  const chunkShipping = path.resolve(HERE, '../voice-realtime-connection-frames.ts');
+  const chunkSource = readFileSync(chunkShipping, 'utf8');
+  const chunkAnchor = "} from './voice-realtime-frame-handlers.js';";
+  assert.equal(countOccurrences(chunkSource, chunkAnchor), 1, 'the connection chunk must import the handler set exactly once');
   const proxySource = readFileSync(SHIPPING_PROXY_MODULE, 'utf8');
-  assert.equal(
-    countOccurrences(proxySource, HANDLERS_IMPORT_SPECIFIER),
-    1,
-    'the proxy must import the handler set exactly once, so the mutation copy can retarget it',
-  );
+  const proxyAnchor = "} from './voice-realtime-connection-frames.js';";
+  assert.equal(countOccurrences(proxySource, proxyAnchor), 1, 'the proxy must import the connection chunk exactly once');
 
   const handlersMutPath = ownCopy('declare-handlers-mut');
-  const basePath = ownCopy('declare-base');
+  const chunkMutPath = ownCopy('declare-chunk-mut');
   const mutPath = ownCopy('declare-mut');
   try {
     writeFileSync(handlersMutPath, handlersSource.replace(DECLARE_GATE, 'if (false) {'), 'utf8');
-    writeFileSync(basePath, proxySource, 'utf8');
+    writeFileSync(
+      chunkMutPath,
+      chunkSource.replace(chunkAnchor, `} from './${path.basename(handlersMutPath, '.ts')}.js';`),
+      'utf8',
+    );
     writeFileSync(
       mutPath,
-      proxySource.replace(
-        HANDLERS_IMPORT_SPECIFIER,
-        `'./${path.basename(handlersMutPath, '.ts')}.js'`,
-      ),
+      proxySource.replace(proxyAnchor, `} from './${path.basename(chunkMutPath, '.ts')}.js';`),
       'utf8',
     );
 
-    const base = (await import(pathToFileURL(basePath).href)) as { handleVoiceRealtimeConnection: Handler };
+    const base = (await import(pathToFileURL(SHIPPING_PROXY_MODULE).href)) as { handleVoiceRealtimeConnection: Handler };
     const mutant = (await import(pathToFileURL(mutPath).href)) as { handleVoiceRealtimeConnection: Handler };
 
     assert.equal(await declares(base.handleVoiceRealtimeConnection), true, 'unmutated: the escape hatch declares');
     assert.equal(await declares(mutant.handleVoiceRealtimeConnection), false, 'never declaring must redden the escape hatch');
   } finally {
     rmSync(handlersMutPath, { force: true });
-    rmSync(basePath, { force: true });
+    rmSync(chunkMutPath, { force: true });
     rmSync(mutPath, { force: true });
   }
 });

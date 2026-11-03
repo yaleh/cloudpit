@@ -31,8 +31,8 @@ import {
   resolveVoiceRealtimeClosingTurn,
   resolveVoiceRealtimeSlimSendTool,
   type VoiceRealtimeClosingTurn,
-} from '../voice-realtime-closing-turn.js';
-import { REALTIME_TOOLS, VOICE_REALTIME_TOOLS, voiceRealtimeToolsFor } from '../voice-realtime-tools.js';
+} from "../frames/voice-realtime-closing-turn.js";
+import { REALTIME_TOOLS, VOICE_REALTIME_TOOLS, voiceRealtimeToolsFor } from "../frames/voice-realtime-tools.js";
 import {
   handleVoiceRealtimeConnection,
   VOICE_REALTIME_INSTRUCTIONS,

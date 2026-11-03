@@ -53,7 +53,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { collectServerSources, scanImportGraph, type Graph } from '@/shared/import-graph.js';
+import { collectServerSources, scanImportGraph, type Graph } from "../import-graph.js";
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../..');
@@ -133,6 +133,8 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/user',
   'modules/voice',
   'modules/voice-realtime',
+  'modules/voice-realtime/frames',
+  'modules/voice-realtime/transport',
   'modules/websocket',
   'modules/websocket/services',
   'modules/worktrees',

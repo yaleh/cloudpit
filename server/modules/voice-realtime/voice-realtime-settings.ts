@@ -107,23 +107,23 @@ import {
   type VoiceContextPackRuntimeSettings,
   type VoiceRealtimeSettingsFileKey,
   type VoiceSpendGuardRuntimeSettings,
-} from '@shared/voice/voiceSettingsRegistry.js';
+} from "@shared/voice/voiceSettingsRegistry.js";
 
 import {
   resolveSpendWindowLimit,
   type SpendWindowLimitResolution,
-} from './voice-realtime-spend-guard.js';
+} from "./voice-realtime-spend-guard.js";
 
 import {
   ANNOUNCE_PHRASES,
   resolveAnnouncePhrases,
-} from './voice-realtime-announce-phrases.js';
+} from "./voice-realtime-announce-phrases.js";
 import { splitVoiceRealtimeRunEndAckCandidates } from './voice-realtime-narrator.js';
 import {
   OMISSION_FILL_NUMERAL_MODES,
   type OmissionFillNumeralMode,
   type OmissionFillParams,
-} from './voice-realtime-omission-fill.js';
+} from "./frames/voice-realtime-omission-fill.js";
 import {
   SPEAKER_TRACKING_MODEL_DIR_DEFAULT,
   SPEAKER_TRACKING_MODEL_FILE_DEFAULT,
@@ -132,11 +132,11 @@ import {
   type SpeakerTrackingQualitySettings,
   type SpeakerTrackingSettingsBlock,
   type SpeakerTrackingThresholdSettings,
-} from './voice-speaker-tracking-arm.js';
+} from "./transport/voice-speaker-tracking-arm.js";
 import {
   validateTurnDetection,
   type TurnDetectionValues,
-} from './voice-realtime-turn-detection.js';
+} from "./transport/voice-realtime-turn-detection.js";
 
 /**
  * The environment variable naming the settings file this server should read.
@@ -451,7 +451,7 @@ function validateOmissionFill(value: unknown, filePath: string): {
  *
  * Cosine scores live in `[-1, 1]`; `margin` is a score difference; the rotation ceilings are angles
  * in degrees; `bankSize` is a positive integer cap. The shipped defaults (see
- * `voice-speaker-tracking-arm.ts`) sit well inside every bound, so the bounds only catch typos —
+ * `transport/voice-speaker-tracking-arm.ts`) sit well inside every bound, so the bounds only catch typos —
  * a score of `30` instead of `0.30`, a bank of `400` — rather than re-tuning the feature here.
  */
 const SPEAKER_TRACKING_THRESHOLD_BOUNDS = {
@@ -929,7 +929,7 @@ export function loadVoiceRealtimeSettings(options: {
 
   // Phase 1's speaker observer. The file block is the NORMAL entry; the environment variables are
   // escape hatches applied per connection by `resolveSpeakerTrackingSettings` in
-  // `voice-speaker-tracking-arm.ts`. A refused block contributes to `problems`, which refuses the
+  // `transport/voice-speaker-tracking-arm.ts`. A refused block contributes to `problems`, which refuses the
   // whole reading below — the same all-or-nothing rule every other key here follows, so the
   // connection falls back to the shipped off state rather than running a half-valid observer.
   let speakerTracking: SpeakerTrackingSettingsBlock | null = defaults.speakerTracking;

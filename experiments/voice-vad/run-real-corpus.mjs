@@ -7,7 +7,7 @@
  *
  *   · silero / ten / fsmn  -- the official ONNX weights, run by `engines/*.py`;
  *   · webrtc               -- the compiled WebRTC C extension (webrtcvad-wheels);
- *   · sts                  -- `server/modules/voice-realtime/voice-realtime-silence-tail.ts`,
+ *   · sts                  -- `server/modules/voice-realtime/transport/voice-realtime-silence-tail.ts`,
  *                             imported and driven in THIS process, not reimplemented.
  *
  * Everything is put on one grid (16 kHz mono, 20 ms frames = 320 samples), one input pipeline
@@ -293,7 +293,7 @@ function runPythonEngine(spec, wavPath, outPath) {
  * is the form the tradeoff table needs to compare like with like).
  */
 async function runShippedSts(samples) {
-  const mod = await import('../../server/modules/voice-realtime/voice-realtime-silence-tail.ts');
+  const mod = await import('../../server/modules/voice-realtime/transport/voice-realtime-silence-tail.ts');
   const gate = mod.createSilenceTailGate();
   const n = Math.floor(samples.length / HOP_SAMPLES);
   const pcm = Buffer.alloc(samples.length * 2);
@@ -334,7 +334,7 @@ async function runShippedSts(samples) {
     },
     weights: [
       {
-        path: 'server/modules/voice-realtime/voice-realtime-silence-tail.ts',
+        path: 'server/modules/voice-realtime/transport/voice-realtime-silence-tail.ts',
         sha256_16: null,
         sourceUrl: 'in-repo (shipping module)',
         note: 'a detector, not a trained model: no weights file',

@@ -10,7 +10,7 @@
  *  - {@link captureMcpToolSchemas} reaches the MCP gateway's OWN registration
  *    functions and records the input/output schema each tool registered with.
  *    That is the AC-2 oracle: the mirrored descriptors in
- *    `../voice-realtime-tools.ts` are compared FIELD BY FIELD against what the
+ *    `../frames/voice-realtime-tools.ts` are compared FIELD BY FIELD against what the
  *    gateway actually declared, so a drift on either side is a red rather than a
  *    hand-maintained expectation table that could drift with it.
  *
@@ -25,7 +25,7 @@ import type {
   McpReadToolDeps,
   McpSessionBackgroundDeps,
   McpWriteToolDeps,
-} from '@/modules/mcp-gateway/index.js';
+} from "../../mcp-gateway/index.js";
 
 import type {
   RealtimeClientMessage,
@@ -57,7 +57,7 @@ export type CapturedMcpTool = {
 export async function captureMcpToolSchemas(): Promise<Record<string, CapturedMcpTool>> {
   process.env.JWT_SECRET ??= 'voice-realtime-criteria';
   delete process.env.VITE_IS_PLATFORM;
-  const gateway = await import('@/modules/mcp-gateway/index.js');
+  const gateway = await import("../../mcp-gateway/index.js");
 
   const captured: Record<string, CapturedMcpTool> = {};
   const record = (registration: {

@@ -44,7 +44,7 @@ import {
   UPLINK_VAD_FRAME_BYTES,
   type UplinkVadClassifier,
   type UplinkVadFrameVerdict,
-} from '../voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 import {
   handleVoiceRealtimeConnection,
   type VoiceRealtimeOutboundFrame,

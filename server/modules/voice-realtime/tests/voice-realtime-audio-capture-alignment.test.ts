@@ -25,7 +25,7 @@ import test from 'node:test';
 import {
   createVoiceRealtimeCaptureRecorder,
   createVoiceRealtimeCaptureStore,
-} from '../voice-realtime-audio-capture.js';
+} from "../transport/voice-realtime-audio-capture.js";
 
 const SAMPLE_RATE = 16_000;
 const FRAME_SAMPLES = 320; // 20 ms

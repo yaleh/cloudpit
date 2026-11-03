@@ -39,7 +39,7 @@ import {
   VOICE_RUNTIME_BOUNDS,
   VOICE_RUNTIME_DEFAULTS,
   type VoiceSpendGuardRuntimeSettings,
-} from '@shared/voice/voiceSettingsRegistry.js';
+} from "@shared/voice/voiceSettingsRegistry.js";
 
 /**
  * The environment variable that overrides the per-window spend cap, in CNY per 30 s.

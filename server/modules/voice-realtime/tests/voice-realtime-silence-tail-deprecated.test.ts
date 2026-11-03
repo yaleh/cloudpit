@@ -54,8 +54,8 @@ import {
   SILENCE_TAIL_ENV,
   resolveSilenceTail,
   type SilenceTailOptions,
-} from '../voice-realtime-silence-tail.js';
-import { resolveUplinkVad } from '../voice-realtime-uplink-vad-arm-point.js';
+} from "../transport/voice-realtime-silence-tail.js";
+import { resolveUplinkVad } from "../frames/voice-realtime-uplink-vad-arm-point.js";
 import { handleVoiceRealtimeConnection } from '../voice-realtime-ws-proxy.service.js';
 import type {
   VoiceRealtimeInboundFrame,
@@ -69,7 +69,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The composition root whose per-connection wiring this file pins as source text. */
 const SERVER_INDEX = path.resolve(HERE, '../../../index.ts');
 /** The relay whose uplink-gate exclusion branch AC4 reads. */
-const WS_PROXY = path.resolve(HERE, '../voice-realtime-ws-proxy.service.ts');
+const WS_PROXY = path.resolve(HERE, '../voice-realtime-connection-transport.ts');
 
 /**
  * The builder's own source region in `server/index.ts`: from the assembly point to the next top-level
@@ -370,7 +370,7 @@ test('AC4 — the STS seam is never filled, so the proxy exclusion branch cannot
   const proxy = readFileSync(WS_PROXY, 'utf8');
   assert.match(
     proxy,
-    /uplinkVadRequested && silenceTail !== null/,
+    /uplinkVadRequested && this\.silenceTail !== null/,
     'the proxy must still carry the exclusion branch (this task retires the STS call site, not the branch)',
   );
 });

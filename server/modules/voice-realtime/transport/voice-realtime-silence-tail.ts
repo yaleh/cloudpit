@@ -73,7 +73,7 @@ export const DEFAULT_SILENCE_TAIL_PREROLL_MS = 500;
 export const DEFAULT_SILENCE_TAIL_KEEPALIVE_MS = 30_000;
 
 /**
- * How long a keepalive frame is. Matched to `voice-realtime-bridge.service.ts`'s `SILENCE_FRAME_MS`,
+ * How long a keepalive frame is. Matched to `frames/voice-realtime-bridge.service.ts`'s `SILENCE_FRAME_MS`,
  * so a keepalive looks exactly like the fallback path's own silence rather than a shape of its own.
  */
 export const SILENCE_TAIL_KEEPALIVE_FRAME_MS = 100;
@@ -119,7 +119,7 @@ export const SILENCE_TAIL_VOICE_MARGIN_DB = 8;
  * `HARD_FLOOR_DB` bounds how sensitive the detector can get in a room quieter than any it has
  * measured; `MAX_THRESHOLD_DB` bounds how deaf it can get in a loud one. The ceiling is the one that
  * matters for S-5: it sits at **-60 dBFS ≈ RMS 33**, which is above the loudest silence this
- * repository has measured (`voice-realtime-local-speech.ts`: silence reads RMS 1–26) and far below
+ * repository has measured (`transport/voice-realtime-local-speech.ts`: silence reads RMS 1–26) and far below
  * its quietest speech (RMS 400–640) — so a loud room cannot push the threshold up into speech.
  *
  * The measured cost of that safety (2026-10-13, third live-voice corpus

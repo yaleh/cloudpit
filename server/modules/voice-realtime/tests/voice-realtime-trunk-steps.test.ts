@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 
 import { WebSocket as WS } from 'ws';
 
-import type { RealtimeBridge } from '../voice-realtime-bridge.service.js';
+import type { RealtimeBridge } from "../frames/voice-realtime-bridge.service.js";
 import {
   VOICE_REALTIME_TRUNK_STEPS,
   createDefaultVoiceRealtimeTrunkSteps,

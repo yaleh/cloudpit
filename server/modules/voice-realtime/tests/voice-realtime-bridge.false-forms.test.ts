@@ -47,7 +47,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** This module's directory — where a mutant copy must sit so its relative imports resolve. */
 const MODULE_DIR = path.resolve(HERE, '..');
 /** The shipping bridge: what the AC3/AC4 mutations copy. */
-const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'voice-realtime-bridge.service.ts');
+const SHIPPING_BRIDGE_MODULE = path.join(MODULE_DIR, 'frames/voice-realtime-bridge.service.ts');
 
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';

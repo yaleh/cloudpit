@@ -40,10 +40,10 @@ import { fileURLToPath } from 'node:url';
 
 import { WebSocket as WS } from 'ws';
 
-import type { RealtimeBridge } from '../voice-realtime-bridge.service.js';
-import type { LocalSpeechBoundary, LocalSpeechGate } from '../voice-realtime-local-speech.js';
-import type { SilenceTailGate } from '../voice-realtime-silence-tail.js';
-import type { UplinkVadGate } from '../voice-realtime-uplink-vad-gate.js';
+import type { RealtimeBridge } from "../frames/voice-realtime-bridge.service.js";
+import type { LocalSpeechBoundary, LocalSpeechGate } from "../transport/voice-realtime-local-speech.js";
+import type { SilenceTailGate } from "../transport/voice-realtime-silence-tail.js";
+import type { UplinkVadGate } from "../frames/voice-realtime-uplink-vad-gate.js";
 import {
   VOICE_REALTIME_FRAME_HANDLERS,
   createDefaultVoiceRealtimeFrameRegistry,

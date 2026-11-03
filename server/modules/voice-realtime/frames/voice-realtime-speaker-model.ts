@@ -39,7 +39,7 @@ import {
   SPEAKER_TRACKING_MODEL_DIR_DEFAULT,
   SPEAKER_TRACKING_MODEL_FILE_DEFAULT,
   type SpeakerTrackingSettingsBlock,
-} from './voice-speaker-tracking-arm.js';
+} from "../transport/voice-speaker-tracking-arm.js";
 
 /** The pinned download source. Fixed on purpose: no request field reaches this constant. */
 export const VOICE_SPEAKER_MODEL_SOURCE_URL =

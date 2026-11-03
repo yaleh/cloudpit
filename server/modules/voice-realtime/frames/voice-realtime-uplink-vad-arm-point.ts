@@ -2,7 +2,7 @@
 // per-frame speech gate on, and the connection-level state machine that decides, per frame, whether
 // there is a classifier to consult at all.
 //
-// WHY THIS IS ITS OWN FILE. The classifier (`voice-realtime-uplink-vad.ts`) is contractually pure — its
+// WHY THIS IS ITS OWN FILE. The classifier (`transport/voice-realtime-uplink-vad.ts`) is contractually pure — its
 // criterion greps that module for allocation primitives and for any mention of the production seam, and
 // both counts must be zero. This file names production and decodes nothing; putting it there would make
 // that module's own contract self-contradictory. The streaming gate is a third file for the same reason
@@ -28,7 +28,7 @@
 //     and flips it to `failed` when the backend throws (the fail-safe bypass).
 //   · `server/modules/voice-realtime/tests/voice-realtime-uplink-vad-arm-point.test.ts` — the criterion.
 
-import { errorMessage } from '@/shared/utils.js';
+import { errorMessage } from "../../../shared/utils.js";
 
 import {
   UPLINK_VAD_BACKENDS,
@@ -39,7 +39,7 @@ import {
   type UplinkVadClassifierOptions,
   type UplinkVadDeclaredFormat,
   type UplinkVadFrameVerdict,
-} from './voice-realtime-uplink-vad.js';
+} from "../transport/voice-realtime-uplink-vad.js";
 
 // ── the environment switch ────────────────────────────────────────────────────────────────────────
 
@@ -127,7 +127,7 @@ export type UplinkVadConnectionState = 'disabled' | 'loading' | 'ready' | 'bypas
  * One connection's arm point: the backend classifier plus the state that says whether it may be consulted.
  *
  * It IS an {@link UplinkVadClassifier} — same `backend`/`status`/`classify`/`flush`/`close` surface — so
- * the gate (`voice-realtime-uplink-vad-gate.ts`) and the proxy's seam type need no special case to hold
+ * the gate (`frames/voice-realtime-uplink-vad-gate.ts`) and the proxy's seam type need no special case to hold
  * one. The extra `state` is what the proxy reads to decide whether a frame may go through the gate at
  * all, and `markFailed` is how the proxy records a backend failure the classifier could not.
  */

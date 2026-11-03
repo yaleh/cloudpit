@@ -9,7 +9,7 @@
  * `createLocalSpeechGate()` reproduced every stop, at frames reading 300–470 RMS: ambient noise, not
  * a voice (speech in the same capture reads 1000–10000).
  *
- * WHY THE GATE MUST NOT DECIDE THIS. `voice-realtime-local-speech.ts` says it in its own header: it
+ * WHY THE GATE MUST NOT DECIDE THIS. `transport/voice-realtime-local-speech.ts` says it in its own header: it
  * "is not a VAD and must not become one", it "deliberately coarse", it answers the watchdog's
  * "has speech been seen at all?" — not "is this person speaking now". Feeding that reading into a
  * droppable output means a loud room mutes the narrator. The narrator's interrupt now reads only the

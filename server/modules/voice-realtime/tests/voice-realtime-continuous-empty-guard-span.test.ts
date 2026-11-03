@@ -315,7 +315,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** This test module's directory — where a mutant copy must sit so its relative imports resolve. */
 const MODULE_DIR = path.resolve(HERE, '..');
 /** The shipping proxy: what the false forms copy. */
-const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+const SHIPPING_PROXY_MODULE = path.join(MODULE_DIR, 'voice-realtime-connection-frames.ts');
 /** The prefix every falsify copy carries, so this process's own copies are identifiable. */
 const TEMP_PREFIX = '__criterion-falsify-';
 /** A copy this process owns: prefixed AND pid-tagged, so a sibling criterion's copy is never mistaken for ours. */
@@ -328,18 +328,18 @@ const ownCopy = (label: string): string => path.join(MODULE_DIR, `${TEMP_PREFIX}
  * statement, leaving everything around it (the refusal, the journal line, the watermark advance)
  * exactly as it ships.
  */
-const SPAN_GUARD_LINE = '      if (transcribedSinceWatermark.every((itemId) => itemTranscriptEmpty.get(itemId) === true)) {';
+const SPAN_GUARD_LINE = '      if (this.transcribedSinceWatermark.every((itemId) => this.itemTranscriptEmpty.get(itemId) === true)) {';
 /** The same decision, judged on the item transcribed LAST — the reading `b5d01c21` was refused by. */
 const LAST_ITEM_GUARD_LINE =
-  "      if (itemTranscriptEmpty.get(transcribedSinceWatermark[transcribedSinceWatermark.length - 1] ?? '') === true) {";
+  "      if (this.itemTranscriptEmpty.get(this.transcribedSinceWatermark[this.transcribedSinceWatermark.length - 1] ?? '') === true) {";
 
 /**
  * The watermark's advance on an accepted delivery — the statement the "watermark never advances"
  * false form removes. Its three lines together because the `if` alone is not unique in the file.
  */
 const ACCEPT_ADVANCE_ANCHOR = [
-  '    if (!segmentedRelay && segmentSeq === null) {',
-  '      transcribedSinceWatermark.length = 0;',
+  '    if (!this.segmentedRelay && segmentSeq === null) {',
+  '      this.transcribedSinceWatermark.length = 0;',
   '    }',
 ].join('\n');
 /** What that block becomes under the mutation: nothing at all. */
@@ -356,6 +356,17 @@ async function importProxy(modulePath: string): Promise<{ handleVoiceRealtimeCon
   return (await import(pathToFileURL(modulePath).href)) as { handleVoiceRealtimeConnection: HandleConnection };
 }
 
+/** Imports a chunk copy THROUGH a proxy copy that retargets its one connection-frames import. */
+async function importChunkThroughProxy(chunkPath: string, label: string): Promise<{ handleVoiceRealtimeConnection: HandleConnection; proxyPath: string }> {
+  const proxyShipping = path.join(MODULE_DIR, 'voice-realtime-ws-proxy.service.ts');
+  const proxySource = readFileSync(proxyShipping, 'utf8');
+  const importAnchor = "} from './voice-realtime-connection-frames.js';";
+  assert.equal(proxySource.split(importAnchor).length - 1, 1, 'the proxy must import the connection chunk exactly once');
+  const proxyPath = ownCopy(`${label}-proxy`);
+  writeFileSync(proxyPath, proxySource.replace(importAnchor, `} from './${path.basename(chunkPath, '.ts')}.js';`), 'utf8');
+  return { ...(await importProxy(proxyPath)), proxyPath };
+}
+
 test('AC1 false form: with the guard back on the last transcribed item alone, this replay is refused (AC1 reds)', async () => {
   const source = readFileSync(SHIPPING_PROXY_MODULE, 'utf8');
   const mutated = mutate(source, SPAN_GUARD_LINE, LAST_ITEM_GUARD_LINE);
@@ -365,8 +376,10 @@ test('AC1 false form: with the guard back on the last transcribed item alone, th
   try {
     writeFileSync(basePath, source, 'utf8');
     writeFileSync(mutPath, mutated, 'utf8');
-    const base = await importProxy(basePath);
-    const mut = await importProxy(mutPath);
+    const baseImported = await importChunkThroughProxy(basePath, 'span-base');
+    const mutImported = await importChunkThroughProxy(mutPath, 'span-last-item');
+    const base = { handleVoiceRealtimeConnection: baseImported.handleVoiceRealtimeConnection };
+    const mut = { handleVoiceRealtimeConnection: mutImported.handleVoiceRealtimeConnection };
 
     // Unmutated: the copy still delivers, so the reading below is the mutation's and not the fixture's.
     const baseRun = await replayDefect(base.handleVoiceRealtimeConnection);
@@ -393,6 +406,8 @@ test('AC1 false form: with the guard back on the last transcribed item alone, th
   } finally {
     rmSync(basePath, { force: true });
     rmSync(mutPath, { force: true });
+    rmSync(ownCopy('span-base-proxy'), { force: true });
+    rmSync(ownCopy('span-last-item-proxy'), { force: true });
   }
 });
 
@@ -472,8 +487,10 @@ test('AC3 false form: without the acceptance-side advance the earlier item lends
   try {
     writeFileSync(basePath, source, 'utf8');
     writeFileSync(mutPath, mutated, 'utf8');
-    const base = await importProxy(basePath);
-    const mut = await importProxy(mutPath);
+    const baseImported = await importChunkThroughProxy(basePath, 'watermark-base');
+    const mutImported = await importChunkThroughProxy(mutPath, 'watermark-static');
+    const base = { handleVoiceRealtimeConnection: baseImported.handleVoiceRealtimeConnection };
+    const mut = { handleVoiceRealtimeConnection: mutImported.handleVoiceRealtimeConnection };
 
     const baseRun = await driveWatermarkCase(base.handleVoiceRealtimeConnection);
     assert.deepEqual(
@@ -498,6 +515,8 @@ test('AC3 false form: without the acceptance-side advance the earlier item lends
   } finally {
     rmSync(basePath, { force: true });
     rmSync(mutPath, { force: true });
+    rmSync(ownCopy('watermark-base-proxy'), { force: true });
+    rmSync(ownCopy('watermark-static-proxy'), { force: true });
   }
 });
 

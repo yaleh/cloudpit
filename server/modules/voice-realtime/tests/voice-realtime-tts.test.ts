@@ -42,8 +42,8 @@ import test from 'node:test';
 // The registry is entered BEFORE the rule module: its own table reads this provider module's
 // exports while it evaluates, so importing the provider first is a TDZ. The same side-effect import
 // and the same ordering rule as `voice-realtime-dashscope-transport.test.ts`.
-import '../../../../shared/asr/asrRegistry.js';
-import { PUBLIC_HOSTNAME } from '../../../../shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js';
+import "@shared/asr/asrRegistry.js";
+import { PUBLIC_HOSTNAME } from "@shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.js";
 import {
   DEFAULT_VOICE_REALTIME_TTS_BASE_URL,
   DEFAULT_VOICE_REALTIME_TTS_MODEL,

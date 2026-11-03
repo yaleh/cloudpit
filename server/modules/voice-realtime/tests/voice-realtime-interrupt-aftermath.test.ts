@@ -63,7 +63,7 @@ import {
   type McpSessionInterruptDeps,
   type McpSessionSendDeps,
   type SessionBackgroundPayload,
-} from '@/modules/mcp-gateway/index.js';
+} from "../../mcp-gateway/index.js";
 
 import {
   createDashscopeTransport,

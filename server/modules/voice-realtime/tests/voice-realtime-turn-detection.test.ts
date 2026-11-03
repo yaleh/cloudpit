@@ -24,7 +24,7 @@
  *     `null` would break that assumption, so it is pinned as a red, not a claim.
  *
  * WHY THE FALSE FORMS COPY THE MODULE BESIDE IT. The last two blocks write mutated copies of the
- * shipping `voice-realtime-turn-detection.ts` (`__criterion-falsify-<label>-<pid>.ts`, excluded from
+ * shipping `transport/voice-realtime-turn-detection.ts` (`__criterion-falsify-<label>-<pid>.ts`, excluded from
  * `server/tsconfig.json` BY NAME, removed in a `finally`) — one with the shipped default changed, one
  * that accepts "off" as a null detector — and assert the AC5 / AC6 assertions above go red on them.
  * A criterion nobody has watched fail is a criterion that might be green for the wrong reason.
@@ -66,7 +66,7 @@ import { waitFor } from './realtime-bridge-harness.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The shipping resolver module — the file the false forms mutate. */
-const SHIPPING_MODULE = path.resolve(HERE, '../voice-realtime-turn-detection.ts');
+const SHIPPING_MODULE = path.resolve(HERE, '../transport/voice-realtime-turn-detection.ts');
 /** The composition root whose wiring is pinned as source text. */
 const SERVER_INDEX = path.resolve(HERE, '../../../index.ts');
 

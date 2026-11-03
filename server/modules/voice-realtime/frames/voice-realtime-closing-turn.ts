@@ -2,7 +2,7 @@
  * The relay's closing turn and its `session_send` shape — two deployment switches, resolved purely.
  *
  * WHY THIS IS A MODULE AND NOT A LINE IN THE COMPOSITION ROOT. Same reason as
- * `voice-realtime-mode.ts`: the switch has to be resolvable, printable and testable on its own, and
+ * `frames/voice-realtime-mode.ts`: the switch has to be resolvable, printable and testable on its own, and
  * nothing here reads `process.env`, logs, or touches a socket. `server/index.ts` hands in the
  * environment at the ONE place the seams are assembled; a proxy handed no seam reads the shipped
  * default constants below, never the environment, so a criterion that sets nothing sees the same

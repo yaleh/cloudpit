@@ -90,7 +90,7 @@ import {
   type DirEdge,
   type Graph,
   type SourceFile,
-} from '@/shared/import-graph.js';
+} from "../import-graph.js";
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../..');
@@ -243,6 +243,18 @@ const CYCLE_GROUPS: readonly string[][] = [
  * through `modules/mcp-gateway` (no second reading path), which creates the one mandated
  * `modules -> modules/cockpit` inbound edge. Registering the leaf directory is the sanctioned
  * shape, not a cycle and not a budget raise: G1/G2/G3 are untouched.
+ * A FOURTEENTH RECORDED CHANGE (2026-11-03, `gap-routine-architecture-analysis-god-package-server-voice-realtime`):
+ * `modules/voice-realtime/frames` and `modules/voice-realtime/transport` are registered as KNOWN
+ * directories under the same AC-394 (c) escape hatch, so `directoryManifest` and `nodeCount` rise
+ * to 60. They are the two subdirectories the voice-realtime god-package split created: `frames/`
+ * holds the frame-adjacent primitives (tool catalogue, closing-turn/announce phrases, bridge,
+ * omission-fill, uplink-VAD gate/arm-point, speaker bank) and `transport/` holds the upstream-audio
+ * primitives (capture, local speech, silence tail, uplink VAD, turn detection, speaker
+ * attractor/selector/tracking arms). Neither is a cycle member: edges run root -> frames -> transport
+ * and frames/transport never import the root package, so the directory graph stays a DAG. The same
+ * move relocated the sanctioned non-literal dynamic `import()` from
+ * `voice-realtime-uplink-vad.ts` into `transport/voice-realtime-uplink-vad.ts`; the named allow-list
+ * path is updated and its per-file cap is unchanged.
  */
 const MANIFEST_PIN: readonly string[] = [
   '.',
@@ -296,6 +308,8 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/user',
   'modules/voice',
   'modules/voice-realtime',
+  'modules/voice-realtime/frames',
+  'modules/voice-realtime/transport',
   'modules/websocket',
   'modules/websocket/services',
   'modules/worktrees',

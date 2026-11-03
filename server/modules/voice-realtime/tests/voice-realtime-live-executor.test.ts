@@ -52,7 +52,7 @@ import {
   type McpSessionSendDeps,
   type McpUiVisibleContextDeps,
   type McpUiVisibleContextInput,
-} from '@/modules/mcp-gateway/index.js';
+} from "../../mcp-gateway/index.js";
 
 import {
   VoiceRealtimeSessionRefusalError,

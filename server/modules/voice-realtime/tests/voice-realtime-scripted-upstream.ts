@@ -544,7 +544,7 @@ export function createScriptedUpstream(options: ScriptedUpstreamOptions = {}): S
 /**
  * One interim transcription. The running words travel in `stash` while `text` stays EMPTY —
  * that asymmetry is the real endpoint's, and reading `text` here would produce an empty
- * caption on every interim event (`voice-realtime-bridge.service.ts`'s `handleCaption`).
+ * caption on every interim event (`frames/voice-realtime-bridge.service.ts`'s `handleCaption`).
  */
 export function captionDelta(itemId: string, stash: string): Record<string, unknown> {
   return { type: 'conversation.item.input_audio_transcription.delta', item_id: itemId, text: '', stash };
@@ -569,7 +569,7 @@ export function functionCall(name: string, args: Record<string, unknown>, callId
  * written with it can never reach the bridge's `MALFORMED_FUNCTION_CALL` throw. This one takes the
  * RAW string, so the caller states the broken shape itself — `'{"intent": '` (not JSON at all) or
  * `'[]'` (JSON, but not an object) — which are the two shapes the bridge refuses
- * (`voice-realtime-bridge.service.ts`). The transport deliberately does NOT report either one
+ * (`frames/voice-realtime-bridge.service.ts`). The transport deliberately does NOT report either one
  * (`validateDeclaredCall` answers `null` for both), so the bridge is the single reporter and the page
  * sees exactly one `recoverable: true` error frame.
  *

@@ -44,8 +44,8 @@
  * each timing), `voice-realtime-trunk-step-handlers.ts` (the shipped registrations) and
  * `tests/voice-realtime-trunk-steps.test.ts` (the criterion).
  */
-import type { RealtimeBridge } from './voice-realtime-bridge.service.js';
-import type { UplinkVadGate } from './voice-realtime-uplink-vad-gate.js';
+import type { RealtimeBridge } from "./frames/voice-realtime-bridge.service.js";
+import type { UplinkVadGate } from "./frames/voice-realtime-uplink-vad-gate.js";
 import type {
   ModelInterruptDecision,
   VoiceRealtimeInboundFrame,
