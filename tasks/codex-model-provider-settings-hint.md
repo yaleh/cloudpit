@@ -1,7 +1,7 @@
 ---
 id: codex-model-provider-settings-hint
 title: 设置页 Codex providers/模型库提示 provider 变体语义
-status: todo
+status: ready
 labels:
   - feature
 parent: null
