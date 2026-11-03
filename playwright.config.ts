@@ -840,6 +840,21 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // (~8.5x the healthy invocation and ~11x the cold round's pre-case cost), while AC-109's gate deadline
   // (`timeoutMs: 260000`) still outlasts it by 20 s so a crossing is written down before the gate kills it.
   'transcript-follow.spec.ts': 240_000,
+  // The MCP-settings criterion (GOAL-020 / AC-254): ONE shared Vite client warmed against a fresh
+  // `VITE_CACHE_DIR`, a disabled-state server booted alongside that warm-up, and two serial cases driving a
+  // real Chromium against a real backend with a throwaway data directory. The file has no entry here, so the
+  // single-file invocation the criterion names inherited `SINGLE_SPEC_CEILING_MS` (55 s) — and that ceiling,
+  // not an assertion, decided the run: the same tree (treeSha 81c0e596a7c75c5c2f6f1083428fe55fae6d26a4) was
+  // killed at 2026-11-03T02:07:08.740Z with `crossed its own 55000ms ceiling at 55005ms (config-eval-ms=214)
+  // — stuck at stage "browser-launch-or-case"` and passed 178 s later at 02:10:06.455Z. The next round
+  // (treeSha 494d5f7b2b6592e3b146798ad99eebec58944809, 02:13:22.965Z) red differently: the shared client's
+  // cold dependency pre-bundle did not answer `deps/react_jsx-dev-runtime.js` inside the spec's then-30 s
+  // startup budget, with host `load average: 24.34, 32.03, 32.36`. A quiet run measured `2 passed (17.6s)`
+  // (`wall=18.59s`, pre-bundle committed in 7500 ms); under the load arm the pre-bundle alone is that budget's
+  // subject. 240_000 is the sibling heavy-spec value (~1.5x the load arm's worst measured invocation and ~13x
+  // the quiet one), and AC-254's gate deadline (`timeoutMs: 260000`) still outlasts it by 20 s so a crossing
+  // is written down before the gate kills it — the same shape as the AC-109 entry above.
+  'mcp-settings.spec.ts': 240_000,
 };
 
 /**

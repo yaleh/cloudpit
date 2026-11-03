@@ -376,8 +376,24 @@ const bootState = async (state: GateState, dataDir: string, client: SharedClient
  * does not race a re-optimization that would serve it a superseded url.
  */
 const OPTIMIZED_DEP_IN_TEXT = /["'](\/@fs\/[^"']*\/deps\/[^"']+\.js\?v=[0-9a-f]+)["']/;
-/** How long a state's client is given to answer its app entry before the startup path gives up on it. */
-const CLIENT_WARM_DEADLINE_MS = 30_000;
+/**
+ * How long the one shared client is given to answer its app entry — and, on a cold cache, to commit its dependency
+ * pre-bundle — before the startup path gives up on it.
+ *
+ * This is a budget for work the criterion cannot shorten, not a timeout for a hung client: `VITE_CACHE_DIR` is a
+ * fresh directory under this run's throwaway data dir, so the first navigation's optimizer pass always starts from
+ * nothing and its esbuild work is bounded by whatever CPU the host has spare. On a quiet host that costs ~7.5s; on
+ * this host under `load1` 20+ (the fan-in's normal condition) the same pass has been recorded taking longer than
+ * the earlier 30s, which ended the run in `test.beforeAll` before a single reading — the (a)-(e) assertions never
+ * ran. 30s was sized against the quiet number and had no headroom for the work it bounds.
+ *
+ * It is kept under the harness's own hook timeout (`test.describe.configure({ timeout: 110_000 })`, which bounds
+ * `test.beforeAll`) so the budget can actually explain itself: a warm-up that fails here still prints the url and
+ * the elapsed budget instead of being SIGKILLed by the hook. The run ceiling this file declares in
+ * `playwright.config.ts` (`SPEC_BUDGET_MS['mcp-settings.spec.ts']`) is larger still, and the criterion's
+ * `timeoutMs` in its goal record is larger again, so the watchdog's line lands first. See AC-254's task record.
+ */
+const CLIENT_WARM_DEADLINE_MS = 90_000;
 /** How long the landing of a navigation's *first* attempt is given on its own, before the guard starts replaying. */
 const STARTUP_PROBE_MS = 8_000;
 /** How long each bounded replay's landing is given. Shorter than the first: a replay is a re-ask, not a cold boot. */

@@ -2,7 +2,7 @@
 id: gap-ac254-criterion-load-headroom-budget
 title: AC-254 判据 e2e/mcp-settings.spec.ts 在宿主负载下反复红：冷依赖预打包撞 30s warm 预算、整轮撞 55s
   watchdog（同树 fail→pass 已证）——按 AC-109 已落地先例声明式预算，让负载臂跑完再判读数
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -89,15 +89,125 @@ inside the 30000ms startup budget (This operation was aborted)
 
 ## AC
 
-- [ ] AC1 红态机械入档：完成记录逐字含 `2026-11-03T02:07:08.740Z`（tree `81c0e596…`，`crossed its own 55000ms ceiling at 55005ms`）与 `2026-11-03T02:10:06.455Z`（**同一 tree**，pass）这一对，以及 `02:13:22.965Z` 的 `did not answer … react_jsx-dev-runtime.js?v=f6f818e6 inside the 30000ms startup budget`；并记录立案时 `HEAD^{tree}` 与 `git diff <fail-tree> HEAD -- e2e/mcp-settings.spec.ts` 的输出。
-- [ ] AC2 安静臂基线：在净 worktree 上逐字跑 `npx playwright test e2e/mcp-settings.spec.ts` ≥3 次，全部 exit 0；入档 worktree 路径、`HEAD`、`HEAD^{tree}`、每次整轮墙钟与 `watchdog-state.json` 的 `"fired"` 值。
-- [ ] AC3 负载臂达标（本条关键读数）：造出可复现的负载（入档负载命令与并发度，宿主 `load1` ≥ 20），在该负载下跑 ≥2 次，全部 exit 0、每次 `watchdog-state.json` `"fired":false`、`test-results/` 无 failure 目录；入档每次 `load1` 与整轮墙钟，并证明负载臂墙钟确实高于安静臂。
-- [ ] AC4 warm 预算不再先于读数落地：负载臂 ≥2 次运行中，日志不出现 `did not answer … inside the … startup budget`；若保留 `CLIENT_WARM_DEADLINE_MS`，入档负载下冷依赖预打包从发起到 200 的实际耗时，并证明该预算 > 实测值。
-- [ ] AC5 预算与 gate deadline 一致：若引入/抬高任何看门狗预算，`git diff <base>..HEAD -- playwright.config.ts` 逐字含 `'mcp-settings.spec.ts': <N>`，`git diff <base>..HEAD -- goals/AC-254-…md` 逐字含 `timeoutMs: <M>`，且 `M ≥ N + 20000`；负载臂最慢一轮的整轮墙钟 < N。未引入预算时本条以「无预算改动」+ 负载臂 AC3 通过入档。
-- [ ] AC6 读数与判据一字未改：`git diff <base>..HEAD -- e2e/mcp-settings.spec.ts` 中 (a)-(e) 五条读数、三条假形态的断言、两态 `MCP_ENABLED` 显式值逐字仍在（可移动常量与启动编排，不可改断言）；`git diff <base>..HEAD -- goals/` 只允许新增/修改 `timeoutMs:` 一行，`criterion:` 与 `expect:` 逐字不变；`grep -nE 'retries|test\.(skip|fixme)' e2e/mcp-settings.spec.ts` 无新增命中。
-- [ ] AC7 三条假形态分辨力未失（先提交实现再变异，逐条记录变异 diff、逐字失败行与恢复命令）：(i) 写 scope 默认勾选 ⇒ (d) 红；(ii) 关闭时仍渲染接入命令 ⇒ (b) 红；(iii) 命令里内嵌真实令牌 ⇒ (c) 红。
-- [ ] AC8 静态门：`npm run typecheck` exit 0；`npm run lint` 无新违规。改动 `src/**` 时按 AGENTS.md 载入并遵守 `$frontend-module-standards`；改动 `server/**` 时载入 `$backend-module-standards`。
+- [x] AC1 红态机械入档：完成记录逐字含 `2026-11-03T02:07:08.740Z`（tree `81c0e596…`，`crossed its own 55000ms ceiling at 55005ms`）与 `2026-11-03T02:10:06.455Z`（**同一 tree**，pass）这一对，以及 `02:13:22.965Z` 的 `did not answer … react_jsx-dev-runtime.js?v=f6f818e6 inside the 30000ms startup budget`；并记录立案时 `HEAD^{tree}` 与 `git diff <fail-tree> HEAD -- e2e/mcp-settings.spec.ts` 的输出。
+- [x] AC2 安静臂基线：在净 worktree 上逐字跑 `npx playwright test e2e/mcp-settings.spec.ts` ≥3 次，全部 exit 0；入档 worktree 路径、`HEAD`、`HEAD^{tree}`、每次整轮墙钟与 `watchdog-state.json` 的 `"fired"` 值。
+- [x] AC3 负载臂达标（本条关键读数）：造出可复现的负载（入档负载命令与并发度，宿主 `load1` ≥ 20），在该负载下跑 ≥2 次，全部 exit 0、每次 `watchdog-state.json` `"fired":false`、`test-results/` 无 failure 目录；入档每次 `load1` 与整轮墙钟，并证明负载臂墙钟确实高于安静臂。
+- [x] AC4 warm 预算不再先于读数落地：负载臂 ≥2 次运行中，日志不出现 `did not answer … inside the … startup budget`；若保留 `CLIENT_WARM_DEADLINE_MS`，入档负载下冷依赖预打包从发起到 200 的实际耗时，并证明该预算 > 实测值。
+- [x] AC5 预算与 gate deadline 一致：若引入/抬高任何看门狗预算，`git diff <base>..HEAD -- playwright.config.ts` 逐字含 `'mcp-settings.spec.ts': <N>`，`git diff <base>..HEAD -- goals/AC-254-…md` 逐字含 `timeoutMs: <M>`，且 `M ≥ N + 20000`；负载臂最慢一轮的整轮墙钟 < N。未引入预算时本条以「无预算改动」+ 负载臂 AC3 通过入档。
+- [x] AC6 读数与判据一字未改：`git diff <base>..HEAD -- e2e/mcp-settings.spec.ts` 中 (a)-(e) 五条读数、三条假形态的断言、两态 `MCP_ENABLED` 显式值逐字仍在（可移动常量与启动编排，不可改断言）；`git diff <base>..HEAD -- goals/` 只允许新增/修改 `timeoutMs:` 一行，`criterion:` 与 `expect:` 逐字不变；`grep -nE 'retries|test\\.(skip|fixme)' e2e/mcp-settings.spec.ts` 无新增命中。
+- [x] AC7 三条假形态分辨力未失（先提交实现再变异，逐条记录变异 diff、逐字失败行与恢复命令）：(i) 写 scope 默认勾选 ⇒ (d) 红；(ii) 关闭时仍渲染接入命令 ⇒ (b) 红；(iii) 命令里内嵌真实令牌 ⇒ (c) 红。
+- [x] AC8 静态门：`npm run typecheck` exit 0；`npm run lint` 无新违规。改动 `src/**` 时按 AGENTS.md 载入并遵守 `$frontend-module-standards`；改动 `server/**` 时载入 `$backend-module-standards`。
 
 ## DoD
 
 判据 `npx playwright test e2e/mcp-settings.spec.ts` 在**复现出来的负载臂**上真实跑完并 exit 0，`watchdog-state.json` 记录 `"fired":false`，且该轮的 `test-results/` 里没有任何 failure 目录——五个读数 (a)-(e) 是在真浏览器、真后端、临时数据目录里读出来的，而不是被 30s warm 或 55s watchdog 提前杀掉。三条假形态在同一实现上先提交后变异，各自红在正确的读数上，变异 diff 与恢复命令逐字入档。判据命令、`expect:` 文本与五条读数逐字未变，没有靠 `retries`/`skip`/`fixme` 或放宽断言换绿。
+
+## Evidence
+
+### 实现（分支 `task/gap-ac254-criterion-load-headroom-budget`，提交 `de626fc7f054680aba19248d8905a723e99ce9f7`）
+
+- `e2e/mcp-settings.spec.ts`: `CLIENT_WARM_DEADLINE_MS` 30_000 → 90_000（仍在 `test.describe.configure({ timeout: 110_000 })` 的 hook 预算内，失败时由预算自己说出 url 与耗时）；断言一字未改。
+- `playwright.config.ts`: `SPEC_BUDGET_MS` 新增 `'mcp-settings.spec.ts': 240_000`（取代继承的 55s 单文件默认）。
+- `goals/AC-254-…md`: 新增 `timeoutMs: 260000`（= 240_000 + 20_000，AC-109 形态）。
+
+### AC1 红态机械入档
+
+台账逐字：
+- `2026-11-03T02:07:08.740Z  goal-cli  fail  treeSha=81c0e596a7c75c5c2f6f1083428fe55fae6d26a4`，`[e2e] watchdog: this run crossed its own 55000ms ceiling at 55005ms (config-eval-ms=214) — stuck at stage "browser-launch-or-case"`
+- `2026-11-03T02:10:06.455Z  goal-cli  pass  treeSha=81c0e596a7c75c5c2f6f1083428fe55fae6d26a4`（**同一 tree**）
+- `2026-11-03T02:13:22.965Z  goal-cli  fail  treeSha=494d5f7b2b6592e3b146798ad99eebec58944809`，`Error: the client did not answer http://127.0.0.1:31227/@fs/data/home/yale/.cache/quay-e2e-tmp/quay-e2e-90uyAC/mcp-settings-shared-BmnGIW/vite-cache/deps/react_jsx-dev-runtime.js?v=f6f818e6 inside the 30000ms startup budget (This operation was aborted)`
+
+立案时 `HEAD=4eba4a4cd`、`HEAD^{tree}=cc89803d497b8a70e9dc04a38c7c3adeaee74394`（本次复核 `git rev-parse 4eba4a4cd^{tree}` 逐字相同）。`git diff 494d5f7b2b6592e3b146798ad99eebec58944809 4eba4a4cd -- e2e/mcp-settings.spec.ts` 输出为空（0 行）。
+
+### AC2 安静臂基线
+
+worktree `/data/home/yale/work/claudecodeui-worktrees/gap-ac254-criterion-load-headroom-budget`，HEAD `de626fc7f054680aba19248d8905a723e99ce9f7`，`HEAD^{tree}=e459c7ded344b6b65115e2054e42c6a817f123d6`。逐字 `npx playwright test e2e/mcp-settings.spec.ts`：
+
+| run | load1(前) | 整轮墙钟 | 结果 | watchdog fired |
+|---|---|---|---|---|
+| 1 | — | 19.27s | 2 passed (18.5s) | false |
+| 2 | 26.96 | 17.53s | 2 passed (16.8s) | false |
+| 3 | 27.36 | 18.22s | 2 passed (17.1s) | false |
+
+三次 exit 0；冷依赖预打包 8,752 / 7,621 / 7,478 ms。
+
+### AC3 负载臂
+
+负载命令：`tmp/load-arm.sh 192` = 192 × `yes > /dev/null`（CPU burners，无 nice；128 核宿主），先 45s soak 再跑。入档 `tmp/load-arm-report.log`。
+
+| run | load1(前) | runnable/total | pre-bundle | 整轮墙钟 | 结果 | fired |
+|---|---|---|---|---|---|---|
+| 1 | 139.25 | 246/62023 | 34,470ms | 71.14s | 2 passed (1.2m) | false |
+| 2 | 205.93 | 236/61972 | 44,782ms | 84.31s | 2 passed (1.3m) | false |
+
+两次 exit 0；`test-results/` 无 failure 目录；负载臂墙钟 71.14/84.31s 明显高于安静臂 17.53–19.27s。
+
+### AC4 warm 预算
+
+负载臂两次日志均无 `did not answer … inside the … startup budget`。冷依赖预打包从发起到 200 实测 34,470ms 与 44,782ms；`CLIENT_WARM_DEADLINE_MS=90_000` > 两次实测。注：两次实测均 > 旧 30,000ms，正说明旧预算在负载臂下必先于读数落地。
+
+### AC5 预算与 gate deadline
+
+`git diff ea1485dad..HEAD -- playwright.config.ts` 逐字含 `'mcp-settings.spec.ts': 240_000`；`git diff ea1485dad..HEAD -- goals/` 逐字含 `timeoutMs: 260000`；260,000 ≥ 240,000 + 20,000。负载臂最慢整轮 84.31s < 240,000ms。
+
+### AC6 读数与判据未改
+
+`git diff ea1485dad..HEAD -- e2e/mcp-settings.spec.ts` 仅改 `CLIENT_WARM_DEADLINE_MS` 常量及其注释；(a)-(e) 五条读数、三条假形态断言、两态 `MCP_ENABLED` 显式值全部逐字未动。`git diff ea1485dad..HEAD -- goals/` 仅新增 `timeoutMs: 260000` 一行，`criterion:`/`expect:` 未变。diff 的 `+` 行中 `retries`/`test.skip`/`test.fixme` 0 条，`grep -nE 'retries|test\.(skip|fixme)' e2e/mcp-settings.spec.ts` 无新增命中。
+
+### AC7 三条假形态（先提交 `de626fc7f`，再变异，每条已恢复）
+
+(i) 写 scope 默认勾选 ⇒ (d) 红。变异 `src/modules/settings/hooks/useCredentialsSettings.ts`：
+
+```
+@@ -39,7 +39,7 @@ const DEFAULT_ACCESS_TOKEN_EXPIRY_DAYS = 30;
+ /** The scopes a fresh create-token form starts with: the required read baseline, and nothing writable. */
+ const defaultNewTokenScopes = (): string[] =>
+-  ACCESS_TOKEN_SCOPE_OPTIONS.filter((option) => !option.writable).map((option) => option.scope);
++  ACCESS_TOKEN_SCOPE_OPTIONS.map((option) => option.scope);
+```
+
+运行 exit 1，逐字失败行 `> 883 |         expect(initialChecked[scope]).toBe(false);`，`Expected: false / Received: true`。恢复：`git checkout -- src/modules/settings/hooks/useCredentialsSettings.ts`。
+
+(ii) 关闭时仍渲染接入命令 ⇒ (b) 红。变异 `src/modules/settings/tabs/api-settings/sections/McpGatewaySection.tsx` 的 disabled 分支同时渲染 hint 与 command：
+
+```
+@@ -95,9 +95,12 @@ export default function McpGatewaySection({ status }: McpGatewaySectionProps) {
+           </div>
+         </>
+       ) : (
+-        <p data-testid="mcp-gateway-enable-hint" className="text-sm text-muted-foreground">
+-          {t('mcpGateway.enableHint')}
+-        </p>
++        <>
++          <p data-testid="mcp-gateway-enable-hint" className="text-sm text-muted-foreground">
++            {t('mcpGateway.enableHint')}
++          </p>
++          <pre data-testid="mcp-gateway-command">{connectCommand}</pre>
++        </>
+       )}
+```
+
+运行 exit 1，逐字 `(b) … connect-command nodes=1; "Bearer" anywhere on page=true`，失败行 `> 808 |       expect(commandCount).toBe(0);`，`Expected: 0 / Received: 1`。恢复：`git checkout -- src/modules/settings/tabs/api-settings/sections/McpGatewaySection.tsx`。
+
+(iii) 命令里内嵌真实令牌 ⇒ (c) 红。变异同一文件：
+
+```
+@@ -42,7 +42,7 @@ export default function McpGatewaySection({ status }: McpGatewaySectionProps) {
+   // placeholder the user replaces with their own personal access token.
+   const connectCommand =
+     `claude mcp add --transport http cloudpit ${endpoint} `
+-    + '--header "Authorization: Bearer <token>"';
++    + '--header "Authorization: Bearer ccp_5f1c9e7d2b8a4c6e0f3a1d7b9c2e4f6a"';
+```
+
+运行 exit 1，失败行 `> 852 |       expect(commandText).toMatch(/Authorization:\s*Bearer\s*<token>/);`，`Expected pattern: /Authorization:\s*Bearer\s*<token>/`。恢复：`git checkout -- src/modules/settings/tabs/api-settings/sections/McpGatewaySection.tsx`。
+
+三条变异均已 `git checkout` 恢复；恢复后 `git status --short` 为空（工作树只含实现提交的三文件）。
+
+### AC8 静态门
+
+`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning，无新增；改动不在 lint 扫描范围内）。
+
+### 暗轴
+
+该轴仍暗,理由:本任务只改 e2e 判据自身的启动/看门狗预算与 AC 记录的 timeoutMs，未触及代码分层依赖（L_D）与架构图谱（L_G）的任何读法。
