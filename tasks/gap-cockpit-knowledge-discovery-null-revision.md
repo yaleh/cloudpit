@@ -61,8 +61,12 @@ extra:
 
 ## Blocker
 
-**2026-11-03T09:18:37.439Z — worker 未落地（exited-not-landed）**
+**2026-11-03T09:38:21.029Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/shared/types.ts 5595→5602 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M src/modules/chat-support/utils/inputSuggestions.ts
+fan-in-ff-merge:    M src/modules/chat-transcript/hooks/useTranscriptSelection.ts
+fan-in-ff-merge:    M src/modules/chat-transcript/index.ts
+fan-in-ff-merge:    M src/modules/chat/tests/useTranscriptSelection.test.tsx
 - run_id：wk-prod-anchor
-- session_id：294840d3-d765-415b-bfe1-37283d562e9a
+- session_id：04888b50-684e-4ec3-b7e0-72407769f48d
