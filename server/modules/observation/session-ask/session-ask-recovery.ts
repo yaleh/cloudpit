@@ -10,14 +10,16 @@
  * withdrawals belong to `session-ask-retraction.ts`. This module composes the two and never
  * reads or writes the store directly except through the ledger owner's `persist`.
  *
- * Consumers: `server/modules/observation/session-digest.producer.ts` (both walks) and the
+ * Consumers: `server/modules/observation/session-digest/session-digest.producer.ts` (both walks) and the
  * criterion `tests/session-ask-recovery.test.ts`.
  */
 import type { OpenSessionAsk } from '@/modules/context-events/index.js';
 
 import { readSessionAsks } from './session-ask-decision-digest.js';
-import { formatSessionUri } from './observation-uri.js';
-import type { ObservationStore } from './observation-store.js';
+import {
+  formatSessionUri,
+  type ObservationStore,
+} from '../core/index.js';
 import type { SessionAskEventLedger, SessionAskLedgerOwner } from './session-ask-ledger.js';
 import type { SessionAskRetraction } from './session-ask-retraction.js';
 

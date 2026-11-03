@@ -12,14 +12,14 @@
  * other digest field. `session-digest.producer.ts` composes it and no longer keeps these write
  * details itself.
  *
- * Consumers: `server/modules/observation/session-digest.producer.ts` (turn end, user turn and
+ * Consumers: `server/modules/observation/session-digest/session-digest.producer.ts` (turn end, user turn and
  * the sweep composition), `session-ask-retraction.ts` ({@link withdrawAskFromLedger}) and
  * `session-ask-recovery.ts` (startup sweep and user-turn answers).
  */
 import type { SessionAskEvent } from '@/shared/types.js';
 
 import type { SessionAskTranscriptScan } from './session-ask-decision-digest.js';
-import type { ObservedObject, ObservationStore } from './observation-store.js';
+import type { ObservedObject, ObservationStore } from '../core/index.js';
 
 /**
  * The ask-event ledger carried in a session digest (`digest.askEvents`).

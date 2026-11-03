@@ -11,7 +11,7 @@
  * A row written before this declaration existed has no key and is resolved from the defaults at
  * read time — the wall never shows an object with an empty blind-spot list.
  *
- * Consumers: `server/modules/observation/observation-store.ts` (write merge + read resolution)
+ * Consumers: `server/modules/observation/core/observation-store.ts` (write merge + read resolution)
  * and `server/modules/observation/tests/blind-spots.test.ts` (the criterion).
  */
 import type { ObservationKind } from './observation-uri.js';
