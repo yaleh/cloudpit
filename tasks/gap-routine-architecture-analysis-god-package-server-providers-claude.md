@@ -74,6 +74,12 @@ Extract the driver's turn/lifecycle collaborator entities into a lifecycle/ subd
 - 真二进制：`claude-resident-process.test.ts` → 10 pass / 0 fail；`claude-resident-remote-control-isolation` + `claude-resident-control-queue` + `claude-resident-dispatch-hook` + `claude-resident-idle` → 15 pass / 0 fail。
 - 组合/能力面：`provider-runtime.service` + `provider-capabilities-cancel-queued` + `debug-agent-control-queue` + `server-composition-startup` → 21 pass / 0 fail。
 - 静态门：`npx tsc --noEmit -p server/tsconfig.json` → 0 error；`npx oxlint server/modules/providers/list/claude/` → 0 error（仅 `claude-runtime.provider.ts` 既有 warning）。
+- **续做轮（2026-11-03，suite 单文件红复核与修复）：** 上一轮 fan-in 的唯一红 `server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts` **可复现**（并非负载假红），且两条红均系本次拆分引入，已修：
+  - **(a) barrel consumer 漂移：** `ledgerForeign` / `ledgerAnomalies` 的 `// consumer:` 仍指向拆分前的根文件 `claude-resident-outcome-handlers.ts`（现为纯转发 shim），真实消费者已随实现迁至 `lifecycle/claude-resident-outcome-handlers.ts`。注释改指真实消费者（`server/modules/resident-ledger/index.ts`），判据读数 `exportsWithoutLiveConsumer=0`。
+  - **(d) `ResidentRound` 位置：** 该类型是 dispatcher 自身记录，随 turn/lifecycle 协作代码从具体驱动文件迁入 `lifecycle/resident-ledger-runtime.ts`，原读数「driver 文件之外零引用」变成 14 处（全在 `lifecycle/` 基类链内）。判据语义改为「claude driver 包（根 + `lifecycle/`）之外零引用」，保留本条真正守护的不变式：ledger 模块对新模块引用 0 次（`newModuleResidentRoundRefs=0`）、包外任何文件（尤其 ledger）不命名它 —— 而不是靠改名让断言真空绿。
+  - 单跑修复后的判据：`server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts` → **8 pass / 0 fail**，读数 `exportsTotal=11 exportsWithoutLiveConsumer=0`、`dirFiles=3 modulesEdges=0 sccMembership=none`、`driverBarrelImports=2 driverDeepImports=0`、`legacyPath=absent driverLedgerTypeDecls=0 newModuleResidentRoundRefs=0 residentRoundRefsOutsideDriver=0`；三条内存取假形态仍各自打红同一断言。
+  - 兄弟判据：`server-import-cycle-budget` + `claude-resident-ledger-transitions` + `claude-resident-ledger-invariants` + `claude-resident-interrupt-ledger` + `claude-resident-unattended-after-turns` + `terminal-state` → **46 pass / 0 fail**；结构棘轮 `architecture-ratchet` + `cloudpit-goal-exit-gate` + `resident-legacy-path-ratchet` + `resident-run-is-turn-single-reader` → **9 pass / 0 fail**（AC-455 读数不变：`measured=63 frozen=63`、`pin=63 baselineOutsidePin=[]`）。
+  - 静态门：`npx tsc --noEmit -p server/tsconfig.json` → 0 error；`npx oxlint server/modules/resident-ledger/` → 0 error。
 - 探针只立案不执行：本次拆分与验证全部由派发链（worker 会话）执行，例程未代跑。
 
 ## AC
@@ -86,6 +92,8 @@ Extract the driver's turn/lifecycle collaborator entities into a lifecycle/ subd
 
 ## Touches
 - `server/modules/providers/list/claude/**`
+- `server/modules/resident-ledger/index.ts`
+- `server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts`
 - `server/shared/tests/server-import-cycle-budget.test.ts`
 - `server/shared/tests/server-import-cycle-budget.baseline.json`
 - `server/shared/tests/cloudpit-goal-exit-gate.test.ts`
@@ -99,3 +107,4 @@ Extract the driver's turn/lifecycle collaborator entities into a lifecycle/ subd
 - 未落地原因：step=suite: not ok - server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts:   AssertionError [ERR_ASSERTION]: every barrel export must name a consumer, and that consumer must import it through the barrel [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts,server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：419d1234-af0b-421d-aa1d-a636052ea47a
+- 处置：已在本续做轮复现并修复（见 Evidence「续做轮」），单跑 8 pass / 0 fail，兄弟判据与结构棘轮全绿。
