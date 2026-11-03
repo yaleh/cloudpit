@@ -1,7 +1,7 @@
 ---
 id: AC-466
 title: 只读导入用户 ~/.codex provider：name/base_url/env_key 不读 secret、绑定 providerId
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-055
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -17,6 +17,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T00:29:26.534Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"
