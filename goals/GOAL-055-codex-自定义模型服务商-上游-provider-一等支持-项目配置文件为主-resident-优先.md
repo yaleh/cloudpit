@@ -1,7 +1,7 @@
 ---
 id: GOAL-055
 title: Codex 自定义模型服务商（上游 provider）一等支持：项目配置文件为主、resident 优先
-status: active
+status: achieved
 kind: goal
 origin: 人 yale 2026-11-02 会话裁定。三条方向：① 项目运行 codex 以本项目提供的设置为准，用户 ~/.codex profile
   仅兼容、不为主场景；② 配置主要用配置文件管理（settings 文件 + 0600 tokenFile
@@ -16,6 +16,11 @@ statusLog:
     to: active
     actor: goal-cli
     reason: ""
+  - at: 2026-11-03T00:43:38.412Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: all ACs achieved + sufficiency covered"
 ---
 ## 背景
 
