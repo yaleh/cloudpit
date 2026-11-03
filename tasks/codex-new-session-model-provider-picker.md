@@ -53,6 +53,12 @@ MCP 浏览器实际操作 + 截图存 tmp/（新建会话选 gpt-5.6-terra (fjda
   - 场景运行器：现有 `scripts/ui-scenarios/` 无覆盖新建会话 Model Selector 的场景，运行器的 opener/drive 词表也没有该视图入口（要新增语义面，超出本任务 Touches），因此本腿无场景报告，改用上面的一次性 Playwright 驱动（本会话无 MCP 浏览器工具时的等价路径）。
 - **残余（如实记录）**：首次发送的 create 请求体仍是 `{provider, projectPath, initialMessage, model, effort, permissionMode, lifecycleMode}`——不含 `modelProviderId`；落库会话 `38e13f61…` 的 `model`=gpt-5.6-terra 但 `model_provider_id`=NULL。选择器已把三元组交给 host 回调，但「首发把 provider id 送到会话行」属于 composer/发送链路（AC-469）与服务端发送漏斗，不在本条 Touches 内；本条未在 UI 之外伪造该绑定。
 
+### Evidence（2026-11-03 续做轮，合并 develop 后复验）
+
+- 上轮 exited-not-landed 的唯一红点是 `architecture-ratchet.test.ts: oversizeFiles src/shared/types.ts 5002→5010`。真因是分支滞后：兄弟任务 `codex-composer-model-provider-picker` 已把同名 `modelProviderId` wire 字段落到 develop，并把该文件基线上调到 5010；本分支仍持有旧基线 5002。将 develop 合入（26 提交）后，`types.ts` 冲突仅是同一注释的换行差异，取语义并集（字段两侧一致，取较窄换行），合并后 5010 行 = 基线，不再上调。
+- 复验：`architecture-ratchet.test.ts` 6/6 pass（`src/shared/types.ts` 不再出现在上调节目；其余打印均为 `可下调基线`）；`newSessionModelProviderOption.test.tsx` 7/7 pass；`npm run typecheck` 退出 0；`npm run lint` 退出 0（仅既有 warning）；anti-drift Touches 检查 `ANTI-DRIFT OK — 5 actual file(s), all within declared Touches`。
+- AC 状态不变（4/4），AC-470 判据与正/负/假形态四臂均由上述 7 例覆盖。
+
 ## ADR-007
 
 - L_D 该轴仍暗,理由:本任务是新建会话选择器 UI，读数是 AC 判据与场景运行器，没有可量化的领域数据轴读数。
@@ -65,3 +71,4 @@ MCP 浏览器实际操作 + 截图存 tmp/（新建会话选 gpt-5.6-terra (fjda
 - 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/shared/types.ts 5002→5010 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：fc46af3b-6a74-4e47-ba19-9f9de3a7d06a
+- 续做轮已处理：合并 develop 消解滞后基线（见上方续做轮 Evidence），该红点已不成立。
