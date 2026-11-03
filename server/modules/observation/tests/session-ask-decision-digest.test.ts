@@ -1575,6 +1575,81 @@ test('option identity: the model-provided id is NEVER written into the decision'
 });
 
 // ---------------------------------------------------------------------------------------------
+// Multi-subdecision bundling: the prompt asks for 3–5 composite options, and the pipeline keeps them
+//
+// When one assistant message asks three INDEPENDENT design points (each A-or-B), flattening them
+// into 6 half-direction options breaks the cockpit's single-select UI: a person can pick only one
+// of six. The model is therefore asked to bundle them into 3–5 self-consistent combinations. This
+// case pins that the parser/summary pipeline accepts that shape unchanged (the parser imposes no
+// option-count ceiling) and that stable ids still derive from the labels.
+// ---------------------------------------------------------------------------------------------
+
+/** The model answer for the multi-subdecision fixture: three composite options, whole coverage. */
+const COMPOSITE_ANSWER = {
+  ask: '三个设计点（①是否拆包、②是否改接口、③是否补迁移）各选 A 还是 B，请一次定下组合。',
+  situation: '助手一次问了三个相互独立的子决定，每个都要在 A 还是 B 之间选。',
+  incomplete: false,
+  recommendedOptionId: null,
+  judgeOptionId: null,
+  judgeReason: null,
+  options: [
+    {
+      id: 'bundle-all-a',
+      label: '①A+②A+③A',
+      does: '①保持单包；②接口不变；③现在补迁移。',
+      tags: [{ kind: 'consequence', text: '全部保持现状' }],
+      source: 'assistant',
+    },
+    {
+      id: 'bundle-all-b',
+      label: '①B+②B+③B',
+      does: '①拆包；②改接口；③不补迁移。',
+      tags: [{ kind: 'risk', text: '改动最大' }],
+      source: 'assistant',
+    },
+    {
+      id: 'bundle-mixed',
+      label: '①A+②B+③A',
+      does: '①保持单包；②改接口；③现在补迁移。',
+      tags: [{ kind: 'benefit', text: '接口与迁移先落地' }],
+      source: 'assistant',
+    },
+  ],
+};
+
+test('multi-subdecision: three composite options survive the digest verbatim, ids derived from labels', async () => {
+  const summariser = createSessionAskDecisionDigest({
+    readSettings: () => STUB_SETTINGS,
+    complete: async () => completion(JSON.stringify(COMPOSITE_ANSWER)),
+  });
+
+  const reading = await summariser.summarize({
+    sessionId: SESSION_ID,
+    sessionTitle: '会话',
+    askId: `${SESSION_ID}:a1`,
+    revision: 1,
+    assistantText:
+      '三个设计点，每个都要选 A 还是 B：\n①是否拆包？A 保持单包，B 拆包。\n②是否改接口？A 不变，B 改。\n③是否补迁移？A 现在补，B 不补。\n请一次定下组合。',
+    context:
+      '[助手] 三个设计点，每个都要选 A 还是 B：\n①是否拆包？A 保持单包，B 拆包。\n②是否改接口？A 不变，B 改。\n③是否补迁移？A 现在补，B 不补。\n请一次定下组合。',
+  });
+
+  assert.equal(reading.state, 'evaluated', 'the pipeline accepts the bundled shape');
+  if (reading.state !== 'evaluated') return;
+  assert.equal(reading.options.length, 3, 'three bundled options are kept, not flattened into six');
+  assert.deepEqual(
+    reading.options.map((option) => option.label),
+    COMPOSITE_ANSWER.options.map((option) => option.label),
+    'the labels keep the declared order, verbatim',
+  );
+  assert.deepEqual(
+    reading.options.map((option) => option.id),
+    COMPOSITE_ANSWER.options.map((option) => stableOptionId(option.label)),
+    'bundling does not change identity: each id is still derived from the label',
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
 // Reliable session.answered: every answered ask, across rounds and across restarts, exactly once
 // ---------------------------------------------------------------------------------------------
 
