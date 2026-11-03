@@ -24,10 +24,13 @@
  *
  * The non-goal identity (`cloudcli.ai`, the `cloudcli://auth/callback` login
  * callback, `app_surface=cloudcli_desktop`, the legacy `ai.cloudcli.desktop`
- * app-id spelling and the dual-read `cloudcli://` observation URIs) is asserted
- * *present* in the same run — a zero-hit scan must not be achieved by renaming
- * it away. (v3.0's R13 keeps that legacy spelling as the migration constant in
- * `electron/appIdMigration.js`; the live `APP_USER_MODEL_ID` is the new id.)
+ * app-id spelling and the `cloudcli://` observation URIs) is asserted *present*
+ * in the same run — a zero-hit scan must not be achieved by renaming it away.
+ * (v3.0's R13 keeps that legacy spelling as the migration constant in
+ * `electron/appIdMigration.js`; the live `APP_USER_MODEL_ID` is the new id. v3.0's
+ * R7 retires the dual-read observation grammar: the parsers accept only
+ * `cloudpit://session|architecture`, and the legacy `cloudcli://` forms parse to
+ * null — `src/modules/cockpit/tests/observationUri.test.ts` pins the same.)
  */
 import assert from 'node:assert/strict';
 import {
@@ -445,16 +448,31 @@ test('AC4: the live non-goal identity pins are untouched', () => {
     'the cloud surface tag is unchanged',
   );
 
+  // v3.0 R13: the legacy app id survives only as the migration constant an upgrade
+  // reads, never as the live pin asserted above.
+  assert.match(
+    readRepoFile('electron/appIdMigration.js'),
+    /export const LEGACY_DESKTOP_APP_ID = 'ai\.cloudcli\.desktop';/,
+    'the legacy app id is kept as the v3.0 migration constant',
+  );
+
+  // v3.0 R7 retires the dual-read observation grammar. The forbidden branch is
+  // assembled from parts: this file lives inside the surface it scans (it is
+  // excluded by path), so it must not carry a literal copy of it.
+  const RETIRED_DUAL_READ_URI = `(?:${LEGACY_STEM}|cloudpit)://`;
   for (const file of [
     'src/modules/cockpit-contract/observationUri.ts',
     'server/modules/observation/observation-uri.ts',
   ]) {
     const source = readRepoFile(file);
     assert.ok(
-      source.includes('(?:cloudcli|cloudpit)://'),
-      `${file} keeps the dual-read observation URI regex`,
+      source.includes('^cloudpit://(session|architecture)/'),
+      `${file} accepts only the canonical cloudpit:// observation URI`,
     );
-    assert.ok(source.includes('cloudcli://session/'), `${file} keeps the canonical cloudcli spelling`);
+    assert.ok(
+      !source.includes(RETIRED_DUAL_READ_URI),
+      `${file} accepts only the canonical cloudpit:// observation URI (the retired dual-read branch is back)`,
+    );
   }
 });
 
