@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -12,10 +12,10 @@ children: []
 extra:
   schema: execution
   needs_human_cause: human-adjudication
-  park_reason: AC2 的墙钟上限 <118000ms 结构性不可达：criterion 本身 exit 0 / 19 passed，但 6
-    次独立实跑为 175405 / 205472 / 185826 / 176240 / 174442 / 175475ms；playwright
-    workers:1 + 60s 绝对时钟使逐条耗时之和 ≈158s。需人裁定 AC-331 record 的 timeoutMs 与驱动
-    CRITERION_TIMEOUT_MS=12e4 硬闸（或改写判据）。
+  park_reason: AC2 的墙钟上限 <118000ms 结构性不可达：criterion 本身 exit 0 / 19 passed，但 7
+    次独立实跑为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 /
+    175544ms；playwright workers:1 + 60s 绝对时钟使逐条耗时之和 ≈158s。需人裁定 AC-331 record 的
+    timeoutMs 与驱动 CRITERION_TIMEOUT_MS=12e4 硬闸（或改写判据）。
 depends_on:
   - gap-ac323-e2e-import-after-voice-realtime-frames-split
 goal_ac: AC-331
@@ -125,11 +125,19 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
   - AC5：注入旧路径 → `--list` **exit 1**，原文 `Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`，`Total: 0 tests in 0 files`；`cp` 备份还原新路径 → 同命令 **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空。
   - 结论：AC1/AC3/AC4/AC5 满足；AC2 判据语义满足（exit 0 / 19 passed）而 118000ms 墙钟上限结构性不可达（第 6 次独立实跑 175475ms）⇒ 按 Proposal「预算风险」停手，本轮不勾 AC2，park `needs-human`。
 
+- 本轮第 7 次复验（2026-11-03，工作树 fast-forward 到 develop `6bc963a5be49016cbde8bbf887d4fcc4fc4692c6`，`git status --porcelain` 为空）：
+  - AC1：旧路径 `grep -c` = 0（rc=1）；新路径 `grep -c` = 1（rc=0）；`--list` → **exit 0**，`Total: 19 tests in 3 files`。
+  - AC2：判据逐字实跑 → **exit 0**，`19 passed (2.9m)`，墙钟 **175544ms**（七次：175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms，同一 19 passed）。本轮逐条耗时之和 = **157.5s**（2.7+14.9+2.8+0.420+2.2+66+3.2+5.3+3.1+3.2+4.0+3.7+3.2+0.227+7.6+7.2+2.5+3.4+22.5），单这一项即 > 118000ms，尚未计 `boot: both webServers answered at 3650ms` 与 teardown。
+  - AC3：两条白名单守卫均 rc=0。
+  - AC4：`git diff develop --name-only` 为空；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
+  - AC5：注入旧路径 → `--list` **exit 1**，原文 `Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`，`Total: 0 tests in 0 files`；`cp` 备份还原新路径 → 同命令 **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空。
+  - 结论：AC1/AC3/AC4/AC5 满足；AC2 判据语义满足（exit 0 / 19 passed）而 118000ms 墙钟上限结构性不可达（第 7 次独立实跑 175544ms）⇒ 按 Proposal「预算风险」停手，本轮不勾 AC2，park `needs-human`。
+
 该轴仍暗,理由:本任务只复验既有 AC-331 判据与守卫，未改产品能力、模块依赖图或 goal 判据文本，L_D/L_G 没有本任务可记的量化读数。
 
 ## Needs-Human
 
-需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树六次实跑分别为 175405 / 205472 / 185826 / 176240 / 174442 / 175475ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
+需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树七次实跑分别为 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
 
 判据本身是绿的：**19 passed，exit 0**，且假形态证明它会因 import 漂移而红（`Cannot find module` 非零退出）。唯一未满足的是 AC2 的墙钟上限。按 Proposal「预算风险」的明示要求，worker 不得自行放宽 criterion、改 `expect` 或改记录 `timeoutMs`，故停在此处。
 
@@ -140,6 +148,8 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 补充（2026-11-03 第 5 轮，自动重派观测）：本任务已被 park 4 次，且每次在 worker 退出后约 17s 被 `needs-human → todo` 退回（`.quay/task-status-events.jsonl` seq 2173 / 2176 / 2179，actor `cli:*`，producer 插件 0.24.0），随即 promotion-driver 再晋升为 ready 并重派。该自动退回不会改变结论：AC2 的墙钟上限由记录层 `timeoutMs` 与驱动硬闸共同决定，worker 侧无可达路径。请在裁定前暂停该任务的自动退回/重派。
 
 补充（2026-11-03 第 6 轮）：同形退回再次发生——第 5 轮 park 后约 13s 被 `needs-human → todo` 退回（seq 2182，actor `cli:356579`，producer 插件 0.24.0），随后 promotion-driver 于 seq 2183 再晋升为 ready 并重派本轮。至此同一结论已由 6 次独立实跑确认（175405 / 205472 / 185826 / 176240 / 174442 / 175475ms，passed 均为 19，exit 0）。⛔ 继续自动退回/重派只会重复本轮的验证与 park，不会推进任务。
+
+补充（2026-11-03 第 7 轮）：同形退回/重派再次发生（seq 2184 `ready → needs-human` 由本轮写入 → seq 2185/2187 两度 `needs-human → todo` 退回 → seq 2188 再晋升 ready 并重派本轮）。第 7 次独立实跑 175544ms，逐条耗时之和 157.5s，与前六轮一致（175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms，19 passed，exit 0）。⛔ 在人在 `## Needs-Human` 作出二选一裁定前，任何重派都只会产出第 8 份同形读数；请在裁定前暂停该任务的自动退回/重派。
 
 ## DoD
 
@@ -170,4 +180,10 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 
 - 本轮读数与前五轮一致：criterion exit 0 / 19 passed，墙钟 175475ms（历次 175405 / 205472 / 185826 / 176240 / 174442 / 175475ms）。
 - 未勾项仍是 AC2 的「墙钟 < 118000ms」；结构性下限 ≈158s（`playwright.config.ts` `workers: 1` + `e2e/voice-realtime-composer-embedded.spec.ts:1321` `{ at: 60_000, … }` 绝对时钟），与负载无关。
+- 记录层 `timeoutMs: 118000` 与驱动 `CRITERION_TIMEOUT_MS = 12e4` 两把锁均不在本任务 `## Touches` 内；⛔ 重派/退回 todo 只会重复本轮，需 `## Needs-Human` 的二选一裁定。
+
+**2026-11-03（第 7 轮）— 复验后仍 park `needs-human`（重派不会改变结论）**
+
+- 本轮读数与前六轮一致：criterion exit 0 / 19 passed，墙钟 175544ms（历次 175405 / 205472 / 185826 / 176240 / 174442 / 175475 / 175544ms）。
+- 未勾项仍是 AC2 的「墙钟 < 118000ms」；结构性下限 157.5s（19 条逐条耗时之和）+ `playwright.config.ts` `workers: 1` + `e2e/voice-realtime-composer-embedded.spec.ts:1321` 的 60s 绝对时钟，与负载无关。
 - 记录层 `timeoutMs: 118000` 与驱动 `CRITERION_TIMEOUT_MS = 12e4` 两把锁均不在本任务 `## Touches` 内；⛔ 重派/退回 todo 只会重复本轮，需 `## Needs-Human` 的二选一裁定。
