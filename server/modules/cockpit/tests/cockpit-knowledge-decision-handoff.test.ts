@@ -30,7 +30,7 @@ import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-f
 import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
 import { createCockpitFleetProjection } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
 import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cockpit-knowledge-decision.js';
-import { readKnowledgeCase } from '@/modules/cockpit/cockpit-knowledge-reading.js';
+import { knowledgeEvidenceProblem, readKnowledgeCase } from '@/modules/cockpit/cockpit-knowledge-reading.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type {
   CockpitCard,
@@ -350,6 +350,94 @@ test('the projection passes a knowledge entry’s title and statement through ve
   assert.ok(knowledge !== undefined);
   assert.equal('title' in knowledge, false);
   assert.equal('statement' in knowledge, false);
+});
+
+test('a discovery card with no knowledge entry reads and confirms without a knowledge revision', () => {
+  // A discovery-sourced suggestion comes from an entry that does not exist yet: the fleet states
+  // `knowledgeRevision: null` (and no `knowledgeId`), and the confirmation binds case + proposal
+  // revision alone. Reading it must NOT drop the case block.
+  const discovery = readKnowledgeCase({
+    caseId: 'case-discovery',
+    knowledgeRevision: null,
+    proposalRevision: 7,
+    state: 'pending',
+  });
+  assert.ok(discovery !== null, 'a discovery case block is readable');
+  assert.equal(discovery.knowledgeRevision, null, 'the stated null revision is passed through');
+  assert.equal(discovery.proposalRevision, 7);
+  assert.equal('knowledgeId' in discovery, false, 'no knowledge entry is named');
+
+  const card = knowledgeCard({ knowledge: discovery });
+  assert.equal(
+    knowledgeEvidenceProblem(card),
+    null,
+    'a discovery card is confirmable — its evidence is sufficient',
+  );
+
+  // A missing revision key is the same statement as an explicit null on the discovery arm.
+  const absent = readKnowledgeCase({ caseId: 'case-discovery-short', proposalRevision: 1 });
+  assert.ok(absent !== null);
+  assert.equal(absent.knowledgeRevision, null);
+
+  // POSITIVE CONTROL, unchanged: a card that NAMES a knowledge entry still needs its revision.
+  assert.equal(
+    readKnowledgeCase({ caseId: 'case-k', knowledgeId: 'knowledge-1', proposalRevision: 1 }),
+    null,
+    'a registered entry without a knowledge revision is still refused',
+  );
+  assert.equal(
+    readKnowledgeCase({
+      caseId: 'case-k',
+      knowledgeId: 'knowledge-1',
+      knowledgeRevision: null,
+      proposalRevision: 1,
+    }),
+    null,
+    'a registered entry with a null knowledge revision is still refused',
+  );
+  // …and a revision that is not a non-negative integer is never evidence.
+  assert.equal(
+    readKnowledgeCase({
+      caseId: 'case-k',
+      knowledgeId: 'knowledge-1',
+      knowledgeRevision: '4',
+      proposalRevision: 1,
+    }),
+    null,
+    'a string knowledge revision on a registered entry is refused',
+  );
+  assert.equal(
+    readKnowledgeCase({
+      caseId: 'case-discovery',
+      knowledgeRevision: '4',
+      proposalRevision: 1,
+    }),
+    null,
+    'a string knowledge revision is refused on the discovery arm too',
+  );
+});
+
+test('a discovery card’s confirmation carries knowledgeRevision: null end to end', async () => {
+  const card = knowledgeCard({
+    knowledge: knowledgeCase({ knowledgeId: undefined, knowledgeRevision: null }),
+  });
+  const ref = issuedRef(card);
+  const { actions, feedback, store } = setup([card]);
+
+  const answer = await actions.confirm({
+    cardId: card.id,
+    revision: card.revision,
+    optionId: 'defer',
+    confirmationRef: ref,
+  });
+
+  assert.equal(answer.ok, true);
+  assert.equal(feedback.calls.length, 1, 'the decision is delivered exactly once');
+  const params = feedback.calls[0] as Record<string, unknown>;
+  assert.equal(params.caseId, 'case-1');
+  assert.equal(params.knowledgeRevision, null, 'the provider receives the honest null');
+  assert.equal(params.proposalRevision, 2);
+  assert.equal(store.overlay(card.id)?.confirmationRef, ref);
 });
 
 test('an informational card keeps its own group and is never shown as a rescue card', () => {
