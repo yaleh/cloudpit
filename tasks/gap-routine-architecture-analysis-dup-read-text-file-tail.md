@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-read-text-file-tail
 title: "architecture-analysis: archguard_detect_duplicates group
   27e7f3bd441ab838: 198 normalized tokens / 11 statements / 23 lines,
   byte-identical except one comment — the same default IO"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
