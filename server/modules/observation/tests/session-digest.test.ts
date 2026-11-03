@@ -42,6 +42,7 @@ import {
   analyzeAsking,
   analyzeAssistantAsk,
   buildSessionDigest,
+  isUserPromptRow,
   parseTestOutput,
   SESSION_DIGEST_CONCLUSION_CHARS,
 } from '../session-digest.js';
@@ -1203,4 +1204,46 @@ test('AC7: the live 62d959c0 fixture is a real question — no retraction, and t
   const answered = eventsOf(harness.events, 'session.answered');
   assert.equal(answered.length, 1, 'the live gap was a missing session.answered');
   assert.deepEqual(answered[0]?.data, { askId, messageId: 'u2' });
+});
+
+test('a cross-session peer row is not a user prompt, in either the marker or the text shape', () => {
+  const envelope = 'Another Claude session sent a message:\n'
+    + '<cross-session-message from="uds:/tmp/peer.sock" from-name="peer" from-mode="bypass">\n'
+    + '选 2\n'
+    + '</cross-session-message>';
+
+  // The live shape: the CLI marks the row as machine-injected and names the peer origin.
+  assert.equal(
+    isUserPromptRow({
+      type: 'user',
+      isMeta: true,
+      promptSource: 'system',
+      turnOrigin: 'peer',
+      origin: { kind: 'peer', from: 'uds:/tmp/peer.sock' },
+      message: { role: 'user', content: envelope },
+    }),
+    false,
+    'the person did not type the other session\'s message',
+  );
+
+  // An older row without the origin marker still reads as synthetic from its text alone.
+  assert.equal(
+    isUserPromptRow({ type: 'user', message: { role: 'user', content: envelope } }),
+    false,
+    'the envelope and its fixed lead-in strip to emptiness',
+  );
+
+  // A person's own words stay a prompt, including when they sit beside a metadata block.
+  assert.equal(
+    isUserPromptRow({ type: 'user', message: { role: 'user', content: '选 1，立任务' } }),
+    true,
+  );
+  assert.equal(
+    isUserPromptRow({
+      type: 'user',
+      message: { role: 'user', content: '<system-reminder>note</system-reminder>\n选 1，立任务' },
+    }),
+    true,
+    'a real block beside an injected one still means the person spoke',
+  );
 });

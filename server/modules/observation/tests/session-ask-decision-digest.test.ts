@@ -2218,6 +2218,120 @@ test('AC3: turn-end states no session.answered for a <task-notification> row', a
 });
 
 // ---------------------------------------------------------------------------------------------
+// A cross-session message is not a user prompt either: it must not answer a pending ask
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * One peer row exactly as the CLI persists another session's SendMessage: a fixed lead-in, an
+ * attribute-bearing envelope, and the row markers that say a machine injected it.
+ */
+function crossSessionRow(id: string): string {
+  return JSON.stringify({
+    type: 'user',
+    uuid: id,
+    isMeta: true,
+    promptSource: 'system',
+    turnOrigin: 'peer',
+    origin: { kind: 'peer', from: 'uds:/tmp/peer.sock', name: 'peer' },
+    message: {
+      role: 'user',
+      content:
+        'Another Claude session sent a message:\n'
+        + '<cross-session-message from="uds:/tmp/peer.sock" from-name="peer" from-mode="bypass">\n'
+        + '选 2\n'
+        + '</cross-session-message>',
+    },
+  });
+}
+
+/** The transcript up to a question, then another session's message — no answer from the person. */
+function askThenCrossSession(): string {
+  return `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    crossSessionRow('p1'),
+  ].join('\n')}\n`;
+}
+
+test('a cross-session-message row after a pending ask leaves it current, not settled', () => {
+  const scan = readSessionAsks(askThenCrossSession(), SESSION_ID);
+
+  assert.deepEqual(scan.settled, [], 'another session speaking is not the person answering');
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a1`, 'the ask is still the open question');
+  assert.equal(scan.current?.revision, 1);
+});
+
+test('a real user message still settles the ask, even after a cross-session-message row', () => {
+  const raw = `${[
+    stringContentRow('user', 'u1', '开始'),
+    stringContentRow('assistant', 'a1', '先补测试还是先改实现？'),
+    crossSessionRow('p1'),
+    stringContentRow('user', 'u2', '先补测试'),
+    stringContentRow('assistant', 'a2', '补完了，还要先跑一遍吗？'),
+  ].join('\n')}\n`;
+  const scan = readSessionAsks(raw, SESSION_ID);
+
+  assert.deepEqual(
+    scan.settled,
+    [{ askId: `${SESSION_ID}:a1`, answerMessageId: 'u2' }],
+    'the answer is the person\'s row, never the peer row',
+  );
+  assert.equal(scan.current?.askId, `${SESSION_ID}:a2`, 'the tail ask is the newer question');
+});
+
+test('turn-end states no session.answered for a cross-session-message row', async () => {
+  const objects = new Map<string, ObservedObject>();
+  objects.set(formatSessionUri(SESSION_ID), {
+    uri: formatSessionUri(SESSION_ID),
+    kind: 'session',
+    title: '会话：选中方案',
+    status: { state: 'attention' },
+    digest: {
+      activity: 'waiting',
+      askEvents: {
+        answered: [],
+        asking: [`${SESSION_ID}:a1:1`],
+        pending: [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }],
+      },
+    },
+    blindSpots: [],
+    revision: 1,
+    updatedAt: CLOCK,
+    provenance: { producer: 'session-digest', tier: 'deterministic', evaluatedAt: CLOCK },
+  });
+  const harness = createHarness(JSON.stringify(RECOMMENDED_ANSWER), { objects });
+  harness.setTranscript(askThenCrossSession());
+
+  await harness.turnEnd();
+
+  assert.deepEqual(
+    harness.events.filter((event) => event.kind === 'session.answered'),
+    [],
+    'no answer is stated when only another session spoke',
+  );
+  const ledger = readSessionAskEventLedger(objects.get(formatSessionUri(SESSION_ID))?.digest);
+  assert.deepEqual(ledger.pending, [{ askId: `${SESSION_ID}:a1`, messageId: 'a1' }], 'the ask stays open');
+
+  // The person's own reply still settles it exactly once, with the person's message id. The
+  // assistant turn after it is what a real stop hook sees; without it the transcript ends on a
+  // user row and the digest is unevaluated for a different reason.
+  const secondRaw = `${askThenCrossSession()}${stringContentRow('user', 'u2', '先补测试')}\n${stringContentRow('assistant', 'a2', '好的，先补测试。')}\n`;
+  harness.setTranscript(secondRaw);
+  await harness.turnEnd();
+  const answered = harness.events.filter((event) => event.kind === 'session.answered');
+  assert.equal(answered.length, 1);
+  assert.deepEqual((answered[0]?.data as { messageId?: string } | undefined)?.messageId, 'u2');
+
+  // A replay of the same transcript must not state the answer twice.
+  await harness.turnEnd();
+  assert.equal(
+    harness.events.filter((event) => event.kind === 'session.answered').length,
+    1,
+    'the stated answer survives a turn-end replay',
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
 // The ask digest's JSON contract: its own output ceiling, fences, and a loud truncation
 // ---------------------------------------------------------------------------------------------
 

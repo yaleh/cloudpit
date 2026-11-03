@@ -90,8 +90,78 @@ export function buildCodexProviderEnv(
       env[key] = value;
     }
   }
+  // `env_http_headers` maps a header to the NAME of a variable Codex reads from
+  // its own environment. Because this injection replaces the child environment,
+  // those variables have to be carried across explicitly or the headers would
+  // silently vanish. Only names the entry itself declares are forwarded.
+  for (const variable of Object.values(provider.envHttpHeaders ?? {})) {
+    const value = source[variable];
+    if (typeof value === 'string' && value.length > 0) {
+      env[variable] = value;
+    }
+  }
   env[provider.envKey] = provider.secret;
   return env;
+}
+
+/**
+ * The `[model_providers.<id>]` advanced settings in Codex's snake_case spelling.
+ *
+ * Only fields the entry declared are present, so an entry with none produces
+ * exactly the config it produced before these settings existed (and the AC-464
+ * criterion's strict deep-equal keeps its shape).
+ */
+function providerAdvancedConfig(
+  provider: ResolvedCodexUpstreamProvider,
+): Record<string, unknown> {
+  return {
+    ...(provider.httpHeaders === undefined ? {} : { http_headers: provider.httpHeaders }),
+    ...(provider.envHttpHeaders === undefined ? {} : { env_http_headers: provider.envHttpHeaders }),
+    ...(provider.queryParams === undefined ? {} : { query_params: provider.queryParams }),
+    ...(provider.requestMaxRetries === undefined
+      ? {}
+      : { request_max_retries: provider.requestMaxRetries }),
+    ...(provider.streamMaxRetries === undefined
+      ? {}
+      : { stream_max_retries: provider.streamMaxRetries }),
+    ...(provider.streamIdleTimeoutMs === undefined
+      ? {}
+      : { stream_idle_timeout_ms: provider.streamIdleTimeoutMs }),
+    ...(provider.modelCatalogUrl === undefined
+      ? {}
+      : { model_catalog_url: provider.modelCatalogUrl }),
+  };
+}
+
+/**
+ * A selected model entry's own window and auto-compaction threshold, the tier
+ * that wins over the provider entry's defaults.
+ */
+export type CodexModelLimits = {
+  contextWindow?: number | undefined;
+  autoCompactTokenLimit?: number | undefined;
+};
+
+/**
+ * The context-window overrides one launch carries.
+ *
+ * Codex keeps `model_context_window` / `model_auto_compact_token_limit` at the
+ * TOP LEVEL of its config, not inside `[model_providers.<id>]`. The selected
+ * model entry is the most specific fact source (the same tier Claude's launch
+ * profile occupies), then the provider entry's own default.
+ */
+function codexWindowConfig(
+  provider: ResolvedCodexUpstreamProvider,
+  limits: CodexModelLimits = {},
+): Record<string, number> {
+  const contextWindow = limits.contextWindow ?? provider.modelContextWindow;
+  const autoCompactTokenLimit = limits.autoCompactTokenLimit ?? provider.modelAutoCompactTokenLimit;
+  return {
+    ...(contextWindow === undefined ? {} : { model_context_window: contextWindow }),
+    ...(autoCompactTokenLimit === undefined
+      ? {}
+      : { model_auto_compact_token_limit: autoCompactTokenLimit }),
+  };
 }
 
 /**
@@ -103,9 +173,11 @@ export function buildCodexProviderEnv(
  */
 export function codexOptionsForProvider(
   provider: ResolvedCodexUpstreamProvider,
+  limits: CodexModelLimits = {},
 ): CodexOptions {
   return {
     config: {
+      ...codexWindowConfig(provider, limits),
       model_provider: provider.id,
       model_providers: {
         [provider.id]: {
@@ -113,6 +185,7 @@ export function codexOptionsForProvider(
           base_url: provider.baseUrl,
           env_key: provider.envKey,
           wire_api: provider.wireApi,
+          ...providerAdvancedConfig(provider),
         },
       },
     },
@@ -156,6 +229,14 @@ function tomlBasicString(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
+/** A TOML inline table of string values (`{ "X-Header" = "v" }`). */
+function tomlInlineMap(map: Record<string, string>): string {
+  const entries = Object.entries(map)
+    .map(([key, value]) => `${tomlBasicString(key)} = ${tomlBasicString(value)}`)
+    .join(', ');
+  return `{ ${entries} }`;
+}
+
 /**
  * The `-c` overrides a resident `codex app-server` is spawned with.
  *
@@ -166,17 +247,47 @@ function tomlBasicString(value: string): string {
  * the secret is deliberately NOT here: `env_key` only names the child
  * environment variable (see {@link buildCodexProviderEnv}), because an argv
  * value is visible to every `ps` on the machine.
+ *
+ * Advanced settings are appended INSIDE that same table; a value whose key is
+ * not valid in a bare TOML key is quoted. The two context-window keys are
+ * top-level in Codex's config, so they get their own `-c` lines.
  */
-export function codexProviderSpawnArgs(provider: ResolvedCodexUpstreamProvider): string[] {
+export function codexProviderSpawnArgs(
+  provider: ResolvedCodexUpstreamProvider,
+  limits: CodexModelLimits = {},
+): string[] {
   const entry = [
     `name = ${tomlBasicString(provider.name)}`,
     `base_url = ${tomlBasicString(provider.baseUrl)}`,
     `env_key = ${tomlBasicString(provider.envKey)}`,
     `wire_api = ${tomlBasicString(provider.wireApi)}`,
+    ...(provider.httpHeaders === undefined
+      ? []
+      : [`http_headers = ${tomlInlineMap(provider.httpHeaders)}`]),
+    ...(provider.envHttpHeaders === undefined
+      ? []
+      : [`env_http_headers = ${tomlInlineMap(provider.envHttpHeaders)}`]),
+    ...(provider.queryParams === undefined
+      ? []
+      : [`query_params = ${tomlInlineMap(provider.queryParams)}`]),
+    ...(provider.requestMaxRetries === undefined
+      ? []
+      : [`request_max_retries = ${provider.requestMaxRetries}`]),
+    ...(provider.streamMaxRetries === undefined
+      ? []
+      : [`stream_max_retries = ${provider.streamMaxRetries}`]),
+    ...(provider.streamIdleTimeoutMs === undefined
+      ? []
+      : [`stream_idle_timeout_ms = ${provider.streamIdleTimeoutMs}`]),
+    ...(provider.modelCatalogUrl === undefined
+      ? []
+      : [`model_catalog_url = ${tomlBasicString(provider.modelCatalogUrl)}`]),
   ].join(', ');
+  const windows = codexWindowConfig(provider, limits);
   return [
     '-c', `model_provider=${tomlBasicString(provider.id)}`,
     '-c', `model_providers.${provider.id}={ ${entry} }`,
+    ...Object.entries(windows).flatMap(([key, value]) => ['-c', `${key}=${value}`]),
   ];
 }
 
@@ -204,6 +315,9 @@ export function compileCodexProviderLaunch(
 }
 
 /** Resolves one model's `codexProviderId` and compiles its per-run SDK options. */
-export function compileCodexProviderOptions(providerId: string): CodexOptions {
-  return codexOptionsForProvider(resolveCodexUpstreamProvider(providerId));
+export function compileCodexProviderOptions(
+  providerId: string,
+  limits: CodexModelLimits = {},
+): CodexOptions {
+  return codexOptionsForProvider(resolveCodexUpstreamProvider(providerId), limits);
 }

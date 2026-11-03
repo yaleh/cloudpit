@@ -168,9 +168,14 @@ function blockText(block: UnknownRecord): string {
  * again" after every background task: it opens a new turn span and, for the ask ledger, answers
  * a pending question nobody answered. The other tags are the same kind of row — slash-command
  * and bash-escape bookkeeping, and the metadata blocks the CLI appends.
+ *
+ * `cross-session-message` is another Claude session's SendMessage. It arrives as a `user` row
+ * because it enters this session as a turn, but the person did not type it; counting it as a
+ * prompt answered a pending ask the human had not answered yet.
  */
 const SYNTHETIC_USER_TURN_TAGS = [
   'task-notification',
+  'cross-session-message',
   'system-reminder',
   'local-command-stdout',
   'local-command-stderr',
@@ -182,9 +187,22 @@ const SYNTHETIC_USER_TURN_TAGS = [
   'bash-stderr',
 ] as const;
 
-/** One leading synthetic envelope; matched repeatedly so stacked blocks still strip fully. */
+/**
+ * The fixed lead-in the CLI puts before a peer-session envelope. It is harness prose, not the
+ * person's words, so it strips together with the envelope; older rows that carry no
+ * `origin.kind` marker are still recognised by their text alone.
+ */
+const SYNTHETIC_USER_TURN_LEAD_IN = /^\s*Another Claude session sent a message:\s*/;
+
+/**
+ * One leading synthetic envelope; matched repeatedly so stacked blocks still strip fully.
+ *
+ * The opening tag may carry attributes (`<cross-session-message from="…" from-name="…">`), so
+ * the name is followed by an optional attribute run. Matching only the bare form left those
+ * envelopes in place and made the whole row read as a prompt.
+ */
 const SYNTHETIC_USER_TURN_ENVELOPE = new RegExp(
-  `^\\s*<(${SYNTHETIC_USER_TURN_TAGS.join('|')})>[\\s\\S]*?<\\/\\1>`,
+  `^\\s*<(${SYNTHETIC_USER_TURN_TAGS.join('|')})(?:\\s[^>]*)?>[\\s\\S]*?<\\/\\1>`,
 );
 
 /**
@@ -195,7 +213,7 @@ const SYNTHETIC_USER_TURN_ENVELOPE = new RegExp(
  * prompt — the whole block must strip to emptiness to stop being one.
  */
 function isSyntheticUserText(text: string): boolean {
-  let remainder = text;
+  let remainder = text.replace(SYNTHETIC_USER_TURN_LEAD_IN, '');
   for (;;) {
     const match = SYNTHETIC_USER_TURN_ENVELOPE.exec(remainder);
     if (match === null) break;
@@ -205,16 +223,32 @@ function isSyntheticUserText(text: string): boolean {
 }
 
 /**
+ * Whether this row is a message another Claude session injected, not the person speaking.
+ *
+ * The CLI writes such a row as `isMeta: true` with `origin.kind === 'peer'` and
+ * `turnOrigin === 'peer'`. Checking the origin first is what makes the rule independent of the
+ * envelope's prose and attributes; the text fallback in {@link isSyntheticUserText} covers
+ * older rows that predate the origin fields.
+ */
+function isPeerInjectedRow(row: UnknownRecord): boolean {
+  const origin = row.origin;
+  if (isRecord(origin) && origin.kind === 'peer') return true;
+  return row.turnOrigin === 'peer';
+}
+
+/**
  * Whether one row is a real prompt — a person's message, not a tool result and not a
  * harness-injected synthetic turn.
  *
  * Claude records tool results as `user` rows. Treating those as turn boundaries would split a
  * single turn at every tool call, so the boundary is a row that carries non-empty text. A
- * `<task-notification>` row also carries non-empty text, but nobody typed it: counting it as a
- * prompt makes a pending ask look answered and shifts the digest's turn boundary.
+ * `<task-notification>` or cross-session `user` row also carries non-empty text, but nobody
+ * typed it: counting it as a prompt makes a pending ask look answered and shifts the digest's
+ * turn boundary.
  */
 export function isUserPromptRow(row: UnknownRecord): boolean {
   if (transcriptRowRole(row) !== 'user') return false;
+  if (isPeerInjectedRow(row)) return false;
   const texts = rowContentBlocks(row)
     .filter((block) => block.type === 'text')
     .map(blockText)

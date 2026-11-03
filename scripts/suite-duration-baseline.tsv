@@ -1012,3 +1012,9 @@
 #   (dur=1460ms, its own new criterion; no green round contains it yet — the row keeps the 90%
 #   coverage floor clear: the tree collects 505 server test files and the baseline holds 456 of them).
 1460	server/modules/settings/tests/codex-provider-import.test.ts
+#   The codex-provider-advanced-capabilities row: measured once on 2026-11-03 with
+#   `npx tsx --tsconfig server/tsconfig.json --test server/modules/settings/tests/codex-provider-advanced.test.ts`
+#   (dur=12784ms, its own new criterion; no green round contains it yet — the row keeps the 90%
+#   coverage floor clear: the tree collects 506 server test files and the baseline holds 457 of them).
+#   The 12.8s is dominated by the one real bundled-CLI turn and the DNS probe, not by load.
+12784	server/modules/settings/tests/codex-provider-advanced.test.ts

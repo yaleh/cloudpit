@@ -58,6 +58,17 @@ export type ResolvedCodexUpstreamProvider = {
   envKey: string;
   wireApi: 'responses';
   secret: string;
+  /** Codex `[model_providers.<id>]` connection settings, when the entry declares them. */
+  httpHeaders?: Record<string, string>;
+  envHttpHeaders?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  requestMaxRetries?: number;
+  streamMaxRetries?: number;
+  streamIdleTimeoutMs?: number;
+  modelCatalogUrl?: string;
+  /** Top-level Codex `model_context_window` / auto-compact overrides for this provider. */
+  modelContextWindow?: number;
+  modelAutoCompactTokenLimit?: number;
 };
 
 /**
