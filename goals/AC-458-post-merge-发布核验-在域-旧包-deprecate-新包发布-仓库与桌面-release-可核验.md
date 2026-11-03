@@ -5,7 +5,7 @@ status: achieved
 kind: criterion
 goal: GOAL-054
 criterion: GITHUB_TOKEN="$(/data/home/yale/.local/bin/gh auth token)" node
-  scripts/cloudpit-distribution-check.mjs --release
+  scripts/cloudpit-distribution-check.mjs --release --version 2.0.0
 expect: npm 上 @yalehwang/cloudcli@1.42.0 已 deprecate 且文案指向
   @yalehwang/cloudpit；@yalehwang/cloudpit@2.0.0 已发布，tarball 中只有 cloudpit
   bin；GitHub 仓库 yaleh/cloudpit 的 URL、homepage、repository、bugs 可解析；桌面
