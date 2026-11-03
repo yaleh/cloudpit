@@ -2,7 +2,7 @@
 id: gap-cockpit-molten-decision-card
 title: cockpit 熔融需人决策卡：新 kind molten-decision 渲染 + confirm 结晶执行器（不复用 knowledge
   confirm）
-status: done
+status: ready
 labels:
   - gap
   - feature
