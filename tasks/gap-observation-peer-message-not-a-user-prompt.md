@@ -31,10 +31,10 @@ extra:
 
 ## AC
 
-- [ ] AC1：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0；新增用例钉住 peer 行形态（lead-in + 带属性 `<cross-session-message …>` + `isMeta:true` + `origin.kind:'peer'`）的 `isUserPromptRow` 为 `false`，并保留对照：同样正文但没有 envelope 的真人行为 `true`。
-- [ ] AC2：同一命令运行 `server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0；新增用例：ask 之后只来 peer 行时 `scan.settled` 为 `[]` 且该 ask 仍是 `current`；再跟一条真人行时 `scan.settled` 只含真人行的 messageId，且不含 peer 行 id。
-- [ ] AC3：同一测试文件退出 0；新增 turn-end 用例：事故形状下 peer 行不写出 `session.answered`，真人行只写一条且 `data.messageId` 等于真人行 id；同一 transcript 再跑一次 turn-end 不重复写。
-- [ ] AC4：`npm run typecheck` 与 `npm run lint` 分别退出 0。
+- [x] AC1：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/modules/observation/tests/session-digest.test.ts` 退出 0；新增用例钉住 peer 行形态（lead-in + 带属性 `<cross-session-message …>` + `isMeta:true` + `origin.kind:'peer'`）的 `isUserPromptRow` 为 `false`，并保留对照：同样正文但没有 envelope 的真人行为 `true`。
+- [x] AC2：同一命令运行 `server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0；新增用例：ask 之后只来 peer 行时 `scan.settled` 为 `[]` 且该 ask 仍是 `current`；再跟一条真人行时 `scan.settled` 只含真人行的 messageId，且不含 peer 行 id。
+- [x] AC3：同一测试文件退出 0；新增 turn-end 用例：事故形状下 peer 行不写出 `session.answered`，真人行只写一条且 `data.messageId` 等于真人行 id；同一 transcript 再跑一次 turn-end 不重复写。
+- [x] AC4：`npm run typecheck` 与 `npm run lint` 分别退出 0。
 
 ## DoD
 
@@ -43,6 +43,28 @@ extra:
 - 用事故 transcript 的真实形状（固定 lead-in、带属性 envelope、`origin.kind='peer'`）走真实 producer + recovery：peer 行不消耗 pending、不产生 `session.answered`；随后真人 utterance 到达时产生且只产生一条 `session.answered`，其 `messageId` 指向真人行。再跑一次 turn-end 读回仍是同一条，不重复。
 - 在运行实例或隔离实例上对一张 ask 卡只读确认列表与详情都有 Ignore / discard，并从详情展开确认后点取消（不改动用户真实决定），保留截图；证明自动 settle 修复后逃生口仍可用。
 - 在任务完成记录贴出：窄范围测试命令与 exit code、ledger/事件读回、截图路径。
+
+## Evidence
+
+实现提交：`f7b402c4f`（task 分支 `task/gap-observation-peer-message-not-a-user-prompt`），3 个文件、+196/−5。
+
+窄范围测试（worktree 内逐文件、经 `with-memory-cap.sh`）：
+- `session-digest.test.ts` → 29 pass / 0 fail，exit 0。新增 `a cross-session peer row is not a user prompt, in either the marker or the text shape`：peer 行（lead-in + 带属性 envelope + `isMeta/origin.kind=peer`）为 false，无 origin 的旧文本形态也为 false，真人行为 true，且 `<system-reminder>` 旁的真人文本仍为 true。
+- `session-ask-decision-digest.test.ts` → 57 pass / 0 fail，exit 0。新增三条：ask 后仅 peer 行 `settled=[]` 且 ask 仍 current；peer 行后真人行 `settled` 只含 `u2`；turn-end 下 peer 行不写 `session.answered`，真人行只写一条且 `data.messageId='u2'`，同一 transcript 再跑一次 turn-end 仍为 1 条。
+
+真实 producer 路径读数（测试用真实 `handleTurnEnd` / `readSessionAsks` / ledger，内存 store）：
+- peer 行后的 ledger 读回：`{"answered":[],"asking":["ask-session:a1:1"],"pending":[{"askId":"ask-session:a1","messageId":"a1"}],"retracted":[]}`，事件集无 `session.answered`。
+- 真人行后的 turn-end：`session.answered` 恰好 1 条，`data.messageId='u2'`；再次 turn-end 不增条。
+- 备注：transcript 若以真人 user 行结尾、其后没有 assistant 行，`buildSessionDigest` 会读成 `unevaluated` 并走无答分支；真实 turn-end 总在 assistant 回复之后，测试按该真实形状构造。
+
+静态检查：`npm run typecheck` exit 0；`npm run lint` exit 0（仅既有 warning）。
+
+运行实例 UI 核验（`localhost:3001`，前端 `6c0b4e5`，`/cockpit?view=cards`）：
+- 事故卡 `att_1540a0df3be2` 仍 open、kind=`ask`；列表 9 张 ask 卡均有 `Ignore / discard`（同页 2 张 `need` 卡无此入口，符合 `dismissTargetOf` 仅 ask 的既有口径）。
+- 该卡详情底栏出现 `Ignore / discard`；点击后进入 `Confirm discard` / `Cancel`，`data-dismiss-pending="true"`，随后取消，未改动用户真实决定。
+- 截图：`tmp/observation-peer-fix/incident-card-details-dismiss.png`。
+
+该轴仍暗,理由:本任务为 observation prompt 判定修复，未跑 architecture probe，L_D/L_G 无可测读数；验证面为逐文件测试、typecheck/lint 与真实 producer 路径读数。
 
 ## Touches
 
