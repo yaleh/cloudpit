@@ -21,10 +21,14 @@ import {
   Button,
   LLMProviderLogo,
 } from "@/shared/ui";
-import { ModelGroupList, type ModelGroup } from '@/modules/chat-support';
-import { ResidentToggle } from '@/modules/chat-support';
+import { ModelGroupList, ResidentToggle, type ModelGroup } from '@/modules/chat-support';
 import ModelLibraryPanel from "@/shared/ui/ModelLibraryPanel";
 import { writeSelectedProvider } from '@/shared/selectedProvider';
+import {
+  modelOptionDisplayName,
+  readModelOptionProviderId,
+  readModelProviderId,
+} from '@/shared/utils';
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
@@ -68,8 +72,20 @@ type ProviderSelectionEmptyStateProps = {
   setProvider: (next: LLMProvider) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   providerModels: Record<LLMProvider, string>;
-  /** Records the pick as this provider's default and persists it. */
-  setProviderModel: (provider: LLMProvider, model: string) => void;
+  /**
+   * Records the pick as this provider's default and persists it. The third
+   * argument is the upstream provider the row runs under (`null` for the bare,
+   * inherit-the-default identity); a host that predates provider-bound catalogs
+   * may ignore it.
+   */
+  setProviderModel: (provider: LLMProvider, model: string, modelProviderId?: string | null) => void;
+  /**
+   * Upstream provider id of the active selection, from the host that owns the
+   * selection. Absent is not an error: the picker derives the identity itself
+   * when the catalog offers exactly one row for the active model, and otherwise
+   * shows the bare model — which is what the host is then known to hold.
+   */
+  currentModelProviderId?: string | null;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelActions: ProviderModelActions;
   providerModelsLoading: boolean;
@@ -115,6 +131,64 @@ function getProviderDisplayName(p: LLMProvider) {
 }
 
 /**
+ * The picker's branches, decided by the catalog rather than by a provider id.
+ *
+ * A catalog whose rows name an upstream provider is grouped by model: those
+ * rows share `value` and differ only by provider, so one provider branch would
+ * hold several rows with the same name and the clicked row's identity would not
+ * be readable back. Every other catalog keeps the single branch per provider it
+ * has always had. Nothing here knows which provider a catalog belongs to, so a
+ * new provider needs a catalog row, not a code path.
+ */
+function buildVisibleGroups(
+  catalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>,
+): ModelGroup[] {
+  const groups: ModelGroup[] = [];
+  const byKey = new Map<string, ModelGroup>();
+
+  for (const meta of PROVIDER_META) {
+    const options = catalog[meta.id]?.OPTIONS ?? [];
+    const bindsUpstreamProvider = options.some(
+      (option) => readModelOptionProviderId(option) !== null,
+    );
+
+    if (!bindsUpstreamProvider) {
+      groups.push({
+        key: meta.id,
+        provider: meta.id,
+        name: meta.name,
+        models: options,
+      });
+      continue;
+    }
+
+    for (const option of options) {
+      const providerId = readModelOptionProviderId(option);
+      const key = `${meta.id}:model:${option.value}`;
+      let group = byKey.get(key);
+      if (!group) {
+        group = {
+          key,
+          provider: meta.id,
+          name: modelOptionDisplayName(option, providerId),
+          models: [],
+        };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+
+      // Two rows for the same (model, provider) are one identity; the first wins.
+      if (group.models.some((entry) => readModelOptionProviderId(entry) === providerId)) {
+        continue;
+      }
+      group.models.push(option);
+    }
+  }
+
+  return groups;
+}
+
+/**
  * Rendered by chat's ChatMessagesPane when a session has no messages yet, so
  * the user can pick a provider, model and permission mode before their first turn.
  */
@@ -126,6 +200,7 @@ export default function ProviderSelectionEmptyState({
   textareaRef,
   providerModels,
   setProviderModel,
+  currentModelProviderId: explicitModelProviderId,
   providerModelCatalog,
   providerModelActions,
   providerModelsLoading,
@@ -158,14 +233,12 @@ export default function ProviderSelectionEmptyState({
     }
   }, []);
 
-  /** One collapsible branch per provider, in the order the picker lists them. */
+  /**
+   * One collapsible branch per model for a provider-bound catalog, one per
+   * provider otherwise — see `buildVisibleGroups`.
+   */
   const visibleProviderGroups = useMemo<ModelGroup[]>(
-    () => PROVIDER_META.map((meta) => ({
-      key: meta.id,
-      provider: meta.id,
-      name: meta.name,
-      models: providerModelCatalog[meta.id]?.OPTIONS ?? [],
-    })),
+    () => buildVisibleGroups(providerModelCatalog),
     [providerModelCatalog],
   );
 
@@ -175,19 +248,74 @@ export default function ProviderSelectionEmptyState({
 
   const currentModel = providerModels[provider];
 
+  /**
+   * The row this picker itself just chose, as `(model, provider id)`.
+   *
+   * ! Possibly unnecessary once every host passes `currentModelProviderId`:
+   * the host's answer is authoritative and is preferred below. Until it does,
+   * this is the only record of WHICH row was clicked — the model id is shared
+   * by the bare row and its provider variants — so without it the card after a
+   * pick would fall back to printing the bare model.
+   *
+   * Scoped to the active model: when the host hands over a different model
+   * (a restored selection, another tab), the remembered row no longer
+   * describes what is shown and is ignored.
+   */
+  const [pickedRow, setPickedRow] = useState<{ model: string; providerId: string | null } | null>(
+    null,
+  );
+
+  /**
+   * The active selection's upstream provider id, in order of authority: the
+   * host's answer, the row this picker just picked, then a catalog with exactly
+   * ONE row for the active model (a custom entry bound to a provider is such a
+   * row). Anything else stays bare: guessing between variants would draw a
+   * binding nobody chose.
+   */
+  const currentModelProviderId = useMemo(() => {
+    const explicit = readModelProviderId(explicitModelProviderId);
+    if (explicit !== null) {
+      return explicit;
+    }
+
+    if (pickedRow !== null && pickedRow.model === currentModel) {
+      return pickedRow.providerId;
+    }
+
+    const matching = (providerModelCatalog[provider]?.OPTIONS ?? [])
+      .filter((option) => option.value === currentModel);
+    if (matching.length !== 1) {
+      return null;
+    }
+    return readModelOptionProviderId(matching[0]);
+  }, [explicitModelProviderId, pickedRow, provider, providerModelCatalog, currentModel]);
+
   const currentModelLabel = useMemo(() => {
     const config = getModelConfig(provider, providerModelCatalog);
-    const found = config.OPTIONS.find(
-      (o: { value: string; label: string }) => o.value === currentModel,
-    );
-    return found?.label || currentModel;
-  }, [provider, currentModel, providerModelCatalog]);
+    // The row matching the full identity wins; several rows can share a value.
+    const found = config.OPTIONS.find((option) => (
+      option.value === currentModel
+      && readModelOptionProviderId(option) === currentModelProviderId
+    )) ?? config.OPTIONS.find((option) => option.value === currentModel);
+    if (!found) {
+      return currentModel;
+    }
+    return modelOptionDisplayName(found, readModelOptionProviderId(found));
+  }, [provider, currentModel, currentModelProviderId, providerModelCatalog]);
+
+  /** The collapsed card's label: the model, plus the provider when the pick names one. */
+  const currentModelDisplayLabel = currentModelProviderId === null
+    ? currentModelLabel
+    : `${currentModelLabel} (${currentModelProviderId})`;
 
   const handleModelSelect = useCallback(
-    (providerId: LLMProvider, modelValue: string) => {
+    (providerId: LLMProvider, modelValue: string, modelProviderId: string | null) => {
+      // Remembered before the callback: the host re-renders with the new model,
+      // and the card has to compose its label from the row that was clicked.
+      setPickedRow({ model: modelValue, providerId: modelProviderId });
       setProvider(providerId);
       writeSelectedProvider(providerId);
-      setProviderModel(providerId, modelValue);
+      setProviderModel(providerId, modelValue, modelProviderId);
       setPickerOpen(false);
       setTimeout(() => textareaRef.current?.focus(), 100);
     },
@@ -236,7 +364,7 @@ export default function ProviderSelectionEmptyState({
                       </span>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="truncate text-xs text-foreground">
-                        {currentModelLabel}
+                        {currentModelDisplayLabel}
                       </span>
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -313,6 +441,7 @@ export default function ProviderSelectionEmptyState({
                     groups={visibleProviderGroups}
                     provider={provider}
                     currentModel={currentModel}
+                    currentModelProviderId={currentModelProviderId}
                     loading={providerModelsLoading}
                     searching={modelSearch.trim().length > 0}
                     onSelect={handleModelSelect}

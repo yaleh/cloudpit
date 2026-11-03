@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { Clock, Project, ProjectSession, SessionHostLease, SessionHostsSnapshot, VoiceClientAssetPaths } from '@/shared/types';
+import type { Clock, Project, ProjectSession, ProviderModelOption, SessionHostLease, SessionHostsSnapshot, VoiceClientAssetPaths } from '@/shared/types';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -351,6 +351,51 @@ export function getProviderLabel(provider: string | undefined, fallback = 'Unkno
   }
 
   return PROVIDER_DISPLAY_LABELS[provider] || provider;
+}
+
+// ---------------------------
+
+//----------------- MODEL SELECTION IDENTITY ------------
+
+/**
+ * Reads the upstream provider id a catalog row or a stored selection names.
+ *
+ * Blank counts as absent: that is the "bare" identity, which inherits the provider's own
+ * default. Used by the new-session model picker, where two rows may share a model id and
+ * differ only by this field.
+ */
+export function readModelProviderId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * The upstream provider id one catalog row carries.
+ *
+ * `modelProviderId` is the catalog's own identity field. A custom entry from a catalog that
+ * predates it carries the same fact as `config.codexProviderId`, so that is read as a
+ * fallback rather than requiring the server to publish the identity twice.
+ */
+export function readModelOptionProviderId(option: ProviderModelOption): string | null {
+  return readModelProviderId(option.modelProviderId)
+    ?? readModelProviderId(option.config?.codexProviderId);
+}
+
+/**
+ * A catalog row's model name with the server's ` · provider` display suffix removed.
+ *
+ * The server appends the provider id to a bound row's label so two rows sharing a display
+ * name stay distinguishable. The pickers compose their own `name (provider)` form from the
+ * identity fields instead, so keeping the server's suffix too would print the id twice.
+ */
+export function modelOptionDisplayName(
+  option: ProviderModelOption,
+  providerId: string | null,
+): string {
+  const label = option.label || option.value;
+  const suffix = providerId === null ? null : ` · ${providerId}`;
+  return suffix !== null && label.endsWith(suffix)
+    ? label.slice(0, -suffix.length)
+    : label;
 }
 
 // ---------------------------

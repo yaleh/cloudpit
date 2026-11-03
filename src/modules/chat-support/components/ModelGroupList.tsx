@@ -3,12 +3,19 @@ import { Check, ChevronDown, ChevronRight } from "lucide-react";
 
 import type { LLMProvider, ProviderModelOption } from "@/shared/types";
 import { Badge, CommandGroup, CommandItem, LLMProviderLogo } from "@/shared/ui";
+import {
+  modelOptionDisplayName,
+  readModelOptionProviderId,
+  readModelProviderId,
+} from "@/shared/utils";
 
 /**
  * One branch of the model picker.
  *
  * `provider` is what selecting a model in this branch sets, kept separate from
- * the branch itself so a branch does not have to be a provider.
+ * the branch itself so a branch does not have to be a provider: a catalog whose
+ * rows name an upstream provider is grouped by model, and every one of those
+ * branches still selects under its own provider.
  */
 export type ModelGroup = {
   key: string;
@@ -21,10 +28,18 @@ type ModelGroupListProps = {
   groups: ModelGroup[];
   provider: LLMProvider;
   currentModel: string;
+  /**
+   * Upstream provider id of the active selection, or absent/null for the bare
+   * (inherit-the-provider-default) identity. A built-in model is offered once
+   * per provider, so those rows share `currentModel` and only this field tells
+   * the ticked one from its variants.
+   */
+  currentModelProviderId?: string | null;
   loading: boolean;
   /** While searching, every branch is shown open — a hit inside a collapsed one would be invisible. */
   searching: boolean;
-  onSelect: (provider: LLMProvider, model: string) => void;
+  /** Receives the clicked row's full identity: the model id plus the upstream provider it runs under. */
+  onSelect: (provider: LLMProvider, model: string, modelProviderId: string | null) => void;
   loadingLabel: string;
 };
 
@@ -44,6 +59,7 @@ export default function ModelGroupList({
   groups,
   provider,
   currentModel,
+  currentModelProviderId = null,
   loading,
   searching,
   onSelect,
@@ -88,6 +104,8 @@ export default function ModelGroupList({
                 onClick={() => toggle(group.key)}
                 className="flex w-full items-center gap-1.5 text-left hover:text-foreground"
                 aria-expanded={!isCollapsed}
+                data-model-group-key={group.key}
+                data-model-group-provider={group.provider}
               >
                 {isCollapsed ? (
                   <ChevronRight className="h-3 w-3 shrink-0" />
@@ -124,23 +142,42 @@ export default function ModelGroupList({
             ) : null}
 
             {!isCollapsed && group.models.map((model) => {
-              const isSelected = provider === group.provider && currentModel === model.value;
+              const providerId = readModelOptionProviderId(model);
+              /*
+                A bound row says which upstream provider it runs under; an
+                unbound row stays bare and inherits the provider's default. The
+                server already appends ` · id` to a bound row's label, so the
+                name is read without that suffix before this one is composed.
+              */
+              const modelName = modelOptionDisplayName(model, providerId);
+              const rowLabel = providerId === null ? modelName : `${modelName} (${providerId})`;
+              const isSelected = provider === group.provider
+                && currentModel === model.value
+                && readModelProviderId(currentModelProviderId) === providerId;
 
               return (
                 <CommandItem
-                  key={`${group.key}-${model.value}`}
-                  value={`${group.name} ${model.label} ${model.description || ""}`}
-                  onSelect={() => onSelect(group.provider, model.value)}
+                  key={`${group.key}-${model.value}-${providerId ?? ""}`}
+                  value={`${group.name} ${rowLabel} ${model.value} ${model.description || ""}`}
+                  onSelect={() => onSelect(group.provider, model.value, providerId)}
                   className="ml-4 border-l border-border/40 pl-4"
+                  data-model-value={model.value}
+                  data-model-provider-id={providerId ?? undefined}
+                  data-model-selected={isSelected ? "true" : "false"}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate">{model.label}</span>
+                      <span className="truncate">{modelName}</span>
+                      {providerId !== null && (
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          ({providerId})
+                        </span>
+                      )}
                       {model.isCustom && (
                         <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">Custom</Badge>
                       )}
                     </div>
-                    {model.label !== model.value && (
+                    {modelName !== model.value && (
                       <div className="truncate font-mono text-[10px] text-muted-foreground">
                         {model.value}
                       </div>
