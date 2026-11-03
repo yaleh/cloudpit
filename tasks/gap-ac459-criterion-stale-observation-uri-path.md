@@ -91,3 +91,13 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - electron/tests/cloudpit-runtime-identity-surfaces.test.mjs
 - src/modules/cockpit-contract/observationUri.ts
 - tasks/gap-ac459-criterion-stale-observation-uri-path.md
+
+## Blocker
+
+**2026-11-03T19:13:27.570Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+- run_id：wk-prod-anchor
+- session_id：530f5b67-1453-487e-b45c-55bf0612774b
