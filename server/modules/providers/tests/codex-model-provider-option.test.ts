@@ -20,6 +20,7 @@ import { createProviderModelsService } from '@/modules/providers/services/provid
 import {
   installCodexProviderRegistryPort,
   type CodexProviderRegistryReading,
+  type CodexUpstreamProviderResolution,
 } from '@/shared/ports/codex-provider-registry.port.js';
 import type {
   CustomProviderModelInput,
@@ -91,6 +92,44 @@ const createRegistry = (initialIds: string[] = [PROVIDER_ALICE, PROVIDER_BOB]) =
   });
   return { providerIds, read };
 };
+
+/**
+ * Models each fake provider actually serves. Deliberately DIFFERENT from the
+ * Codex built-ins: a custom provider's own catalog is what its variant rows
+ * must name, never the OpenAI built-in list (the bug this file now pins).
+ */
+const PROVIDER_ALICE_MODELS = ['gpt-5.6-terra', 'v4.1flash'];
+const PROVIDER_BOB_MODELS = ['gpt-6.1-sol'];
+
+/** Resolves a fake provider id to an endpoint + secret for the model-list read. */
+const createResolveProvider = () => (id: string): CodexUpstreamProviderResolution | null => {
+  if (id !== PROVIDER_ALICE && id !== PROVIDER_BOB) {
+    return { ok: false, problem: `unknown provider ${id}` };
+  }
+  return {
+    ok: true,
+    provider: {
+      id,
+      name: id === PROVIDER_ALICE ? 'Alice' : 'Bob',
+      baseUrl: `https://${id}.test/v1`,
+      envKey: `${id.toUpperCase()}_API_KEY`,
+      wireApi: 'responses',
+      secret: `secret-${id}`,
+    },
+  };
+};
+
+/** Fetch stub: answers each fake provider's model list by its base URL. */
+const createProviderFetch = () => (async (url: string | URL | Request) => {
+  const target = String(url);
+  const id = target.includes('alice.test') ? PROVIDER_ALICE : target.includes('bob.test') ? PROVIDER_BOB : null;
+  const models = id === PROVIDER_ALICE ? PROVIDER_ALICE_MODELS : id === PROVIDER_BOB ? PROVIDER_BOB_MODELS : null;
+  return {
+    ok: models !== null,
+    status: models !== null ? 200 : 404,
+    json: async () => (models === null ? {} : { data: models.map((model) => ({ id: model })) }),
+  };
+}) as unknown as typeof fetch;
 
 /** In-memory stand-in for the `provider_models` table the service reads. */
 const createCatalogStore = () => {
@@ -211,6 +250,8 @@ const createHarness = (options: { providerIds?: string[] } = {}) => {
     listModels: async () => DESCRIPTORS,
     now: () => 0,
     readProviders: registry.read,
+    resolveProvider: createResolveProvider(),
+    fetchFn: createProviderFetch(),
   });
   const service = createProviderModelsService({
     catalog,
@@ -238,26 +279,41 @@ const rowsForValue = (
   value: string,
 ): ProviderModelsDefinition['OPTIONS'] => models.OPTIONS.filter((option) => option.value === value);
 
-/** The expansion reading: bare row + one row per registered provider, DEFAULT untouched. */
+/**
+ * The expansion reading: each provider's OWN models become `(provider)`
+ * variant rows, the Codex built-ins stay bare, and DEFAULT is untouched.
+ */
 function assertExpandedCatalog(models: ProviderModelsDefinition): void {
   assert.equal(models.DEFAULT, BUILTIN_DEFAULT, 'DEFAULT must stay the bare Codex default');
 
   for (const builtin of [BUILTIN_DEFAULT, BUILTIN_SECOND]) {
     const rows = rowsForValue(models, builtin);
-    const bare = rows.filter((option) => option.modelProviderId === undefined);
-    assert.equal(bare.length, 1, `${builtin}: exactly one bare row (inherit the Codex default)`);
-    assert.equal(bare[0].isCustom, false);
-    assert.deepEqual(
-      rows.filter((option) => option.modelProviderId !== undefined)
-        .map((option) => option.modelProviderId)
-        .sort(),
-      [PROVIDER_ALICE, PROVIDER_BOB],
-      `${builtin}: one row per registered provider`,
-    );
-    for (const row of rows.filter((option) => option.modelProviderId !== undefined)) {
-      assert.match(row.label, new RegExp(`· ${row.modelProviderId}$`), 'variant labels name their provider');
-    }
+    assert.equal(rows.length, 1, `${builtin}: exactly one bare row — a built-in is never re-offered as a provider variant`);
+    assert.equal(rows[0].modelProviderId, undefined, `${builtin}: the bare row inherits the Codex default`);
+    assert.equal(rows[0].isCustom, false);
   }
+
+  const variantRowsFor = (providerId: string, expected: string[]): void => {
+    const rows = expected.flatMap((modelId) => rowsForValue(models, modelId));
+    assert.deepEqual(
+      rows.map((option) => option.modelProviderId),
+      expected.map(() => providerId),
+      `${providerId}: its own models appear as its variants`,
+    );
+    for (const row of rows) {
+      assert.match(row.label, new RegExp(`· ${providerId}$`), 'variant labels name their provider');
+    }
+  };
+  variantRowsFor(PROVIDER_ALICE, PROVIDER_ALICE_MODELS);
+  variantRowsFor(PROVIDER_BOB, PROVIDER_BOB_MODELS);
+
+  // A Codex built-in model id must never be re-labelled as a provider variant.
+  assert.equal(
+    models.OPTIONS.some((option) => option.modelProviderId !== undefined
+      && [BUILTIN_DEFAULT, BUILTIN_SECOND].includes(option.value)),
+    false,
+    'a Codex built-in is never re-labelled as a provider variant',
+  );
 
   const customRows = rowsForValue(models, CUSTOM_BOUND);
   assert.equal(customRows.length, 1, 'a custom model is a single row, never expanded');
@@ -284,7 +340,7 @@ function assertBindingRecorded(
 // Positive arms
 // ---------------------------------------------------------------------------
 
-test('the catalog expands a built-in model into bare + one row per registered provider', async () => {
+test('the catalog keeps built-ins bare and adds each provider\'s own models as variants', async () => {
   const { service, catalog } = createHarness();
   seedCustomModel(catalog);
 
@@ -408,7 +464,7 @@ test('false form: a bare-only catalog and an explicit-id-ignoring write red the 
   const bareModels = await bareHarness.service.getProviderModels('codex');
   assert.throws(
     () => assertExpandedCatalog(bareModels),
-    /one row per registered provider/,
+    /its own models appear as its variants/,
     'a bare-only catalog must red the expansion reading',
   );
 
