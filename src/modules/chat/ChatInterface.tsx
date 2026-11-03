@@ -199,6 +199,7 @@ function ChatInterface({
     currentProviderEffort,
     currentProviderEffortOptions,
     currentProviderModel,
+    currentProviderModelProviderId,
     currentProviderModelOptions,
     permissionMode,
     pendingPermissionRequests,
@@ -1105,9 +1106,17 @@ function ChatInterface({
 
   // A composer pick becomes the default for new chats and, when a session is
   // open, is recorded against that session so reopening it restores this model.
-  const handleSelectComposerModel = useCallback(async (model: string) => {
+  const handleSelectComposerModel = useCallback(async (
+    model: string,
+    modelProviderId?: string | null,
+  ) => {
     try {
-      await selectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
+      await selectProviderModel(
+        provider,
+        model,
+        currentSessionId || selectedSession?.id || null,
+        modelProviderId ?? null,
+      );
     } catch (error) {
       console.error('Error changing the active session model:', error);
     }
@@ -1324,6 +1333,7 @@ function ChatInterface({
                   effortOptions={currentProviderEffortOptions}
                   onSelectEffort={handleSelectComposerEffort}
                   model={currentProviderModel}
+                  modelProviderId={currentProviderModelProviderId}
                   modelOptions={currentProviderModelOptions}
                   onSelectModel={handleSelectComposerModel}
                   modelsLoading={providerModelsLoading}
@@ -1369,6 +1379,7 @@ function ChatInterface({
           availableEffortOptions={currentProviderEffortOptions}
           onSelectEffort={handleSelectComposerEffort}
           model={currentProviderModel}
+          modelProviderId={currentProviderModelProviderId}
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
