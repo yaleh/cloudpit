@@ -213,7 +213,27 @@ type WireStream = {
   finished: () => boolean;
   /** Resolves once the whole reply, `stream_end` included, has been delivered. */
   done: Promise<void>;
+  /**
+   * Raises the number of deltas the pump may hand over. A gated pump starts at the ceiling it was
+   * given and holds there until the caller lifts it; the ceiling never goes down.
+   *
+   * This is what makes "the window sits inside the reply" a construction rather than a bet on the
+   * pump's pace. A pump that delivers on its own clock races the harness's own round trips — a
+   * probe, a counter, a sampler, an aim — and under load those round trips are what stretch, so the
+   * reply can finish before the gesture is ever sent and the window then measures a settled pane.
+   * With a gate the reply is held at the point the caller chose and released on purpose.
+   */
+  releaseThrough: (count: number) => void;
 };
+
+/**
+ * How long a gated pump waits for its caller before it lets the reply through regardless.
+ *
+ * A window that throws before it releases would otherwise leave the pump holding the rest of the
+ * reply forever, and a timer that never ends keeps the worker's event loop alive after the failure.
+ * The spill only ever raises the ceiling, so it cannot release anything the caller meant to keep.
+ */
+const WINDOW_GATE_DEADLINE_MS = 90_000;
 
 /** Starts delivering `deltas` at `intervalMs`, then ends the content block. */
 const startWireStream = (
@@ -221,11 +241,29 @@ const startWireStream = (
   sessionId: string,
   deltas: string[],
   intervalMs: number,
+  options: { deliverAtMost?: number } = {},
 ): WireStream => {
   let delivered = 0;
   let finished = false;
+  let ceiling = options.deliverAtMost ?? deltas.length;
+  const gateDeadline = Date.now() + WINDOW_GATE_DEADLINE_MS;
   const done = (async () => {
     for (const content of deltas) {
+      while (delivered >= ceiling) {
+        if (Date.now() > gateDeadline) {
+          ceiling = deltas.length;
+          break;
+        }
+        try {
+          await page.waitForTimeout(25);
+        } catch {
+          // The page is gone, so the run that owned this reply has already ended — a case below
+          // failed its assertion, or teardown closed the browser. There is nothing left to deliver
+          // to, and leaving the pump waiting would keep the worker's event loop alive; ending here
+          // also keeps a red run's log to the assertion that actually failed.
+          return;
+        }
+      }
       await injectStreamFrame(page, { kind: 'stream_delta', sessionId, content });
       delivered += 1;
       finished = delivered === deltas.length;
@@ -233,7 +271,14 @@ const startWireStream = (
     }
     await injectStreamFrame(page, { kind: 'stream_end', sessionId });
   })();
-  return { delivered: () => delivered, finished: () => finished, done };
+  return {
+    delivered: () => delivered,
+    finished: () => finished,
+    done,
+    releaseThrough: (count: number) => {
+      ceiling = Math.max(ceiling, Math.min(count, deltas.length));
+    },
+  };
 };
 
 type ScrollInstruments = {
@@ -1283,6 +1328,41 @@ const AC109_PINNED_TAIL_MS = 400;
 const AC109_GAP_PX = 1;
 
 /**
+ * Deltas the pump hands over before the gesture: how the pane is filled past
+ * `AC109_SCROLLABLE_MIN_PX` without spending the reply.
+ *
+ * The window used to rely on the pump's own pace for this. A wheel only moves a pane that has
+ * something to scroll, so the case polls until the reply has filled one — and every delta the pump
+ * delivers while that poll and the five to six round trips after it run is a delta the window no
+ * longer has. Gating the pump here turns the fill into a step that ends when it is done, whatever
+ * the host is doing, and leaves the rest of the reply for the window to release deliberately.
+ */
+const WINDOW_FILL_DELTAS = 8;
+
+/**
+ * Deltas the pump may still hand over while the window is open.
+ *
+ * The window's own liveness reading — `growthsInWindow`, and the `delivered()` increase AC-109's
+ * record asks for — needs the reply to grow the pane under the held viewport. Released at the
+ * gesture, at the pump's own 250 ms interval, this many land inside `AC109_DETACH_WINDOW_MS` even
+ * when a frame is slow; the rest of the reply stays behind the gate until the window has closed, so
+ * the last delta and `stream_end` cannot land inside it.
+ */
+const WINDOW_GROWTH_DELTAS = 5;
+
+/**
+ * The floor each half's landing read has to clear, in CSS pixels.
+ *
+ * The wheel's own delta is the whole movement it asks for, so its floor is that delta (less the
+ * criterion's own pixel bound, which is the rounding the offset may carry). A PageUp is a page, and
+ * the pane is a screen minus its chrome: half a screen is the floor, well below the 400–440 the
+ * green runs measure, so the read names "the gesture moved the pane" without turning the page's
+ * exact travel into the criterion.
+ */
+const WINDOW_WHEEL_LANDING_PX = AC109_WHEEL_PX - AC109_GAP_PX;
+const WINDOW_PAGE_LANDING_PX = 200;
+
+/**
  * The text each reply carries, one string per delta.
  *
  * Six sentences rather than AC-108's four: the reply has to make the pane scrollable by more
@@ -1537,6 +1617,14 @@ type Ac109WindowReading = {
   buttonAppearancesInWindow: number;
   /** Whether the reply had already fully arrived when the window ended. */
   completionPresent: boolean;
+  /** Deltas the pump had handed over when the gesture was sent. */
+  deliveredAtGesture: number;
+  /** Deltas the pump had handed over when the window closed. */
+  deliveredAtWindowEnd: number;
+  /** Whether the pump had handed over its last delta when the window closed. */
+  finishedAtWindowEnd: boolean;
+  /** Whether the pane already carried this window's completion marker when the gesture was sent. */
+  completionAtGesture: boolean;
   /** Frames sampled from the click to the end of the reply. */
   pinnedFrames: number;
   /** Growths the remaining stream delivered in that second window. */
@@ -1570,13 +1658,24 @@ const runAc109Window = async (page: Page, options: {
   deltas: string[];
   completionMarker: string;
   gesture: () => Promise<void>;
+  /** The floor the gesture's own landing read has to clear, in CSS pixels — see `WINDOW_*_LANDING_PX`. */
+  landingPx: number;
 }): Promise<Ac109WindowReading> => {
-  const { label, sessionId, deltas, completionMarker, gesture } = options;
+  const { label, sessionId, deltas, completionMarker, gesture, landingPx } = options;
 
   // The window's transport: the reply starts arriving on the app's own socket, one delta at a
   // time, for as long as the window needs it. Nothing is sent, no provider is asked for a run
   // and no model is involved — the frame source is doubled, the consumer is not.
-  const stream = startWireStream(page, sessionId, deltas, AC109_DELTA_INTERVAL_MS);
+  //
+  // The pump is gated at the fill count and nothing else. Every step between here and the gesture
+  // — a geometry probe, two instruments, a button count, an instrument clear, a sampler start — is
+  // a round trip whose cost is the host's, and an ungated pump spends the reply on them: under load
+  // the reply is over before the gesture is sent, and the window then measures a settled pane. With
+  // the gate the reply stops exactly when the pane is full and stays stopped until this case says
+  // otherwise, so "the window sits inside the reply" is a construction rather than a bet.
+  const stream = startWireStream(page, sessionId, deltas, AC109_DELTA_INTERVAL_MS, {
+    deliverAtMost: WINDOW_FILL_DELTAS,
+  });
 
   // A wheel only moves a pane that has something to scroll, and this window is about a pane the
   // user took while a reply was still growing it: waiting for the reply to have filled more than
@@ -1618,13 +1717,18 @@ const runAc109Window = async (page: Page, options: {
   await clearInstruments(page);
   await startAc109Sampler(page);
 
+  // The window's premise at the gesture, read rather than assumed. Both readings are printed with
+  // the case's output: a window that opens after the reply has arrived measures a settled pane, and
+  // the assertion that says so is three down from here — this is what makes that failure legible
+  // instead of a number a reader has to reconstruct.
+  const completionAtGesture = ((await page.locator(PANE).textContent()) ?? '').includes(completionMarker);
+  const deliveredAtGesture = stream.delivered();
+
   const gestureStartedAt = await page.evaluate(() => performance.now());
   await gesture();
   const gestureEndedAt = await page.evaluate(() => performance.now());
-  await page.waitForTimeout(AC109_DETACH_WINDOW_MS);
 
-  const detachSamples = await stopAc109Sampler(page);
-  // The gesture's own frame of reference, read after the fact (it is recorded synchronously as the
+  // The gesture's own frame of reference, read immediately (it is recorded synchronously as the
   // input is dispatched, so nothing the gesture does can move what it says). Its absence is a
   // reading of its own rather than a reason to fall back to the stub: the gesture is delivered
   // through the browser's input path, and a window whose gesture never arrived as an input has no
@@ -1634,14 +1738,50 @@ const runAc109Window = async (page: Page, options: {
     anchor,
     `${label}: the gesture has to arrive as an input event on the pane, or the window has no frame of reference of its own and its baseline would be the stub's`,
   ).not.toBeNull();
+  const anchorOffset = anchor!.scrollTop;
+  const anchorT = anchor!.t;
+
+  // The gesture's landing, read on its own before anything is concluded about the hold.
+  //
+  // `movedUpBy` below is a statement about the frames the sampler caught, and the sampler is a rAF
+  // chain on the same main thread that is rendering the reply: under load it can deliver no frame
+  // at all between the gesture and the end of the hold, and the assertion then reports 0 for a pane
+  // the user really did move — indistinguishable, in the gate's log, from "the gesture never
+  // landed". This read is the independent evidence. It is bounded and retried, so a gesture that
+  // really does fail to land is named here, with the offset it was taken from, rather than as a 0
+  // further down.
+  await expect
+    .poll(async () => anchorOffset - (await readGeometry(page)).scrollTop, {
+      timeout: 15_000,
+      intervals: [50, 100, 200],
+      message: `${label}: the gesture has to move the pane before the hold can be read — the pane never left the offset the input anchored at (${Math.round(anchorOffset)} at t${Math.round(anchorT)})`,
+    })
+    .toBeGreaterThanOrEqual(landingPx);
+
+  // Only now the reply's growth — after the pane has been observed to move, not at the instant the
+  // gesture is sent. A delta released at the gesture can commit in the very frame the wheel's own
+  // scroll is still being applied: the commit pin then places the pane back on the bottom before
+  // the gesture's scroll report lands, the app reads that report as "no move up", and the detach is
+  // lost. That is a race the window would be inflicting on itself — it needs the reply to grow the
+  // pane under the hold, not to arrive in the frame the hold begins. The tail is still behind the
+  // gate: the last delta and `stream_end` are released only after the window has closed.
+  stream.releaseThrough(deliveredAtGesture + WINDOW_GROWTH_DELTAS);
+
+  // The hold itself, a fixed span from the landing, so how long the read above took cannot shorten
+  // the window it opens. Released at the pump's own interval, the growth arrives inside this span.
+  await page.waitForTimeout(AC109_DETACH_WINDOW_MS);
+
+  // The window's liveness from the pump's side, taken at the moment it closes: what the stream had
+  // handed over, and whether it had handed over all of it.
+  const deliveredAtWindowEnd = stream.delivered();
+  const finishedAtWindowEnd = stream.finished();
+  const detachSamples = await stopAc109Sampler(page);
   // Every reading below is cut at the gesture's own input moment. `anchor.scrollTop` is the offset
   // the user's gesture started from — the input's default scroll has not run yet when it is read —
   // and the write records are filtered to `t >= anchor.t`, so a write the follow made *before* the
   // user touched the pane is "before the window" rather than the window's behaviour. Both are the
   // same defect seen from two sides: the stub is a few round trips wide, the reply fills that gap,
   // and what happened in it says nothing about whether the gesture was respected.
-  const anchorOffset = anchor!.scrollTop;
-  const anchorT = anchor!.t;
   const paneWrites = (await readAc109PaneWrites(page)).filter((write) => write.t >= anchorT);
   const detachTrace = await readInstruments(page);
   const pageWrites = detachTrace.__scrollWrites.filter((write) => write.t >= anchorT);
@@ -1670,7 +1810,7 @@ const runAc109Window = async (page: Page, options: {
   ).toBeGreaterThan(0);
   expect(
     movedUpBy,
-    `${label}: the gesture has to have moved the viewport up, or "nothing wrote it back" is a statement about a pane the user never moved`,
+    `${label}: the gesture has to have moved the viewport up, or "nothing wrote it back" is a statement about a pane the user never moved (${describeAc109Window(detachSamples, paneWrites, { startedAt: gestureStartedAt, endedAt: gestureEndedAt, anchor }, detachTrace)})`,
   ).toBeGreaterThan(0);
   // The criterion's own reading. Thirty pixels and a PageUp both leave the pane inside the 50px
   // band a distance rule reads as "at the bottom", so an implementation that decided by distance
@@ -1690,14 +1830,32 @@ const runAc109Window = async (page: Page, options: {
   ).toEqual([]);
   // The window's liveness, from the stream's side: the reply was still arriving, and it really
   // did grow the pane under the held viewport.
+  //
+  // The premise is checked on both sides now, and each side is a reading rather than an inference.
+  // At the gesture: the reply had not finished arriving, so the window is about to be inside it.
+  // Across the window: the pump handed over more deltas than it had at the gesture, which is the
+  // independent counterpart of `growthsInWindow` — that number is read off the sampler's frames,
+  // this one off the pump's own ledger.
+  expect(
+    completionAtGesture,
+    `${label}: the reply had already fully arrived when the gesture was sent, so the window measured a settled pane (delivered ${deliveredAtGesture} of ${deltas.length} at the gesture)`,
+  ).toBe(false);
+  expect(
+    deliveredAtWindowEnd - deliveredAtGesture,
+    `${label}: the reply has to have been handed over while the window was open — the pump delivered ${deliveredAtGesture} before the gesture and ${deliveredAtWindowEnd} when the window ended`,
+  ).toBeGreaterThan(0);
   expect(
     completionPresent,
-    `${label}: the reply had already fully arrived when the window ended, so the window measured a settled pane`,
+    `${label}: the reply had already fully arrived when the window ended, so the window measured a settled pane (delivered ${deliveredAtWindowEnd} of ${deltas.length} when the window ended)`,
   ).toBe(false);
   expect(
     stream.delivered(),
     `${label}: the reply was never handed to the app, so the window measured a pane nothing was growing`,
   ).toBeGreaterThan(0);
+  expect(
+    finishedAtWindowEnd,
+    `${label}: the reply must still have been arriving when the window ended, or the window measured a settled pane (delivered ${deliveredAtWindowEnd} of ${deltas.length})`,
+  ).toBe(false);
   expect(
     stream.finished(),
     `${label}: the reply must still have been arriving when the window ended, or the window measured a settled pane`,
@@ -1722,6 +1880,11 @@ const runAc109Window = async (page: Page, options: {
       message: `${label}: the control never brought the pane back to the bottom`,
     })
     .toBeLessThanOrEqual(AC109_GAP_PX);
+
+  // The rest of the reply, released now that the window has closed and the user is back at the
+  // bottom. The criterion's second half is about this span — "the remaining streaming stays pinned"
+  // — so the tail has to arrive *after* the click, not be spent arriving while the pane was held.
+  stream.releaseThrough(deltas.length);
 
   await startAc109Sampler(page);
   await expect(page.locator(PANE)).toContainText(completionMarker, { timeout: 30_000 });
@@ -1781,6 +1944,10 @@ const runAc109Window = async (page: Page, options: {
     buttonVisible,
     buttonAppearancesInWindow,
     completionPresent,
+    deliveredAtGesture,
+    deliveredAtWindowEnd,
+    finishedAtWindowEnd,
+    completionAtGesture,
     pinnedFrames: pinnedSamples.length,
     pinnedGrowths,
     unpinned,
@@ -3081,6 +3248,7 @@ test.describe('transcript follow in a real browser', () => {
         await pointAtPane(page);
         await page.mouse.wheel(0, -AC109_WHEEL_PX);
       },
+      landingPx: WINDOW_WHEEL_LANDING_PX,
     }));
 
     // The keyboard half: the same pane, the same stream, and the one input a wheel-based rule
@@ -3096,6 +3264,7 @@ test.describe('transcript follow in a real browser', () => {
         await page.locator(PANE).focus();
         await page.keyboard.press('PageUp');
       },
+      landingPx: WINDOW_PAGE_LANDING_PX,
     }));
 
     // Both windows ran, in the order they are written, so neither reading below stands in for
