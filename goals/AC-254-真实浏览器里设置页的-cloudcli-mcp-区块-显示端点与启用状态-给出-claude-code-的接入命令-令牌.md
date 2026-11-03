@@ -7,6 +7,7 @@ kind: criterion
 goal: GOAL-020
 criterion: for f in e2e/mcp-settings.spec.ts; do [ -f "$f" ] || { echo
   "缺判据文件：$f" >&2; exit 1; }; done; npx playwright test e2e/mcp-settings.spec.ts
+timeoutMs: 260000
 expect: "真实浏览器、真实后端、临时数据目录，分别在 `MCP_ENABLED` 开与关两种配置下。读数：(a) 开启时区块显示端点
   URL（带复制按钮）与「已启用」，URL 形如 `<基址>/mcp`；(b) 关闭时显示「未启用」与启用方法，不显示可用的接入命令；(c) 接入命令里含端点
   URL 与 `Authorization: Bearer` 头的占位符，页面上任何文本节点都不含真实令牌；(d) 创建令牌的表单里五个 scope
