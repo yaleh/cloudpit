@@ -173,6 +173,11 @@ type ProviderRuntimeServiceDependencies = {
    */
   resolveResidentLaunchOptions(provider: LLMProvider, sessionId: string): Promise<AnyRecord>;
   /**
+   * Resolves one model's upstream provider id synchronously from the model
+   * library, so a resident cold start can carry the binding into its launch.
+   */
+  resolveModelProviderId(provider: LLMProvider, modelId: string): string | null;
+  /**
    * Whether one provider's resident process can stop a named background task.
    *
    * Read from the capability matrix by default
@@ -238,6 +243,7 @@ const defaultDependencies: ProviderRuntimeServiceDependencies = {
   resolveSessionLifecycleMode: (sessionId) => sessionsDb.getSessionLifecycleMode(sessionId),
   sessionHostManager: processWideSessionHostManager,
   resolveResidentLaunchOptions: (provider, sessionId) => defaultResidentLaunchOptions(provider, sessionId),
+  resolveModelProviderId: (provider, modelId) => providerModelsService.resolveModelProviderId(provider, modelId),
   residentStopTaskSupported: (provider) => defaultResidentStopTaskSupported(provider),
   stopTaskCallTimeoutMs: readStopTaskCallTimeoutMs(),
   residentBackgroundTaskSupported: (provider) => defaultResidentBackgroundTaskSupported(provider),
@@ -722,7 +728,11 @@ export function createProviderRuntimeService(
       // already holding; `options` therefore reaches it as the *first* turn's
       // launch options when the session is cold, and as a later turn's options
       // (attachments, command) when it is not.
-      return resident.run(appSessionId, { command, options }, writer, context);
+      const modelProviderId = typeof options.model === 'string'
+        ? dependencies.resolveModelProviderId(providerName, options.model)
+        : null;
+      const residentOptions = modelProviderId ? { ...options, modelProviderId } : options;
+      return resident.run(appSessionId, { command, options: residentOptions }, writer, context);
     }
 
     // Every other dispatched turn becomes a per-run host. The manager only

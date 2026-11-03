@@ -2,7 +2,7 @@
 id: gap-cockpit-knowledge-discovery-null-revision
 title: cockpit 接受 discovery 卡 knowledgeRevision:null：无 knowledgeId 时只绑
   caseId+proposalRevision
-status: done
+status: ready
 labels:
   - gap
   - defect
@@ -61,7 +61,7 @@ extra:
 
 ## Blocker
 
-**2026-11-03T09:38:21.029Z — worker 未落地（exited-not-landed）**
+**2026-11-03T10:03:50.495Z — worker 未落地（exited-not-landed）**
 
 - 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
 fan-in-ff-merge:    M src/modules/chat-support/utils/inputSuggestions.ts
@@ -69,4 +69,18 @@ fan-in-ff-merge:    M src/modules/chat-transcript/hooks/useTranscriptSelection.t
 fan-in-ff-merge:    M src/modules/chat-transcript/index.ts
 fan-in-ff-merge:    M src/modules/chat/tests/useTranscriptSelection.test.tsx
 - run_id：wk-prod-anchor
-- session_id：04888b50-684e-4ec3-b7e0-72407769f48d
+- session_id：48e62335-6f70-4dad-84f4-5761befcb376
+
+## Needs-Human
+
+**执行 2026-11-03T10:03:51.234Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M src/modules/chat-support/utils/inputSuggestions.ts
+fan-in-ff-merge:    M src/modules/chat-transcript/hooks/useTranscriptSelection.ts
+fan-in-ff-merge:    M src/modules/chat-transcript/index.ts
+fan-in-ff-merge:    M src/modules/chat/tests/useTranscriptSelection.test.tsx
+- run_id：wk-prod-anchor
+- session_id：48e62335-6f70-4dad-84f4-5761befcb376
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-cockpit-knowledge-discovery-null-revision-wk-prod-anchor.log
