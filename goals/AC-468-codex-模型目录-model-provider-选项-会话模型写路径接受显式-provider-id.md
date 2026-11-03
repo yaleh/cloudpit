@@ -1,7 +1,7 @@
 ---
 id: AC-468
 title: Codex 模型目录 model×provider 选项 + 会话模型写路径接受显式 provider id
-status: active
+status: achieved
 kind: criterion
 goal: GOAL-056
 criterion: npx tsx --tsconfig server/tsconfig.json --test
@@ -20,6 +20,11 @@ statusLog:
     to: active
     actor: goal-driver
     reason: "triage: activate"
+  - at: 2026-11-03T13:21:10.648Z
+    from: active
+    to: achieved
+    actor: goal-driver
+    reason: "I2: criterion pass"
 fidelity:
   verdict: faithful
   reason: "fidelity judge: faithful"

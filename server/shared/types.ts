@@ -462,6 +462,13 @@ export type ProviderModelOption = {
   isCustom?: boolean;
   /** Custom-model env config as returned to clients; secret values are never included. */
   config?: ProviderModelPublicConfig | null;
+  /**
+   * The upstream provider this row runs under (a Codex `model_providers.<id>`
+   * id). Absent means the row inherits the provider's own default. A built-in
+   * model is offered once bare (absent) and once per registered provider, so
+   * those rows share `value` and differ only by this field.
+   */
+  modelProviderId?: string;
   effort?: {
     default?: string;
     values: {
