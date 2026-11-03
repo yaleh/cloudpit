@@ -2,7 +2,7 @@
 id: gap-cockpit-knowledge-discovery-null-revision
 title: cockpit 接受 discovery 卡 knowledgeRevision:null：无 knowledgeId 时只绑
   caseId+proposalRevision
-status: ready
+status: done
 labels:
   - gap
   - defect
