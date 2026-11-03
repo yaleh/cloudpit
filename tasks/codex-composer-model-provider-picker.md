@@ -25,10 +25,13 @@ goal_ac: AC-469
 
 - tasks/codex-composer-model-provider-picker.md
 - src/modules/chat-composer/composer/ComposerModelMenu.tsx
+- src/modules/chat-composer/composer/ChatComposer.tsx
 - src/modules/chat-session/hooks/useChatProviderState.ts
+- src/modules/chat/ChatInterface.tsx
 - src/shared/types.ts
 - src/shared/api.ts
 - src/shared/tests/wireContractTypeSync.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/chat/tests/composerModelProviderOption.test.tsx（新）
 
 ## AC

@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { SessionAskEvent } from '@/shared/types.js';
 
-import type { ObservedObject, ObservationStore, WriteObservationInput } from '../observation-store.js';
+import type { ObservedObject, ObservationStore, WriteObservationInput } from '../core/index.js';
 import {
   createSessionAskLedgerOwner,
   dropAnsweredPending,
@@ -31,11 +31,11 @@ import {
   withdrawAskFromLedger,
   type SessionAskEventLedger,
   type SessionAskLedgerOwner,
-} from '../session-ask-ledger.js';
+} from '../session-ask/index.js';
 
-const PRODUCER_PATH = fileURLToPath(new URL('../session-digest.producer.ts', import.meta.url));
-const LEDGER_PATH = fileURLToPath(new URL('../session-ask-ledger.ts', import.meta.url));
-const RECOVERY_PATH = fileURLToPath(new URL('../session-ask-recovery.ts', import.meta.url));
+const PRODUCER_PATH = fileURLToPath(new URL('../session-digest/session-digest.producer.ts', import.meta.url));
+const LEDGER_PATH = fileURLToPath(new URL('../session-ask/session-ask-ledger.ts', import.meta.url));
+const RECOVERY_PATH = fileURLToPath(new URL('../session-ask/session-ask-recovery.ts', import.meta.url));
 
 type Harness = {
   owner: SessionAskLedgerOwner;
@@ -261,8 +261,8 @@ test('ledger: a missing or malformed digest reads as an empty ledger', () => {
 
 test('producer: delegates ledger state and the recovery walks to their own owners', async () => {
   const exporter = await readFile(PRODUCER_PATH, 'utf8');
-  assert.match(exporter, /from '\.\/session-ask-ledger\.js'/);
-  assert.match(exporter, /from '\.\/session-ask-recovery\.js'/);
+  assert.match(exporter, /from '\.\.\/session-ask\/index\.js'/);
+  assert.match(exporter, /from '\.\.\/session-ask\/index\.js'/);
   assert.match(exporter, /createSessionAskLedgerOwner\(/);
   assert.match(exporter, /createSessionAskRecovery\(/);
 

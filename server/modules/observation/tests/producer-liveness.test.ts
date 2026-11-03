@@ -25,9 +25,12 @@ import test from 'node:test';
 
 import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 
-import { formatSessionUri } from '../observation-uri.js';
-import { createObservationStore, DEFAULT_OBSERVATION_WALL_LIMIT } from '../observation-store.js';
-import { PRODUCER_STALE_MULTIPLIER } from '../producer-liveness.js';
+import {
+  formatSessionUri,
+  createObservationStore,
+  DEFAULT_OBSERVATION_WALL_LIMIT,
+  PRODUCER_STALE_MULTIPLIER,
+} from '../core/index.js';
 
 const USER_ID = 'liveness-user';
 const CADENCE_MS = 60_000;
