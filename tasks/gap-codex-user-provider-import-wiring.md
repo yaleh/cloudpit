@@ -1,7 +1,7 @@
 ---
 id: gap-codex-user-provider-import-wiring
 title: AC-466：只读导入的用户 ~/.codex provider 真正可绑定 —— 接线导入端点、设置页一键导入、写项目 settings 并可在模型条目选中
-status: ready
+status: done
 labels:
   - gap
   - defect
