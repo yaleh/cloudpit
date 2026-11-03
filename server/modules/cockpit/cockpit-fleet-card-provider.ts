@@ -39,6 +39,8 @@ import {
 } from './cockpit-fleet-card-projection.js';
 import {
   COCKPIT_FLEET_EXECUTORS_ARGS,
+  COCKPIT_MOLTEN_DECIDE_DECLARATION,
+  COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
   CockpitFleetExecutor,
   readCockpitFleetExecutors,
   type CockpitFleetCommandResult,
@@ -350,16 +352,36 @@ export function createCockpitFleetCardProvider(
   // The declaration set is what makes every disposal option CONFIRMABLE: the action channel
   // refuses an executor no provider declared, and this is the provider's statement of the fleet's
   // surface. An empty set means the CLI did not answer (the reason rides on `executorReading`).
-  const declaredExecutors = (): readonly string[] =>
-    executorState.declarations.map((declaration) => declaration.id);
+  //
+  // THE MOLTEN EXECUTOR IS THE ONE COCKPIT-SIDE DECLARATION. Its id belongs to the GOAL-012
+  // contract the fleet has not shipped yet, so `rescue executors --json` cannot list it; without
+  // this the molten card's confirm options would render unconfirmable. It is added only when the
+  // CLI answered successfully (a failed read declares nothing at all) and only when the fleet has
+  // not started declaring it itself — the CLI's own declaration always wins.
+  const declaredExecutors = (): readonly string[] => {
+    const ids = executorState.declarations.map((declaration) => declaration.id);
+    if (
+      executorState.read &&
+      executorState.reason === null &&
+      !ids.includes(COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID)
+    ) {
+      ids.push(COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
+    }
+    return ids;
+  };
 
   // The implementation is resolved LAZILY, because the declaration arrives after construction
   // (the CLI is an async child). The cockpit module discovers this capability structurally from
   // the provider object it registers; the action channel asks it only for an id it just found
   // declared, so an undeclared id never reaches here.
+  //
+  // The molten executor falls back to the cockpit's static declaration when the fleet's CLI does
+  // not list it; once the fleet ships the same id, the CLI's declaration is preferred verbatim.
   const resolveExecutor: CockpitExecutorResolver = async (id) => {
     const reading = await ensureExecutors();
-    const declaration = reading.declarations.find((entry) => entry.id === id);
+    const declaration =
+      reading.declarations.find((entry) => entry.id === id) ??
+      (id === COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID ? COCKPIT_MOLTEN_DECIDE_DECLARATION : undefined);
     if (declaration === undefined || runExecutors === undefined) return null;
     return new CockpitFleetExecutor(declaration, { runFleet: runExecutor(runExecutors) });
   };
