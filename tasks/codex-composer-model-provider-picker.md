@@ -49,3 +49,13 @@ MCP 浏览器实际操作 + 截图存 tmp/（composer 选 gpt-5.6-terra (fjdac) 
 
 - L_D 该轴仍暗,理由:本任务是 composer 选择器 UI，读数是 AC 判据与场景运行器，没有可量化的领域数据轴读数。
 - L_G 该轴仍暗,理由:本任务不新增 goal 判据；目标层读数由 GOAL-056 的 AC-469 承担。
+
+## Blocker
+
+**2026-11-03T13:26:30.800Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
+CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：954df0b9-7e24-4d61-98dc-baabe6bbb94f
