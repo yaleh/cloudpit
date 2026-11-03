@@ -31,21 +31,21 @@ import {
   type QuayFleetLivenessReading,
 } from '@/modules/quay/index.js';
 
-import { formatProjectUri } from '../observation-uri.js';
 import {
   createObservationStore,
+  formatProjectUri,
   type ObservationStore,
   type ObservedObject,
-} from '../observation-store.js';
+} from '../core/index.js';
 import {
   buildProjectTruth,
+  createProjectTruthProducer,
   type ProjectTruthBoardReading,
   type ProjectTruthDeployReading,
   type ProjectTruthLayers,
   type ProjectTruthProjectRef,
   type ProjectTruthTaskRow,
-} from '../project-truth.js';
-import { createProjectTruthProducer } from '../project-truth.producer.js';
+} from '../producers/index.js';
 
 /** A fixed instant; every fixture time is expressed relative to it. */
 const NOW = 1_700_000_000_000;

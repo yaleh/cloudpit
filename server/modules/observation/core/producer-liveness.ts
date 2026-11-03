@@ -19,7 +19,7 @@
  * `red` outranks `stale`: the last thing we know is that the producer FAILED, which is a
  * stronger statement than "it has been quiet too long" even when both are true.
  *
- * Consumers: `server/modules/observation/observation-store.ts` (the wall's `producers[]` and
+ * Consumers: `server/modules/observation/core/observation-store.ts` (the wall's `producers[]` and
  * its 「观察层自身」 entry) and `server/modules/observation/tests/producer-liveness.test.ts`.
  */
 

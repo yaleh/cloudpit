@@ -38,19 +38,20 @@ import {
   type ReplySuggestionsUsageLog,
 } from '@/modules/reply-suggestions/index.js';
 
-import { formatSessionUri } from '../observation-uri.js';
-import { createObservationStore } from '../observation-store.js';
-import { createSessionDigestProducer, type SessionTurnEndEvent } from '../session-digest.producer.js';
 import {
+  formatSessionUri,
+  createObservationStore,
+  createSessionDigestLlmSettingsSource,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
+import {
+  createSessionDigestProducer,
   createSessionDigestLlmTier,
   SESSION_DIGEST_LLM_ADVISORY,
   SESSION_DIGEST_LLM_LIMIT_REASON,
+  type SessionTurnEndEvent,
   type SessionDigestLlmTier,
-} from '../session-digest-llm.js';
-import {
-  createSessionDigestLlmSettingsSource,
-  type SessionDigestLlmSettings,
-} from '../session-digest-llm-settings.js';
+} from '../session-digest/index.js';
 
 const USER_ID = 'llm-tier-watcher';
 const SESSION_TITLE = '修复登录刷新';

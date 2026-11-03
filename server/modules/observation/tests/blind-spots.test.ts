@@ -32,14 +32,13 @@ import {
   BLIND_SPOTS_DIGEST_KEY,
   OBSERVATION_LAYER_BLIND_SPOTS,
   defaultBlindSpots,
-} from '../blind-spots.js';
-import {
   formatArchitectureUri,
   formatProjectUri,
   formatSessionUri,
-} from '../observation-uri.js';
-import { createObservationStore } from '../observation-store.js';
-import type { ObservedStatus, WriteObservationInput } from '../observation-store.js';
+  createObservationStore,
+  type ObservedStatus,
+  type WriteObservationInput,
+} from '../core/index.js';
 
 const USER_ID = 'user-1';
 const PRODUCER = 'blind-spots-criterion';

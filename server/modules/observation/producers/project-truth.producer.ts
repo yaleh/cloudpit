@@ -31,8 +31,11 @@ import {
   type QuayFleetLivenessReading,
 } from '@/modules/quay/index.js';
 
-import { formatProjectUri } from './observation-uri.js';
-import type { ObservedObject, ObservationStore } from './observation-store.js';
+import {
+  formatProjectUri,
+  type ObservedObject,
+  type ObservationStore,
+} from '../core/index.js';
 import { refreshAllOf } from './producer-batch.js';
 import {
   buildProjectTruth,

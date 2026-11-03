@@ -172,6 +172,22 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
             </Button>
           </div>
 
+          <div className="mt-2 max-w-2xl space-y-1">
+            <p
+              className="text-[11px] leading-5 text-muted-foreground"
+              data-testid="codex-provider-variant-hint"
+              data-codex-provider-variant={draft.id}
+            >
+              The composer and new-session model pickers show each model bound to this provider
+              as a <code className="font-mono">(provider)</code> variant of the model name, and
+              the suffix is the provider ID
+              (<code className="font-mono">{draft.id || 'provider-id'}</code>).
+            </p>
+            <p className="text-[11px] leading-5 text-muted-foreground">
+              A model with no provider binding keeps Codex&apos;s global default and appears once.
+            </p>
+          </div>
+
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-semibold text-foreground">
               Provider ID

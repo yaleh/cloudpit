@@ -80,8 +80,12 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { SessionAskDecisionReading } from '@/shared/types.js';
 import { isRecord, resolveClaudeConfigDir } from '@/shared/utils.js';
 
-import { formatSessionUri } from './observation-uri.js';
-import type { ObservationStore } from './observation-store.js';
+import {
+  formatSessionUri,
+  createSessionDigestLlmSettingsSource,
+  type ObservationStore,
+  type SessionDigestLlmSettings,
+} from '../core/index.js';
 import {
   createSessionAskDecisionDigest,
   readSessionAsk,
@@ -89,10 +93,6 @@ import {
   SESSION_ASK_OUTPUT_UNUSABLE_REASON,
   type SessionAskDecisionDigest,
 } from './session-ask-decision-digest.js';
-import {
-  createSessionDigestLlmSettingsSource,
-  type SessionDigestLlmSettings,
-} from './session-digest-llm-settings.js';
 
 /** The stated reason on a read whose recompute was refused by the hourly ceiling. */
 export const SESSION_ASK_DECISION_LIMIT_REASON = '本轮未生成（限额）';
