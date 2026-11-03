@@ -1,7 +1,7 @@
 ---
 id: codex-provider-import-user-profile
 title: 只读导入用户 ~/.codex provider：绑定 providerId，项目文件仍是唯一写入点
-status: ready
+status: done
 labels:
   - feature
 parent: null
