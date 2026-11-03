@@ -5,7 +5,7 @@ status: draft
 kind: criterion
 goal: GOAL-056
 criterion: npx tsx --tsconfig server/tsconfig.json --test
-  server/modules/providers/tests/provider-models.service.test.ts
+  server/modules/providers/tests/codex-model-provider-option.test.ts
 expect: getProviderModels('codex') 对每个内置模型展开裸名（modelProviderId 缺省=继承默认）+ 每个注册
   provider 的变体（modelProviderId=provider id），自定义模型单条且带
   codexProviderId；setSessionModel 接受显式 modelProviderId（内置模型路由到非默认 provider）并落库
