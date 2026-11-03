@@ -716,9 +716,20 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     modelId: string,
   ): ProviderModelConfig | null => catalog.findCustomProviderModelByModelId(provider, modelId)?.config ?? null;
 
+  /**
+   * Resolves one model's upstream provider id synchronously from the custom-model
+   * catalog. Consumed by the runtime dispatch so a resident cold start carries
+   * the binding in its launch options (a send's options name only the model).
+   */
+  const resolveModelProviderIdForModel = (
+    provider: LLMProvider,
+    modelId: string,
+  ): string | null => resolveModelProviderId(catalog, provider, modelId.trim());
+
   return {
     getProviderModels,
     getCustomModelConfigForRuntime,
+    resolveModelProviderId: resolveModelProviderIdForModel,
     createCustomModel,
     duplicateCustomModel,
     updateCustomModel,

@@ -409,3 +409,41 @@ test('the in-flight reading answers null for a per-run session, a gone host, a d
     'a session the driver is not hosting is answered by the driver itself, and reaches the caller as null',
   );
 });
+
+function createResidentDispatchService(providerModelId: string | null) {
+  let capturedOptions: Record<string, unknown> | undefined;
+  const provider = createProvider('codex', createRuntime());
+  (provider as unknown as { hostDriver: { run(appSessionId: string, turn: { command: string; options: Record<string, unknown> }): Promise<unknown> } }).hostDriver = {
+    async run(_appSessionId, turn) {
+      capturedOptions = turn.options;
+      return undefined;
+    },
+  };
+  const service = createProviderRuntimeService({
+    listProviders: () => [provider],
+    resolveProvider: () => provider,
+    resolveProviderSessionId: (sessionId) => (sessionId ? `native-${sessionId}` : null),
+    resolveResumeModel: async (_provider, _sessionId, requestedModel) => requestedModel?.trim() || undefined,
+    getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'default-model' }),
+    resolveSessionLifecycleMode: () => 'resident',
+    resolveModelProviderId: () => providerModelId,
+  });
+  return {
+    service,
+    options() {
+      return capturedOptions;
+    },
+  };
+}
+
+test('resident cold-start dispatch carries the model\'s upstream provider id into the turn options', async () => {
+  const dispatch = createResidentDispatchService('fjdac');
+  await dispatch.service.run('codex', 'hello', { sessionId: 'session-1', model: 'v4.1flash' }, {} as never);
+  assert.equal(dispatch.options()?.modelProviderId, 'fjdac');
+});
+
+test('resident cold-start dispatch leaves a provider-less model untouched', async () => {
+  const dispatch = createResidentDispatchService(null);
+  await dispatch.service.run('codex', 'hello', { sessionId: 'session-1', model: 'gpt-6.1-sol' }, {} as never);
+  assert.equal(dispatch.options()?.modelProviderId, undefined);
+});
