@@ -43,13 +43,24 @@ cockpit 现有两条卡通道：
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx`（或新增 descriptor 测试）退出码 0，且新增用例断言：`molten` kind 渲染出专属徽标/kind label（descriptor 命中，非默认 other）；熔融决策卡投影后 `kind === 'molten'` 且 ask/facts/options 承载「判断/结论/dispatch 提议」；confirm 执行器在 declared executors 集合中，且其 id ≠ `fleet.apply`、knowledge 块不被创建。
-- [ ] `npx oxlint`（改动文件）与 `npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p server/tsconfig.json` 退出码 0；`src/shared/tests/cockpitCardTypeSync.test.ts` 退出码 0。
-- [ ] 只读复核：`git diff` 显示只新增 `molten` descriptor、投影、confirm 执行器声明与类型同步；`git grep -n "fleet.apply" server/modules/cockpit/` 无新增调用（knowledge confirm 未被复用）；`git grep -n "molten" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx`（或新增 descriptor 测试）退出码 0，且新增用例断言：`molten` kind 渲染出专属徽标/kind label（descriptor 命中，非默认 other）；熔融决策卡投影后 `kind === 'molten'` 且 ask/facts/options 承载「判断/结论/dispatch 提议」；confirm 执行器在 declared executors 集合中，且其 id ≠ `fleet.apply`、knowledge 块不被创建。
+- [x] `npx oxlint`（改动文件）与 `npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p server/tsconfig.json` 退出码 0；`src/shared/tests/cockpitCardTypeSync.test.ts` 退出码 0。
+- [x] 只读复核：`git diff` 显示只新增 `molten` descriptor、投影、confirm 执行器声明与类型同步；`git grep -n "fleet.apply" server/modules/cockpit/` 无新增调用（knowledge confirm 未被复用）；`git grep -n "molten" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
 
 ## DoD
 
 一张熔融决策卡在 cockpit 用新 `molten` 徽标渲染（结论 + 选项 + confirm bar），confirm 走新声明的执行器（结晶成 task/card），不经过 knowledge confirm、不建 knowledge 块；wire 类型两端同步。真实对象已被操作：GOAL-012 落地后，用一次真实熔融触发产出的卡在浏览器打开、渲染、confirm 走新执行器（端到端 apply 联合复验，待外部），截图存 `tmp/`。本任务不把「fleet 已结晶 task/card」写成自身 DoD。
+
+## Notes
+
+实现与自检（2026-11-03）：
+
+- AC-1：`npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出 0（99 tests）。新增用例断言：`molten` descriptor 命中（badge `MLT`、`data-tone="molten"`、title `Molten decision`，非默认 other）；熔融决策卡的判断→ask、结论→fact、动作/dispatch 提议→options；每个 option 的执行器为 `fleet.molten-decide`（≠ `fleet.apply`），且卡片无 knowledge 块、DOM 无 knowledge 区块。服务端判据 `cockpit-fleet-card-provider.test.ts` 同时断言投影后 `kind === 'molten'`、四段读数落位、`declaredExecutors` 含 `fleet.molten-decide` 且迟到绑定可解析该执行器。
+- AC-2：`npx oxlint`（全部改动文件）退出 0；`npx tsc --noEmit -p tsconfig.json` 与 `-p server/tsconfig.json` 均退出 0；`npx vitest run src/shared/tests/cockpitCardTypeSync.test.ts` 7 tests 通过（新增 `CockpitMoltenDecision` / `CockpitMoltenDecisionAction` 两行逐字段比对）。
+- AC-3：改动只有 molten descriptor、投影（熔融逻辑抽到新兄弟文件 `cockpit-fleet-molten.ts` 由投影调用）、`fleet.molten-decide` 执行器声明与两端类型同步；`git grep -n "fleet.apply" server/modules/cockpit/` 的非测试命中全部是既有知识路径（`cockpit-card-actions.ts`）与本次新增的「不是 fleet.apply」注释/负向断言，无新增调用；`git grep -n "molten" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
+- 架构棘轮：新增实现文件后投影文件 855→744 行（<800）；两端 `shared/types.ts` 各 +44 行按 AC-394 RECORDED CHANGE 格式上调基线（记录在该 baseline 的 note 内）；`architecture-ratchet.test.ts` 与 `server-import-cycle-budget.test.ts` 全绿。
+- DoD：卡片渲染（结论 + 选项 + confirm bar）由组件判据与 12 语言 i18n 完整性判据覆盖；真实熔融触发 → 浏览器确认 → fleet 结晶的端到端联合复验按 DoD 所述为（待外部），等待 GOAL-012 落地。
+- ADR-007：该轴仍暗,理由:本任务只做 cockpit 卡片渲染、执行器声明与 wire 类型同步，未产生 L_D 或 L_G 的依赖/分层读数
 
 ## Touches
 
@@ -57,6 +68,13 @@ cockpit 现有两条卡通道：
 - src/shared/types.ts
 - server/shared/types.ts
 - server/modules/cockpit/cockpit-fleet-card-projection.ts
+- server/modules/cockpit/cockpit-fleet-molten.ts (new)
 - server/modules/cockpit/cockpit-fleet-executor.ts
+- server/modules/cockpit/cockpit-fleet-card-provider.ts
 - src/modules/cockpit/tests/CockpitCard.test.tsx
+- src/shared/tests/cockpitCardTypeSync.test.ts
+- server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
+- server/modules/cockpit/tests/cockpit-fleet-executor.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
+- src/modules/i18n/locales/*/common.json
 - tasks/gap-cockpit-molten-decision-card.md
