@@ -1,7 +1,7 @@
 ---
 id: gap-cloudpit-brand-check-skip-node-modules
 title: brand-lines 扫描跳过 node_modules：修复主检出 brand-allowlist-check 的 60 条缓存误红
-status: todo
+status: ready
 labels:
   - gap
 parent: null
