@@ -31,14 +31,15 @@ goal_ac: AC-469
 - src/shared/types.ts
 - src/shared/api.ts
 - src/shared/tests/wireContractTypeSync.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/chat/tests/composerModelProviderOption.test.tsx（新）
 
 ## AC
 
-- [ ] AC-469 判据绿：npx vitest run src/modules/chat/tests/composerModelProviderOption.test.tsx 退出 0。
-- [ ] 正臂：内置模型展开裸名+每个 (provider) 变体、自定义模型单条；选中变体 selectProviderModel 携带 model+modelProviderId；收起态按钮显示 gpt-5.6-terra (fjdac)。
-- [ ] 负臂：裸名选择不带 modelProviderId；未知/已删 provider 变体不渲染。
-- [ ] 假形态：仍按 provider 分组或两个下拉框红；provider === 'codex' 分支红。
+- [x] AC-469 判据绿：npx vitest run src/modules/chat/tests/composerModelProviderOption.test.tsx 退出 0。
+- [x] 正臂：内置模型展开裸名+每个 (provider) 变体、自定义模型单条；选中变体 selectProviderModel 携带 model+modelProviderId；收起态按钮显示 gpt-5.6-terra (fjdac)。
+- [x] 负臂：裸名选择不带 modelProviderId；未知/已删 provider 变体不渲染。
+- [x] 假形态：仍按 provider 分组或两个下拉框红；provider === 'codex' 分支红。
 
 ## DoD
 
