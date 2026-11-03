@@ -109,3 +109,11 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 真实落地：在切自 develop 的任务工作树上，AC-331 的 criterion 以部署态配置（`VOICE_REALTIME_MODE=continuous`）**逐字跑完并 exit 0**（不是 `--list`、不是 `--grep` 缩短），四文件白名单守卫两条 rc=0，假形态配对读数（旧路径 `Cannot find module` 非零 / 新路径 load 成功）逐字入档，工作树收尾 `git status --porcelain` 只剩本任务声明的改动。
 
 完成记录必须含：工作树 HEAD sha、criterion 命令原文、exit code、passed 数、墙钟毫秒、AC3 两条守卫的 rc、AC5 两段原文。⛔ 不得改判据命令/期望值、不得加 `test.skip`/`retries`/env 钉换绿；若依赖落地后仍有与本 import 漂移无关的稳定红，必须先归因再决定是否属于本任务，不得把环境/夹具红写成产品绿。
+
+## Blocker
+
+**2026-11-03T14:30:58.585Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：AC 未全勾（checked 4/5，剩余未勾 1）——续做只需验证并勾选 AC
+- run_id：wk-prod-anchor
+- session_id：7257c612-1c69-4e9b-98e3-7b4108400961
