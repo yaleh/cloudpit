@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: todo
+status: ready
 labels:
   - gap
   - defect
