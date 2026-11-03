@@ -4412,9 +4412,9 @@ export type CockpitKnowledgeVerification = {
  * reference bound to the card revision and the person's choice; a caller-supplied identity is
  * never accepted as proof of a human decision.
  *
- * A card whose block is missing or lacks `caseId`/`knowledgeRevision`/`proposalRevision` cannot
- * be confirmed: the action channel refuses it with `KNOWLEDGE_EVIDENCE_MISSING` rather than
- * inventing a case.
+ * A card lacking `caseId`/`proposalRevision` (or naming `knowledgeId` without a usable
+ * `knowledgeRevision`) is refused with `KNOWLEDGE_EVIDENCE_MISSING`; a discovery-sourced
+ * suggestion states `knowledgeRevision: null` and binds `caseId + proposalRevision` alone.
  */
 export type CockpitKnowledgeCase = {
   /** The provider's stable case id; one per suggestion under decision. */
@@ -4432,8 +4432,8 @@ export type CockpitKnowledgeCase = {
    * revision's Markdown body, not a restatement). Omitted when the provider states none.
    */
   statement?: string;
-  /** The version of the knowledge entry this proposal was derived from. */
-  knowledgeRevision: number;
+  /** Version derived from; `null` when discovered (no entry to version yet). */
+  knowledgeRevision: number | null;
   /** The version of the proposal itself; both must match what the person saw. */
   proposalRevision: number;
   state: CockpitKnowledgeCaseState;
