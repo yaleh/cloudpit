@@ -1,6 +1,6 @@
 {
   "name": "codex-provider-import",
-  "description": "Settings → Agents → Codex: the user-profile import panel lists the operator's own ~/.codex providers (variable NAMES only, never a secret), one Bind writes the selected provider into the PROJECT registry, and the imported provider becomes a selectable binding for a new model. The isolated instance this runs against starts from an empty CODEX_SETTINGS_PATH and a HOME whose .codex/config.toml declares `bob` and whose bob-gpt.config.toml declares `bob-gpt`.",
+  "description": "Settings → Agents → Codex: the user-profile import panel lists the operator's own ~/.codex providers (variable NAMES only, never a secret), one Bind writes the selected provider into the PROJECT registry AND selects it in the model editor's upstream picker (no second selection), and the model saved next carries that provider. The isolated instance this runs against starts from an empty CODEX_SETTINGS_PATH and a HOME whose .codex/config.toml declares `bob` and whose bob-gpt.config.toml declares `bob-gpt`.",
   "steps": [
     {
       "open": "settings-agents-codex",
@@ -34,6 +34,7 @@
         "codexProvidersCount": 1,
         "codexProviderIds": ["bob"],
         "codexModelProviderOptions": ["", "bob"],
+        "codexModelProvider": "bob",
         "codexImportStatus": "ready",
         "codexImportError": null
       }
@@ -43,11 +44,7 @@
     },
     {
       "drive": { "modelLibrary.setField": { "field": "id", "value": "scenario-imported-model" } },
-      "expect": { "codexModelProviderOptions": ["", "bob"] }
-    },
-    {
-      "drive": { "modelLibrary.selectCodexProvider": "bob" },
-      "expect": { "codexModelProvider": "bob" }
+      "expect": { "codexModelProviderOptions": ["", "bob"], "codexModelProvider": "bob" }
     },
     {
       "drive": { "modelLibrary.save": true },

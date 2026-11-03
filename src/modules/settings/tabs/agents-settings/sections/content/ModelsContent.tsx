@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import ModelLibraryPanel from '@/shared/ui/ModelLibraryPanel';
+import ModelLibraryPanel, {
+  type CodexProviderBindRequest,
+} from '@/shared/ui/ModelLibraryPanel';
 import { api } from '@/shared/api';
 import type {
   AgentProvider,
@@ -22,6 +24,11 @@ type ModelsContentProps = {
    * model-library hosts, where a Codex model keeps inheriting the global default.
    */
   codexProviders?: CodexModelProvider[];
+  /**
+   * A one-click bind from the import panel that sits above this library. The panel itself
+   * stays the owner of what was bound; this layer only carries the request to the picker.
+   */
+  bindCodexProviderRequest?: CodexProviderBindRequest;
 };
 
 type CatalogByProvider = Partial<Record<LLMProvider, ProviderModelsDefinition>>;
@@ -42,7 +49,7 @@ const readCatalogResponse = async (response: Response): Promise<ProviderModelsDe
 };
 
 /** Rendered by AgentCategoryContentSection for the "models" category: the Model library as a first-class Settings > Agents section for the selected provider. */
-export default function ModelsContent({ agent, codexProviders }: ModelsContentProps) {
+export default function ModelsContent({ agent, codexProviders, bindCodexProviderRequest }: ModelsContentProps) {
   const { t } = useTranslation('settings');
   const [catalog, setCatalog] = useState<CatalogByProvider>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -105,6 +112,7 @@ export default function ModelsContent({ agent, codexProviders }: ModelsContentPr
         actions={actions}
         loadEnvStatus={loadEnvStatus}
         codexProviders={codexProviders}
+        bindCodexProviderRequest={bindCodexProviderRequest}
         hideProviderTabs
       />
     </div>

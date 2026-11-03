@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -76,6 +76,16 @@ const suggestCopyId = (base: string, taken: ReadonlySet<string>): string => {
   }
 };
 
+/**
+ * A one-click bind requested by the Settings import panel: the provider the person just bound
+ * becomes the model editor's upstream provider. `requestId` makes a second bind of the SAME
+ * provider re-apply (a provider id alone would not be a new value).
+ */
+export type CodexProviderBindRequest = {
+  providerId: string;
+  requestId: number;
+};
+
 type ModelLibraryPanelProps = {
   initialProvider: LLMProvider;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
@@ -89,6 +99,12 @@ type ModelLibraryPanelProps = {
    * inheriting the Codex global default.
    */
   codexProviders?: CodexModelProvider[];
+  /**
+   * The most recent one-click bind from the Settings import panel. It moves the picker the
+   * person can see; absent in every host that has no import panel, so those keep their form
+   * state untouched.
+   */
+  bindCodexProviderRequest?: CodexProviderBindRequest;
   /** Hides the provider switcher when the host already fixes the provider (Settings > Agents). */
   hideProviderTabs?: boolean;
 };
@@ -109,6 +125,7 @@ export default function ModelLibraryPanel({
   onDone,
   loadEnvStatus,
   codexProviders = [],
+  bindCodexProviderRequest,
   hideProviderTabs = false,
 }: ModelLibraryPanelProps) {
   const { t } = useTranslation();
@@ -232,6 +249,19 @@ export default function ModelLibraryPanel({
   // A Codex model's upstream is its bound provider, so its form always carries `config`:
   // omitting it on an edit would keep a binding the person just cleared.
   const sendsCodexProvider = descriptor.modelConfigKind === 'codex-provider';
+  // The bind request already applied, so a later registry refresh cannot pull the picker back
+  // to a provider the person has since changed. `0` is "nothing applied yet".
+  const appliedBindRequest = useRef(0);
+  useEffect(() => {
+    // The import panel owns when a bind happens; this form owns the picker. A request is
+    // applied only while the picker is drawn AND the provider is in the registry answer — a
+    // failed bind therefore leaves the picker exactly where the person left it.
+    if (!bindCodexProviderRequest || !sendsCodexProvider) return;
+    if (bindCodexProviderRequest.requestId === appliedBindRequest.current) return;
+    if (!codexProviders.some((provider) => provider.id === bindCodexProviderRequest.providerId)) return;
+    appliedBindRequest.current = bindCodexProviderRequest.requestId;
+    setCodexProviderId(bindCodexProviderRequest.providerId);
+  }, [bindCodexProviderRequest, codexProviders, sendsCodexProvider]);
   const sendsConfig = sendsEnvConfig || sendsCodexProvider;
   // Rows the request will leave out for an empty value — the user must see them
   // before submitting, or a named variable silently never reaches the server.
