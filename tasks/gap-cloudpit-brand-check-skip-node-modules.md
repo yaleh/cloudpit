@@ -32,11 +32,11 @@ extra:
 
 ## AC
 
-- [ ] `node scripts/brand-allowlist-check.mjs --json` 在主检出退出 0、`violations: []`；`readings.brandLineFiles` 不再包含任何含 `node_modules` 路径段的文件（60 → 0）。
-- [ ] `node --test scripts/brand-allowlist-check.test.mjs` 退出 0，AC1/AC5/AC7/current docs/AC8 全部恢复绿。
-- [ ] 新增回归臂：`server/node_modules/.cache/.../stale.mjs` 含 `CloudCLI` 时扫描绿；`server/modules/demo/source.ts` 含 `CloudCLI` 时扫描红；两条都由同一测试文件断言。
-- [ ] 真实源码的允许面不变：`git grep -l "CloudCLI" -- server src electron scripts public` 仍只列白名单文件（约 20 个），且任何非白名单源码注入都会让检查器红。
-- [ ] `node scripts/list-script-tests.mjs` 仍列出该测试文件；`npx oxlint scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs` 退出 0；anti-drift 只列 Touches。
+- [x] `node scripts/brand-allowlist-check.mjs --json` 在主检出退出 0、`violations: []`；`readings.brandLineFiles` 不再包含任何含 `node_modules` 路径段的文件（60 → 0）。
+- [x] `node --test scripts/brand-allowlist-check.test.mjs` 退出 0，AC1/AC5/AC7/current docs/AC8 全部恢复绿。
+- [x] 新增回归臂：`server/node_modules/.cache/.../stale.mjs` 含 `CloudCLI` 时扫描绿；`server/modules/demo/source.ts` 含 `CloudCLI` 时扫描红；两条都由同一测试文件断言。
+- [x] 真实源码的允许面不变：`git grep -l "CloudCLI" -- server src electron scripts public` 仍只列白名单文件（约 20 个），且任何非白名单源码注入都会让检查器红。
+- [x] `node scripts/list-script-tests.mjs` 仍列出该测试文件；`npx oxlint scripts/brand-allowlist-check.mjs scripts/brand-allowlist-check.test.mjs` 退出 0；anti-drift 只列 Touches。
 
 ## DoD
 
@@ -46,8 +46,20 @@ extra:
 - 贴出 `git grep -l "CloudCLI"` 的 20 文件白名单清单与 oxlint 退出码。
 - 不改 UI，不需要 MCP 浏览器截图。
 
+## Evidence
+
+修复前（主检出、旧 checker）：`exitCode: 1`，`violations: 60`，全部落在 3 个 `server/node_modules/.cache/quay-e2e-build/server-index.<hash>.mjs`（每个 20 条）；`brandLineFiles: 2328`。测试：`tests 10 / pass 4 / fail 6`，红臂为 AC1、AC5、AC7、current docs (real tree)、current docs (injected H1)、AC8。
+
+修复后（新 checker，`--root` 指向主检出）：`exitCode: 0`，`violations: 0`，`scannedFiles: 2438`，`brandLineFiles: 2324`，扫描集合中 `node_modules` 路径段文件数 `0`。worktree 内 `tests 11 / pass 11 / fail 0`。
+
+新回归臂夹具：缓存文件 `server/node_modules/.cache/quay-e2e-build/stale.mjs`（内容含 `CloudCLI`）⇒ `exitCode: 0` / `violations: 0` / `cacheScanned: false`；同一夹具的 `server/modules/demo/source.ts` 注入 `CloudCLI` ⇒ `exitCode: 1`，违规定位到 `server/modules/demo/source.ts:1`。
+
+`git grep -l "CloudCLI" -- server src electron scripts public` = 20 个文件（electron 迁移与其 3 个测试、scripts 两个 checker、`server/modules/quay/tests/contracts/README.md`、architecture ratchet 基线、6 个 locale settings、`PluginSettingsTab.tsx`、`AboutTab.tsx`）；`npx oxlint` 退出 0；`list-script-tests` 仍列出 `scripts/brand-allowlist-check.test.mjs`。
+
 ## Touches
 
 - scripts/brand-allowlist-check.mjs
 - scripts/brand-allowlist-check.test.mjs
 - tasks/gap-cloudpit-brand-check-skip-node-modules.md
+
+该轴仍暗,理由:本任务是品牌扫描器的目录展开修复，不改变模块边界或设计文档规模，L_D/L_G 在本次 delta 上无实质读数。
