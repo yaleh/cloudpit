@@ -57,7 +57,6 @@ import type {
 import type {
   ClaudeUnattendedWorkEvent
 } from './resident-turn.types.js';
-
 import {
   readCliSessionRegistration
 } from './resident-settings.js';

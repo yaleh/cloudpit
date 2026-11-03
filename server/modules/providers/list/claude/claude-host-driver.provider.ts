@@ -189,6 +189,7 @@ import {
   residentRunIsTurn,
   resolveClaudeConfigDir,
 } from '@/shared/utils.js';
+
 import { ClaudeResidentStreamBase } from './lifecycle/resident-stream.base.js';
 import {
   CLAUDE_QUEUED_INPUT_PRIORITY,

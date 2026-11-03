@@ -44,7 +44,6 @@ import type {
 import type {
   ClaudeRemoteControlRefusal
 } from './resident-settings.js';
-
 import {
   createDefaultClaudeResidentOutcomeRegistry
 } from './claude-resident-outcome-handlers.js';
