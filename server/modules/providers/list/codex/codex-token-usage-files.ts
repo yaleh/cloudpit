@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { readTextFileTail } from '@/shared/fs-bytes.js';
 import type {
   ProviderTokenUsageFileTail,
   ProviderTokenUsageReading,
@@ -40,28 +41,7 @@ const defaultCodexTokenUsageIo: CodexTokenUsageIo = {
   getHomeDirectory: () => os.homedir(),
   readDirectory: (directoryPath) => fsp.readdir(directoryPath, { withFileTypes: true }),
   readTextFile: (filePath) => fsp.readFile(filePath, 'utf8'),
-  readTextFileTail: async (filePath, maxBytes) => {
-    const handle = await fsp.open(filePath, 'r');
-    try {
-      const { size } = await handle.stat();
-      if (size <= maxBytes) {
-        return { content: await handle.readFile({ encoding: 'utf8' }), isComplete: true };
-      }
-
-      const buffer = Buffer.alloc(maxBytes);
-      await handle.read(buffer, 0, maxBytes, size - maxBytes);
-      const content = buffer.toString('utf8');
-      // The window almost never starts on a row boundary; dropping everything
-      // up to the first newline discards the partial row.
-      const firstNewline = content.indexOf('\n');
-      return {
-        content: firstNewline === -1 ? '' : content.slice(firstNewline + 1),
-        isComplete: false,
-      };
-    } finally {
-      await handle.close();
-    }
-  },
+  readTextFileTail,
 };
 
 /**
