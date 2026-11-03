@@ -34,15 +34,26 @@ B. 在该行之后新增：
 
 ## AC
 
-- [ ] `grep -n "只有一个选择维度" server/modules/observation/session-ask-decision-answer.ts` 命中；`grep -n "多个相互独立的子决定" server/modules/observation/session-ask-decision-answer.ts` 命中，且两行都位于 `SYSTEM_PROMPT` 数组内。
-- [ ] 新夹具用例通过：注入的「多子决定 → 3 个组合选项」模型答案经 digest 输出 `state:"evaluated"`，`options.length === 3`，`options[].label` 顺序逐字等于夹具里声明的顺序（stable id 不改变 label）。
-- [ ] `node_modules/.bin/tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0（既有用例 + 新夹具全部绿）。
+- [x] `grep -n "只有一个选择维度" server/modules/observation/session-ask-decision-answer.ts` 命中；`grep -n "多个相互独立的子决定" server/modules/observation/session-ask-decision-answer.ts` 命中，且两行都位于 `SYSTEM_PROMPT` 数组内。
+- [x] 新夹具用例通过：注入的「多子决定 → 3 个组合选项」模型答案经 digest 输出 `state:"evaluated"`，`options.length === 3`，`options[].label` 顺序逐字等于夹具里声明的顺序（stable id 不改变 label）。
+- [x] `node_modules/.bin/tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/observation/tests/session-ask-decision-digest.test.ts` 退出 0（既有用例 + 新夹具全部绿）。
 
 ## DoD
 
 - 贴出新夹具用例的通过读数（`tests N / pass N / fail 0` 或等价末行），并贴出两条 `grep` 命中行原文。
 - 说明单选 UI 未被改动：`git diff --stat` 只涉及 `server/modules/observation/session-ask-decision-answer.ts`、`server/modules/observation/tests/session-ask-decision-digest.test.ts`、`tasks/gap-session-ask-digest-bundle-multi-decision-options.md`。
 - 不涉及 UI，不需要 MCP 浏览器截图。
+
+## Evidence
+
+- 单文件测试：`tests 58 / pass 58 / fail 0`；其中 `✔ multi-subdecision: three composite options survive the digest verbatim, ids derived from labels`。
+- `277:  '- options：当问题只有一个选择维度（从若干互斥项里选一个）时，助手原文用编号或项目符号列出多少项就给出多少条 option（label 用原文的选项名）；原文没有列出选择才用空数组 []。does 是选它会发生什么，tags 是后果标签（kind 用 consequence / risk / cost / benefit）。',`
+- `278:  '- 多个相互独立的子决定（例如「三个设计点，每个都要选 A 还是 B」）不要拆成 2N 条半方向、更不要穷举 2^N 种组合：打包成 3–5 个自洽的组合选项，每个 option 覆盖全部子决定（label 用「①…+②…+③…」这种合取写法，does 写清每个子决定的取值）；优先保留助手自己讨论过或最可能被选的组合，并含「全部保持现状」「全部按助手建议推进」这类自然端点。',`（两行均位于 `SYSTEM_PROMPT` 数组 264–283 行内）
+- `git diff --stat`（实现提交 `05e1956d1`）只涉及 `server/modules/observation/session-ask-decision-answer.ts`、`server/modules/observation/tests/session-ask-decision-digest.test.ts`；cockpit 单选 UI 与 fleet 侧零改动。
+
+## Dark axis
+
+该轴仍暗,理由:本任务只改摘要 prompt 措辞与夹具，没有可量化的落地轴读数。
 
 ## Touches
 
