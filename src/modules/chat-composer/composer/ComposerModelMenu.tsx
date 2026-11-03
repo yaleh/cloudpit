@@ -15,15 +15,103 @@ import {
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
 
+/**
+ * One selectable row's identity: the model id sent to the provider runtime and
+ * the upstream provider it runs under (`null` for the bare, inherit-the-default
+ * row). A built-in model is offered once per registered provider, so those rows
+ * share `model` and only this pair tells them apart.
+ */
+type ModelEntry = {
+  model: string;
+  providerId: string | null;
+  label: string;
+};
+
+/** One model's rows, kept together so its bare row and variants are adjacent. */
+type ModelGroup = {
+  key: string;
+  label: string;
+  entries: ModelEntry[];
+};
+
+/** Reads a provider id off the catalog, treating a blank one as the bare identity. */
+const readProviderId = (value: unknown): string | null => (
+  typeof value === 'string' && value.trim() ? value.trim() : null
+);
+
+/**
+ * A row's own model name, with the server's `model · provider` display suffix
+ * removed.
+ *
+ * The suffix is how the server keeps two rows with the same display name
+ * distinguishable; the menu composes its own `model (provider)` label from the
+ * identity fields instead, so keeping the server's suffix too would print the
+ * provider twice.
+ */
+const modelNameOf = (option: ProviderModelOption, providerId: string | null): string => {
+  const label = option.label || option.value;
+  const suffix = providerId === null ? null : ` · ${providerId}`;
+  return suffix !== null && label.endsWith(suffix)
+    ? label.slice(0, -suffix.length)
+    : label;
+};
+
+/**
+ * Groups catalog rows by model, in catalog order.
+ *
+ * Purely data-driven: the groups, their labels and their variants all come from
+ * the rows the catalog answered with. Nothing here knows which provider a
+ * catalog belongs to, and no provider list is expanded speculatively — a
+ * provider that was deleted (or never registered) has no row, so it has no
+ * entry. Duplicate `(model, provider)` rows collapse to the first one.
+ */
+const groupModelOptions = (options: ProviderModelOption[]): ModelGroup[] => {
+  const groups: ModelGroup[] = [];
+  const byModel = new Map<string, ModelGroup>();
+
+  for (const option of options) {
+    const providerId = readProviderId(option.modelProviderId);
+    let group = byModel.get(option.value);
+    if (!group) {
+      group = {
+        key: option.value,
+        label: modelNameOf(option, providerId),
+        entries: [],
+      };
+      byModel.set(option.value, group);
+      groups.push(group);
+    }
+    if (group.entries.some((entry) => entry.providerId === providerId)) {
+      continue;
+    }
+    group.entries.push({
+      model: option.value,
+      providerId,
+      // A custom model is a single row whose binding is already part of its own
+      // name; only a built-in row needs the provider spelled out beside it.
+      label: providerId === null || option.isCustom ? group.label : `${group.label} (${providerId})`,
+    });
+  }
+
+  return groups;
+};
+
 type ComposerModelMenuProps = {
   effort: string;
   /** Effort values the active provider/model actually accepts; empty hides the section. */
   effortOptions: EffortOption[];
   onSelectEffort: (effort: string) => void;
   model: string;
+  /**
+   * Upstream provider id of the active selection, or absent/null for the bare
+   * (inherit-the-provider-default) identity. Optional so a host that predates
+   * provider-bound catalogs keeps working unchanged.
+   */
+  modelProviderId?: string | null;
   /** Model catalog for the active provider; empty hides the section. */
   modelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => void;
+  /** Receives the clicked row's full identity, not just the model id. */
+  onSelectModel: (model: string, modelProviderId?: string | null) => void;
   modelsLoading: boolean;
 };
 
@@ -36,6 +124,7 @@ function ComposerModelMenu({
   effortOptions,
   onSelectEffort,
   model,
+  modelProviderId = null,
   modelOptions,
   onSelectModel,
   modelsLoading,
@@ -61,11 +150,32 @@ function ComposerModelMenu({
   );
   const effortLabel = effort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : effort;
 
-  const selectedModelOption = useMemo(
-    () => modelOptions.find((option) => option.value === model) ?? null,
-    [model, modelOptions],
+  const modelGroups = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
+  const selectedProviderId = readProviderId(modelProviderId);
+
+  /**
+   * Whether the active selection is this row. Both halves have to match: the
+   * bare row and its provider variants share `model`, so comparing the model id
+   * alone would tick every variant of the active model at once.
+   */
+  const isSelectedEntry = useCallback(
+    (entry: ModelEntry) => entry.model === model && entry.providerId === selectedProviderId,
+    [model, selectedProviderId],
   );
-  const modelLabel = selectedModelOption?.label || model;
+  const selectedEntry = useMemo(() => {
+    for (const group of modelGroups) {
+      const entry = group.entries.find(isSelectedEntry);
+      if (entry) {
+        return entry;
+      }
+    }
+    return null;
+  }, [isSelectedEntry, modelGroups]);
+  // The catalog may not carry the active identity yet (still loading, or a
+  // session bound to a provider that was just deleted); the composition is then
+  // taken from the selection itself rather than from a row that is not there.
+  const modelLabel = selectedEntry?.label
+    ?? (selectedProviderId === null ? model : `${model} (${selectedProviderId})`);
 
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
@@ -148,16 +258,28 @@ function ComposerModelMenu({
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelOptions.map((option) => (
-                    <ComposerMenuItem
-                      key={option.value}
-                      label={option.label || option.value}
-                      isSelected={option.value === model}
-                      onSelect={() => {
-                        onSelectModel(option.value);
-                        setIsOpen(false);
-                      }}
-                    />
+                  {/*
+                    One group per model, its rows kept together: the bare row
+                    first (inherit the provider default), then one `model
+                    (provider)` row per registered upstream provider. A custom
+                    model is a single row — its binding is already specific — so
+                    it is never fanned out into variants.
+                  */}
+                  {modelGroups.map((group, groupIndex) => (
+                    <div key={group.key} role="group" aria-label={group.label}>
+                      {groupIndex > 0 && <ComposerMenuSeparator />}
+                      {group.entries.map((entry) => (
+                        <ComposerMenuItem
+                          key={`${entry.model}::${entry.providerId ?? ''}`}
+                          label={entry.label}
+                          isSelected={isSelectedEntry(entry)}
+                          onSelect={() => {
+                            onSelectModel(entry.model, entry.providerId);
+                            setIsOpen(false);
+                          }}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </>
               )}

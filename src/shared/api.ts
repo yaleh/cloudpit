@@ -915,9 +915,23 @@ export const api = {
       get(`/api/providers/sessions/${encodeURIComponent(sessionId)}/token-usage`),
     sessionActiveModel: (provider: string, sessionId: string) =>
       get(`/api/providers/${provider}/sessions/${encodeURIComponent(sessionId)}/active-model`),
-    setSessionActiveModel: (provider: string, sessionId: string, model: string) =>
+    /**
+     * Records a model choice, optionally naming the upstream provider it runs
+     * under. A built-in model is offered once bare and once per registered
+     * provider, so those rows share `model` and the id is the only thing
+     * telling them apart. A bare choice OMITS the field rather than sending
+     * null: absent means "inherit the provider's default", and the two claims
+     * must not collapse into one on the wire.
+     */
+    setSessionActiveModel: (
+      provider: string,
+      sessionId: string,
+      model: string,
+      modelProviderId?: string | null,
+    ) =>
       post(`/api/providers/${provider}/sessions/${encodeURIComponent(sessionId)}/active-model`, {
         model,
+        ...(modelProviderId ? { modelProviderId } : {}),
       }),
     setSessionActiveEffort: (provider: string, sessionId: string, effort: string) =>
       post(`/api/providers/${provider}/sessions/${encodeURIComponent(sessionId)}/active-effort`, {

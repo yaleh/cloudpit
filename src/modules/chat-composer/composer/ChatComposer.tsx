@@ -118,8 +118,14 @@ type ChatComposerProps = {
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
   model: string;
+  /**
+   * Upstream provider id of the active model selection, or absent/null for the
+   * bare (inherit-the-provider-default) row. Only identity, never display text:
+   * the menu composes the visible `model (provider)` label itself.
+   */
+  modelProviderId?: string | null;
   availableModelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => void;
+  onSelectModel: (model: string, modelProviderId?: string | null) => void;
   modelsLoading: boolean;
   tokenBudget: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
@@ -284,6 +290,7 @@ export default function ChatComposer({
   availableEffortOptions,
   onSelectEffort,
   model,
+  modelProviderId = null,
   availableModelOptions,
   onSelectModel,
   modelsLoading,
@@ -1514,6 +1521,7 @@ export default function ChatComposer({
               effortOptions={availableEffortOptions}
               onSelectEffort={onSelectEffort}
               model={model}
+              modelProviderId={modelProviderId}
               modelOptions={availableModelOptions}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}

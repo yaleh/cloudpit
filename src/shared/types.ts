@@ -21,6 +21,14 @@ export type ProviderModelOption = {
   isCustom?: boolean;
   /** Env config of a custom model as the server returns it; secret rows carry only `isSet`, never a value. */
   config?: ProviderModelPublicConfig | null;
+  /**
+   * The upstream provider this row runs under, when the provider binds a session
+   * to one (a Codex `model_providers.<id>` id). Absent means the row inherits
+   * the provider's own default; a built-in model is offered once bare and once
+   * per registered provider, so those rows share `value` and differ only by
+   * this field. Mirrors the server's `ProviderModelOption`.
+   */
+  modelProviderId?: string | null;
   effort?: {
     default?: string;
     values: {
