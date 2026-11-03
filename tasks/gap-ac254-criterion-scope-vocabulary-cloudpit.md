@@ -36,14 +36,41 @@ goal_ac: AC-254
 
 ## AC
 
-- [ ] `! grep -q 'cloudcli:' e2e/mcp-settings.spec.ts` 退出 0（判据文件不再钉已退役拼写）。
-- [ ] `test "$(grep -oE "scope: '[^']+'" src/shared/constants.ts | cut -d"'" -f2 | tr '\n' ' ')" = "$(sed -n "/const SCOPE_VOCABULARY/,/as const/p" e2e/mcp-settings.spec.ts | grep -oE "'[^']+'" | cut -d"'" -f2 | tr '\n' ' ')"` 退出 0（判据的七个名字与 `ACCESS_TOKEN_SCOPE_OPTIONS` 同序同名）。
-- [ ] `npx playwright test e2e/mcp-settings.spec.ts` 退出 0，且在 55s watchdog 以内；输出含 (a) 端点与复制按钮、(b) 未启用且无接入命令、(c) 命令含端点与 `Authorization: Bearer <token>` 且页面真实令牌命中 0、(d) 只读默认勾选/六个写默认不勾且风险提示 0→1、(e) token-info scopes 与所选一致。
-- [ ] 有界集合读数可判别（先提交实现，再变异）：把 `SCOPE_VOCABULARY` 里的 `cloudpit:read` 改成 `cloudpit:reed` 后重跑，判据在 ≤15s 内红，失败行给出 observed vs expected 的 scope 名字（而不是 55000ms watchdog）；记录逐字 diff / 失败行 / 恢复命令 `git checkout -- e2e/mcp-settings.spec.ts`，恢复后重跑回到 exit 0。
+- [x] `! grep -q 'cloudcli:' e2e/mcp-settings.spec.ts` 退出 0（判据文件不再钉已退役拼写）。
+- [x] `test "$(grep -oE "scope: '[^']+'" src/shared/constants.ts | cut -d"'" -f2 | tr '\n' ' ')" = "$(sed -n "/const SCOPE_VOCABULARY/,/as const/p" e2e/mcp-settings.spec.ts | grep -oE "'[^']+'" | cut -d"'" -f2 | tr '\n' ' ')"` 退出 0（判据的七个名字与 `ACCESS_TOKEN_SCOPE_OPTIONS` 同序同名）。
+- [x] `npx playwright test e2e/mcp-settings.spec.ts` 退出 0，且在 55s watchdog 以内；输出含 (a) 端点与复制按钮、(b) 未启用且无接入命令、(c) 命令含端点与 `Authorization: Bearer <token>` 且页面真实令牌命中 0、(d) 只读默认勾选/六个写默认不勾且风险提示 0→1、(e) token-info scopes 与所选一致。
+- [x] 有界集合读数可判别（先提交实现，再变异）：把 `SCOPE_VOCABULARY` 里的 `cloudpit:read` 改成 `cloudpit:reed` 后重跑，判据在 ≤15s 内红，失败行给出 observed vs expected 的 scope 名字（而不是 55000ms watchdog）；记录逐字 diff / 失败行 / 恢复命令 `git checkout -- e2e/mcp-settings.spec.ts`，恢复后重跑回到 exit 0。
 
 ## DoD
 
 真实浏览器（Chromium）+ 真实后端 + 各自临时数据目录，`MCP_ENABLED=true` 与 `false` 两态都由本判据自己拉起并读回；`npx playwright test e2e/mcp-settings.spec.ts` 在仓库 HEAD 上真实退出 0，并把 (a)–(e) 五行读数与整轮墙钟贴进任务证据；随后在同一提交上做一次词汇变异（`cloudpit:reed`），贴出数秒内红且点名 observed/expected 的失败行与恢复后的 exit 0——证明下一次 scope 改名会让判据快而清楚地红，而不是把 55s watchdog 当作失败信息。
+
+## Evidence
+
+实现提交：`8e72b901e`（`e2e/mcp-settings.spec.ts`，+57/−15；worktree 已 merge `develop` = `bd2723e92`，Already up to date）。
+
+- 静态判据（2026-11-03，worktree）：AC1 `! grep -q 'cloudcli:' e2e/mcp-settings.spec.ts` → exit 0；AC2 等式两边同为 `cloudpit:read cloudpit:session:send cloudpit:session:create cloudpit:session:control cloudpit:approve cloudpit:navigate cloudpit:cockpit:act` → exit 0。
+- 绿跑 `npx playwright test e2e/mcp-settings.spec.ts`：**2 passed (18.8s)**，watchdog ceiling 55000ms 未触发（首跑同提交 2 passed (17.6s)）。
+  - (a) `MCP_ENABLED="true" PUBLIC_BASE_URL="http://127.0.0.1:3027"`；status `"Enabled"` (data-enabled=true)；endpoint=`"http://127.0.0.1:3027/mcp"`；copy button visible=true
+  - (b) `MCP_ENABLED="false"`；status `"Not enabled"` (data-enabled=false)；enable hint 非空；connect-command nodes=0；页面 `"Bearer"` anywhere=false
+  - (c) command = `claude mcp add --transport http cloudpit http://127.0.0.1:3027/mcp --header "Authorization: Bearer <token>"`；一次性卡片关闭后真实令牌全页文本命中 = 0
+  - (d) rendered scopes=`["cloudpit:read","cloudpit:session:send","cloudpit:session:create","cloudpit:session:control","cloudpit:approve","cloudpit:navigate","cloudpit:cockpit:act"]`；initial checked 仅 `cloudpit:read=true`，其余六个 false；risk note before=0，勾 `cloudpit:session:send` 后=1
+  - (e) checked scopes=`["cloudpit:read","cloudpit:session:send","cloudpit:session:create"]`；`GET /api/oauth/token-info -> 200`，scopes 相同，userId=1
+- 变异判别（AC4，在提交 `8e72b901e` 上，逐字 diff）：
+  ```
+  -  'cloudpit:read',
+  +  'cloudpit:reed',
+  ```
+  重跑：**1 failed, 1 passed (16.9s)**，失败行（`e2e/mcp-settings.spec.ts:596`，`readRenderedScopeVocabulary`）：
+  ```
+  Error: the create form's rendered scope names differ from ACCESS_TOKEN_SCOPE_OPTIONS (observed=["cloudpit:read","cloudpit:session:send","cloudpit:session:create","cloudpit:session:control","cloudpit:approve","cloudpit:navigate","cloudpit:cockpit:act"] expected=["cloudpit:reed","cloudpit:session:send","cloudpit:session:create","cloudpit:session:control","cloudpit:approve","cloudpit:navigate","cloudpit:cockpit:act"])
+    - Expected  - 1
+    + Received  + 1
+  ```
+  判别断言的失败发生在 (d) 进入后 <1s；含该断言的 enabled 用例自身 4.7s（旧形态则让无界 `isChecked()` 吃到 55s watchdog）。整文件墙钟 16.9s 中 8.6–9.2s 是 beforeAll 的共享 Vite 冷预打包——绿跑同样支付这笔钱，不是变异引入的。
+  恢复：`git checkout -- e2e/mcp-settings.spec.ts`；重跑 **2 passed (18.8s)**，exit 0。
+
+- 该轴仍暗,理由:本任务只改 e2e/mcp-settings.spec.ts 的判据词汇表与有界集合读数，不增删模块、依赖边或分层结构，L_D/L_G 在本分支无可观测变化。
 
 ## Touches
 
