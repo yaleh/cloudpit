@@ -1,7 +1,7 @@
 ---
 id: gap-quay-test-script-runner-self-overhead
 title: 降低 Quay 测试脚本自测开销并刷新 suite duration 基线
-status: ready
+status: done
 labels:
   - gap
 parent: null
