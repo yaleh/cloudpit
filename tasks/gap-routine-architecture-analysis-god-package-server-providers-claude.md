@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-providers-claude
 title: "architecture-analysis: archguard god-package:
   modules/providers/list/claude = 19 files / 73 entities, fanIn 6, fanOut 432;
   ClaudeResidentHostDriver alone has 86 methods, fanIn 130 "
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
