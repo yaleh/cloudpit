@@ -3,7 +3,7 @@ id: gap-ac331-cmd1-reverify-after-frames-split-import
 title: AC-331 判据红：god-package 拆段（ff7edd1f4）把 voice-realtime-mode 移入 frames/，e2e
   live-session-send 仍旧路径 import ⇒ CMD1 模块加载即 Cannot find module；依赖 AC-323 的
   import 修复落地后，逐字复跑 AC-331 判据 + 四文件白名单守卫 + 假形态配对
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -70,11 +70,39 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 
 ## AC
 
-- [ ] AC1 依赖就位、旧路径清零：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts --list` exit 0 且输出 `Total: N tests in M files` 的 N > 0。
+- [x] AC1 依赖就位、旧路径清零：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts --list` exit 0 且输出 `Total: N tests in M files` 的 N > 0。
 - [ ] AC2 判据逐字 exit 0：`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）exit 0；记录 passed 数与墙钟毫秒，且墙钟 < 118000ms。读数逐字写入 Evidence。若超时，按 Proposal「预算风险」先判负载假红。
-- [ ] AC3 白名单守卫为空：`git diff --exit-code ec621a2b^1 ec621a2b -- e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-composer-embedded.spec.ts e2e/mobile-workspace-composer-layout.spec.ts src/modules/chat/tests/composerCompactTier.test.tsx` rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <同上四文件>` rc=0。
-- [ ] AC4 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
-- [ ] AC5 承重（假形态，本地临时注入、不 commit）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 ⇒ `VOICE_REALTIME_MODE=continuous npx playwright test <三文件> --list` 非零退出且 stdout 含 `Cannot find module`；还原为新路径后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务声明的改动。
+- [x] AC3 白名单守卫为空：`git diff --exit-code ec621a2b^1 ec621a2b -- e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-composer-embedded.spec.ts e2e/mobile-workspace-composer-layout.spec.ts src/modules/chat/tests/composerCompactTier.test.tsx` rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <同上四文件>` rc=0。
+- [x] AC4 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
+- [x] AC5 承重（假形态，本地临时注入、不 commit）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 ⇒ `VOICE_REALTIME_MODE=continuous npx playwright test <三文件> --list` 非零退出且 stdout 含 `Cannot find module`；还原为新路径后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务声明的改动。
+
+## Evidence
+
+工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import`（分支 `task/gap-ac331-cmd1-reverify-after-frames-split-import`，起始 HEAD `208a61af1a9e8c8c40b4a32b1f4b881b1bc53cd9`，切自 develop）。依赖任务 `gap-ac323-e2e-import-after-voice-realtime-frames-split` 已落地：`189697047`（实现）与 `51039ed7a`（pre-merge merge）均为 develop 祖先；`e2e/voice-realtime-live-session-send.spec.ts:49` 现为 `import { resolveVoiceRealtimeMode } from '../server/modules/voice-realtime/frames/voice-realtime-mode';`。
+
+- AC1（满足）：旧路径 `grep -c "voice-realtime/voice-realtime-mode'"` = 0（rc=1，无命中）；新路径 `grep -c "voice-realtime/frames/voice-realtime-mode'"` = 1；`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts --list` → exit 0，`Total: 19 tests in 3 files`。
+- AC2（**未满足：墙钟**）：判据逐字跑 `VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）→ **exit 0**，`19 passed (2.9m)`，墙钟 **175405ms**（第 1 次）；在无本仓并行 suite 条件复跑 → **exit 0**，`19 passed (3.3m)`，墙钟 **205472ms**（第 2 次）。两者均远大于 118000ms，passed 数相同（19）。
+- AC2 归因（结构性，不是负载假红）：
+  1. 118000ms 与基线 79349ms 取自 AC-331 于 `2026-10-11T09:56:43.453Z` 的 achieved 读数。
+  2. 同日 `2026-10-11 20:38:48 +0800` 提交 `866f9c482` 在 `e2e/voice-realtime-upload-fixture.spec.ts` 新增用例 `the held session accepts 8 sentences inside the byte budget…`（本树实测 22.4s）。
+  3. `2026-10-21 16:50:05 +0800` 提交 `c8d17e79e` 把 `e2e/voice-realtime-composer-embedded.spec.ts` 的 held-run 绝对时钟从 20s 抬到 **60s**（同一用例本树实测 `66s` / `1.1m`）；该文件注释自述 “60 s, not 20 s”。
+  4. 本次 19 条用例的逐条耗时合计约 158.6s（第 1 次）/ 约 190s（第 2 次），其中 60s 是设计与断言的一部分（“the row must still be absent at the instant of the leave” 需要一个绝对时钟窗口），不会因空载而消失。
+  ⇒ 118000ms 是 AC-331 达成时的旧树读数；此后两次测试内容变更已使该判据的结构性下限超过 118000ms。
+- AC2 旁证（独立于本 worker）：驱动 anchor 于 `2026-11-03T14:25:30.137Z` 对修复后的树（treeSha `245ca50eb970e672a3e42cf6805791104cbc14a8`）自行跑同一条 criterion，gate 事件逐字为：`{"item_id":"AC-331","gate":"goal","actor":"goal-cli","verdict":"not-evaluated","payload":{"reason":"not-evaluated (timeout): acceptance timed out after 118000ms (killed) — raise this record's `timeoutMs` (the deadline in force)","cause":"timeout"}}`。同一 gate 在 `2026-11-02T21:46:06.957Z`（import 漂移之前，treeSha `56c5ba940c871502e3ebcbb5bf10588c45d6cf34`）已是同形 `not-evaluated (timeout)`；两处都**不再**出现 `Cannot find module`。
+- AC3（满足）：`git diff --exit-code ec621a2b^1 ec621a2b -- <四文件>` → rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <四文件>` → rc=0。
+- AC4（满足）：`git diff develop --name-only` → 空（任务文件由 ABI 提交，同属 `## Touches`）；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` → 0；`git diff develop -- goals/ | wc -c` → 0。
+- AC5 假形态配对（满足）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 → `--list` → **exit 1**，原文：`Error: Cannot find module '/data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/server/modules/voice-realtime/voice-realtime-mode' imported from /data/home/yale/work/claudecodeui-worktrees/gap-ac331-cmd1-reverify-after-frames-split-import/e2e/voice-realtime-live-session-send.spec.ts`；`git checkout --` 还原新路径后同一命令 → **exit 0**，`Total: 19 tests in 3 files`；收尾 `git status --porcelain` 为空（注入未 commit）。
+
+该轴仍暗,理由:本任务只复验既有 AC-331 判据与守卫，未改产品能力、模块依赖图或 goal 判据文本，L_D/L_G 没有本任务可记的量化读数。
+
+## Needs-Human
+
+需要人裁定：AC-331（`status: achieved`；GOAL-038 已 achieved、不活跃）的 `timeoutMs: 118000` 是 `2026-10-11` 达成时的旧树读数（基线 79349ms）。此后 `866f9c482`（2026-10-11 20:38 +0800，upload-fixture 新增第 19 条用例，本树 22.4s）与 `c8d17e79e`（2026-10-21 16:50 +0800，composer-embedded held-run 绝对时钟 20s→60s，本树 66s）使同一判据的结构性下限超过 118000ms：本树两次实跑分别为 175405ms / 205472ms，anchor 自己的 goal gate 也在修复后的树上以 `not-evaluated (timeout): acceptance timed out after 118000ms (killed)` 记录（且在 11-02 的 import 漂移之前即已如此）。
+
+判据本身是绿的：**19 passed，exit 0**，且假形态证明它会因 import 漂移而红（`Cannot find module` 非零退出）。唯一未满足的是 AC2 的墙钟上限。按 Proposal「预算风险」的明示要求，worker 不得自行放宽 criterion、改 `expect` 或改记录 `timeoutMs`，故停在此处。
+
+待裁定项（二选一，均需记录层/人动作）：(a) 把 AC-331 record 的 `timeoutMs` 上调到能覆盖当前结构性下限的数值（例如 ≥240000，并保留驱动 `CRITERION_TIMEOUT_MS` 之下的余量）；(b) 接受该 deadline 已被后续测试内容变更作废，并改写或拆分判据。⛔ 不得把 175405ms / 205472ms 的绿读写成“满足 118000ms 预算”。
+
 
 ## DoD
 
