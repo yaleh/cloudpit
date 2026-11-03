@@ -92,16 +92,6 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - src/modules/cockpit-contract/observationUri.ts
 - tasks/gap-ac459-criterion-stale-observation-uri-path.md
 
-## Blocker
-
-**2026-11-03T19:13:27.570Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
-fan-in-ff-merge:    M scripts/test.sh
-fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
-- run_id：wk-prod-anchor
-- session_id：530f5b67-1453-487e-b45c-55bf0612774b
-
 ## Needs-Human
 
 **2026-11-04T03:25+08:00 — worker 复验：任务侧已无可做工作，唯一阻塞是共享主检出的未提交 WIP（交主检出所有者）**
@@ -112,3 +102,13 @@ fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
 - 这两处修改属于**同一工作区里另一个会话的在飞工作**：Codex/VSCode 会话 `01a1a21a-241c-7593-989f-3aaf10017fe2`（`~/.codex/sessions/2026/11/03/rollout-2026-11-03T23-49-44-01a1a21a-241c-7593-989f-3aaf10017fe2.jsonl`，2026-11-04 01:16 CST 落盘），内容是 opt-in server/client 并行 canary（`QUAY_TEST_PARALLEL_SERVER_CLIENT=1`，含 AC8 用例）。该会话自述其验证已通过（contract 单文件 15/15、typecheck、oxlint、`bash -n`、dry-run），但**该内容不存在于任何分支或提交**（`git log --all -S'QUAY_TEST_PARALLEL_SERVER_CLIENT'` 为空）。它不是本任务的产物，worker 不 stash / 不 commit / 不 assume-unchanged（shared lesson `fan-in-ff-clean-check-tracked-modifications-need-owner`）。
 - 解阻（由该 WIP 的所有者执行，二选一，均保留完整内容）：(a) 把它提交（建议作为独立任务/分支落地）；(b) `git -C /data/home/yale/work/claudecodeui stash push -m "server-client canary WIP" -- scripts/test.sh server/shared/tests/quay-test-script.test.ts`。
 - 之后主检出 `git status --porcelain` 为空即可重跑本任务：**无需重新实现**，任务分支已就绪，fan-in 剩下的 `ff` 会通过。若本任务已被机械标为 needs-human，请把它拉回 ready 再重派。
+
+## Blocker
+
+**2026-11-03T19:19:45.555Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+- run_id：wk-prod-anchor
+- session_id：ab67da69-3bb2-4134-a846-1c23cd53b410
