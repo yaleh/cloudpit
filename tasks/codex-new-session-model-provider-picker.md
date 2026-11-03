@@ -63,12 +63,3 @@ MCP 浏览器实际操作 + 截图存 tmp/（新建会话选 gpt-5.6-terra (fjda
 
 - L_D 该轴仍暗,理由:本任务是新建会话选择器 UI，读数是 AC 判据与场景运行器，没有可量化的领域数据轴读数。
 - L_G 该轴仍暗,理由:本任务不新增 goal 判据；目标层读数由 GOAL-056 的 AC-470 承担。
-
-## Blocker
-
-**2026-11-03T13:35:18.151Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/shared/types.ts 5002→5010 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：fc46af3b-6a74-4e47-ba19-9f9de3a7d06a
-- 续做轮已处理：合并 develop 消解滞后基线（见上方续做轮 Evidence），该红点已不成立。
