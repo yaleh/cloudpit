@@ -39,9 +39,9 @@ cockpit 现有两条卡通道：`knowledge` 卡绑定 `caseId/knowledgeRevision/
 
 ## AC
 
-- [ ] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出码 0，且新增/扩展用例断言：descriptor `molten-decision` 命中（非默认 other）；熔融决策卡投影后 `kind === 'molten-decision'` 且 `molten` 块逐字节透传（含 `taskSpec.title/proposal/ac/dod/touches` 与 `evidenceRefs`）；options 恰为 `crystallize-task`/`decline`/`modify` 三选，各 option 的 executor 是 `fleet.molten-decide`、params 含 `attentionId`/`revision`/`decision` 且 `decision` 是三者之一；卡片无 knowledge 块。
-- [ ] `npx oxlint`（改动文件）与 `npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p server/tsconfig.json` 退出码 0；`src/shared/tests/cockpitCardTypeSync.test.ts` 退出码 0。
-- [ ] 只读复核：`git diff` 显示只新增 `molten-decision` descriptor、`molten` 块类型同步、投影透传、`fleet.molten-decide` 执行器声明与三选 options；`git grep -n "fleet.apply" server/modules/cockpit/` 无新增调用；`git grep -n "molten-decision" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
+- [x] `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx` 退出码 0，且新增/扩展用例断言：descriptor `molten-decision` 命中（非默认 other）；熔融决策卡投影后 `kind === 'molten-decision'` 且 `molten` 块逐字节透传（含 `taskSpec.title/proposal/ac/dod/touches` 与 `evidenceRefs`）；options 恰为 `crystallize-task`/`decline`/`modify` 三选，各 option 的 executor 是 `fleet.molten-decide`、params 含 `attentionId`/`revision`/`decision` 且 `decision` 是三者之一；卡片无 knowledge 块。
+- [x] `npx oxlint`（改动文件）与 `npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p server/tsconfig.json` 退出码 0；`src/shared/tests/cockpitCardTypeSync.test.ts` 退出码 0。
+- [x] 只读复核：`git diff` 显示只新增 `molten-decision` descriptor、`molten` 块类型同步、投影透传、`fleet.molten-decide` 执行器声明与三选 options；`git grep -n "fleet.apply" server/modules/cockpit/` 无新增调用；`git grep -n "molten-decision" src/modules/cockpit/cockpitCardDescriptors.ts` 命中新 descriptor。
 
 ## DoD
 
@@ -63,3 +63,13 @@ cockpit 现有两条卡通道：`knowledge` 卡绑定 `caseId/knowledgeRevision/
 - server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/i18n/locales/*/common.json
 - tasks/gap-cockpit-molten-decision-card.md
+
+## Evidence
+
+- AC1 命令 `npx vitest run src/modules/cockpit/tests/CockpitCard.test.tsx src/shared/tests/cockpitCardTypeSync.test.ts` → exit 0，`Test Files 2 passed`，`Tests 107 passed`（CockpitCard 100 + typeSync 7）。熔融用例断言：descriptor `molten-decision` 非 `DEFAULT_COCKPIT_CARD_DESCRIPTOR`（badge `data-kind=molten-decision`、tone `molten`、文案 `MLT`/`Molten decision`）；`molten` 块 `toEqual` 输入（含 `taskSpec.ac/dod/touches` 与 `evidenceRefs`）；options 恰为 `crystallize-task`/`decline`/`modify`，每个 executor=`fleet.molten-decide`、params 含 `attentionId`/`revision`/`decision`；`card.knowledge === undefined` 且渲染后无 knowledge testid。
+- 服务端真实投影读数（同一契约在投影层的判据）：`npx tsx --tsconfig server/tsconfig.json --test server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts server/modules/cockpit/tests/cockpit-fleet-executor.test.ts server/shared/tests/architecture-ratchet.test.ts` → `tests 41 / pass 41 / fail 0`。熔融用例把 `quay-fleet cockpit cards --json` 的 label-less 三选展开重建为可确认选项：`card.kind === 'molten-decision'`、`card.molten` deepEqual 输入块、options 恰为三选且 `params={attentionId:'att-molten-1',revision:2,decision}`、`knowledge===undefined`；fleet 只给 wire（`options: []`）时回退到卡片自身 id/revision（`att-molten-2`/5）。
+- AC2：`npx oxlint <11 changed ts/tsx files>` → exit 0；`npx tsc --noEmit -p tsconfig.json` → 0；`npx tsc --noEmit -p server/tsconfig.json` → 0；`architecture-ratchet.test.ts` → `pass 6 / fail 0`（`server/shared/types.ts` 5639 与 `src/shared/types.ts` 5002 停在基线，未上调）。
+- AC3：`git diff develop -- server/modules/cockpit/ | grep '^+.*fleet\.apply'` → 无输出（无新增调用）；`git grep -n "molten-decision" -- src/modules/cockpit/cockpitCardDescriptors.ts` → 命中 descriptor 行 `'molten-decision': {`；`anti-drift-touches-check --merge-target develop` → `ANTI-DRIFT OK ... 24 actual file(s), all within declared Touches`。
+- 合并读数：`git merge --no-edit develop` → 无冲突（Merge made by the 'ort' strategy）；工作树 clean。
+- L_D 该轴仍暗,理由:本任务只交付卡片 kind、wire 类型、投影与执行器声明,读数是 AC 判据与模型类型同步,没有可量化的领域数据轴读数。
+- L_G 该轴仍暗,理由:新增的 cockpit-fleet-molten.ts 是 server/modules/cockpit 下的同目录叶子文件,不新增目录、不引入环;架构读数由 AC-394 棘轮与 import-cycle 预算判据承担,本任务不另立图读数。

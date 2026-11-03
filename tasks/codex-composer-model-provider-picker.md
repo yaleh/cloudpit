@@ -1,7 +1,7 @@
 ---
 id: codex-composer-model-provider-picker
 title: composer 模型菜单渲染 model×provider 单选择项并发送 model + provider id
-status: todo
+status: ready
 labels:
   - feature
 parent: null

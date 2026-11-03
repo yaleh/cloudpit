@@ -1,7 +1,7 @@
 ---
 id: codex-model-provider-option-composition
 title: Codex 模型目录 model×provider 选项 + 会话模型写路径接受显式 provider id
-status: todo
+status: ready
 labels:
   - feature
 parent: null
