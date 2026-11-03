@@ -276,6 +276,7 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/projects/services',
   'modules/providers',
   'modules/providers/list/claude',
+  'modules/providers/list/claude/lifecycle',
   'modules/providers/list/codex',
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',
