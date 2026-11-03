@@ -1,7 +1,7 @@
 ---
 id: codex-new-session-model-provider-picker
 title: 新建会话 Model Selector 渲染 model×provider 单选择项
-status: todo
+status: ready
 labels:
   - feature
 parent: null
