@@ -5,7 +5,10 @@ import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
-import type { CodexModelProviderWrite } from '@/modules/settings/utils/codexProvidersController';
+import type {
+  CodexModelProviderWrite,
+  CodexUserProviderImportReading,
+} from '@/modules/settings/utils/codexProvidersController';
 import type * as SharedApi from '@/shared/api';
 import { PROVIDER_DESCRIPTORS } from '@/shared/constants';
 import type {
@@ -100,6 +103,36 @@ const READING: CodexModelProvidersReading = {
   warnings: [],
 };
 
+/**
+ * The read-only user-profile view. Only field NAMES appear: `envKey` is the variable name and no
+ * secret value exists anywhere in this reading, which is what the once-hidden import panel draws.
+ */
+const IMPORT_READING: CodexUserProviderImportReading = {
+  directory: '/home/tester/.codex',
+  files: ['/home/tester/.codex/config.toml'],
+  providers: [
+    {
+      id: 'bob',
+      name: 'BOB API',
+      baseUrl: 'https://bob.example/v1',
+      envKey: 'BOB_API_KEY',
+      wireApi: 'responses',
+      source: '/home/tester/.codex/config.toml',
+      bindable: true,
+      warnings: [],
+    },
+  ],
+  warnings: [],
+};
+
+/** A registry reading with no providers, for the import case's starting point. */
+const EMPTY_READING: CodexModelProvidersReading = {
+  path: '/home/tester/.cloudpit/codex.settings.json',
+  version: 'version-0',
+  providers: [],
+  warnings: [],
+};
+
 const CATALOG: ProviderModelsDefinition = {
   DEFAULT: 'gpt-5',
   OPTIONS: [
@@ -118,14 +151,30 @@ const CATALOG: ProviderModelsDefinition = {
 
 /** Every PUT body the panel sent, captured through the intercepted transport. */
 let saveBodies: Array<{ providers: CodexModelProviderWrite[]; expectedVersion: string }> = [];
+/** Every import POST body, captured the same way; the bind must carry the read version. */
+let importBodies: Array<{ ids: string[]; expectedVersion: string }> = [];
 /** The answer a PUT gets; a case swaps it to drive a conflict. */
 let saveResponder: () => Promise<Response> = () => ok(READING);
+/** The answer a registry GET gets; the import case starts from an empty registry. */
+let registryResponder: () => Promise<Response> = () => ok(READING);
+/** The answer the import POST gets; a bind refreshes the drafts from this reading. */
+let importResponder: () => Promise<Response> = () => ok(READING);
 
 beforeEach(() => {
   Object.values(apiMocks).forEach((mock) => mock.mockReset());
   saveBodies = [];
+  importBodies = [];
   saveResponder = () => ok(READING);
+  registryResponder = () => ok(READING);
+  importResponder = () => ok(READING);
   apiMocks.fetch.mockImplementation((url: string, options: { method?: string; body?: string } = {}) => {
+    if (url === '/api/settings/codex/model-providers/import') {
+      if (options.method === 'POST') {
+        importBodies.push(JSON.parse(options.body ?? '{}'));
+        return importResponder();
+      }
+      return ok(IMPORT_READING);
+    }
     if (url !== '/api/settings/codex/model-providers') {
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
     }
@@ -133,7 +182,7 @@ beforeEach(() => {
       saveBodies.push(JSON.parse(options.body ?? '{}'));
       return saveResponder();
     }
-    return ok(READING);
+    return registryResponder();
   });
   apiMocks.models.mockImplementation(() => ok({ success: true, data: { models: CATALOG } }));
   apiMocks.updateModel.mockImplementation(() => ok({ success: true, data: { models: CATALOG } }));
@@ -308,6 +357,45 @@ test('the negative arm: descriptor data chooses the panel and the editor, not a 
   fireEvent.click(fromDataToo.getByLabelText('Edit Bob Model · bob'));
   assert.equal(fromDataToo.queryByTestId('model-codex-provider-select'), null);
   assert.ok(fromDataToo.getByTestId('model-env-editor'), 'the env editor is what this descriptor asks for');
+});
+
+test('one-click import binds the user-profile provider into the project registry', async () => {
+  registryResponder = () => ok(EMPTY_READING);
+  importResponder = () => ok(READING);
+  const view = renderModels('codex');
+
+  // The panel is WIRED INTO the page (not merely exported): it draws the profile's rows, with
+  // the `env_key` variable NAME and no secret value anywhere in the DOM.
+  await waitFor(() => assert.ok(view.getByText('Import from your Codex profile')));
+  await waitFor(() => assert.ok(view.getByText('BOB API')));
+  assert.ok(view.getByText('BOB_API_KEY'));
+  assert.ok(!view.container.textContent?.includes('sk-'), 'no secret value is ever drawn');
+
+  // The registry starts empty, so the model picker only offers the inherit-default choice.
+  assert.equal(view.queryAllByLabelText('Provider ID').length, 0);
+  fireEvent.click(view.getByLabelText('Edit Bob Model · bob'));
+  assert.deepEqual(
+    Array.from((view.getByTestId('model-codex-provider-select') as HTMLSelectElement).options)
+      .map((option) => option.value),
+    [''],
+  );
+
+  // The Bind press is the product control; it POSTs the selected id with the READ version.
+  fireEvent.click(view.getByText('Bind'));
+  await waitFor(() => assert.equal(importBodies.length, 1));
+  assert.deepEqual(importBodies[0], { ids: ['bob'], expectedVersion: 'version-0' });
+
+  // The answer refreshed the drafts, so the provider row is on the page...
+  await waitFor(() => assert.equal(
+    (view.getAllByLabelText('Provider ID')[0] as HTMLInputElement).value,
+    'bob',
+  ));
+  // ...and the model editor's picker can now bind to it.
+  assert.deepEqual(
+    Array.from((view.getByTestId('model-codex-provider-select') as HTMLSelectElement).options)
+      .map((option) => option.value),
+    ['', 'bob'],
+  );
 });
 
 test('a stale save is a visible conflict and the edited rows survive', async () => {

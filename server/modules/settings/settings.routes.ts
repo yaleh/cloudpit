@@ -105,6 +105,24 @@ export function createSettingsRouter(
   // only whether its token file holds a secret (`tokenSet`); PUT is a full replacement guarded by
   // the content hash it was based on (`expectedVersion` in the body, or `If-Match`), so a second
   // editor's stale save is a 409 rather than a silent overwrite.
+  //
+  // The user-profile import lives at a sub-path: GET only READS the operator's `~/.codex` TOML
+  // blocks (never a secret value), and POST binds the named rows into the project file, carrying
+  // the same version proof as a save so a stale bind cannot overwrite a newer registry.
+  router.get('/codex/model-providers/import', respond(() => service.getCodexUserProviderImports()));
+  router.post('/codex/model-providers/import', async (req, res, next) => {
+    try {
+      const header = req.get('if-match');
+      const headerVersion = header === undefined
+        ? undefined
+        : header.replace(/^W\//, '').replace(/^"|"$/g, '');
+      const reading = await service.importCodexUserProviders({
+        body: req.body,
+        headerVersion,
+      });
+      res.status(200).set('ETag', `"${reading.version}"`).json(reading);
+    } catch (error) { next(error); }
+  });
   router.get('/codex/model-providers', respond(() => service.getCodexModelProviders()));
   router.put('/codex/model-providers', async (req, res, next) => {
     try {

@@ -1,6 +1,7 @@
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
 import ModelsContent from '@/modules/settings/tabs/agents-settings/sections/content/ModelsContent';
+import CodexProviderImport from '@/modules/settings/tabs/agents-settings/sections/content/CodexProviderImport';
 import { useCodexProviders } from '@/modules/settings/hooks/useCodexProviders';
 import { Button, Input } from '@/shared/ui';
 import type { AgentProvider } from '@/shared/types';
@@ -27,7 +28,9 @@ const fieldClass = 'h-9 rounded-lg bg-background font-mono text-xs';
  * buttons a person does.
  */
 export default function CodexProvidersContent({ agent }: CodexProvidersContentProps) {
-  const { snapshot, load, addDraft, updateDraft, removeDraft, save } = useCodexProviders();
+  const {
+    snapshot, load, addDraft, updateDraft, removeDraft, save, bindImportedProvider,
+  } = useCodexProviders();
   const reading = snapshot.reading;
   const providers = reading?.providers ?? [];
   const busy = snapshot.status === 'loading' || snapshot.status === 'saving';
@@ -40,6 +43,7 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
       data-codex-providers-error={snapshot.error?.kind ?? ''}
       data-codex-providers-count={String(snapshot.drafts.length)}
       data-codex-providers-path={reading?.path ?? ''}
+      data-codex-import-status={snapshot.importStatus}
     >
       <section className="rounded-2xl border border-border/70 bg-muted/20 p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -108,6 +112,22 @@ export default function CodexProvidersContent({ agent }: CodexProvidersContentPr
           </ul>
         )}
       </section>
+
+      <CodexProviderImport
+        reading={snapshot.imports}
+        onBind={(providerId) => void bindImportedProvider(providerId)}
+        busy={snapshot.importStatus === 'importing' || busy}
+      />
+
+      {snapshot.importError !== null && (
+        <p
+          role="alert"
+          data-testid="codex-import-error"
+          className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
+          Could not import the Codex profile: {snapshot.importError}
+        </p>
+      )}
 
       {snapshot.drafts.map((draft, index) => (
         <section

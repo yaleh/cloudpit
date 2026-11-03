@@ -23,6 +23,34 @@ export type CodexModelProviderWrite = {
 };
 
 /**
+ * One `[model_providers.<id>]` block the server read from the operator's own `~/.codex` TOML
+ * files. Structural mirror of the server's `CodexUserProviderImport`: only field NAMES are
+ * carried — `envKey` is the variable name, never its value, and no token ever appears here.
+ * Defined here (the pure rules layer) so the panel and the controller share one definition;
+ * `src/shared/types.ts` is an oversize-ratchet file whose baseline may only fall.
+ */
+export type CodexUserProviderImport = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  envKey: string;
+  wireApi: string;
+  /** The user TOML file the block came from. */
+  source: string;
+  /** False when importing it would shadow a Codex built-in or use an unsupported dialect. */
+  bindable: boolean;
+  warnings: string[];
+};
+
+/** The whole read-only import view, mirroring the server's `CodexUserProviderImportReading`. */
+export type CodexUserProviderImportReading = {
+  directory: string;
+  files: string[];
+  providers: CodexUserProviderImport[];
+  warnings: string[];
+};
+
+/**
  * The Settings → Agents → Codex provider registry form's rules.
  *
  * WHY A CONTROLLER. Three things here are rules rather than rendering, and each is a bug if it
@@ -61,6 +89,12 @@ export type CodexProvidersSnapshot = {
   /** The editable rows; a save replaces the whole registry with these. */
   drafts: CodexProviderDraft[];
   error: CodexProvidersError | null;
+  /** The read-only user-profile import view, or `null` before the first read. */
+  imports: CodexUserProviderImportReading | null;
+  /** The import panel's own lifecycle; independent of the registry save state. */
+  importStatus: 'loading' | 'ready' | 'importing' | 'failed';
+  /** Why the last import read or bind failed, or `null`. Never a secret value. */
+  importError: string | null;
 };
 
 /** What the outside world hands the controller; the settings API is the shipped binding. */
@@ -68,6 +102,13 @@ export type CodexProvidersDeps = {
   read: () => Promise<CodexModelProvidersReading>;
   save: (input: {
     providers: CodexModelProviderWrite[];
+    expectedVersion: string;
+  }) => Promise<CodexModelProvidersReading>;
+  /** The operator's own Codex providers (server: `GET .../model-providers/import`). */
+  readImports: () => Promise<CodexUserProviderImportReading>;
+  /** Binds the named user-profile rows (server: `POST .../model-providers/import`). */
+  importProviders: (input: {
+    ids: string[];
     expectedVersion: string;
   }) => Promise<CodexModelProvidersReading>;
 };
@@ -84,6 +125,13 @@ export type CodexProvidersController = {
   removeDraft: (index: number) => void;
   /** Saves every draft against the version the current reading carries. */
   save: () => Promise<void>;
+  /** Reads the user-profile import view (read-only; no secret value is ever returned). */
+  loadImports: () => Promise<void>;
+  /**
+   * Binds one imported provider into the project registry, then refreshes the drafts from the
+   * answer so the model editor's provider picker sees it immediately.
+   */
+  bindImportedProvider: (providerId: string) => Promise<void>;
   /** Re-arms the SAME controller after React StrictMode's cleanup/setup pass. */
   activate: () => void;
   dispose: () => void;
@@ -130,6 +178,9 @@ const INITIAL: CodexProvidersSnapshot = {
   reading: null,
   drafts: [],
   error: null,
+  imports: null,
+  importStatus: 'loading',
+  importError: null,
 };
 
 const EMPTY_DRAFT: CodexProviderDraft = {
@@ -153,6 +204,7 @@ export function createCodexProvidersController(
   const listeners = new Set<() => void>();
   let disposed = false;
   let saving = false;
+  let importing = false;
 
   const publish = (next: CodexProvidersSnapshot): void => {
     if (disposed) return;
@@ -166,6 +218,7 @@ export function createCodexProvidersController(
     status: CodexProvidersSnapshot['status'],
   ): void => {
     publish({
+      ...snapshot,
       status,
       reading,
       drafts: reading.providers.map(draftFromProvider),
@@ -236,6 +289,62 @@ export function createCodexProvidersController(
     }
   };
 
+  /**
+   * Reads the user-profile import view. A failure is the panel's own line and leaves the project
+   * registry (and its drafts) untouched.
+   */
+  const loadImports = async (): Promise<void> => {
+    publish({ ...snapshot, importStatus: 'loading', importError: null });
+    try {
+      const imports = await deps.readImports();
+      publish({ ...snapshot, imports, importStatus: 'ready', importError: null });
+    } catch (error) {
+      publish({
+        ...snapshot,
+        importStatus: 'failed',
+        importError: errorMessage(error, 'unknown error'),
+      });
+    }
+  };
+
+  /**
+   * Binds one imported provider. The request carries the version of the registry the panel read
+   * (so a stale bind is the same 409 a save gets); the answer replaces the drafts, which is what
+   * makes the new provider appear in the model editor's picker.
+   */
+  const bindImportedProvider = async (providerId: string): Promise<void> => {
+    const reading = snapshot.reading;
+    if (importing || reading === null) return;
+    importing = true;
+    publish({ ...snapshot, importStatus: 'importing', importError: null });
+    try {
+      const saved = await deps.importProviders({
+        ids: [providerId],
+        expectedVersion: reading.version,
+      });
+      applyReading(saved, 'ready');
+      publish({ ...snapshot, importStatus: 'ready', importError: null });
+    } catch (error) {
+      // A conflict is the SAVE path's presentation (the drafts are kept so the person can
+      // reload and bind again); any other refusal belongs to the import panel.
+      if (isVersionConflict(error)) {
+        publish({
+          ...snapshot,
+          importStatus: 'ready',
+          error: { kind: 'conflict', message: errorMessage(error, 'unknown error') },
+        });
+      } else {
+        publish({
+          ...snapshot,
+          importStatus: 'failed',
+          importError: errorMessage(error, 'unknown error'),
+        });
+      }
+    } finally {
+      importing = false;
+    }
+  };
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -249,6 +358,8 @@ export function createCodexProvidersController(
     updateDraft,
     removeDraft,
     save,
+    loadImports,
+    bindImportedProvider,
     activate: () => {
       disposed = false;
     },

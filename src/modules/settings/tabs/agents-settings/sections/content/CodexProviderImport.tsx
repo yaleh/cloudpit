@@ -1,32 +1,7 @@
 import { Download, ShieldCheck } from 'lucide-react';
 
+import type { CodexUserProviderImportReading } from '@/modules/settings/utils/codexProvidersController';
 import { Button } from '@/shared/ui';
-
-/**
- * One `[model_providers.<id>]` block the server read from the operator's own `~/.codex` TOML
- * files. Structural mirror of the server's `CodexUserProviderImport`: only the field NAMES are
- * carried — `envKey` is the variable name, never its value, and no token ever appears here.
- */
-export type CodexUserProviderImport = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  envKey: string;
-  wireApi: string;
-  /** The user TOML file the block came from. */
-  source: string;
-  /** False when importing it would shadow a Codex built-in or use an unsupported dialect. */
-  bindable: boolean;
-  warnings: string[];
-};
-
-/** The whole import view, mirroring the server's `CodexUserProviderImportReading`. */
-export type CodexUserProviderImportReading = {
-  directory: string;
-  files: string[];
-  providers: CodexUserProviderImport[];
-  warnings: string[];
-};
 
 type CodexProviderImportProps = {
   /** The server's read-only import view; `null` while it is loading. */
@@ -122,6 +97,10 @@ export default function CodexProviderImport({
               className="rounded-xl border border-border/70 bg-background/70 p-3"
               data-codex-import-provider={provider.id}
               data-codex-import-provider-bindable={String(provider.bindable)}
+              data-codex-import-provider-name={provider.name}
+              data-codex-import-provider-base-url={provider.baseUrl}
+              data-codex-import-provider-env-key={provider.envKey}
+              data-codex-import-provider-wire-api={provider.wireApi}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">

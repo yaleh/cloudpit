@@ -7,6 +7,7 @@ import {
   type CodexModelProviderWrite,
   type CodexProviderDraft,
   type CodexProvidersSnapshot,
+  type CodexUserProviderImportReading,
 } from '@/modules/settings/utils/codexProvidersController';
 
 /**
@@ -38,6 +39,25 @@ async function saveCodexProviders(input: {
   }));
 }
 
+/** The read-only view of the operator's own `~/.codex` providers; names only, never secrets. */
+const CODEX_PROVIDER_IMPORT_ROUTE = `${CODEX_PROVIDERS_ROUTE}/import`;
+
+async function readCodexProviderImports(): Promise<CodexUserProviderImportReading> {
+  return readApiJson<CodexUserProviderImportReading>(
+    await authenticatedFetch(CODEX_PROVIDER_IMPORT_ROUTE),
+  );
+}
+
+async function importCodexProviders(input: {
+  ids: string[];
+  expectedVersion: string;
+}): Promise<CodexModelProvidersReading> {
+  return readApiJson<CodexModelProvidersReading>(await authenticatedFetch(CODEX_PROVIDER_IMPORT_ROUTE, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }));
+}
+
 export type UseCodexProvidersResult = {
   snapshot: CodexProvidersSnapshot;
   load: () => Promise<void>;
@@ -45,6 +65,8 @@ export type UseCodexProvidersResult = {
   updateDraft: (index: number, patch: Partial<CodexProviderDraft>) => void;
   removeDraft: (index: number) => void;
   save: () => Promise<void>;
+  loadImports: () => Promise<void>;
+  bindImportedProvider: (providerId: string) => Promise<void>;
 };
 
 export function useCodexProviders(): UseCodexProvidersResult {
@@ -52,6 +74,8 @@ export function useCodexProviders(): UseCodexProvidersResult {
     () => createCodexProvidersController({
       read: readCodexProviders,
       save: saveCodexProviders,
+      readImports: readCodexProviderImports,
+      importProviders: importCodexProviders,
     }),
     [],
   );
@@ -66,6 +90,7 @@ export function useCodexProviders(): UseCodexProvidersResult {
     // controller; re-arming before the read keeps that pass from leaving a dead controller.
     controller.activate();
     void controller.load();
+    void controller.loadImports();
     return () => controller.dispose();
   }, [controller]);
 
@@ -76,5 +101,7 @@ export function useCodexProviders(): UseCodexProvidersResult {
     updateDraft: controller.updateDraft,
     removeDraft: controller.removeDraft,
     save: controller.save,
+    loadImports: controller.loadImports,
+    bindImportedProvider: controller.bindImportedProvider,
   };
 }

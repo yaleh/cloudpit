@@ -1,3 +1,5 @@
+import os from 'node:os';
+
 import {
   accessTokensDb,
   credentialsDb,
@@ -23,7 +25,10 @@ import { installCodexProviderRegistryPort } from '@/shared/ports/codex-provider-
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
 import { RESERVED_CODEX_PROVIDER_IDS } from './codex-model-providers.schema.js';
-import { createCodexModelProvidersSource } from './codex-model-providers.settings.js';
+import {
+  createCodexModelProvidersSource,
+  readCodexUserProviderImports,
+} from './codex-model-providers.settings.js';
 import { DEFAULT_COCKPIT_SESSION_START_MODEL } from './server-settings.js';
 import {
   readCockpitSessionStart,
@@ -208,6 +213,9 @@ const settingsService = createSettingsService({
   codexModelProviders: {
     read: () => codexModelProvidersSource.read(),
     write: (input) => codexModelProvidersSource.write(input),
+    // The composition root decides WHOSE profile is imported: this process's operator. The read
+    // is one-way (the user's TOML files are never written); the bind goes to the project source.
+    readUserImports: () => readCodexUserProviderImports({ homeDir: os.homedir(), env: process.env }),
   },
 });
 

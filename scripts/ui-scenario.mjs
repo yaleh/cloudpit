@@ -24,8 +24,9 @@
  *                      button; the opener waits until the form's own reading is `ready`/`failed`,
  *                      so the first step never catches it mid-load.
  *       `settings-agents-codex` — Settings → Agents → Codex → Models: the project provider
- *                      registry with the bound model library; waits until the registry's own
- *                      status settles (`ready`/`failed`).
+ *                      registry with the bound model library and the user-profile import
+ *                      panel; waits until BOTH the registry's and the import panel's own
+ *                      statuses settle (`ready`/`failed`).
  *       `quay-pulse` — the title-bar Loop pulse popover of the session the page is already on;
  *                      the opener presses the trigger and waits for the mention list to settle,
  *                      because that list arrives over the network after the popover mounts.
@@ -635,6 +636,69 @@ function expectationFailures(expect, reading) {
         if (!labels.includes(String(expected))) fail(key, expected, labels);
         break;
       }
+      case 'codexImportOpen': {
+        const actual = reading.codexProviders?.importOpen === true;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportStatus': {
+        const actual = reading.codexProviders?.importStatus ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportCount': {
+        const actual = reading.codexProviders?.importCount ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportIds': {
+        // The user-profile rows IN DRAW ORDER (`config.toml` first, then profiles).
+        const actual = Array.isArray(reading.codexProviders?.importIds)
+          ? reading.codexProviders.importIds
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportBindable': {
+        // A row this project refuses (reserved id / Chat Completions) reads `false` here.
+        const actual = Array.isArray(reading.codexProviders?.importBindable)
+          ? reading.codexProviders.importBindable
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportEnvKeys': {
+        // The variable NAMES only; a value would have to be a different string.
+        const actual = Array.isArray(reading.codexProviders?.importEnvKeys)
+          ? reading.codexProviders.importEnvKeys
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportBaseUrls': {
+        const actual = Array.isArray(reading.codexProviders?.importBaseUrls)
+          ? reading.codexProviders.importBaseUrls
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportWireApis': {
+        const actual = Array.isArray(reading.codexProviders?.importWireApis)
+          ? reading.codexProviders.importWireApis
+          : null;
+        if (!Array.isArray(expected) || !sameJson(actual, expected)) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportDirectoryIncludes': {
+        const actual = reading.codexProviders?.importDirectory ?? null;
+        if (actual === null || !actual.includes(String(expected))) fail(key, expected, actual);
+        break;
+      }
+      case 'codexImportError': {
+        const actual = reading.codexProviders?.importError ?? null;
+        if (actual !== expected) fail(key, expected, actual);
+        break;
+      }
       case 'cockpitCardDismissNoticeOk': {
         // The last dismiss answer's outcome, read from the list-level line that outlives the card.
         // `null` (no dismiss attempted yet) is a real reading, not "skip".
@@ -1162,7 +1226,11 @@ async function openSettingsAgentsCodex(page) {
       const root = /** @type {any} */ (globalThis).document.querySelector('[data-codex-providers]');
       if (root === null) return false;
       const status = root.getAttribute('data-codex-providers');
-      return status === 'ready' || status === 'failed';
+      // The user-profile import is a second, independent read; a scenario whose first step
+      // asserts it must not catch it mid-load.
+      const importStatus = root.getAttribute('data-codex-import-status');
+      return (status === 'ready' || status === 'failed')
+        && (importStatus === 'ready' || importStatus === 'failed');
     },
     undefined,
     { timeout: PANEL_TIMEOUT_MS },

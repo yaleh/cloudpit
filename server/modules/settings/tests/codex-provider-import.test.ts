@@ -13,6 +13,7 @@
  * separate, read-only command whose output is recorded on the task, not an assertion here).
  */
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import {
   mkdirSync,
   mkdtempSync,
@@ -21,14 +22,27 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import express, {
+  type NextFunction,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
+} from 'express';
+
+import type { CodexModelProvidersReading } from '@/shared/types.js';
+import { AppError } from '@/shared/utils.js';
+
 import {
+  createCodexModelProvidersSource,
   readCodexUserProviderImports,
   type CodexUserProviderImportReading,
 } from '../codex-model-providers.settings.js';
+import { createSettingsRouter } from '../settings.routes.js';
+import { createSettingsService } from '../settings.service.js';
 
 const BOB_CONFIG = `
 model = "gpt-5.6-sol"
@@ -274,5 +288,334 @@ test('AC-466 a malformed profile file is warned about while the valid file still
         JSON.stringify(reading.warnings),
       );
     },
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// The PRODUCT half of AC-466: the import surface is reachable over HTTP, a bind writes the
+// PROJECT settings file (never the user's `~/.codex`), and an unbindable row is refused whole.
+//
+// The harness is the production router + production service + the real file layer, served on a
+// loopback port. Only the unrelated Settings dependencies are stubs. The user profile is a temp
+// HOME with a real `.codex/`, so the "no write-back" assertion compares real bytes.
+// ---------------------------------------------------------------------------------------------
+
+type Reply = {
+  status: number;
+  body: Record<string, unknown>;
+  text: string;
+};
+
+type ImportHarness = {
+  home: string;
+  codexDir: string;
+  settingsPath: string;
+  settingsDir: string;
+  getImport(): Promise<Reply>;
+  getRegistry(): Promise<Reply>;
+  postImport(body: unknown, headers?: Record<string, string>): Promise<Reply>;
+  /** The project settings file's exact bytes, or null while it does not exist. */
+  fileText(): string | null;
+  /** Every file under the temp user home, name -> bytes. */
+  snapshot(): Record<string, string>;
+};
+
+/** Walks the user home so a post-import comparison is byte-for-byte, not "same file names". */
+function snapshotHome(home: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else result[path.relative(home, full)] = readFileSync(full, 'utf8');
+    }
+  };
+  walk(home);
+  return result;
+}
+
+/**
+ * Serves the production settings router over a temp project file and a temp user Codex home.
+ *
+ * `options.env` is handed to the import reader as the environment an import could consult; the
+ * sentinel case uses it to prove an `env_key` VALUE never enters the reading.
+ */
+async function withImportHarness(
+  files: Record<string, string>,
+  run: (harness: ImportHarness) => Promise<void>,
+  options: {
+    settings?: unknown;
+    env?: Record<string, string>;
+    projectToken?: string;
+  } = {},
+): Promise<void> {
+  const home = mkdtempSync(path.join(os.tmpdir(), 'codex-import-http-'));
+  const codexDir = path.join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true });
+  for (const [name, text] of Object.entries(files)) {
+    writeFileSync(path.join(codexDir, name), text);
+  }
+
+  const settingsDir = mkdtempSync(path.join(os.tmpdir(), 'codex-import-project-'));
+  const settingsPath = path.join(settingsDir, 'codex.settings.json');
+  if (options.settings !== undefined) {
+    writeFileSync(settingsPath, `${JSON.stringify(options.settings, null, 2)}\n`, { mode: 0o600 });
+  }
+  if (options.projectToken !== undefined) {
+    mkdirSync(path.join(settingsDir, 'codex.secrets'), { recursive: true });
+    writeFileSync(path.join(settingsDir, 'codex.secrets', 'bob.token'), options.projectToken, { mode: 0o600 });
+  }
+
+  const source = createCodexModelProvidersSource({ settingsPath, env: {}, homeDir: settingsDir });
+  const service = createSettingsService({
+    credentials: { list: () => [], create: () => ({}), remove: () => false, toggle: () => false },
+    notifications: {
+      getPreferences: () => undefined,
+      updatePreferences: () => ({}),
+      createEnabledEvent: () => ({}),
+      notifyUser: () => undefined,
+    },
+    pushSubscriptions: { save: () => undefined, remove: () => undefined },
+    getVapidPublicKey: () => null,
+    accessTokens: {
+      list: () => [],
+      findById: () => undefined,
+      issue: () => ({ ok: false, reason: 'unused' }),
+      revoke: () => false,
+    },
+    codexModelProviders: {
+      read: () => source.read(),
+      write: (input) => source.write(input),
+      readUserImports: () => readCodexUserProviderImports({ homeDir: home, env: options.env ?? {} }),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/api/settings', createSettingsRouter(service));
+  app.use((error: unknown, _req: ExpressRequest, res: ExpressResponse, _next: NextFunction) => {
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({
+        success: false,
+        error: { code: error.code, message: error.message, details: error.details },
+      });
+      return;
+    }
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  });
+
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const request = async (
+    route: string,
+    method: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<Reply> => {
+    const response = await fetch(`${baseUrl}/api/settings${route}`, {
+      method,
+      headers: {
+        ...headers,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const text = await response.text();
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(text) as Record<string, unknown>; } catch { parsed = {}; }
+    return { status: response.status, body: parsed, text };
+  };
+
+  const harness: ImportHarness = {
+    home,
+    codexDir,
+    settingsPath,
+    settingsDir,
+    getImport: () => request('/codex/model-providers/import', 'GET'),
+    getRegistry: () => request('/codex/model-providers', 'GET'),
+    postImport: (body, headers) => request('/codex/model-providers/import', 'POST', body, headers),
+    fileText: () => {
+      try { return readFileSync(settingsPath, 'utf8'); } catch { return null; }
+    },
+    snapshot: () => snapshotHome(home),
+  };
+
+  try {
+    await run(harness);
+  } finally {
+    server.close();
+    await once(server, 'close');
+    rmSync(home, { recursive: true, force: true });
+    rmSync(settingsDir, { recursive: true, force: true });
+  }
+}
+
+/** A two-provider user profile: `bob` (no wire_api) and a profile-file provider. */
+const TWO_PROVIDER_PROFILE = {
+  'config.toml': BOB_CONFIG,
+  'bob-gpt.config.toml': `
+[model_providers.bob-gpt]
+name = "Bob GPT"
+base_url = "https://bob-gpt.example/v1"
+env_key = "BOB_GPT_API_KEY"
+wire_api = "responses"
+`,
+};
+
+/** A profile holding rows this project must list but refuse to bind. */
+const UNBINDABLE_PROFILE = {
+  'config.toml': `
+[model_providers.openai]
+name = "Shadow"
+base_url = "https://shadow.example/v1"
+env_key = "SHADOW_API_KEY"
+
+[model_providers.chatty]
+name = "Chatty"
+base_url = "https://chatty.example/v1"
+env_key = "CHATTY_API_KEY"
+wire_api = "chat"
+`,
+};
+
+const importReading = (reply: Reply): CodexUserProviderImportReading =>
+  reply.body as unknown as CodexUserProviderImportReading;
+
+const registryReading = (reply: Reply): CodexModelProvidersReading =>
+  reply.body as unknown as CodexModelProvidersReading;
+
+test('AC-466 GET /codex/model-providers/import is the reachable read-only reading', async () => {
+  await withImportHarness(TWO_PROVIDER_PROFILE, async (harness) => {
+    const reply = await harness.getImport();
+    assert.equal(reply.status, 200, reply.text);
+
+    const reading = importReading(reply);
+    assert.equal(reading.directory, harness.codexDir);
+    assert.deepEqual(reading.files, [
+      path.join(harness.codexDir, 'config.toml'),
+      path.join(harness.codexDir, 'bob-gpt.config.toml'),
+    ]);
+    assert.deepEqual(reading.providers.map((entry) => entry.id), ['bob', 'bob-gpt']);
+
+    const bob = reading.providers[0]!;
+    // Every field the panel draws, including the dialect default for a block that omits it.
+    assert.equal(bob.name, 'BOB API');
+    assert.equal(bob.baseUrl, 'https://bob-api.com/v1');
+    assert.equal(bob.envKey, 'BOB_API_KEY');
+    assert.equal(bob.wireApi, 'responses');
+    assert.equal(bob.source, path.join(harness.codexDir, 'config.toml'));
+    assert.equal(bob.bindable, true);
+    assert.ok(Array.isArray(bob.warnings));
+
+    const bobGpt = reading.providers[1]!;
+    assert.equal(bobGpt.name, 'Bob GPT');
+    assert.equal(bobGpt.baseUrl, 'https://bob-gpt.example/v1');
+    assert.equal(bobGpt.envKey, 'BOB_GPT_API_KEY');
+    assert.equal(bobGpt.wireApi, 'responses');
+    assert.equal(bobGpt.source, path.join(harness.codexDir, 'bob-gpt.config.toml'));
+    assert.equal(bobGpt.bindable, true);
+  });
+});
+
+test('AC-466 POST /import writes the project file and leaves every user file byte-identical', async () => {
+  await withImportHarness(TWO_PROVIDER_PROFILE, async (harness) => {
+    const before = harness.snapshot();
+    assert.equal(harness.fileText(), null, 'the project file starts absent');
+
+    const reply = await harness.postImport({ ids: ['bob'], expectedVersion: 'missing' });
+    assert.equal(reply.status, 200, reply.text);
+
+    // (a) the PROJECT file is the write target and carries the imported row.
+    const document = JSON.parse(harness.fileText() ?? '{}') as {
+      modelProviders?: Record<string, { name?: string; baseUrl?: string; envKey?: string }>;
+    };
+    assert.equal(document.modelProviders?.bob?.name, 'BOB API');
+    assert.equal(document.modelProviders?.bob?.baseUrl, 'https://bob-api.com/v1');
+    assert.equal(document.modelProviders?.bob?.envKey, 'BOB_API_KEY');
+
+    // (b) the operator's own Codex home did not move a byte.
+    assert.deepEqual(harness.snapshot(), before, 'the import must never write back to ~/.codex');
+
+    // The answer is the project registry, not the user reading; the secret is never carried.
+    const reading = registryReading(reply);
+    assert.equal(reading.path, harness.settingsPath);
+    assert.deepEqual(reading.providers.map((entry) => entry.id), ['bob']);
+    assert.equal(reading.providers[0]!.tokenSet, false);
+    assert.ok(!('token' in reading.providers[0]!));
+  });
+});
+
+test('AC-466 a reserved id or a Chat Completions row is refused by name without a partial write', async () => {
+  const settings = {
+    modelProviders: {
+      keep: {
+        name: 'Keep',
+        baseUrl: 'https://keep.example/v1',
+        envKey: 'KEEP_API_KEY',
+      },
+    },
+  };
+  await withImportHarness(UNBINDABLE_PROFILE, async (harness) => {
+    const version = (await harness.getRegistry()).body.version;
+    assert.equal(typeof version, 'string');
+
+    const importReadingReply = await harness.getImport();
+    assert.equal(importReadingReply.status, 200, importReadingReply.text);
+    assert.deepEqual(
+      importReading(importReadingReply).providers.map((entry) => [entry.id, entry.bindable]),
+      [['openai', false], ['chatty', false]],
+      'both rows are visible, and both declare themselves unbindable',
+    );
+
+    const before = harness.fileText();
+    assert.ok(before !== null);
+    const reserved = await harness.postImport({ ids: ['openai'], expectedVersion: version });
+    assert.equal(reserved.status, 400, reserved.text);
+    assert.equal((reserved.body.error as { code?: string })?.code, 'CODEX_IMPORT_PROVIDER_NOT_BINDABLE');
+    assert.match(String((reserved.body.error as { message?: string })?.message), /openai/);
+    assert.match(String((reserved.body.error as { message?: string })?.message), /reserved/);
+    assert.equal(harness.fileText(), before, 'a refused import must not write anything');
+
+    const chatty = await harness.postImport({ ids: ['chatty'], expectedVersion: version });
+    assert.equal(chatty.status, 400, chatty.text);
+    assert.match(String((chatty.body.error as { message?: string })?.message), /chatty/);
+    assert.match(String((chatty.body.error as { message?: string })?.message), /responses/);
+    assert.equal(harness.fileText(), before, 'a refused import must not write anything');
+  }, { settings });
+});
+
+test('AC-466 env_key VALUES and token sentinels never reach the import response or project file', async () => {
+  const envSentinel = 'sk-env-value-sentinel-must-not-leak';
+  const authSentinel = 'sk-auth-json-sentinel-must-not-leak';
+  const tokenSentinel = 'sk-project-token-sentinel-must-not-leak';
+  await withImportHarness(
+    {
+      'config.toml': BOB_CONFIG,
+      'auth.json': JSON.stringify({ api_key: authSentinel }),
+    },
+    async (harness) => {
+      const importReply = await harness.getImport();
+      assert.equal(importReply.status, 200, importReply.text);
+      for (const sentinel of [envSentinel, authSentinel, tokenSentinel]) {
+        assert.ok(!importReply.text.includes(sentinel), `the import reading leaked ${sentinel}`);
+      }
+
+      const reply = await harness.postImport({ ids: ['bob'], expectedVersion: 'missing' });
+      assert.equal(reply.status, 200, reply.text);
+      for (const sentinel of [envSentinel, authSentinel, tokenSentinel]) {
+        assert.ok(!reply.text.includes(sentinel), `the bind response leaked ${sentinel}`);
+      }
+
+      const project = harness.fileText() ?? '';
+      for (const sentinel of [envSentinel, authSentinel, tokenSentinel]) {
+        assert.ok(!project.includes(sentinel), `the project settings file leaked ${sentinel}`);
+      }
+      // A pre-existing project token file is reported as "stored", never as its value.
+      assert.equal(registryReading(reply).providers[0]!.tokenSet, true);
+      assert.ok(!('token' in registryReading(reply).providers[0]!));
+    },
+    { env: { BOB_API_KEY: envSentinel }, projectToken: tokenSentinel },
   );
 });

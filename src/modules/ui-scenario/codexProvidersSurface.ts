@@ -50,6 +50,26 @@ export type ScenarioCodexProvidersReading = {
   modelIds: string[];
   /** The custom models' labels as drawn (a bound model reads `model · provider`). */
   modelLabels: string[];
+  /** True when the user-profile import panel is mounted. */
+  importOpen: boolean;
+  /** The import panel's own lifecycle: `loading` / `ready` / `importing` / `failed`, or `null`. */
+  importStatus: string | null;
+  /** The number of user-profile provider rows listed (bindable or not). */
+  importCount: number;
+  /** Every listed row's provider id, in draw order. */
+  importIds: string[];
+  /** Per row, whether it can be bound unchanged (a reserved id or a bad dialect cannot). */
+  importBindable: boolean[];
+  /** The Codex home the server inspected, or `null`. */
+  importDirectory: string | null;
+  /** Per row, the `env_key` variable NAME (never its value). */
+  importEnvKeys: string[];
+  /** Per row, the `base_url`. */
+  importBaseUrls: string[];
+  /** Per row, the dialect (`responses` unless the user file declared another). */
+  importWireApis: string[];
+  /** The import panel's visible error, or `null`. */
+  importError: string | null;
 };
 
 const ROOT = '[data-codex-providers]';
@@ -62,6 +82,10 @@ const MODEL_NAME = '#custom-model-name';
 const MODEL_ID = '#custom-model-id';
 const MODEL_SAVE = '[data-model-library-save]';
 const MODEL_ROW = '[data-model-library-model]';
+const IMPORT_ROOT = '[data-codex-import]';
+const IMPORT_STATUS = '[data-codex-import-status]';
+const IMPORT_ROW = '[data-codex-import-provider]';
+const IMPORT_ERROR = '[data-testid="codex-import-error"]';
 
 /** One attribute as a string, or `null` when the element/attribute is absent. */
 function attribute(element: Element | null, name: string): string | null {
@@ -98,11 +122,23 @@ export function readCodexProvidersReading(): ScenarioCodexProvidersReading {
       modelLibraryError: null,
       modelIds: [],
       modelLabels: [],
+      importOpen: false,
+      importStatus: null,
+      importCount: 0,
+      importIds: [],
+      importBindable: [],
+      importDirectory: null,
+      importEnvKeys: [],
+      importBaseUrls: [],
+      importWireApis: [],
+      importError: null,
     };
   }
   const rows = [...document.querySelectorAll(ROW)];
   const select = document.querySelector(MODEL_PROVIDER_SELECT) as HTMLSelectElement | null;
   const modelLibrary = document.querySelector(MODEL_LIBRARY);
+  const importRows = [...document.querySelectorAll(IMPORT_ROW)];
+  const importRoot = document.querySelector(IMPORT_ROOT);
   return {
     open: true,
     status: attribute(root, 'data-codex-providers'),
@@ -123,6 +159,26 @@ export function readCodexProvidersReading(): ScenarioCodexProvidersReading {
       .map((row) => attribute(row, 'data-model-library-model') ?? ''),
     modelLabels: [...document.querySelectorAll(MODEL_ROW)]
       .map((row) => attribute(row, 'data-model-library-model-label') ?? ''),
+    importOpen: importRoot !== null,
+    importStatus: nonEmpty(attribute(document.querySelector(IMPORT_STATUS), 'data-codex-import-status')),
+    importCount: importRows.length,
+    importIds: importRows.map((row) => attribute(row, 'data-codex-import-provider') ?? ''),
+    importBindable: importRows.map(
+      (row) => attribute(row, 'data-codex-import-provider-bindable') === 'true',
+    ),
+    importDirectory: nonEmpty(attribute(importRoot, 'data-codex-import-directory')),
+    importEnvKeys: importRows.map(
+      (row) => attribute(row, 'data-codex-import-provider-env-key') ?? '',
+    ),
+    importBaseUrls: importRows.map(
+      (row) => attribute(row, 'data-codex-import-provider-base-url') ?? '',
+    ),
+    importWireApis: importRows.map(
+      (row) => attribute(row, 'data-codex-import-provider-wire-api') ?? '',
+    ),
+    importError: nonEmpty(
+      document.querySelector(IMPORT_ERROR)?.textContent?.trim() ?? null,
+    ),
   };
 }
 
@@ -137,6 +193,7 @@ export type CodexProviderDriveStep =
     };
   }
   | { 'codexProvider.save': true }
+  | { 'codexProvider.import': string }
   | { 'modelLibrary.setField': { field: 'name' | 'id'; value: string } }
   | { 'modelLibrary.selectCodexProvider': string }
   | { 'modelLibrary.save': true };
@@ -162,6 +219,10 @@ export function dispatchCodexProviderStep(step: CodexProviderDriveStep): string 
   if ('codexProvider.save' in step) {
     pressSaveCodexProviders();
     return 'codexProvider.save';
+  }
+  if ('codexProvider.import' in step) {
+    pressImportCodexProvider(step['codexProvider.import']);
+    return 'codexProvider.import';
   }
   if ('modelLibrary.setField' in step) {
     const fill = step['modelLibrary.setField'];
@@ -228,6 +289,11 @@ export function pressSaveCodexProviders(): void {
   press('[data-codex-providers-save]');
 }
 
+/** Binds one user-profile provider into the project registry (the panel's own Bind button). */
+export function pressImportCodexProvider(providerId: string): void {
+  press(`[data-codex-import-bind="${providerId}"]`);
+}
+
 /** Types the model editor's name (`name`) or id (`id`) field. */
 export function fillModelLibraryField(field: 'name' | 'id', value: string): void {
   setInput(field === 'name' ? MODEL_NAME : MODEL_ID, value);
@@ -267,8 +333,9 @@ export async function settleCodexProvidersStep(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10));
     const registryStatus = attribute(rootElement(), 'data-codex-providers');
     const libraryStatus = attribute(document.querySelector(MODEL_LIBRARY), 'data-model-library-status');
+    const importStatus = attribute(document.querySelector(IMPORT_STATUS), 'data-codex-import-status');
     if (registryStatus !== 'loading' && registryStatus !== 'saving'
-      && libraryStatus !== 'saving') {
+      && libraryStatus !== 'saving' && importStatus !== 'importing') {
       // One more boundary so the commit that left those states is what the next read sees.
       await new Promise((resolve) => setTimeout(resolve, 0));
       return;
