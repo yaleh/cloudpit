@@ -31,6 +31,7 @@ goal_ac: AC-469
 - src/shared/types.ts
 - src/shared/api.ts
 - src/shared/tests/wireContractTypeSync.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - src/modules/chat/tests/composerModelProviderOption.test.tsx（新）
 
 ## AC
