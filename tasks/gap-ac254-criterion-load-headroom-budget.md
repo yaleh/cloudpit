@@ -2,7 +2,7 @@
 id: gap-ac254-criterion-load-headroom-budget
 title: AC-254 判据 e2e/mcp-settings.spec.ts 在宿主负载下反复红：冷依赖预打包撞 30s warm 预算、整轮撞 55s
   watchdog（同树 fail→pass 已证）——按 AC-109 已落地先例声明式预算，让负载臂跑完再判读数
-status: ready
+status: done
 labels:
   - gap
   - defect
