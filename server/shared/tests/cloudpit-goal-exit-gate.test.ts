@@ -71,7 +71,9 @@ const UTILS_RATCHET_KEY = 'server/shared/utils.ts';
  * AC-394's `MANIFEST_PIN` uses. 58 directories measured on 2026-11-03 plus the first recorded
  * change: the four `modules/observation/*` subdirectories pre-declared by human yale's
  * 2026-11-03 ruling (task `gap-ac455-directory-arm-recorded-change`), landed by
- * `gap-routine-architecture-analysis-god-package-server-observation`.
+ * `gap-routine-architecture-analysis-god-package-server-observation`; and the second
+ * recorded change, `modules/providers/list/claude/lifecycle`, landed by
+ * `gap-routine-architecture-analysis-god-package-server-providers-claude`.
  *
  * Adding a module directory means editing THIS array and `cloudpit-goal-exit-gate.baseline.json`
  * in the same reviewed change. Editing the JSON alone is refused by the assertion chain below;
@@ -113,6 +115,7 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/projects/services',
   'modules/providers',
   'modules/providers/list/claude',
+  'modules/providers/list/claude/lifecycle',
   'modules/providers/list/codex',
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',

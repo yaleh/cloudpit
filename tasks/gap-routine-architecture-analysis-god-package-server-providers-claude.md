@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-providers-claude
 title: "architecture-analysis: archguard god-package:
   modules/providers/list/claude = 19 files / 73 entities, fanIn 6, fanOut 432;
   ClaudeResidentHostDriver alone has 86 methods, fanIn 130 "
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
@@ -99,12 +99,3 @@ Extract the driver's turn/lifecycle collaborator entities into a lifecycle/ subd
 - `server/shared/tests/cloudpit-goal-exit-gate.test.ts`
 - `server/shared/tests/cloudpit-goal-exit-gate.baseline.json`
 - `tasks/gap-routine-architecture-analysis-god-package-server-providers-claude.md`
-
-## Blocker
-
-**2026-11-03T13:26:29.511Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts:   AssertionError [ERR_ASSERTION]: every barrel export must name a consumer, and that consumer must import it through the barrel [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts,server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：419d1234-af0b-421d-aa1d-a636052ea47a
-- 处置：已在本续做轮复现并修复（见 Evidence「续做轮」），单跑 8 pass / 0 fail，兄弟判据与结构棘轮全绿。
