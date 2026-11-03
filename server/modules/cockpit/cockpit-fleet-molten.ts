@@ -1,153 +1,168 @@
 /**
- * The fleet's molten short-loop decision (ADR-016): the block reader and the card completion.
+ * The fleet's molten short-loop decision (ADR-016, GOAL-012): the block reader and the card's
+ * three confirm options.
  *
  * WHY IT IS A SIBLING FILE. The fleet card projection already owns the tolerant reading of the
  * fleet document, and the molten decision is a distinct concern with its own vocabulary (the
- * short loop's judgement/conclusion/actions/dispatch). Keeping it here follows the module
- * standards' split-by-concern rule and keeps the projection file inside the repository's
- * oversize ratchet rather than growing it past 800 lines.
+ * crystallisation actions and the task spec). Keeping it here follows the module standards'
+ * split-by-concern rule and keeps the projection file inside the repository's oversize ratchet
+ * rather than growing it past 800 lines.
  *
- * READING AND COMPLETION, NOT JUDGEMENT. The block is read verbatim: no value is trimmed,
- * paraphrased or filled in. The completion only places the loop's own readings where the card
- * already draws things, and every confirm option routes to the molten decision executor. This is
- * deliberately NOT the knowledge path: no `knowledge` block is created and no `decision`/`plan`
- * field is attached, so the action channel's knowledge branch cannot fire on a molten card.
+ * READING, NOT JUDGEMENT. The block is read verbatim: no value is trimmed, paraphrased or filled
+ * in. The only thing this module builds is the fixed three-way confirm surface the contract names
+ * (`crystallize-task` / `decline` / `modify`), each routed to `fleet.molten-decide`. This is
+ * deliberately NOT the knowledge path: no `knowledge` block is read or created, so the action
+ * channel's knowledge branch cannot fire on a molten card.
  *
  * Consumers: `cockpit-fleet-card-projection.ts` (the only caller).
  */
 import type {
   CockpitCard,
   CockpitCardOption,
+  CockpitMoltenAction,
   CockpitMoltenDecision,
-  CockpitMoltenDecisionAction,
+  CockpitMoltenTaskSpec,
 } from '@/shared/types.js';
 import { isRecord } from '@/shared/utils.js';
 
 import { COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID } from './cockpit-fleet-executor.js';
 
 /**
- * The fleet's category for a molten short-loop decision. Like `digest`, the category is not in
- * the fleet's kind table, so the open `kind` string carries it verbatim; the projection maps it
- * to the cockpit's own `molten` kind (which has a descriptor row of its own).
+ * The kind a molten decision renders as. It is an OPEN kind: the wire's closed `CockpitCardKind`
+ * union does not name it (the same way it does not name `knowledge` or `digest`), and the
+ * descriptor table gives it its own badge and tone.
  */
-export const MOLTEN_CATEGORY = 'molten-decision';
+export const MOLTEN_DECISION_KIND = 'molten-decision';
 
-/** The cockpit kind a molten short-loop decision renders as. Not part of `CockpitCardKind`. */
-export const MOLTEN_KIND = 'molten';
+/** The three decisions the GOAL-012 contract fixes, in contract order. */
+export const MOLTEN_DECISIONS = ['crystallize-task', 'decline', 'modify'] as const;
 
-/** The generated dispatch option's id, so a fleet-stated action of the same id is not doubled. */
-const MOLTEN_DISPATCH_OPTION_ID = 'dispatch';
+export type CockpitMoltenDecisionId = (typeof MOLTEN_DECISIONS)[number];
 
-/** A string field, or `''` when the value is not a string. Tolerant like every fleet reading. */
-function text(value: unknown): string {
-  return typeof value === 'string' ? value : '';
+/** The words the cockpit gives each fixed option; the fleet states ids, not display copy. */
+const OPTION_COPY: Record<CockpitMoltenDecisionId, { label: string; does: string }> = {
+  'crystallize-task': { label: '立任务', does: '按 taskSpec 在项目里立一条任务' },
+  decline: { label: '不立任务', does: '关卡，不创建任务' },
+  modify: { label: '改 spec', does: '保持卡片打开，交回修改 taskSpec' },
+};
+
+/** A string field, or `null` when the fleet stated none (the wire uses null, never `''`). */
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
-/** An array field, or `[]` when the value is not an array. */
-function list(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+/** A string list; non-string entries are dropped rather than coerced. */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+/** The block's `action`; a missing or malformed sub-object states three nulls. */
+function readAction(raw: unknown): CockpitMoltenAction {
+  const action = isRecord(raw) ? raw : {};
+  return {
+    kind: textOrNull(action.kind),
+    summary: textOrNull(action.summary),
+    scope: textOrNull(action.scope),
+  };
+}
+
+/** The block's `taskSpec`; the four bodies and the file list pass through untrimmed. */
+function readTaskSpec(raw: unknown): CockpitMoltenTaskSpec {
+  const spec = isRecord(raw) ? raw : {};
+  return {
+    title: textOrNull(spec.title),
+    proposal: textOrNull(spec.proposal),
+    ac: textOrNull(spec.ac),
+    dod: textOrNull(spec.dod),
+    touches: stringList(spec.touches),
+  };
 }
 
 /**
  * The fleet's molten decision block, read verbatim.
  *
- * A block with no readable reading at all is absent, not partially invented: no judgement, no
- * conclusion, no readable action and no dispatch proposal states nothing the person could sign
- * off. A malformed action entry (no id or no label) is dropped, never guessed.
+ * `proposalId` is the block's identity (it is also what `subject.uri` addresses), so a block
+ * without a readable one is ABSENT, not partially invented: no card can be signed off without
+ * knowing which proposal it is. Every other field is carried as stated, including `null` for an
+ * action/taskSpec field the loop left unstated.
  */
 export function readMoltenDecision(raw: unknown): CockpitMoltenDecision | null {
   if (!isRecord(raw)) return null;
-  const judgement = text(raw.judgement);
-  const conclusion = text(raw.conclusion);
-  const actions: CockpitMoltenDecisionAction[] = [];
-  for (const entry of list(raw.actions)) {
-    if (!isRecord(entry)) continue;
-    const id = text(entry.id);
-    const label = text(entry.label);
-    if (id === '' || label === '') continue;
-    actions.push({ id, label, does: text(entry.does) });
-  }
-  const dispatch = text(raw.dispatch);
-  if (judgement === '' && conclusion === '' && actions.length === 0 && dispatch === '') return null;
-  return { judgement, conclusion, actions, ...(dispatch === '' ? {} : { dispatch }) };
+  const proposalId = textOrNull(raw.proposalId);
+  if (proposalId === null || proposalId.trim() === '') return null;
+  return {
+    proposalId,
+    project: textOrNull(raw.project),
+    belief: stringList(raw.belief),
+    action: readAction(raw.action),
+    taskSpec: readTaskSpec(raw.taskSpec),
+    evidenceRefs: stringList(raw.evidenceRefs),
+  };
 }
 
 /**
- * The options a molten decision offers: one per crystallisation action, plus the dispatch
- * proposal when the loop stated one.
+ * The attentionId/revision the confirm executor must echo back.
  *
- * EVERY OPTION ROUTES TO THE SAME EXECUTOR. `decision` is the action id the fleet crystallises;
- * a dispatch proposal carries its sentence as `dispatch`. This is deliberately NOT the
- * knowledge path: no `decision`/`plan`/`confirmation` field is attached, so the action channel
- * never treats the confirmation as a knowledge apply.
+ * The fleet expands its wire's three ids into label-less options carrying these two params, and
+ * that expansion is the authority: when it is readable it is used verbatim. A wire that states
+ * only the ids (or no options at all) falls back to the card's own id/revision, which is where
+ * the fleet derives them from. The cockpit never invents a different address.
  */
-function moltenOptions(cardId: string, molten: CockpitMoltenDecision): CockpitCardOption[] {
-  const options: CockpitCardOption[] = molten.actions.map((action) => ({
-    id: action.id,
-    label: action.label,
-    does: action.does,
+function optionAddress(
+  card: CockpitCard,
+  rawOptions: unknown,
+): { attentionId: string; revision: number } {
+  for (const entry of Array.isArray(rawOptions) ? rawOptions : []) {
+    if (!isRecord(entry)) continue;
+    const action = isRecord(entry.action) ? entry.action : null;
+    const params = action !== null && isRecord(action.params) ? action.params : null;
+    if (params === null) continue;
+    const attentionId = textOrNull(params.attentionId);
+    const revision = typeof params.revision === 'number' ? params.revision : null;
+    if (attentionId !== null && attentionId !== '' && revision !== null) {
+      return { attentionId, revision };
+    }
+  }
+  return { attentionId: card.id, revision: card.revision };
+}
+
+/**
+ * The card's confirm options: exactly the contract's three decisions, in its order.
+ *
+ * Every option names `fleet.molten-decide` and carries `{ attentionId, revision, decision }`, so
+ * the fleet can find the open card, refuse a stale revision, and know which state the person
+ * chose. The options REPLACE whatever the generic reader mapped: the fleet's expansion has no
+ * label, so it would otherwise be dropped as unreadable and leave the card unconfirmable.
+ */
+function moltenOptions(card: CockpitCard, rawOptions: unknown): CockpitCardOption[] {
+  const { attentionId, revision } = optionAddress(card, rawOptions);
+  return MOLTEN_DECISIONS.map((decision) => ({
+    id: decision,
+    label: OPTION_COPY[decision].label,
+    does: OPTION_COPY[decision].does,
     suggested: false,
     source: 'provider',
     action: {
       executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
-      params: { cardId, decision: action.id },
+      params: { attentionId, revision, decision },
     },
   }));
-  if (
-    molten.dispatch !== undefined &&
-    !options.some((option) => option.id === MOLTEN_DISPATCH_OPTION_ID)
-  ) {
-    options.push({
-      id: MOLTEN_DISPATCH_OPTION_ID,
-      label: '采纳 dispatch 提议',
-      does: molten.dispatch,
-      suggested: false,
-      source: 'provider',
-      action: {
-        executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
-        params: { cardId, decision: MOLTEN_DISPATCH_OPTION_ID, dispatch: molten.dispatch },
-      },
-    });
-  }
-  return options;
 }
 
 /**
- * Folds the molten block into the card's own zones, reading for reading.
+ * Gives a molten card its kind and its fixed three-way confirm surface.
  *
- * The short loop's four readings are placed where the cockpit already draws things, never
- * paraphrased: the JUDGEMENT is the card's headline (`ask`; when the fleet stated its own ask,
- * the judgement stays as a `判断：` fact instead so it is not lost), the ONE-LINE CONCLUSION is a
- * fact, and the ACTIONS plus the DISPATCH PROPOSAL become confirm options. The fact is marked
- * `mechanical: false`: a judgement is the loop's reading, not a machine observation, and the
- * card contract keeps the two apart.
- *
- * ⛔ NO KNOWLEDGE BLOCK IS CREATED. This completion touches only `kind`/`ask`/`facts`/`options`;
- * a molten card carries no `knowledge` field, so the action channel's knowledge branch cannot
- * fire on it.
+ * The block itself is already on the card (`molten`), read verbatim by `readMoltenDecision`; this
+ * completion adds no derived text and never touches `knowledge`/`ask`/`facts`. A non-molten card
+ * passes through unchanged.
  */
 export function withMoltenDecision(
   card: CockpitCard,
   molten: CockpitMoltenDecision | null,
+  rawOptions: unknown,
 ): CockpitCard {
   if (molten === null) return card;
-
-  const facts = [...card.facts];
-  let ask = card.ask?.trim() ?? '';
-  if (ask === '') {
-    ask = molten.judgement;
-  } else if (molten.judgement !== '') {
-    facts.push({ text: `判断：${molten.judgement}`, mechanical: false });
-  }
-  if (molten.conclusion !== '') {
-    facts.push({ text: `结论：${molten.conclusion}`, mechanical: false });
-  }
-
-  return {
-    ...card,
-    kind: MOLTEN_KIND,
-    ...(ask === '' ? {} : { ask }),
-    facts,
-    options: [...card.options, ...moltenOptions(card.id, molten)],
-  };
+  return { ...card, kind: MOLTEN_DECISION_KIND, options: moltenOptions(card, rawOptions) };
 }

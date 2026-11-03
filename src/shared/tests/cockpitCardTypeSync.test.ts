@@ -162,10 +162,12 @@ const ROWS: readonly SyncRow[] = [
   { typeName: 'CockpitCardOwnReply', reader: 'object' },
   { typeName: 'CockpitCardConversation', reader: 'object' },
   { typeName: 'CockpitCardNotify', reader: 'object' },
-  // The molten short-loop decision block (ADR-016): the four readings the loop emits and the
-  // actions it proposes for crystallisation. A browser that cannot name a field would drop it
-  // from the card it renders, so both ends must agree field for field.
-  { typeName: 'CockpitMoltenDecisionAction', reader: 'object' },
+  // The molten short-loop decision block (ADR-016 / GOAL-012): the task spec that
+  // `crystallize-task` would write, the action the loop judged, and the decision block itself.
+  // A browser that cannot name a field would drop it from the card it renders, so both ends
+  // must agree field for field.
+  { typeName: 'CockpitMoltenTaskSpec', reader: 'object' },
+  { typeName: 'CockpitMoltenAction', reader: 'object' },
   { typeName: 'CockpitMoltenDecision', reader: 'object' },
   // The brief read's wire shape (AC-431): the status/reason envelope, the flattened brief
   // document, and every preset block the renderer table is keyed by.

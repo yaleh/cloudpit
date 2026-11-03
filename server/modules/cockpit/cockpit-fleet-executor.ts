@@ -75,7 +75,7 @@ export type CockpitFleetExecutorReading = {
 };
 
 /**
- * The molten short-loop decision executor (fleet GOAL-012's tentative contract).
+ * The molten short-loop decision executor (GOAL-012's contract).
  *
  * WHY THIS ID IS DECLARED HERE, NOT READ FROM THE CLI. Every other fleet executor id is the
  * declaration document's content. The molten decision surface is the cockpit side of a contract
@@ -85,9 +85,11 @@ export type CockpitFleetExecutorReading = {
  * contract; once the fleet's `rescue executors --json` lists the same id, that declaration wins
  * (see the provider's resolver) and this one becomes the fallback.
  *
- * ⛔ THIS IS NOT `fleet.apply`. A molten decision crystallises through the fleet's molten
- * channel (task/card split); routing it to the knowledge executor would mix a knowledge
- * suggestion's apply/modify/defer vocabulary into a loop judgement it does not describe.
+ * THE PARAMS ARE THE CARD'S OWN ADDRESS. `attentionId` + `revision` locate the open molten
+ * card and refuse a stale decision, and `decision` is one of the contract's three values
+ * (`crystallize-task` / `decline` / `modify`). This is NOT the knowledge executor: a molten
+ * decision crystallises through the fleet's molten channel (task/card split), never the
+ * knowledge suggestion's apply/modify/defer vocabulary.
  */
 export const COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID = 'fleet.molten-decide';
 
@@ -97,9 +99,9 @@ export const COCKPIT_MOLTEN_DECIDE_DECLARATION: CockpitFleetExecutorDeclaration 
   action: 'molten-decide',
   does: '把人的决定交给 fleet 结晶（task/card 分流），不经过知识执行器',
   params: [
-    { name: 'cardId', type: 'string', required: true },
+    { name: 'attentionId', type: 'string', required: true },
+    { name: 'revision', type: 'integer', required: true },
     { name: 'decision', type: 'string', required: true },
-    { name: 'dispatch', type: 'string', required: false },
   ],
 };
 

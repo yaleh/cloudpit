@@ -92,12 +92,12 @@ const KNOWN_DESCRIPTORS: Record<CockpitCardKind, CockpitCardDescriptor> = {
  *
  * `kind` is an open string so a provider may ship a category this build never learned (the
  * fleet's `digest` and `knowledge` cards are the existing examples). A kind that IS known here
- * gets its own badge and tone without widening the wire union — exactly how `molten` works: the
- * fleet's `molten-decision` category is projected to this kind, and the renderer reads its row
- * from the same table as every known kind. Every other unknown kind keeps the default row.
+ * gets its own badge and tone without widening the wire union — exactly how `molten-decision`
+ * works: it is GOAL-012's molten short-loop decision card, and the renderer reads its row from
+ * the same table as every known kind. Every other unknown kind keeps the default row.
  */
 const OPEN_KIND_DESCRIPTORS: Record<string, CockpitCardDescriptor> = {
-  molten: {
+  'molten-decision': {
     labelKey: 'cockpit.cardKindMolten',
     badgeKey: 'cockpit.cardBadgeMolten',
     tone: 'molten',

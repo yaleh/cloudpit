@@ -5149,41 +5149,41 @@ export type CockpitCardFeedbackNotice = {
   reason?: string;
 };
 
-/**
- * One crystallisation action a molten short-loop decision proposes.
- *
- * The loop's own words: `label` is what the person chooses, `does` is what choosing it does.
- * The cockpit projects each action into a confirm option routed to the molten decision executor
- * (`fleet.molten-decide`); the fleet owns what the action actually crystallises (a quay task or
- * a cockpit card).
- */
-export type CockpitMoltenDecisionAction = {
-  /** Stable id the confirm executor echoes back as `decision`. */
-  id: string;
-  /** What the person chooses (e.g. 立任务 / 修订 / 否). */
-  label: string;
-  /** What choosing it does, as the short loop stated it. */
-  does: string;
+/** The action a molten decision judged: `kind`/`summary`/`scope` verbatim; `null` means unstated.
+ * Matches the fleet's wire, which uses `null` (never `''`) for a field the loop left out. */
+export type CockpitMoltenAction = {
+  kind: string | null;
+  summary: string | null;
+  scope: string | null;
 };
 
 /**
- * One molten short-loop decision, as the fleet states it on a card.
+ * The task a molten decision would crystallise in `project`'s quay store. The four bodies pass to
+ * the task file verbatim and `touches` is the file list; none of them is trimmed here.
+ */
+export type CockpitMoltenTaskSpec = {
+  title: string | null;
+  proposal: string | null;
+  ac: string | null;
+  dod: string | null;
+  touches: string[];
+};
+
+/**
+ * One molten short-loop decision (ADR-016), as the fleet states it on a card.
  *
- * The short loop's output has four readings, and this block carries them verbatim:
- * `judgement` (判断), `conclusion` (一行结论), `actions` (动作) and `dispatch` (dispatch 提议).
- * The cockpit does not paraphrase them; the projection places them into the card's own zones
- * (ask/facts/options) so the person reads the loop's words, never a restatement. Absent on every
- * non-molten card.
+ * `belief` and `evidenceRefs` are string lists; `action` is what the loop judged and `taskSpec`
+ * is what `crystallize-task` would write. Absent on every non-molten card, and a molten card
+ * carries no `knowledge` block: its confirm goes to `fleet.molten-decide`, never the knowledge
+ * executor.
  */
 export type CockpitMoltenDecision = {
-  /** What the short loop judged. */
-  judgement: string;
-  /** Its one-line conclusion. */
-  conclusion: string;
-  /** The crystallisation actions it proposes for the person to choose. */
-  actions: CockpitMoltenDecisionAction[];
-  /** The dispatch proposal, as one sentence, when the loop proposed one. */
-  dispatch?: string;
+  proposalId: string | null;
+  project: string | null;
+  belief: string[];
+  action: CockpitMoltenAction;
+  taskSpec: CockpitMoltenTaskSpec;
+  evidenceRefs: string[];
 };
 
 /**
@@ -5275,9 +5275,9 @@ export type CockpitCard = {
   knowledge?: CockpitKnowledgeCase;
   /**
    * The molten short-loop decision this card asks the person to sign off, when it is one.
-   * Absent on every other card. A card carrying this block renders with the `molten` kind
-   * descriptor (its own badge and tone) and routes its confirm to `fleet.molten-decide`; it is
-   * NOT a knowledge card and carries no `knowledge` block.
+   * Absent on every other card. A card carrying this block renders with the `molten-decision`
+   * kind descriptor (its own badge and tone) and routes its confirm to `fleet.molten-decide`; it
+   * is NOT a knowledge card and carries no `knowledge` block.
    */
   molten?: CockpitMoltenDecision;
 };

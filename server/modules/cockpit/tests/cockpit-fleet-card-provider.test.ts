@@ -1112,33 +1112,55 @@ test('AC7: the live 62d card is not suppressed while no retraction row names its
   }
 });
 
+/** The three decisions GOAL-012 fixes, stated literally so the projection cannot rename them. */
+const MOLTEN_DECISION_IDS = ['crystallize-task', 'decline', 'modify'] as const;
+
+const MOLTEN_TASK_SPEC = {
+  title: '补齐落地判据',
+  proposal: '熔融短环判断只差一条可验证的落地判据。',
+  ac: '- [ ] 判据可运行',
+  dod: '真实对象被操作',
+  touches: ['src/modules/cockpit/cockpitCardDescriptors.ts'],
+};
+
 /**
- * One molten short-loop decision exactly as the fleet states it: the category lives in the open
- * `kind` string (`molten-decision`), the four readings live in the `molten` block, and the entry
- * emits no options of its own — the cockpit builds them from the loop's actions.
+ * One molten short-loop decision exactly as `quay-fleet cockpit cards --json` emits it: the open
+ * kind is `molten-decision`, the contract block sits under `molten` with its six fields, and the
+ * fleet expands its three ids into LABEL-LESS options carrying the attention address. The
+ * cockpit must rebuild readable, confirmable options from that address rather than drop them.
  */
 const MOLTEN_DECISION_CARD = {
   id: 'att-molten-1',
   provider: 'quay-fleet',
-  revision: 1,
+  revision: 2,
   kind: 'molten-decision',
   group: 'ruling',
   rank: 1,
   state: 'open',
   waitingSince: WAITING,
   surfacedAt: SURFACED,
-  subject: { project: 'claudecodeui', uri: 'quay://claudecodeui/molten/1' },
-  facts: [],
-  options: [],
+  subject: { project: 'quay-fleet', uri: 'quay://molten/proposal-7' },
+  situation: '信念 B-3 被违反：落地判据缺失。',
+  facts: [{ text: 'B-3 不在场', ref: 'journal#7', observedAt: WAITING }],
+  options: MOLTEN_DECISION_IDS.map((decision) => ({
+    id: decision,
+    decision,
+    action: {
+      executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
+      params: { attentionId: 'att-molten-1', revision: 2, decision },
+    },
+  })),
   molten: {
-    judgement: '本轮判断：先补判据再派发',
-    conclusion: '只差一条落地的判据',
-    actions: [{ id: 'adopt-task', label: '立 quay 任务', does: '把动作立成任务' }],
-    dispatch: '补一条判据后派发',
+    proposalId: 'proposal-7',
+    project: 'quay-fleet',
+    belief: ['B-1 先验证再派发', 'B-3 落地判据必须可运行'],
+    action: { kind: 'needs-human', summary: '补一条判据再派发', scope: 'claudecodeui' },
+    taskSpec: MOLTEN_TASK_SPEC,
+    evidenceRefs: ['journal#7', 'transcript#42'],
   },
 };
 
-test('AC: a molten-decision category projects to the molten kind with its four readings', async () => {
+test('AC: a molten-decision card keeps its open kind and carries the contract block verbatim', async () => {
   const fleet = created({
     runCards: runnerReturning(`${JSON.stringify(MOLTEN_DECISION_CARD)}\n`),
     // A successful declaration read is what makes the molten executor's cockpit-side declaration
@@ -1147,34 +1169,41 @@ test('AC: a molten-decision category projects to the molten kind with its four r
   });
 
   const card = byId(await fleet.provider.listCards(), 'att-molten-1');
-  assert.equal(card.kind, 'molten', 'the fleet category maps to the cockpit kind');
-  assert.deepEqual(card.molten, MOLTEN_DECISION_CARD.molten, 'the block passes through verbatim');
+  assert.equal(card.kind, 'molten-decision', 'the open kind is kept, not folded into another');
+  assert.equal(card.subject.uri, 'quay://molten/proposal-7');
+  assert.equal(card.subject.project, 'quay-fleet');
+  assert.equal(card.situation, MOLTEN_DECISION_CARD.situation);
 
-  // 判断 → ask (the card's own headline); no separate 判断 fact is invented when it becomes the ask.
-  assert.equal(card.ask, '本轮判断：先补判据再派发');
-  // 结论 → one non-mechanical fact (the loop's reading, not a machine observation).
-  const conclusion = card.facts.find((fact) => fact.text === '结论：只差一条落地的判据');
-  assert.ok(conclusion !== undefined, 'the conclusion is carried as a fact');
-  assert.equal(conclusion.mechanical, false);
+  // The block passes through byte for byte, including the untrimmed task spec and evidence refs.
+  assert.deepEqual(card.molten, MOLTEN_DECISION_CARD.molten);
+  assert.equal(card.molten?.taskSpec.ac, '- [ ] 判据可运行');
+  assert.equal(card.molten?.taskSpec.dod, '真实对象被操作');
+  assert.deepEqual(card.molten?.taskSpec.touches, MOLTEN_TASK_SPEC.touches);
+  assert.deepEqual(card.molten?.evidenceRefs, ['journal#7', 'transcript#42']);
 
-  // 动作 + dispatch 提议 → confirm options, both routed to fleet.molten-decide.
-  assert.deepEqual(optionById(card, 'adopt-task').action, {
-    executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
-    params: { cardId: 'att-molten-1', decision: 'adopt-task' },
-  });
-  assert.deepEqual(optionById(card, 'dispatch').action, {
-    executor: COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID,
-    params: {
-      cardId: 'att-molten-1',
-      decision: 'dispatch',
-      dispatch: '补一条判据后派发',
-    },
-  });
-  // ⛔ The knowledge path is not reused: no knowledge block, no fleet.apply anywhere.
+  // The confirm surface is exactly the contract's three decisions, in its order, each routed to
+  // the molten executor with the card's own attention address.
+  assert.deepEqual(
+    card.options.map((option) => option.id),
+    [...MOLTEN_DECISION_IDS],
+  );
+  for (const decision of MOLTEN_DECISION_IDS) {
+    const option = optionById(card, decision);
+    assert.equal(option.action.executor, COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
+    assert.deepEqual(option.action.params, {
+      attentionId: 'att-molten-1',
+      revision: 2,
+      decision,
+    });
+    assert.notEqual(option.label.trim(), '', 'a confirmable option needs readable copy');
+  }
+
+  // ⛔ The knowledge path is not reused: no knowledge block on the card, and every option names
+  // the molten executor (there is no knowledge-executor option anywhere on it).
   assert.equal(card.knowledge, undefined);
   assert.equal(
-    card.options.some((option) => option.action.executor === 'fleet.apply'),
-    false,
+    card.options.every((option) => option.action.executor === COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID),
+    true,
   );
 
   // The declared set names the molten executor, so the registry leaves every option confirmable
@@ -1191,4 +1220,25 @@ test('AC: a molten-decision category projects to the molten kind with its four r
   const executor = await fleet.provider.resolveExecutor(COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
   assert.ok(executor !== null, 'the molten executor resolves');
   assert.equal(executor.id, COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID);
+});
+
+test('AC: a molten wire that states no expanded options still gets its three confirm options', async () => {
+  const wireOnly = {
+    ...MOLTEN_DECISION_CARD,
+    id: 'att-molten-2',
+    revision: 5,
+    options: [],
+  };
+  const fleet = created({ runCards: runnerReturning(`${JSON.stringify(wireOnly)}\n`) });
+
+  const card = byId(await fleet.provider.listCards(), 'att-molten-2');
+  assert.deepEqual(
+    card.options.map((option) => option.id),
+    [...MOLTEN_DECISION_IDS],
+  );
+  assert.deepEqual(optionById(card, 'decline').action.params, {
+    attentionId: 'att-molten-2',
+    revision: 5,
+    decision: 'decline',
+  });
 });

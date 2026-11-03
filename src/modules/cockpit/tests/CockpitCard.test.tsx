@@ -1580,62 +1580,57 @@ describe('descriptor-driven small visualization', () => {
 });
 
 /**
- * The molten short-loop decision (`molten` is an OPEN kind, not a member of `CockpitCardKind`).
+ * The molten short-loop decision (`molten-decision` is an OPEN kind, not a member of
+ * `CockpitCardKind`).
  *
- * The fixture is the shape the fleet projection produces for a `molten-decision` category: the
- * judgement is the card's headline, the one-line conclusion is a fact, and the loop's actions
- * plus its dispatch proposal are confirm options, all routed to `fleet.molten-decide`. The card
- * is deliberately NOT a knowledge card: it carries no `knowledge` block, so the knowledge
- * renderer and the knowledge confirmation branch must not fire on it.
+ * The fixture is the shape the fleet projection emits for GOAL-012's molten card: the open kind
+ * is kept, the contract block sits under `molten` with its six fields verbatim, and the confirm
+ * surface is exactly the contract's three decisions, each carrying the card's attention address.
+ * The card is deliberately NOT a knowledge card: it carries no `knowledge` block, so the
+ * knowledge renderer and the knowledge confirmation branch must not fire on it.
  */
 describe('the molten decision card', () => {
+  const ATTENTION_ID = 'att-molten-1';
+  const REVISION = 2;
+  const MOLTEN_DECISIONS = ['crystallize-task', 'decline', 'modify'] as const;
+  const MOLTEN_BLOCK = {
+    proposalId: 'proposal-7',
+    project: 'quay-fleet',
+    belief: ['B-1 先验证再派发', 'B-3 落地判据必须可运行'],
+    action: { kind: 'needs-human', summary: '补一条判据再派发', scope: 'claudecodeui' },
+    taskSpec: {
+      title: '补齐落地判据',
+      proposal: '熔融短环判断只差一条可验证的落地判据。',
+      ac: '- [ ] 判据可运行',
+      dod: '真实对象被操作',
+      touches: ['src/modules/cockpit/cockpitCardDescriptors.ts'],
+    },
+    evidenceRefs: ['journal#7', 'transcript#42'],
+  };
+
   const MOLTEN_CARD: CockpitCardData = {
     ...CARD,
-    id: 'fixture:molten',
-    kind: 'molten',
-    ask: '把本轮判断采纳成一条任务？',
-    facts: [
-      { text: '结论：只差一条落地的判据', mechanical: false },
-      { text: 'staging 仍是 1.2 GB', mechanical: true },
-    ],
-    options: [
-      {
-        id: 'adopt-task',
-        label: '立 quay 任务',
-        does: '把判断下的动作立成一条任务',
-        suggested: true,
-        source: 'provider',
-        action: {
-          executor: 'fleet.molten-decide',
-          params: { cardId: 'fixture:molten', decision: 'adopt-task' },
-        },
+    id: ATTENTION_ID,
+    kind: 'molten-decision',
+    subject: { uri: 'quay://molten/proposal-7', project: 'quay-fleet' },
+    situation: '信念 B-3 被违反：落地判据缺失。',
+    facts: [],
+    options: MOLTEN_DECISIONS.map((decision) => ({
+      id: decision,
+      label: decision === 'crystallize-task' ? '立任务' : decision === 'decline' ? '不立任务' : '改 spec',
+      does: '把人的决定交给 fleet 结晶',
+      suggested: false,
+      source: 'provider' as const,
+      action: {
+        executor: 'fleet.molten-decide',
+        params: { attentionId: ATTENTION_ID, revision: REVISION, decision },
       },
-      {
-        id: 'dispatch',
-        label: '采纳 dispatch 提议',
-        does: '补一条判据再派发',
-        suggested: false,
-        source: 'provider',
-        action: {
-          executor: 'fleet.molten-decide',
-          params: {
-            cardId: 'fixture:molten',
-            decision: 'dispatch',
-            dispatch: '补一条判据再派发',
-          },
-        },
-      },
-    ],
-    molten: {
-      judgement: '把本轮判断采纳成一条任务？',
-      conclusion: '只差一条落地的判据',
-      actions: [{ id: 'adopt-task', label: '立 quay 任务', does: '把判断下的动作立成一条任务' }],
-      dispatch: '补一条判据再派发',
-    },
+    })),
+    molten: MOLTEN_BLOCK,
   };
 
   it('renders its own descriptor badge, tone and kind label instead of the default row', () => {
-    const descriptor = cockpitCardDescriptor('molten');
+    const descriptor = cockpitCardDescriptor('molten-decision');
     expect(descriptor).not.toBe(DEFAULT_COCKPIT_CARD_DESCRIPTOR);
     expect(descriptor.badgeKey).toBe('cockpit.cardBadgeMolten');
     expect(descriptor.labelKey).toBe('cockpit.cardKindMolten');
@@ -1645,40 +1640,55 @@ describe('the molten decision card', () => {
 
     const badge = screen.getByTestId('cockpit-card-kind-badge');
     expect(badge.textContent).toBe('MLT');
-    expect(badge.getAttribute('data-kind')).toBe('molten');
+    expect(badge.getAttribute('data-kind')).toBe('molten-decision');
     expect(badge.getAttribute('data-tone')).toBe('molten');
     // The kind label is the badge's accessible title — the translated descriptor label.
     expect(badge.getAttribute('title')).toBe('Molten decision');
   });
 
-  it('carries the judgement, the conclusion and the dispatch proposal into ask/facts/options', () => {
-    renderCard({ card: MOLTEN_CARD });
+  it('keeps the projected kind and passes the molten block through byte for byte', () => {
+    // The projection's output is what this fixture is: the open kind is not folded into another,
+    // and every contract field (taskSpec's ac/dod/touches and evidenceRefs included) is intact.
+    expect(MOLTEN_CARD.kind).toBe('molten-decision');
+    expect(MOLTEN_CARD.molten).toEqual(MOLTEN_BLOCK);
+    expect(MOLTEN_CARD.molten?.taskSpec.ac).toBe('- [ ] 判据可运行');
+    expect(MOLTEN_CARD.molten?.taskSpec.dod).toBe('真实对象被操作');
+    expect(MOLTEN_CARD.molten?.taskSpec.touches).toEqual([
+      'src/modules/cockpit/cockpitCardDescriptors.ts',
+    ]);
+    expect(MOLTEN_CARD.molten?.evidenceRefs).toEqual(['journal#7', 'transcript#42']);
+    expect(MOLTEN_CARD.situation).toContain('B-3');
 
-    // 判断 → the headline question (ask).
-    expect(screen.getByTestId('cockpit-card-zone-a-question').textContent).toContain(
-      '把本轮判断采纳成一条任务？',
+    renderCard({ card: MOLTEN_CARD });
+    expect(screen.getByTestId('cockpit-card-kind-badge').getAttribute('data-kind')).toBe(
+      'molten-decision',
     );
-    // 结论 → a fact pill, marked non-mechanical (it is the loop's reading, not an observation).
-    const facts = screen.getAllByTestId('cockpit-card-fact').map((node) => node.textContent ?? '');
-    expect(facts.some((text) => text.includes('结论：只差一条落地的判据'))).toBe(true);
-    // dispatch 提议 → a selectable option that names the proposal as what choosing it does.
-    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
-    const list = screen.getByTestId('cockpit-card-option-list');
-    expect(within(list).getByTestId('cockpit-card-option-dispatch').textContent).toContain(
-      '采纳 dispatch 提议',
-    );
-    expect(screen.getByTestId('cockpit-card-confirm').textContent?.trim()).toBe('Confirm');
   });
 
-  it('routes every option to fleet.molten-decide, never fleet.apply, and creates no knowledge block', () => {
-    // The wire statement: each option names the molten executor, not the knowledge one.
-    const executors = MOLTEN_CARD.options.map((option) => option.action.executor);
-    expect(executors).toEqual(['fleet.molten-decide', 'fleet.molten-decide']);
-    expect(executors).not.toContain('fleet.apply');
+  it('offers exactly the three contract decisions, all routed to fleet.molten-decide', () => {
+    expect(MOLTEN_CARD.options.map((option) => option.id)).toEqual([...MOLTEN_DECISIONS]);
+    for (const option of MOLTEN_CARD.options) {
+      expect(option.action.executor).toBe('fleet.molten-decide');
+      expect(option.action.params.attentionId).toBe(ATTENTION_ID);
+      expect(option.action.params.revision).toBe(REVISION);
+      expect(MOLTEN_DECISIONS).toContain(option.action.params.decision);
+    }
+
+    renderCard({ card: MOLTEN_CARD });
+    fireEvent.click(screen.getByTestId('cockpit-card-option-trigger'));
+    const list = screen.getByTestId('cockpit-card-option-list');
+    for (const decision of MOLTEN_DECISIONS) {
+      expect(within(list).getByTestId(`cockpit-card-option-${decision}`)).toBeDefined();
+    }
+  });
+
+  it('creates no knowledge block and never routes a confirm through the knowledge executor', () => {
     // The card carries the molten block and NO knowledge block: the knowledge confirmation
     // branch is keyed on `card.knowledge`, so it cannot fire on this card.
-    expect(MOLTEN_CARD.molten?.conclusion).toBe('只差一条落地的判据');
     expect(MOLTEN_CARD.knowledge).toBeUndefined();
+    expect(MOLTEN_CARD.options.every((option) => option.action.executor === 'fleet.molten-decide')).toBe(
+      true,
+    );
 
     renderCard({ card: MOLTEN_CARD });
     expect(screen.queryByTestId('cockpit-card-knowledge')).toBeNull();
