@@ -43,13 +43,17 @@ god-package 拆段提交 `ff7edd1f4`（`voice-realtime: split the ws-proxy handl
 
 两条 `goal_ac: AC-331` 任务（`gap-ac331-gate-deadline-and-ac323-regression-reverify`、`gap-voice-realtime-composer-embedded-spec-red-under-default-segmented-mode`）均 `status: done`，它们落地时 CMD1 为 16 passed。之后的 `ff7edd1f4` 只扫了 server 目录；`e2e/` 不属于任何 typecheck program，也没有机械检查在拆分当时拦住旧 import，于是同一条判据重新变红。这是**同一判据在新改动面上再次失效**，不是同一修复的重复。
 
-<!-- dedup-ref --> 去重与粒度：在飞扫描（`todo`/`ready`/`needs-human` 且顶层 `goal_ac: AC-331`）0 命中；两条历史承载者均 done ⇒ 按规则重立新案。机制侧同案已有 `gap-ac323-e2e-import-after-voice-realtime-frames-split`（`status: ready`，`goal_ac: AC-323`），其唯一实现改动正是把上述 import 指到 `frames/`；它与本任务共用同一条 CMD1，故本任务**不复制那一行修复**，而是 depends_on 它，落地后复验 AC-331 的判据与守卫。`task-granularity-advice` 对三份 spec 的 `peers[]`/`mentions[]` 均为空（test 文件不进重叠判定）⇒ 无合并候选，kept separate：AC-331 记录本身的验收面由本任务承载。
+<!-- dedup-ref --> 去重与粒度：在飞扫描（`todo`/`ready`/`needs-human` 且顶层 `goal_ac: AC-331`）0 命中；两条历史承载者均 done ⇒ 按规则重立新案。机制侧同案已有 `gap-ac323-e2e-import-after-voice-realtime-frames-split`（`status: ready`，`goal_ac: AC-323`），其唯一实现改动正是把上述 import 指到 `frames/`（Evidence 已记实现 commit `189697047`、pre-merge merge `51039ed7a`）；它与本任务共用同一条 CMD1，故本任务**不复制那一行修复**，而是 depends_on 它，落地后复验 AC-331 的判据与守卫。`task-granularity-advice` 对三份 spec 的 `peers[]`/`mentions[]` 均为空（test 文件不进重叠判定）⇒ 无合并候选，kept separate：AC-331 记录本身的验收面由本任务承载。
 
 ### 本任务要做什么
 
 1. 依赖落地后（工作树切自 develop），逐字跑 AC-331 的 criterion——含 `VOICE_REALTIME_MODE=continuous` 前置，理由见 record expect (b)：任务工作树没有 `.env`，不前置会落到仓内默认 `segmented`，判的不是部署态——在记录声明的 118000ms 预算内 exit 0。
 2. 复核 expect (c) 的四文件白名单守卫，按 GOAL-038 实现提交自身计：`git diff --exit-code ec621a2b^1 ec621a2b -- <四文件>` 与 `git diff --exit-code 8be9df6b^1 8be9df6b -- <四文件>`（本轮实测两条均 rc=0，`ec621a2b` = AC-326 实现、`8be9df6b` = AC-327 实现）。
 3. ⛔ 不改判据命令、不改任何 `expect`、不加 `test.skip`/`retries`/env 钉换绿。若依赖落地后仍有与本 import 漂移无关的稳定红，先归因：属产品面回归则停手上报 `needs-human` 并附逐字读数。
+
+### 预算风险（本轮实测旁证，先记下来免下一轮误判）
+
+依赖任务最新 Evidence 记录其 CMD1（**无** mode 前置）为 `19 passed (2.9m)` ≈ 174s；而 AC-331 记录 expect (a) 的基线是 CMD1 实测 79349ms，timeoutMs 已按驱动硬闸 120000ms 压到 118000ms。两者相差 2.2×，属宿主负载/冷启动量级差异，不是判据语义问题。处理原则：先按 118000ms 预算实跑；若墙钟超 118000ms，先在空载条件（无并行 suite）单跑判定是否负载假红；⛔ 不得为此放宽 criterion、改 `expect` 或改记录 timeoutMs——判据文本的改动本身就会让本项失去意义。若空载稳定超预算，则这条 deadline 不成立，停手报 `needs-human` 并附逐字读数，不得把超时写成产品绿。
 
 ### 与 expect 第 (3) 条的关系
 
@@ -67,7 +71,7 @@ record 的 expect 第 (3) 条要求「注入紧凑栏回归 ⇒ 第二条命令�
 ## AC
 
 - [ ] AC1 依赖就位、旧路径清零：`grep -c "voice-realtime/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 0，且 `grep -c "voice-realtime/frames/voice-realtime-mode'" e2e/voice-realtime-live-session-send.spec.ts` = 1；`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts --list` exit 0 且输出 `Total: N tests in M files` 的 N > 0。
-- [ ] AC2 判据逐字 exit 0：`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）exit 0；记录 passed 数与墙钟毫秒，且墙钟 < 118000ms。读数逐字写入 Evidence。
+- [ ] AC2 判据逐字 exit 0：`VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts`（无 `--grep`/`--list`/skip/retries）exit 0；记录 passed 数与墙钟毫秒，且墙钟 < 118000ms。读数逐字写入 Evidence。若超时，按 Proposal「预算风险」先判负载假红。
 - [ ] AC3 白名单守卫为空：`git diff --exit-code ec621a2b^1 ec621a2b -- e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-composer-embedded.spec.ts e2e/mobile-workspace-composer-layout.spec.ts src/modules/chat/tests/composerCompactTier.test.tsx` rc=0；`git diff --exit-code 8be9df6b^1 8be9df6b -- <同上四文件>` rc=0。
 - [ ] AC4 判定面未弱化：`git diff develop --name-only` 全部落在 `## Touches`；`git diff develop -- 'e2e/*.spec.ts' | grep -c '^-.*expect('` = 0；`git diff develop -- goals/ | wc -c` = 0。
 - [ ] AC5 承重（假形态，本地临时注入、不 commit）：把 `e2e/voice-realtime-live-session-send.spec.ts:49` 临时改回旧路径 ⇒ `VOICE_REALTIME_MODE=continuous npx playwright test <三文件> --list` 非零退出且 stdout 含 `Cannot find module`；还原为新路径后同一命令 exit 0。两次读数逐字入档，收尾 `git status --porcelain` 只剩本任务声明的改动。
