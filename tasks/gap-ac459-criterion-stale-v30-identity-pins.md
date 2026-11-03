@@ -82,7 +82,7 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 ## Touches
 
 - electron/tests/cloudpit-runtime-identity-surfaces.test.mjs
-- goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpit-为准-旧名零残留.md
+- goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpi.md
 - tasks/gap-ac459-criterion-stale-v30-identity-pins.md
 
 ## Evidence
@@ -95,7 +95,8 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - AC3：AC4 与其余 9 条全 pass，末行 `ℹ tests 10` / `ℹ pass 10` / `ℹ fail 0`，exit 0。
 - AC4：注回 `(?:cloudcli|cloudpit)://` 后判据 exit 1，红断言原文 `AssertionError [ERR_ASSERTION]: src/modules/cockpit-contract/observationUri.ts accepts only the canonical cloudpit:// observation URI (the retired dual-read branch is back)`（electron/tests/cloudpit-runtime-identity-surfaces.test.mjs:472）；`git checkout -- src/modules/cockpit-contract/observationUri.ts` 后 `git status --short` 对该文件为空（只剩本任务的判据文件改动）。
 - AC5：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` → `Test Files 1 passed (1)` / `Tests 23 passed (23)`，exit 0；`npx tsc --noEmit -p server/tsconfig.json` → exit 0（无输出）。
-- AC6：`quay goal gate AC-459` → `verdict: pass`，event `22ac1bae-87d9-4352-9340-119f4440a573`，`payload.treeSha = d28932dfa42016ec13bba8b7d6bc5f2432212f60`，等于当时的 `git rev-parse HEAD^{tree}`。
+- AC6：`quay goal gate AC-459` 在最终树上 `verdict: pass`；`.quay/gate-events.jsonl` 中 AC-459 最新 `gate: goal` 事件即本轮最后一次 gate 的写入（本轮首个 pass 事件 `22ac1bae-87d9-4352-9340-119f4440a573`，treeSha `d28932dfa42016ec13bba8b7d6bc5f2432212f60`；Touches 修正合并后复跑再 pass），其 `payload.treeSha` 与最终 `git rev-parse HEAD^{tree}` 相同。
+- Touches 修正：任务原声明的 goal 载体文件名（`…以-cloudpit-为准-旧名零残留.md`）在仓库中不存在；实际载体是 `goals/AC-459-运行时内部身份面翻转-ipc-contextbridge-broadcastchannel-语义面全局以-cloudpi.md`。首次 anti-drift 以 `out-of-declared` 报出后者，经 task_write 改为实际文件名后重跑通过。
 - 写前 AC-459：`criterion=npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`、`status=achieved`、`longTerm=false`、`expect` 末段含「appId `ai.cloudcli.desktop`，以及 AC-452 已管的 `cloudcli://` 观测 URI 双读」。
 - 写后 AC-459：同四项中前两项不变，`expect` 末段改为「旧 appId 拼写 `ai.cloudcli.desktop` 作为 v3.0 迁移常量保留在 `electron/appIdMigration.js` 的 `LEGACY_DESKTOP_APP_ID`…；观测 URI 按 v3.0 R7 只接受 `cloudpit://session|architecture`，旧拼写…必须解析为 null」，并逐字保留「取假形态」尾句。
 
