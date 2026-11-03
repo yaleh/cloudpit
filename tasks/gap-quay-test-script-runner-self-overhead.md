@@ -129,6 +129,19 @@ npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-
 - 每次全收集调用的 server 调度本身：1.92–1.94s → 21–22ms（上表）。
 - 派发顺序：候选实现的 order 接缝输出与当前实现逐字节相同（507 行），生产 suite 的派发顺序不变，服务端阶段跨度因此只可能受调度开销（每轮约 −1.9s）与宿主负载影响，不能被写成算法提速带来的跨度变化。
 
+### fan-in 阻塞解除（2026-11-04，本 worker 轮，提交 694988e17）
+
+上一轮 suite 唯一红的 `server/shared/tests/architecture-ratchet.test.ts` **不是本任务引入**：在 develop 自身 tip（9d60ef687）单跑同一文件同样红，红的是 5 条 oversize 读数，全部由 develop 提交 9dadc3b17（fix(codex): thread modelProviderId through new-session create and first send）新增而未回记。5 个文件在本 worktree 中与 develop tip 逐字节一致，均不在本任务 delta 内。
+
+```
+npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/architecture-ratchet.test.ts
+→ tests 6 / pass 6 / fail 0（修复后）
+```
+
+`server/shared/tests/architecture-ratchet.baseline.json` 按文件内 AC-394 的 RECORDED CHANGE 格式追加 2026-11-04 stale-census re-sync 段落，把 5 条读数抬到实测值：`server/modules/providers/provider.routes.ts` 1184→1186、`server/modules/websocket/services/chat-websocket.service.ts` 1994→2005、`server/shared/types.ts` 5646→5655、`src/modules/chat-composer/hooks/useChatComposerState.ts` 1250→1253、`src/shared/api.ts` 1823→1829；没有任何条目被抬到实测值之上。
+
+fan-in 的 baseline A/B 上一轮判 `changed-assertion` 而非放行，是日志解析的形状差：任务侧整轮 suite 日志中该文件的 `__PERFILE__` 失败行与断言文本相隔 >8 行，`parseFailureSignatures` 取到空签名；baseline 单文件重跑日志中两者相邻，取到非空签名 ⇒ 同一文件两侧签名文本不同。两棵树实际红的是同一条断言，修复后两侧都不红。
+
 - 该轴仍暗,理由:本任务只改 Quay 自测入口脚本、自测判据与耗时基线数据,不新增或移动模块与依赖关系,架构图读数没有可比对象
 
 ## Touches
@@ -137,4 +150,15 @@ npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-
 - scripts/suite-duration-baseline.tsv
 - server/shared/tests/quay-test-script.test.ts
 - server/modules/providers/tests/claude-resident-cli-contract.test.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-quay-test-script-runner-self-overhead.md
+
+## Blocker
+
+**2026-11-03T16:16:54.114Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/provider.routes.ts 1184→1186 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：16030275-828b-49f2-863a-eeb5f40dfd38
+
+**2026-11-04 — 已解除**：根因是 develop 侧 stale census（9dadc3b17 的 5 个文件增长未回记），已在本分支 694988e17 按 RECORDED CHANGE 格式重记 5 条读数；该 ratchet 文件单跑 6/6 通过。
