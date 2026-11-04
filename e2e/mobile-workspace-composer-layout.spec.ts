@@ -78,23 +78,50 @@ const ACCOUNT_FORM_PROBE = '#username, button:has-text("Create Account")';
 /** The selector every session-page navigation is probed for: the transcript pane, the composer shell, or either. */
 const SESSION_PAGE_PROBE = '.chat-messages-pane, [data-slot="prompt-input-footer"]';
 
-/** How long the landing of the *first* navigation is given on its own, before the guard starts replaying. */
-const STARTUP_PROBE_MS = 8_000;
-/** How long each bounded replay's landing is given. Shorter than the first: a replay is a re-ask, not a cold boot. */
-const STARTUP_RELOAD_PROBE_MS = 3_000;
-/** How long one navigation's own hop is given, before the guard treats it as a landing that did not arrive. */
-const NAVIGATION_PROBE_MS = 8_000;
+/**
+ * How long the landing of the *first* navigation is given on its own, before the guard starts replaying.
+ *
+ * Measured 2026-11-04 on this worktree: the six green mobile cells' session documents landed 1.7-3.0s after their
+ * hop at loadavg 63.9-71.8, but the same tree red'd once at loadavg 97-102 with the session document itself still
+ * loading past 8s. 20s is the first probe's share of the guard, not of the document's own wall clock.
+ */
+const STARTUP_PROBE_MS = 20_000;
+/**
+ * How long each bounded replay's landing is given. Shorter than the first: a replay is a re-ask, not a cold boot.
+ *
+ * Measured 2026-11-04: the load-slowed control's first document spent its whole hop (>8s), and the replay that
+ * followed landed inside 3s once the transport delay was released — 15s is 5x that reading.
+ */
+const STARTUP_RELOAD_PROBE_MS = 15_000;
+/**
+ * How long one navigation's own hop is given, before the guard treats it as a landing that did not arrive.
+ *
+ * Measured 2026-11-04: a healthy session document's `domcontentloaded` hop returned in 1.5-3.0s; the load-slowed
+ * control's first hop was still running at 8s and returned at 12.1s under a 12s transport latency. 25s keeps ~2x
+ * over that slow reading while staying below the cell timeout (see the deadline's arithmetic).
+ */
+const NAVIGATION_PROBE_MS = 25_000;
 
 /**
  * How long the startup probe may spend proving a navigation landed, replays included.
  *
  * A deadline rather than a replay count, because it is the *sum* that has to stay inside the criterion's own wall
- * clock: the bounded-failure reading asks that a probe which cannot succeed ends the whole run in well under 60s, and
- * that run pays the config evaluation, both servers' boot and the browser launch before the probe's first attempt even
- * starts. The worst case — the first hop spends its whole `NAVIGATION_PROBE_MS` and the first landing its remaining
- * budget — is the deadline itself, i.e. 14s of guarding, leaving the boot and the browser launch inside 60s.
+ * clock. That clock was re-measured on 2026-11-04: the old 14s deadline was sized against a goal gate that killed the
+ * whole criterion at 60s, but AC-323's goal now declares `timeoutMs: 480000` and `playwright.config.ts` declares
+ * `SPEC_BUDGET_MS['mobile-workspace-composer-layout.spec.ts'] = 240_000` for this file. The guard was the only bound
+ * in that stack that did not grow with the criterion, and it was tighter than the same file's 30s client warm-up.
+ *
+ * The ordering is a declaration, not a habit:
+ *
+ *   guard deadline 75_000  <  min(cell `test.setTimeout`, 90_000)  <  SPEC_BUDGET_MS 240_000  <  goal timeoutMs 480_000
+ *
+ * so a guard that cannot land still ends its own cell with the guard's named error before the cell timeout fires.
+ * The hop/probe split keeps a replay funded: the largest hop (25_000) leaves 75_000 - 25_000 = 50_000ms of landing
+ * budget — 2.5x the first landing's own 20_000ms — while the old 8_000ms hop left only 14_000 - 8_000 = 6_000ms,
+ * less than the first landing's own 8_000ms: the replay got ~1ms of hop and the guard red'd on the one slow document
+ * it existed to survive.
  */
-const STARTUP_PROBE_DEADLINE_MS = 14_000;
+const STARTUP_PROBE_DEADLINE_MS = 75_000;
 
 const AUTH_TOKEN_KEY = 'auth-token';
 const USERNAME = 'e2euser';
@@ -510,6 +537,14 @@ const readStartupEvidence = async (page: Page, evidence: StartupEvidence): Promi
  * The navigation itself is bounded too, and a navigation that times out is treated as a landing that did not arrive
  * rather than as an error of its own — a document that never finishes loading and one that loads without ever mounting
  * are the same failure from here, and both end at the same named error.
+ *
+ * The budget arithmetic that keeps a replay meaningful (read against the constants above):
+ *
+ *   deadline 75_000 - max hop 25_000 = 50_000ms still available for landings,
+ *   so even a hop that spends its whole ceiling leaves >= STARTUP_PROBE_MS (20_000) for attempt 1 and
+ *   >= STARTUP_RELOAD_PROBE_MS (15_000) for the replay. Each hop's own wall clock is printed, so a run
+ *   that needed the replay says so: a hop is bounded by `Math.min(NAVIGATION_PROBE_MS, budgetMs())`, and
+ *   the landing probe is a separate wait on a separate signal (`landing.present(...)`).
  */
 const navigateBounded = async (
   page: Page,
@@ -524,6 +559,7 @@ const navigateBounded = async (
   for (let attempt = 1; ; attempt += 1) {
     const hopKind = attempt === 1 ? 'page.goto' : 'page.reload';
     const hopTimeout = Math.min(NAVIGATION_PROBE_MS, budgetMs());
+    const hopStartedAt = Date.now();
     try {
       if (attempt === 1) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: hopTimeout });
@@ -534,6 +570,11 @@ const navigateBounded = async (
     } catch (error) {
       navigationFailure = error instanceof Error ? error.message : String(error);
     }
+    console.log(
+      `[e2e] client startup: ${landing.label()} ${hopKind} returned after ${Date.now() - hopStartedAt}ms `
+      + `(attempt ${attempt}, hop timeout ${hopTimeout}ms`
+      + `${navigationFailure === null ? '' : `, did not return: ${navigationFailure}`})`,
+    );
     const landingBudget = Math.min(attempt === 1 ? STARTUP_PROBE_MS : STARTUP_RELOAD_PROBE_MS, budgetMs());
     if (await landing.present(landingBudget)) {
       console.log(
@@ -1083,6 +1124,42 @@ test.afterAll(async ({ request }) => {
   await new Promise<void>((resolve) => recognizer.close(() => resolve()));
 });
 
+/**
+ * Test-only slow-document control for the startup guard's own reading.
+ *
+ * Unset in every normal run. When `QUAY_E2E_SLOW_DOCUMENT_LATENCY_MS` is a positive number, a cell's session
+ * document is given a *transport* delay through CDP `Network.emulateNetworkConditions`, and its Vite entry module
+ * (`/src/main.tsx`) is blocked for the first document only — so the first guarded attempt deterministically loads a
+ * document that never mounts while the replay is healthy. Both levers are released mid-run at
+ * `QUAY_E2E_SLOW_DOCUMENT_RELEASE_MS`. This is a control arm, not a stand-in for the app: no `page.route`, no
+ * synthesised response, no change to any cell's assertion. It is what makes the guard's budget readable in both
+ * directions — with the old 14s/8s/8s/3s constants the same control reds with `page.goto: Timeout 8000ms exceeded`,
+ * and with the constants above it exits 0 after a recorded replay.
+ */
+const SLOW_DOCUMENT_LATENCY_MS = Number(process.env.QUAY_E2E_SLOW_DOCUMENT_LATENCY_MS ?? 0);
+/** When the control releases both levers, in ms from install: after attempt 1's probe, before the replay's probe. */
+const SLOW_DOCUMENT_RELEASE_MS = Number(process.env.QUAY_E2E_SLOW_DOCUMENT_RELEASE_MS ?? 35_000);
+
+/** Installs the slow-document control (a no-op unless its env knob is set) and returns its release. */
+const installSlowDocumentControl = async (context: BrowserContext, page: Page): Promise<() => void> => {
+  if (!(SLOW_DOCUMENT_LATENCY_MS > 0)) return () => undefined;
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Network.enable');
+  const set = (latencyMs: number, blockEntry: boolean) =>
+    cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: latencyMs,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    }).then(() => cdp.send('Network.setBlockedURLs', { urls: blockEntry ? ['*/src/main.tsx*'] : [] }));
+  await set(SLOW_DOCUMENT_LATENCY_MS, true);
+  const timer = setTimeout(() => { void set(0, false).catch(() => undefined); }, SLOW_DOCUMENT_RELEASE_MS);
+  return () => {
+    clearTimeout(timer);
+    void set(0, false).catch(() => undefined);
+  };
+};
+
 /** Opens a document with everything the cell needs, at the width the case declares. */
 const openCell = async (
   browser: Browser,
@@ -1098,7 +1175,12 @@ const openCell = async (
   await seedContext(context, { token: authToken, language: options.language, recognizerUrl });
   const page = await context.newPage();
   const evidence = collectStartupEvidence(page);
-  await navigateBounded(page, `/session/${options.session}${options.query ?? ''}`, sessionPageLanding(page), evidence);
+  const releaseSlowDocument = await installSlowDocumentControl(context, page);
+  try {
+    await navigateBounded(page, `/session/${options.session}${options.query ?? ''}`, sessionPageLanding(page), evidence);
+  } finally {
+    releaseSlowDocument();
+  }
   return { context, page };
 };
 
