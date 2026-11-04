@@ -118,10 +118,12 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 
 ## Blocker
 
-**2026-11-04T08:47:14.724Z — worker 未落地（exited-not-landed）**
+**2026-11-04T08:56:57.764Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/services/sessions.service.ts 1394→1395 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
+fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
 - run_id：wk-prod-anchor
-- session_id：084ee392-f2b1-444a-a595-534f776edf45
-
-**2026-11-04 续轮 — 已解除**：该红是 develop 的 stale census（见 Notes 最后一条），已在基线 note 按 RECORDED CHANGE 记录并把条目调到实测 1395；architecture-ratchet 单跑 `tests 6 / pass 6 / fail 0`（EXIT=0）。
+- session_id：a13bfa86-a97a-4dc5-b284-6b9630f0ce6d
