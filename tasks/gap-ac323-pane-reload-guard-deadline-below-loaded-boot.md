@@ -98,7 +98,7 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 
 ## Notes（实测原文与对照）
 
-- 环境：128 cores，`load average: 54.19, 44.68, 40.12`；worktree 从 develop `6530ddb2e` 切出，实现提交 `e4115176c`。develop 在本轮未前进，工作树即「合并 develop 后」的树（`git merge-base --is-ancestor develop HEAD` 成立）。
+- 环境：128 cores，`load average: 54.19, 44.68, 40.12`；worktree 从 develop `6530ddb2e` 切出，实现提交 `e4115176c`。实测跑在切点树上；此后 develop 只被本任务的 `tasks/*.md` 提交（`6ccb50d4a`）推进，无代码变更，合入后代码树与实测树相同。
 - 同树对照（旧预算红 → 新预算绿）：旧红 = Proposal 里 error-context 的 `did not come up within 18262ms` 与 trace 的 `hop 1 ... Timeout 5000ms exceeded ... until "load"`；新跑的落地读数为 9306ms / 4706ms / 5352ms（均 > 旧 4s 首次落地窗），冷缓存一轮首次 30s 未起、replay 后 41868ms 落地。这正是旧 4s/3–4s 窗口低于本页负载下冷启动的直接读数；`waitUntil: 'commit'` 后 hop 的返回从「等 load 超时 5000ms」变为 22–191ms。
 - 三次 AC1 的墙钟为 1.9m / 43.1s / 38.7s（整次调用，含 Vite optimizer warm-up 与 webServer boot）。原文日志在 worktree 的 `tmp/ac323-*.log`（`tmp/` 已被 .gitignore 忽略，不入库）。
 - 未验证项：没有触真实 DashScope（本 spec 自带假 Realtime 上游，符合 DoD）；产品代码、判据命令、`ROW_*` 常量与投递语义未改——`git diff --stat` 仅 3 个文件、+45/−20。
