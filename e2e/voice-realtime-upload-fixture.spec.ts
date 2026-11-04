@@ -1027,7 +1027,10 @@ const awaitUploadLanded = async (
   }
 };
 
-test.describe.configure({ mode: 'serial' });
+// The serial describe's per-test budget is raised above Playwright's 60s default so the shared reload guard
+// (`e2e/support/pane-reload.ts`, PANE_RELOAD_DEADLINE_MS = 66_000) can spend its own bound beside this case's
+// work and still report its NAMED landing failure instead of Playwright's anonymous `Test timeout`.
+test.describe.configure({ mode: 'serial', timeout: 150_000 });
 
 // ---------------------------------------------------------------------------------------------
 // AC-326: each utterance of one spoken thought is its own `heard` row; the delivery finalises them
