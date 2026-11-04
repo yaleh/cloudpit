@@ -502,13 +502,9 @@ const acceptChipAt = (view: ChipHookView, index: number) => {
   view.result.current.chipStrip.onAccept(chip);
 };
 
-/** Presses the quoted chip, wherever it currently sits in the strip. */
-const acceptQuotedChip = (view: ChipHookView) => {
-  const chip = view.result.current.chipStrip.chips.find((candidate) => candidate.source === 'quoted');
-  if (!chip) {
-    throw new Error('the strip has no quoted chip');
-  }
-  view.result.current.chipStrip.onAccept(chip);
+/** Presses the quoted acceptance entry with a passage the floating action builds. */
+const acceptQuotedChip = (view: ChipHookView, text: string) => {
+  view.result.current.chipStrip.onAccept({ id: 'quoted-0', text, source: 'quoted', index: 0 });
 };
 
 type ComposerKeyEvent = Parameters<ReturnType<typeof useChatComposerState>['handleKeyDown']>[0];
@@ -740,7 +736,7 @@ describe('composer state chip acceptance', () => {
     const textarea = attachTextarea(view);
 
     act(() => {
-      acceptQuotedChip(view);
+      acceptQuotedChip(view, '选中的原文');
     });
     textarea.value = view.result.current.input;
     act(() => {
@@ -765,7 +761,7 @@ describe('composer state chip acceptance', () => {
     const textarea = attachTextarea(view);
 
     act(() => {
-      acceptQuotedChip(view);
+      acceptQuotedChip(view, quoted);
     });
     textarea.value = view.result.current.input;
     act(() => {
@@ -834,9 +830,10 @@ const acceptQuoted = (
   view: ReturnType<typeof setupQuotedComposer>['view'],
   frames: FrameRequestCallback[],
   textarea: HTMLTextAreaElement,
+  text: string,
 ) => {
   act(() => {
-    acceptQuotedChip(view);
+    acceptQuotedChip(view, text);
   });
   // React commits the new value to the controlled element; the bare node this
   // harness attaches has to be given it by hand before the deferred caret runs.
@@ -857,7 +854,7 @@ describe('quoted chip insertion reads the live selection', () => {
     textarea.focus();
     textarea.setSelectionRange(2, 2);
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
 
     assert.equal(view.result.current.input, '前面 选中的原文 后面');
     assert.equal(textarea.selectionStart, '前面 选中的原文 '.length, 'the caret is after the passage');
@@ -870,7 +867,7 @@ describe('quoted chip insertion reads the live selection', () => {
     });
     textarea.value = '已有内容';
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
 
     // The element reports position 0 until it takes focus, which is not a caret
     // the person chose; the passage goes to the end of the draft instead.
@@ -886,7 +883,7 @@ describe('quoted chip insertion reads the live selection', () => {
     textarea.focus();
     textarea.setSelectionRange(1, 1);
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
 
     assert.equal(document.activeElement, textarea);
     // The caret sits after everything that was inserted, not at the end of the
@@ -908,7 +905,7 @@ describe('quoted chip insertion reads the live selection', () => {
     selection.addRange(range);
     assert.equal(selection.rangeCount, 1, 'the page selection exists before the click');
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
 
     // Nothing is selected any more: the document may keep a collapsed caret
     // range for the focused textarea, which is not a selection to quote.
@@ -923,35 +920,35 @@ describe('quoted chip insertion reads the live selection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The chip leaves with the selection: nothing pins it on screen
+// The selection never becomes a composer chip: the transcript action owns it
 // ---------------------------------------------------------------------------
 
 const quotedChipShown = (view: ReturnType<typeof setupQuotedComposer>['view']) => (
   view.result.current.chipStrip.chips.some((chip) => chip.source === 'quoted')
 );
 
-describe('the quoted chip is shown only while a live selection exists', () => {
-  it('(a) accepting it into a non-empty box takes it off screen', () => {
+describe('a live selection never draws a composer chip', () => {
+  it('(a) accepting a passage inserts it while the strip stays free of it', () => {
     const { view, frames, textarea } = setupQuotedComposer('选中的原文');
     act(() => {
       view.result.current.setInput('已有内容');
     });
     textarea.value = '已有内容';
-    assert.equal(quotedChipShown(view), true, 'the live selection draws the chip over the non-empty box');
+    assert.equal(quotedChipShown(view), false, 'the floating action owns the selection, not the strip');
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
     // Focusing the composer collapses the transcript selection, as the page reports it.
     act(() => {
       view.rerender({ quotedSelection: null });
     });
 
     assert.equal(view.result.current.input, '已有内容 选中的原文', 'the passage is in the draft');
-    assert.equal(quotedChipShown(view), false, 'the accepted chip does not stay for a second passage');
+    assert.equal(quotedChipShown(view), false, 'the accepted passage leaves no chip for a second press');
   });
 
-  it('(b) a new live selection draws it again', () => {
+  it('(b) a new live selection still draws no chip', () => {
     const { view, frames, textarea } = setupQuotedComposer('选中的原文');
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
     act(() => {
       view.rerender({ quotedSelection: null });
     });
@@ -961,8 +958,7 @@ describe('the quoted chip is shown only while a live selection exists', () => {
       view.rerender({ quotedSelection: '另一段原文' });
     });
 
-    const quoted = view.result.current.chipStrip.chips.find((chip) => chip.source === 'quoted');
-    assert.equal(quoted?.text, '另一段原文', 'the new selection is the new chip');
+    assert.equal(quotedChipShown(view), false, 'a selection is the transcript action’s, never a strip chip');
   });
 
   it('(c) a selection that goes away without an accept leaves no chip behind', () => {
@@ -970,20 +966,20 @@ describe('the quoted chip is shown only while a live selection exists', () => {
     act(() => {
       view.result.current.setInput('已经写了一半');
     });
-    assert.equal(quotedChipShown(view), true);
+    assert.equal(quotedChipShown(view), false);
 
     // The box took focus (or the person clicked elsewhere): the selection is gone.
     act(() => {
       view.rerender({ quotedSelection: null });
     });
 
-    assert.equal(quotedChipShown(view), false, 'a non-empty box alone does not keep the chip');
+    assert.equal(quotedChipShown(view), false, 'a non-empty box never keeps a quoted chip');
   });
 
   it('(e) the Suggest button still re-draws with the accepted passage as its focus', async () => {
     const { view, frames, textarea } = setupQuotedComposer('选中的原文');
     await waitFor(() => assert.equal(view.result.current.chipStrip.suggestionsEnabled, true));
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
     act(() => {
       view.rerender({ quotedSelection: null });
     });
@@ -1014,7 +1010,7 @@ describe('chip undo restores the caret', () => {
     textarea.focus();
     textarea.setSelectionRange(2, 2);
 
-    acceptQuoted(view, frames, textarea);
+    acceptQuoted(view, frames, textarea, '选中的原文');
     assert.equal(view.result.current.input, '前面 选中的原文 后面');
 
     const event = keyEvent('z', textarea);
@@ -1222,7 +1218,7 @@ describe('composer state expansion', () => {
     await waitForModelChip(view);
 
     act(() => {
-      acceptQuotedChip(view);
+      acceptQuotedChip(view, '选中的原文');
     });
     await waitFor(() => assert.equal(view.result.current.input.includes('选中的原文'), true));
 

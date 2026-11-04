@@ -241,16 +241,9 @@ type ChatMessagesPaneProps = {
    * only marks rows with this set; the draft itself never changes.
    */
   highlightedReplyOrdinals?: readonly number[];
-  /**
-   * The passage held in the transcript right now, from `useTranscriptSelection`.
-   * It only decides whether the floating selection action is drawn; the composer
-   * is deliberately not handed it as a chip any more.
-   */
+  /** Live transcript passage; only gates the floating action's visibility. */
   quotedSelection?: string | null;
-  /**
-   * The composer's quoted acceptance entry. Supplied by `ChatInterface`; when
-   * absent no floating action is drawn (a standalone pane has no draft to fill).
-   */
+  /** Composer's quoted acceptance entry; absent ⇒ no floating action. */
   onAcceptQuotedSelection?: (selectionText: string) => void;
 };
 
@@ -784,9 +777,7 @@ function ChatMessagesPane({
         </div>
       </div>
 
-      {/* The selection's own affordance. A sibling of the scroll box (not a child
-          of it) so the scrolling container's overflow can never clip it; the
-          component itself is fixed and re-anchors to the live Range. */}
+      {/* Fixed, re-anchored sibling of the scroll box so it is never clipped. */}
       {onAcceptQuotedSelection !== undefined && (
         <TranscriptSelectionAction
           selectionText={quotedSelection}
