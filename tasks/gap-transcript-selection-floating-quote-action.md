@@ -76,18 +76,6 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 - `src/modules/chat/tests/chatComposerReplyChips.test.tsx`
 - `tasks/gap-transcript-selection-floating-quote-action.md`
 
-## Blocker
-
-**2026-11-04T03:23:20.521Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
-fan-in-ff-merge:    M scripts/test.sh
-fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
-fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
-fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
-- run_id：wk-prod-anchor
-- session_id：3437ccc5-3ba8-4b79-9e8d-622733b64eed
-
 ## Needs-Human
 
 **执行 2026-11-04T03:23:21.584Z — 连续修满重试上限仍不合格（标 needs-human）**

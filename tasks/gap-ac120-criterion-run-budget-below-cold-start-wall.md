@@ -62,11 +62,11 @@ goal_ac: AC-120
 
 ## AC
 
-- [ ] AC1 直跑稳定绿：连续 3 次 `npx playwright test e2e/voice-trim.spec.ts -g "AC-120"` 均 `EXIT=0`；每次贴 `1 passed (…)`、整轮 wall、`[e2e] watchdog-armed` 与 `[e2e] boot` 两行、跑前 `uptime` load1；3 次输出均不含 `[e2e] watchdog:` 越界行，最大 wall < `240_000`。若宿主某轮给出 load1 ≥ 60，优先保留该轮；给不出就如实登记实际 load1。
-- [ ] AC2 预算已声明且被本判据读到：`grep -n "'voice-trim.spec.ts': 240_000" playwright.config.ts` 命中 1 行；AC-120 判据输出逐字含 `re-armed to 240000ms from the run start`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍为 `55_000`；`grep -n "^  timeout: 60_000,$" playwright.config.ts` 仍命中全局那一行。
-- [ ] AC3 预算承重（诱导对，除条目外完全同构）：(a) 条目在时 `QUAY_E2E_CONFIG_EVAL_STALL_MS=40000 npx playwright test e2e/voice-trim.spec.ts -g "AC-120"` ⇒ `EXIT=0`、`1 passed`、wall > 55s，输出含 `[e2e] config-eval-stall: holding config evaluation for 40000ms` 且无越界行；(b) 临时从 `SPEC_BUDGET_MS` 删掉该条目、保留同一 40s stall ⇒ `EXIT=1`，输出逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling`；(c) 还原条目后同一命令（不带 stall）回到 `EXIT=0`；原始输出与 wall 入档，`git diff` 无负控残留。
-- [ ] AC4 闸 deadline 已抬且可读：`quay goal get AC-120 --json --store --root <worktree>` 的 `timeoutMs` == `260000`（Provider 读法读主检出记录，merge 前读不到 worktree 的字段；必须用 store 方言）；`quay goal gate AC-120 --root <worktree> --json` 的输出/记录逐字含 `timeoutMs: 260000` 且 `verdict` 为 pass（若该 CLI 在 worktree 上仍报旧值，保留 gate 原始输出并以上述 store 读法取证，不得把读不到写成读到）。`criterion` 逐字仍为 `npx playwright test e2e/voice-trim.spec.ts -g "AC-120"`，`expect` 全文与本 Proposal 引用一致，`status == "achieved"`、`goal == "GOAL-006"`。
-- [ ] AC5 判定面未弱化、diff 范围受控：`git diff --name-only $(git merge-base develop HEAD)` 只含 `playwright.config.ts`、`goals/AC-120-开关控制的音频文件上传入口走同一条转写链路.md`、本任务文件（以及 Touches 里声明的判据文件）；`git diff $(git merge-base develop HEAD) -- e2e/voice-trim.spec.ts | wc -c` == 0（判据文件一个字节未动）；`git diff $(git merge-base develop HEAD) -- 'goals/**'` 只有新增的 `timeoutMs: 260000` 一行、无其他删改；新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` 的条数为 0；`npm run typecheck` 与 `npm run lint` exit 0。
+- [x] AC1 直跑稳定绿：连续 3 次 `npx playwright test e2e/voice-trim.spec.ts -g "AC-120"` 均 `EXIT=0`；每次贴 `1 passed (…)`、整轮 wall、`[e2e] watchdog-armed` 与 `[e2e] boot` 两行、跑前 `uptime` load1；3 次输出均不含 `[e2e] watchdog:` 越界行，最大 wall < `240_000`。若宿主某轮给出 load1 ≥ 60，优先保留该轮；给不出就如实登记实际 load1。
+- [x] AC2 预算已声明且被本判据读到：`grep -n "'voice-trim.spec.ts': 240_000" playwright.config.ts` 命中 1 行；AC-120 判据输出逐字含 `re-armed to 240000ms from the run start`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍为 `55_000`；`grep -n "^  timeout: 60_000,$" playwright.config.ts` 仍命中全局那一行。
+- [x] AC3 预算承重（诱导对，除条目外完全同构）：(a) 条目在时 `QUAY_E2E_CONFIG_EVAL_STALL_MS=40000 npx playwright test e2e/voice-trim.spec.ts -g "AC-120"` ⇒ `EXIT=0`、`1 passed`、wall > 55s，输出含 `[e2e] config-eval-stall: holding config evaluation for 40000ms` 且无越界行；(b) 临时从 `SPEC_BUDGET_MS` 删掉该条目、保留同一 40s stall ⇒ `EXIT=1`，输出逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling`；(c) 还原条目后同一命令（不带 stall）回到 `EXIT=0`；原始输出与 wall 入档，`git diff` 无负控残留。
+- [x] AC4 闸 deadline 已抬且可读：`quay goal get AC-120 --json --store --root <worktree>` 的 `timeoutMs` == `260000`（Provider 读法读主检出记录，merge 前读不到 worktree 的字段；必须用 store 方言）；`quay goal gate AC-120 --root <worktree> --json` 的输出/记录逐字含 `timeoutMs: 260000` 且 `verdict` 为 pass（若该 CLI 在 worktree 上仍报旧值，保留 gate 原始输出并以上述 store 读法取证，不得把读不到写成读到）。`criterion` 逐字仍为 `npx playwright test e2e/voice-trim.spec.ts -g "AC-120"`，`expect` 全文与本 Proposal 引用一致，`status == "achieved"`、`goal == "GOAL-006"`。
+- [x] AC5 判定面未弱化、diff 范围受控：`git diff --name-only $(git merge-base develop HEAD)` 只含 `playwright.config.ts`、`goals/AC-120-开关控制的音频文件上传入口走同一条转写链路.md`、本任务文件（以及 Touches 里声明的判据文件）；`git diff $(git merge-base develop HEAD) -- e2e/voice-trim.spec.ts | wc -c` == 0（判据文件一个字节未动）；`git diff $(git merge-base develop HEAD) -- 'goals/**'` 只有新增的 `timeoutMs: 260000` 一行、无其他删改；新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` 的条数为 0；`npm run typecheck` 与 `npm run lint` exit 0。
 
 ## DoD
 
@@ -77,6 +77,51 @@ goal_ac: AC-120
 ⛔ 不得用 `retries`、`repeat-each`、`test.skip`、`test.only`、`page.route(`、改判据命令、改任何 `expect` 或放宽 `AC120_*` 常量换绿。若 AC1 在净检出上仍稳定红（即判据在产品面为假），停手上报置 `needs-human`，不得把量具红写成产品绿。
 
 该轴仍暗,理由:本任务只调整 e2e 判据的量具预算与 goal 记录的 deadline，未新增或移除模块、依赖或跨层引用，L_D/L_G 无可比读数。
+
+## Evidence
+
+完成记录（2026-11-04）。这次修的是**量具的预算**（55s 默认 → 本 spec 声明 240s）与**闸的 deadline**（默认 60s → 260s），不是产品保证。`criterion:` 命令与 `expect:` 全文逐字未动；`e2e/voice-trim.spec.ts` 一个字节未改（`git diff <base> -- e2e/voice-trim.spec.ts | wc -c` = 0）；`SINGLE_SPEC_CEILING_MS = 55_000`、`BOOT_CEILING_MS`、`WEB_SERVER_TIMEOUT_MS` 与全局 `timeout: 60_000` 未动。
+
+此前三个 done 任务分别修的是入口本体（gap-voice-file-upload-input）、上传腿测量（gap-voice-upload-leg-unmeasured-under-shipped-recogniser）与 file input 定位（gap-ac120-upload-input-locator-ambiguous），均未声明整轮预算；今天同一 treeSha 7d0591457bbe70b9414269db8b7d817665e3e4da 在 51 秒内先被 55000ms 看门狗杀（2026-11-04T08:29:22.231Z）、后 exit 0 通过（08:30:13.567Z），另有两轮被默认 60000ms 闸 `not-evaluated (timeout)`，红轮 reason 里只有 watchdog / timeout 行，没有任何 AC-120 断言失败。
+
+### AC1 直跑 3 次（load1 / wall / 读数；宿主 load1 全程 ≥ 60，三轮都保留）
+
+跑前 uptime：17:47:20 `load average: 97.10, 82.70, 87.23`；17:48:25 `114.33, 89.52, 89.21`；17:49:53 `86.98, 87.69, 88.65`。
+
+1. EXIT=0，wall=61909ms。`[e2e] watchdog-armed: config-eval-ms=9682, boot ceiling 40000ms from config-eval end (deadline at 49682ms after run start), then re-armed to 240000ms from the run start`；`[e2e] boot: both webServers answered at 18255ms (config-eval-ms=9682), re-armed to 240000ms from the run start`；`1 passed (51.0s)`。
+2. EXIT=0，wall=86143ms。`config-eval-ms=25757`，`both webServers answered at 51368ms`（冷轮：旧 55s 墙下这一轮必被杀），`re-armed to 240000ms from the run start`；`1 passed (59.0s)`。
+3. EXIT=0，wall=59721ms。`config-eval-ms=17427`，`both webServers answered at 37578ms`，`re-armed to 240000ms from the run start`；`1 passed (39.9s)`。
+
+三轮输出均无 `[e2e] watchdog:` 越界行（grep -c 均为 0），最大 wall 86143ms < 240000。原始日志：tmp/ac1-run1.log、tmp/ac1-run2.log、tmp/ac1-run3.log。
+
+### AC2 声明与读回
+
+- `grep -n "'voice-trim.spec.ts': 240_000" playwright.config.ts` ⇒ `870:  'voice-trim.spec.ts': 240_000,`（1 行）
+- 三轮判据输出逐字含 `re-armed to 240000ms from the run start`（每轮 2 处）
+- `grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` ⇒ `404:const SINGLE_SPEC_CEILING_MS = 55_000;`
+- `grep -n "^  timeout: 60_000,$" playwright.config.ts` ⇒ `3965:  timeout: 60_000,`
+
+### AC3 诱导对（除条目外完全同构）
+
+(a) 条目在：`QUAY_E2E_CONFIG_EVAL_STALL_MS=40000 npx playwright test e2e/voice-trim.spec.ts -g "AC-120"` ⇒ EXIT=0，wall=99280ms（>55s），`[e2e] config-eval-stall: holding config evaluation for 40000ms (QUAY_E2E_CONFIG_EVAL_STALL_MS=40000)`，`re-armed to 240000ms from the run start`，无越界行，`1 passed (38.5s)`。
+
+(b) 临时删掉该条目、保留同一 40s stall ⇒ EXIT=1，逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling at 68789ms (config-eval-ms=63693) and is ending here with exit 1 at 69279ms — stuck at stage "browser-launch-or-cases": observed past boot at 68787ms, …`，且 `re-armed to 55000ms from the run start`。
+
+(c) `git checkout -- playwright.config.ts` 还原条目后同一命令（不带 stall）⇒ EXIT=0，wall=27306ms，`re-armed to 240000ms from the run start`，`1 passed (24.5s)`；`git status --porcelain` 空，无负控残留。原始日志：tmp/ac3a-with-entry.log、tmp/ac3b-no-entry.log、tmp/ac3c-restored.log。
+
+### AC4 闸 deadline 读回与 GateEvent
+
+- `quay goal get AC-120 --json --store --root <worktree>` ⇒ `"timeoutMs": 260000`，`"criterion": "npx playwright test e2e/voice-trim.spec.ts -g \"AC-120\""`，`"status": "achieved"`，`"goal": "GOAL-006"`，`expect` 全文与本 Proposal 引用一致。
+- `quay goal gate AC-120 --root <worktree> --json` ⇒ `"verdict": "pass"`，`"timeoutMs": 260000`，`"reason": "acceptance passed (exit 0)"`（wall 27945ms）。
+- `.quay/gate-events.jsonl` 尾部原文：`{"id":"1aa10d74-db13-4f80-85e8-fb1168d4cd39","item_id":"AC-120","pipeline_id":"AC-120","gate":"goal","actor":"goal-cli","verdict":"pass","timestamp":"2026-11-04T09:55:15.249Z","payload":{"reason":"acceptance passed (exit 0)","evaluationRoot":"/data/home/yale/work/claudecodeui-worktrees/gap-ac120-criterion-run-budget-below-cold-start-wall","treeSha":"5dce1e151e08a9488cfee60ae5789103a58d43eb"}}` ⇒ AC-120 尾部重新是 pass，结果由判据自身决定。
+
+### AC5 diff 范围
+
+- `git diff --name-only $(git merge-base develop HEAD)` ⇒ `goals/AC-120-…md`、`playwright.config.ts`（提交后再加本任务文件）。
+- `git diff <base> -- e2e/voice-trim.spec.ts | wc -c` ⇒ `0`
+- `git diff <base> -- 'goals/**'` ⇒ 仅 `+timeoutMs: 260000` 一行，无其他删改。
+- 新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` 的条数 ⇒ `0`。
+- `npm run typecheck` ⇒ EXIT=0；`npm run lint` ⇒ EXIT=0（仅既有 warning）。
 
 ## Touches
 
