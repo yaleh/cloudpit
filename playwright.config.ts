@@ -829,6 +829,20 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // ~10.6x the cold round's pre-case cost, while AC-172's gate deadline (`timeoutMs: 260000`) still
   // outlasts it by 20 s so a crossing is written down rather than SIGKILLed silently.
   'resident-status-bar.spec.ts': 240_000,
+  // The resident Enter-key criterion (GOAL-013 / AC-180): two serial cases driving a real project, a real
+  // composed send through the Enter path and two server readbacks (lifecycle mode plus the resident host
+  // list), behind the shared server boot. It had no entry here, so the criterion's single-file invocation
+  // inherited `SINGLE_SPEC_CEILING_MS` (55 s) — and that ceiling plus the record's default gate deadline,
+  // not one of the AC-180 assertions, decided the rounds. MEASURED 2026-11-04 on this tree
+  // (treeSha 41e9a8274b556a8bedd49bfadeda7bba782b058d): the ledger's last two rounds on the SAME tree were
+  // first `not-evaluated (timeout)` at the default 60000 ms gate deadline (10:50:23.700Z), then killed by
+  // this watchdog at 55002ms (config-eval-ms=2887) with boot not observed until 18768ms (11:01:20.549Z) —
+  // neither round recorded an AC-180 assertion failure. The healthy whole invocation had already read 20.5 s,
+  // 28.6 s and 47.6 s (that third round's boot at 23.4 s), leaving ~7 s of headroom on the slowest one.
+  // 240_000 is the sibling heavy-spec value (~5x the slowest healthy invocation), and AC-180's gate deadline
+  // (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is written down before the gate kills it — the
+  // same shape as the AC-109 / AC-172 / AC-254 / AC-120 entries below.
+  'resident-enter-send.spec.ts': 240_000,
   // The transcript-follow criterion (GOAL-004 / AC-109): one slow in-page wire double per arm (the wheel
   // gesture and the keyboard PageUp gesture), each behind the shared server boot, the client warm-up and
   // the service-worker settle. MEASURED 2026-11-02 on this host: a warm direct run read `1 passed (28.4s)`,
