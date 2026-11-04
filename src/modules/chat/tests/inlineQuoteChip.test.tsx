@@ -1,32 +1,35 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
-import { fireEvent, render } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import i18next from 'i18next';
 import React from 'react';
 import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
 import { ChatComposer } from '@/modules/chat-composer';
-import { buildSuggestionChips, truncateSuggestionLabel } from '@/modules/chat-support';
+import { buildSuggestionChips } from '@/modules/chat-support';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import zhChat from '@/modules/i18n/locales/zh-CN/chat.json';
 import { resetChatDrafts } from '@/shared/chatDrafts';
 import type { ComposerChipStrip } from '@/shared/types';
 
 /**
- * The quoted chip while the composer holds text: it belongs IN the draft, at the
- * caret, not in the strip above the box.
+ * A live transcript selection must no longer be drawn inside the composer.
  *
- * The behaviour under test is the mode switch itself — when the mode is on, what
- * the mirror layer splits around, what the real button exposes, and how the box
- * returns to its ordinary shape. Geometry (the placeholder pushing text aside,
- * the button sitting on it, the height following the mirror) needs a layout
- * engine and lives in the task's real-page DoD; here each AC leg is one case.
+ * This file used to pin the inline quote-chip mode: the mirror layer became the
+ * visible text layer and the box grew a line while a selection existed. That mode
+ * is gone — the transcript's floating action owns the selection now — so the same
+ * fixtures assert its absence instead: no chip, no placeholder, no transparent
+ * textarea, and no empty-box strip switched on by the quoted chip alone.
+ *
+ * The quoted chip may still be PRESENT in `chipStrip.chips`; what matters is that
+ * the composer does not draw it. That keeps the single acceptance entry available
+ * to the transcript action without letting a selection resize the box.
  */
 
 // The listen's state is read by the composer to decide whether a dictation owns
-// the box; the mock keeps it mutable so one case can put a listen in progress.
+// the box; the mock keeps it mutable so a case can put a listen in progress.
 const voiceMock = vi.hoisted(() => ({ state: 'idle' as string }));
 
 vi.mock('@/shared/api', () => {
@@ -140,8 +143,6 @@ const composerBaseProps = (): Record<string, unknown> => ({
   getInputProps: () => ({}),
   openAttachmentPicker: () => undefined,
   inputHighlightRef: { current: null },
-  // The mirror's before/after halves are read back as text: the stub renders the
-  // string it is handed, which is what the real renderer does for plain text.
   renderInputWithMentions: (text: string) => text,
   textareaRef: { current: null },
   input: '',
@@ -188,52 +189,10 @@ const renderComposer = (overrides: Overrides = {}) => render(React.createElement
   { ...composerBaseProps(), ...overrides } as unknown as React.ComponentProps<typeof ChatComposer>,
 ));
 
-const rerenderComposer = (view: ReturnType<typeof render>, overrides: Overrides = {}) => view.rerender(
-  React.createElement(
-    ChatComposer,
-    { ...composerBaseProps(), ...overrides } as unknown as React.ComponentProps<typeof ChatComposer>,
-  ),
-);
-
 const textareaOf = (view: ReturnType<typeof render>): HTMLTextAreaElement => {
   const textarea = view.container.querySelector<HTMLTextAreaElement>('textarea');
   assert.ok(textarea, 'the composer must render a textarea');
   return textarea;
-};
-
-const mirrorOf = (view: ReturnType<typeof render>): HTMLElement => {
-  const mirror = view.container.querySelector<HTMLElement>('div.chat-input-placeholder');
-  assert.ok(mirror, 'the composer must render the mirror layer');
-  return mirror;
-};
-
-const inlineButtonOf = (view: ReturnType<typeof render>): HTMLButtonElement => {
-  const button = view.container.querySelector<HTMLButtonElement>('[data-slot="inline-quote-chip"]');
-  assert.ok(button, 'the inline quote chip must be drawn');
-  return button;
-};
-
-const spacerOf = (view: ReturnType<typeof render>): HTMLElement => {
-  const spacer = view.container.querySelector<HTMLElement>('[data-slot="inline-quote-chip-spacer"]');
-  assert.ok(spacer, 'the mirror must carry the chip placeholder');
-  return spacer;
-};
-
-/**
- * Puts the composer into the inline mode the way the app does: a non-empty draft
- * already exists, the caret sits where the person left it, and a transcript
- * selection then supplies the quoted chip.
- */
-const showInlineChip = (
-  input: string,
-  selectionEnd: number,
-  strip: ComposerChipStrip = quotedStrip(),
-) => {
-  const view = renderComposer({ input, chipStrip: baseChipStrip() });
-  const textarea = textareaOf(view);
-  textarea.setSelectionRange(selectionEnd, selectionEnd);
-  rerenderComposer(view, { input, chipStrip: strip });
-  return { view, textarea: textareaOf(view) };
 };
 
 beforeEach(() => {
@@ -248,104 +207,86 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// (a) structure: the button and the mirror's placeholder at selectionEnd
+// The retired inline mode leaves no trace in the composer
 // ---------------------------------------------------------------------------
 
-describe('inline mode structure', () => {
-  it('(a) draws the button and a placeholder at selectionEnd, split by UTF-16 units', () => {
-    // 'a' (1 unit) + surrogate-pair emoji (2 units) + 中 + bc; index 3 is after
-    // the emoji, so a split at a code-unit boundary must not cut it in half.
-    const input = 'a😀中bc';
-    const { view, textarea } = showInlineChip(input, 3);
+describe('a quoted selection draws nothing in the composer', () => {
+  it('draws no inline chip and no placeholder over a non-empty box', () => {
+    const view = renderComposer({ input: '前面后面', chipStrip: quotedStrip() });
 
-    assert.equal(textarea.selectionEnd, 3, 'the caret is where the person left it');
-    const spacer = spacerOf(view);
-    assert.equal(spacer.previousSibling?.textContent, 'a😀', 'everything before the caret');
-    assert.equal(spacer.nextSibling?.textContent, '中bc', 'everything after the caret');
-    assert.ok(inlineButtonOf(view).textContent?.includes(QUOTED));
+    assert.equal(
+      view.container.querySelector('[data-slot="inline-quote-chip"]') === null,
+      true,
+      'the inline quote chip path is retired',
+    );
+    assert.equal(
+      view.container.querySelector('[data-slot="inline-quote-chip-spacer"]') === null,
+      true,
+      'the mirror carries no chip placeholder',
+    );
+    const textarea = textareaOf(view);
+    assert.equal(textarea.getAttribute('data-inline-chip-mode'), null);
+    assert.equal(textarea.style.getPropertyValue('color'), '', 'the textarea text is never hidden');
 
-    // The strip has nothing left to draw: the quoted chip moved into the flow.
-    assert.equal(view.queryByRole('listbox') === null, true);
+    const mirror = view.container.querySelector<HTMLElement>('div.chat-input-placeholder');
+    assert.ok(mirror, 'the composer must render the mirror layer');
+    assert.ok(mirror.className.includes('text-transparent'), 'the mirror stays invisible');
+    assert.equal(mirror.className.includes('text-foreground'), false);
+    assert.equal(mirror.closest('[aria-hidden="true"]') === null, false, 'the mirror stays aria-hidden');
   });
 
-  it('(j) splits with a non-empty after-half and with an empty one (caret at the end)', () => {
-    const middle = showInlineChip('前面后面', 2);
-    const middleSpacer = spacerOf(middle.view);
-    assert.equal(middleSpacer.previousSibling?.textContent, '前面');
-    assert.equal(middleSpacer.nextSibling?.textContent, '后面');
-
-    const end = showInlineChip('前面后面', 4);
-    const endSpacer = spacerOf(end.view);
-    assert.equal(endSpacer.previousSibling?.textContent, '前面后面');
-    assert.equal(endSpacer.nextSibling === null, true, 'nothing follows a caret at the end');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// (b)-(d) when the mode must NOT be on
-// ---------------------------------------------------------------------------
-
-describe('inline mode preconditions', () => {
-  it('(b) does not draw it over an empty box, and the quoted chip stays in the row', () => {
+  it('does not switch an empty box into the shared-line strip for the quoted chip alone', () => {
     const view = renderComposer({ input: '', chipStrip: quotedStrip() });
 
     assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
-    assert.ok(view.getByRole('listbox'), 'the empty-box strip is unchanged');
-    const option = view.getByRole('option');
-    assert.equal(option.getAttribute('data-chip-source'), 'quoted');
-  });
-
-  it('(c) does not draw it without a live selection', () => {
-    const view = renderComposer({
-      input: '已经写了一半',
-      chipStrip: baseChipStrip({ chips: buildSuggestionChips({ habitChips: ['检查进展'] }) }),
-    });
-
-    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
-  });
-
-  it('(d) does not draw it while a listen owns the box', () => {
-    voiceMock.state = 'recording';
-    const view = renderComposer({
-      input: 'abcdef',
-      voiceRange: { start: 0, end: 2 },
-      chipStrip: quotedStrip(),
-    });
-
-    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// (e) the mode switch itself, and its reversal
-// ---------------------------------------------------------------------------
-
-describe('inline mode switch', () => {
-  it('(e) hides the textarea text, shows the mirror text, and restores both on exit', () => {
-    const { view, textarea } = showInlineChip('前面后面', 2);
-
-    assert.equal(textarea.getAttribute('data-inline-chip-mode'), 'true');
-    assert.equal(textarea.style.getPropertyValue('color'), 'transparent');
-
-    let mirror = mirrorOf(view);
-    assert.equal(mirror.className.includes('text-foreground'), true, 'the mirror carries the visible text');
-    assert.equal(mirror.className.includes('text-transparent'), false);
-
-    rerenderComposer(view, { input: '前面后面', chipStrip: baseChipStrip() });
-
+    // The quoted chip is still in the strip data (the acceptance entry reads it),
+    // but it may not light up the drawn strip by itself: doing so changed the
+    // textarea's rows and therefore its height. Before and after a selection the
+    // box keeps the same default rows.
+    assert.equal(view.queryByRole('listbox'), null, 'a selection alone draws no composer strip');
+    const textarea = textareaOf(view);
+    assert.equal(textarea.getAttribute('rows'), null, 'the default row count is untouched');
     assert.equal(textarea.getAttribute('data-inline-chip-mode'), null);
-    assert.equal(textarea.style.getPropertyValue('color'), '', 'the textarea text is restored');
-    mirror = mirrorOf(view);
-    assert.equal(mirror.className.includes('text-transparent'), true, 'the mirror goes back to being invisible');
-    assert.equal(mirror.className.includes('text-foreground'), false);
+  });
+
+  it('keeps the non-quoted suggestion sources on an empty box', () => {
+    const view = renderComposer({
+      input: '',
+      chipStrip: quotedStrip({
+        chips: buildSuggestionChips({ quotedText: QUOTED, habitChips: ['检查进展'] }),
+      }),
+    });
+
+    const listbox = view.getByRole('listbox');
+    assert.ok(listbox, 'the empty-box strip still serves the other sources');
+    const sources = Array.from(view.container.querySelectorAll('[role="option"]'))
+      .map((option) => option.getAttribute('data-chip-source'));
+    assert.ok(sources.includes('habit'), `the habit chip still draws; sources read ${String(sources)}`);
+    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
+  });
+
+  it('leaves no mode trace when the selection goes away', () => {
+    const view = renderComposer({ input: '前面后面', chipStrip: quotedStrip() });
+    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
+
+    view.rerender(React.createElement(ChatComposer, {
+      ...composerBaseProps(),
+      input: '前面后面',
+      chipStrip: baseChipStrip({ visible: false, chips: [] }),
+    } as unknown as React.ComponentProps<typeof ChatComposer>));
+
+    const textarea = textareaOf(view);
+    assert.equal(textarea.getAttribute('data-inline-chip-mode'), null);
+    assert.equal(textarea.style.getPropertyValue('color'), '');
+    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip-spacer"]') === null, true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// (f)-(h) the real button's contract
+// The retired path added no locale key, and must not grow one now
 // ---------------------------------------------------------------------------
 
-describe('inline chip button', () => {
+describe('locale key sets', () => {
   /** Every leaf path in a locale object, sorted — one locale's complete key set. */
   const keyPaths = (value: unknown, prefix = ''): string[] => {
     if (value === null || typeof value !== 'object') {
@@ -358,94 +299,15 @@ describe('inline chip button', () => {
   const digestOf = (value: unknown): string => createHash('sha256')
     .update(keyPaths(value).sort().join('\n'))
     .digest('hex');
-  // Digests taken from the locale files AFTER the suggestion strip retired the
-  // second-line preview and the keyboard hint: the inline chip reuses the
-  // existing `quoteChip` key and must not add one to any locale. Refreshed when
-  // the selection-aware suggest highlight added `input.suggestions.suggestForSelection`
-  // to every locale; this pin still catches the inline chip growing a key of its own.
-  // (The cockpit's cards view added its copy to `common.json`, not this `chat`
-  // namespace, so this pin is deliberately unchanged and still reads as it did.)
+  // Digests taken from the locale files after the selection-aware suggest
+  // highlight added `input.suggestions.suggestForSelection` to every locale. The
+  // transcript action REUSES that key; retiring the inline chip must not add a
+  // key either.
   const EN_KEY_SET_DIGEST = '74b1d5b0f88d59c4b82e9edfdc18527bea06f768963a86418b167308393d2333';
   const ZH_KEY_SET_DIGEST = 'efaf4779ab829a00412a51cb966a7036a767f8eeaed82219ecc838b799041626';
 
-  it('(f) has a readable name from the existing key and the complete text in title', () => {
-    const { view } = showInlineChip('前面后面', 2);
-    const button = inlineButtonOf(view);
-
-    assert.equal(button.getAttribute('title'), QUOTED);
-    assert.equal(button.getAttribute('data-chip-source'), 'quoted');
-    // No new i18n key: the wording is the chip row's own `input.suggestions.quoteChip`.
-    assert.equal(
-      button.textContent,
-      i18next.t('input.suggestions.quoteChip', { text: truncateSuggestionLabel(QUOTED, 20) }),
-    );
-    assert.equal(button.getAttribute('aria-label'), null, 'the visible text is the accessible name');
-
+  it('keeps the en and zh-CN key sets unchanged', () => {
     assert.equal(digestOf(enChat), EN_KEY_SET_DIGEST, 'en key set unchanged');
     assert.equal(digestOf(zhChat), ZH_KEY_SET_DIGEST, 'zh-CN key set unchanged');
-  });
-
-  it('(k) draws the same dashed theme-framed chip the strip uses for a quoted passage', () => {
-    const { view } = showInlineChip('前面后面', 2);
-    const button = inlineButtonOf(view);
-    const tokens = button.className.split(/\s+/).filter(Boolean);
-
-    // The same quoted passage must not change appearance when it moves from the
-    // strip into the draft: dashed frame, theme-coloured edge, tinted background.
-    assert.ok(tokens.includes('border-dashed'), `the inline chip is dashed; class read ${button.className}`);
-    assert.equal(
-      tokens.includes('border-solid'),
-      false,
-      `the inline chip keeps no solid frame; class read ${button.className}`,
-    );
-    assert.ok(
-      tokens.includes('border-primary/50'),
-      `the inline chip keeps the theme-coloured edge; class read ${button.className}`,
-    );
-    assert.ok(
-      tokens.includes('bg-primary/5'),
-      `the inline chip keeps the tinted background; class read ${button.className}`,
-    );
-  });
-
-  it('(g) cancels mousedown so the transcript selection survives the press', () => {
-    const { view } = showInlineChip('前面后面', 2);
-    const button = inlineButtonOf(view);
-
-    const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
-    button.dispatchEvent(mouseDown);
-
-    assert.equal(mouseDown.defaultPrevented, true);
-  });
-
-  it('(h) clicks go through the one acceptance entry, exactly once, with the quoted chip', () => {
-    const onAccept = vi.fn();
-    const strip = quotedStrip({ onAccept });
-    const { view } = showInlineChip('前面后面', 2, strip);
-
-    fireEvent.click(inlineButtonOf(view));
-
-    assert.equal(onAccept.mock.calls.length, 1);
-    const [accepted] = onAccept.mock.calls[0] as [{ source: string; text: string }];
-    assert.equal(accepted.source, 'quoted');
-    assert.equal(accepted.text, QUOTED);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// (i) the mode leaves when the live selection does
-// ---------------------------------------------------------------------------
-
-describe('inline mode exit', () => {
-  it('(i) exits when the live selection disappears', () => {
-    const { view, textarea } = showInlineChip('前面后面', 2);
-    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') !== null, true);
-
-    rerenderComposer(view, { input: '前面后面', chipStrip: baseChipStrip({ visible: false, chips: [] }) });
-
-    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip"]') === null, true);
-    assert.equal(view.container.querySelector('[data-slot="inline-quote-chip-spacer"]') === null, true);
-    assert.equal(textarea.getAttribute('data-inline-chip-mode'), null);
-    assert.equal(textarea.style.getPropertyValue('color'), '');
   });
 });

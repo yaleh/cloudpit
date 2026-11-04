@@ -14,6 +14,7 @@ import type {
   ProjectSession,
   SessionEstablishedContext,
   SessionNavigationOptions,
+  SuggestionChip,
   TranscriptExportAction,
   UiNavigateReveal,
 } from '@/shared/types';
@@ -809,6 +810,21 @@ function ChatInterface({
   });
 
   /**
+   * The floating transcript action's acceptance: hand the live passage to the
+   * composer's one quoted acceptance entry.
+   *
+   * The chip is built here because the action lives outside the composer and has
+   * no strip to click; `'quoted'` selects the descriptor that inserts at the
+   * caret, clears the page selection, focuses the box and never sends. Exactly
+   * one call per click, and no synthetic chip state is kept afterwards.
+   */
+  const acceptChip = chipStrip.onAccept;
+  const acceptQuotedSelection = useCallback((selectionText: string) => {
+    const chip: SuggestionChip = { id: 'quoted-0', text: selectionText, source: 'quoted', index: 0 };
+    acceptChip(chip);
+  }, [acceptChip]);
+
+  /**
    * What the draft points at in the latest assistant reply.
    *
    * One derivation for both surfaces: the composer's preview line and the
@@ -1270,6 +1286,8 @@ function ChatInterface({
             onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
             onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
             highlightedReplyOrdinals={highlightedReplyOrdinals}
+            quotedSelection={quotedSelection}
+            onAcceptQuotedSelection={acceptQuotedSelection}
           />
         </MarkdownWorkspaceContext.Provider>
 

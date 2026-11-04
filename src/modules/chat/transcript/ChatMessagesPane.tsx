@@ -27,6 +27,7 @@ import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelec
 import type { NextTaskBannerComponent } from '@/modules/chat/transcript/ProviderSelectionEmptyState';
 import WorkSegmentRecord from '@/modules/chat/transcript/WorkSegmentRecord';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
+import { TranscriptSelectionAction } from '@/modules/chat/transcript/TranscriptSelectionAction';
 import { ActivityIndicator } from '@/modules/chat-support';
 
 /**
@@ -240,6 +241,17 @@ type ChatMessagesPaneProps = {
    * only marks rows with this set; the draft itself never changes.
    */
   highlightedReplyOrdinals?: readonly number[];
+  /**
+   * The passage held in the transcript right now, from `useTranscriptSelection`.
+   * It only decides whether the floating selection action is drawn; the composer
+   * is deliberately not handed it as a chip any more.
+   */
+  quotedSelection?: string | null;
+  /**
+   * The composer's quoted acceptance entry. Supplied by `ChatInterface`; when
+   * absent no floating action is drawn (a standalone pane has no draft to fill).
+   */
+  onAcceptQuotedSelection?: (selectionText: string) => void;
 };
 
 /**
@@ -295,6 +307,8 @@ function ChatMessagesPane({
   onEditMessage,
   onForkFromMessage,
   highlightedReplyOrdinals,
+  quotedSelection = null,
+  onAcceptQuotedSelection,
   onFileOpen,
   onShowSettings,
   onGrantToolPermission,
@@ -769,6 +783,17 @@ function ChatMessagesPane({
         />
         </div>
       </div>
+
+      {/* The selection's own affordance. A sibling of the scroll box (not a child
+          of it) so the scrolling container's overflow can never clip it; the
+          component itself is fixed and re-anchors to the live Range. */}
+      {onAcceptQuotedSelection !== undefined && (
+        <TranscriptSelectionAction
+          selectionText={quotedSelection}
+          scrollContainerRef={scrollContainerRef}
+          onAccept={onAcceptQuotedSelection}
+        />
+      )}
 
     </div>
   );
