@@ -67,7 +67,7 @@ Split the package into render/, layout/ and dom/ leaf subdirectories inside modu
 - 结构棘轮：`npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/frontend-import-cycle-budget.test.ts server/shared/tests/architecture-ratchet.test.ts` → **12 pass / 0 fail**；cycle pin 由 5 组下调为 4 组（architecture 组关闭），module SCC 仍恰为 cockpit ↔ project-workspace。
 - 受影响的服务端判据：`server/shared/tests/cloudpit-runtime-flip.test.ts` → 11 pass（架构 BroadcastChannel 源路径改到 `render/architectureChatBridge.ts`）；`server/modules/architecture/tests/architecture-routes.test.ts` → 39 pass（绝对路径 fixture 改到 `dom/rendererContract`）。
 - Lint：`npx oxlint src/ server/ scripts/ shared/` → 0 error（仅既有 warning）。
-- 基线重键：`architecture-ratchet.baseline.json` 的 9 条 oversize 与 2 条 moduleMutableState 条目按新路径重键（PlantUmlGraph 4040→3569，其余读数不变，旧路径条目随文件删除）；`frontend-import-cycle-budget.baseline.json` 删除 architecture 组并重测 readings（files 708 / staticFileEdges 2481 / nodeCount 126 / unresolvedInternal 100 / nonLiteralDynamic 2）。
+- 基线重键：`architecture-ratchet.baseline.json` 的 9 条 oversize 与 2 条 moduleMutableState 条目按新路径重键（PlantUmlGraph 4040→3569，其余读数不变，旧路径条目随文件删除）；`frontend-import-cycle-budget.baseline.json` 删除 architecture 组并重测 readings —— 本分支拆分后 files 708 / staticFileEdges 2481；merge develop（sidebar split）后再测为 **files 713 / staticFileEdges 2503 / nodeCount 126 / unresolvedInternal 100 / nonLiteralDynamic 2**，基线 JSON 记录 merge 后的读数。
 - 路径敏感的判据同步：`layoutAspect`、`architectureTab`、`exportMenu`、`i18nArchitectureTabCompleteness` 的源码读取路径，以及 e2e `architecture-canvas-layout.spec.ts` 的 Vite module route（`**/src/modules/architecture/render/PlantUmlGraph.tsx*`）。
 
 ## ADR-007 dark-axis record
