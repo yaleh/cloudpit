@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-src-architecture
 title: "architecture-analysis: archguard scope src: modules/architecture = 61
   files / 252 entities (fresh CLI package-stats), fanIn 1 / fanOut 564
   instrument relation count — the largest f"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
