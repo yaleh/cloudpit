@@ -1,7 +1,7 @@
 ---
 id: gap-transcript-selection-floating-quote-action
 title: Transcript 选区显示固定宽度浮动引用操作，避免选中后 composer 重排
-status: done
+status: ready
 labels:
   - gap
   - defect
