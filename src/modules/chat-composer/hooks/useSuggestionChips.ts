@@ -8,6 +8,7 @@ import {
   SUGGESTION_CHIP_ACCEPT_SOURCES,
   suggestionConditionsHold,
 } from '@/modules/chat-support';
+import { useTranscriptSelectionText } from '@/modules/chat-transcript';
 import type {
   SuggestionDisplayConditions,
   SuggestionFillSelection,
@@ -69,8 +70,12 @@ type UseSuggestionChipsOptions = {
   sessionId: string | null;
   /** Stable identity of the last assistant message; the model draw's key. */
   lastAssistantMessageId: string | null;
-  /** The passage selected in the transcript, from `useTranscriptSelection`. */
-  quotedSelection: string | null;
+  /**
+   * The passage selected in the transcript. Production omits it and reads the
+   * selection store; a harness or preview may pass one explicitly to drive the
+   * strip without a live transcript.
+   */
+  quotedSelection?: string | null;
 };
 
 export type UseSuggestionChipsResult = {
@@ -108,7 +113,7 @@ export function useSuggestionChips({
   draftScope,
   sessionId,
   lastAssistantMessageId,
-  quotedSelection,
+  quotedSelection: quotedSelectionOverride,
 }: UseSuggestionChipsOptions): UseSuggestionChipsResult {
   /**
    * The passage a quoted chip inserted, kept as the Suggest button's `focus`.
@@ -129,6 +134,12 @@ export function useSuggestionChips({
   // than about a click.
   const modelChipFillRef = useRef<string | null>(null);
 
+  // The transcript owns the live selection; subscribing here re-renders only the
+  // composer, never the message rows that produced it.
+  const liveQuotedSelection = useTranscriptSelectionText();
+  const quotedSelection = quotedSelectionOverride !== undefined
+    ? quotedSelectionOverride
+    : liveQuotedSelection;
   const trimmedQuotedSelection = quotedSelection?.trim() ? quotedSelection.trim() : null;
   // A fresh selection supersedes the anchor it was quoted from.
   useEffect(() => {

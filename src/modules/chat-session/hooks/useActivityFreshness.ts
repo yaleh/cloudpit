@@ -334,13 +334,11 @@ export const useActivityFreshness = (
     forceRender();
   }, [isConnected, slot, forceRender]);
 
-  // A live one-second tick keeps the dock mounted even when no frame is arriving.
-  // It cannot make the elapsed reading advance: that comes from the server's
-  // `asOf`, so an unreachable turn keeps the same number across every tick.
-  useEffect(() => {
-    const timer = setInterval(() => forceRender(), 1_000);
-    return () => clearInterval(timer);
-  }, [forceRender]);
+  // The machine owns the silence timer and notifies on every state change, so the
+  // surface re-renders exactly when the reading does — no once-a-second poll. That
+  // poll used to re-render the whole chat (ChatInterface → transcript → markdown)
+  // even when nothing had changed.
+  useEffect(() => slot.machine.subscribe(forceRender), [slot, forceRender]);
 
   const snapshot = slot.machine.getSnapshot();
 

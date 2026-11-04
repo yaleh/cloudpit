@@ -241,8 +241,6 @@ type ChatMessagesPaneProps = {
    * only marks rows with this set; the draft itself never changes.
    */
   highlightedReplyOrdinals?: readonly number[];
-  /** Live transcript passage; only gates the floating action's visibility. */
-  quotedSelection?: string | null;
   /** Composer's quoted acceptance entry; absent ⇒ no floating action. */
   onAcceptQuotedSelection?: (selectionText: string) => void;
 };
@@ -300,7 +298,6 @@ function ChatMessagesPane({
   onEditMessage,
   onForkFromMessage,
   highlightedReplyOrdinals,
-  quotedSelection = null,
   onAcceptQuotedSelection,
   onFileOpen,
   onShowSettings,
@@ -324,22 +321,32 @@ function ChatMessagesPane({
     () => findLatestReplyItems(visibleMessages),
     [visibleMessages],
   );
-  const replyItemsContextFor = useCallback(
-    (message: ChatMessage): ReplyItemRenderContext | undefined => {
+  const replyItemsContextFor = useMemo(() => {
+    // One context object per message for as long as the reply, session and
+    // highlight set are unchanged. A fresh object on every render defeats the
+    // memoized row and its markdown, so an unrelated pane render would re-parse
+    // every reply.
+    const cache = new Map<string, ReplyItemRenderContext>();
+    return (message: ChatMessage): ReplyItemRenderContext | undefined => {
       if (!latestReplyItems || latestReplyItems.message !== message || !activeSessionId) {
         return undefined;
       }
       const messageId =
         message.transcriptRowId ?? message.id ?? message.blockKey ?? String(message.timestamp);
-      return {
+      const cached = cache.get(messageId);
+      if (cached) {
+        return cached;
+      }
+      const context: ReplyItemRenderContext = {
         items: latestReplyItems.items,
         highlightedOrdinals: highlightedReplyOrdinalSet,
         uriFor: (ordinal: number) =>
           formatReplyItemUri({ sessionId: activeSessionId, messageId, ordinal }),
       };
-    },
-    [latestReplyItems, activeSessionId, highlightedReplyOrdinalSet],
-  );
+      cache.set(messageId, context);
+      return context;
+    };
+  }, [latestReplyItems, activeSessionId, highlightedReplyOrdinalSet]);
   // The placeholder estimate for never-measured rows: without it a jump centres
   // the target against 100px stand-ins in a conversation whose rows are 250px.
   const pxPerMessage = useTranscriptPxPerMessage(scrollContainerRef);
@@ -780,7 +787,6 @@ function ChatMessagesPane({
       {/* Fixed, re-anchored sibling of the scroll box so it is never clipped. */}
       {onAcceptQuotedSelection !== undefined && (
         <TranscriptSelectionAction
-          selectionText={quotedSelection}
           scrollContainerRef={scrollContainerRef}
           onAccept={onAcceptQuotedSelection}
         />

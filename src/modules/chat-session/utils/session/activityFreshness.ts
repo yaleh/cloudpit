@@ -77,6 +77,8 @@ export type ActivityFreshness = {
   /** Elapsed time of the in-progress turn, or null when idle or unconfirmed. */
   getElapsedMs: () => number | null;
   getSnapshot: () => ActivityFreshnessSnapshot;
+  /** Notified after every state change, including the silence timer firing. */
+  subscribe: (listener: () => void) => () => void;
   /** Drop any pending timer; call when the owner unmounts. */
   dispose: () => void;
 };
@@ -109,6 +111,14 @@ export const createActivityFreshness = (
   // Whether `turnStartedAt` is a local send-time assumption rather than a server snapshot.
   let turnIsLocal = false;
   let timer: TimerHandle | null = null;
+  // React surfaces listen here instead of polling once a second: the machine
+  // already owns the silence timer, so it is the one place that knows when the
+  // reading changed.
+  const listeners = new Set<() => void>();
+
+  const notify = () => {
+    for (const listener of [...listeners]) listener();
+  };
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -124,6 +134,7 @@ export const createActivityFreshness = (
     timer = deps.setTimeout(() => {
       timer = null;
       liveness = 'unreachable';
+      notify();
     }, staleAfter);
   };
 
@@ -159,6 +170,7 @@ export const createActivityFreshness = (
 
     liveness = 'fresh';
     armTimer();
+    notify();
   };
 
   const onSocketClose = () => {
@@ -166,6 +178,7 @@ export const createActivityFreshness = (
     // leave the turn and its anchor untouched, so the elapsed reading stays frozen.
     clearTimer();
     liveness = 'unreachable';
+    notify();
   };
 
   const markLocalTurnStarted = (startedAt?: number) => {
@@ -174,6 +187,7 @@ export const createActivityFreshness = (
     asOf = null;
     turnIsLocal = true;
     // Liveness is intentionally untouched: a local send is not evidence the server is up.
+    notify();
   };
 
   const getElapsedMs = (): number | null => {
@@ -196,6 +210,14 @@ export const createActivityFreshness = (
 
   const dispose = () => {
     clearTimer();
+    listeners.clear();
+  };
+
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   };
 
   return {
@@ -205,6 +227,7 @@ export const createActivityFreshness = (
     getLiveness: () => liveness,
     getElapsedMs,
     getSnapshot,
+    subscribe,
     dispose,
   };
 };

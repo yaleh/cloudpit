@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
+import { useTranscriptSelectionText } from '@/modules/chat-transcript';
 
 /**
  * The floating action for a live transcript selection.
@@ -143,8 +144,11 @@ function resolveSelectionActionPosition(
 }
 
 export type TranscriptSelectionActionProps = {
-  /** The passage `useTranscriptSelection` recorded, or null when there is none. */
-  selectionText: string | null;
+  /**
+   * Explicit passage, for a harness or preview that drives the action without a
+   * live transcript. Production omits it and reads the selection store.
+   */
+  selectionText?: string | null;
   /** The transcript's scrolling box; the action hides when the anchor leaves it. */
   scrollContainerRef: RefObject<HTMLDivElement>;
   /** The composer's quoted acceptance entry, called exactly once with the passage. */
@@ -152,11 +156,17 @@ export type TranscriptSelectionActionProps = {
 };
 
 export function TranscriptSelectionAction({
-  selectionText,
+  selectionText: selectionTextOverride,
   scrollContainerRef,
   onAccept,
 }: TranscriptSelectionActionProps) {
   const { t } = useTranslation('chat');
+  // The transcript records the passage in a small store; subscribing here keeps
+  // the settle from rendering the message rows it came from.
+  const liveSelectionText = useTranscriptSelectionText();
+  const selectionText = selectionTextOverride !== undefined
+    ? selectionTextOverride
+    : liveSelectionText;
   // Where the button currently floats; null means "do not draw it". It is state
   // rather than a render-time value because scroll, resize and node removal
   // re-anchor it between renders.

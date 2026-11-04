@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+
+import { setTranscriptSelection } from '@/modules/chat-transcript/utils/transcript/transcriptSelectionStore';
 
 /**
  * The transcript selection that becomes the composer's quoted chip.
@@ -31,8 +33,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * selection, a too-short one) clears exactly once. The keyboard path (no
  * `pointerdown`) keeps the ordinary debounce and the immediate clear.
  *
- * Consumers: `ChatInterface` (which owns the transcript) hands the text to the
- * composer as the quoted chip's source.
+ * Consumers: `ChatInterface` installs the listeners; the floating action and the
+ * composer read the recorded passage through `useTranscriptSelectionText`, so
+ * the settle itself renders neither the transcript nor the chat shell.
  */
 
 /** A selection must start and end inside this element to count as transcript text. */
@@ -55,8 +58,6 @@ type UseTranscriptSelectionOptions = {
 };
 
 export type UseTranscriptSelectionResult = {
-  /** The recorded passage, or null when there is no eligible selection. */
-  selectionText: string | null;
   /** Forgets the recorded passage without touching the browser's selection. */
   clear: () => void;
 };
@@ -81,10 +82,11 @@ export function useTranscriptSelection({
   rootSelector = TRANSCRIPT_SELECTOR,
   settleMs = SELECTION_SETTLE_MS,
 }: UseTranscriptSelectionOptions = {}): UseTranscriptSelectionResult {
-  // The quoted passage. State rather than a ref because the strip draws from it.
-  const [selectionText, setSelectionText] = useState<string | null>(null);
-  // What the last commit put in state, so a stream of identical `selectionchange`
-  // events can be dropped before React is asked to re-render.
+  // The recorded passage lives in the selection store rather than in this hook's
+  // caller: a settle must not re-render the transcript that produced it. The
+  // floating action and the composer subscribe to that store themselves.
+  // What the last commit put in the store, so a stream of identical
+  // `selectionchange` events can be dropped before the store is asked to notify.
   const committedRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True between a `pointerdown` inside the transcript and the end of that pointer
@@ -96,7 +98,7 @@ export function useTranscriptSelection({
       return;
     }
     committedRef.current = next;
-    setSelectionText(next);
+    setTranscriptSelection(next);
   }, []);
 
   const clear = useCallback(() => {
@@ -211,8 +213,10 @@ export function useTranscriptSelection({
       window.removeEventListener('pointercancel', endPointerGesture);
       window.removeEventListener('blur', endPointerGesture);
       cancelTimer();
+      // The selection owner is going away with the transcript it described.
+      setTranscriptSelection(null);
     };
   }, [commit, rootSelector, settleMs]);
 
-  return { selectionText, clear };
+  return { clear };
 }

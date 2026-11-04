@@ -664,11 +664,12 @@ function ChatInterface({
   });
 
   /**
-   * The passage selected inside the transcript, for the composer's quoted chip.
-   * The hook reads only selections whose two ends lie in `[data-transcript-content]`,
-   * so selecting text in the input box or a sidebar is not a quote.
+   * The passage selected inside the transcript, recorded into the selection
+   * store for its two readers (the floating action and the composer's Suggest
+   * anchor). Installing the listeners here keeps the state — and therefore the
+   * re-render a settle would cause — out of the transcript itself.
    */
-  const { selectionText: quotedSelection } = useTranscriptSelection();
+  useTranscriptSelection();
 
   /**
    * Stable identity of the last assistant reply, the model chips' draw key.
@@ -805,7 +806,6 @@ function ChatInterface({
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
     lastAssistantMessageId,
-    quotedSelection,
   });
 
   // The floating action has no strip to click: accept its passage through the
@@ -1275,7 +1275,6 @@ function ChatInterface({
             onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
             onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
             highlightedReplyOrdinals={highlightedReplyOrdinals}
-            quotedSelection={quotedSelection}
             onAcceptQuotedSelection={acceptQuotedSelection}
           />
         </MarkdownWorkspaceContext.Provider>

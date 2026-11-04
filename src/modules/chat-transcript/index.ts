@@ -12,6 +12,7 @@ export type { ReplyItem } from '@/modules/chat-transcript/utils/transcript/reply
 export type { ReplyItemRenderContext } from '@/modules/chat-transcript/utils/transcript/replyItems';
 export type { ReplyReference } from '@/modules/chat-transcript/utils/transcript/replyItems';
 export type { SearchTarget } from '@/modules/chat-transcript/utils/transcript/searchTargetLocator';
+export type { TranscriptSelectionSnapshot } from '@/modules/chat-transcript/utils/transcript/transcriptSelectionStore';
 export { DEFAULT_ROW_HEIGHT_PX } from '@/modules/chat-transcript/utils/transcript/contentHeightModel';
 export { ESTIMATE_DEADZONE_PX } from '@/modules/chat-transcript/utils/transcript/contentHeightModel';
 export { JUMP_ANCHOR_TOLERANCE_PX } from '@/modules/chat-transcript/utils/transcript/jumpAnchorLock';
@@ -59,9 +60,12 @@ export { resolveReplyReference } from '@/modules/chat-transcript/utils/transcrip
 export { resolveSearchWindowSize } from '@/modules/chat-transcript/utils/transcript/searchTargetLocator';
 export { rowAtAbove } from '@/modules/chat-transcript/utils/transcript/contentHeightModel';
 export { shouldUpdateEstimate } from '@/modules/chat-transcript/utils/transcript/contentHeightModel';
+export { setTranscriptSelection } from '@/modules/chat-transcript/utils/transcript/transcriptSelectionStore';
 export { splitStreamingMarkdown } from '@/modules/chat-transcript/utils/transcript/streamingMarkdown';
 export { stripProposedPlanEnvelope } from '@/modules/chat-transcript/utils/transcript/chatFormatting';
 export { summarizeDiff } from '@/modules/chat-transcript/utils/transcript/messageTransforms';
 export { thumbHeightPx } from '@/modules/chat-transcript/utils/transcript/contentHeightModel';
+export { transcriptSelectionStore } from '@/modules/chat-transcript/utils/transcript/transcriptSelectionStore';
 export { useLazyRowObserver } from '@/modules/chat-transcript/hooks/useLazyRowObserver';
 export { useTranscriptSelection } from '@/modules/chat-transcript/hooks/useTranscriptSelection';
+export { useTranscriptSelectionText } from '@/modules/chat-transcript/hooks/useTranscriptSelectionText';

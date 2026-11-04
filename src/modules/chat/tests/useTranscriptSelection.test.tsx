@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { MAX_QUOTED_SELECTION_CHARS, useTranscriptSelection } from '@/modules/chat-transcript';
+import {
+  MAX_QUOTED_SELECTION_CHARS,
+  setTranscriptSelection,
+  transcriptSelectionStore,
+  useTranscriptSelection,
+  useTranscriptSelectionText,
+} from '@/modules/chat-transcript';
 
 /**
  * The quoted-chip source, one rule per case.
@@ -49,7 +55,15 @@ const settle = () => act(() => {
   vi.advanceTimersByTime(SETTLE_MS + 1);
 });
 
-const renderSelection = () => renderHook(() => useTranscriptSelection({ settleMs: SETTLE_MS }));
+/**
+ * The hook installs the listeners; the store holds the passage. Reading both in
+ * one hook mirrors production: a surface that only owns the listeners does not
+ * subscribe, so a settle never renders it.
+ */
+const renderSelection = () => renderHook(() => {
+  const { clear } = useTranscriptSelection({ settleMs: SETTLE_MS });
+  return { clear, selectionText: useTranscriptSelectionText() };
+});
 
 /**
  * Dispatch a pointer event. The hook only reads `target` (to decide whether a press
@@ -68,6 +82,7 @@ afterEach(() => {
   vi.useRealTimers();
   window.getSelection()?.removeAllRanges();
   document.body.innerHTML = '';
+  setTranscriptSelection(null);
 });
 
 describe('useTranscriptSelection', () => {
@@ -153,12 +168,17 @@ describe('useTranscriptSelection', () => {
     assert.equal(result.current.selectionText, longText.slice(0, MAX_QUOTED_SELECTION_CHARS));
   });
 
-  it('coalesces a burst of selectionchange events into one state update', () => {
+  it('coalesces a burst of selectionchange events into one store write', () => {
     const { textNode } = makeRegion('助手回答的文字，足够长可以反复选择');
     let renders = 0;
-    const { result } = renderHook(() => {
+    renderHook(() => {
       renders += 1;
-      return useTranscriptSelection({ settleMs: SETTLE_MS });
+      useTranscriptSelection({ settleMs: SETTLE_MS });
+    });
+    const rendersBefore = renders;
+    let notifications = 0;
+    const unsubscribe = transcriptSelectionStore.subscribe(() => {
+      notifications += 1;
     });
 
     // Three changes in one frame, all with the same text.
@@ -167,13 +187,18 @@ describe('useTranscriptSelection', () => {
     selectRange(textNode, 0, 10);
     settle();
 
-    const afterFirstSettle = renders;
-    assert.equal(result.current.selectionText, '助手回答的文字，足够长'.slice(0, 10));
+    assert.equal(
+      transcriptSelectionStore.getSnapshot().text,
+      '助手回答的文字，足够长'.slice(0, 10),
+    );
+    assert.equal(renders, rendersBefore, 'the settle must not render the listener owner');
+    const afterFirstSettle = notifications;
 
-    // The same text again: the committed value did not change, so no re-render.
+    // The same text again: the committed value did not change, so no store write.
     selectRange(textNode, 0, 10);
     settle();
-    assert.equal(renders, afterFirstSettle, 'an unchanged selection must not update state again');
+    assert.equal(notifications, afterFirstSettle, 'an unchanged selection must not write again');
+    unsubscribe();
   });
 
   it('holds a non-empty selection back while the pointer gesture is still down', () => {
@@ -365,5 +390,22 @@ describe('useTranscriptSelection', () => {
     // The release for that outside press must not clear or change anything.
     act(() => pointer(window, 'pointerup'));
     assert.equal(result.current.selectionText, '这是一段足够长的');
+  });
+
+  it('records the passage without re-rendering the surface that owns the listeners', () => {
+    let renders = 0;
+    const { textNode } = makeRegion('这是助手回答里的一段话');
+
+    renderHook(() => {
+      renders += 1;
+      useTranscriptSelection({ settleMs: SETTLE_MS });
+    });
+    const rendersBefore = renders;
+
+    act(() => selectRange(textNode, 0, 8));
+    settle();
+
+    assert.equal(transcriptSelectionStore.getSnapshot().text, '这是助手回答里的一段话'.slice(0, 8));
+    assert.equal(renders, rendersBefore, 'a settle must not re-render the transcript owner');
   });
 });
