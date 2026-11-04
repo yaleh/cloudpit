@@ -40,10 +40,50 @@ const readUsageNumber = (value: unknown) => {
 };
 
 /**
+ * An explicitly reported quantity, or `null` when the source reported none.
+ * `readUsageNumber` collapses both cases to zero, which cannot tell an absent
+ * request reading apart from a request that used nothing.
+ */
+const readReportedUsageNumber = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/**
+ * Total tokens in a counts block, keeping "the source did not report a
+ * quantity" (`null`) distinct from a reported zero. Prefers the source's own
+ * total, then sums the two halves it reported.
+ */
+const readCountsTotal = (value: unknown): number | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const counts = value as Record<string, unknown>;
+  const reportedTotal = readReportedUsageNumber(counts.totalTokens);
+  if (reportedTotal !== null) {
+    return reportedTotal;
+  }
+  const input = readReportedUsageNumber(counts.inputTokens);
+  const output = readReportedUsageNumber(counts.outputTokens);
+  if (input === null && output === null) {
+    return null;
+  }
+  return (input ?? 0) + (output ?? 0);
+};
+
+/**
  * Rendered by chat's ChatComposer to show the session's context-window usage
  * and open the detailed token breakdown on click. Its `inline` variant is
  * rendered by ChatComposer's ComposerMobileMoreMenu, which shows the same
  * reading inside a menu row that opens the panel itself.
+ *
+ * The number is the newest request's occupancy for every provider. Providers
+ * that can measure it put it in `contextOccupancy.used`; Codex only knows the
+ * window and its rollout's newest `last_token_usage`, so that estimate is the
+ * next choice. The legacy dual-meaning `used` comes last because it is the
+ * session total for Codex/OpenCode and the newest request for Claude — reading
+ * it first is what made one chip mean two things. Whenever the number is not a
+ * measured occupancy, the chip names the scope it actually came from.
  */
 function TokenUsageSummary({ usage, onClick, variant = 'button' }: TokenUsageSummaryProps) {
   const { t } = useTranslation();
@@ -53,15 +93,33 @@ function TokenUsageSummary({ usage, onClick, variant = 'button' }: TokenUsageSum
       : null;
   const inputTokens = readUsageNumber(usage?.inputTokens ?? breakdown?.input);
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
-  const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
-  // A cumulative provider reports the session's whole spend in `used`; it is
-  // not a context-window reading. Say so next to the number instead of letting
-  // the compact counter imply the value is current context occupancy.
-  const isCumulativeScope = usage?.usageScope === 'session-cumulative';
-  const scopeLabel = isCumulativeScope ? 'session total' : null;
-  const title = isCumulativeScope
-    ? `${usedTokens.toLocaleString()} tokens used this session (cumulative total)`
-    : t('chat:misc.tokensUsed', { count: usedTokens });
+  const contextOccupancy =
+    usage?.contextOccupancy && typeof usage.contextOccupancy === 'object'
+      ? usage.contextOccupancy as Record<string, unknown>
+      : null;
+  const occupancyUsedTokens = readReportedUsageNumber(contextOccupancy?.used);
+  const lastRequestTokens = readCountsTotal(usage?.lastRequest);
+  const sessionSpendTokens = readCountsTotal(usage?.sessionSpend);
+  const usedTokens = occupancyUsedTokens
+    ?? lastRequestTokens
+    ?? sessionSpendTokens
+    ?? (readUsageNumber(usage?.used) || inputTokens + outputTokens);
+  const scope: 'cumulative' | 'last-request' | null =
+    occupancyUsedTokens !== null
+      ? null
+      : lastRequestTokens !== null
+        ? 'last-request'
+        : usage?.usageScope === 'session-cumulative' || sessionSpendTokens !== null
+          ? 'cumulative'
+          : null;
+  const scopeLabel =
+    scope === 'cumulative' ? 'session total' : scope === 'last-request' ? 'last request' : null;
+  const title =
+    scope === 'cumulative'
+      ? `${usedTokens.toLocaleString()} tokens used this session (cumulative total)`
+      : scope === 'last-request'
+        ? `${usedTokens.toLocaleString()} tokens in the latest request (context estimate)`
+        : t('chat:misc.tokensUsed', { count: usedTokens });
 
   if (variant === 'inline') {
     // The row around it is the control, so this is a plain reading: no nested

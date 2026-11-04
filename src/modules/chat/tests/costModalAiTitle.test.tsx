@@ -231,3 +231,54 @@ test('the compact counter keeps the legacy context reading unchanged', () => {
   assert.equal((container.textContent ?? '').includes('session total'), false);
   assert.ok((container.textContent ?? '').includes('1.5K'));
 });
+
+test('the compact counter shows Codex\'s latest request instead of its session total', () => {
+  const { container } = render(
+    <TokenUsageSummary usage={{
+      used: 2_508_151,
+      usageScope: 'session-cumulative',
+      cumulative: { inputTokens: 2_503_128, outputTokens: 5_023, totalTokens: 2_508_151 },
+      lastRequest: { inputTokens: 75_535, outputTokens: 42, totalTokens: 75_577 },
+    }} />,
+  );
+  const text = container.textContent ?? '';
+
+  // `used` is the whole-session spend for a cumulative provider; the chip has
+  // to read the newest request and say so, not present 2.5M as context usage.
+  assert.ok(text.includes('76K'));
+  assert.equal(text.includes('2.5M'), false);
+  assert.ok(text.includes('last request'));
+  assert.equal(text.includes('session total'), false);
+});
+
+test('a measured context occupancy wins over the latest-request estimate', () => {
+  const { container } = render(
+    <TokenUsageSummary usage={{
+      used: 437_000,
+      contextOccupancy: { used: 437_000, total: 917_000 },
+      lastRequest: { inputTokens: 500_000, outputTokens: 12_000, totalTokens: 512_000 },
+    }} />,
+  );
+  const text = container.textContent ?? '';
+
+  // Claude's first-class occupancy is the real reading; the newest-request
+  // counts are detail, not a replacement for it.
+  assert.ok(text.includes('437K'));
+  assert.equal(text.includes('512K'), false);
+  assert.equal(text.includes('last request'), false);
+});
+
+test('the compact counter names a session total reported without the legacy marker', () => {
+  const { container } = render(
+    <TokenUsageSummary usage={{
+      used: 4_100,
+      sessionSpend: { inputTokens: 3_600, outputTokens: 500 },
+    }} />,
+  );
+  const text = container.textContent ?? '';
+
+  // OpenCode reports a whole-session row and no `usageScope`; falling back to
+  // that total has to stay explicit rather than looking like context occupancy.
+  assert.ok(text.includes('4.1K'));
+  assert.ok(text.includes('session total'));
+});

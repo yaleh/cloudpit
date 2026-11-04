@@ -46,4 +46,5 @@ extra:
 - `src/modules/chat/tests/transcriptSelectionAction.test.tsx`
 - `src/modules/chat/tests/useTranscriptSelection.test.tsx`
 - `src/modules/chat/tests/inlineQuoteChip.test.tsx`
+- `src/modules/chat/tests/inputSuggestionChipsBackground.test.tsx`
 - `tasks/gap-transcript-selection-floating-quote-action.md`
