@@ -69,6 +69,7 @@ Split the package into render/, layout/ and dom/ leaf subdirectories inside modu
 - Lint：`npx oxlint src/ server/ scripts/ shared/` → 0 error（仅既有 warning）。
 - 基线重键：`architecture-ratchet.baseline.json` 的 9 条 oversize 与 2 条 moduleMutableState 条目按新路径重键（PlantUmlGraph 4040→3569，其余读数不变，旧路径条目随文件删除）；`frontend-import-cycle-budget.baseline.json` 删除 architecture 组并重测 readings —— 本分支拆分后 files 708 / staticFileEdges 2481；merge develop（sidebar split）后再测为 **files 713 / staticFileEdges 2503 / nodeCount 126 / unresolvedInternal 100 / nonLiteralDynamic 2**，基线 JSON 记录 merge 后的读数。
 - 路径敏感的判据同步：`layoutAspect`、`architectureTab`、`exportMenu`、`i18nArchitectureTabCompleteness` 的源码读取路径，以及 e2e `architecture-canvas-layout.spec.ts` 的 Vite module route（`**/src/modules/architecture/render/PlantUmlGraph.tsx*`）。
+- Merge 后复验（2026-11-04）：合并 develop（`e53791ad3`、`49336fd37`，含 mcp-gateway 拆包 sibling）时 `architecture-ratchet.baseline.json` 的 `note` 冲突按并集解决 —— develop 的 mcp-gateway RECORDED CHANGE 段 + 本任务 RE-KEY 段同时保留，条目区两侧重键（server mcp-gateway 新路径 / src architecture 新路径）同时保留，`measuredAt` 取 develop 的 2026-11-04；合并后重跑：`frontend-import-cycle-budget.test.ts` + `architecture-ratchet.test.ts` → **12 pass / 0 fail**；`tsc --noEmit`（root + server）→ 0 error；`vitest run src/modules/architecture/tests --maxWorkers=2` → **44 files / 687 tests passed**。
 
 ## ADR-007 dark-axis record
 - L_D archguard: architectureRoot fileCount=1 (was 61), entityCount=0 (was 252); render fileCount=27 entityCount=65; layout fileCount=12 entityCount=117; dom fileCount=22 entityCount=84
@@ -93,12 +94,5 @@ Split the package into render/, layout/ and dom/ leaf subdirectories inside modu
 - `server/shared/tests/frontend-import-cycle-budget.baseline.json`
 - `tasks/gap-routine-architecture-analysis-god-package-src-architecture.md`
 
-## Blocker
-
-**2026-11-04T13:04:26.146Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
-CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
-Automatic merge failed; fix conflicts and then commit the result.
-- run_id：wk-prod-anchor
-- session_id：d2f6896a-9d96-461e-84ec-7babb374a988
+## Merge resolution
+上一轮 `exited-not-landed` 的 merge 冲突已在续做轮解决并提交：`architecture-ratchet.baseline.json` 的 `note` 行按并集重建（develop 段 + 本任务段），条目区保留两侧重键，`git commit --no-edit` 完成 merge；随后再次 merge 最新 develop（`49336fd37`）无冲突。合并后结构棘轮 12 pass、tsc 双 0 error、architecture 客户端 44 files / 687 tests passed（见 Evidence）。
