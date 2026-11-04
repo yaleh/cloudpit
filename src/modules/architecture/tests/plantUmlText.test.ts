@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { applyView, checkSyntax, renderDetailed, toPlantUml } from '@yalehwang/plantuml-js';
 import { test } from 'vitest';
 
-import { archguardToPlantUml, parserSafePlantUml } from '@/modules/architecture/archguardToPlantUml';
+import { archguardToPlantUml, parserSafePlantUml } from '@/modules/architecture/layout/archguardToPlantUml';
 import {
   PLANTUML_MEMBER_DETAIL,
   renderWithMemberDetail,
-} from '@/modules/architecture/PlantUmlGraph';
-import type { PlantUmlRenderDetailed } from '@/modules/architecture/graphDom';
+} from '@/modules/architecture/render/PlantUmlGraph';
+import type { PlantUmlRenderDetailed } from '@/modules/architecture/layout/graphDom';
 import {
   buildFullPlantUmlDocument,
   buildPlantUmlDocument,
@@ -25,11 +25,11 @@ import {
   TEXT_LARGE_TOKEN_THRESHOLD,
   TEXT_PREVIEW_LINE_LIMIT,
   wrapSessionContext,
-} from '@/modules/architecture/plantUmlText';
+} from '@/modules/architecture/layout/plantUmlText';
 import type {
   ArchitectureDrawnPlantUml,
   ArchitectureRendererGraph,
-} from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/dom/rendererContract';
 
 /**
  * The text page's pure core:

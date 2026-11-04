@@ -17,15 +17,15 @@ import { describe, it } from 'vitest';
 import {
   createArchitectureFilterController,
   FILTER_REQUEST_DEBOUNCE_MS,
-} from '@/modules/architecture/architectureFilterController';
-import type { ArchitectureDetailTier } from '@/modules/architecture/detailRanking';
+} from '@/modules/architecture/render/architectureFilterController';
+import type { ArchitectureDetailTier } from '@/modules/architecture/dom/detailRanking';
 import {
   ARCHITECTURE_DEFAULT_FILTER,
   type ArchitectureElementRelationFilter,
-} from '@/modules/architecture/elementRelationFilter';
-import { filterStorageKey } from '@/modules/architecture/panelFilters';
+} from '@/modules/architecture/dom/elementRelationFilter';
+import { filterStorageKey } from '@/modules/architecture/layout/panelFilters';
 import type { Clock } from '@/shared/types';
-import type { PanelStorageLike } from '@/modules/architecture/panelPersistence';
+import type { PanelStorageLike } from '@/modules/architecture/layout/panelPersistence';
 
 type Timer = {
   handle: number;

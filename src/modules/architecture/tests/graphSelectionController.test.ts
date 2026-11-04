@@ -15,8 +15,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { createGraphSelectionController } from '@/modules/architecture/graphSelectionController';
-import { DOUBLE_TAP_MS } from '@/modules/architecture/graphConstants';
+import { createGraphSelectionController } from '@/modules/architecture/dom/graphSelectionController';
+import { DOUBLE_TAP_MS } from '@/modules/architecture/dom/graphConstants';
 
 /** A hand-driven clock: `now` only moves when the test moves it. */
 function createFakeClock(start = 0): { clock: { now: () => number }; advance: (ms: number) => void } {

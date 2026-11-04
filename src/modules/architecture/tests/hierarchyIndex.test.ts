@@ -6,8 +6,8 @@ import {
   buildHierarchyIndexFromSvg,
   ROOT_PACKAGE_ID,
   type ArchitectureHierarchyIndex,
-} from '@/modules/architecture/hierarchyIndex';
-import type { ArchitectureRendererGraph } from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/dom/hierarchyIndex';
+import type { ArchitectureRendererGraph } from '@/modules/architecture/dom/rendererContract';
 
 /**
  * The frontend hierarchy index read from a drawn PlantUML SVG plus the

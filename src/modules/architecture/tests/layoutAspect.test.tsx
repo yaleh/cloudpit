@@ -14,7 +14,7 @@ import {
   MEMBER_MAX_ROWS,
   memberDisplayLimits,
   memberOverflowLabel,
-} from '@/modules/architecture/archguardToPlantUml';
+} from '@/modules/architecture/layout/archguardToPlantUml';
 import {
   NODE_SIZE_ENTITIES,
   nodeSizeEntityGraph,
@@ -33,7 +33,7 @@ import {
   type ArchitectureLayoutEngine,
   type ArchitectureLayoutEngineClass,
   type ArchitectureLayoutEngineOptions,
-} from '@/modules/architecture/elkAspectEngine';
+} from '@/modules/architecture/layout/elkAspectEngine';
 import {
   EIGHTEEN_GROUP_OVERVIEW,
   TWENTY_SIX_PACKAGE_HIERARCHY,
@@ -55,11 +55,11 @@ import {
   ORIENTATION_RATIO_THRESHOLD,
   ORIENTATION_REASON,
   type OrientationSize,
-} from '@/modules/architecture/layoutOrientation';
-import { captureSemanticDrawing } from '@/modules/architecture/graphDom';
-import { capDrawnMemberRows } from '@/modules/architecture/PlantUmlGraph';
-import { semanticDrawnFitScale } from '@/modules/architecture/drawnFit';
-import { SEMANTIC_MIN_FONT_PX } from '@/modules/architecture/semanticZoomPlan';
+} from '@/modules/architecture/dom/layoutOrientation';
+import { captureSemanticDrawing } from '@/modules/architecture/layout/graphDom';
+import { capDrawnMemberRows } from '@/modules/architecture/render/PlantUmlGraph';
+import { semanticDrawnFitScale } from '@/modules/architecture/layout/drawnFit';
+import { SEMANTIC_MIN_FONT_PX } from '@/modules/architecture/dom/semanticZoomPlan';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 
@@ -517,11 +517,11 @@ test('the dock opening freezes aspect re-layout, and the toggle itself is not a 
 
 test('the layout engine is constructed in exactly one factory, through the public option', () => {
   const graphSource = readFileSync(
-    resolve(process.cwd(), 'src', 'modules', 'architecture', 'PlantUmlGraph.tsx'),
+    resolve(process.cwd(), 'src', 'modules', 'architecture', 'render', 'PlantUmlGraph.tsx'),
     'utf8',
   );
   const engineSource = readFileSync(
-    resolve(process.cwd(), 'src', 'modules', 'architecture', 'elkAspectEngine.ts'),
+    resolve(process.cwd(), 'src', 'modules', 'architecture', 'layout', 'elkAspectEngine.ts'),
     'utf8',
   );
 

@@ -1,12 +1,12 @@
 {
   "measuredAt": "2026-11-02",
   "scope": "every non-test .ts/.tsx under src/ (tests/ directories pruned, *.test.*/*.spec.* dropped), paths relative to src/",
-  "note": "Committed baseline for the frontend import-cycle ratchets (tasks/gap-routine-architecture-analysis-src-import-cycles-unpinned.md, tasks/gap-routine-architecture-analysis-src-module-scc-cockpit-hub.md). A RATCHET: cycleGroups and moduleSccGroups may only SHRINK. A group closed by a refactor is lowered explicitly here and in the matching in-file pin in the same commit; never raise or add a group to accommodate a red reading. `cycleGroups` is the DIRECTORY reading; `moduleSccGroups` is the MODULE reading (`modules/<name>` nodes collapsed from the same walk). `readings` records the tree the pin was measured on (same walk, resolver and Tarjan scanner as AC-394's server budget, with src/ as the scan root so @/ resolves to src/); the counts are provenance, not a gate, because a new acyclic import is ordinary feature work. RE-READ 2026-11-02 (task gap-routine-architecture-analysis-god-package-src-cockpit): the cockpit god-package split moved the card and workspace files into src/modules/cockpit/cards and src/modules/cockpit/workspace; because those files already imported each other and the root barrel, the one cockpit dependency web now spans four cockpit directories plus project-workspace. cycleGroups was re-measured and re-pinned member-for-member (not dropped); the module-level SCC is unchanged. The readings below were re-measured on the same tree.",
+  "note": "Committed baseline for the frontend import-cycle ratchets (tasks/gap-routine-architecture-analysis-src-import-cycles-unpinned.md, tasks/gap-routine-architecture-analysis-src-module-scc-cockpit-hub.md). A RATCHET: cycleGroups and moduleSccGroups may only SHRINK. A group closed by a refactor is lowered explicitly here and in the matching in-file pin in the same commit; never raise or add a group to accommodate a red reading. `cycleGroups` is the DIRECTORY reading; `moduleSccGroups` is the MODULE reading (`modules/<name>` nodes collapsed from the same walk). `readings` records the tree the pin was measured on (same walk, resolver and Tarjan scanner as AC-394's server budget, with src/ as the scan root so @/ resolves to src/); the counts are provenance, not a gate, because a new acyclic import is ordinary feature work. RE-READ 2026-11-02 (task gap-routine-architecture-analysis-god-package-src-cockpit): the cockpit god-package split moved the card and workspace files into src/modules/cockpit/cards and src/modules/cockpit/workspace; because those files already imported each other and the root barrel, the one cockpit dependency web now spans four cockpit directories plus project-workspace. cycleGroups was re-measured and re-pinned member-for-member (not dropped); the module-level SCC is unchanged. The readings below were re-measured on the same tree. RE-READ 2026-11-04 (task gap-routine-architecture-analysis-god-package-src-architecture): the architecture god-package split moved every implementation file out of src/modules/architecture into the render/, layout/ and dom/ leaves; the root now holds only the barrel. The former root <-> hooks dependency closes through the leaves instead (root -> hooks -> dom), so the architecture directory group was re-measured: it no longer exists and was lowered out of cycleGroups (a shrink, never a blessing of a wider reading). The readings below were re-measured on the same tree.",
   "readings": {
-    "files": 703,
-    "staticFileEdges": 2467,
+    "files": 708,
+    "staticFileEdges": 2481,
     "dynamicFileEdges": 0,
-    "nodeCount": 122,
+    "nodeCount": 126,
     "unresolvedInternal": 100,
     "nonLiteralDynamic": 2
   },
@@ -33,10 +33,6 @@
       "modules/git-panel",
       "modules/git-panel/changes",
       "modules/git-panel/history"
-    ],
-    [
-      "modules/architecture",
-      "modules/architecture/hooks"
     ],
     [
       "modules/settings/hooks",

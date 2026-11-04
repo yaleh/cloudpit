@@ -14,7 +14,7 @@ import {
   useArchitectureRefresh,
   type ArchitectureRefreshStartResult,
   type ArchitectureRefreshStatus,
-} from '@/modules/architecture/useArchitectureRefresh';
+} from '@/modules/architecture/render/useArchitectureRefresh';
 
 const apiMock = vi.hoisted(() => ({
   status: vi.fn(),

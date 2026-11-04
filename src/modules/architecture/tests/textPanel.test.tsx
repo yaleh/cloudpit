@@ -11,20 +11,20 @@ import type { ArchitectureGraphResult } from '@/modules/architecture';
 import {
   ArchitectureTextPanel,
   ArchitectureTextSyntaxBadge,
-} from '@/modules/architecture/ArchitectureTextPanel';
+} from '@/modules/architecture/render/ArchitectureTextPanel';
 import {
   archguardToPlantUml,
   parserSafePlantUml,
   type ArchitectureDiagramView,
-} from '@/modules/architecture/archguardToPlantUml';
-import { renderWithMemberDetail } from '@/modules/architecture/PlantUmlGraph';
-import { buildPlantUmlText, standardiseDrawnStereotypes } from '@/modules/architecture/plantUmlText';
+} from '@/modules/architecture/layout/archguardToPlantUml';
+import { renderWithMemberDetail } from '@/modules/architecture/render/PlantUmlGraph';
+import { buildPlantUmlText, standardiseDrawnStereotypes } from '@/modules/architecture/layout/plantUmlText';
 import type {
   ArchitectureDrawnPlantUml,
   ArchitectureNodeIdShape,
   ArchitectureRendererGraph,
-} from '@/modules/architecture/rendererContract';
-import type { ArchitectureSelection } from '@/modules/architecture/selectionModel';
+} from '@/modules/architecture/dom/rendererContract';
+import type { ArchitectureSelection } from '@/modules/architecture/dom/selectionModel';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 

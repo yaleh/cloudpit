@@ -20,7 +20,7 @@ import {
   DOCK_LAYOUT_LOCK_MS,
   type ArchitectureChromePersistence,
   type ArchitectureChromeViewport,
-} from '@/modules/architecture/architectureChromeController';
+} from '@/modules/architecture/render/architectureChromeController';
 import type { Clock } from '@/shared/types';
 
 type Timer = {

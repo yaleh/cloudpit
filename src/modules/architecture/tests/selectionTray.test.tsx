@@ -9,19 +9,19 @@ import { afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
 
 import { ArchitecturePanel } from '@/modules/architecture';
 import type { ArchitectureGraphResult } from '@/modules/architecture';
-import { ArchitectureSelectionTray } from '@/modules/architecture/ArchitectureSelectionTray';
+import { ArchitectureSelectionTray } from '@/modules/architecture/render/ArchitectureSelectionTray';
 import {
   archguardToPlantUml,
   parserSafePlantUml,
-} from '@/modules/architecture/archguardToPlantUml';
-import { renderWithMemberDetail } from '@/modules/architecture/PlantUmlGraph';
+} from '@/modules/architecture/layout/archguardToPlantUml';
+import { renderWithMemberDetail } from '@/modules/architecture/render/PlantUmlGraph';
 import {
   buildPlantUmlText,
   measurePlantUmlText,
   standardiseDrawnStereotypes,
-} from '@/modules/architecture/plantUmlText';
-import type { ArchitectureDrawnPlantUml } from '@/modules/architecture/rendererContract';
-import { selectionKey, resolveDraftScope, type ArchitectureSelection } from '@/modules/architecture/selectionModel';
+} from '@/modules/architecture/layout/plantUmlText';
+import type { ArchitectureDrawnPlantUml } from '@/modules/architecture/dom/rendererContract';
+import { selectionKey, resolveDraftScope, type ArchitectureSelection } from '@/modules/architecture/dom/selectionModel';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/chatDrafts';

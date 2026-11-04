@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { fitToLayoutBudget, LAYOUT_NODE_BUDGET } from '@/modules/architecture/layoutBudget';
+import { fitToLayoutBudget, LAYOUT_NODE_BUDGET } from '@/modules/architecture/dom/layoutBudget';
 import type {
   ArchitectureRendererEdge,
   ArchitectureRendererNode,
-} from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/dom/rendererContract';
 
 /**
  * The layout budget's contract, as a pure function:

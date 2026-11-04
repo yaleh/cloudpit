@@ -10,7 +10,7 @@ import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 import { ArchitecturePanel } from '@/modules/architecture';
 import type { ArchitectureGraphResult } from '@/modules/architecture';
-import type { ArchitectureRendererProps } from '@/modules/architecture/rendererContract';
+import type { ArchitectureRendererProps } from '@/modules/architecture/dom/rendererContract';
 
 /**
  * The architecture page's fullscreen criterion.

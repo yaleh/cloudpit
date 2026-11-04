@@ -878,7 +878,7 @@ test('entity nodes carry the arch.json kind and members, with kindCounts over th
 test('import-expression member types are reduced to the exported name, and other signatures stay byte-identical', async (t) => {
   // ArchGuard's TypeScript extractor can leave an absolute import expression in
   // a field/method type: a build-machine path the class box must never print.
-  const ABSOLUTE = '/data/home/yale/work/claudecodeui/src/modules/architecture/rendererContract';
+  const ABSOLUTE = '/data/home/yale/work/claudecodeui/src/modules/architecture/dom/rendererContract';
   const { root } = createIndexProject(t, DETAIL_CHAIN, archiveWith([
     {
       id: 'k0.ts.Seed',

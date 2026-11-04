@@ -1908,7 +1908,7 @@ async function openSignedInPage(
     touch: boolean;
     /**
      * Draw without the member caps. This is the DEV-only lever the control arm
-     * pulls (`drawnMemberLimits` in PlantUmlGraph.tsx) so the same reading can
+     * pulls (`drawnMemberLimits` in render/plantUmlNavigation.ts) so the same reading can
      * be taken on the genuine defect — options absent — rather than on an
      * injected box that only imitates it.
      */
@@ -1916,7 +1916,7 @@ async function openSignedInPage(
     /**
      * Draw with the DOWNWARD layout only. This is the DEV-only lever the
      * orientation control arm pulls (`forcedLayoutOrientation` in
-     * PlantUmlGraph.tsx), so the same reading is taken on the state BEFORE the
+     * render/plantUmlNavigation.ts), so the same reading is taken on the state BEFORE the
      * direction choice rather than on an injected transform.
      */
     forceDownLayout?: boolean;
@@ -4987,7 +4987,7 @@ test('control arm — restoring the default detail puts the overflow row back in
     touch: false,
   });
   let rewrites = 0;
-  await page.route('**/src/modules/architecture/PlantUmlGraph.tsx*', async (route) => {
+  await page.route('**/src/modules/architecture/render/PlantUmlGraph.tsx*', async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     const rewritten = body.replace(

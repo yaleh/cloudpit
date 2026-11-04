@@ -6,7 +6,7 @@ import {
   readSemanticDrawingGeometry,
   type SemanticDrawingGeometry,
   type SemanticReadHints,
-} from '@/modules/architecture/semanticZoomRead';
+} from '@/modules/architecture/dom/semanticZoomRead';
 
 /**
  * The semantic-zoom READ layer, on SVG rendered by the real 0.4.0 renderer.

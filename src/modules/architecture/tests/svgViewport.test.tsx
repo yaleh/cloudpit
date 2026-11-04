@@ -22,12 +22,12 @@ import {
   PAN_THRESHOLD_PX,
   readSvgNaturalSize,
   zoomedSvgSize,
-} from '@/modules/architecture/svgViewport';
+} from '@/modules/architecture/layout/svgViewport';
 import {
   MIN_READABLE_FONT_PX,
   READABLE_ZOOM_SCALE,
   RENDERED_LABEL_FONT_PX,
-} from '@/modules/architecture/readableZoom';
+} from '@/modules/architecture/layout/readableZoom';
 
 /**
  * The renderer-neutral SVG viewport used by PlantUmlGraph.

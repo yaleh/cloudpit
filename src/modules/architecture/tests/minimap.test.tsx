@@ -12,8 +12,8 @@ import {
   bottomInfoSlotRect,
   cornerChromeRects,
   rectsOverlap,
-} from '@/modules/architecture/bottomSlotLayout';
-import { placeHoverHint } from '@/modules/architecture/hoverHintPlacement';
+} from '@/modules/architecture/dom/bottomSlotLayout';
+import { placeHoverHint } from '@/modules/architecture/dom/hoverHintPlacement';
 import {
   ArchitectureMinimap,
   drawingFitsInViewport,
@@ -29,7 +29,7 @@ import {
   visiblePercent,
   visibleRangeRect,
   type MinimapViewportReading,
-} from '@/modules/architecture/ArchitectureMinimap';
+} from '@/modules/architecture/render/ArchitectureMinimap';
 
 /**
  * The architecture canvas minimap.

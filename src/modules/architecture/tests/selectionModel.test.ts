@@ -14,7 +14,7 @@ import {
   selectionsInScope,
   type ArchitectureSelectionRect,
   type ArchitectureSelectionScope,
-} from '@/modules/architecture/selectionModel';
+} from '@/modules/architecture/dom/selectionModel';
 
 /**
  * The selection model's contract:

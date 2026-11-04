@@ -619,7 +619,7 @@ test('AC10/AC11: IPC, contextBridge, BroadcastChannel and the semantic surface c
   }
 
   // The architecture BroadcastChannel.
-  const bridgeSource = readApplicationFile('src/modules/architecture/architectureChatBridge.ts');
+  const bridgeSource = readApplicationFile('src/modules/architecture/render/architectureChatBridge.ts');
   assert.match(bridgeSource, /ARCHITECTURE_CHAT_CHANNEL = 'cloudpit-architecture'/);
   assert.equal(bridgeSource.includes('cloudcli-architecture'), false, 'the channel name must not stay legacy');
 

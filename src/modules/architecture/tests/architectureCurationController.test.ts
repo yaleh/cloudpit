@@ -17,12 +17,12 @@ import { describe, it, vi } from 'vitest';
 import {
   createArchitectureCurationController,
   CURATION_TOAST_MS,
-} from '@/modules/architecture/architectureCurationController';
+} from '@/modules/architecture/render/architectureCurationController';
 import {
   curationStorageKey,
   type ArchitectureCurationItem,
   type CurationStorageLike,
-} from '@/modules/architecture/curationStore';
+} from '@/modules/architecture/dom/curationStore';
 import type { Clock } from '@/shared/types';
 
 type Timer = {

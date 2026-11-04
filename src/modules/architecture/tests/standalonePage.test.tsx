@@ -8,8 +8,8 @@ import { afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
 
 import { ArchitecturePanel } from '@/modules/architecture';
 import type { ArchitectureGraphResult } from '@/modules/architecture';
-import { ARCHITECTURE_CHAT_CHANNEL } from '@/modules/architecture/architectureChatBridge';
-import type { ArchitectureRendererProps } from '@/modules/architecture/rendererContract';
+import { ARCHITECTURE_CHAT_CHANNEL } from '@/modules/architecture/render/architectureChatBridge';
+import type { ArchitectureRendererProps } from '@/modules/architecture/dom/rendererContract';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
 import { resetChatDrafts } from '@/shared/chatDrafts';

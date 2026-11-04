@@ -1,0 +1,967 @@
+/**
+ * Renderer-neutral SVG viewport: fit and zoom an arbitrary `<svg>` by rewriting
+ * only its `width`/`height` attributes.
+ *
+ * Used by the architecture module's `PlantUmlGraph`. The PlantUML/ELK renderer
+ * exposes no zoom API, but every SVG it emits carries a `viewBox`, so scaling
+ * the presentation size keeps the drawing vector-sharp and makes the scroll
+ * container's extent follow the size automatically. Nothing here touches the
+ * DOM structure, so the drawn ids, hover classes and click handlers stay as the
+ * renderer produced them; and nothing here knows about PlantUML or React, so the
+ * renderer package can adopt it later as `attachViewport(svg)`.
+ *
+ * The size math is deliberately split out as pure functions so it can be
+ * reviewed and tested without a laid-out browser.
+ */
+
+import { READABLE_ZOOM_SCALE } from '@/modules/architecture/layout/readableZoom';
+import { parseCssPx } from '@/shared/utils';
+
+/** A width/height pair, in SVG user units or CSS pixels. */
+export type SvgViewportSize = {
+  readonly width: number;
+  readonly height: number;
+};
+
+/** The pointer position a wheel zoom is anchored to, in client coordinates. */
+export type SvgViewportAnchor = {
+  readonly clientX: number;
+  readonly clientY: number;
+};
+
+/**
+ * The bounds the proposal fixes: 5% keeps a huge graph navigable while 400%
+ * leaves enough headroom to read a dense neighbourhood at detail scale. This
+ * is the MANUAL zoom range — the semantic-zoom levels need to be reachable, so
+ * a deliberate zoom-out may go below the readable floor.
+ */
+export const MIN_ZOOM_SCALE = 0.05;
+export const MAX_ZOOM_SCALE = 4;
+
+/**
+ * The lowest scale a FIT may apply. Derived from the renderer's label size
+ * (13px) and the smallest readable on-screen size (9px): below this, fitting
+ * the whole drawing produces a grey smear instead of a diagram. A fit that
+ * would need to go lower returns this scale and the caller focuses a package
+ * instead (see `readableZoom.ts`). `fitAll()` remains available for the
+ * explicit whole-graph view.
+ */
+export const MIN_READABLE_ZOOM_SCALE = READABLE_ZOOM_SCALE;
+
+/**
+ * The scale below which a whole-graph overview stops being an overview: the
+ * drawing is complete but its package labels are too small to aim at, so the
+ * canvas offers the "tap a package to zoom in" hint instead of leaving the
+ * reader with a grey smear. 0.12 is the calibrated starting point (a phone
+ * overview measured 6%–10% on four sessions; a 366 px canvas at 12% still draws
+ * the package titles as reasonably sized text once the LOD layer counter-scales
+ * them). It is a presentation threshold, not a zoom limit: manual zoom-out may
+ * still go to `MIN_ZOOM_SCALE`.
+ */
+export const MIN_USEFUL_OVERVIEW_SCALE = 0.12;
+
+/** The multiplicative step one `+` / `−` press applies. */
+export const ZOOM_STEP = 1.25;
+
+/** Clamp a requested scale into the supported range; a non-finite value means "natural". */
+export function clampZoomScale(scale: number): number {
+  if (!Number.isFinite(scale)) return 1;
+  return Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, scale));
+}
+
+/** Read a positive numeric SVG length, ignoring percentages and unparseable values. */
+function numericSvgLength(svg: SVGSVGElement, attribute: 'width' | 'height'): number | null {
+  const raw = svg.getAttribute(attribute);
+  if (raw === null || raw.trim().endsWith('%')) return null;
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * The SVG's natural drawing size in user units: the `viewBox` extent when one
+ * is present, otherwise the root `width`/`height`. `null` when the element
+ * carries no usable geometry (a renderer that emitted neither).
+ */
+export function readSvgNaturalSize(svg: SVGSVGElement): SvgViewportSize | null {
+  const viewBox = svg.getAttribute('viewBox');
+  if (viewBox !== null) {
+    const parts = viewBox.trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts.every(Number.isFinite) && parts[2] > 0 && parts[3] > 0) {
+      return { width: parts[2], height: parts[3] };
+    }
+  }
+  const width = numericSvgLength(svg, 'width');
+  const height = numericSvgLength(svg, 'height');
+  return width !== null && height !== null ? { width, height } : null;
+}
+
+/**
+ * The uniform scale that fits `natural` inside `viewport` while preserving its
+ * aspect ratio. Never exceeds 100% — a diagram smaller than its container is
+ * shown at natural size rather than blown up — and never goes below
+ * `minScale`. The default floor is the READABLE one (`MIN_READABLE_ZOOM_SCALE`)
+ * so a fit that would be illegible stops at the smallest readable scale; pass
+ * `MIN_ZOOM_SCALE` (or call `fitAllZoomScale`) for the explicit whole-graph
+ * view, which is allowed to be unreadable. An unmeasurable viewport (width or
+ * height 0) means "natural size".
+ */
+export function fitZoomScale(
+  natural: SvgViewportSize,
+  viewport: SvgViewportSize,
+  minScale: number = MIN_READABLE_ZOOM_SCALE,
+): number {
+  if (viewport.width <= 0 || viewport.height <= 0) return 1;
+  return Math.min(
+    MAX_ZOOM_SCALE,
+    Math.max(minScale, Math.min(viewport.width / natural.width, viewport.height / natural.height, 1)),
+  );
+}
+
+/** The explicit whole-graph fit: the geometric fit, down to the manual 5% floor. */
+export function fitAllZoomScale(natural: SvgViewportSize, viewport: SvgViewportSize): number {
+  return fitZoomScale(natural, viewport, MIN_ZOOM_SCALE);
+}
+
+/**
+ * A rectangle a floating corner overlay occupies, expressed in the CANVAS
+ * CONTENT BOX's coordinates: the origin is the content box's top-left corner,
+ * so the host's padding is already removed and the numbers line up with the
+ * box `measureViewportSize` returns.
+ */
+export type SvgCornerRect = {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** The scale whose drawing rect is just inside `limit`, or -Infinity for "impossible". */
+function limitScale(limitPx: number, naturalPx: number): number {
+  return limitPx > 0 ? limitPx / naturalPx : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * The largest scale at which the drawing — horizontally CENTRED and vertically
+ * centred in the content box — does not overlap `corner`. The drawing's
+ * geometry at scale `s` is `width = natural.width · s`, `height =
+ * natural.height · s`, anchored at x = (host.width − width) / 2 (the SVG's
+ * `margin: 0 auto`) and at y = (host.height − height) / 2 (auto block margins
+ * centre a short drawing; a drawing taller than the box starts at 0 and scrolls).
+ *
+ * Non-overlap can be reached on either axis: the drawing can end LEFT of the
+ * corner (its centred right edge at or before the corner's left edge), or
+ * ABOVE / BELOW it (its centred band at or outside one of the corner's
+ * horizontal edges). The largest usable scale is the largest of those limits;
+ * -Infinity means no positive scale avoids this corner.
+ */
+function scaleAvoidingCorner(
+  natural: SvgViewportSize,
+  viewport: SvgViewportSize,
+  corner: SvgCornerRect,
+): number {
+  // Right edge = (host.width + width) / 2, so "right edge ≤ corner.left" means
+  // width ≤ 2·corner.left − host.width. (Measuring the right edge from a
+  // left-aligned x = 0 was off by exactly the centring offset: a drawing whose
+  // right edge really ran under a bottom-right corner was reported as clear.)
+  const horizontal = limitScale(2 * corner.left - viewport.width, natural.width);
+  // Centred band: bottom = (host.height + height) / 2, so "bottom ≤ corner.top"
+  // means height ≤ 2·corner.top − host.height.
+  const verticalBelow = limitScale(2 * corner.top - viewport.height, natural.height);
+  // Top = (host.height − height) / 2, so "top ≥ corner.bottom" means
+  // height ≤ host.height − 2·corner.bottom.
+  const cornerBottom = corner.top + corner.height;
+  const verticalAbove = limitScale(viewport.height - 2 * cornerBottom, natural.height);
+  return Math.max(horizontal, verticalBelow, verticalAbove);
+}
+
+/**
+ * The fit scale that also keeps the whole drawing clear of the floating corner
+ * chrome (the minimap and the zoom cluster).
+ *
+ * With no corner intersecting the fitted drawing the result is EXACTLY
+ * `fitZoomScale(natural, viewport, minScale)` — same inputs, same call, same
+ * number. When the fitted drawing would run under a corner, the scale drops to
+ * the largest value that clears it. Several corners take the most conservative
+ * (smallest) limit. A corner larger than the canvas leaves no positive scale
+ * that clears it, so the result falls back to the plain fit instead of
+ * collapsing the drawing to nothing.
+ */
+export function fitAvoidingCorners(
+  natural: SvgViewportSize,
+  viewport: SvgViewportSize,
+  corners: readonly SvgCornerRect[],
+  minScale: number = MIN_READABLE_ZOOM_SCALE,
+): number {
+  const fit = fitZoomScale(natural, viewport, minScale);
+  if (corners.length === 0) return fit;
+  if (!(natural.width > 0) || !(natural.height > 0)) return fit;
+  if (!(viewport.width > 0) || !(viewport.height > 0)) return fit;
+
+  let allowed = Number.POSITIVE_INFINITY;
+  for (const corner of corners) {
+    // An unmeasured (jsdom) or empty corner rect constrains nothing.
+    if (!(corner.width > 0) || !(corner.height > 0)) continue;
+    const limit = scaleAvoidingCorner(natural, viewport, corner);
+    if (!Number.isFinite(limit) || limit <= 0) return fit;
+    allowed = Math.min(allowed, limit);
+  }
+  if (!Number.isFinite(allowed)) return fit;
+  return Math.min(fit, allowed);
+}
+
+/** Where a fitted drawing is placed inside the canvas content box, in CSS pixels. */
+export type SvgFitPlacement = {
+  /** The uniform scale to apply. */
+  readonly scale: number;
+  /** The drawing's left edge, measured from the content box's left edge. */
+  readonly offsetX: number;
+  /** The drawing's top edge, measured from the content box's top edge. */
+  readonly offsetY: number;
+};
+
+/** A drawing's box at a placement. */
+type PlacedRect = { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number };
+
+/** Strict overlap: touching edges are clear, exactly like the CSS boxes they model. */
+function placedOverlaps(a: PlacedRect, b: PlacedRect): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/**
+ * Find a translation of a `width`×`height` drawing (inside `viewport`) that
+ * does not overlap ANY corner rectangle, or `null` when no translation exists.
+ *
+ * The drawing is free to move anywhere its box still lies inside the content
+ * box — the old centred-only rule could not express "move the drawing away
+ * from the floating chrome", which is exactly what made a centred fit shrink
+ * symmetrically. A candidate translation only ever needs to sit on a boundary
+ * of the free space: the content box's edges, or another rectangle's edge.
+ * Every such coordinate is enumerated per axis and the combinations are
+ * checked, so a non-empty feasible region can never be missed by the search.
+ */
+function placementAvoidingCorners(
+  natural: SvgViewportSize,
+  viewport: SvgViewportSize,
+  corners: readonly SvgCornerRect[],
+  scale: number,
+): { offsetX: number; offsetY: number } | null {
+  const width = natural.width * scale;
+  const height = natural.height * scale;
+  if (!(width > 0) || !(height > 0)) return null;
+  if (width > viewport.width + 1e-9 || height > viewport.height + 1e-9) return null;
+
+  const maxX = Math.max(0, viewport.width - width);
+  const maxY = Math.max(0, viewport.height - height);
+  const clampX = (value: number): number => Math.min(maxX, Math.max(0, value));
+  const clampY = (value: number): number => Math.min(maxY, Math.max(0, value));
+
+  const xs = new Set<number>([0, maxX]);
+  const ys = new Set<number>([0, maxY]);
+  for (const corner of corners) {
+    if (!(corner.width > 0) || !(corner.height > 0)) continue;
+    // The translations at which the drawing's right/bottom edge lands on the
+    // corner's left/top edge, and its left/top edge on the corner's right/bottom.
+    xs.add(clampX(corner.left - width));
+    xs.add(clampX(corner.left + corner.width));
+    ys.add(clampY(corner.top - height));
+    ys.add(clampY(corner.top + corner.height));
+  }
+
+  for (const offsetY of ys) {
+    for (const offsetX of xs) {
+      const rect: PlacedRect = {
+        left: offsetX,
+        top: offsetY,
+        right: offsetX + width,
+        bottom: offsetY + height,
+      };
+      const blocked = corners.some((corner) => corner.width > 0 && corner.height > 0
+        && placedOverlaps(rect, {
+          left: corner.left,
+          top: corner.top,
+          right: corner.left + corner.width,
+          bottom: corner.top + corner.height,
+        }));
+      if (!blocked) return { offsetX, offsetY };
+    }
+  }
+  return null;
+}
+
+/**
+ * The largest fit that keeps the drawing clear of the floating corner chrome,
+ * PLUS the translation that achieves it.
+ *
+ * When a placement that clears every corner exists at the geometric fit, the
+ * fit is kept in full and the drawing is moved off-centre (towards the side
+ * away from the chrome). Only when no placement exists at that scale is the
+ * scale reduced — and then only as far as the largest scale that DOES admit a
+ * placement. This is what lets a wide graph whose corner chrome only clips the
+ * bottom-right stay at its true fit instead of shrinking symmetrically.
+ *
+ * Falls back to the plain centred fit (`fitZoomScale`) when even the smallest
+ * permitted scale admits no placement (a corner covering the whole canvas), so
+ * an impossible constraint degrades to the old reading instead of collapsing
+ * or throwing.
+ */
+export function fitPlacementAvoidingCorners(
+  natural: SvgViewportSize,
+  viewport: SvgViewportSize,
+  corners: readonly SvgCornerRect[],
+  minScale: number = MIN_READABLE_ZOOM_SCALE,
+): SvgFitPlacement {
+  const fit = fitZoomScale(natural, viewport, minScale);
+  const centred = (): SvgFitPlacement => ({
+    scale: fit,
+    offsetX: Math.max(0, (viewport.width - natural.width * fit) / 2),
+    offsetY: Math.max(0, (viewport.height - natural.height * fit) / 2),
+  });
+  if (corners.length === 0) return centred();
+  if (!(natural.width > 0) || !(natural.height > 0)) return centred();
+  if (!(viewport.width > 0) || !(viewport.height > 0)) return centred();
+
+  const measured = corners.filter((corner) => corner.width > 0 && corner.height > 0);
+  if (measured.length === 0) return centred();
+
+  const fitPlacement = placementAvoidingCorners(natural, viewport, measured, fit);
+  if (fitPlacement !== null) return { scale: fit, ...fitPlacement };
+
+  const floorPlacement = placementAvoidingCorners(natural, viewport, measured, minScale);
+  if (floorPlacement === null) return centred();
+
+  // Feasibility is monotone in practice (a smaller drawing has more room to
+  // move); 40 bisections pin the boundary far below a screen pixel.
+  let low = minScale;
+  let high = fit;
+  let best = floorPlacement;
+  for (let iteration = 0; iteration < 40; iteration += 1) {
+    const mid = (low + high) / 2;
+    const placement = placementAvoidingCorners(natural, viewport, measured, mid);
+    if (placement === null) {
+      high = mid;
+    } else {
+      low = mid;
+      best = placement;
+    }
+  }
+  return { scale: low, ...best };
+}
+
+/** The on-screen size of `natural` at `scale`, with the scale clamped first. */
+export function zoomedSvgSize(natural: SvgViewportSize, scale: number): SvgViewportSize {
+  const applied = clampZoomScale(scale);
+  return { width: natural.width * applied, height: natural.height * applied };
+}
+
+/** Format a CSS length without trailing float noise ("800", not "800.0000000001"). */
+function formatLength(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
+/**
+ * Apply `scale` to the SVG's presentation size and return the scale actually
+ * written (clamped). The viewBox is left alone, so the drawing scales as a
+ * vector and the element's layout size — which is what gives the scroll
+ * container its extent — always equals the scaled natural size.
+ */
+export function applyZoomScale(svg: SVGSVGElement, scale: number): number {
+  const applied = clampZoomScale(scale);
+  const natural = readSvgNaturalSize(svg);
+  if (natural === null) return applied;
+  const size = zoomedSvgSize(natural, applied);
+  svg.setAttribute('width', formatLength(size.width));
+  svg.setAttribute('height', formatLength(size.height));
+  return applied;
+}
+
+/** A client-coordinate rectangle: the subset of `DOMRect` the centring math reads. */
+export type ViewportRect = {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+/**
+ * The scroll offsets that put `target`'s centre at `viewport`'s centre, given
+ * the container's current scroll position. Pure so the focus-recentre gesture
+ * of the explosion LOD can be tested without a laid-out browser.
+ */
+export function centeredScrollOffsets(
+  viewport: ViewportRect,
+  target: ViewportRect,
+  current: { readonly left: number; readonly top: number },
+): { left: number; top: number } {
+  return {
+    left: current.left + (target.left + target.width / 2) - (viewport.left + viewport.width / 2),
+    top: current.top + (target.top + target.height / 2) - (viewport.top + viewport.height / 2),
+  };
+}
+
+/**
+ * The scroll offsets that put a rectangle of the drawing in the middle of the
+ * content box, given the uniform `scale` the viewport applied.
+ *
+ * Unlike {@link centeredScrollOffsets}, this works on the drawing's own user
+ * units (`left`/`top` measured from the viewBox origin) rather than client
+ * rects, so it is usable before layout and in a headless browser. Used by the
+ * overview hint's "tap a package" zoom, where the target is a package frame the
+ * renderer drew but nothing has scrolled to yet. Offsets are clamped at zero:
+ * a drawing smaller than the box cannot be scrolled further than its origin.
+ */
+export function centeredScrollForDrawingRect(
+  viewport: SvgViewportSize,
+  rect: { readonly left: number; readonly top: number; readonly width: number; readonly height: number },
+  scale: number,
+): { left: number; top: number } {
+  const applied = clampZoomScale(scale);
+  return {
+    left: Math.max(0, rect.left * applied + (rect.width * applied) / 2 - viewport.width / 2),
+    top: Math.max(0, rect.top * applied + (rect.height * applied) / 2 - viewport.height / 2),
+  };
+}
+
+/**
+ * Scroll `container` so `target`'s centre sits in the middle of the visible
+ * box. Used by the architecture explosion LOD when a zoom crosses a detail
+ * level, so the package the user is focused on cannot run off-screen.
+ *
+ * `clientWidth`/`clientHeight` exclude scrollbars and are what the browser
+ * centres within; a not-laid-out container (jsdom) falls back to its rect.
+ */
+export function centerElementInContainer(container: HTMLElement, target: Element): void {
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const width = container.clientWidth > 0 ? container.clientWidth : containerRect.width;
+  const height = container.clientHeight > 0 ? container.clientHeight : containerRect.height;
+  const offsets = centeredScrollOffsets(
+    { left: containerRect.left, top: containerRect.top, width, height },
+    { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
+    { left: container.scrollLeft, top: container.scrollTop },
+  );
+  container.scrollLeft = offsets.left;
+  container.scrollTop = offsets.top;
+}
+
+/**
+ * The content box a fitted SVG may occupy, or `null` when the browser has not
+ * laid it out yet. Exported because the readable-zoom decision needs the same
+ * box the fit uses (aspect-band test), not a second measurement path.
+ */
+export function measureViewportSize(container: HTMLElement): SvgViewportSize | null {
+  let paddingX = 0;
+  let paddingY = 0;
+  if (typeof getComputedStyle === 'function') {
+    const style = getComputedStyle(container);
+    paddingX = parseCssPx(style.paddingLeft) + parseCssPx(style.paddingRight);
+    paddingY = parseCssPx(style.paddingTop) + parseCssPx(style.paddingBottom);
+  }
+  const width = container.clientWidth - paddingX;
+  const height = container.clientHeight - paddingY;
+  if (width > 0 && height > 0) return { width, height };
+  const rect = container.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0
+    ? { width: rect.width - paddingX, height: rect.height - paddingY }
+    : null;
+}
+
+/**
+ * The host's FULL box, padding included.
+ *
+ * `clientWidth`/`clientHeight` already cover padding, which is exactly the
+ * reading the fullscreen Fit needs: the overlay's available area is the whole
+ * viewport-sized host less its measured chrome, and the non-fullscreen
+ * reserved margin (the host's `p-3`/`p-1`) must not be subtracted from it.
+ * `measureViewportSize` is the content-box reading the ordinary layout uses.
+ */
+export function measureHostSize(host: HTMLElement): SvgViewportSize | null {
+  if (host.clientWidth > 0 && host.clientHeight > 0) {
+    return { width: host.clientWidth, height: host.clientHeight };
+  }
+  const rect = host.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : null;
+}
+
+/** The four CSS padding insets that make a host's content box equal `area`. */
+export type SvgFitAreaInsets = {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+};
+
+/**
+ * Translate a Fit area measured inside `host` into the host's padding.
+ *
+ * Writing these insets as the host's padding makes the flex centring, the
+ * scroll extent and `measureViewportSize` all agree with the overlay-free
+ * rectangle the solve used. With no overlays the area IS the host, so every
+ * inset is 0 — the fullscreen canvas reserves no margin of its own.
+ */
+export function fitAreaInsets(
+  host: SvgViewportSize,
+  area: { readonly left: number; readonly top: number; readonly width: number; readonly height: number },
+): SvgFitAreaInsets {
+  return {
+    top: Math.max(0, area.top),
+    right: Math.max(0, host.width - (area.left + area.width)),
+    bottom: Math.max(0, host.height - (area.top + area.height)),
+    left: Math.max(0, area.left),
+  };
+}
+
+/**
+ * The imperative handle `PlantUmlGraph` keeps across renders. Every method that
+ * changes the scale returns the scale actually applied; `attach` must be called
+ * after each render because the renderer replaces the `<svg>` wholesale.
+ */
+export type SvgViewportController = {
+  /** Point the controller at the SVG that was just injected, keeping the current scale. */
+  attach(svg: SVGSVGElement): number;
+  /** Recompute and apply the readable fit-to-container scale. */
+  fit(): number;
+  /** Recompute and apply the explicit whole-graph fit, down to the manual 5% floor. */
+  fitAll(): number;
+  /** Apply an explicit scale (used by the +/- buttons and the 100% control). */
+  zoomTo(scale: number): number;
+  /** Multiply the current scale by `factor`, keeping the point under `anchor` fixed. */
+  zoomBy(factor: number, anchor?: SvgViewportAnchor): number;
+  /**
+   * Switch to (or away from) semantic-zoom mode.
+   *
+   * In semantic mode the SVG on screen is NOT the renderer's drawing scaled by
+   * CSS: `semanticZoomLayout` has already rewritten its geometry and sized it
+   * 1:1 for the requested scale, so the controller only records the scale and
+   * never touches `width`/`height`. `base` is the renderer's original drawing
+   * size, which is what fit/fitAll still measure against.
+   */
+  setSemanticMode(base: SvgViewportSize | null): void;
+  /** The semantic base size in force, or `null` in the ordinary scaled mode. */
+  semanticBaseSize(): SvgViewportSize | null;
+};
+
+/**
+ * Create a controller for one scroll container. Used by `PlantUmlGraph`; the
+ * container's own size is re-read on every `fit()`, so a caller that owns a
+ * ResizeObserver gets refit-on-resize for free.
+ */
+export function createSvgViewport(container: HTMLElement): SvgViewportController {
+  let svg: SVGSVGElement | null = null;
+  let scale = 1;
+  let semanticBase: SvgViewportSize | null = null;
+
+  /** Write the scale to the SVG, or record it alone when semantic layout owns the size. */
+  const write = (next: number): number => {
+    scale = clampZoomScale(next);
+    if (svg === null || semanticBase !== null) return scale;
+    scale = applyZoomScale(svg, scale);
+    return scale;
+  };
+
+  return {
+    attach(next: SVGSVGElement): number {
+      svg = next;
+      // A fresh SVG arrives at natural size; re-apply whatever the caller had
+      // so the element never flashes at the wrong size between effects. In
+      // semantic mode the geometry pass owns the element's size, so recording
+      // the scale is all that happens here.
+      if (semanticBase !== null) {
+        scale = clampZoomScale(scale);
+        return scale;
+      }
+      scale = applyZoomScale(next, scale);
+      return scale;
+    },
+
+    fit(): number {
+      const natural = semanticBase ?? (svg === null ? null : readSvgNaturalSize(svg));
+      const viewport = measureViewportSize(container);
+      const next = natural === null || viewport === null
+        ? 1
+        : fitZoomScale(natural, viewport);
+      return write(next);
+    },
+
+    fitAll(): number {
+      const natural = semanticBase ?? (svg === null ? null : readSvgNaturalSize(svg));
+      const viewport = measureViewportSize(container);
+      const next = natural === null || viewport === null
+        ? 1
+        : fitAllZoomScale(natural, viewport);
+      return write(next);
+    },
+
+    zoomTo(next: number): number {
+      return write(next);
+    },
+
+    zoomBy(factor: number, anchor?: SvgViewportAnchor): number {
+      const next = clampZoomScale(scale * factor);
+      if (semanticBase !== null) {
+        // The semantic pass re-anchors the drawing on the densest window after
+        // every settled zoom, so the controller only records the new scale.
+        scale = next;
+        return scale;
+      }
+      if (svg === null || next === scale) {
+        scale = next;
+        return scale;
+      }
+      // Record the anchored point in SVG user units BEFORE resizing, then scroll
+      // by however far the resize moved it. Because only width/height change,
+      // the user-unit coordinate of the point under the cursor is stable.
+      const before = svg.getBoundingClientRect();
+      const userX = anchor === undefined ? null : (anchor.clientX - before.left) / scale;
+      const userY = anchor === undefined ? null : (anchor.clientY - before.top) / scale;
+      scale = applyZoomScale(svg, next);
+      if (anchor !== undefined && userX !== null && userY !== null) {
+        const after = svg.getBoundingClientRect();
+        container.scrollLeft += after.left + userX * scale - anchor.clientX;
+        container.scrollTop += after.top + userY * scale - anchor.clientY;
+      }
+      return scale;
+    },
+
+    setSemanticMode(base: SvgViewportSize | null): void {
+      semanticBase = base === null ? null : { width: base.width, height: base.height };
+    },
+
+    semanticBaseSize(): SvgViewportSize | null {
+      return semanticBase === null ? null : { ...semanticBase };
+    },
+  };
+}
+
+/**
+ * How far a press must travel before it counts as a drag rather than a click.
+ * A mouse click is never perfectly still, so without a threshold a slightly
+ * shaky click on a node would pan the drawing instead of selecting/drilling.
+ */
+export const PAN_THRESHOLD_PX = 4;
+
+/** The cursor the canvas shows while idle; `grabbing` replaces it during a pan. */
+const PAN_CURSOR = 'grab';
+const PANNING_CURSOR = 'grabbing';
+
+/** One touch pointer's position, in client coordinates. */
+export type SvgTouchPoint = { readonly clientX: number; readonly clientY: number };
+
+/** What a two-finger pinch reads: the span between the fingers and its midpoint. */
+export type PinchReading = {
+  readonly distance: number;
+  readonly midpoint: SvgViewportAnchor;
+};
+
+/**
+ * Read a pinch from two finger positions. The distance is what a scale factor
+ * is derived from; the midpoint is the anchor the zoom keeps fixed, so the
+ * drawing grows/shrinks around where the fingers actually are.
+ */
+export function pinchReading(a: SvgTouchPoint, b: SvgTouchPoint): PinchReading {
+  const dx = b.clientX - a.clientX;
+  const dy = b.clientY - a.clientY;
+  return {
+    distance: Math.hypot(dx, dy),
+    midpoint: { clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2 },
+  };
+}
+
+/** The callbacks a touch gesture session reports to its owner. */
+export type SvgTouchGestureOptions = {
+  /** Called with the scale actually applied after a pinch; never for a pure drag. */
+  readonly onZoom: (scale: number) => void;
+};
+
+/** The handle a caller keeps to tear the gesture listeners down on unmount. */
+export type SvgTouchGestures = {
+  destroy(): void;
+};
+
+/**
+ * Add touch gestures to a scroll container that already owns an
+ * `SvgViewportController`:
+ *
+ *  · one finger drags the drawing by scrolling the container (the SVG is
+ *    larger than its box, so native scrolling is exactly the pan);
+ *  · two fingers pinch-zoom around their midpoint through the SAME controller
+ *    the toolbar and Ctrl+wheel use, so there is one zoom model, not two.
+ *
+ * The container must carry `touch-action: none` (PlantUmlGraph sets it): that
+ * is what stops the browser from panning/zooming the page itself, and it is
+ * also why the drag has to be implemented here rather than left to the
+ * browser. Mouse and pen input are deliberately ignored — the desktop
+ * wheel/scroll behaviour stays exactly as it was.
+ *
+ * A drag that turned into a pan or a pinch swallows the click the browser
+ * would otherwise fire on release, so panning never selects a node.
+ */
+export function createSvgTouchGestures(
+  container: HTMLElement,
+  controller: SvgViewportController,
+  options: SvgTouchGestureOptions,
+): SvgTouchGestures {
+  /** The fingers currently down, keyed by pointer id. */
+  const pointers = new Map<number, SvgTouchPoint>();
+  /** The previous pinch frame, `null` while fewer than two fingers are down. */
+  let pinchFrom: PinchReading | null = null;
+  /** The previous single-finger frame, `null` unless exactly one finger is down. */
+  let panFrom: SvgTouchPoint | null = null;
+  /** Set once a gesture moves enough to be a drag; the release click is then swallowed. */
+  let dragged = false;
+
+  const pointOf = (event: PointerEvent): SvgTouchPoint => ({
+    clientX: event.clientX,
+    clientY: event.clientY,
+  });
+
+  /** A pinch frame is read from the first two fingers in registration order. */
+  const currentPinch = (): PinchReading | null => {
+    const fingers = [...pointers.values()];
+    if (fingers.length < 2) return null;
+    return pinchReading(fingers[0], fingers[1]);
+  };
+
+  const onPointerDown = (event: PointerEvent): void => {
+    // Desktop mouse/pen input keeps its existing behaviour.
+    if (event.pointerType !== 'touch') return;
+    // Only the FIRST finger of a gesture resets the drag flag: putting a second
+    // finger down mid-drag must not turn the release into a click.
+    if (pointers.size === 0) dragged = false;
+    pointers.set(event.pointerId, pointOf(event));
+    if (pointers.size === 1) {
+      panFrom = pointOf(event);
+      pinchFrom = null;
+    } else {
+      pinchFrom = currentPinch();
+      panFrom = null;
+    }
+  };
+
+  const onPointerMove = (event: PointerEvent): void => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, pointOf(event));
+
+    if (pointers.size >= 2) {
+      // The browser's own gesture is suppressed by touch-action; this keeps the
+      // JS-side contract explicit (and is what a test can read as "not a page zoom").
+      event.preventDefault();
+      const previous = pinchFrom;
+      const reading = currentPinch();
+      pinchFrom = reading;
+      if (previous === null || reading === null) return;
+      if (reading.distance > 0 && previous.distance > 0) {
+        const factor = reading.distance / previous.distance;
+        if (Math.abs(factor - 1) > 1e-4) {
+          options.onZoom(controller.zoomBy(factor, reading.midpoint));
+        }
+      }
+      // Fingers moving together pan the drawing with them; the zoom above
+      // already kept the midpoint's content fixed, so this is pure translation.
+      container.scrollLeft += previous.midpoint.clientX - reading.midpoint.clientX;
+      container.scrollTop += previous.midpoint.clientY - reading.midpoint.clientY;
+      dragged = true;
+      return;
+    }
+
+    const previous = panFrom;
+    panFrom = pointOf(event);
+    if (previous === null) return;
+    const dx = previous.clientX - event.clientX;
+    const dy = previous.clientY - event.clientY;
+    if (dx !== 0 || dy !== 0) dragged = true;
+    container.scrollLeft += dx;
+    container.scrollTop += dy;
+  };
+
+  const onPointerEnd = (event: PointerEvent): void => {
+    if (!pointers.delete(event.pointerId)) return;
+    pinchFrom = currentPinch();
+    const remaining = [...pointers.values()];
+    panFrom = remaining.length === 1 ? remaining[0] : null;
+  };
+
+  const onClickCapture = (event: MouseEvent): void => {
+    if (!dragged) return;
+    dragged = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  container.addEventListener('pointerdown', onPointerDown);
+  // Move/release are watched on the window so a finger that leaves the box
+  // still pans and still ends the gesture.
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerEnd);
+  window.addEventListener('pointercancel', onPointerEnd);
+  container.addEventListener('click', onClickCapture, true);
+
+  return {
+    destroy(): void {
+      container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerEnd);
+      window.removeEventListener('pointercancel', onPointerEnd);
+      container.removeEventListener('click', onClickCapture, true);
+      pointers.clear();
+    },
+  };
+}
+
+/** What a drag-pan owner states about the press that starts a pan. */
+export type SvgDragPanOptions = {
+  /**
+   * Whether a LEFT-button press at `target` may begin a pan. The canvas passes
+   * a predicate that refuses presses on drawn nodes, so a press on a node stays
+   * a selection/drill gesture; the middle button pans from anywhere.
+   */
+  readonly canPanFrom: (target: EventTarget | null) => boolean;
+};
+
+/** The handle a caller keeps to tear the drag listeners down on unmount. */
+export type SvgDragPan = {
+  destroy(): void;
+};
+
+/**
+ * Add pointer-drag panning to the scroll container that already owns an
+ * `SvgViewportController`:
+ *
+ *  · a LEFT-button drag on the blank canvas scrolls the container (the drawing
+ *    is larger than its box, so native scrolling IS the pan);
+ *  · a MIDDLE-button drag pans from anywhere, nodes included;
+ *  · a press only becomes a drag once it travels `PAN_THRESHOLD_PX`, so a
+ *    click — and the second click of a double-click — still reaches the
+ *    drawing's own selection/drill handlers;
+ *  · a press that DID become a drag swallows the release click, so panning
+ *    across a node never selects it;
+ *  · `pointercancel` ends the pan without leaving a half-dragged state behind.
+ *
+ * Touch input is deliberately ignored: `createSvgTouchGestures` owns fingers
+ * (one finger pans, two pinch) through the same controller, so there is one
+ * state, not two. The cursor turns `grabbing` for the duration of a drag and
+ * back to `grab` afterwards. Inertia is deliberately not implemented.
+ */
+export function createSvgDragPan(
+  container: HTMLElement,
+  options: SvgDragPanOptions,
+): SvgDragPan {
+  /** The pointer held down right now, or `null` between gestures. */
+  let active: {
+    pointerId: number;
+    button: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+  } | null = null;
+  /** Set once the press travelled past the threshold; reset when it ends. */
+  let dragging = false;
+  /** Set when a drag ended, so the click the browser fires on release is eaten. */
+  let swallowClick = false;
+
+  const setCursor = (cursor: string): void => {
+    container.style.cursor = cursor;
+  };
+  setCursor(PAN_CURSOR);
+
+  /** Pointer capture is a no-op where the platform lacks it (jsdom, detached nodes). */
+  const capture = (pointerId: number, release: boolean): void => {
+    const method = release ? container.releasePointerCapture : container.setPointerCapture;
+    if (typeof method !== 'function') return;
+    try {
+      method.call(container, pointerId);
+    } catch {
+      // A pointer id the element never captured throws on release; the pan
+      // state below is still reset, so nothing is left dragging.
+    }
+  };
+
+  const onPointerDown = (event: PointerEvent): void => {
+    // Fingers belong to the touch gesture layer.
+    if (event.pointerType === 'touch' || active !== null) return;
+    const middleButton = event.button === 1;
+    if (!middleButton && event.button !== 0) return;
+    // A left press on a node is a selection/drill, not the start of a pan.
+    if (!middleButton && !options.canPanFrom(event.target)) return;
+    // Middle-click would otherwise start the platform's autoscroll aid.
+    if (middleButton) event.preventDefault();
+    active = {
+      pointerId: event.pointerId,
+      button: event.button,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+    };
+    dragging = false;
+    // A new press supersedes an unconsumed flag from an earlier gesture.
+    swallowClick = false;
+    capture(event.pointerId, false);
+  };
+
+  const onPointerMove = (event: PointerEvent): void => {
+    if (active === null || event.pointerId !== active.pointerId) return;
+    if (!dragging) {
+      const travelled = Math.hypot(event.clientX - active.startX, event.clientY - active.startY);
+      if (travelled < PAN_THRESHOLD_PX) return;
+      dragging = true;
+      setCursor(PANNING_CURSOR);
+    }
+    const dx = event.clientX - active.lastX;
+    const dy = event.clientY - active.lastY;
+    active.lastX = event.clientX;
+    active.lastY = event.clientY;
+    if (dx === 0 && dy === 0) return;
+    // The pointer owns the gesture now: no text selection, no page scroll.
+    event.preventDefault();
+    container.scrollLeft -= dx;
+    container.scrollTop -= dy;
+  };
+
+  const endPan = (event: PointerEvent, cancelled: boolean): void => {
+    if (active === null || event.pointerId !== active.pointerId) return;
+    const leftButton = active.button === 0;
+    capture(event.pointerId, true);
+    // A cancelled gesture produces no click, so there is nothing to swallow —
+    // and the flag stays clear for the next real click. Only a LEFT release
+    // fires a `click` at all; a middle release fires `auxclick`, which must not
+    // arm a flag that would then eat the user's next genuine click.
+    if (dragging && !cancelled && leftButton) swallowClick = true;
+    active = null;
+    dragging = false;
+    setCursor(PAN_CURSOR);
+  };
+
+  const onPointerUp = (event: PointerEvent): void => endPan(event, false);
+  const onPointerCancel = (event: PointerEvent): void => endPan(event, true);
+
+  const onClickCapture = (event: MouseEvent): void => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  container.addEventListener('pointerdown', onPointerDown);
+  // Move/release are watched on the window (pointer capture keeps delivering
+  // them even when the pointer leaves the canvas), and the click guard is a
+  // window capture listener so the release click never reaches the drawing.
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('click', onClickCapture, true);
+
+  return {
+    destroy(): void {
+      container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+      window.removeEventListener('click', onClickCapture, true);
+      container.style.cursor = '';
+      active = null;
+      dragging = false;
+      swallowClick = false;
+    },
+  };
+}

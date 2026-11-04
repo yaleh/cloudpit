@@ -25,12 +25,12 @@ import {
   SEARCH_QUERY_DEBOUNCE_MS,
   type ArchitectureSearchController,
   type ArchitectureSearchReading,
-} from '@/modules/architecture/architectureSearchController';
+} from '@/modules/architecture/render/architectureSearchController';
 import type {
   ArchitectureRendererEdge,
   ArchitectureRendererHover,
   ArchitectureRendererNode,
-} from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/dom/rendererContract';
 import type { Clock } from '@/shared/types';
 
 type Timer = {

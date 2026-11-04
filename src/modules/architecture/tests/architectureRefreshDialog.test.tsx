@@ -17,7 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import enCommon from '@/modules/i18n/locales/en/common.json';
 
-import { ArchitectureRefreshDialog } from '@/modules/architecture/ArchitectureRefreshDialog';
+import { ArchitectureRefreshDialog } from '@/modules/architecture/render/ArchitectureRefreshDialog';
 
 await i18next.use(initReactI18next).init({
   lng: 'en',

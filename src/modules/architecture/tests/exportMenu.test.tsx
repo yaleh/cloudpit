@@ -15,19 +15,19 @@ import {
   archguardToPlantUml,
   parserSafePlantUml,
   type ArchitectureDiagramView,
-} from '@/modules/architecture/archguardToPlantUml';
-import { renderWithMemberDetail } from '@/modules/architecture/PlantUmlGraph';
-import { standardiseDrawnStereotypes } from '@/modules/architecture/plantUmlText';
+} from '@/modules/architecture/layout/archguardToPlantUml';
+import { renderWithMemberDetail } from '@/modules/architecture/render/PlantUmlGraph';
+import { standardiseDrawnStereotypes } from '@/modules/architecture/layout/plantUmlText';
 import {
   architectureExportFilename,
   EXPORT_PNG_MAX_EDGE,
   exportTimestamp,
   pngTargetSize,
   sanitizeFilenameSegment,
-} from '@/modules/architecture/exportArtifacts';
-import type * as ExportArtifactsModule from '@/modules/architecture/exportArtifacts';
-import { rankArchitectureDetail } from '@/modules/architecture/detailRanking';
-import type { ArchitectureRendererGraph } from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/render/exportArtifacts';
+import type * as ExportArtifactsModule from '@/modules/architecture/render/exportArtifacts';
+import { rankArchitectureDetail } from '@/modules/architecture/dom/detailRanking';
+import type { ArchitectureRendererGraph } from '@/modules/architecture/dom/rendererContract';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 
 /**
@@ -61,7 +61,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 // The rasteriser needs a real canvas, which jsdom does not implement. Its unit
 // bounds are covered below; the panel path only needs to know what it was
 // asked to draw and that the notice follows the returned target.
-vi.mock('@/modules/architecture/exportArtifacts', async (importOriginal) => {
+vi.mock('@/modules/architecture/render/exportArtifacts', async (importOriginal) => {
   const actual = await importOriginal<typeof ExportArtifactsModule>();
   return { ...actual, rasterizeSvgToPng: artifactMock.rasterizeSvgToPng };
 });
@@ -667,7 +667,7 @@ test('the text page downloads the same document under the same filename as the e
 });
 
 test('the filename and download mechanics exist once in the architecture module', () => {
-  const moduleDir = resolve(process.cwd(), 'src', 'modules', 'architecture');
+  const moduleDir = resolve(process.cwd(), 'src', 'modules', 'architecture', 'render');
   const sources = readdirSync(moduleDir).filter((file) => /\.tsx?$/.test(file));
   const withDefinition = (needle: string): string[] => sources
     .filter((file) => readFileSync(join(moduleDir, file), 'utf8').includes(needle))
@@ -685,7 +685,7 @@ test('the filename and download mechanics exist once in the architecture module'
     const source = readFileSync(join(moduleDir, consumer), 'utf8');
     assert.match(
       source,
-      /import \{[^}]*\barchitectureExportFilename\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
+      /import \{[^}]*\barchitectureExportFilename\b[^}]*\} from '@\/modules\/architecture\/render\/exportArtifacts'/s,
       `${consumer} must import the shared filename scheme`,
     );
   }
@@ -694,20 +694,20 @@ test('the filename and download mechanics exist once in the architecture module'
   const textPanelSource = readFileSync(join(moduleDir, 'ArchitectureTextPanel.tsx'), 'utf8');
   assert.match(
     textPanelSource,
-    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
+    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/render\/exportArtifacts'/s,
     'ArchitectureTextPanel.tsx must import the shared download helper',
   );
   const ownerSource = readFileSync(join(moduleDir, 'architectureFitExportController.ts'), 'utf8');
   for (const helper of ['downloadTextFile', 'downloadBlob', 'rasterizeSvgToPng']) {
     assert.match(
       ownerSource,
-      new RegExp(`import \\{[^}]*\\b${helper}\\b[^}]*\\} from '@/modules/architecture/exportArtifacts'`, 's'),
+      new RegExp(`import \\{[^}]*\\b${helper}\\b[^}]*\\} from '@/modules/architecture/render/exportArtifacts'`, 's'),
       `the export owner must import the shared ${helper} helper`,
     );
   }
   assert.doesNotMatch(
     readFileSync(join(moduleDir, 'ArchitecturePanel.tsx'), 'utf8'),
-    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/exportArtifacts'/s,
+    /import \{[^}]*\bdownloadTextFile\b[^}]*\} from '@\/modules\/architecture\/render\/exportArtifacts'/s,
     'the panel forwards the export to its owner instead of downloading itself',
   );
 });

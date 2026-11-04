@@ -8,7 +8,7 @@ import {
   EMPTY_ARCHITECTURE_DEEP_LINK,
   parseArchitectureDeepLink,
   type ArchitectureDeepLinkState,
-} from '@/modules/architecture/architectureDeepLink';
+} from '@/modules/architecture/render/architectureDeepLink';
 
 /**
  * The standalone architecture page's deep link.

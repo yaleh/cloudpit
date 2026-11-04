@@ -1,11 +1,11 @@
-export { default as ArchitecturePanel } from '@/modules/architecture/ArchitecturePanel';
-export { useArchitectureGraph } from '@/modules/architecture/useArchitectureGraph';
+export { default as ArchitecturePanel } from '@/modules/architecture/render/ArchitecturePanel';
+export { useArchitectureGraph } from '@/modules/architecture/dom/useArchitectureGraph';
 export type {
   ArchitectureGraphResult,
   ArchitectureGraphStats,
   ArchitectureProvenance,
   ArchitectureView,
-} from '@/modules/architecture/useArchitectureGraph';
+} from '@/modules/architecture/dom/useArchitectureGraph';
 export {
   isArchitectureTabVisible,
   useEnsureArchitectureTabVisible,
@@ -16,4 +16,4 @@ export {
  * input" / focus requests, and `App`'s standalone route asks the open
  * workspace tab to come forward before navigating a new copy.
  */
-export { requestArchitectureSessionFocus, useArchitectureChatBridge } from '@/modules/architecture/architectureChatBridge';
+export { requestArchitectureSessionFocus, useArchitectureChatBridge } from '@/modules/architecture/render/architectureChatBridge';

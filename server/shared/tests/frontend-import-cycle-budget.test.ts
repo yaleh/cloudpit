@@ -12,6 +12,11 @@
  * now read across four cockpit directories plus project-workspace; the group was re-measured and
  * re-pinned member-for-member rather than dropped. This is the mandated re-read for a structural
  * split, not a widened dependency: the module-level SCC below is unchanged.
+ * RE-READ 2026-11-04 (task gap-routine-architecture-analysis-god-package-src-architecture): the
+ * architecture god-package split moved every implementation file out of `modules/architecture`
+ * into the `render/`, `layout/` and `dom/` leaves, leaving the root as the barrel. The former
+ * `architecture <-> architecture/hooks` dependency now runs root -> hooks -> dom, so that group
+ * was re-measured and LOWERED out of the pin; no new group or member appeared.
  * The backend already had AC-394's directory budget, but `src` had no cycle criterion and
  * `.oxlintrc.json` enables no `import/no-cycle`, so those five could widen unmeasured.
  *
@@ -22,7 +27,7 @@
  * THE RATCHET: the groups below may only SHRINK. A shrink is recorded by lowering this
  * constant AND the committed baseline JSON; the two must name the same groups, so a wider
  * cycle cannot be blessed by editing the JSON alone. A new non-trivial SCC — or a new
- * member joining one of the five — reds this file on the first commit that carries it.
+ * member joining one of the pinned groups — reds this file on the first commit that carries it.
  *
  * The counts in the JSON are PROVENANCE (re-measured on the date named there), not a gate:
  * a new acyclic import is ordinary feature work and must not red this criterion. What IS
@@ -68,7 +73,8 @@ const CYCLE_GROUPS: readonly string[][] = [
   // directories share one dependency web with the root barrel and project-workspace.
   ['modules/cockpit', 'modules/cockpit/cards', 'modules/cockpit/hooks', 'modules/cockpit/workspace', 'modules/project-workspace'],
   ['modules/git-panel', 'modules/git-panel/changes', 'modules/git-panel/history'],
-  ['modules/architecture', 'modules/architecture/hooks'],
+  // Lowered 2026-11-04 (architecture god-package split): the root <-> hooks edge now runs
+  // through the leaves (root -> hooks -> dom), so this group no longer exists.
   ['modules/settings/hooks', 'modules/settings/tabs'],
 ];
 
@@ -189,7 +195,7 @@ function scanFixture(files: Record<string, string>): Graph {
   return scanImportGraph(sources, { includeDynamic: false });
 }
 
-test('the current src tree carries exactly the five pinned directory cycles', () => {
+test('the current src tree carries exactly the pinned directory cycles', () => {
   const sources = collectTypeScriptSources(SRC_DIR);
   const graph = scanImportGraph(sources, { includeDynamic: false });
 

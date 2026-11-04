@@ -13,7 +13,7 @@ import {
   readCurationState,
   type ArchitectureCurationItem,
   type CurationStorageLike,
-} from '@/modules/architecture/curationStore';
+} from '@/modules/architecture/dom/curationStore';
 
 /**
  * The manual-curation store (pins / removals / hidden relations).

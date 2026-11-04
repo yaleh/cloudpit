@@ -13,8 +13,8 @@ import {
   memberDisplayLimits,
   memberOverflowLabel,
   seedMarkerMode,
-} from '@/modules/architecture/archguardToPlantUml';
-import { createLayoutEngine } from '@/modules/architecture/elkAspectEngine';
+} from '@/modules/architecture/layout/archguardToPlantUml';
+import { createLayoutEngine } from '@/modules/architecture/layout/elkAspectEngine';
 import {
   NODE_SIZE_ENTITIES,
   nodeSizeEntityGraph,
@@ -23,11 +23,11 @@ import {
 import {
   applyFilter,
   ARCHITECTURE_DEFAULT_FILTER,
-} from '@/modules/architecture/elementRelationFilter';
+} from '@/modules/architecture/dom/elementRelationFilter';
 import type {
   ArchitectureNeighborhood,
   ArchitectureNeighborhoodNode,
-} from '@/modules/architecture/useArchitectureGraph';
+} from '@/modules/architecture/dom/useArchitectureGraph';
 
 /**
  * The bridge's package emission.

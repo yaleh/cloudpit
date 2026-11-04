@@ -8,15 +8,15 @@ import {
   clampArchitectureScope,
   rankArchitectureDetail,
   type ArchitectureDetailTier,
-} from '@/modules/architecture/detailRanking';
+} from '@/modules/architecture/dom/detailRanking';
 import {
   applyFilter,
   ARCHITECTURE_DEFAULT_FILTER,
-} from '@/modules/architecture/elementRelationFilter';
+} from '@/modules/architecture/dom/elementRelationFilter';
 import type {
   ArchitectureRendererEdge,
   ArchitectureRendererNode,
-} from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/dom/rendererContract';
 
 /**
  * The detail knob's pure core: given one scope's graph and a tier, which nodes

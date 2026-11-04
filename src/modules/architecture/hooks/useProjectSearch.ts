@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ArchitectureEntityKind } from '@/modules/architecture/rendererContract';
+import type { ArchitectureEntityKind } from '@/modules/architecture/dom/rendererContract';
 import { api, readApiJson } from '@/shared/api';
 
 /** One project-wide search hit: everything a pin needs to be stored. */

@@ -1,5 +1,5 @@
-import { archguardToPlantUml } from '@/modules/architecture/archguardToPlantUml';
-import type { ArchitectureRendererGraph } from '@/modules/architecture/rendererContract';
+import { archguardToPlantUml } from '@/modules/architecture/layout/archguardToPlantUml';
+import type { ArchitectureRendererGraph } from '@/modules/architecture/dom/rendererContract';
 
 /**
  * Small, REAL-SHAPE PlantUML fixtures for the layout criteria.

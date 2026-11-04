@@ -18,13 +18,13 @@ import assert from 'node:assert/strict';
 
 import { describe, it } from 'vitest';
 
-import { EXPORT_PNG_MAX_EDGE } from '@/modules/architecture/exportArtifacts';
+import { EXPORT_PNG_MAX_EDGE } from '@/modules/architecture/render/exportArtifacts';
 import {
   createArchitectureFitExportController,
   type ArchitectureFitExportController,
   type ArchitectureFitExportDeps,
-} from '@/modules/architecture/architectureFitExportController';
-import type { ArchitectureDrawnPlantUml } from '@/modules/architecture/rendererContract';
+} from '@/modules/architecture/render/architectureFitExportController';
+import type { ArchitectureDrawnPlantUml } from '@/modules/architecture/dom/rendererContract';
 
 type Frame = { callback: () => void };
 
