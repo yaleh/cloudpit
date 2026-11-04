@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-src-sidebar
 title: "architecture-analysis: archguard flags modules/sidebar at 25 files (>=
   minFiles 20) / 24 entities with fanOut 133; the 1343-line useSidebarController
   hook is the concrete reducible"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
