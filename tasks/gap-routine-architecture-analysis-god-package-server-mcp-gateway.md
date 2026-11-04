@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-mcp-gateway
 title: "architecture-analysis: archguard scope server flags modules/mcp-gateway
   on all four thresholds: 49 files / 137 entities (fresh CLI package-stats) with
   fanIn 32 / fanOut 393 and 17,"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
