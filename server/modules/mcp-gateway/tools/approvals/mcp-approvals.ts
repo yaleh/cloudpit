@@ -55,9 +55,9 @@ import type {
   McpPendingInteraction,
 } from '@/shared/mcp-contract/index.js';
 
-import { MCP_CORRELATION_ID_DESCRIPTION, MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+import { MCP_CORRELATION_ID_DESCRIPTION, MCP_CORRELATION_ID_INPUT_FIELD } from '../shared/mcp-correlation-id.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
 
 // Position within AC-243's single scope vocabulary, in the order the constant
 // declares and `access-token-scopes.test.ts` pins: read, session:send,

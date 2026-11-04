@@ -88,10 +88,10 @@ import type {
   McpRunSummary,
   McpSessionLifecycle,
   McpSessionLookupRow,
-} from './mcp-read-contract.js';
-import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from './mcp-correlation-id.js';
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import { overviewOutputSchema } from './mcp-tool-schemas.js';
+} from '../shared/mcp-read-contract.js';
+import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from '../shared/mcp-correlation-id.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
+import { overviewOutputSchema } from '../shared/mcp-tool-schemas.js';
 import {
   MCP_USAGE_STATS_DESCRIPTION,
   MCP_USAGE_STATS_INPUT_SCHEMA,
@@ -99,8 +99,8 @@ import {
   MCP_USAGE_STATS_TOOL_NAME,
   runMcpUsageStats,
 } from './mcp-usage-stats.js';
-import { toPendingInteraction } from './mcp-approvals.js';
-import type { McpApprovalPending } from './mcp-approvals.js';
+import { toPendingInteraction } from '../approvals/mcp-approvals.js';
+import type { McpApprovalPending } from '../approvals/mcp-approvals.js';
 import { MCP_CHANGES_INPUT_SCHEMA, MCP_CHANGES_OUTPUT_SCHEMA } from './mcp-changes.js';
 
 // --------------------------- the stage-3 tool table ---------------------------
@@ -1216,4 +1216,4 @@ export type {
   McpReadToolSeam,
   McpRunningRun,
   McpRunSummary,
-} from './mcp-read-contract.js';
+} from '../shared/mcp-read-contract.js';

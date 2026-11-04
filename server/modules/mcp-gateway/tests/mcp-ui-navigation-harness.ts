@@ -39,9 +39,9 @@ import type {
   UiNavigationAck,
   UiNavigationRecord,
 } from '@/shared/types.js';
-import type { McpPrincipal } from '../mcp-gateway.auth.js';
-import type { UiNavigationRateLimiter, UiNavigationToolDeps } from '../mcp-ui-navigation.js';
-import type { McpUiVisibleContextDeps } from '../mcp-ui-visible-context.js';
+import type { McpPrincipal } from '../tools/shared/mcp-gateway.auth.js';
+import type { UiNavigationRateLimiter, UiNavigationToolDeps } from '../tools/ui/mcp-ui-navigation.js';
+import type { McpUiVisibleContextDeps } from '../tools/read/mcp-ui-visible-context.js';
 import type { UiNavigationService } from '@/modules/websocket/index.js';
 
 // `auth.middleware.ts` resolves the JWT secret at module-load time and
@@ -66,8 +66,8 @@ export const {
   UI_NAVIGATION_MAX_RECORDS,
   UI_NAVIGATION_RETENTION_MS,
 } = await import('@/modules/websocket/index.js');
-export const { buildUiVisibleContext } = await import('../mcp-ui-visible-context.js');
-export const { MCP_ERROR_CODES, McpToolError } = await import('../mcp-error-envelope.js');
+export const { buildUiVisibleContext } = await import('../tools/read/mcp-ui-visible-context.js');
+export const { MCP_ERROR_CODES, McpToolError } = await import('../tools/shared/mcp-error-envelope.js');
 export const { MCP_GATEWAY_PATH, MCP_STAGE4_WRITE_TOOLS, mountMcpGateway } = await import('../index.js');
 // The ONE principal-name resolution and its fixed labels, imported so a criterion
 // can assert the bar's requester is that resolution's output, not a test-local echo.

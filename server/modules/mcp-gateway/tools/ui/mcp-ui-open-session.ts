@@ -31,9 +31,9 @@ import { z } from 'zod';
 
 import type { UiNavigationPosition } from '@/shared/types.js';
 
-import { MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpWriteToolSeam } from './mcp-write-contract.js';
+import { MCP_CORRELATION_ID_INPUT_FIELD } from '../shared/mcp-correlation-id.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
+import type { McpWriteToolSeam } from '../shared/mcp-write-contract.js';
 import {
   buildUiNavigation,
   createUiNavigationRateLimiter,

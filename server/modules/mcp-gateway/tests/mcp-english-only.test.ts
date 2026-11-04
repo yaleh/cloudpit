@@ -1177,10 +1177,32 @@ function extractStringLiterals(source: string): SourceLiteral[] {
  */
 const EXCLUDED_SOURCES = new Set(['mcp-write-notification.ts', 'mcp-client-name.ts']);
 
+/**
+ * Recursively collects the module's production `.ts` sources.
+ *
+ * The gateway's tool implementations now live under `tools/<family>/`
+ * (god-package split `gap-routine-architecture-analysis-god-package-server-mcp-gateway`),
+ * so a non-recursive read of the package root would silently stop scanning two
+ * thirds of the caller-facing copy. `tests/` is pruned (a test may legitimately
+ * quote a CJK fixture). The non-vacuity floor below keeps this honest.
+ */
+function collectModuleSources(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (entry.name === 'tests') continue;
+      out.push(...collectModuleSources(path.join(dir, entry.name)));
+      continue;
+    }
+    if (entry.name.endsWith('.ts') && !EXCLUDED_SOURCES.has(entry.name)) {
+      out.push(path.join(dir, entry.name));
+    }
+  }
+  return out;
+}
+
 const SCANNED_SOURCES = [
-  ...readdirSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
-    .filter((entry) => entry.endsWith('.ts') && !EXCLUDED_SOURCES.has(entry))
-    .map((entry) => path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', entry)),
+  ...collectModuleSources(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')),
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../websocket/services/chat-control.service.ts'),
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../oauth/oauth-consent.routes.ts'),
 ];

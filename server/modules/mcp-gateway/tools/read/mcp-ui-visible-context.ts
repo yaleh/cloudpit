@@ -40,9 +40,9 @@ import type {
 } from '@/shared/types.js';
 import type { UiStateRequestOptions } from '@/modules/websocket/index.js';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
-import type { McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpReadToolSeam } from '../shared/mcp-read-contract.js';
 
 /**
  * The two readings `ui_visible_context` answers from: which devices are

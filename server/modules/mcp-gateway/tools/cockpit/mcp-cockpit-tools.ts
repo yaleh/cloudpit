@@ -53,7 +53,7 @@ import type { CockpitCardProviderDiagnostic, CockpitCardsModule } from '@/module
 import type { CockpitCard, CockpitBriefResponse } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 
 /** The four `tools/list` names this module owns. */
 export const MCP_COCKPIT_TOOL_NAMES = [

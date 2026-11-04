@@ -49,10 +49,10 @@ const {
   createUiFocusTurnRateLimiter,
   MCP_UI_FOCUS_TURN_RATE_LIMIT_PER_MINUTE,
   UI_FOCUS_TURN_RATE_WINDOW_MS,
-} = await import('../mcp-ui-focus-turn.js');
+} = await import('../tools/ui/mcp-ui-focus-turn.js');
 // The shared core's constant, so the leg below can prove the tool's limit IS
 // `ui_open_session`'s — one binding, not two copies of the number `6`.
-const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../mcp-ui-navigation.js');
+const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../tools/ui/mcp-ui-navigation.js');
 
 // =====================================================================
 // (1) device resolution and the frame

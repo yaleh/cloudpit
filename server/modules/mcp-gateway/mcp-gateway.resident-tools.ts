@@ -36,17 +36,17 @@
 
 import { ACCESS_TOKEN_SCOPES } from '@/modules/oauth/index.js';
 
-import type { McpApprovalsDeps } from './mcp-approvals.js';
-import { registerMcpApprovalTools } from './mcp-approvals.js';
-import type { McpSessionBackgroundDeps } from './mcp-session-background.js';
-import { registerMcpSessionBackgroundTool } from './mcp-session-background.js';
+import type { McpApprovalsDeps } from './tools/approvals/mcp-approvals.js';
+import { registerMcpApprovalTools } from './tools/approvals/mcp-approvals.js';
+import type { McpSessionBackgroundDeps } from './tools/sessions/mcp-session-background.js';
+import { registerMcpSessionBackgroundTool } from './tools/sessions/mcp-session-background.js';
 import type {
   McpSessionCancelQueuedDeps,
   McpSessionCancelQueuedSeam,
-} from './mcp-session-cancel-queued.js';
-import { registerMcpSessionCancelQueuedTool } from './mcp-session-cancel-queued.js';
-import type { McpSessionReconfigureDeps } from './mcp-session-reconfigure.js';
-import { registerMcpSessionReconfigureTool } from './mcp-session-reconfigure.js';
+} from './tools/sessions/mcp-session-cancel-queued.js';
+import { registerMcpSessionCancelQueuedTool } from './tools/sessions/mcp-session-cancel-queued.js';
+import type { McpSessionReconfigureDeps } from './tools/sessions/mcp-session-reconfigure.js';
+import { registerMcpSessionReconfigureTool } from './tools/sessions/mcp-session-reconfigure.js';
 
 // Position within AC-243's vocabulary, in the order the constant declares and
 // `access-token-scopes.test.ts` pins: read, session:send, session:create,

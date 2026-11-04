@@ -31,16 +31,16 @@ import { z } from 'zod';
 
 import type { UiClientDevice, UiNavigationPosition, UiNavigationRecord } from '@/shared/types.js';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
 import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
 import type {
   McpWriteToolRegistration,
   McpWriteToolSeam,
-} from './mcp-write-contract.js';
+} from '../shared/mcp-write-contract.js';
 // The gateway's ONE principal-name resolution, shared with the write
 // notifications so the name on the bar and the name an operator sees cannot drift.
-import { resolveClientName } from './mcp-client-name.js';
+import { resolveClientName } from '../shared/mcp-client-name.js';
 
 // --------------------------- the rate limit ---------------------------
 

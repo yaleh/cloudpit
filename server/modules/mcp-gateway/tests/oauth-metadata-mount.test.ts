@@ -554,7 +554,7 @@ test('(f) the loopback reader stays the only production reader of the OAuth swit
   assert.equal(production.count, 1, `production must read the switch exactly once: ${JSON.stringify(production.files)}`);
   assert.deepEqual(
     production.files,
-    ['server/modules/mcp-gateway/mcp-gateway.loopback.ts:1'],
+    ['server/modules/mcp-gateway/tools/shared/mcp-gateway.loopback.ts:1'],
     `the single production reader must be the loopback guard: ${JSON.stringify(production.files)}`,
   );
 

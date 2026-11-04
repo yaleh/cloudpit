@@ -38,8 +38,8 @@ const {
   createUiOpenTaskRateLimiter,
   MCP_UI_OPEN_TASK_RATE_LIMIT_PER_MINUTE,
   UI_OPEN_TASK_RATE_WINDOW_MS,
-} = await import('../mcp-ui-open-task.js');
-const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../mcp-ui-navigation.js');
+} = await import('../tools/ui/mcp-ui-open-task.js');
+const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../tools/ui/mcp-ui-navigation.js');
 
 // =====================================================================
 // (1) the frame carries the task target

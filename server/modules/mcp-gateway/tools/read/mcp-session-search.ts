@@ -87,9 +87,9 @@
 import { z } from 'zod';
 
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import { MCP_SESSION_SEARCH_DEFAULT_LIMIT, type McpTime, readTimeField } from '@/shared/mcp-contract/index.js';
-import type { McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpReadToolSeam } from '../shared/mcp-read-contract.js';
 
 // --------------------------- engine-facing vocabulary ---------------------------
 

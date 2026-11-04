@@ -71,16 +71,16 @@ import type {
 } from '@/modules/providers/index.js';
 import { createSessionHostManager } from '@/modules/session-hosts/index.js';
 import type { HostScheduler, SessionHostManager } from '@/modules/session-hosts/index.js';
-import { buildDraftSubmit } from '@/modules/mcp-gateway/mcp-draft.js';
-import type { McpDraftStore } from '@/modules/mcp-gateway/mcp-draft.js';
-import { McpToolError } from '@/modules/mcp-gateway/mcp-error-envelope.js';
-import type { McpPrincipal } from '@/modules/mcp-gateway/mcp-gateway.auth.js';
-import { buildRunGet } from '@/modules/mcp-gateway/mcp-run-get.js';
-import type { McpRunGetDeps } from '@/modules/mcp-gateway/mcp-run-get.js';
-import { buildSessionCreate } from '@/modules/mcp-gateway/mcp-session-lifecycle.js';
-import type { McpSessionCreateDeps } from '@/modules/mcp-gateway/mcp-session-lifecycle.js';
-import { buildSessionSend } from '@/modules/mcp-gateway/mcp-session-send.js';
-import type { McpSessionSendDeps } from '@/modules/mcp-gateway/mcp-session-send.js';
+import { buildDraftSubmit } from '@/modules/mcp-gateway/tools/sessions/mcp-draft.js';
+import type { McpDraftStore } from '@/modules/mcp-gateway/tools/sessions/mcp-draft.js';
+import { McpToolError } from '@/modules/mcp-gateway/tools/shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '@/modules/mcp-gateway/tools/shared/mcp-gateway.auth.js';
+import { buildRunGet } from '@/modules/mcp-gateway/tools/read/mcp-run-get.js';
+import type { McpRunGetDeps } from '@/modules/mcp-gateway/tools/read/mcp-run-get.js';
+import { buildSessionCreate } from '@/modules/mcp-gateway/tools/sessions/mcp-session-lifecycle.js';
+import type { McpSessionCreateDeps } from '@/modules/mcp-gateway/tools/sessions/mcp-session-lifecycle.js';
+import { buildSessionSend } from '@/modules/mcp-gateway/tools/sessions/mcp-session-send.js';
+import type { McpSessionSendDeps } from '@/modules/mcp-gateway/tools/sessions/mcp-session-send.js';
 // The websocket module's public face — the control plane, the run registry and
 // its flag predicate, and the runtime-writer contract. `$backend-module-standards`
 // requires a cross-module edge to take the barrel, and `npm run lint`'s

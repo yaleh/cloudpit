@@ -116,7 +116,7 @@ import type {
 } from '@/shared/types.js';
 import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type { CodexAppServerTransport } from '@/modules/providers/index.js';
-import type { McpSessionSteerDeps } from '../mcp-session-steer.js';
+import type { McpSessionSteerDeps } from '../tools/sessions/mcp-session-steer.js';
 
 // --------------------------------------------------------------------------
 // The environment is set BEFORE any aliased module is imported: the debug

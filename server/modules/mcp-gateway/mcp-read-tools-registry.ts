@@ -21,34 +21,34 @@
  * into the registrar.
  */
 
-import type { McpRunGetRegistration } from './mcp-run-get.js';
-import { isRunGetWired, registerMcpRunGetTool } from './mcp-run-get.js';
-import type { McpRunGetDeps } from './mcp-run-get.js';
-import type { McpOverviewDeps, McpOverviewRegistration } from './mcp-overview-tools.js';
-import { isOverviewWired, registerMcpOverviewTools } from './mcp-overview-tools.js';
-import type { McpUiLastOpenedDeps } from './mcp-ui-tools.js';
-import { isUiLastOpenedWired, registerMcpUiTools } from './mcp-ui-tools.js';
-import type { McpUiVisibleContextDeps } from './mcp-ui-visible-context.js';
+import type { McpRunGetRegistration } from './tools/read/mcp-run-get.js';
+import { isRunGetWired, registerMcpRunGetTool } from './tools/read/mcp-run-get.js';
+import type { McpRunGetDeps } from './tools/read/mcp-run-get.js';
+import type { McpOverviewDeps, McpOverviewRegistration } from './tools/read/mcp-overview-tools.js';
+import { isOverviewWired, registerMcpOverviewTools } from './tools/read/mcp-overview-tools.js';
+import type { McpUiLastOpenedDeps } from './tools/read/mcp-ui-tools.js';
+import { isUiLastOpenedWired, registerMcpUiTools } from './tools/read/mcp-ui-tools.js';
+import type { McpUiVisibleContextDeps } from './tools/read/mcp-ui-visible-context.js';
 import {
   isUiVisibleContextWired,
   registerMcpUiSelectedTextTool,
   registerMcpUiVisibleContextTool,
-} from './mcp-ui-visible-context.js';
-import type { McpUiClientsListDeps } from './mcp-ui-clients-list.js';
-import { isUiClientsListWired, registerMcpUiClientsListTool } from './mcp-ui-clients-list.js';
-import type { McpSessionSearchDeps, McpSessionSearchRegistration } from './mcp-session-search.js';
-import { isSessionSearchWired, registerMcpSessionSearchTool } from './mcp-session-search.js';
-import type { McpDraftDeps } from './mcp-draft.js';
+} from './tools/read/mcp-ui-visible-context.js';
+import type { McpUiClientsListDeps } from './tools/read/mcp-ui-clients-list.js';
+import { isUiClientsListWired, registerMcpUiClientsListTool } from './tools/read/mcp-ui-clients-list.js';
+import type { McpSessionSearchDeps, McpSessionSearchRegistration } from './tools/read/mcp-session-search.js';
+import { isSessionSearchWired, registerMcpSessionSearchTool } from './tools/read/mcp-session-search.js';
+import type { McpDraftDeps } from './tools/sessions/mcp-draft.js';
 import {
   DRAFT_GET_DESCRIPTION,
   DRAFT_GET_INPUT_SCHEMA,
   DRAFT_GET_OUTPUT_SCHEMA,
   DRAFT_GET_TOOL_NAME,
   registerMcpDraftGetTool,
-} from './mcp-draft.js';
-import type { McpChangesDeps } from './mcp-changes.js';
-import { isChangesWired, registerMcpChangesTool } from './mcp-changes.js';
-import type { McpKnowledgeFactsDeps } from './mcp-knowledge-facts.js';
+} from './tools/sessions/mcp-draft.js';
+import type { McpChangesDeps } from './tools/read/mcp-changes.js';
+import { isChangesWired, registerMcpChangesTool } from './tools/read/mcp-changes.js';
+import type { McpKnowledgeFactsDeps } from './tools/read/mcp-knowledge-facts.js';
 import {
   isKnowledgeFactsWired,
   KNOWLEDGE_FACTS_DESCRIPTION,
@@ -57,17 +57,17 @@ import {
   MCP_KNOWLEDGE_FACTS_INPUT_SCHEMA,
   MCP_KNOWLEDGE_FACTS_OUTPUT_SCHEMA,
   registerMcpKnowledgeFactsTool,
-} from './mcp-knowledge-facts.js';
-import type { McpActivityReader } from './mcp-overview-tools.js';
-import type { McpQuayRunner } from './mcp-overview-tools.js';
-import type { McpReadToolDepsBase, McpReadToolSeam } from './mcp-read-contract.js';
-import type { McpUiLastOpenedStore } from './mcp-ui-tools.js';
+} from './tools/read/mcp-knowledge-facts.js';
+import type { McpActivityReader } from './tools/read/mcp-overview-tools.js';
+import type { McpQuayRunner } from './tools/read/mcp-overview-tools.js';
+import type { McpReadToolDepsBase, McpReadToolSeam } from './tools/shared/mcp-read-contract.js';
+import type { McpUiLastOpenedStore } from './tools/read/mcp-ui-tools.js';
 import {
   MCP_STAGE3_READ_TOOLS,
   READ_SCOPE,
   TOOL_BODIES,
-} from './mcp-gateway.read-tools.js';
-import type { McpReadToolBody, McpStage3ReadToolName } from './mcp-gateway.read-tools.js';
+} from './tools/read/mcp-gateway.read-tools.js';
+import type { McpReadToolBody, McpStage3ReadToolName } from './tools/read/mcp-gateway.read-tools.js';
 
 /**
  * Everything `registerMcpReadTools` reads: the services the four implemented

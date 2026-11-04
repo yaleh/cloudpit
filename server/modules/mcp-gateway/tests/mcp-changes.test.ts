@@ -67,7 +67,7 @@ import { z } from 'zod';
 // module is loaded and every application module below comes in dynamically.
 process.env.JWT_SECRET = 'mcp-changes-test-secret';
 
-import type { McpChangesDeps, McpChangesEvent, McpChangesPayload } from '../mcp-changes.js';
+import type { McpChangesDeps, McpChangesEvent, McpChangesPayload } from '../tools/read/mcp-changes.js';
 import type { McpReadToolDeps, McpReadToolRegistration } from '../index.js';
 
 const {
@@ -80,7 +80,7 @@ const {
   encodeChangesCursor,
   isChangesWired,
   readChangesInput,
-} = await import('../mcp-changes.js');
+} = await import('../tools/read/mcp-changes.js');
 const { MCP_ERROR_CODES, MCP_STAGE3_READ_TOOLS, MCP_TOOL_NOT_IMPLEMENTED_CODE, registerMcpReadTools } = await import(
   '../index.js'
 );

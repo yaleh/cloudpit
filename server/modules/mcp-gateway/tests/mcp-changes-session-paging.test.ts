@@ -54,9 +54,9 @@ import test from 'node:test';
 process.env.JWT_SECRET = 'mcp-changes-session-paging-test-secret';
 delete process.env.VITE_IS_PLATFORM;
 
-import type { McpChangesDeps, McpChangesPayload } from '../mcp-changes.js';
+import type { McpChangesDeps, McpChangesPayload } from '../tools/read/mcp-changes.js';
 
-const { buildChanges, decodeChangesCursor, readChangesInput } = await import('../mcp-changes.js');
+const { buildChanges, decodeChangesCursor, readChangesInput } = await import('../tools/read/mcp-changes.js');
 const { closeConnection, initializeDatabase, projectsDb, sessionsDb } = await import('@/modules/database/index.js');
 
 // --------------------------- fixture ---------------------------

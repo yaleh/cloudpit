@@ -28,7 +28,7 @@
  */
 import { z } from 'zod';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 import {
   KNOWLEDGE_FACT_KINDS,
@@ -38,7 +38,7 @@ import {
   type KnowledgeFactQuery,
   type KnowledgeFactReading,
 } from '@/shared/knowledge-facts.js';
-import type { McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpReadToolSeam } from '../shared/mcp-read-contract.js';
 
 /** The tool name on the wire. */
 export const KNOWLEDGE_FACTS_TOOL_NAME = 'knowledge_facts';

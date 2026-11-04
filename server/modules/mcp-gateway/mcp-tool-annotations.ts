@@ -82,10 +82,10 @@
 
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
-import type { McpStage3ReadToolName } from './mcp-gateway.read-tools.js';
+import type { McpStage3ReadToolName } from './tools/read/mcp-gateway.read-tools.js';
 import type { McpStage6ResidentToolName } from './mcp-gateway.resident-tools.js';
 import type { McpStage4WriteToolName } from './mcp-gateway.write-tools.js';
-import type { McpCockpitToolName } from './mcp-cockpit-tools.js';
+import type { McpCockpitToolName } from './tools/cockpit/mcp-cockpit-tools.js';
 
 /**
  * Every tool name the gateway can register, derived from the three tables so a

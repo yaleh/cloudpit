@@ -28,13 +28,13 @@ export type { McpGatewayDeps, McpGatewayReading } from './mcp-gateway.transport.
 export { createMcpGatewayModule } from './mcp-gateway.transport.js';
 export type { McpGatewayModuleDeps } from './mcp-gateway.transport.js';
 
-export { createMcpAuthMiddleware, readMcpPrincipal } from './mcp-gateway.auth.js';
+export { createMcpAuthMiddleware, readMcpPrincipal } from './tools/shared/mcp-gateway.auth.js';
 export type {
   McpAuthMiddlewareOptions,
   McpOauthSeam,
   McpOauthVerification,
   McpPrincipal,
-} from './mcp-gateway.auth.js';
+} from './tools/shared/mcp-gateway.auth.js';
 
 // The audit surface (AC-244): `withMcpAudit` wraps a tool so every call writes
 // exactly one `mcp_audit_log` row; `summarizeToolArgs` reduces arguments to a
@@ -104,16 +104,16 @@ export {
   McpToolError,
   toMcpErrorResult,
   unknownToolResult,
-} from './mcp-error-envelope.js';
+} from './tools/shared/mcp-error-envelope.js';
 export type {
   McpErrorCode,
   McpErrorDescriptor,
   McpErrorDetails,
   McpErrorEnvelope,
   McpInvalidField,
-} from './mcp-error-envelope.js';
+} from './tools/shared/mcp-error-envelope.js';
 
-export { createMcpLoopbackGuard, isLoopbackRemoteAddress, readMcpOauthEnabled } from './mcp-gateway.loopback.js';
+export { createMcpLoopbackGuard, isLoopbackRemoteAddress, readMcpOauthEnabled } from './tools/shared/mcp-gateway.loopback.js';
 
 // The OAuth discovery documents (AC-262): `readOAuthMetadataGate` / `readMcpDcrMode`
 // decide, `mountOAuthMetadata` attaches. `server/index.ts` mounts it (and logs the
@@ -151,8 +151,8 @@ export {
   MCP_TEXT_CHUNK_CHARS,
   MCP_TOOL_NOT_IMPLEMENTED_CODE,
   paginateMcpText,
-} from './mcp-gateway.read-tools.js';
-export type { McpReadToolRegistration, McpReadToolSeam, McpTime } from './mcp-gateway.read-tools.js';
+} from './tools/read/mcp-gateway.read-tools.js';
+export type { McpReadToolRegistration, McpReadToolSeam, McpTime } from './tools/read/mcp-gateway.read-tools.js';
 // The REGISTRAR (and the full deps bag it reads) lives above the tool modules
 // in `mcp-read-tools-registry.js` — proposal stage 2 inverted the aggregation
 // edge so no implementation imports back into the table.
@@ -180,7 +180,7 @@ export {
   overviewOutputSchema,
   registerMcpOverviewTools,
   UNKNOWN_QUAY_NOTE,
-} from './mcp-overview-tools.js';
+} from './tools/read/mcp-overview-tools.js';
 export type {
   McpActivityReader,
   McpOverviewAwaiting,
@@ -196,7 +196,7 @@ export type {
   McpQuaySnapshotPayload,
   McpQuaySnapshotReading,
   OverviewPayload,
-} from './mcp-overview-tools.js';
+} from './tools/read/mcp-overview-tools.js';
 
 // The run-by-id tool (AC-248). `buildRunGet` reads one run by id and waits a
 // BOUNDED time for it to settle (terminal / `awaitingPermission` / timeout),
@@ -213,7 +213,7 @@ export {
   isRunGetWired,
   MCP_RUN_GET_MAX_WAIT_SECONDS,
   registerMcpRunGetTool,
-} from './mcp-run-get.js';
+} from './tools/read/mcp-run-get.js';
 export type {
   McpRunGetDeps,
   McpRunGetFallback,
@@ -224,7 +224,7 @@ export type {
   McpRunGetOutcome,
   McpRunGetRegistration,
   RunGetPayload,
-} from './mcp-run-get.js';
+} from './tools/read/mcp-run-get.js';
 
 // The browser last-opened-session tool (gap-mcp-ui-last-opened-session).
 // `buildUiLastOpened` answers the session the UI last opened — `session_get`'s
@@ -233,8 +233,8 @@ export type {
 // pointer seam `server/index.ts` binds to `uiLastOpenedSessionService.readLastOpened`;
 // `isUiLastOpenedWired` is the branch `registerMcpReadTools` takes between the
 // real handler and the named refusal.
-export { buildUiLastOpened, isUiLastOpenedWired, registerMcpUiTools } from './mcp-ui-tools.js';
-export type { McpUiLastOpenedDeps, McpUiLastOpenedReading, McpUiLastOpenedStore } from './mcp-ui-tools.js';
+export { buildUiLastOpened, isUiLastOpenedWired, registerMcpUiTools } from './tools/read/mcp-ui-tools.js';
+export type { McpUiLastOpenedDeps, McpUiLastOpenedReading, McpUiLastOpenedStore } from './tools/read/mcp-ui-tools.js';
 
 // The visible-context tool (gap-mcp-ui-visible-context). `buildUiVisibleContext`
 // asks the connected browsers what they are showing — over the websocket
@@ -250,13 +250,13 @@ export {
   buildUiVisibleContext,
   isUiVisibleContextWired,
   registerMcpUiVisibleContextTool,
-} from './mcp-ui-visible-context.js';
+} from './tools/read/mcp-ui-visible-context.js';
 export type {
   McpUiVisibleContextDeps,
   McpUiVisibleContextInput,
   McpUiVisibleContextRegistration,
   UiVisibleContextPayload,
-} from './mcp-ui-visible-context.js';
+} from './tools/read/mcp-ui-visible-context.js';
 
 // The connected-clients listing tool (gap-mcp-ui-clients-list). `buildUiClientsList`
 // enumerates the connected browsers with each device's tabs, navigation policy and
@@ -271,14 +271,14 @@ export {
   buildUiClientsList,
   isUiClientsListWired,
   registerMcpUiClientsListTool,
-} from './mcp-ui-clients-list.js';
+} from './tools/read/mcp-ui-clients-list.js';
 export type {
   McpUiClientsListDeps,
   McpUiClientsListRegistration,
   UiClientsListDevice,
   UiClientsListPayload,
   UiClientsListTab,
-} from './mcp-ui-clients-list.js';
+} from './tools/read/mcp-ui-clients-list.js';
 
 // The conversation-search tool (gap-mcp-session-search). `buildSessionSearch`
 // answers "which sessions mention this phrase" across every project: it runs the
@@ -295,7 +295,7 @@ export {
   isSessionSearchWired,
   registerMcpSessionSearchTool,
   sessionMatchScore,
-} from './mcp-session-search.js';
+} from './tools/read/mcp-session-search.js';
 export type {
   McpSessionSearchDeps,
   McpSessionSearchHit,
@@ -303,7 +303,7 @@ export type {
   McpSessionSearchMatchReading,
   McpSessionSearchPayload,
   McpSessionSearchRegistration,
-} from './mcp-session-search.js';
+} from './tools/read/mcp-session-search.js';
 
 // The open-session tool (gap-mcp-ui-open-session). `buildUiOpenSession` resolves
 // ONE connected browser (an exact `deviceId`, or a unique id/name substring; a
@@ -325,7 +325,7 @@ export {
   UI_OPEN_SESSION_INPUT_SCHEMA,
   UI_OPEN_SESSION_OUTPUT_SCHEMA,
   UI_OPEN_SESSION_RATE_WINDOW_MS,
-} from './mcp-ui-open-session.js';
+} from './tools/ui/mcp-ui-open-session.js';
 export type {
   McpUiOpenSessionDeps,
   McpUiOpenSessionInput,
@@ -333,7 +333,7 @@ export type {
   UiOpenSessionPayload,
   UiOpenSessionRateLimiter,
   UiOpenSessionRateLimiterOptions,
-} from './mcp-ui-open-session.js';
+} from './tools/ui/mcp-ui-open-session.js';
 
 // The shared navigation core (gap-mcp-ui-focus-turn-show-diff-open-task): the ONE
 // body every `ui_*` tool runs (throttle → device resolution → `ui.navigate` →
@@ -349,7 +349,7 @@ export {
   resolveUiNavigationDevice,
   UI_NAVIGATION_OUTPUT_SCHEMA,
   UI_NAVIGATION_RATE_WINDOW_MS,
-} from './mcp-ui-navigation.js';
+} from './tools/ui/mcp-ui-navigation.js';
 export type {
   McpUiNavigationRegistration,
   UiNavigationRateLimiter,
@@ -358,7 +358,7 @@ export type {
   UiNavigationToolInput,
   UiNavigationToolOptions,
   UiNavigationToolPayload,
-} from './mcp-ui-navigation.js';
+} from './tools/ui/mcp-ui-navigation.js';
 
 // The three sibling navigation tools (gap-mcp-ui-focus-turn-show-diff-open-task):
 // `ui_focus_turn` (focus one turn), `ui_show_diff` (reveal a file's diff) and
@@ -375,7 +375,7 @@ export {
   UI_FOCUS_TURN_INPUT_SCHEMA,
   UI_FOCUS_TURN_OUTPUT_SCHEMA,
   UI_FOCUS_TURN_RATE_WINDOW_MS,
-} from './mcp-ui-focus-turn.js';
+} from './tools/ui/mcp-ui-focus-turn.js';
 export type {
   McpUiFocusTurnDeps,
   McpUiFocusTurnInput,
@@ -383,7 +383,7 @@ export type {
   UiFocusTurnPayload,
   UiFocusTurnRateLimiter,
   UiFocusTurnRateLimiterOptions,
-} from './mcp-ui-focus-turn.js';
+} from './tools/ui/mcp-ui-focus-turn.js';
 export {
   buildUiShowDiff,
   createUiShowDiffRateLimiter,
@@ -394,7 +394,7 @@ export {
   UI_SHOW_DIFF_INPUT_SCHEMA,
   UI_SHOW_DIFF_OUTPUT_SCHEMA,
   UI_SHOW_DIFF_RATE_WINDOW_MS,
-} from './mcp-ui-show-diff.js';
+} from './tools/ui/mcp-ui-show-diff.js';
 export type {
   McpUiShowDiffDeps,
   McpUiShowDiffInput,
@@ -402,7 +402,7 @@ export type {
   UiShowDiffPayload,
   UiShowDiffRateLimiter,
   UiShowDiffRateLimiterOptions,
-} from './mcp-ui-show-diff.js';
+} from './tools/ui/mcp-ui-show-diff.js';
 export {
   buildUiOpenTask,
   createUiOpenTaskRateLimiter,
@@ -413,7 +413,7 @@ export {
   UI_OPEN_TASK_INPUT_SCHEMA,
   UI_OPEN_TASK_OUTPUT_SCHEMA,
   UI_OPEN_TASK_RATE_WINDOW_MS,
-} from './mcp-ui-open-task.js';
+} from './tools/ui/mcp-ui-open-task.js';
 export type {
   McpUiOpenTaskDeps,
   McpUiOpenTaskInput,
@@ -421,7 +421,7 @@ export type {
   UiOpenTaskPayload,
   UiOpenTaskRateLimiter,
   UiOpenTaskRateLimiterOptions,
-} from './mcp-ui-open-task.js';
+} from './tools/ui/mcp-ui-open-task.js';
 
 // The stage-4 write tools (AC-249). `MCP_STAGE4_WRITE_TOOLS` is the one
 // statement of which write tools exist and the scope each requires — the
@@ -438,14 +438,6 @@ export type {
 export {
   MCP_STAGE4_WRITE_TOOLS,
   registerMcpWriteTools,
-  UI_FOCUS_TURN_DESCRIPTION,
-  UI_FOCUS_TURN_TOOL_NAME,
-  UI_OPEN_SESSION_DESCRIPTION,
-  UI_OPEN_SESSION_TOOL_NAME,
-  UI_OPEN_TASK_DESCRIPTION,
-  UI_OPEN_TASK_TOOL_NAME,
-  UI_SHOW_DIFF_DESCRIPTION,
-  UI_SHOW_DIFF_TOOL_NAME,
 } from './mcp-gateway.write-tools.js';
 export type {
   McpStage4WriteToolName,
@@ -454,7 +446,14 @@ export type {
   McpWriteToolSeam,
 } from './mcp-gateway.write-tools.js';
 
-export { buildSessionSend, readSessionSendInput, SESSION_SEND_INPUT_SCHEMA } from './mcp-session-send.js';
+// UI-navigation metadata + aggregate registrar (tools/ui/, the family owns it).
+export {
+  registerMcpUiNavigationTools, UI_FOCUS_TURN_DESCRIPTION, UI_FOCUS_TURN_TOOL_NAME,
+  UI_OPEN_SESSION_DESCRIPTION, UI_OPEN_SESSION_TOOL_NAME, UI_OPEN_TASK_DESCRIPTION,
+  UI_OPEN_TASK_TOOL_NAME, UI_SHOW_DIFF_DESCRIPTION, UI_SHOW_DIFF_TOOL_NAME,
+} from './tools/ui/mcp-ui-navigation-tools.js';
+
+export { buildSessionSend, readSessionSendInput, SESSION_SEND_INPUT_SCHEMA } from './tools/sessions/mcp-session-send.js';
 export type {
   McpControlCaller,
   McpControlRefusalCode,
@@ -466,7 +465,7 @@ export type {
   McpSessionSendDeps,
   McpSessionSendInput,
   SessionSendPayload,
-} from './mcp-session-send.js';
+} from './tools/sessions/mcp-session-send.js';
 
 // The composer-draft tools (gap-mcp-draft-get-set-submit): the read/get half is
 // registered by `registerMcpReadTools`, the write halves by
@@ -494,7 +493,7 @@ export {
   registerMcpDraftGetTool,
   registerMcpDraftSetTool,
   registerMcpDraftSubmitTool,
-} from './mcp-draft.js';
+} from './tools/sessions/mcp-draft.js';
 export type {
   McpDraftDeps,
   McpDraftGetInput,
@@ -504,7 +503,7 @@ export type {
   McpDraftStore,
   McpDraftSubmitDeps,
   McpDraftSubmitInput,
-} from './mcp-draft.js';
+} from './tools/sessions/mcp-draft.js';
 
 // The session lifecycle write tools (AC-250). `buildSessionCreate` creates a
 // session through the real `sessionsService.createAppSession` and, only for a
@@ -525,7 +524,7 @@ export {
   readSessionInterruptInput,
   SESSION_CREATE_INPUT_SCHEMA,
   SESSION_INTERRUPT_INPUT_SCHEMA,
-} from './mcp-session-lifecycle.js';
+} from './tools/sessions/mcp-session-lifecycle.js';
 export type {
   McpControlAbortResult,
   McpControlAbortSeam,
@@ -536,7 +535,7 @@ export type {
   McpSessionInterruptInput,
   SessionCreatePayload,
   SessionInterruptPayload,
-} from './mcp-session-lifecycle.js';
+} from './tools/sessions/mcp-session-lifecycle.js';
 
 // The resident host control write tools (AC-251). `buildSessionStart` starts a
 // session's resident host by delegating to the session-hosts module's
@@ -567,7 +566,7 @@ export {
   SESSION_CLOSE_INPUT_SCHEMA,
   SESSION_HAS_ACTIVE_LEASES_CODE,
   SESSION_START_INPUT_SCHEMA,
-} from './mcp-session-host-control.js';
+} from './tools/sessions/mcp-session-host-control.js';
 export type {
   McpSessionCloseInput,
   McpSessionHostControl,
@@ -575,7 +574,7 @@ export type {
   McpSessionStartInput,
   SessionClosePayload,
   SessionStartPayload,
-} from './mcp-session-host-control.js';
+} from './tools/sessions/mcp-session-host-control.js';
 
 // The production assemblies for the three optional session-write deps (AC-278).
 // `buildSessionCreateDeps` / `buildSessionInterruptDeps` turn the composition
@@ -585,8 +584,8 @@ export type {
 // above. `server/index.ts` hands all three to `createMcpGatewayModule`, and the
 // AC-278 criterion drives the SAME builders so it reads the production assembly
 // path rather than a second, test-only one.
-export { buildSessionCreateDeps, buildSessionInterruptDeps } from './mcp-session-write-deps.js';
-export type { McpSessionCreateWiring, McpSessionInterruptWiring } from './mcp-session-write-deps.js';
+export { buildSessionCreateDeps, buildSessionInterruptDeps } from './tools/sessions/mcp-session-write-deps.js';
+export type { McpSessionCreateWiring, McpSessionInterruptWiring } from './tools/sessions/mcp-session-write-deps.js';
 
 // The target-resolution surface (AC-246, extended by AC-333). `resolveMcpTarget`
 // turns a caller's project/session reference into one id — or into an explicit
@@ -624,7 +623,7 @@ export type {
 export { MCP_STAGE6_RESIDENT_TOOLS, registerMcpResidentTools } from './mcp-gateway.resident-tools.js';
 export type { McpResidentToolDeps, McpResidentToolSeam, McpStage6ResidentToolName } from './mcp-gateway.resident-tools.js';
 
-export { buildSessionCancelQueued, readSessionCancelQueuedInput, SESSION_CANCEL_QUEUED_INPUT_SCHEMA } from './mcp-session-cancel-queued.js';
+export { buildSessionCancelQueued, readSessionCancelQueuedInput, SESSION_CANCEL_QUEUED_INPUT_SCHEMA } from './tools/sessions/mcp-session-cancel-queued.js';
 export type {
   McpSessionCancelQueuedDeps,
   McpSessionCancelQueuedInput,
@@ -632,7 +631,7 @@ export type {
   McpSessionCancelQueuedSeam,
   SessionCancelQueuedOutcome,
   SessionCancelQueuedPayload,
-} from './mcp-session-cancel-queued.js';
+} from './tools/sessions/mcp-session-cancel-queued.js';
 
 // `session_reconfigure` (AC-272). `buildSessionReconfigure` records a session's
 // model/effort/permissionMode and, when the provider declares the setting live,
@@ -647,7 +646,7 @@ export {
   registerMcpSessionReconfigureTool,
   SESSION_RECONFIGURE_FIELDS,
   SESSION_RECONFIGURE_INPUT_SCHEMA,
-} from './mcp-session-reconfigure.js';
+} from './tools/sessions/mcp-session-reconfigure.js';
 export type {
   McpSessionReconfigureDeps,
   McpSessionReconfigureInput,
@@ -655,7 +654,7 @@ export type {
   McpSessionReconfigureSeam,
   SessionReconfigureField,
   SessionReconfigurePayload,
-} from './mcp-session-reconfigure.js';
+} from './tools/sessions/mcp-session-reconfigure.js';
 
 // The self-referential guard (AC-252). `buildSelfTargetGuard` is the decision the
 // write-tool dispatch point (`registerMcpWriteTools`) applies before each write
@@ -689,13 +688,13 @@ export type { SelfTargetDecision, SelfTargetDeps } from './mcp-self-target.js';
 export {
   buildSessionBackground,
   registerMcpSessionBackgroundTool,
-} from './mcp-session-background.js';
+} from './tools/sessions/mcp-session-background.js';
 export type {
   McpSessionBackgroundDeps,
   McpSessionBackgroundInput,
   SessionBackgroundPayload,
   SessionBackgroundTask,
-} from './mcp-session-background.js';
+} from './tools/sessions/mcp-session-background.js';
 
 // The approval tools (AC-274). `buildApprovalsList` lists the pending approvals
 // for a session (or every running session), expanding an `AskUserQuestion` into
@@ -711,7 +710,7 @@ export type {
 // is supplied, and `server/index.ts` supplies the one control service + a clock.
 // The two input schemas / readers are the one argument shape, shared by
 // registration and validation.
-export { buildApprovalAnswer, buildApprovalsList, registerMcpApprovalTools } from './mcp-approvals.js';
+export { buildApprovalAnswer, buildApprovalsList, registerMcpApprovalTools } from './tools/approvals/mcp-approvals.js';
 export type {
   ApprovalAnswerPayload,
   ApprovalsListPayload,
@@ -722,7 +721,7 @@ export type {
   McpApprovalQuestion,
   McpApprovalsDeps,
   McpApprovalsListInput,
-} from './mcp-approvals.js';
+} from './tools/approvals/mcp-approvals.js';
 
 // The cockpit card tools (gap-mcp-cockpit-card-tools): the four names, the two scopes the
 // registration declares (read back off `tools/list` by the criterion), and the deps bag
@@ -731,8 +730,8 @@ export {
   MCP_COCKPIT_ACT_SCOPE,
   MCP_COCKPIT_READ_SCOPE,
   MCP_COCKPIT_TOOL_NAMES,
-} from './mcp-cockpit-tools.js';
-export type { McpCockpitToolDeps } from './mcp-cockpit-tools.js';
+} from './tools/cockpit/mcp-cockpit-tools.js';
+export type { McpCockpitToolDeps } from './tools/cockpit/mcp-cockpit-tools.js';
 
 // The tool annotations (AC1–AC7). `MCP_TOOL_ANNOTATIONS` is the ONE table a
 // `tools/list` hint is written down in — every name the gateway can register,

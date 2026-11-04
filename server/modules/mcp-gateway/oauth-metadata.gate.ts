@@ -24,7 +24,7 @@
 
 import { CLOUDPIT_ACCESS_TOKEN_SCOPES } from '@/shared/mcp-contract/index.js';
 
-import { readMcpOauthEnabled } from './mcp-gateway.loopback.js';
+import { readMcpOauthEnabled } from './tools/shared/mcp-gateway.loopback.js';
 
 /**
  * The three dynamic-client-registration modes. `off` (the fail-closed default)

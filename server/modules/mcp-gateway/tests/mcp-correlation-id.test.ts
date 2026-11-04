@@ -73,7 +73,7 @@ import { chatRunRegistry, createChatRunRegistry } from '@/modules/websocket/inde
 
 import { createMcpAuthMiddleware, createMcpGatewayModule, MCP_GATEWAY_PATH, mountMcpGateway } from '../index.js';
 import type { McpReadToolDeps, McpResidentToolDeps, McpWriteToolDeps } from '../index.js';
-import { MCP_CORRELATION_ID_MAX_LENGTH } from '../mcp-correlation-id.js';
+import { MCP_CORRELATION_ID_MAX_LENGTH } from '../tools/shared/mcp-correlation-id.js';
 
 const ALICE = 1;
 /** The two labels the readings use. Both fit the declared charset and length. */

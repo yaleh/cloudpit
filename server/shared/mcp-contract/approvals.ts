@@ -1,7 +1,7 @@
 /**
  * The MCP contract's approval vocabulary.
  *
- * Re-homed from `server/modules/mcp-gateway/mcp-approvals.ts` (AC-274): the
+ * Re-homed from `server/modules/mcp-gateway/tools/approvals/mcp-approvals.ts` (AC-274): the
  * deps bag and the report shapes the two approval tools speak. They are stated
  * here so a stage-2 tool package can implement `approvals_list` /
  * `approval_answer` against the contract without importing the gateway

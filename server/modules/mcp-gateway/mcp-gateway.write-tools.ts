@@ -44,8 +44,8 @@ import { z } from 'zod';
 import { ACCESS_TOKEN_SCOPES } from '@/modules/oauth/index.js';
 import { readSessionTurn } from '@/modules/providers/index.js';
 
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import { McpToolError } from './mcp-error-envelope.js';
+import type { McpPrincipal } from './tools/shared/mcp-gateway.auth.js';
+import { McpToolError } from './tools/shared/mcp-error-envelope.js';
 import {
   DRAFT_SET_DESCRIPTION,
   DRAFT_SET_INPUT_SCHEMA,
@@ -57,18 +57,18 @@ import {
   DRAFT_SUBMIT_TOOL_NAME,
   registerMcpDraftSetTool,
   registerMcpDraftSubmitTool,
-} from './mcp-draft.js';
-import type { McpDraftDeps } from './mcp-draft.js';
+} from './tools/sessions/mcp-draft.js';
+import type { McpDraftDeps } from './tools/sessions/mcp-draft.js';
 import {
   registerMcpSessionSteerTool,
-} from './mcp-session-steer.js';
-import type { McpSessionSteerDeps } from './mcp-session-steer.js';
+} from './tools/sessions/mcp-session-steer.js';
+import type { McpSessionSteerDeps } from './tools/sessions/mcp-session-steer.js';
 import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
 import type {
   McpWriteToolRegistration,
   McpWriteToolSeam,
-} from './mcp-write-contract.js';
-import { MCP_CORRELATION_ID_DESCRIPTION } from './mcp-correlation-id.js';
+} from './tools/shared/mcp-write-contract.js';
+import { MCP_CORRELATION_ID_DESCRIPTION } from './tools/shared/mcp-correlation-id.js';
 import { buildSelfTargetGuard } from './mcp-self-target.js';
 import type { SelfTargetDeps } from './mcp-self-target.js';
 import {
@@ -78,8 +78,8 @@ import {
   readSessionInterruptInput,
   SESSION_CREATE_INPUT_SCHEMA,
   SESSION_INTERRUPT_INPUT_SCHEMA,
-} from './mcp-session-lifecycle.js';
-import type { McpSessionCreateDeps, McpSessionInterruptDeps } from './mcp-session-lifecycle.js';
+} from './tools/sessions/mcp-session-lifecycle.js';
+import type { McpSessionCreateDeps, McpSessionInterruptDeps } from './tools/sessions/mcp-session-lifecycle.js';
 import {
   buildSessionClose,
   buildSessionStart,
@@ -87,87 +87,35 @@ import {
   readSessionStartInput,
   SESSION_CLOSE_INPUT_SCHEMA,
   SESSION_START_INPUT_SCHEMA,
-} from './mcp-session-host-control.js';
-import type { McpSessionHostDeps } from './mcp-session-host-control.js';
+} from './tools/sessions/mcp-session-host-control.js';
+import type { McpSessionHostDeps } from './tools/sessions/mcp-session-host-control.js';
 import {
   buildSessionSend,
   readSessionSendInput,
   SESSION_SEND_BLOCKED_BY_SCHEMA,
   SESSION_SEND_INPUT_SCHEMA,
-} from './mcp-session-send.js';
-import type { McpSessionSendDeps } from './mcp-session-send.js';
-import {
-  isUiOpenSessionWired,
-  registerMcpUiOpenSessionTool,
-  UI_OPEN_SESSION_INPUT_SCHEMA,
-  UI_OPEN_SESSION_OUTPUT_SCHEMA,
-} from './mcp-ui-open-session.js';
-import type { McpUiOpenSessionDeps } from './mcp-ui-open-session.js';
-import {
-  isUiFocusTurnWired,
-  registerMcpUiFocusTurnTool,
-  UI_FOCUS_TURN_INPUT_SCHEMA,
-  UI_FOCUS_TURN_OUTPUT_SCHEMA,
-} from './mcp-ui-focus-turn.js';
-import type { McpUiFocusTurnDeps } from './mcp-ui-focus-turn.js';
-import {
-  isUiShowDiffWired,
-  registerMcpUiShowDiffTool,
-  UI_SHOW_DIFF_INPUT_SCHEMA,
-  UI_SHOW_DIFF_OUTPUT_SCHEMA,
-} from './mcp-ui-show-diff.js';
-import type { McpUiShowDiffDeps } from './mcp-ui-show-diff.js';
-import {
-  isUiOpenTaskWired,
-  registerMcpUiOpenTaskTool,
-  UI_OPEN_TASK_INPUT_SCHEMA,
-  UI_OPEN_TASK_OUTPUT_SCHEMA,
-} from './mcp-ui-open-task.js';
-import type { McpUiOpenTaskDeps } from './mcp-ui-open-task.js';
+} from './tools/sessions/mcp-session-send.js';
+import type { McpSessionSendDeps } from './tools/sessions/mcp-session-send.js';
+// The four `ui_*` navigation tools are registered through ONE aggregate in
+// `tools/ui/mcp-ui-navigation-tools.ts`, so this registrar keeps a single
+// dependency on that family instead of eight per-tool entity edges (which had
+// pushed its archguard out-degree past the finding's `<=20` budget).
+import { registerMcpUiNavigationTools } from './tools/ui/mcp-ui-navigation-tools.js';
+import type {
+  McpUiFocusTurnDeps,
+  McpUiOpenSessionDeps,
+  McpUiOpenTaskDeps,
+  McpUiShowDiffDeps,
+} from './tools/ui/mcp-ui-navigation-tools.js';
 
 // --------------------------- scope vocabulary ---------------------------
 
 // Positions within AC-243's vocabulary, in the order the constant declares and
 // `access-token-scopes.test.ts` pins: read, session:send, session:create,
-// session:control, approve, navigate. `navigate` was appended last so the five
-// reads above keep their index.
-const [, SESSION_SEND_SCOPE, SESSION_CREATE_SCOPE, SESSION_CONTROL_SCOPE, , NAVIGATE_SCOPE] =
+// session:control, approve, navigate. `navigate` is read by the UI-navigation
+// aggregate (`tools/ui/mcp-ui-navigation-tools.ts`), not by this table.
+const [, SESSION_SEND_SCOPE, SESSION_CREATE_SCOPE, SESSION_CONTROL_SCOPE] =
   ACCESS_TOKEN_SCOPES;
-
-/**
- * `ui_open_session`'s name and description. It is NOT one of AC-249's five — it
- * is registered alongside them by {@link registerMcpWriteTools} — but the
- * name/scope pair still lives here, next to the table, so the write-tool name set
- * has one statement.
- */
-export const UI_OPEN_SESSION_TOOL_NAME = 'ui_open_session';
-
-/** What `ui_open_session` says it does on `tools/list`. */
-export const UI_OPEN_SESSION_DESCRIPTION =
-  `Open a session in one of the connected browsers and position it, without waiting for the user. ${MCP_CORRELATION_ID_DESCRIPTION}`;
-
-/**
- * The three sibling navigation tools (gap-mcp-ui-focus-turn-show-diff-open-task).
- * Same reasoning as {@link UI_OPEN_SESSION_TOOL_NAME}: not in AC-249's five, but
- * registered alongside them, so their names live here next to the table.
- */
-export const UI_FOCUS_TURN_TOOL_NAME = 'ui_focus_turn';
-
-/** What `ui_focus_turn` says it does on `tools/list`. */
-export const UI_FOCUS_TURN_DESCRIPTION =
-  `Focus one turn inside a session in one of the connected browsers, without waiting for the user. ${MCP_CORRELATION_ID_DESCRIPTION}`;
-
-export const UI_SHOW_DIFF_TOOL_NAME = 'ui_show_diff';
-
-/** What `ui_show_diff` says it does on `tools/list`. */
-export const UI_SHOW_DIFF_DESCRIPTION =
-  `Reveal a file's diff in the Git panel of one of the connected browsers, without waiting for the user. ${MCP_CORRELATION_ID_DESCRIPTION}`;
-
-export const UI_OPEN_TASK_TOOL_NAME = 'ui_open_task';
-
-/** What `ui_open_task` says it does on `tools/list`. */
-export const UI_OPEN_TASK_DESCRIPTION =
-  `Open a task's detail in one of the connected browsers, without waiting for the user. ${MCP_CORRELATION_ID_DESCRIPTION}`;
 
 // --------------------------- the stage-4 write table ---------------------------
 
@@ -330,7 +278,7 @@ export type McpWriteToolDeps = McpSessionSendDeps & {
  * the write half of the package's file-level cycle. Re-exported here for the
  * package barrel and the transport, which name this module path.
  */
-export type { McpWriteToolRegistration, McpWriteToolSeam } from './mcp-write-contract.js';
+export type { McpWriteToolRegistration, McpWriteToolSeam } from './tools/shared/mcp-write-contract.js';
 
 /**
  * The refusal a registered-but-unowned write tool answers with. AC-250 delivers
@@ -516,46 +464,15 @@ export function registerMcpWriteTools(seam: McpWriteToolSeam, deps: McpWriteTool
     });
   }
 
-  // gap-mcp-ui-open-session: a SIXTH write tool, registered alongside the five
-  // above rather than in `MCP_STAGE4_WRITE_TOOLS` (whose length is AC-249's own
-  // pinned contract). It is deliberately NOT passed through `protect`: opening
-  // the caller's own session neither interrupts nor queues a run, so the
-  // self-target guard must not fire on it. Unwired, it keeps a named refusal so
-  // its name stays on `tools/list` for the annotation / error-code records.
-  registerMcpUiOpenSessionTool(seam, isUiOpenSessionWired(deps) ? deps.uiOpenSession : null, {
-    name: UI_OPEN_SESSION_TOOL_NAME,
-    description: UI_OPEN_SESSION_DESCRIPTION,
-    requiredScope: NAVIGATE_SCOPE,
-    inputSchema: UI_OPEN_SESSION_INPUT_SCHEMA,
-    outputSchema: UI_OPEN_SESSION_OUTPUT_SCHEMA,
-  });
-
-  // gap-mcp-ui-focus-turn-show-diff-open-task: three MORE navigation tools, each
-  // the same shape as `ui_open_session` — same scope, same throttle, same device
-  // policy — differing only in the target they reveal. Also NOT `protect`-wrapped
-  // (a reveal interrupts no run), and each keeps a named refusal when unwired so
-  // its name stays on `tools/list` for the annotation / error-code records.
-  registerMcpUiFocusTurnTool(seam, isUiFocusTurnWired(deps) ? deps.uiFocusTurn : null, {
-    name: UI_FOCUS_TURN_TOOL_NAME,
-    description: UI_FOCUS_TURN_DESCRIPTION,
-    requiredScope: NAVIGATE_SCOPE,
-    inputSchema: UI_FOCUS_TURN_INPUT_SCHEMA,
-    outputSchema: UI_FOCUS_TURN_OUTPUT_SCHEMA,
-  });
-  registerMcpUiShowDiffTool(seam, isUiShowDiffWired(deps) ? deps.uiShowDiff : null, {
-    name: UI_SHOW_DIFF_TOOL_NAME,
-    description: UI_SHOW_DIFF_DESCRIPTION,
-    requiredScope: NAVIGATE_SCOPE,
-    inputSchema: UI_SHOW_DIFF_INPUT_SCHEMA,
-    outputSchema: UI_SHOW_DIFF_OUTPUT_SCHEMA,
-  });
-  registerMcpUiOpenTaskTool(seam, isUiOpenTaskWired(deps) ? deps.uiOpenTask : null, {
-    name: UI_OPEN_TASK_TOOL_NAME,
-    description: UI_OPEN_TASK_DESCRIPTION,
-    requiredScope: NAVIGATE_SCOPE,
-    inputSchema: UI_OPEN_TASK_INPUT_SCHEMA,
-    outputSchema: UI_OPEN_TASK_OUTPUT_SCHEMA,
-  });
+  // gap-mcp-ui-open-session / gap-mcp-ui-focus-turn-show-diff-open-task: the
+  // four `ui_*` navigation tools ride ONE aggregate call. They are NOT in
+  // `MCP_STAGE4_WRITE_TOOLS` (whose length is AC-249's own pinned contract) and
+  // are NOT `protect`-wrapped: opening or revealing the caller's own session
+  // interrupts no run, so the self-target guard must not fire on them. Each
+  // unwired tool keeps a named refusal so its name stays on `tools/list` for the
+  // annotation / error-code records. The aggregate lives in `tools/ui/`, so this
+  // registrar depends on the family once rather than on eight per-tool entities.
+  registerMcpUiNavigationTools(seam, deps);
 
   // gap-mcp-draft-get-set-submit: two more write tools, registered alongside the
   // five above rather than in `MCP_STAGE4_WRITE_TOOLS` (whose length is AC-249's

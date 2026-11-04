@@ -100,6 +100,17 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/llm-gateway',
   'modules/logging',
   'modules/mcp-gateway',
+  // FOURTH RECORDED CHANGE (2026-11-04,
+  // gap-routine-architecture-analysis-god-package-server-mcp-gateway): the
+  // gateway's tool implementations moved into six `tools/<family>` subpackages
+  // (approvals / cockpit / read / sessions / shared / ui). Added here and to the
+  // JSON together, exactly as the recorded-change contract requires.
+  'modules/mcp-gateway/tools/approvals',
+  'modules/mcp-gateway/tools/cockpit',
+  'modules/mcp-gateway/tools/read',
+  'modules/mcp-gateway/tools/sessions',
+  'modules/mcp-gateway/tools/shared',
+  'modules/mcp-gateway/tools/ui',
   'modules/notices',
   'modules/notifications',
   'modules/notifications/services',

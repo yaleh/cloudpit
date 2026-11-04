@@ -55,7 +55,7 @@ import {
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../../..');
-const LOOPBACK_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/mcp-gateway.loopback.ts');
+const LOOPBACK_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/tools/shared/mcp-gateway.loopback.ts');
 
 /** The Accept a Streamable HTTP client must send; without it the transport answers 406. */
 const MCP_ACCEPT = 'application/json, text/event-stream';

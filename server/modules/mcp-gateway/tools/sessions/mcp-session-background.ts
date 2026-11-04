@@ -42,8 +42,8 @@ import { ACCESS_TOKEN_SCOPES } from '@/modules/oauth/index.js';
 import type { ControlStopTaskOutcome } from '@/modules/providers/index.js';
 import type { HostLease } from '@/shared/types.js';
 
-import { MCP_ERROR_CODES, McpScopeDeniedError, McpToolError } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+import { MCP_ERROR_CODES, McpScopeDeniedError, McpToolError } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
 import type { McpControlCaller } from './mcp-session-send.js';
 
 // Position within AC-243's single scope vocabulary, in the order the constant

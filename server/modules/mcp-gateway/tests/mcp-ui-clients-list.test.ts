@@ -30,7 +30,7 @@ import test from 'node:test';
 import type { AnyRecord, RealtimeClientConnection, UiClientDevice, UiVisibleContextReport } from '@/shared/types.js';
 import { createUiStateRequestService } from '@/modules/websocket/index.js';
 
-import { buildUiClientsList, type McpUiClientsListDeps } from '../mcp-ui-clients-list.js';
+import { buildUiClientsList, type McpUiClientsListDeps } from '../tools/read/mcp-ui-clients-list.js';
 
 /** `WebSocket.OPEN`, the readyState the round trip writes to. */
 const WS_OPEN = 1;

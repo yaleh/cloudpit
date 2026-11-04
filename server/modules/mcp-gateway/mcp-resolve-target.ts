@@ -87,7 +87,7 @@
 
 import path from 'node:path';
 
-import { McpToolError } from './mcp-error-envelope.js';
+import { McpToolError } from './tools/shared/mcp-error-envelope.js';
 import { readMcpToolAnnotations } from './mcp-tool-annotations.js';
 
 // --------------------------- the decision ---------------------------

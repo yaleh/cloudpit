@@ -40,8 +40,8 @@
 import { sessionsDb } from '@/modules/database/index.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import { resolveClientName } from './mcp-client-name.js';
+import type { McpPrincipal } from './tools/shared/mcp-gateway.auth.js';
+import { resolveClientName } from './tools/shared/mcp-client-name.js';
 import { readMcpToolAnnotations } from './mcp-tool-annotations.js';
 
 // --------------------------- the payload and its consumers ---------------------------
@@ -246,7 +246,7 @@ export type McpWriteNotificationDeps = {
  * this notification module to name a caller. Re-exported here for the gateway
  * barrel and existing consumers.
  */
-export { MCP_CLIENT_NAME_MAX_LENGTH, PERSONAL_TOKEN_LABEL, resolveClientName } from './mcp-client-name.js';
+export { MCP_CLIENT_NAME_MAX_LENGTH, PERSONAL_TOKEN_LABEL, resolveClientName } from './tools/shared/mcp-client-name.js';
 
 /**
  * The default session-title reader: the session row's display name (its

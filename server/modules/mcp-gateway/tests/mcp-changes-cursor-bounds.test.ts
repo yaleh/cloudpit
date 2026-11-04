@@ -49,7 +49,7 @@ import type {
   McpChangesBaselineStore,
   McpChangesDeps,
   McpChangesQuayTaskRow,
-} from '../mcp-changes.js';
+} from '../tools/read/mcp-changes.js';
 
 const {
   MCP_CHANGES_BASELINE_LRU_CAPACITY,
@@ -59,8 +59,8 @@ const {
   createChangesBaselineStore,
   decodeChangesCursor,
   readChangesInput,
-} = await import('../mcp-changes.js');
-const { MCP_STAGE3_READ_TOOLS } = await import('../mcp-gateway.read-tools.js');
+} = await import('../tools/read/mcp-changes.js');
+const { MCP_STAGE3_READ_TOOLS } = await import('../tools/read/mcp-gateway.read-tools.js');
 
 // --------------------------- fixture ---------------------------
 

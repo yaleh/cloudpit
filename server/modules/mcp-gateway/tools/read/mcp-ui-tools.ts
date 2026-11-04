@@ -29,11 +29,11 @@
 
 import { z } from 'zod';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 import { formatMcpTime } from '@/shared/mcp-contract/index.js';
 import { buildSessionDetail } from './mcp-gateway.read-tools.js';
-import type { McpReadToolDepsBase, McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpReadToolDepsBase, McpReadToolSeam } from '../shared/mcp-read-contract.js';
 
 // --------------------------- the injected pointer ---------------------------
 
