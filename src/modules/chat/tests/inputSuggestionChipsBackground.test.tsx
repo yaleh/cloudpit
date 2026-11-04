@@ -270,17 +270,19 @@ describe('composer wiring', () => {
 });
 
 // ---------------------------------------------------------------------------
-// A quoted chip over a non-empty box lives IN the text flow, not in the strip
+// A quoted chip is NOT drawn in the composer any more
 // ---------------------------------------------------------------------------
 
 /**
- * The chip that used to sit in the strip above a filled box now has its own mode:
- * the mirror layer becomes the visible text layer, the chip is an inline-block
- * placeholder in that text, and a real button is drawn over the placeholder. The
- * strip above the box is drawn only when the box is empty.
+ * The inline chip mode is retired: a live transcript selection is drawn by the
+ * transcript's own floating action, not by the composer. The quoted chip may
+ * still be present in the strip DATA — the floating action uses the one
+ * acceptance entry — but the composer draws nothing for it, never switches the
+ * textarea/mirror layers, and never lets it switch the empty box into the
+ * shared-line strip on its own.
  */
-const INLINE_CHIP_SELECTOR = '[data-slot="inline-quote-chip"]';
-const INLINE_SPACER_SELECTOR = '[data-slot="inline-quote-chip-spacer"]';
+const RETIRED_INLINE_CHIP_SELECTOR = '[data-slot="inline-quote-chip"]';
+const RETIRED_INLINE_SPACER_SELECTOR = '[data-slot="inline-quote-chip-spacer"]';
 
 const quotedChips = () => buildSuggestionChips({ quotedText: '选中的原文' });
 
@@ -294,20 +296,25 @@ const renderComposerOverStrip = (overrides: Record<string, unknown> = {}) => ren
 ));
 
 describe('a quoted chip over a non-empty box', () => {
-  it('(a) draws it in the text flow: a real button over the mirror placeholder', () => {
+  it('(a) draws no inline chip and does not switch the visible text layer', () => {
     const view = renderComposerOverStrip({ input: '选中的原文\n\n' });
 
     const textarea = view.container.querySelector('textarea');
     assert.ok(textarea, 'the composer must render a textarea');
-    const button = view.container.querySelector<HTMLElement>(INLINE_CHIP_SELECTOR);
-    assert.ok(button, 'the quoted chip is drawn in the text flow while the box holds text');
-    assert.equal(button.getAttribute('data-chip-source'), 'quoted');
-    assert.ok(
-      view.container.querySelector(INLINE_SPACER_SELECTOR),
-      'the mirror layer carries the placeholder the button is drawn over',
+    assert.equal(
+      view.container.querySelector(RETIRED_INLINE_CHIP_SELECTOR) === null,
+      true,
+      'the retired inline chip must not be drawn',
     );
-    assert.equal(textarea.getAttribute('data-inline-chip-mode'), 'true');
-    assert.equal(view.queryByRole('listbox') === null, true, 'the strip has nothing left to draw');
+    assert.equal(
+      view.container.querySelector(RETIRED_INLINE_SPACER_SELECTOR) === null,
+      true,
+      'the mirror must carry no chip placeholder',
+    );
+    assert.equal(textarea.getAttribute('data-inline-chip-mode'), null);
+    const mirror = view.container.querySelector('div.chat-input-placeholder');
+    assert.ok(mirror);
+    assert.ok(mirror.className.includes('text-transparent'), 'the mirror stays the invisible layer');
   });
 
   it('(b) leaves the empty-box layout unchanged', () => {
@@ -319,17 +326,19 @@ describe('a quoted chip over a non-empty box', () => {
     const textarea = view.container.querySelector('textarea');
     assert.ok(textarea);
     assert.equal(
-      view.container.querySelector(INLINE_CHIP_SELECTOR) === null,
+      view.container.querySelector(RETIRED_INLINE_CHIP_SELECTOR) === null,
       true,
       'the empty box has no inline chip',
     );
     assert.ok(view.getByRole('listbox'), 'the empty box keeps the chip row');
   });
 
-  it('(c) moves from the chip row into the text flow as the box gains text', () => {
+  it('(c) never moves into the text flow as the box gains text', () => {
+    // A quoted chip alone no longer lights up the drawn strip: that switch was
+    // what changed the textarea's rows (and therefore its height) on selection.
     const view = renderComposerOverStrip({ input: '' });
-    assert.ok(view.getByRole('listbox'));
-    assert.equal(view.container.querySelector(INLINE_CHIP_SELECTOR) === null, true);
+    assert.equal(view.queryByRole('listbox'), null, 'a selection alone draws no composer strip');
+    assert.equal(view.container.querySelector(RETIRED_INLINE_CHIP_SELECTOR) === null, true);
 
     view.rerender(React.createElement(ChatComposer, {
       ...composerBaseProps(),
@@ -337,8 +346,12 @@ describe('a quoted chip over a non-empty box', () => {
       chipStrip: baseChipStrip({ chips: quotedChips() }),
     } as unknown as React.ComponentProps<typeof ChatComposer>));
 
-    assert.ok(view.container.querySelector(INLINE_CHIP_SELECTOR), 'the filled quote moves into the text flow');
-    assert.equal(view.queryByRole('listbox') === null, true, 'nothing remains in the strip');
+    assert.equal(
+      view.container.querySelector(RETIRED_INLINE_CHIP_SELECTOR) === null,
+      true,
+      'the filled box draws no inline chip either',
+    );
+    assert.equal(view.container.querySelector(RETIRED_INLINE_SPACER_SELECTOR) === null, true);
   });
 });
 

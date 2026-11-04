@@ -27,6 +27,7 @@ import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelec
 import type { NextTaskBannerComponent } from '@/modules/chat/transcript/ProviderSelectionEmptyState';
 import WorkSegmentRecord from '@/modules/chat/transcript/WorkSegmentRecord';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
+import { TranscriptSelectionAction } from '@/modules/chat/transcript/TranscriptSelectionAction';
 import { ActivityIndicator } from '@/modules/chat-support';
 
 /**
@@ -240,6 +241,10 @@ type ChatMessagesPaneProps = {
    * only marks rows with this set; the draft itself never changes.
    */
   highlightedReplyOrdinals?: readonly number[];
+  /** Live transcript passage; only gates the floating action's visibility. */
+  quotedSelection?: string | null;
+  /** Composer's quoted acceptance entry; absent ⇒ no floating action. */
+  onAcceptQuotedSelection?: (selectionText: string) => void;
 };
 
 /**
@@ -295,6 +300,8 @@ function ChatMessagesPane({
   onEditMessage,
   onForkFromMessage,
   highlightedReplyOrdinals,
+  quotedSelection = null,
+  onAcceptQuotedSelection,
   onFileOpen,
   onShowSettings,
   onGrantToolPermission,
@@ -769,6 +776,15 @@ function ChatMessagesPane({
         />
         </div>
       </div>
+
+      {/* Fixed, re-anchored sibling of the scroll box so it is never clipped. */}
+      {onAcceptQuotedSelection !== undefined && (
+        <TranscriptSelectionAction
+          selectionText={quotedSelection}
+          scrollContainerRef={scrollContainerRef}
+          onAccept={onAcceptQuotedSelection}
+        />
+      )}
 
     </div>
   );

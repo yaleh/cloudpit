@@ -808,6 +808,11 @@ function ChatInterface({
     quotedSelection,
   });
 
+  // The floating action has no strip to click: accept its passage through the
+  // composer's one quoted entry (a harness that omits the strip draws no action).
+  const acceptQuotedSelection = useCallback((text: string) =>
+    chipStrip?.onAccept?.({ id: 'quoted-0', text, source: 'quoted', index: 0 }), [chipStrip]);
+
   /**
    * What the draft points at in the latest assistant reply.
    *
@@ -1270,6 +1275,8 @@ function ChatInterface({
             onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
             onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
             highlightedReplyOrdinals={highlightedReplyOrdinals}
+            quotedSelection={quotedSelection}
+            onAcceptQuotedSelection={acceptQuotedSelection}
           />
         </MarkdownWorkspaceContext.Provider>
 
