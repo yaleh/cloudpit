@@ -327,6 +327,55 @@ const waitForHost = async (
   return last;
 };
 
+/**
+ * The creation request a composer send makes, observed rather than inferred.
+ *
+ * The switch's position reaches the server only through this body. Claude's declared default is resident, so
+ * the ON arm writes no `lifecycleMode` at all, while the OFF arm writes its one-session `per-run` override —
+ * the body is therefore the observable record of the intent the submit entry carried. This is started before
+ * the key is pressed, so the request cannot leave before its listener exists.
+ */
+const awaitCreateSessionRequest = (page: Page) =>
+  page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' && new URL(request.url()).pathname === '/api/providers/sessions',
+    { timeout: SESSION_URL_READY_MS },
+  );
+
+/** The composer's own report of a failed send, as the transcript renders it, for a timeout's message. */
+const composerSendError = async (page: Page): Promise<string> => {
+  const row = page.locator('[data-message-style="error"]').last();
+  if ((await row.count().catch(() => 0)) === 0) {
+    return 'none — the send itself reported no error';
+  }
+  const text = (await row.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+  return text || '<an error row was rendered with no text>';
+};
+
+/**
+ * Waits, explicitly bounded, for a sent message to reach its session URL.
+ *
+ * The default five-second poll was the one wait in this file with no budget of its own, and the failing run's
+ * trace showed the creation POST unanswered for longer than that under load. The failure below names both the
+ * last pathname and what the composer said about the send, so "the server is slow" and "the send was refused"
+ * are distinguishable from the failure text alone.
+ */
+const waitForSessionUrl = async (page: Page): Promise<void> => {
+  try {
+    await expect.poll(() => new URL(page.url()).pathname, {
+      timeout: SESSION_URL_READY_MS,
+      message: `the composer's send must reach /session/<id> within ${SESSION_URL_READY_MS}ms`,
+    }).toMatch(SESSION_PATH);
+  } catch (error) {
+    const lastPathname = new URL(page.url()).pathname;
+    const sendError = await composerSendError(page);
+    throw new Error(
+      `the composer's send did not reach /session/<id> within ${SESSION_URL_READY_MS}ms `
+        + `(last pathname: ${lastPathname}; composer send error: ${sendError})`,
+    );
+  }
+};
+
 const composer = (page: Page) => page.locator(COMPOSER);
 
 /**
@@ -351,6 +400,20 @@ const projectRow = (page: Page) =>
  * 60s and the config's watchdog at 55s — so a slow sidebar is waited out rather than given up on.
  */
 const PROJECT_ROW_READY_MS = 20_000;
+
+/**
+ * How long a composer send is given to reach the session URL it allocates.
+ *
+ * The key does not wait for the server: the client first POSTs the new session, and only a returned id lets it
+ * navigate. Under lane load a trace was measured with that POST still unanswered (`status: -1`) well past the
+ * five-second default this wait used to carry, so "the server is slow" was reported as "the key never sent".
+ * The bound is above that slow round trip and below the case's own 45s budget, so a late send is waited out
+ * while one that really failed still fails naming itself.
+ */
+const SESSION_URL_READY_MS = 20_000;
+
+/** The URL a composer send lands on once the server has allocated the session row. */
+const SESSION_PATH = /^\/session\/[^/]+$/;
 
 /**
  * Opens a composer bound to the seeded project, through the app's own "New Session" entry point.
@@ -460,9 +523,18 @@ test('AC-180 (a): Enter with the resident switch on allocates a resident session
 
   const textarea = composer(page);
   await textarea.fill('enter key resident probe');
+  const createRequest = awaitCreateSessionRequest(page);
   await textarea.press('Enter');
+  const createBody = (await createRequest).postDataJSON() as { lifecycleMode?: string };
+  // The switch is ON, which is already Claude's declared default, so the submit entry must record no override
+  // at all. This body is the only observable statement of that intent the send makes.
+  expect(
+    'lifecycleMode' in createBody,
+    'with the switch on — the provider default — the creation request must carry no lifecycleMode override, '
+      + 'because following the declared default is exactly what "no override" means',
+  ).toBe(false);
 
-  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/session\/[^/]+$/);
+  await waitForSessionUrl(page);
   const createdSessionId = new URL(page.url()).pathname.split('/').pop() as string;
   console.log(`created.sessionId=${createdSessionId}`);
 
@@ -494,9 +566,11 @@ test('AC-180 (b) control: Enter with the resident switch off still sends, and la
 
   const textarea = composer(page);
   await textarea.fill('enter key per-run control');
+  const createRequest = awaitCreateSessionRequest(page);
   await textarea.press('Enter');
+  const createBody = (await createRequest).postDataJSON() as { lifecycleMode?: string };
 
-  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/session\/[^/]+$/);
+  await waitForSessionUrl(page);
   const createdSessionId = new URL(page.url()).pathname.split('/').pop() as string;
   console.log(`control.sessionId=${createdSessionId}`);
 
@@ -506,5 +580,13 @@ test('AC-180 (b) control: Enter with the resident switch off still sends, and la
     createdMode,
     'a session created with the switch off must read per-run — otherwise the resident reading above has no '
       + 'resolution and would score the same for every session',
+  ).toBe('per-run');
+  // The switch position is the whole of this send's intent, and with it OFF the submit entry must record the
+  // override on the creation request itself. This is read after the stored mode so a dropped override fails
+  // where it is observable in the row (`Received "resident"`), not only here.
+  expect(
+    createBody.lifecycleMode,
+    'the switch position is this send\'s only source of intent: with the switch off the creation request must '
+      + 'carry lifecycleMode "per-run"',
   ).toBe('per-run');
 });
