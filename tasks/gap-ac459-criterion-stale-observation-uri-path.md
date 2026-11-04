@@ -116,16 +116,6 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - 解阻（由该 WIP 的所有者执行，二选一，均保留完整内容）：(a) 把它提交（建议作为独立任务/分支落地）；(b) `git -C /data/home/yale/work/claudecodeui stash push -m "server-client canary WIP" -- scripts/test.sh server/shared/tests/quay-test-script.test.ts`。
 - 之后主检出 `git status --porcelain` 为空即可重跑本任务：**无需重新实现**，任务分支已就绪，fan-in 剩下的 `ff` 会通过。若本任务已被机械标为 needs-human，请把它拉回 ready 再重派。
 
-## Blocker
-
-**2026-11-03T19:21:58.122Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
-fan-in-ff-merge:    M scripts/test.sh
-fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
-- run_id：wk-prod-anchor
-- session_id：5ef78394-7ed1-460f-93b7-fbdb04d76153
-
 ## Needs-Human
 
 **执行 2026-11-03T19:21:58.877Z — 连续修满重试上限仍不合格（标 needs-human）**
