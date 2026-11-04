@@ -65,3 +65,11 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 - `src/modules/chat/tests/inputSuggestionChipsBackground.test.tsx`
 - `src/modules/chat/tests/suggestionChipAcceptContract.test.tsx`
 - `tasks/gap-transcript-selection-floating-quote-action.md`
+
+## Blocker
+
+**2026-11-04T03:07:33.544Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat/ChatInterface.tsx 1477→1487 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/tests/chatComposerReplyChips.test.tsx,src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx,src/modules/chat/tests/chatMessageLocate.test.tsx,src/modules/chat/tests/composerModelProviderOption.test.tsx,src/modules/chat/tests/escapeAbortGuard.test.tsx,src/modules/chat/tests/forkFromAssistantReply.test.tsx,src/modules/chat/tests/liveVoiceMicPrewarmEntry.test.tsx,src/modules/chat/tests/liveVoiceNewSessionEntry.test.tsx,src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx,src/modules/chat/tests/voiceModePermissionBanner.test.tsx,src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx,server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/tests/chatComposerReplyChips.test.tsx,src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx,src/modules/chat/tests/chatMessageLocate.test.tsx,src/modules/chat/tests/composerModelProviderOption.test.tsx,src/modules/chat/tests/escapeAbortGuard.test.tsx,src/modules/chat/tests/forkFromAssistantReply.test.tsx,src/modules/chat/tests/liveVoiceMicPrewarmEntry.test.tsx,src/modules/chat/tests/liveVoiceNewSessionEntry.test.tsx,src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx,src/modules/chat/tests/voiceModePermissionBanner.test.tsx,src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：9ccd29d1-be08-4764-8c6f-64d45083df10
