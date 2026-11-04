@@ -5,6 +5,7 @@ status: achieved
 kind: criterion
 goal: GOAL-013
 criterion: npx playwright test e2e/resident-enter-send.spec.ts
+timeoutMs: 260000
 expect: 新建会话时打开常驻开关。(a) 开关打开后按 Enter 发送，服务端读回该会话 lifecycle_mode 为
   resident，且宿主列表里出现该会话的 resident 宿主。(b) 正控制：开关关闭时按 Enter 照常发送，会话为
   per-run。开关位置是这次发送唯一的意图来源——开启即代表意图，不存在任何中间确认状态。取假形态：Enter
