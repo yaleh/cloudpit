@@ -2,7 +2,7 @@
 id: gap-ac323-pane-reload-guard-deadline-below-loaded-boot
 title: 恢复 AC-323 判据绿：e2e/support/pane-reload.ts 的 reload 守卫预算低于负载下的冷启动（hop 5s /
   首次落地 4s / 总 18s）⇒ 历史 reload 未落地即自报红，同树单跑 1 passed (18.6s)
-status: ready
+status: needs-human
 labels:
   - gap
   - defect
@@ -127,3 +127,17 @@ fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
 fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
 - run_id：wk-prod-anchor
 - session_id：50c76d37-2288-4224-97c6-40c90cff3f2c
+
+## Needs-Human
+
+**执行 2026-11-04T09:04:24.110Z — 连续修满重试上限仍不合格（标 needs-human）**
+
+- 阻碍原因：worker-driver 连续 3 次 exited-not-landed 未落地（重试上限）
+- 失败步/判词：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
+fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
+- run_id：wk-prod-anchor
+- session_id：50c76d37-2288-4224-97c6-40c90cff3f2c
+- fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac323-pane-reload-guard-deadline-below-loaded-boot-wk-prod-anchor.log
