@@ -3,7 +3,7 @@ id: gap-ac180-enter-criterion-run-budget-below-cold-start-wall
 title: AC-180 判据的整轮预算仍未声明：同一 treeSha 41e9a82 在 60000ms 闸 not-evaluated、在 55002ms
   被看门狗杀（boot 18768ms）⇒ 给 resident-enter-send 声明 SPEC_BUDGET_MS 并把记录 timeoutMs 抬到
   260s，判据命令与断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
