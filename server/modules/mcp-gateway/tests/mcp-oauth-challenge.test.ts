@@ -70,7 +70,7 @@ import type { McpOauthSeam, McpToolRegistrar } from '../index.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../../..');
-const AUTH_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/mcp-gateway.auth.ts');
+const AUTH_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/tools/shared/mcp-gateway.auth.ts');
 
 /** The audience this gateway serves and every bound token must carry. */
 const PUBLIC_BASE_URL = 'https://cli.example';

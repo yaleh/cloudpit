@@ -61,9 +61,9 @@ import type { providerCapabilitiesService, providerModelsService } from '@/modul
 import type { HostMode, LLMProvider, SessionLaunchSelection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
-import { MCP_ERROR_CODES, McpToolError, type McpErrorDetails } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from './mcp-correlation-id.js';
+import { MCP_ERROR_CODES, McpToolError, type McpErrorDetails } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
+import { MCP_CORRELATION_ID_INPUT_FIELD, readCorrelationId } from '../shared/mcp-correlation-id.js';
 import type { McpControlCaller, McpControlRefusalCode, McpControlSeam, McpRunReader } from './mcp-session-send.js';
 
 // --------------------------- injected services ---------------------------

@@ -44,7 +44,7 @@
  * back off a real `tools/list` and checks every observed code against it.
  */
 
-import type { McpErrorCode } from './mcp-error-envelope.js';
+import type { McpErrorCode } from './tools/shared/mcp-error-envelope.js';
 import type { McpGatewayToolName } from './mcp-tool-annotations.js';
 
 /**

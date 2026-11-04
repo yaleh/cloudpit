@@ -39,7 +39,7 @@ export interface McpToolRegistry {
  * Who is asking a control-plane verb to act, as the MCP and voice callers state
  * it.
  *
- * Re-homed from `server/modules/mcp-gateway/mcp-session-send.ts` so the
+ * Re-homed from `server/modules/mcp-gateway/tools/sessions/mcp-session-send.ts` so the
  * approval contract (and a stage-2 tool package) can name it without importing
  * the gateway. `via` is the transport the call arrived on, never a permission:
  * authorization is decided by the caller's token scopes, not by this label.

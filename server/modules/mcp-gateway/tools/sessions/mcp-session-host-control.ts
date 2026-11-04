@@ -68,8 +68,8 @@ import type {
   SessionHostManager,
 } from '@/modules/session-hosts/index.js';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
 
 // --------------------------- injected services ---------------------------
 

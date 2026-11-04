@@ -2,7 +2,7 @@
  * The authenticated MCP caller, as the contract states it.
  *
  * This was defined by the gateway's `/mcp` auth middleware
- * (`server/modules/mcp-gateway/mcp-gateway.auth.ts`, AC-241 / AC-263) and is
+ * (`server/modules/mcp-gateway/tools/shared/mcp-gateway.auth.ts`, AC-241 / AC-263) and is
  * re-homed here so a domain tool package can type its handler's principal
  * without importing `server/modules/**` (proposal
  * `docs/proposals/mcp-gateway-tool-architecture.md`, rule R2). The middleware

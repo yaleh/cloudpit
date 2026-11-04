@@ -506,8 +506,8 @@ test('session_search prunes by time, pages a capped scan, and aligns turnIndex',
 test('(e) the pruning adds a plain index, never a full-text table', () => {
   const files = [
     'server/modules/providers/services/session-conversations-search.service.ts',
-    'server/modules/mcp-gateway/mcp-session-search.ts',
-    'server/modules/mcp-gateway/mcp-gateway.read-tools.ts',
+    'server/modules/mcp-gateway/tools/read/mcp-session-search.ts',
+    'server/modules/mcp-gateway/tools/read/mcp-gateway.read-tools.ts',
     'server/modules/database/schema.ts',
     'server/modules/database/migrations.ts',
   ];

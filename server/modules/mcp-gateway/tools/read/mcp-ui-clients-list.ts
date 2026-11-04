@@ -48,7 +48,7 @@ import type { UiClientDevice, UiVisibleContextDevice, UiVisibleContextTab } from
 import type { UiStateRequestOptions } from '@/modules/websocket/index.js';
 
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
-import type { McpReadToolSeam } from './mcp-read-contract.js';
+import type { McpReadToolSeam } from '../shared/mcp-read-contract.js';
 
 /**
  * The two readings `ui_clients_list` answers from: the connected devices and the

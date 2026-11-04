@@ -535,14 +535,30 @@ test('(b) the three barrels export the GOAL-020 symbols and the gateway consumes
     projects: readFileSync(path.resolve(testsDir, '../../projects/index.ts'), 'utf8'),
   };
 
-  const gatewayFiles = readdirSync(gatewayDir)
-    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-    .sort();
-  const sources: { path: string; source: string; kind: 'gateway' | 'root' }[] = gatewayFiles.map((name) => ({
-    path: `server/modules/mcp-gateway/${name}`,
-    source: readFileSync(path.join(gatewayDir, name), 'utf8'),
-    kind: 'gateway' as const,
-  }));
+  // Recursive: the god-package split moved most tool implementations under
+  // `tools/<family>/`, and this audit must keep reading them (a non-recursive
+  // root read silently stopped seeing the getRunById call and red[ded]).
+  const collectGatewaySources = (dir: string): { path: string; source: string; kind: 'gateway' | 'root' }[] => {
+    const out: { path: string; source: string; kind: 'gateway' | 'root' }[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'tests') continue;
+        out.push(...collectGatewaySources(full));
+        continue;
+      }
+      if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+        out.push({
+          path: `server/modules/mcp-gateway/${path.relative(gatewayDir, full).split(path.sep).join('/')}`,
+          source: readFileSync(full, 'utf8'),
+          kind: 'gateway' as const,
+        });
+      }
+    }
+    return out;
+  };
+  const sources: { path: string; source: string; kind: 'gateway' | 'root' }[] = collectGatewaySources(gatewayDir)
+    .sort((a, b) => a.path.localeCompare(b.path));
   sources.push({
     path: 'server/index.ts',
     source: readFileSync(path.resolve(testsDir, '../../../index.ts'), 'utf8'),

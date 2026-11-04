@@ -40,7 +40,7 @@ import { z } from 'zod';
 import { mcpAuditLogDb } from '@/modules/database/index.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 
-import { readCorrelationId } from './mcp-correlation-id.js';
+import { readCorrelationId } from './tools/shared/mcp-correlation-id.js';
 import {
   insufficientScopeResult,
   invalidArgumentFields,
@@ -50,9 +50,9 @@ import {
   mcpErrorResult,
   toMcpErrorResult,
   unknownToolResult,
-} from './mcp-error-envelope.js';
-import type { McpInvalidField } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
+} from './tools/shared/mcp-error-envelope.js';
+import type { McpInvalidField } from './tools/shared/mcp-error-envelope.js';
+import type { McpPrincipal } from './tools/shared/mcp-gateway.auth.js';
 import type { McpWriteNotification } from './mcp-write-notification.js';
 
 /** The three results a tool call can leave in the audit log. */

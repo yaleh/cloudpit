@@ -48,10 +48,10 @@
 
 import { z } from 'zod';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpReadToolContext, McpReadToolSeam } from './mcp-read-contract.js';
-import type { McpWriteToolSeam } from './mcp-write-contract.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
+import type { McpReadToolContext, McpReadToolSeam } from '../shared/mcp-read-contract.js';
+import type { McpWriteToolSeam } from '../shared/mcp-write-contract.js';
 import type { McpControlCaller, McpControlSeam, McpRunReader } from './mcp-session-send.js';
 
 // --------------------------- the three tool names ---------------------------

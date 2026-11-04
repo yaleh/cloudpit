@@ -38,13 +38,13 @@ import test from 'node:test';
 import type { AnyRecord, RealtimeClientConnection, UiClientDevice, UiVisibleContextReport } from '@/shared/types.js';
 import { createUiStateRequestService } from '@/modules/websocket/index.js';
 
-import { MCP_ERROR_CODES, McpToolError } from '../mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../tools/shared/mcp-error-envelope.js';
 import {
   buildUiSelectedText,
   buildUiVisibleContext,
   SELECTION_SCOPE,
   type McpUiVisibleContextDeps,
-} from '../mcp-ui-visible-context.js';
+} from '../tools/read/mcp-ui-visible-context.js';
 
 /** `WebSocket.OPEN`, the readyState the round trip writes to. */
 const WS_OPEN = 1;

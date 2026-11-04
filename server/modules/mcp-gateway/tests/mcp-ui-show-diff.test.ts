@@ -39,8 +39,8 @@ const {
   createUiShowDiffRateLimiter,
   MCP_UI_SHOW_DIFF_RATE_LIMIT_PER_MINUTE,
   UI_SHOW_DIFF_RATE_WINDOW_MS,
-} = await import('../mcp-ui-show-diff.js');
-const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../mcp-ui-navigation.js');
+} = await import('../tools/ui/mcp-ui-show-diff.js');
+const { MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE } = await import('../tools/ui/mcp-ui-navigation.js');
 
 // =====================================================================
 // (1) the frame carries the diff target

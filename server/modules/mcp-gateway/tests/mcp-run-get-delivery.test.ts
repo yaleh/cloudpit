@@ -70,12 +70,12 @@ import type {
 } from '@/modules/providers/index.js';
 import { createSessionHostManager } from '@/modules/session-hosts/index.js';
 import type { HostScheduler, SessionHostManager } from '@/modules/session-hosts/index.js';
-import { McpToolError } from '@/modules/mcp-gateway/mcp-error-envelope.js';
-import type { McpPrincipal } from '@/modules/mcp-gateway/mcp-gateway.auth.js';
-import { MCP_RUN_GET_MAX_WAIT_SECONDS, handleRunGet } from '@/modules/mcp-gateway/mcp-run-get.js';
-import type { McpRunGetDeps } from '@/modules/mcp-gateway/mcp-run-get.js';
-import { buildSessionSend } from '@/modules/mcp-gateway/mcp-session-send.js';
-import type { McpSessionSendDeps } from '@/modules/mcp-gateway/mcp-session-send.js';
+import { McpToolError } from '@/modules/mcp-gateway/tools/shared/mcp-error-envelope.js';
+import type { McpPrincipal } from '@/modules/mcp-gateway/tools/shared/mcp-gateway.auth.js';
+import { MCP_RUN_GET_MAX_WAIT_SECONDS, handleRunGet } from '@/modules/mcp-gateway/tools/read/mcp-run-get.js';
+import type { McpRunGetDeps } from '@/modules/mcp-gateway/tools/read/mcp-run-get.js';
+import { buildSessionSend } from '@/modules/mcp-gateway/tools/sessions/mcp-session-send.js';
+import type { McpSessionSendDeps } from '@/modules/mcp-gateway/tools/sessions/mcp-session-send.js';
 // The websocket module's public face — the control plane, the run registry and
 // its flag predicate, the activity store, and the runtime-writer contract.
 // `$backend-module-standards` requires a cross-module edge to take the barrel.

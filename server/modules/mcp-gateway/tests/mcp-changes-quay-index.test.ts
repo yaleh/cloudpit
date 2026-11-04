@@ -62,7 +62,7 @@ import { z } from 'zod';
 // every application module below comes in dynamically.
 process.env.JWT_SECRET = 'mcp-changes-quay-index-test-secret';
 
-import type { McpChangesDeps, McpChangesEvent, McpChangesPayload } from '../mcp-changes.js';
+import type { McpChangesDeps, McpChangesEvent, McpChangesPayload } from '../tools/read/mcp-changes.js';
 
 const {
   MCP_CHANGES_OUTPUT_SCHEMA,
@@ -70,7 +70,7 @@ const {
   buildChanges,
   decodeChangesCursor,
   readChangesInput,
-} = await import('../mcp-changes.js');
+} = await import('../tools/read/mcp-changes.js');
 // `createQuayService` is the module's own factory, re-exported by its barrel:
 // the same symbol `quay.module.ts` composes in production.
 const { QUAY_TASK_INDEX_MIN_INTERVAL_MS, QUAY_TASK_INDEX_TTL_MS, createQuayService } = await import(

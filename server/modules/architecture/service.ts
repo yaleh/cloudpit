@@ -19,7 +19,7 @@
  *    `server/modules/architecture/module.js`, the composition root that binds
  *    the injected transcript/project readers.
  *  · `server/modules/projects/services/projects-with-sessions-fetch.service.js`
- *    and `server/modules/mcp-gateway/mcp-overview-tools.js` call the Tier-1
+ *    and `server/modules/mcp-gateway/tools/read/mcp-overview-tools.js` call the Tier-1
  *    {@link hasArchguardCache} path check through this module's barrel.
  *  · `server/modules/architecture/tests/architecture-routes.test.js` (AC-418).
  */

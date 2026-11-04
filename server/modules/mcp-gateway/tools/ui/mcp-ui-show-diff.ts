@@ -1,27 +1,24 @@
 /**
- * The MCP gateway's `ui_open_task` handler (gap-mcp-ui-focus-turn-show-diff-open-task).
+ * The MCP gateway's `ui_show_diff` handler (gap-mcp-ui-focus-turn-show-diff-open-task).
  *
- * The `ui_open_task` FACE of {@link ./mcp-ui-navigation.js}: the target is a TASK
- * whose detail should be opened in the browser, addressed by the task's id.
+ * The `ui_show_diff` FACE of {@link ./mcp-ui-navigation.js}: the target is a FILE
+ * whose diff should be revealed in the Git panel, addressed by a path relative to
+ * the session's project — the same path `ui_visible_context`'s `currentDiff` and
+ * the Git panel already use, so no new concept is invented.
  *
- * Carrier, verified rather than invented: the UI's task surface is the
- * TaskMaster panel (`src/modules/task-master/TaskMasterPanel.tsx`), whose detail
- * modal is the only "open a task" view in the app. The task store the panel reads
- * is quay's (a read-only mirror from the browser's side) — so this tool opens the
- * panel's DETAIL for a task it already lists; it does not mutate anything. The
- * panel is always mounted (hidden by `isVisible`), which is what lets a reveal
- * reach it before the workspace switches to the Tasks tab.
- *
- * As with `ui_show_diff`, the reveal does not change the active session, so the
- * applied-notification that feeds `ui_last_opened_session` is NOT fired for a
- * task target.
+ * The reveal does NOT change the active session: it switches the workspace to the
+ * Git panel and expands that file's diff. The navigation record still anchors to
+ * the session the caller named, but the frontend's applied-notification (which
+ * feeds `ui_last_opened_session`) is deliberately NOT fired for a diff target —
+ * revealing a diff is not opening a session, and `applyStatus` in
+ * `ui-navigation.service.ts` gates on exactly that.
  */
 
 import { z } from 'zod';
 
-import { MCP_CORRELATION_ID_INPUT_FIELD } from './mcp-correlation-id.js';
-import type { McpPrincipal } from './mcp-gateway.auth.js';
-import type { McpWriteToolSeam } from './mcp-write-contract.js';
+import { MCP_CORRELATION_ID_INPUT_FIELD } from '../shared/mcp-correlation-id.js';
+import type { McpPrincipal } from '../shared/mcp-gateway.auth.js';
+import type { McpWriteToolSeam } from '../shared/mcp-write-contract.js';
 import {
   buildUiNavigation,
   createUiNavigationRateLimiter,
@@ -42,65 +39,65 @@ import type {
 // --------------------------- the rate limit ---------------------------
 
 /** Calls allowed per minute: the shared navigation limit, the same binding. */
-export const MCP_UI_OPEN_TASK_RATE_LIMIT_PER_MINUTE = MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE;
+export const MCP_UI_SHOW_DIFF_RATE_LIMIT_PER_MINUTE = MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE;
 
 /** The window the limit is measured over: one minute, the shared window binding. */
-export const UI_OPEN_TASK_RATE_WINDOW_MS = UI_NAVIGATION_RATE_WINDOW_MS;
+export const UI_SHOW_DIFF_RATE_WINDOW_MS = UI_NAVIGATION_RATE_WINDOW_MS;
 
 /** The per-token throttle the handler consults before it does anything else. */
-export type UiOpenTaskRateLimiter = UiNavigationRateLimiter;
+export type UiShowDiffRateLimiter = UiNavigationRateLimiter;
 
 /** The options a criterion may override to drive the limiter without waiting a minute. */
-export type UiOpenTaskRateLimiterOptions = UiNavigationRateLimiterOptions;
+export type UiShowDiffRateLimiterOptions = UiNavigationRateLimiterOptions;
 
 /** Builds the per-token sliding-window limiter; the shared factory. */
-export const createUiOpenTaskRateLimiter = createUiNavigationRateLimiter;
+export const createUiShowDiffRateLimiter = createUiNavigationRateLimiter;
 
 // --------------------------- the tool's schemas ---------------------------
 
 /**
- * The tool's arguments. `session` anchors the navigation record (resolved by the
- * AC-246 target gate); `taskId` is the quay task id the panel should open,
- * required. `client` addresses one connected browser; omitted chooses the only
- * one.
+ * The tool's arguments. `session` is the session whose project owns the file
+ * (resolved by the AC-246 target gate); `filePath` is the path relative to that
+ * project, required. `client` addresses one connected browser; omitted chooses
+ * the only one.
  */
-export const UI_OPEN_TASK_INPUT_SCHEMA = {
+export const UI_SHOW_DIFF_INPUT_SCHEMA = {
   client: z.string().optional(),
   session: z.string(),
-  taskId: z.string(),
+  filePath: z.string(),
   // AC-337: the opaque label. A reveal opens no run, so this tool only records
   // it on the call's audit row.
   correlationId: MCP_CORRELATION_ID_INPUT_FIELD.optional(),
 };
 
 /** The tool's reading: which navigation was asked for, in which browser, and how it landed. */
-export const UI_OPEN_TASK_OUTPUT_SCHEMA = UI_NAVIGATION_OUTPUT_SCHEMA;
+export const UI_SHOW_DIFF_OUTPUT_SCHEMA = UI_NAVIGATION_OUTPUT_SCHEMA;
 
 /** The tool's arguments, read off the validated `args`. */
-export type McpUiOpenTaskInput = { client?: string; session: string; taskId: string };
+export type McpUiShowDiffInput = { client?: string; session: string; filePath: string };
 
 /** The tool's reading. */
-export type UiOpenTaskPayload = UiNavigationToolPayload;
+export type UiShowDiffPayload = UiNavigationToolPayload;
 
 // --------------------------- injected services ---------------------------
 
 /** What the tool answers from: the connected-device roster, the navigation service and the throttle. */
-export type McpUiOpenTaskDeps = UiNavigationToolDeps;
+export type McpUiShowDiffDeps = UiNavigationToolDeps;
 
 /** Whether the injected deps carry this tool's services, i.e. it is wired. */
-export function isUiOpenTaskWired<D extends object>(
+export function isUiShowDiffWired<D extends object>(
   deps: D,
-): deps is D & { uiOpenTask: McpUiOpenTaskDeps } {
-  return (deps as { uiOpenTask?: unknown }).uiOpenTask !== undefined;
+): deps is D & { uiShowDiff: McpUiShowDiffDeps } {
+  return (deps as { uiShowDiff?: unknown }).uiShowDiff !== undefined;
 }
 
 // --------------------------- input ---------------------------
 
 /** Reads the tool's arguments off the validated `args`. */
-export function readUiOpenTaskInput(args: Record<string, unknown>): McpUiOpenTaskInput {
+export function readUiShowDiffInput(args: Record<string, unknown>): McpUiShowDiffInput {
   return {
     session: readStringArg(args, 'session') ?? '',
-    taskId: readStringArg(args, 'taskId') ?? '',
+    filePath: readStringArg(args, 'filePath') ?? '',
     client: readStringArg(args, 'client'),
   };
 }
@@ -108,21 +105,21 @@ export function readUiOpenTaskInput(args: Record<string, unknown>): McpUiOpenTas
 // --------------------------- the handler ---------------------------
 
 /**
- * The `ui_open_task` reading. The throttle, device resolution and attribution are
+ * The `ui_show_diff` reading. The throttle, device resolution and attribution are
  * {@link buildUiNavigation}'s; this reads its target off the args and names
  * itself for the rate-limit refusal.
  */
-export async function buildUiOpenTask(
-  deps: McpUiOpenTaskDeps,
-  input: McpUiOpenTaskInput,
+export async function buildUiShowDiff(
+  deps: McpUiShowDiffDeps,
+  input: McpUiShowDiffInput,
   principal: McpPrincipal,
-): Promise<UiOpenTaskPayload> {
+): Promise<UiShowDiffPayload> {
   return buildUiNavigation(
     deps,
-    { client: input.client, sessionId: input.session, at: { taskId: input.taskId } },
+    { client: input.client, sessionId: input.session, at: { diffFile: input.filePath } },
     principal,
     {
-      name: 'ui_open_task',
+      name: 'ui_show_diff',
       rateLimitPerMinute: MCP_UI_NAVIGATION_RATE_LIMIT_PER_MINUTE,
       rateWindowMs: UI_NAVIGATION_RATE_WINDOW_MS,
     },
@@ -132,7 +129,7 @@ export async function buildUiOpenTask(
 // --------------------------- registration ---------------------------
 
 /** One tool's metadata as `registerMcpWriteTools` hands it down. */
-export type McpUiOpenTaskRegistration = {
+export type McpUiShowDiffRegistration = {
   name: string;
   description: string;
   requiredScope: string;
@@ -141,14 +138,14 @@ export type McpUiOpenTaskRegistration = {
 };
 
 /**
- * Registers `ui_open_task` through the audited write seam. NOT `protect`-wrapped,
+ * Registers `ui_show_diff` through the audited write seam. NOT `protect`-wrapped,
  * for the same reason as `ui_open_session`. Unwired, it keeps a named refusal
  * naming this task as its owner.
  */
-export function registerMcpUiOpenTaskTool(
+export function registerMcpUiShowDiffTool(
   seam: McpWriteToolSeam,
-  deps: McpUiOpenTaskDeps | null,
-  registration: McpUiOpenTaskRegistration,
+  deps: McpUiShowDiffDeps | null,
+  registration: McpUiShowDiffRegistration,
 ): void {
   const full: McpUiNavigationRegistration = {
     name: registration.name,
@@ -158,8 +155,8 @@ export function registerMcpUiOpenTaskTool(
     outputSchema: registration.outputSchema,
     owner: 'gap-mcp-ui-focus-turn-show-diff-open-task',
     target: (args) => {
-      const read = readUiOpenTaskInput(args);
-      return { client: read.client, sessionId: read.session, at: { taskId: read.taskId } };
+      const read = readUiShowDiffInput(args);
+      return { client: read.client, sessionId: read.session, at: { diffFile: read.filePath } };
     },
   };
   registerMcpUiNavigationTool(seam, deps, full);

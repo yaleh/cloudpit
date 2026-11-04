@@ -43,14 +43,14 @@ import { z } from 'zod';
 import { hasArchguardCache } from '@/modules/architecture/index.js';
 import type { QuaySnapshot } from '@/modules/quay/index.js';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 import type {
   McpReadToolDepsBase,
   McpReadToolSeam,
   McpRunSummary,
   McpRunningRun,
-} from './mcp-read-contract.js';
+} from '../shared/mcp-read-contract.js';
 
 // --------------------------- injected quay runner ---------------------------
 
@@ -234,7 +234,7 @@ export type OverviewPayload = {
  * `mcp-tool-schemas.ts` leaf (proposal stage 2) so the read-tool table can
  * declare the metadata without importing this implementation module.
  */
-export { overviewOutputSchema } from './mcp-tool-schemas.js';
+export { overviewOutputSchema } from '../shared/mcp-tool-schemas.js';
 
 /** The note reported for a project whose directory has no `.quay/config.yml`. */
 export const NO_QUAY_NOTE = 'This project has no quay';

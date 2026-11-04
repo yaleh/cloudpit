@@ -69,14 +69,14 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { MCP_ERROR_CODES, McpToolError } from './mcp-error-envelope.js';
+import { MCP_ERROR_CODES, McpToolError } from '../shared/mcp-error-envelope.js';
 import type { McpToolInputSchema } from '@/shared/mcp-contract/index.js';
 import { formatMcpTime, type McpTime } from '@/shared/mcp-contract/index.js';
 import type {
   McpReadToolContext,
   McpReadToolSeam,
   McpRunSummary,
-} from './mcp-read-contract.js';
+} from '../shared/mcp-read-contract.js';
 
 // --------------------------- limits and vocabulary ---------------------------
 

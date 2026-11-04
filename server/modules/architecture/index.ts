@@ -34,7 +34,7 @@ export type {
 // consumer: server/modules/architecture/tests/seed-extraction.test.ts
 export { extractSeeds, extractSeedMentions } from './seed-extraction.js';
 // consumer: server/modules/projects/services/projects-with-sessions-fetch.service.ts,
-// server/modules/mcp-gateway/mcp-overview-tools.ts (the Tier-1 gate),
+// server/modules/mcp-gateway/tools/read/mcp-overview-tools.ts (the Tier-1 gate),
 // server/modules/architecture/tests/architecture-routes.test.ts (AC-418)
 export { DEFAULT_HOPS, DEFAULT_MAX_NODES, createArchitectureService, hasArchguardCache } from './service.js';
 // consumer: server/modules/architecture/tests/architecture-routes.test.ts (AC-418)

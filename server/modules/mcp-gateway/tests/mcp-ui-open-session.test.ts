@@ -49,9 +49,9 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { AnyRecord, RealtimeClientConnection, UiClientDevice, UiNavigationAck, UiNavigationRecord } from '@/shared/types.js';
-import type { McpPrincipal } from '../mcp-gateway.auth.js';
-import type { McpUiOpenSessionDeps, UiOpenSessionRateLimiter } from '../mcp-ui-open-session.js';
-import type { McpUiVisibleContextDeps } from '../mcp-ui-visible-context.js';
+import type { McpPrincipal } from '../tools/shared/mcp-gateway.auth.js';
+import type { McpUiOpenSessionDeps, UiOpenSessionRateLimiter } from '../tools/ui/mcp-ui-open-session.js';
+import type { McpUiVisibleContextDeps } from '../tools/read/mcp-ui-visible-context.js';
 import type { UiNavigationService } from '@/modules/websocket/index.js';
 import type { McpWriteToolDeps } from '../index.js';
 
@@ -82,9 +82,9 @@ const {
   createUiOpenSessionRateLimiter,
   MCP_UI_OPEN_SESSION_RATE_LIMIT_PER_MINUTE,
   UI_OPEN_SESSION_RATE_WINDOW_MS,
-} = await import('../mcp-ui-open-session.js');
-const { buildUiVisibleContext } = await import('../mcp-ui-visible-context.js');
-const { MCP_ERROR_CODES, McpToolError } = await import('../mcp-error-envelope.js');
+} = await import('../tools/ui/mcp-ui-open-session.js');
+const { buildUiVisibleContext } = await import('../tools/read/mcp-ui-visible-context.js');
+const { MCP_ERROR_CODES, McpToolError } = await import('../tools/shared/mcp-error-envelope.js');
 const { MCP_GATEWAY_PATH, MCP_STAGE4_WRITE_TOOLS, mountMcpGateway } = await import('../index.js');
 // The ONE principal-name resolution and its two fixed labels, imported from the
 // module that owns them (same module, so a direct path is the barrel's equal):

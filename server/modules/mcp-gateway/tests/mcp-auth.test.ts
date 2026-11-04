@@ -43,7 +43,7 @@ import { createMcpAuthMiddleware, MCP_GATEWAY_PATH, mountMcpGateway, readMcpPrin
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../../..');
-const AUTH_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/mcp-gateway.auth.ts');
+const AUTH_SOURCE_PATH = path.join(REPO_ROOT, 'server/modules/mcp-gateway/tools/shared/mcp-gateway.auth.ts');
 const ACCESS_TOKENS_SERVICE_PATH = path.join(REPO_ROOT, 'server/modules/oauth/access-tokens.service.ts');
 
 /** The one body `/mcp` and `/token-info` must both return for a bad credential. */

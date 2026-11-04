@@ -277,6 +277,20 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/llm-gateway',
   'modules/logging',
   'modules/mcp-gateway',
+  // FIFTEENTH RECORDED CHANGE (2026-11-04,
+  // gap-routine-architecture-analysis-god-package-server-mcp-gateway): the
+  // god-package finding's fix moved the gateway's tool implementations into
+  // these six subpackages. They are registered rather than left to the
+  // new-directory leaf rule because the package root legitimately imports them
+  // while none of them imports the root back (edges run root -> tools/<family>,
+  // and the families only point at `tools/shared` or another family; no SCC is
+  // added). `directoryManifest` and `nodeCount` rise by six.
+  'modules/mcp-gateway/tools/approvals',
+  'modules/mcp-gateway/tools/cockpit',
+  'modules/mcp-gateway/tools/read',
+  'modules/mcp-gateway/tools/sessions',
+  'modules/mcp-gateway/tools/shared',
+  'modules/mcp-gateway/tools/ui',
   'modules/notices',
   'modules/notifications',
   'modules/notifications/services',
