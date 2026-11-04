@@ -77,15 +77,35 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 
 ## AC
 
-- [ ] `npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fixed-corpus fixture" --workers=1` 连续 3 次 exit 0，每次贴 `1 passed` 与新的 hop/落地日志行。— 实测：
-- [ ] AC-323 判据第一条命令（live-session-send + upload-fixture + composer-embedded 三 spec 联跑）exit 0，贴 pass 计数与墙钟，且墙钟 < 记录 `timeoutMs=480000`。— 实测：
-- [ ] AC-323 整条判据三命令串行 exit 0/0/0：①三 spec playwright；②`npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime`；③`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`；贴三条的 pass 计数、墙钟与 exit 码。— 实测：
-- [ ] 取假形态必须红：把落地窗调回旧值或注入一个永不挂载 pane 的探针，断言仍以 `reloadPaneBounded` 的具名错误收场（非静默超时），还原后复绿；贴红绿两段原文。— 实测：
-- [ ] `npm run typecheck` exit 0。— 实测：
+- [x] `npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fixed-corpus fixture" --workers=1` 连续 3 次 exit 0，每次贴 `1 passed` 与新的 hop/落地日志行。— 实测：三次均 EXIT=0（同一 worktree，develop `6530ddb2e` 切出；host loadavg 54.19）：
+  1. `1 passed (1.9m)`；`hop 1 (page.reload) committed after 86ms` → `was not up 30000ms after hop 1` → `hop 2 (page.reload (replay 1)) committed after 1115ms` → `came up after 41868ms (attempt 2, page.reload (replay 1))`；case 47.0s（冷 Vite optimizer 缓存）。
+  2. `1 passed (43.1s)`；`hop 1 committed after 56ms` → `came up after 9306ms (attempt 1, page.reload)`；case 14.8s。
+  3. `1 passed (38.7s)`；`hop 1 committed after 47ms` → `came up after 4706ms (attempt 1, page.reload)`；case 13.0s。
+- [x] AC-323 判据第一条命令（live-session-send + upload-fixture + composer-embedded 三 spec 联跑）exit 0，贴 pass 计数与墙钟，且墙钟 < 记录 `timeoutMs=480000`。— 实测：`19 passed (3.7m)`，`real 4m7.391s`（247s < 480s），EXIT=0；run ceiling 535000ms 未触发。三份 spec 的通过数：composer-embedded 7、live-session-send 4、upload-fixture 8。
+- [x] AC-323 整条判据三命令串行 exit 0/0/0：①三 spec playwright；②`npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime`；③`npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`；贴三条的 pass 计数、墙钟与 exit 码。— 实测（串行 0/0/0）：
+  ① `19 passed (3.7m)` / `real 4m7.391s` / EXIT=0；
+  ② `Test Files  22 passed (22)` / `Tests  219 passed (219)` / vitest `Duration  4.75s` / `real 0m5.689s` / EXIT=0；
+  ③ `6 passed (50.5s)` / `real 1m1.847s` / EXIT=0。
+- [x] 取假形态必须红：把落地窗调回旧值或注入一个永不挂载 pane 的探针，断言仍以 `reloadPaneBounded` 的具名错误收场（非静默超时），还原后复绿；贴红绿两段原文。— 实测：注入永不挂载探针 `const PANE = '.chat-messages-pane-never-mounts'`（其余预算保持新值）⇒ EXIT=1，具名错误原文：
+  `Error: the transcript pane after the history reload did not come up within 66028ms of the reload, replays included; the page held:`
+  hop 原文：`hop 1 committed after 22ms` → `was not up 30000ms after hop 1` → `hop 2 committed after 18ms` → `was not up 15000ms after hop 2` → `hop 3 committed after 15ms` → `was not up 15000ms after hop 3` → `hop 4 (page.reload (replay 3)) begins with 5841ms`、`committed after 44ms` → 66s 截止按名报错；case 1.1m（150s 每例预算让守卫自己的 66s 截止先到，而不是被 Playwright 默认 60s 截成无名超时）。
+  还原后复绿：`1 passed (43.9s)`，`hop 1 committed after 191ms`，`came up after 5352ms (attempt 1, page.reload)`，EXIT=0。（还原后首次复跑撞上 webServer 启动 40s 上限的 boot flake：watchdog `stuck at stage "webServer-start": port 27143 (client) is not listening`；重跑即绿，与本改动无关，如实记录。）
+- [x] `npm run typecheck` exit 0。— 实测：EXIT=0（`tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json`，三段均无输出）。
 
 ## DoD
 
 在合并 develop 后的树上，用真实 Chromium 驱动真实服务（上游仍为本 spec 自带假 Realtime 上游，不触真实 DashScope、不产生费用），在宿主常态负载下跑完 AC-323 判据三条命令并贴 exit 码 / pass 计数 / 墙钟原文；贴出失败用例「旧预算红 → 新预算绿」的同树对照（error-context 的 `18262ms` 与 trace 的 hop 时间线，对应新跑的 hop/落地行）；贴出假形态突变红读数。未验证项如实写明。
+
+## Notes（实测原文与对照）
+
+- 环境：128 cores，`load average: 54.19, 44.68, 40.12`；worktree 从 develop `6530ddb2e` 切出，实现提交 `e4115176c`。develop 在本轮未前进，工作树即「合并 develop 后」的树（`git merge-base --is-ancestor develop HEAD` 成立）。
+- 同树对照（旧预算红 → 新预算绿）：旧红 = Proposal 里 error-context 的 `did not come up within 18262ms` 与 trace 的 `hop 1 ... Timeout 5000ms exceeded ... until "load"`；新跑的落地读数为 9306ms / 4706ms / 5352ms（均 > 旧 4s 首次落地窗），冷缓存一轮首次 30s 未起、replay 后 41868ms 落地。这正是旧 4s/3–4s 窗口低于本页负载下冷启动的直接读数；`waitUntil: 'commit'` 后 hop 的返回从「等 load 超时 5000ms」变为 22–191ms。
+- 三次 AC1 的墙钟为 1.9m / 43.1s / 38.7s（整次调用，含 Vite optimizer warm-up 与 webServer boot）。原文日志在 worktree 的 `tmp/ac323-*.log`（`tmp/` 已被 .gitignore 忽略，不入库）。
+- 未验证项：没有触真实 DashScope（本 spec 自带假 Realtime 上游，符合 DoD）；产品代码、判据命令、`ROW_*` 常量与投递语义未改——`git diff --stat` 仅 3 个文件、+45/−20。
+
+## ADR-007 暗轴记录
+
+该轴仍暗,理由:e2e 共享 reload 守卫的预算校准,不改架构依赖图,无 L_D/L_G 读数。
 
 ## Touches
 
