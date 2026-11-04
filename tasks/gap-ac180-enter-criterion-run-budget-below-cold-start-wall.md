@@ -65,11 +65,11 @@ goal_ac: AC-180
 
 ## AC
 
-- [ ] AC1 直跑稳定绿：连续 3 次 `npx playwright test e2e/resident-enter-send.spec.ts` 均 `EXIT=0`；每次贴 `2 passed (…)`、整轮 wall、`[e2e] watchdog-armed` 与 `[e2e] boot` 两行、跑前 `uptime` load1；3 次输出均不含 `[e2e] watchdog:` 越界行，最大 wall < `240_000`。
-- [ ] AC2 预算已声明且被本判据读到：`grep -n "'resident-enter-send.spec.ts': 240_000" playwright.config.ts` 命中 1 行；判据输出逐字含 `re-armed to 240000ms from the run start`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍为 `55_000`；全局 `^  timeout: 60_000,$` 仍命中。
-- [ ] AC3 预算承重（诱导对，除条目外完全同构）：(a) 条目在时 `QUAY_E2E_CONFIG_EVAL_STALL_MS=40000 npx playwright test e2e/resident-enter-send.spec.ts` ⇒ `EXIT=0`、wall > 55s、输出含 `[e2e] config-eval-stall:` 与 `re-armed to 240000ms`、无越界行；(b) 临时删掉条目、保留同一 40s stall ⇒ `EXIT=1`，输出逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling`；(c) 还原条目后同一命令（不带 stall）回到 `EXIT=0`；原始输出与 wall 入档，`git diff` 无负控残留。
-- [ ] AC4 闸 deadline 已抬且可读：`quay goal get AC-180 --json --store --root <worktree>` 的 `timeoutMs` == `260000`；`criterion` 逐字仍为 `npx playwright test e2e/resident-enter-send.spec.ts`、`status == "achieved"`、`goal == "GOAL-013"`；`quay goal gate AC-180 --root <worktree> --json` 的 `verdict` 为 `pass`（若 CLI 在 worktree 上仍报旧值，保留 gate 原始输出并以上述 store 读法取证）。
-- [ ] AC5 判定面未弱化、diff 范围受控：`git diff --name-only $(git merge-base develop HEAD)` 只含 `playwright.config.ts`、`goals/AC-180-…md`、本任务文件；`git diff $(git merge-base develop HEAD) -- e2e/resident-enter-send.spec.ts | wc -c` == 0；`git diff … -- 'goals/**'` 只有新增的 `timeoutMs: 260000` 一行；新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` 的条数为 0；`npm run typecheck` 与 `npm run lint` exit 0。
+- [x] AC1 直跑稳定绿：连续 3 次 `npx playwright test e2e/resident-enter-send.spec.ts` 均 `EXIT=0`；每次贴 `2 passed (…)`、整轮 wall、`[e2e] watchdog-armed` 与 `[e2e] boot` 两行、跑前 `uptime` load1；3 次输出均不含 `[e2e] watchdog:` 越界行，最大 wall < `240_000`。
+- [x] AC2 预算已声明且被本判据读到：`grep -n "'resident-enter-send.spec.ts': 240_000" playwright.config.ts` 命中 1 行；判据输出逐字含 `re-armed to 240000ms from the run start`；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍为 `55_000`；全局 `^  timeout: 60_000,$` 仍命中。
+- [x] AC3 预算承重（诱导对，除条目外完全同构）：(a) 条目在时 `QUAY_E2E_CONFIG_EVAL_STALL_MS=40000 npx playwright test e2e/resident-enter-send.spec.ts` ⇒ `EXIT=0`、wall > 55s、输出含 `[e2e] config-eval-stall:` 与 `re-armed to 240000ms`、无越界行；(b) 临时删掉条目、保留同一 40s stall ⇒ `EXIT=1`，输出逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling`；(c) 还原条目后同一命令（不带 stall）回到 `EXIT=0`；原始输出与 wall 入档，`git diff` 无负控残留。
+- [x] AC4 闸 deadline 已抬且可读：`quay goal get AC-180 --json --store --root <worktree>` 的 `timeoutMs` == `260000`；`criterion` 逐字仍为 `npx playwright test e2e/resident-enter-send.spec.ts`、`status == "achieved"`、`goal == "GOAL-013"`；`quay goal gate AC-180 --root <worktree> --json` 的 `verdict` 为 `pass`（若 CLI 在 worktree 上仍报旧值，保留 gate 原始输出并以上述 store 读法取证）。
+- [x] AC5 判定面未弱化、diff 范围受控：`git diff --name-only $(git merge-base develop HEAD)` 只含 `playwright.config.ts`、`goals/AC-180-…md`、本任务文件；`git diff $(git merge-base develop HEAD) -- e2e/resident-enter-send.spec.ts | wc -c` == 0；`git diff … -- 'goals/**'` 只有新增的 `timeoutMs: 260000` 一行；新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` 的条数为 0；`npm run typecheck` 与 `npm run lint` exit 0。
 
 ## DoD
 
@@ -80,6 +80,33 @@ goal_ac: AC-180
 ⛔ 不得用 `retries`、`repeat-each`、`test.skip`、`test.only`、`page.route(`、改判据命令、改任何 `expect` 或放宽判据常量换绿。若 AC1 在净检出上仍稳定红（即判据在产品面为假），停手上报置 `needs-human`，不得把量具红写成产品绿。
 
 该轴仍暗,理由:本任务只调整 e2e 判据的量具预算与 goal 记录的 deadline，未新增或移除模块、依赖或跨层引用，L_D/L_G 无可比读数。
+
+## Evidence
+
+**本任务修的是量具的整轮预算与闸的 deadline，不是产品保证。** `criterion:` 命令与 `expect:` 全文逐字未动；`e2e/resident-enter-send.spec.ts` 零字节改动（`git diff <merge-base> -- e2e/resident-enter-send.spec.ts | wc -c` = 0）；`SINGLE_SPEC_CEILING_MS = 55_000`、`BOOT_CEILING_MS`、`WEB_SERVER_TIMEOUT_MS` 与全局 `timeout: 60_000` 均未动。
+
+红态基线（主检出 `.quay/gate-events.jsonl`，AC-180 尾部；evaluationRoot=/data/home/yale/work/claudecodeui）：同一 treeSha `41e9a8274b556a8bedd49bfadeda7bba782b058d` 上
+- `2026-11-04T10:50:23.700Z` verdict `not-evaluated` — `not-evaluated (timeout): acceptance timed out after 60000ms (killed) — set the record's timeoutMs or QUAY_ACCEPTANCE_TIMEOUT_MS`；
+- `2026-11-04T11:01:20.549Z` verdict `fail` — `acceptance failed (exit 1) — [e2e] watchdog: this run crossed its own 55000ms ceiling at 55002ms (config-eval-ms=2887) … observed past boot at 18768ms`。
+两条 reason 中都没有 AC-180 断言失败。
+
+AC1（3 次直跑，工作树 HEAD tree `fb865260d9f492d702d59792eb82561954816aff`；每行前为跑前 `uptime` load1）：
+1. load1=51.90 → `EXIT=0`，`2 passed (50.0s)`，`WALL=56.40s`；`[e2e] watchdog-armed: config-eval-ms=298, boot ceiling 40000ms from config-eval end (deadline at 40298ms after run start), then re-armed to 240000ms from the run start`；`[e2e] boot: both webServers answered at 12320ms (config-eval-ms=298), re-armed to 240000ms from the run start`；`session.lifecycle_mode=resident`，`host.resident.bindsSession=true`，`control.lifecycle_mode=per-run`。
+2. load1=90.09 → `EXIT=0`，`2 passed (28.2s)`，`WALL=44.87s`；`watchdog-armed: config-eval-ms=16085 … re-armed to 240000ms`；`boot: both webServers answered at 22356ms (config-eval-ms=16085), re-armed to 240000ms`。
+3. load1=83.23 → `EXIT=0`，`2 passed (1.5m)`，`WALL=93.76s`；`watchdog-armed: config-eval-ms=362 … re-armed to 240000ms`；`boot: both webServers answered at 26846ms (config-eval-ms=362), re-armed to 240000ms`；`session.lifecycle_mode=resident`、`host.resident.bindsSession=true`、`control.lifecycle_mode=per-run`。
+3 次输出均不含 `[e2e] watchdog:` 越界行；最大 wall 93.76s < 240_000ms。第 1、3 次（56.40s / 93.76s）在旧的 55s 默认墙下都会被看门狗杀掉。
+
+AC2：`grep -n "'resident-enter-send.spec.ts': 240_000" playwright.config.ts` → `845:  'resident-enter-send.spec.ts': 240_000,`（命中 1 行）；`grep -n 'SINGLE_SPEC_CEILING_MS = '` → `404:const SINGLE_SPEC_CEILING_MS = 55_000;`；`grep -n '^  timeout: 60_000,$'` → `3979:  timeout: 60_000,`；每次判据输出逐字含 `re-armed to 240000ms from the run start`。
+
+AC3 诱导对（`QUAY_E2E_CONFIG_EVAL_STALL_MS=40000`，除条目外构造完全同构）：
+- (a) 条目在：`EXIT=0`，`WALL=99.87s`（>55s），`[e2e] config-eval-stall: holding config evaluation for 40000ms (QUAY_E2E_CONFIG_EVAL_STALL_MS=40000)`；`watchdog-armed: config-eval-ms=40495 … re-armed to 240000ms from the run start`；`boot: both webServers answered at 70655ms`；`2 passed (58.7s)`；无越界行。
+- (b) 临时删条目（同一 40s stall）：`EXIT=1`，`WALL=58.50s`，输出逐字含 `[e2e] watchdog: this run crossed its own 55000ms ceiling at 55001ms (config-eval-ms=47912) and is ending here with exit 1 at 57003ms`。
+- (c) 还原条目后不带 stall 复跑：`EXIT=0`，`WALL=78.91s`，`2 passed (35.5s)`，`re-armed to 240000ms from the run start`；`git status` 无负控残留（临时标记行已删，最终 diff 只有 `playwright.config.ts` 与 `goals/AC-180-…md`）。
+⇒ 240_000 是承重的：同一构造在无条目时于 55s 被杀，有条目时越过 55s 仍走完并发觉 AC-180 自己的断言。
+
+AC4：`quay goal get AC-180 --json --store --root <worktree>` → `"timeoutMs": 260000`，`"criterion": "npx playwright test e2e/resident-enter-send.spec.ts"`，`"status": "achieved"`，`"goal": "GOAL-013"`。`quay goal gate AC-180 --root <worktree> --json` → `"verdict": "pass"`，`"reason": "acceptance passed (exit 0)"`，`"timestamp": "2026-11-04T11:19:30.734Z"`，event payload `evaluationRoot=/data/home/yale/work/claudecodeui-worktrees/gap-ac180-enter-criterion-run-budget-below-cold-start-wall`，`treeSha=d67a2f696dee8543b7c35c8347fee7466c9550db`。
+
+AC5：`git diff --name-only $(git merge-base develop HEAD)` → `playwright.config.ts`、`goals/AC-180-用-enter-键发送与点发送按钮等价-未勾选知情不能发出-勾选后落成常驻.md`（外加本任务文件由 task_write 提交）；`git diff <merge-base> -- e2e/resident-enter-send.spec.ts | wc -c` = 0；`git diff <merge-base> -- 'goals/**'` 仅新增 `+timeoutMs: 260000` 一行；新增行匹配 `retries|repeat-each|test\.skip|test\.only|page\.route\(` = 0 条；`npm run typecheck` → `TYPECHECK_EXIT=0`（32.74s）；`npm run lint` → `LINT_EXIT=0`（仅既有 warning）。
 
 ## Touches
 
