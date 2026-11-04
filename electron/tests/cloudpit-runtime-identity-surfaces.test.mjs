@@ -462,7 +462,7 @@ test('AC4: the live non-goal identity pins are untouched', () => {
   const RETIRED_DUAL_READ_URI = `(?:${LEGACY_STEM}|cloudpit)://`;
   for (const file of [
     'src/modules/cockpit-contract/observationUri.ts',
-    'server/modules/observation/observation-uri.ts',
+    'server/modules/observation/core/observation-uri.ts',
   ]) {
     const source = readRepoFile(file);
     assert.ok(

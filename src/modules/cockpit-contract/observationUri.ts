@@ -10,7 +10,7 @@
  *
  * One object is addressed by one string, and the string is the key the server joins the
  * observed-object row, its delta log and the user's seen cursor on. The grammar is the server's
- * (`server/modules/observation/observation-uri.ts`), restated here because the two compilers
+ * (`server/modules/observation/core/observation-uri.ts`), restated here because the two compilers
  * have separate `@` roots and the repository forbids `server/` from importing the repo-root
  * `shared/` tree (the AC-394 unresolved-internal budget). Keep the two spellings in step: a
  * change to one without the other makes a deep link address an object the server never wrote.
