@@ -597,6 +597,7 @@ export const sessionsService = {
       projectPath: source.project_path ?? '',
       upToAnchorId: options.upToAnchorId,
       title: sessionName,
+      modelProviderId: source.model_provider_id ?? null,
     });
 
     const forkSessionId = randomUUID();

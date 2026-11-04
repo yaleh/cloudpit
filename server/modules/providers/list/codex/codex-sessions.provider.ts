@@ -4,6 +4,7 @@ import readline from 'node:readline';
 
 import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/codex-provider-injection.js';
 import { codexRolloutLines } from '@/modules/providers/list/codex/codex-fork-history.js';
 import { findFileWithSuffix } from '@/modules/providers/list/codex/codex-session-paths.js';
 import { normalizeCodexTokenCountInfo } from '@/modules/providers/list/codex/codex-token-usage-normalization.js';
@@ -1905,6 +1906,12 @@ export class CodexSessionsProvider implements IProviderSessions {
       threadId: supersededThreadId,
       lastTurnId: keepThroughId,
       cwd: session.project_path ?? '',
+      // The fork runs through a short-lived app-server; it must be launched
+      // under the session's upstream provider or the forked thread is bound to
+      // Codex's default (openai) and the re-launch fails modelProviderMismatch.
+      ...(session.model_provider_id
+        ? { launch: compileCodexProviderLaunch(session.model_provider_id) }
+        : {}),
     });
 
     // Explicit replacement, not a run observation: retire the pre-edit thread,

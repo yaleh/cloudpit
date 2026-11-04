@@ -483,7 +483,10 @@ async function enterLiveVoice(page: Page): Promise<void> {
   await expect(page.locator(COMPOSER_TEXTAREA)).toBeHidden();
 }
 
-test.describe.configure({ mode: 'serial' });
+// The serial describe's per-test budget is raised above Playwright's 60s default so the shared reload guard
+// (`e2e/support/pane-reload.ts`, PANE_RELOAD_DEADLINE_MS = 66_000) can spend its own bound beside this case's
+// work and still report its NAMED landing failure instead of Playwright's anonymous `Test timeout`.
+test.describe.configure({ mode: 'serial', timeout: 150_000 });
 
 test.describe('voice realtime live session send', () => {
   let page: Page;

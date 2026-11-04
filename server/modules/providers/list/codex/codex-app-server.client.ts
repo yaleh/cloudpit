@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import readline from 'node:readline';
 
 import { AppError, readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
 
 /**
  * Minimal JSON-RPC client for `codex app-server`.
@@ -200,13 +201,18 @@ function resolveCodexLauncher(): string {
  */
 async function withAppServer<T>(
   run: (call: (method: string, params: unknown) => Promise<unknown>) => Promise<T>,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; launch?: CodexAppServerLaunch } = {},
 ): Promise<T> {
   const launcher = resolveCodexLauncher();
-  const child = spawn(process.execPath, [launcher, 'app-server'], {
-    env: process.env,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  const child = spawn(
+    process.execPath,
+    [launcher, 'app-server', ...(options.launch?.args ?? [])],
+    {
+      env: { ...process.env, ...(options.launch?.env ?? {}) },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...(options.launch?.cwd ? { cwd: options.launch.cwd } : {}),
+    },
+  );
 
   // The server logs sandbox and skill warnings to stderr on every start. They
   // are not failures and drowning the app log in them helps nobody, so stderr
@@ -350,6 +356,8 @@ export const codexAppServer = {
     threadId: string;
     lastTurnId?: string;
     cwd: string;
+    /** The provider launch the fork's short-lived app-server must run under. */
+    launch?: CodexAppServerLaunch;
   }): Promise<CodexThreadFork> {
     return withAppServer(async (call) => {
       const result = await call('thread/fork', {
@@ -380,7 +388,7 @@ export const codexAppServer = {
       }
 
       return { threadId, path };
-    });
+    }, { launch: input.launch });
   },
 
   /**
