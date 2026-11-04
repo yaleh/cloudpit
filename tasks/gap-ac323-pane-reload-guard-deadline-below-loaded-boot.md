@@ -2,7 +2,7 @@
 id: gap-ac323-pane-reload-guard-deadline-below-loaded-boot
 title: 恢复 AC-323 判据绿：e2e/support/pane-reload.ts 的 reload 守卫预算低于负载下的冷启动（hop 5s /
   首次落地 4s / 总 18s）⇒ 历史 reload 未落地即自报红，同树单跑 1 passed (18.6s)
-status: todo
+status: ready
 labels:
   - gap
   - defect
