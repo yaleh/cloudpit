@@ -113,3 +113,11 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 - e2e/voice-realtime-upload-fixture.spec.ts
 - e2e/voice-realtime-live-session-send.spec.ts
 - tasks/gap-ac323-pane-reload-guard-deadline-below-loaded-boot.md
+
+## Blocker
+
+**2026-11-04T08:47:14.724Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/services/sessions.service.ts 1394→1395 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：084ee392-f2b1-444a-a595-534f776edf45
