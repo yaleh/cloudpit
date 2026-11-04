@@ -2,7 +2,7 @@
 id: gap-ac459-criterion-stale-observation-uri-path
 title: AC-459 判据 AC4 仍读 observation god-package 拆分前的旧路径：改钉
   core/observation-uri.ts 并保留 R7 不变式
-status: needs-human
+status: ready
 labels:
   - gap
 parent: null

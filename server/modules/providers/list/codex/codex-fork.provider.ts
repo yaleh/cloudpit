@@ -1,4 +1,5 @@
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/codex-provider-injection.js';
 import type { IProviderFork } from '@/shared/interfaces.js';
 
 /**
@@ -22,6 +23,7 @@ export class CodexForkProvider implements IProviderFork {
     projectPath: string;
     upToAnchorId?: string;
     title?: string;
+    modelProviderId?: string | null;
   }): Promise<{ providerSessionId: string; jsonlPath: string }> {
     // `title` is deliberately not forwarded. The sidebar name lives in this
     // app's own session row, and naming the thread inside Codex would mean a
@@ -30,6 +32,11 @@ export class CodexForkProvider implements IProviderFork {
       threadId: input.providerSessionId,
       lastTurnId: input.upToAnchorId,
       cwd: input.projectPath,
+      // The fork runs through a short-lived app-server; launch it under the
+      // source's provider or the fork is bound to Codex's default (openai).
+      ...(input.modelProviderId
+        ? { launch: compileCodexProviderLaunch(input.modelProviderId) }
+        : {}),
     });
 
     // The path is the one the server reported and already confirmed on disk,

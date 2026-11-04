@@ -13,6 +13,12 @@
  * historical reloads stayed bare and kept paying the same residual red (2026-10-21 04:02Z, same
  * `:767` signature). Two copies of a replay guard drift; one exported guard is the mechanism.
  *
+ * WHAT A HOP WAITS FOR. A hop waits for the document's response to COMMIT (`waitUntil: 'commit'`), not for
+ * `load`. The cold boot this pane needs continues after commit: on a loaded host the reloaded document still
+ * had ~300 Vite dev module requests outstanding when the old 5s hop gave up inside its own navigation, so
+ * waiting for `load` spent the hop's whole budget on a fact the landing probe reads better. Whether the pane
+ * actually mounted is the landing probe's reading — one reader per fact.
+ *
  * WHAT IT IS NOT. This is not a retry that hides a red. It only replaces the document when the
  * reload itself did not land — exactly what recovers from a document whose boot requests were held
  * or interrupted once — and a run that cannot land still ends HERE, by name, inside this guard's
@@ -20,28 +26,41 @@
  */
 import type { Page } from '@playwright/test';
 
-/** How long ONE reload hop — the case's own reload and every replay of it alike — is given to return. */
-const PANE_RELOAD_HOP_MS = 5_000;
+/**
+ * How long ONE reload hop — the case's own reload and every replay of it alike — is given to COMMIT.
+ *
+ * `commit` is the earliest navigation milestone: the response has started and the document is being handed
+ * over. It is the right bound for a hop, because the fact a hop can prove is that a fresh document arrived;
+ * the pane's mount is the landing probe's reading, and the two are deliberately not confused.
+ */
+const PANE_RELOAD_HOP_MS = 10_000;
 /** How long the FIRST hop's landing is given on its own, before the guard starts replaying. */
-const PANE_FIRST_LANDING_MS = 4_000;
-/** How long each REPLAY's landing is given. Shorter: a replay is a re-ask, not a cold boot. */
-const PANE_REPLAY_LANDING_MS = 3_000;
+const PANE_FIRST_LANDING_MS = 30_000;
+/** How long each REPLAY's landing is given. Shorter: a replay is a re-ask of a document already served once. */
+const PANE_REPLAY_LANDING_MS = 15_000;
 /**
  * The bound the replay budget is spent out of. A deadline rather than a replay count, because it is the SUM that
  * has to fit — spelled out, because this sum is the whole of why the guard can replay at all:
  *
- *   first hop        PANE_RELOAD_HOP_MS      = 5_000
- * + first landing    PANE_FIRST_LANDING_MS   = 4_000
- * + replay hop       PANE_RELOAD_HOP_MS      = 5_000
- * + replay landing   PANE_REPLAY_LANDING_MS  = 3_000
+ *   first hop        PANE_RELOAD_HOP_MS      = 10_000
+ * + first landing    PANE_FIRST_LANDING_MS   = 30_000
+ * + replay hop       PANE_RELOAD_HOP_MS      = 10_000
+ * + replay landing   PANE_REPLAY_LANDING_MS  = 15_000
  *   ───────────────────────────────────────────────
- *   worst case                               = 17_000  ≤  PANE_RELOAD_DEADLINE_MS = 18_000
+ *   worst case                               = 65_000  ≤  PANE_RELOAD_DEADLINE_MS = 66_000
  *
- * so even a first hop that spends its entire bound still leaves a complete replay inside the deadline, and a
- * run that cannot land ends HERE, by name, with the page's own text — rather than inside the case's own 30s
- * window, where a red says only that a wait ran out.
+ * The first landing is the order of this page's own cold-start budget — `CLIENT_WARM_DEADLINE_MS = 30_000` in
+ * `e2e/voice-realtime-upload-fixture.spec.ts`, which is the same Vite module graph booted from the same cold
+ * server. The value this replaces (4_000) sat below that boot under host load, so the guard interrupted a
+ * landing that was still arriving and spent its replay on a shorter window.
+ *
+ * WHO LIVES INSIDE WHOSE BUDGET. The guard alone may spend `66_000`, beside the case's own work (pre-reload
+ * gestures, post-reload assertions), so both calling specs raise their per-test budget to `150_000` in their
+ * `test.describe.configure` — a guard that outlived its own test would report Playwright's `Test timeout`,
+ * which names no landing. Healthy runs never approach either bound; the raised per-test budget is only the
+ * room a loaded run needs to reach this guard's named failure instead of the runner's anonymous one.
  */
-const PANE_RELOAD_DEADLINE_MS = 18_000;
+const PANE_RELOAD_DEADLINE_MS = 66_000;
 
 /** The pane every caller of this guard reads across its reload. */
 const PANE = '.chat-messages-pane';
@@ -82,12 +101,12 @@ export const reloadPaneBounded = async (page: Page, label: string, explain: Page
     const hopStartedAt = Date.now();
     console.log(`[e2e] reload pane: hop ${attempt} (${hopKind}) begins with ${hopBudget}ms of navigation budget`);
     try {
-      await page.reload({ timeout: hopBudget });
+      await page.reload({ waitUntil: 'commit', timeout: hopBudget });
       navigationFailure = null;
-      console.log(`[e2e] reload pane: hop ${attempt} (${hopKind}) returned after ${Date.now() - hopStartedAt}ms`);
+      console.log(`[e2e] reload pane: hop ${attempt} (${hopKind}) committed after ${Date.now() - hopStartedAt}ms`);
     } catch (error) {
       navigationFailure = error instanceof Error ? error.message : String(error);
-      console.log(`[e2e] reload pane: hop ${attempt} (${hopKind}) did not return in ${hopBudget}ms: ${navigationFailure}`);
+      console.log(`[e2e] reload pane: hop ${attempt} (${hopKind}) did not commit in ${hopBudget}ms: ${navigationFailure}`);
     }
     const landingBudget = Math.min(attempt === 1 ? PANE_FIRST_LANDING_MS : PANE_REPLAY_LANDING_MS, budgetMs());
     if (await appears(page.locator(PANE), landingBudget)) {
@@ -98,7 +117,7 @@ export const reloadPaneBounded = async (page: Page, label: string, explain: Page
       await explain(
         page,
         `${label} did not come up within ${Date.now() - startedAt}ms of the reload, replays included`
-        + `${navigationFailure === null ? '' : ` (the last navigation did not return either: ${navigationFailure})`}`,
+        + `${navigationFailure === null ? '' : ` (the last navigation did not commit either: ${navigationFailure})`}`,
       );
     }
     console.log(`[e2e] reload pane: ${label} was not up ${landingBudget}ms after hop ${attempt} (${hopKind}); replaying the reload`);

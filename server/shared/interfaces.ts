@@ -508,6 +508,8 @@ export interface IProviderFork {
     projectPath: string;
     upToAnchorId?: string;
     title?: string;
+    /** The upstream provider id the fork's short-lived app-server must run under. */
+    modelProviderId?: string | null;
   }): Promise<{ providerSessionId: string; jsonlPath: string }>;
 }
 
