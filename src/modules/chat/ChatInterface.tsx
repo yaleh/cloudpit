@@ -14,7 +14,6 @@ import type {
   ProjectSession,
   SessionEstablishedContext,
   SessionNavigationOptions,
-  SuggestionChip,
   TranscriptExportAction,
   UiNavigateReveal,
 } from '@/shared/types';
@@ -809,19 +808,10 @@ function ChatInterface({
     quotedSelection,
   });
 
-  /**
-   * The floating transcript action's acceptance: hand the live passage to the
-   * composer's one quoted entry. The chip is built here because the action has no
-   * strip to click; it inserts at the caret, clears the page selection, focuses
-   * the box and never sends. An omitted strip (a standalone harness) draws no
-   * action.
-   */
-  // The cast keeps the omitted-strip runtime case in the type.
-  const acceptChip = (chipStrip as { onAccept?: (chip: SuggestionChip) => void } | undefined)?.onAccept;
-  const acceptQuotedSelection = useCallback((selectionText: string) => {
-    const chip: SuggestionChip = { id: 'quoted-0', text: selectionText, source: 'quoted', index: 0 };
-    acceptChip?.(chip);
-  }, [acceptChip]);
+  // The floating action has no strip to click: accept its passage through the
+  // composer's one quoted entry (a harness that omits the strip draws no action).
+  const acceptQuotedSelection = useCallback((text: string) =>
+    chipStrip?.onAccept?.({ id: 'quoted-0', text, source: 'quoted', index: 0 }), [chipStrip]);
 
   /**
    * What the draft points at in the latest assistant reply.
@@ -1286,7 +1276,7 @@ function ChatInterface({
             onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
             highlightedReplyOrdinals={highlightedReplyOrdinals}
             quotedSelection={quotedSelection}
-            onAcceptQuotedSelection={acceptChip ? acceptQuotedSelection : undefined}
+            onAcceptQuotedSelection={acceptQuotedSelection}
           />
         </MarkdownWorkspaceContext.Provider>
 
