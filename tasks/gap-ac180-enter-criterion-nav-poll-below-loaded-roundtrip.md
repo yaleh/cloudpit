@@ -52,14 +52,14 @@ goal_ac: AC-180
 
 ## AC
 
-- [ ] AC1 红态等价复现：在同等负载下运行 `npx playwright test e2e/resident-enter-send.spec.ts` exit 非 0，失败落在 (a) 腿的发送后等待；`## Evidence` 逐字登记 `error-context.md` 的 `Received string: "/"` 与 trace 里 `POST /api/providers/sessions` 的 `status: -1`（响应未到）——证明 Enter 已提交，红在等待预算。
-- [ ] AC2 有界导航等待（承重）：`grep -nE "expect\.poll" -A3 e2e/resident-enter-send.spec.ts` 中每条会话 URL 轮询都带显式 `timeout:`；对应常量 ≥ `15_000` 且 < `45_000`。机械读数：`grep -c "expect\.poll" e2e/resident-enter-send.spec.ts` 与带 `timeout:` 的条数相等，且 `grep -nE "SESSION_URL_READY_MS|sessionUrlReady" e2e/resident-enter-send.spec.ts` 命中 ≥ 2。
-- [ ] AC3 失败可诊断（承重）：临时让 `POST /api/providers/sessions` 返回 500（或让客户端发送必失败），判据必须在预算内失败且失败文本包含该发送错误 / 最后一次 pathname，而不是只有 `Received string: "/"`；恢复后复绿。逐字登记失败消息。
-- [ ] AC4 意图观测点（承重）：(b) 腿用 `page.waitForRequest` 断言创建请求体 `lifecycleMode === 'per-run'`；(a) 腿断言请求体不含 `lifecycleMode`。`grep -n "waitForRequest" e2e/resident-enter-send.spec.ts` 命中 ≥ 1。
-- [ ] AC5 载重读数不弱化（承重）：`grep -cE "toBe\('resident'\)|toBe\('per-run'\)" e2e/resident-enter-send.spec.ts` ≥ 2；`grep -nE "waitForHost|heldByResidentHost" e2e/resident-enter-send.spec.ts` 命中 ≥ 1。
-- [ ] AC6 假形态必须红（承重，改锚 (b)）：禁用 per-run override 的记录（`newSessionLifecycleController.ts` 的 `lifecycleModeForCreate` 对 `override === 'per-run'` 返回 `undefined`，或提交入口丢弃 `newSessionLifecycleMode`）⇒ (b) 腿非 0，红在 `Expected "per-run" / Received "resident"`；登记变异 diff、失败断言逐字与退出码，恢复后复绿。
-- [ ] AC7 判据稳定：连续 3 次 `npx playwright test e2e/resident-enter-send.spec.ts` 均 exit 0，登记每次 duration 与两组读数（`session.lifecycle_mode=resident`、`host.resident.bindsSession=true`、`control.lifecycle_mode=per-run`）。
-- [ ] AC8 契约面：`npm run lint` 退出 0；`npm run typecheck` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches` 内。
+- [x] AC1 红态等价复现：在同等负载下运行 `npx playwright test e2e/resident-enter-send.spec.ts` exit 非 0，失败落在 (a) 腿的发送后等待；`## Evidence` 逐字登记 `error-context.md` 的 `Received string: "/"` 与 trace 里 `POST /api/providers/sessions` 的 `status: -1`（响应未到）——证明 Enter 已提交，红在等待预算。
+- [x] AC2 有界导航等待（承重）：`grep -nE "expect\.poll" -A3 e2e/resident-enter-send.spec.ts` 中每条会话 URL 轮询都带显式 `timeout:`；对应常量 ≥ `15_000` 且 < `45_000`。机械读数：`grep -c "expect\.poll" e2e/resident-enter-send.spec.ts` 与带 `timeout:` 的条数相等，且 `grep -nE "SESSION_URL_READY_MS|sessionUrlReady" e2e/resident-enter-send.spec.ts` 命中 ≥ 2。
+- [x] AC3 失败可诊断（承重）：临时让 `POST /api/providers/sessions` 返回 500（或让客户端发送必失败），判据必须在预算内失败且失败文本包含该发送错误 / 最后一次 pathname，而不是只有 `Received string: "/"`；恢复后复绿。逐字登记失败消息。
+- [x] AC4 意图观测点（承重）：(b) 腿用 `page.waitForRequest` 断言创建请求体 `lifecycleMode === 'per-run'`；(a) 腿断言请求体不含 `lifecycleMode`。`grep -n "waitForRequest" e2e/resident-enter-send.spec.ts` 命中 ≥ 1。
+- [x] AC5 载重读数不弱化（承重）：`grep -cE "toBe\('resident'\)|toBe\('per-run'\)" e2e/resident-enter-send.spec.ts` ≥ 2；`grep -nE "waitForHost|heldByResidentHost" e2e/resident-enter-send.spec.ts` 命中 ≥ 1。
+- [x] AC6 假形态必须红（承重，改锚 (b)）：禁用 per-run override 的记录（`newSessionLifecycleController.ts` 的 `lifecycleModeForCreate` 对 `override === 'per-run'` 返回 `undefined`，或提交入口丢弃 `newSessionLifecycleMode`）⇒ (b) 腿非 0，红在 `Expected "per-run" / Received "resident"`；登记变异 diff、失败断言逐字与退出码，恢复后复绿。
+- [x] AC7 判据稳定：连续 3 次 `npx playwright test e2e/resident-enter-send.spec.ts` 均 exit 0，登记每次 duration 与两组读数（`session.lifecycle_mode=resident`、`host.resident.bindsSession=true`、`control.lifecycle_mode=per-run`）。
+- [x] AC8 契约面：`npm run lint` 退出 0；`npm run typecheck` 退出 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` 全部落在 `## Touches` 内。
 
 ## DoD
 
@@ -67,6 +67,43 @@ goal_ac: AC-180
 - 意图证据在默认开启策略下仍然承重：(b) 的创建请求体逐字带 `lifecycleMode: "per-run"`，(a) 不带；OFF 开关不被记录时 (b) 真的红（`Received "resident"`），恢复后复绿。
 - 载重读数与今天逐字相同：(a) resident + 真宿主持有；(b) per-run。
 - 只动 `## Touches` 列出的文件；假形态若临时触及 `src/modules/chat/utils/newSessionLifecycleController.ts`，变异必须在提交前还原、不出现在落地 diff 里。
+
+## Evidence
+
+**AC1 — 红态等价复现（2026-11-04，load average 约 139/128 核）。** 修复前用临时、未提交的 `page.route` 把 `POST /api/providers/sessions` 的响应压住 6s（就是加载态 trace 里记录的那个状态：请求已在线上、响应未回），运行 `npx playwright test e2e/resident-enter-send.spec.ts -g "AC-180 (a)"` 得 exit 1。`error-context.md` 逐字：
+
+- `Expected pattern: /^\/session\/[^/]+$/`
+- `Received string:  "/"`
+- `Call Log: - Timeout 5000ms exceeded while waiting on the predicate`
+
+trace 中 `POST http://127.0.0.1:7241/api/providers/sessions` 为 `"status": -1, "time": -1`（`_monotonicTime=25752.852`），请求体逐字为 `{"provider":"claude","projectPath":"/data/home/yale/.cache/quay-e2e-tmp/quay-e2e-DxTQ5v/mobile-send-key-workspace","initialMessage":"enter key resident probe","model":"default","modelProviderId":null,"effort":"default","permissionMode":"default"}`（无 `lifecycleMode`）。失败点是 (a) 腿 press 之后的 `expect.poll`，即 Enter 已提交、红在等待预算。基线（修复前无延迟）在同一负载下为 `2 passed (24.6s)`，证明红由发送后的等待预算决定。
+
+**AC2 — 有界导航等待。** `grep -c "expect\.poll" e2e/resident-enter-send.spec.ts` = 1；该轮询带 `timeout: SESSION_URL_READY_MS`，常量 `20_000`（≥15_000 且 <45_000）。`grep -cE "SESSION_URL_READY_MS|sessionUrlReady"` = 5。
+
+**AC3 — 失败可诊断（500）。** 临时 harness：`page.route` 对 `POST /api/providers/sessions` 返回 500。运行 exit 1，失败消息逐字：
+`Error: the composer's send did not reach /session/<id> within 20000ms (last pathname: /; composer send error: ! Error Failed to start a new session: Failed to create session (500) 6:14:28 PM)`
+harness 已还原（`git status --short` 为空），随后 AC7 第 1 次运行复绿。
+
+**AC4 — 意图观测点。** `grep -c "waitForRequest"` = 1。press 前启动捕获，press 后读请求体：(a) `expect('lifecycleMode' in createBody).toBe(false)`；(b) `expect(createBody.lifecycleMode).toBe('per-run')`。绿跑中 (b) 先读到 `control.lifecycle_mode=per-run` 再断言请求体，使假形态红在存储行上（见 AC6）。
+
+**AC5 — 载重读数不弱化。** `grep -cE "toBe\('resident'\)|toBe\('per-run'\)"` = 3；`waitForHost` / `heldByResidentHost` 仍在 ((a) 腿)。三次绿跑均打印 `session.lifecycle_mode=resident`、`host.resident.bindsSession=true`、`control.lifecycle_mode=per-run`。
+
+**AC6 — 变异必须红（改锚 (b)）。** 未提交变异（`src/modules/chat/utils/newSessionLifecycleController.ts`）：
+```diff
+-      return state.override === defaultMode ? undefined : state.override;
++      // TEMPORARY AC6 mutation (uncommitted): drop every override so the OFF intent is never recorded.
++      return undefined;
+```
+`npx playwright test e2e/resident-enter-send.spec.ts -g "AC-180 (b)"` exit 1，打印 `control.lifecycle_mode=resident`；`error-context.md` 逐字：`Expected: "per-run"` / `Received: "resident"`。变异已在提交前还原，落地 diff 不含该文件。
+
+**AC7 — 判据稳定（连续 3 次 exit 0）。**
+1. `2 passed (20.5s)` — `session.lifecycle_mode=resident`、`host.resident.bindsSession=true`、`control.lifecycle_mode=per-run`
+2. `2 passed (28.6s)` — 同上
+3. `2 passed (47.6s)` — 同上（本次 boot 23.4s，仍在 55s watchdog 内自行读完）
+
+**AC8 — 契约面。** `npm run lint` exit 0；`npm run typecheck` exit 0；`git diff --name-only $(git merge-base develop HEAD) HEAD` → `e2e/resident-enter-send.spec.ts`（任务文件由 task_write 自提交，属 Touches 自触）。预合并 `git merge --no-edit develop` 成功，anti-drift Touches check 退出 0（`1 actual file(s), all within declared Touches`）。
+
+**Dark-axis record.** 该轴仍暗,理由:本轮只改 e2e 判据的等待预算与创建请求体观测，未产生架构图/设计依赖读数。
 
 ## Touches
 
