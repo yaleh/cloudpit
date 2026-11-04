@@ -670,11 +670,50 @@ async function enterLiveVoice(page: Page, width: number, upstream: FakeUpstream)
   await expect(page.locator('[data-slot="prompt-input"]').getByTestId('live-voice-button')).toHaveCount(1);
   const mic = page.getByTestId('voice-input-button');
   await expect(mic).toBeVisible({ timeout: 15_000 });
-  const micBox = await mic.boundingBox();
-  const entryBox = await entry.boundingBox();
+  // ONE layout snapshot for both boxes. Read as two separate locator box reads, a re-render
+  // triggered by the resize above can land between them — the mic read from the pre-switch
+  // layout, the entry from the post-switch one — and the row claim is then decided on two
+  // different generations. That is how AC-323 failed at an unchanged tree: the mic's read took
+  // 8.8ms, the entry's 51.1ms (a locator re-resolving after the element was rebuilt), and the
+  // same tree passed a moment earlier. Querying and measuring both elements inside one
+  // browser-side evaluate makes the two rects describe a single layout by construction.
+  type EntryRect = { x: number; y: number; width: number; height: number };
+  const readEntryRow = (): Promise<{ mic: EntryRect | null; entry: EntryRect | null }> =>
+    page.evaluate(() => {
+      const read = (testId: string): { x: number; y: number; width: number; height: number } | null => {
+        const element = document.querySelector(`[data-testid="${testId}"]`);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      };
+      return { mic: read('voice-input-button'), entry: read('live-voice-button') };
+    });
+  let micBox: EntryRect | null = null;
+  let entryBox: EntryRect | null = null;
+  // The poll is what makes the snapshot the SETTLED one: in the frames right after a resize the
+  // compact-tier switch can leave an entry momentarily absent (a null rect) or zero-sized, and
+  // such a frame must not become the verdict. The first settled read still goes through it; the
+  // intervals back off while the re-render lands, and the explicit timeout keeps this wait's
+  // budget its own rather than the runner default.
+  await expect.poll(
+    async () => {
+      const boxes = await readEntryRow();
+      micBox = boxes.mic;
+      entryBox = boxes.entry;
+      return Boolean(
+        micBox &&
+          entryBox &&
+          micBox.width > 0 &&
+          micBox.height > 0 &&
+          entryBox.width > 0 &&
+          entryBox.height > 0,
+      );
+    },
+    { timeout: 10_000, intervals: [50, 100, 250, 500] },
+  ).toBe(true);
   expect(
     micBox && entryBox && entryBox.x > micBox.x && Math.abs(entryBox.y - micBox.y) < 8,
-    'the dictation mic and the Live Voice entry are two controls on one row, mic first',
+    `the dictation mic and the Live Voice entry are two controls on one row, mic first (mic=${JSON.stringify(micBox)}, entry=${JSON.stringify(entryBox)})`,
   ).toBeTruthy();
   await expect(entry).toHaveAttribute('aria-label', /Live Voice/);
   await shot(page, `composer-embedded-default-${width}`);
