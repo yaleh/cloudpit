@@ -79,8 +79,12 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 
 ## Blocker
 
-**2026-11-04T03:07:33.544Z — worker 未落地（exited-not-landed）**
+**2026-11-04T03:18:30.840Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat/ChatInterface.tsx 1477→1487 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/tests/chatComposerReplyChips.test.tsx,src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx,src/modules/chat/tests/chatMessageLocate.test.tsx,src/modules/chat/tests/composerModelProviderOption.test.tsx,src/modules/chat/tests/escapeAbortGuard.test.tsx,src/modules/chat/tests/forkFromAssistantReply.test.tsx,src/modules/chat/tests/liveVoiceMicPrewarmEntry.test.tsx,src/modules/chat/tests/liveVoiceNewSessionEntry.test.tsx,src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx,src/modules/chat/tests/voiceModePermissionBanner.test.tsx,src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx,server/shared/tests/architecture-ratchet.test.ts,src/modules/chat/tests/chatComposerReplyChips.test.tsx,src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx,src/modules/chat/tests/chatMessageLocate.test.tsx,src/modules/chat/tests/composerModelProviderOption.test.tsx,src/modules/chat/tests/escapeAbortGuard.test.tsx,src/modules/chat/tests/forkFromAssistantReply.test.tsx,src/modules/chat/tests/liveVoiceMicPrewarmEntry.test.tsx,src/modules/chat/tests/liveVoiceNewSessionEntry.test.tsx,src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx,src/modules/chat/tests/voiceModePermissionBanner.test.tsx,src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx changed=-]
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/test.sh
+fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
+fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
+fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
 - run_id：wk-prod-anchor
-- session_id：9ccd29d1-be08-4764-8c6f-64d45083df10
+- session_id：627ba042-c154-41a3-a189-b68691136a3f
