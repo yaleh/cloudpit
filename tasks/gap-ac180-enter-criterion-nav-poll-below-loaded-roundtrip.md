@@ -2,7 +2,7 @@
 id: gap-ac180-enter-criterion-nav-poll-below-loaded-roundtrip
 title: AC-180 判据的发送后 URL 等待仍压在 5s 默认值：负载下 POST /api/providers/sessions 未回即假红；给
   (a)(b) 显式有界等待、把意图观测与假形态改锚到 OFF override 腿
-status: todo
+status: ready
 labels:
   - gap
   - defect
