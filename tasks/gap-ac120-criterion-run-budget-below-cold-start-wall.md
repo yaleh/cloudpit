@@ -3,7 +3,7 @@ id: gap-ac120-criterion-run-budget-below-cold-start-wall
 title: AC-120 判据仍压在 55s 默认单文件预算上：冷轮 config-eval 16267–21254ms、至 21875–53075ms
   才越过 boot，同一 treeSha 在 55000ms 被看门狗杀（另有两次 60000ms 闸击杀）⇒ 给 voice-trim 声明
   SPEC_BUDGET_MS 并把记录 timeoutMs 抬到 260s，判据命令与断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
