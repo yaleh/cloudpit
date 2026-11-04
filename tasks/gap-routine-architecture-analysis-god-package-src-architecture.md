@@ -92,3 +92,13 @@ Split the package into render/, layout/ and dom/ leaf subdirectories inside modu
 - `server/shared/tests/frontend-import-cycle-budget.test.ts`
 - `server/shared/tests/frontend-import-cycle-budget.baseline.json`
 - `tasks/gap-routine-architecture-analysis-god-package-src-architecture.md`
+
+## Blocker
+
+**2026-11-04T13:04:26.146Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/architecture-ratchet.baseline.json
+CONFLICT (content): Merge conflict in server/shared/tests/architecture-ratchet.baseline.json
+Automatic merge failed; fix conflicts and then commit the result.
+- run_id：wk-prod-anchor
+- session_id：d2f6896a-9d96-461e-84ec-7babb374a988
