@@ -24,11 +24,11 @@ import type {
  * it anchors, what it reports, and what expansion seed it asks for. `acceptChip`
  * reads that record and has no `chip.source` branch of its own.
  *
- * A quotation is inserted at the live caret as ordinary text; the chip exists
- * only while a transcript selection exists, so accepting it (or losing the
- * selection) takes it off screen. The accepted passage is also kept here as the
- * `quoteAnchor` the Suggest button re-draws with — it is not what keeps the chip
- * visible.
+ * A quotation is inserted at the live caret as ordinary text. The quoted chip is
+ * no longer drawn in the composer — the transcript's floating action owns the
+ * selection — but the same acceptance descriptor is still reached through
+ * `acceptChip` with a chip the action builds. The accepted passage is also kept
+ * here as the `quoteAnchor` the Suggest button re-draws with.
  *
  * Also here, because they are chip state: the last fill for the one Ctrl+Z undo
  * this surface owns (text *and* caret), and the model-fill attribution that
@@ -281,6 +281,13 @@ export function useSuggestionChips({
   // read by the caller — the same values the composer itself paints from — and the
   // hook owns selection, the Esc round, the adoption counters and the Tab/Enter/Esc
   // semantics. The accept callback is the one entry above, for every source.
+  //
+  // The live transcript selection is deliberately NOT passed as a strip chip: the
+  // transcript draws its own floating action for it, and a quoted chip inside the
+  // composer would resize the box on select/release. `hasTranscriptSelection` below
+  // still advertises the passage to the Suggest control, but the strip never draws
+  // it. The quoted acceptance descriptor is unchanged and is reached through
+  // `chipStrip.onAccept` with a chip the transcript action builds.
   const {
     chips,
     selectedIndex,
@@ -292,7 +299,6 @@ export function useSuggestionChips({
     ...conditions,
     draftScope,
     modelChips: replySuggestionChips,
-    quotedText: trimmedQuotedSelection,
     onAccept: acceptChip,
   });
 

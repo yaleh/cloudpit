@@ -1,7 +1,7 @@
 ---
 id: gap-transcript-selection-floating-quote-action
 title: Transcript 选区显示固定宽度浮动引用操作，避免选中后 composer 重排
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -54,10 +54,10 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 
 上一轮 fan-in suite 红 12 个文件，逐类修复：
 
-- `TypeError: Cannot read properties of undefined (reading 'onAccept')`（10 个 chat/voice 兄弟测试）：这些 harness mock 了 `useChatComposerState` 但省略 `chipStrip`。`ChatInterface` 改为把 `chipStrip.onAccept` 视为可缺省（显式 union 型别 + 缺省时不下发 `onAcceptQuotedSelection`，因而不绘制浮层），与既有“standalone pane 没有草稿可填”契约一致。复跑 10 文件全绿。
+- `TypeError: Cannot read properties of undefined (reading 'onAccept')`（10 个 chat/voice 兄弟测试）：这些 harness mock 了 `useChatComposerState` 但省略 `chipStrip`。`ChatInterface` 把 `chipStrip.onAccept` 视为可缺省（可选链；缺省时 `acceptQuotedSelection` 传 undefined，因而不绘制浮层），与既有“standalone pane 没有草稿可填”契约一致。复跑 10 文件全绿。
 - `chatComposerReplyChips.test.tsx`（`the strip has no quoted chip`）：该文件钉住的是本任务**有意退役**的“选区自动生成 composer quoted chip”旧行为。改为直接构造 quoted descriptor 调 `chipStrip.onAccept`，并把旧 chip 生命周期用例改成新不变式“任何 live 选区都不在 strip 生成 quoted chip”；原插入/焦点/清选区/Suggest 锚点断言全部保留。复跑 38 passed。
-- `architecture-ratchet.test.ts`（`ChatInterface.tsx 1477→1487`）：`ChatInterface` 是唯一能触达 `chipStrip.onAccept` 的装配点，浮层接线必然在此增长；按 AC-394 RECORDED CHANGE 通道记录 1477→1486（实测），并为 `architecture-ratchet.baseline.json` 补 Touches。同轮还暴露 `ChatMessagesPane.tsx 基线外→802 > 800`（基线外无 RECORDED CHANGE 通道），已压缩新增注释至 793 行。复跑 ratchet 6 passed。
-- 复验：`npx vitest run` 上述 14 文件 122 passed EXIT=0；`npm run typecheck` EXIT=0；`npm run lint` EXIT=0；`git diff --check` EXIT=0。
+- `architecture-ratchet.test.ts`（`ChatInterface.tsx 1477→1487`）：上一轮先把实测增长按 AC-394 RECORDED CHANGE 流程记为 1477→1486（基线文件值与 note 同步改），suite 已转绿；三次未落地的最后一次其实是 ff 前主检出脏，不是 suite 红。本轮为给后续改动留余量，进一步把 quoted chip 的构造压到 `ChatInterface` 内 3 行 `useCallback`（`chipStrip?.onAccept?.({ id: 'quoted-0', text, source: 'quoted', index: 0 })`），实测 **1476** 行（低于基线 1477，打印“可下调基线”），并撤回基线文件的上调：`architecture-ratchet.baseline.json` 保持 develop 版本，本任务不再修改它。`ChatMessagesPane.tsx` 维持 793 行（<800）。复跑 ratchet 6 passed。
+- 复验（本轮）：`npx vitest run` 16 个相关文件 143 passed EXIT=0；`npm run typecheck` EXIT=0；`npm run lint` EXIT=0（仅既有 warning）；`git diff --check` EXIT=0；anti-drift Touches check EXIT=0（13 actual files / 14 globs）。
 
 ## Touches
 
@@ -74,7 +74,6 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 - `src/modules/chat/tests/inputSuggestionChipsBackground.test.tsx`
 - `src/modules/chat/tests/suggestionChipAcceptContract.test.tsx`
 - `src/modules/chat/tests/chatComposerReplyChips.test.tsx`
-- `server/shared/tests/architecture-ratchet.baseline.json`
 - `tasks/gap-transcript-selection-floating-quote-action.md`
 
 ## Blocker

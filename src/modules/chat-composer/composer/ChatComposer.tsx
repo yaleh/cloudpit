@@ -51,8 +51,6 @@ import ComposerModelMenu from '@/modules/chat-composer/composer/ComposerModelMen
 import ComposerPermissionMenu from '@/modules/chat-composer/composer/ComposerPermissionMenu';
 import ComposerMobileMoreMenu from '@/modules/chat-composer/composer/ComposerMobileMoreMenu';
 import { InputSuggestionChips } from '@/modules/chat-composer/composer/InputSuggestionChips';
-import { InlineQuoteChip } from '@/modules/chat-composer/composer/InlineQuoteChip';
-import { useInlineQuoteChip } from '@/modules/chat-composer/hooks/useInlineQuoteChip';
 import ReplyReferencePreview from '@/modules/chat-composer/composer/ReplyReferencePreview';
 import { suggestionOptionId, truncateSuggestionLabel } from '@/modules/chat-support';
 import type { ReplyItem, ReplyReference } from '@/modules/chat-transcript';
@@ -546,8 +544,12 @@ export default function ChatComposer({
     }
   }, []);
   // The one chip prop, unpacked once: the strip draws only while it is visible
-  // and carries at least one chip, and the Suggest control reads the same object.
-  const showSuggestionChips = chipStrip?.visible === true && chipStrip.chips.length > 0;
+  // and carries at least one chip that is not the quoted selection. A live
+  // selection is drawn by the transcript's floating action instead; letting the
+  // quoted chip alone light up the empty-box strip would turn a selection into a
+  // composer resize, which is exactly the reflow this surface must not cause.
+  const showSuggestionChips = chipStrip?.visible === true
+    && chipStrip.chips.some((chip) => chip.source !== 'quoted');
   const chipStripSelectedIndex = chipStrip?.selectedIndex ?? null;
   const chipStripListId = chipStrip?.listId ?? '';
   const suggestionChipsEnabled = chipStrip?.suggestionsEnabled === true;
@@ -660,34 +662,18 @@ export default function ChatComposer({
     ? voiceRange
     : null;
 
-  // The quoted chip while the box holds text: it is drawn in the text flow at the
-  // caret instead of the chip row above the box. The chip row already exists only
-  // while a live selection draws it, so the chip's presence IS the selection's.
-  const composerBodyRef = useRef<HTMLDivElement>(null);
-  const inputMirrorRef = useRef<HTMLDivElement>(null);
-  const quotedChip = chipStrip?.chips.find((chip) => chip.source === 'quoted') ?? null;
-  const inlineQuoteChip = useInlineQuoteChip({
-    input,
-    chip: quotedChip,
-    // A listen owns the box: the chip row is the right shape there, and the
-    // provisional wash must keep its own layout. Any non-idle listen ends the
-    // inline mode at once — waiting for the first committed range would leave
-    // the chip in the flow while the microphone is already live.
-    enabled: voiceState === 'idle',
-    textareaRef,
-    mirrorRef: inputMirrorRef,
-    bodyRef: composerBodyRef,
-  });
-  const inlineChipActive = inlineQuoteChip.active;
+  // The transcript selection is quoted by the transcript's own floating action,
+  // not by the composer: the box draws no quoted chip and therefore never changes
+  // height when a selection appears. Only the OTHER suggestion sources draw here.
+  //
   // While the strip shows over an empty box it is laid in the SAME grid cell as the textarea (the
   // body below switches to a one-cell grid), so the two share one line: the cell is as tall as the
   // taller of them and there is no blank row between the box top and the chips. `rows=1` keeps the
   // textarea's own half of that cell to a single line — the two-row default would otherwise make
   // the shared cell two rows tall, because the placeholder is blank in this mode. Anything else —
-  // typed text, the inline quote-chip flow, or no chips at all — returns to the normal flow layout
-  // and the auto-growth path in `useTextareaInteractionState`.
-  const suggestionChipsShareEmptyLine =
-    showSuggestionChips && !inlineChipActive && input === '';
+  // typed text or no chips at all — returns to the normal flow layout and the auto-growth path in
+  // `useTextareaInteractionState`.
+  const suggestionChipsShareEmptyLine = showSuggestionChips && input === '';
   // Starting the next recording is the user answering the last failure, so it dismisses the notice.
   // Wrapped here rather than inside the button because the failing attempt's message is the
   // composer's state: the button renders what it is handed and owns no memory of the last failure.
@@ -1078,7 +1064,6 @@ export default function ChatComposer({
             and the replay row when the tier moves it in here.
           */}
           <PromptInputBody
-            ref={composerBodyRef}
             // The empty box's strip and textarea share one cell: `grid` puts both in the single
             // implicit cell — each names it (`grid-area: 1 / 1`) so neither is auto-placed under
             // the other — and the cell is as tall as the taller of them, so no blank line sits
@@ -1094,43 +1079,13 @@ export default function ChatComposer({
           >
             {/*
               The overlay is the textarea's own text, drawn transparently, so it can carry a
-              background the textarea itself cannot — except while the quoted chip is in the
-              text flow: then the mirror IS the visible text layer and the textarea's own text is
-              hidden, because only this layer can render an element that pushes the following
-              text aside. The chip's placeholder sits between the two halves at the caret, and
-              the scrollbar compensation keeps both layers wrapping at the same width.
+              background the textarea itself cannot. It stays invisible at all times: a quoted
+              selection is drawn by the transcript's floating action, never in this layer, so the
+              composer's text flow is never rearranged for a selection.
             */}
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div
-                ref={inputMirrorRef}
-                className={cn(
-                  'chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6',
-                  inlineChipActive ? 'text-foreground' : 'text-transparent',
-                )}
-                style={inlineChipActive && inlineQuoteChip.scrollbarWidth > 0
-                  ? { paddingRight: `calc(1rem + ${inlineQuoteChip.scrollbarWidth}px)` }
-                  : undefined}
-              >
-                {inlineChipActive ? (
-                  <>
-                    {renderInputWithMentions(inlineQuoteChip.before)}
-                    <span
-                      data-slot="inline-quote-chip-spacer"
-                      ref={inlineQuoteChip.spacerRef}
-                      aria-hidden="true"
-                      // Inline-block: it participates in the text flow and, when the line has
-                      // no room left, wraps to the next line as one unit. The height matches
-                      // the line box so the placeholder never grows the line it sits on; the
-                      // real button is drawn over this box.
-                      className="inline-block align-top"
-                      style={{
-                        width: inlineQuoteChip.spacerWidth > 0 ? inlineQuoteChip.spacerWidth : undefined,
-                        height: '1.5rem',
-                      }}
-                    />
-                    {renderInputWithMentions(inlineQuoteChip.after)}
-                  </>
-                ) : provisionalVoiceRange ? (
+              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
+                {provisionalVoiceRange ? (
                   /*
                     The provisional span splits it into the user's own draft, the words this
                     listen committed, and the draft after them — the middle one gets the
@@ -1161,14 +1116,10 @@ export default function ChatComposer({
               onPaste={onTextareaPaste}
               onScroll={(event) => {
                 onTextareaScrollSync(event.target as HTMLTextAreaElement);
-                inlineQuoteChip.reposition();
               }}
               onFocus={() => onInputFocusChange?.(true)}
               onBlur={() => onInputFocusChange?.(false)}
               onInput={onTextareaInput}
-              // Marks the one mode in which the textarea's own text is hidden and the
-              // mirror layer carries it instead (see `useInlineQuoteChip`).
-              data-inline-chip-mode={inlineChipActive ? 'true' : undefined}
               placeholder={showSuggestionChips ? '' : placeholder}
               // One line while the strip shares this empty box's cell: the two blank rows the
               // `rows=2` default would reserve would make the shared cell two rows taller than the
@@ -1176,7 +1127,7 @@ export default function ChatComposer({
               // is never restated; the `height` written by `resizeTextarea` is left untouched.
               rows={suggestionChipsShareEmptyLine ? 1 : undefined}
               aria-activedescendant={
-                showSuggestionChips && !inlineChipActive && chipStripSelectedIndex !== null
+                showSuggestionChips && chipStripSelectedIndex !== null
                   ? suggestionOptionId(chipStripListId, chipStripSelectedIndex)
                   : undefined
               }
@@ -1204,25 +1155,10 @@ export default function ChatComposer({
               // can be sent until the job is stopped.
               disabled={isOccupied}
             />
-            {/*
-              The real chip for the inline mode. The mirror layer above is
-              `aria-hidden`; this button is what assistive tech and the pointer
-              reach, drawn over the placeholder's box.
-            */}
-            {inlineChipActive && quotedChip && chipStrip && (
-              <InlineQuoteChip
-                chip={quotedChip}
-                chipRef={inlineQuoteChip.chipRef}
-                position={inlineQuoteChip.position}
-                onAccept={chipStrip.onAccept}
-              />
-            )}
-            {/* The strip is an EMPTY-box affordance, drawn in the textarea's own grid cell. A
-                non-empty box draws its quoted chip in the text flow instead; when the inline
-                mode cannot run (a listen owns the box, or one just committed text) the strip
-                must not fall back onto the words — it is drawn over that cell, so over a draft
-                it would sit on top of the text being edited. */}
-            {showSuggestionChips && chipStrip && !inlineChipActive && input === '' && (
+            {/* The strip is an EMPTY-box affordance, drawn in the textarea's own grid cell.
+                The quoted selection never draws here (the transcript's floating action owns
+                it), so a selection cannot change the box's height in either direction. */}
+            {showSuggestionChips && chipStrip && input === '' && (
               <InputSuggestionChips
                 listId={chipStripListId}
                 chips={chipStrip.chips}
