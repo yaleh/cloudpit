@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { createContext, memo, useContext, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -270,6 +270,128 @@ const markdownComponents = {
 };
 
 /**
+ * The reply-item labels for the message currently being rendered.
+ *
+ * The renderers that publish these labels must keep their identity across
+ * renders: react-markdown treats every function in `components` as an element
+ * type, so a new function identity at the same position makes React unmount and
+ * rebuild that block. `replyItems` is rebuilt by the transcript on every render,
+ * so it travels through this context (a value change re-renders the consumers)
+ * instead of through `components`' identity — a rebuild would also destroy the
+ * native text selection the transcript action is anchored to.
+ */
+const ReplyItemLabelContext = createContext<ReplyItemRenderContext | undefined>(undefined);
+
+/** The DOM facts a labelled block publishes; absent for a block that is not an item. */
+const replyItemAttributes = (
+  item: ReplyItem | null,
+  replyItems: ReplyItemRenderContext | undefined,
+): Record<string, string> => {
+  if (!item || !replyItems) {
+    return {};
+  }
+  return {
+    'data-reply-item-uri': replyItems.uriFor(item.ordinal),
+    'data-reply-item-label': item.label,
+    'data-reply-item-kind': item.kind,
+    ...(replyItems.highlightedOrdinals.has(item.ordinal)
+      ? { 'data-reply-item-highlighted': 'true' }
+      : {}),
+  };
+};
+
+const replyItemLabelledClass = (item: ReplyItem | null): string =>
+  item ? ` ${REPLY_ITEM_LABEL_CLASS}` : '';
+
+/** Labelled paragraph: a numbered bold paragraph is one of the reply's items. */
+function ReplyItemParagraph({
+  node,
+  children,
+  ...props
+}: {
+  node?: any;
+  children?: React.ReactNode;
+}) {
+  const replyItems = useContext(ReplyItemLabelContext);
+  // A numbered bold paragraph is exactly a paragraph whose first inline child is
+  // the bold run; other paragraphs keep the plain renderer.
+  const opensWithBold = node?.children?.[0]?.tagName === 'strong';
+  const item = opensWithBold
+    ? matchReplyItem(childrenToText(children), replyItems?.items ?? [], ['bold-paragraph'])
+    : null;
+  return (
+    <div
+      {...props}
+      className={`mb-2 last:mb-0${replyItemLabelledClass(item)}`}
+      {...replyItemAttributes(item, replyItems)}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Labelled list item: only a top-level item can be one of the reply's items. */
+function ReplyItemListItem({
+  node,
+  children,
+  ...props
+}: {
+  node?: any;
+  children?: React.ReactNode;
+}) {
+  const replyItems = useContext(ReplyItemLabelContext);
+  // A nested item is never one of the reply's top-level points, even when its
+  // text happens to match. Markdown allows up to three spaces of top-level
+  // indentation, so the column is what separates the two.
+  const topLevel = !node?.position || node.position.start.column <= 3;
+  const item = topLevel
+    ? matchReplyItem(childrenToText(children), replyItems?.items ?? [], ['ordered', 'unordered'])
+    : null;
+  return (
+    <li
+      {...props}
+      className={`[&>div:last-child]:mb-0 [&>div]:mb-1${replyItemLabelledClass(item)}`}
+      {...replyItemAttributes(item, replyItems)}
+    >
+      {children}
+    </li>
+  );
+}
+
+/** Builds one heading renderer per tag at module load, so their identities are stable. */
+const makeReplyItemHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
+  function ReplyItemHeading({
+    node: _node,
+    children,
+    ...props
+  }: {
+    node?: any;
+    children?: React.ReactNode;
+    className?: string;
+  }) {
+    const replyItems = useContext(ReplyItemLabelContext);
+    const item = matchReplyItem(childrenToText(children), replyItems?.items ?? [], ['heading']);
+    return React.createElement(
+      Tag,
+      {
+        ...props,
+        className: `${props.className ?? ''}${replyItemLabelledClass(item)}`,
+        ...replyItemAttributes(item, replyItems),
+      },
+      children,
+    );
+  };
+
+const replyItemHeadings = {
+  h1: makeReplyItemHeading('h1'),
+  h2: makeReplyItemHeading('h2'),
+  h3: makeReplyItemHeading('h3'),
+  h4: makeReplyItemHeading('h4'),
+  h5: makeReplyItemHeading('h5'),
+  h6: makeReplyItemHeading('h6'),
+};
+
+/**
  * Used by chat's MessageComponent, ToolErrorDisplay and MarkdownContent to
  * render model-authored markdown with this module's shared prose styling,
  * code highlighting and table rules.
@@ -298,6 +420,9 @@ function MarkdownBodyRenderer({ children, breaks = false, replyItems }: Omit<Mar
   );
   const rehypePlugins = useMemo(() => (hasMath ? [rehypeKatex] : EMPTY_PLUGINS), [hasMath]);
   const { openFileInEditor, openDirectory } = usePaletteOps();
+  // Presence, not identity: the memo below must not rebuild when the transcript
+  // hands over a fresh `replyItems` object with the same shape.
+  const hasReplyItems = replyItems !== undefined;
 
   const components = useMemo(() => {
     const base: Record<string, unknown> = {
@@ -345,88 +470,28 @@ function MarkdownBodyRenderer({ children, breaks = false, replyItems }: Omit<Mar
       },
     };
 
-    if (!replyItems) {
+    if (!hasReplyItems) {
       return base;
     }
 
-    /**
-     * The DOM facts a labelled item publishes. Absent for a block that is not
-     * one of the latest reply's items, so an ordinary paragraph keeps exactly
-     * the markup it had before this feature existed.
-     */
-    const itemAttributes = (item: ReplyItem | null): Record<string, string> =>
-      item
-        ? {
-            'data-reply-item-uri': replyItems.uriFor(item.ordinal),
-            'data-reply-item-label': item.label,
-            'data-reply-item-kind': item.kind,
-            ...(replyItems.highlightedOrdinals.has(item.ordinal)
-              ? { 'data-reply-item-highlighted': 'true' }
-              : {}),
-          }
-        : {};
-    const labelledClass = (item: ReplyItem | null) => (item ? ` ${REPLY_ITEM_LABEL_CLASS}` : '');
-
-    base.li = ({ node, children, ...props }: { node?: any; children?: React.ReactNode }) => {
-      // A nested item is never one of the reply's top-level points, even when
-      // its text happens to match. Markdown allows up to three spaces of
-      // top-level indentation, so the column is what separates the two.
-      const topLevel = !node?.position || node.position.start.column <= 3;
-      const item = topLevel
-        ? matchReplyItem(childrenToText(children), replyItems.items, ['ordered', 'unordered'])
-        : null;
-      return (
-        <li
-          {...props}
-          className={`[&>div:last-child]:mb-0 [&>div]:mb-1${labelledClass(item)}`}
-          {...itemAttributes(item)}
-        >
-          {children}
-        </li>
-      );
+    // Element types stay module-level constants; the current message's items
+    // reach them through ReplyItemLabelContext. Rebuilding these functions (as
+    // the old `replyItems` dependency did) remounts every block they render,
+    // dropping any live text selection inside the reply.
+    return {
+      ...base,
+      p: ReplyItemParagraph,
+      li: ReplyItemListItem,
+      ...replyItemHeadings,
     };
-
-    const makeHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
-      ({ node: _node, children, ...props }: { node?: any; children?: React.ReactNode; className?: string }) => {
-        const item = matchReplyItem(childrenToText(children), replyItems.items, ['heading']);
-        return React.createElement(
-          Tag,
-          { ...props, className: `${props.className ?? ''}${labelledClass(item)}`, ...itemAttributes(item) },
-          children,
-        );
-      };
-    base.h1 = makeHeading('h1');
-    base.h2 = makeHeading('h2');
-    base.h3 = makeHeading('h3');
-    base.h4 = makeHeading('h4');
-    base.h5 = makeHeading('h5');
-    base.h6 = makeHeading('h6');
-
-    base.p = ({ node, children, ...props }: { node?: any; children?: React.ReactNode }) => {
-      // A numbered bold paragraph is exactly a paragraph whose first inline
-      // child is the bold run; other paragraphs keep the plain renderer.
-      const opensWithBold = node?.children?.[0]?.tagName === 'strong';
-      const item = opensWithBold
-        ? matchReplyItem(childrenToText(children), replyItems.items, ['bold-paragraph'])
-        : null;
-      return (
-        <div
-          {...props}
-          className={`mb-2 last:mb-0${labelledClass(item)}`}
-          {...itemAttributes(item)}
-        >
-          {children}
-        </div>
-      );
-    };
-
-    return base;
-  }, [openFileInEditor, openDirectory, replyItems]);
+  }, [openFileInEditor, openDirectory, hasReplyItems]);
 
   return (
-    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components as any}>
-      {content}
-    </ReactMarkdown>
+    <ReplyItemLabelContext.Provider value={replyItems}>
+      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components as any}>
+        {content}
+      </ReactMarkdown>
+    </ReplyItemLabelContext.Provider>
   );
 }
 

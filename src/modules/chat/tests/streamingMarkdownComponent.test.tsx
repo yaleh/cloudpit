@@ -129,3 +129,47 @@ test('a finished reply is rendered whole, not split into two parses', () => {
   render(<StreamingMarkdown content={content} isStreaming className={PROSE} />);
   assert.deepEqual(splitCalls, [content], 'a streaming reply is still split');
 });
+
+/**
+ * react-markdown treats every function in `components` as an element type. A new
+ * function identity at the same position is a different component type, so React
+ * unmounts the whole block and rebuilds it — taking any native text selection
+ * inside the reply with it. The transcript hands `Markdown` a fresh `replyItems`
+ * object on every render, so the renderers must stay module-level constants and
+ * read the current items from context instead.
+ *
+ * Run: npx vitest run src/modules/chat/tests/streamingMarkdownComponent.test.tsx
+ */
+test('a new replyItems object re-renders the blocks without remounting them', () => {
+  const content = '1. install deps\n2. run tests\n';
+  const items = [
+    { ordinal: 1, label: '①', excerpt: 'install deps', kind: 'ordered' as const },
+    { ordinal: 2, label: '②', excerpt: 'run tests', kind: 'ordered' as const },
+  ];
+  const context = (highlighted: ReadonlySet<number> = new Set<number>()) => ({
+    items,
+    highlightedOrdinals: highlighted,
+    uriFor: (ordinal: number) => `cloudcli://session/s/msg/m#item-${ordinal}`,
+  });
+
+  const view = render(<Markdown replyItems={context()}>{content}</Markdown>);
+  const labelled = [...view.container.querySelectorAll('[data-reply-item-uri]')];
+  const textNodes = labelled.map((element) => element.firstChild);
+  assert.equal(labelled.length, 2, 'both list items carry their address');
+
+  // A fresh object with the same data — exactly what the transcript hands over.
+  view.rerender(<Markdown replyItems={context()}>{content}</Markdown>);
+  const rerendered = [...view.container.querySelectorAll('[data-reply-item-uri]')];
+  assert.equal(rerendered.length, 2);
+  for (const [index, element] of rerendered.entries()) {
+    assert.equal(element, labelled[index], 'the labelled block was remounted');
+    assert.equal(element.firstChild, textNodes[index], 'the text node was replaced');
+  }
+
+  // The context value still reaches the same elements: a highlight change must
+  // update the attribute in place, not remount the list to show it.
+  view.rerender(<Markdown replyItems={context(new Set([1]))}>{content}</Markdown>);
+  const highlighted = view.container.querySelectorAll('[data-reply-item-highlighted="true"]');
+  assert.equal(highlighted.length, 1);
+  assert.equal(highlighted[0], labelled[0]);
+});
