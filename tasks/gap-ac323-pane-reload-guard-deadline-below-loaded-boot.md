@@ -102,6 +102,7 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 - 同树对照（旧预算红 → 新预算绿）：旧红 = Proposal 里 error-context 的 `did not come up within 18262ms` 与 trace 的 `hop 1 ... Timeout 5000ms exceeded ... until "load"`；新跑的落地读数为 9306ms / 4706ms / 5352ms（均 > 旧 4s 首次落地窗），冷缓存一轮首次 30s 未起、replay 后 41868ms 落地。这正是旧 4s/3–4s 窗口低于本页负载下冷启动的直接读数；`waitUntil: 'commit'` 后 hop 的返回从「等 load 超时 5000ms」变为 22–191ms。
 - 三次 AC1 的墙钟为 1.9m / 43.1s / 38.7s（整次调用，含 Vite optimizer warm-up 与 webServer boot）。原文日志在 worktree 的 `tmp/ac323-*.log`（`tmp/` 已被 .gitignore 忽略，不入库）。
 - 未验证项：没有触真实 DashScope（本 spec 自带假 Realtime 上游，符合 DoD）；产品代码、判据命令、`ROW_*` 常量与投递语义未改——`git diff --stat` 仅 3 个文件、+45/−20。
+- 2026-11-04 续轮（上一次 exited-not-landed 后）：fan-in suite 的唯一红灯不来自本任务 delta，而是 develop 自身的 stale census——`3b7986bd1`（codex provider fork）给 `server/modules/providers/services/sessions.service.ts` 加了 1 行（`modelProviderId: source.model_provider_id ?? null`）却没有重录 ratchet 基线，`1394→1395` 让 develop 上每棵树都红。本任务按 AC-394 RECORDED CHANGE 格式在 `server/shared/tests/architecture-ratchet.baseline.json` 的 `note` 里记录这次 stale-census re-sync，并把该条目调到实测 1395（提交 `2251861eb`）。验证：单跑 `bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` ⇒ `tests 6 / pass 6 / fail 0`，EXIT=0（修前为 `fail 1`）。该基线文件随之进入 Touches。
 
 ## ADR-007 暗轴记录
 
@@ -112,6 +113,7 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 - e2e/support/pane-reload.ts
 - e2e/voice-realtime-upload-fixture.spec.ts
 - e2e/voice-realtime-live-session-send.spec.ts
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-ac323-pane-reload-guard-deadline-below-loaded-boot.md
 
 ## Blocker
@@ -121,3 +123,5 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 - 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/services/sessions.service.ts 1394→1395 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
 - run_id：wk-prod-anchor
 - session_id：084ee392-f2b1-444a-a595-534f776edf45
+
+**2026-11-04 续轮 — 已解除**：该红是 develop 的 stale census（见 Notes 最后一条），已在基线 note 按 RECORDED CHANGE 记录并把条目调到实测 1395；architecture-ratchet 单跑 `tests 6 / pass 6 / fail 0`（EXIT=0）。
