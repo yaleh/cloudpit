@@ -3,7 +3,7 @@ id: gap-ac323-layout-startup-guard-below-load-slowed-document
 title: AC-323 同树假红：mobile-workspace-composer-layout 的启动守卫把负载下 >8s 的 document
   记红（page.goto Timeout 8000ms，14s 截止在重放前耗尽）；按判据自身的 480s 预算抬高
   hop/截止并保留有界失败控制，读数逐字保留
-status: ready
+status: done
 labels:
   - gap
   - defect
