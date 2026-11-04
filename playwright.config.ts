@@ -855,6 +855,19 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // the quiet one), and AC-254's gate deadline (`timeoutMs: 260000`) still outlasts it by 20 s so a crossing
   // is written down before the gate kills it — the same shape as the AC-109 entry above.
   'mcp-settings.spec.ts': 240_000,
+  // The switch-controlled audio-file upload criterion (GOAL-006 / AC-120): one upload leg through the same
+  // transcription chain, behind the shared server boot, the onboarding wizard and the first project load. It
+  // had no entry here, so the criterion's single-file invocation inherited `SINGLE_SPEC_CEILING_MS` (55 s) —
+  // and that ceiling, not one of the four AC-120 assertions, decided the rounds. MEASURED 2026-11-04 on this
+  // host: the ledger's cold rounds read `config-eval-ms` 16267-21254 and did not observe the run past boot
+  // until 21875-53075 ms — most of the budget spent before the first case — and the same tree
+  // (treeSha 7d0591457bbe70b9414269db8b7d817665e3e4da) was killed at 55000ms at 08:29:22.231Z with
+  // `crossed its own 55000ms ceiling`, then passed (exit 0) 51 s later. Two more rounds on other trees were
+  // `not-evaluated (timeout)` at the default 60000 ms gate deadline. A healthy whole invocation reads ~41-42 s
+  // (this file's own sibling note). 240_000 is the sibling heavy-spec value (~5.7x the healthy invocation),
+  // and AC-120's gate deadline (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is written down before
+  // the gate kills it — the same shape as the AC-109 / AC-172 / AC-254 entries above.
+  'voice-trim.spec.ts': 240_000,
 };
 
 /**
