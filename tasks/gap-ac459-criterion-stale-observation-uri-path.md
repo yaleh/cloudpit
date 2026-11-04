@@ -82,6 +82,19 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - AC6：`git diff --stat` → 2 files changed, 2 insertions(+), 2 deletions(-)；非目标名与账本路径 grep 均 exit 1（无命中）。
 - AC7：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` → `Test Files 1 passed (1) / Tests 23 passed (23)`，`EXIT=0`。
 
+## Evidence — 复验轮（2026-11-04，develop 已前进 41 提交，worktree 合并后重跑）
+
+- 合并：`git merge --no-edit develop` 无冲突（15 个 develop 文件并入）；合并后 `git diff --stat develop HEAD` 仍只有 2 个代码文件各 1 行 + 本任务文件。
+- AC1：`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` → `ℹ tests 10 / ℹ pass 10 / ℹ fail 0`，`EXIT=0`。
+- AC2：`old-path-cnt=0`，`new-path-cnt=1`。
+- AC3：`core/observation-uri.ts canonical=1 retireddual=0`；`cockpit-contract/observationUri.ts canonical=1 retireddual=0`。
+- AC4：`unmodified canonical=true retireddual=false`；`injected retireddual=true`；`NEGATIVE CONTROL PASS`；`git status --porcelain` 空（盘上文件未改动）。
+- AC5：`grep -rn 'modules/observation/observation-uri' electron src scripts e2e AGENTS.md` 零行（grep exit 1）。
+- AC6：`git diff --stat develop HEAD` 仅 3 文件各 1 行；非目标名删除/改名 grep exit 1；账本路径仅本任务文件。
+- AC7：`npx vitest run src/modules/cockpit/tests/observationUri.test.ts` → `Tests 23 passed (23)`，`EXIT=0`。
+- anti-drift：`ANTI-DRIFT OK: task gap-ac459-criterion-stale-observation-uri-path — 3 actual file(s), all within declared Touches`。
+- 前一轮 ff 阻塞的共享主检出 WIP（`M scripts/test.sh`、`M server/shared/tests/quay-test-script.test.ts`）本轮开始时已不存在：`git -C /data/home/yale/work/claudecodeui status --porcelain` 为空。
+
 ## Axis Record
 
 该轴仍暗,理由:本任务只改判据读取路径与一行注释,无设计/架构轴增量可计量
