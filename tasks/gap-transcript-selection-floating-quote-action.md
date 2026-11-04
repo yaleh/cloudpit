@@ -50,6 +50,15 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 - 截图与读数：`tmp/transcript-selection-floating-action/{desktop-en-empty,desktop-en-draft,desktop-zh-empty,narrow-en-empty,narrow-zh-empty}-{before,selected,resized,after-click}.png`；结构化报告 `tmp/transcript-selection-floating-action/report.json`（`ok: true`, `violations: []`）。
 - 该轴仍暗,理由:本任务只改 transcript 选区浮层与 composer chip 呈现，未新增跨包/跨层依赖，L_D/L_G 无可比读数。
 
+### 续做轮修复记录（2026-11-04，suite 红 → 绿）
+
+上一轮 fan-in suite 红 12 个文件，逐类修复：
+
+- `TypeError: Cannot read properties of undefined (reading 'onAccept')`（10 个 chat/voice 兄弟测试）：这些 harness mock 了 `useChatComposerState` 但省略 `chipStrip`。`ChatInterface` 改为把 `chipStrip.onAccept` 视为可缺省（显式 union 型别 + 缺省时不下发 `onAcceptQuotedSelection`，因而不绘制浮层），与既有“standalone pane 没有草稿可填”契约一致。复跑 10 文件全绿。
+- `chatComposerReplyChips.test.tsx`（`the strip has no quoted chip`）：该文件钉住的是本任务**有意退役**的“选区自动生成 composer quoted chip”旧行为。改为直接构造 quoted descriptor 调 `chipStrip.onAccept`，并把旧 chip 生命周期用例改成新不变式“任何 live 选区都不在 strip 生成 quoted chip”；原插入/焦点/清选区/Suggest 锚点断言全部保留。复跑 38 passed。
+- `architecture-ratchet.test.ts`（`ChatInterface.tsx 1477→1487`）：`ChatInterface` 是唯一能触达 `chipStrip.onAccept` 的装配点，浮层接线必然在此增长；按 AC-394 RECORDED CHANGE 通道记录 1477→1486（实测），并为 `architecture-ratchet.baseline.json` 补 Touches。同轮还暴露 `ChatMessagesPane.tsx 基线外→802 > 800`（基线外无 RECORDED CHANGE 通道），已压缩新增注释至 793 行。复跑 ratchet 6 passed。
+- 复验：`npx vitest run` 上述 14 文件 122 passed EXIT=0；`npm run typecheck` EXIT=0；`npm run lint` EXIT=0；`git diff --check` EXIT=0。
+
 ## Touches
 
 - `src/modules/chat/ChatInterface.tsx`
@@ -64,6 +73,8 @@ DoD 执行说明：本会话没有 MCP 浏览器工具，按项目既有做法�
 - `src/modules/chat/tests/inlineQuoteChip.test.tsx`
 - `src/modules/chat/tests/inputSuggestionChipsBackground.test.tsx`
 - `src/modules/chat/tests/suggestionChipAcceptContract.test.tsx`
+- `src/modules/chat/tests/chatComposerReplyChips.test.tsx`
+- `server/shared/tests/architecture-ratchet.baseline.json`
 - `tasks/gap-transcript-selection-floating-quote-action.md`
 
 ## Blocker
