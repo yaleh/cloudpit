@@ -116,18 +116,6 @@ npx playwright test e2e/voice-realtime-upload-fixture.spec.ts -g "injecting a fi
 - server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-ac323-pane-reload-guard-deadline-below-loaded-boot.md
 
-## Blocker
-
-**2026-11-04T09:04:22.234Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
-fan-in-ff-merge:    M scripts/test.sh
-fan-in-ff-merge:    M server/shared/tests/quay-test-script.test.ts
-fan-in-ff-merge:    M src/modules/chat-composer/composer/TokenUsageSummary.tsx
-fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
-- run_id：wk-prod-anchor
-- session_id：50c76d37-2288-4224-97c6-40c90cff3f2c
-
 ## Needs-Human
 
 **执行 2026-11-04T09:04:24.110Z — 连续修满重试上限仍不合格（标 needs-human）**
@@ -141,3 +129,11 @@ fan-in-ff-merge:    M src/modules/chat/tests/costModalAiTitle.test.tsx
 - run_id：wk-prod-anchor
 - session_id：50c76d37-2288-4224-97c6-40c90cff3f2c
 - fan-in 日志：/data/home/yale/work/claudecodeui/.quay/fan-in-gap-ac323-pane-reload-guard-deadline-below-loaded-boot-wk-prod-anchor.log
+
+## Blocker
+
+**2026-11-04T09:28:31.520Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：leftover worktree task/gap-ac323-pane-reload-guard-deadline-below-loaded-boot still present
+- run_id：wk-prod-anchor
+- session_id：591c9c48-1641-4d74-8f68-bdc5e750129f
