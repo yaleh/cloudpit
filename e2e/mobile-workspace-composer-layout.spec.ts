@@ -59,9 +59,9 @@ const OPTIMIZED_DEP_IN_TEXT = /["'](\/@fs\/[^"']*\/deps\/[^"']+\.js\?v=[0-9a-f]+
 /**
  * How long this run's own client is given to answer its app entry before the startup path gives up on it.
  *
- * The run already has two ceilings above it (playwright.config.ts's watchdog, then the goal gate's 60s) and both are
- * *outside* this spec; an unbounded wait here would be reported by whichever fired first, naming neither the url nor
- * the status.
+ * The run already has two ceilings above it (playwright.config.ts's run watchdog, then AC-323's goal
+ * `timeoutMs: 480000`) and both are *outside* this spec; an unbounded wait here would be reported by whichever fired
+ * first, naming neither the url nor the status.
  */
 const CLIENT_WARM_DEADLINE_MS = 30_000;
 
@@ -81,24 +81,28 @@ const SESSION_PAGE_PROBE = '.chat-messages-pane, [data-slot="prompt-input-footer
 /**
  * How long the landing of the *first* navigation is given on its own, before the guard starts replaying.
  *
- * Measured 2026-11-04 on this worktree: the six green mobile cells' session documents landed 1.7-3.0s after their
- * hop at loadavg 63.9-71.8, but the same tree red'd once at loadavg 97-102 with the session document itself still
- * loading past 8s. 20s is the first probe's share of the guard, not of the document's own wall clock.
+ * Measured 2026-11-04 on this worktree: across the three green full-idle runs at 1-minute loadavg 51-80 the six
+ * session documents landed 1.7-5.0s after their hop, while the same tree had red'd once at loadavg 97-102 with the
+ * session document itself still loading past 8s. 20s is the first probe's share of the guard, not of the document's
+ * own wall clock.
  */
 const STARTUP_PROBE_MS = 20_000;
 /**
  * How long each bounded replay's landing is given. Shorter than the first: a replay is a re-ask, not a cold boot.
  *
- * Measured 2026-11-04: the load-slowed control's first document spent its whole hop (>8s), and the replay that
- * followed landed inside 3s once the transport delay was released — 15s is 5x that reading.
+ * Measured 2026-11-04: the load-slowed control's first document spent its whole hop, and the replay that followed
+ * returned in 1.3-1.4s and showed its landing ~1s later once the transport delay was released — 15s clears that
+ * replay reading ~6x.
  */
 const STARTUP_RELOAD_PROBE_MS = 15_000;
 /**
  * How long one navigation's own hop is given, before the guard treats it as a landing that did not arrive.
  *
- * Measured 2026-11-04: a healthy session document's `domcontentloaded` hop returned in 1.5-3.0s; the load-slowed
- * control's first hop was still running at 8s and returned at 12.1s under a 12s transport latency. 25s keeps ~2x
- * over that slow reading while staying below the cell timeout (see the deadline's arithmetic).
+ * Measured 2026-11-04: a healthy session document's `domcontentloaded` hop returned in 1.2-3.2s; the load-slowed
+ * control's first hop was still running at 8s and ran out its whole 25s ceiling under a 12s transport latency, then
+ * the replay returned in 1.3-1.4s. The old 8s ceiling is exactly the `page.goto: Timeout 8000ms exceeded` the
+ * criterion recorded at loadavg 97-102, so 25s keeps >3x over the slow control's healthy hop while staying below
+ * the cell timeout (see the deadline's arithmetic).
  */
 const NAVIGATION_PROBE_MS = 25_000;
 
@@ -1127,10 +1131,10 @@ test.afterAll(async ({ request }) => {
 /**
  * Test-only slow-document control for the startup guard's own reading.
  *
- * Unset in every normal run. When `QUAY_E2E_SLOW_DOCUMENT_LATENCY_MS` is a positive number, a cell's session
- * document is given a *transport* delay through CDP `Network.emulateNetworkConditions`, and its Vite entry module
- * (`/src/main.tsx`) is blocked for the first document only — so the first guarded attempt deterministically loads a
- * document that never mounts while the replay is healthy. Both levers are released mid-run at
+ * Unset in every normal run. When `QUAY_E2E_SLOW_DOCUMENT_LATENCY_MS` is a positive number, the selected cell's
+ * session document is given a *transport* delay through CDP `Network.emulateNetworkConditions`, and its Vite entry
+ * module (`/src/main.tsx`) is blocked for the first document only — so the first guarded attempt deterministically
+ * loads a document that never mounts while the replay is healthy. Both levers are released mid-run at
  * `QUAY_E2E_SLOW_DOCUMENT_RELEASE_MS`. This is a control arm, not a stand-in for the app: no `page.route`, no
  * synthesised response, no change to any cell's assertion. It is what makes the guard's budget readable in both
  * directions — with the old 14s/8s/8s/3s constants the same control reds with `page.goto: Timeout 8000ms exceeded`,
@@ -1139,10 +1143,21 @@ test.afterAll(async ({ request }) => {
 const SLOW_DOCUMENT_LATENCY_MS = Number(process.env.QUAY_E2E_SLOW_DOCUMENT_LATENCY_MS ?? 0);
 /** When the control releases both levers, in ms from install: after attempt 1's probe, before the replay's probe. */
 const SLOW_DOCUMENT_RELEASE_MS = Number(process.env.QUAY_E2E_SLOW_DOCUMENT_RELEASE_MS ?? 35_000);
+/**
+ * The single cell the control slows, by viewport width. Keyed to the cell rather than to "the first navigation"
+ * because a failing cell restarts Playwright's worker: module state would re-arm the control and turn a six-cell
+ * run into six slow documents. `@320 idle` is the default (the first idle cell in file order); select `@768 idle`
+ * alone with `QUAY_E2E_SLOW_DOCUMENT_WIDTH=768`.
+ */
+const SLOW_DOCUMENT_WIDTH = Number(process.env.QUAY_E2E_SLOW_DOCUMENT_WIDTH ?? 320);
 
-/** Installs the slow-document control (a no-op unless its env knob is set) and returns its release. */
-const installSlowDocumentControl = async (context: BrowserContext, page: Page): Promise<() => void> => {
-  if (!(SLOW_DOCUMENT_LATENCY_MS > 0)) return () => undefined;
+/** Installs the slow-document control (a no-op unless its env knob is set for this cell) and returns its release. */
+const installSlowDocumentControl = async (
+  context: BrowserContext,
+  page: Page,
+  width: number,
+): Promise<() => void> => {
+  if (!(SLOW_DOCUMENT_LATENCY_MS > 0) || width !== SLOW_DOCUMENT_WIDTH) return () => undefined;
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
   const set = (latencyMs: number, blockEntry: boolean) =>
@@ -1175,7 +1190,7 @@ const openCell = async (
   await seedContext(context, { token: authToken, language: options.language, recognizerUrl });
   const page = await context.newPage();
   const evidence = collectStartupEvidence(page);
-  const releaseSlowDocument = await installSlowDocumentControl(context, page);
+  const releaseSlowDocument = await installSlowDocumentControl(context, page, options.width);
   try {
     await navigateBounded(page, `/session/${options.session}${options.query ?? ''}`, sessionPageLanding(page), evidence);
   } finally {
