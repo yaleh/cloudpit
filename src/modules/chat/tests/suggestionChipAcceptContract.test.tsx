@@ -157,7 +157,15 @@ const renderHarness = (options: {
     }
     return chip;
   };
-  return { view, textarea, state, chipFor, submit };
+  // The quoted chip is no longer drawn in the strip: the transcript's floating
+  // action builds it and hands it to the same acceptance entry.
+  const quotedChip = (text: string): SuggestionChip => ({
+    id: 'quoted-0',
+    text,
+    source: 'quoted',
+    index: 0,
+  });
+  return { view, textarea, state, chipFor, quotedChip, submit };
 };
 
 /**
@@ -286,10 +294,10 @@ describe('every source fills, focuses and never sends', () => {
     );
   });
 
-  it('(c) quoted chip with an empty box, one-line passage: the passage alone, no paragraph break', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({ quotedSelection: '选中的原文' });
+  it('(c) quoted acceptance with an empty box, one-line passage: the passage alone, no paragraph break', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({ quotedSelection: '选中的原文' });
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文'));
     });
     flushFrames();
 
@@ -306,12 +314,12 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(c2) quoted chip with an empty box, multi-line passage: the passage then the paragraph break', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({
+  it('(c2) quoted acceptance with an empty box, multi-line passage: the passage then the paragraph break', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({
       quotedSelection: '选中的原文\n第二段',
     });
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文\n第二段'));
     });
     flushFrames();
 
@@ -328,8 +336,8 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(d) quoted chip with a non-empty box and the caret at the end: inserts inline after a space', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({
+  it('(d) quoted acceptance with a non-empty box and the caret at the end: inserts inline after a space', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({
       quotedSelection: '选中的原文',
       initialInput: '已有内容',
     });
@@ -339,7 +347,7 @@ describe('every source fills, focuses and never sends', () => {
     textarea.setSelectionRange('已有内容'.length, '已有内容'.length);
 
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文'));
     });
     flushFrames();
 
@@ -354,8 +362,8 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(d2) quoted chip with the caret in the middle: inserts there, padding both sides', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({
+  it('(d2) quoted acceptance with the caret in the middle: inserts there, padding both sides', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({
       quotedSelection: '选中的原文',
       initialInput: '前面后面',
     });
@@ -363,7 +371,7 @@ describe('every source fills, focuses and never sends', () => {
     textarea.setSelectionRange(2, 2);
 
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文'));
     });
     flushFrames();
 
@@ -378,8 +386,8 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(d3) quoted chip after the caret left a line break, one-line passage: flush, no paragraph break', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({
+  it('(d3) quoted acceptance after the caret left a line break, one-line passage: flush, no paragraph break', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({
       quotedSelection: '选中的原文',
       initialInput: '第一段\n',
     });
@@ -387,7 +395,7 @@ describe('every source fills, focuses and never sends', () => {
     textarea.setSelectionRange('第一段\n'.length, '第一段\n'.length);
 
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文'));
     });
     flushFrames();
 
@@ -404,8 +412,8 @@ describe('every source fills, focuses and never sends', () => {
     });
   });
 
-  it('(d4) quoted chip after the caret left a line break, multi-line passage: flush, then the paragraph break', () => {
-    const { textarea, state, chipFor, submit } = renderHarness({
+  it('(d4) quoted acceptance after the caret left a line break, multi-line passage: flush, then the paragraph break', () => {
+    const { textarea, state, quotedChip, submit } = renderHarness({
       quotedSelection: '选中的原文\n第二段',
       initialInput: '第一段\n',
     });
@@ -413,7 +421,7 @@ describe('every source fills, focuses and never sends', () => {
     textarea.setSelectionRange('第一段\n'.length, '第一段\n'.length);
 
     act(() => {
-      state().chipStrip.onAccept(chipFor('quoted'));
+      state().chipStrip.onAccept(quotedChip('选中的原文\n第二段'));
     });
     flushFrames();
 
@@ -478,7 +486,7 @@ describe('the expansion request is part of the source’s data', () => {
     reply.requestExpansion.mockClear();
     const quoted = renderHarness({ quotedSelection: '选中的原文' });
     act(() => {
-      quoted.state().chipStrip.onAccept(quoted.chipFor('quoted'));
+      quoted.state().chipStrip.onAccept(quoted.quotedChip('选中的原文'));
     });
     flushFrames();
     assert.deepEqual(
@@ -518,12 +526,18 @@ describe('the ledger report follows the source', () => {
   });
 });
 
-describe('the strip still offers all three sources', () => {
-  it('merges quoted > model > habit when the box is empty', () => {
+describe('the strip offers the draft sources; the selection is not one of them', () => {
+  it('merges model > habit and advertises the selection without drawing a quoted chip', () => {
     const { state } = renderHarness({ quotedSelection: '选中的原文' });
     assert.deepEqual(
       state().chipStrip.chips.map((chip) => chip.source),
-      ['quoted', 'model', 'habit'],
+      ['model', 'habit'],
+    );
+    assert.equal(state().chipStrip.hasTranscriptSelection, true);
+    assert.equal(
+      state().chipStrip.chips.some((chip) => chip.source === 'quoted'),
+      false,
+      'the live selection is drawn by the transcript action, not the composer strip',
     );
   });
 });

@@ -554,3 +554,31 @@ describe('the quoted acceptance entry', () => {
     assert.equal(submit.mock.calls.length, 0, 'accepting a quotation never sends');
   });
 });
+
+// ---------------------------------------------------------------------------
+// (5) the selection is not a composer strip chip
+// ---------------------------------------------------------------------------
+
+describe('no automatic quoted chip in the composer', () => {
+  it('keeps the quoted source out of the strip while still advertising the selection', () => {
+    const apiRef: { current: UseSuggestionChipsResult | null } = { current: null };
+    render(
+      <AcceptanceHarness
+        passage="选中的原文"
+        selectionText="选中的原文"
+        setInputFromHistory={() => undefined}
+        submit={() => undefined}
+        apiRef={apiRef}
+      />,
+    );
+
+    const strip = apiRef.current?.chipStrip;
+    assert.ok(strip, 'the chip hook must have rendered');
+    assert.equal(
+      strip.chips.some((chip) => chip.source === 'quoted'),
+      false,
+      'a live selection no longer draws a quoted chip in the composer',
+    );
+    assert.equal(strip.hasTranscriptSelection, true, 'the Suggest affordance still knows about it');
+  });
+});
