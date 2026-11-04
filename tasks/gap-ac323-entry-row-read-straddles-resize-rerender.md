@@ -60,13 +60,13 @@ Received: false
 
 ## AC
 
-- [ ] AC1 机制归因有逐字读数：临时 instrumentation（不入最终 diff）打印两次几何读的耗时与两个矩形（含 null 与 x/y/height），用 `npx playwright test e2e/voice-realtime-composer-embedded.spec.ts -g "375px: both entries"` 连跑 ≥3 次（至少一次 `/proc/loadavg` 1 分钟负载 ≥50），逐次登记 exit、wall time、两个盒子读数；至少一次须显示两次读之间发生了元素重建 / 空盒 / 51ms 级重试；若三次都不重现，贴出三次读数并说明为何仍按本机制修（结构不变量 2 与 trace 读数 3 就是理由）。
-- [ ] AC2 原子读成立（机械可读）：`sed -n '/^async function enterLiveVoice/,/^}/p' e2e/voice-realtime-composer-embedded.spec.ts | grep -c "boundingBox"` 为 `0`；同一片段 `grep -c "getBoundingClientRect"` ≥ `1` 且只出现在一个 `page.evaluate` 调用里；`grep -c "the dictation mic and the Live Voice entry are two controls on one row, mic first" e2e/voice-realtime-composer-embedded.spec.ts` 为 `1`；`git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -c "^-.*expect("` 为 `0`；diff 内新增行匹配 `^\+.*(test\.skip|retries|page\.route\()` 为 `0`；`< 8` 与该断言文字在 diff 中未被改动（`git diff -U0 … | grep -c "^[-+].*< 8"` 为 `0`）。以上命令的逐字输出入档。
-- [ ] AC3 稳定等待：原子读由 `expect.poll`（或等价）包裹，`timeout` ≥ `10_000` 且显式书写；日志能证明重试能力存在（一次中间态读数被下一拍取代，或注明「本次首拍稳定、重试仍在」），且该 wait 与 describe 的 `test.setTimeout(120_000)` 预算相容（`grep -n "test.setTimeout" e2e/voice-realtime-composer-embedded.spec.ts` 与 `grep -n "expect.poll"` 片段入档）。
-- [ ] AC4 注入负控红：在 375 页面用 `page.addStyleTag` 给右侧控件簇加 `flex-direction: column`（或等价的强行分行），新形状必须以**同一条**错误文本红（`the dictation mic and the Live Voice entry are two controls on one row, mic first`）；移除注入 / 新开页面后同一命令 exit 0。两次 exit、wall time、逐字错误入档；`git status --porcelain` 证明注入样式没有进入工作树。
-- [ ] AC5 新鲜加载臂：同一 context 新开一页，**先** `page.setViewportSize({ width: 375, height: 800 })` 再 `page.goto(<session url>)`（没有 1280→375 的 resize），进入 Live Voice 后同一断言成立。若该臂也红，说明产品在 375 的稳定布局下确实不满足同一行：**停手**、置 `needs-human`，贴两个矩形与该页截图，不得放宽断言。
-- [ ] AC6 AC-323 判据整链 exit 0（命令逐字不改）：三条命令按 `&&` 各跑一次，登记 exit codes、总 wall time、`git rev-parse HEAD^{tree}`，以及三腿计数（cmd1 `19 passed`、cmd2 vitest 的 `Test Files` / `Tests` 行、cmd3 `6 passed`）；`git status --porcelain` 除本任务文件为空。
-- [ ] AC7 判定面未变：`git diff develop -- goals/` 为空；判据字符串与 `goals/AC-323-…md` 的 `criterion:` 逐字一致；`git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts` 为空（第三条腿的守卫不动）；AC-316 / AC-317 相关测试文件的 diff 为空。逐字输出入档。
+- [x] AC1 机制归因有逐字读数：临时 instrumentation（不入最终 diff）打印两次几何读的耗时与两个矩形（含 null 与 x/y/height），用 `npx playwright test e2e/voice-realtime-composer-embedded.spec.ts -g "375px: both entries"` 连跑 ≥3 次（至少一次 `/proc/loadavg` 1 分钟负载 ≥50），逐次登记 exit、wall time、两个盒子读数；至少一次须显示两次读之间发生了元素重建 / 空盒 / 51ms 级重试；若三次都不重现，贴出三次读数并说明为何仍按本机制修（结构不变量 2 与 trace 读数 3 就是理由）。
+- [x] AC2 原子读成立（机械可读）：`sed -n '/^async function enterLiveVoice/,/^}/p' e2e/voice-realtime-composer-embedded.spec.ts | grep -c "boundingBox"` 为 `0`；同一片段 `grep -c "getBoundingClientRect"` ≥ `1` 且只出现在一个 `page.evaluate` 调用里；`grep -c "the dictation mic and the Live Voice entry are two controls on one row, mic first" e2e/voice-realtime-composer-embedded.spec.ts` 为 `1`；`git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -c "^-.*expect("` 为 `0`；diff 内新增行匹配 `^\+.*(test\.skip|retries|page\.route\()` 为 `0`；`< 8` 与该断言文字在 diff 中未被改动（`git diff -U0 … | grep -c "^[-+].*< 8"` 为 `0`）。以上命令的逐字输出入档。
+- [x] AC3 稳定等待：原子读由 `expect.poll`（或等价）包裹，`timeout` ≥ `10_000` 且显式书写；日志能证明重试能力存在（一次中间态读数被下一拍取代，或注明「本次首拍稳定、重试仍在」），且该 wait 与 describe 的 `test.setTimeout(120_000)` 预算相容（`grep -n "test.setTimeout" e2e/voice-realtime-composer-embedded.spec.ts` 与 `grep -n "expect.poll"` 片段入档）。
+- [x] AC4 注入负控红：在 375 页面用 `page.addStyleTag` 给右侧控件簇加 `flex-direction: column`（或等价的强行分行），新形状必须以**同一条**错误文本红（`the dictation mic and the Live Voice entry are two controls on one row, mic first`）；移除注入 / 新开页面后同一命令 exit 0。两次 exit、wall time、逐字错误入档；`git status --porcelain` 证明注入样式没有进入工作树。
+- [x] AC5 新鲜加载臂：同一 context 新开一页，**先** `page.setViewportSize({ width: 375, height: 800 })` 再 `page.goto(<session url>)`（没有 1280→375 的 resize），进入 Live Voice 后同一断言成立。若该臂也红，说明产品在 375 的稳定布局下确实不满足同一行：**停手**、置 `needs-human`，贴两个矩形与该页截图，不得放宽断言。
+- [x] AC6 AC-323 判据整链 exit 0（命令逐字不改）：三条命令按 `&&` 各跑一次，登记 exit codes、总 wall time、`git rev-parse HEAD^{tree}`，以及三腿计数（cmd1 `19 passed`、cmd2 vitest 的 `Test Files` / `Tests` 行、cmd3 `6 passed`）；`git status --porcelain` 除本任务文件为空。
+- [x] AC7 判定面未变：`git diff develop -- goals/` 为空；判据字符串与 `goals/AC-323-…md` 的 `criterion:` 逐字一致；`git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts` 为空（第三条腿的守卫不动）；AC-316 / AC-317 相关测试文件的 diff 为空。逐字输出入档。
 
 ## DoD
 
@@ -75,6 +75,92 @@ Received: false
 - ⛔ 不得用改断言 / 放宽 8px / skip / `retries` / `page.route(` / 改判据命令换绿；这些由 AC2 的机械读数证明。
 - 完成记录必须写明：本仓修掉的是**测试把两次几何读跨到了 resize 重渲染的前后两代**（证据：同树 pass→fail 的两次 treeSha、`src/` 逐字节相同、mic 8.8ms vs Live Voice 51.1ms、以及稳定 DOM 下 Δy 结构性为 4px），不是产品布局回归。
 - 若 AC5 的新鲜加载臂在净检出上稳定红，本条必须停手上报（`needs-human`），写明失败的矩形读数与截图——不得把产品红写成环境红，也不得据此改断言。
+
+## Completion Record
+
+完成于 commit `5aad900e7`、tree `3e3d7d5a36dd43ce5e623db4fafea183d19d6888`。最终 diff 只有 `e2e/voice-realtime-composer-embedded.spec.ts`（1 file changed, 42 insertions(+), 3 deletions(-)），`src/` 与 `goals/` 零改动；`src/modules/chat-composer/composer/ChatComposer.tsx` 保持零改动（AC5 未触发停手条款）。
+
+### 机制归因（DoD：不是产品布局回归）
+
+本仓修掉的是**测试把两次几何读跨到了 resize 重渲染的前后两代**，不是产品布局回归。证据：
+
+- 台账 `2026-11-04T11:25:21.696Z` pass（`treeSha=c7de887fe465d5af7331368147caf0aaff27f7c2`）→ `11:32:12.654Z` fail（`treeSha=73ccde340800e2d300152bc0d8597aea5c018369`）；两棵树里 `ChatComposer.tsx` 是同一 blob `65ee32b2`，`src/` 逐字节未动。
+- 失败 trace：mic 读 8.8ms、Live Voice 读 51.1ms（locator 在元素重建后重解析的形态），两次独立读之间没有任何稳定等待。
+- 稳定 DOM 的结构不变量：两入口同一 flex 簇（mic 32px / submit 40px，`items-center`）⇒ Δy 恒为 4px < 8，submit 在 mic 之后 ⇒ x 恒更大；稳定布局下该 false 不可能出现。
+- 同一棵树单跑该格当时也通过（`1 passed (33.0s)`）。
+
+### AC1 — 机制归因逐字读数（临时 instrumentation，已移除）
+
+原始两次 `boundingBox()` 读法 + 计时日志，`npx playwright test e2e/voice-realtime-composer-embedded.spec.ts -g "375px: both entries"`，每次启动时的 `/proc/loadavg`：
+
+| run | exit | wall | loadavg(1m) | mic read | mic box | entry read | entry box | verdict |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0 | 47s | 270.13 | 26ms | `{"x":276,"y":747,"width":32,"height":32}` | 23ms | `{"x":314,"y":743,"width":40,"height":40}` | true |
+| 2 | 0 | 21s | 167.59 | 24ms | 同上 | 8ms | 同上 | true |
+| 3 | 0 | 20s | 129.00 | 19ms | 同上 | 6ms | 同上 | true |
+
+三次都未重现 null / 元素重建 / 51ms 级重试（三次的 1 分钟负载均 ≥50，最高 270.13）。按 AC1 的兜底条款仍按本机制修：结构不变量（稳定 DOM 下 Δy 恒 4px）与失败 trace 的 8.8ms / 51.1ms 不对称读就是理由；读数本身也显示两次读是两个独立任务（6–26ms），高负载下重渲染足以插在它们之间。
+
+### AC2 — 原子读机械读数（逐字）
+
+- `sed -n '/^async function enterLiveVoice/,/^}/p' … | grep -c "boundingBox"` → `0`
+- 同一片段 `grep -c "getBoundingClientRect"` → `1`（只此一处，且只在同一个 `page.evaluate` 调用里；该片段 `grep -c "page.evaluate"` → `1`）
+- `grep -c "the dictation mic and the Live Voice entry are two controls on one row, mic first" e2e/voice-realtime-composer-embedded.spec.ts` → `1`
+- `git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -c "^-.*expect("` → `0`
+- diff 新增行匹配 `^\+.*(test\.skip|retries|page\.route\()` → `0`
+- `git diff -U0 develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -c "^[-+].*< 8"` → `0`
+- `git diff --stat develop -- e2e/voice-realtime-composer-embedded.spec.ts` → `1 file changed, 42 insertions(+), 3 deletions(-)`
+
+断言文字子串逐字保留且全文只出现 1 次；按 Proposal §修法 2，失败消息行追加了两个矩形（含 null 与 x/y/height），`< 8` 谓词行与 `expect(` 行本身未动。
+
+### AC3 — 稳定等待
+
+- `grep -n "expect.poll"`：`698:  await expect.poll(`（另有文件内既有 poll，非本次改动）
+- 选项行：`{ timeout: 10_000, intervals: [50, 100, 250, 500] },`
+- 预算行：`759:test.describe.configure({ mode: 'serial', timeout: 120_000 });` —— 本文件的 120s 预算是通过 `test.describe.configure` 设置的；`grep -n "test.setTimeout"` 无命中（AC 措辞中的 `test.setTimeout(120_000)` 实为此行）。
+- 临时 tick 日志（已移除）：`[AC3] width=375 tick=1 settled=true mic={"x":276,"y":747,"width":32,"height":32} entry={"x":314,"y":743,"width":40,"height":40}` ⇒ **本次首拍稳定，重试仍在**：poll 的 settle 谓词拒绝 null / 零尺寸帧，`intervals=[50,100,250,500]` 与 `timeout=10_000` 共同构成重试能力；10s ≪ 120s 用例预算。
+
+### AC4 — 注入负控（同一条错误文本）
+
+临时注入（已移除）：`QUAY_AC323_NEGATIVE_CONTROL=1` 时 `page.addStyleTag({ content: '[data-slot="prompt-input"] div.ml-auto.flex.shrink-0 { flex-direction: column !important; }' })`。
+
+- 注入：exit=`1`，wall=`20s`，loadavg 78.22，逐字错误：
+  `Error: the dictation mic and the Live Voice entry are two controls on one row, mic first (mic={"x":298,"y":705,"width":32,"height":32}, entry={"x":294,"y":743,"width":40,"height":40})` / `Received: false`
+- 同一命令不带注入（env 未设）：exit=`0`，wall=`15s`，`1 passed (14.2s)`，loadavg 60.36。
+- 恢复最终文件后 `git status --porcelain` 为空 ⇒ 注入样式没有进入工作树，也没有进入最终 diff。
+
+### AC5 — 新鲜加载臂
+
+同一 context 新开一页，**先** `setViewportSize({ width: 375, height: 800 })` **再** `goto('/session/<sessionId>')`（没有 1280→375 的 resize），随后复用 `enterLiveVoice` 的同一条断言：
+
+- exit=`0`，wall=`20s`，`1 passed (18.8s)`
+- `[AC5] fresh-page viewport={"width":375,"height":800} url=http://127.0.0.1:5983/session/cbc6e2de-1f52-4924-88e8-31213aa3ea1a`
+- `[AC5] fresh-load arm passed the same row assertion`
+
+⇒ 375 的稳定布局满足同一行；产品面无需修正，`src/` 保持零改动（未触发停手条款）。
+
+### AC6 — AC-323 判据整链（命令逐字不改，各跑一次）
+
+- cmd1 `npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts` → exit=`0`，wall=`197s`，`19 passed (3.2m)`
+- cmd2 `npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime` → exit=`0`，wall=`12s`，`Test Files 22 passed (22)` / `Tests 219 passed (219)`
+- cmd3 `npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "` → exit=`0`，wall=`54s`，`6 passed (47.9s)`
+- 总 wall `263s`；`git rev-parse HEAD^{tree}` = `3e3d7d5a36dd43ce5e623db4fafea183d19d6888`；`git status --porcelain` 为空（任务文件由 task_write 单独提交）。
+
+### AC7 — 判定面未变（逐字行数）
+
+- `git diff develop -- goals/ | wc -l` → `0`
+- 判据字符串与 `goals/AC-323-…md` 的 `criterion:` 逐字一致（YAML 多行展开后即上方引用的整条 `&&` 链）
+- `git diff develop -- e2e/mobile-workspace-composer-layout.spec.ts | wc -l` → `0`
+- `git diff develop -- e2e/voice-realtime-live-session-send.spec.ts | wc -l`（AC-316）→ `0`
+- `git diff develop -- e2e/voice-realtime-upload-fixture.spec.ts | wc -l`（AC-317）→ `0`
+
+### DoD 说明
+
+- driver 的下一轮 goal-gate 重跑 AC-323 判据翻绿后，`verdict=pass` 由 driver 写入 `.quay/gate-events.jsonl`；本任务保证该判据整链在本树 exit 0。
+- 未改断言 / 未放宽 8px / 未 skip / 未加 retries / 未用 `page.route(` / 未改判据命令——由 AC2 的机械读数与最终 diff（仅 +42/−3，`src/` 零改动）证明。
+
+L_D 该轴仍暗,理由:本任务只改 e2e 测量方式（一次 evaluate 原子读 + 布局稳定轮询），不新增领域数据能力，没有可读的 L_D 读数。
+L_G 该轴仍暗,理由:本任务不新增 goal 判据、不改架构图生成或依赖图，L_G 没有新的可信读数来源。
 
 ## Touches
 
