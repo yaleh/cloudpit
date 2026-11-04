@@ -2,7 +2,7 @@
 id: gap-ac323-entry-row-read-straddles-resize-rerender
 title: AC-323 同树假红：375px 进入步骤的两次 boundingBox 读跨了 resize 触发的重渲染（mic 8.8ms / Live
   Voice 51.1ms），改为一次 evaluate 原子读 + 布局稳定前轮询，8px 与断言不放松
-status: todo
+status: ready
 labels:
   - gap
   - defect
