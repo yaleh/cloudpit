@@ -19,7 +19,7 @@
  * HOW IT READS THEM. The static readings are text reads of the tree it is pointed at, so they work
  * on a fixture the falsification controls have mutated. The behavioural readings drive the tree's
  * OWN modules: a reader is written to a temporary directory, `tsx` loads the tree's `voice.service.ts`,
- * `voice.routes.ts` and `src/shared/api.ts` from it by absolute path, and the service, the router and
+ * `voice.routes.ts` and `src/shared/api/index.ts` from it by absolute path, and the service, the router and
  * the client are constructed and called there. Driving the real modules is the point — a probe that
  * re-derived the answers from the source text could only ever confirm its own re-derivation.
  *
@@ -75,7 +75,7 @@ const CONTRACT_MODULE = `${LANDING}/asrContract.ts`;
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
 const ROUTES_MODULE = 'server/modules/voice/voice.routes.ts';
 const MODULE_MODULE = 'server/modules/voice/voice.module.ts';
-const CLIENT_API_MODULE = 'src/shared/api.ts';
+const CLIENT_API_MODULE = 'src/shared/api/index.ts';
 
 const ROOT_TSCONFIG = 'tsconfig.json';
 const SERVER_TSCONFIG = 'server/tsconfig.json';
@@ -138,7 +138,7 @@ function readTreeFileOrEmpty(root, relativePath) {
 }
 
 /**
- * The browser surface `src/shared/api.ts` reads.
+ * The browser surface `src/shared/api/index.ts` reads.
  *
  * The direct path is a browser path, and its settings and token live in browser storage. The
  * stubs are the smallest surface those reads need: an empty store (so the reading is "this user
@@ -258,7 +258,7 @@ process.stdout.write('ASR_MIME_SIZE_READING ' + JSON.stringify(reading) + '\\n')
 function clientReaderSource(root) {
   return `${BROWSER_STUBS}const root = ${JSON.stringify(root)};
 const api = await import(root + '/${CLIENT_API_MODULE}');
-const voiceConfig = await import(root + '/src/shared/voiceConfig.ts');
+const voiceConfig = await import(root + '/src/shared/api/voiceConfig.ts');
 const registry = await import(root + '/${REGISTRY_MODULE}');
 
 const provider = registry.listProviders()[0];

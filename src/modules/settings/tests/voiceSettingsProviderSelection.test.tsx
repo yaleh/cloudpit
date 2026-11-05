@@ -14,7 +14,7 @@ import { afterAll, beforeEach, test, vi } from 'vitest';
 import { clientAsrProviderId, listProviders } from '@shared/asr/asrRegistry';
 import { installSensevoiceEngine } from '@shared/asr/list/sensevoice-local/sensevoice-local.asr-provider';
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
-import { resetVoiceConfig } from '@/shared/voiceConfig';
+import { resetVoiceConfig } from '@/shared/api/voiceConfig';
 
 /**
  * AC-142: the settings form's recognition-service select and the credential fields it renders.

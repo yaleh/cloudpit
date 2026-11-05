@@ -56,7 +56,7 @@
  * The "trimmed audio really is the shipping module's output" claim is not taken
  * on trust either. The fixture carries the sha256 of every encoded buffer, and
  * the runner re-derives each one here — decode the fixture wav, run it through
- * `src/shared/voiceTrim.ts`, re-encode with the encoder below — and requires the
+ * `src/shared/voice/voiceTrim.ts`, re-encode with the encoder below — and requires the
  * hash to match, byte for byte. Nothing in this file decides where speech is or
  * how long a pause may be; the only algorithm in the pipeline is the module's,
  * and the `uniqueness` section asserts that mechanically rather than trusting a
@@ -84,13 +84,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const HERE = new URL('./', import.meta.url);
 const FIXTURE_DIR = new URL('fixtures/', HERE);
 const TRANSCRIPTS_URL = new URL('fixtures/transcripts.json', HERE);
-const MODULE_URL = new URL('../../src/shared/voiceTrim.ts', HERE);
+const MODULE_URL = new URL('../../src/shared/voice/voiceTrim.ts', HERE);
 const FIDELITY_URL = new URL('../../src/shared/identifierFidelity.ts', HERE);
 
 /**
  * The frontend's `@/` source-root alias, resolved for a plain `node` process.
  *
- * `src/shared/voiceTrim.ts` reaches its shared endpoint module through the alias the
+ * `src/shared/voice/voiceTrim.ts` reaches its shared endpoint module through the alias the
  * browser build, the type-checker and the unit transform all resolve — this hook is the
  * same mapping for the one place those toolchains do not reach, and it is the reason this
  * runner can still be the literal command the criterion pins (`node run-quality.mjs`)
@@ -122,7 +122,7 @@ registerHooks(aliasHook);
 // `ERR_MODULE_NOT_FOUND: Cannot find package '@/shared'`, which is exactly the failure
 // this runner was restored to avoid.
 const { identifierFidelity } = await import('../../src/shared/identifierFidelity.ts');
-const { trimVoiceAudio } = await import('../../src/shared/voiceTrim.ts');
+const { trimVoiceAudio } = await import('../../src/shared/voice/voiceTrim.ts');
 
 /**
  * ΔCER ceiling, as a fraction of 1 — the reference readings are zh +1.101% and
@@ -582,7 +582,7 @@ const runOn = (text) => String(text).replace(/[.!?。！？]/g, '');
 const IMPLEMENTATIONS = [
   {
     name: 'shipping',
-    note: 'src/shared/voiceTrim.ts, trimmed column',
+    note: 'src/shared/voice/voiceTrim.ts, trimmed column',
     hypothesis: (e) => e.transcripts.trimmed,
     savedRatio: (e) => e.audio.trimmedSavedRatio,
     mustFail: [],

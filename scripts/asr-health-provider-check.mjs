@@ -112,7 +112,7 @@ export const FIXTURE_FILES = [
   DASHSCOPE_OMNI_RELAY_MODULE,
   SENSEVOICE_LOCAL_MODULE,
   TRANSCRIPTION_WIRE_MODULE,
-  'src/shared/api.ts',
+  'src/shared/api/index.ts',
   'src/modules/chat-support/hooks/useVoiceAvailable.ts',
 ];
 
@@ -130,7 +130,7 @@ const CAPABILITY_DECLARATION = /\b(acceptsMime|maxInlineRequestBytes|pauseCues|o
  * byte-for-byte intact.
  *
  * WHY THE DECLARATION SCAN IS COMMENT-BLIND. The capability names above are also the words a
- * comment uses to EXPLAIN the registry — `src/shared/voiceTrim.ts` documents that a relay
+ * comment uses to EXPLAIN the registry — `src/shared/voice/voiceTrim.ts` documents that a relay
  * recogniser declares `pauseCues: 'neutral'`, which is a true statement about
  * `shared/asr/.../dashscope-omni-relay.asr-provider.ts`, not a client-side capability table.
  * Scanning raw text read that sentence as a declaration and red the probe on 2026-10-22
@@ -456,7 +456,7 @@ function clientReadings(root) {
 
   // The two symbols the client's capability path runs through: the variable that holds the
   // health reading's provider, and the hook call that fills it.
-  const api = readTreeFileOrEmpty(root, 'src/shared/api.ts');
+  const api = readTreeFileOrEmpty(root, 'src/shared/api/index.ts');
   const hook = readTreeFileOrEmpty(root, 'src/modules/chat-support/hooks/useVoiceAvailable.ts');
   const readPoints = [];
   if (/voiceProviderProfile/.test(api)) readPoints.push('voiceProviderProfile');

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { beforeEach, test, vi } from 'vitest';
 
 import { useChatComposerState } from '@/modules/chat-composer';
-import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/api/chatDrafts';
 import type { PermissionMode, Project, ProjectSession } from '@/shared/types';
 
 /**

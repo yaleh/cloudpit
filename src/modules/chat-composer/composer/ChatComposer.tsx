@@ -23,7 +23,7 @@ import { loadProjectFileIndex } from '@/modules/file-tree';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { findSessionHostState, findSessionOccupancy, useSessionHosts } from '@/shared/hooks/useSessionHosts';
 import { loadProjectIdentifiers } from '@/shared/projectIdentifiers';
-import { isVoiceDebugEnabled } from '@/shared/voiceDebug';
+import { isVoiceDebugEnabled } from '@/shared/voice/voiceDebug';
 import type { ChatMessage, ComposerChipStrip, QueuedDraft, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption,VoiceFailureReport } from '@/shared/types';
 import {
   PromptInput,

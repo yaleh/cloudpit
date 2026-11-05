@@ -16,7 +16,7 @@ import { ArchitecturePanel, requestArchitectureSessionFocus } from '@/modules/ar
 import { useWebSocket } from '@/shared/context/WebSocketContext';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { useServerFeatures } from '@/shared/hooks/useServerFeatures';
-import { installViewEvents, reportView } from '@/shared/viewEvents';
+import { installViewEvents, reportView } from '@/shared/api/viewEvents';
 import { i18n } from '@/modules/i18n';
 
 const DEPLOYMENT_ASSET_DIRECTORIES = new Set(['assets', 'static', 'icons', 'images']);

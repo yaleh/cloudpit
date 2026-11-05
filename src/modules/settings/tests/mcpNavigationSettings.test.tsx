@@ -8,7 +8,7 @@ import {
   readMcpNavigationPolicy,
   useMcpNavigationSettings,
 } from '@/modules/settings/hooks/useMcpNavigationSettings';
-import { MCP_DEVICE_NAME_STORAGE_KEY, readDeviceName } from '@/shared/userSettings';
+import { MCP_DEVICE_NAME_STORAGE_KEY, readDeviceName } from '@/shared/settings/userSettings';
 import CredentialsSettingsTab from '@/modules/settings/tabs/api-settings/CredentialsSettingsTab';
 
 /**

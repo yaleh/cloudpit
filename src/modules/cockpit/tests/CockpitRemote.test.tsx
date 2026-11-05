@@ -7,7 +7,7 @@ import type {
   CockpitPendingSend,
   QuayFocusableObject,
 } from '@/shared/types';
-import type { VadEvent } from '@/shared/voiceEndpoint';
+import type { VadEvent } from '@/shared/voice/voiceEndpoint';
 import { i18n } from '@/modules/i18n';
 import CockpitRemote from '@/modules/cockpit/CockpitRemote';
 import type { VoiceCaptureEngine, VoiceCaptureSink } from '@/modules/chat';
@@ -80,7 +80,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 });
 
 // The voice switches, pinned: VAD on (the shipped default), no debug readings, no edge trimming.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

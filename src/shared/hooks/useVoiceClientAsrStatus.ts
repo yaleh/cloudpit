@@ -9,8 +9,8 @@ import {
   voiceClientAsrEngine,
   voiceClientAsrProgress,
   type VoiceClientFallbackDetail,
-} from '@/shared/voiceClientAsrWorker';
-import type { VoiceModelProgress } from '@/shared/voiceModelCache';
+} from '@/shared/voice-asr/voiceClientAsrWorker';
+import type { VoiceModelProgress } from '@/shared/voice-asr/voiceModelCache';
 
 /**
  * The client recogniser's state, as the settings panel needs to show it.

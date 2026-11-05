@@ -4,12 +4,12 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, test } from 'vitest';
 
 import { useSelectedProvider } from '@/modules/git-panel/hooks/useSelectedProvider';
-import { writeSelectedProvider } from '@/shared/selectedProvider';
+import { writeSelectedProvider } from '@/shared/settings/selectedProvider';
 import {
   resetUserPreferences,
   subscribeToUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 /**
  * The receiving half of the provider-selection contract.

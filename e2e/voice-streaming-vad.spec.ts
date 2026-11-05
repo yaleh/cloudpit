@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { StreamingVad, detectVoiceSegments } from '../src/shared/voiceEndpoint';
+import { StreamingVad, detectVoiceSegments } from '../src/shared/voice/voiceEndpoint';
 
 /*
  * The streaming detector, run in a real `AudioWorklet` and compared to the pure function on the

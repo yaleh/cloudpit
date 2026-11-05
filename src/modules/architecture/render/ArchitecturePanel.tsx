@@ -115,7 +115,7 @@ import {
   type ArchitectureDeepLinkState,
 } from '@/modules/architecture/render/architectureDeepLink';
 import { sendArchitectureChatMessage } from '@/modules/architecture/render/architectureChatBridge';
-import { readDraftText, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, writeDraftText } from '@/shared/api/chatDrafts';
 import { formatAbsoluteTime, formatRelativeTime } from '@/shared/utils';
 import { ArchitectureEmptyState } from '@/modules/architecture/render/ArchitectureEmptyState';
 import { ArchitectureExportMenu } from '@/modules/architecture/render/ArchitectureExportMenu';

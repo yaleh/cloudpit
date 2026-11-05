@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { resetChatDrafts } from '@/shared/chatDrafts';
-import { resetUserPreferences } from '@/shared/userSettings';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
+import { resetUserPreferences } from '@/shared/settings/userSettings';
 import type { Project, ProjectSession } from '@/shared/types';
 
 /**

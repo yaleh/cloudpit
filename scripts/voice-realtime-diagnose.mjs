@@ -148,7 +148,7 @@ async function buildSegmentTurns() {
     process.exit(2);
   }
   const { segmentLive } = await import(new URL('../src/modules/chat-voice/utils/voice/voiceLiveSegmenter.ts', import.meta.url).href);
-  const { StreamingVad } = await import(new URL('../src/shared/voiceEndpoint.ts', import.meta.url).href);
+  const { StreamingVad } = await import(new URL('../src/shared/voice/voiceEndpoint.ts', import.meta.url).href);
   const { samples, sampleRate, channels } = wavToFloat32(readFileSync(wavFiles[0]));
   if (sampleRate !== 16_000 || channels !== 1) {
     console.error(`--segments needs mono 16 kHz PCM16; got ${channels} ch @ ${sampleRate} Hz`);

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { resolveDraftScope } from '@/modules/architecture/dom/selectionModel';
-import { readDraftText, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, writeDraftText } from '@/shared/api/chatDrafts';
 import { isRecord } from '@/shared/utils';
 
 /**

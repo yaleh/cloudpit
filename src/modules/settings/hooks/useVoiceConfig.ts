@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { VoiceConfig } from '@/shared/voiceConfig';
+import type { VoiceConfig } from '@/shared/api/voiceConfig';
 import {
   readVoiceConfig,
   updateVoiceConfig,
   VOICE_CONFIG_DEFAULTS,
   VOICE_CONFIG_SYNC_EVENT,
   whenVoiceConfigReady,
-} from '@/shared/voiceConfig';
+} from '@/shared/api/voiceConfig';
 
 /**
  * Backs the voice settings form with the shared in-memory configuration.

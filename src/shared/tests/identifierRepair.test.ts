@@ -155,13 +155,13 @@ test('the answer does not depend on the order the candidates arrive in', () => {
   );
 });
 
-test('the module is a pure string function sitting beside voiceConfig.ts', () => {
+test('the module is a pure string function in the shared root beside the api package', () => {
   // The `@` alias maps to `src`, so the import at the top of this file resolves
-  // to this path. Reading it here is what pins the module to `src/shared`,
-  // beside the voice config it is meant to sit next to instead of inside a
-  // module folder, and the neighbour is checked first so the pair is real.
+  // to this path. Reading it here is what pins the module to the `src/shared`
+  // root instead of inside a feature module; its former neighbour `voiceConfig`
+  // now lives in the `api/` package, and is checked first so the pair is real.
   const sharedDir = resolve(process.cwd(), 'src', 'shared');
-  assert.equal(statSync(join(sharedDir, 'voiceConfig.ts')).isFile(), true);
+  assert.equal(statSync(join(sharedDir, 'api', 'voiceConfig.ts')).isFile(), true);
 
   const source = readFileSync(join(sharedDir, 'identifierRepair.ts'), 'utf8');
 

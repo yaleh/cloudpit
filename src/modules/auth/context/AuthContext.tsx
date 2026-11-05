@@ -6,8 +6,8 @@ import { IS_PLATFORM } from '@/shared/utils';
 import { api } from '@/shared/api';
 import { AUTH_SESSION_EXPIRED_EVENT, AUTH_TOKEN_REFRESHED_EVENT, clearAuthLapse, getAuthTokenRefreshDelay, isValidRefreshedToken, recordAuthLapse, storeAuthToken } from '@/shared/authToken';
 import type { AuthLapseReason } from '@/shared/authToken';
-import { hydrateChatDrafts, resetChatDrafts } from '@/shared/chatDrafts';
-import { hydrateUserPreferences, resetUserPreferences } from '@/shared/userSettings';
+import { hydrateChatDrafts, resetChatDrafts } from '@/shared/api/chatDrafts';
+import { hydrateUserPreferences, resetUserPreferences } from '@/shared/settings/userSettings';
 /** The signed-in account held by AuthContext - a required `username` plus an optional id and any additional fields the auth API returns - and should be read through `useAuth()` rather than re-derived from raw auth responses. */
 type AuthUser = {
   id?: number | string;

@@ -9,7 +9,7 @@ import {
   useSetUiPreference,
   useUiPreferences,
 } from '@/shared/context/UiPreferencesContext';
-import { readUserPreference, writeUserPreference, resetUserPreferences } from '@/shared/userSettings';
+import { readUserPreference, writeUserPreference, resetUserPreferences } from '@/shared/settings/userSettings';
 
 /**
  * The point of the provider is that there is exactly one copy of the state.

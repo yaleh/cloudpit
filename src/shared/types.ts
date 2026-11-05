@@ -2226,7 +2226,7 @@ export type SessionMessageWindow = {
  * different questions and honoring both would make them fight over one slice.
  *
  * Kept as one type because the session store picks the shape per call, and used
- * by `src/shared/api.ts` to build the request URL.
+ * by `src/shared/api/index.ts` to build the request URL.
  */
 export type SessionMessagesQuery = {
   limit?: number | null;

@@ -10,7 +10,7 @@ import { ChatComposer } from '@/modules/chat-composer';
 import { useChatComposerState } from '@/modules/chat-composer';
 import { useReplySuggestions } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 import { buildSuggestionChips } from '@/modules/chat-support';
 import type { ComposerChipStrip, PermissionMode, Project, ProjectSession, ServerEvent } from '@/shared/types';
 
@@ -62,7 +62,7 @@ vi.mock('@/shared/api', () => {
 
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

@@ -65,7 +65,7 @@ import { registerHooks } from 'node:module';
 import http from 'node:http';
 import https from 'node:https';
 
-import { StreamingVad, frameRms } from '../../src/shared/voiceEndpoint.ts';
+import { StreamingVad, frameRms } from '../../src/shared/voice/voiceEndpoint.ts';
 import { identifierFidelity } from '../../src/shared/identifierFidelity.ts';
 import {
   DEFAULT_RATE,
@@ -88,7 +88,7 @@ import {
 /**
  * The frontend's `@/` alias, resolved for a plain `node` process.
  *
- * `src/shared/voiceTrim.ts` reaches its shared endpoint module through the alias the browser
+ * `src/shared/voice/voiceTrim.ts` reaches its shared endpoint module through the alias the browser
  * build, the type-checker and the unit transform all resolve — this hook is the same mapping
  * for the one place those toolchains do not reach. It is registered before any dynamic import
  * (the batch module is loaded lazily, so `--detector=streaming` and `--offline` never need it).
@@ -327,7 +327,7 @@ function parseArgs(argv) {
 let trimVoiceAudio = null;
 async function loadTrim() {
   if (!trimVoiceAudio) {
-    trimVoiceAudio = (await import('../../src/shared/voiceTrim.ts')).trimVoiceAudio;
+    trimVoiceAudio = (await import('../../src/shared/voice/voiceTrim.ts')).trimVoiceAudio;
   }
   return trimVoiceAudio;
 }
@@ -842,8 +842,8 @@ async function runGenerate(opts) {
     detector: isLive
       ? 'segmentLive@src/modules/chat/utils/voiceLiveSegmenter.ts'
       : isStreaming
-        ? 'detectVoiceSegments@src/shared/voiceEndpoint.ts'
-        : 'trimVoiceAudio@src/shared/voiceTrim.ts',
+        ? 'detectVoiceSegments@src/shared/voice/voiceEndpoint.ts'
+        : 'trimVoiceAudio@src/shared/voice/voiceTrim.ts',
     sampleRate: DEFAULT_RATE,
     maxSegmentSec: isStreaming ? STREAMING_MAX_SEGMENT_SEC : DEFAULT_MAX_SEGMENT_SEC,
     ...(isStreaming ? { endpointMs: STREAMING_ENDPOINT_MS } : {}),
@@ -1200,7 +1200,7 @@ async function runSweepGenerate(opts) {
   const recommendation = recommendParams(summary, PREREG);
   const snapshot = {
     schema: 2,
-    detector: 'detectVoiceSegments@src/shared/voiceEndpoint.ts',
+    detector: 'detectVoiceSegments@src/shared/voice/voiceEndpoint.ts',
     sampleRate: DEFAULT_RATE,
     defaults: {
       endpointMs: STREAMING_ENDPOINT_MS,

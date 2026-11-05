@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { setVoiceProviderProfile, transcribeVoice } from '@/shared/api';
-import { resetVoiceConfig, VOICE_CONFIG_DEFAULTS } from '@/shared/voiceConfig';
+import { resetVoiceConfig, VOICE_CONFIG_DEFAULTS } from '@/shared/api/voiceConfig';
 import { tryResolve } from '@shared/asr/asrRegistry';
 
 /**

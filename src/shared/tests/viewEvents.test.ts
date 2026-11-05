@@ -14,7 +14,7 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { createViewEventTracker, type ViewEvent } from '@/shared/viewEvents';
+import { createViewEventTracker, type ViewEvent } from '@/shared/api/viewEvents';
 
 /** A tracker over a manual clock and a recording sender. */
 function makeTracker(overrides: Parameters<typeof createViewEventTracker>[0] = {}) {

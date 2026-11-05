@@ -29,7 +29,7 @@
  * and `setTimeout` appear.
  */
 
-import type { VoiceSegment } from '@/shared/voiceEndpoint';
+import type { VoiceSegment } from '@/shared/voice/voiceEndpoint';
 
 /**
  * Defaults for every knob the pipeline reads. They are named here rather than inlined so a

@@ -57,7 +57,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // A plain install: no upload entry, the shipped segment minimum, no idle override.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default, so these cases still run the segmenting path.

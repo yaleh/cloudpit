@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 
 import { createVoiceShortcutController } from '@/modules/chat-support';
-import type { VoiceShortcutChord, VoiceShortcuts } from '@/shared/voiceShortcuts';
+import type { VoiceShortcutChord, VoiceShortcuts } from '@/shared/voice/voiceShortcuts';
 
 /**
  * The controller's rules, read through the one keydown path a real page uses.

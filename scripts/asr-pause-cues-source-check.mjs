@@ -70,7 +70,7 @@ export const FIXTURE_FILES = [
   'shared/asr/asrRegistry.ts',
   'shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts',
   'shared/asr/list/multimodal/multimodal.asr-provider.ts',
-  'src/shared/voiceTrim.ts',
+  'src/shared/voice/voiceTrim.ts',
   'src/modules/chat-voice/hooks/useVoiceInput.ts',
 ];
 
@@ -322,7 +322,7 @@ function constantValue(expression, constants) {
  * byte-for-byte intact.
  *
  * WHY THE CLIENT DECLARATION SCAN IS COMMENT-BLIND. `CLIENT_DECLARATION` matches
- * `pauseCues: '<value>'` in the raw text, but `src/shared/voiceTrim.ts` also EXPLAINS the
+ * `pauseCues: '<value>'` in the raw text, but `src/shared/voice/voiceTrim.ts` also EXPLAINS the
  * registry's own declaration in a JSDoc sentence (`A relay recogniser declares
  * 'pauseCues: ...'`). That sentence is true documentation about an adapter, not a client-side
  * declaration, yet the raw scan counted it as a row — `client-declaration-rows=1` where the

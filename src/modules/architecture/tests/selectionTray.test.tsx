@@ -24,7 +24,7 @@ import type { ArchitectureDrawnPlantUml } from '@/modules/architecture/dom/rende
 import { selectionKey, resolveDraftScope, type ArchitectureSelection } from '@/modules/architecture/dom/selectionModel';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
-import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/api/chatDrafts';
 
 /**
  * The multi-select canvas and its selection tray.

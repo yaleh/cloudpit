@@ -33,7 +33,7 @@ import type { SessionHostsSnapshot } from '@/shared/types';
  * The verb under test is the real one. `useSessionHosts` is mocked — it is a
  * module-scope poller with no test seam, and the two sibling criteria mock it for
  * the same reason — but its `start` is wired to `api.sessionHosts.start`, so the
- * refusal travels through `readApiJson` in `src/shared/api.ts`, which is the code
+ * refusal travels through `readApiJson` in `src/shared/api/index.ts`, which is the code
  * that changed. Only the two things a jsdom test cannot own are substituted: the
  * snapshot source (the poll, replaced by a listing this file sets) and `fetch`.
  *

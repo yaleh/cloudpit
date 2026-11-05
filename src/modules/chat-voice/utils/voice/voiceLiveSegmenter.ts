@@ -54,8 +54,8 @@
  * is taken on.
  */
 
-import { downsampleVoice, UPLOAD_SAMPLE_RATE } from '@/shared/audioDecode';
-import { frameRms, type VadEvent } from '@/shared/voiceEndpoint';
+import { downsampleVoice, UPLOAD_SAMPLE_RATE } from '@/shared/voice/audioDecode';
+import { frameRms, type VadEvent } from '@/shared/voice/voiceEndpoint';
 import { concatFloat } from '@/modules/chat-voice/utils/voice/voiceSegments';
 
 /**

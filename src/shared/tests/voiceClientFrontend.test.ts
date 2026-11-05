@@ -30,7 +30,7 @@ import {
   parseWav,
   tokensToText,
   type VoiceClientToken,
-} from '@/shared/voiceClientFrontend';
+} from '@/shared/voice-asr/voiceClientFrontend';
 
 /** The Kaldi silence floor, written out rather than imported so the value under test is the module's. */
 const FLOOR = 1.1920928955078125e-7;

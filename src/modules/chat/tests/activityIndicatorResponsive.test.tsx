@@ -340,7 +340,7 @@ const renderComposer = (width: number) => {
 // composer render below is about the status surface, not the mic, so the two
 // hooks are doubled the way the composer's own responsive file doubles them.
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default: keeps this whole-module replacement complete.

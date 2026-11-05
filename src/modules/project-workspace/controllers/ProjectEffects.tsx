@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { usePaletteOpsRegister } from '@/modules/command-palette';
-import { writeSelectedProvider } from '@/shared/selectedProvider';
+import { writeSelectedProvider } from '@/shared/settings/selectedProvider';
 import { useProjectEffectsState } from '@/modules/project-workspace/context/ProjectsStateContext';
 import type { LLMProvider, ProjectWorkspaceShellProps } from '@/shared/types';
 

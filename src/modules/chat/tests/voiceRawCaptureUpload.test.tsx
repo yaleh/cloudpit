@@ -25,7 +25,7 @@ import { useVoiceInput } from '@/modules/chat-voice';
 import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHarness';
 
 import type * as SharedApi from '@/shared/api';
-import type * as SharedVoiceConfig from '@/shared/voiceConfig';
+import type * as SharedVoiceConfig from '@/shared/api/voiceConfig';
 
 const { transcribeVoice, captureRawVoice } = vi.hoisted(() => ({
   transcribeVoice: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 // with the raw corpus — which is exactly what happened when the lookup was added. The real one
 // answers the shipped default (recording on), so a case here reads the same settings a fresh user
 // has rather than a second copy of the defaults.
-vi.mock('@/shared/voiceConfig', async (importOriginal) => {
+vi.mock('@/shared/api/voiceConfig', async (importOriginal) => {
   const actual = await importOriginal<typeof SharedVoiceConfig>();
   return {
     ...actual,
@@ -68,7 +68,7 @@ vi.mock('@/shared/voiceConfig', async (importOriginal) => {
 });
 
 // A plain install: no debug reading, VAD on, the shipped caps.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

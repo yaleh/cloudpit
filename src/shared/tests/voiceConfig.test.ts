@@ -26,7 +26,7 @@ import {
   VOICE_CONFIG_STORAGE_KEY,
   voiceConfigHeaders,
   whenVoiceConfigReady,
-} from '@/shared/voiceConfig';
+} from '@/shared/api/voiceConfig';
 
 /**
  * `voiceConfigHeaders` decides what leaves the browser: it attaches the user's

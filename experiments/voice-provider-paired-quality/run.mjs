@@ -16,7 +16,7 @@
  *           它**必须相对 `none` 下降**，否则「prompt 的标点被镜像」这个解释不成立。
  *           负对照不是「写了就算」：`--control=absent|zero|inverted` 三个变体各打一个洞，
  *           本文件在离线自检里逐个要求它们**红**（见 assertFalsifiers）。
- *   第 3 条 被测实现必须是出货模块 —— 裁剪那一轴的音频**只能**由 `src/shared/voiceTrim.ts`
+ *   第 3 条 被测实现必须是出货模块 —— 裁剪那一轴的音频**只能**由 `src/shared/voice/voiceTrim.ts`
  *           的 `trimVoiceAudio` 产生，标识符口径**只能**是 `src/shared/identifierFidelity.ts`。
  *           本文件在启动时打印两者的绝对路径与符号名（probe），并断言它们在出货树内、
  *           不在本工装内。工装里没有第二份裁剪实现，也没有第二份标识符实现。
@@ -63,7 +63,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { identifierFidelity } from '../../src/shared/identifierFidelity.ts';
-import { trimVoiceAudio } from '../../src/shared/voiceTrim.ts';
+import { trimVoiceAudio } from '../../src/shared/voice/voiceTrim.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS_DIR = HERE;
@@ -78,7 +78,7 @@ const CACHE_PATH = join(OUT_DIR, 'quality-cache.json');
  * 路径会打印得漂漂亮亮却指向不存在的东西，解析出来的不会。
  */
 const REPO_ROOT = resolve(HERE, '..', '..');
-const TRIM_MODULE = fileURLToPath(new URL('../../src/shared/voiceTrim.ts', import.meta.url));
+const TRIM_MODULE = fileURLToPath(new URL('../../src/shared/voice/voiceTrim.ts', import.meta.url));
 const FIDELITY_MODULE = fileURLToPath(new URL('../../src/shared/identifierFidelity.ts', import.meta.url));
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');

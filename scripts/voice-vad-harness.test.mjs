@@ -53,7 +53,7 @@ registerHooks({
 
 // The shipping detector, imported by a runtime-resolved URL so this file stays type-checkable
 // as a plain-mjs `scripts/` test (an explicit `.ts` specifier is not one the tsconfig allows).
-const voiceTrimModule = await import(new URL('../src/shared/voiceTrim.ts', import.meta.url).href);
+const voiceTrimModule = await import(new URL('../src/shared/voice/voiceTrim.ts', import.meta.url).href);
 
 /**
  * @type {(samples: Float32Array, sampleRate: number) => { stats: { vadSegments: { startSec: number, endSec: number }[] } }}

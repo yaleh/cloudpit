@@ -40,7 +40,7 @@ vi.mock('@/shared/api', () => ({
 
 const loadStore = async () => {
   vi.resetModules();
-  return import('@/shared/userSettings');
+  return import('@/shared/settings/userSettings');
 };
 
 beforeEach(() => {

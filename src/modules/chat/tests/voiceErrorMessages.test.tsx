@@ -296,7 +296,7 @@ vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvail
 // The voice path's switches, all off/unset: a plain install, with the shipped segment minimum and
 // idle auto-stop. Read here rather than through the environment so a developer's own flags cannot
 // change what this file measures.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default, so these cases still run the segmenting path.

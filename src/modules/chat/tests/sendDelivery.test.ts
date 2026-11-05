@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 import { useChatComposerState } from '@/modules/chat-composer';
 import { createSendDelivery, readSendDeliveryTimeoutMs } from '@/modules/chat-session';
 import type { LLMProvider, PermissionMode, Project, ProjectSession, ServerEvent } from '@/shared/types';
-import { resetUserPreferences } from '@/shared/userSettings';
+import { resetUserPreferences } from '@/shared/settings/userSettings';
 
 /**
  * The send path's delivery reading, at the two levels the dock depends on.

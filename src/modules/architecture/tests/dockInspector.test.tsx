@@ -13,7 +13,7 @@ import {
   subscribeToLocateRequests,
   type ChatMessageLocateRequest,
 } from '@/shared/chatMessageLocator';
-import { readDraftText, resetChatDrafts } from '@/shared/chatDrafts';
+import { readDraftText, resetChatDrafts } from '@/shared/api/chatDrafts';
 import type * as SharedApiModule from '@/shared/api';
 
 /**

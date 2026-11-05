@@ -4,13 +4,13 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, test, vi } from 'vitest';
 
 import { useCodeEditorSettings } from '@/modules/code-editor/hooks/useCodeEditorSettings';
-import type * as UserSettings from '@/shared/userSettings';
-import { writeCodeEditorSettings } from '@/shared/codeEditorSettings';
+import type * as UserSettings from '@/shared/settings/userSettings';
+import { writeCodeEditorSettings } from '@/shared/settings/codeEditorSettings';
 import {
   hydrateUserPreferences,
   resetUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 /**
  * The receiving half of the code-editor settings contract.
@@ -61,7 +61,7 @@ type UserSettingsModule = typeof UserSettings;
 // whether the hook released it. A leaked store subscription is invisible from
 // the outside for the same reason a leaked DOM listener is: React drops the
 // setState of an unmounted component silently.
-vi.mock('@/shared/userSettings', async (importOriginal) => {
+vi.mock('@/shared/settings/userSettings', async (importOriginal) => {
   const actual = await importOriginal<UserSettingsModule>();
 
   return {

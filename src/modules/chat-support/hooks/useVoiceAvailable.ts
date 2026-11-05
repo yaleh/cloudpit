@@ -6,9 +6,9 @@ import type { VoiceContextPackRuntimeSettings } from '@shared/voice/voiceSetting
 import {
   installVoiceClientAsrEngine,
   voiceClientAsrReadiness,
-} from '@/shared/voiceClientAsrWorker';
+} from '@/shared/voice-asr/voiceClientAsrWorker';
 import { api, setVoiceProviderProfile, setVoiceProviderRows } from '@/shared/api';
-import { setVoiceRuntimeConfig } from '@/shared/voiceRuntimeConfig';
+import { setVoiceRuntimeConfig } from '@/shared/voice/voiceRuntimeConfig';
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import type { VoiceProviderRow } from '@/shared/types';
 import {
@@ -16,7 +16,7 @@ import {
   readVoiceConfig,
   VOICE_CONFIG_SYNC_EVENT,
   whenVoiceConfigReady,
-} from '@/shared/voiceConfig';
+} from '@/shared/api/voiceConfig';
 
 // Voice UI is gated on the `voiceEnabled` UI preference (toggled in Quick Settings /
 // the Settings modal) and a configured voice backend.

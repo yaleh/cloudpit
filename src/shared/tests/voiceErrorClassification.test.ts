@@ -10,7 +10,7 @@
  * shipped adapter returns for the same `(status, body)` pair are the same string. This file drives
  * one fixture table through three shipped seams and compares them row by row.
  *
- * THE THREE SEAMS ARE THE SHIPPED ONES — `transcribeVoice` from `src/shared/api.ts` (with a
+ * THE THREE SEAMS ARE THE SHIPPED ONES — `transcribeVoice` from `src/shared/api/index.ts` (with a
  * stand-in `fetch`: no port, no socket, no network), and `resolve(id).transcribe(request,
  * invocation)` for the two adapters this deployment ships. Nothing here re-implements the
  * classification: a copy inside this file would make every row agree by construction and read green
@@ -49,7 +49,7 @@ import type * as AsrContractModule from '@shared/asr/asrContract';
 import type * as AsrRegistryModule from '@shared/asr/asrRegistry';
 import type * as TranscriptionWireModule from '@shared/asr/transcriptionWire';
 import { setVoiceProviderProfile, transcribeVoice } from '@/shared/api';
-import { resetVoiceConfig, whenVoiceConfigReady } from '@/shared/voiceConfig';
+import { resetVoiceConfig, whenVoiceConfigReady } from '@/shared/api/voiceConfig';
 
 // ── the in-memory mutation levers ────────────────────────────────────────────────────────────
 //
@@ -663,7 +663,7 @@ test('AC4: one definition point, and the client reads it from there', () => {
     'shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts',
     'shared/asr/list/multimodal/multimodal.asr-provider.ts',
     'shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts',
-    'src/shared/api.ts',
+    'src/shared/api/index.ts',
   ];
   const sources = new Map(paths.map((path) => [path, readFileSync(join(REPO_ROOT, path), 'utf8')]));
 
@@ -680,7 +680,7 @@ test('AC4: one definition point, and the client reads it from there', () => {
   const clientSharedImport = /import\s*\{[^}]*\bclassifyUpstreamFailure\b[^}]*\}\s*from\s*'@shared\/asr\/[^']+'/;
 
   const contract = sources.get('shared/asr/asrContract.ts') ?? '';
-  const api = sources.get('src/shared/api.ts') ?? '';
+  const api = sources.get('src/shared/api/index.ts') ?? '';
   const classifiers = [...sources.values()].reduce((total, source) => total + count(source, classifierDef), 0);
   const tables = [...sources.values()].reduce((total, source) => total + count(source, tableDef), 0);
   const adapterTables = [

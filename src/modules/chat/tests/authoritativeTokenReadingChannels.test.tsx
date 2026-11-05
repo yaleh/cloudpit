@@ -11,7 +11,7 @@ import { beforeEach, test, vi } from 'vitest';
 import { TokenUsageSummary, useChatComposerState } from '@/modules/chat-composer';
 import { useChatSessionState } from '@/modules/chat-session';
 import enChat from '@/modules/i18n/locales/en/chat.json';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 import type { PermissionMode, Project, ProjectSession } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat-session';
 
@@ -95,7 +95,7 @@ vi.mock('@/shared/api', () => {
 
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
 
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

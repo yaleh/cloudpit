@@ -5,7 +5,7 @@
  * The architecture inspector lists the transcript messages that mention an
  * entity, and clicking one must centre that message in the Chat tab. Both
  * modules own their UI and must not import each other, so the request crosses
- * through this subscription store — the same shape as `src/shared/chatDrafts.ts`.
+ * through this subscription store — the same shape as `src/shared/api/chatDrafts.ts`.
  *
  * A request is REMEMBERED as well as announced. Clicking a hit while the
  * architecture tab is open happens with the chat pane mounted but hidden

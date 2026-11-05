@@ -40,7 +40,7 @@ import {
   transcribe,
 } from '@shared/asr/list/openai-compatible/openai-compatible.asr-provider';
 import { transcriptionEndpoint } from '@shared/asr/transcriptionWire';
-import { trimDecisionFor } from '@/shared/voiceTrim';
+import { trimDecisionFor } from '@/shared/voice/voiceTrim';
 
 /**
  * The provider a request goes to when nothing is requested and nothing is configured — which is

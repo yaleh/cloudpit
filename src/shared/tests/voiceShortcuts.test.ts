@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { beforeEach, test } from 'vitest';
 
-import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
+import { resetUserPreferences, writeUserPreference } from '@/shared/settings/userSettings';
 import {
   canonicalChord,
   chordFromKeyEvent,
@@ -12,8 +12,8 @@ import {
   readStoredVoiceShortcuts,
   shortcutConflictLevel,
   writeStoredVoiceShortcuts,
-} from '@/shared/voiceShortcuts';
-import type { VoiceShortcutChord } from '@/shared/voiceShortcuts';
+} from '@/shared/voice/voiceShortcuts';
+import type { VoiceShortcutChord } from '@/shared/voice/voiceShortcuts';
 
 /**
  * The stored shape of the voice keyboard bindings, the physical-key matcher, and

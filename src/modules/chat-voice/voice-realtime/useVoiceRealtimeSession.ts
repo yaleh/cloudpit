@@ -45,9 +45,9 @@ import { createLiveSegmenter } from '@/modules/chat-voice/utils/voice/voiceLiveS
 import type { LiveSegment, LiveSegmenter } from '@/modules/chat-voice/utils/voice/voiceLiveSegmenter';
 
 import { voiceRealtimeSocketUrl } from '@/shared/api';
-import { readVoiceRuntimeConfig } from '@/shared/voiceRuntimeConfig';
+import { readVoiceRuntimeConfig } from '@/shared/voice/voiceRuntimeConfig';
 import type { ChatMessage, VoiceRealtimeSegmentOutcome } from '@/shared/types';
-import { StreamingVad } from '@/shared/voiceEndpoint';
+import { StreamingVad } from '@/shared/voice/voiceEndpoint';
 
 /**
  * Where a Live Voice connection is, as the bar renders it (GOAL-033 / AC-316).

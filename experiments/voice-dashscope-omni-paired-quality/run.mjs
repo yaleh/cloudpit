@@ -4,14 +4,14 @@
  *
  * 现场。`shared/asr/asrRegistry.ts` 的 `PAUSE_CUES_EVIDENCE[dashscopeOmniId]` 此前不存在，而
  * `shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts` 声明的是 `pauseCues: 'neutral'`
- * —— 一个**非默认**值（默认是 `destructive`，见 `src/shared/voiceTrim.ts` 的 `trimDecisionFor`）。
+ * —— 一个**非默认**值（默认是 `destructive`，见 `src/shared/voice/voiceTrim.ts` 的 `trimDecisionFor`）。
  * ADR-004 决策 1 把「非默认声明必须指向该服务自己的成对测量」写成纪律，
  * `scripts/asr-trim-capability-check.mjs` 的 `discipline` 那一条就是它的机检形态，而本条之前它是红的：
  *
  *   check discipline: FAIL dashscope-omni=neutral declares a non-destructive capability with no paired
  *   experiment to point at
  *
- * 本文件就是那条纪律要的那份测量：出货 `dashscope-omni` 适配器与出货 `src/shared/voiceTrim.ts`
+ * 本文件就是那条纪律要的那份测量：出货 `dashscope-omni` 适配器与出货 `src/shared/voice/voiceTrim.ts`
  * 在**同一次运行、同一批语料**上跑真实端点，读数冻结到 `fixtures/omni.json` 供离线重算，记录落在
  * `docs/experiments/<date>-omni-written.md`。
  *
@@ -23,7 +23,7 @@
  *   第 3 条 被测实现必须是出货模块 —— omni 条件**只能**经 registry 解析出来的
  *           `dashscope-omni.asr-provider.ts#transcribe` 发出，`fetchImpl` 就是全局 `fetch`（不包装、
  *           不改 body：这个适配器的 `honors` 三项全 false，body 里没有一处由调用方决定）；
- *           裁剪列的音**只能**由 `src/shared/voiceTrim.ts` 的 `trimVoiceAudio` 产生；标识符口径
+ *           裁剪列的音**只能**由 `src/shared/voice/voiceTrim.ts` 的 `trimVoiceAudio` 产生；标识符口径
  *           **只能**是 `src/shared/identifierFidelity.ts`。启动时打印三者的绝对路径与符号名（probe），
  *           断言它们在出货树内、不在本工装内，并断言本工装源码里**没有第二份请求构造**
  *           （自扫两个字面量，拼接成串以免自扫命中自己）。
@@ -86,7 +86,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { register } from 'tsx/esm/api';
 
 import { identifierFidelity } from '../../src/shared/identifierFidelity.ts';
-import { trimVoiceAudio } from '../../src/shared/voiceTrim.ts';
+import { trimVoiceAudio } from '../../src/shared/voice/voiceTrim.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS_DIR = HERE;
@@ -106,7 +106,7 @@ const CORPUS_SNAPSHOT = join(CORPUS_FIXTURES, 'paired.json');
 const REPO_ROOT = resolve(HERE, '..', '..');
 const MODULE_PATHS = {
   omni: fileURLToPath(new URL('../../shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts', import.meta.url)),
-  trim: fileURLToPath(new URL('../../src/shared/voiceTrim.ts', import.meta.url)),
+  trim: fileURLToPath(new URL('../../src/shared/voice/voiceTrim.ts', import.meta.url)),
   fidelity: fileURLToPath(new URL('../../src/shared/identifierFidelity.ts', import.meta.url)),
 };
 

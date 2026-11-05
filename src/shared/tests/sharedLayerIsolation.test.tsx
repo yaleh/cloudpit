@@ -6,6 +6,7 @@ import { afterEach, test, vi } from 'vitest';
 
 import * as shared from '@/shared';
 import { WebSocketProvider } from '@/shared/context/WebSocketContext';
+import { readDeviceName } from '@/shared/settings';
 
 /**
  * `src/shared` must load and render without any feature module.
@@ -83,8 +84,9 @@ test('shared loads and renders with every feature-module stub untouched; the con
 
   // The barrel must be importable on its own: importing it is where a re-export
   // of a feature-backed value would pull the feature graph in.
-  assert.equal(typeof shared.readDeviceName, 'function', 'the shared barrel must expose the shared reader');
-  assert.equal(shared.readDeviceName().length > 0, true, 'the shared reader must answer without a feature module');
+  assert.equal(typeof shared, 'object', 'the shared barrel must be importable on its own');
+  assert.equal(typeof readDeviceName, 'function', 'the settings barrel must expose the shared reader');
+  assert.equal(readDeviceName().length > 0, true, 'the shared reader must answer without a feature module');
 
   render(React.createElement(WebSocketProvider, {
     auth: { isLoading: false, token: 'isolation-token', user: { id: 1 } },

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
+import { resetUserPreferences, writeUserPreference } from '@/shared/settings/userSettings';
 import type { ProjectSession } from '@/shared/types';
 
 /**
@@ -164,7 +164,7 @@ test('a session provider outside the capability matrix is not adopted', async ()
   // Debug sessions carry their own runtime identity, which has no row in the
   // provider matrix. Adopting it would leave the composer with no capabilities
   // and persist an unusable id as the user's preference.
-  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/selectedProvider');
+  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/settings/selectedProvider');
   writeSelectedProvider('claude');
 
   const debugSession = {
@@ -184,7 +184,7 @@ test('a session provider outside the capability matrix is not adopted', async ()
 
 test('a session provider inside the capability matrix is still adopted', async () => {
   // Control leg: the guard above must not turn adoption off altogether.
-  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/selectedProvider');
+  const { readSelectedProvider, writeSelectedProvider } = await import('@/shared/settings/selectedProvider');
   writeSelectedProvider('claude');
 
   const codexSession = {

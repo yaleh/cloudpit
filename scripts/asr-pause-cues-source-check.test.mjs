@@ -40,7 +40,7 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
 const PROBE = path.join(SCRIPT_DIR, 'asr-pause-cues-source-check.mjs');
 
 const REGISTRY = 'shared/asr/asrRegistry.ts';
-const VOICE_TRIM = 'src/shared/voiceTrim.ts';
+const VOICE_TRIM = 'src/shared/voice/voiceTrim.ts';
 const GATE = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
 
 /**

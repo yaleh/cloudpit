@@ -176,7 +176,7 @@ vi.mock('@/modules/chat-composer/composer/useScheduledMessages', () => ({
   useScheduledMessages: () => ({ scheduledMessages: [], schedule: async () => null, cancel: () => undefined }),
 }));
 vi.mock('@/shared/hooks/useProviderCapabilities', () => ({ useResidentProviders: () => new Set<string>(), useProviderLifecycleDefaults: () => ({}) }));
-vi.mock('@/shared/selectedProvider', () => ({ readSelectedProvider: () => 'claude' }));
+vi.mock('@/shared/settings/selectedProvider', () => ({ readSelectedProvider: () => 'claude' }));
 vi.mock('@/shared/hooks/useSessionHosts', () => ({
   useSessionHosts: () => ({ snapshot: { hosts: [], sessions: [] } }),
   findSessionHostState: () => null,
@@ -193,7 +193,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
   };
 });
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

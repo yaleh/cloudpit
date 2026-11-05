@@ -5,7 +5,7 @@ import {
   readUserPreference,
   subscribeToUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 type ThemeContextValue = {
   isDarkMode: boolean;

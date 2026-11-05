@@ -65,7 +65,7 @@ const DESKTOP_WIDTH = 1280;
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
 // A plain install: no debug upload entry (an extra control) and no trim switch.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default: keeps this whole-module replacement complete.

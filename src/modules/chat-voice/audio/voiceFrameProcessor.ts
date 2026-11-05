@@ -18,7 +18,7 @@
  * without this file's own build containing its trigger.
  */
 
-import { StreamingVad, type StreamingVadOptions, type VadEvent, type VoiceSegment } from '@/shared/voiceEndpoint';
+import { StreamingVad, type StreamingVadOptions, type VadEvent, type VoiceSegment } from '@/shared/voice/voiceEndpoint';
 
 /**
  * The AudioWorkletGlobalScope's base class, resolved at *runtime* rather than named at module

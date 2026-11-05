@@ -4,9 +4,9 @@ import type { ReactNode } from 'react';
 import {
   readStoredUiPreferences,
   uiPreferencesReducer,
-} from '@/shared/uiPreferences';
-import type { UiPreferenceKey, UiPreferences } from '@/shared/uiPreferences';
-import { subscribeToUserPreferences, writeUserPreference } from '@/shared/userSettings';
+} from '@/shared/settings/uiPreferences';
+import type { UiPreferenceKey, UiPreferences } from '@/shared/settings/uiPreferences';
+import { subscribeToUserPreferences, writeUserPreference } from '@/shared/settings/userSettings';
 
 type UiPreferenceActions = {
   setPreference: (key: UiPreferenceKey, value: boolean) => void;

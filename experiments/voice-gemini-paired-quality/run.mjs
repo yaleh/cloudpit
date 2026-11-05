@@ -25,7 +25,7 @@
  *           （`--control=absent|zero|inverted`）各打一个洞，离线自检逐个要求它们**红**。
  *   第 3 条 被测实现必须是出货模块 —— Gemini 条件**只能**经 registry 解析出来的
  *           `multimodal.asr-provider.ts#transcribe` 发出，`fetchImpl` 就是全局 `fetch`（不包装、
- *           不改 body）；裁剪列的音**只能**由 `src/shared/voiceTrim.ts` 的 `trimVoiceAudio` 产生；
+ *           不改 body）；裁剪列的音**只能**由 `src/shared/voice/voiceTrim.ts` 的 `trimVoiceAudio` 产生；
  *           标识符口径**只能**是 `src/shared/identifierFidelity.ts`。本文件在启动时打印三者的
  *           绝对路径与符号名（probe），并断言它们在出货树内、不在本工装内，且断言本工装源码里
  *           **没有第二份 Gemini 请求构造**（自扫两个字面量，拼接成串以免自扫命中自己）。
@@ -74,7 +74,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { register } from 'tsx/esm/api';
 
 import { identifierFidelity } from '../../src/shared/identifierFidelity.ts';
-import { trimVoiceAudio } from '../../src/shared/voiceTrim.ts';
+import { trimVoiceAudio } from '../../src/shared/voice/voiceTrim.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS_DIR = HERE;
@@ -94,7 +94,7 @@ const CORPUS_SNAPSHOT = join(CORPUS_FIXTURES, 'paired.json');
 const REPO_ROOT = resolve(HERE, '..', '..');
 const MODULE_PATHS = {
   multimodal: fileURLToPath(new URL('../../shared/asr/list/multimodal/multimodal.asr-provider.ts', import.meta.url)),
-  trim: fileURLToPath(new URL('../../src/shared/voiceTrim.ts', import.meta.url)),
+  trim: fileURLToPath(new URL('../../src/shared/voice/voiceTrim.ts', import.meta.url)),
   fidelity: fileURLToPath(new URL('../../src/shared/identifierFidelity.ts', import.meta.url)),
 };
 

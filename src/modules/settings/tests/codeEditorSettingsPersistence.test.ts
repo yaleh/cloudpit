@@ -6,13 +6,13 @@ import { CODE_EDITOR_DEFAULTS, CODE_EDITOR_STORAGE_KEYS } from '@/shared/constan
 import {
   readCodeEditorSettings,
   writeCodeEditorSettings,
-} from '@/shared/codeEditorSettings';
+} from '@/shared/settings/codeEditorSettings';
 import {
   readUserPreference,
   resetUserPreferences,
   subscribeToUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 /**
  * Regression guard for the settings/code-editor split ownership of the four

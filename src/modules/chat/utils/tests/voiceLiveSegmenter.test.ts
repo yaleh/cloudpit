@@ -32,7 +32,7 @@ import { test } from 'vitest';
 
 import { DEFAULT_FLUSH_SILENCE_SEC, DEFAULT_KEEP_GAP_SEC, DEFAULT_MAX_SEGMENT_SEC, DEFAULT_MIN_SEGMENT_SEC, OVERLAP_SEC, RELAY_COMMIT_GAP_SEC, RELAY_MERGE_GAP_SEC, RELAY_MAX_SEGMENT_SEC, RELAY_MIN_SEGMENT_SEC, RELAY_PRE_ROLL_SEC, LiveSegmenter, createLiveSegmenter, segmentLive } from '@/modules/chat-voice';
 import type { LiveSegment } from '@/modules/chat-voice';
-import { StreamingVad, frameRms, type VadEvent } from '@/shared/voiceEndpoint';
+import { StreamingVad, frameRms, type VadEvent } from '@/shared/voice/voiceEndpoint';
 import type { AsrRequest } from '@shared/asr/asrRegistry';
 import { measureChatRequestBytes } from '@shared/asr/list/dashscope-omni/dashscope-omni.asr-provider';
 

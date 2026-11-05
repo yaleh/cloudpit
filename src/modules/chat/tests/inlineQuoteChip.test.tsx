@@ -11,7 +11,7 @@ import { ChatComposer } from '@/modules/chat-composer';
 import { buildSuggestionChips } from '@/modules/chat-support';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import zhChat from '@/modules/i18n/locales/zh-CN/chat.json';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 import type { ComposerChipStrip } from '@/shared/types';
 
 /**
@@ -59,7 +59,7 @@ vi.mock('@/shared/api', () => {
 
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

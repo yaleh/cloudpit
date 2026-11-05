@@ -3853,10 +3853,10 @@ const envFreeServerRoot = ((): string => {
  * Vite in `CONFIG_DIR` — the checkout the config file lives in. That is the same checkout the goal
  * gate evaluates criteria in (`evaluationRoot`), and it is the same checkout fan-in's `ff` step lands
  * commits into. A landing that writes `src/` mid-run reaches Vite's watcher; for a module without
- * `import.meta.hot.accept` (e.g. `src/shared/api.ts`) the update bubbles to the entry and the page
+ * `import.meta.hot.accept` (e.g. `src/shared/api/index.ts`) the update bubbles to the entry and the page
  * fully reloads, and a case a few assertions in loses its page and fails on a reason none of its own
  * assertions can name. Recorded on AC-345: the discriminator wrote one comment line into the served
- * checkout's `src/shared/api.ts` during case 6 and the criterion went red at 41.0s with Vite's
+ * checkout's `src/shared/api/index.ts` during case 6 and the criterion went red at 41.0s with Vite's
  * `ws proxy error: write EPIPE` in the same second, while the untouched control run passed.
  *
  * The copy is REAL, not `cp -al`: a hardlink shares the inode, so fan-in's in-place write would

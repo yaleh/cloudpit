@@ -1,5 +1,5 @@
 import type { ClaudeSettings } from '@/shared/types';
-import { readUserPreference, writeUserPreference } from '@/shared/userSettings';
+import { readUserPreference, writeUserPreference } from '@/shared/settings/userSettings';
 
 /**
  * The single reader and writer for Claude's tool-permission settings.

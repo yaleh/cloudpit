@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { test } from 'vitest';
 
-import { trimSilenceEdges, trimVoiceAudio } from '@/shared/voiceTrim';
+import { trimSilenceEdges, trimVoiceAudio } from '@/shared/voice/voiceTrim';
 
 /*
  * The fixtures are synthesised, not recorded, and that is the point: each one
@@ -303,7 +303,7 @@ test('a buffer with a non-finite sample falls back rather than propagating NaN',
 });
 
 test('the module is a pure DSP function with no React and no DOM', () => {
-  const modulePath = resolve(process.cwd(), 'src', 'shared', 'voiceTrim.ts');
+  const modulePath = resolve(process.cwd(), 'src', 'shared', 'voice', 'voiceTrim.ts');
   const source = readFileSync(modulePath, 'utf8');
 
   const specifiers = [...source.matchAll(/^\s*import\s[^;]*?from\s+'([^']+)'/gm)].map((match) => match[1]);
@@ -383,7 +383,7 @@ test('the trim harness holds no second copy of the algorithm', () => {
   // The shipped module is a file that certainly does declare the algorithm, so
   // running the same detector over it is the positive control — and it is read
   // through the module's own path, so the control fails if the file moves.
-  const shipped = readFileSync(resolve(process.cwd(), 'src', 'shared', 'voiceTrim.ts'), 'utf8');
+  const shipped = readFileSync(resolve(process.cwd(), 'src', 'shared', 'voice', 'voiceTrim.ts'), 'utf8');
   const control = algorithmCopies(shipped);
   assert.ok(
     control.length >= 4,
@@ -408,6 +408,6 @@ test('an algorithm copy in the harness would be caught by the detector above', (
   // The falsifier for the previous test: if the harness rule is satisfied only
   // because nothing was ever put there, this shows the same rule reds the
   // moment the copy appears.
-  const copy = `import { trimVoiceAudio } from '@/shared/voiceTrim';\nfunction capPause(gap) { return gap; }\nconst frameEnergies = () => [];\n`;
+  const copy = `import { trimVoiceAudio } from '@/shared/voice/voiceTrim';\nfunction capPause(gap) { return gap; }\nconst frameEnergies = () => [];\n`;
   assert.deepEqual(algorithmCopies(copy), ['frameEnergies', 'capPause']);
 });

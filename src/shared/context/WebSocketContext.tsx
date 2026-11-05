@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { IS_PLATFORM } from '@/shared/utils';
 import { invalidateSessionHosts, setSessionHostsConnection } from '@/shared/hooks/useSessionHosts';
-import { readDeviceName } from '@/shared/userSettings';
+import { readDeviceName } from '@/shared/settings/userSettings';
 import { getDeviceId, getTabId } from '@/shared/utils/deviceIdentity';
 import type { ServerEvent, UiHelloFrame } from '@/shared/types';
 

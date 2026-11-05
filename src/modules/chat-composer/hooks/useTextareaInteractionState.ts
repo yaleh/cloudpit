@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
-import { readDraftText, subscribeToChatDrafts, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, subscribeToChatDrafts, writeDraftText } from '@/shared/api/chatDrafts';
 import type { Project, ProjectSession } from '@/shared/types';
 
 /**

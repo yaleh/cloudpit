@@ -47,7 +47,7 @@
  *   (3) a reader that is missing, or prints nothing, or dies: `reader-missing` / `no readings` /
  *       `reader-failed`.
  *   (4) a baseline recorded *after* the extraction: `baseline-not-pre-extraction`, decided from
- *       `git show <recordedFromCommit>:src/shared/api.ts` still carrying the inline inbound field
+ *       `git show <recordedFromCommit>:src/shared/api/index.ts` still carrying the inline inbound field
  *       write, and from that commit being an ancestor of HEAD.
  */
 
@@ -64,7 +64,10 @@ const PROBE_ROOT = dirname(HERE);
 const BASELINE_REL = join('scripts', '__fixtures__', 'asr-extraction-parity-baseline.json');
 const READ_CLIENT_REL = join('experiments', 'voice-asr-parity', 'read-client.ts');
 const READ_SERVER_REL = join('experiments', 'voice-asr-parity', 'read-server.ts');
-const API_REL = 'src/shared/api.ts';
+/** The seam's current location (the endpoint map is now the `api/` package barrel). */
+const API_REL = 'src/shared/api/index.ts';
+/** Where the seam lived at the recorded baseline commit — `git show` reads that object path. */
+const API_REL_AT_BASELINE = 'src/shared/api.ts';
 
 /** The four groups, in the order they are printed. */
 const GROUPS = ['inbound', 'direct-outbound', 'proxy-outbound', 'response-tolerance'];
@@ -84,7 +87,7 @@ const READER_TIMEOUT_MS = 120000;
 const SEAM_DECLARATION = 'export async function parseTranscriptionResponse';
 
 /**
- * The inline inbound field write. Its presence in `<recordedFromCommit>:src/shared/api.ts` is what
+ * The inline inbound field write. Its presence in `<recordedFromCommit>:src/shared/api/index.ts` is what
  * makes a baseline *pre*-extraction: once the four hardcoded sites are extracted into one
  * implementation this line moves, and a baseline recorded after that would be a recording of the
  * extraction's own output — after which "zero change" could never be demonstrated again.
@@ -399,7 +402,7 @@ function provenanceReason(root, baseline) {
 
   let source;
   try {
-    source = git(root, ['show', `${recorded}:${API_REL}`]);
+    source = git(root, ['show', `${recorded}:${API_REL_AT_BASELINE}`]);
   } catch {
     return 'baseline-not-pre-extraction';
   }

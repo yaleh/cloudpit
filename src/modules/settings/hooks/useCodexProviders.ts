@@ -17,7 +17,7 @@ import {
  * Every rule (rows from the server reading, version-carrying full replacement, conflict
  * handling) lives in `codexProvidersController`.
  *
- * THE ENDPOINT IS NAMED HERE rather than in `src/shared/api.ts`: that file is an oversize file
+ * THE ENDPOINT IS NAMED HERE rather than in `src/shared/api/index.ts`: that file is an oversize file
  * whose architecture-ratchet baseline may only FALL, and the two calls are this panel's whole
  * transport surface. `authenticatedFetch` and `readApiJson` are still the shared helpers, so
  * auth headers and the error envelope behave exactly as every other settings call.

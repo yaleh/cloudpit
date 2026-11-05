@@ -2,7 +2,7 @@
  * Turning a recording into samples, and samples back into something a recogniser accepts.
  *
  * The voice path records with `MediaRecorder` — a container it did not build and cannot read — and
- * the trim module `src/shared/voiceTrim.ts` works on a `Float32Array`. This file is the seam: it is
+ * the trim module `src/shared/voice/voiceTrim.ts` works on a `Float32Array`. This file is the seam: it is
  * the only place in the frontend that touches WebAudio, so the "decode, trim, re-encode" step is
  * one call the hook makes rather than a codec conversation the hook has to have.
  *

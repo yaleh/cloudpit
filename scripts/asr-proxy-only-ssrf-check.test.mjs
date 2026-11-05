@@ -73,16 +73,16 @@ const TEST_FILE = fileURLToPath(import.meta.url);
  * Copying it keeps the fixture loaded exactly the way the repository is loaded instead of under a
  * hand-written approximation of it.
  *
- * `src/shared/api.ts` pulls in `@/shared/utils.ts`, which imports two bare packages, so the fixture
+ * `src/shared/api/index.ts` pulls in `@/shared/utils.ts`, which imports two bare packages, so the fixture
  * also gets a `node_modules` symlink — the same provisioning the dispatch script gives a worktree.
  */
 const SHIPPING_FILES = [
   'package.json',
   'tsconfig.json',
-  'src/shared/api.ts',
+  'src/shared/api/index.ts',
   'src/shared/authToken.ts',
   'src/shared/utils.ts',
-  'src/shared/voiceConfig.ts',
+  'src/shared/api/voiceConfig.ts',
   'server/modules/voice/voice.service.ts',
   // The service's runtime siblings (the concern split in `gap-voice-service-concern-split`): the
   // service composes the capture seam and re-exports the browser recogniser's asset surface from
@@ -102,7 +102,7 @@ const SHIPPING_FILES = [
 ];
 
 /** The two halves the mutations are applied to. */
-const CLIENT = 'src/shared/api.ts';
+const CLIENT = 'src/shared/api/index.ts';
 const SERVICE = 'server/modules/voice/voice.service.ts';
 const RULE = 'shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts';
 

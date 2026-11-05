@@ -5,9 +5,9 @@ import { beforeEach, test } from 'vitest';
 import {
   readStoredUiPreferences,
   uiPreferencesReducer,
-} from '@/shared/uiPreferences';
-import type { UiPreferences } from '@/shared/uiPreferences';
-import { writeUserPreference, resetUserPreferences } from '@/shared/userSettings';
+} from '@/shared/settings/uiPreferences';
+import type { UiPreferences } from '@/shared/settings/uiPreferences';
+import { writeUserPreference, resetUserPreferences } from '@/shared/settings/userSettings';
 
 /**
  * These preferences were previously held by four independent useReducer

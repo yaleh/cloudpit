@@ -126,7 +126,7 @@ vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
   useProviderLifecycleDefaults: () => ({}),
 }));
 
-vi.mock('@/shared/selectedProvider', () => ({
+vi.mock('@/shared/settings/selectedProvider', () => ({
   readSelectedProvider: () => state.provider,
 }));
 
@@ -137,7 +137,7 @@ vi.mock('@/shared/hooks/useSessionHosts', () => ({
 }));
 
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => false }));
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

@@ -7,11 +7,11 @@ import { setNotificationSoundEnabled } from '@/shared/utils';
 import {
   readCodeEditorSettings,
   writeCodeEditorSettings,
-} from '@/shared/codeEditorSettings';
+} from '@/shared/settings/codeEditorSettings';
 import {
   readUserPreference,
   writeUserPreferences,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 import { useProviderAuthStatus } from '@/modules/provider-auth';
 import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, NotificationPreferencesState, ProjectSortOrder, SettingsMainTab } from '@/shared/types';
 

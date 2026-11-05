@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useChatComposerState } from '@/modules/chat-composer';
 import type { LLMProvider, PermissionMode, Project, ProjectSession } from '@/shared/types';
-import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
+import { resetUserPreferences, writeUserPreference } from '@/shared/settings/userSettings';
 
 /**
  * The composer resolves the tool-permission settings it sends with every

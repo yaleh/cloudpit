@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QuayFocusableObject } from '@/shared/types';
-import type { VadEvent } from '@/shared/voiceEndpoint';
+import type { VadEvent } from '@/shared/voice/voiceEndpoint';
 import { i18n } from '@/modules/i18n';
 import CockpitInput from '@/modules/cockpit/CockpitInput';
 import { routeCockpitText } from '@/modules/cockpit/workspace/cockpitRouting';
@@ -57,7 +57,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
 });
 
 // The voice switches, pinned: VAD on (the shipped default), no debug readings, no edge trimming.
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

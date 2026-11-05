@@ -735,7 +735,7 @@ export function baseMimeType(mimeType: string): string {
  * asks this one function, so "which containers are allowed" has one answer per declaration
  * instead of one per call site.
  *
- * Used by `server/modules/voice/voice.service.ts` (the proxy path) and `src/shared/api.ts` (the
+ * Used by `server/modules/voice/voice.service.ts` (the proxy path) and `src/shared/api/index.ts` (the
  * browser's direct path), which is what makes one refusal code mean the same thing on both.
  */
 export function declaredAcceptsMime(capabilities: AsrCapabilities, mimeType: string): boolean {

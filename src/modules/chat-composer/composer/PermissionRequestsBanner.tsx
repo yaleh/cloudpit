@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldAlertIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest } from '@/shared/types';
-import { getClaudeSettings } from '@/shared/claudeSettings';
+import { getClaudeSettings } from '@/shared/settings/claudeSettings';
 import { buildClaudeToolPermissionEntry, formatToolInputForDisplay } from '@/modules/chat-session';
 
 import { getPermissionPanel, registerPermissionPanel } from '@/modules/chat-tool-configs';

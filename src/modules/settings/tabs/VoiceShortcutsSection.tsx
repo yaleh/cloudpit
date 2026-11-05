@@ -10,8 +10,8 @@ import {
   sameChord,
   shortcutConflictLevel,
   writeStoredVoiceShortcuts,
-} from '@/shared/voiceShortcuts';
-import type { VoiceShortcutChord, VoiceShortcuts } from '@/shared/voiceShortcuts';
+} from '@/shared/voice/voiceShortcuts';
+import type { VoiceShortcutChord, VoiceShortcuts } from '@/shared/voice/voiceShortcuts';
 
 const subtleButtonClass =
   'rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted';

@@ -9,7 +9,7 @@ import {
   readUserPreference,
   resetUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 /**
  * The theme is stored server-side, so the provider has to distinguish a theme

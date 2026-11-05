@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { readSelectedProvider } from '@/shared/selectedProvider';
-import { subscribeToUserPreferences } from '@/shared/userSettings';
+import { readSelectedProvider } from '@/shared/settings/selectedProvider';
+import { subscribeToUserPreferences } from '@/shared/settings/userSettings';
 import type { LLMProvider } from '@/shared/types';
 
 /** Used by the git panel to attribute a generated commit message to a provider. */

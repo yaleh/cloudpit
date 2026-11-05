@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useSetUiPreference, useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import { useTranscriptExport } from '@/shared/context/TranscriptExportContext';
 import { SETTING_ROW_CLASS } from '@/shared/constants';
-import type { UiPreferenceKey } from '@/shared/uiPreferences';
+import type { UiPreferenceKey } from '@/shared/settings/uiPreferences';
 import { DarkModeToggle } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import { LanguageSelector } from '@/modules/i18n';

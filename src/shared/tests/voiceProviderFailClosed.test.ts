@@ -2,7 +2,7 @@ import { listProviders } from '@shared/asr/asrRegistry';
 import { afterEach, expect, test, vi } from 'vitest';
 
 import { setVoiceProviderProfile, transcribeVoice } from '@/shared/api';
-import { resetVoiceConfig } from '@/shared/voiceConfig';
+import { resetVoiceConfig } from '@/shared/api/voiceConfig';
 
 /**
  * The client half of the unregistered-provider rule.

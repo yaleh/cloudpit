@@ -1,5 +1,5 @@
 import type { VoiceCaptureEngine, VoiceCaptureSink } from '@/modules/chat-voice';
-import type { VadEvent } from '@/shared/voiceEndpoint';
+import type { VadEvent } from '@/shared/voice/voiceEndpoint';
 
 /**
  * A capture engine a test drives by hand, standing in for the microphone and the `AudioWorklet`.

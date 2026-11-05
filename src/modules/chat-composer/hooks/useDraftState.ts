@@ -6,7 +6,7 @@ import {
   hydrateChatDrafts,
   readQueuedMessage,
   writeQueuedMessage,
-} from '@/shared/chatDrafts';
+} from '@/shared/api/chatDrafts';
 import type { QueuedDraft } from '@/shared/types';
 
 /**

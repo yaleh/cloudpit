@@ -64,7 +64,7 @@ import ruChat from '@/modules/i18n/locales/ru/chat.json';
 import trChat from '@/modules/i18n/locales/tr/chat.json';
 import zhCNChat from '@/modules/i18n/locales/zh-CN/chat.json';
 import zhTWChat from '@/modules/i18n/locales/zh-TW/chat.json';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 import { invalidateSessionHosts } from '@/shared/hooks/useSessionHosts';
 import type { ChatMessage, LLMProvider, Project, ProjectSession, SessionHostsSnapshot } from '@/shared/types';
 
@@ -177,7 +177,7 @@ vi.mock('@/shared/hooks/useProviderCapabilities', async (importOriginal) => {
   };
 });
 
-vi.mock('@/shared/selectedProvider', async (importOriginal) => {
+vi.mock('@/shared/settings/selectedProvider', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, readSelectedProvider: () => 'claude' as const };
 });
@@ -186,7 +186,7 @@ vi.mock('@/shared/selectedProvider', async (importOriginal) => {
 // install keeps the mic button the composer always draws from reaching for any of them. Same doubles as
 // the composer's sibling criteria.
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default: keeps this whole-module replacement complete.

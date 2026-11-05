@@ -30,7 +30,7 @@
  *   第 2 条 必须有能红的负对照 —— 见下「负对照」。
  *   第 3 条 被测实现必须是出货模块 —— OpenRouter/Groq 条件**只能**经 registry 解析出来的
  *           `openai-compatible.asr-provider.ts#transcribe` 发出（`fetchImpl` 就是全局 `fetch`，
- *           不包装、不自己拼 body）；裁剪列的音**只能**由 `src/shared/voiceTrim.ts` 的
+ *           不包装、不自己拼 body）；裁剪列的音**只能**由 `src/shared/voice/voiceTrim.ts` 的
  *           `trimVoiceAudio` 产生；标识符口径**只能**是 `src/shared/identifierFidelity.ts`。
  *           本文件在启动时打印三者的绝对路径与符号名（probe），断言它们在出货树内、不在本工装内，
  *           并自扫本文件源码里**没有** transcription 端点字面量、**没有第二份**请求构造。
@@ -110,7 +110,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { register } from 'tsx/esm/api';
 
 import { identifierFidelity } from '../../src/shared/identifierFidelity.ts';
-import { trimVoiceAudio } from '../../src/shared/voiceTrim.ts';
+import { trimVoiceAudio } from '../../src/shared/voice/voiceTrim.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS_DIR = HERE;
@@ -137,7 +137,7 @@ const REPO_ROOT = resolve(HERE, '..', '..');
 const MODULE_PATHS = {
   registry: fileURLToPath(new URL('../../shared/asr/asrRegistry.ts', import.meta.url)),
   openaiCompatible: fileURLToPath(new URL('../../shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts', import.meta.url)),
-  trim: fileURLToPath(new URL('../../src/shared/voiceTrim.ts', import.meta.url)),
+  trim: fileURLToPath(new URL('../../src/shared/voice/voiceTrim.ts', import.meta.url)),
   fidelity: fileURLToPath(new URL('../../src/shared/identifierFidelity.ts', import.meta.url)),
 };
 

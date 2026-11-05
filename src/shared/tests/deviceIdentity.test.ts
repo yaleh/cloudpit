@@ -6,7 +6,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { WebSocketProvider } from '@/shared/context/WebSocketContext';
 import { getDeviceId, getTabId } from '@/shared/utils/deviceIdentity';
-import { MCP_DEVICE_NAME_STORAGE_KEY } from '@/shared/userSettings';
+import { MCP_DEVICE_NAME_STORAGE_KEY } from '@/shared/settings/userSettings';
 import type { UiHelloFrame } from '@/shared/types';
 
 /**

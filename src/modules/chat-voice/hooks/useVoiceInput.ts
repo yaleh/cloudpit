@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { decodeVoiceBlob, downsampleVoice, UPLOAD_SAMPLE_RATE } from '@/shared/audioDecode';
+import { decodeVoiceBlob, downsampleVoice, UPLOAD_SAMPLE_RATE } from '@/shared/voice/audioDecode';
 import {
   DEFAULT_FLUSH_SILENCE_SEC,
   DEFAULT_KEEP_GAP_SEC,
@@ -31,20 +31,20 @@ import {
   installVoiceClientAsrEngine,
   routeClientAsrSegment,
   type VoiceClientFallbackReason,
-} from '@/shared/voiceClientAsrWorker';
+} from '@/shared/voice-asr/voiceClientAsrWorker';
 import { api, captureRawVoice, effectivePauseCuesDeclaration, transcribeVoice } from '@/shared/api';
 import type { VoiceUploadAddress } from '@/shared/api';
-import { readVoiceRuntimeConfig } from '@/shared/voiceRuntimeConfig';
+import { readVoiceRuntimeConfig } from '@/shared/voice/voiceRuntimeConfig';
 import {
   hydrateVoiceRawCapture,
   isVoiceClientAsrSelected,
   isVoiceRawCaptureEnabled,
   readVoiceConfig,
-} from '@/shared/voiceConfig';
-import { labelsFor, type VoiceSourceSegment } from '@/shared/voiceEditLabels';
+} from '@/shared/api/voiceConfig';
+import { labelsFor, type VoiceSourceSegment } from '@/shared/api/voiceEditLabels';
 import { identifierFidelity } from '@/shared/identifierFidelity';
 import { repairIdentifiers } from '@/shared/identifierRepair';
-import { StreamingVad, type VadEvent } from '@/shared/voiceEndpoint';
+import { StreamingVad, type VadEvent } from '@/shared/voice/voiceEndpoint';
 import type {
   ChatMessage,
   VoiceClip,
@@ -63,11 +63,11 @@ import {
   voiceDebugIdleSec,
   voiceDebugMinSegmentSec,
   voiceDebugOriginalCapSec,
-} from '@/shared/voiceDebug';
+} from '@/shared/voice/voiceDebug';
 // The read point that turns a recogniser's declared `pauseCues` into the one answer to 裁不裁.
 // The capability itself arrives through the health reading's accessor (see `gapFilterSecForCapture`),
 // so this hook holds no table of its own — it asks the recogniser that will transcribe the audio.
-import { trimDecisionFor, trimSilenceEdges } from '@/shared/voiceTrim';
+import { trimDecisionFor, trimSilenceEdges } from '@/shared/voice/voiceTrim';
 // The recogniser's answer is read by the same module that built the request — the
 // repository-root shared tree the server and the CLI compile.
 import { parseTranscriptionResponse } from '@shared/asr/transcriptionWire';

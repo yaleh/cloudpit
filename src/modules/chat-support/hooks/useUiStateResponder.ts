@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { readDeviceName, readMcpNavigationPolicy } from '@/shared';
+import { readDeviceName, readMcpNavigationPolicy } from '@/shared/settings';
 import { getDeviceId, getTabId } from '@/shared/utils/deviceIdentity';
 import type { ServerEvent, UiStateResponseFrame, UiVisibleContextReport } from '@/shared/types';
 

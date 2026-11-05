@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 
 import { api } from '@/shared/api';
 import { usePaletteOps } from '@/modules/command-palette';
-import { subscribeToUserPreferences } from '@/shared/userSettings';
+import { subscribeToUserPreferences } from '@/shared/settings/userSettings';
 import type {
   ActiveSidebarRename,
   PendingSidebarDeletion,

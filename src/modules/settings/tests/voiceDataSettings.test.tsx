@@ -5,7 +5,7 @@ import React from 'react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
-import { readVoiceConfig, resetVoiceConfig } from '@/shared/voiceConfig';
+import { readVoiceConfig, resetVoiceConfig } from '@/shared/api/voiceConfig';
 
 /**
  * D1's settings surface: the recording switch (default ON), the capacity box, and the clear button

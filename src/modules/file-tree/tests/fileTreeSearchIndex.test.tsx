@@ -133,7 +133,7 @@ test('search reads the search index and never imports the reference hook', () =>
   assert.match(searchSource, /useFileTreeSearchIndex/);
   assert.doesNotMatch(searchSource, /useProjectFileIndex|loadProjectFileIndex/);
 
-  const apiSource = readFileSync(resolve(root, 'src/shared/api.ts'), 'utf8');
+  const apiSource = readFileSync(resolve(root, 'src/shared/api/index.ts'), 'utf8');
   assert.match(apiSource, /files-search-index/, 'the search endpoint is shipped in the api surface');
   assert.doesNotMatch(apiSource, /\bgetFiles\b/, 'the retired full-tree fetch stays retired');
 });

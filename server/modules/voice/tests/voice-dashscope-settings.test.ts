@@ -1294,7 +1294,7 @@ const SCOPE_REGISTRATION = [
   'temp SQLite database; the live DashScope smoke is a human step (ADR-004 decision 8). `qwen3.8-omni-flash` is ',
   'an alias, so a re-pointed service may drift from the frozen readings, and the workspace address used here is ',
   'the shape an experiment record contains rather than one taken from a live key. Known non-equivalence, ',
-  'registered rather than fixed: `src/shared/voiceConfig.ts` PUTs all six shared fields, and the server reads a ',
+  'registered rather than fixed: `src/shared/api/voiceConfig.ts` PUTs all six shared fields, and the server reads a ',
   'missing field as "clear", so until AC-142 wires the new fields into the settings page a save from an ',
   'old-six-fields client clears the three stored provider values. That path is AC-142\'s, not this task\'s.\n',
 ].join('');

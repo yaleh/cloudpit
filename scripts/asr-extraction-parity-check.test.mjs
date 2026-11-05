@@ -40,7 +40,7 @@ const PROBE = join(HERE, 'asr-extraction-parity-check.mjs');
 
 const READ_CLIENT_REL = join('experiments', 'voice-asr-parity', 'read-client.ts');
 const READ_SERVER_REL = join('experiments', 'voice-asr-parity', 'read-server.ts');
-const API_REL = join('src', 'shared', 'api.ts');
+const API_REL = join('src', 'shared', 'api', 'index.ts');
 const BASELINE_REL = join('scripts', '__fixtures__', 'asr-extraction-parity-baseline.json');
 
 /** The four groups, in the order the criterion prints them. */
@@ -246,7 +246,7 @@ test('AC2b a baseline recorded after the extraction must go red', (t) => {
   const tree = makeTree(t);
   assertGreenBeforeMutation(tree, 'AC2b');
 
-  // The post-extraction shape: a commit whose `src/shared/api.ts` no longer carries the inline
+  // The post-extraction shape: a commit whose `src/shared/api/index.ts` no longer carries the inline
   // inbound field write. The working copy is restored afterwards so the four readings stay
   // identical and the *only* thing this case moves is the provenance claim.
   const path = join(tree, API_REL);

@@ -8,7 +8,7 @@
  * because a criterion does not run in a private copy of the repository: the goal gate evaluates it in
  * the main checkout, and fan-in's `ff` step lands commits into that same checkout *while the gate is
  * running*. A landing that writes `src/` then reaches Vite's watcher mid-case; for a module with no
- * `import.meta.hot.accept` (e.g. `src/shared/api.ts`) the update bubbles to the entry and the page
+ * `import.meta.hot.accept` (e.g. `src/shared/api/index.ts`) the update bubbles to the entry and the page
  * FULLY RELOADS. A case that was a few assertions in loses its page and fails for a reason none of
  * its own assertions can name (recorded on AC-345: case 6, "the client must report the malformed call
  * as recoverable", 41.0s, Vite `ws proxy error: write EPIPE` in the same second).

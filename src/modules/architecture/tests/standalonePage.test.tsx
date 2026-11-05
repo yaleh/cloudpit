@@ -12,7 +12,7 @@ import { ARCHITECTURE_CHAT_CHANNEL } from '@/modules/architecture/render/archite
 import type { ArchitectureRendererProps } from '@/modules/architecture/dom/rendererContract';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import type * as SharedApiModule from '@/shared/api';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 
 /**
  * The standalone architecture page (`/session/:sessionId/architecture`).

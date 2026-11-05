@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   readMcpNavigationPolicy,
   writeMcpNavigationPolicy,
-} from '@/shared';
+} from '@/shared/settings';
 import type { ServerEvent, UiNavigateReveal, UiNavigateTarget } from '@/shared/types';
 
 /**

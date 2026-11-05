@@ -32,7 +32,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { parseTranscriptionResponse, transcribeVoice } from '@/shared/api';
-import { resetVoiceConfig, updateVoiceConfig } from '@/shared/voiceConfig';
+import { resetVoiceConfig, updateVoiceConfig } from '@/shared/api/voiceConfig';
 
 /** The marker every reading line starts with. The probe reads exactly these lines. */
 const MARKER = 'ASR-PARITY-READING ';

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import { subscribeToUserPreferences } from '@/shared/userSettings';
-import { readStoredVoiceShortcuts } from '@/shared/voiceShortcuts';
+import { subscribeToUserPreferences } from '@/shared/settings/userSettings';
+import { readStoredVoiceShortcuts } from '@/shared/voice/voiceShortcuts';
 import { createVoiceShortcutController } from '@/modules/chat-support/utils/voiceShortcutController';
 import type { VoiceShortcutSnapshot } from '@/modules/chat-support/utils/voiceShortcutController';
 

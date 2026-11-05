@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 
 import { test } from 'vitest';
 
-import { StreamingVad, detectVoiceSegments, type VadEvent } from '@/shared/voiceEndpoint';
-import { trimVoiceAudio } from '@/shared/voiceTrim';
+import { StreamingVad, detectVoiceSegments, type VadEvent } from '@/shared/voice/voiceEndpoint';
+import { trimVoiceAudio } from '@/shared/voice/voiceTrim';
 
 /*
  * T0 — the properties the streaming decision must have *by construction*, on fixed-seed

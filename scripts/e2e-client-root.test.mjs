@@ -51,7 +51,7 @@ function makeFixture() {
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     fs.writeFileSync(absolute, contents);
   };
-  write('src/shared/api.ts', 'export const api = "source";\n');
+  write('src/shared/api/index.ts', 'export const api = "source";\n');
   write('src/main.tsx', 'import "./index.css";\n');
   write('shared/networkHosts.js', 'export const getConnectableHost = (host) => host;\n');
   write('public/logo.txt', 'logo\n');
@@ -104,8 +104,8 @@ test('a snapshot is a real copy: an in-place write to the checkout never reaches
   const source = makeFixture();
   const snapshot = createClientSnapshot({ sourceRoot: source });
   try {
-    const sourceFile = path.join(source, 'src', 'shared', 'api.ts');
-    const snapshotFile = path.join(snapshot.root, 'src', 'shared', 'api.ts');
+    const sourceFile = path.join(source, 'src', 'shared', 'api', 'index.ts');
+    const snapshotFile = path.join(snapshot.root, 'src', 'shared', 'api', 'index.ts');
 
     // The reading the hardlink implementation would fail: a hardlink shares the inode (nlink 2) and
     // any write shows up on both sides. A real copy is a different file with one link.
@@ -185,7 +185,7 @@ test('resolveClientRoot publishes, reuses in a worker, and cleans up on exit', (
   try {
     assert.equal(env[CLIENT_ROOT_ENV], root);
     assert.notEqual(root, source);
-    assert.equal(fs.existsSync(path.join(root, 'src', 'shared', 'api.ts')), true);
+    assert.equal(fs.existsSync(path.join(root, 'src', 'shared', 'api', 'index.ts')), true);
     assert.equal(logged.length, 1);
     assert.match(logged[0], new RegExp(`^\\[e2e\\] client-root=${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} config-root=`));
     for (const event of ['exit', 'SIGINT', 'SIGTERM', 'SIGHUP']) {

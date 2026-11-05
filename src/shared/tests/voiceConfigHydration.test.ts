@@ -9,7 +9,7 @@ import {
   VOICE_CONFIG_DEFAULTS,
   VOICE_CONFIG_STORAGE_KEY,
   whenVoiceConfigReady,
-} from '@/shared/voiceConfig';
+} from '@/shared/api/voiceConfig';
 
 /**
  * How the voice settings arrive, and what changes because they now arrive

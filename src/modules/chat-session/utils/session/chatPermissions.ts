@@ -1,5 +1,5 @@
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult } from '@/shared/types';
-import { getClaudeSettings, saveClaudePermissions } from '@/shared/claudeSettings';
+import { getClaudeSettings, saveClaudePermissions } from '@/shared/settings/claudeSettings';
 
 export function buildClaudeToolPermissionEntry(toolName?: string, toolInput?: unknown) {
   if (!toolName) return null;

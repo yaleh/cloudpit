@@ -140,7 +140,7 @@ import {
   readUserPreference,
   subscribeToUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 // The chosen language lives in auth.db so it follows the user between devices.
 // It is read synchronously from the preference mirror because i18n has to be

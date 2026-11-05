@@ -23,7 +23,7 @@ import {
 } from "@/shared/ui";
 import { ModelGroupList, ResidentToggle, type ModelGroup } from '@/modules/chat-support';
 import ModelLibraryPanel from "@/shared/ui/ModelLibraryPanel";
-import { writeSelectedProvider } from '@/shared/selectedProvider';
+import { writeSelectedProvider } from '@/shared/settings/selectedProvider';
 import {
   modelOptionDisplayName,
   readModelOptionProviderId,

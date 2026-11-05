@@ -11,7 +11,7 @@ import { createFakeVoiceCapture } from '@/modules/chat/tests/voiceCaptureTestHar
 import enChat from '@/modules/i18n/locales/en/chat.json';
 // Type-only, so both are erased before vi.mock's hoisted factories run.
 import type * as SharedApi from '@/shared/api';
-import type * as SharedVoiceConfig from '@/shared/voiceConfig';
+import type * as SharedVoiceConfig from '@/shared/api/voiceConfig';
 
 /**
  * The send hook: the moment a listen's words and the user's own edit are both known.
@@ -56,7 +56,7 @@ const { transcribeVoice, getFileIndex, writeLabels, captureState, saveConfig, re
   recording: { enabled: true },
 }));
 
-vi.mock('@/shared/voiceConfig', async (importOriginal) => {
+vi.mock('@/shared/api/voiceConfig', async (importOriginal) => {
   const actual = await importOriginal<typeof SharedVoiceConfig>();
   return {
     ...actual,

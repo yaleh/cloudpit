@@ -4,8 +4,8 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, test, vi } from 'vitest';
 
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
-import { readStoredVoiceShortcuts } from '@/shared/voiceShortcuts';
-import { resetUserPreferences } from '@/shared/userSettings';
+import { readStoredVoiceShortcuts } from '@/shared/voice/voiceShortcuts';
+import { resetUserPreferences } from '@/shared/settings/userSettings';
 
 /**
  * Settings → Voice → Keyboard shortcuts, read as the user experiences it: enable the

@@ -55,11 +55,11 @@ import {
   type VoiceClientWorkerReply,
   type VoiceClientWorkerRequest,
   type VoiceClientWorkerScope,
-} from '@/shared/voiceClientAsrWorker';
-import type { VoiceModelProgress } from '@/shared/voiceModelCache';
+} from '@/shared/voice-asr/voiceClientAsrWorker';
+import type { VoiceModelProgress } from '@/shared/voice-asr/voiceModelCache';
 import { resolveVoiceFallbackProvider, setVoiceProviderProfile, setVoiceProviderRows, transcribeVoice } from '@/shared/api';
 import type { VoiceClientReadiness, VoiceProviderRow } from '@/shared/types';
-import { VOICE_FALLBACK_STORAGE_KEY } from '@/shared/voiceConfig';
+import { VOICE_FALLBACK_STORAGE_KEY } from '@/shared/api/voiceConfig';
 import { voiceClientAssetPaths } from '@/shared/utils';
 
 /** The build identity a fake engine reports; the routing forwards it without reading it. */

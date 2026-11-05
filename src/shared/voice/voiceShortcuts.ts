@@ -1,5 +1,5 @@
-import { readUserPreference, writeUserPreference } from '@/shared/userSettings';
-import type { UserPreferenceKey } from '@/shared/userSettings';
+import { readUserPreference, writeUserPreference } from '@/shared/settings/userSettings';
+import type { UserPreferenceKey } from '@/shared/settings/userSettings';
 
 /**
  * The user's keyboard bindings for the two voice surfaces — dictation (the

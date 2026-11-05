@@ -37,7 +37,7 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
 const PROBE = path.join(SCRIPT_DIR, 'asr-health-provider-check.mjs');
 
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
-const API_MODULE = 'src/shared/api.ts';
+const API_MODULE = 'src/shared/api/index.ts';
 /**
  * A line in the fixture's `api.ts` that occurs exactly once, used as the insertion point for the
  * AC6 controls below. Each case asserts its own `from` is unique, so a second copy would fail the
@@ -268,7 +268,7 @@ test('AC6/AC8: a capability name in a comment is prose, but the same text as cod
   // `pauseCues: 'neutral'` declaration. It is documentation, not a second capability table, so
   // the probe must stay green. The sentence is read from the file that carries it rather than
   // retyped here, so this control cannot drift from the prose it mirrors.
-  const sentence = readFileSync(path.join(REPO_ROOT, 'src/shared/voiceTrim.ts'), 'utf8')
+  const sentence = readFileSync(path.join(REPO_ROOT, 'src/shared/voice/voiceTrim.ts'), 'utf8')
     .split('\n')
     .find((line) => /^\s*\*/.test(line) && /\bpauseCues\s*:/.test(line));
   assert.ok(sentence, 'the shipping tree no longer carries the documented sentence this control mirrors');

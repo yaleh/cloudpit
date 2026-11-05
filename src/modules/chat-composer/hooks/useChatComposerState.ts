@@ -10,11 +10,11 @@ import type {
 } from 'react';
 
 import { PROVIDER_PERMISSION_PREFERENCE_KEYS } from '@/shared/constants';
-import { readUserPreference } from '@/shared/userSettings';
+import { readUserPreference } from '@/shared/settings/userSettings';
 import type { ChatAttachment, ChatMessage, MarkSessionIdle, MarkSessionProcessing, PendingPermissionRequest, PermissionMode, SessionActivityMap, SessionEstablishedContext, Project, ProjectSession, LLMProvider, SessionLifecycleMode, SlashCommand, QueuedDraft, QueuedSendOptions, ServerEvent } from '@/shared/types';
 import { grantClaudeToolPermission } from '@/modules/chat-session';
 import { createChatSession } from '@/modules/chat-session';
-import { writeDraftText, writeQueuedMessage } from '@/shared/chatDrafts';
+import { writeDraftText, writeQueuedMessage } from '@/shared/api/chatDrafts';
 import { useAttachmentState, isImageAttachment, uploadAttachmentFiles } from '@/modules/chat-composer/hooks/useAttachmentState';
 import { useCommandMenuState } from '@/modules/chat-composer/hooks/useCommandMenuState';
 import { useDraftState } from '@/modules/chat-composer/hooks/useDraftState';

@@ -18,9 +18,9 @@ import type { ActivitySnapshotFrame } from '@/shared/types';
 import type { OAuthConsentDecisionRequest } from '@/shared/types';
 import type { VoiceProviderRow } from '@/shared/types';
 import { IS_PLATFORM } from '@/shared/utils';
-import type { VoiceConfig } from '@/shared/voiceConfig';
-import { readVoiceConfig, readVoiceFallbackPreference, voiceConfigHeaders, whenVoiceConfigReady } from '@/shared/voiceConfig';
-import type { VoiceEditLabel } from '@/shared/voiceEditLabels';
+import type { VoiceConfig } from '@/shared/api/voiceConfig';
+import { readVoiceConfig, readVoiceFallbackPreference, voiceConfigHeaders, whenVoiceConfigReady } from '@/shared/api/voiceConfig';
+import type { VoiceEditLabel } from '@/shared/api/voiceEditLabels';
 // The direct path's request construction lives in the repository-root shared tree, the same
 // module the server and the CLI compile — see shared/asr/transcriptionWire.ts.
 import {
@@ -1290,7 +1290,7 @@ export function readVoiceProviderRows(): VoiceProviderRow[] {
   return voiceProviderRows;
 }
 
-// The runtime-config SLOT (the effective context-pack size) lives in `src/shared/voiceRuntimeConfig`
+// The runtime-config SLOT (the effective context-pack size) lives in `src/shared/voice/voiceRuntimeConfig`
 // rather than here: the hooks that build a pack are driven by criteria that replace this module
 // with a partial double, so a name added here would arrive in those doubles as `undefined`. The
 // endpoint itself is `api.voice.runtimeConfig` above; the cache sits beside its readers.

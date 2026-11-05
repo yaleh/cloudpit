@@ -50,7 +50,7 @@ const SHIPPING_FILES = [
   'shared/asr/asrContract.ts',
   'shared/asr/asrRegistry.ts',
   'shared/asr/asrInvariants.ts',
-  'src/shared/api.ts',
+  'src/shared/api/index.ts',
   'src/modules/chat-voice/hooks/useVoiceInput.ts',
   'server/modules/voice/voice.service.ts',
   'experiments/voice-asr-cli/transcribe.ts',
@@ -143,7 +143,7 @@ test('AC3: a copy written on each side makes the consumers resolve to different 
 
   patchFixtureFile(
     root,
-    'src/shared/api.ts',
+    'src/shared/api/index.ts',
     '@shared/asr/transcriptionWire',
     '@shared/asr/transcriptionWireFrontend',
   );

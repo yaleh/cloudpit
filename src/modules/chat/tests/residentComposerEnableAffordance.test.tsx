@@ -69,7 +69,7 @@ vi.mock('@/shared/hooks/useSessionHosts', async (importOriginal) => {
 // composer always draws from reaching for a recorder, a debug entry or a trim switch it has no reason
 // to have. Same doubles as `chatComposerResponsive.test.tsx`.
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   // VAD on, the shipped default: keeps this whole-module replacement complete.

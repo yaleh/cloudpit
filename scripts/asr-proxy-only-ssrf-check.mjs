@@ -73,7 +73,7 @@ const SCRIPT_DIR = path.dirname(SCRIPT_PATH);
 const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, '..');
 
 /** The client half under test, taken by path as the task's Proposal names it. */
-const CLIENT_MODULE = 'src/shared/api.ts';
+const CLIENT_MODULE = 'src/shared/api/index.ts';
 
 /** The server half under test, taken by path for the same reason. */
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
@@ -640,7 +640,7 @@ function isTestFile(relativePath) {
  * exactly the provider this task is about, and a check no legitimate test can survive is measuring
  * the wrong thing. What still has to hold — and what this reading still measures — is that no
  * SHIPPING source file outside the rule module spells either host: the predicate and the two
- * hostnames it is built from live in one file. A second copy smuggled into `src/shared/api.ts` or
+ * hostnames it is built from live in one file. A second copy smuggled into `src/shared/api/index.ts` or
  * into `voice.service.ts` still reds this, which is the shape `rule-loosened` is paired with.
  *
  * @param {string} root
@@ -818,7 +818,7 @@ async function runServerHalf(createVoiceService, allows, rejects, workspaceHost,
  * declaration, not about the new code running at all), and an UNPUBLISHED profile must behave
  * exactly as it did before the change (so the route is not decided by the settings' shape).
  *
- * @param {any} client the fixture's own `src/shared/api.ts`
+ * @param {any} client the fixture's own `src/shared/api/index.ts`
  * @param {any} registry the fixture's own registry
  * @param {Record<string, string>} serverConfig the settings the hydration hands back
  * @param {Ledger} ledger

@@ -80,7 +80,7 @@ vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
   useProviderLifecycleDefaults: () => ({}),
 }));
 
-vi.mock('@/shared/selectedProvider', () => ({
+vi.mock('@/shared/settings/selectedProvider', () => ({
   readSelectedProvider: () => 'claude',
 }));
 

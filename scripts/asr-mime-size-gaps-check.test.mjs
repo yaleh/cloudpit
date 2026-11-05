@@ -39,7 +39,7 @@ const PROBE = path.join(SCRIPT_DIR, 'asr-mime-size-gaps-check.mjs');
 
 const CONTRACT_MODULE = 'shared/asr/asrContract.ts';
 const SERVICE_MODULE = 'server/modules/voice/voice.service.ts';
-const CLIENT_API_MODULE = 'src/shared/api.ts';
+const CLIENT_API_MODULE = 'src/shared/api/index.ts';
 
 /**
  * @param {string} root

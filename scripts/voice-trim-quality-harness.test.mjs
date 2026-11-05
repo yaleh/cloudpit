@@ -4,7 +4,7 @@
  *
  * AC-118's criterion is the literal command `node experiments/voice-trim/run-quality.mjs`.
  * On 2026-10-04 that command went red without anyone touching this file: the shipping
- * module `src/shared/voiceTrim.ts` was refactored (d809d5b0) to reach its endpoint module
+ * module `src/shared/voice/voiceTrim.ts` was refactored (d809d5b0) to reach its endpoint module
  * through the frontend's `@/` source-root alias, and a plain `node` process resolves no
  * such alias — so the runner's own static import of that module threw
  * `ERR_MODULE_NOT_FOUND: Cannot find package '@/shared'` before a single line of it ran.

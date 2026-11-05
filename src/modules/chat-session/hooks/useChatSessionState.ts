@@ -15,7 +15,7 @@ import { createJumpAnchorLock } from '@/modules/chat-transcript';
 import { messageAnchorId } from '@/modules/chat-transcript';
 import { collapseMonitorEventRows, normalizedToChatMessages } from '@/modules/chat-session/hooks/useChatMessages';
 import type { JumpAnchorLock, SearchTarget } from '@/modules/chat-transcript';
-import { readSelectedProvider } from '@/shared/selectedProvider';
+import { readSelectedProvider } from '@/shared/settings/selectedProvider';
 const INITIAL_VISIBLE_MESSAGES = 100;
 
 /** Messages kept below a search hit so it lands mid-viewport rather than at the edge. */

@@ -1,5 +1,6 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
+import type { UserPreferenceKey, UserPreferences } from '@/shared/constants';
 import { createExternalStore } from '@/shared/utils';
 
 /**
@@ -17,21 +18,7 @@ import { createExternalStore } from '@/shared/utils';
  */
 
 /** Every setting the server stores for a user. */
-export type UserPreferences = {
-  theme: 'light' | 'dark';
-  userLanguage: string;
-  tasksEnabled: boolean;
-  projectSortOrder: 'name' | 'date';
-  claudePermissions: unknown;
-  cursorPermissions: unknown;
-  codexPermissions: unknown;
-  opencodePermissions: unknown;
-  codeEditorSettings: unknown;
-  uiPreferences: unknown;
-  selectedProvider: string;
-};
-
-export type UserPreferenceKey = keyof UserPreferences;
+export type { UserPreferenceKey, UserPreferences } from '@/shared/constants';
 
 /** Fired after any preference changes, from a local write or from a hydrate. */
 export const USER_PREFERENCES_CHANGED_EVENT = 'user-preferences:changed';

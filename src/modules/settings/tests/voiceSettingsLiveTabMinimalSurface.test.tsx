@@ -5,7 +5,7 @@ import React from 'react';
 import { afterAll, beforeEach, test, vi } from 'vitest';
 
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
-import { resetVoiceConfig, updateVoiceConfig } from '@/shared/voiceConfig';
+import { resetVoiceConfig, updateVoiceConfig } from '@/shared/api/voiceConfig';
 
 /**
  * AC-409: the smallest Live Voice settings surface this product ships.

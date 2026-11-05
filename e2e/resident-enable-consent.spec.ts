@@ -83,7 +83,7 @@ const AUTH_TOKEN_KEY = 'auth-token';
 /**
  * The first-paint mirror of the account's preferences.
  *
- * `src/shared/userSettings.ts` reads this blob synchronously so the very first render already knows the
+ * `src/shared/settings/userSettings.ts` reads this blob synchronously so the very first render already knows the
  * stored provider; the server's copy is authoritative and is what the legs below change. Priming the mirror
  * is not a stub — it is the same key the app writes — it only removes the one frame in which the composer
  * would still be drawing the default provider while the hydrate was in flight.
@@ -586,7 +586,7 @@ test('the new-session screen carries the switch under the model card, and sendin
   await restoreSession(page, RESIDENT_PROVIDER);
   // No reload here, unlike the three cases below: `beforeAll` has already paid for the file's one cold load and
   // the page it left is exactly the state this case needs — signed in, on the client root, with the default
-  // provider (`claude`, `src/shared/selectedProvider.ts`) that this case writes above, and the resident switch
+  // provider (`claude`, `src/shared/settings/selectedProvider.ts`) that this case writes above, and the resident switch
   // drawn in the provider's declared default (resident for Claude). The later cases reload for a clean page of
   // their own.
   await openNewSession(page);

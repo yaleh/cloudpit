@@ -4,5 +4,5 @@ export { default as Settings } from '@/modules/settings/Settings';
  * the two feature modules may not import each other. Re-exported here so a
  * settings consumer keeps one import site.
  */
-export { readMcpNavigationPolicy, writeMcpNavigationPolicy } from '@/shared';
-export type { McpNavigationPolicy } from '@/shared';
+export { readMcpNavigationPolicy, writeMcpNavigationPolicy } from '@/shared/settings';
+export type { McpNavigationPolicy } from '@/shared/settings';

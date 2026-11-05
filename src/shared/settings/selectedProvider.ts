@@ -1,5 +1,5 @@
 import type { LLMProvider } from '@/shared/types';
-import { readUserPreference, writeUserPreference } from '@/shared/userSettings';
+import { readUserPreference, writeUserPreference } from '@/shared/settings/userSettings';
 
 /**
  * The provider the user last chose, shared by chat, the shell, the git panel and

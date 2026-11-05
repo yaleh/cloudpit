@@ -1,5 +1,5 @@
 import { createExternalStore } from '@/shared/utils';
-import { matchesChord, type VoiceShortcuts } from '@/shared/voiceShortcuts';
+import { matchesChord, type VoiceShortcuts } from '@/shared/voice/voiceShortcuts';
 
 /**
  * The voice shortcut controller: every rule about WHEN a bound key acts, kept

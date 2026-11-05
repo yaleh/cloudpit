@@ -51,7 +51,7 @@ import test, { after } from 'node:test';
 //
 // This seam's modules form one cycle: the registry imports each adapter's `id` and `transcribe`, and
 // each adapter imports `declaredAcceptsMime` back from the registry. Every consumer in the repository
-// enters the cycle through the registry — `voice.service.ts` and `src/shared/api.ts` both import it
+// enters the cycle through the registry — `voice.service.ts` and `src/shared/api/index.ts` both import it
 // first — and when the cycle is entered that way the registry's top level reads adapter bindings that
 // are already initialised. Enter through an ADAPTER and the registry evaluates while that adapter is
 // still mid-evaluation, so its `const id` is in its temporal dead zone and the import throws

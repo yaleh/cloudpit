@@ -11,9 +11,9 @@ import { useSendOnEnter } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { api } from '@/shared/api';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
-import { readStoredUiPreferences } from '@/shared/uiPreferences';
-import type * as UserSettings from '@/shared/userSettings';
-import { writeUserPreference, writeUserPreferences } from '@/shared/userSettings';
+import { readStoredUiPreferences } from '@/shared/settings/uiPreferences';
+import type * as UserSettings from '@/shared/settings/userSettings';
+import { writeUserPreference, writeUserPreferences } from '@/shared/settings/userSettings';
 import type { QueuedDraft } from '@/shared/types';
 
 /**
@@ -44,7 +44,7 @@ const TOUCH_ONLY_QUERY = '(pointer: coarse) and (hover: none)';
 /** The mocked module's own shape, taken from the namespace import so the two cannot drift. */
 type UserSettingsModule = typeof UserSettings;
 
-vi.mock('@/shared/userSettings', async (importOriginal) => {
+vi.mock('@/shared/settings/userSettings', async (importOriginal) => {
   const actual = await importOriginal<UserSettingsModule>();
   // Replaced rather than spied on: what the tests below read is the call count, and a spy left
   // on a module namespace is not the binding the hook would reach for.

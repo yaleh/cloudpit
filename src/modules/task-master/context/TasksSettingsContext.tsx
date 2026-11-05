@@ -6,7 +6,7 @@ import {
   readUserPreference,
   subscribeToUserPreferences,
   writeUserPreference,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 type TaskMasterInstallationStatus = {
   isReady?: boolean;

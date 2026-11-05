@@ -9,7 +9,7 @@ import type {
   CockpitRole,
   CockpitVisibleSet,
 } from '@/shared/types';
-import { MCP_DEVICE_NAME_STORAGE_KEY } from '@/shared/userSettings';
+import { MCP_DEVICE_NAME_STORAGE_KEY } from '@/shared/settings/userSettings';
 import { getDeviceId, getTabId } from '@/shared/utils/deviceIdentity';
 
 /**

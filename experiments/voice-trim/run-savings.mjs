@@ -8,7 +8,7 @@
  * disagreed with the module that actually ships on 6 of 16 clips — and a reading
  * taken on a stale copy of the algorithm is worse than no reading, because it
  * looks like evidence. This runner therefore has exactly one source of behaviour:
- * it imports `src/shared/voiceTrim.ts` and reports what that module reports. It
+ * it imports `src/shared/voice/voiceTrim.ts` and reports what that module reports. It
  * decodes WAV headers and does arithmetic on the numbers the module hands back;
  * it does not decide where speech is, how long a pause may be, or when to give
  * up. The uniqueness section at the bottom asserts that mechanically rather than
@@ -47,12 +47,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = new URL('./', import.meta.url);
 const FIXTURE_DIR = new URL('fixtures/', HERE);
-const MODULE_URL = new URL('../../src/shared/voiceTrim.ts', HERE);
+const MODULE_URL = new URL('../../src/shared/voice/voiceTrim.ts', HERE);
 
 /**
  * The frontend's `@/` source-root alias, resolved for a plain `node` process.
  *
- * `src/shared/voiceTrim.ts` reaches its shared endpoint module through the alias the
+ * `src/shared/voice/voiceTrim.ts` reaches its shared endpoint module through the alias the
  * browser build, the type-checker and the unit transform all resolve — this hook is the
  * same mapping for the one place those toolchains do not reach, and it is the reason this
  * runner can still be the literal command the criterion pins (`node run-savings.mjs`)
@@ -84,7 +84,7 @@ registerHooks(aliasHook);
 // `registerHooks`. Without the hook this same import throws
 // `ERR_MODULE_NOT_FOUND: Cannot find package '@/shared'`, which is exactly the failure
 // this runner was restored to avoid.
-const { PAUSE_CAPS, trimVoiceAudio } = await import('../../src/shared/voiceTrim.ts');
+const { PAUSE_CAPS, trimVoiceAudio } = await import('../../src/shared/voice/voiceTrim.ts');
 
 /** The aggregate the AC pins; see `## AC` in the task. */
 const MIN_AGGREGATE_SAVED_RATIO = 0.15;
@@ -267,7 +267,7 @@ function refusesControl(input) {
 const IMPLEMENTATIONS = [
   {
     name: 'shipping',
-    note: 'src/shared/voiceTrim.ts, imported',
+    note: 'src/shared/voice/voiceTrim.ts, imported',
     run: (input) => {
       const result = trimVoiceAudio(input.samples, input.sampleRate);
       return record(result, result.stats.fallback);
@@ -657,7 +657,7 @@ function main() {
   const moduleSrc = readFileSync(fileURLToPath(MODULE_URL), 'utf8');
   const shippingNames = shippingTopLevelNames(moduleSrc);
 
-  console.log('voice-trim savings — measured on src/shared/voiceTrim.ts');
+  console.log('voice-trim savings — measured on src/shared/voice/voiceTrim.ts');
   console.log(
     `fixtures: ${clips.length} clips, ${clips.reduce((a, c) => a + c.totalSec, 0).toFixed(1)}s total; ` +
       'curated ladder (see the header) — unbiased tier means need VOICE_TRIM_CORPUS',

@@ -9,8 +9,8 @@ import type { ServerEvent,
   Project,
   ProjectSession,IsSessionProcessing } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
-import { readSelectedProvider } from '@/shared/selectedProvider';
-import { reportView } from '@/shared/viewEvents';
+import { readSelectedProvider } from '@/shared/settings/selectedProvider';
+import { reportView } from '@/shared/api/viewEvents';
 import {
   isSessionHiddenByProjectFilter,
   useProjectSessionFilter,

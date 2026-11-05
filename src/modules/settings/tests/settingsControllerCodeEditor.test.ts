@@ -85,7 +85,7 @@ const storedCodeEditorSettings = (): Record<string, unknown> | undefined => {
  * gives each test its own module graph, so a statically imported copy of the
  * store would be a different instance from the one the hook writes to.
  */
-const loadPreferenceStore = () => import('@/shared/userSettings');
+const loadPreferenceStore = () => import('@/shared/settings/userSettings');
 
 const renderSettings = async () => {
   const { useSettingsController } = await import(

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 
 import { beforeEach, test } from 'vitest';
 
-import { readSelectedProvider, writeSelectedProvider } from '@/shared/selectedProvider';
-import { subscribeToUserPreferences, writeUserPreference, resetUserPreferences } from '@/shared/userSettings';
+import { readSelectedProvider, writeSelectedProvider } from '@/shared/settings/selectedProvider';
+import { subscribeToUserPreferences, writeUserPreference, resetUserPreferences } from '@/shared/settings/userSettings';
 
 /**
  * The provider selection was read in six places by four different hand-rolled

@@ -1,5 +1,5 @@
 import type { ProjectSortOrder } from '@/shared/types';
-import { readUserPreference } from '@/shared/userSettings';
+import { readUserPreference } from '@/shared/settings/userSettings';
 
 export const readProjectSortOrder = (): ProjectSortOrder => (
   readUserPreference<ProjectSortOrder>('projectSortOrder', 'name') === 'date' ? 'date' : 'name'

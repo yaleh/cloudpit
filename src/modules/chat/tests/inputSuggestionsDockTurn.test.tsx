@@ -13,7 +13,7 @@ import { useInputSuggestions } from '@/modules/chat-composer';
 import { useChatComposerState } from '@/modules/chat-composer';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import WebSocketContext from '@/shared/context/WebSocketContext';
-import { resetChatDrafts } from '@/shared/chatDrafts';
+import { resetChatDrafts } from '@/shared/api/chatDrafts';
 import type { PermissionMode, Project, ProjectSession, ServerEvent, SessionActivity } from '@/shared/types';
 
 /**
@@ -58,7 +58,7 @@ vi.mock('@/shared/api', () => {
 
 vi.mock('@/modules/chat-support/hooks/useVoiceAvailable', () => ({ useVoiceAvailable: () => true }));
 
-vi.mock('@/shared/voiceDebug', () => ({
+vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,

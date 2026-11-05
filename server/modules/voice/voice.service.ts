@@ -922,7 +922,7 @@ function declaredEndpointRefusal(settings: VoiceSettings): VoiceRefusal | null {
  *
  * A named constant rather than a literal at the call site, because `TranscriptionTolerance` is the
  * wire's own vocabulary and this is the one place in the server that names `'lenient'` — the
- * browser's direct path stays on the absent-means-`'strict'` default (`src/shared/api.ts`), so a
+ * browser's direct path stays on the absent-means-`'strict'` default (`src/shared/api/index.ts`), so a
  * reader comparing the two paths finds each of them naming its own reading in exactly one place.
  *
  * `'lenient'` is a description of the behaviour this path must not change, not a licence: a body

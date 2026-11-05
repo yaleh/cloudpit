@@ -1,4 +1,4 @@
-import { readUserPreference } from '@/shared/userSettings';
+import { readUserPreference } from '@/shared/settings/userSettings';
 
 /**
  * The boolean UI preferences and their reducer, kept separate from the provider

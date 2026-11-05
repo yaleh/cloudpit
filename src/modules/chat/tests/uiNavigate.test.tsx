@@ -12,7 +12,7 @@ import { useUiNavigate } from '@/modules/chat-support';
 import { ChangesView } from '@/modules/git-panel';
 import enChat from '@/modules/i18n/locales/en/chat.json';
 import { TaskMasterPanel } from '@/modules/task-master';
-import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/chatDrafts';
+import { readDraftText, resetChatDrafts, writeDraftText } from '@/shared/api/chatDrafts';
 import type { GitStatusResponse, ServerEvent, UiNavigateReveal } from '@/shared/types';
 
 /**

@@ -7,12 +7,12 @@ import {
   readMcpNavigationPolicy,
   writeMcpNavigationPolicy,
   type McpNavigationPolicy,
-} from '@/shared/mcpNavigationPolicy';
+} from '@/shared/settings/mcpNavigationPolicy';
 import {
   MCP_DEVICE_NAME_STORAGE_KEY,
   readDeviceName,
   resolveDeviceName,
-} from '@/shared/userSettings';
+} from '@/shared/settings/userSettings';
 
 /**
  * The stored policy and its pure readers/writers belong to this device, not to the

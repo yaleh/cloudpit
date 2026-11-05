@@ -32,7 +32,7 @@ import {
   POST_ROLL_MS,
   PRE_ROLL_MS,
   frameFlags,
-} from '@/shared/voiceEndpoint';
+} from '@/shared/voice/voiceEndpoint';
 
 /**
  * The frame length, the pre/post roll, the noise percentile and the frame decision itself

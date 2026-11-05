@@ -44,7 +44,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
 const PROBE = path.join(SCRIPT_DIR, 'asr-trim-capability-check.mjs');
 
-const DECLARING_MODULE = 'src/shared/voiceTrim.ts';
+const DECLARING_MODULE = 'src/shared/voice/voiceTrim.ts';
 /**
  * The declaring module's own dependency, reached through the frontend `@/` alias. `voiceTrim.ts`
  * imports its frame decision from here, so a fixture that carries the declaring module but not this
@@ -52,9 +52,9 @@ const DECLARING_MODULE = 'src/shared/voiceTrim.ts';
  * that is not there and the run dies in `check probe` with ENOENT. It is therefore part of the
  * fixture's shipping set, and the last case below is what proves that membership is load-bearing.
  */
-const ALIASED_DEPENDENCY = 'src/shared/voiceEndpoint.ts';
+const ALIASED_DEPENDENCY = 'src/shared/voice/voiceEndpoint.ts';
 const CONSUMER = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
-const SWITCH = 'src/shared/voiceDebug.ts';
+const SWITCH = 'src/shared/voice/voiceDebug.ts';
 const EVIDENCE = 'docs/experiments/2026-09-22-voice-provider-paired-quality.md';
 /**
  * The record the OTHER registered provider's row names. The discipline check reads every row, not
@@ -140,11 +140,11 @@ const CONSUMER_GATE_WITHOUT_CAPABILITY = [
 // the "remove the read point" mutation drops only the capability symbol and keeps the sibling
 // import the file still calls — a mutation that deleted both would break the fixture's load and
 // red some other check rather than `single-source`.
-const CONSUMER_IMPORT = "import { trimDecisionFor, trimSilenceEdges } from '@/shared/voiceTrim';";
+const CONSUMER_IMPORT = "import { trimDecisionFor, trimSilenceEdges } from '@/shared/voice/voiceTrim';";
 // Removing the capability from the decision means removing the read point with it — a file that
 // still imported the symbol without calling it would still read as a consumer to the scan, and the
 // point of this mutation is that nothing reaches the read point any more.
-const CONSUMER_IMPORT_WITHOUT_CAPABILITY = "import { trimSilenceEdges } from '@/shared/voiceTrim';";
+const CONSUMER_IMPORT_WITHOUT_CAPABILITY = "import { trimSilenceEdges } from '@/shared/voice/voiceTrim';";
 
 /**
  * The first registered recogniser's own declaration, as its adapter module writes it. This is what

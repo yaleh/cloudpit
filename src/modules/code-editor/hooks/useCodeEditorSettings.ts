@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { readCodeEditorSettings } from '@/shared/codeEditorSettings';
-import { subscribeToUserPreferences } from '@/shared/userSettings';
+import { readCodeEditorSettings } from '@/shared/settings/codeEditorSettings';
+import { subscribeToUserPreferences } from '@/shared/settings/userSettings';
 
 /** CodeEditorSurface's fontSize prop is a number; the settings dialog edits a string. */
 const readEditorSettings = () => {

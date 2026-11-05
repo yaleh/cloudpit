@@ -20,7 +20,30 @@ import type {
   QuayInFlightPhase,
   SettingsMainTab,
 } from '@/shared/types';
-import type { UserPreferenceKey } from '@/shared/userSettings';
+
+/**
+ * Every setting the server stores for a user, plus its key union.
+ *
+ * Declared here rather than in the settings store so `constants.ts` (which needs
+ * the key union for `PROVIDER_PERMISSION_PREFERENCE_KEYS`) does not have to
+ * import the settings package — that would make the root depend on a subpackage
+ * while every subpackage already depends on the root.
+ */
+export type UserPreferences = {
+  theme: 'light' | 'dark';
+  userLanguage: string;
+  tasksEnabled: boolean;
+  projectSortOrder: 'name' | 'date';
+  claudePermissions: unknown;
+  cursorPermissions: unknown;
+  codexPermissions: unknown;
+  opencodePermissions: unknown;
+  codeEditorSettings: unknown;
+  uiPreferences: unknown;
+  selectedProvider: string;
+};
+
+export type UserPreferenceKey = keyof UserPreferences;
 
 /** The four buckets the git changes view sorts working-tree files into. */
 type GitStatusFileGroup = 'modified' | 'added' | 'deleted' | 'untracked';

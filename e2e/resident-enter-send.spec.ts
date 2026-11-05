@@ -48,7 +48,7 @@ const AUTH_TOKEN_KEY = 'auth-token';
 /**
  * The first-paint mirror of the account's preferences, the same key the app writes.
  *
- * `src/shared/userSettings.ts` reads it synchronously so the first render already knows the stored provider;
+ * `src/shared/settings/userSettings.ts` reads it synchronously so the first render already knows the stored provider;
  * the server's copy is authoritative and is what the legs below write. Priming the mirror removes the one
  * frame in which the composer would be drawing the default provider's capability while the hydrate was in
  * flight.

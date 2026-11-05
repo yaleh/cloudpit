@@ -3,7 +3,7 @@
  *
  * Three consumers reach this file and no consumer re-derives any of it:
  *
- *   · the browser's direct path (`src/shared/api.ts` builds the request, the chat hook
+ *   · the browser's direct path (`src/shared/api/index.ts` builds the request, the chat hook
  *     reads the answer back),
  *   · the server's proxy path (`server/modules/voice/voice.service.ts`),
  *   · the command line (`experiments/voice-asr-cli/transcribe.ts`).

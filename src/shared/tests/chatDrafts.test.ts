@@ -44,7 +44,7 @@ vi.mock('@/shared/api', () => ({
 
 const loadStore = async () => {
   vi.resetModules();
-  return import('@/shared/chatDrafts');
+  return import('@/shared/api/chatDrafts');
 };
 
 beforeEach(() => {

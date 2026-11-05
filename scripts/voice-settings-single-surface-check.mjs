@@ -3,7 +3,7 @@
  * The voice settings/rules contract is a SINGLE DECLARATION, and the tree reads it from there.
  *
  * WHAT THIS MEASURES. The same settings document used to be declared independently on each side of
- * the browser/server boundary — a type and defaults table in `src/shared/voiceConfig.ts`, a second
+ * the browser/server boundary — a type and defaults table in `src/shared/api/voiceConfig.ts`, a second
  * type in `server/shared/types.ts`, a field list and empty row in the store, and a third field list
  * with its own bounds in the voice service — and the Live Voice rules were text each consumer
  * spelled for itself. This check answers the three questions that say the duplication is gone:
@@ -73,7 +73,7 @@ const REGISTRY_FILE = 'shared/voice/voiceSettingsRegistry.ts';
 
 /** The two consumer types AC (a) names: the browser's store and the server's settings-file loader. */
 const CONSUMER_FILES = [
-  'src/shared/voiceConfig.ts',
+  'src/shared/api/voiceConfig.ts',
   'server/modules/voice-realtime/voice-realtime-settings.ts',
 ];
 
