@@ -160,6 +160,53 @@ export function resolveSettingsPath(options: {
   return { filePath: options.defaultPath(options.homeDir), explicit: false };
 }
 
+/** A predicate that accepts one value and narrows it to `T`. */
+export type FieldGuard<T> = (value: unknown) => value is T;
+
+/** The one `boolean` predicate the settings readers and route parsers share. */
+export const isBooleanValue = (value: unknown): value is boolean => typeof value === 'boolean';
+
+/** The one `string` predicate the settings readers and route parsers share. */
+export const isStringValue = (value: unknown): value is string => typeof value === 'string';
+
+/**
+ * Read one typed field: an absent key yields `fallback`, and a present value the
+ * `guard` rejects is reported through `onProblem` and also yields `fallback`.
+ *
+ * WHY THIS EXISTS. This is the ONE fallback ladder. It used to be written once
+ * per field type inside this module and once per error style in
+ * `reply-suggestions.routes.ts`; the copies are indistinguishable token-wise, so
+ * they are the same mechanism written four times. The caller owns the wording
+ * (`onProblem` receives the key and the type name) because a settings reader
+ * appends to `problems` while a route parser throws a 400 `AppError`.
+ *
+ * Consumers: `readBoolean` / `readString` below and `readField` callers in
+ * `modules/reply-suggestions/reply-suggestions.routes.ts`.
+ */
+export function readField<T>(
+  record: Record<string, unknown>,
+  key: string,
+  fallback: T,
+  typeName: string,
+  guard: FieldGuard<T>,
+  onProblem: (key: string, typeName: string) => void,
+): T {
+  const value = record[key];
+  if (value === undefined) return fallback;
+  if (!guard(value)) {
+    onProblem(key, typeName);
+    return fallback;
+  }
+  return value;
+}
+
+/** The settings readers' wording: `` `key` must be a typeName ``. */
+function typeProblem(problems: ValidationSink): (key: string, typeName: string) => void {
+  return (key, typeName) => {
+    problems.push(`\`${key}\` must be a ${typeName}`);
+  };
+}
+
 /**
  * Read one boolean field, naming it in `problems` when it has the wrong type.
  *
@@ -171,13 +218,7 @@ export function readBoolean(
   fallback: boolean,
   problems: ValidationSink,
 ): boolean {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'boolean') {
-    problems.push(`\`${key}\` must be a boolean`);
-    return fallback;
-  }
-  return value;
+  return readField(record, key, fallback, 'boolean', isBooleanValue, typeProblem(problems));
 }
 
 /**
@@ -191,13 +232,7 @@ export function readString(
   fallback: string,
   problems: ValidationSink,
 ): string {
-  const value = record[key];
-  if (value === undefined) return fallback;
-  if (typeof value !== 'string') {
-    problems.push(`\`${key}\` must be a string`);
-    return fallback;
-  }
-  return value;
+  return readField(record, key, fallback, 'string', isStringValue, typeProblem(problems));
 }
 
 /**
