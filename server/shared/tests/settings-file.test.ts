@@ -21,9 +21,12 @@ import test from 'node:test';
 import {
   createSettingsBlockSource,
   defaultServerSettingsPath,
+  isBooleanValue,
+  isStringValue,
   legacyServerSettingsPath,
   migrateLegacyServerSettingsFile,
   readBoolean,
+  readField,
   readInteger,
   readString,
   resolveApiKey,
@@ -171,6 +174,18 @@ test('the typed field readers fall back field by field and name the key', () => 
     '`count` must be an integer',
     '`low` must be between 1 and 10',
   ]);
+});
+
+test('readField is the one fallback ladder: absent, wrong type, accepted', () => {
+  const problems: string[] = [];
+  const record = { yes: true, name: 7 };
+  const sink = (key: string, typeName: string): void => {
+    problems.push(`\`${key}\` must be a ${typeName}`);
+  };
+  assert.equal(readField(record, 'missing', 'fallback', 'string', isStringValue, sink), 'fallback');
+  assert.equal(readField(record, 'name', 'fallback', 'string', isStringValue, sink), 'fallback');
+  assert.equal(readField(record, 'yes', false, 'boolean', isBooleanValue, sink), true);
+  assert.deepEqual(problems, ['`name` must be a string'], 'an absent key is not a problem');
 });
 
 test('resolveApiKey reads bare, NAME=value, export, quotes, apiKeyVar and ~', (t) => {

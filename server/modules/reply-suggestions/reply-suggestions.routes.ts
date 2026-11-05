@@ -23,6 +23,7 @@
  */
 import express, { type Router } from 'express';
 
+import { isBooleanValue, isStringValue, readField } from '@/shared/settings-file.js';
 import { AppError, asyncHandler } from '@/shared/utils.js';
 
 import type {
@@ -48,11 +49,13 @@ function requireStringField(body: Record<string, unknown>, name: string): string
   return value;
 }
 
+/** `readField`'s problem sink for a route: raise the 400 instead of falling back. */
+function rejectField(key: string, typeName: string): never {
+  throw invalidRequest(`"${key}" must be a ${typeName}`);
+}
+
 function optionalBooleanField(body: Record<string, unknown>, name: string): boolean | undefined {
-  const value = body[name];
-  if (value === undefined) return undefined;
-  if (typeof value !== 'boolean') throw invalidRequest(`"${name}" must be a boolean`);
-  return value;
+  return readField<boolean | undefined>(body, name, undefined, 'boolean', isBooleanValue, rejectField);
 }
 
 function requireNonNegativeInteger(body: Record<string, unknown>, name: string): number {
@@ -76,10 +79,7 @@ function readObjectBody(body: unknown): Record<string, unknown> {
 }
 
 function optionalStringField(body: Record<string, unknown>, name: string): string | undefined {
-  const value = body[name];
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string') throw invalidRequest(`"${name}" must be a string`);
-  return value;
+  return readField<string | undefined>(body, name, undefined, 'string', isStringValue, rejectField);
 }
 
 function readSuggestInput(body: unknown): ReplySuggestionsInput {
