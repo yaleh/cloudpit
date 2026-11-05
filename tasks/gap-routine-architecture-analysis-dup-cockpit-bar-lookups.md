@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-cockpit-bar-lookups
 title: "architecture-analysis: archguard_detect_duplicates(scope=src) group
   09b92d29fcda31df: 77 tokens / 8 statements / 13 lines, an identical
   document.querySelectorAll loop that differs "
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
