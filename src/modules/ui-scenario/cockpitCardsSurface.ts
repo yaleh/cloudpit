@@ -321,13 +321,21 @@ async function waitForControlToLeave(
   }
 }
 
-/** The confirm bar currently in its confirm state for `cardId`, or `null`. */
-function pendingBarFor(cardId: string): HTMLElement | null {
+/** The attribute a card's bar declares while it waits for its second press. */
+type PendingBarAttribute = 'data-confirm-pending' | 'data-dismiss-pending';
+
+/**
+ * The bar `cardId` currently holds in the state named by `attribute`, or `null`.
+ *
+ * The confirm bar and the dismiss bar are the same control shape and differ only in the data
+ * attribute that marks their pending state, so one parameterized lookup serves both waiters.
+ */
+function barFor(attribute: PendingBarAttribute, cardId: string): HTMLElement | null {
   if (typeof document === 'undefined') {
     return null;
   }
   for (const candidate of Array.from(
-    document.querySelectorAll('[data-confirm-pending="true"]'),
+    document.querySelectorAll(`[${attribute}="true"]`),
   )) {
     if (candidate instanceof HTMLElement && candidate.getAttribute('data-card-id') === cardId) {
       return candidate;
@@ -336,11 +344,14 @@ function pendingBarFor(cardId: string): HTMLElement | null {
   return null;
 }
 
-/** Polls for the bar `cardId` turned into its confirm state; `null` when the press did not. */
-async function waitForPendingBar(cardId: string): Promise<HTMLElement | null> {
+/** Polls for the bar `cardId` turned into its pending state; `null` when the press did not. */
+async function waitForBar(
+  attribute: PendingBarAttribute,
+  cardId: string,
+): Promise<HTMLElement | null> {
   const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
   for (;;) {
-    const bar = pendingBarFor(cardId);
+    const bar = barFor(attribute, cardId);
     if (bar !== null) {
       return bar;
     }
@@ -419,7 +430,7 @@ export function startConfirmingCard(cardId: string): CardContinuation | null {
   }
   press(bar);
   return async () => {
-    const pending = await waitForPendingBar(cardId);
+    const pending = await waitForBar('data-confirm-pending', cardId);
     if (pending === null) {
       return;
     }
@@ -442,36 +453,6 @@ export function startConfirmingCard(cardId: string): CardContinuation | null {
 export function openCardDetails(cardId: string): boolean {
   const card = cardElement(cardId);
   return card === null ? false : press(controlWithTestId(card, 'cockpit-card-zone-a'));
-}
-
-/** The dismiss bar currently in its confirm state for `cardId`, or `null`. */
-function dismissBarFor(cardId: string): HTMLElement | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  for (const candidate of Array.from(
-    document.querySelectorAll('[data-dismiss-pending="true"]'),
-  )) {
-    if (candidate instanceof HTMLElement && candidate.getAttribute('data-card-id') === cardId) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-/** Polls for the dismiss bar `cardId` turned into its confirm state; `null` when it did not. */
-async function waitForDismissBar(cardId: string): Promise<HTMLElement | null> {
-  const deadline = Date.now() + CONTROL_WAIT_TIMEOUT_MS;
-  for (;;) {
-    const bar = dismissBarFor(cardId);
-    if (bar !== null) {
-      return bar;
-    }
-    if (Date.now() >= deadline) {
-      return null;
-    }
-    await delay(10);
-  }
 }
 
 /**
@@ -514,7 +495,7 @@ export function startDismissingCard(cardId: string): CardContinuation | null {
   }
   press(trigger);
   return async () => {
-    const bar = await waitForDismissBar(cardId);
+    const bar = await waitForBar('data-dismiss-pending', cardId);
     if (bar === null) {
       return;
     }
