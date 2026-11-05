@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-typed-field-readers
 title: "architecture-analysis: archguard_detect_duplicates(scope=server) groups
   7d2b457cd8c4f750 (70 tokens / 14 lines) and f6a44c5ab6a5e692 (56 tokens / 6
   lines): the same undefined/wrong"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
