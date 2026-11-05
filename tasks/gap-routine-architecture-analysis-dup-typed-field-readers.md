@@ -59,3 +59,11 @@ Add one generic readField<T>(record, key, fallback, typeName, guard, onProblem) 
 - `server/modules/reply-suggestions/reply-suggestions.routes.ts`
 - `server/shared/tests/settings-file.test.ts`
 - `tasks/gap-routine-architecture-analysis-dup-typed-field-readers.md`
+
+## Blocker
+
+**2026-11-05T13:01:13.006Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/cockpit/cockpit-card-actions.ts 基线外→801 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：4c9fa465-bdeb-42bc-b4b6-77015be60a6b
