@@ -252,7 +252,7 @@ test('AC6/AC8: a second capability declaration in the client is reported', (t) =
   assert.match(result.stdout, /^client-capability-table=declared-in-1-file\(s\)$/m, `the verdict must name the reading that moved:\n${result.stdout}`);
   assert.match(
     result.stdout,
-    /^failure=AC6: the client declares capabilities of its own in src\/shared\/api\.ts$/m,
+    /^failure=AC6: the client declares capabilities of its own in src\/shared\/api\/index\.ts$/m,
     `the verdict must name the file that declares them:\n${result.stdout}`,
   );
 
