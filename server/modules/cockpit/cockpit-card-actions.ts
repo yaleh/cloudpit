@@ -602,7 +602,11 @@ export function createCockpitCardActions(deps: {
         optionId: request.optionId ?? null,
         label: option?.label ?? request.replyText ?? '',
         suggested: option?.suggested === true,
-        source: option?.source ?? 'own-reply',
+        // An own reply has no option, so its provenance must stay inside the fleet's fixed
+        // `source` vocabulary (`assistant | judge | provider`) rather than mint `own-reply`,
+        // which the fleet's feedback executor rejects as `invalid-source`. `provider` is the
+        // fleet's own documented default for a missing source.
+        source: option?.source ?? 'provider',
         outcome: feedbackOutcome(action.executor, result),
         text: request.replyText ?? null,
         ...(knowledge === undefined ? {} : { knowledge }),

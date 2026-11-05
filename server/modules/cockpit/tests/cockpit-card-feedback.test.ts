@@ -218,6 +218,10 @@ test('an own reply sends `ownReply: true` and the text, not an optionId', async 
   const params = feedback.calls[0];
   assert.equal(params.optionId, undefined);
   assert.equal(params.ownReply, true);
+  // The own reply has no option, so its provenance must stay inside the fleet's fixed
+  // `source` vocabulary (`assistant | judge | provider`) rather than mint `own-reply`,
+  // which the fleet's feedback executor rejects as `invalid-source`.
+  assert.equal(params.source, 'provider');
   assert.equal(params.text, '我自己来写');
   assert.equal(store.overlay('card-1')?.label, '我自己来写');
 });
