@@ -57,3 +57,11 @@ Parameterize the attribute into one barFor(attribute, cardId) helper and route b
 ## Touches
 - `src/modules/ui-scenario/cockpitCardsSurface.ts`
 - `tasks/gap-routine-architecture-analysis-dup-cockpit-bar-lookups.md`
+
+## Blocker
+
+**2026-11-05T12:56:56.581Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/cockpit/cockpit-card-actions.ts 基线外→801 — 基线外的文件不得超过 800 行 [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：b9260585-fc68-41e8-91f3-4b61703c1ff6
