@@ -1,7 +1,7 @@
 ---
 id: gap-ac142-named-refusal-not-retried
 title: AC-142 拒绝腿把带语义码的 502 当瞬时重传三次：命名码优先于网关状态判 definitive，恢复语义拒绝的一次上传
-status: ready
+status: done
 labels:
   - gap
   - defect
