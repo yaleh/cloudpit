@@ -3,7 +3,7 @@ id: gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load
 title: AC-331 同树假红：composer-embedded 1280px 在 uplink VAD 仍 loading 时推送首帧，20s
   上传等待短于 20.6s 的 silero 加载（同 tree 5 pass / 1 fail）；进入 Live Voice 后先等上游
   state:open（相位离开 connecting）再推首帧，判据命令与断言逐字不动
-status: todo
+status: ready
 labels:
   - gap
   - defect
