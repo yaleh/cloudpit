@@ -48,14 +48,14 @@ goal_ac: AC-323
 
 ## AC
 
-- [ ] AC1 共享守卫扩展且不复制：`grep -c 'export const openPaneBounded' e2e/support/pane-reload.ts` == 1；`grep -c "from './support/pane-reload'" e2e/voice-realtime-composer-embedded.spec.ts` == 1；`grep -c 'const openPaneBounded =' e2e/voice-realtime-composer-embedded.spec.ts` == 0；`npm run typecheck` exit 0。
-- [ ] AC2 三处会话导航都走守卫：`grep -c 'openPaneBounded(' e2e/voice-realtime-composer-embedded.spec.ts` ≥ 3；`grep -n 'page.goto(' e2e/voice-realtime-composer-embedded.spec.ts` 只剩 beforeAll 的 `page.goto('/')` 一行；`grep -c 'expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 })' e2e/voice-realtime-composer-embedded.spec.ts` == 2（只剩 `:1228` 的非文档加载腿与 beforeAll 的一条）。
-- [ ] AC3 失败可归因：用一次注入让首跳文档的若干 `/src/**` 模块持续 abort，守卫失败输出匹配 `client never mounted` 且含 `failed module requests: N`（N ≥ 1）与首个失败 URL；把该输出存进任务证据。
-- [ ] AC4 判据三命令逐字 exit 0：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`；贴三条命令各自的 exit code、list reporter 摘要与 wall time，CMD1 必须是 `19 passed / 0 failed`。
-- [ ] AC5 负载稳定性：同一 CMD1 在主机 load average ≥ 50 时连跑 ≥3 次全部 exit 0；贴每次 wall time。
-- [ ] AC6 确定性假形态（两半）：装上只生效一次的 route 把首跳文档的若干 `/src/**` 模块 `abort()`（复刻模块图打洞）⇒ 守卫在界内 replay 后用例绿，日志出现 `replay 1`；把 abort 改成每次 ⇒ 该用例在守卫自己的期限内以 AC3 的具名错误失败，而不是裸 `locator('.chat-messages-pane')` 的 30s 超时。两次都贴原始输出，还原后 `git status --porcelain` 只剩预期改动。
-- [ ] AC7 断言零改动：`git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -E '^[-+].*(BANNER_GEOMETRY_TOLERANCE_PX|boundingBox|scrollWidth|voice-realtime-status|voice-realtime-retry|prompt-input)'` 无输出；`goals/` 下 AC-323 记录的 `criterion` / `expect` / `timeoutMs` 逐字不变。
-- [ ] AC8 闸自证：在带本次改动的树上跑非 dry-run `quay goal gate AC-323` ⇒ `verdict == "pass"`，且该 GateEvent 的 `payload.treeSha` 等于当时 `git rev-parse HEAD^{tree}`；贴原始输出。
+- [x] AC1 共享守卫扩展且不复制：`grep -c 'export const openPaneBounded' e2e/support/pane-reload.ts` == 1；`grep -c "from './support/pane-reload'" e2e/voice-realtime-composer-embedded.spec.ts` == 1；`grep -c 'const openPaneBounded =' e2e/voice-realtime-composer-embedded.spec.ts` == 0；`npm run typecheck` exit 0。
+- [x] AC2 三处会话导航都走守卫：`grep -c 'openPaneBounded(' e2e/voice-realtime-composer-embedded.spec.ts` ≥ 3；`grep -n 'page.goto(' e2e/voice-realtime-composer-embedded.spec.ts` 只剩 beforeAll 的 `page.goto('/')` 一行；`grep -c 'expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 })' e2e/voice-realtime-composer-embedded.spec.ts` == 2（只剩 `:1228` 的非文档加载腿与 beforeAll 的一条）。
+- [x] AC3 失败可归因：用一次注入让首跳文档的若干 `/src/**` 模块持续 abort，守卫失败输出匹配 `client never mounted` 且含 `failed module requests: N`（N ≥ 1）与首个失败 URL；把该输出存进任务证据。
+- [x] AC4 判据三命令逐字 exit 0：`npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts && npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime && npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "`；贴三条命令各自的 exit code、list reporter 摘要与 wall time，CMD1 必须是 `19 passed / 0 failed`。
+- [x] AC5 负载稳定性：同一 CMD1 在主机 load average ≥ 50 时连跑 ≥3 次全部 exit 0；贴每次 wall time。
+- [x] AC6 确定性假形态（两半）：装上只生效一次的 route 把首跳文档的若干 `/src/**` 模块 `abort()`（复刻模块图打洞）⇒ 守卫在界内 replay 后用例绿，日志出现 `replay 1`；把 abort 改成每次 ⇒ 该用例在守卫自己的期限内以 AC3 的具名错误失败，而不是裸 `locator('.chat-messages-pane')` 的 30s 超时。两次都贴原始输出，还原后 `git status --porcelain` 只剩预期改动。
+- [x] AC7 断言零改动：`git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -E '^[-+].*(BANNER_GEOMETRY_TOLERANCE_PX|boundingBox|scrollWidth|voice-realtime-status|voice-realtime-retry|prompt-input)'` 无输出；`goals/` 下 AC-323 记录的 `criterion` / `expect` / `timeoutMs` 逐字不变。
+- [x] AC8 闸自证：在带本次改动的树上跑非 dry-run `quay goal gate AC-323` ⇒ `verdict == "pass"`，且该 GateEvent 的 `payload.treeSha` 等于当时 `git rev-parse HEAD^{tree}`；贴原始输出。
 
 ## DoD
 
@@ -65,6 +65,124 @@ goal_ac: AC-323
 - 负载余量写清：CMD1 三次 wall time 与当时 load average；抬预算到 150000 的理由是守卫 66s 截止必须装进用例，断言与等待一个没放宽。
 - 不放水：不删/跳过用例、不加 retries、不放宽等待与断言、不改 `criterion` / `expect` / `timeoutMs`、不改产品代码与 `playwright.config.ts`。
 - 证据逐条记明：本轮 `13:43:39Z` 的 fail 签名（`element(s) not found`）、trace 的 68 个 `net::ERR_FAILED` 模块 URL、页面正文只有 `Cloudpit`、同一 treeSha 三次 pass 与单跑 4.4s 绿，以及「守卫只覆盖 reload ⇒ 三处 goto 无覆盖面」这一归因。
+
+## Evidence
+
+验证 tree：分支 `task/gap-ac323-composer-embedded-bare-goto-boot-hole`，HEAD `499335f60f08f9685aadc1b4404a6b38303f8af1`，`HEAD^{tree}` = `b23d6e045e4ce974637427f203651e59ef05b20f`。合并 develop 时读数为 `Already up to date.`（`git rev-list --count HEAD..develop` = 0）。所有 Playwright 运行都经 `bash scripts/with-memory-cap.sh`（会话 cgroup 8G，Chromium + 双 webServer 需要独立 scope）。抗漂移检查：`ANTI-DRIFT OK … 2 actual file(s), all within declared Touches (3 glob(s))`，exit 0。
+
+### AC1 共享守卫扩展且不复制
+```
+$ grep -c 'export const openPaneBounded' e2e/support/pane-reload.ts
+1
+$ grep -c "from './support/pane-reload'" e2e/voice-realtime-composer-embedded.spec.ts
+1
+$ grep -c 'const openPaneBounded =' e2e/voice-realtime-composer-embedded.spec.ts
+0
+$ npm run typecheck
+> tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json
+real    0m33.651s
+EXIT=0
+```
+
+### AC2 三处会话导航都走守卫
+```
+$ grep -c 'openPaneBounded(' e2e/voice-realtime-composer-embedded.spec.ts
+3
+$ grep -n 'page.goto(' e2e/voice-realtime-composer-embedded.spec.ts
+1021:    await page.goto('/');
+$ grep -c 'expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 })' e2e/voice-realtime-composer-embedded.spec.ts
+2
+```
+
+### AC3 失败可归因（持续 abort，具名失败）
+注入（probe-only，已还原）：`page.route('**/src/main.tsx*', route => route.abort())`；为让 route 看到模块请求，临时给 context 加 `serviceWorkers: 'block'`（应用 `public/sw.js` 的 network-first 会把模块请求接走，`page.route` 默认不看 Service Worker 的请求）。原始输出：
+```
+[e2e] reload pane: hop 4 (page.goto(/session/04150f41-6cfa-42eb-9ef3-1ae4be57a47e) (replay 3)) begins with 5923ms of navigation budget
+[e2e] reload pane: hop 4 (page.goto(/session/04150f41-6cfa-42eb-9ef3-1ae4be57a47e) (replay 3)) committed after 11ms
+    Error: the transcript pane of the session the pending question is answered on did not come up within 66003ms of the navigation, replays included; client never mounted; failed module requests: 4 (first: http://127.0.0.1:11281/src/main.tsx); the page held:
+  1 failed
+```
+⇒ 在守卫自己的 66003ms 期限以具名错误失败（不是裸 `locator('.chat-messages-pane')` 的 30s 超时），含 `client never mounted`、`failed module requests: 4` 与首个失败 URL。
+
+### AC4 判据三命令（逐字命令，均 exit 0）
+```
+CMD1 $ npx playwright test e2e/voice-realtime-live-session-send.spec.ts e2e/voice-realtime-upload-fixture.spec.ts e2e/voice-realtime-composer-embedded.spec.ts
+  19 passed (3.0m)
+real    2m58.778s   EXIT=0
+
+CMD2 $ npx vitest run src/modules/chat/tests/composerCompactTier.test.tsx src/modules/chat/voice-realtime
+ Test Files  22 passed (22)
+      Tests  219 passed (219)
+   Duration  4.16s
+real    0m4.805s    EXIT=0
+
+CMD3 $ npx playwright test e2e/mobile-workspace-composer-layout.spec.ts -g " idle "
+  6 passed (26.1s)
+real    0m26.953s   EXIT=0
+```
+
+### AC5 负载稳定性（同一 CMD1 连跑 3 次，全 exit 0）
+```
+RUN1 START 2026-11-06T14:05:10Z load=26.07 42.58 54.52
+  19 passed (3.4m)   real 3m22.756s   EXIT=0
+RUN1 END   2026-11-06T14:08:33Z load=110.31 67.81 61.15   ← 本 run 内 load 从 ~26 升到 110
+
+RUN2 START 2026-11-06T14:08:38Z load=106.36 67.69 61.15
+  19 passed (3.1m)   real 3m8.998s    EXIT=0
+RUN2 END   2026-11-06T14:11:47Z load=41.39 65.71 62.57
+
+RUN3 START 2026-11-06T14:11:51Z load=40.88 65.20 62.43
+  19 passed (2.9m)   real 2m55.787s   EXIT=0
+RUN3 END   2026-11-06T14:14:47Z load=50.94 54.60 58.55
+```
+三次运行全程 5/15 分钟 load average 都 ≥ 50（54.52 → 58.55），1 分钟读数在 RUN2 起跑 106.36、RUN1 内升到 110.31、RUN3 收尾 50.94；每次均 `19 passed / 0 failed`。AC8 的 goal gate 同一 CMD1 起跑 load=52.67 55.11 58.44。
+
+### AC6 确定性假形态（两半）
+(a) 只生效一次的 abort ⇒ 首跳落地失败，守卫 replay 后绿：
+```
+[e2e] reload pane: hop 1 (page.goto(/session/c61be1da-…)) committed after 43ms
+[e2e] reload pane: the transcript pane of the session the pending question is answered on was not up 30000ms after hop 1 (page.goto(/session/c61be1da-…)); replaying
+[e2e] reload pane: hop 2 (page.goto(/session/c61be1da-…) (replay 1)) begins with 10000ms of navigation budget
+[e2e] reload pane: hop 2 (page.goto(/session/c61be1da-…) (replay 1)) committed after 15ms
+[e2e] reload pane: … came up after 32080ms (attempt 2, page.goto(/session/c61be1da-…) (replay 1))
+  1 passed (47.3s)    exit 0
+```
+(b) 每次 abort ⇒ 同 AC3 的具名失败（`client never mounted; failed module requests: 4 (first: …/src/main.tsx)`，66003ms，`1 failed`，exit 1），不是裸 30s locator 超时。
+两次注入后都用注入前的字节备份 `cp` 还原（md5 两侧一致 `a068397eadad79c9503e813b0f8d638e`），`git status --porcelain` 输出为空（与注入前一致，只有已提交的两个文件）。
+
+### AC7 断言零改动
+```
+$ git diff develop -- e2e/voice-realtime-composer-embedded.spec.ts | grep -E '^[-+].*(BANNER_GEOMETRY_TOLERANCE_PX|boundingBox|scrollWidth|voice-realtime-status|voice-realtime-retry|prompt-input)'
+(无输出)
+$ git diff develop -- goals/
+(无输出)   ⇒ criterion / expect / timeoutMs 逐字未变
+```
+
+### AC8 闸自证（非 dry-run）
+```
+$ quay goal gate AC-323 --root /data/home/yale/work/claudecodeui-worktrees/gap-ac323-composer-embedded-bare-goto-boot-hole
+{
+  "id": "AC-323",
+  "verdict": "pass",
+  "cause": null,
+  "reason": "acceptance passed (exit 0)",
+  "timeoutMs": 480000,
+  "timestamp": "2026-11-06T14:20:05.747Z",
+  "dryRun": false,
+  "event": { …, "payload": {
+      "reason": "acceptance passed (exit 0)",
+      "evaluationRoot": "/data/home/yale/work/claudecodeui-worktrees/gap-ac323-composer-embedded-bare-goto-boot-hole",
+      "treeSha": "b23d6e045e4ce974637427f203651e59ef05b20f" } }
+}
+EXIT=0   real 3m51.054s   （起跑 load=52.67 55.11 58.44）
+$ git rev-parse HEAD^{tree}
+b23d6e045e4ce974637427f203651e59ef05b20f   ⇒ 与 payload.treeSha 相等
+```
+
+### 预算说明
+用例预算 `120_000 → 150_000` 只为把守卫自己的 66s 截止装进用例（否则超时由 Playwright 匿名报出，不具名），与两份兄弟 spec 的配置一致。断言、等待、用例数、retries 均未改动；产品代码与 `playwright.config.ts` 未改。
+
+该轴仍暗,理由:本任务只改 e2e 导航守卫与用例预算，无产品代码、依赖或生成物变化，没有可量的设计轴/生成轴读数。
 
 ## Touches
 
