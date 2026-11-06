@@ -3,7 +3,7 @@ id: gap-ac153-criterion-run-budget-under-host-load
 title: AC-153 判据整轮成本在宿主负载下到 56.06s，同时越过自加 54s 守则与 55s 单文件看门狗（同一 error-context
   里既有 `Channel closed` 又有 `Received 56060`）——给 voice-error-messages 声明
   SPEC_BUDGET_MS、把守则与记录 timeoutMs 调自洽，判据命令与四条腿断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect

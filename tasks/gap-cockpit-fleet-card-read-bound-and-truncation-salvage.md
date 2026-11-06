@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-fleet-card-read-bound-and-truncation-salvage
 title: Cockpit 读口上限与截断救回：超过 1 MiB 时不再把已读出的卡整批丢弃
-status: ready
+status: done
 labels:
   - gap
   - defect

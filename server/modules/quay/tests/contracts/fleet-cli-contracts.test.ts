@@ -247,6 +247,15 @@ type HomeFileStamp = { mtimeMs: number; size: number };
  * `knowledge/**` files. None of the exercised verbs writes those trees (the only writing verbs run
  * against a temporary `QUAY_FLEET_HOME`), so exempting them keeps the guard's actual target — the
  * real `registry.json` / `initiatives.json` — fully literal.
+ *
+ * `service.log.jsonl` and the service's atomic-write temp files belong to the same class. The
+ * service appends+fsyncs the log on its schedule, and every whole-file rewrite goes through
+ * `<target>.tmp-<pid>-<token>` before the rename. Both were observed crossing a run on 2026-11-06:
+ * the full suite caught `service.log.jsonl` plus `attention.json.tmp-2889651-… (removed)`, and an
+ * isolated re-run caught `service.log.jsonl` alone in a 10s window while the develop baseline
+ * happened to miss a write in its own window. The temp exemption is keyed to the RESIDENT service's
+ * pid (read from `service.pid`), not to the name shape: a temp file left by an exercised verb would
+ * still red, while the service's own transient artifact cannot.
  */
 const RESIDENT_SERVICE_DIRECTORIES = [
   'acceptance-windows/',
@@ -272,15 +281,41 @@ const RESIDENT_SERVICE_FILES = new Set([
   'phases.jsonl',
   'receipts.jsonl',
   'resolution-cases.jsonl',
+  'service.log.jsonl',
   'service.out',
   'service.pid',
   'state.json',
   'wake-state.json',
 ]);
 
+/** The resident service's pid, or `null` when the home carries no readable pid document. */
+function residentServicePid(): number | null {
+  try {
+    const document = JSON.parse(
+      fs.readFileSync(path.join(REAL_FLEET_HOME, 'service.pid'), 'utf8'),
+    ) as { pid?: unknown };
+    return typeof document.pid === 'number' && Number.isInteger(document.pid) ? document.pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether `file` is a transient `<target>.tmp-<pid>-<token>` artifact of the resident service.
+ *
+ * Only the service's own pid qualifies. If the pid document is unreadable nothing is exempt: a
+ * guard that silently widens when its reference reading is missing would be unable to red at all.
+ */
+function isResidentServiceTempArtifact(file: string): boolean {
+  const match = /(?:^|\/)[^/]+\.tmp-(\d+)-[0-9a-z]+$/.exec(file);
+  if (match === null) return false;
+  return Number(match[1]) === residentServicePid();
+}
+
 function isResidentServiceFile(file: string): boolean {
   return RESIDENT_SERVICE_FILES.has(file)
-    || RESIDENT_SERVICE_DIRECTORIES.some((prefix) => file.startsWith(prefix));
+    || RESIDENT_SERVICE_DIRECTORIES.some((prefix) => file.startsWith(prefix))
+    || isResidentServiceTempArtifact(file);
 }
 
 /** Every regular file under the fleet home, keyed by relative path. */

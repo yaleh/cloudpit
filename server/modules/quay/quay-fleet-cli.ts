@@ -42,6 +42,16 @@ export type QuayFleetCommandResult = {
   stderr: string;
   /** Why the child could not be run or answered with a failure, when that is known. */
   error?: string;
+  /**
+   * Node's own STRING error code for a failure that carried no exit status — `ENOENT` for a
+   * missing binary, `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` for a child that outran `maxBuffer`.
+   *
+   * Kept because the two share `code: null` and would otherwise be indistinguishable to a
+   * consumer: a maxBuffer kill still delivered the bytes captured before the kill, while an
+   * ENOENT delivered nothing. The cockpit's card provider uses exactly that difference to
+   * salvage the complete JSONL prefix instead of discarding the whole batch.
+   */
+  errorCode?: string;
 };
 
 /** The options one child invocation is spawned with; every consumer uses the same shape. */
@@ -91,6 +101,9 @@ export function createQuayFleetExec(commandLabel = 'quay-fleet'): QuayFleetExec 
           stdout: stdout ?? '',
           stderr: stderr ?? '',
           error: reason,
+          // A string code is Node's classification of the failure itself (missing binary,
+          // maxBuffer kill); a numeric code is the child's exit status and already rides `code`.
+          ...(typeof error.code === 'string' ? { errorCode: error.code } : {}),
         });
       });
     });

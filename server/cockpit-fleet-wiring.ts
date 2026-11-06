@@ -24,6 +24,7 @@ import type { SessionAskDecisionReading } from '@/shared/types.js';
 import {
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
+  type CockpitFleetCommandResult,
 } from './modules/cockpit/index.js';
 import { readRetractedSessionAskMessageIds } from './modules/context-events/index.js';
 import {
@@ -32,6 +33,7 @@ import {
   type SessionAskDecisionReader,
 } from './modules/observation/index.js';
 import { createQuayFleetRunner, locateQuayFleetCli } from './modules/quay/index.js';
+import type { QuayFleetRunner, QuayFleetRunnerOptions } from './modules/quay/index.js';
 
 /** The settings-file reading this seam consumes; `server/index.ts` supplies it. */
 export type CockpitFleetWiringOptions = {
@@ -60,6 +62,59 @@ function readAskDecision(
 }
 
 /**
+ * The stdout bound for the cockpit's card read: 8 MiB.
+ *
+ * WHY THIS IS NOT THE SHARED 1 MiB DEFAULT. `cockpit cards --json` is the one fleet read whose
+ * document grows with the number of OPEN cards, and it already reached 1,079,812 B with 67 cards
+ * on 2026-11-06. At the shared default that read was killed by `execFile` with
+ * `ERR_CHILD_PROCESS_STDIO_MAXBUFFER`, and the provider — unable to tell a truncated stdout from
+ * a failure with no output — dropped the whole batch and answered an empty list. The bound is
+ * sized for a few hundred open cards; every OTHER fleet reader keeps the 1 MiB default.
+ */
+export const COCKPIT_FLEET_CARDS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+
+/** The seams the cockpit card-read runner accepts; production supplies neither. */
+export type CockpitFleetRunnerFactoryOptions = {
+  /** The binary to spawn; defaults to the shared locator (`QUAY_FLEET_BIN` → PATH → home). */
+  resolveBinPath?: () => string | null;
+  /**
+   * The child-process seam. A criterion injects one to observe the `maxBuffer` the runner hands
+   * `execFile` (and to answer a deterministic batch without a fleet installation).
+   */
+  exec?: NonNullable<QuayFleetRunnerOptions['exec']>;
+};
+
+/**
+ * Builds the cockpit's card-read runner over the 8 MiB bound and the shared child pipeline.
+ *
+ * Exported as a factory, not inlined at the boot site, so a criterion can drive the REAL bound
+ * through an injected `exec` — the failure this task fixes lived in the composition seam, not in
+ * the provider, and a test that constructed its own runner would not see it.
+ */
+export function createCockpitFleetRunner(
+  options: CockpitFleetRunnerFactoryOptions = {},
+): QuayFleetRunner {
+  return createQuayFleetRunner({
+    resolveBinPath: options.resolveBinPath ?? (() => locateQuayFleetCli().binPath),
+    maxOutputBytes: COCKPIT_FLEET_CARDS_MAX_OUTPUT_BYTES,
+    ...(options.exec === undefined ? {} : { exec: options.exec }),
+  });
+}
+
+/** One child answer projected into the leaf module's narrower result shape. */
+function toCommandResult(answer: Awaited<ReturnType<QuayFleetRunner>>): CockpitFleetCommandResult {
+  return {
+    exitCode: answer.ok ? 0 : answer.code,
+    stdout: answer.stdout,
+    stderr: answer.stderr,
+    ...(answer.error === undefined ? {} : { error: answer.error }),
+    // Additive and optional: the leaf provider branches on it only to salvage a maxBuffer-truncated
+    // batch; every existing consumer of this seam reads `exitCode`/`error` exactly as before.
+    ...(answer.errorCode === undefined ? {} : { errorCode: answer.errorCode }),
+  };
+}
+
+/**
  * Builds the fleet card provider over the process's real fleet CLI and observation store.
  *
  * Consumers: `server/index.ts` and, for the DoD, an isolated instance's boot (the same
@@ -68,7 +123,7 @@ function readAskDecision(
 export function createCockpitFleetProvider(
   options: CockpitFleetWiringOptions,
 ): CockpitFleetCardProvider {
-  const run = createQuayFleetRunner({ resolveBinPath: () => locateQuayFleetCli().binPath });
+  const run = createCockpitFleetRunner();
   const store = createObservationStore();
   // One reader per provider instance: its in-flight guard, attempted set and sliding hour are
   // exactly the state that makes "one repair per ask" hold across successive card reads.
@@ -77,27 +132,11 @@ export function createCockpitFleetProvider(
   return createCockpitFleetCardProvider({
     enabled: options.enabled,
     ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }),
-    runCards: async (args) => {
-      const answer = await run(args);
-      return {
-        exitCode: answer.ok ? 0 : answer.code,
-        stdout: answer.stdout,
-        stderr: answer.stderr,
-        ...(answer.error === undefined ? {} : { error: answer.error }),
-      };
-    },
+    runCards: async (args) => toCommandResult(await run(args)),
     // The SAME child seam reads the executor declarations and runs them: `rescue executors
     // --json` and `rescue exec`. Keeping one runner means the locator and its failure wording
     // cannot drift between the read and the write surface.
-    runExecutors: async (args) => {
-      const answer = await run(args);
-      return {
-        exitCode: answer.ok ? 0 : answer.code,
-        stdout: answer.stdout,
-        stderr: answer.stderr,
-        ...(answer.error === undefined ? {} : { error: answer.error }),
-      };
-    },
+    runExecutors: async (args) => toCommandResult(await run(args)),
     readSessionAsk: (sessionId, messageId) => readAskDecision(askReader, sessionId, messageId),
     // LOCAL SUPPRESSION, read from the shared stream rather than from the observation store: a
     // session whose digest revision never landed has no object at all, and its withdrawn card

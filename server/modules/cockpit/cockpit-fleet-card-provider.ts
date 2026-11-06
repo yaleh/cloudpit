@@ -19,6 +19,13 @@
  * spawned all answer an empty list plus a readable `reason` on the diagnostic the card route
  * exposes. One malformed JSONL line is counted and skipped; it never hides its neighbours.
  *
+ * A CUT READ IS SALVAGED, NOT DISCARDED. If the child was killed because its stdout outgrew the
+ * read bound (`ERR_CHILD_PROCESS_STDIO_MAXBUFFER`), the bytes captured before the kill are a
+ * PREFIX of the document: every line before the last newline is complete. Those lines are
+ * projected (so a fleet with more cards than the bound still shows most of them), the unfinished
+ * tail is dropped and reported, and the reading is marked `truncated`. Any other failure still
+ * drops the whole batch — no prefix exists to trust there.
+ *
  * THE SWITCH. `cockpit.fleetCards.enabled` (shipped off) is honoured here as well as at the
  * composition root: with it off this provider runs no child process at all and reports why.
  *
@@ -62,6 +69,55 @@ export const DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS = 3_600_000;
 
 /** The fleet read port's argv, before the optional filters. */
 const BASE_ARGS = ['cockpit', 'cards', '--json'] as const;
+
+/**
+ * Node's `execFile` code for a child that printed more than `maxBuffer`.
+ *
+ * The kill is NOT a failure with no output: the bytes captured before it are a PREFIX of the
+ * child's stdout, which is why this code — and only this code — may be salvaged. The literal is
+ * Node's, not the fleet's, so it lives here rather than in the shared CLI module: the leaf
+ * module cannot import `server/modules/quay`, and the classification is stable API.
+ */
+const STDOUT_MAX_BUFFER_ERROR_CODE = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+
+/** The one sentence a salvaged (cut) read adds to its diagnostic. */
+const TRUNCATED_READ_REASON =
+  'quay-fleet output was cut at the read bound; the incomplete last line was dropped';
+
+/** What a maxBuffer-cut stdout still offers: the complete lines before the last newline. */
+type TruncatedBatchPrefix = {
+  /** Everything up to (not including) the last newline. */
+  stdout: string;
+  /** Non-empty lines handed to the projection. */
+  completeLines: number;
+  /** Bytes of the unfinished final fragment; it was never a line, so it is not "skipped". */
+  truncatedTailBytes: number;
+};
+
+/**
+ * The salvageable prefix of a child answer cut at the read bound, or `null` when there is none.
+ *
+ * Only a `maxBuffer` kill qualifies. The last newline separates the complete lines from the
+ * fragment that was still being written when the child died; the fragment is dropped and its
+ * byte count reported. No newline at all means even the first line is incomplete — nothing to
+ * salvage. The byte count is of the decoded UTF-8 text, so a cut through a multi-byte character
+ * can differ from the raw input by the replacement character's width.
+ */
+function truncatedBatchPrefix(
+  result: CockpitFleetCommandResult,
+): TruncatedBatchPrefix | null {
+  if (result.errorCode !== STDOUT_MAX_BUFFER_ERROR_CODE) return null;
+  const lastNewline = result.stdout.lastIndexOf('\n');
+  if (lastNewline < 0) return null;
+  const complete = result.stdout.slice(0, lastNewline);
+  const completeLines = complete.split('\n').filter((line) => line.trim() !== '').length;
+  if (completeLines === 0) return null;
+  return {
+    stdout: complete,
+    completeLines,
+    truncatedTailBytes: Buffer.byteLength(result.stdout.slice(lastNewline + 1), 'utf8'),
+  };
+}
 
 /** What one child call answered; defined beside the executor and re-exported for this seam. */
 export type { CockpitFleetCommandResult } from './cockpit-fleet-executor.js';
@@ -308,7 +364,13 @@ export function createCockpitFleetCardProvider(
     // declaration reading is awaited here too because a digest card's disposal option is built
     // FROM it (`fleet.park`/`fleet.hold` by action) — the projection never names a fleet id.
     const [result, executors] = await Promise.all([deps.runCards(args), ensureExecutors()]);
-    if (result.exitCode !== 0 || result.error !== undefined) {
+    const failed = result.exitCode !== 0 || result.error !== undefined;
+    // A `maxBuffer` kill is the ONE failure that still delivered a document: the captured bytes
+    // are a prefix of the CLI's stdout, so every line before the last newline is complete. A read
+    // that failed for any other reason (missing binary, timeout, non-zero exit) has no
+    // trustworthy batch to salvage and keeps the whole-drop behaviour.
+    const truncated = failed ? truncatedBatchPrefix(result) : null;
+    if (failed && truncated === null) {
       last = {
         provider: COCKPIT_FLEET_PROVIDER_ID,
         ok: false,
@@ -330,20 +392,42 @@ export function createCockpitFleetCardProvider(
     } catch {
       retracted = undefined;
     }
-    const projected = projection.project(result.stdout, {
+    const projected = projection.project(truncated?.stdout ?? result.stdout, {
       ...(retracted === undefined ? {} : { retracted }),
       declarations: executors.declarations,
     });
+    // A truncation whose complete lines held no readable card salvaged nothing: report the
+    // failure instead of an "ok" empty list that would look like a quiet fleet.
+    if (failed && projected.cards.length === 0) {
+      last = {
+        provider: COCKPIT_FLEET_PROVIDER_ID,
+        ok: false,
+        reason: failureReason(result),
+        cards: 0,
+        skippedLines: 0,
+        cached: false,
+      };
+      cache.set(key, { at, cards: [], diagnostic: last });
+      return [];
+    }
+    const reasons = [
+      projected.skippedLines === 0 ? null : `${projected.skippedLines} malformed card line(s) skipped`,
+      truncated === null ? null : TRUNCATED_READ_REASON,
+    ].filter((entry): entry is string => entry !== null);
     last = {
       provider: COCKPIT_FLEET_PROVIDER_ID,
       ok: true,
-      reason:
-        projected.skippedLines === 0
-          ? null
-          : `${projected.skippedLines} malformed card line(s) skipped`,
+      reason: reasons.length === 0 ? null : reasons.join('; '),
       cards: projected.cards.length,
       skippedLines: projected.skippedLines,
       cached: false,
+      ...(truncated === null
+        ? {}
+        : {
+            truncated: true,
+            completeLines: truncated.completeLines,
+            truncatedTailBytes: truncated.truncatedTailBytes,
+          }),
     };
     cache.set(key, { at, cards: projected.cards, diagnostic: last });
     return projected.cards.map((card) => structuredClone(card));

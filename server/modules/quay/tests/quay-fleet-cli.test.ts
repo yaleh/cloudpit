@@ -165,6 +165,56 @@ test('AC2: the runner defaults to the shared 10s / 1 MiB bounds', async () => {
   assert.equal(QUAY_FLEET_MAX_OUTPUT_BYTES, 1024 * 1024, 'the shared default stays 1 MiB');
 });
 
+test('AC: a string error.code is preserved as errorCode, with the bytes captured before the kill', async () => {
+  // The cockpit card read's real accident: the child outran `maxBuffer`, Node killed it, and the
+  // callback still received the prefix it had captured. The string code is what tells a consumer
+  // this is a CUT document rather than a failure with no output — `code` is null for both.
+  const over = await defaultQuayFleetExec(
+    node,
+    ['-e', "process.stdout.write('x'.repeat(4096))"],
+    { ...execOptions(), maxBuffer: 1024 },
+  );
+  assert.equal(over.ok, false);
+  assert.equal(over.code, null, 'a maxBuffer kill has no exit status');
+  assert.equal(over.errorCode, 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');
+  assert.ok(over.stdout.length > 0 && over.stdout.length <= 1024, 'the captured prefix survives');
+  assert.match(over.error ?? '', /^quay-fleet failed: /);
+
+  const missing = path.join(os.tmpdir(), 'quay-fleet-definitely-not-installed');
+  const enoent = await defaultQuayFleetExec(missing, ['--version'], execOptions());
+  assert.equal(enoent.errorCode, 'ENOENT', 'every string code is kept, not only the maxBuffer one');
+
+  // The timeout classification is unchanged: `killed` still decides, and its error carries no
+  // string code to be mistaken for a salvageable cut.
+  const timedOut = await defaultQuayFleetExec(
+    node,
+    ['-e', 'setTimeout(() => {}, 10000)'],
+    execOptions(250),
+  );
+  assert.equal(timedOut.ok, false);
+  assert.equal(timedOut.code, null);
+  assert.equal(timedOut.errorCode, undefined);
+  assert.match(timedOut.error ?? '', /^quay-fleet timed out: /);
+});
+
+test('AC: the runner forwards maxOutputBytes verbatim as the child maxBuffer', async () => {
+  // A value no other reader uses, so this can only pass by forwarding the option itself.
+  const bound = 5 * 1024 * 1024 + 123;
+  const seen: QuayFleetExecOptions[] = [];
+  const run = createQuayFleetRunner({
+    resolveBinPath: () => '/usr/local/bin/quay-fleet',
+    maxOutputBytes: bound,
+    exec: async (_file, _args, options) => {
+      seen.push(options);
+      return { ok: true, code: 0, stdout: '', stderr: '' };
+    },
+  });
+
+  await run(['cockpit', 'cards', '--json']);
+
+  assert.deepEqual(seen.map((options) => options.maxBuffer), [bound]);
+});
+
 test('AC3: parseFleetJsonObject accepts objects and rejects every other JSON shape', () => {
   assert.deepEqual(parseFleetJsonObject('{"a":1}'), { a: 1 });
   assert.equal(parseFleetJsonObject('[]'), null);
