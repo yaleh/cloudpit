@@ -441,52 +441,53 @@ export const MCP_DEVICE_NAME_STORAGE_KEY = 'mcpNavigationDeviceName';
 /** The User-Agent of the browser this code runs in, or '' outside a browser. */
 const readUserAgent = (): string => (typeof navigator === 'undefined' ? '' : navigator.userAgent);
 
+/** One ordered row of a User-Agent label table; the first matching row wins. */
+type UserAgentLabelRule = {
+  /** Matched against the User-Agent. `null` is the fallback row, which must come last. */
+  pattern: RegExp | null;
+  label: string;
+};
+
+/**
+ * The label of the first table row whose pattern matches, or the fallback row's label.
+ * Kept separate from the tables so both browser and OS detection share one ordered lookup.
+ */
+const firstMatchingLabel = (userAgent: string, table: readonly UserAgentLabelRule[]): string => {
+  const matched = table.find((rule) => rule.pattern === null || rule.pattern.test(userAgent));
+  return (matched ?? table[table.length - 1]).label;
+};
+
 /**
  * The browser family named in a User-Agent string, at the coarsest granularity that stays
  * recognisable to a person. Ordered so the specific tokens win: Edge and Opera also say
  * "Chrome", and every Chromium browser also says "Safari".
  */
-const detectBrowserName = (userAgent: string): string => {
-  if (/Edg[eo]?\/|Edge\//.test(userAgent)) {
-    return 'Edge';
-  }
-  if (/OPR\/|Opera/.test(userAgent)) {
-    return 'Opera';
-  }
-  if (/Firefox\/|FxiOS/.test(userAgent)) {
-    return 'Firefox';
-  }
-  if (/Chrome\/|CriOS/.test(userAgent)) {
-    return 'Chrome';
-  }
-  if (/Safari\//.test(userAgent)) {
-    return 'Safari';
-  }
-  return 'Browser';
-};
+const BROWSER_LABEL_TABLE: readonly UserAgentLabelRule[] = [
+  { pattern: /Edg[eo]?\/|Edge\//, label: 'Edge' },
+  { pattern: /OPR\/|Opera/, label: 'Opera' },
+  { pattern: /Firefox\/|FxiOS/, label: 'Firefox' },
+  { pattern: /Chrome\/|CriOS/, label: 'Chrome' },
+  { pattern: /Safari\//, label: 'Safari' },
+  { pattern: null, label: 'Browser' },
+];
 
 /**
  * The operating-system family named in a User-Agent string. Android and iOS are matched
  * before Linux and macOS, because their User-Agents also contain "Linux" / "Mac OS X".
  */
-const detectOsName = (userAgent: string): string => {
-  if (/Android/.test(userAgent)) {
-    return 'Android';
-  }
-  if (/iPhone|iPad|iPod/.test(userAgent)) {
-    return 'iOS';
-  }
-  if (/Windows/.test(userAgent)) {
-    return 'Windows';
-  }
-  if (/Mac OS X|Macintosh/.test(userAgent)) {
-    return 'macOS';
-  }
-  if (/Linux|X11/.test(userAgent)) {
-    return 'Linux';
-  }
-  return 'Unknown system';
-};
+const OS_LABEL_TABLE: readonly UserAgentLabelRule[] = [
+  { pattern: /Android/, label: 'Android' },
+  { pattern: /iPhone|iPad|iPod/, label: 'iOS' },
+  { pattern: /Windows/, label: 'Windows' },
+  { pattern: /Mac OS X|Macintosh/, label: 'macOS' },
+  { pattern: /Linux|X11/, label: 'Linux' },
+  { pattern: null, label: 'Unknown system' },
+];
+
+const detectBrowserName = (userAgent: string): string =>
+  firstMatchingLabel(userAgent, BROWSER_LABEL_TABLE);
+
+const detectOsName = (userAgent: string): string => firstMatchingLabel(userAgent, OS_LABEL_TABLE);
 
 /**
  * Derives a human-readable default device name from a User-Agent string, e.g. "Chrome · Linux".
