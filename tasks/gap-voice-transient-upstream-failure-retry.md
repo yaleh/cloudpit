@@ -70,6 +70,8 @@ extra:
 - shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts
 - shared/asr/list/multimodal/multimodal.asr-provider.ts
 - server/modules/voice/tests/voice-provider-dispatch.test.ts
+- server/modules/voice/tests/voice-error-contract.test.ts
+- src/shared/asr/tests/asrContractInvariants.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
 - scripts/asr-dashscope-omni-check.mjs
 - scripts/asr-dashscope-omni-check.test.mjs
@@ -154,6 +156,26 @@ transport-retry http-500 fetch-calls=1 outcome=UPSTREAM_UNAVAILABLE status=500
   2. 本会话没有浏览器自动化工具：`ToolSearch "browser playwright navigate screenshot evaluate"` → `No matching deferred tools found`，因此无法在真实页面上 `page.route` 拦截 `/api/voice/transcribe` 或注入一次性 fake-mic。
   3. 出货页面不暴露 capture-engine 注入点：`voiceCaptureEngine` 只是 `ChatComposer` 的 prop（`src/modules/chat-composer/composer/ChatComposer.tsx:214,338,640`），非测试调用方不设置，也没有 query/localStorage 开关。
   按 DoD 的替代证据条款，本任务 UI 面以 composer 级读数（真实 ChatComposer + 真实 hook 的重试链路）落地。仓库的 Playwright 假麦克风装置（`playwright.config.ts` 预写 WAV + `--use-fake-device-for-media-stream`）存在，但为它新增 spec 与 config 不在本任务 Touches 内，也未在本 worker 的验证预算内。
+
+### 续做轮（worker, 2026-11-06）：fan-in suite 的 4 条红
+
+上一轮 scoped gate 只跑 Touches 内的文件，全量 suite 才第一次读到四条被“传输重试”这一行为变更触及的既有 pin。逐条读数与修法：
+
+1. `server/shared/tests/architecture-ratchet.test.ts`：`ratchet: oversizeFiles shared/asr/asrInvariants.ts 1760→1763 — 基线内读数不得上调`。修法：把本任务新增的说明注释等量压回（未走 RECORDED CHANGE），`wc -l shared/asr/asrInvariants.ts` = 1760，与基线 1760 相等；该文件复跑 6/6 pass。
+2. `server/modules/voice/tests/voice-error-contract.test.ts`：`reading 'AC3 control/unreachable-answer' measured arm=unreachable code=UPSTREAM_UNAVAILABLE upstreamCode=none attempted=2`，旧期望是精确的 `requestCount === 1`。修法：该 arm 是 transport 拒绝，adapter 现在必然重发一次，读数改为精确的 `requestCount === 2` 并加注释（`upstreamCode` 仍必须缺失）——这是行为变更后的真实读数，不是放宽断言；该文件复跑 27/27 pass。
+3. `server/modules/voice/tests/voice-error-contract.false-forms.test.ts`：两个 AC5 变异体的“未变异副本”都因同一条 `AC3 control/unreachable-answer` 红掉；第 2 条修好后复跑 4/4 pass（变异体仍按预测红）。
+4. `src/shared/asr/tests/asrContractInvariants.test.ts`：`expected 'fail' to be 'pass'`，因为该文件自带的 `promptHonouringAdapter` 自己实现了一次 fetch，于是 board 的 `error.transport` 行（现在是 `requests=2`）判红。修法：stand-in 改用 `fetchWithTransportRetry(invocation.fetchImpl, …)`，保持“两个 adapter 的差别只在 declaration，不在 discipline”的自述；复跑 15/15 pass。
+
+本轮在修复前先 `git merge --no-edit develop`（15 个新提交，clean）。四个文件各自单独复跑（不并发）：
+
+```
+architecture-ratchet.test.ts                       6/6 pass  exit 0
+voice-error-contract.test.ts                      27/27 pass exit 0
+voice-error-contract.false-forms.test.ts           4/4 pass  exit 0
+src/shared/asr/tests/asrContractInvariants.test.ts 15/15 pass exit 0
+```
+
+新增 Touches：`server/modules/voice/tests/voice-error-contract.test.ts`、`src/shared/asr/tests/asrContractInvariants.test.ts`（两者都是同一行为变更的契约面，不是 collateral 清洁）。
 
 ### 收尾
 
