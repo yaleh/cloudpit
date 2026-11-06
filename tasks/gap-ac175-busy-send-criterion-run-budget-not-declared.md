@@ -3,7 +3,7 @@ id: gap-ac175-busy-send-criterion-run-budget-not-declared
 title: AC-175 判据的整轮预算从未声明：同一 treeSha 0b5c9a5 先连记 4 次 pass、随后在 55001ms
   被看门狗杀（config-eval-ms=22320）⇒ 按 GOAL-013 兄弟锚式给 resident-busy-send 声明
   SPEC_BUDGET_MS=240_000 并把记录 timeoutMs 抬到 260000，判据命令与产品断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
