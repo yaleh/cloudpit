@@ -63,8 +63,8 @@ extra:
 
 ## Blocker
 
-**2026-11-06T07:37:12.465Z — worker 未落地（exited-not-landed）**
+**2026-11-06T08:34:12.892Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts:   AssertionError [ERR_ASSERTION]: files under /data/home/yale/.quay-fleet moved during the contract run and are not written by the resident fleet service: service.log.jsonl, attention.json.tmp-2889651-9ed25ce240fd (removed) [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- 未落地原因：step=suite: __PERFILE__ duration_ms=6558 src/modules/architecture/tests/plantUmlText.test.ts passed=false end_ms=1793953545334 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
 - run_id：wk-prod-anchor
-- session_id：d78b6f4f-d434-4769-a998-03c7353e1041
+- session_id：29b9e48e-74dc-48c0-8f92-d1a123292385
