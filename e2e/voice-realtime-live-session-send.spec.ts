@@ -359,6 +359,51 @@ const phase = async (page: Page): Promise<string> =>
 const waitForPhase = (page: Page, wanted: string) =>
   expect.poll(() => phase(page), { timeout: 25_000 }).toBe(wanted);
 
+/**
+ * How long the entry waits for the upstream to declare the connection open.
+ *
+ * MEASURED 2026-11-06 on tree `3c28a8c96e027e909a7d495bc7c8a89af5d8e2a5` (sibling spec's failing run,
+ * same server): the first connection of a process imports the `silero` uplink classifier lazily —
+ * `state=loading` at `05:51:12.554Z` → `state=ready` at `05:51:33.194Z`, a 20.640 s cold import —
+ * while every captured frame is buffered. Warm connections on that same process take 27 ms.
+ *
+ * 45 s is 2.18 × the measured window and well under this file's own 150 s case budget
+ * (`test.describe.configure({ timeout: 150_000 })` below), so the gate reports its own named failure
+ * rather than letting a cold start expire the case.
+ */
+const UPSTREAM_OPEN_TIMEOUT_MS = 45_000;
+
+/** The phases the bar can be in only AFTER the upstream's `state: open` has landed. */
+const UPSTREAM_OPEN_PHASES = ['arming', 'listening', 'muted'] as const;
+
+/**
+ * Waits until the bar has LEFT `connecting` for an open phase, i.e. the upstream's `state: open`.
+ *
+ * WHY. The frames this file pushes are uploaded through the transport, which holds them until the
+ * connection's own `state: open`; on the first connection of a run that frame is behind the ~20.6 s
+ * silero cold import. The `audioFrameCount` polls below are 20 s, so starting them from `connecting`
+ * spends the upload measurement on the server's cold start and can read `Received: 0` with the frame
+ * merely buffered. Waiting for the open phase first leaves those polls measuring what they name.
+ *
+ * The predicate names the open phases instead of asserting only `not.toBe('connecting')`, so a
+ * transient `idle` or a `failed` connection cannot pass it and then hang the caller's next wait.
+ */
+const waitForUpstreamOpen = async (page: Page): Promise<void> => {
+  await expect
+    .poll(
+      async () => {
+        const current = await phase(page);
+        return current !== 'connecting' && UPSTREAM_OPEN_PHASES.includes(current as (typeof UPSTREAM_OPEN_PHASES)[number]);
+      },
+      {
+        timeout: UPSTREAM_OPEN_TIMEOUT_MS,
+        message:
+          'the bar never left `connecting`: the upstream never reported `state: open`, so the first captured frame would be measured before the server declared readiness',
+      },
+    )
+    .toBe(true);
+};
+
 /** The page-side capture probe `pushFirstCaptureFrame` drives (installed in the init script). */
 type CaptureProbe = {
   /** The most recently constructed worklet — the one the next `start()` adopts and wires. */
@@ -481,6 +526,9 @@ async function enterLiveVoice(page: Page): Promise<void> {
   await entry.click();
   await expect(page.getByTestId('voice-realtime-bar')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(COMPOSER_TEXTAREA)).toBeHidden();
+  // The first captured frame is measured only after the server has declared the connection open; the
+  // cold classifier import must not be spent inside the upload polls. See `waitForUpstreamOpen`.
+  await waitForUpstreamOpen(page);
 }
 
 // The serial describe's per-test budget is raised above Playwright's 60s default so the shared reload guard
