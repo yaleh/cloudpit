@@ -27,11 +27,11 @@ goal_ac: AC-142
 
 ## AC
 
-- [ ] `npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx` 退出 0，且输出同时含同一 502 状态下的两个反向臂：`definitive=502,UNAUTHORIZED transcribeVoice-calls=1` 与 `persistent=502 ... UPSTREAM_UNAVAILABLE transcribeVoice-calls=3`；另有 `definitive=422,NO_SPEECH_DETECTED ... transcribeVoice-calls=1` —— 仅凭 status 的判定不可能同时满足 1 与 3。
-- [ ] 新增 `refused(503, 'NOT_CONFIGURED')` 臂并实测 `transcribeVoice-calls=1`：503 不再无条件瞬时，命名码优先。
-- [ ] `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，2 passed（written + refusal 两腿）；拒绝腿 stdout 打印 `draft-kept=true posts=1 aliyuncs-refusal=0`。
-- [ ] `npm run typecheck` 退出 0。
-- [ ] 负对照可复算：把 `isDefinitiveRefusal` 的「有 code 时以 code 为准」临时改回「status 502 ⇒ 瞬时」，第一条 AC 的 UNAUTHORIZED 臂读数变为 3、该命令转红；恢复后转绿。执行者把翻转前后的两次读数写进任务记录。
+- [x] `npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx` 退出 0，且输出同时含同一 502 状态下的两个反向臂：`definitive=502,UNAUTHORIZED transcribeVoice-calls=1` 与 `persistent=502 ... UPSTREAM_UNAVAILABLE transcribeVoice-calls=3`；另有 `definitive=422,NO_SPEECH_DETECTED ... transcribeVoice-calls=1` —— 仅凭 status 的判定不可能同时满足 1 与 3。
+- [x] 新增 `refused(503, 'NOT_CONFIGURED')` 臂并实测 `transcribeVoice-calls=1`：503 不再无条件瞬时，命名码优先。
+- [x] `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，2 passed（written + refusal 两腿）；拒绝腿 stdout 打印 `draft-kept=true posts=1 aliyuncs-refusal=0`。
+- [x] `npm run typecheck` 退出 0。
+- [x] 负对照可复算：把 `isDefinitiveRefusal` 的「有 code 时以 code 为准」临时改回「status 502 ⇒ 瞬时」，第一条 AC 的 UNAUTHORIZED 臂读数变为 3、该命令转红；恢复后转绿。执行者把翻转前后的两次读数写进任务记录。
 
 ## DoD
 
@@ -43,3 +43,18 @@ goal_ac: AC-142
 - src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx
 - e2e/voice-dashscope-written.spec.ts
 - tasks/gap-ac142-named-refusal-not-retried.md
+
+## Evidence
+
+回归读数（worktree `task/gap-ac142-named-refusal-not-retried`，commit `8aaffab23`，在 develop `32e9d1051` 之上实测）：
+
+- AC1 `npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx` 退出 0，5 passed；同一 502 的两个反向臂同时出现：
+  - `voice-transient-refusal definitive=502,UNAUTHORIZED transcribeVoice-calls=1`
+  - `voice-transient-refusal persistent=502,UPSTREAM_UNAVAILABLE transcribeVoice-calls=3 notice=true technical="502 · UPSTREAM_UNAVAILABLE"`
+  - 另有 `voice-transient-refusal definitive=422,NO_SPEECH_DETECTED transcribeVoice-calls=1`
+- AC2 新增 `refused(503, 'NOT_CONFIGURED')` 臂实测 `voice-transient-refusal definitive=503,NOT_CONFIGURED transcribeVoice-calls=1`。
+- AC3 `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，`2 passed (17.6s)`；拒绝腿 stdout 为 `draft-kept=true posts=1 aliyuncs-refusal=0`，且 `before-said-unauthorized=false after-said-unauthorized=true`、`distinct=3/3`。
+- AC4 `npm run typecheck` 退出 0（`tsconfig.json` + `server/tsconfig.json` + `scripts/tsconfig.json` 三段均过）。
+- AC5 负对照：把 `isDefinitiveRefusal` 临时改回旧判定（`status` 502/503/504 先返回瞬时）后同一命令退出 1、2 failed，UNAUTHORIZED 臂读数 `definitive=502,UNAUTHORIZED transcribeVoice-calls=3`（NOT_CONFIGURED 臂同为 3）；恢复「有 code 时以 code 为准」后退出 0、该臂回到 1。
+
+该轴仍暗,理由:本任务只修改客户端拒绝分类与对应判据，未运行 archguard 数据轴测量
