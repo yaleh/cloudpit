@@ -743,6 +743,20 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // With this entry the same invocation reports `7 passed (56.6s)`, 57.4 s wall clock — 240_000 is the
   // sibling voice entries' value and clears that measurement ~4.2x.
   'voice-realtime-composer-embedded.spec.ts': 240_000,
+  // The four-upstream-conditions browser criterion (AC-153): one shared account/workspace boot, then four legs
+  // against ONE page, each a real recording through the app's own capture path, plus the 4 s persistence hold and
+  // the fold's expand/collapse. It shipped without an entry because the quiet run measured ~24-30 s, so its
+  // single-file invocation inherited the 55 s default; the host envelope has since risen well past that.
+  // MEASURED 2026-11-06 on this 128-core shared host at `load average: 85.63, 174.29, 172.81`: the run's own
+  // afterAll read `criterion-wall-ms=56060` — ABOVE the 55 s ceiling it was bounded by — and the watchdog killed
+  // it in the same instant, so `test-results/…/error-context.md` carries BOTH `Error: Channel closed` and the
+  // guard line `Expected: < 54000 / Received: 56060` with no product assertion red behind either (the four legs
+  // were green). The same window's two gate events crossed at 55002 ms (`config-eval-ms=4297`) and 54999 ms
+  // (`config-eval-ms=1086`), both stuck at stage "browser-launch-or-cases". 240_000 is the sibling voice entries'
+  // value: it clears the 56 060 ms loaded reading ~4.3x and the record's own gate deadline
+  // (`goals/AC-153-…md`, `timeoutMs: 260000`) leaves ≥ 20 s for the watchdog to write its state file, print its
+  // line and reclaim its servers before the gate's kill lands. It is a runaway guard, not a performance target.
+  'voice-error-messages.spec.ts': 240_000,
   // The UI scenario runner criterion: TWO scenario families, each with a green arm and a control
   // arm whose report must name the failing step. The Quay wall family opens the Quay view and
   // drives six steps; the cockpit family navigates session → cockpit → back to the same session
