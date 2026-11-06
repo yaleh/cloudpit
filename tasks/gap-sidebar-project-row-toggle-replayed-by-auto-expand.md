@@ -1,7 +1,7 @@
 ---
 id: gap-sidebar-project-row-toggle-replayed-by-auto-expand
 title: Projects 侧栏：已展开的非选中项目行应一次点击折叠（行 toggle 被选中后的 auto-expand 重放）
-status: ready
+status: done
 labels:
   - gap
   - defect
