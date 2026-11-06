@@ -111,6 +111,13 @@ extra:
 
 `npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` → exit 0，`Test Files 2 passed (2) | Tests 174 passed (174)`（日志 `tmp/arch-repro/ac5-final.log`）。筛选/暗化/选中态/导出的既有断言未改动。
 
+### 追加：oversize ratchet 修复（round 2，2026-11-06）
+
+- 上一轮 suite 红原文：`ratchet: oversizeFiles src/modules/architecture/layout/graphDom.ts 1485→1522 — 基线内读数不得上调（此基线只允许下降）`。实现语义不变，只压缩本任务新增代码：提取 `PATH_PAIR_RE` 复用（`rewritePathData` / `rawPathEnds` 同一读法）、`rawPathEnds` 收为 5 行、marker 循环的注释与顶点计算紧凑化（`reduce` 取代显式最近点循环）。
+- 收敛读数：`graphDom.ts` 1522 → 1482 行（基线 1485）；re-run `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → exit 0，`tests 6 pass 0 fail`，日志含 `ratchet: oversizeFiles src/modules/architecture/layout/graphDom.ts 1485→1482，可下调基线`。
+- 复跑行为：`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` → exit 0，`Test Files 2 passed | Tests 174 passed`；`npx tsc --noEmit -p tsconfig.json` → exit 0。
+- 修复提交 `cf0e3892d`。
+
 - 该轴仍暗,理由:本任务只改前端语义缩放箭头几何，未产生 L_D（code:doc）或 L_G（archguard 依赖图）可测量读数
 
 ## DoD
