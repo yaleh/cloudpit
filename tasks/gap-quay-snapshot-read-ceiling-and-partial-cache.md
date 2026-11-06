@@ -69,3 +69,11 @@ DoD arm 2（残快照臂；`snapshot-partial-A-final.json` / `snapshot-partial-B
 DoD arm 3（真实页面）：本会话没有可用的 MCP 浏览器工具，改用一次性 Playwright 脚本 `tmp/iso-snapshot-read/ui-check.mjs`（如实注明）。会话页 header 的 in-flight 图 popover 中 Project/Tasks 显示 `done 1374 / superseded 26 / ready 7 / todo 1`，`taskUnreadVisible:false`；截图 `tmp/iso-snapshot-read/session-pulse-popover.png`。同一时刻 snapshot（`snapshot-ui-moment.json`）：`cached:true`、`tasks.byStatus={done:1374,superseded:26,ready:7,todo:1}`、`warnings:[]`。
 
 该轴仍暗,理由:本任务只改 quay snapshot 的读上限与缓存条件，未新增或移动架构实体、依赖或文档，因此没有可测的 L_D/L_G 读数。
+
+## Blocker
+
+**2026-11-06T07:49:56.306Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/quay/quay.service.ts 2993→3021 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：cd7df864-8a29-438a-98f2-0ba8c9c7927a
