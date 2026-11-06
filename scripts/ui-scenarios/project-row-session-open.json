@@ -1,0 +1,42 @@
+{
+  "name": "project-row-session-open",
+  "description": "Projects sidebar: open a session through the project row, reload the page, then open the other project's session through its row. The runner's own opener presses the project row — the toggle whose auto-expand replay this change fixes — so a green report proves the row still expands, selects and lands the session route after the effect became single-open.",
+  "steps": [
+    {
+      "open": "session",
+      "project": "alpha",
+      "session": "Alpha project chat",
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/session/"
+      }
+    },
+    {
+      "reload": true,
+      "waitForChat": true,
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/session/",
+        "chatMessageCount": 2
+      }
+    },
+    {
+      "open": "session",
+      "project": "beta",
+      "session": "Beta project chat",
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/session/"
+      }
+    },
+    {
+      "reload": true,
+      "waitForChat": true,
+      "checkpoint": true,
+      "expect": {
+        "routeIncludes": "/session/",
+        "chatMessageCount": 2
+      }
+    }
+  ]
+}

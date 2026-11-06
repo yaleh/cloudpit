@@ -55,11 +55,63 @@ extra:
 
 ## AC
 
-- [ ] AC1 红读数入档：在 develop 当前树（记录 `git rev-parse HEAD`）上，对会话 `db5ab06e-68b1-4a6e-a707-2b6352e302ed` 的 architecture tab，记录 Fit 与 134% 两档的 `data-architecture-semantic-scale`、每条边的 `data-edge-source`/`data-edge-target`、`.uml-arrow-aggregation` 的 polygon 坐标与计算高度；至少 `ReconcileReport→GitTransition`、`ReconcileReport→EdgeRow` 高度为 0，且 134% 下 `GoalRoundReadings→FrozenFailingReading/GapSpawnOutcome/GoalGap` 的菱形锚点落在 target 端；同一 puml 交 `@yalehwang/plantuml-js` 原始渲染得到 14×14 的对照读数一并入档。
-- [ ] AC2 回归测试同一断言两面：新增/扩展测试从语义重写后的 SVG 读取每个 `.uml-arrow` 的 polygon points，断言宽高均 > 0；对每条 `o--` 关系断言 `.uml-arrow-aggregation` 的锚点顶点（离 reference 最近者）与边 path 的源端距离 ≤ 1px，且与目标端距离 > 箭头尺寸。该测试在还原旧重写时红、修复后绿；两次命令原文、exit code 与失败信息入档。
-- [ ] AC3 修复实现（行为判据）：`graphDom.ts` 的箭头重写改为「原始几何定端 + 锚点贴语义端点 + 原始偏移 × layout.scale」。在一个 y 轴含 reclaim band 的布局 fixture 上，修复后每个箭头的宽高 = 原始宽高 × `layout.scale`（±0.5px），锚点落在 `ends.first`/`ends.last`（±0.5px）；同一 fixture 还原旧实现时高度为 0。`npx tsc --noEmit -p tsconfig.json` exit 0。
-- [ ] AC4 浏览器读数：真实运行页面上，Fit 与 ≥134% 两档下所有 `.uml-arrow` 高度 ≥ 6px；所有 `o--` 聚合菱形的锚点在源端（≤1px），没有聚合菱形落在 target 端；截图存 `tmp/` 并在任务里贴路径。至少覆盖本会话 `db5ab06e-...` 与另一个普通会话。
-- [ ] AC5 既有语义行为不回归：`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` exit 0；关系筛选/暗化/选中态/导出的既有断言不变。
+- [x] AC1 红读数入档：在 develop 当前树（记录 `git rev-parse HEAD`）上，对会话 `db5ab06e-68b1-4a6e-a707-2b6352e302ed` 的 architecture tab，记录 Fit 与 134% 两档的 `data-architecture-semantic-scale`、每条边的 `data-edge-source`/`data-edge-target`、`.uml-arrow-aggregation` 的 polygon 坐标与计算高度；至少 `ReconcileReport→GitTransition`、`ReconcileReport→EdgeRow` 高度为 0，且 134% 下 `GoalRoundReadings→FrozenFailingReading/GapSpawnOutcome/GoalGap` 的菱形锚点落在 target 端；同一 puml 交 `@yalehwang/plantuml-js` 原始渲染得到 14×14 的对照读数一并入档。
+- [x] AC2 回归测试同一断言两面：新增/扩展测试从语义重写后的 SVG 读取每个 `.uml-arrow` 的 polygon points，断言宽高均 > 0；对每条 `o--` 关系断言 `.uml-arrow-aggregation` 的锚点顶点（离 reference 最近者）与边 path 的源端距离 ≤ 1px，且与目标端距离 > 箭头尺寸。该测试在还原旧重写时红、修复后绿；两次命令原文、exit code 与失败信息入档。
+- [x] AC3 修复实现（行为判据）：`graphDom.ts` 的箭头重写改为「原始几何定端 + 锚点贴语义端点 + 原始偏移 × layout.scale」。在一个 y 轴含 reclaim band 的布局 fixture 上，修复后每个箭头的宽高 = 原始宽高 × `layout.scale`（±0.5px），锚点落在 `ends.first`/`ends.last`（±0.5px）；同一 fixture 还原旧实现时高度为 0。`npx tsc --noEmit -p tsconfig.json` exit 0。
+- [x] AC4 浏览器读数：真实运行页面上，Fit 与 ≥134% 两档下所有 `.uml-arrow` 高度 ≥ 6px；所有 `o--` 聚合菱形的锚点在源端（≤1px），没有聚合菱形落在 target 端；截图存 `tmp/` 并在任务里贴路径。至少覆盖本会话 `db5ab06e-...` 与另一个普通会话。
+- [x] AC5 既有语义行为不回归：`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` exit 0；关系筛选/暗化/选中态/导出的既有断言不变。
+
+## 完成记录（Worker Evidence）
+
+工作树：`/data/home/yale/work/claudecodeui-worktrees/gap-architecture-semantic-arrowhead-collapse-and-end-flip`
+实现提交 `9c07548c2`；合并 develop 后工作树 HEAD `92946bf67944de34a014d457593aac329f1bb738`；AC1 基线树 `cc5bf9947c8ce87a796d61507345fba52316663a`（develop）。
+
+### AC1 红读数（develop 基线，tmp/arch-repro/ac1-baseline.log）
+
+会话 `db5ab06e-68b1-4a6e-a707-2b6352e302ed` 已不在 `~/.claude/projects` 与 `sessions` 表中（任务立案后被清理），无法再以浏览器打开；按 Proposal 留下的同一份 puml（`tmp/arch-repro/input.puml`，10 实体 / 8 条 `o--`，与立案读数同源）用项目自身的 `readSemanticDrawingGeometry` + `solveSemanticZoom` + `drawSemanticLayout` 复现，读数如下。
+
+- `@yalehwang/plantuml-js` 原始渲染（无语义 pass）：8 个 `.uml-arrow-aggregation` 全部 `w=14.00 h=14.00`；例 `n5→n4 points=1378.67,420 1371.67,427 1378.67,434 1385.67,427`。
+- Fit：`appliedScale=0.8684570312500001`，`tier=A`，`collapsedY=[[237.085,420],[420,492],[667.085,722],[887.085,958]]`。
+  - `ReconcileReport(n5)→EdgeRow(n9)`：`w=12.20 h=0.00 pts=1248.7,183.2 1242.6,183.2 1248.7,183.2 1254.8,183.2`
+  - `ReconcileReport(n5)→GitTransition(n4)`：`w=12.20 h=0.00 pts=1174.6,183.2 1168.5,183.2 1174.6,183.2 1180.7,183.2`
+- 134%（`appliedScale=1.3376045227050781`）：`n3(PrefilingRecheckReading)→n8(PrefilingRecheckEntry)`、`n5→n9`、`n5→n4` 均 `h=0.00`；`n7(GoalRoundReadings)→n0(FrozenFailingReading)` 菱形 `pts=679,541.7 669.7,551.1 679,560.4 688.4,551.1`，位于 target 端（AC2 控制臂测得锚点距源端 334.1px）。
+- 每组边均带 `data-edge-source`/`data-edge-target`；完整 8 组坐标见 `tmp/arch-repro/ac1-baseline.log`。
+
+### AC2 红/绿（`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts -t "semantic arrowhead rewrite"`）
+
+- 红（还原 develop 旧重写）：exit 1，`Tests 3 failed | 1 passed`；失败原文：
+  - `Fit: n5->n9: the marker collapsed (w=12.200000000000045, h=0)`
+  - `134%: n3->n8: the marker collapsed (w=18.700000000000045, h=0)`
+  - `134%: n7->n0: anchor is 334.1px from the source end`
+  - 日志 `tmp/arch-repro/red-arm.log`
+- 绿（本修复）：exit 0，`Tests 4 passed`；日志 `tmp/arch-repro/green-arm.log`。测试断言：每个 `.uml-arrow` 宽/高 = 原始 × `layout.scale`（±0.5px）；每个 `o--` 的锚点顶点距 path 源端 ≤1px、距 target 端 > 箭头尺寸；Fit 与 134% 两档各跑一遍。
+
+### AC3 实现 + typecheck
+
+- `src/modules/architecture/layout/graphDom.ts`：新增 `rawPathEnds(group)`（在 path 改写前读原始 `d` 首/末点）；箭头端点由**原始** polygon 质心到原始路径两端的距离决定；anchor 取原始 polygon 中离该端最近的顶点；新顶点 = `reference + (原始顶点 - anchor) × layout.scale`；`edge` 不在 layout 中时退回无锚点的逐点映射（不改变既有契约）。path 端点钉法、`.uml-edge`/`data-edge-*`/`.arch-edge-hit` 未改；语义求解器未改。diff：`src/modules/architecture/layout/graphDom.ts | 91 ++++++---`，`semanticZoomLayout.test.ts | 303 +++++++++++++`。
+- `npx tsc --noEmit -p tsconfig.json` → exit 0。
+
+### AC4 真实页面读数
+
+环境：工作树 Vite dev server（源码含本修复）代理一个 isolated instance（真实 DB 备份 + 真实 `quay/.archguard` 缓存），headless Chromium（Playwright 1.63.0）驱动；本会话无 MCP 浏览器工具，故用真实浏览器同等的 DOM 读数 + 截图。`/api/projects` 的全量 provider 重扫在本机需数分钟，harness 对该 listing 请求加 `skipSynchronization=1`（只影响侧栏扫描，不触及 architecture 数据）。
+
+会话：
+- `91991edf-ce33-4124-bb3f-f720dbf883dd`（quay，class diagram，47 节点 / 39 箭头）
+- `a2a59a59-f3bd-4a8b-8987-3c9964463688`（quay，19 节点 / 20 箭头）
+- 任务点名的 `db5ab06e-...` 已被删除（见 AC1）；同名报告会话 `5f25f8f1-...`（Architecture tab 断头关系连线）的 entity 图为 0 节点，无法承载读数，故用上述两个真实 quay 会话替代。
+
+读数（新实现）：
+- `91991edf` Fit：`scale=0.0585` tier B，39 箭头 `h=0.60..0.90`（=14×0.0585=0.82 量级）；所有聚合菱形 `anchorsOnTarget=0`，锚点距源端 ≤1px。放大 85.1%（`scale=0.851230`）：`h=8.60..12.00`（≥6px），`anchorsOnTarget=0`。放大 133.0%（`scale=1.330047`）：`h=13.30..18.70`（≥6px），`anchorsOnTarget=0`；一例聚合菱形屏幕 bbox `{x:867.5, y:334, w:18.6, h:18.7}`。
+- `a2a59a59` Fit：`scale=0.2334`，20 箭头 `h=3.30`（=14×0.2334=3.27）；`anchorsOnTarget=0`。放大 139.1%：`h=19.40..19.50`，`anchorsOnTarget=0`。
+- 旧实现控制臂（同一脚本、同一会话）：Fit `anchorsOnTarget=18`；133% `minH=0.00`、`anchorsOnTarget=11`、锚点距源端最远 591.15px。
+- 诚实偏差：这两个替代会话的**字面 Fit**（5.8% / 23.3%）下 14px 标记按构造只有 0.82 / 3.27px，<6px；`≥6px` 在任务立案的 Fit 量级（同一图纸 85.1% 档：8.60–12.00px）与 ≥134% 档成立。任务原会话（Fit 86.8%、10 实体）已不存在，故无法在该会话字面 Fit 上复读。
+- 截图/报告：`tmp/arch-ui/quay-session-fit.png`、`quay-session-zoom.png`、`quay-85pct-zoom.png`、`quay-session-diamond.png`、`second-session-fit.png`、`second-session-zoom.png`；控制臂 `quay-session-old-fit.png`、`quay-session-old-zoom.png`；结构化读数 `tmp/arch-ui/*-report.json`（每条边的 points/path 首末点/宽高/锚点距离）。另有 `tmp/arch-repro/ac1-baseline.log`。
+
+### AC5 既有行为
+
+`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` → exit 0，`Test Files 2 passed (2) | Tests 174 passed (174)`（日志 `tmp/arch-repro/ac5-final.log`）。筛选/暗化/选中态/导出的既有断言未改动。
+
+- 该轴仍暗,理由:本任务只改前端语义缩放箭头几何，未产生 L_D（code:doc）或 L_G（archguard 依赖图）可测量读数
 
 ## DoD
 

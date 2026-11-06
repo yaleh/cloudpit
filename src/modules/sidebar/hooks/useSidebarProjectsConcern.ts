@@ -66,6 +66,10 @@ export function useSidebarProjectsConcern({
   const paletteOps = usePaletteOps();
   // Which projects are expanded in the Projects tab.
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  // Project whose selection was changed by the row click that also toggled it. The auto-expand
+  // effect fires AFTER that click's state commits, so without this marker the effect re-opens
+  // the project the click just collapsed. Consumed by the next effect run for that project.
+  const selectionToggleProjectRef = useRef<string | null>(null);
   // Running groups start expanded and remember manual collapses independently of Projects.
   const [collapsedRunningProjects, setCollapsedRunningProjects] = useState<Set<string>>(new Set());
   // The user's preferred project ordering, read from the preference store.
@@ -107,14 +111,20 @@ export function useSidebarProjectsConcern({
       return;
     }
 
-    setExpandedProjects((prev) => {
-      if (prev.has(selectedProjectId)) {
-        return prev;
-      }
-      const next = new Set(prev);
-      next.add(selectedProjectId);
-      return next;
-    });
+    // A row click that both selects and toggles has already decided the expansion. Skip the
+    // one run its own selection change causes, or the effect would undo the collapse. A
+    // marker for a different project (another selection won the same batch) is dropped here
+    // so it can never suppress a later, unrelated selection.
+    const suppressedProjectId = selectionToggleProjectRef.current;
+    selectionToggleProjectRef.current = null;
+    if (suppressedProjectId === selectedProjectId) {
+      return;
+    }
+
+    // Selection arrived from outside the Projects row (a session route, the Conversations
+    // feed, a restore): open that project and close the others, the same single-open shape
+    // `toggleProject` writes. Adding without removing left several rows expanded.
+    setExpandedProjects(() => new Set([selectedProjectId]));
   }, [selectedProject?.projectId]);
 
   useEffect(() => {
@@ -201,7 +211,7 @@ export function useSidebarProjectsConcern({
   // All sidebar state keys (expanded, starred, loading, etc.) use the DB
   // `projectId` as their identifier after the migration.
   const toggleProject = useCallback(
-    (projectId: string) => {
+    (projectId: string, selectionWillChange = false) => {
       if (searchMode === 'running') {
         setCollapsedRunningProjects((prev) => {
           const next = new Set(prev);
@@ -211,6 +221,12 @@ export function useSidebarProjectsConcern({
           return next;
         });
         return;
+      }
+
+      // Record the gesture BEFORE the toggle's state update: the auto-expand effect runs after
+      // this click's commit and must skip exactly this selection change.
+      if (selectionWillChange) {
+        selectionToggleProjectRef.current = projectId;
       }
 
       setExpandedProjects((prev) => {
