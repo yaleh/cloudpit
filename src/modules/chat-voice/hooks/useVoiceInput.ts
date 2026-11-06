@@ -275,17 +275,11 @@ async function refusalDetail(response: Response): Promise<VoiceTranscriptionFail
 /**
  * Whether a refusal is the recogniser's ANSWER rather than a transient transport failure.
  *
- * THE PIPELINE'S RETRIES ARE FOR TRANSIENTS. `UPSTREAM_UNAVAILABLE` and a gateway's 502/503/504 are
- * the server saying "this upload did not reach the recogniser", which a second attempt can repair —
- * that is exactly what the 2026-11-06 12.12 s capture lost. `NO_SPEECH_DETECTED`, 413/415/422 and the
- * remaining 4xx answer a question about this clip; re-asking would spend a request (and a metered
- * charge) on an answer that will not change.
- *
- * A NAMED CODE OUTRANKS THE STATUS. The route answers an upstream credential refusal as
- * `UNAUTHORIZED` with a 502 (`PROVIDER_ERROR_STATUS`), so the gateway family alone cannot say
- * whether this upload was lost: `NOT_CONFIGURED` arrives on a 503 and `UNAUTHORIZED` on a 502, and
- * both are answers about this deployment rather than transport failures. The status is read only
- * when the answer names no code at all, which is the one case where "502" is all the client has.
+ * RETRIES ARE FOR TRANSIENTS: `UPSTREAM_UNAVAILABLE` and an unnamed 502/503/504 mean this upload did
+ * not reach the recogniser, which a retry can repair. `NO_SPEECH_DETECTED`, 413/415/422 and the
+ * remaining 4xx answer a question about this clip; re-asking spends a request on an unchanged answer.
+ * A NAMED CODE OUTRANKS THE STATUS: `UNAUTHORIZED` arrives on a 502 and `NOT_CONFIGURED` on a 503,
+ * answers about this deployment rather than lost uploads; status is read only when no code is named.
  */
 function isDefinitiveRefusal(failure: VoiceTranscriptionFailure): boolean {
   if (failure.code !== undefined) return failure.code !== 'UPSTREAM_UNAVAILABLE';
