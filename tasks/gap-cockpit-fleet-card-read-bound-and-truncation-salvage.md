@@ -57,3 +57,11 @@ extra:
 - DoD(b)：隔离实例 `tmp/dod/iso-b`，`FLEET_FIXTURE_MODE=b`（2,000 条完整卡 6,549,572 B + 4 MiB 无换行末段，总 10,743,876 B > 8 MiB）。真实 `GET /api/cockpit/cards` → HTTP 200，`cards=2000`（= 全部完整行），diagnostic `{ok:true,truncated:true,completeLines:2000,truncatedTailBytes:1839036,skippedLines:0}`，响应 6,773,626 B。原文：`tmp/dod/request-b.txt`、`tmp/dod/response-b.json`。
 - Touches 追加说明：`errorCode` 必须出现在 `CockpitFleetCommandResult`（`server/modules/cockpit/cockpit-fleet-executor.ts`），`truncated`/`completeLines`/`truncatedTailBytes` 必须出现在 `CockpitCardProviderDiagnostic`（`server/modules/cockpit/cockpit-card-registry.ts`）；两者都是本任务实现的必要类型声明，不是顺手改动。
 - 该轴仍暗,理由:本任务只修 fleet 读口容量与截断救回，不产生 L_D/L_G 文档-代码或架构轴读数。
+
+## Blocker
+
+**2026-11-06T07:37:12.465Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts:   AssertionError [ERR_ASSERTION]: files under /data/home/yale/.quay-fleet moved during the contract run and are not written by the resident fleet service: service.log.jsonl, attention.json.tmp-2889651-9ed25ce240fd (removed) [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：d78b6f4f-d434-4769-a998-03c7353e1041
