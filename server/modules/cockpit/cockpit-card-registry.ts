@@ -65,6 +65,17 @@ export type CockpitCardProviderDiagnostic = {
   readonly skippedLines: number;
   /** Whether this reading was served from the provider's cache. */
   readonly cached: boolean;
+  /**
+   * Whether the provider salvaged the batch from a stdout that was CUT at the read bound.
+   *
+   * Present only on a salvaged reading. The cards are real, but the list is known-incomplete:
+   * the last line was an unfinished fragment and every byte after it never arrived.
+   */
+  readonly truncated?: boolean;
+  /** How many COMPLETE lines the salvaged prefix held (the fragment is not one of them). */
+  readonly completeLines?: number;
+  /** Bytes of the cut-off final fragment that could not be parsed; never counted as skipped. */
+  readonly truncatedTailBytes?: number;
 };
 
 /**

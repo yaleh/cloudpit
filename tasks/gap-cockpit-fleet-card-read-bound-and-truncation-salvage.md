@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-fleet-card-read-bound-and-truncation-salvage
 title: Cockpit 读口上限与截断救回：超过 1 MiB 时不再把已读出的卡整批丢弃
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -61,11 +61,3 @@ extra:
 - Touches 追加说明 2：上述 contract 文件不是本任务功能实现的一部分，而是上一轮 fan-in 的 suite 阻断项——守卫与常驻服务竞态，不修则本任务每次 fan-in 都可能被同一红阻断；故声明进 Touches 以便 anti-drift 通过，修复只改豁免判定，不削弱 `registry.json` / `initiatives.json` / 决策账本的逐字检查。
 - 负载 flake 复核（2026-11-06T16:36Z，本轮 exited-not-landed 的 3 个 delta 外红）：suite 日志显示 `plantUmlText.test.ts` 的 `41, 150 and 600 …` 用例耗时 5397ms > `testTimeout: 5000` 而报 `STACK_TRACE_ERROR`（standalone 重跑同一用例 2619ms）；`asrContractInvariants.test.ts` suite 内 11460ms、`voiceLiveSegmenter.test.ts` suite 内 74234ms。三文件在 worktree 内单独重跑 **68/68 全绿**（文件耗时 2.99s / 5.52s / 44.40s）。同期宿主 `load1=96.17 load5=214.74 load15=215.25`、node 相关进程 1409 个。本任务 delta 8 个文件全在 `server/`，三红文件均为 `src/` 客户端测试且 delta-relatedness=UNRELATED。结论：负载墙钟 flake，非本任务引入；未改任何断言。
 - 该轴仍暗,理由:本任务只修 fleet 读口容量与截断救回，不产生 L_D/L_G 文档-代码或架构轴读数。
-
-## Blocker
-
-**2026-11-06T08:34:12.892Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: __PERFILE__ duration_ms=6558 src/modules/architecture/tests/plantUmlText.test.ts passed=false end_ms=1793953545334 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：29b9e48e-74dc-48c0-8f92-d1a123292385

@@ -50,7 +50,7 @@ run1 在越过 55s 前已打印出判据的产品读数（逐字）：`shellTab.
 
 ### 上一轮修法为什么没兜住
 
-<!-- dedup-ref --> 机制去重（本轮立案实测）：`grep -rl '^goal_ac: *AC-174' tasks/*.md` 命中 **2** 份，`status:` 逐字皆 **done**——`gap-claude-resident-shell-tab`（产品与判据落地，2026-09）与 `gap-claude-resident-shell-tab-criterion-bounded-boot-guard`（2026-10-02）；在飞扫描（`^status:` ∈ todo/ready/needs-human）**无一认领 AC-174** ⇒ 无在飞认领者，`done` 不算重复、是更早修法没兜住的证据。合并候选用仪器判：`task-granularity-advice.js --touches playwright.config.ts --touches e2e/resident-shell-tab.spec.ts --touches <AC-174 记录> --json` ⇒ `peers: []`（`mentions` 只有 `gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load` 在散文里提到 `playwright.config.ts`，未声明）⇒ **kept separate**。
+<!-- dedup-ref --> 机制去重（本轮立案实测）：`grep -rl '^goal_ac: *AC-174' tasks/*.md` 命中 **2** 份，`status:` 逐字皆 **done**——`gap-claude-resident-shell-tab`（产品与判据落地，2026-09）与 `gap-claude-resident-shell-tab-criterion-bounded-boot-guard`（2026-10-02）；在飞扫描（`^status:` ∈ todo/ready/needs-human）**无一认领** AC-174 ⇒ 无在飞认领者，`done` 不算重复、是更早修法没兜住的证据。合并候选用仪器判：`task-granularity-advice.js --touches playwright.config.ts --touches e2e/resident-shell-tab.spec.ts --touches <AC-174 记录> --json` ⇒ `peers: []`（`mentions` 只有 `gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load` 在散文里提到 `playwright.config.ts`，未声明）⇒ **kept separate**。
 
 `gap-claude-resident-shell-tab` 把产品与判据都落对了，但没有给这条判据声明整轮预算。`gap-claude-resident-shell-tab-criterion-bounded-boot-guard` 把本族已有的有界客户端预热 `warmClientStartup` 与有界导航探针 `navigateBounded` 搬进本 spec，治的是「页面期 Vite 冷预构建被拖成无界等待」，并明确写下「60s 门限与 55s spec 上限不动」，实测 18.8s / 17.4s（当时 load1 ≈ 9.7–14.5）。它改变的是**等待的响应方式**，不是**整轮可花的墙**。自上轮绿（`2026-11-03T14:42:40Z`，tree `85bddb6d`）以来，`src/` 有 **1493** 个提交（含 `f6426ea48` 的 `src/shared` god-package 拆分），config-eval + boot 的重量与宿主负载一起把同一份保证推到另一堵墙前：这次是 `RUN_CEILING_MS` / `BOOT_CEILING_MS`，不是产品断言。
 
@@ -186,6 +186,18 @@ EXIT=1
 - 2026-11-06 宿主 load1 在 78–260 间波动。在 load1 212.57 的一次 round 中 Playwright 自身的 `WEB_SERVER_TIMEOUT_MS = 35_000` 先开火（`Error: Timed out waiting 35000ms from config.webServer.`）；本任务按 Proposal「明确不动」保留该常量，如实归因为宿主负载，**不是**判据语义问题。
 - 同一高负载下 goal gate 在 60s 默认闸上 `not-evaluated (timeout)`；本任务的 `timeoutMs: 260000`（merge 后生效）解决这一形态。
 - 若封顶 120s 之后仍被越：下一级杠杆是 e2e 数据目录池 / driver 并发；⛔ 不改断言、不加 `skip` / `retries`。
+
+### 本轮续做复核：上一轮 suite 三条红是负载超时，不是本任务 delta
+
+上一轮 exited-not-landed 点名的三条红（`src/shared/asr/tests/asrContractInvariants.test.ts`、`src/modules/architecture/tests/plantUmlText.test.ts`、`src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts`）都不在本任务 diff 内：merge develop 后 `git diff --name-only develop...HEAD` 仍只有本任务 5 个文件。在 worktree 单文件直跑（`npx vitest run <file>`），三条全部 rc=0：
+
+| 文件 | rc | 用例读数 | 台架墙钟 |
+|---|---|---|---|
+| asrContractInvariants.test.ts | 0 | `15 passed` | 8.33s |
+| plantUmlText.test.ts | 0 | `25 passed` | 4.29s |
+| voiceLiveSegmenter.test.ts | 0 | `28 passed` | 45.79s |
+
+跑前/跑后 `load1 = 101.10 / 102.24`（128 核）。suite 轮保留的 `client-vitest.json` 给出 asr 那条的确切形态：用例 `measures every registered provider and passes every group` 记 `duration=7084.287ms`（standalone 3848ms），而 `vitest.config.ts` 的 `testTimeout: 5000` ⇒ 负载下超时，消息为 `Error: STACK_TRACE_ERROR`（`scripts/test.sh` 注释里点名的负载产物，无产品断言）。另两条同族重文件在 suite 内的墙钟分别是 standalone 的约 1.4× / 1.9×（plantUmlText 文件 5987ms、voiceLiveSegmenter 文件 84525ms），同一形态。⇒ 不改任何断言、不动 `src/**`；fan-in 重跑时按 develop 基线重判即可。复核后 `git status --short` 为空；anti-drift 仍为 `ANTI-DRIFT OK: … 5 actual file(s), all within declared Touches (6 glob(s))`。
 
 ### ADR-007 暗轴
 
