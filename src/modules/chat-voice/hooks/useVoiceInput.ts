@@ -93,10 +93,8 @@ import { parseTranscriptionResponse } from '@shared/asr/transcriptionWire';
  * (`onTranscript(full, false)`) and, when the stop was a send, once more with the whole text and
  * `send=true`. The composer owns where that text sits: it tracks the insertion range that opened at
  * the caret when listening began (see `voiceInsertion.ts`), so edits the user makes elsewhere while
- * talking are preserved and the committed words stay contiguous.
- *
- * The clip slot it fills on stop is the replay pair: the filtered audio the segments were cut from,
- * and — when the stream was short enough to keep — the raw PCM the microphone produced.
+ * talking are preserved and the committed words stay contiguous. The clip slot it fills on stop is
+ * the replay pair: the filtered audio the segments were cut from and, under the cap, the raw PCM.
  */
 
 /** How many retries follow a segment's first attempt before it is reported as lost. */
@@ -151,13 +149,10 @@ let listenSequence = 0;
  *
  * WHY IT IS MINTED HERE RATHER THAN BY THE SERVER. The raw corpus row and the trimmed rows are
  * written by two different requests — the raw upload happens after the listen ends, the trims during
- * it — so the only side that can name the pair before either request exists is the client that is
- * doing the recording. Both requests carry this one string, and a reader joins them on it.
- *
- * UNIQUENESS IS BY CONSTRUCTION, not by probability: the per-tab sequence alone distinguishes two
- * listens in one page, and the wall clock plus a random suffix distinguish this page from another
- * tab or a reloaded one. The characters are all file-name safe, so the server can build a raw file
- * name from it without the substitution having to rewrite it.
+ * it — so the only side that can name the pair before either request exists is the client recording.
+ * Both requests carry this one string, and a reader joins them on it. UNIQUENESS IS BY CONSTRUCTION:
+ * the per-tab sequence distinguishes two listens in one page, and the wall clock plus a random suffix
+ * distinguish this page from another tab or a reloaded one — all file-name safe either way.
  */
 function mintListenId(): string {
   listenSequence += 1;
@@ -278,17 +273,29 @@ async function refusalDetail(response: Response): Promise<VoiceTranscriptionFail
 }
 
 /**
+ * Whether a refusal is the recogniser's ANSWER rather than a transient transport failure.
+ *
+ * THE PIPELINE'S RETRIES ARE FOR TRANSIENTS. `UPSTREAM_UNAVAILABLE` and a gateway's 502/503/504 are
+ * the server saying "this upload did not reach the recogniser", which a second attempt can repair —
+ * that is exactly what the 2026-11-06 12.12 s capture lost. `NO_SPEECH_DETECTED`, 413/415/422 and the
+ * remaining 4xx answer a question about this clip; re-asking would spend a request (and a metered
+ * charge) on an answer that will not change.
+ */
+function isDefinitiveRefusal(failure: VoiceTranscriptionFailure): boolean {
+  if (failure.code === 'UPSTREAM_UNAVAILABLE') return false;
+  if (failure.status === 502 || failure.status === 503 || failure.status === 504) return false;
+  return true;
+}
+
+/**
  * The record id out of a recogniser answer, when the deployment kept a record for it.
  *
  * THE HANDLE THE CORRECTION NEEDS, and the reason a `clone()` is taken here at all: the id rides on
  * the transcription answer (the store wrote the record before answering) but it is NOT part of the
- * transcript envelope the wire parser reads, so it has to be picked up beside that parse rather than
- * out of it. Absent is the ordinary case for a user who turned recording off — the store wrote
- * nothing, so there is no id — and it is answered as null rather than as an error, because a
- * dictation that kept no record is a dictation that succeeded.
- *
- * The clone is taken ONLY when the user's own `voiceDataRecording` says records are being kept, so a
- * user who turned recording off pays no second read of the body on every segment.
+ * transcript envelope the wire parser reads, so it has to be picked up beside that parse. Absent is
+ * ordinary rather than an error — the user turned recording off, or the deployment kept no record —
+ * so it answers null. The clone is taken ONLY under `voiceDataRecording`, so a user who declined
+ * pays no second read of the body on every segment.
  */
 async function readRecordId(response: Response): Promise<string | null> {
   try {
@@ -399,7 +406,7 @@ function concatInt16(chunks: Int16Array[]): Uint8Array {
  * The same layout `audioDecode.ts` and the segmenter's encoder write (RIFF/WAVE, a 16-byte `fmt `
  * chunk, mono, 16-bit), so a reader cannot tell which of the three produced it. It is here rather
  * than imported because the segmenter's encoder is private and hands back `Uint8Array` only for
- * segments it built itself; this is the one caller that has samples the segmenter never saw.
+ * segments it built itself; this is the one caller with samples the segmenter never saw.
  */
 function encodePcm16Wav(samples: Float32Array, sampleRate: number): Uint8Array {
   const dataBytes = samples.length * 2;
@@ -454,15 +461,13 @@ function segmentWavSec(wav: Uint8Array): number {
  * Removes only the empty edges of one segment's WAV before it is uploaded.
  *
  * WHY AT THIS LAYER. The segmenter's flush can leave several seconds of silence at the tail of a
- * push-to-talk segment (the real 2026-10-22 recording: 2 s of speech, then 8 s of near-silence).
- * That silence costs upload bytes, gives the recogniser no words, and — as the same recording
- * showed — gives a model with little to tidy a chance to answer with nearby instruction text. The
- * trim is the ordinary VAD splice with every internal pause kept whole (`trimSilenceEdges`), so the
- * recogniser still sees its punctuation cues; only the head/tail outside the first/last speech
- * region is dropped.
- *
- * FALLBACK IS THE SEGMENT AS RECORDED. A short buffer, an unsupported rate or a detector that finds
- * no speech returns the input unchanged; losing a dictation is worse than sending its silence.
+ * push-to-talk segment (the real 2026-10-22 recording: 2 s of speech, then 8 s of near-silence). That
+ * silence costs upload bytes, gives the recogniser no words, and — as the same recording showed —
+ * gives a model with little to tidy a chance to answer with nearby instruction text. The trim is the
+ * ordinary VAD splice with every internal pause kept whole (`trimSilenceEdges`), so the recogniser
+ * still sees its punctuation cues; only the head/tail outside the first/last speech region is
+ * dropped. FALLBACK IS THE SEGMENT AS RECORDED: a short buffer, an unsupported rate or a detector
+ * that finds no speech returns the input unchanged; losing a dictation is worse than its silence.
  */
 function trimSegmentEdges(wav: Uint8Array): Uint8Array {
   const pcm = wavPcm16(wav);
@@ -483,19 +488,15 @@ function trimSegmentEdges(wav: Uint8Array): Uint8Array {
  * How long a stepped-over silence gap is kept, for the recogniser that will transcribe this input.
  *
  * THE GAP FILTER IS THIS PATH'S 裁不裁, and 裁不裁 is the recogniser's own declaration (ADR-004
- * decision 1), read at the capability's one read point in `@/shared/voiceTrim` — the pure mapping
- * from a declared capability to "run the trim". A recogniser whose pauses are worth nothing to it
- * (`destructive`) gets long stepped-over gaps compressed to `DEFAULT_KEEP_GAP_SEC` — the shipped
- * behaviour. One whose declaration says its pauses may carry the punctuation (`neutral` / `useful`)
- * keeps them whole, which the segmenter expresses by asking it to keep gaps of unbounded length;
- * no capability knowledge is added to that module, it is only handed a length.
+ * decision 1), read at the capability's one read point in `@/shared/voiceTrim`. A recogniser whose
+ * pauses are worth nothing (`destructive`) gets long stepped-over gaps compressed to
+ * `DEFAULT_KEEP_GAP_SEC` — the shipped behaviour. One whose declaration says its pauses may carry
+ * the punctuation (`neutral` / `useful`) keeps them whole, which the segmenter expresses by asking
+ * it to keep gaps of unbounded length; no capability knowledge is added to that module.
  *
  * The declaration is asked for BY THE ID THE REQUEST WILL BE SENT UNDER — the accessor above reads
- * back the health reading's effective provider, the same id `transcribeVoice` routes on — rather
- * than by an id written here. No declaration to read (the health reading has not landed, or names
- * an id no adapter claims) is not a licence to trim: the filter changes the audio, so an unknown
- * recogniser gets its pauses kept. The switch is the user's and only ever turns a trim off, so it
- * is ANDed with the declaration.
+ * back the health reading's effective provider, the same id `transcribeVoice` routes on. No
+ * declaration to read is not a licence to trim, and the user's switch only ever turns a trim off.
  */
 function gapFilterSecForCapture(): number {
   const recogniser = effectivePauseCuesDeclaration();
@@ -578,6 +579,8 @@ type CaptureSession = {
   sendRequested: boolean;
   /** The last refusal seen for an ordinal, so a failed segment can report its code. */
   refusals: Map<number, VoiceTranscriptionFailure>;
+  /** Ordinals whose refusal is DEFINITIVE; a transient one is retried rather than remembered. */
+  definitiveRefusals: Set<number>;
   /** Raw 16 kHz PCM chunks for the original replay track, until the cap is passed. */
   originalChunks: Int16Array[];
   originalSamples: number;
@@ -687,11 +690,9 @@ const startingPlay = (track: VoiceClipTrack): VoiceClipPlayState => ({
 /**
  * Continuous capture dictation. Records the microphone as 20 ms PCM frames, cuts the stream at
  * pauses into upload-sized segments, transcribes each through `/api/voice/transcribe`, and commits
- * the answers in spoken order through `onTranscript`.
- *
- * It also keeps the last listen as a single slot (`clipSlot`) so the composer can replay what was
- * said — the filtered audio the segments were cut from, and, when the stream stayed under the cap,
- * the raw PCM beside it.
+ * the answers in spoken order through `onTranscript`. It also keeps the last listen as a single slot
+ * (`clipSlot`) so the composer can replay what was said — the filtered audio the segments were cut
+ * from, and, when the stream stayed under the cap, the raw PCM beside it.
  *
  * `onError` carries two kinds of failure (see `VoiceFailureReport`): a recogniser refusal as the
  * `{ code, status, upstreamCode }` the answer carried, and the chain's own local failures as the
@@ -924,9 +925,6 @@ export function useVoiceInput(
    * to" is decided in the module that holds those rows, which answers with a refusal and makes NO
    * request — the audio stays on the device rather than being uploaded to whatever provider the
    * server would otherwise default to.
-   *
-   * Throwing is how the pipeline is told to retry, and `refusals` is where the structured reason is
-   * left so a segment that runs out of retries can still report the code the recogniser sent.
    */
   const transcribeViaServer = (
     session: CaptureSession,
@@ -965,6 +963,9 @@ export function useVoiceInput(
       if (!response.ok) {
         const refusal = await refusalDetail(response);
         session.refusals.set(job.index, refusal);
+        // Only an ANSWER settles the ordinal: a transient refusal stays out of this set, so the
+        // pipeline's next attempt really uploads instead of rethrowing what it already knew.
+        if (isDefinitiveRefusal(refusal)) session.definitiveRefusals.add(job.index);
         throw refusal;
       }
       // Both taken before the body is read for the transcript, because both live BESIDE the envelope
@@ -990,6 +991,7 @@ export function useVoiceInput(
         // a recogniser that answered "nothing to say" will answer the same way again.
         const failure: VoiceTranscriptionFailure = { status: response.status, code: 'NO_SPEECH_DETECTED' };
         session.refusals.set(job.index, failure);
+        session.definitiveRefusals.add(job.index);
         throw failure;
       }
       const repaired = repairIdentifiers(text, candidatesRef.current);
@@ -1006,10 +1008,10 @@ export function useVoiceInput(
    * One segment, recognised by THIS DEVICE, or the reason the server should take it.
    *
    * THE ROUTING DECIDES, NOT THIS FUNCTION. `routeClientAsrSegment` is the policy — it recognises on
-   * the device, measures the segment, and either returns the result or names why it left. A
-   * give-up here is not a failure to report but a HAND-OFF: the caller addresses the upload to the
-   * fallback recogniser and tells the user why. The decision is not duplicated here, because a second
-   * copy of "when do we fall back" is a second answer that can drift.
+   * the device, measures the segment, and either returns the result or names why it left. A give-up
+   * here is a HAND-OFF rather than a failure: the caller addresses the upload to the fallback
+   * recogniser and tells the user why. The decision is not duplicated here, because a second copy of
+   * "when do we fall back" is a second answer that can drift.
    *
    * A REFUSAL FROM THE DEVICE IS KEPT. `NO_SPEECH_DETECTED` from the model, or a container the engine
    * cannot read, is remembered exactly as the server's own refusal is: it is a definitive answer about
@@ -1057,6 +1059,7 @@ export function useVoiceInput(
         ...(route.result.status === undefined ? {} : { status: route.result.status }),
       };
       session.refusals.set(job.index, failure);
+      if (isDefinitiveRefusal(failure)) session.definitiveRefusals.add(job.index);
       throw failure;
     }
 
@@ -1076,14 +1079,10 @@ export function useVoiceInput(
   /**
    * One segment's journey: the device when it is selected and can answer, the server otherwise.
    *
-   * The remembered refusal is checked HERE rather than inside either path, because it is about the
-   * SEGMENT rather than about the recogniser that refused it: whichever path answered first has
-   * answered, and the pipeline's retries are for transient failures.
-   *
-   * A GIVE-UP IS ANNOUNCED, THEN HONOURED. The user is told the clip left the device and why BEFORE
-   * the upload starts, because a fallback is a disclosure they did not ask for and the difference
-   * between "the device was slow" and "your audio went to a server" is theirs to know — including
-   * when the upload then fails, which is exactly when the reason is the only thing left to show.
+   * The remembered refusal is checked HERE rather than inside either path: it is about the SEGMENT
+   * rather than the recogniser, and whichever path answered first has answered. A GIVE-UP IS
+   * ANNOUNCED, THEN HONOURED — the user is told the clip left the device BEFORE the upload starts,
+   * because a fallback is a disclosure they did not ask for, including when that upload then fails.
    */
   const transcribeSegment = (session: CaptureSession, job: SegmentJob): Promise<string> =>
     (async () => {
@@ -1091,8 +1090,11 @@ export function useVoiceInput(
       // transient failures. Re-asking a provider that has answered would spend a second request (and
       // for a metered provider, a second charge) on a question whose answer is not going to change, so
       // the remembered refusal is re-thrown without a call: the segment still exhausts its retries and
-      // is still reported once, but only one upload is ever made.
-      const remembered = session.refusals.get(job.index);
+      // is still reported once, but only one upload is ever made. A TRANSIENT refusal is deliberately
+      // NOT in this set — `refusals` still carries it for the report, while the next attempt uploads.
+      const remembered = session.definitiveRefusals.has(job.index)
+        ? session.refusals.get(job.index)
+        : undefined;
       if (remembered) throw remembered;
       if (isVoiceClientAsrSelected()) {
         const onDevice = await transcribeOnDevice(session, job);
@@ -1268,6 +1270,7 @@ export function useVoiceInput(
         stopRequested: false,
         sendRequested: false,
         refusals: new Map(),
+        definitiveRefusals: new Set(),
         originalChunks: [],
         originalSamples: 0,
         originalCapped: false,
@@ -1420,6 +1423,7 @@ export function useVoiceInput(
         stopRequested: true,
         sendRequested: false,
         refusals: new Map(),
+        definitiveRefusals: new Set(),
         originalChunks: [],
         originalSamples: 0,
         originalCapped: false,
@@ -1535,17 +1539,13 @@ export function useVoiceInput(
    * `labelsFor` for what is derived from the difference.
    *
    * IT NEVER COSTS THE SEND. The message the user asked to send has already gone by the time this
-   * runs, and everything here is a best-effort side channel: a store that answered `404` (the record
-   * was evicted by the ceiling, or cleared, since the listen), a failed request, and a deployment
-   * that wired no such route all leave the same trace — the label was not kept — and none of them
-   * may surface to a user who never asked for labels in the first place. The synchronous `try` is
-   * for the seam itself rather than for the network: this runs inside the submit handler, and a
-   * throw from the transport's own construction would otherwise take the send with it.
-   *
-   * IT IS GATED ON THE USER'S OWN SWITCH, read here rather than captured earlier so that turning
-   * recording off in another tab takes effect on the next send: `voiceDataRecording === false` means
-   * nothing was written for this listen, so there is nothing to write back to. That gate is also
-   * what keeps the whole path — no labels computed, no request built — off for a user who declined.
+   * runs, and everything here is a best-effort side channel: a store that answered `404`, a failed
+   * request, and a deployment that wired no such route all leave the same trace — the label was not
+   * kept — and none of them may surface to a user who never asked for labels. The synchronous `try`
+   * is for the seam rather than the network: this runs inside the submit handler, and a throw from
+   * the transport's own construction would otherwise take the send with it. The whole path is gated
+   * on the user's own switch, read here so turning recording off in another tab takes effect on the
+   * next send: `voiceDataRecording === false` means nothing was written to write back to.
    */
   const writeSentLabels = useCallback((finalText: string) => {
     const listen = lastListenRef.current;

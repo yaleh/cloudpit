@@ -1121,9 +1121,9 @@ export async function probeRequestConstruction(provider: AsrAdapter): Promise<In
 
 type ErrorScenario = { id: string; step: InvariantStep; expected: string; detail: string };
 
-/** A code as the group compares it: the shape of a failed outcome, one request spent. */
-function failedWith(code: AsrErrorCode): string {
-  return `${code} requests=1`;
+/** A code as the group compares it: the shape of a failed outcome, its request count spelled out. */
+function failedWith(code: AsrErrorCode, requests = 1): string {
+  return `${code} requests=${requests}`;
 }
 
 /**
@@ -1143,8 +1143,11 @@ function failedWith(code: AsrErrorCode): string {
  * SHAPE reaching the adapter — a status, an abort, a rejection, a body that is not JSON — and it is
  * the shape, not the code, that a regression would break.
  *
- * Every row here reaches the transport, so every row spends exactly one request: the two guards
- * that refuse BEFORE the transport are the size and mime groups' subject, not this one's.
+ * Every row here reaches the transport, and every row but one spends exactly one request: the two
+ * guards that refuse BEFORE the transport are the size and mime groups' subject, not this one's. The
+ * exception is `error.transport` itself — a rejection that carried no answer at all is retried once
+ * inside the adapter (`fetchWithTransportRetry`), so its reading is two requests and one code; the
+ * timeout row stays at one, because an abort is the caller's budget and retrying would double it.
  *
  * THE ANSWER-SHAPED ROWS ARE BUILT PER WIRE. A status is a status on any wire, so those rows are
  * shared; an "answer with no text" is not, because what counts as an answer differs — a generation
@@ -1161,7 +1164,7 @@ export function errorScenarios(wire: AsrWire): ErrorScenario[] {
     { id: 'error.status-500', step: { kind: 'json', status: 500, payload: { error: 'boom' } }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'an upstream fault is the upstream-unavailable code' },
     { id: 'error.status-503', step: { kind: 'json', status: 503, payload: { error: 'unavailable' } }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'an unavailable upstream follows the same rule as any other 5xx' },
     { id: 'error.status-400', step: { kind: 'json', status: 400, payload: { error: 'bad request' } }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'a request the upstream rejects is not the credential code' },
-    { id: 'error.transport', step: { kind: 'reject', mode: 'transport' }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'a transport that never answered is an unavailable upstream, the same code a 5xx reaches' },
+    { id: 'error.transport', step: { kind: 'reject', mode: 'transport' }, expected: failedWith('UPSTREAM_UNAVAILABLE', 2), detail: 'a transport that never answered is an unavailable upstream, the same code a 5xx reaches; the rejection carried no answer, so the adapter retries it once and the failure costs two requests rather than one attempt' },
     { id: 'error.timeout', step: { kind: 'reject', mode: 'timeout' }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'an aborted request is an unavailable upstream too, and is read from the abort rather than from any status' },
     { id: 'error.body-not-json', step: { kind: 'raw', body: answers.notAnAnswer }, expected: failedWith('UPSTREAM_UNAVAILABLE'), detail: 'a gateway page is neither a transcript nor a crash' },
     { id: 'error.envelope-without-text', step: { kind: 'json', payload: answers.empty }, expected: failedWith('NO_SPEECH_DETECTED'), detail: 'an answer carrying no text is an empty answer, not a success with empty text' },
