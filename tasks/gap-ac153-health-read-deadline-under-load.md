@@ -3,7 +3,7 @@ id: gap-ac153-health-read-deadline-under-load
 title: AC-153 判据的 health 就绪等待仍是任务自加的固定 15s：负载下在用例体内先红（"the page never read a
   health payload naming the selected provider as effective"），同功能树 4 分钟前 45.3s
   通过、本轮直跑 34.3s 通过——按实测负载包络具名定值并让超时自报已观察 payload
-status: ready
+status: done
 labels:
   - gap
   - defect
