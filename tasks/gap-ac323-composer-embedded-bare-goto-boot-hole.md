@@ -190,14 +190,6 @@ b23d6e045e4ce974637427f203651e59ef05b20f   ⇒ 与 payload.treeSha 相等
 - e2e/voice-realtime-composer-embedded.spec.ts
 - tasks/gap-ac323-composer-embedded-bare-goto-boot-hole.md（self）
 
-## Blocker
-
-**2026-11-06T14:30:40.394Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: __PERFILE__ duration_ms=8362 src/shared/asr/tests/asrContractInvariants.test.ts passed=false end_ms=1793975201770 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：14b9aef7-8483-448c-b3ba-8e04ac6f4bdc
-
 ## 复验（2026-11-06T14:35Z，第二轮 worker）
 
 上一轮 exited-not-landed 的两个 suite 红与本任务 delta 无关（本任务只改 `e2e/`，两个文件与 `develop` 逐字相同），按 `per-test-timeout-flake-is-labelled-task-introduced` 取证：
