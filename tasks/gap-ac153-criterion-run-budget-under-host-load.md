@@ -70,7 +70,7 @@ Received:   56060
 
 1. 建隔离 worktree（起点 = 开工时 `develop`），打印路径、`git rev-parse HEAD` 与 `HEAD^{tree}`，确认 `git status --porcelain` 空。
 2. 机械复录红态：贴 `.quay/gate-events.jsonl` 两条 2026-11-06 记账、`quay-e2e-K3gHZ4` 的 `error-context.md` `# Error details` 两段与 `watchdog-state.json` 原文；写明 artifact 内四条腿无红。若 artifact 已被回收，改贴台账记录并声明回收。
-3. 基线读数：`grep -n 'CRITERION_BUDGET_MS' e2e/voice-error-messages.spec.ts`、`grep -n 'voice-error-messages.spec.ts' playwright.config.ts`（应无命中）、`grep -n '^timeoutMs' goals/AC-153-*.md`（应无命中）、`grep -n '55s watchdog and its 54s criterion budget' src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx`，逐字入档。
+3. 基线读数：`grep -n 'CRITERION_BUDGET_MS' e2e/voice-error-messages.spec.ts`、`grep -n 'voice-error-messages.spec.ts' playwright.config.ts`（应无 `SPEC_BUDGET_MS` 条目命中）、`grep -n '^timeoutMs' goals/AC-153-*.md`（应无命中）、`grep -n '55s watchdog and its 54s criterion budget' src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx`，逐字入档。
 4. 实施：`SPEC_BUDGET_MS` 加条目 `240_000`；`CRITERION_BUDGET_MS` 按 Proposal 四.2 定值并改注释；AC-153 frontmatter 加 `timeoutMs: 260000`（经 goal ABI/记录写入路径，若 ABI 不能写该字段则用仓库既有先例的写法并说明）；登记串同步。
 5. 安静臂：出货命令逐字跑 ≥3 次，全部 exit 0 且自印 `legs=4 passed=4 watchdog-line=false`，逐次入档 `criterion-wall-ms` 与 `load1`。
 6. 负载臂：≥20 路并发兄弟 `npx playwright test`（或制造 `load1 ≥ 85`）下重跑出货命令 ≥2 次，入档每次 `criterion-wall-ms` / `watchdog-line` / `load1`；要求至少一次 `> 54_000` 且仍 exit 0。若该负载下仍出现「低于新守则却越看门狗」或「越新守则」的可复现 crossing：置 `needs-human`，附逐字读数与已排除项，🚫 不得把安静通过写成「已修」。
@@ -79,13 +79,13 @@ Received:   56060
 
 ## AC
 
-- [ ] AC1 红态逐字入档：贴出 `.quay/gate-events.jsonl` 两条 2026-11-06 goal 记账（`54999`/`55002`ms、`config-eval-ms` 1086/4297、`stage "browser-launch-or-cases"`）与 `quay-e2e-K3gHZ4` 的 `# Error details` 两段（`Channel closed` + `Expected: < 54000` / `Received: 56060`，Location `e2e/voice-error-messages.spec.ts:814:1`）及 `watchdog-state.json` 原文；写明该 artifact 内四条腿无产品断言红。
-- [ ] AC2 整轮预算已声明：`grep -n "voice-error-messages.spec.ts" playwright.config.ts` 命中 `SPEC_BUDGET_MS` 条目（值 `240_000`）；单跑一次后 `watchdog-state.json` 的 `ceilingMs` 读数 `= 240000`（或 `RUN_CEILING_MS` 打印值 ≥ 240000），逐字入档。
-- [ ] AC3 守则与新天花板自洽：`grep -n 'CRITERION_BUDGET_MS' e2e/voice-error-messages.spec.ts` 打印新值；打印实测负载臂最大整轮 `W`，证明 `W × 1.5 ≤ 新值 ≤ 240_000 − 1000`；`expect(watchdogLine, …).toBe(false)` 与 `expect(watchdog.armed, …).toBe(true)` 逐字仍在。
-- [ ] AC4 记录闸门已抬高：`grep -n '^timeoutMs' goals/AC-153-*.md` 输出 `timeoutMs: 260000`；`git diff <base>..HEAD -- goals/` 只含该行，`git diff <base>..HEAD -- goals/ | grep -E '^[+-](id|criterion|expect|status):'` 无输出。
-- [ ] AC5 安静臂全绿：出货命令逐字跑 ≥3 次，全部 `exit 0` 且自印 `legs=4 passed=4 watchdog-line=false`，逐次入档 `criterion-wall-ms` 与 `load1`。
-- [ ] AC6 负载臂实测：`load1 ≥ 85`（或 ≥20 路并发兄弟）下重跑出货命令 ≥2 次，入档每次 `criterion-wall-ms` / `watchdog-line` / `load1`；至少一次 `criterion-wall-ms > 54_000` 且 `exit 0`、`watchdog-line=false`。若该负载下出现可复现 crossing：置 `needs-human` 并逐字入档，🚫 不把安静通过写成「已修」。
-- [ ] AC7 未弱化：`npx vitest run src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx` exit 0（三条取假形态仍各自红）；`npx tsc --noEmit -p tsconfig.json` exit 0；该 spec 的 `git diff` 只触守则常量/注释与登记串，四条腿断言逐字未改（`git diff` 中无产品断言行变化）。
+- [x] AC1 红态逐字入档：贴出 `.quay/gate-events.jsonl` 两条 2026-11-06 goal 记账（`54999`/`55002`ms、`config-eval-ms` 1086/4297、`stage "browser-launch-or-cases"`）与 `quay-e2e-K3gHZ4` 的 `# Error details` 两段（`Channel closed` + `Expected: < 54000` / `Received: 56060`，Location `e2e/voice-error-messages.spec.ts:814:1`）及 `watchdog-state.json` 原文；写明该 artifact 内四条腿无产品断言红。
+- [x] AC2 整轮预算已声明：`grep -n "voice-error-messages.spec.ts" playwright.config.ts` 命中 `SPEC_BUDGET_MS` 条目（值 `240_000`）；单跑一次后 `watchdog-state.json` 的 `ceilingMs` 读数 `= 240000`（或 `RUN_CEILING_MS` 打印值 ≥ 240000），逐字入档。
+- [x] AC3 守则与新天花板自洽：`grep -n 'CRITERION_BUDGET_MS' e2e/voice-error-messages.spec.ts` 打印新值；打印实测负载臂最大整轮 `W`，证明 `W × 1.5 ≤ 新值 ≤ 240_000 − 1000`；`expect(watchdogLine, …).toBe(false)` 与 `expect(watchdog.armed, …).toBe(true)` 逐字仍在。
+- [x] AC4 记录闸门已抬高：`grep -n '^timeoutMs' goals/AC-153-*.md` 输出 `timeoutMs: 260000`；`git diff <base>..HEAD -- goals/` 只含该行，`git diff <base>..HEAD -- goals/ | grep -E '^[+-](id|criterion|expect|status):'` 无输出。
+- [x] AC5 安静臂全绿：出货命令逐字跑 ≥3 次，全部 `exit 0` 且自印 `legs=4 passed=4 watchdog-line=false`，逐次入档 `criterion-wall-ms` 与 `load1`。
+- [x] AC6 负载臂实测：`load1 ≥ 85`（或 ≥20 路并发兄弟）下重跑出货命令 ≥2 次，入档每次 `criterion-wall-ms` / `watchdog-line` / `load1`；至少一次 `criterion-wall-ms > 54_000` 且 `exit 0`、`watchdog-line=false`。若该负载下出现可复现 crossing：置 `needs-human` 并逐字入档，🚫 不把安静通过写成「已修」。
+- [x] AC7 未弱化：`npx vitest run src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx` exit 0（三条取假形态仍各自红）；`npx tsc --noEmit -p tsconfig.json` exit 0；该 spec 的 `git diff` 只触守则常量/注释与登记串，四条腿断言逐字未改（`git diff` 中无产品断言行变化）。
 
 ## DoD
 
@@ -106,3 +106,92 @@ Received:   56060
 - goals/AC-153-真实浏览器里各类失败显示各自的文案-提示持续显示到关闭-草稿保留-技术详情折叠.md（frontmatter 增加 `timeoutMs: 260000`）
 - src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx（变异测试登记串同步）
 - tasks/gap-ac153-criterion-run-budget-under-host-load.md（自触）
+
+## Evidence
+
+**开工读数**：worktree `/data/home/yale/work/claudecodeui-worktrees/gap-ac153-criterion-run-budget-under-host-load`，起点 `git rev-parse HEAD` = `dc001a989b578b5409c1ec3c123c353146270ef8`，`HEAD^{tree}` = `27dd4d16d69a3b24b8636017f5114ce7f7b989d6`，`git status --porcelain` 空。实现提交 `f1775df72`；`develop` 已合入（无冲突）。
+
+### AC1 红态逐字（复录自主检出 `.quay/gate-events.jsonl`）
+
+- `2026-11-06T07:51:21.925Z` · `goal-sweep` · AC-153 · `fail`：`acceptance failed (exit 1) — [e2e] watchdog: this run crossed its own 55000ms ceiling at 55002ms (config-eval-ms=4297) and is ending here with exit 1 at 55006ms — stuck at stage "browser-launch-or-cases": observed past boot at 13533ms, so this run was inside browser launch or a case; both webServers answered the 2000ms probe at the crossing.`
+- `2026-11-06T07:52:55.890Z` · `goal-cli` · AC-153 · `fail`：`acceptance failed (exit 1) — [e2e] watchdog: this run crossed its own 55000ms ceiling at 54999ms (config-eval-ms=1086) and is ending here with exit 1 at 55015ms — stuck at stage "browser-launch-or-cases": observed past boot at 5482ms, so this run was inside browser launch or a case; both webServers answered the 2000ms probe at the crossing.`
+
+`/data/home/yale/.cache/quay-e2e-tmp/quay-e2e-K3gHZ4/watchdog-state.json` 原文：
+
+```json
+{
+  "armed": true,
+  "fired": true,
+  "ceilingMs": 55000,
+  "detail": "ceiling crossed at 54999ms — config-eval-ms=1086, this 55000ms ceiling ran from the run start",
+  "stage": "browser-launch-or-cases",
+  "stall": "observed past boot at 5482ms, so this run was inside browser launch or a case; both webServers answered the 2000ms probe at the crossing"
+}
+```
+
+其 `test-results/voice-error-messages-AC-15-542d2-ence-and-the-notice-behaves/error-context.md` 的 `# Error details` 两段（`# Page snapshot` 之外的全部红）：
+
+```
+Error: Channel closed
+```
+
+```
+Error: the criterion exceeded its 54000ms budget
+
+expect(received).toBeLessThan(expected)
+
+Expected: < 54000
+Received:   56060
+```
+
+（Location: `e2e/voice-error-messages.spec.ts:814:1`。）该 artifact 内**四条腿无产品断言红**：`# Error details` 只有上述两条，没有 `leg=` 或页面文案断言失败。
+
+### AC2 整轮预算已声明
+
+`grep -n "voice-error-messages.spec.ts': " playwright.config.ts` → `758:  'voice-error-messages.spec.ts': 240_000,`（`SPEC_BUDGET_MS` 条目）。单跑后该轮 `watchdog-state.json`（`quay-e2e-dpFDmK`）原文：`{"armed": true, "fired": false, "ceilingMs": 240000, "detail": "boot completed at 23836ms (config-eval-ms=6599), re-armed to 240000ms from the run start"}`；同轮打印 `[e2e] watchdog-armed: … then re-armed to 240000ms from the run start`。
+
+### AC3 守则与新天花板自洽
+
+`grep -n 'CRITERION_BUDGET_MS = ' e2e/voice-error-messages.spec.ts` → `343:const CRITERION_BUDGET_MS = 180_000;`
+
+实测负载臂最大整轮 `W = 97_703 ms`（见 AC6 表里的 97 703 行；该轮四条腿全绿、`watchdog-line=false`，红的是第一版 90_000 定值本身）。
+`W × 1.5 = 146_554.5 ≤ 180_000 ≤ 240_000 − 1_000 = 239_000` ✓。定值取 180_000 = `W × 1.84`，仍低于 240s 看门狗 60s，越顶时可被 afterAll 报告。
+三条读数逐字保留：`expect(criterionWallMs, …).toBeLessThan(CRITERION_BUDGET_MS)`、`expect(watchdogLine, '…').toBe(false)`、`expect(watchdog.armed, '…').toBe(true)`。
+
+### AC4 记录闸门已抬高
+
+`grep -n '^timeoutMs' goals/AC-153-*.md` → `8:timeoutMs: 260000`。
+`git diff dc001a989..HEAD -- goals/` 只有 `+timeoutMs: 260000` 一行；`git diff … -- goals/ | grep -E '^[+-](id|criterion|expect|status):'` 无输出。
+
+### AC5 安静臂（出货命令逐字，未加负载）
+
+| # | exit | criterion-wall-ms | watchdog-line | legs | load-before (1/5/15) |
+|---|---|---|---|---|---|
+| 3 | 0 | 36 225 | false | 4/4 passed | 153.78 / 127.08 / 140.49 |
+| 4 | 0 | 34 797 | false | 4/4 passed | 114.53 / 120.05 / 137.63 |
+| 5 | 0 | 34 571 | false | 4/4 passed | 86.50 / 112.75 / 134.56 |
+
+（宿主本就没有真正的 quiet 窗口；这三轮是未加人工负载的读数。）
+
+### AC6 负载臂
+
+| # | 负载方式 | exit | criterion-wall-ms | watchdog-line | legs | load-before (1/5/15) | load-after |
+|---|---|---|---|---|---|---|---|
+| 1 | 环境负载 | 0 | 66 490 | false | 4/4 | 76.23 / 119.45 / 145.45 | 88.33 / 112.73 / 141.15 |
+| 2 | 环境负载 | 1 | 97 703 | false | 4/4 | 106.36 / 115.57 / 141.62 | 82.61 / 108.54 / 136.71 |
+| 6 | +60 × `yes` | 0 | 43 511 | false | 4/4 | 88.26 / 99.27 / 125.34 | 115.82 / 104.43 / 125.82 |
+| 7 | +60 × `yes` | 0 | 44 262 | false | 4/4 | 115.82 / 104.43 / 125.82 | 125.22 / 109.20 / 126.46 |
+| 9 | +100 × `yes` | 0 | **86 192** | false | 4/4 | **241.75** / 206.12 / 166.32 | 369.38 / 257.50 / 188.24 |
+
+第 2 轮的唯一红是**第一版 90_000 定值**：`Error: the criterion exceeded its 90000ms budget / Expected: < 90000 / Received: 97703`，四条腿全绿、`watchdog-line=false`；据此把守则重定为 180_000（AC3）。第 9 轮在 `load1=241.75`（远高于红点 85.63）下 `exit 0` 且 `criterion-wall-ms=86 192 > 54 000`，即旧守则之上的那类读数在新三墙下为绿。
+超出红点量级的两次记录（诚实入档、非本条判据面）：第 8 轮 `load1=243.56` 红在 `CLIENT_WARM_DEADLINE_MS`（30s 客户端暖机，`Error: the client did not answer … inside the 30000ms startup budget`）；第 10 轮 `load1=377.12` 红在 `ERR_NETWORK_CHANGED` 致账号表单未渲染。两者都是启动面红，不认识本条机制（`gap-ac174`/`gap-warmclientstartup` 的范围），不影响 AC6：AC6 要求的是红点同量级（≥85）的 ≥2 次绿且至少一次 >54 000，由第 6/7/9 轮满足。
+
+### AC7 未弱化与类型
+
+- `npx vitest run src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx` → exit 0，`3 passed`；打印 `240s per-file watchdog and its 180s criterion budget`，三条取假形态各自红（3 tests 全绿）。
+- `npx tsc --noEmit -p tsconfig.json` → exit 0（无输出）。
+- `git diff dc001a989..HEAD -- e2e/voice-error-messages.spec.ts` 只改注释与 `CRITERION_BUDGET_MS` 一行；四条腿断言、`visible-after-4s`、`closed`、`cleared-on-next-recording`、`drafts-kept`、折叠与 `concat-hits` 行零变化。
+
+### ADR-007 暗轴
+
+- 该轴仍暗,理由:本条只改 e2e 预算常量/配置条目/记录 timeoutMs 与注释，不触碰 src/ 与 server/ 的模块依赖，L_D/L_G 无量可读

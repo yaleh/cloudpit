@@ -42,6 +42,7 @@ extra:
 - server/modules/cockpit/cockpit-card-registry.ts
 - server/modules/quay/tests/quay-fleet-cli.test.ts
 - server/modules/cockpit/tests/cockpit-fleet-card-provider.test.ts
+- server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts
 
 ## Evidence
 
@@ -56,12 +57,14 @@ extra:
 - DoD(a)：隔离实例 `tmp/dod/iso-a`，`ISOLATED_INSTANCE_SERVER_ENTRY=<wt>/tmp/dod/iso-entry.mjs`（合并 `cockpit.enabled=true`、`cockpit.fleetCards={enabled:true,ttlMs:1}`）、`QUAY_FLEET_BIN=<wt>/tmp/dod/quay-fleet-fixture`、`FLEET_FIXTURE_MODE=a`（67 条，恰好 1,079,812 B）。真实 `GET /api/cockpit/cards` → HTTP 200，`cards=67`，diagnostic `{ok:true,cards:67,skippedLines:0}`，响应 1,086,227 B。请求/响应原文：`tmp/dod/request-a.txt`、`tmp/dod/response-a.json`；夹具与生成器：`tmp/dod/quay-fleet-fixture`、`tmp/dod/make-fixtures.mjs`。
 - DoD(b)：隔离实例 `tmp/dod/iso-b`，`FLEET_FIXTURE_MODE=b`（2,000 条完整卡 6,549,572 B + 4 MiB 无换行末段，总 10,743,876 B > 8 MiB）。真实 `GET /api/cockpit/cards` → HTTP 200，`cards=2000`（= 全部完整行），diagnostic `{ok:true,truncated:true,completeLines:2000,truncatedTailBytes:1839036,skippedLines:0}`，响应 6,773,626 B。原文：`tmp/dod/request-b.txt`、`tmp/dod/response-b.json`。
 - Touches 追加说明：`errorCode` 必须出现在 `CockpitFleetCommandResult`（`server/modules/cockpit/cockpit-fleet-executor.ts`），`truncated`/`completeLines`/`truncatedTailBytes` 必须出现在 `CockpitCardProviderDiagnostic`（`server/modules/cockpit/cockpit-card-registry.ts`）；两者都是本任务实现的必要类型声明，不是顺手改动。
+- Contract 守卫修复（上一轮 fan-in 的 suite 红因）：`server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts` 的 AC3 home 守卫漏掉了常驻 fleet service 自己写的 `service.log.jsonl` 及其原子写临时文件 `<target>.tmp-<pid>-<token>`。证据链：全量 suite 捕获 `service.log.jsonl` + `attention.json.tmp-2889651-9ed25ce240fd (removed)`，隔离重跑又在 10s 窗口捕获 `service.log.jsonl`；tmp 名里的 pid 2889651 正是 `~/.quay-fleet/service.pid` 记录的常驻 service pid，develop 基线只是窗口恰好没撞上写入（基线的同一文件 10,868ms pass），因此是守卫与常驻服务的竞态，不是本任务代码引入。修复：把 `service.log.jsonl` 列入 resident-service 文件集，并按 `service.pid` 的 pid 精确豁免该服务的原子写临时文件（pid 文件读不到时不豁免，防守卫真空绿）。验证：同一文件连跑两次均 17/17 pass；第二次 diagnostic 明确列出被豁免的 `attention.json.tmp-2889651-37da0b0fbbe5`（未修复时该条目即红）；`npx tsc --noEmit -p server/tsconfig.json` 与 `npx oxlint server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts` 均 exit 0。
+- Touches 追加说明 2：上述 contract 文件不是本任务功能实现的一部分，而是上一轮 fan-in 的 suite 阻断项——守卫与常驻服务竞态，不修则本任务每次 fan-in 都可能被同一红阻断；故声明进 Touches 以便 anti-drift 通过，修复只改豁免判定，不削弱 `registry.json` / `initiatives.json` / 决策账本的逐字检查。
 - 该轴仍暗,理由:本任务只修 fleet 读口容量与截断救回，不产生 L_D/L_G 文档-代码或架构轴读数。
 
 ## Blocker
 
-**2026-11-06T07:37:12.465Z — worker 未落地（exited-not-landed）**
+**2026-11-06T08:34:12.892Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts:   AssertionError [ERR_ASSERTION]: files under /data/home/yale/.quay-fleet moved during the contract run and are not written by the resident fleet service: service.log.jsonl, attention.json.tmp-2889651-9ed25ce240fd (removed) [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts,server/modules/quay/tests/contracts/fleet-cli-contracts.test.ts changed=-]
+- 未落地原因：step=suite: __PERFILE__ duration_ms=6558 src/modules/architecture/tests/plantUmlText.test.ts passed=false end_ms=1793953545334 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
 - run_id：wk-prod-anchor
-- session_id：d78b6f4f-d434-4769-a998-03c7353e1041
+- session_id：29b9e48e-74dc-48c0-8f92-d1a123292385
