@@ -28,8 +28,16 @@ import {
 } from '@/modules/architecture/dom/semanticZoomRead';
 import { MIN_ZOOM_SCALE } from '@/modules/architecture/layout/svgViewport';
 import {
+  addEdgeHitTargets,
+  captureSemanticDrawing,
+  drawSemanticLayout,
+  type SemanticCapture,
+} from '@/modules/architecture/layout/graphDom';
+import { capDrawnMemberRows, semanticDrawnFitScale } from '@/modules/architecture/layout/drawnFit';
+import {
   planCompactFrameHeight,
   planRectsIntersect,
+  SEMANTIC_MIN_FONT_PX,
   SEMANTIC_STRETCH_LIMIT,
 } from '@/modules/architecture/dom/semanticZoomPlan';
 import { TWENTY_SIX_PACKAGE_HIERARCHY } from '@/modules/architecture/tests/layoutFixtures';
@@ -1279,4 +1287,299 @@ describe('Fit after the member-hidden compaction', () => {
     );
     assert.ok(filled >= 0.9, `Fit must fill the canvas' binding dimension; filled ${filled}`);
   });
+});
+
+/**
+ * Arrowheads are RIGID markers, not geometry to re-project.
+ *
+ * The y solve reclaims the body space of a frame whose member rows are hidden
+ * by mapping that band to ZERO height — correct for the frame, fatal for an
+ * arrowhead drawn inside it: every polygon vertex lands on the same y, so the
+ * diamond becomes a zero-height line (and the degenerated centroid can even
+ * bend the marker to the far end). The marker therefore has to be placed from
+ * its OWN drawing: the end it belongs to and the vertex that pins it are read
+ * before the rewrite, and only its ORIGINAL offsets are scaled.
+ *
+ * Fixture: a drawing whose four frames all hide member rows, so the diamonds
+ * of its three `o--` relations sit inside reclaimed bands at both scales.
+ */
+describe('semantic arrowhead rewrite keeps markers rigid', () => {
+  /** One relation's arrow as drawn (after `drawSemanticLayout`). */
+  type DrawnArrow = {
+    readonly source: string;
+    readonly target: string;
+    readonly classes: string;
+    readonly width: number;
+    readonly height: number;
+    readonly points: readonly SemanticPoint[];
+    readonly pathFirst: SemanticPoint;
+    readonly pathLast: SemanticPoint;
+  };
+  type SemanticPoint = { readonly x: number; readonly y: number };
+
+  /**
+   * The ten-entity drawing from the reported session, with all eight `o--`
+   * relations. Its tall frames (16–22 members) hide member rows once the row
+   * cap applies, so the diamonds sit inside reclaimed y bands at BOTH scales —
+   * the exact geometry that produced zero-height diamonds before the fix.
+   */
+  const MEMBER_HEAVY_AGGREGATION = `@startuml
+package "plugin" as plugin {
+  package "plugin/scripts" as plugin_scripts {
+    interface "<<interface>> FrozenFailingReading" as n0 {
+      + cause:
+      + failing: string[]
+      + frozenScope: number
+      + judgment:
+    }
+    interface "<<interface>> GapSpawnPassResult" as n1 {
+      + llmInvoked: boolean
+      + outcomes: GapSpawnOutcome[]
+      + spawned: number
+    }
+    interface "<<interface>> GoalGap" as n2 {
+      + ac: string
+      + goal: string
+      + state: GapState
+      + taskCount: number
+    }
+    interface "<<interface>> PrefilingRecheckReading" as n3 {
+      + attempted: number
+      + entries: PrefilingRecheckEntry[]
+      + guardRefused: boolean
+      + ran: boolean
+    }
+    interface "<<interface>> GitTransition" as n4 {
+      + at: string
+      + commit: string
+      + from: string
+      + taskId: string
+      + to: string
+    }
+    interface "<<interface>> ReconcileReport" as n5 {
+      + carrierCorrupt: number
+      + carrierEvents: number
+      + carrierExists: boolean
+      + carrierPath: string
+      + carrierV0: number
+      + carrierV1: number
+      + edges: EdgeRow[]
+      + gitTransitions: number
+      + matchedByCommit: number
+      + matchedByShape: number
+      + missing: GitTransition[]
+      + missingCount: number
+      + ref: string
+      + root: string
+      + since: string
+      + until: string
+    }
+    interface "<<interface>> GapSpawnOutcome" as n6 {
+      + ac: string
+      + exitCode: number
+      + goal: string
+      + stderr: string
+      + stdout: string
+      + timedOut: boolean
+    }
+    interface "<<interface>> GoalRoundReadings" as n7 {
+      + achievedFailing: { achievedButFailing: string[]; evaluated: boolean; scopeSize: number; inScope: string[]; }
+      + activationBlocked: ActivationBlockedReading[]
+      + ciRuns: CiRunsRoundReading
+      + closeBlocks: { goal: string; verdict: GoalCloseBlockVerdict; acs: string[]; cause: GoalCloseBlockCause; branchTip?: string; }[]
+      + criteria: { id: string; goal: string; status: string; verdict:
+      + criterionCount: number
+      + criterionWorktrees: CriterionWorktreeReading[]
+      + flips: { id: string; to: string; ok: boolean; reason: string; }[]
+      + frozenFailing: FrozenFailingReading
+      + frozenRecheck: PrefilingRecheckReading
+      + gap_spawns: GapSpawnOutcome[]
+      + gaps: GoalGap[]
+      + goalBranchBackfills: GoalBranchBackfillReading[]
+      + goalCount: number
+      + llm_invoked: boolean
+      + phaseSplit: { excluded: string[]; maybePostMerge: string[]; }
+      + spawned: number
+      + staleness: { fresh: string[]; stale: string[]; notEvaluated: string[]; divergent: string[]; scopeSize: number; evaluated: boolean; }
+      + standingRecheck: PrefilingRecheckReading
+      + sufficiency_stall: SufficiencyStallPassResult
+    }
+    interface "<<interface>> PrefilingRecheckEntry" as n8 {
+      + ac: string
+      + behindDevelop: number
+      + cause:
+      + durationMs: number
+      + headSha: string
+      + hostFreeBytes: number
+      + load1: number
+      + outcome:
+      + reason: string
+      + verdict:
+    }
+    interface "<<interface>> EdgeRow" as n9 {
+      + edge: string
+      + eventCount: number
+      + from: string
+      + gitCount: number
+      + matchedByCommit: number
+      + matchedByShape: number
+      + missing: number
+      + missingSamples: { taskId: string; commit: string; }[]
+      + to: string
+    }
+  }
+}
+n1 o-- n6
+n7 o-- n0
+n7 o-- n6
+n7 o-- n2
+n7 o-- n3
+n3 o-- n8
+n5 o-- n9
+n5 o-- n4
+@enduml`;
+
+  const parsePairs = (value: string | null): SemanticPoint[] => [...(value ?? '').matchAll(
+    /(-?\d*\.?\d+(?:e[-+]?\d+)?)[\s,]+(-?\d*\.?\d+(?:e[-+]?\d+)?)/gi,
+  )].map((pair) => ({ x: Number(pair[1]), y: Number(pair[2]) }));
+
+  /** Every `.uml-arrow` on the drawing, with its own line's two ends. */
+  const readArrows = (svg: Element): DrawnArrow[] => [...svg.querySelectorAll('.uml-edge[data-edge-source]')]
+    .flatMap((group) => {
+      const path = group.querySelector('path');
+      const line = parsePairs(path?.getAttribute('d') ?? null);
+      const pathFirst = line[0];
+      const pathLast = line[line.length - 1];
+      if (pathFirst === undefined || pathLast === undefined) return [];
+      return [...group.querySelectorAll('polygon.uml-arrow')].map((polygon) => {
+        const points = parsePairs(polygon.getAttribute('points'));
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        return {
+          source: group.getAttribute('data-edge-source') ?? '',
+          target: group.getAttribute('data-edge-target') ?? '',
+          classes: polygon.getAttribute('class') ?? '',
+          width: xs.length === 0 ? 0 : Math.max(...xs) - Math.min(...xs),
+          height: ys.length === 0 ? 0 : Math.max(...ys) - Math.min(...ys),
+          points,
+          pathFirst,
+          pathLast,
+        };
+      });
+    });
+
+  let host: HTMLElement;
+  let capture: SemanticCapture;
+  let drawing: SemanticDrawingGeometry;
+  let fitScale: number;
+  /** The renderer's own marker size, per relation, keyed `source->target`. */
+  let originalSize: Map<string, { readonly width: number; readonly height: number }>;
+
+  beforeAll(async () => {
+    const elk = await import('@yalehwang/plantuml-js/elk') as unknown as PlantUmlElkModule & {
+      renderDetailed: (
+        puml: string,
+        options: unknown,
+      ) => Promise<{ svg: string }>;
+    };
+    const viewport = { width: 1680, height: 1000 };
+    const engine = createLayoutEngine({ aspectRatio: viewport.width / viewport.height, Engine: elk.ElkLayoutEngine });
+    const { svg } = await elk.renderDetailed(MEMBER_HEAVY_AGGREGATION, {
+      layout: engine,
+      detail: 'full',
+      memberMaxChars: 48,
+    });
+    host = document.createElement('div');
+    host.innerHTML = svg;
+    addEdgeHitTargets(host, false);
+    // The row cap is a DRAWING rule applied before the semantic capture; the
+    // reclaimed bands this case is about exist only after it.
+    capDrawnMemberRows(host);
+    const element = host.querySelector('svg');
+    assert.ok(element !== null, 'the real renderer produced an SVG');
+    const nodes = [...host.querySelectorAll('.uml-node[data-entity-id]')].map((node) => ({
+      id: node.getAttribute('data-entity-id') ?? '',
+      label: '',
+      kind: 'interface' as const,
+      distance: 1,
+    }));
+    drawing = readSemanticDrawingGeometry(element, {
+      kindById: new Map(nodes.map((node) => [node.id, node.kind])),
+    });
+    const captured = captureSemanticDrawing(host, { nodes, edges: [] });
+    assert.ok(captured !== null, 'the fixture must be capturable');
+    capture = captured;
+    fitScale = semanticDrawnFitScale(drawing, viewport, SEMANTIC_MIN_FONT_PX);
+    assert.ok(fitScale > 0, 'the fixture must have a fit');
+
+    // The renderer's original marker geometry, read off the untouched drawing.
+    // `capture.inner` is the SVG's inner markup, so the holder IS the root to read.
+    const original = document.createElement('div');
+    original.innerHTML = capture.inner;
+    originalSize = new Map(readArrows(original).map((arrow) => [
+      `${arrow.source}->${arrow.target}`,
+      { width: arrow.width, height: arrow.height },
+    ]));
+  });
+
+  /** Solve + draw the fixture, then read the rewritten DOM. */
+  const drawnAt = (scale: number): { arrows: DrawnArrow[]; layout: SemanticZoomLayout } => {
+    const layout = solveSemanticZoom(drawing, {
+      scale,
+      viewport: { width: 1680, height: 1000 },
+      previousTier: 'A',
+      minFontPx: SEMANTIC_MIN_FONT_PX,
+    });
+    drawSemanticLayout(host, capture, layout, SEMANTIC_MIN_FONT_PX);
+    const svg = host.querySelector('svg');
+    assert.ok(svg !== null);
+    return { arrows: readArrows(svg), layout };
+  };
+
+  for (const scaleName of ['Fit', '134%'] as const) {
+    const scaleOf = (): number => (scaleName === 'Fit' ? fitScale : 1.3376045227050781);
+
+    test(`${scaleName}: every arrow keeps a non-zero area and its original shape × scale`, () => {
+      const { arrows, layout } = drawnAt(scaleOf());
+      assert.equal(arrows.length, 8, 'the fixture draws all eight o-- relations');
+      for (const arrow of arrows) {
+        const key = `${arrow.source}->${arrow.target}`;
+        const size = originalSize.get(key);
+        assert.ok(size !== undefined, `${key} must have an original marker`);
+        assert.ok(arrow.width > 0 && arrow.height > 0,
+          `${key}: the marker collapsed (w=${arrow.width}, h=${arrow.height})`);
+        const expectedWidth = size.width * layout.scale;
+        const expectedHeight = size.height * layout.scale;
+        assert.ok(Math.abs(arrow.width - expectedWidth) <= 0.5,
+          `${key}: width ${arrow.width} must be the drawn width ${size.width} × ${layout.scale}`);
+        assert.ok(Math.abs(arrow.height - expectedHeight) <= 0.5,
+          `${key}: height ${arrow.height} must be the drawn height ${size.height} × ${layout.scale}`);
+      }
+    });
+
+    test(`${scaleName}: every aggregation diamond stays anchored on its source end`, () => {
+      const { arrows, layout } = drawnAt(scaleOf());
+      for (const arrow of arrows) {
+        assert.ok(arrow.classes.includes('uml-arrow-aggregation'),
+          `${arrow.source}->${arrow.target} is an o-- relation`);
+        // The anchor is the vertex nearest the line's own START (the `o--` end,
+        // which the engine snapped onto the frame).
+        const anchor = arrow.points.reduce((nearest, point) => (
+          Math.hypot(point.x - arrow.pathFirst.x, point.y - arrow.pathFirst.y)
+            < Math.hypot(nearest.x - arrow.pathFirst.x, nearest.y - arrow.pathFirst.y)
+            ? point
+            : nearest
+        ));
+        const toSource = Math.hypot(anchor.x - arrow.pathFirst.x, anchor.y - arrow.pathFirst.y);
+        const toTarget = Math.hypot(anchor.x - arrow.pathLast.x, anchor.y - arrow.pathLast.y);
+        const markerSize = Math.max(arrow.width, arrow.height);
+        assert.ok(toSource <= 1,
+          `${arrow.source}->${arrow.target}: anchor is ${toSource}px from the source end`);
+        assert.ok(toTarget > markerSize,
+          `${arrow.source}->${arrow.target}: the diamond must not sit on the target end `
+            + `(${toTarget}px vs marker ${markerSize}px)`);
+        assert.ok(layout.scale > 0);
+      }
+    });
+  }
 });

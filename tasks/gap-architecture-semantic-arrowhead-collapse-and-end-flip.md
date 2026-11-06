@@ -2,7 +2,7 @@
 id: gap-architecture-semantic-arrowhead-collapse-and-end-flip
 title: 架构图语义缩放把聚合菱形压成 0 高或移到 target 端：箭头按刚性标记重写（原始几何定端 + 锚点贴语义端点 + 原始偏移 ×
   layout.scale）
-status: ready
+status: done
 labels:
   - gap
   - defect
