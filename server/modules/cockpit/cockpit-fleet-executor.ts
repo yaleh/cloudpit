@@ -49,6 +49,14 @@ export type CockpitFleetCommandResult = {
   stderr: string;
   /** Why the child could not be run, when the seam knows (a missing binary, a timeout). */
   error?: string;
+  /**
+   * Node's string error code for a failure with no exit status, when the seam reported one.
+   *
+   * The card provider reads this to tell a `maxBuffer` kill — which still delivered the bytes
+   * captured before the kill — from a missing binary, which delivered none. Consumers that only
+   * branch on `exitCode`/`error` are unaffected by its presence.
+   */
+  errorCode?: string;
 };
 
 /** One declared parameter; `required` is the fleet's word about the call, not ours. */
