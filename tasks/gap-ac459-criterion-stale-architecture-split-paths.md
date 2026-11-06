@@ -1,7 +1,7 @@
 ---
 id: gap-ac459-criterion-stale-architecture-split-paths
 title: AC-459 判据读架构 god-package 拆分前的旧路径：改读 render/ 包边界并保留 BroadcastChannel 不变式
-status: todo
+status: ready
 labels:
   - gap
 parent: null
