@@ -3,7 +3,7 @@ id: gap-ac174-criterion-run-budget-and-boot-ceiling-below-load-slowdown
 title: AC-174 判据在负载下被工装两堵墙杀掉（55s 单文件预算 / 40s boot 天花板）：本树直跑 4/4 红而产品读数全对；给
   resident-shell-tab 声明 SPEC_BUDGET_MS 并把 describe/钩子/自检/闸/boot
   窗口调自洽，判据命令与断言逐字不动
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -211,11 +211,3 @@ EXIT=1
 - `scripts/e2e-run-ceilings.test.mjs`
 - `goals/AC-174-真实浏览器里常驻会话的-shell-标签页不可用-关闭常驻模式后恢复.md`
 - `tasks/gap-ac174-criterion-run-budget-and-boot-ceiling-below-load-slowdown.md`（自触）
-
-## Blocker
-
-**2026-11-06T08:07:01.078Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: __PERFILE__ duration_ms=13477 src/shared/asr/tests/asrContractInvariants.test.ts passed=false end_ms=1793951650469 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/architecture/tests/plantUmlText.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/architecture/tests/plantUmlText.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：4b040ca7-3048-4977-935c-984c8f14faf7

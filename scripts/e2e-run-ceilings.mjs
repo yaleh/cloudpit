@@ -41,6 +41,69 @@ export const CONFIG_EVAL_STALL_ENV = 'QUAY_E2E_CONFIG_EVAL_STALL_MS';
 export const CONFIG_EVAL_STALL_MAX_MS = 120_000;
 
 /**
+ * The single-file ceiling `playwright.config.ts` derives when a spec declares no budget of its own.
+ *
+ * Kept here as the pivot of `bootCeilingFor`: the boot window is the shipped 40s for every selection whose
+ * run ceiling is at or below this value, and only grows for selections that declared a larger budget. It is
+ * the same number the config keeps as `SINGLE_SPEC_CEILING_MS`; passing it in would spread one invariant
+ * across two files, so the function names it once.
+ */
+export const SINGLE_SPEC_CEILING_MS = 55_000;
+
+/** The boot window for the default selection — the shipped 40s, byte-for-byte. */
+export const DEFAULT_BOOT_CEILING_MS = 40_000;
+
+/** The boot window never grows past this, however large the declared run budget is. */
+export const MAX_BOOT_CEILING_MS = 120_000;
+
+/**
+ * How far the boot window must stay inside the run ceiling.
+ *
+ * Load-bearing rather than cosmetic: the watchdog writes its crossing line and `watchdog-state.json` as it
+ * ends the run, and a boot window that reached the run ceiling would let the gate's SIGKILL land first — the
+ * exact "crossing that is not written down" the run ceiling exists to prevent. 5s also matches the original
+ * `WEB_SERVER_TIMEOUT_MS` (35s) → `BOOT_CEILING_MS` (40s) gap.
+ */
+export const BOOT_CEILING_RUN_MARGIN_MS = 5_000;
+
+/**
+ * The boot ceiling for a run whose selected specs declare `runCeilingMs` in total.
+ *
+ * WHY IT SCALES. The boot ceiling is a bound on the unbounded pre-spawn availability probe over the
+ * `webServer` urls, and it is measured from the end of config evaluation (see `bootDeadlineFrom`). It was
+ * `40_000` while every criterion ran under the 55s single-file default, and that was enough: boot-after-
+ * config-eval measured 6-18.5s under 28 sibling lanes. The `resident-shell-tab.spec.ts` rounds of
+ * 2026-11-06 at load1 78-195 changed the arithmetic — config evaluation itself read 2.2s, 35.4s, 48.2s and
+ * 107.5s — so a fixed 40s window and the 55s run ceiling were being crossed at nearly the same moment, and
+ * lifting only the run budget would merely pick whichever wall the loaded host reached first. Scaling the
+ * window by the declared budget is the same lever the sibling specs already use for their run budget.
+ *
+ * RULE. `runCeilingMs <= SINGLE_SPEC_CEILING_MS` ⇒ `40_000` exactly (every existing default selection,
+ * including the one-file gate invocation, keeps its bytes). Above that, add the declared budget over the
+ * floor, capped at 120s: `min(120_000, 40_000 + (runCeilingMs - 55_000))`. The result is asserted to stay
+ * `BOOT_CEILING_RUN_MARGIN_MS` inside the run ceiling, so a future cap change cannot silently make the boot
+ * window the last thing standing between the run and the gate's kill.
+ *
+ * @param {number} runCeilingMs
+ * @returns {number}
+ */
+export function bootCeilingFor(runCeilingMs) {
+  const runCeiling = Number(runCeilingMs);
+  if (!Number.isFinite(runCeiling) || runCeiling <= SINGLE_SPEC_CEILING_MS) {
+    return DEFAULT_BOOT_CEILING_MS;
+  }
+  const scaled = DEFAULT_BOOT_CEILING_MS + (runCeiling - SINGLE_SPEC_CEILING_MS);
+  const ceiling = Math.min(MAX_BOOT_CEILING_MS, scaled);
+  if (!(ceiling < runCeiling - BOOT_CEILING_RUN_MARGIN_MS)) {
+    throw new Error(
+      `boot ceiling ${ceiling}ms must stay ${BOOT_CEILING_RUN_MARGIN_MS}ms inside the ${runCeiling}ms run `
+        + 'ceiling, or the run is killed before its crossing is written',
+    );
+  }
+  return ceiling;
+}
+
+/**
  * Reads the control-arm stall from an environment bag, clamped to `[0, CONFIG_EVAL_STALL_MAX_MS]`.
  *
  * An unset, empty or non-numeric value reads 0 — the shipped behaviour — rather than throwing: a

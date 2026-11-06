@@ -546,6 +546,58 @@ const phase = async (page: Page): Promise<string> =>
 const waitForPhase = (page: Page, wanted: string) =>
   expect.poll(() => phase(page), { timeout: 25_000 }).toBe(wanted);
 
+/**
+ * How long the entry waits for the upstream to declare the connection open.
+ *
+ * MEASURED 2026-11-06 on tree `3c28a8c96e027e909a7d495bc7c8a89af5d8e2a5`: the server imports its
+ * `silero` uplink classifier lazily on the connection that first needs it. The server's own voice log
+ * reads `uplink_vad: state=loading backend=silero` at `05:51:12.554Z` → `state=ready backend=silero`
+ * at `05:51:33.194Z` — a 20.640 s cold import. The bar stays in `connecting` for that whole window
+ * (`arming` is only entered on the upstream's `state: open`, which the proxy sends AFTER the classifier
+ * is ready), and the transport BUFFERS every captured frame meanwhile. Warm connections on the same
+ * process read `state=loading` → `state=ready` in 27 ms, so this is a per-process cold start, not the
+ * steady-state cost of a connection.
+ *
+ * 45 s is 2.18 × that measured window, and it is still under half of this case's own 120 s budget
+ * (`test.describe.configure({ timeout: 120_000 })` below), so a cold start cannot itself expire the
+ * case and the gate reports its own named failure instead of the runner's anonymous timeout.
+ */
+const UPSTREAM_OPEN_TIMEOUT_MS = 45_000;
+
+/** The phases the bar can be in only AFTER the upstream's `state: open` has landed. */
+const UPSTREAM_OPEN_PHASES = ['arming', 'listening', 'muted'] as const;
+
+/**
+ * Waits until the bar has LEFT `connecting` for an open phase, i.e. the upstream's `state: open`.
+ *
+ * WHY. `pushFirstCaptureFrame` starts its own 20 s upload poll the moment it is called. On the first
+ * connection of a run the server is still importing the silero classifier (~20.6 s measured above) and
+ * HOLDS every frame captured during it: the frame does reach the page's own capture graph, but the
+ * upstream only sees it after `state: ready`. Measuring `audioFrameCount` from `connecting` therefore
+ * spends the upload poll on the server's cold start — on 2026-11-06 it ran out 0.6 s before silero did
+ * (`Expected: >= 1 / Received: 0 / Timeout 20000ms exceeded`). Starting the push after `state: open`
+ * keeps the same 20 s upload bound, but spends it on the upload it was written to measure.
+ *
+ * The predicate names the open phases instead of asserting only `not.toBe('connecting')`: a transient
+ * `idle` (or a `failed` connection) can otherwise satisfy "not connecting" and then hang the caller's
+ * `listening` wait with a misleading message.
+ */
+const waitForUpstreamOpen = async (page: Page): Promise<void> => {
+  await expect
+    .poll(
+      async () => {
+        const current = await phase(page);
+        return current !== 'connecting' && UPSTREAM_OPEN_PHASES.includes(current as (typeof UPSTREAM_OPEN_PHASES)[number]);
+      },
+      {
+        timeout: UPSTREAM_OPEN_TIMEOUT_MS,
+        message:
+          'the bar never left `connecting`: the upstream never reported `state: open`, so the first captured frame would be measured before the server declared readiness',
+      },
+    )
+    .toBe(true);
+};
+
 /** The transcript's own text, read straight off the pane. */
 const paneText = (page: Page): Promise<string> => page.locator(PANE).innerText();
 
@@ -720,6 +772,9 @@ async function enterLiveVoice(page: Page, width: number, upstream: FakeUpstream)
   await entry.click();
   await expect(page.locator(BAR)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(COMPOSER_TEXTAREA)).toBeHidden();
+  // The first captured frame is measured only after the server has declared the connection open; the
+  // cold classifier import must not be spent inside the upload poll. See `waitForUpstreamOpen`.
+  await waitForUpstreamOpen(page);
   await pushFirstCaptureFrame(page, upstream);
   await waitForPhase(page, 'listening');
 }
