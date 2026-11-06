@@ -752,7 +752,21 @@ function fireClock(api: APIRequestContext, sessionId: string) {
     .catch((error: unknown) => ({ ok: false, status: -1, body: { failed: String(error) } }));
 }
 
-test.describe.configure({ mode: 'serial' });
+/**
+ * This file's share of the run budget, and the three walls it has to move together.
+ *
+ * The config entry (`playwright.config.ts`, `SPEC_BUDGET_MS['resident-busy-send.spec.ts']`) is the
+ * watchdog's run ceiling; it is what the criterion's whole invocation is killed at. That ceiling alone
+ * leaves two other walls at their old defaults: the project's `timeout: 60_000` is the per-test slot
+ * (`test.describe.configure` does not move it), and this file's own elapsed assertion used to pin the
+ * 55 s single-file default. On 2026-11-06 the same treeSha passed AC-175 four times and was then killed
+ * at 55001ms with `config-eval-ms=22320`, before any product assertion ran — the instrument's budget,
+ * not the guarantee. All three now read this one number; the goal record's deadline (260_000) outlasts
+ * it by 20 s so a crossing is written down rather than SIGKILLed.
+ */
+const SPEC_BUDGET_MS = 240_000;
+
+test.describe.configure({ mode: 'serial', timeout: SPEC_BUDGET_MS });
 
 test.describe('resident busy send', () => {
   let page: Page;
@@ -764,6 +778,7 @@ test.describe('resident busy send', () => {
   let perRunSessionId = '';
 
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(SPEC_BUDGET_MS);
     const clientUrl = test.info().project.use.baseURL;
     if (!clientUrl) throw new Error('playwright.config.ts must give this project a baseURL');
     const fixtureHome = process.env.QUAY_E2E_DEBUG_AGENT_HOME;
@@ -1073,6 +1088,6 @@ test.describe('resident busy send', () => {
     const runStartedAt = Number(process.env.QUAY_E2E_RUN_STARTED_AT);
     const elapsed = Date.now() - runStartedAt;
     console.log(`elapsed=${elapsed}ms`);
-    expect(elapsed, `the whole invocation, measured from the config's own start`).toBeLessThan(55_000);
+    expect(elapsed, `the whole invocation, measured from the config's own start`).toBeLessThan(SPEC_BUDGET_MS);
   });
 });
