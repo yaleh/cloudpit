@@ -1100,6 +1100,8 @@ type QuayServiceDependencies = {
   snapshotTtlMs: number;
   /** Per-command subprocess timeout. */
   commandTimeoutMs: number;
+  /** Ceiling for the snapshot's cold `driver status` read; absent keeps {@link commandTimeoutMs}. */
+  driverStatusTimeoutMs?: number;
   /**
    * The fleet wall read port (quay-fleet's `wall resolve` / `wall summary`) behind the
    * `quay://` dereference entry point. OPTIONAL so every existing criterion composing this
@@ -1959,10 +1961,15 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   const detectQuayConfig = (projectPath: string): boolean =>
     dependencies.fileExists(path.join(projectPath, '.quay', 'config.yml'));
 
-  /** Runs one whitelisted read-only command; refuses anything else without spawning. */
+  /**
+   * Runs one whitelisted read-only command; refuses anything else without spawning.
+   * `timeoutMs` is per call because the snapshot's reads do not have equal cold costs;
+   * omitting it keeps the shared `commandTimeoutMs` default.
+   */
   const runQuayCommand = async (
     cwd: string,
     args: readonly string[],
+    timeoutMs: number = dependencies.commandTimeoutMs,
   ): Promise<QuayCommandResult> => {
     if (!isReadOnlyQuayCommand(args)) {
       return {
@@ -1974,7 +1981,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       };
     }
 
-    return dependencies.runCommand(cwd, args, { timeoutMs: dependencies.commandTimeoutMs });
+    return dependencies.runCommand(cwd, args, { timeoutMs });
   };
 
   // --- the compact task status index (AC-348) ---
@@ -2326,29 +2333,27 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     projectPath: string,
     windowHours: number = DEFAULT_QUAY_GANTT_WINDOW_HOURS,
     forceRefresh: boolean = false,
-  ): Promise<QuaySnapshot> => {
+  ): Promise<{ snapshot: QuaySnapshot; complete: boolean }> => {
     const warnings: string[] = [];
     const quayDir = path.join(projectPath, '.quay');
-    // Which CLI this snapshot's reads go through. Resolved once, from the same cached resolver
-    // the spawn boundary uses, so the diagnostic and the child process cannot disagree.
+    // Which CLI this snapshot's reads go through; resolved from the same cached resolver the
+    // spawn boundary uses, so the diagnostic and the child process cannot disagree.
     const entrypointResolution = dependencies.resolveEntrypoint?.(projectPath) ?? null;
+    // The driver read has its own injected ceiling; absent means the shared bound applies.
+    const driverStatusTimeoutMs = dependencies.driverStatusTimeoutMs ?? dependencies.commandTimeoutMs;
 
     /**
-     * Runs one command and reads its JSON body. A non-zero exit is not on its
-     * own a failure of this read: `quay config validate --json` prints its issue
-     * list and then exits 1 to signal that issues exist, and that list is exactly
-     * the reading we want. So stdout is parsed first, and the exit status only
-     * decides the outcome when nothing parseable came back.
-     *
-     * The warning is *returned* rather than pushed, so that the caller can append the
-     * collected warnings in a fixed order even though the reads below run concurrently —
-     * a shared array written from each read would order the panel's banner by whichever
-     * child happened to finish first.
+     * Runs one command and reads its JSON body. A non-zero exit is not on its own a failure:
+     * `quay config validate --json` prints its issue list and exits 1, and that list is the
+     * reading we want — so stdout is parsed first and the exit status only decides when
+     * nothing parseable came back. The warning is *returned* rather than pushed, so the
+     * caller appends them in a fixed order despite the concurrent reads below.
      */
     const readJson = async (
       args: readonly string[],
+      timeoutMs: number = dependencies.commandTimeoutMs,
     ): Promise<{ value: unknown; warning: string | null }> => {
-      const result = await runQuayCommand(projectPath, args);
+      const result = await runQuayCommand(projectPath, args, timeoutMs);
 
       if (result.stdout.trim()) {
         try {
@@ -2369,13 +2374,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       };
     };
 
-    // Every section is independent of every other, so they are gathered in ONE parallel
-    // pass: the cold path then costs the slowest single read instead of their sum. That
-    // sum was the defect — six strictly serial `await`s over a 2.5k-task store put ~9.5 s
-    // in front of a panel open, while the slowest single read is ~3 s. The local carrier
-    // reads (worker-round, dashboard) sit under the trusted project root, never a request
-    // path; a missing file there is a normal empty reading and never a warning. The Tests /
-    // Fan-in pair is two more read-only children, spawned concurrently here.
+    // Every section is independent, so they are gathered in ONE parallel pass: the cold path
+    // costs the slowest single read, not their sum. The local carrier reads sit under the
+    // trusted project root (a missing file is an empty reading, never a warning).
     const [
       tasksRead,
       goalsRead,
@@ -2387,10 +2388,14 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       dashboardUrl,
       ganttRead,
     ] = await Promise.all([
-      readJson(['task', 'list', '--json']),
+      // The whole array of ids/titles/statuses, without each task's ~10 KB body: the projection
+      // below reads none of it. Measured on this project's 1.4k-task store: 18.4 MB / ~1.7 s
+      // with bodies vs 715 KB / ~0.3 s without.
+      readJson(['task', 'list', '--json', '--no-body']),
       readJson(['goal', 'list', '--json']),
       readJson(['adr', 'list', '--json']),
-      readJson(['driver', 'status', '--kind', 'worker', '--json']),
+      // A cold driver status probes the driver subprocesses (~5.9 s measured): wider ceiling.
+      readJson(['driver', 'status', '--kind', 'worker', '--json'], driverStatusTimeoutMs),
       readJson(['config', 'validate', '--json']),
       // The Tests and Fan-in cards are one reading in two projections, taken through quay's
       // own `suite` / `driver log` verbs (never by parsing the carrier files here). The pair
@@ -2413,6 +2418,12 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       warnings.push(entrypointResolution.warning);
     }
 
+    // A `null` WITH a warning is a failed read (timeout, missing CLI, torn payload), so the
+    // snapshot is partial; a warning-free `null` is just the CLI's JSON literal. Entrypoint
+    // warnings are diagnostics, not failed reads, so they do not enter this predicate.
+    const complete = [tasksRead, goalsRead, adrsRead, driverRead, configRead]
+      .every((read) => read.value !== null || read.warning === null);
+
     // The pulse strip's blocked row. `depends_on` is absent from the CLI document, so the
     // unfinished tasks' store files supply the impact edges; `null` (task list unread) stays
     // null rather than becoming an empty row that would read as "nothing blocked".
@@ -2420,7 +2431,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       await enrichTaskRecordsWithStoreEdges(projectPath, tasksRead.value),
     );
 
-    return {
+    const snapshot: QuaySnapshot = {
       projectId,
       projectPath,
       // Optional increment: `{ path, version, source }` only — never widening the driver summary.
@@ -2447,11 +2458,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       fanIn: suiteFanIn.fanIn,
       carrierReadings: suiteFanIn.carrierReadings,
       blockers,
-      // The In-flight card and the Loop pulse gantt are two projections of ONE reading:
-      // `ganttRead.gantt`, the `lanes` document relayed by `collectGantt`. Deriving the card
-      // from the same lanes (rather than from the raw round carrier) is what keeps the two
-      // from contradicting each other; `workerRoundRecord` only supplies `startedAt` /
-      // `lastHeartbeat` / `workerPid` for tasks the lanes already put in flight.
+      // The In-flight card and the Loop pulse gantt project ONE reading (`ganttRead.gantt`),
+      // so they cannot contradict each other; `workerRoundRecord` only supplies timing fields.
       inFlight: summarizeInFlightTasks(ganttRead.gantt, workerRoundRecord),
       gantt: ganttRead.gantt,
       ganttUnavailable: ganttRead.unavailable,
@@ -2463,6 +2471,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       // object and pay for one handshake (the reader's own TTL covers later opens).
       fleet: await readFleetAvailability(),
     };
+
+    return { snapshot, complete };
   };
 
   /**
@@ -2483,7 +2493,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     forceRefresh: boolean = false,
   ): Promise<QuaySnapshot> => {
     if (windowHours !== DEFAULT_QUAY_GANTT_WINDOW_HOURS) {
-      return collectSnapshot(projectId, projectPath, windowHours, forceRefresh);
+      return collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
+        .then(({ snapshot }) => snapshot);
     }
 
     const pending = inFlightSnapshots.get(projectId);
@@ -2492,11 +2503,15 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     }
 
     const promise = collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
-      .then((snapshot) => {
-        snapshotCache.set(projectId, {
-          expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
-          snapshot,
-        });
+      .then(({ snapshot, complete }) => {
+        // A PARTIAL reading must not be cached: it would stick for the whole TTL and every retry
+        // would answer `cached: true`. Retry it on the next open; cache complete readings.
+        if (complete) {
+          snapshotCache.set(projectId, {
+            expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
+            snapshot,
+          });
+        }
         return snapshot;
       })
       .finally(() => {
