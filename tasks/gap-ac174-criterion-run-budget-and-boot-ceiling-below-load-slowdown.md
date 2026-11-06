@@ -1,0 +1,101 @@
+---
+id: gap-ac174-criterion-run-budget-and-boot-ceiling-below-load-slowdown
+title: AC-174 判据在负载下被工装两堵墙杀掉（55s 单文件预算 / 40s boot 天花板）：本树直跑 4/4 红而产品读数全对；给
+  resident-shell-tab 声明 SPEC_BUDGET_MS 并把 describe/钩子/自检/闸/boot
+  窗口调自洽，判据命令与断言逐字不动
+status: ready
+labels:
+  - gap
+  - defect
+parent: null
+children: []
+extra:
+  schema: execution
+goal_ac: AC-174
+---
+## Proposal
+
+来源：本轮 gap-filing 的**直接测量**（不是台账尾巴）。AC-174 `status: achieved`，其 GOAL-013 已 achieved、不再活，且未声明 `long-term: true`；本轮在立案前直接重跑了判据本体 4 次，每次都是工装看门狗在天花板上 `exit 1`，而判据自己打印的产品读数全部满足 `expect`。
+
+判据物（逐字取自 `goals/AC-174-真实浏览器里常驻会话的-shell-标签页不可用-关闭常驻模式后恢复.md`）：`criterion:` = `npx playwright test e2e/resident-shell-tab.spec.ts`。
+
+### 本轮直接测量
+
+台账（`.quay/gate-events.jsonl`，`item_id=AC-174`、`gate=goal`）末三拍：
+
+- `2026-11-03T14:42:40.602Z` pass，tree `85bddb6d53e686bcea3da111dc7a75f840786d44`。
+- `2026-11-06T06:14:47.801Z` fail（`goal-sweep`，tree `f43d13f3316356cdcf8c93bbb90095e9e92862f8`），`payload.reason` 逐字：`acceptance failed (exit 1) — [e2e] watchdog: this run crossed its own 55000ms ceiling at 55001ms (config-eval-ms=37505) and is ending here with exit 1 at 57004ms — stuck at stage "browser-launch-or-cases": observed past boot at 42976ms, so this run was inside browser launch or a case; the 2000ms probe at the crossing got no answer from port 26589 (client) — a loaded server missing the probe`。
+- `2026-11-06T06:15:49.791Z` fail（`goal-cli`，**同一 tree**），`payload.reason` 逐字：`acceptance failed (exit 1) — [e2e] watchdog: this run crossed its own 55000ms ceiling at 55001ms (config-eval-ms=12755) and is ending here with exit 1 at 55004ms — stuck at stage "browser-launch-or-cases": observed past boot at 23995ms, so this run was inside browser launch or a case; both webServers answered the 2000ms probe at the crossing.`
+
+两条 fail 的 `payload.reason` 里**没有任何一条产品断言**；两次都是工装看门狗先开火。
+
+本轮直跑（同一 checkout，`npx playwright test e2e/resident-shell-tab.spec.ts`，无 `-g`、无 retries），`date -u` = 2026-11-06 06:21–06:31，`nproc` = 128，`uptime` 的 load1 从 78.31 升到 194.96：
+
+| run | exit | 看门狗线（逐字摘要） | config-eval-ms | 越界时阶段 |
+|---|---|---|---|---|
+| 1 | 1 | `crossed its own 55000ms ceiling at 55004ms` | 2182 | past boot at 5203ms，已进入用例体 |
+| 2 | 1 | `crossed its own 55000ms ceiling at 86776ms` | 48243（retention 18127 + vite-cache seed 23401） | boot 在 86770ms 才答 |
+| 3 | 1 | `crossed its own 40000ms boot ceiling at 75423ms` + `port … (client) is not listening` | 35423 | webServer-start |
+| 4 | 1 | `crossed its own 55000ms ceiling at 117717ms` | 107491 | boot 在 117708ms 才答，re-arm 的 55s 早已越过 |
+
+run1 在越过 55s 前已打印出判据的产品读数（逐字）：`shellTab.disabled=false`（per-run 正控制）、`chatTab.disabled=false`、`tabClick.after=shell`、`shellView.mounted=true`、`mode=resident`、`activeTab=chat`、`shellTab.disabled=true`、`hosts.forSession=0`、`shellView.mounted.afterResident=false`、`notice.inView=Shell is unavailable for resident sessions. Close resident mode to use it.`、`shellTab.disabledReason=resident`、`shellTab.ariaDisabled=true`、`tabClick.before=chat`。⇒ **产品保证本身没有回归**；决定判据为假的是量具可花的钱。run3 的 `watchdog-state.json` 逐字：`{"armed":true,"fired":true,"ceilingMs":40000,"detail":"boot ceiling crossed at 75423ms — config-eval-ms=35423, boot window started at 35423ms and this 40000ms ceiling ran from there","stage":"webServer-start","stall":"port 26625 (client) is not listening"}`。
+
+### 机制
+
+1. `playwright.config.ts:404` `SINGLE_SPEC_CEILING_MS = 55_000`；`SPEC_BUDGET_MS`（`:405` 起）**没有** `resident-shell-tab.spec.ts` 条目（同族已声明：`resident-running-view.spec.ts:240_000` 在 `:820`、`resident-status-bar.spec.ts:240_000` 在 `:831`、`resident-enter-send.spec.ts:240_000` 在 `:845`）⇒ `RUN_CEILING_MS`（`:963`）= 55_000。
+2. `e2e/resident-shell-tab.spec.ts` 自己没有预算常量：`test.describe.configure({ mode: 'serial' })`（`:587`）只设 mode；`beforeAll` 的 `test.setTimeout(120_000)`（`:591`）是钩子墙；末尾自检 `toBeLessThan(55_000)`（`:789`）。per-test 仍继承 `playwright.config.ts:3979` 的 `timeout: 60_000`。
+3. AC-174 记录 frontmatter **无** `timeoutMs`（`grep -c '^timeoutMs:'` → 0）⇒ 闸按默认 60000ms 击杀，与 55s 看门狗只差 5s，看门狗来不及把越界线与 `watchdog-state.json` 落盘。
+4. `BOOT_CEILING_MS = 40_000`（`playwright.config.ts:1032`）是全局常量，**不随已声明预算放大**，且从 config-eval 结束起算（`:1416`）；`WEB_SERVER_TIMEOUT_MS = 35_000`（`:1060`）。run3 证明 boot 窗口本身会成为约束——只调 SPEC_BUDGET_MS 救不了这一形态。
+5. 现在的 config-eval 本身是一段重活（vite-cache seed 10–23s、retention 18–25s、client-root 拷贝与服务端 bundle），在 load1 78–195 下读到 2.2s / 35.4s / 48.2s / 107.5s（安静基线约 0.6s），boot-after-config-eval 最坏 38.5s。
+
+### 上一轮修法为什么没兜住
+
+<!-- dedup-ref --> 机制去重（本轮立案实测）：`grep -rl '^goal_ac: *AC-174' tasks/*.md` 命中 **2** 份，`status:` 逐字皆 **done**——`gap-claude-resident-shell-tab`（产品与判据落地，2026-09）与 `gap-claude-resident-shell-tab-criterion-bounded-boot-guard`（2026-10-02）；在飞扫描（`^status:` ∈ todo/ready/needs-human）**无一认领 AC-174** ⇒ 无在飞认领者，`done` 不算重复、是更早修法没兜住的证据。合并候选用仪器判：`task-granularity-advice.js --touches playwright.config.ts --touches e2e/resident-shell-tab.spec.ts --touches <AC-174 记录> --json` ⇒ `peers: []`（`mentions` 只有 `gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load` 在散文里提到 `playwright.config.ts`，未声明）⇒ **kept separate**。
+
+`gap-claude-resident-shell-tab` 把产品与判据都落对了，但没有给这条判据声明整轮预算。`gap-claude-resident-shell-tab-criterion-bounded-boot-guard` 把本族已有的有界客户端预热 `warmClientStartup` 与有界导航探针 `navigateBounded` 搬进本 spec，治的是「页面期 Vite 冷预构建被拖成无界等待」，并明确写下「60s 门限与 55s spec 上限不动」，实测 18.8s / 17.4s（当时 load1 ≈ 9.7–14.5）。它改变的是**等待的响应方式**，不是**整轮可花的墙**。自上轮绿（`2026-11-03T14:42:40Z`，tree `85bddb6d`）以来，`src/` 有 **1493** 个提交（含 `f6426ea48` 的 `src/shared` god-package 拆分），config-eval + boot 的重量与宿主负载一起把同一份保证推到另一堵墙前：这次是 `RUN_CEILING_MS` / `BOOT_CEILING_MS`，不是产品断言。
+
+### 修法（只动量具预算与其自洽性，判据语义逐字不动；全部为同族已用过的杠杆）
+
+1. `playwright.config.ts` 的 `SPEC_BUDGET_MS` 增 `'resident-shell-tab.spec.ts': 240_000`（同族三份的已声明值），注释带上本轮四跑读数与「55s 默认预算在 config-eval 2.2–107.5s 下被工装自己吃掉」的事实。
+2. `e2e/resident-shell-tab.spec.ts` 增 `const SPEC_BUDGET_MS = 240_000;`，接到三面：`test.describe.configure({ mode: 'serial', timeout: SPEC_BUDGET_MS })`、`beforeAll` 体内 `test.setTimeout(SPEC_BUDGET_MS)`（钩子墙，`describe.configure` 抬不到）、末尾自检 `toBeLessThan(SPEC_BUDGET_MS)`。
+3. **boot 窗口随已声明预算放大，但有上限**：在 `scripts/e2e-run-ceilings.mjs` 增设纯函数（如 `bootCeilingFor(runCeilingMs)`），规则：`runCeilingMs <= SINGLE_SPEC_CEILING_MS` ⇒ 逐字返回 `40_000`（**所有既有默认选择字节不变**）；更大时返回 `min(120_000, 40_000 + (runCeilingMs − SINGLE_SPEC_CEILING_MS))`，并要求 `< runCeilingMs − 5_000`。`playwright.config.ts` 的 boot 分支改用该函数，`[e2e] watchdog-armed:` 行照旧打印实际值。
+4. `goals/AC-174-真实浏览器里常驻会话的-shell-标签页不可用-关闭常驻模式后恢复.md` frontmatter 增 `timeoutMs: 260000`（比看门狗 240s 多 20s，让越界线与 `watchdog-state.json` 先于闸的 SIGKILL 落盘）。
+5. **内部就绪 deadline 与新预算对齐**（照 `gap-ac323-layout-startup-guard-below-load-slowed-document` 的教训：抬 timeoutMs / 加 budget 后，spec 内按旧上限定的 deadline 不会自动放大，会先红）：逐处量 `NAVIGATION_PROBE_MS = 8_000`（`:368`）、`STARTUP_PROBE_DEADLINE_MS = 12_000`（`:386`）以及 `:495` / `:645` / `:708` 的 15–20s 等；若在五连绿里任何一处先于预算成为约束，按同一推理放大并给出负控；若没有先红，如实登记「未成为约束」的读数（client startup landed ms 等）。
+6. **明确不动**：`criterion:` 命令；`expect:` 全文；`shellTab.disabled` / `hosts.forSession` / `notice` / `tabClick` / `menu` / `shellView` 六组产品断言与假形态臂；`warmClientStartup` 与 `navigateBounded` 的语义；`SINGLE_SPEC_CEILING_MS = 55_000`；全局 `timeout: 60_000`；`WEB_SERVER_TIMEOUT_MS = 35_000`；不加 `retries` / `skip` / `only`；不改 `src/**`、`server/**`。
+
+**判别性（把「真的接线」与「数字写大但没人读」分开）**
+
+- 负控 A：临时把 `'resident-shell-tab.spec.ts'` 的条目改成 `30_000` ⇒ 判据 `EXIT=1`，输出逐字含 `crossed its own 30000ms ceiling`；还原 240_000 后 `EXIT=0`。
+- 负控 B：临时把 `beforeAll` 的 `test.setTimeout(SPEC_BUDGET_MS)` 改成 `test.setTimeout(1_000)` ⇒ `EXIT=1`，失败文本逐字含 `"beforeAll" hook timeout of 1000ms exceeded`；还原后 `EXIT=0`。
+- 负控 C（可复现的预算墙，不依赖当天负载）：`QUAY_E2E_CONFIG_EVAL_STALL_MS=40000` 下，预算 55_000（或临时删除条目）⇒ `EXIT=1` 且逐字含 `crossed its own 55000ms ceiling`；预算 240_000 ⇒ `EXIT=0` 且 `elapsed < 240_000`。
+- 负控 D（boot 窗口真的被读）：把 `bootCeilingFor` 临时改成恒返 `1_000` ⇒ `EXIT=1` 且 armed 行逐字为 `boot ceiling 1000ms`；还原后 `EXIT=0`；同跑另贴一份默认选择（如 `e2e/model-env-kind-explanations.spec.ts`）的 armed 行仍为 `boot ceiling 40000ms`。
+
+## AC
+
+- [ ] AC1 预修基线入档：criterion 命令在同一检出直跑 ≥3 次，每次 `EXIT=1` 且输出逐字含 `[e2e] watchdog:`；逐次贴 `config-eval-ms` 与越界阶段；其中至少一次为「已进入用例体」且该跑已打印 `shellTab.disabled=true` / `hosts.forSession=0` / `notice.inView=…` 三行产品读数（证明红不是产品断言）。同时贴两条台账 fail 的 `timestamp` / `treeSha` / `reason` 与最近一条 pass。本轮立案的 4 跑可直接复用，另需在本任务 worktree 上补跑 ≥1 次。
+- [ ] AC2 直跑稳定绿：改动后连续 ≥5 次 `npx playwright test e2e/resident-shell-tab.spec.ts` 均 `EXIT=0`；每次贴 `N passed`、spec 自报 `elapsed=`、该跑 `watchdog-state.json` 的 `{armed,fired,ceilingMs}`、跑前 `uptime` load1；五次的 `elapsed` 最大值 < 240_000 的 2/3；任何一次输出都不含 `[e2e] watchdog:` 越界行。其中至少一次跑前 load1 ≥ 60（宿主给不出则如实登记实际值，不得伪造）。
+- [ ] AC3 预算自洽且逐点可读：`grep -n "'resident-shell-tab.spec.ts': 240_000" playwright.config.ts` 命中 1 行；`grep -n "const SPEC_BUDGET_MS = 240_000" e2e/resident-shell-tab.spec.ts` 命中 1 行；`test.describe.configure(...)` 含 `timeout: SPEC_BUDGET_MS`；`beforeAll` 体内含 `test.setTimeout(SPEC_BUDGET_MS)`；自检为 `toBeLessThan(SPEC_BUDGET_MS)`；`quay goal get AC-174 --json --store --root <worktree>` 的 `timeoutMs == 260000`（Provider 读法读主检出，改动 merge 前须用 `--store --root` 读 worktree 记录）；`grep -n 'SINGLE_SPEC_CEILING_MS = ' playwright.config.ts` 仍逐字 `55_000`；`grep -n '^  timeout: 60_000,$' playwright.config.ts` 仍命中；`grep -n 'WEB_SERVER_TIMEOUT_MS = ' playwright.config.ts` 仍逐字 `35_000`。以上读数全部原文贴出。
+- [ ] AC4 boot 窗口的算术与封顶：`scripts/e2e-run-ceilings.mjs` 导出纯函数；项目既有脚本测试命令跑 `scripts/e2e-run-ceilings.test.mjs` 退出 0，且测试含四臂：`bootCeilingFor(55_000) === 40_000`、`bootCeilingFor(240_000) > 40_000`、`bootCeilingFor(1_200_000) === 120_000`、每臂 `< runCeilingMs − 5_000`。`playwright.config.ts` 的 `[e2e] watchdog-armed:` 行打印实际 boot ceiling——本判据选择为放大值，默认选择仍 `40000ms`；两种选择的该行逐字贴出。
+- [ ] AC5 负控 A/B/C/D 逐条真跑：A `30_000` ⇒ `EXIT=1` + `crossed its own 30000ms ceiling`；B `1_000` hook ⇒ `EXIT=1` + `"beforeAll" hook timeout of 1000ms exceeded`；C `QUAY_E2E_CONFIG_EVAL_STALL_MS=40000` 在 55_000 下红、240_000 下绿；D `bootCeilingFor` 恒 1_000 ⇒ `EXIT=1` + armed 行为 `boot ceiling 1000ms`。四次还原后判据均 `EXIT=0`，`git diff` 里不残留负控改动。
+- [ ] AC6 内部就绪 deadline 的读数：逐处列出 `NAVIGATION_PROBE_MS`（`:368`）、`STARTUP_PROBE_DEADLINE_MS`（`:386`）与 `:495` / `:645` / `:708` 的 15–20s 等待的预算，并在五连绿里给出每跑 client startup landed ms；若任一成为约束，按同一推理放大并补负控；若未成为约束，如实写「未成为约束」并贴读数。
+- [ ] AC7 判据语义未动：`quay goal get AC-174 --json --store --root <worktree>` 的 `criterion` 逐字为 `npx playwright test e2e/resident-shell-tab.spec.ts`、`expect` 与本 Proposal 引用逐字一致、`status == achieved`、`goal == GOAL-013`；`git diff $(git merge-base develop HEAD) -- e2e/resident-shell-tab.spec.ts | grep -c '^-.*expect('` 的读数如实贴出（预期 1，唯一被改的是允许改写的自检阈值行），并用 `git diff … | grep '^-.*expect(' | grep -vc 'single-file ceiling'` 证明产品断言的 `expect(` 删除数为 **0**；新增行中匹配 `test\.skip|test\.only|retries` 的条数为 0；`src/**`、`server/**` 无改动。
+- [ ] AC8 diff 范围与契约：`git diff --name-only $(git merge-base develop HEAD)` 只含本任务重写的文件（`playwright.config.ts`、`e2e/resident-shell-tab.spec.ts`、`scripts/e2e-run-ceilings.mjs`、`scripts/e2e-run-ceilings.test.mjs`、AC-174 记录）与本任务文件；`npm run typecheck` 退出 0；anti-drift 检查打印 `ANTI-DRIFT OK`。
+
+## DoD
+
+真落地标准：driver 的下一轮 goal gate 重跑 AC-174 时读到 `timeoutMs: 260000`，判据在冷缓存/负载下跑完并让六组产品读数与假形态臂决定结果，`.quay/gate-events.jsonl` 的 AC-174 尾部重新是 pass（不再是 CURRENTLY FALSE）；完成记录贴出该 GateEvent 原文（`timestamp` / `treeSha` / `verdict` / `reason`）。
+
+Evidence 至少贴四张表：(1) 预修四跑（命令 / exit / `config-eval-ms` / 越界阶段 / 产品读数）；(2) 五连绿（命令 / rc / `N passed` / `elapsed` / `watchdog-state.json` / 跑前 load1）；(3) 负控 A–D（逐字输出与还原后的 exit 0）；(4) 预算与语义读数（AC3 / AC4 / AC7 的逐字输出）。
+
+完成记录须写明：这次修的是**量具的可用预算**（55s 默认 → 该 spec 声明 240s；40s 固定 boot 窗口 → 随已声明预算放大且封顶 120s），不是产品保证——六组产品断言、两条假形态臂、`warmClientStartup` / `navigateBounded` 一字未改；触发源（宿主 load1 78–195、config-eval 2.2–107.5s、`src/` 1493 个提交带来的模块图增长）不在本仓可控范围内，因此稳定性依赖预算与守卫，而不是依赖触发源消失。若 boot-after-config-eval 在极重负载下仍越过封顶值，如实归因为宿主负载并登记残差与下一级杠杆（e2e 数据目录池 / driver 并发），⛔ 不得用改断言 / `skip` / `retries` 换绿。
+
+本任务不改产品 UI，AGENTS.md 的 MCP 浏览器截图条款不适用；需要的证据是判据在真实浏览器里跑出的读数本身（与本族 AC-172/AC-173/AC-180 的预算治理任务同形）。完成时 worktree `git status --short` 为空（负控改动已还原）。
+
+## Touches
+
+- `playwright.config.ts`
+- `e2e/resident-shell-tab.spec.ts`
+- `scripts/e2e-run-ceilings.mjs`
+- `scripts/e2e-run-ceilings.test.mjs`
+- `goals/AC-174-真实浏览器里常驻会话的-shell-标签页不可用-关闭常驻模式后恢复.md`
+- `tasks/gap-ac174-criterion-run-budget-and-boot-ceiling-below-load-slowdown.md`（自触）
