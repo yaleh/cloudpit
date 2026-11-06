@@ -5,6 +5,7 @@ status: achieved
 kind: criterion
 goal: GOAL-013
 criterion: npx playwright test e2e/resident-busy-send.spec.ts
+timeoutMs: 260000
 expect: 基准已定（E2/E3 与 E9 9.8 一致，人 yale 已确认）：忙时推入的消息另起一轮，不并入当前回答。调试 agent
   的常驻场景让会话处于忙（含无人轮进行中），场景按 E9 9.2 的原始形态发出 command_lifecycle
   帧（queued、started、cancelled、completed）并记录收到的 cancel_async_message：(1) 发送后不出现
