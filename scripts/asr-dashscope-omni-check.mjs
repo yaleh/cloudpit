@@ -1292,9 +1292,9 @@ async function checkErrorMapping(ledger, adapter) {
     ledger.expect(
       'error.transport.requests',
       unreachableStandIn.count(),
-      1,
+      2,
       'ERROR_BEFORE_TRANSPORT',
-      'the transport was reached once, and it is the answer that failed',
+      'the transport was reached twice: a rejection that carried no answer is retried once inside the adapter, and it is the ANSWER that failed',
     );
   }
 }

@@ -3,7 +3,7 @@ id: gap-voice-transient-upstream-failure-retry
 title: 语音一次上游 502 即丢整段话：客户端把瞬时 502/503/504（UPSTREAM_UNAVAILABLE）当成 definitive
   refusal 记住，pipeline 的两次重试只空转不上传；改为可重试分类 + 四类网络适配器对纯传输失败各重试一次（2026-11-06 12.12s
   真语音只剩 1 条 capture 行）
-status: ready
+status: done
 labels:
   - gap
   - defect

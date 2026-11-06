@@ -305,7 +305,7 @@ test('AC12: an adapter that reaches for the ambient transport is caught by the p
   control(t, {
     name: 'an adapter that uses the ambient fetch instead of the injected transport',
     file: ADAPTER,
-    from: '    response = await invocation.fetchImpl(endpoint, {',
+    from: '    response = await fetchWithTransportRetry(invocation.fetchImpl, endpoint, {',
     to: '    response = await fetch(endpoint, {',
     token: 'NETWORK_CALL',
   });

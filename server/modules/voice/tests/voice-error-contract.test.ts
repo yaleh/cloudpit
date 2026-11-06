@@ -581,7 +581,10 @@ const READINGS: readonly Reading[] = [
         value:
           `arm=${arm.name} code=${shown(arm.body.code)} upstreamCode=${shown(arm.body.upstreamCode)} ` +
           `attempted=${String(arm.requestCount)}`,
-        ok: arm.body.upstreamCode === undefined && arm.requestCount === 1,
+        // The adapter retries a transport that never answered once (`fetchWithTransportRetry`), so
+        // an unreachable upstream is attempted twice. The reading stays exact: neither attempt
+        // delivered a body, so `upstreamCode` must still be absent and the count is two, not one.
+        ok: arm.body.upstreamCode === undefined && arm.requestCount === 2,
       };
     },
   },

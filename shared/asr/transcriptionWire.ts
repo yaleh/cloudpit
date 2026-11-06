@@ -221,6 +221,47 @@ export async function parseTranscriptionResponse(
   return shape === 'envelope' ? envelope : envelope.text;
 }
 
+/**
+ * Runs one transport call, retrying a PURE transport failure once.
+ *
+ * WHY THIS IS BESIDE THE WIRE AND NOT IN `asrContract.ts`: the contract leaf is at the repository's
+ * 800-line ceiling, and this file is already the place every network adapter meets the wire. The
+ * retry is the same fact about the seam in all four of them — an upstream that never answered is
+ * not a refusal, so one reset connection must not cost a whole dictation — and writing it once here
+ * is what keeps the four copies from drifting into four different retry policies.
+ *
+ * WHAT IS NOT RETRIED, and why the distinction is the whole point:
+ *
+ *   · an AbortError, or a call whose `init.signal` is already aborted — the deadline is the caller's
+ *     budget (300 s at the service), and retrying would double it into 600 s;
+ *   · any answer the transport DID deliver, including 401/403/429/5xx — a status is the upstream's
+ *     verdict, and only the caller's classifier may decide what it means.
+ *
+ * So only a rejected promise with no answer behind it is retried, and only once by default. When
+ * every attempt fails the LAST error is thrown, which is the one the adapter's `catch` was already
+ * converting into `UPSTREAM_UNAVAILABLE`; the adapter's own readings are unchanged.
+ */
+export async function fetchWithTransportRetry(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  retries = 1,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetchImpl(url, init);
+    } catch (error) {
+      lastError = error;
+      if (init.signal?.aborted) throw error;
+      if (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError') {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
 // ── the byte arithmetic the wire's budget guard and its encoder both read ────────────────────
 //
 // THESE LIVE BESIDE THE WIRE PROTOCOL, NOT IN THE CONTRACT LEAF. They are wire arithmetic — what
