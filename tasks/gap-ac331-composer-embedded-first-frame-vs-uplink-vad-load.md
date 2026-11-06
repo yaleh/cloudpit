@@ -111,7 +111,7 @@ Call Log:
 
 ## Evidence
 
-工作树 `/data/home/yale/work/claudecodeui-worktrees/gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load`，分支 `task/gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load`。实现提交 `c925683c0`；收尾时 HEAD `8d3e4dc401f115f027fdfa71ede7d8d6aa9e8ee5`（= 收尾前 develop `4fd805d50` + 本任务实现）；`git status --porcelain` 为空。
+工作树 `/data/home/yale/work/claudecodeui-worktrees/gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load`，分支 `task/gap-ac331-composer-embedded-first-frame-vs-uplink-vad-load`。实现提交 `c925683c0`；AC-331 criterion 最后一跑所在树 HEAD `8d3e4dc401f115f027fdfa71ede7d8d6aa9e8ee5`（= 当时 develop `4fd805d50` + 本任务实现）；此后工作树只合并了任务账本提交（本任务 `task_write` 与兄弟账本），`git status --porcelain` 为空。
 
 ### AC1 复现读数（原文）
 
@@ -177,7 +177,7 @@ VOICE_REALTIME_MODE=continuous npx playwright test e2e/voice-realtime-live-sessi
 | 30 | 4c7cd514d | 0 | 19 | 197196 | 102.48 → 111.41 |
 | 31 | 1768f919d | 0 | 19 | 175790 | 89.40 → 76.25 |
 | 32 | 56bc7577b | 0 | 19 | 183311 | 89.40 → 45.47 |
-| 33 | 8d3e4dc40（收尾 HEAD） | 0 | 19 | 218412 | 90.56 → 90.56 |
+| 33 | 8d3e4dc40（criterion 最后一跑） | 0 | 19 | 218412 | 90.56 → 90.56 |
 
 另有更早的连续三次（run 15/16/17，树 `b34dc456a`）：`253499` / `205032` / `240485` ms，均 exit 0 / 19 passed。
 
