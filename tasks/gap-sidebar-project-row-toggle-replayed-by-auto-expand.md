@@ -20,7 +20,7 @@ Projects 侧栏的 `expandedProjects` 有两个写者，同一手势里互相覆
 
 <!-- dedup-ref --> 去重：以 `expandedProjects` / `toggleProject` / `onToggleProject` / `auto-expand` / `single-open` / `projectToggleExpansion` 检索任务库均为 0 命中；按 Touches 文件检索 todo/ready 任务无声明（本 agent 无 Bash，用 `task_list search` 替代 grep 与 granularity 脚本）。相关但不同机制的已落地任务：`gap-sidebar-project-row-actions-overflow-menu-uniform-height`（done，项目行控件/等高）、`gap-routine-architecture-analysis-god-package-src-sidebar`（done，hook 拆分），均未钉展开态 ⇒ 不重复，独立立案。合并判定：none found。
 
-**最终现状（2026-11-06 复核，working tree 未提交）。** 本条立案初稿曾记「修复已存在、仅缺判据/场景」，该记录已过时并在此更正：当时读到的 options-object 形状不是最终实现，且判据、场景与浏览器证据其后已补齐。可逐字复核的最终源码：`src/shared/types.ts:3576` 的 `SidebarProjectListProps.onToggleProject` 为 `(projectId: string, selectionWillChange?: boolean) => void`，`ProjectToggleOptions` 类型已删除；`src/modules/sidebar/SidebarProjectItem.tsx:236-246` 计算 `selectionWillChange` 并在改变选中时以 `onToggleProject(project.projectId, selectionWillChange)` 调用；`src/modules/sidebar/hooks/useSidebarProjectsConcern.ts:213-241` 的 `toggleProject` 在 `selectionWillChange` 为真时写 `selectionToggleProjectRef`，`:105-128` 的 effect 消费该 ref 一次（跳过本次手势项目；若标记属于别的项目则丢弃，防止抑制后续无关选中），否则写 `new Set([selectedProjectId])`。落地产物：`src/modules/sidebar/tests/projectToggleExpansion.test.tsx`（2 条用例）与 `scripts/ui-scenarios/project-row-session-open.json`（4 步）均已存在；读数见 `## Verification`。⛔ 本轮不勾 AC、不推进 lifecycle。
+**最终现状（2026-11-06 复核）。** 本条立案初稿曾记「修复已存在、仅缺判据/场景」，该记录已过时并在此更正：当时读到的 options-object 形状不是最终实现，且判据、场景与浏览器证据其后已补齐。可逐字复核的最终源码：`src/shared/types.ts:3576` 的 `SidebarProjectListProps.onToggleProject` 为 `(projectId: string, selectionWillChange?: boolean) => void`，`ProjectToggleOptions` 类型已删除；`src/modules/sidebar/SidebarProjectItem.tsx:236-246` 计算 `selectionWillChange` 并在改变选中时以 `onToggleProject(project.projectId, selectionWillChange)` 调用；`src/modules/sidebar/hooks/useSidebarProjectsConcern.ts:213-241` 的 `toggleProject` 在 `selectionWillChange` 为真时写 `selectionToggleProjectRef`，`:105-128` 的 effect 消费该 ref 一次（跳过本次手势项目；若标记属于别的项目则丢弃，防止抑制后续无关选中），否则写 `new Set([selectedProjectId])`。落地产物：`src/modules/sidebar/tests/projectToggleExpansion.test.tsx`（2 条用例）与 `scripts/ui-scenarios/project-row-session-open.json`（4 步）均已存在；读数见 `## Verification`。⛔ 本轮不勾 AC、不推进 lifecycle。
 
 范围：只动前端 sidebar 与 shared types；不修改 `server/`。
 
@@ -41,7 +41,7 @@ Projects 侧栏的 `expandedProjects` 有两个写者，同一手势里互相覆
 
 ## Verification
 
-实现与证据（working tree，未提交；以下源码/判据/场景/报告文件均已由本条逐字读取复核，测试与浏览器运行读数来自实现 agent 的报告）：
+实现与证据（以下源码/判据/场景/报告文件均已由本条逐字读取复核；测试与浏览器运行读数来自实现 agent / 协调者的报告）：
 
 - 源码（已逐字复核）：`src/shared/types.ts:3576` 为位置参数 `onToggleProject: (projectId: string, selectionWillChange?: boolean) => void`，`ProjectToggleOptions` 已不存在；`src/modules/sidebar/SidebarProjectItem.tsx:42` 的行 props 同为位置参数，`:236-246` 计算并传递 `selectionWillChange`（`onToggleProject(project.projectId, selectionWillChange)`）；`src/modules/sidebar/hooks/useSidebarProjectsConcern.ts:213-241` 的 `toggleProject` 在 `selectionWillChange` 时记录 `selectionToggleProjectRef` 并把展开集合写成单开，`:105-128` 的 selectedProject effect 消费该 ref 一次并跳过，否则写 `new Set([selectedProjectId])`。
 - 判据（新文件已逐字复核）：`src/modules/sidebar/tests/projectToggleExpansion.test.tsx` 含两条用例，名称分别为 `one click collapses an expanded, not-selected project instead of being replayed by the auto-expand effect` 与 `a selection change from outside the Projects row leaves exactly the newly selected project expanded`。
@@ -49,7 +49,8 @@ Projects 侧栏的 `expandedProjects` 有两个写者，同一手势里互相覆
 - 场景（新文件已逐字复核）：`scripts/ui-scenarios/project-row-session-open.json` 含 4 步（alpha 会话 → reload → beta 会话 → reload），每步 `checkpoint: true`。运行读数：`node scripts/ui-scenario.mjs ...` 退出码 0，4 步全过；报告文件 `tmp/ui-scenarios/project-row-session-open/report.json` 已复核为 `ok: true`、`failedStep: null`、`stepCount: 4`、`durationMs: 6224`、`baseUrl: http://127.0.0.1:5391`；检查点截图 `tmp/ui-scenarios/project-row-session-open/step-1-open-session.png`、`step-2-reload.png`、`step-3-open-session.png`、`step-4-reload.png`（路径逐条列在报告 `checkpoints[]` 中）。
 - 真实浏览器（实现 agent 报告）：真实 Chromium 对隔离 dev 实例操作，截图 `tmp/project-toggle-fixed-01..05.png`；从 Conversations 会话切到 beta 后仅 beta 展开（修复前 alpha、beta 同时展开）；点 alpha 一次展开，再点一次折叠。
 - 静态门（实现 agent 报告）：`npx tsc --noEmit -p tsconfig.json` rc=0；architecture-ratchet 与 frontend-import-cycle-budget 合计 12/12 通过。
-- 状态：⛔ 本轮未勾选任何 AC、未推进 lifecycle；任务由机械驱动的既有 `todo→ready` 晋升保持为 `ready`，本条只更新 task body。
+- Landing（协调者报告）：实现已合入 `develop`，提交 `47ae7b8a3`（`fix(sidebar): make a project row collapse in one click`），5 个文件（`SidebarProjectItem.tsx`、`useSidebarProjectsConcern.ts`、`shared/types.ts`、`tests/projectToggleExpansion.test.tsx`、`scripts/ui-scenarios/project-row-session-open.json`），working tree 干净。MCP 浏览器复核（1440x900、隔离 dev 实例、一次性测试账号）：打开 alpha 会话 → 切 Conversations 并打开 beta 会话 → 回 Projects，读数 alpha `expanded=false` / beta `expanded=true`（单开）；点 alpha 一次展开，再点一次折叠；截图 `tmp/mcp-project-toggle-01..05-*.png`；复核后已清除浏览器 localStorage 的 auth token 并停止隔离服务器。提交树上场景 runner 仍绿：4 步 / 4 检查点，报告 `tmp/ui-scenarios/project-row-session-open/report.json`。注：`develop` 当前 tip 已被后续 `tasks:` 提交推进（本次复核读到 `8e6ea29a`），故 `47ae7b8a3` 非 tip，但协调者报告其为该修复的落地提交。
+- 状态：⛔ 本轮未勾选任何 AC、未推进 lifecycle；任务保持 `ready`，本条只更新 task body。
 
 ## Touches
 
@@ -59,3 +60,13 @@ Projects 侧栏的 `expandedProjects` 有两个写者，同一手势里互相覆
 - src/shared/types.ts
 - scripts/ui-scenarios/project-row-session-open.json (new)
 - tasks/gap-sidebar-project-row-toggle-replayed-by-auto-expand.md
+
+## Blocker
+
+**2026-11-06T07:14:23.305Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: suite 证书 — suite_head..tip 恰为本任务的单个 flip-done 提交（身份判定：仅 M tasks/gap-sidebar-project-row-toggle-replayed-by-auto-expand.md）⇒ 判惰性，⛔ 未调分类器
+fan-in-ff-merge: FF FAILED — fatal: Not possible to fast-forward, aborting.; not a fast-forward. Retry record written (attempt 1). Return to 无锁段 step 1 (merge develop again — 必须 merge 不得 rebase, AC75), re-judge the delta (step 2) and re-run.
+fan-in-ff-merge: measure ff_only_locked=false
+- run_id：wk-prod-anchor
+- session_id：17994772-cb78-4f41-aa90-565c12316478
