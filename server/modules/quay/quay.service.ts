@@ -1101,6 +1101,14 @@ type QuayServiceDependencies = {
   /** Per-command subprocess timeout. */
   commandTimeoutMs: number;
   /**
+   * Ceiling for the snapshot's `driver status --kind worker --json` read. OPTIONAL so every
+   * existing composition keeps the shared {@link commandTimeoutMs} bound; the composition root
+   * passes `QUAY_DRIVER_STATUS_TIMEOUT_MS` because a cold driver-status read is structurally
+   * more expensive than any other snapshot read. Injected (rather than read from a module
+   * constant here) so a criterion can pin the exact bound each command receives.
+   */
+  driverStatusTimeoutMs?: number;
+  /**
    * The fleet wall read port (quay-fleet's `wall resolve` / `wall summary`) behind the
    * `quay://` dereference entry point. OPTIONAL so every existing criterion composing this
    * service is untouched: `undefined` builds the configured CLI adapter from
@@ -1959,10 +1967,18 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   const detectQuayConfig = (projectPath: string): boolean =>
     dependencies.fileExists(path.join(projectPath, '.quay', 'config.yml'));
 
-  /** Runs one whitelisted read-only command; refuses anything else without spawning. */
+  /**
+   * Runs one whitelisted read-only command; refuses anything else without spawning.
+   *
+   * `timeoutMs` is per call rather than one bound for every verb: the snapshot's reads do not
+   * have equal cold costs (a cold `driver status` pays for probing the driver subprocesses), so
+   * the caller — or {@link collectSnapshot} for the driver read — names the ceiling. Omitting it
+   * keeps the shared `commandTimeoutMs` default every other read has always used.
+   */
   const runQuayCommand = async (
     cwd: string,
     args: readonly string[],
+    timeoutMs: number = dependencies.commandTimeoutMs,
   ): Promise<QuayCommandResult> => {
     if (!isReadOnlyQuayCommand(args)) {
       return {
@@ -1974,7 +1990,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       };
     }
 
-    return dependencies.runCommand(cwd, args, { timeoutMs: dependencies.commandTimeoutMs });
+    return dependencies.runCommand(cwd, args, { timeoutMs });
   };
 
   // --- the compact task status index (AC-348) ---
@@ -2326,12 +2342,15 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     projectPath: string,
     windowHours: number = DEFAULT_QUAY_GANTT_WINDOW_HOURS,
     forceRefresh: boolean = false,
-  ): Promise<QuaySnapshot> => {
+  ): Promise<{ snapshot: QuaySnapshot; complete: boolean }> => {
     const warnings: string[] = [];
     const quayDir = path.join(projectPath, '.quay');
     // Which CLI this snapshot's reads go through. Resolved once, from the same cached resolver
     // the spawn boundary uses, so the diagnostic and the child process cannot disagree.
     const entrypointResolution = dependencies.resolveEntrypoint?.(projectPath) ?? null;
+    // The driver read is the one snapshot read that is not a plain store print, so it gets its
+    // own ceiling. Not injected means "no special cost known", and the shared bound applies.
+    const driverStatusTimeoutMs = dependencies.driverStatusTimeoutMs ?? dependencies.commandTimeoutMs;
 
     /**
      * Runs one command and reads its JSON body. A non-zero exit is not on its
@@ -2347,8 +2366,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
      */
     const readJson = async (
       args: readonly string[],
+      timeoutMs: number = dependencies.commandTimeoutMs,
     ): Promise<{ value: unknown; warning: string | null }> => {
-      const result = await runQuayCommand(projectPath, args);
+      const result = await runQuayCommand(projectPath, args, timeoutMs);
 
       if (result.stdout.trim()) {
         try {
@@ -2387,10 +2407,16 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       dashboardUrl,
       ganttRead,
     ] = await Promise.all([
-      readJson(['task', 'list', '--json']),
+      // The whole array, but without each task's body: the body is ~10 KB per task and the
+      // projection below reads only `id`/`title`/`status`/`updatedAt`, while the blocked row's
+      // `depends_on` edges come from the task files themselves. Measured against this project's
+      // 1.4k-task store: 18.4 MB / ~1.7 s with bodies vs 715 KB / ~0.3 s without.
+      readJson(['task', 'list', '--json', '--no-body']),
       readJson(['goal', 'list', '--json']),
       readJson(['adr', 'list', '--json']),
-      readJson(['driver', 'status', '--kind', 'worker', '--json']),
+      // A cold driver status probes the driver subprocesses (~5.9 s measured) — this one read
+      // takes the wider injected ceiling instead of the shared per-command bound.
+      readJson(['driver', 'status', '--kind', 'worker', '--json'], driverStatusTimeoutMs),
       readJson(['config', 'validate', '--json']),
       // The Tests and Fan-in cards are one reading in two projections, taken through quay's
       // own `suite` / `driver log` verbs (never by parsing the carrier files here). The pair
@@ -2413,6 +2439,14 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       warnings.push(entrypointResolution.warning);
     }
 
+    // A section that answered nothing is a FAILED read, and a snapshot containing one is a
+    // partial reading: `null` with a warning (a timeout, a missing CLI, a torn payload). A
+    // `warning`-free `null` is a different fact — the CLI printed the JSON literal `null` — and
+    // is not a failure. The entrypoint warnings above are diagnostics, not failed reads, so they
+    // deliberately do not enter this predicate.
+    const complete = [tasksRead, goalsRead, adrsRead, driverRead, configRead]
+      .every((read) => read.value !== null || read.warning === null);
+
     // The pulse strip's blocked row. `depends_on` is absent from the CLI document, so the
     // unfinished tasks' store files supply the impact edges; `null` (task list unread) stays
     // null rather than becoming an empty row that would read as "nothing blocked".
@@ -2420,7 +2454,7 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       await enrichTaskRecordsWithStoreEdges(projectPath, tasksRead.value),
     );
 
-    return {
+    const snapshot: QuaySnapshot = {
       projectId,
       projectPath,
       // Optional increment: `{ path, version, source }` only — never widening the driver summary.
@@ -2463,6 +2497,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       // object and pay for one handshake (the reader's own TTL covers later opens).
       fleet: await readFleetAvailability(),
     };
+
+    return { snapshot, complete };
   };
 
   /**
@@ -2483,7 +2519,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     forceRefresh: boolean = false,
   ): Promise<QuaySnapshot> => {
     if (windowHours !== DEFAULT_QUAY_GANTT_WINDOW_HOURS) {
-      return collectSnapshot(projectId, projectPath, windowHours, forceRefresh);
+      return collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
+        .then(({ snapshot }) => snapshot);
     }
 
     const pending = inFlightSnapshots.get(projectId);
@@ -2492,11 +2529,18 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
     }
 
     const promise = collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
-      .then((snapshot) => {
-        snapshotCache.set(projectId, {
-          expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
-          snapshot,
-        });
+      .then(({ snapshot, complete }) => {
+        // A PARTIAL reading must not be cached. Caching it would serve the same hole for the
+        // whole TTL — the popover shape of the defect: one timed-out read made `tasks: null`
+        // stick for 30 s while every retry inside the window answered `cached: true`. A failed
+        // read is retried on the next open instead; a complete reading (including one whose
+        // only warnings are entrypoint diagnostics) is cached exactly as before.
+        if (complete) {
+          snapshotCache.set(projectId, {
+            expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
+            snapshot,
+          });
+        }
         return snapshot;
       })
       .finally(() => {
