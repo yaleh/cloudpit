@@ -1143,11 +1143,8 @@ function failedWith(code: AsrErrorCode, requests = 1): string {
  * SHAPE reaching the adapter — a status, an abort, a rejection, a body that is not JSON — and it is
  * the shape, not the code, that a regression would break.
  *
- * Every row here reaches the transport, and every row but one spends exactly one request: the two
- * guards that refuse BEFORE the transport are the size and mime groups' subject, not this one's. The
- * exception is `error.transport` itself — a rejection that carried no answer at all is retried once
- * inside the adapter (`fetchWithTransportRetry`), so its reading is two requests and one code; the
- * timeout row stays at one, because an abort is the caller's budget and retrying would double it.
+ * Every row here reaches the transport; all spend one request except `error.transport`, which is
+ * retried once inside the adapter (two requests), while an abort is never retried.
  *
  * THE ANSWER-SHAPED ROWS ARE BUILT PER WIRE. A status is a status on any wire, so those rows are
  * shared; an "answer with no text" is not, because what counts as an answer differs — a generation
