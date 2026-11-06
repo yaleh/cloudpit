@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-provider-warning-for-truncated-reads
 title: Cockpit 截断/坏行降级必须显示 warning，不得在救回卡片时静默丢弃末段
-status: ready
+status: done
 labels:
   - gap
   - defect
