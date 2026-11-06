@@ -14,9 +14,9 @@
 import type {
   CodexAppServerConnection,
   CodexAppServerLaunch,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import type { McpGatewayClientTarget } from '@/shared/ports/mcp-gateway-client.port.js';
-import type { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
+import type { CodexResidentQueue } from '@/modules/providers/list/codex/host/codex-resident-queue.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { AnyRecord, HostTurnInput } from '@/shared/types.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';

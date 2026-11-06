@@ -22,8 +22,8 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
-import { compileCodexProviderOptions } from '@/modules/providers/list/codex/codex-provider-injection.js';
-import { readCodexSessionTokenUsage } from '@/modules/providers/list/codex/codex-token-usage-files.js';
+import { compileCodexProviderOptions } from '@/modules/providers/list/codex/app-server/codex-provider-injection.js';
+import { readCodexSessionTokenUsage } from '@/modules/providers/list/codex/sessions/codex-token-usage-files.js';
 import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
 

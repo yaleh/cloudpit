@@ -127,7 +127,15 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/providers',
   'modules/providers/list/claude',
   'modules/providers/list/claude/lifecycle',
+  // FIFTH RECORDED CHANGE (2026-11-06,
+  // gap-routine-architecture-analysis-god-package-server-codex): the codex
+  // provider god-package was split into three subpackages
+  // (app-server / host / sessions), each behind an index.ts barrel. Added here
+  // and to the JSON together, exactly as the recorded-change contract requires.
   'modules/providers/list/codex',
+  'modules/providers/list/codex/app-server',
+  'modules/providers/list/codex/host',
+  'modules/providers/list/codex/sessions',
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',
   'modules/providers/services',

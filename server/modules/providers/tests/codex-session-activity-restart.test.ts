@@ -10,11 +10,11 @@ import {
   initializeDatabase,
   sessionsDb,
 } from '@/modules/database/index.js';
-import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
+import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/sessions/codex-session-synchronizer.provider.js';
 import {
   isCodexActivityRecord,
   readCodexTranscriptLastActivity,
-} from '@/modules/providers/list/codex/codex-transcript-activity.js';
+} from '@/modules/providers/list/codex/sessions/codex-transcript-activity.js';
 
 /**
  * These criteria pin the two halves of the restart-sync defect, and they are

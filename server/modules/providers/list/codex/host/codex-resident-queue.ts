@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import type { HostPendingQueuedInputs, HostQueuedInputCancelResult, ProviderRuntimeWriter } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 

@@ -5,8 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionBindingService, sessionsDb } from '@/modules/database/index.js';
-import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { codexAppServer } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
+import { CodexSessionsProvider } from '@/modules/providers/list/codex/sessions/codex-sessions.provider.js';
 
 /**
  * The CURRENT Codex CLI's real `thread/fork`, driven from a rollout written in

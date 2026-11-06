@@ -30,11 +30,11 @@ import type { AnyRecord, ProviderRuntimeWriter } from '@/shared/types.js';
 import {
   readSessionBlockedEventWriterPort,
 } from '@/shared/ports/session-blocked-events.port.js';
-import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import type {
   CodexResidentSessionReading as BaseSessionReading,
   ResidentSession,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
 
 /* -------------------------------------------------------------------------- */
 /* Wire mapping                                                               */

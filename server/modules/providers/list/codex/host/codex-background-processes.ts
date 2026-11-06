@@ -8,16 +8,16 @@
  * driver delegates to, so the driver keeps only its turn/queue state machine.
  */
 
-import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   createCodexBackgroundLeaseLedger,
   type CodexBackgroundLease,
   type CodexBackgroundLeaseLedger,
-} from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
+} from '@/modules/providers/list/codex/host/codex-background-lease-ledger.js';
 import {
   backgroundSpawnParams,
   type CodexBackgroundProcessSpec,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
 import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
 import { isRecord } from '@/shared/utils.js';
 

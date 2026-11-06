@@ -28,7 +28,7 @@ import test, { type TestContext } from 'node:test';
 import { Codex } from '@openai/codex-sdk';
 import type { CodexOptions, Thread, ThreadOptions } from '@openai/codex-sdk';
 
-import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
+import { codexRuntime } from '@/modules/providers/list/codex/host/codex-runtime.provider.js';
 import {
   createCodexModelProvidersSource,
 } from '@/modules/settings/index.js';

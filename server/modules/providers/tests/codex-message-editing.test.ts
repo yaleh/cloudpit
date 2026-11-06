@@ -7,9 +7,9 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
-import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { codexAppServer } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
+import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/sessions/codex-session-synchronizer.provider.js';
+import { CodexSessionsProvider } from '@/modules/providers/list/codex/sessions/codex-sessions.provider.js';
 
 /**
  * Codex rows carry no id of their own, so an edit addresses the enclosing

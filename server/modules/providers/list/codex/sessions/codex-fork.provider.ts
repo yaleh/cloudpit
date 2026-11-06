@@ -1,5 +1,5 @@
-import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/codex-provider-injection.js';
+import { codexAppServer } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
+import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/app-server/codex-provider-injection.js';
 import type { IProviderFork } from '@/shared/interfaces.js';
 
 /**

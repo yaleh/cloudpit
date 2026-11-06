@@ -313,7 +313,18 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/providers',
   'modules/providers/list/claude',
   'modules/providers/list/claude/lifecycle',
+  // SIXTEENTH RECORDED CHANGE (2026-11-06,
+  // gap-routine-architecture-analysis-god-package-server-codex): the god-package
+  // finding's fix split `modules/providers/list/codex` into three subpackages.
+  // They are registered rather than left to the new-directory leaf rule because
+  // the package root legitimately imports each of them, `host` imports
+  // `sessions` (token-usage-files) and both import `app-server`; the direction
+  // is one-way, so no SCC is added. `directoryManifest` and `nodeCount` rise by
+  // three.
   'modules/providers/list/codex',
+  'modules/providers/list/codex/app-server',
+  'modules/providers/list/codex/host',
+  'modules/providers/list/codex/sessions',
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',
   'modules/providers/services',

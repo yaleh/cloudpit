@@ -1,13 +1,13 @@
-import { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import type { CodexBackgroundLease } from '@/modules/providers/list/codex/codex-background-lease-ledger.js';
-import { CodexBackgroundProcesses } from '@/modules/providers/list/codex/codex-background-processes.js';
+import { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import type { CodexBackgroundLease } from '@/modules/providers/list/codex/host/codex-background-lease-ledger.js';
+import { CodexBackgroundProcesses } from '@/modules/providers/list/codex/host/codex-background-processes.js';
 import {
   createCodexApprovalBroker,
   type CodexApprovalBroker,
   type CodexApprovalDriverOptions,
   type CodexResidentSessionReading,
-} from '@/modules/providers/list/codex/codex-approval-broker.js';
+} from '@/modules/providers/list/codex/host/codex-approval-broker.js';
 import {
   ensureThread,
   normalizeTurnStatus,
@@ -22,22 +22,22 @@ import {
   type PendingResidentLaunch,
   type PendingTurn,
   type ResidentSession,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
-import { pendingLaunchForHost, residentLaunchForOptions } from '@/modules/providers/list/codex/codex-resident-provider-launch.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
+import { pendingLaunchForHost, residentLaunchForOptions } from '@/modules/providers/list/codex/host/codex-resident-provider-launch.js';
 import {
   createCodexLiveSettings,
   type CodexLiveSettings,
   type CodexSettingsCapabilities,
   type CodexTurnSettingsPatch,
   type HostReconfigureOutcome,
-} from '@/modules/providers/list/codex/codex-live-settings.js';
-import { createCodexResidentFrameRelay, type CodexResidentFrameRelay } from '@/modules/providers/list/codex/codex-resident-normalize.js';
-import { CodexResidentBlockedTurns, readTurnErrorMessage } from '@/modules/providers/list/codex/codex-resident-blocked-events.js';
-import { CodexResidentQueue } from '@/modules/providers/list/codex/codex-resident-queue.js';
+} from '@/modules/providers/list/codex/host/codex-live-settings.js';
+import { createCodexResidentFrameRelay, type CodexResidentFrameRelay } from '@/modules/providers/list/codex/host/codex-resident-normalize.js';
+import { CodexResidentBlockedTurns, readTurnErrorMessage } from '@/modules/providers/list/codex/host/codex-resident-blocked-events.js';
+import { CodexResidentQueue } from '@/modules/providers/list/codex/host/codex-resident-queue.js';
 import {
   steerCurrentTurn,
   type CodexSteerResult,
-} from '@/modules/providers/list/codex/codex-resident-steer.js';
+} from '@/modules/providers/list/codex/host/codex-resident-steer.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
@@ -76,7 +76,7 @@ export type {
   CodexResidentHostPort,
   CodexThreadDefaults,
   CodexTurnStatus,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
 /** The reading AC-438 widens with `threadStatus`/`activeFlags`/pending approvals. */
 export type { CodexResidentSessionReading, CodexApprovalDriverOptions };
 /** Re-exported so callers of the driver never reach into the helper module. */

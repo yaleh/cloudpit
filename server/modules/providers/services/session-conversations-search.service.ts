@@ -18,7 +18,7 @@ import {
   extractCodexText,
   isInternalCodexContent,
   isVisibleCodexUserMessage,
-} from '@/modules/providers/list/codex/codex-transcript-format.js';
+} from '@/modules/providers/list/codex/sessions/codex-transcript-format.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex';

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import type { CodexModelDescriptor } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import type { CodexModelDescriptor } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
 import {
   CODEX_PREDEFINED_MODELS,
   CodexProviderModels,

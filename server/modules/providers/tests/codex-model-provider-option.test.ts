@@ -13,7 +13,7 @@ import {
   initializeDatabase,
   sessionsDb,
 } from '@/modules/database/index.js';
-import type { CodexModelDescriptor } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import type { CodexModelDescriptor } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
 import { CodexProviderModels } from '@/modules/providers/list/codex/codex-models.provider.js';
 import providerRouter from '@/modules/providers/provider.routes.js';
 import { createProviderModelsService } from '@/modules/providers/services/provider-models.service.js';

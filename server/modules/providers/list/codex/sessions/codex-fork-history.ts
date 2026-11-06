@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
-import { findFileWithSuffix } from '@/modules/providers/list/codex/codex-session-paths.js';
+import { findFileWithSuffix } from '@/modules/providers/list/codex/sessions/codex-session-paths.js';
 
 /**
  * Reads a Codex rollout together with the history it was forked from.

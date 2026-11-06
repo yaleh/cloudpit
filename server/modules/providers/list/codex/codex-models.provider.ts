@@ -8,7 +8,7 @@ import TOML from '@iarna/toml';
 import {
   codexAppServer,
   type CodexModelDescriptor,
-} from '@/modules/providers/list/codex/codex-app-server.client.js';
+} from '@/modules/providers/list/codex/app-server/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import {
   readCodexProviderRegistryPort,

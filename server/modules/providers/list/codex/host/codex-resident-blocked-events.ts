@@ -17,7 +17,7 @@
  * Consumed by `codex-host-driver.provider.ts` (turn settlement and session teardown) and the
  * criterion `tests/codex-resident-approvals.test.ts`.
  */
-import type { CodexTurnStatus } from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+import type { CodexTurnStatus } from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
 import { readSessionBlockedEventWriterPort } from '@/shared/ports/session-blocked-events.port.js';
 import { isRecord } from '@/shared/utils.js';
 

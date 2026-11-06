@@ -8,13 +8,13 @@ export { providerRuntimeService, createProviderRuntimeService } from './services
 // barrel), and because a settings surface that renders the same advanced fields
 // needs one compiler rather than a second copy. `codexRuntime` is the per-run
 // entry the registry composes, re-exported for the same criterion.
-export { codexRuntime } from './list/codex/codex-runtime.provider.js';
+export { codexRuntime } from './list/codex/host/index.js';
 export { CodexProviderModels, CODEX_PREDEFINED_MODELS } from './list/codex/codex-models.provider.js';
 export {
   codexOptionsForProvider,
   codexProviderSpawnArgs,
   type CodexModelLimits,
-} from './list/codex/codex-provider-injection.js';
+} from './list/codex/app-server/index.js';
 // ControlStopTaskOutcome: the answer the runtime gateway's stop-task verb gives
 // (`requested` / `unsupported` / `timeout` / `error`). Exported so the websocket
 // control handler types its pass-through against the one union rather than
@@ -241,7 +241,7 @@ export { ClaudeSessionsProvider } from './list/claude/claude-sessions.provider.j
 // through this barrel. Production never reads them from here: quay resolves the reader through
 // the provider's `sessions.readTranscriptMessage` capability.
 export { readClaudeTranscriptMessage } from './list/claude/claude-transcript-format.js';
-export { readCodexTranscriptMessage } from './list/codex/codex-transcript-format.js';
+export { readCodexTranscriptMessage } from './list/codex/sessions/index.js';
 // ClaudeSessionSynchronizer: driven by the websocket module's session-upsert
 // broadcast test, which needs the real indexer to put an ai-title on a row
 // before asserting the delta that carries it.
@@ -305,10 +305,10 @@ export type {
 // provider's internal path: the module boundary lint and the backend module
 // standards both require cross-module access to go through this barrel. Same
 // reason as `ClaudeResidentHostDriver` above.
-export { CodexHostDriver } from './list/codex/codex-host-driver.provider.js';
-export type { CodexResidentHostPort } from './list/codex/codex-host-driver.provider.js';
-export { CodexAppServerConnection } from './list/codex/codex-app-server.connection.js';
-export type { CodexAppServerTransport } from './list/codex/codex-app-server.connection.js';
+export { CodexHostDriver } from './list/codex/host/index.js';
+export type { CodexResidentHostPort } from './list/codex/host/index.js';
+export { CodexAppServerConnection } from './list/codex/app-server/index.js';
+export type { CodexAppServerTransport } from './list/codex/app-server/index.js';
 export { CLAUDE_PREDEFINED_MODELS } from './list/claude/claude-models.provider.js';
 export {
   abortClaudeSDKSession,

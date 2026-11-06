@@ -19,11 +19,11 @@
  * its unbound launch byte-for-byte, which is the negative control for the
  * injection.
  */
-import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import type {
   PendingResidentLaunch,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
-import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/codex-provider-injection.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
+import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/app-server/codex-provider-injection.js';
 import type { AnyRecord, ProcessHost } from '@/shared/types.js';
 
 /** The upstream provider id a resident launch bag records, or null. */

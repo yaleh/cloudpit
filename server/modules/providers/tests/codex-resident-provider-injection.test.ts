@@ -38,11 +38,11 @@ import path from 'node:path';
 import test, { after, before } from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   CodexHostDriver,
   type CodexResidentHostPort,
-} from '@/modules/providers/list/codex/codex-host-driver.provider.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
 import { providerRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import { createCodexModelProvidersSource } from '@/modules/settings/index.js';
 import type { IProvider, IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';

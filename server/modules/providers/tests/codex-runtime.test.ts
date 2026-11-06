@@ -7,7 +7,7 @@ import test from 'node:test';
 import { Codex } from '@openai/codex-sdk';
 import type { Thread, ThreadOptions } from '@openai/codex-sdk';
 
-import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
+import { codexRuntime } from '@/modules/providers/list/codex/host/codex-runtime.provider.js';
 import type { ProviderRuntimeContext } from '@/shared/index.js';
 
 for (const resumed of [false, true]) {

@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   CODEX_MCP_GATEWAY_SERVER_NAME,
   CODEX_MCP_GATEWAY_TOKEN_ENV,
@@ -13,8 +13,8 @@ import {
   threadParams,
   turnParams,
   type CodexResidentHostPort,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
-import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
+import { CodexHostDriver } from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
   HostTurnInput,

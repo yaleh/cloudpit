@@ -49,9 +49,9 @@ import {
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
-import { codexRuntime } from '@/modules/providers/list/codex/codex-runtime.provider.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import { CodexHostDriver } from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
+import { codexRuntime } from '@/modules/providers/list/codex/host/codex-runtime.provider.js';
 import * as claudeRuntime from '@/modules/providers/list/claude/claude-runtime.provider.js';
 import { approvalRequests } from '@/modules/providers/shared/base/approval-requests.service.js';
 import { TOOL_APPROVAL_TIMEOUT_MS } from '@/modules/providers/shared/base/approval-requests.service.js';

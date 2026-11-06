@@ -6,7 +6,7 @@ import {
   isInternalCodexContent,
   isVisibleCodexUserMessage,
   readCodexTranscriptMessage,
-} from '@/modules/providers/list/codex/codex-transcript-format.js';
+} from '@/modules/providers/list/codex/sessions/codex-transcript-format.js';
 
 /**
  * The shared Codex transcript reader is consumed by BOTH read surfaces: the

@@ -11,11 +11,11 @@
  * Consumed by `CodexHostDriver.steer` and by the criterion in
  * `tests/codex-host-driver-steer.test.ts`.
  */
-import type { CodexAppServerConnection } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   turnParams,
   type ResidentSession,
-} from '@/modules/providers/list/codex/codex-host-driver.contract.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.contract.js';
 import type { HostTurnInput } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 

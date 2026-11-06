@@ -3,16 +3,16 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { sessionBindingService, sessionsDb } from '@/modules/database/index.js';
-import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/codex-provider-injection.js';
-import { codexRolloutLines } from '@/modules/providers/list/codex/codex-fork-history.js';
-import { findFileWithSuffix } from '@/modules/providers/list/codex/codex-session-paths.js';
-import { normalizeCodexTokenCountInfo } from '@/modules/providers/list/codex/codex-token-usage-normalization.js';
+import { codexAppServer } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
+import { compileCodexProviderLaunch } from '@/modules/providers/list/codex/app-server/codex-provider-injection.js';
+import { codexRolloutLines } from '@/modules/providers/list/codex/sessions/codex-fork-history.js';
+import { findFileWithSuffix } from '@/modules/providers/list/codex/sessions/codex-session-paths.js';
+import { normalizeCodexTokenCountInfo } from '@/modules/providers/list/codex/sessions/codex-token-usage-normalization.js';
 import {
   extractCodexText,
   isVisibleCodexUserMessage,
   readCodexTranscriptMessage,
-} from '@/modules/providers/list/codex/codex-transcript-format.js';
+} from '@/modules/providers/list/codex/sessions/codex-transcript-format.js';
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import { prepareTranscriptMessages } from '@/shared/message-unification.js';

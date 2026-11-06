@@ -5,8 +5,8 @@ import test from 'node:test';
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import { CodexHostDriver } from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type { HostLease, ProcessHost, SessionBinding } from '@/shared/types.js';
 
@@ -616,7 +616,7 @@ test('the driver conforms to IProviderHostDriver and the ledger keeps state insi
   assert.equal(typeof driver.readBackgroundLeases, 'function');
 
   const source = readFileSync(
-    new URL('../list/codex/codex-background-lease-ledger.ts', import.meta.url),
+    new URL('../list/codex/host/codex-background-lease-ledger.ts', import.meta.url),
     'utf8',
   );
   const moduleState = source.split('\n').filter((line) =>

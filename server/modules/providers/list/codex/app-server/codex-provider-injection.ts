@@ -26,7 +26,7 @@
  */
 import type { CodexOptions } from '@openai/codex-sdk';
 
-import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/codex-app-server.connection.js';
+import type { CodexAppServerLaunch } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   readCodexProviderRegistryPort,
   type ResolvedCodexUpstreamProvider,

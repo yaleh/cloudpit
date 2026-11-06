@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { CodexForkProvider } from '@/modules/providers/list/codex/codex-fork.provider.js';
+import { codexAppServer } from '@/modules/providers/list/codex/app-server/codex-app-server.client.js';
+import { CodexForkProvider } from '@/modules/providers/list/codex/sessions/codex-fork.provider.js';
 import { installCodexProviderRegistryPort } from '@/shared/ports/codex-provider-registry.port.js';
 
 /**

@@ -10,7 +10,7 @@ import {
   normalizeSessionName,
   readFileTimestamps,
 } from '@/shared/utils.js';
-import { readCodexTranscriptLastActivity } from '@/modules/providers/list/codex/codex-transcript-activity.js';
+import { readCodexTranscriptLastActivity } from '@/modules/providers/list/codex/sessions/codex-transcript-activity.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
 type ParsedSession = {

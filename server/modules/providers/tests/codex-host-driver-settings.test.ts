@@ -4,11 +4,11 @@ import test from 'node:test';
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import {
   CodexHostDriver,
   type CodexSettingsCapabilities,
-} from '@/modules/providers/list/codex/codex-host-driver.provider.js';
+} from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type { HostReconfigurePatch, ProcessHost, SessionBinding } from '@/shared/types.js';
 import type { HostReconfigureOutcome } from '@/modules/providers/services/provider-runtime.service.js';

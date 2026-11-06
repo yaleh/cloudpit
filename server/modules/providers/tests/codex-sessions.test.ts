@@ -9,10 +9,10 @@ import { registerMcpReadTools, type McpReadToolRegistration } from '@/modules/mc
 import {
   CodexAppServerConnection,
   type CodexAppServerTransport,
-} from '@/modules/providers/list/codex/codex-app-server.connection.js';
-import { CodexHostDriver } from '@/modules/providers/list/codex/codex-host-driver.provider.js';
-import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
-import { CodexSessionsProvider, parseCodexExecScript, readCodexMemoryCitations } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+} from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import { CodexHostDriver } from '@/modules/providers/list/codex/host/codex-host-driver.provider.js';
+import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/sessions/codex-session-synchronizer.provider.js';
+import { CodexSessionsProvider, parseCodexExecScript, readCodexMemoryCitations } from '@/modules/providers/list/codex/sessions/codex-sessions.provider.js';
 import { createProviderTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import type { IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {
