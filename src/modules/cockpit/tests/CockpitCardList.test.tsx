@@ -17,19 +17,23 @@ import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCard
 import type { CockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 
 /**
- * THE CARD WALL'S THREE EMPTY/FULL READINGS.
+ * THE CARD WALL'S EMPTY/FULL/DEGRADED READINGS.
  *
- * A provider that failed to read must never look like a healthy empty wall. The list therefore
- * has exactly three branches, and this criterion pins one DOM reading for each:
+ * A provider that failed to read must never look like a healthy empty wall, and a provider that
+ * answered an INCOMPLETE but usable batch must never look like a complete wall. The list
+ * therefore has these readings, and this criterion pins one DOM reading for each:
  *
- *   1. no cards and no failure → the normal empty state (`cockpit-card-empty`);
+ *   1. no cards and nothing wrong → the normal empty state (`cockpit-card-empty`);
  *   2. no cards and a provider failure → the failure with its reason and the retry
  *      (`cockpit-card-provider-error`), and NOT the empty state;
- *   3. cards AND a provider failure → the healthy cards stay, with the persistent notice.
+ *   3. cards AND a provider failure → the healthy cards stay, with the persistent notice;
+ *   4. cards AND a provider warning (`ok:true` but truncated/skipped lines) → the cards stay,
+ *      with the persistent warning (`cockpit-card-provider-warning`) carrying the reason;
+ *   5. a failure AND a warning together → both notices, never merged into one, cards visible.
  *
- * The controller is the real one, so `status`, `providerFailures` and `degraded` are the same
- * readings the page consumes; the list is the shipped component, so the assertions are about the
- * rendered wall rather than a prop the test placed.
+ * The controller is the real one, so `status`, `providerFailures`, `providerWarnings` and
+ * `degraded` are the same readings the page consumes; the list is the shipped component, so the
+ * assertions are about the rendered wall rather than a prop the test placed.
  */
 
 const NOW = Date.parse('2026-11-06T00:10:00.000Z');
@@ -77,6 +81,24 @@ function failedDiagnostic(
 
 function healthyDiagnostic(provider: string, cards: number): CockpitCardProviderDiagnostic {
   return { provider, ok: true, reason: null, cards, skippedLines: 0, cached: false };
+}
+
+/** A usable batch that the provider itself declares incomplete (truncated or skipped lines). */
+function incompleteDiagnostic(
+  provider: string,
+  reason = 'read output was cut at the 8 MiB bound',
+  overrides: Partial<CockpitCardProviderDiagnostic> = {},
+): CockpitCardProviderDiagnostic {
+  return {
+    provider,
+    ok: true,
+    reason,
+    cards: 1,
+    skippedLines: 0,
+    cached: false,
+    truncated: true,
+    ...overrides,
+  };
 }
 
 /** A read the criterion can change between polls, exactly like the route answering again. */
@@ -201,6 +223,70 @@ describe('the card wall distinguishes an empty read from a failed provider', () 
   });
 });
 
+describe('an incomplete but usable read is stated, never silently shown as complete', () => {
+  it('cards plus a warning draw the cards AND the warning with the provider’s reason', async () => {
+    await renderList(
+      [card({ id: 'fixture-1' })],
+      [incompleteDiagnostic('quay-fleet')],
+    );
+
+    // The salvaged cards are real and stay on the wall.
+    expect(screen.getByTestId('cockpit-card-list').textContent).toContain('Which way?');
+    // …and the incompleteness is stated beside them.
+    const warning = screen.getByTestId('cockpit-card-provider-warning');
+    expect(warning.getAttribute('data-providers')).toBe('quay-fleet');
+    expect(warning.textContent).toContain('quay-fleet');
+    expect(warning.textContent).toContain('read output was cut at the 8 MiB bound');
+    // A warning is NOT the failure banner, and it never replaces the cards with an empty state.
+    expect(screen.queryByTestId('cockpit-card-provider-error')).toBeNull();
+    expect(screen.queryByTestId('cockpit-card-empty')).toBeNull();
+  });
+
+  it('a warning with no cards suppresses the healthy empty state', async () => {
+    await renderList(
+      [],
+      [incompleteDiagnostic('quay-fleet', 'skipped 2 malformed lines', { skippedLines: 2 })],
+    );
+
+    const warning = screen.getByTestId('cockpit-card-provider-warning');
+    expect(warning.textContent).toContain('skipped 2 malformed lines');
+    // The wall knows it is incomplete; drawing 「no cards」 would claim a healthy empty read.
+    expect(screen.queryByTestId('cockpit-card-empty')).toBeNull();
+  });
+
+  it('a failure and a warning together draw BOTH notices and keep the cards', async () => {
+    await renderList(
+      [card({ id: 'fixture-1' })],
+      [failedDiagnostic('quay-fleet'), incompleteDiagnostic('fixture')],
+    );
+
+    const failure = screen.getByTestId('cockpit-card-provider-error');
+    expect(failure.getAttribute('data-providers')).toBe('quay-fleet');
+    const warning = screen.getByTestId('cockpit-card-provider-warning');
+    expect(warning.getAttribute('data-providers')).toBe('fixture');
+    // Two independent readings, never collapsed into one `degraded` line.
+    expect(failure).not.toBe(warning);
+    expect(screen.getByTestId('cockpit-card-list').textContent).toContain('Which way?');
+  });
+
+  it('a healthy poll clears the warning and keeps the cards', async () => {
+    const h = await renderList(
+      [card({ id: 'fixture-1' })],
+      [incompleteDiagnostic('quay-fleet')],
+    );
+    expect(screen.getByTestId('cockpit-card-provider-warning')).toBeTruthy();
+
+    h.setCards([card({ id: 'fixture-1' })]);
+    h.setDiagnostics([healthyDiagnostic('quay-fleet', 1)]);
+    await act(async () => {
+      await h.controller.load();
+    });
+
+    expect(screen.queryByTestId('cockpit-card-provider-warning')).toBeNull();
+    expect(screen.getByTestId('cockpit-card-list').textContent).toContain('Which way?');
+  });
+});
+
 describe('the page binding forwards the route’s diagnostics', () => {
   it('a provider failure in the HTTP answer reaches the wall (the hook drops nothing)', async () => {
     // The controller-level cases above bind their own transport. This leg drives the SHIPPED
@@ -226,6 +312,33 @@ describe('the page binding forwards the route’s diagnostics', () => {
 
       expect(await screen.findByTestId('cockpit-card-provider-error')).toBeTruthy();
       expect(screen.queryByTestId('cockpit-card-empty')).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a provider warning in the HTTP answer reaches the wall too', async () => {
+    const spy = vi.spyOn(api, 'cockpitCards').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        cards: [card({ id: 'fixture-1' })],
+        diagnostics: [incompleteDiagnostic('quay-fleet')],
+      }),
+    } as unknown as Response);
+    try {
+      render(
+        <MemoryRouter initialEntries={['/cockpit?view=cards']}>
+          <I18nextProvider i18n={i18n}>
+            <CockpitCardList />
+          </I18nextProvider>
+        </MemoryRouter>,
+      );
+
+      const warning = await screen.findByTestId('cockpit-card-provider-warning');
+      expect(warning.textContent).toContain('read output was cut at the 8 MiB bound');
+      expect(screen.getByTestId('cockpit-card-list').textContent).toContain('Which way?');
+      expect(screen.queryByTestId('cockpit-card-provider-error')).toBeNull();
     } finally {
       spy.mockRestore();
     }

@@ -1019,6 +1019,7 @@
     "cardEmpty": "待機中のカードはありません。",
     "cardError": "カードを読み取れませんでした: {{reason}}",
     "cardProviderError": "一部のカードプロバイダーを読み取れませんでした ({{providers}}): {{reason}}",
+    "cardProviderWarning": "一部のカードプロバイダーの読み取りが不完全でした ({{providers}}): {{reason}}",
     "cardProviderNoReason": "理由は不明です",
     "cardProviderRetry": "再試行",
     "cardConfirmBody": "「{{label}}」を一度だけ送信します。",

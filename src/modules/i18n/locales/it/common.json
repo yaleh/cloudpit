@@ -1019,6 +1019,7 @@
     "cardEmpty": "Nessuna scheda in attesa.",
     "cardError": "Impossibile leggere le schede: {{reason}}",
     "cardProviderError": "Impossibile leggere alcuni provider di schede ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Alcuni provider di schede hanno restituito letture incomplete ({{providers}}): {{reason}}",
     "cardProviderNoReason": "nessun motivo indicato",
     "cardProviderRetry": "Riprova",
     "cardConfirmBody": "Questo invia «{{label}}» una volta.",

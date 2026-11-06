@@ -1300,6 +1300,131 @@ describe('provider failures are a degraded reading, not an empty one', () => {
   });
 });
 
+describe('provider warnings are a degraded reading with the healthy cards kept', () => {
+  /**
+   * A provider that produced a usable batch but says it is INCOMPLETE. `ok` keeps its A/B
+   * meaning ("a usable batch came back"), so the controller must not file these under
+   * `providerFailures`; it owes the list a warning instead.
+   */
+  function incompleteDiagnostic(
+    provider: string,
+    overrides: Partial<CockpitCardProviderDiagnostic> = {},
+  ): CockpitCardProviderDiagnostic {
+    return {
+      provider,
+      ok: true,
+      reason: 'read output was cut at the 8 MiB bound',
+      cards: 3,
+      skippedLines: 0,
+      cached: false,
+      ...overrides,
+    };
+  }
+
+  function healthyDiagnostic(provider: string, cards: number): CockpitCardProviderDiagnostic {
+    return { provider, ok: true, reason: null, cards, skippedLines: 0, cached: false };
+  }
+
+  it('a truncated but usable batch is a warning, degraded, and keeps its salvaged cards', async () => {
+    const h = harness([card('c1'), card('c2')]);
+    h.setDiagnostics([
+      incompleteDiagnostic('quay-fleet', {
+        truncated: true,
+        completeLines: 2,
+        truncatedTailBytes: 4096,
+      }),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.status).toBe('loaded');
+    expect(snapshot.providerFailures).toEqual([]);
+    expect(snapshot.providerWarnings).toHaveLength(1);
+    expect(snapshot.providerWarnings[0]).toMatchObject({
+      provider: 'quay-fleet',
+      ok: true,
+      truncated: true,
+      reason: 'read output was cut at the 8 MiB bound',
+    });
+    expect(snapshot.degraded).toBe(true);
+    // The salvaged prefix is real: its cards are drawn, and the wall is not empty.
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(['c1', 'c2']);
+  });
+
+  it('a usable batch that skipped malformed lines is a warning too', async () => {
+    const h = harness([card('c1')]);
+    h.setDiagnostics([incompleteDiagnostic('quay-fleet', { skippedLines: 1 })]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.providerFailures).toEqual([]);
+    expect(snapshot.providerWarnings.map((warning) => warning.provider)).toEqual(['quay-fleet']);
+    expect(snapshot.degraded).toBe(true);
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(['c1']);
+  });
+
+  it('a healthy reading carrying a reason is NOT a warning: reason alone is display copy', async () => {
+    const h = harness([card('c1')]);
+    h.setDiagnostics([
+      healthyDiagnostic('quay-fleet', 1),
+      // A reason without `truncated` and without skipped lines must not degrade the wall.
+      incompleteDiagnostic('other', { reason: 'cache hit', skippedLines: 0 }),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.providerWarnings).toEqual([]);
+    expect(snapshot.providerFailures).toEqual([]);
+    expect(snapshot.degraded).toBe(false);
+  });
+
+  it('ok:false still lands in providerFailures, never in providerWarnings', async () => {
+    const h = harness([]);
+    h.setDiagnostics([failedDiagnostic('quay-fleet')]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.providerFailures.map((failure) => failure.provider)).toEqual(['quay-fleet']);
+    expect(snapshot.providerWarnings).toEqual([]);
+    expect(snapshot.degraded).toBe(true);
+  });
+
+  it('a failure and a warning stay two separate readings when both arrive', async () => {
+    const h = harness([card('c1')]);
+    h.setDiagnostics([
+      failedDiagnostic('quay-fleet'),
+      incompleteDiagnostic('fixture', { truncated: true }),
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.providerFailures.map((failure) => failure.provider)).toEqual(['quay-fleet']);
+    expect(snapshot.providerWarnings.map((warning) => warning.provider)).toEqual(['fixture']);
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(['c1']);
+    expect(snapshot.degraded).toBe(true);
+  });
+
+  it('the next healthy poll clears both the failures and the warnings', async () => {
+    const h = harness([card('c1')]);
+    h.setDiagnostics([
+      failedDiagnostic('quay-fleet'),
+      incompleteDiagnostic('fixture', { truncated: true }),
+    ]);
+    await h.controller.load();
+    expect(h.snapshot().degraded).toBe(true);
+
+    h.setCards([card('c1', { revision: 2 })]);
+    h.setDiagnostics([healthyDiagnostic('quay-fleet', 1), healthyDiagnostic('fixture', 0)]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.providerFailures).toEqual([]);
+    expect(snapshot.providerWarnings).toEqual([]);
+    expect(snapshot.degraded).toBe(false);
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(['c1']);
+  });
+});
+
 describe('the same question asked twice is one card', () => {
   /** A card that names a session and states a question, so two of them can fold. */
   function askedCard(id: string, surfacedAt: string, overrides: Partial<CockpitCard> = {}): CockpitCard {

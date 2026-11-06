@@ -1110,6 +1110,7 @@
     "cardEmpty": "No cards are waiting.",
     "cardError": "Could not read the cards: {{reason}}",
     "cardProviderError": "Some card providers could not be read ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Some card providers returned incomplete reads ({{providers}}): {{reason}}",
     "cardProviderNoReason": "no reason given",
     "cardProviderRetry": "Retry",
     "cardConfirmBody": "This sends “{{label}}” once.",

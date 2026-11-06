@@ -18,6 +18,7 @@ import type {
   Clock,
   CockpitCard as CockpitCardData,
   CockpitCardOption,
+  CockpitCardProviderDiagnostic,
 } from '@/shared/types';
 import enCommon from '@/modules/i18n/locales/en/common.json';
 import {
@@ -128,9 +129,10 @@ function card(index: number, overrides: Partial<CockpitCardData> = {}): CockpitC
  */
 async function columnBinding(
   settled: readonly CockpitCardData[] = [card(1)],
+  diagnostics: readonly CockpitCardProviderDiagnostic[] = [],
 ): Promise<CockpitColumnBinding> {
   const cards = createCockpitCardController({
-    fetchCards: async () => ({ cards: settled }),
+    fetchCards: async () => ({ cards: settled, diagnostics }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,
@@ -318,6 +320,48 @@ test('phone: the cockpit entry draws the cards layer and the conversation undern
     document.querySelector('[data-testid="location"]')?.textContent,
     `/session/${SESSION_ID}`,
     'closing returns to the session address',
+  );
+});
+
+test('phone: the layer draws the provider warning from the same card reading', async () => {
+  window.innerWidth = 390;
+  const binding = await columnBinding([card(1)], [
+    {
+      provider: 'quay-fleet',
+      ok: true,
+      reason: 'read output was cut at the 8 MiB bound',
+      cards: 1,
+      skippedLines: 0,
+      cached: false,
+      truncated: true,
+    },
+  ]);
+  renderSessionPage(binding);
+
+  const button = document.querySelector<HTMLElement>('[data-testid="cockpit-header-button"]');
+  assert.ok(button, 'the phone header draws the cockpit entry');
+  fireEvent.click(button);
+
+  const overlay = document.querySelector<HTMLElement>('[data-testid="cockpit-overlay"]');
+  assert.ok(overlay, 'pressing the cockpit entry opens the layer');
+  // The layer's list is the shipped list bound to the same controller, so the warning reading
+  // arrives without the overlay reinterpreting diagnostics.
+  const warning = overlay.querySelector<HTMLElement>(
+    '[data-testid="cockpit-card-provider-warning"]',
+  );
+  assert.ok(warning, 'the layer states the incomplete read');
+  assert.ok(
+    warning.textContent?.includes('read output was cut at the 8 MiB bound'),
+    `the warning carries the provider reason; read "${warning.textContent}"`,
+  );
+  assert.equal(
+    overlay.querySelector('[data-testid="cockpit-card-provider-error"]'),
+    null,
+    'a warning is not the failure banner',
+  );
+  assert.ok(
+    overlay.querySelector('[data-testid="cockpit-card-overlay-card-1"]'),
+    'the salvaged card stays in the layer',
   );
 });
 

@@ -989,6 +989,7 @@
     "cardEmpty": "Нет ожидающих карточек.",
     "cardError": "Не удалось прочитать карточки: {{reason}}",
     "cardProviderError": "Не удалось прочитать некоторых поставщиков карточек ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Некоторые поставщики карточек вернули неполные данные ({{providers}}): {{reason}}",
     "cardProviderNoReason": "причина не указана",
     "cardProviderRetry": "Повторить",
     "cardConfirmBody": "Это отправит «{{label}}» один раз.",

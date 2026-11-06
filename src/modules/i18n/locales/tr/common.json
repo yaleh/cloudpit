@@ -1019,6 +1019,7 @@
     "cardEmpty": "Bekleyen kart yok.",
     "cardError": "Kartlar okunamadı: {{reason}}",
     "cardProviderError": "Bazı kart sağlayıcıları okunamadı ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Bazı kart sağlayıcıları eksik okumalar döndürdü ({{providers}}): {{reason}}",
     "cardProviderNoReason": "sebep belirtilmedi",
     "cardProviderRetry": "Yeniden dene",
     "cardConfirmBody": "Bu, “{{label}}” öğesini bir kez gönderir.",
