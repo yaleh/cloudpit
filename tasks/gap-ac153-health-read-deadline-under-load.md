@@ -76,12 +76,12 @@ Call Log:
 
 ## AC
 
-- [ ] AC1 具名常量与替换：`e2e/voice-error-messages.spec.ts` 声明 `HEALTH_READ_DEADLINE_MS`（≥ 60000）并用于两处 health 等待；贴出 `grep -n 'HEALTH_READ_DEADLINE_MS\|timeout: 15_000' e2e/voice-error-messages.spec.ts` 的完整输出，health 两处不再出现裸 `15_000`（若仍有非 health 的 `15_000`，逐行指名并说明其不是 health 等待）。
-- [ ] AC2 负控红在新 message 上：`VOICE_ERROR_HEALTH_DEADLINE_MS=1 npx playwright test e2e/voice-error-messages.spec.ts` exit 1；贴出 error-context 的 `# Error details`，其中含 stage 偏移、观察到的 health payload 条数、以及已捕获 payload 的 `provider` / `configured` 摘要（零条时写明 `payloads=0`）；不设变量时同一命令 exit 0。
-- [ ] AC3 判据直跑读数：不设 override 直跑 exit 0，逐字抄 spec 自印的 `legs=4 passed=4`、`coded=4`、`chinese=4`、`visible-after-4s=true`、`text-unchanged=true`、`closed=true`、`cleared-on-next-recording=true`、`drafts-kept=4/4`、`notices-shown=4/4`、`collapsed-hides-code=true`、`expanded-shows-status=true`、`expanded-shows-upstream=true`、`concat-hits=0`、`equal=true`、`both-equal-vocab=true`、`criterion-wall-ms=`、`watchdog-line=false`，并给 `date -u`、`git rev-parse HEAD`、`cat /proc/loadavg`。
-- [ ] AC4 连续两次直跑：同一棵树连续 ≥2 次 exit 0（每跑之间不改树、不重启服务），各抄 `criterion-wall-ms` 与当次 `cat /proc/loadavg`；两次都 < `CRITERION_BUDGET_MS`。
-- [ ] AC5 墙与断言未动：grep 证明 `CRITERION_BUDGET_MS = 180_000`、`playwright.config.ts` 中 `'voice-error-messages.spec.ts': 240_000`、`goals/AC-153-*.md` 的 `timeoutMs: 260000` 逐字存在；`git diff develop -- e2e/voice-error-messages.spec.ts` 不删任何 AC-153 产品断言（贴 diff 摘要）。
-- [ ] AC6 delta 面：`git diff --name-only develop...HEAD` 只含 `e2e/voice-error-messages.spec.ts` 与 `tasks/gap-ac153-health-read-deadline-under-load.md`；`git status --porcelain` 无残留变异副本/临时工装。
+- [x] AC1 具名常量与替换：`e2e/voice-error-messages.spec.ts` 声明 `HEALTH_READ_DEADLINE_MS`（≥ 60000）并用于两处 health 等待；贴出 `grep -n 'HEALTH_READ_DEADLINE_MS\|timeout: 15_000' e2e/voice-error-messages.spec.ts` 的完整输出，health 两处不再出现裸 `15_000`（若仍有非 health 的 `15_000`，逐行指名并说明其不是 health 等待）。
+- [x] AC2 负控红在新 message 上：`VOICE_ERROR_HEALTH_DEADLINE_MS=1 npx playwright test e2e/voice-error-messages.spec.ts` exit 1；贴出 error-context 的 `# Error details`，其中含 stage 偏移、观察到的 health payload 条数、以及已捕获 payload 的 `provider` / `configured` 摘要（零条时写明 `payloads=0`）；不设变量时同一命令 exit 0。
+- [x] AC3 判据直跑读数：不设 override 直跑 exit 0，逐字抄 spec 自印的 `legs=4 passed=4`、`coded=4`、`chinese=4`、`visible-after-4s=true`、`text-unchanged=true`、`closed=true`、`cleared-on-next-recording=true`、`drafts-kept=4/4`、`notices-shown=4/4`、`collapsed-hides-code=true`、`expanded-shows-status=true`、`expanded-shows-upstream=true`、`concat-hits=0`、`equal=true`、`both-equal-vocab=true`、`criterion-wall-ms=`、`watchdog-line=false`，并给 `date -u`、`git rev-parse HEAD`、`cat /proc/loadavg`。
+- [x] AC4 连续两次直跑：同一棵树连续 ≥2 次 exit 0（每跑之间不改树、不重启服务），各抄 `criterion-wall-ms` 与当次 `cat /proc/loadavg`；两次都 < `CRITERION_BUDGET_MS`。
+- [x] AC5 墙与断言未动：grep 证明 `CRITERION_BUDGET_MS = 180_000`、`playwright.config.ts` 中 `'voice-error-messages.spec.ts': 240_000`、`goals/AC-153-*.md` 的 `timeoutMs: 260000` 逐字存在；`git diff develop -- e2e/voice-error-messages.spec.ts` 不删任何 AC-153 产品断言（贴 diff 摘要）。
+- [x] AC6 delta 面：`git diff --name-only develop...HEAD` 只含 `e2e/voice-error-messages.spec.ts` 与 `tasks/gap-ac153-health-read-deadline-under-load.md`；`git status --porcelain` 无残留变异副本/临时工装。
 
 ## DoD
 
@@ -89,6 +89,119 @@ Call Log:
 - `VOICE_ERROR_HEALTH_DEADLINE_MS=1` 的负控真的红在**新的自解释 message** 上（error-context 逐字入档），正常值下同一棵树绿 —— 这是可证伪的绿，不是「把等待调大直到不红」。
 - AC-153 的全部四条腿读数、三条取假形态控制、整轮守则与三堵墙逐字未动；交付面只动判据文件与本任务文件。
 - 若复验仍红在 health 等待，任务以 `needs-human` 结束并附两组读数，不得把负载红写成已修。
+
+## Evidence
+
+### AC1 具名常量与替换
+
+```
+$ grep -n 'HEALTH_READ_DEADLINE_MS\|timeout: 15_000' e2e/voice-error-messages.spec.ts
+376:const HEALTH_READ_DEADLINE_MS = 60_000;
+377:const HEALTH_WAIT_MS = Number(process.env.VOICE_ERROR_HEALTH_DEADLINE_MS ?? HEALTH_READ_DEADLINE_MS);
+655:  await expect(sessionLink(page)).toBeVisible({ timeout: 15_000 });
+664:    await expect(composer(page)).toBeVisible({ timeout: 15_000 });
+679:  await expect(page.locator('select[name="providerId"]')).toBeVisible({ timeout: 15_000 });
+710:    { timeout: 15_000, message: `the settings page never sent a document carrying ${field}` },
+742:  await expect(record).toBeVisible({ timeout: 15_000 });
+1046:        { timeout: 15_000, message: `${spec.name}: the recording never reached the proxy stand-in` },
+```
+
+剩余 6 处 `15_000` 逐行指名，全部不是 health 等待：655 = 侧栏会话行可见性；664 = composer 可见性；679 = provider `<select>` 可见性；710 = 设置页 config PUT 后「携带该字段的文档」轮询；742 = session record 可见性；1046 = `/api/voice/transcribe` 代理替身的 post/status 轮询。两处 health 等待已改用 `HEALTH_WAIT_MS`（默认 `HEALTH_READ_DEADLINE_MS = 60_000`），不再出现裸 `15_000`。
+
+### AC2 负控
+
+```
+$ date -u; git rev-parse HEAD; cat /proc/loadavg
+Fri Nov  6 10:59:45 AM UTC 2026
+5df21c245d894b398e1a858085555b4932931342
+108.87 77.02 86.04 224/36681 552370
+
+$ VOICE_ERROR_HEALTH_DEADLINE_MS=1 npx playwright test e2e/voice-error-messages.spec.ts
+EXIT=1
+```
+
+error-context `# Error details` 逐字：
+
+```
+Error: the page never read a health payload naming the selected provider as effective
+
+the page never read a health payload naming the selected provider as effective
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+
+Call Log:
+- Timeout 1ms exceeded while waiting on the predicate
+[voice-error] health-wait-timeout: payloads=4; last-stage=health-reread at=+37869ms; captured=[0:provider=openai-compatible configured=false 1:provider=openai-compatible configured=false 2:provider=openai-compatible configured=false 3:provider=openai-compatible configured=false]
+```
+
+含 stage 偏移（`last-stage=health-reread at=+37869ms`）、观察条数（`payloads=4`）与每条 payload 的 `provider` / `configured` 摘要。不设变量时同一命令 exit 0：本轮四次直跑全 0（AC3/AC4）。
+
+### AC3 判据直跑读数（commit 后的树）
+
+```
+$ date -u; git rev-parse HEAD; cat /proc/loadavg
+Fri Nov  6 11:03:04 AM UTC 2026
+d22e4685e59c6df6e703bc54cf930c96e649213b
+99.02 103.83 96.52 23/36562 1642808
+
+$ npx playwright test e2e/voice-error-messages.spec.ts
+EXIT=0
+```
+
+spec 自印逐字：
+
+```
+legs=4 coded=4 distinct=3 chinese=4
+empty-200="录音里没有检测到人声——请靠近麦克风重新录制。" server-422="录音里没有检测到人声——请靠近麦克风重新录制。" equal=true both-equal-vocab=true
+visible-first=true visible-after-4s=true text-unchanged=true closed=true cleared-on-next-recording=true
+drafts-kept=4/4 notices-shown=4/4
+collapsed-hides-code=true collapsed-hides-upstream=true expanded-shows-status=true expanded-shows-upstream=true status-read=403 upstream-read=AccessDenied.Unpurchased concat-hits=0
+legs=4 passed=4 criterion-wall-ms=53116 watchdog-line=false
+```
+
+### AC4 连续两次直跑（同一棵树，每次之间不改树、不重启服务）
+
+```
+RUN A: date -u = Fri Nov  6 11:03:04 AM UTC 2026 ; HEAD = d22e4685e59c6df6e703bc54cf930c96e649213b
+       loadavg = 99.02 103.83 96.52 23/36562 1642808 ; EXIT=0 ; criterion-wall-ms=53116
+RUN B: date -u = Fri Nov  6 11:03:58 AM UTC 2026 ; HEAD = d22e4685e59c6df6e703bc54cf930c96e649213b
+       loadavg = 103.38 105.70 97.66 36/36478 1862760 ; EXIT=0 ; criterion-wall-ms=40442
+```
+
+两次均 < `CRITERION_BUDGET_MS = 180_000`。（此前的两次预跑 `criterion-wall-ms=48207`（loadavg 185.69）与 `54933`（loadavg 152.39）同样是 exit 0，同一文件内容。）
+
+### AC5 墙与断言未动
+
+```
+$ grep -n 'const CRITERION_BUDGET_MS = 180_000' e2e/voice-error-messages.spec.ts
+353:const CRITERION_BUDGET_MS = 180_000;
+$ grep -n "'voice-error-messages.spec.ts': 240_000" playwright.config.ts
+759:  'voice-error-messages.spec.ts': 240_000,
+$ grep -n 'timeoutMs: 260000' goals/AC-153-*.md
+8:timeoutMs: 260000
+
+$ git diff develop --stat -- e2e/voice-error-messages.spec.ts
+ e2e/voice-error-messages.spec.ts | 89 ++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 80 insertions(+), 9 deletions(-)
+```
+
+删除行只有 9 行，逐字为 `mark` 的旧函数体（2 行）与两处 health 轮询的旧实现（7 行）；没有任何 AC-153 产品断言、取假形态控制、整轮守则或三堵墙被删。
+
+### AC6 delta 面
+
+```
+$ git diff --name-only develop...HEAD
+e2e/voice-error-messages.spec.ts
+$ git status --porcelain
+(empty)
+```
+
+任务文件本身不在三点 diff 里：本次 `task_write` 的 tick 提交直接落在 store 的主检出分支 `develop` 上，合并 develop 后它已是 `develop` 历史的一部分（与 shared-lessons「任务文件自身可能不在 actual 集里」一致）；worktree 里的 `tasks/gap-ac153-health-read-deadline-under-load.md` 在退出前由 develop 合并带入 `[x]`。除该任务文件与判据文件外无任何文件改动，也没有临时工装残留。
+
+该轴仍暗,理由:本任务只把 AC-153 判据文件内的两处步骤级 health 等待改成具名负载包络定值并让超时自报观测，不改变模块边界、依赖结构或设计文档规模，无 L_D/L_G 读数可报。
 
 ## Touches
 
