@@ -15,6 +15,7 @@ import {
   type QuayCommandRunner,
   type QuayFileReader,
 } from '../quay.service.js';
+import { QUAY_COMMAND_TIMEOUT_MS, QUAY_DRIVER_STATUS_TIMEOUT_MS } from '../quay-process.js';
 
 type ServiceDependencies = Parameters<typeof createQuayService>[0];
 
@@ -93,7 +94,7 @@ const EXPECTED_SNAPSHOT_COMMANDS = [
   // `QUAY_LANES_PREFIX`), so a window written first would never reach the flag parser.
   'lanes --json --window-hours 3',
   'suite --json --limit 300',
-  'task list --json',
+  'task list --json --no-body',
 ];
 
 /** A runner that answers each whitelisted read-only command with a fixture JSON document. */
@@ -102,7 +103,7 @@ function createFixtureRunner(
   overrides: Record<string, unknown> = {},
 ): QuayCommandRunner {
   const responses: Record<string, unknown> = {
-    'task list --json': [
+    'task list --json --no-body': [
       { id: 'a', title: 'Task A', status: 'ready', updatedAt: 300 },
       { id: 'b', title: 'Task B', status: 'done', updatedAt: 100 },
       { id: 'c', title: 'Task C', status: 'needs-human', updatedAt: 200 },
@@ -318,6 +319,188 @@ test('getQuaySnapshot deduplicates concurrent calls and reuses a fresh snapshot'
   assert.equal(counter.calls, perPassCommands * 3);
 });
 
+test('the snapshot reads the compact task list and still projects counts, recents and blockers', async () => {
+  // The payload deliberately carries NO `body` field on any record — exactly what
+  // `task list --json --no-body` prints. Everything the panel shows from the task ledger must
+  // still be derivable from it.
+  const tasks = [
+    { id: 'gap-a', title: 'A', status: 'ready', updatedAt: 300 },
+    { id: 'gap-b', title: 'B', status: 'done', updatedAt: 100 },
+    { id: 'gap-nh', title: 'NH', status: 'needs-human', updatedAt: 200 },
+    { id: 'gap-wait', title: 'Wait', status: 'todo', updatedAt: 50 },
+  ];
+  const taskArgvs: string[][] = [];
+  const service = createQuayService(createDependencies({
+    runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
+      if (args[0] === 'task' && args[1] === 'list') {
+        taskArgvs.push([...args]);
+      }
+      return {
+        ok: true,
+        code: 0,
+        stdout: args.join(' ') === 'task list --json --no-body' ? JSON.stringify(tasks) : '[]',
+        stderr: '',
+      };
+    },
+    // `depends_on` lives only in the task file's frontmatter, so the blocked row's impact side
+    // still comes from the store — the compact CLI reading is not expected to carry it.
+    readFile: createFileReader({
+      readText: async (filePath: string) => {
+        if (filePath === path.join(PROJECT_PATH, 'tasks', 'gap-wait.md')) {
+          return '---\ndepends_on: [gap-nh]\n---\n\nwaiting on the human decision\n';
+        }
+        throw new Error('ENOENT');
+      },
+    }),
+  }));
+
+  const snapshot = await service.getQuaySnapshot('project-1');
+  assert.ok(snapshot);
+
+  // The one argv the snapshot's task read may use: the whole array, without bodies.
+  assert.deepEqual(taskArgvs, [['task', 'list', '--json', '--no-body']]);
+
+  assert.equal(snapshot.tasks?.total, 4);
+  assert.deepEqual(snapshot.tasks?.byStatus, {
+    ready: 1,
+    done: 1,
+    'needs-human': 1,
+    todo: 1,
+  });
+  assert.equal(snapshot.tasks?.ready, 1);
+  assert.equal(snapshot.tasks?.needsHuman, 1);
+  assert.equal(snapshot.tasks?.done, 1);
+
+  // Recents are ranked by `updatedAt` and carry the same four displayed fields as before.
+  assert.deepEqual(snapshot.tasks?.recent, [
+    { id: 'gap-a', title: 'A', status: 'ready', updatedAt: new Date(300).toISOString() },
+    { id: 'gap-nh', title: 'NH', status: 'needs-human', updatedAt: new Date(200).toISOString() },
+    { id: 'gap-b', title: 'B', status: 'done', updatedAt: new Date(100).toISOString() },
+    { id: 'gap-wait', title: 'Wait', status: 'todo', updatedAt: new Date(50).toISOString() },
+  ]);
+
+  // The blocked row survives the compact read: the needs-human task is the obstruction and the
+  // unfinished dependent (whose edge came from its store file) is its impact.
+  assert.deepEqual(snapshot.blockers, [{
+    taskId: 'gap-nh',
+    since: new Date(200).toISOString(),
+    signature: 'needs-human',
+    occurrences: 1,
+    dependents: ['gap-wait'],
+  }]);
+});
+
+test('the driver-status read takes its own injected ceiling, wider than the shared per-command bound', async () => {
+  const seen: { command: string; timeoutMs: number }[] = [];
+  const service = createQuayService(createDependencies({
+    commandTimeoutMs: QUAY_COMMAND_TIMEOUT_MS,
+    driverStatusTimeoutMs: QUAY_DRIVER_STATUS_TIMEOUT_MS,
+    runCommand: async (_cwd: string, args: readonly string[], options): Promise<QuayCommandResult> => {
+      seen.push({ command: args.join(' '), timeoutMs: options.timeoutMs });
+      return { ok: true, code: 0, stdout: '[]', stderr: '' };
+    },
+  }));
+
+  await service.getQuaySnapshot('project-1');
+
+  const timeoutsFor = (command: string): number[] => [
+    ...new Set(seen.filter((call) => call.command === command).map((call) => call.timeoutMs)),
+  ];
+
+  // Both bounds are the values handed in through dependencies — no constant read at the call
+  // site and no wall-clock measurement: the stub records what each spawn received.
+  assert.deepEqual(timeoutsFor('task list --json --no-body'), [QUAY_COMMAND_TIMEOUT_MS]);
+  assert.deepEqual(timeoutsFor('driver status --kind worker --json'), [QUAY_DRIVER_STATUS_TIMEOUT_MS]);
+  // Every other read keeps the shared default.
+  assert.deepEqual(timeoutsFor('goal list --json'), [QUAY_COMMAND_TIMEOUT_MS]);
+  // The driver read is the structurally expensive one, so its ceiling must be the wider bound.
+  assert.ok(
+    QUAY_DRIVER_STATUS_TIMEOUT_MS > QUAY_COMMAND_TIMEOUT_MS,
+    'the driver-status ceiling must be strictly wider than the shared per-command bound',
+  );
+});
+
+test('a partial snapshot is not cached, a complete one is, and entrypoint warnings do not make it partial', async () => {
+  // (a) A single failed section (task list timeout) must NOT populate the TTL cache: the very
+  // next open inside the TTL re-spawns instead of serving the same hole as `cached: true`.
+  let nowMs = 0;
+  const failedTaskSpawns: string[][] = [];
+  const failing = createQuayService(createDependencies({
+    now: () => nowMs,
+    runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
+      if (args[0] === 'task' && args[1] === 'list') {
+        failedTaskSpawns.push([...args]);
+        return {
+          ok: false,
+          code: null,
+          stdout: '',
+          stderr: '',
+          error: 'quay command timed out: killed',
+          failureKind: 'timeout',
+        };
+      }
+      return { ok: true, code: 0, stdout: '[]', stderr: '' };
+    },
+  }));
+
+  const first = await failing.getQuaySnapshot('project-1');
+  assert.equal(first?.tasks, null, 'a timed-out task read is not a task ledger');
+  assert.equal(first?.cached, false);
+  assert.ok(
+    first?.warnings.some((warning) => warning.includes('task list --json --no-body') && warning.includes('timeout')),
+    `expected the task-list timeout to be surfaced, saw: ${String(first?.warnings)}`,
+  );
+  const spawnsAfterFirst = failedTaskSpawns.length;
+
+  nowMs += 1_000; // still well inside the 30 s TTL
+  const second = await failing.getQuaySnapshot('project-1');
+  assert.equal(second?.cached, false, 'a partial reading must never be reported as cached');
+  assert.equal(
+    failedTaskSpawns.length,
+    spawnsAfterFirst + 1,
+    'a partial reading must be re-read on the next open, not served from the TTL',
+  );
+
+  // (b) With every section read, the same TTL window serves the cached reading and spawns nothing.
+  let healthyNow = 0;
+  const counter = { calls: 0, commands: [] as string[] };
+  const healthy = createQuayService(createDependencies({
+    now: () => healthyNow,
+    runCommand: createFixtureRunner(counter),
+  }));
+  const cold = await healthy.getQuaySnapshot('project-1');
+  assert.equal(cold?.cached, false);
+  const callsAfterCold = counter.calls;
+  assert.ok(callsAfterCold > 0);
+  healthyNow += 1_000;
+  const warm = await healthy.getQuaySnapshot('project-1');
+  assert.equal(warm?.cached, true);
+  assert.equal(counter.calls, callsAfterCold, 'a complete TTL reading spawns no CLI');
+
+  // (c) An entrypoint diagnostic (skipped plugin record / bare-PATH fallback) is NOT a failed
+  // read, so it must still cache: otherwise every open would pay a full pass for a warning.
+  let warningNow = 0;
+  const warningCounter = { calls: 0 };
+  const warned = createQuayService(createDependencies({
+    now: () => warningNow,
+    runCommand: createFixtureRunner(warningCounter),
+    resolveEntrypoint: () => ({
+      path: path.join(path.sep, 'opt', 'quay', 'bin', 'quay'),
+      version: '0.31.1',
+      source: 'path',
+      warning: 'no project record; falling back to the bare PATH command',
+    }),
+  }));
+  const warnedCold = await warned.getQuaySnapshot('project-1');
+  assert.equal(warnedCold?.cached, false);
+  assert.ok(warnedCold?.warnings.some((warning) => warning.includes('falling back to the bare PATH command')));
+  const warnedCalls = warningCounter.calls;
+  warningNow += 1_000;
+  const warnedWarm = await warned.getQuaySnapshot('project-1');
+  assert.equal(warnedWarm?.cached, true, 'an entrypoint warning alone must not suppress caching');
+  assert.equal(warningCounter.calls, warnedCalls, 'the cached reading spawned nothing');
+});
+
 test('getQuaySnapshot keeps the findings of a command that signals via its exit code', async () => {
   // `quay config validate --json` prints its issue list and exits 1 to say the
   // issues exist; that list is the reading, so a non-zero exit must not discard it.
@@ -527,12 +710,11 @@ test('the dashboard link is null — and warns nothing — when no live web serv
 });
 
 /**
- * The task ledger's counts are an aggregate of the WHOLE `task list --json` array, and the
- * collector must keep asking for that whole array. This is the guard against "speeding up" the
- * cold path by adding `--page-size`: the paginated `--json` is a bare array carrying no total, so
- * paging would silently turn a real ledger ("2583 tasks") into the page size ("10 tasks"). The
- * reading is load-bearing, so the argv is pinned to prove the collector does not — and must not —
- * ask for a page.
+ * The task ledger's counts are an aggregate of the WHOLE task array, and the collector must keep
+ * asking for that whole array (dropping only each record's `body`): the paginated `--json` is a
+ * bare array carrying no total, so paging would silently turn a real ledger ("2583 tasks") into
+ * the page size ("10 tasks"). The reading is load-bearing, so the argv is pinned to prove the
+ * collector does not — and must not — ask for a page.
  */
 test('the task counts aggregate the whole list, and the collector asks for it unpaged', async () => {
   // Six tasks over five statuses, with a repeated status so the per-status fold is exercised.
@@ -551,7 +733,7 @@ test('the task counts aggregate the whole list, and the collector asks for it un
         taskListArgv.push([...args]);
       }
       const key = args.join(' ');
-      return { ok: true, code: 0, stdout: key === 'task list --json' ? JSON.stringify(tasks) : '[]', stderr: '' };
+      return { ok: true, code: 0, stdout: key === 'task list --json --no-body' ? JSON.stringify(tasks) : '[]', stderr: '' };
     },
   }));
 
@@ -571,8 +753,9 @@ test('the task counts aggregate the whole list, and the collector asks for it un
   assert.equal(snapshot?.tasks?.done, 2);
 
   // ...and the collector asked for the whole array: no `--page-size`, which would truncate it
-  // (and the paginated `--json` carries no total to count from).
-  assert.deepEqual(taskListArgv, [['task', 'list', '--json']]);
+  // (and the paginated `--json` carries no total to count from). The body is dropped because
+  // nothing in this projection reads it; the array itself is complete.
+  assert.deepEqual(taskListArgv, [['task', 'list', '--json', '--no-body']]);
   assert.equal(
     taskListArgv.some((argv) => argv.includes('--page-size')),
     false,
@@ -593,7 +776,7 @@ test('getQuaySnapshot caps the recent lists and orders them most-recent-first', 
   const service = createQuayService(createDependencies({
     runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
       const key = args.join(' ');
-      if (key === 'task list --json') {
+      if (key === 'task list --json --no-body') {
         return { ok: true, code: 0, stdout: JSON.stringify(makeItems('T', 12)), stderr: '' };
       }
       if (key === 'adr list --json') {
@@ -622,7 +805,7 @@ test('getQuaySnapshot caps the recent lists and orders them most-recent-first', 
 test('getQuaySnapshot breaks a recency tie by id so the recent order is deterministic', async () => {
   const service = createQuayService(createDependencies({
     runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
-      if (args.join(' ') === 'task list --json') {
+      if (args.join(' ') === 'task list --json --no-body') {
         return {
           ok: true,
           code: 0,
@@ -670,7 +853,7 @@ test('recent rows carry updatedAt as an ISO-8601 string, and the ranking is that
   const service = createQuayService(createDependencies({
     runCommand: async (_cwd: string, args: readonly string[]): Promise<QuayCommandResult> => {
       const key = args.join(' ');
-      if (key === 'task list --json') return { ok: true, code: 0, stdout: JSON.stringify(tasks), stderr: '' };
+      if (key === 'task list --json --no-body') return { ok: true, code: 0, stdout: JSON.stringify(tasks), stderr: '' };
       if (key === 'goal list --json') return { ok: true, code: 0, stdout: JSON.stringify(goals), stderr: '' };
       return { ok: true, code: 0, stdout: '[]', stderr: '' };
     },
