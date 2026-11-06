@@ -68,6 +68,21 @@ export function useSidebarConversationSearch({
     let titleResults: SessionTitleSearchResult[] = [];
     let totalMatches = 0;
 
+    // One terminal transition shared by the `done` and `error` events: either way the
+    // stream is over, so release the EventSource and publish the accumulated rows.
+    const finishSearch = () => {
+      es.close();
+      eventSourceRef.current = null;
+      setIsSearching(false);
+      setSearchProgress(null);
+      setConversationResults({
+        results: [...accumulated],
+        titleResults: [...titleResults],
+        totalMatches,
+        query,
+      });
+    };
+
     es.addEventListener('title-results', (evt) => {
       if (seq !== searchSeqRef.current) { es.close(); return; }
       try {
@@ -120,30 +135,12 @@ export function useSidebarConversationSearch({
 
     es.addEventListener('done', () => {
       if (seq !== searchSeqRef.current) { es.close(); return; }
-      es.close();
-      eventSourceRef.current = null;
-      setIsSearching(false);
-      setSearchProgress(null);
-      setConversationResults({
-        results: [...accumulated],
-        titleResults: [...titleResults],
-        totalMatches,
-        query,
-      });
+      finishSearch();
     });
 
     es.addEventListener('error', () => {
       if (seq !== searchSeqRef.current) { es.close(); return; }
-      es.close();
-      eventSourceRef.current = null;
-      setIsSearching(false);
-      setSearchProgress(null);
-      setConversationResults({
-        results: [...accumulated],
-        titleResults: [...titleResults],
-        totalMatches,
-        query,
-      });
+      finishSearch();
     });
 
     return () => {
