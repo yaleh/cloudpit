@@ -256,6 +256,11 @@ type HomeFileStamp = { mtimeMs: number; size: number };
  * happened to miss a write in its own window. The temp exemption is keyed to the RESIDENT service's
  * pid (read from `service.pid`), not to the name shape: a temp file left by an exercised verb would
  * still red, while the service's own transient artifact cannot.
+ *
+ * `molten/` is the service's resident loop state (`resident-readings.json`, `resident-state.json`,
+ * `state.json`, action/budget ledgers). It is written every tick and belongs to the service, not to
+ * the operator; a contract run on 2026-11-06 caught `resident-readings.json` + `resident-state.json`
+ * moving. It is exempt by prefix like the other service-owned trees.
  */
 const RESIDENT_SERVICE_DIRECTORIES = [
   'acceptance-windows/',
@@ -263,6 +268,7 @@ const RESIDENT_SERVICE_DIRECTORIES = [
   'context/',
   'knowledge/',
   'ledgers/',
+  'molten/',
 ];
 const RESIDENT_SERVICE_FILES = new Set([
   'attention.json',
@@ -306,16 +312,25 @@ function residentServicePid(): number | null {
  * Only the service's own pid qualifies. If the pid document is unreadable nothing is exempt: a
  * guard that silently widens when its reference reading is missing would be unable to red at all.
  */
-function isResidentServiceTempArtifact(file: string): boolean {
+function isResidentServiceTempArtifact(file: string, servicePid: number | null): boolean {
   const match = /(?:^|\/)[^/]+\.tmp-(\d+)-[0-9a-z]+$/.exec(file);
   if (match === null) return false;
-  return Number(match[1]) === residentServicePid();
+  return Number(match[1]) === servicePid;
 }
 
-function isResidentServiceFile(file: string): boolean {
+/**
+ * Whether `file` belongs to the resident service's own write set.
+ *
+ * The pid is a parameter so the exemption can be asserted directly (with a known sample pid)
+ * without depending on the host's live `service.pid`; production calls pass the live reading.
+ */
+export function isResidentServiceFile(
+  file: string,
+  servicePid: number | null = residentServicePid(),
+): boolean {
   return RESIDENT_SERVICE_FILES.has(file)
     || RESIDENT_SERVICE_DIRECTORIES.some((prefix) => file.startsWith(prefix))
-    || isResidentServiceTempArtifact(file);
+    || isResidentServiceTempArtifact(file, servicePid);
 }
 
 /** Every regular file under the fleet home, keyed by relative path. */
@@ -715,6 +730,7 @@ if (binPath === null) {
   test('AC3: the operator fleet home is untouched by the run (resident-service files excepted)', (t) => {
     const after = stampFleetHome(REAL_FLEET_HOME);
     const moved: string[] = [];
+    const vanished = new Set<string>();
     for (const [file, stamp] of after) {
       const before = fleetHomeStampBefore.get(file);
       if (before === undefined || before.mtimeMs !== stamp.mtimeMs || before.size !== stamp.size) {
@@ -722,13 +738,21 @@ if (binPath === null) {
       }
     }
     for (const file of fleetHomeStampBefore.keys()) {
-      if (!after.has(file)) moved.push(`${file} (removed)`);
+      if (!after.has(file)) {
+        // Kept verbatim: the `` (removed)`` suffix below is presentation only. Matching the
+        // annotated string against the exemption set would turn every removed temp artifact
+        // (`<target>.tmp-<pid>-<token>`, renamed away by the next service write) into a red.
+        moved.push(file);
+        vanished.add(file);
+      }
     }
     const unexplained = moved.filter((file) => !isResidentServiceFile(file));
 
     t.diagnostic(moved.length === 0
       ? `no file under ${REAL_FLEET_HOME} moved during the run`
-      : `moved during the run (resident-service files are exempt): ${moved.join(', ')}`);
+      : `moved during the run (resident-service files are exempt): ${moved
+        .map((file) => (vanished.has(file) ? `${file} (removed)` : file))
+        .join(', ')}`);
     assert.deepEqual(
       unexplained,
       [],
@@ -747,3 +771,57 @@ if (binPath === null) {
     }
   });
 }
+
+/**
+ * Direct assertions for the AC3 exemption set, independent of whether a fleet is installed.
+ *
+ * The whole-home case above only proves the exemptions INERTLY when no service write crosses its
+ * window. These assertions name both families the resident service writes — the append-only log and
+ * the `<target>.tmp-<pid>-<token>` atomic-write artifact — plus the two ways the exemption must NOT
+ * widen (a temp file from another pid; a file nobody declared). A sample pid is passed explicitly
+ * because the production reading is the host's live `service.pid`; when that reading exists, the
+ * live-pid arm is asserted too.
+ */
+test('AC3 guard: the resident-service exemption set covers the service log, molten state and its own temp files', () => {
+  // Named service-owned files, including the log the resident service appends to on its schedule.
+  assert.equal(isResidentServiceFile('service.log.jsonl'), true, 'the service log must be exempt');
+  assert.equal(
+    isResidentServiceFile('molten/resident-state.json'),
+    true,
+    'the service-owned molten/ tree must be exempt',
+  );
+
+  // The atomic-write temp family, keyed to a pid. `123` is a sample pid here; the live reading is
+  // asserted below when the host runs a resident service.
+  assert.equal(
+    isResidentServiceFile('attention.json.tmp-123-abc', 123),
+    true,
+    'the resident service\'s own <target>.tmp-<pid>-<token> artifact must be exempt',
+  );
+
+  // …and the exemption does not widen: another writer's temp file and an undeclared file still red.
+  assert.equal(
+    isResidentServiceFile('attention.json.tmp-123-abc', 456),
+    false,
+    'a temp artifact carrying another pid must NOT be exempt',
+  );
+  assert.equal(
+    isResidentServiceFile('contract-probe-untracked.json'),
+    false,
+    'a file no declaration covers must red the guard',
+  );
+
+  const livePid = residentServicePid();
+  if (livePid !== null) {
+    assert.equal(
+      isResidentServiceFile(`attention.json.tmp-${livePid}-6f683a7b4e5c`),
+      true,
+      'a temp artifact carrying the live resident pid must be exempt',
+    );
+    assert.equal(
+      isResidentServiceFile(`attention.json.tmp-${livePid + 1}-6f683a7b4e5c`),
+      false,
+      'a different pid next to the live one must not be exempt',
+    );
+  }
+});

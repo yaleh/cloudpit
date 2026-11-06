@@ -36,10 +36,31 @@ vi.mock('@/modules/sidebar/hooks/useCompactSidebar', () => ({
 
 const TASKS: QuayFleetTaskCounts = { total: 7, todo: 2, ready: 3, needsHuman: 1, done: 1 };
 
+/**
+ * Budgets for the render waits. The badge appears only after the shared fleet-summary read answers,
+ * and on a loaded host that read (plus the row's cold module graph) has been observed at ~4s inside
+ * this file and beyond the 5s default case budget in the full suite (`STACK_TRACE_ERROR`, i.e. a
+ * vitest case timeout — not an assertion). Both budgets are therefore explicit: the whole file was
+ * red once because it trusted the defaults, and a render that is merely slow must be AWAITED, never
+ * cut off.
+ */
+const RENDER_WAIT_MS = 15_000;
+const RENDER_WAIT = { timeout: RENDER_WAIT_MS };
+/**
+ * A case budget that covers a cold module graph AND one full render wait. 20s was measured to be
+ * too tight on 2026-11-06 at host load1≈247: the file's first case (which pays the whole transform)
+ * was cut off at 20,004ms. 45s keeps the hang detection (the case still fails, never hangs) while
+ * giving the cold compile + the wait their own room.
+ */
+const CASE_BUDGET = { timeout: 45_000 };
+/** The delay the slow-render regression case injects (longer than the default 5s case budget). */
+const SLOW_RENDER_MS = 6_000;
+
 /** The endpoint reading the badge must reproduce, for one project id and one count shape. */
 const serveFleet = (
   tasks: QuayFleetTaskCounts,
   extraProjects: Array<{ projectId: string; tasks: QuayFleetTaskCounts }> = [],
+  options: { delayMs?: number } = {},
 ) => {
   const summary = {
     projects: [
@@ -64,10 +85,15 @@ const serveFleet = (
     ttlPerProjectMs: 120_000,
     cached: false,
   };
-  apiMock.quayFleetSummary.mockImplementation(async () => new Response(JSON.stringify(summary), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  }));
+  apiMock.quayFleetSummary.mockImplementation(async () => {
+    if (options.delayMs !== undefined && options.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    }
+    return new Response(JSON.stringify(summary), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
 };
 
 const noop = () => {};
@@ -160,9 +186,9 @@ beforeEach(() => {
 for (const compact of [false, true]) {
   const layout = compact ? 'compact (mobile)' : 'desktop (non-compact)';
 
-  test(`${layout} row renders only the non-zero fleet-summary buckets`, async () => {
+  test(`${layout} row renders only the non-zero fleet-summary buckets`, CASE_BUDGET, async () => {
     const { container } = await renderRowIn(compact);
-    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null));
+    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
 
     assert.deepEqual(readBadge(container), { todo: '2', ready: '3', needsHuman: '1' });
     assert.deepEqual(drawnBuckets(container), ['todo', 'ready', 'needs-human']);
@@ -173,7 +199,7 @@ for (const compact of [false, true]) {
     }
   });
 
-  test(`${layout} row draws no badge at all when every bucket is zero`, async () => {
+  test(`${layout} row draws no badge at all when every bucket is zero`, CASE_BUDGET, async () => {
     serveFleet(
       { total: 0, todo: 0, ready: 0, needsHuman: 0, done: 0 },
       [{ projectId: 'quay-b', tasks: { total: 1, todo: 1, ready: 0, needsHuman: 0, done: 0 } }],
@@ -183,15 +209,15 @@ for (const compact of [false, true]) {
     // …and the non-zero sibling proves the shared snapshot actually landed: without it, "no
     // badge" would also be true before the request answered.
     const control = await renderRowIn(compact, makeProject('quay-b', true));
-    await waitFor(() => assert.notEqual(control.container.querySelector('[data-project-task-counts]'), null));
+    await waitFor(() => assert.notEqual(control.container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
 
     assert.ok(container.querySelector('[data-project-task-counts]') === null);
   });
 
-  test(`${layout} row draws exactly one chip when only ready is non-zero`, async () => {
+  test(`${layout} row draws exactly one chip when only ready is non-zero`, CASE_BUDGET, async () => {
     serveFleet({ total: 2, todo: 0, ready: 2, needsHuman: 0, done: 0 });
     const { container } = await renderRowIn(compact);
-    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null));
+    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
 
     assert.deepEqual(readBadge(container), { todo: '0', ready: '2', needsHuman: '0' });
     assert.deepEqual(drawnBuckets(container), ['ready']);
@@ -204,10 +230,10 @@ for (const compact of [false, true]) {
     );
   });
 
-  test(`${layout} row emphasises the needs-human number when it is non-zero`, async () => {
+  test(`${layout} row emphasises the needs-human number when it is non-zero`, CASE_BUDGET, async () => {
     serveFleet({ total: 4, todo: 0, ready: 0, needsHuman: 4, done: 0 });
     const { container } = await renderRowIn(compact);
-    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null));
+    await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
 
     const needsHumanChip = container.querySelector('[data-task-count="needs-human"]');
     assert.notEqual(needsHumanChip, null, 'the needs-human chip must be drawn');
@@ -219,25 +245,40 @@ for (const compact of [false, true]) {
   });
 }
 
-test('both layouts read the same badge attributes and the same drawn buckets', async () => {
+test('both layouts read the same badge attributes and the same drawn buckets', CASE_BUDGET, async () => {
   const desktop = await renderRowIn(false);
-  await waitFor(() => assert.notEqual(desktop.container.querySelector('[data-project-task-counts]'), null));
+  await waitFor(() => assert.notEqual(desktop.container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
   const desktopReading = { attributes: readBadge(desktop.container), buckets: drawnBuckets(desktop.container) };
   desktop.unmount();
 
   vi.resetModules();
   compactState.compact = true;
   const mobile = await renderRowIn(true);
-  await waitFor(() => assert.notEqual(mobile.container.querySelector('[data-project-task-counts]'), null));
+  await waitFor(() => assert.notEqual(mobile.container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
   const mobileReading = { attributes: readBadge(mobile.container), buckets: drawnBuckets(mobile.container) };
 
   assert.deepEqual(mobileReading, desktopReading);
 });
 
-test('a project without quay config renders no task badge and keeps its row unchanged', async () => {
+test('a badge that arrives 6s late is awaited, not cut off by the default case budget', CASE_BUDGET, async () => {
+  // The full-suite red this case guards against was a vitest case timeout (`STACK_TRACE_ERROR`)
+  // on a loaded host, not an assertion. The read is deliberately slower than the default 5s case
+  // budget: with the explicit wait and case budgets above it must be awaited and read, and both
+  // the default wait timeout and the default case budget make it red (see the task's negative
+  // control). If this passes only because the mock resolved early, both arms have stopped being
+  // load-bearing.
+  serveFleet(TASKS, [], { delayMs: SLOW_RENDER_MS });
+  const { container } = await renderRowIn(false);
+  await waitFor(() => assert.notEqual(container.querySelector('[data-project-task-counts]'), null), RENDER_WAIT);
+
+  assert.deepEqual(readBadge(container), { todo: '2', ready: '3', needsHuman: '1' });
+  assert.deepEqual(drawnBuckets(container), ['todo', 'ready', 'needs-human']);
+});
+
+test('a project without quay config renders no task badge and keeps its row unchanged', CASE_BUDGET, async () => {
   const { container } = await renderRowIn(false, makeProject('plain', false));
 
   // The shared read still happens (it covers the whole fleet), but this row never shows it.
-  await waitFor(() => assert.equal(apiMock.quayFleetSummary.mock.calls.length, 1));
+  await waitFor(() => assert.equal(apiMock.quayFleetSummary.mock.calls.length, 1), RENDER_WAIT);
   assert.ok(container.querySelector('[data-project-task-counts]') === null);
 });
