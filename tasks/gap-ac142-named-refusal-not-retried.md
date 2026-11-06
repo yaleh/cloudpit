@@ -59,3 +59,11 @@ goal_ac: AC-142
 - 合并 develop（含本任务 task_write 提交）后的同一 worktree 复跑，源码面与 develop 一致：unit 5 passed、`UNAUTHORIZED=1` / `UPSTREAM_UNAVAILABLE=3`；`npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0、`2 passed (18.8s)`，拒绝腿仍为 `draft-kept=true posts=1 aliyuncs-refusal=0`。真实 develop 树上的 ledger 复测由 driver 的 fan-in 完成。
 
 该轴仍暗,理由:本任务只修改客户端拒绝分类与对应判据，未运行 archguard 数据轴测量
+
+## Blocker
+
+**2026-11-06T11:57:52.320Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/chat-voice/hooks/useVoiceInput.ts 1609→1615 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：c22d1035-42bd-4a5b-bbac-5d6240554d25
