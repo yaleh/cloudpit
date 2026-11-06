@@ -285,11 +285,15 @@ const OPTIMIZED_DEP_IN_TEXT = /["'](\/@fs\/[^"']*\/deps\/[^"']+\.js\?v=[0-9a-f]+
 /**
  * How long this run's own client is given to answer its app entry before the startup path gives up on it.
  *
- * The run already has two ceilings above it (playwright.config.ts's watchdog, then the goal gate's 60s)
- * and both are *outside* this spec — an unbounded wait here would be reported by whichever fired first,
- * naming neither the url nor the status.
+ * The run already has ceilings above it (playwright.config.ts's watchdog at the declared `SPEC_BUDGET_MS`,
+ * then the goal gate's 260s) and both are *outside* this spec — an unbounded wait here would be reported by
+ * whichever fired first, naming neither the url nor the status. MEASURED 2026-11-06 on this worktree at
+ * load1 157.50: the 30s value fired as `the client did not answer http://…/@fs/…/deps/react_jsx-dev-runtime.js
+ * inside the 30000ms startup budget` after config evaluation had already read 54769ms — a warm-up wall, not a
+ * product assertion. 60s doubles the old bound and stays a quarter of the declared 240s budget, so the
+ * bounded-failure property survives at the new scale.
  */
-const CLIENT_WARM_DEADLINE_MS = 30_000;
+const CLIENT_WARM_DEADLINE_MS = 60_000;
 
 /**
  * Takes this run's first dependency optimization out of the measurement window: the html shell, the app's
