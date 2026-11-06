@@ -60,3 +60,13 @@ Projects 侧栏的 `expandedProjects` 有两个写者，同一手势里互相覆
 - src/shared/types.ts
 - scripts/ui-scenarios/project-row-session-open.json (new)
 - tasks/gap-sidebar-project-row-toggle-replayed-by-auto-expand.md
+
+## Blocker
+
+**2026-11-06T07:14:23.305Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: suite 证书 — suite_head..tip 恰为本任务的单个 flip-done 提交（身份判定：仅 M tasks/gap-sidebar-project-row-toggle-replayed-by-auto-expand.md）⇒ 判惰性，⛔ 未调分类器
+fan-in-ff-merge: FF FAILED — fatal: Not possible to fast-forward, aborting.; not a fast-forward. Retry record written (attempt 1). Return to 无锁段 step 1 (merge develop again — 必须 merge 不得 rebase, AC75), re-judge the delta (step 2) and re-run.
+fan-in-ff-merge: measure ff_only_locked=false
+- run_id：wk-prod-anchor
+- session_id：17994772-cb78-4f41-aa90-565c12316478
