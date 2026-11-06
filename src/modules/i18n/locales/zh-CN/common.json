@@ -1019,6 +1019,7 @@
     "cardEmpty": "没有等待处理的卡片。",
     "cardError": "无法读取卡片：{{reason}}",
     "cardProviderError": "部分卡片提供方读取失败（{{providers}}）：{{reason}}",
+    "cardProviderWarning": "部分卡片提供方返回了不完整的读取结果（{{providers}}）：{{reason}}",
     "cardProviderNoReason": "未提供原因",
     "cardProviderRetry": "重试",
     "cardConfirmBody": "这将发送一次「{{label}}」。",

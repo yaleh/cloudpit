@@ -637,9 +637,43 @@ function CockpitCardListBound({
             </div>
           )}
 
+          {/*
+            AN INCOMPLETE READ IS NOT A COMPLETE WALL. A provider can answer `ok:true` with a
+            batch it knows is short — a salvaged read cut at the byte bound (`truncated`) or one
+            that skipped malformed lines. The cards are real and stay on screen, but the list is
+            known-incomplete, so the person is owed that fact and the provider's own reason.
+            This is a warning, not the failure banner above: the two are independent readings and
+            both are drawn when both are present. Background polling replaces both wholesale, so
+            the next healthy answer clears them without any local rule.
+          */}
+          {snapshot.providerWarnings.length > 0 && (
+            <div
+              role="status"
+              data-testid="cockpit-card-provider-warning"
+              data-providers={snapshot.providerWarnings
+                .map((warning) => warning.provider)
+                .join(',')}
+              className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            >
+              <span className="min-w-0 flex-1">
+                {t('cockpit.cardProviderWarning', {
+                  providers: snapshot.providerWarnings
+                    .map((warning) => warning.provider)
+                    .join(', '),
+                  reason: snapshot.providerWarnings
+                    .map(
+                      (warning) => warning.reason ?? t('cockpit.cardProviderNoReason'),
+                    )
+                    .join('; '),
+                })}
+              </span>
+            </div>
+          )}
+
           {snapshot.visibleCards.length === 0 &&
             snapshot.status === 'loaded' &&
-            snapshot.providerFailures.length === 0 && (
+            snapshot.providerFailures.length === 0 &&
+            snapshot.providerWarnings.length === 0 && (
               <p data-testid="cockpit-card-empty" className="text-xs text-muted-foreground">
                 {t('cockpit.cardEmpty')}
               </p>

@@ -1019,6 +1019,7 @@
     "cardEmpty": "Aucune carte en attente.",
     "cardError": "Impossible de lire les cartes : {{reason}}",
     "cardProviderError": "Certains fournisseurs de cartes n'ont pas pu être lus ({{providers}}) : {{reason}}",
+    "cardProviderWarning": "Certains fournisseurs de cartes ont renvoyé des lectures incomplètes ({{providers}}) : {{reason}}",
     "cardProviderNoReason": "aucune raison fournie",
     "cardProviderRetry": "Réessayer",
     "cardConfirmBody": "Ceci envoie « {{label}} » une fois.",

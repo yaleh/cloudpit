@@ -687,6 +687,38 @@ describe('the wide-screen reading', () => {
   });
 });
 
+describe('the phone cards page states an incomplete provider read', () => {
+  it('draws the warning beside the cards and keeps Details working from the same list', async () => {
+    restoreViewport = setViewportWidth(390);
+    apiMock.cockpitCards.mockResolvedValue(
+      okResponse({
+        cards: [CARD],
+        diagnostics: [
+          {
+            provider: 'quay-fleet',
+            ok: true,
+            reason: 'read output was cut at the 8 MiB bound',
+            cards: 1,
+            skippedLines: 0,
+            cached: false,
+            truncated: true,
+          },
+        ],
+      }),
+    );
+    renderCockpit('/cockpit?view=cards');
+
+    const warning = await screen.findByTestId('cockpit-card-provider-warning');
+    expect(warning.textContent).toContain('read output was cut at the 8 MiB bound');
+    // The salvaged card is real and opens its sheet; the warning does not hide the wall.
+    const card = screen.getByTestId('cockpit-card-fixture:ask');
+    expect(card).toBeTruthy();
+    fireEvent.click(within(card).getByTestId('cockpit-card-zone-a'));
+    expect(await screen.findByTestId('cockpit-card-details')).toBeTruthy();
+    expect(screen.queryByTestId('cockpit-card-provider-error')).toBeNull();
+  });
+});
+
 describe('the phone shell around the cards', () => {
   it('draws one status row from the existing fleet and deploy readings', async () => {
     restoreViewport = setViewportWidth(390);

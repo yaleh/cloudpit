@@ -1102,6 +1102,7 @@
     "cardEmpty": "Tidak ada kartu yang menunggu.",
     "cardError": "Kartu tidak dapat dibaca: {{reason}}",
     "cardProviderError": "Beberapa penyedia kartu tidak dapat dibaca ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Beberapa penyedia kartu mengembalikan pembacaan yang tidak lengkap ({{providers}}): {{reason}}",
     "cardProviderNoReason": "tidak ada alasan",
     "cardProviderRetry": "Coba lagi",
     "cardConfirmBody": "Ini mengirim “{{label}}” sekali.",

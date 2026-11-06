@@ -487,6 +487,8 @@ describe('every locale carries the cockpit copy', () => {
       'cardSituationCollapse',
       'cardEmpty',
       'cardError',
+      'cardProviderError',
+      'cardProviderWarning',
       'cardConfirmBody',
       'cardConfirmIrreversible',
       'cardConfirmCountdown',
@@ -516,6 +518,9 @@ describe('every locale carries the cockpit copy', () => {
     expect(placeholders(reference.cardWaitingFor)).toEqual(['duration']);
     expect(placeholders(reference.cardSessionWaiting)).toEqual(['id']);
     expect(placeholders(reference.cardError)).toEqual(['reason']);
+    // The incomplete-read warning names the providers AND carries the provider's own reason,
+    // so a locale that drops either placeholder is a mangled sentence, not a translation.
+    expect(placeholders(reference.cardProviderWarning)).toEqual(['providers', 'reason']);
     expect(placeholders(reference.cardConfirmBody)).toEqual(['label']);
     expect(placeholders(reference.cardConfirmCountdown)).toEqual(['seconds']);
     // The idle confirm bar draws no hint row any more: its copy key must be GONE from every

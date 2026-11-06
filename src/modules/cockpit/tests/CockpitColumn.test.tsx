@@ -4,7 +4,12 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { Clock, CockpitCard as CockpitCardData, CockpitCardOption } from '@/shared/types';
+import type {
+  Clock,
+  CockpitCard as CockpitCardData,
+  CockpitCardOption,
+  CockpitCardProviderDiagnostic,
+} from '@/shared/types';
 import { i18n } from '@/modules/i18n';
 import CockpitColumn, { CockpitColumnRegion } from '@/modules/cockpit/workspace/CockpitColumn';
 import CockpitHeaderButton from '@/modules/cockpit/workspace/CockpitHeaderButton';
@@ -97,7 +102,10 @@ async function fixture(options: {
   expanded?: boolean;
   storage?: CockpitColumnStorage | null;
   /** Replaces the generated read, so a case can change what the next read answers. */
-  fetchCards?: () => Promise<{ cards: CockpitCardData[] }>;
+  fetchCards?: () => Promise<{
+    cards: CockpitCardData[];
+    diagnostics?: CockpitCardProviderDiagnostic[];
+  }>;
   /** The two transports the third action uses; omitted, the surface offers no discard. */
   dismiss?: (request: { cardId: string; revision: number }) => Promise<{ ok: boolean }>;
   confirm?: (request: { cardId: string; revision: number; optionId?: string }) => Promise<{
@@ -263,6 +271,41 @@ describe('expanded', () => {
     expect(screen.getByTestId('cockpit-column-composer')).toBeTruthy();
     expect(screen.getByTestId('cockpit-input')).toBeTruthy();
     expect(screen.getByTestId('cockpit-card-count-summary').textContent).toContain('2');
+  });
+
+  it('draws the provider warning in the column list, from the same controller reading', async () => {
+    const f = await fixture({
+      expanded: true,
+      fetchCards: async () => ({
+        cards: [card('c1')],
+        diagnostics: [
+          {
+            provider: 'quay-fleet',
+            ok: true,
+            reason: 'read output was cut at the 8 MiB bound',
+            cards: 1,
+            skippedLines: 0,
+            cached: false,
+            truncated: true,
+          },
+        ],
+      }),
+    });
+    render(
+      <TestBinding fixture={f}>
+        <CockpitColumn />
+      </TestBinding>,
+    );
+
+    // One controller reading feeds the column header and the list; the warning rides the list.
+    expect(f.cards.getSnapshot().providerWarnings).toHaveLength(1);
+    expect(f.cards.getSnapshot().degraded).toBe(true);
+    const warning = within(screen.getByTestId('cockpit-column')).getByTestId(
+      'cockpit-card-provider-warning',
+    );
+    expect(warning.textContent).toContain('read output was cut at the 8 MiB bound');
+    // The salvaged card stays visible; the warning does not replace the wall.
+    expect(screen.getByTestId('cockpit-card-c1')).toBeTruthy();
   });
 
   it('pushes Details inside the column and the back button returns to the list', async () => {

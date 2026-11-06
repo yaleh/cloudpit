@@ -1019,6 +1019,7 @@
     "cardEmpty": "No hay tarjetas en espera.",
     "cardError": "No se pudieron leer las tarjetas: {{reason}}",
     "cardProviderError": "No se pudieron leer algunos proveedores de tarjetas ({{providers}}): {{reason}}",
+    "cardProviderWarning": "Algunos proveedores de tarjetas devolvieron lecturas incompletas ({{providers}}): {{reason}}",
     "cardProviderNoReason": "sin motivo indicado",
     "cardProviderRetry": "Reintentar",
     "cardConfirmBody": "Esto envía «{{label}}» una vez.",

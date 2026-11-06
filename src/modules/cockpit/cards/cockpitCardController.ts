@@ -323,9 +323,19 @@ export type CockpitCardControllerSnapshot = {  status: 'idle' | 'loading' | 'loa
    */
   providerFailures: readonly CockpitCardProviderDiagnostic[];
   /**
-   * Whether at least one provider failed while others may have answered. Derived from
-   * {@link providerFailures}; the list draws the persistent reason banner and keeps the healthy
-   * cards instead of replacing them with an error page.
+   * Every provider that ANSWERED with a usable batch but declared it incomplete, in provider
+   * order: `ok:true` together with `truncated:true` or `skippedLines > 0`.
+   *
+   * These are NOT failures — `ok` keeps meaning "a usable batch came back", and the salvaged
+   * cards stay on the wall. They are warnings because the read silently dropped a tail or some
+   * malformed lines: without this reading the person would see a complete-looking wall built
+   * from a partial answer. `reason` is display copy only and never makes a row a warning.
+   */
+  providerWarnings: readonly CockpitCardProviderDiagnostic[];
+  /**
+   * Whether at least one provider failed or warned while others may have answered. Derived from
+   * {@link providerFailures} and {@link providerWarnings}; the list draws the persistent reason
+   * banner(s) and keeps the healthy cards instead of replacing them with an error page.
    */
   degraded: boolean;
   /**
@@ -508,6 +518,7 @@ const initialState: CockpitCardControllerSnapshot = {
   error: null,
   cards: [],
   providerFailures: [],
+  providerWarnings: [],
   degraded: false,
   visibleCards: [],
   duplicates: {},
@@ -818,12 +829,14 @@ function normalize(
   return {
     ...next,
     cards,
-    // The failure reading is the provider diagnostics that said `ok:false`; `degraded` is
-    // derived here (not stored by the command) so no write path can publish one without the
-    // other. A background poll replaces both on the next answer, which is how a recovered
-    // provider clears the banner.
+    // The failure reading is the provider diagnostics that said `ok:false`; the warning reading
+    // is the ones that answered `ok:true` but declared an incomplete batch. `degraded` is
+    // derived here (not stored by the command) so no write path can publish a reading without
+    // its derived flag. A background poll replaces both lists on the next answer, which is how a
+    // recovered provider clears either kind of notice.
     providerFailures: next.providerFailures,
-    degraded: next.providerFailures.length > 0,
+    providerWarnings: next.providerWarnings,
+    degraded: next.providerFailures.length > 0 || next.providerWarnings.length > 0,
     visibleCards,
     duplicates,
     openCount: keptCards.length,
@@ -1048,11 +1061,21 @@ export function createCockpitCardController(
         const providerFailures = (answer.diagnostics ?? []).filter(
           (diagnostic) => !diagnostic.ok,
         );
+        // An `ok:true` reading can still be INCOMPLETE: a salvaged batch cut at the read bound
+        // (`truncated`) or one that skipped malformed lines. `ok` keeps its A/B meaning ("a
+        // usable batch came back"), so these are warnings beside the shipped cards, never
+        // failures. `reason` alone never qualifies — a healthy read may carry one for display.
+        const providerWarnings = (answer.diagnostics ?? []).filter(
+          (diagnostic) =>
+            diagnostic.ok &&
+            (diagnostic.truncated === true || diagnostic.skippedLines > 0),
+        );
         commit({
           status: 'loaded',
           error: null,
           cards: withStartedSessions(answer.cards),
           providerFailures,
+          providerWarnings,
         });
         // `normalize` has just fallen back to the first visible card, because at construction
         // there was no card list to check the remembered selection against. Now there is one:
@@ -1069,7 +1092,12 @@ export function createCockpitCardController(
         // The transport failed, so there is no provider reading to report: the error state owns
         // the wall and a stale banner would claim a provider reading the last round no longer
         // supports.
-        commit({ status: 'error', error: failureMessage(failure), providerFailures: [] });
+        commit({
+          status: 'error',
+          error: failureMessage(failure),
+          providerFailures: [],
+          providerWarnings: [],
+        });
       }
     })();
     inFlightRead = run;
