@@ -56,5 +56,6 @@ goal_ac: AC-142
 - AC3 `npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0，`2 passed (17.6s)`；拒绝腿 stdout 为 `draft-kept=true posts=1 aliyuncs-refusal=0`，且 `before-said-unauthorized=false after-said-unauthorized=true`、`distinct=3/3`。
 - AC4 `npm run typecheck` 退出 0（`tsconfig.json` + `server/tsconfig.json` + `scripts/tsconfig.json` 三段均过）。
 - AC5 负对照：把 `isDefinitiveRefusal` 临时改回旧判定（`status` 502/503/504 先返回瞬时）后同一命令退出 1、2 failed，UNAUTHORIZED 臂读数 `definitive=502,UNAUTHORIZED transcribeVoice-calls=3`（NOT_CONFIGURED 臂同为 3）；恢复「有 code 时以 code 为准」后退出 0、该臂回到 1。
+- 合并 develop（含本任务 task_write 提交）后的同一 worktree 复跑，源码面与 develop 一致：unit 5 passed、`UNAUTHORIZED=1` / `UPSTREAM_UNAVAILABLE=3`；`npx playwright test e2e/voice-dashscope-written.spec.ts -g "AC-142"` 退出 0、`2 passed (18.8s)`，拒绝腿仍为 `draft-kept=true posts=1 aliyuncs-refusal=0`。真实 develop 树上的 ledger 复测由 driver 的 fan-in 完成。
 
 该轴仍暗,理由:本任务只修改客户端拒绝分类与对应判据，未运行 archguard 数据轴测量
