@@ -121,3 +121,15 @@ loop:
 # Active GOAL cap (goal-store readGoalConfig; default 3). Raised to 5 by human yale 2026-10-12.
 goals:
   cap: 5
+
+# ── suite 级旋钮（config 优先，env/CLI 覆盖；plugin/scripts/suite-params.ts 读取）─────────────
+# 2026-11-06：本机 128 vCPU 共享宿主上，quay 套件默认按 nproc 取并发（max_oversubscription=1 ⇒
+# 一个 suite 可开 92–128 车道），实测单 suite 吃 65 核/1,093 进程、宿主 loadavg 冲到 103→171，
+# 并触发 cgroup OOM（quay 自己的失败记录里出现 `step=suite: oom-killed`）。这里按"本机份额"
+# 设上限：main 车道 = max(1, floor((nproc − in_use) × oversub / S)) ⇒ 128 核上约 24 条；
+# serial/lowconc 两相各自封顶 8（默认是 nproc/(S×P)=64）。⛔ 这不是内存杠杆（压到 15 车道仍 OOM），
+# 只是不再独占宿主、不再拖垮同机其它项目的测试。
+suite:
+  max_oversubscription: 0.1875
+  serial_concurrency: 8
+  lowconc_concurrency: 8
