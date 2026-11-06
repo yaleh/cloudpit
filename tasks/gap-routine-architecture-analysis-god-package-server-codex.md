@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-god-package-server-codex
 title: "architecture-analysis: archguard 0.1.45 fresh run 2026-11-06 (scope
   server, defaults minFiles 20 / minEntities 50): modules/providers/list/codex =
   32 source files / 10,337 LOC / 73"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
