@@ -156,6 +156,42 @@ function runnerReturning(
   };
 }
 
+/**
+ * A batch of `count` open cards whose joined JSONL is EXACTLY `totalBytes` bytes, trailing
+ * newline included — the accident's own shape (67 cards / 1,079,812 B), which the shared 1 MiB
+ * default could not capture. The padding rides in the LAST card's `situation` as ASCII spaces,
+ * so each pad character is exactly one byte and the card shape is unaffected.
+ */
+function bulkCardsFixture(count: number, totalBytes?: number): string {
+  const baseCard = FLEET_CARDS[0];
+  assert.ok(baseCard !== undefined);
+  const build = (pad = 0): string =>
+    `${Array.from({ length: count }, (_, index) => {
+      const card: Record<string, unknown> = {
+        ...baseCard,
+        id: `att-bulk-${index + 1}`,
+        subject: { ...baseCard.subject, taskId: `task-bulk-${index + 1}` },
+      };
+      if (index === count - 1) card.situation = 'x'.repeat(pad);
+      return JSON.stringify(card);
+    }).join('\n')}\n`;
+  const base = Buffer.byteLength(build(), 'utf8');
+  if (totalBytes === undefined) return build();
+  assert.ok(totalBytes >= base, `the fixture cannot shrink below ${base} B`);
+  return build(totalBytes - base);
+}
+
+/** A failure reading, as the runner reports it: no status, but a string code and its prefix. */
+function failedWith(errorCode: string, stdout: string, exitCode: number | null = null) {
+  return async (): Promise<CockpitFleetCommandResult> => ({
+    exitCode,
+    stdout,
+    stderr: '',
+    error: 'quay-fleet failed: stdout maxBuffer length exceeded',
+    errorCode,
+  });
+}
+
 function created(
   overrides: Partial<Parameters<typeof createCockpitFleetCardProvider>[0]> = {},
 ): CockpitFleetCardProvider {
@@ -446,6 +482,93 @@ test('AC-432: one bad line is skipped and counted without hiding the other cards
   assert.equal(diagnostic?.skippedLines, 1);
   assert.equal(diagnostic?.cards, 2);
   assert.match(diagnostic?.reason ?? '', /1 malformed card line/);
+});
+
+test('AC: 67 cards totalling 1,079,812 B project every card instead of losing the batch', async () => {
+  // The accident: 67 open cards were 1,079,812 B, past the shared 1 MiB stdout default. Nothing
+  // about this fixture is malformed — a bound too small to hold it is the whole defect.
+  const stdout = bulkCardsFixture(67, 1_079_812);
+  assert.equal(Buffer.byteLength(stdout, 'utf8'), 1_079_812, 'the fixture is the accident’s size');
+  const fleet = created({ runCards: runnerReturning(stdout) });
+
+  const cards = await fleet.provider.listCards();
+
+  assert.equal(cards.length, 67);
+  assert.equal(new Set(cards.map((card) => card.id)).size, 67, 'every card survives, none duplicated');
+  const diagnostic = fleet.diagnostics()[0];
+  assert.equal(diagnostic?.ok, true);
+  assert.equal(diagnostic?.cards, 67);
+  assert.equal(diagnostic?.skippedLines, 0);
+  assert.equal(diagnostic?.truncated, undefined, 'a complete read is not marked truncated');
+});
+
+test('AC: a maxBuffer cut salvages the complete lines and reports the dropped tail', async () => {
+  // 66 complete lines plus an 18,317 B fragment that never saw its newline: the fragment is not a
+  // card and must not be counted as a malformed one — the read was CUT, not corrupt.
+  const complete = bulkCardsFixture(66);
+  const tail = 'q'.repeat(18_317);
+  const stdout = `${complete}${tail}`;
+  assert.equal(Buffer.byteLength(tail, 'utf8'), 18_317);
+  const fleet = created({
+    runCards: failedWith('ERR_CHILD_PROCESS_STDIO_MAXBUFFER', stdout),
+  });
+
+  const cards = await fleet.provider.listCards();
+
+  assert.equal(cards.length, 66, 'every COMPLETE line is projected');
+  assert.equal(
+    cards.some((card) => card.id === 'att-bulk-67'),
+    false,
+    'the unfinished fragment never becomes a card',
+  );
+  const diagnostic = fleet.diagnostics()[0];
+  assert.equal(diagnostic?.ok, true);
+  assert.equal(diagnostic?.truncated, true);
+  assert.equal(diagnostic?.completeLines, 66);
+  assert.equal(diagnostic?.truncatedTailBytes, 18_317);
+  assert.equal(diagnostic?.skippedLines, 0, 'the fragment is not a malformed line');
+  assert.equal(diagnostic?.cards, 66);
+  assert.match(diagnostic?.reason ?? '', /cut at the read bound/);
+});
+
+test('AC: the salvaged partial batch is cached like any other reading', async () => {
+  let now = 1_000;
+  const calls: string[][] = [];
+  const stdout = `${bulkCardsFixture(3)}${'q'.repeat(9)}`;
+  const fleet = created({
+    ttlMs: 5_000,
+    now: () => now,
+    runCards: async (args) => {
+      calls.push([...args]);
+      return failedWith('ERR_CHILD_PROCESS_STDIO_MAXBUFFER', stdout)();
+    },
+  });
+
+  assert.equal((await fleet.provider.listCards()).length, 3);
+  assert.equal((await fleet.provider.listCards()).length, 3);
+  assert.equal(calls.length, 1, 'the second read inside the TTL is answered from the cache');
+  assert.equal(fleet.diagnostics()[0]?.cached, true);
+  assert.equal(fleet.diagnostics()[0]?.truncated, true, 'the truncation survives the cache too');
+});
+
+test('AC: ENOENT and a non-zero exit are not salvageable and still drop the whole batch', async () => {
+  // The control for the salvage above: only a maxBuffer cut carries a trustworthy prefix.
+  const stdout = `${JSON.stringify(FLEET_CARDS[0])}\n`;
+  const enoent = created({ runCards: failedWith('ENOENT', stdout) });
+  assert.deepEqual(await enoent.provider.listCards(), []);
+  assert.equal(enoent.diagnostics()[0]?.ok, false);
+  assert.equal(enoent.diagnostics()[0]?.truncated, undefined);
+
+  const nonZero = created({
+    runCards: async () => ({ exitCode: 2, stdout, stderr: 'usage: quay-fleet', error: 'quay-fleet failed' }),
+  });
+  assert.deepEqual(await nonZero.provider.listCards(), []);
+
+  // A maxBuffer cut with no complete line at all (one giant fragment) salvages nothing either:
+  // answering ok with 0 cards would hide the failure.
+  const noNewline = created({ runCards: failedWith('ERR_CHILD_PROCESS_STDIO_MAXBUFFER', 'q'.repeat(64)) });
+  assert.deepEqual(await noNewline.provider.listCards(), []);
+  assert.equal(noNewline.diagnostics()[0]?.ok, false);
 });
 
 test('AC: a digest escalate card always offers a clickable dismissal', async () => {
