@@ -1,7 +1,7 @@
 ---
 id: gap-fleet-contract-and-sidebar-load-flake
 title: Fleet 契约测试与 sidebar 计数测试的环境 flake：补 resident 写入豁免并消除 render-wait 负载红
-status: todo
+status: ready
 labels:
   - gap
   - defect
