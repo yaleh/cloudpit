@@ -14,7 +14,12 @@ import { createQuayFleetRegistry } from './quay-fleet-registry.js';
 import { DEFAULT_INITIATIVE_AUDIT_RATIO, createQuayInitiatives } from './quay-initiatives.js';
 import { createQuayCapabilities, type QuayEntrypointIdentity } from './quay-capabilities.js';
 import { createQuayDispatchCarrier } from './quay-dispatch-carrier.js';
-import { QUAY_COMMAND_TIMEOUT_MS, createQuayProcessRunner, createSystemQuayEntrypointResolver } from './quay-process.js';
+import {
+  QUAY_COMMAND_TIMEOUT_MS,
+  QUAY_DRIVER_STATUS_TIMEOUT_MS,
+  createQuayProcessRunner,
+  createSystemQuayEntrypointResolver,
+} from './quay-process.js';
 import { createQuayTaskEvents } from './quay-task-events.service.js';
 import { createQuayRouter } from './quay.routes.js';
 import { createQuayService, type QuayFileReader } from './quay.service.js';
@@ -157,6 +162,9 @@ export const quayService = createQuayService({
   now: () => Date.now(),
   snapshotTtlMs: SNAPSHOT_TTL_MS,
   commandTimeoutMs: QUAY_COMMAND_TIMEOUT_MS,
+  // `driver status` is the one snapshot read whose cold cost is not a store print (~5.9 s
+  // measured), so it gets its own ceiling instead of widening the shared bound for every read.
+  driverStatusTimeoutMs: QUAY_DRIVER_STATUS_TIMEOUT_MS,
   fleetProjectIdResolver: quayFleetProjectIds,
   // The context-event stream's state rides beside the fleet reading: both answer
   // "is this host recording anything?", and a reader should not have to call two
