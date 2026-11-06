@@ -2,7 +2,7 @@
 id: gap-quay-snapshot-read-ceiling-and-partial-cache
 title: Quay snapshot 读超时与残快照缓存：task list 改 --no-body、driver status
   独立上限、读失败的部分快照不写 TTL 缓存（会话页 in-flight 图 popover 显示 Tasks not read）
-status: todo
+status: ready
 labels:
   - gap
   - defect
