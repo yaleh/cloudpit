@@ -263,8 +263,13 @@ type LegReading = {
  * `Date.now() - QUAY_E2E_RUN_STARTED_AT`, the same subtraction `afterAll` takes, which makes these lines directly
  * comparable with the `criterion-wall-ms=` line.
  */
-const mark = (stage: string): void =>
-  console.log(`[voice-error] stage=${stage} at=+${Date.now() - Number(process.env.QUAY_E2E_RUN_STARTED_AT)}ms`);
+const stageLog = { stage: '<none>', offsetMs: 0 };
+const mark = (stage: string): void => {
+  const offsetMs = Date.now() - Number(process.env.QUAY_E2E_RUN_STARTED_AT);
+  stageLog.stage = stage;
+  stageLog.offsetMs = offsetMs;
+  console.log(`[voice-error] stage=${stage} at=+${offsetMs}ms`);
+};
 
 /** Whether `locator` showed up within `timeoutMs`. */
 const appears = async (locator: Locator, timeoutMs: number): Promise<boolean> =>
@@ -346,6 +351,62 @@ const OPTIMIZER_POLL_MS = 250;
  * `Channel closed`. It is a runaway guard, not a performance target (the quiet arm measures ~30-66 s).
  */
 const CRITERION_BUDGET_MS = 180_000;
+
+/**
+ * The health-ready wait's deadline — a STEP-level wall inside this file's case body, not one of the whole-run
+ * ladders above.
+ *
+ * Both `/api/voice/health` readiness waits used to carry a bare `15_000`. That value was sized against a quiet
+ * host, and this shared box's load moves a health read plus its config re-read past it while every product
+ * assertion is still green: on 2026-11-06 the ledger flipped between a green run at `criterion-wall-ms=45269`
+ * (`load1 136.96`) and a red whose ONLY failure was this poll timing out at 15 s — on a tree pair with zero
+ * product-code difference (`66a08283` and `9a25b5e1` are both `tasks/`-only commits). `f1775df72` raised the
+ * three whole-run walls, which cannot help a step whose deadline is still the one that reds first and whose red
+ * lands inside the case body, before `afterAll` can write the ledger.
+ *
+ * `60_000` is 4× the old value and stays a step-level value: the two waits are sequential, so at most one is
+ * pending at a time, leaving the four legs and `afterAll` room to report inside `CRITERION_BUDGET_MS` (180_000)
+ * and far inside the `SPEC_BUDGET_MS` watchdog (240_000). A health red is therefore reported by THIS FILE with
+ * the observation below instead of dying as a `Channel closed` that names no stage.
+ *
+ * `VOICE_ERROR_HEALTH_DEADLINE_MS` overrides it and exists ONLY for the negative control that proves this
+ * constant is load-bearing: with `1` the criterion must red on the self-explaining message below, and with the
+ * variable unset it must pass.
+ */
+const HEALTH_READ_DEADLINE_MS = 60_000;
+const HEALTH_WAIT_MS = Number(process.env.VOICE_ERROR_HEALTH_DEADLINE_MS ?? HEALTH_READ_DEADLINE_MS);
+
+/**
+ * What this run had really captured when a health-ready wait gave up — the observation a timeout has to carry.
+ *
+ * Every reading comes from the `healthPayloads` this run's own page listener filled; nothing is fetched again,
+ * because a second request would answer a different question than "what did this run observe". The stage offset
+ * is the last `mark()`, which places the timeout inside the run's own wall clock.
+ */
+const healthObservation = (): string => {
+  const stage = `last-stage=${stageLog.stage} at=+${stageLog.offsetMs}ms`;
+  if (healthPayloads.length === 0) return `payloads=0; ${stage}`;
+  const captured = healthPayloads
+    .map((body, index) => `${index}:provider=${body.provider ?? '<absent>'} configured=${body.configured ?? '<absent>'}`)
+    .join(' ');
+  return `payloads=${healthPayloads.length}; ${stage}; captured=[${captured}]`;
+};
+
+/**
+ * Runs one health-ready `expect.poll` and, if it times out, rethrows with this run's own observation appended —
+ * the page-level `message` alone says only "never read", which cannot tell "none captured" from "captured but
+ * `configured=false`" from "captured but another provider id".
+ */
+const awaitHealthReady = async (wait: () => Promise<unknown>): Promise<void> => {
+  try {
+    await wait();
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\n`
+      + `[voice-error] health-wait-timeout: ${healthObservation()}`,
+    );
+  }
+};
 
 /** A dependency the optimizer serves out of this run's private cache, already rewritten to its url. */
 const OPTIMIZED_DEP_IN_TEXT = /["'](\/@fs\/[^"']*\/deps\/[^"']+\.js\?v=[0-9a-f]+)["']/;
@@ -882,9 +943,14 @@ test('AC-153 four upstream conditions each show their own Chinese sentence, and 
   mark('settings-open');
   await openVoiceSettings(page);
   mark('voice-tab');
-  await expect
-    .poll(() => healthPayloads.length, { timeout: 15_000, message: 'the page never read /api/voice/health' })
-    .toBeGreaterThan(0);
+  await awaitHealthReady(
+    () => expect
+      .poll(() => healthPayloads.length, {
+        timeout: HEALTH_WAIT_MS,
+        message: 'the page never read /api/voice/health',
+      })
+      .toBeGreaterThan(0),
+  );
   const payload = healthPayloads[healthPayloads.length - 1];
   const proxiedRow = payload.providers?.find((row) => row.capabilities?.transport === 'proxy-only');
   expect(proxiedRow, 'the health payload lists no provider declaring transport: proxy-only').toBeTruthy();
@@ -908,10 +974,15 @@ test('AC-153 four upstream conditions each show their own Chinese sentence, and 
 
   await rereadHealth(page);
   mark('health-reread');
-  await expect.poll(
-    () => healthPayloads.some((body) => body.provider === proxiedRow!.id && body.configured === true),
-    { timeout: 15_000, message: 'the page never read a health payload naming the selected provider as effective' },
-  ).toBe(true);
+  await awaitHealthReady(
+    () => expect.poll(
+      () => healthPayloads.some((body) => body.provider === proxiedRow!.id && body.configured === true),
+      {
+        timeout: HEALTH_WAIT_MS,
+        message: 'the page never read a health payload naming the selected provider as effective',
+      },
+    ).toBe(true),
+  );
   await page.keyboard.press('Escape');
   await expect(composer(page)).toBeVisible({ timeout: 10_000 });
   mark('back-in-composer');
