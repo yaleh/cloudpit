@@ -42,7 +42,7 @@ import {
   classifyUpstreamFailure,
   declaredAcceptsMime,
 } from '../../asrContract.js';
-import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
+import { base64Encode, base64Length, fetchWithTransportRetry, utf8ByteLength } from '../../transcriptionWire.js';
 import {
   audioFormatFor,
   chatAudioDataUri,
@@ -312,7 +312,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
 
   let response: Response;
   try {
-    response = await invocation.fetchImpl(endpoint, {
+    response = await fetchWithTransportRetry(invocation.fetchImpl, endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

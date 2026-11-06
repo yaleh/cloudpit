@@ -730,6 +730,113 @@ test('relay: an absent context leaves the system prompt at the no-context arm', 
   emit(`relay context=absent provider=${dashscopeRelayId}`);
 });
 
+// ── AC3/AC5: one retry for a pure transport failure, and none for anything else ───────────────
+
+const RELAY_PROVIDER = 'dashscope-omni-relay';
+
+/**
+ * The shipped service with a transport that answers from `steps`, the last step repeating, and
+ * records EVERY attempt — including the ones that throw before an answer exists. The relay adapter
+ * is the real one; only the socket is a double.
+ */
+function makeTransportService(steps: ReadonlyArray<() => Response>) {
+  const calls: Recorded[] = [];
+  const service = createVoiceService({
+    defaults: DEFAULTS,
+    timeoutMs: TIMEOUT_MS,
+    fetchBackend: async (url, init) => {
+      calls.push({
+        url,
+        method: String(init.method ?? 'GET').toUpperCase(),
+        headers: readHeaders(init.headers),
+        body: init.body,
+      });
+      const step = steps[Math.min(calls.length - 1, steps.length - 1)];
+      return step();
+    },
+  });
+  return { service, calls };
+}
+
+/** The relay provider's own stored model field, as the settings page writes it. */
+const relaySettings = (): VoiceSettings => ({ ...NO_USER_SETTINGS, dashscopeModel: 'relay-model' });
+
+const transcribeRelay = (service: ReturnType<typeof makeTransportService>['service']) =>
+  service.transcribe({
+    audio: audioUpload(),
+    overrides: { providerId: RELAY_PROVIDER },
+    settings: relaySettings(),
+  });
+
+test('AC3 a transport that drops before answering is retried once, and the second attempt is the transcript', async () => {
+  const { service, calls } = makeTransportService([
+    () => {
+      throw new Error('socket hang up');
+    },
+    () => chatAnswer('{"transcript":"k-relay-answer"}'),
+  ]);
+
+  const result = await transcribeRelay(service);
+  emit(
+    `transport-retry reject-once fetch-calls=${calls.length} ok=${result.ok} ` +
+      `text=${JSON.stringify(result.ok ? result.value.text : undefined)}`,
+  );
+
+  assert.equal(calls.length, 2, 'a rejected promise with no answer behind it costs one retry');
+  assert.equal(result.ok, true, 'the second attempt carries the transcription');
+  assert.ok(result.ok && result.value.text === 'k-relay-answer');
+});
+
+test('AC3 a transport that never answers is retried once and still reports UPSTREAM_UNAVAILABLE', async () => {
+  const { service, calls } = makeTransportService([
+    () => {
+      throw new Error('connection refused');
+    },
+  ]);
+
+  const result = await transcribeRelay(service);
+  emit(
+    `transport-retry always-rejects fetch-calls=${calls.length} ` +
+      `outcome=${result.ok ? 'ok' : result.code} status=${result.ok ? 200 : result.status}`,
+  );
+
+  assert.equal(calls.length, 2, 'the retry budget is one extra attempt, not an unbounded loop');
+  assert.equal(result.ok, false);
+  assert.equal(result.ok ? 'ok' : result.code, 'UPSTREAM_UNAVAILABLE');
+  assert.equal(result.ok ? 'ok' : result.status, PROVIDER_ERROR_STATUS.UPSTREAM_UNAVAILABLE);
+});
+
+test('AC5 an AbortError is never retried: the deadline cannot be doubled', async () => {
+  const { service, calls } = makeTransportService([
+    () => {
+      throw abortError();
+    },
+  ]);
+
+  const result = await transcribeRelay(service);
+  emit(`transport-retry abort-error fetch-calls=${calls.length} outcome=${result.ok ? 'ok' : result.code}`);
+
+  assert.equal(calls.length, 1, 'an aborted request is the caller\'s budget ending, not a transient');
+  assert.equal(result.ok, false);
+  assert.equal(result.ok ? 'ok' : result.code, 'UPSTREAM_UNAVAILABLE');
+});
+
+test('AC5 an HTTP 500 answer is never retried: a status is the upstream\'s verdict', async () => {
+  const { service, calls } = makeTransportService([
+    () => new Response('upstream exploded', { status: 500 }),
+  ]);
+
+  const result = await transcribeRelay(service);
+  emit(
+    `transport-retry http-500 fetch-calls=${calls.length} ` +
+      `outcome=${result.ok ? 'ok' : result.code} status=${result.ok ? 200 : result.status}`,
+  );
+
+  assert.equal(calls.length, 1, 'a delivered status is classified, never re-requested');
+  assert.equal(result.ok, false);
+  assert.equal(result.ok ? 'ok' : result.code, 'UPSTREAM_UNAVAILABLE');
+});
+
 // ── AC10: what this task does not do, and the transport it never uses ─────────────────────────
 
 /**

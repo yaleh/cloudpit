@@ -54,6 +54,7 @@ import {
 } from '@shared/asr/asrInvariants';
 import {
   base64Encode,
+  fetchWithTransportRetry,
   parseTranscriptionResponse,
   type TranscriptionEnvelope,
 } from '@shared/asr/transcriptionWire';
@@ -93,7 +94,9 @@ const promptHonouringAdapter: AsrAdapter = {
     const endpoint = generateContentEndpoint(invocation.baseUrl, invocation.model);
     let response: Response;
     try {
-      response = await invocation.fetchImpl(endpoint, {
+      // The same transport discipline the shipping adapters use, retry included: only the
+      // declaration differs between this stand-in and the adapter it stands in for.
+      response = await fetchWithTransportRetry(invocation.fetchImpl, endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -3,7 +3,7 @@ id: gap-voice-transient-upstream-failure-retry
 title: 语音一次上游 502 即丢整段话：客户端把瞬时 502/503/504（UPSTREAM_UNAVAILABLE）当成 definitive
   refusal 记住，pipeline 的两次重试只空转不上传；改为可重试分类 + 四类网络适配器对纯传输失败各重试一次（2026-11-06 12.12s
   真语音只剩 1 条 capture 行）
-status: ready
+status: done
 labels:
   - gap
   - defect
@@ -183,11 +183,3 @@ src/shared/asr/tests/asrContractInvariants.test.ts 15/15 pass exit 0
 - 未用放宽断言、sleep、把 502 当成功或关闭重试换绿；AbortError 读数仍为 1，300 s 上限没有被放大成 600 s。
 
 该轴仍暗,理由:本次为语音瞬时失败修复，未跑 archguard 双轴读数，模块设计面未变
-
-## Blocker
-
-**2026-11-06T08:19:28.635Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles shared/asr/asrInvariants.ts 1760→1763 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/modules/voice/tests/voice-error-contract.false-forms.test.ts,server/modules/voice/tests/voice-error-contract.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,server/shared/tests/architecture-ratchet.test.ts,server/modules/voice/tests/voice-error-contract.false-forms.test.ts,server/modules/voice/tests/voice-error-contract.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：b519c766-818e-468c-a405-9206ecb870ee

@@ -209,8 +209,8 @@ test('AC3: a hint the declaration does not acknowledge is caught on the wire', (
   control(t, {
     name: 'an honors declaration that is no longer applied, so the prompt is sent anyway',
     file: ADAPTER,
-    from: '  if (capabilities.honors.prompt && hints.prompt !== undefined) honored.prompt = hints.prompt;',
-    to: '  if (hints.prompt !== undefined) honored.prompt = hints.prompt;',
+    from: '  const hints = honoredHints(capabilities, request.hints);',
+    to: '  const hints = honoredHints({ ...capabilities, honors: { ...capabilities.honors, prompt: true } }, request.hints);',
     token: 'PROMPT_SENT',
   });
 });
@@ -271,7 +271,7 @@ test('AC7: reaching for the ambient fetch instead of the injected one is caught 
   control(t, {
     name: 'an adapter that uses the ambient fetch rather than the injected transport',
     file: ADAPTER,
-    from: '    response = await invocation.fetchImpl(endpoint, {',
+    from: '    response = await fetchWithTransportRetry(invocation.fetchImpl, endpoint, {',
     to: '    response = await fetch(endpoint, {',
     token: 'NETWORK_CALL',
   });

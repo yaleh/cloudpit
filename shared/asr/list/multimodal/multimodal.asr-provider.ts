@@ -66,7 +66,7 @@ import type {
   AsrResult,
 } from '../../asrContract.js';
 import { classifyUpstreamFailure, honoredHints } from '../../asrContract.js';
-import { base64Encode, base64Length, utf8ByteLength } from '../../transcriptionWire.js';
+import { base64Encode, base64Length, fetchWithTransportRetry, utf8ByteLength } from '../../transcriptionWire.js';
 
 /** The id this provider is registered under. */
 export const id: string = 'multimodal';
@@ -454,7 +454,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
 
   let response: Response;
   try {
-    response = await invocation.fetchImpl(endpoint, {
+    response = await fetchWithTransportRetry(invocation.fetchImpl, endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

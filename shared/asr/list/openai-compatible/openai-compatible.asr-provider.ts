@@ -34,7 +34,11 @@ import {
   type AsrRequest,
   type AsrResult,
 } from '../../asrContract.js';
-import { createTranscriptionRequest, parseTranscriptionResponse } from '../../transcriptionWire.js';
+import {
+  createTranscriptionRequest,
+  fetchWithTransportRetry,
+  parseTranscriptionResponse,
+} from '../../transcriptionWire.js';
 
 /** The id this provider is registered under — the id the shipped path has always been spoken of by. */
 export const id: string = 'openai-compatible';
@@ -195,7 +199,7 @@ export async function transcribe(request: AsrRequest, invocation: AsrInvocation)
 
   let response: Response;
   try {
-    response = await invocation.fetchImpl(wire.url, { ...wire.init, signal });
+    response = await fetchWithTransportRetry(invocation.fetchImpl, wire.url, { ...wire.init, signal });
   } catch (error) {
     // A transport that never connected and a request the invocation's deadline (or the caller's own
     // signal) ended are ONE code here and two messages: from this side of the seam they are the same
