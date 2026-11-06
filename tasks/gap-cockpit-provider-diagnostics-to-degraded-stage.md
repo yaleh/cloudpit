@@ -1,7 +1,7 @@
 ---
 id: gap-cockpit-provider-diagnostics-to-degraded-stage
 title: Cockpit provider 读取失败必须显示为失败态，不得坍缩成成功空页
-status: todo
+status: ready
 labels:
   - gap
   - defect
