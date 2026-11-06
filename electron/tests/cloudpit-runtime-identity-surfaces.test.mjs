@@ -214,7 +214,7 @@ test('AC2: the live runtime identity surfaces are clean, and the scan is not vac
   const positives = [
     [IPC_PREFIX, 'electron/main.js', `${IPC_PREFIX}get-state`],
     [BRIDGE_NAME, 'electron/preload.cjs', BRIDGE_NAME],
-    [ARCHITECTURE_CHANNEL, 'src/modules/architecture/architectureChatBridge.ts', ARCHITECTURE_CHANNEL],
+    [ARCHITECTURE_CHANNEL, 'src/modules/architecture/render/architectureChatBridge.ts', ARCHITECTURE_CHANNEL],
     [SCENARIO_GLOBAL, 'src/modules/ui-scenario/scenarioSurface.ts', SCENARIO_GLOBAL],
   ];
   for (const [name, file, needle] of positives) {
@@ -292,7 +292,7 @@ test('AC-459 expect: contextBridge exposes only the two Cloudpit names and consu
 });
 
 test('AC-459 expect: one BroadcastChannel name feeds both architecture surfaces', () => {
-  const bridgeSource = readRepoFile('src/modules/architecture/architectureChatBridge.ts');
+  const bridgeSource = readRepoFile('src/modules/architecture/render/architectureChatBridge.ts');
 
   assert.match(
     bridgeSource,
@@ -311,7 +311,7 @@ test('AC-459 expect: one BroadcastChannel name feeds both architecture surfaces'
   // The two surfaces this channel joins: the standalone architecture page
   // (sends) and the workspace tab hook (receives).
   assert.match(
-    readRepoFile('src/modules/architecture/ArchitecturePanel.tsx'),
+    readRepoFile('src/modules/architecture/render/ArchitecturePanel.tsx'),
     /sendArchitectureChatMessage/,
     'the standalone architecture page sends over the bridge',
   );
@@ -319,6 +319,15 @@ test('AC-459 expect: one BroadcastChannel name feeds both architecture surfaces'
     readRepoFile('src/modules/architecture/index.ts'),
     /useArchitectureChatBridge/,
     'the workspace architecture entry point exposes the receiving hook',
+  );
+
+  // The package boundary that owns the bridge. A future split that moves the
+  // file again must fail here with a boundary message rather than a bare
+  // ENOENT from the reads above.
+  assert.match(
+    readRepoFile('src/modules/architecture/index.ts'),
+    /render\/architectureChatBridge/,
+    'the architecture package entry point re-exports the bridge from render/architectureChatBridge',
   );
 });
 
