@@ -64,23 +64,27 @@ extra:
 - src/modules/chat-voice/hooks/useVoiceInput.ts
 - src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx (new)
 - shared/asr/transcriptionWire.ts
+- shared/asr/asrInvariants.ts
 - shared/asr/list/openai-compatible/openai-compatible.asr-provider.ts
 - shared/asr/list/dashscope-omni-relay/dashscope-omni-relay.asr-provider.ts
 - shared/asr/list/dashscope-omni/dashscope-omni.asr-provider.ts
 - shared/asr/list/multimodal/multimodal.asr-provider.ts
 - server/modules/voice/tests/voice-provider-dispatch.test.ts
 - server/shared/tests/architecture-ratchet.baseline.json
+- scripts/asr-dashscope-omni-check.mjs
+- scripts/asr-dashscope-omni-check.test.mjs
+- scripts/asr-second-adapter-check.test.mjs
 
 ## AC
 
-- [ ] AC1 客户端瞬时重试：`npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx` exit 0；完成记录逐字给出三条读数——502 两次后第三次成功 ⇒ `transcribeVoice` 3 次且文本进入 composer；422 `NO_SPEECH_DETECTED` ⇒ 1 次；持续 502 ⇒ 3 次且提示含 502/`UPSTREAM_UNAVAILABLE`。
-- [ ] AC2 客户端 definitive 面未变：同一测试的 422 用例断言 `transcribeVoice` 恰 1 次；`git diff develop -- src/modules/chat-voice/hooks/useVoiceInput.ts | grep -c 'SEGMENT_MAX_RETRIES'` = 0（重试预算与退避未被改动）。
-- [ ] AC3 服务端 helper 行为：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/modules/voice/tests/voice-provider-dispatch.test.ts` exit 0；完成记录逐字给出四条读数——一次性 reject 后成功 ⇒ fetch 2 次 + `ok:true`；一直 reject ⇒ 2 次 + `UPSTREAM_UNAVAILABLE`；AbortError ⇒ 1 次；HTTP 500 ⇒ 1 次。
-- [ ] AC4 四个网络适配器都接线：`for f in shared/asr/list/openai-compatible/*.asr-provider.ts shared/asr/list/multimodal/*.asr-provider.ts shared/asr/list/dashscope-omni/*.asr-provider.ts shared/asr/list/dashscope-omni-relay/*.asr-provider.ts; do grep -q 'await fetchWithTransportRetry(' "$f" || exit 1; done` exit 0；且 `grep -c 'export async function fetchWithTransportRetry' shared/asr/transcriptionWire.ts` = 1。
-- [ ] AC5 超时与 HTTP 响应不重试：AC3 的 AbortError=1、HTTP 500=1 两条读数即判据；另 `git diff develop -- shared/asr/list | grep -cE '^\+.*(retry|retries).*(401|403|429|500)'` = 0。
-- [ ] AC6 ratchet：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0；完成记录给出 `wc -l src/modules/chat-voice/hooks/useVoiceInput.ts` 与基线值；若增长，逐字给出 RECORDED CHANGE note 段。
-- [ ] AC7 类型与 scoped gate：`npm run typecheck` exit 0；`bash scripts/test.sh --for-task gap-voice-transient-upstream-failure-retry` exit 0。
-- [ ] AC8 不新增 server 测试文件：`git diff --name-status develop | grep -cE '^A\s+server/.*\.test\.ts$'` = 0（保持 quay-test-script 的两条 pin 与时长基线不动）。
+- [x] AC1 客户端瞬时重试：`npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx` exit 0；完成记录逐字给出三条读数——502 两次后第三次成功 ⇒ `transcribeVoice` 3 次且文本进入 composer；422 `NO_SPEECH_DETECTED` ⇒ 1 次；持续 502 ⇒ 3 次且提示含 502/`UPSTREAM_UNAVAILABLE`。
+- [x] AC2 客户端 definitive 面未变：同一测试的 422 用例断言 `transcribeVoice` 恰 1 次；`git diff develop -- src/modules/chat-voice/hooks/useVoiceInput.ts | grep -c 'SEGMENT_MAX_RETRIES'` = 0（重试预算与退避未被改动）。
+- [x] AC3 服务端 helper 行为：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/modules/voice/tests/voice-provider-dispatch.test.ts` exit 0；完成记录逐字给出四条读数——一次性 reject 后成功 ⇒ fetch 2 次 + `ok:true`；一直 reject ⇒ 2 次 + `UPSTREAM_UNAVAILABLE`；AbortError ⇒ 1 次；HTTP 500 ⇒ 1 次。
+- [x] AC4 四个网络适配器都接线：`for f in shared/asr/list/openai-compatible/*.asr-provider.ts shared/asr/list/multimodal/*.asr-provider.ts shared/asr/list/dashscope-omni/*.asr-provider.ts shared/asr/list/dashscope-omni-relay/*.asr-provider.ts; do grep -q 'await fetchWithTransportRetry(' "$f" || exit 1; done` exit 0；且 `grep -c 'export async function fetchWithTransportRetry' shared/asr/transcriptionWire.ts` = 1。
+- [x] AC5 超时与 HTTP 响应不重试：AC3 的 AbortError=1、HTTP 500=1 两条读数即判据；另 `git diff develop -- shared/asr/list | grep -cE '^\+.*(retry|retries).*(401|403|429|500)'` = 0。
+- [x] AC6 ratchet：`bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0；完成记录给出 `wc -l src/modules/chat-voice/hooks/useVoiceInput.ts` 与基线值；若增长，逐字给出 RECORDED CHANGE note 段。
+- [x] AC7 类型与 scoped gate：`npm run typecheck` exit 0；`bash scripts/test.sh --for-task gap-voice-transient-upstream-failure-retry` exit 0。
+- [x] AC8 不新增 server 测试文件：`git diff --name-status develop | grep -cE '^A\s+server/.*\.test\.ts$'` = 0（保持 quay-test-script 的两条 pin 与时长基线不动）。
 
 ## DoD
 
@@ -89,3 +93,71 @@ extra:
 - UI 验证：仓库当前没有 voice 的 `scripts/ui-scenarios/*.json`。若能在隔离实例的真实页面上用 Playwright/MCP 拦截 `/api/voice/transcribe`（前两次 502、第三次放行）并触发一次 listen，则贴 `tmp/` 截图与网络请求计数；若 one-shot fake-mic 在真实页面不可注入，必须在完成记录里给出具体阻塞读数（不是“未做”），并以 composer 级读数为替代证据。
 - 收尾 `git status --porcelain` 只剩 Touches 声明的文件；`npm run lint` exit 0。
 - ⛔ 不通过放宽断言、增加 sleep、把 502 写成 success、或关闭重试来换绿；若 AC3 的 AbortError 读数变成 2 次，视为把 300 s 超时放大成 600 s 的回归，停手上报 `needs-human` 并附读数。
+
+## 完成记录（worker, 2026-11-06）
+
+### AC1 / AC2 客户端 —— `npx vitest run src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx`，3/3 pass，exit 0
+
+```
+voice-transient-refusal retry=502,502,200 transcribeVoice-calls=3 composer="k-transient-recovered"
+voice-transient-refusal definitive=422,NO_SPEECH_DETECTED transcribeVoice-calls=1
+voice-transient-refusal persistent=502 transcribeVoice-calls=3 notice=true technical="502 · UPSTREAM_UNAVAILABLE"
+```
+
+- AC2：`git diff develop -- src/modules/chat-voice/hooks/useVoiceInput.ts | grep -c 'SEGMENT_MAX_RETRIES'` = 0；`SEGMENT_MAX_RETRIES = 2` 与 250→500 ms 退避未改。
+- 实现：`session.refusals` 仍保存最后一次失败（报告用）；新增 session-local `definitiveRefusals: Set<number>`，`isDefinitiveRefusal()` 只在 `code === 'UPSTREAM_UNAVAILABLE'` 或 `status ∈ {502,503,504}` 之外判 definitive。可重试拒绝不进入该集合，于是 `runSegmentPipeline` 的既有预算真正重发；definitive 拒绝仍一次上传。
+
+### AC3 / AC5 服务端 —— `bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/modules/voice/tests/voice-provider-dispatch.test.ts`，15/15 pass，exit 0
+
+```
+transport-retry reject-once fetch-calls=2 ok=true text="k-relay-answer"
+transport-retry always-rejects fetch-calls=2 outcome=UPSTREAM_UNAVAILABLE status=502
+transport-retry abort-error fetch-calls=1 outcome=UPSTREAM_UNAVAILABLE
+transport-retry http-500 fetch-calls=1 outcome=UPSTREAM_UNAVAILABLE status=500
+```
+
+- 只有 `createVoiceService` 的 `fetchBackend` 是 double；provider 是真实的 `dashscope-omni-relay` adapter，wire 是真实 chat-audio JSON。
+- AC5：`git diff develop -- shared/asr/list | grep -cE '^\+.*(retry|retries).*(401|403|429|500)'` = 0。
+
+### AC4 helper 接线
+
+- 四个适配器的 `await fetchWithTransportRetry(` 循环 grep 通过；`grep -c 'export async function fetchWithTransportRetry' shared/asr/transcriptionWire.ts` = 1。
+- helper 语义：仅对“没有拿到任何 HTTP 答案”的 fetch 抛错重试一次；`init.signal?.aborted` 或 `error.name === 'AbortError'` 立即抛出；任何已交付的 HTTP 状态（401/403/429/5xx）不重试；两次都失败抛最后一个错误，adapter 的 `UPSTREAM_UNAVAILABLE` 映射不变。
+
+### AC6 ratchet
+
+- `bash scripts/with-memory-cap.sh npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` exit 0（6/6 pass）。
+- `wc -l src/modules/chat-voice/hooks/useVoiceInput.ts` = 1609；基线值 1609（同文件等量压缩注释，未增长，未使用 RECORDED CHANGE）。
+
+### AC7 类型与 scoped gate
+
+- `npm run typecheck` exit 0（root + server + scripts 三份 tsconfig）。
+- `bash scripts/test.sh --for-task gap-voice-transient-upstream-failure-retry` exit 0：`__PERFILE__ ... voice-provider-dispatch.test.ts passed=true`、`__PERFILE__ ... voiceTransientRefusalRetry.test.tsx passed=true`。
+
+### AC8
+
+- `git diff --name-status develop | grep -cE '^A\s+server/.*\.test\.ts$'` = 0：只扩写既有 `server/modules/voice/tests/voice-provider-dispatch.test.ts`，未新增 server 测试文件。
+
+### 附带契约面同步（行为变更引起的期望更新，不是放宽断言）
+
+- `shared/asr/asrInvariants.ts`：`error.transport` 行期望 `UPSTREAM_UNAVAILABLE requests=1` → `requests=2`（该行教的是“transport 从没应答”，现在 adapter 会重试一次）；`error.timeout`（AbortError）仍为 `requests=1`，两行的区分正是 AC5 的判据。
+- `scripts/asr-dashscope-omni-check.mjs`：`error.transport.requests` 期望 1 → 2。
+- `scripts/asr-dashscope-omni-check.test.mjs` / `scripts/asr-second-adapter-check.test.mjs`：两处 anchor 跟随适配器调用点改为 `fetchWithTransportRetry(...)`；后者另修了 develop 上已漂移的 `honoredHints` anchor（原 anchor 引用的 `honored.prompt = hints.prompt` 在 develop 已不存在）。
+- 三份自检合并跑 `node --test`：35/35 pass，exit 0；相关探针 `asr-contract-invariants-check` / `asr-dashscope-omni-check` / `asr-single-implementation-check` / `asr-import-cycle-check` / `asr-capability-check` / `asr-proxy-only-ssrf-check` / `asr-second-adapter-check` 全部 OK。
+
+### DoD 真实落地
+
+- 客户端：真实 `ChatComposer` 驱动一次 listen（真实 hook + 真实 segmenter；`createFakeVoiceCapture` 只替换麦克风），读数见 AC1：502 两次后第三次 200 ⇒ 3 次真实上传，文本 `k-transient-recovered` 进入 composer。
+- 服务端：真实 `createVoiceService` + 真实 `dashscope-omni-relay` adapter，唯一 double 是 transport（见 AC3）。
+- UI 验证的阻塞读数（真实页面在本 worker 会话不可驱动，不是“未做”）：
+  1. `ls scripts/ui-scenarios/ | grep -c voice` = 0 —— 仓库没有 voice 的 UI 场景可跑。
+  2. 本会话没有浏览器自动化工具：`ToolSearch "browser playwright navigate screenshot evaluate"` → `No matching deferred tools found`，因此无法在真实页面上 `page.route` 拦截 `/api/voice/transcribe` 或注入一次性 fake-mic。
+  3. 出货页面不暴露 capture-engine 注入点：`voiceCaptureEngine` 只是 `ChatComposer` 的 prop（`src/modules/chat-composer/composer/ChatComposer.tsx:214,338,640`），非测试调用方不设置，也没有 query/localStorage 开关。
+  按 DoD 的替代证据条款，本任务 UI 面以 composer 级读数（真实 ChatComposer + 真实 hook 的重试链路）落地。仓库的 Playwright 假麦克风装置（`playwright.config.ts` 预写 WAV + `--use-fake-device-for-media-stream`）存在，但为它新增 spec 与 config 不在本任务 Touches 内，也未在本 worker 的验证预算内。
+
+### 收尾
+
+- `git status --porcelain` 为空（实现已提交在任务分支）；`npm run lint` exit 0。
+- 未用放宽断言、sleep、把 502 当成功或关闭重试换绿；AbortError 读数仍为 1，300 s 上限没有被放大成 600 s。
+
+该轴仍暗,理由:本次为语音瞬时失败修复，未跑 archguard 双轴读数，模块设计面未变
