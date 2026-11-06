@@ -39,7 +39,7 @@ export type SidebarProjectItemProps = {
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
   onRenameDraftChange: (name: string) => void;
-  onToggleProject: (projectId: string) => void;
+  onToggleProject: (projectId: string, selectionWillChange?: boolean) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;
@@ -234,11 +234,15 @@ function SidebarProjectItem({
   };
 
   const selectAndToggleProject = () => {
-    if (selectedProject?.projectId !== project.projectId) {
+    // The row click is one gesture that both selects and toggles. Tell the toggle when the
+    // selection changes, so the sidebar's auto-expand effect does not replay the collapse
+    // after the commit (which used to make a collapse take two clicks).
+    const selectionWillChange = selectedProject?.projectId !== project.projectId;
+    if (selectionWillChange) {
       onProjectSelect(project);
     }
 
-    toggleProject();
+    onToggleProject(project.projectId, selectionWillChange);
   };
 
   return (

@@ -3573,7 +3573,7 @@ export type SidebarProjectListProps = SessionRowActions & {
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectId: string) => boolean;
-  onToggleProject: (projectId: string) => void;
+  onToggleProject: (projectId: string, selectionWillChange?: boolean) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;
