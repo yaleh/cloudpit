@@ -65,12 +65,12 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 
 ## AC
 
-- [ ] 先 `git merge develop` 进任务分支，再跑 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`：退出码 0，tests 10 / pass 10 / fail 0，贴出摘要输出。
-- [ ] `grep -c 'modules/architecture/architectureChatBridge.ts' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 0，`grep -c 'modules/architecture/render/architectureChatBridge.ts'` 输出 2；`grep -c 'modules/architecture/ArchitecturePanel.tsx'` 输出 0，`grep -c 'modules/architecture/render/ArchitecturePanel.tsx'` 输出 1。四个读数全部贴出。
-- [ ] 正臂非空转：对 `src/modules/architecture/render/architectureChatBridge.ts` 跑 `grep -c "ARCHITECTURE_CHAT_CHANNEL = 'cloudpit-architecture'"`（期望 1）与 `grep -c 'new BroadcastChannel('`（期望 1）；对 `src/modules/architecture/render/ArchitecturePanel.tsx` 跑 `grep -c sendArchitectureChatMessage`（期望 ≥1）。读数贴出。
-- [ ] 包边界一致性断言存在且为真：`grep -c 'render/architectureChatBridge' src/modules/architecture/index.ts` 期望 ≥1，且判据里新增的该断言在 AC1 的全绿运行中同时通过（不是只加注释）。
-- [ ] 负向控制仍红：判据 AC3 的两个注入用例在 AC1 运行中 pass；另用 `node --input-type=module -e` 对同一扫描器在内存中注入一条拼接的 `cloudcli-desktop:` 与一条 `__cloudcliScenario`，未注入时为绿、注入后为红，两条读数一并贴出；不改动盘上文件。
-- [ ] `git diff --stat` 只出现 `electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 与本任务文件；`electron/`、`src/` 下运行时源码零改动；`git diff` 不出现 `cloudcli.ai`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、`LEGACY_DESKTOP_APP_ID`、`tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG` 的改动。
+- [x] 先 `git merge develop` 进任务分支，再跑 `npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs`：退出码 0，tests 10 / pass 10 / fail 0，贴出摘要输出。
+- [x] `grep -c 'modules/architecture/architectureChatBridge.ts' electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 输出 0，`grep -c 'modules/architecture/render/architectureChatBridge.ts'` 输出 2；`grep -c 'modules/architecture/ArchitecturePanel.tsx'` 输出 0，`grep -c 'modules/architecture/render/ArchitecturePanel.tsx'` 输出 1。四个读数全部贴出。
+- [x] 正臂非空转：对 `src/modules/architecture/render/architectureChatBridge.ts` 跑 `grep -c "ARCHITECTURE_CHAT_CHANNEL = 'cloudpit-architecture'"`（期望 1）与 `grep -c 'new BroadcastChannel('`（期望 1）；对 `src/modules/architecture/render/ArchitecturePanel.tsx` 跑 `grep -c sendArchitectureChatMessage`（期望 ≥1）。读数贴出。
+- [x] 包边界一致性断言存在且为真：`grep -c 'render/architectureChatBridge' src/modules/architecture/index.ts` 期望 ≥1，且判据里新增的该断言在 AC1 的全绿运行中同时通过（不是只加注释）。
+- [x] 负向控制仍红：判据 AC3 的两个注入用例在 AC1 运行中 pass；另用 `node --input-type=module -e` 对同一扫描器在内存中注入一条拼接的 `cloudcli-desktop:` 与一条 `__cloudcliScenario`，未注入时为绿、注入后为红，两条读数一并贴出；不改动盘上文件。
+- [x] `git diff --stat` 只出现 `electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` 与本任务文件；`electron/`、`src/` 下运行时源码零改动；`git diff` 不出现 `cloudcli.ai`、`cloudcli://auth/callback`、`app_surface=cloudcli_desktop`、`LEGACY_DESKTOP_APP_ID`、`tasks/`、`goals/`、`adr/`、`experiments/`、`docs/proposals/`、`CHANGELOG` 的改动。
 
 ## DoD
 
@@ -78,6 +78,20 @@ npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-i
 - 同一次收尾里正臂真实读取了 `render/architectureChatBridge.ts` 与 `render/ArchitecturePanel.tsx` 的新包边界；BroadcastChannel 常量、唯一构造点、两个消费面四条不变式读数一并贴出；负向控制在未注入时绿、内存注入后红。
 - `git diff --stat` 只显示判据文件（路径 + 必要的边界断言/注释）与本任务文件，`electron/`、`src/` 运行时零改动，非目标面与历史账本零改动。
 - 无 UI 改动，UI DoD 不适用；本任务不修改 `server/` 代码，后端模块标准不引入新约束；前端仅改判据文件，前端模块标准不引入新约束。
+
+## Evidence（2026-11-06，worktree `gap-ac459-criterion-stale-architecture-split-paths`）
+
+- AC1：`git merge --no-edit develop` → `Already up to date.`；`npx tsx --tsconfig server/tsconfig.json --test electron/tests/cloudpit-runtime-identity-surfaces.test.mjs` → `ℹ tests 10` / `ℹ pass 10` / `ℹ fail 0`，`EXIT=0`；10 个用例逐条 ✔（含 AC2 正臂与 BroadcastChannel 用例）。
+- AC2：`oldBridge=0`，`newBridge=2`，`oldPanel=0`，`newPanel=1`。
+- AC3：`render/architectureChatBridge.ts channel_const=1 broadcast_ctor=1`；`render/ArchitecturePanel.tsx panel_send=2`。
+- AC4：`grep -c 'render/architectureChatBridge' src/modules/architecture/index.ts` → `1`；新增断言在 AC1 的 `AC-459 expect: one BroadcastChannel name feeds both architecture surfaces` ✔ 中同时通过。
+- AC5：AC1 运行中两条 AC3 注入用例均 ✔；`node --input-type=module -e` 用判据文件自身的 `LEGACY_TOKENS` 组装（原样求值）与同一 `includes` 逐行谓词：`clean_violations=0 => GREEN`，`injected_violations=2 => RED`，`injected_detail=[{"line":1,"token":"cloudcli-desktop:"},{"line":2,"token":"__cloudcliScenario"}]`，`NEG_EXIT=0`；注入只在内存中拼接，盘上文件未改动（运行后 `git status --porcelain` 只有判据文件）。
+- AC6：实现提交 `5f2800ce2` 的 `git diff --stat` → `1 file changed, 12 insertions(+), 3 deletions(-)`，仅判据文件；`electron/`、`src/` 运行时零改动；对 diff 跑非目标名/账本路径 grep → `NO_FORBIDDEN_HITS`。
+- anti-drift：`ANTI-DRIFT OK: task gap-ac459-criterion-stale-architecture-split-paths — 1 actual file(s), all within declared Touches (2 glob(s))`。
+
+## Axis Record
+
+该轴仍暗,理由:本任务只改判据读取路径并新增一条包边界断言,未改运行时源码,无设计/架构轴增量可计量
 
 ## Touches
 
