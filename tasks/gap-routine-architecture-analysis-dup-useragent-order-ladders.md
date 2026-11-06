@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-useragent-order-ladders
 title: "architecture-analysis: archguard_detect_duplicates(scope=src,
   2026-11-06) group = 79 tokens / 11 statements / 18 lines: two identical
   ordered if-ladders (return first matching labe"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
