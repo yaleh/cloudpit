@@ -3,7 +3,7 @@ id: gap-ac174-criterion-run-budget-and-boot-ceiling-below-load-slowdown
 title: AC-174 判据在负载下被工装两堵墙杀掉（55s 单文件预算 / 40s boot 天花板）：本树直跑 4/4 红而产品读数全对；给
   resident-shell-tab 声明 SPEC_BUDGET_MS 并把 describe/钩子/自检/闸/boot
   窗口调自洽，判据命令与断言逐字不动
-status: todo
+status: ready
 labels:
   - gap
   - defect
