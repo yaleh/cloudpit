@@ -16,11 +16,31 @@ import type {
 } from './quay.service.js';
 
 /**
- * Per-command subprocess bound. quay's read commands are JSON printers, but
- * `quay task list --json` is linear in the store size (it prints every task's
- * whole body): ~3 s against this bound on this workspace's own store.
+ * Default per-command subprocess bound. quay's read commands are JSON printers,
+ * but their cost is not uniform: `quay task list --json` is linear in the store
+ * size (it printed every task's whole body, ~3 s against this bound before the
+ * snapshot read switched to `--no-body`), while `driver status` pays for probing
+ * the driver subprocesses on a cold read.
+ *
+ * A command whose cold read is structurally more expensive than this must be
+ * given its own ceiling through an injected dependency rather than widening this
+ * one for every read — see {@link QUAY_DRIVER_STATUS_TIMEOUT_MS}.
  */
 export const QUAY_COMMAND_TIMEOUT_MS = 8_000;
+
+/**
+ * Cap for `quay driver status --kind worker --json`, which is the one snapshot
+ * read that is not a plain store print: a cold read measured ~5.9 s on this
+ * workspace (its later reads answer from the warm state in ~0.8 s), so the
+ * shared 8 s ceiling sat only ~2 s above a healthy cold reading and a loaded host
+ * pushed it over. Widening this one command's bound is what keeps a cold snapshot
+ * from degrading its driver/loop sections to `null`.
+ *
+ * It is injected (`QuayServiceDependencies.driverStatusTimeoutMs`) and wired here
+ * so the snapshot's bound is a dependency a criterion can read, never a constant
+ * buried in the read path.
+ */
+export const QUAY_DRIVER_STATUS_TIMEOUT_MS = 20_000;
 
 /**
  * Cap on captured CLI stdout, so one runaway command cannot exhaust the server's
