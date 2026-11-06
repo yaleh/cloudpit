@@ -111,16 +111,15 @@ extra:
 
 `npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` → exit 0，`Test Files 2 passed (2) | Tests 174 passed (174)`（日志 `tmp/arch-repro/ac5-final.log`）。筛选/暗化/选中态/导出的既有断言未改动。
 
+### 追加：oversize ratchet 修复（round 2，2026-11-06）
+
+- 上一轮 suite 红原文：`ratchet: oversizeFiles src/modules/architecture/layout/graphDom.ts 1485→1522 — 基线内读数不得上调（此基线只允许下降）`。实现语义不变，只压缩本任务新增代码：提取 `PATH_PAIR_RE` 复用（`rewritePathData` / `rawPathEnds` 同一读法）、`rawPathEnds` 收为 5 行、marker 循环的注释与顶点计算紧凑化（`reduce` 取代显式最近点循环）。
+- 收敛读数：`graphDom.ts` 1522 → 1482 行（基线 1485）；re-run `npx tsx --tsconfig server/tsconfig.json --test server/shared/tests/architecture-ratchet.test.ts` → exit 0，`tests 6 pass 0 fail`，日志含 `ratchet: oversizeFiles src/modules/architecture/layout/graphDom.ts 1485→1482，可下调基线`。
+- 复跑行为：`npx vitest run src/modules/architecture/tests/semanticZoomLayout.test.ts src/modules/architecture/tests/architectureTab.test.tsx` → exit 0，`Test Files 2 passed | Tests 174 passed`；`npx tsc --noEmit -p tsconfig.json` → exit 0。
+- 修复提交 `cf0e3892d`。
+
 - 该轴仍暗,理由:本任务只改前端语义缩放箭头几何，未产生 L_D（code:doc）或 L_G（archguard 依赖图）可测量读数
 
 ## DoD
 
 真实落地：在切自 develop 的任务工作树上，修复后的 `drawSemanticLayout` 在真实 architecture tab 的 Fit 与放大两档下，每条关系的箭头都是非零面积、聚合菱形在源端；回归测试在旧实现上红、新实现上绿（控制臂读数入档）；`src/modules/architecture/tests/semanticZoomLayout.test.ts` 与 `architectureTab.test.tsx` 全绿；`npx tsc --noEmit -p tsconfig.json` exit 0；按 `AGENTS.md` 的 UI DoD 用 MCP 浏览器亲手走过 Fit/放大两档并把截图放 `tmp/`（当前 `scripts/ui-scenarios/` 没有 architecture 场景，若有则同时跑 `node scripts/ui-scenario.mjs` 并贴 JSON）；改动仅限 Touches 声明的文件（若新增测试文件，必须在该文件路径后打独立 ASCII `(new)`），收尾 `git status --porcelain` 只剩本任务声明的改动；实现前加载并遵循 `.agents/skills/frontend-module-standards/SKILL.md`。完成记录必须含：工作树 HEAD sha、AC1 的红读数原文、AC2 的红/绿两次读数、AC3 的 diff 与 typecheck exit code、AC4 两种比例下每条边 polygon 的坐标与截图像素路径、AC5 的测试命令与 exit code。⛔ 不得通过放宽断言、跳过测试或改语义求解器来换绿。
-
-## Blocker
-
-**2026-11-06T08:06:59.464Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles src/modules/architecture/layout/graphDom.ts 1485→1522 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/architecture-ratchet.test.ts,server/shared/tests/architecture-ratchet.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：03fe83c5-754c-4d21-ae70-45f52562c684
