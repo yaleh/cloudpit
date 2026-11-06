@@ -3,7 +3,7 @@ id: gap-ac323-composer-embedded-bare-goto-boot-hole
 title: 恢复 AC-323 判据绿：composer-embedded 的三处 `page.goto(/session/…)` 仍是裸导航 + 单次
   30s pane 等待 ⇒ 负载下首次文档模块图被打洞时客户端不挂载，最后一个用例 :1481 直接红（本轮 13:43Z：1 failed / 18
   passed）；把既有 `reloadPaneBounded` 扩成有界 open 守卫并覆盖该文件
-status: ready
+status: done
 labels:
   - gap
   - defect
