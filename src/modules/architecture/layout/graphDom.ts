@@ -828,6 +828,29 @@ export function rewritePathData(
   );
 }
 
+/**
+ * The first and last coordinate pairs of one edge group's line, in the
+ * drawing's ORIGINAL units.
+ *
+ * An edge group draws exactly one `<path>`; the marker's end and its anchor are
+ * both chosen against these points before the path is rewritten, so a lossy
+ * axis map (a reclaimed band that collapses to zero height) can never change
+ * which end the marker belongs to.
+ */
+function rawPathEnds(group: Element): { readonly first: PlanPoint | null; readonly last: PlanPoint | null } {
+  const path = group.querySelector('path');
+  const d = path?.getAttribute('d') ?? null;
+  if (d === null) return { first: null, last: null };
+  const pairs = [...d.matchAll(/(-?\d*\.?\d+(?:e[-+]?\d+)?)[\s,]+(-?\d*\.?\d+(?:e[-+]?\d+)?)/gi)];
+  const toPoint = (pair: RegExpMatchArray): PlanPoint => ({ x: Number(pair[1]), y: Number(pair[2]) });
+  const first = pairs[0];
+  const last = pairs[pairs.length - 1];
+  return {
+    first: first === undefined ? null : toPoint(first),
+    last: last === undefined ? null : toPoint(last),
+  };
+}
+
 
 /**
  * Draw one semantic layout over the captured drawing.
@@ -894,6 +917,12 @@ export function drawSemanticLayout(
                 y: edge.points[edge.points.length - 1].y + offsetY,
               },
         };
+    // The marker's END and the vertex that pins it to that end are both read from
+    // the drawing's OWN geometry, before the path rewrite. Judging them on mapped
+    // coordinates is what let a reclaimed (zero-height) y band flatten every
+    // vertex of a diamond onto one line, and bend the centroid toward the far
+    // end so the diamond jumped to the target.
+    const rawEnds = rawPathEnds(group);
     for (const path of group.querySelectorAll('path')) {
       const d = path.getAttribute('d');
       if (d !== null) path.setAttribute('d', rewritePathData(d, mapPoint, ends));
@@ -905,42 +934,50 @@ export function drawSemanticLayout(
         .map((pair) => pair.split(',').map(Number))
         .filter((pair) => pair.length === 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]));
       if (points.length === 0) continue;
-      // The marker keeps its drawn SIZE and is translated so its vertex nearest
-      // the line's end lands exactly on that end (which the engine snapped onto
-      // the frame). This is what keeps the arrowhead attached to the line at
-      // every tier, including a compacted one.
+      // Which end the marker belongs to is a property of the ORIGINAL drawing:
+      // the marker is drawn AT one of the line's two original endpoints, and the
+      // path keeps that association no matter what the axes do to it.
       const centroid = {
         x: points.reduce((total, point) => total + point[0], 0) / points.length,
         y: points.reduce((total, point) => total + point[1], 0) / points.length,
       };
-      const mappedCentroid = mapPoint(centroid.x, centroid.y);
-      const toTarget = ends.last !== null
-        && (Math.hypot(mappedCentroid.x - ends.last.x, mappedCentroid.y - ends.last.y)
-          <= Math.hypot(
-            mappedCentroid.x - (ends.first?.x ?? mappedCentroid.x),
-            mappedCentroid.y - (ends.first?.y ?? mappedCentroid.y),
-          ));
+      const toTarget = rawEnds.last !== null
+        && (rawEnds.first === null
+          || Math.hypot(centroid.x - rawEnds.last.x, centroid.y - rawEnds.last.y)
+            <= Math.hypot(centroid.x - rawEnds.first.x, centroid.y - rawEnds.first.y));
       const reference = toTarget ? ends.last : ends.first;
-      let dx = 0;
-      let dy = 0;
-      if (reference !== null) {
-        let nearest = mapPoint(points[0][0], points[0][1]);
-        let best = Math.hypot(nearest.x - reference.x, nearest.y - reference.y);
-        for (const point of points) {
-          const mapped = mapPoint(point[0], point[1]);
-          const distance = Math.hypot(mapped.x - reference.x, mapped.y - reference.y);
-          if (distance < best) {
-            best = distance;
-            nearest = mapped;
-          }
+      const rawReference = toTarget ? rawEnds.last : rawEnds.first;
+      if (reference === null || rawReference === null) {
+        // No semantic endpoint to pin to (the edge is not part of the layout):
+        // keep the lossless mapping only.
+        polygon.setAttribute('points', points
+          .map((point) => {
+            const mapped = mapPoint(point[0], point[1]);
+            return `${mapped.x.toFixed(1)},${mapped.y.toFixed(1)}`;
+          })
+          .join(' '));
+        continue;
+      }
+      // The marker is RIGID: the vertex nearest the original end is its anchor,
+      // and every other vertex keeps its ORIGINAL offset from that anchor times
+      // the layout's scale. The anchor itself lands exactly on the semantic
+      // endpoint (which the engine snapped onto the frame). This keeps the
+      // marker's shape, orientation and on-screen size at every tier, including
+      // a compacted one, and never routes its vertices through a lossy axis map.
+      let anchor = points[0];
+      let best = Math.hypot(anchor[0] - rawReference.x, anchor[1] - rawReference.y);
+      for (const point of points) {
+        const distance = Math.hypot(point[0] - rawReference.x, point[1] - rawReference.y);
+        if (distance < best) {
+          best = distance;
+          anchor = point;
         }
-        dx = reference.x - nearest.x;
-        dy = reference.y - nearest.y;
       }
       polygon.setAttribute('points', points
         .map((point) => {
-          const mapped = mapPoint(point[0], point[1]);
-          return `${(mapped.x + dx).toFixed(1)},${(mapped.y + dy).toFixed(1)}`;
+          const x = reference.x + (point[0] - anchor[0]) * layout.scale;
+          const y = reference.y + (point[1] - anchor[1]) * layout.scale;
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
         })
         .join(' '));
     }
