@@ -1100,13 +1100,7 @@ type QuayServiceDependencies = {
   snapshotTtlMs: number;
   /** Per-command subprocess timeout. */
   commandTimeoutMs: number;
-  /**
-   * Ceiling for the snapshot's `driver status --kind worker --json` read. OPTIONAL so every
-   * existing composition keeps the shared {@link commandTimeoutMs} bound; the composition root
-   * passes `QUAY_DRIVER_STATUS_TIMEOUT_MS` because a cold driver-status read is structurally
-   * more expensive than any other snapshot read. Injected (rather than read from a module
-   * constant here) so a criterion can pin the exact bound each command receives.
-   */
+  /** Ceiling for the snapshot's cold `driver status` read; absent keeps {@link commandTimeoutMs}. */
   driverStatusTimeoutMs?: number;
   /**
    * The fleet wall read port (quay-fleet's `wall resolve` / `wall summary`) behind the
@@ -1969,11 +1963,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
 
   /**
    * Runs one whitelisted read-only command; refuses anything else without spawning.
-   *
-   * `timeoutMs` is per call rather than one bound for every verb: the snapshot's reads do not
-   * have equal cold costs (a cold `driver status` pays for probing the driver subprocesses), so
-   * the caller — or {@link collectSnapshot} for the driver read — names the ceiling. Omitting it
-   * keeps the shared `commandTimeoutMs` default every other read has always used.
+   * `timeoutMs` is per call because the snapshot's reads do not have equal cold costs;
+   * omitting it keeps the shared `commandTimeoutMs` default.
    */
   const runQuayCommand = async (
     cwd: string,
@@ -2345,24 +2336,18 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
   ): Promise<{ snapshot: QuaySnapshot; complete: boolean }> => {
     const warnings: string[] = [];
     const quayDir = path.join(projectPath, '.quay');
-    // Which CLI this snapshot's reads go through. Resolved once, from the same cached resolver
-    // the spawn boundary uses, so the diagnostic and the child process cannot disagree.
+    // Which CLI this snapshot's reads go through; resolved from the same cached resolver the
+    // spawn boundary uses, so the diagnostic and the child process cannot disagree.
     const entrypointResolution = dependencies.resolveEntrypoint?.(projectPath) ?? null;
-    // The driver read is the one snapshot read that is not a plain store print, so it gets its
-    // own ceiling. Not injected means "no special cost known", and the shared bound applies.
+    // The driver read has its own injected ceiling; absent means the shared bound applies.
     const driverStatusTimeoutMs = dependencies.driverStatusTimeoutMs ?? dependencies.commandTimeoutMs;
 
     /**
-     * Runs one command and reads its JSON body. A non-zero exit is not on its
-     * own a failure of this read: `quay config validate --json` prints its issue
-     * list and then exits 1 to signal that issues exist, and that list is exactly
-     * the reading we want. So stdout is parsed first, and the exit status only
-     * decides the outcome when nothing parseable came back.
-     *
-     * The warning is *returned* rather than pushed, so that the caller can append the
-     * collected warnings in a fixed order even though the reads below run concurrently —
-     * a shared array written from each read would order the panel's banner by whichever
-     * child happened to finish first.
+     * Runs one command and reads its JSON body. A non-zero exit is not on its own a failure:
+     * `quay config validate --json` prints its issue list and exits 1, and that list is the
+     * reading we want — so stdout is parsed first and the exit status only decides when
+     * nothing parseable came back. The warning is *returned* rather than pushed, so the
+     * caller appends them in a fixed order despite the concurrent reads below.
      */
     const readJson = async (
       args: readonly string[],
@@ -2389,13 +2374,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       };
     };
 
-    // Every section is independent of every other, so they are gathered in ONE parallel
-    // pass: the cold path then costs the slowest single read instead of their sum. That
-    // sum was the defect — six strictly serial `await`s over a 2.5k-task store put ~9.5 s
-    // in front of a panel open, while the slowest single read is ~3 s. The local carrier
-    // reads (worker-round, dashboard) sit under the trusted project root, never a request
-    // path; a missing file there is a normal empty reading and never a warning. The Tests /
-    // Fan-in pair is two more read-only children, spawned concurrently here.
+    // Every section is independent, so they are gathered in ONE parallel pass: the cold path
+    // costs the slowest single read, not their sum. The local carrier reads sit under the
+    // trusted project root (a missing file is an empty reading, never a warning).
     const [
       tasksRead,
       goalsRead,
@@ -2407,15 +2388,13 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       dashboardUrl,
       ganttRead,
     ] = await Promise.all([
-      // The whole array, but without each task's body: the body is ~10 KB per task and the
-      // projection below reads only `id`/`title`/`status`/`updatedAt`, while the blocked row's
-      // `depends_on` edges come from the task files themselves. Measured against this project's
-      // 1.4k-task store: 18.4 MB / ~1.7 s with bodies vs 715 KB / ~0.3 s without.
+      // The whole array of ids/titles/statuses, without each task's ~10 KB body: the projection
+      // below reads none of it. Measured on this project's 1.4k-task store: 18.4 MB / ~1.7 s
+      // with bodies vs 715 KB / ~0.3 s without.
       readJson(['task', 'list', '--json', '--no-body']),
       readJson(['goal', 'list', '--json']),
       readJson(['adr', 'list', '--json']),
-      // A cold driver status probes the driver subprocesses (~5.9 s measured) — this one read
-      // takes the wider injected ceiling instead of the shared per-command bound.
+      // A cold driver status probes the driver subprocesses (~5.9 s measured): wider ceiling.
       readJson(['driver', 'status', '--kind', 'worker', '--json'], driverStatusTimeoutMs),
       readJson(['config', 'validate', '--json']),
       // The Tests and Fan-in cards are one reading in two projections, taken through quay's
@@ -2439,11 +2418,9 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       warnings.push(entrypointResolution.warning);
     }
 
-    // A section that answered nothing is a FAILED read, and a snapshot containing one is a
-    // partial reading: `null` with a warning (a timeout, a missing CLI, a torn payload). A
-    // `warning`-free `null` is a different fact — the CLI printed the JSON literal `null` — and
-    // is not a failure. The entrypoint warnings above are diagnostics, not failed reads, so they
-    // deliberately do not enter this predicate.
+    // A `null` WITH a warning is a failed read (timeout, missing CLI, torn payload), so the
+    // snapshot is partial; a warning-free `null` is just the CLI's JSON literal. Entrypoint
+    // warnings are diagnostics, not failed reads, so they do not enter this predicate.
     const complete = [tasksRead, goalsRead, adrsRead, driverRead, configRead]
       .every((read) => read.value !== null || read.warning === null);
 
@@ -2481,11 +2458,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
       fanIn: suiteFanIn.fanIn,
       carrierReadings: suiteFanIn.carrierReadings,
       blockers,
-      // The In-flight card and the Loop pulse gantt are two projections of ONE reading:
-      // `ganttRead.gantt`, the `lanes` document relayed by `collectGantt`. Deriving the card
-      // from the same lanes (rather than from the raw round carrier) is what keeps the two
-      // from contradicting each other; `workerRoundRecord` only supplies `startedAt` /
-      // `lastHeartbeat` / `workerPid` for tasks the lanes already put in flight.
+      // The In-flight card and the Loop pulse gantt project ONE reading (`ganttRead.gantt`),
+      // so they cannot contradict each other; `workerRoundRecord` only supplies timing fields.
       inFlight: summarizeInFlightTasks(ganttRead.gantt, workerRoundRecord),
       gantt: ganttRead.gantt,
       ganttUnavailable: ganttRead.unavailable,
@@ -2530,11 +2504,8 @@ export function createQuayService(dependencies: QuayServiceDependencies) {
 
     const promise = collectSnapshot(projectId, projectPath, windowHours, forceRefresh)
       .then(({ snapshot, complete }) => {
-        // A PARTIAL reading must not be cached. Caching it would serve the same hole for the
-        // whole TTL — the popover shape of the defect: one timed-out read made `tasks: null`
-        // stick for 30 s while every retry inside the window answered `cached: true`. A failed
-        // read is retried on the next open instead; a complete reading (including one whose
-        // only warnings are entrypoint diagnostics) is cached exactly as before.
+        // A PARTIAL reading must not be cached: it would stick for the whole TTL and every retry
+        // would answer `cached: true`. Retry it on the next open; cache complete readings.
         if (complete) {
           snapshotCache.set(projectId, {
             expiresAt: dependencies.now() + dependencies.snapshotTtlMs,
