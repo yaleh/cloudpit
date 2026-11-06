@@ -101,11 +101,3 @@ depends_on:
 ## Axis
 
 该轴仍暗,理由:本任务只修复卡片读数的客户端投影（diagnostic 透传与失败态渲染），不新增领域数据能力（L_D），也不改变目标层判据（L_G）。
-
-## Blocker
-
-**2026-11-06T09:15:17.361Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: suite NOT run (refused) — [full-suite-runner] SUITE-NOT-RUN branch=resource-gate-wait ts=2026-11-06T09:15:15.853Z reason="resource gate says WAIT — => WAIT: 过载窗口（load 416.59 >= nproc×2≈256）。实测 load 11.76/nproc=4 时 PSI 仅 8.27<60 ⇒ 红轮在过载窗口起跑（loop-shipping flake 反复）" — no test was executed by this round
-- run_id：wk-prod-anchor
-- session_id：43ab245e-a63e-4461-aadc-3a352b9008b3
