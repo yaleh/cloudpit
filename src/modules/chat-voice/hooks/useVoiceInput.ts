@@ -280,9 +280,15 @@ async function refusalDetail(response: Response): Promise<VoiceTranscriptionFail
  * that is exactly what the 2026-11-06 12.12 s capture lost. `NO_SPEECH_DETECTED`, 413/415/422 and the
  * remaining 4xx answer a question about this clip; re-asking would spend a request (and a metered
  * charge) on an answer that will not change.
+ *
+ * A NAMED CODE OUTRANKS THE STATUS. The route answers an upstream credential refusal as
+ * `UNAUTHORIZED` with a 502 (`PROVIDER_ERROR_STATUS`), so the gateway family alone cannot say
+ * whether this upload was lost: `NOT_CONFIGURED` arrives on a 503 and `UNAUTHORIZED` on a 502, and
+ * both are answers about this deployment rather than transport failures. The status is read only
+ * when the answer names no code at all, which is the one case where "502" is all the client has.
  */
 function isDefinitiveRefusal(failure: VoiceTranscriptionFailure): boolean {
-  if (failure.code === 'UPSTREAM_UNAVAILABLE') return false;
+  if (failure.code !== undefined) return failure.code !== 'UPSTREAM_UNAVAILABLE';
   if (failure.status === 502 || failure.status === 503 || failure.status === 504) return false;
   return true;
 }

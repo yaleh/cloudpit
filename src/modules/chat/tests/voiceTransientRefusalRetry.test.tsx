@@ -29,6 +29,13 @@ import type * as SharedApi from '@/shared/api';
  *   · 422 `NO_SPEECH_DETECTED` ⇒ called exactly once (the definitive face is unchanged);
  *   · 502 forever ⇒ 3 attempts, and the notice's technical detail still names 502 and
  *     `UPSTREAM_UNAVAILABLE` for the segment that was lost.
+ *
+ * AND THE TWO ARMS THAT TELL A NAMED ANSWER FROM A GATEWAY NUMBER. The route answers an upstream
+ * refusal with the code its adapter classified and the status `PROVIDER_ERROR_STATUS` maps that code
+ * to — `UNAUTHORIZED` is a 502 and `NOT_CONFIGURED` is a 503. Neither is a lost upload, so each must
+ * cost exactly one attempt; a classifier that looked at the status first would retry both and print
+ * the same 3 as the genuinely transient `UPSTREAM_UNAVAILABLE` 502 above. The two 502 arms sharing a
+ * status are the point: only the code can separate them.
  */
 
 const { transcribeVoice } = vi.hoisted(() => ({ transcribeVoice: vi.fn() }));
@@ -281,6 +288,33 @@ test('AC2 a 422 NO_SPEECH_DETECTED is definitive and costs exactly one upload', 
   view.unmount();
 });
 
+test('AC1 a named UNAUTHORIZED refusal on a 502 is definitive and costs exactly one upload', async () => {
+  transcribeVoice.mockResolvedValue(refused(502, 'UNAUTHORIZED'));
+
+  const view = renderComposer();
+  await recordOnce(view);
+
+  const calls = transcribeVoice.mock.calls.length;
+  // Same status as the persistent arm below, opposite verdict: the code, not the number, decides.
+  console.log(`voice-transient-refusal definitive=502,UNAUTHORIZED transcribeVoice-calls=${calls}`);
+
+  assert.equal(calls, 1, 'a refusal that names a semantic code is an answer, even when the proxy said 502');
+  view.unmount();
+});
+
+test('AC2 a named NOT_CONFIGURED refusal on a 503 is definitive and costs exactly one upload', async () => {
+  transcribeVoice.mockResolvedValue(refused(503, 'NOT_CONFIGURED'));
+
+  const view = renderComposer();
+  await recordOnce(view);
+
+  const calls = transcribeVoice.mock.calls.length;
+  console.log(`voice-transient-refusal definitive=503,NOT_CONFIGURED transcribeVoice-calls=${calls}`);
+
+  assert.equal(calls, 1, '503 is not unconditionally transient: the named code takes precedence');
+  view.unmount();
+});
+
 test('AC1 a persistent 502 is retried three times and the notice still names 502/UPSTREAM_UNAVAILABLE', async () => {
   transcribeVoice.mockResolvedValue(refused(502, 'UPSTREAM_UNAVAILABLE'));
 
@@ -302,7 +336,7 @@ test('AC1 a persistent 502 is retried three times and the notice still names 502
   }
 
   console.log(
-    `voice-transient-refusal persistent=502 transcribeVoice-calls=${calls} ` +
+    `voice-transient-refusal persistent=502,UPSTREAM_UNAVAILABLE transcribeVoice-calls=${calls} ` +
       `notice=${notice !== null} technical=${JSON.stringify(technical)}`,
   );
 
