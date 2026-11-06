@@ -56,6 +56,8 @@ import path from 'node:path';
 import { expect, request, test, type APIRequestContext, type Page } from '@playwright/test';
 import { WebSocketServer } from 'ws';
 
+import { openPaneBounded } from './support/pane-reload';
+
 const PANE = '.chat-messages-pane';
 const USER_ROW = '[data-message-style="user"]';
 /** The composer's textarea testid — present exactly while `ChatComposer` is mounted. */
@@ -558,8 +560,8 @@ const waitForPhase = (page: Page, wanted: string) =>
  * process read `state=loading` → `state=ready` in 27 ms, so this is a per-process cold start, not the
  * steady-state cost of a connection.
  *
- * 45 s is 2.18 × that measured window, and it is still under half of this case's own 120 s budget
- * (`test.describe.configure({ timeout: 120_000 })` below), so a cold start cannot itself expire the
+ * 45 s is 2.18 × that measured window, and it is still under half of this case's own 150 s budget
+ * (`test.describe.configure({ timeout: 150_000 })` below), so a cold start cannot itself expire the
  * case and the gate reports its own named failure instead of the runner's anonymous timeout.
  */
 const UPSTREAM_OPEN_TIMEOUT_MS = 45_000;
@@ -809,9 +811,11 @@ async function transcriptClearance(page: Page) {
 }
 
 // The held-run case below waits on a row its scenario writes 60 s in; the runner's default 60 s
-// per-test budget would expire on the same clock as that row. 120 s keeps the case's own waits — not
-// the runner — the thing that decides it, without loosening any assertion.
-test.describe.configure({ mode: 'serial', timeout: 120_000 });
+// per-test budget would expire on the same clock as that row. 150 s keeps the case's own waits — not
+// the runner — the thing that decides it, and it is the budget the shared navigation guard needs to
+// fit its own 66 s deadline inside (`e2e/support/pane-reload.ts`); the two sibling specs configure the
+// same number. It is room, not a loosened assertion.
+test.describe.configure({ mode: 'serial', timeout: 150_000 });
 
 test.describe('voice realtime composer embedded bar', () => {
   let page: Page;
@@ -1348,8 +1352,12 @@ test.describe('voice realtime composer embedded bar', () => {
     const claudeSessionId = (JSON.parse(created.body) as { data?: { sessionId?: string } }).data?.sessionId ?? '';
     expect(claudeSessionId, `the app created a session without an id: ${created.body}`).not.toBe('');
 
-    await page.goto(`/session/${claudeSessionId}`);
-    await expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 });
+    await openPaneBounded(
+      page,
+      `/session/${claudeSessionId}`,
+      'the transcript pane of the model-selector session',
+      explain,
+    );
     await expect(page.locator(COMPOSER_TEXTAREA)).toBeVisible({ timeout: 30_000 });
 
     await enterLiveVoice(page, 1280, upstream);
@@ -1419,8 +1427,12 @@ test.describe('voice realtime composer embedded bar', () => {
     const heldSessionId = await armScenario(api, workspacePath, heldScenario);
     upstream.setBoundSessionId(heldSessionId);
 
-    await page.goto(`/session/${heldSessionId}`);
-    await expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 });
+    await openPaneBounded(
+      page,
+      `/session/${heldSessionId}`,
+      'the transcript pane of the held-run session',
+      explain,
+    );
     await expect(page.locator(COMPOSER_TEXTAREA)).toBeVisible({ timeout: 30_000 });
 
     await enterLiveVoice(page, 1280, upstream);
@@ -1477,8 +1489,12 @@ test.describe('voice realtime composer embedded bar', () => {
     // Back to the voice fixture session, booted with the wrapper in place, so the app's chat
     // socket is one this case can inject into.
     await page.addInitScript(installWireDouble);
-    await page.goto(`/session/${sessionId}`);
-    await expect(page.locator(PANE)).toBeVisible({ timeout: 30_000 });
+    await openPaneBounded(
+      page,
+      `/session/${sessionId}`,
+      'the transcript pane of the session the pending question is answered on',
+      explain,
+    );
     await expect(page.locator(COMPOSER_TEXTAREA)).toBeVisible({ timeout: 30_000 });
     await waitForChatSocket(page);
 
