@@ -70,7 +70,7 @@ function harness(initial: readonly CockpitCardData[]): {
 } {
   let cards = initial;
   const controller = createCockpitCardController({
-    fetchCards: async () => cards,
+    fetchCards: async () => ({ cards }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     // No background polling: a criterion re-reads by calling `load()` explicitly.

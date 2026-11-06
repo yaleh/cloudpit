@@ -248,7 +248,9 @@ function card(index: number): CockpitCardData {
  */
 async function columnBinding(openCount: number, workspaceWidth = 390): Promise<CockpitColumnBinding> {
   const cards = createCockpitCardController({
-    fetchCards: async () => Array.from({ length: openCount }, (_unused, index) => card(index + 1)),
+    fetchCards: async () => ({
+      cards: Array.from({ length: openCount }, (_unused, index) => card(index + 1)),
+    }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,

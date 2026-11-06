@@ -94,7 +94,7 @@ async function renderOpenCard(
   props: Omit<CockpitCardListProps, 'binding'> = {},
 ): Promise<CockpitCardController> {
   const controller = createCockpitCardController({
-    fetchCards: async () => cards,
+    fetchCards: async () => ({ cards }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     // No background polling: the reading is the fixture until a criterion re-reads explicitly.

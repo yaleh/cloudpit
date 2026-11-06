@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import type { CockpitBriefResponse, CockpitCard } from '@/shared/types';
+import type {
+  CockpitBriefResponse,
+  CockpitCard,
+  CockpitCardProviderDiagnostic,
+} from '@/shared/types';
 import { api, readApiJson } from '@/shared/api';
 import { createCockpitCardController } from '@/modules/cockpit/cards/cockpitCardController';
 import type {
@@ -25,7 +29,9 @@ import type { CockpitCardTypeFilter } from '@/modules/cockpit-contract';
  * background re-read while a reader is mounted. Nothing here re-derives a confirm target or a
  * default option — a second derivation would be a second answer.
  *
- * The route documents: `GET /api/cockpit/cards` answers `{cards}`; `POST /api/cockpit/cards/confirm`
+ * The route documents: `GET /api/cockpit/cards` answers `{cards, diagnostics?}` — the provider
+ * diagnostics are absent when no provider has anything to explain, and the binding passes them
+ * through without judging them; `POST /api/cockpit/cards/confirm`
  * answers `{ok, cardId, executor, params, result}` or the server's error envelope, which
  * `readApiJson` turns into an `ApiRequestError` carrying the server's code and message.
  *
@@ -188,8 +194,15 @@ export function useCockpitCards(overrides: CockpitCardsDepsOverride = {}): Cockp
       fetchCards:
         fetchCards ??
         (async () => {
-          const answer = await readApiJson<{ cards: CockpitCard[] }>(await api.cockpitCards());
-          return answer.cards;
+          // THE ROUTE'S WHOLE ANSWER, NOT JUST THE CARDS. `GET /api/cockpit/cards` omits
+          // `diagnostics` when no provider explains itself, so an absent field is an empty list,
+          // never an error. The binding forwards the diagnostics verbatim and interprets nothing:
+          // whether a diagnostic is a failure is the controller's rule.
+          const answer = await readApiJson<{
+            cards: CockpitCard[];
+            diagnostics?: CockpitCardProviderDiagnostic[];
+          }>(await api.cockpitCards());
+          return { cards: answer.cards, diagnostics: answer.diagnostics };
         }),
       confirm:
         confirm ??

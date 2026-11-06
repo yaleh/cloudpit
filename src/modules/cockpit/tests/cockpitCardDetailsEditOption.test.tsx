@@ -92,7 +92,7 @@ function card(overrides: Partial<CockpitCardData> = {}): CockpitCardData {
 function harness(initial: readonly CockpitCardData[]): CockpitCardController {
   const cards = initial;
   return createCockpitCardController({
-    fetchCards: async () => cards,
+    fetchCards: async () => ({ cards }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,

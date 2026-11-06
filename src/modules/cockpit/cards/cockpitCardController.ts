@@ -2,6 +2,7 @@ import type {
   Clock,
   CockpitBriefResponse,
   CockpitCard,
+  CockpitCardProviderDiagnostic,
 } from '@/shared/types';
 import { createBoundedLru, createExternalStore, defaultClock } from '@/shared/utils';
 import type {
@@ -228,10 +229,23 @@ export type CockpitCardFilterMemory = {
   write: (state: CockpitCardFilters) => void;
 };
 
+/**
+ * One read's full answer: the cards AND each provider's own account of how it went.
+ *
+ * The controller must not flatten a provider failure into "loaded with no cards": that is the
+ * defect this type exists to prevent. `cards` is the merged list exactly as before; `diagnostics`
+ * is the route's `diagnostics` field, forwarded verbatim (including `ok:true` entries), so the
+ * controller — and only the controller — decides which ones are failures.
+ */
+export type CockpitCardsRead = {
+  cards: readonly CockpitCard[];
+  diagnostics?: readonly CockpitCardProviderDiagnostic[];
+};
+
 /** The controller's two transports and its clock; a criterion binds all three. */
 export type CockpitCardControllerDeps = {
-  /** Reads every open card, in the provider's order. */
-  fetchCards: () => Promise<readonly CockpitCard[]>;
+  /** Reads every open card, in the provider's order, plus the provider diagnostics. */
+  fetchCards: () => Promise<CockpitCardsRead>;
   /** Sends exactly one confirmation; a rejected promise is a stated failure. */
   confirm: (
     request: CockpitCardConfirmRequest,
@@ -291,10 +305,29 @@ export type CockpitCardDuplicatesState = {
 
 /** The immutable reading the components render. */
 export type CockpitCardControllerSnapshot = {  status: 'idle' | 'loading' | 'loaded' | 'error';
-  /** The last read's failure, or `null`. */
+  /**
+   * The LAST TRANSPORT failure, or `null`.
+   *
+   * `status:'error'` and this field belong to the card read itself (the request failed); a
+   * provider's own failed read is NOT a transport failure — it is reported in
+   * {@link providerFailures} and makes the wall {@link degraded}, while `status` stays
+   * `'loaded'`. Collapsing the two would hide a wall the person can still read and retry.
+   */
   error: string | null;
   /** Every card the provider returned, untouched and in provider order. */
   cards: readonly CockpitCard[];
+  /**
+   * Every provider diagnostic whose read failed (`ok:false`), in provider order. Empty means
+   * every provider that explained itself succeeded. The full diagnostic shape is kept so the
+   * list can say which provider failed and why.
+   */
+  providerFailures: readonly CockpitCardProviderDiagnostic[];
+  /**
+   * Whether at least one provider failed while others may have answered. Derived from
+   * {@link providerFailures}; the list draws the persistent reason banner and keeps the healthy
+   * cards instead of replacing them with an error page.
+   */
+  degraded: boolean;
   /**
    * The cards the list draws, in provider order: folded duplicates removed until their kept card
    * is expanded, when they return at their original position.
@@ -474,6 +507,8 @@ const initialState: CockpitCardControllerSnapshot = {
   status: 'idle',
   error: null,
   cards: [],
+  providerFailures: [],
+  degraded: false,
   visibleCards: [],
   duplicates: {},
   openCount: 0,
@@ -783,6 +818,12 @@ function normalize(
   return {
     ...next,
     cards,
+    // The failure reading is the provider diagnostics that said `ok:false`; `degraded` is
+    // derived here (not stored by the command) so no write path can publish one without the
+    // other. A background poll replaces both on the next answer, which is how a recovered
+    // provider clears the banner.
+    providerFailures: next.providerFailures,
+    degraded: next.providerFailures.length > 0,
     visibleCards,
     duplicates,
     openCount: keptCards.length,
@@ -998,9 +1039,21 @@ export function createCockpitCardController(
         commit({ status: 'loading', error: null });
       }
       try {
-        const cards = await deps.fetchCards();
+        const answer = await deps.fetchCards();
         if (disposed) return;
-        commit({ status: 'loaded', error: null, cards: withStartedSessions(cards) });
+        // A PROVIDER failure is not a transport failure: the request answered, so the wall is
+        // `loaded`, the healthy cards stay, and the failed providers ride beside them as their
+        // full diagnostics. Only a thrown read means `status:'error'`. The next poll replaces
+        // this list wholesale, so a recovered provider clears the banner without any local rule.
+        const providerFailures = (answer.diagnostics ?? []).filter(
+          (diagnostic) => !diagnostic.ok,
+        );
+        commit({
+          status: 'loaded',
+          error: null,
+          cards: withStartedSessions(answer.cards),
+          providerFailures,
+        });
         // `normalize` has just fallen back to the first visible card, because at construction
         // there was no card list to check the remembered selection against. Now there is one:
         // restore it once, and only if the card is still on the list and matches the filters.
@@ -1013,7 +1066,10 @@ export function createCockpitCardController(
         }
       } catch (failure) {
         if (disposed) return;
-        commit({ status: 'error', error: failureMessage(failure) });
+        // The transport failed, so there is no provider reading to report: the error state owns
+        // the wall and a stale banner would claim a provider reading the last round no longer
+        // supports.
+        commit({ status: 'error', error: failureMessage(failure), providerFailures: [] });
       }
     })();
     inFlightRead = run;

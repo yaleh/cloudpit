@@ -5298,6 +5298,44 @@ export type CockpitCard = {
   molten?: CockpitMoltenDecision;
 };
 
+/**
+ * One provider's own account of its last card read, as `GET /api/cockpit/cards` reports it
+ * beside `cards`.
+ *
+ * A provider that needs no outside world (the fixture) has nothing to explain and reports no
+ * diagnostics; an adapter over a child process does. The route attaches these so an empty card
+ * list is distinguishable from a failed or switched-off read. The browser must not collapse the
+ * two into one reading: a provider that failed is a DEGRADED wall, not a healthy empty one, and
+ * the person is owed the reason and a retry.
+ *
+ * This type is hand-copied into `src/shared/types.ts` for the bundle;
+ * `src/shared/tests/cockpitCardTypeSync.test.ts` compares both ends field for field.
+ */
+export type CockpitCardProviderDiagnostic = {
+  readonly provider: string;
+  /** Whether the provider's last read produced cards without an error. */
+  readonly ok: boolean;
+  /** Why the read could not produce cards (or why the provider is off), when that is known. */
+  readonly reason: string | null;
+  /** How many cards the last read produced. */
+  readonly cards: number;
+  /** How many malformed lines the last read skipped. */
+  readonly skippedLines: number;
+  /** Whether this reading was served from the provider's cache. */
+  readonly cached: boolean;
+  /**
+   * Whether the provider salvaged the batch from a stdout that was CUT at the read bound.
+   *
+   * Present only on a salvaged reading. The cards are real, but the list is known-incomplete:
+   * the last line was an unfinished fragment and every byte after it never arrived.
+   */
+  readonly truncated?: boolean;
+  /** How many COMPLETE lines the salvaged prefix held (the fragment is not one of them). */
+  readonly completeLines?: number;
+  /** Bytes of the cut-off final fragment that could not be parsed; never counted as skipped. */
+  readonly truncatedTailBytes?: number;
+};
+
 // ---------------------------
 //----------------- COCKPIT BRIEF (GET /api/cockpit/cards/:id/brief) ------------
 

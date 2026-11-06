@@ -104,7 +104,7 @@ type Cards = { controller: CockpitCardController; binding: CockpitCardsBinding }
 /** A settled card controller holding one open card, with its Details already open. */
 async function openCards(): Promise<Cards> {
   const controller = createCockpitCardController({
-    fetchCards: async () => [card()],
+    fetchCards: async () => ({ cards: [card()] }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,

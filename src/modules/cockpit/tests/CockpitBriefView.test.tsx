@@ -232,7 +232,7 @@ function renderDetails(brief: CockpitBriefState | undefined, onRetryBrief?: () =
 /** Builds the real controller over a fake card read and a fake brief read. */
 function makeController(args: {
   fetchBrief: (cardId: string) => Promise<CockpitBriefResponse>;
-  fetchCards: () => Promise<readonly CockpitCardData[]>;
+  fetchCards: () => Promise<{ cards: readonly CockpitCardData[] }>;
 }) {
   return createCockpitCardController({
     fetchCards: args.fetchCards,
@@ -254,7 +254,7 @@ afterEach(() => {
 describe('the read is issued by opening Details, once per (card, revision)', () => {
   it('requests on the first open, not again on a close/reopen at the same revision', async () => {
     const fetchBrief = vi.fn(async () => briefResponse());
-    const controller = makeController({ fetchBrief, fetchCards: async () => [CARD] });
+    const controller = makeController({ fetchBrief, fetchCards: async () => ({ cards: [CARD] }) });
     await controller.load();
 
     controller.openDetails(CARD.id);
@@ -275,7 +275,7 @@ describe('the read is issued by opening Details, once per (card, revision)', () 
     let revision = 1;
     const controller = makeController({
       fetchBrief,
-      fetchCards: async () => [{ ...CARD, revision }],
+      fetchCards: async () => ({ cards: [{ ...CARD, revision }] }),
     });
     await controller.load();
     controller.openDetails(CARD.id);

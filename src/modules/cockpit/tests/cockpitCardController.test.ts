@@ -5,6 +5,7 @@ import type {
   CockpitCard,
   CockpitCardFeedback,
   CockpitCardOption,
+  CockpitCardProviderDiagnostic,
   CockpitKnowledgeCase,
 } from '@/shared/types';
 import {
@@ -159,6 +160,8 @@ type Harness = {
   reads: number;
   /** Replaces what the next read answers, simulating a provider-side revision. */
   setCards: (next: CockpitCard[]) => void;
+  /** Replaces the provider diagnostics the next read reports (the route's `diagnostics`). */
+  setDiagnostics: (next: readonly CockpitCardProviderDiagnostic[]) => void;
   snapshot: () => CockpitCardControllerSnapshot;
 };
 
@@ -167,12 +170,13 @@ function harness(
   overrides: Partial<CockpitCardControllerDeps> = {},
 ): Harness {
   let cards = initial;
+  let diagnostics: CockpitCardProviderDiagnostic[] = [];
   const requests: CockpitCardConfirmRequest[] = [];
   let reads = 0;
   const controller = createCockpitCardController({
     fetchCards: async () => {
       reads += 1;
-      return cards;
+      return { cards, diagnostics };
     },
     confirm: async (request) => {
       requests.push(request);
@@ -191,6 +195,9 @@ function harness(
     },
     setCards: (next) => {
       cards = next;
+    },
+    setDiagnostics: (next) => {
+      diagnostics = [...next];
     },
     snapshot: controller.getSnapshot,
   };
@@ -1183,6 +1190,116 @@ describe('read failures are stated, not swallowed', () => {
   });
 });
 
+/**
+ * A provider's failed read is a DEGRADED wall, not an empty one.
+ *
+ * The route answers `{cards, diagnostics}`; a provider that could not be read reports
+ * `ok:false` beside whatever the other providers returned. The controller must keep
+ * `status:'loaded'` (the transport answered), keep the healthy cards, and expose the failure
+ * so the list can state the reason and offer the retry. `status:'error'` stays reserved for a
+ * read that threw.
+ */
+function failedDiagnostic(
+  provider: string,
+  overrides: Partial<CockpitCardProviderDiagnostic> = {},
+): CockpitCardProviderDiagnostic {
+  return {
+    provider,
+    ok: false,
+    reason: 'fleet binary missing',
+    cards: 0,
+    skippedLines: 0,
+    cached: false,
+    ...overrides,
+  };
+}
+
+describe('provider failures are a degraded reading, not an empty one', () => {
+  it('keeps status loaded when the transport answered empty and a provider failed', async () => {
+    const h = harness([]);
+    h.setDiagnostics([failedDiagnostic('quay-fleet')]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.status).toBe('loaded');
+    expect(snapshot.cards).toEqual([]);
+    expect(snapshot.visibleCards).toEqual([]);
+    expect(snapshot.providerFailures).toHaveLength(1);
+    expect(snapshot.providerFailures[0]).toMatchObject({
+      provider: 'quay-fleet',
+      ok: false,
+      reason: 'fleet binary missing',
+    });
+    expect(snapshot.degraded).toBe(true);
+  });
+
+  it('keeps a healthy provider’s cards on screen when another provider failed', async () => {
+    const h = harness([card('c1')]);
+    h.setDiagnostics([
+      { ...failedDiagnostic('quay-fleet'), cards: 0 },
+      {
+        provider: 'fixture',
+        ok: true,
+        reason: null,
+        cards: 1,
+        skippedLines: 0,
+        cached: false,
+      },
+    ]);
+    await h.controller.load();
+
+    const snapshot = h.snapshot();
+    expect(snapshot.status).toBe('loaded');
+    // The healthy card is still drawn: one provider failing never empties another's cards.
+    expect(snapshot.visibleCards.map((entry) => entry.id)).toEqual(['c1']);
+    // Only the `ok:false` rows are failures; the healthy diagnostic is not one.
+    expect(snapshot.providerFailures.map((failure) => failure.provider)).toEqual(['quay-fleet']);
+    expect(snapshot.degraded).toBe(true);
+  });
+
+  it('a successful poll clears the failures without any other command', async () => {
+    const h = harness([]);
+    h.setDiagnostics([failedDiagnostic('quay-fleet')]);
+    await h.controller.load();
+    expect(h.snapshot().degraded).toBe(true);
+
+    // The provider recovered: the same route now answers cards and a healthy diagnostic.
+    h.setCards([card('c1')]);
+    h.setDiagnostics([
+      {
+        provider: 'quay-fleet',
+        ok: true,
+        reason: null,
+        cards: 1,
+        skippedLines: 0,
+        cached: false,
+      },
+    ]);
+    await h.controller.load();
+
+    expect(h.snapshot().providerFailures).toEqual([]);
+    expect(h.snapshot().degraded).toBe(false);
+    expect(h.snapshot().visibleCards.map((entry) => entry.id)).toEqual(['c1']);
+  });
+
+  it('a thrown transport read is still status error, with no provider reading to report', async () => {
+    const failing = createCockpitCardController({
+      fetchCards: async () => {
+        throw new Error('the registry is down');
+      },
+      confirm: async () => ({ executor: 'test.exec', result: null }),
+      clock: FAKE_CLOCK,
+      refreshIntervalMs: 0,
+    });
+    await failing.load();
+
+    expect(failing.getSnapshot().status).toBe('error');
+    expect(failing.getSnapshot().error).toBe('the registry is down');
+    expect(failing.getSnapshot().providerFailures).toEqual([]);
+    expect(failing.getSnapshot().degraded).toBe(false);
+  });
+});
+
 describe('the same question asked twice is one card', () => {
   /** A card that names a session and states a question, so two of them can fold. */
   function askedCard(id: string, surfacedAt: string, overrides: Partial<CockpitCard> = {}): CockpitCard {
@@ -1365,9 +1482,9 @@ describe('the card-level 「忽略/丢弃」 target', () => {
     const h = harness([card('c1'), card('c2')], {
       fetchCards: async () => {
         reads += 1;
-        if (reads === 1) return [card('c1'), card('c2')];
-        return new Promise<CockpitCard[]>((resolve) => {
-          releaseRead = resolve;
+        if (reads === 1) return { cards: [card('c1'), card('c2')] };
+        return new Promise<{ cards: CockpitCard[] }>((resolve) => {
+          releaseRead = (next) => resolve({ cards: next });
           markStarted?.();
         });
       },

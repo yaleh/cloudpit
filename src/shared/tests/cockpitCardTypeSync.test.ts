@@ -162,6 +162,10 @@ const ROWS: readonly SyncRow[] = [
   { typeName: 'CockpitCardOwnReply', reader: 'object' },
   { typeName: 'CockpitCardConversation', reader: 'object' },
   { typeName: 'CockpitCardNotify', reader: 'object' },
+  // The provider's own last-read account, reported beside `cards` and rendered as a DEGRADED
+  // wall (a failed provider must not read as a healthy empty page). A browser that drops a field
+  // would lose the reason or the truncation reading, so both ends must agree.
+  { typeName: 'CockpitCardProviderDiagnostic', reader: 'object' },
   // The molten short-loop decision block (ADR-016 / GOAL-012): the task spec that
   // `crystallize-task` would write, the action the loop judged, and the decision block itself.
   // A browser that cannot name a field would drop it from the card it renders, so both ends
@@ -276,6 +280,27 @@ describe('cockpit card type sync', () => {
         `${typeName} must declare \`contentRevision?\` in server/shared/types.ts`,
       );
     }
+  });
+
+  it('the provider diagnostic carries the same nine fields on both ends, with the right optionality', () => {
+    // The generic object comparison passes when a field is deleted from BOTH ends at once, so
+    // the shape the card wall's degraded state reads is also pinned by name. The last three are
+    // optional on purpose: only a salvaged (cut) reading states them.
+    const row = ROWS.find((candidate) => candidate.typeName === 'CockpitCardProviderDiagnostic');
+    assert.ok(row, 'CockpitCardProviderDiagnostic must be in the comparison table');
+    const expected = [
+      'cached',
+      'cards',
+      'completeLines?',
+      'ok',
+      'provider',
+      'reason',
+      'skippedLines',
+      'truncated?',
+      'truncatedTailBytes?',
+    ];
+    assert.deepEqual(readClient(row), expected, 'src/shared/types.ts must declare the nine fields');
+    assert.deepEqual(readServer(row), expected, 'server/shared/types.ts must declare the nine fields');
   });
 
   it('false-form: deleting `expired` on the src side names the src file and the literal', () => {

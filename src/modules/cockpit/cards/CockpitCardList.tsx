@@ -597,11 +597,53 @@ function CockpitCardListBound({
             </p>
           )}
 
-          {snapshot.visibleCards.length === 0 && snapshot.status === 'loaded' && (
-            <p data-testid="cockpit-card-empty" className="text-xs text-muted-foreground">
-              {t('cockpit.cardEmpty')}
-            </p>
+          {/*
+            A PROVIDER FAILURE IS NOT AN EMPTY WALL. The request succeeded, so `status` stays
+            `loaded`; what failed is one provider's own read, and the healthy cards from the other
+            providers stay on screen. The line is persistent (not a toast) because the wall is
+            still incomplete until the provider recovers, and it carries the same retry the list
+            already owns (`controller.load`). Background polling keeps running, so the next
+            successful answer replaces `providerFailures` wholesale and the line clears itself.
+          */}
+          {snapshot.providerFailures.length > 0 && (
+            <div
+              role="alert"
+              data-testid="cockpit-card-provider-error"
+              data-providers={snapshot.providerFailures
+                .map((failure) => failure.provider)
+                .join(',')}
+              className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-xs text-destructive"
+            >
+              <span className="min-w-0 flex-1">
+                {t('cockpit.cardProviderError', {
+                  providers: snapshot.providerFailures
+                    .map((failure) => failure.provider)
+                    .join(', '),
+                  reason: snapshot.providerFailures
+                    .map(
+                      (failure) => failure.reason ?? t('cockpit.cardProviderNoReason'),
+                    )
+                    .join('; '),
+                })}
+              </span>
+              <button
+                type="button"
+                data-testid="cockpit-card-provider-retry"
+                onClick={() => void controller.load()}
+                className="shrink-0 rounded-md border border-destructive/40 px-2 py-0.5 text-[11px] hover:bg-destructive/10"
+              >
+                {t('cockpit.cardProviderRetry')}
+              </button>
+            </div>
           )}
+
+          {snapshot.visibleCards.length === 0 &&
+            snapshot.status === 'loaded' &&
+            snapshot.providerFailures.length === 0 && (
+              <p data-testid="cockpit-card-empty" className="text-xs text-muted-foreground">
+                {t('cockpit.cardEmpty')}
+              </p>
+            )}
 
           <div className="flex flex-col gap-2">
             {snapshot.visibleCards.map((card) => (

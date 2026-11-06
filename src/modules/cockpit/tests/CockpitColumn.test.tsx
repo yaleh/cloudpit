@@ -97,7 +97,7 @@ async function fixture(options: {
   expanded?: boolean;
   storage?: CockpitColumnStorage | null;
   /** Replaces the generated read, so a case can change what the next read answers. */
-  fetchCards?: () => Promise<CockpitCardData[]>;
+  fetchCards?: () => Promise<{ cards: CockpitCardData[] }>;
   /** The two transports the third action uses; omitted, the surface offers no discard. */
   dismiss?: (request: { cardId: string; revision: number }) => Promise<{ ok: boolean }>;
   confirm?: (request: { cardId: string; revision: number; optionId?: string }) => Promise<{
@@ -110,14 +110,15 @@ async function fixture(options: {
   const cards = createCockpitCardController({
     fetchCards:
       options.fetchCards ??
-      (async () =>
-        Array.from({ length: count }, (_, index) =>
+      (async () => ({
+        cards: Array.from({ length: count }, (_, index) =>
           card(
             `c${index + 1}`,
             index < rescueCount ? 'rescue' : 'test',
             options.kinds?.[index] ?? 'ask',
           ),
-        )),
+        ),
+      })),
     confirm:
       options.confirm ?? (async () => ({ executor: 'test.exec', result: { ok: true } })),
     ...(options.dismiss === undefined ? {} : { dismiss: options.dismiss }),
@@ -316,7 +317,7 @@ describe('expanded', () => {
     const confirmRequests: unknown[] = [];
     const f = await fixture({
       expanded: true,
-      fetchCards: async () => visible,
+      fetchCards: async () => ({ cards: visible }),
       dismiss: async (request) => {
         dismissRequests.push(request);
         visible = visible.filter((entry) => entry.id !== request.cardId);
@@ -445,26 +446,28 @@ describe('the column title', () => {
     // one number: c1 is answered and awaiting the fleet's receipt, c2 was answered and the fleet
     // kept it (the server leaves a notice beside the card), c3 still needs the person.
     const cards = createCockpitCardController({
-      fetchCards: async () => [
-        {
-          ...card('c1'),
-          feedback: {
-            cardId: 'c1',
-            revision: 1,
-            feedbackId: 'f1',
-            optionId: 'one',
-            label: 'one',
-            sentAt: new Date(NOW - 30_000).toISOString(),
-            outcome: { executor: 'test.exec', ok: true },
-            canResend: false,
+      fetchCards: async () => ({
+        cards: [
+          {
+            ...card('c1'),
+            feedback: {
+              cardId: 'c1',
+              revision: 1,
+              feedbackId: 'f1',
+              optionId: 'one',
+              label: 'one',
+              sentAt: new Date(NOW - 30_000).toISOString(),
+              outcome: { executor: 'test.exec', ok: true },
+              canResend: false,
+            },
           },
-        },
-        {
-          ...card('c2'),
-          feedbackNotice: { cardId: 'c2', feedbackId: 'f2', kind: 'kept' },
-        },
-        card('c3'),
-      ],
+          {
+            ...card('c2'),
+            feedbackNotice: { cardId: 'c2', feedbackId: 'f2', kind: 'kept' },
+          },
+          card('c3'),
+        ],
+      }),
       confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
       clock: FAKE_CLOCK,
       refreshIntervalMs: 0,

@@ -83,7 +83,7 @@ function memoryStorage(initial?: string): CockpitColumnStorage & { dump: () => s
 
 async function cardsWith(initial: CockpitCard[]): Promise<CockpitCardController> {
   const controller = createCockpitCardController({
-    fetchCards: async () => initial,
+    fetchCards: async () => ({ cards: initial }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,
@@ -317,7 +317,7 @@ describe('the header count', () => {
   it('follows a re-read without a remount', async () => {
     let source = [card('c1')];
     const cards = createCockpitCardController({
-      fetchCards: async () => source,
+      fetchCards: async () => ({ cards: source }),
       confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
       clock: FAKE_CLOCK,
       refreshIntervalMs: 0,

@@ -130,7 +130,7 @@ async function columnBinding(
   settled: readonly CockpitCardData[] = [card(1)],
 ): Promise<CockpitColumnBinding> {
   const cards = createCockpitCardController({
-    fetchCards: async () => settled,
+    fetchCards: async () => ({ cards: settled }),
     confirm: async () => ({ executor: 'test.exec', result: { ok: true } }),
     clock: FAKE_CLOCK,
     refreshIntervalMs: 0,

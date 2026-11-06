@@ -161,7 +161,7 @@ function bind(cards: CockpitCard[], clock: Clock): {
   let current = cards;
   const resends: string[] = [];
   const controller = createCockpitCardController({
-    fetchCards: () => Promise.resolve(current.map((entry) => structuredClone(entry))),
+    fetchCards: () => Promise.resolve({ cards: current.map((entry) => structuredClone(entry)) }),
     confirm: () => Promise.resolve({ executor: 'test.exec', result: {} }),
     resendFeedback: (cardId) => {
       resends.push(cardId);
