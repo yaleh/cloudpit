@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-sidebar-search-sse-handlers
 title: "architecture-analysis: archguard_detect_duplicates(scope=src,
   2026-11-06) group = 91 tokens / 8 statements / 13 lines: the SSE 'done' and
   'error' listener bodies are identical (clo"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
