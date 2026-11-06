@@ -872,6 +872,24 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // crossing), and AC-174's gate deadline (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is
   // written down before the gate kills the run — the same shape as the AC-109 / AC-172 / AC-180 entries.
   'resident-shell-tab.spec.ts': 240_000,
+  // The resident busy-send criterion (GOAL-013 / AC-175): three resident hosts, three sessions, two
+  // walked commands through `cancel_async_message`/`started`, the withdraw/started UI legs and a
+  // per-run positive control, behind the shared server boot. It had no entry here, so the criterion's
+  // single-file invocation inherited `SINGLE_SPEC_CEILING_MS` (55 s) — and that ceiling, not one of the
+  // AC-175 assertions, decided the rounds. MEASURED on 2026-11-06 on this tree:
+  // `grep '"item_id":"AC-175"' .quay/gate-events.jsonl | tail -5` on the SAME treeSha
+  // (0b5c9a572266416a6ccd18ed56e584f6ca797578 = `HEAD^{tree}`) read four `pass` rounds (10:08:42.766Z,
+  // 10:11:54.840Z, 10:16:03.187Z, 10:19:20.303Z) and then a `fail` at 10:23:28.149Z whose reason was the
+  // watchdog's own `crossed its own 55000ms ceiling at 55001ms (config-eval-ms=22320)` — it carried no
+  // `resident.`/`ui.`/`cancel` product-reading token, so not one AC-175 assertion ran in that round. The
+  // green rounds' readings (`resident.queuedCard=0`, `ui.withdrawnAfterEvent=true`, `cancelPayloads=1`,
+  // `perRun.queuedCard=1`, …) were byte-identical across the tree, so the guarantee held while the
+  // instrument's budget did not. 240_000 is the GOAL-013 sibling value (`resident-running-view`,
+  // `resident-status-bar`, `resident-enter-send`, `resident-shell-tab`), ~4.4x the 55 s default and
+  // ~1.5x the 22320ms cold-round pre-case cost; AC-175's gate deadline (`timeoutMs: 260000`) outlasts it
+  // by 20 s so a crossing is written down before the gate kills the run — the same shape as the
+  // AC-109 / AC-172 / AC-174 / AC-180 entries below and above.
+  'resident-busy-send.spec.ts': 240_000,
   // The transcript-follow criterion (GOAL-004 / AC-109): one slow in-page wire double per arm (the wheel
   // gesture and the keyboard PageUp gesture), each behind the shared server boot, the client warm-up and
   // the service-worker settle. MEASURED 2026-11-02 on this host: a warm direct run read `1 passed (28.4s)`,
