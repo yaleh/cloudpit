@@ -197,3 +197,24 @@ b23d6e045e4ce974637427f203651e59ef05b20f   ⇒ 与 payload.treeSha 相等
 - 未落地原因：step=suite: __PERFILE__ duration_ms=8362 src/shared/asr/tests/asrContractInvariants.test.ts passed=false end_ms=1793975201770 [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts,src/shared/asr/tests/asrContractInvariants.test.ts,src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts changed=-]
 - run_id：wk-prod-anchor
 - session_id：14b9aef7-8483-448c-b3ba-8e04ac6f4bdc
+
+## 复验（2026-11-06T14:35Z，第二轮 worker）
+
+上一轮 exited-not-landed 的两个 suite 红与本任务 delta 无关（本任务只改 `e2e/`，两个文件与 `develop` 逐字相同），按 `per-test-timeout-flake-is-labelled-task-introduced` 取证：
+
+```
+$ npx vitest run src/shared/asr/tests/asrContractInvariants.test.ts
+ Test Files  1 passed (1)   Tests  15 passed (15)   Duration  6.01s    EXIT=0
+$ npx vitest run src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts
+ Test Files  1 passed (1)   Tests  28 passed (28)   Duration  37.28s   EXIT=0
+```
+
+- suite 内同两文件 `duration_ms=8362` / `41310`（相对 standalone 约 1.4× / 1.1×），失败行是 `Error: STACK_TRACE_ERROR` —— `vitest.config.ts` 头注释写明的 pool 超订指纹，不是断言回归；`asrContractInvariants` 的用例走默认 `testTimeout: 5000`，争用下越界会被 vitest 记成 failed assertion（故 `kind=assert`，A/B 误判 task-introduced）。
+- 两个红文件的任务侧与 develop 逐字节相同：`git diff --stat develop..HEAD -- src/shared/asr/tests/asrContractInvariants.test.ts src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts` 为空。
+
+本轮处置与复验：
+
+- `git merge --no-edit develop` → `27ed2fe87`（仅带进 develop 的 Blocker 段，无冲突）。
+- 抗漂移：`ANTI-DRIFT OK: task gap-ac323-composer-embedded-bare-goto-boot-hole — 2 actual file(s), all within declared Touches (3 glob(s))`，exit 0。
+- AC1/AC2/AC7 机械读数重跑仍为：`export const openPaneBounded`=1、import=1、本地定义=0；`openPaneBounded(`=3、`page.goto(` 只剩 `1021: await page.goto('/')`、30s pane 等待=2；断言 diff 与 `goals/` diff 均为空。
+- 代码未改，AC 全部维持 `[x]`；退出让 driver 重跑 fan-in。
