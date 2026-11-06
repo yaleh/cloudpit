@@ -5,6 +5,7 @@ status: achieved
 kind: criterion
 goal: GOAL-013
 criterion: npx playwright test e2e/resident-shell-tab.spec.ts
+timeoutMs: 260000
 expect: 常驻会话里 Shell 标签页禁用并显示「常驻会话不支持 Shell，关闭常驻模式后可用」，判定只看
   lifecycle_mode、与进程是否存活无关；关闭常驻模式后同一会话的 Shell 标签页可用。取假形态：按进程是否存活判断 ⇒ 常驻但未运行时
   Shell 可用，必须红。

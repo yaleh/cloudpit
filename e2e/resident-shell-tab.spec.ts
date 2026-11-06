@@ -8,12 +8,24 @@ import type { APIRequestContext, Browser, Locator, Page } from '@playwright/test
  * The instant this criterion's `npx playwright test` invocation began.
  *
  * `playwright.config.ts` publishes it (`QUAY_E2E_RUN_STARTED_AT`) for exactly this reading:
- * the 55 s ceiling is on the whole invocation — config evaluation, seeding, server boot,
+ * the declared single-file ceiling is on the whole invocation — config evaluation, seeding, server boot,
  * browser launch — and a spec that timed only its own body would report a number whose
  * shortfall against the ceiling is the part it could not see. The fallback is for a run
  * started outside the config (there is none today); it can only make the reading smaller.
  */
 const RUN_STARTED_AT = Number(process.env.QUAY_E2E_RUN_STARTED_AT) || Date.now();
+
+/**
+ * This criterion's declared run budget, in milliseconds.
+ *
+ * The config's `SPEC_BUDGET_MS` carries the same number for `resident-shell-tab.spec.ts`; the two have to
+ * agree or the spec could hold itself past the watchdog that is meant to end it. 240_000 is the sibling
+ * heavy-spec value, and AC-174's gate deadline (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is
+ * written down before the gate kills the run. Every fixed wall below — the `describe.configure` timeout, the
+ * `beforeAll` hook timeout and the closing self-check — is tied to this one value so a future budget change
+ * cannot move only one of them (the `"beforeAll" hook timeout` mode `gap-ac173` recorded).
+ */
+const SPEC_BUDGET_MS = 240_000;
 
 /** The 12 locale directories the app ships. */
 const LOCALES = ['de', 'en', 'es', 'fr', 'id', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-CN', 'zh-TW'] as const;
@@ -273,11 +285,15 @@ const OPTIMIZED_DEP_IN_TEXT = /["'](\/@fs\/[^"']*\/deps\/[^"']+\.js\?v=[0-9a-f]+
 /**
  * How long this run's own client is given to answer its app entry before the startup path gives up on it.
  *
- * The run already has two ceilings above it (playwright.config.ts's watchdog, then the goal gate's 60s)
- * and both are *outside* this spec — an unbounded wait here would be reported by whichever fired first,
- * naming neither the url nor the status.
+ * The run already has ceilings above it (playwright.config.ts's watchdog at the declared `SPEC_BUDGET_MS`,
+ * then the goal gate's 260s) and both are *outside* this spec — an unbounded wait here would be reported by
+ * whichever fired first, naming neither the url nor the status. MEASURED 2026-11-06 on this worktree at
+ * load1 157.50: the 30s value fired as `the client did not answer http://…/@fs/…/deps/react_jsx-dev-runtime.js
+ * inside the 30000ms startup budget` after config evaluation had already read 54769ms — a warm-up wall, not a
+ * product assertion. 60s doubles the old bound and stays a quarter of the declared 240s budget, so the
+ * bounded-failure property survives at the new scale.
  */
-const CLIENT_WARM_DEADLINE_MS = 30_000;
+const CLIENT_WARM_DEADLINE_MS = 60_000;
 
 /**
  * Takes this run's first dependency optimization out of the measurement window: the html shell, the app's
@@ -360,30 +376,36 @@ const appears = async (locator: Locator, timeoutMs: number): Promise<boolean> =>
     () => false,
   );
 
-/** How long the landing of the *first* navigation is given on its own, before the guard starts replaying. */
-const STARTUP_PROBE_MS = 8_000;
+/**
+ * How long one first navigation is given, before the guard starts replaying.
+ *
+ * MEASURED 2026-11-06 on this worktree (load1 185.61, AC-174's own rounds): once the declared 240s budget let
+ * the run reach the case after a 52785ms config evaluation and a boot that completed at 93999ms, this spec's
+ * 8s probe — sized for the 55s single-file world — fired as `page.goto: Timeout 8000ms exceeded` and ended
+ * the run with "the Shell tab … never rendered", before a single product assertion. The probe, not the
+ * product, had become the wall. 20s keeps it well inside the declared budget while still bounding a probe
+ * that cannot land.
+ */
+const STARTUP_PROBE_MS = 20_000;
 /** How long each bounded replay's landing is given. Shorter than the first: a replay is a re-ask, not a cold boot. */
-const STARTUP_RELOAD_PROBE_MS = 3_000;
+const STARTUP_RELOAD_PROBE_MS = 8_000;
 /** How long one navigation's single rpc to its server is given, before the guard treats it as a failed landing. */
-const NAVIGATION_PROBE_MS = 8_000;
+const NAVIGATION_PROBE_MS = 20_000;
 
 /**
  * How long the startup probe may spend proving a navigation landed, replays included.
  *
  * A deadline rather than a replay count, because it is the *sum* that has to stay inside the criterion's
- * own wall clock: the bounded-failure reading asks that a probe which cannot succeed ends the whole run
- * in under 30s, and that run pays the config evaluation, both servers' boot, the browser launch and this
- * spec's own `beforeAll` (the bounded warm-up plus the onboarding wizard `bootstrapAuth` drives) before
- * the probe's first attempt even starts. Counting replays leaves that head-room to chance; a deadline
- * spends it.
- *
- * The value is derived from *this* spec's measured pre-probe overhead, not copied. The sibling specs that
- * carry this guard create their account over the API, so their pre-probe cost is the boot and the launch;
- * this one runs the three-screen onboarding, which measured 10.2s quiet and 16.0s loaded here (wall minus
- * the case's own duration, `e2e/resident-shell-tab`). 12s keeps the sum under the 30s the bounded-failure
- * reading asks for across that range, and still fits the first 8s landing probe plus one full 3s replay.
+ * own wall clock: a probe which cannot succeed must end the whole run with a cause rather than let the case
+ * time out on a document with nothing in it. The original 12s was sized so that bound landed under 30s, in
+ * the world where the criterion's budget was the 55s single-file default. That world is gone (see
+ * `SPEC_BUDGET_MS` above): the run now pays config evaluations measured at 2.2-107.5s and boots that
+ * completed at 93999ms on 2026-11-06 before the probe's first attempt even started, so a 30s whole-run
+ * bound would have been spent before the probe existed. 60s is derived from the declared budget the same
+ * way the 12s was derived from its own — a quarter of `SPEC_BUDGET_MS`, leaving the onboarding `beforeAll`
+ * and the case body the rest — and it still fits the first 20s landing probe plus replays.
  */
-const STARTUP_PROBE_DEADLINE_MS = 12_000;
+const STARTUP_PROBE_DEADLINE_MS = 60_000;
 
 /**
  * What the startup page said, kept for one purpose: a startup red has to *explain* a document that was
@@ -584,11 +606,11 @@ const openSessionRow = async (page: Page) => {
   await expect(button, 'the seeded session must have a row in the sidebar').toBeVisible({ timeout: 15_000 });
 };
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial', timeout: SPEC_BUDGET_MS });
 
 test.beforeAll(async ({ browser }) => {
   // Onboarding is the expensive part of a fresh database and happens once for the file.
-  test.setTimeout(120_000);
+  test.setTimeout(SPEC_BUDGET_MS);
   const clientUrl = test.info().project.use.baseURL;
   if (!clientUrl) throw new Error('playwright.config.ts must give this project a baseURL');
   workspace = path.join(process.env.QUAY_E2E_DATA_DIR!, WORKSPACE_DIR_BASENAME);
@@ -786,5 +808,5 @@ test('a resident session closes the Shell tab, and closing the mode reopens it',
 
   const elapsed = Date.now() - RUN_STARTED_AT;
   console.log(`elapsed=${elapsed}`);
-  expect(elapsed, 'the criterion has to end inside the single-file ceiling').toBeLessThan(55_000);
+  expect(elapsed, 'the criterion has to end inside the single-file ceiling').toBeLessThan(SPEC_BUDGET_MS);
 });

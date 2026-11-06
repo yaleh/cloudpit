@@ -13,6 +13,7 @@ import { reclaimDataDirs } from './scripts/e2e-data-dir-retention.mjs';
 import { resolveClientRoot } from './scripts/e2e-client-root.mjs';
 import { webServerStderrLogs, withStderrLog } from './scripts/e2e-web-server-stderr.mjs';
 import {
+  bootCeilingFor,
   bootDeadlineFrom,
   readConfigEvalStallMs,
   runDeadlineFrom,
@@ -857,6 +858,20 @@ const SPEC_BUDGET_MS: Record<string, number> = {
   // (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is written down before the gate kills it — the
   // same shape as the AC-109 / AC-172 / AC-254 / AC-120 entries below.
   'resident-enter-send.spec.ts': 240_000,
+  // The resident Shell-tab criterion (GOAL-013 / AC-174): one serial case driving a real project through the
+  // per-run arm, the mode write, the resident arm, the close-mode arm and two server readbacks, behind the
+  // shared server boot and the onboarding the file drives once. It had no entry here, so the criterion's
+  // single-file invocation inherited `SINGLE_SPEC_CEILING_MS` (55 s) — and that ceiling, not one of the
+  // AC-174 assertions, decided the rounds. MEASURED on 2026-11-06 on a 128-core host at load1 78.31→194.96:
+  // four direct runs each ended with the watchdog's own `[e2e] watchdog:` line, never with a product
+  // assertion — at 55004ms (config-eval-ms=2182, already inside the case body), 86776ms (config-eval-ms=48243,
+  // boot only answered at 86770ms), 75423ms (boot ceiling, config-eval-ms=35423) and 117717ms
+  // (config-eval-ms=107491). The first of those had already printed every product reading AC-174 asserts
+  // (`shellTab.disabled=true`, `hosts.forSession=0`, `notice.inView=…`), so the guarantee held while the
+  // instrument's budget did not. 240_000 is the sibling heavy-spec value (~2.7x the slowest recorded
+  // crossing), and AC-174's gate deadline (`timeoutMs: 260000`) outlasts it by 20 s so a crossing is
+  // written down before the gate kills the run — the same shape as the AC-109 / AC-172 / AC-180 entries.
+  'resident-shell-tab.spec.ts': 240_000,
   // The transcript-follow criterion (GOAL-004 / AC-109): one slow in-page wire double per arm (the wheel
   // gesture and the keyboard PageUp gesture), each behind the shared server boot, the client warm-up and
   // the service-worker settle. MEASURED 2026-11-02 on this host: a warm direct run read `1 passed (28.4s)`,
@@ -1041,9 +1056,21 @@ const mcpSettingsOnlySelection = (() => {
  * merely smaller than a budget.
  *
  * The run ceiling itself is the sum of the selected specs' budgets, computed above; for the one-file invocation
- * the gate makes, that sum is `SINGLE_SPEC_CEILING_MS` and nothing about it changed.
+ * the gate makes, that sum is `SINGLE_SPEC_CEILING_MS` unless the spec declares a budget.
+ *
+ * THE BOOT WINDOW FOLLOWS THE DECLARED RUN BUDGET, WITH A CAP. `40_000` was correct while every criterion ran
+ * under the 55s single-file default, but it is a *fixed* window measured from the end of config evaluation, and
+ * the measurements behind the `resident-shell-tab.spec.ts` entry below show the two walls becoming one: a run
+ * whose config evaluation took 107.5s left the default 40s boot window alive while the 55s run ceiling was
+ * already spent. Raising only the run budget would then move the failure to whichever fixed boot window the
+ * loaded host crossed first. `bootCeilingFor` keeps the default selection byte-for-byte at 40s
+ * (`runCeiling <= SINGLE_SPEC_CEILING_MS`), grows the window by exactly the declared budget above that floor,
+ * and caps it at 120s so a boot crossing is still reported by the watchdog long before an unbounded wait — the
+ * same 3x-of-the-original shape the 40s value was sized from. The cap is also what keeps the window strictly
+ * inside the run ceiling: at the largest declared budget in the table (1_200_000ms) the 120s cap is 1080s
+ * inside it, and the function asserts the margin rather than leaving it to the cap's arithmetic.
  */
-const BOOT_CEILING_MS = 40_000;
+const BOOT_CEILING_MS = bootCeilingFor(RUN_CEILING_MS);
 /** How long the watchdog waits for an answer before it calls a bound port silent. Deliberately short: this is a reading, not a wait. */
 const WATCHDOG_PROBE_MS = 2_000;
 
@@ -1064,12 +1091,12 @@ const WATCHDOG_PROBE_MS = 2_000;
  * cushion against the quiet number. `35_000` gives the boot ~12x its quiet cost and ~1.9x the worst boot
  * measured at the DoD's lane floor.
  *
- * `WEB_SERVER_TIMEOUT_MS` (35s) < `BOOT_CEILING_MS` (40s) < `SINGLE_SPEC_CEILING_MS` (55s) < the 60s the
- * gate kills at. The 5s gap to `BOOT_CEILING_MS` is load-bearing: a boot that still cannot answer is
- * then reported by *this* bound — Playwright's own line, naming the wait — rather than by the watchdog,
- * which ends the run without it. So this value must not be lifted to or past `BOOT_CEILING_MS`. Both
- * entries share it because Playwright waits on both, and a pair that expired at different moments would
- * only move which entry a red names.
+ * `WEB_SERVER_TIMEOUT_MS` (35s) stays below the boot ceiling for every selection: `BOOT_CEILING_MS` is 40s on
+ * the default (55s run) selection — the original 5s gap, unchanged — and up to 120s when a declared budget
+ * raises the run ceiling. Because `bootCeilingFor` only ever returns ≥ `40_000`, this ordering cannot invert:
+ * a boot that still cannot answer is reported by *this* bound — Playwright's own line, naming the wait —
+ * rather than by the watchdog, which ends the run without it. Both entries share it because Playwright waits
+ * on both, and a pair that expired at different moments would only move which entry a red names.
  */
 const WEB_SERVER_TIMEOUT_MS = 35_000;
 

@@ -25,8 +25,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  BOOT_CEILING_RUN_MARGIN_MS,
   CONFIG_EVAL_STALL_ENV,
   CONFIG_EVAL_STALL_MAX_MS,
+  DEFAULT_BOOT_CEILING_MS,
+  MAX_BOOT_CEILING_MS,
+  SINGLE_SPEC_CEILING_MS,
+  bootCeilingFor,
   bootDeadlineFrom,
   readConfigEvalStallMs,
   runDeadlineFrom,
@@ -99,4 +104,42 @@ test('the control-arm stall knob clamps to [0, 120000]', () => {
   // `stallConfigEvaluation(0)` is the shipped path: it must not park the thread at all.
   assert.equal(stallConfigEvaluation(0), 0);
   assert.equal(stallConfigEvaluation(-10), 0);
+});
+
+test('the boot ceiling is fixed at 40s for the default selection', () => {
+  // The shipped single-file ceiling and anything below it: the value the one-file gate invocation gets stays
+  // byte-for-byte what it was, so this task cannot move a spec it did not touch.
+  assert.equal(bootCeilingFor(SINGLE_SPEC_CEILING_MS), 40_000);
+  assert.equal(bootCeilingFor(0), 40_000);
+  assert.equal(bootCeilingFor(SINGLE_SPEC_CEILING_MS - 1), 40_000);
+  assert.equal(bootCeilingFor(Number.NaN), 40_000);
+  assert.equal(DEFAULT_BOOT_CEILING_MS, 40_000);
+});
+
+test('the boot ceiling grows with a declared run budget', () => {
+  // `resident-shell-tab.spec.ts` declares 240_000 (AC-174): the window must clear the 40s default and stay a
+  // real window rather than collapsing to the floor.
+  const declared = bootCeilingFor(240_000);
+  assert.ok(declared > DEFAULT_BOOT_CEILING_MS, `240_000ms must raise the boot window above ${DEFAULT_BOOT_CEILING_MS}ms`);
+  assert.equal(declared, 120_000);
+});
+
+test('the boot ceiling caps at 120s for the largest declared budget', () => {
+  // 1_200_000 is the largest entry in the config's table. One more second of budget must not move the cap.
+  assert.equal(bootCeilingFor(1_200_000), 120_000);
+  assert.equal(bootCeilingFor(1_200_001), MAX_BOOT_CEILING_MS);
+  assert.equal(MAX_BOOT_CEILING_MS, 120_000);
+});
+
+test('every boot ceiling stays 5s inside its run ceiling', () => {
+  // The reading that keeps a crossing legible: the watchdog must be able to write its line and
+  // `watchdog-state.json` before the gate's SIGKILL lands. Every arm AC-174 names, plus the boundaries.
+  for (const runCeilingMs of [55_000, 55_001, 60_000, 240_000, 480_000, 600_000, 1_200_000]) {
+    const ceiling = bootCeilingFor(runCeilingMs);
+    assert.ok(
+      ceiling < runCeilingMs - BOOT_CEILING_RUN_MARGIN_MS,
+      `boot ceiling ${ceiling}ms must stay ${BOOT_CEILING_RUN_MARGIN_MS}ms inside the ${runCeilingMs}ms run ceiling`,
+    );
+  }
+  assert.equal(BOOT_CEILING_RUN_MARGIN_MS, 5_000);
 });
