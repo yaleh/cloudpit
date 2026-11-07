@@ -2,7 +2,7 @@
 id: gap-claude-plugin-skills-scan-all-cache-versions
 title: Claude 插件技能扫描把 installPath 的所有兄弟版本目录当成 payload：18 个缓存版本产出 204 条 plugin
   skill（仅 20 条唯一命令），旧 frontmatter 造出 /quay:quay-init 等幽灵斜杠命令
-status: ready
+status: done
 labels:
   - gap
   - defect
