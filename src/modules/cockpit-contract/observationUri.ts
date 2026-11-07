@@ -1,19 +1,19 @@
 /**
- * The observation wall's URI grammar, shared by the cockpit wall view and the sidebar rows
- * that deep-link to an observed object.
+ * The observation wall's URI grammar — the FRONTEND entry, a pure re-export.
  *
- * WHY THIS IS A LEAF CONTRACT. The sidebar mints the pin/board addresses for its project and
- * session rows (`formatProjectUri` / `formatSessionUri`), and the cockpit wall parses the same
- * strings. Importing the grammar through `@/modules/cockpit` would give the package graph a
- * cycle (cockpit → sidebar for the mode switch, sidebar → cockpit for this file), so the
- * grammar lives in the cockpit's leaf contract: it imports nothing from another feature module.
+ * The grammar itself lives in the repository-root `shared/` tree
+ * (`shared/observation/observationUri.ts`), which BOTH compiler configurations compile
+ * (ADR-004 decision 2). It used to be restated in this file and again in
+ * `server/modules/observation/core/observation-uri.ts`; archguard's duplicate-code probe
+ * reported the two copies as one structurally identical 14-statement parser, and nothing
+ * forced them to move together. Both files are now shims onto the single implementation.
  *
- * One object is addressed by one string, and the string is the key the server joins the
- * observed-object row, its delta log and the user's seen cursor on. The grammar is the server's
- * (`server/modules/observation/core/observation-uri.ts`), restated here because the two compilers
- * have separate `@` roots and the repository forbids `server/` from importing the repo-root
- * `shared/` tree (the AC-394 unresolved-internal budget). Keep the two spellings in step: a
- * change to one without the other makes a deep link address an object the server never wrote.
+ * WHY THIS STAYS A LEAF CONTRACT. The sidebar mints the pin/board addresses for its project
+ * and session rows (`formatProjectUri` / `formatSessionUri`), and the cockpit wall parses the
+ * same strings. Importing the grammar through `@/modules/cockpit` would give the package graph
+ * a cycle (cockpit → sidebar for the mode switch, sidebar → cockpit for this file), so the
+ * grammar stays reachable from the cockpit's leaf contract: `shared/` is outside the frontend
+ * module graph entirely, so this import adds no module edge.
  *
  *   cloudpit://session/<id>              — one Cloudpi session (canonical since 2.1)
  *   cloudpit://architecture/<projectId>  — one project's architecture graph
@@ -22,87 +22,18 @@
  *
  * 3.0 owns one spelling: the formatters mint `cloudpit://` and the parser accepts only those
  * canonical forms. The 2.1 legacy `cloudcli://session/<id>` and `cloudcli://architecture/<id>`
- * read spellings are retired, in step with the server's copy.
+ * read spellings are retired, in step with the server's entry onto the same module.
  *
- * The initiative address is the fleet's own (`ADR-013` reserves `fleet` for it), and the
- * cockpit's initiative view pins it to the observation wall, so the grammar must mint and
- * parse it here in step with the server's copy.
- *
- * Consumers: the cockpit wall view, the initiative view, their deep-link builders, and the
- * sidebar's project/session rows.
+ * Consumers: the cockpit wall view, the initiative view, their deep-link builders, the
+ * sidebar's project/session rows, and the frontend half of the shared URI fixture
+ * (`shared/observation/observationUri.fixtures.ts`).
  */
-
-/** The object kinds the observation layer models. */
-export type ObservationKind = 'session' | 'project' | 'architecture';
-
-/**
- * A parsed observation URI. `uri` is the canonical spelling, so a caller can use the parsed
- * value as a map key without re-formatting it.
- */
-export type ObservationUri =
-  | { scheme: 'cloudpit'; kind: 'session'; id: string; uri: string }
-  | { scheme: 'cloudpit'; kind: 'architecture'; id: string; uri: string }
-  | { scheme: 'quay'; kind: 'project'; id: string; uri: string }
-  | { scheme: 'quay'; kind: 'initiative'; id: string; uri: string };
-
-/** One path segment: at least one character, none of the URI's structural characters. */
-const SEGMENT = '[^/?#\\s]+';
-
-const CLOUDPIT_URI = new RegExp(`^cloudpit://(session|architecture)/(${SEGMENT})$`);
-const QUAY_BOARD_URI = new RegExp(`^quay://(${SEGMENT})/board$`);
-/** The fleet's one reserved address: `fleet` is not a project, and only `initiative` lives there. */
-const QUAY_INITIATIVE_URI = new RegExp(`^quay://fleet/initiative/(${SEGMENT})$`);
-
-/** The canonical `cloudpit://session/<id>` spelling 2.1 writes. */
-export function formatSessionUri(id: string): string {
-  return `cloudpit://session/${id}`;
-}
-
-/** The canonical `cloudpit://architecture/<id>` spelling 2.1 writes. */
-export function formatArchitectureUri(projectId: string): string {
-  return `cloudpit://architecture/${projectId}`;
-}
-
-/** The canonical `quay://<fleetProjectId>/board` spelling. */
-export function formatProjectUri(fleetProjectId: string): string {
-  return `quay://${fleetProjectId}/board`;
-}
-
-/** The canonical `quay://fleet/initiative/<slug>` spelling. */
-export function formatInitiativeUri(slug: string): string {
-  return `quay://fleet/initiative/${slug}`;
-}
-
-/** Formats a parsed URI back to its canonical spelling. */
-export function formatObservationUri(parsed: ObservationUri): string {
-  switch (parsed.kind) {
-    case 'session':
-      return formatSessionUri(parsed.id);
-    case 'architecture':
-      return formatArchitectureUri(parsed.id);
-    case 'project':
-      return formatProjectUri(parsed.id);
-    case 'initiative':
-      return formatInitiativeUri(parsed.id);
-  }
-}
-
-/** Parses one URI, returning `null` for anything outside the grammar (the server's answer too). */
-export function parseObservationUri(value: unknown): ObservationUri | null {
-  if (typeof value !== 'string') return null;
-  const cloud = CLOUDPIT_URI.exec(value);
-  if (cloud !== null) {
-    const kind = cloud[1] === 'session' ? 'session' : 'architecture';
-    const id = cloud[2]!;
-    return { scheme: 'cloudpit', kind, id, uri: kind === 'session' ? formatSessionUri(id) : formatArchitectureUri(id) };
-  }
-  const initiative = QUAY_INITIATIVE_URI.exec(value);
-  if (initiative !== null) {
-    return { scheme: 'quay', kind: 'initiative', id: initiative[1]!, uri: value };
-  }
-  const quay = QUAY_BOARD_URI.exec(value);
-  if (quay !== null) {
-    return { scheme: 'quay', kind: 'project', id: quay[1]!, uri: value };
-  }
-  return null;
-}
+export {
+  formatArchitectureUri,
+  formatInitiativeUri,
+  formatObservationUri,
+  formatProjectUri,
+  formatSessionUri,
+  parseObservationUri,
+} from '@shared/observation/observationUri';
+export type { ObservationKind, ObservationUri } from '@shared/observation/observationUri';
