@@ -328,17 +328,30 @@ test('AC6 (v3.0): cloudpit is the only deep link and the only observation URI sp
   assert.equal(formatSessionUri('x'), 'cloudpit://session/x');
   assert.equal(formatArchitectureUri('project-1'), 'cloudpit://architecture/project-1');
 
-  // The two compilers carry separate copies of the grammar; the accepted-scheme line must be
-  // textually identical so a later edit cannot widen one side only.
-  const regexLineOf = (source: string): string => {
-    const line = source.split('\n').find((entry) => entry.includes('const CLOUDPIT_URI = new RegExp('));
-    assert.ok(line, 'the URI grammar line must exist');
-    return line.trim();
-  };
-  assert.equal(
-    regexLineOf(readApplicationFile('server/modules/observation/core/observation-uri.ts')),
-    regexLineOf(readApplicationFile('src/modules/cockpit-contract/observationUri.ts')),
+  // The grammar has ONE home — the repo-root `shared/` tree both compilers compile — and the
+  // two former copies are pure re-export shims onto it (the fix for archguard's duplicate-code
+  // finding `dup-parse-observation-uri`). A shim that restates the accepted-scheme line is a
+  // second implementation, so the grammar line may exist in the shared module and nowhere else.
+  const grammarSource = readApplicationFile('shared/observation/observationUri.ts');
+  assert.ok(
+    grammarSource.includes('const CLOUDPIT_URI = new RegExp('),
+    'the one observation URI grammar must live in the shared tree',
   );
+  for (const shim of [
+    'server/modules/observation/core/observation-uri.ts',
+    'src/modules/cockpit-contract/observationUri.ts',
+  ]) {
+    const source = readApplicationFile(shim);
+    assert.ok(
+      source.includes("from '@shared/observation/observationUri"),
+      `${shim} must re-export the shared observation URI grammar`,
+    );
+    assert.equal(
+      source.includes('const CLOUDPIT_URI = new RegExp('),
+      false,
+      `${shim} must not restate the grammar: the shared module is the one implementation`,
+    );
+  }
 
   const storeSource = readApplicationFile('server/modules/observation/core/observation-store.ts');
   assert.ok(storeSource.includes('cloudpit://session/<id>'), 'the INVALID_URI message names the grammar');

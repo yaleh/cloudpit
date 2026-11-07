@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import * as contractUri from '@/modules/cockpit-contract';
 import {
   formatArchitectureUri,
   formatInitiativeUri,
@@ -8,6 +9,11 @@ import {
   formatSessionUri,
   parseObservationUri,
 } from '@/modules/cockpit/observationUri';
+import * as sharedUri from '@shared/observation/observationUri';
+import {
+  OBSERVATION_URI_FORMAT_CASES,
+  OBSERVATION_URI_PARSE_CASES,
+} from '@shared/observation/observationUri.fixtures';
 
 /**
  * AC4 — the observation URI grammar used by the cockpit's deep links.
@@ -102,5 +108,53 @@ describe('observation URI grammar', () => {
     expect(parseObservationUri(null)).toBeNull();
     expect(parseObservationUri(42)).toBeNull();
     expect(parseObservationUri({ uri: 'cloudcli://session/x' })).toBeNull();
+  });
+});
+
+/**
+ * The frontend half of the shared URI fixture (archguard `dup-parse-observation-uri`).
+ *
+ * The grammar used to be restated under `src/` and under `server/`; it now has one home in the
+ * repo-root `shared/` tree, and this file drives that fixture through the cockpit's leaf
+ * contract. The backend suite drives the SAME fixture through the server entry
+ * (`server/modules/observation/tests/observation-store.test.ts`), so a shim that stopped
+ * re-exporting the shared grammar, or a grammar change that one side did not follow, reds on
+ * one end instead of a deep link silently addressing an object the server never wrote.
+ */
+const FORMATTERS = {
+  session: contractUri.formatSessionUri,
+  architecture: contractUri.formatArchitectureUri,
+  project: contractUri.formatProjectUri,
+  initiative: contractUri.formatInitiativeUri,
+} as const;
+
+describe('shared URI fixture parity (one implementation across the client/server boundary)', () => {
+  it('exposes the shared implementation rather than a copy', () => {
+    for (const [name, viaContract, viaShared] of [
+      ['formatArchitectureUri', contractUri.formatArchitectureUri, sharedUri.formatArchitectureUri],
+      ['formatInitiativeUri', contractUri.formatInitiativeUri, sharedUri.formatInitiativeUri],
+      ['formatObservationUri', contractUri.formatObservationUri, sharedUri.formatObservationUri],
+      ['formatProjectUri', contractUri.formatProjectUri, sharedUri.formatProjectUri],
+      ['formatSessionUri', contractUri.formatSessionUri, sharedUri.formatSessionUri],
+      ['parseObservationUri', contractUri.parseObservationUri, sharedUri.parseObservationUri],
+    ] as const) {
+      expect(viaContract, name).toBe(viaShared);
+    }
+  });
+
+  it('parses every shared fixture case exactly as the shared grammar does', () => {
+    for (const fixture of OBSERVATION_URI_PARSE_CASES) {
+      const parsed = contractUri.parseObservationUri(fixture.input);
+      expect(parsed).toEqual(fixture.expected);
+      if (fixture.expected !== null) {
+        expect(contractUri.formatObservationUri(fixture.expected)).toBe(fixture.expected.uri);
+      }
+    }
+  });
+
+  it('mints every formatter spelling in the shared fixture', () => {
+    for (const fixture of OBSERVATION_URI_FORMAT_CASES) {
+      expect(FORMATTERS[fixture.format](fixture.id)).toBe(fixture.uri);
+    }
   });
 });

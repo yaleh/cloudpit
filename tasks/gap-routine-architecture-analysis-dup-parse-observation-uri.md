@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-parse-observation-uri
 title: "architecture-analysis: archguard_detect_duplicates group d287c4c96e:
   structurally identical 14-statement / 225-token URI parser implemented once
   per side of the client/server bound"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed

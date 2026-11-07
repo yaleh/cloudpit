@@ -278,20 +278,18 @@ function stringField(record: Record<string, unknown> | null, key: string): strin
   return typeof value === 'string' ? value : null;
 }
 
-/** The nested `error.code` shape some DashScope answers use instead of a top-level `code`. */
-function nestedErrorCode(record: Record<string, unknown> | null): string | null {
+/**
+ * One member of the nested `error` shape some DashScope answers use instead of a top-level member.
+ *
+ * Both readers of that shape (`code` and `message`) go through this one function, so the
+ * "untrusted JSON document" rule exists once: a missing or non-object `error` reads as `null`, as
+ * does a member that is not a string.
+ */
+function nestedErrorField(record: Record<string, unknown> | null, key: 'code' | 'message'): string | null {
   if (record === null) return null;
   const error = record.error;
   if (typeof error !== 'object' || error === null) return null;
-  return stringField(error as Record<string, unknown>, 'code');
-}
-
-/** The nested `error.message` counterpart of {@link nestedErrorCode}. */
-function nestedErrorMessage(record: Record<string, unknown> | null): string | null {
-  if (record === null) return null;
-  const error = record.error;
-  if (typeof error !== 'object' || error === null) return null;
-  return stringField(error as Record<string, unknown>, 'message');
+  return stringField(error as Record<string, unknown>, key);
 }
 
 /** One bounded message for a frame and a result. */
@@ -319,10 +317,10 @@ function upstreamFailure(status: number, body: string): Extract<VoiceRealtimeTts
     parsed = null;
   }
 
-  const upstreamCode = stringField(parsed, 'code') ?? nestedErrorCode(parsed);
+  const upstreamCode = stringField(parsed, 'code') ?? nestedErrorField(parsed, 'code');
   const message =
     stringField(parsed, 'message') ??
-    nestedErrorMessage(parsed) ??
+    nestedErrorField(parsed, 'message') ??
     (body.trim() === '' ? `the TTS service answered HTTP ${status} with no body` : body);
 
   return {
@@ -492,10 +490,10 @@ function readSynthesisEvent(data: string): VoiceRealtimeTtsEventReading {
   }
 
   // An error can arrive INSIDE a 2xx stream (the service already committed the response).
-  const eventCode = stringField(event, 'code') ?? nestedErrorCode(event);
+  const eventCode = stringField(event, 'code') ?? nestedErrorField(event, 'code');
   if (eventCode !== null) {
     const message =
-      stringField(event, 'message') ?? nestedErrorMessage(event) ?? 'the TTS service reported an error';
+      stringField(event, 'message') ?? nestedErrorField(event, 'message') ?? 'the TTS service reported an error';
     return {
       kind: 'failure',
       failure: {

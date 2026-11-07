@@ -22,6 +22,11 @@ import test from 'node:test';
 import Database from 'better-sqlite3';
 
 import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
+import * as sharedObservationUri from '@shared/observation/observationUri.js';
+import {
+  OBSERVATION_URI_FORMAT_CASES,
+  OBSERVATION_URI_PARSE_CASES,
+} from '@shared/observation/observationUri.fixtures.js';
 
 import {
   formatSessionUri,
@@ -30,6 +35,7 @@ import {
   DEFAULT_OBSERVATION_WALL_LIMIT,
   type ObservedStatus,
 } from '../core/index.js';
+import * as serverObservationUri from '../core/observation-uri.js';
 
 const USER_ID = 'user-1';
 const PRODUCER = 'session-digest';
@@ -290,4 +296,57 @@ test('3.0: a write addresses only the canonical key; a legacy row is not continu
     store.listRevisions('cloudpit://session/chain', 0).map((revision) => revision.revision),
     [1],
   );
+});
+
+/**
+ * The server half of the shared URI fixture (archguard `dup-parse-observation-uri`).
+ *
+ * The grammar used to be implemented twice — once under `server/`, once under `src/` — and
+ * nothing forced the two copies to move together. It now has one home,
+ * `shared/observation/observationUri.ts`, and this file drives that fixture through the
+ * server-side entry. The frontend suite drives the SAME fixture through its own entry
+ * (`src/modules/cockpit/tests/observationUri.test.ts`), so a shim that stopped re-exporting
+ * the shared grammar, or a grammar change that one side did not follow, reds on one end.
+ */
+const FORMATTERS = {
+  session: serverObservationUri.formatSessionUri,
+  architecture: serverObservationUri.formatArchitectureUri,
+  project: serverObservationUri.formatProjectUri,
+  initiative: serverObservationUri.formatInitiativeUri,
+} as const;
+
+test('the server URI entry and the shared grammar answer the shared fixture identically', () => {
+  // One implementation, not a copy: the shim re-exports the very same functions.
+  for (const [name, viaServer, viaShared] of [
+    ['canonicalObservationUri', serverObservationUri.canonicalObservationUri, sharedObservationUri.canonicalObservationUri],
+    ['formatArchitectureUri', serverObservationUri.formatArchitectureUri, sharedObservationUri.formatArchitectureUri],
+    ['formatInitiativeUri', serverObservationUri.formatInitiativeUri, sharedObservationUri.formatInitiativeUri],
+    ['formatObservationUri', serverObservationUri.formatObservationUri, sharedObservationUri.formatObservationUri],
+    ['formatProjectUri', serverObservationUri.formatProjectUri, sharedObservationUri.formatProjectUri],
+    ['formatSessionUri', serverObservationUri.formatSessionUri, sharedObservationUri.formatSessionUri],
+    ['parseObservationUri', serverObservationUri.parseObservationUri, sharedObservationUri.parseObservationUri],
+  ] as const) {
+    assert.equal(viaServer, viaShared, `${name} must be the shared implementation, not a second copy`);
+  }
+
+  for (const fixture of OBSERVATION_URI_PARSE_CASES) {
+    const label = `input=${JSON.stringify(fixture.input)}`;
+    const parsed = serverObservationUri.parseObservationUri(fixture.input);
+    assert.deepEqual(parsed, fixture.expected, label);
+    if (fixture.expected !== null) {
+      assert.equal(
+        serverObservationUri.formatObservationUri(fixture.expected),
+        fixture.expected.uri,
+        `${label} must round-trip to its canonical spelling`,
+      );
+    }
+  }
+
+  for (const fixture of OBSERVATION_URI_FORMAT_CASES) {
+    assert.equal(
+      FORMATTERS[fixture.format](fixture.id),
+      fixture.uri,
+      `format${fixture.format}Uri(${fixture.id})`,
+    );
+  }
 });
