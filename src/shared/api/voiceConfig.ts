@@ -24,30 +24,21 @@
 // adapter reaches back into the registry, so importing the adapter here would enter it first and
 // leave the registry reading a binding that is still uninitialised.
 import { clientAsrProviderId } from '@shared/asr/asrRegistry';
-import type { VoiceSettings } from '@shared/voice/voiceSettingsRegistry';
 import {
   VOICE_SETTINGS_DEFAULTS,
   VOICE_SETTINGS_STRING_FIELDS,
 } from '@shared/voice/voiceSettingsRegistry';
 import { getStoredAuthToken } from '@/shared/authToken';
-import { api } from '@/shared/api';
+// The endpoint map, imported from its own module rather than through the package barrel: the
+// barrel value-imports this file, and reaching back into it made the two one file-level value
+// SCC (see `client.ts`). The alias resolves to the same module as `./client`.
+import { api } from '@/shared/api/client';
+import type { VoiceConfig } from '@/shared/api/voiceConfigType';
 
-/**
- * The browser's copy of the user's voice settings document.
- *
- * THE SHAPE IS THE CONTRACT'S, NOT THIS MODULE'S. `shared/voice/voiceSettingsRegistry.ts` names
- * every field once — the same declaration the server's `VoiceSettings`, the store's field list and
- * its empty row are read from — so a field added there reaches both ends rather than being written
- * down a second time here. What this module owns is the browser's RUNTIME copy: the in-memory
- * document, its hydration from the server and its whole-document saves.
- *
- * `Required` IS THE ONE DIFFERENCE FROM THE SERVER'S VIEW, and it is a real one rather than a
- * convenience: a stored row may omit the provider-owned and user-data fields (absent means
- * "unset", which the store resolves to its own default), while the browser always holds the
- * complete document it sends back whole. So the type is the same declaration read with the
- * optionality resolved, not a second list of fields.
- */
-export type VoiceConfig = Required<VoiceSettings>;
+// The document's type is declared once, in a leaf both this store and the endpoint map can
+// import without either pointing at the other. Re-exported so existing
+// `import type { VoiceConfig } from '@/shared/api/voiceConfig'` call sites keep working.
+export type { VoiceConfig } from '@/shared/api/voiceConfigType';
 
 /** The localStorage key the six fields lived under before they moved server-side. */
 export const VOICE_CONFIG_STORAGE_KEY = 'voiceConfig';

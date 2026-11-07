@@ -42,6 +42,14 @@
  * is exactly cockpit ↔ project-workspace, and the cockpit's leaf contract is its own top-level
  * module so the chat/sidebar/ui-scenario edges into it cannot pull those modules back into the
  * cockpit's SCC. A new module cycle, or a leaf contract that grows an out-edge, reds this file.
+ *
+ * FILE GRANULARITY (finding `file-cycle-shared-api-voiceconfig-barrel`, 2026-11-07). Both readings
+ * above collapse their nodes, so neither can see a cycle between two FILES of one package:
+ * `src/shared/api` is one directory node, and `src/shared` is not a feature module at all. That is
+ * how `voiceConfig.ts` (importing the `api` object from its own package's `index.ts` barrel) and
+ * `index.ts` (value-importing `readVoiceConfig`/`voiceConfigHeaders` back) stayed one file-level
+ * value SCC, invisible to every committed ratchet. The third reading below is the same walk,
+ * resolver and Tarjan core at file nodes over `src/shared`, pinned to ZERO non-trivial SCCs.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -51,8 +59,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   collectTypeScriptSources,
+  scanFileImportGraph,
   scanImportGraph,
   strongComponents,
+  type FileGraph,
   type Graph,
   type SourceFile,
 } from '@/shared/import-graph.js';
@@ -103,6 +113,15 @@ const MODULE_SCC_GROUPS: readonly string[][] = [['modules/cockpit', 'modules/pro
  */
 const MIN_MODULES = 25;
 const MIN_CROSS_MODULE_EDGES = 30;
+
+/**
+ * Non-vacuity floors for the FILE-level `src/shared` reading (finding
+ * `file-cycle-shared-api-voiceconfig-barrel`). The tree carries 77 files and 139 resolved file
+ * edges; the pin itself is "no non-trivial SCC", which a collapsed walk would satisfy for the
+ * wrong reason.
+ */
+const MIN_SHARED_FILES = 60;
+const MIN_SHARED_FILE_EDGES = 100;
 
 type Baseline = {
   measuredAt: string;
@@ -319,4 +338,81 @@ test('control: a shared leaf module imported by two modules closes no cycle', ()
     [['modules/alpha', 'modules/leaf']],
     'a contract that imports a feature module must join its SCC — otherwise the leaf guard would be vacuous',
   );
+});
+
+// ── The FILE-level reading of `src/shared` (finding `file-cycle-shared-api-voiceconfig-barrel`) ──
+//
+// The two readings above collapse first (directories, then modules), so a cycle between two files
+// of ONE package is invisible to both. This one keeps files as nodes; the pin is empty, so the only
+// movement it allows is none — a new file-level cycle reds on the commit that adds it.
+
+/** Scan a synthetic file tree through the shared FILE-level scanner, so controls drive the real reading. */
+function scanFileFixture(files: Record<string, string>): FileGraph {
+  const sources: SourceFile[] = Object.entries(files).map(([filePath, text]) => ({ path: filePath, text }));
+  return scanFileImportGraph(sources);
+}
+
+/** The file-level pin: zero non-trivial SCCs. A shrink is impossible; any addition is a red. */
+function assertNoFileSccs(measured: readonly string[][]): void {
+  assert.deepEqual(
+    measured,
+    [],
+    'src/shared gained a file-level SCC. A cycle between files of one package is invisible to the ' +
+      'directory and module readings above: close it by extracting a leaf module (as ' +
+      '`api/client.ts` did for the voiceConfig barrel), never by pinning it.',
+  );
+}
+
+test('the current src/shared file graph carries no cycle', () => {
+  const sources = collectTypeScriptSources(SRC_DIR).filter((source) => source.path.startsWith('shared/'));
+  const graph = scanFileImportGraph(sources);
+
+  assert.ok(
+    graph.files >= MIN_SHARED_FILES,
+    `src/shared file scan read ${graph.files} files (< ${MIN_SHARED_FILES}) — a collapsed walk is not a clean one`,
+  );
+  assert.ok(
+    graph.fileEdges.length >= MIN_SHARED_FILE_EDGES,
+    `src/shared file scan resolved ${graph.fileEdges.length} edges (< ${MIN_SHARED_FILE_EDGES}) — the graph is not being read`,
+  );
+  assert.ok(
+    !sources.some((source) => /\.(test|spec)\.(ts|tsx)$/.test(source.path)),
+    'the file-level reading reads the shipping tree; test/spec files must be dropped by the walk',
+  );
+
+  console.log(`(file) src/shared files=${graph.files} edges=${graph.fileEdges.length} sccs=${JSON.stringify(graph.nonTrivialSccs)}`);
+  assertNoFileSccs(graph.nonTrivialSccs);
+});
+
+test('positive control: a planted two-file cycle reds the file-level pin', () => {
+  const graph = scanFileFixture({
+    'shared/alpha/a.ts': "import '@/shared/beta/b.js';\n",
+    'shared/beta/b.ts': "import '../alpha/a.js';\n",
+  });
+
+  assert.deepEqual(
+    graph.nonTrivialSccs,
+    [['shared/alpha/a.ts', 'shared/beta/b.ts']],
+    'the shared file-level scanner must see the planted cycle: one @/ edge and one relative edge',
+  );
+  assert.throws(
+    () => assertNoFileSccs(graph.nonTrivialSccs),
+    /gained a file-level SCC/,
+    'a file-level cycle outside the pin must red the same assertion the real tree uses',
+  );
+});
+
+test('negative control: a one-way file import is not a cycle', () => {
+  const graph = scanFileFixture({
+    'shared/alpha/a.ts': "export { b } from '@/shared/beta/b.js';\n",
+    'shared/beta/b.ts': 'export const b = 1;\n',
+  });
+
+  assert.deepEqual(graph.nonTrivialSccs, [], 'a one-way re-export cannot close a file-level cycle');
+  assert.equal(
+    graph.fileEdges.length,
+    1,
+    'the edge must resolve — an unresolved import would make the empty SCC list vacuous',
+  );
+  assert.doesNotThrow(() => assertNoFileSccs(graph.nonTrivialSccs), 'an acyclic reading matches the empty pin');
 });

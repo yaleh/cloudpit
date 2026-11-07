@@ -41,7 +41,9 @@ const voice = vi.hoisted(() => ({
   saveConfig: vi.fn(),
 }));
 
-vi.mock('@/shared/api', () => ({ api: { voice }, authenticatedFetch: vi.fn() }));
+// Mocked at `client.ts`, the module both the barrel and `voiceConfig.ts` reach;
+// see the same note in voiceDataSettings.test.tsx.
+vi.mock('@/shared/api/client', () => ({ api: { voice }, authenticatedFetch: vi.fn() }));
 
 /**
  * The on-device recogniser's reading, as the settings panel consumes it.

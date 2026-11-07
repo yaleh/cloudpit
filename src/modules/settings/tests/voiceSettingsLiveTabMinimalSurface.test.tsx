@@ -50,7 +50,9 @@ const voiceRealtime = vi.hoisted(() => ({
   speakerModelDownload: vi.fn(),
 }));
 
-vi.mock('@/shared/api', () => ({ api: { voice, voiceRealtime }, authenticatedFetch: vi.fn() }));
+// Mocked at `client.ts`, the module both the barrel and `voiceConfig.ts` reach;
+// see the same note in voiceDataSettings.test.tsx.
+vi.mock('@/shared/api/client', () => ({ api: { voice, voiceRealtime }, authenticatedFetch: vi.fn() }));
 
 /** The four readings the speaker-model section can render. */
 const SPEAKER_MODEL_MISSING = {

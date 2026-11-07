@@ -9,7 +9,10 @@ const { configRequest, saveConfigRequest } = vi.hoisted(() => ({
 
 // The settings live in module memory and reach the server through `api`, so the
 // endpoint map is replaced wholesale: no test here may touch the network.
-vi.mock('@/shared/api', () => ({
+// Mocked at `client.ts`, the module `voiceConfig.ts` actually imports: the barrel
+// (`@/shared/api`) re-exports the same object, but the store reaches `./client`
+// directly so the two files are not an import cycle.
+vi.mock('@/shared/api/client', () => ({
   api: {
     voice: {
       config: configRequest,

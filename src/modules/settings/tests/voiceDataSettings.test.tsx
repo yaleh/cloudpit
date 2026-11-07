@@ -31,7 +31,11 @@ const voice = vi.hoisted(() => ({
   clearData: vi.fn(),
 }));
 
-vi.mock('@/shared/api', () => ({ api: { voice }, authenticatedFetch: vi.fn() }));
+// The endpoint map lives in `client.ts`; the barrel re-exports the same object, and
+// `voiceConfig.ts` (the store the tab writes through) imports `./client` directly to
+// keep its file-level import cycle broken. Mocking the module it actually imports
+// keeps the store and every barrel consumer on this one double.
+vi.mock('@/shared/api/client', () => ({ api: { voice }, authenticatedFetch: vi.fn() }));
 
 // The tab's own enable switch is not what any reading here is about, and it gates the section
 // below: pinned on so the data section renders. The toggle under test is the one named
