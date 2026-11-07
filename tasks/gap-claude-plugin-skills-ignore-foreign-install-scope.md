@@ -22,6 +22,8 @@ extra:
 <!-- dedup-ref -->
 与 `gap-claude-plugin-skills-scan-all-cache-versions` 保持分离：那条决定「一个 record 内读哪些目录」，这条决定「哪些 record 适用于本工作区」，验收互不依赖；两条共用 provider 与测试文件，调度器串行，`task-granularity-advice` 的 peers 为空。
 
+- 该轴仍暗,理由:本任务只改插件记录筛选与共享读取器，AC 内没有 L_D/L_G 探针或读数可记，两轴读数不因本任务变化。
+
 ## AC
 
 - [ ] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：`scope: local` 且 `projectPath` 指向别处的记录完全不贡献技能；`projectPath` 等于本工作区的记录贡献技能。
