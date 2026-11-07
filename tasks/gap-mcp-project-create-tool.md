@@ -2,7 +2,7 @@
 id: gap-mcp-project-create-tool
 title: 新增 Cloudpit MCP 工具 project_create：复用 UI 的 createProject 流程（安全目录/幂等/返回
   projectId+path），创建后 projects_list 与 session_create 可直接使用
-status: todo
+status: ready
 labels:
   - gap
   - feature
