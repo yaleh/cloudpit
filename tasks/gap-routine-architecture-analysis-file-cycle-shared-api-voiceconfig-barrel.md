@@ -72,3 +72,11 @@ Extract the `api` object (index.ts:306) into src/shared/api/client.ts, re-export
 - `src/modules/settings/tests/voiceSettingsProviderSelection.test.tsx`
 - `server/shared/tests/frontend-import-cycle-budget.test.ts`
 - `tasks/gap-routine-architecture-analysis-file-cycle-shared-api-voiceconfig-barrel.md`
+
+## Blocker
+
+**2026-11-07T13:27:33.724Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - src/modules/cockpit/tests/cockpitCardStartConversation.test.ts: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal: [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=src/modules/cockpit/tests/cockpitCardStartConversation.test.ts,src/modules/file-tree/tests/fileTreeSearchIndex.test.tsx,src/modules/cockpit/tests/cockpitCardStartConversation.test.ts,src/modules/file-tree/tests/fileTreeSearchIndex.test.tsx changed=-]
+- run_id：wk-prod-anchor
+- session_id：4ff406eb-4f42-40f8-b47f-9c1233236f4a
