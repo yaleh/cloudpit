@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -133,7 +133,15 @@ test('search reads the search index and never imports the reference hook', () =>
   assert.match(searchSource, /useFileTreeSearchIndex/);
   assert.doesNotMatch(searchSource, /useProjectFileIndex|loadProjectFileIndex/);
 
-  const apiSource = readFileSync(resolve(root, 'src/shared/api/index.ts'), 'utf8');
+  // The endpoint map lives in `clientCore`/`clientTail` and is composed by `client.ts`;
+  // `index.ts` only re-exports it. Read the whole package surface, not one file, so the
+  // invariant survives the split that removed the value SCC between the barrel and
+  // `voiceConfig.ts`.
+  const apiDir = resolve(root, 'src/shared/api');
+  const apiSource = readdirSync(apiDir)
+    .filter((name) => name.endsWith('.ts') && !/\.test\.ts$/.test(name))
+    .map((name) => readFileSync(resolve(apiDir, name), 'utf8'))
+    .join('\n');
   assert.match(apiSource, /files-search-index/, 'the search endpoint is shipped in the api surface');
   assert.doesNotMatch(apiSource, /\bgetFiles\b/, 'the retired full-tree fetch stays retired');
 });

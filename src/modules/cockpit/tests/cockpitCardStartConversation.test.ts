@@ -178,7 +178,9 @@ describe('the new-session setting did not leak into the existing send paths', ()
       'src/modules/cockpit/hooks/useCockpitStartConversation.ts',
       'src/modules/settings/hooks/useCockpitSessionStartSettings.ts',
       'src/modules/settings/tabs/CockpitSessionStartSettingsTab.tsx',
-      'src/shared/api/index.ts',
+      // The settings endpoint row moved out of the barrel into the tail of the endpoint map
+      // (the barrel now only re-exports `api`), so the allowed surface follows it.
+      'src/shared/api/clientTail.ts',
     ]);
     console.log(`(5) cockpitSessionStart referenced by: ${referencing.join(', ')}`);
   });
