@@ -58,3 +58,12 @@ Collapse into one helper parameterised by the field key; AC: the duplicate scan 
 - `server/modules/voice-realtime/voice-realtime-tts.ts`
 - `server/modules/voice-realtime/tests/voice-realtime-tts.test.ts`
 - `tasks/gap-routine-architecture-analysis-dup-nested-error-readers.md`
+
+## Blocker
+
+**2026-11-07T13:13:21.038Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:   ?? docs/evidence/knowledge-application-scenario-runtime.json
+- run_id：wk-prod-anchor
+- session_id：2dcacec1-945a-4cbb-bc0a-df6676ed4d14
