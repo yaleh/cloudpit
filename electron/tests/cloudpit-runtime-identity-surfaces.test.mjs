@@ -468,19 +468,33 @@ test('AC4: the live non-goal identity pins are untouched', () => {
   // v3.0 R7 retires the dual-read observation grammar. The forbidden branch is
   // assembled from parts: this file lives inside the surface it scans (it is
   // excluded by path), so it must not carry a literal copy of it.
+  //
+  // The grammar itself now has ONE home — the repo-root `shared/` tree both compilers
+  // compile (the fix for archguard's duplicate-code finding `dup-parse-observation-uri`) —
+  // and the two former copies are pure re-export shims onto it. The canonical-spelling
+  // reading is taken on that one file; each shim must point at it rather than restate it.
   const RETIRED_DUAL_READ_URI = `(?:${LEGACY_STEM}|cloudpit)://`;
+  const grammarSource = readRepoFile('shared/observation/observationUri.ts');
+  assert.ok(
+    grammarSource.includes('^cloudpit://(session|architecture)/'),
+    'the one observation URI grammar accepts only the canonical cloudpit:// spellings',
+  );
+  assert.ok(
+    !grammarSource.includes(RETIRED_DUAL_READ_URI),
+    'the one observation URI grammar accepts only the canonical cloudpit:// spellings (the retired dual-read branch is back)',
+  );
   for (const file of [
     'src/modules/cockpit-contract/observationUri.ts',
     'server/modules/observation/core/observation-uri.ts',
   ]) {
     const source = readRepoFile(file);
     assert.ok(
-      source.includes('^cloudpit://(session|architecture)/'),
-      `${file} accepts only the canonical cloudpit:// observation URI`,
+      source.includes("from '@shared/observation/observationUri"),
+      `${file} re-exports the one observation URI grammar`,
     );
     assert.ok(
-      !source.includes(RETIRED_DUAL_READ_URI),
-      `${file} accepts only the canonical cloudpit:// observation URI (the retired dual-read branch is back)`,
+      !source.includes('^cloudpit://(session|architecture)/'),
+      `${file} must not restate the grammar: the shared module is the one implementation`,
     );
   }
 });
