@@ -870,3 +870,291 @@ test('providerSkillsService rejects managed skill creation for opencode', { conc
     /does not support managed global skills/i,
   );
 });
+
+const writeClaudePluginRegistry = async (
+  claudeHomePath: string,
+  plugins: Record<string, Array<Record<string, unknown>>>,
+): Promise<void> => {
+  const pluginsRoot = path.join(claudeHomePath, 'plugins');
+  await fs.mkdir(pluginsRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(pluginsRoot, 'installed_plugins.json'),
+    JSON.stringify({ version: 2, plugins }, null, 2),
+    'utf8',
+  );
+};
+
+const writeClaudeEnabledPlugins = async (
+  settingsPath: string,
+  enabledPlugins: Record<string, boolean>,
+): Promise<void> => {
+  await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+  await fs.writeFile(settingsPath, JSON.stringify({ enabledPlugins }, null, 2), 'utf8');
+};
+
+/**
+ * A plugin registry can carry one record per install scope, and the cache keeps every release.
+ * A `local`/`project` record belongs to the project named by its `projectPath`: an install made
+ * for another workspace (a `local` archguard release, say) must not contribute skills here,
+ * while a record whose `projectPath` is this workspace does.
+ */
+test('providerSkillsService ignores plugin install records scoped to another project', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-scope-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const otherProjectPath = path.join(tempRoot, 'other-project');
+  const pluginCacheRoot = path.join(
+    tempRoot,
+    '.claude',
+    'plugins',
+    'cache',
+    'archguard-marketplace',
+    'archguard',
+  );
+  const foreignLocalInstallPath = path.join(pluginCacheRoot, '0.1.42');
+  const workspaceProjectInstallPath = path.join(pluginCacheRoot, '0.1.44');
+  const foreignOnlyInstallPath = path.join(pluginCacheRoot, 'foreign-only', '0.1.40');
+  await fs.mkdir(workspacePath, { recursive: true });
+  await fs.mkdir(otherProjectPath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await writeClaudePluginManifest(foreignLocalInstallPath, 'archguard');
+    await writeClaudePluginCommand(
+      path.join(foreignLocalInstallPath, 'commands'),
+      'foreign-local-command',
+      'Command from another project\'s local install',
+    );
+    await writeClaudePluginManifest(workspaceProjectInstallPath, 'archguard');
+    await writeClaudePluginCommand(
+      path.join(workspaceProjectInstallPath, 'commands'),
+      'workspace-command',
+      'Command from this workspace\'s project install',
+    );
+    await writeClaudePluginManifest(foreignOnlyInstallPath, 'foreign-only');
+    await writeClaudePluginCommand(
+      path.join(foreignOnlyInstallPath, 'commands'),
+      'foreign-only-command',
+      'Command from a plugin installed only for another project',
+    );
+
+    await writeClaudeEnabledPlugins(
+      path.join(tempRoot, '.claude', 'settings.json'),
+      {
+        'archguard@archguard-marketplace': true,
+        'foreign-only@foreign-marketplace': true,
+      },
+    );
+    await writeClaudePluginRegistry(path.join(tempRoot, '.claude'), {
+      'archguard@archguard-marketplace': [
+        {
+          scope: 'local',
+          projectPath: otherProjectPath,
+          installPath: foreignLocalInstallPath,
+          version: '0.1.42',
+          lastUpdated: '2026-10-21T15:48:17.355Z',
+        },
+        {
+          scope: 'project',
+          projectPath: workspacePath,
+          installPath: workspaceProjectInstallPath,
+          version: '0.1.44',
+          lastUpdated: '2026-10-22T09:00:00.000Z',
+        },
+      ],
+      'foreign-only@foreign-marketplace': [
+        {
+          scope: 'local',
+          projectPath: otherProjectPath,
+          installPath: foreignOnlyInstallPath,
+          version: '0.1.40',
+          lastUpdated: '2026-10-20T09:00:00.000Z',
+        },
+      ],
+    });
+
+    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+    const byName = new Map(skills.map((skill) => [skill.name, skill]));
+
+    const workspaceCommand = byName.get('workspace-command');
+    assert.equal(workspaceCommand?.scope, 'plugin');
+    assert.equal(workspaceCommand?.command, '/archguard:workspace-command');
+    assert.equal(
+      workspaceCommand?.sourcePath.startsWith(`${workspaceProjectInstallPath}${path.sep}`),
+      true,
+    );
+
+    assert.equal(byName.has('foreign-local-command'), false);
+    assert.equal(byName.has('foreign-only-command'), false);
+    assert.equal(
+      skills.some(
+        (skill) =>
+          skill.scope === 'plugin'
+          && skill.sourcePath.startsWith(`${foreignLocalInstallPath}${path.sep}`),
+      ),
+      false,
+    );
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * One plugin with both a `user` and a `project` (this workspace) enabled record must be listed
+ * from the project record only: the higher priority record IS the installed plugin, and reading
+ * the lower one as well duplicates every command in the menu.
+ */
+test('providerSkillsService lists a plugin from its highest-priority applicable record once', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-priority-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const pluginCacheRoot = path.join(
+    tempRoot,
+    '.claude',
+    'plugins',
+    'cache',
+    'archguard-marketplace',
+    'archguard',
+  );
+  const userInstallPath = path.join(pluginCacheRoot, '0.1.44');
+  const projectInstallPath = path.join(pluginCacheRoot, '0.1.45');
+  await fs.mkdir(workspacePath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    for (const installPath of [userInstallPath, projectInstallPath]) {
+      await writeClaudePluginManifest(installPath, 'archguard');
+      await writeClaudePluginCommand(
+        path.join(installPath, 'commands'),
+        'inspect',
+        `Inspect command from ${path.basename(installPath)}`,
+      );
+      await writeClaudePluginCommand(
+        path.join(installPath, 'commands'),
+        'status',
+        `Status command from ${path.basename(installPath)}`,
+      );
+    }
+
+    await writeClaudeEnabledPlugins(
+      path.join(tempRoot, '.claude', 'settings.json'),
+      { 'archguard@archguard-marketplace': true },
+    );
+    await writeClaudePluginRegistry(path.join(tempRoot, '.claude'), {
+      'archguard@archguard-marketplace': [
+        {
+          scope: 'user',
+          installPath: userInstallPath,
+          version: '0.1.44',
+          lastUpdated: '2026-11-06T02:17:59.353Z',
+        },
+        {
+          scope: 'project',
+          projectPath: workspacePath,
+          installPath: projectInstallPath,
+          version: '0.1.45',
+          lastUpdated: '2026-10-20T02:17:59.353Z',
+        },
+      ],
+    });
+
+    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+
+    for (const commandName of ['inspect', 'status']) {
+      const matching = skills.filter((skill) => skill.command === `/archguard:${commandName}`);
+      assert.equal(matching.length, 1, `${commandName} must be listed exactly once`);
+      assert.equal(
+        matching[0]?.sourcePath.startsWith(`${projectInstallPath}${path.sep}`),
+        true,
+        `${commandName} must come from the higher-priority project record`,
+      );
+    }
+    assert.equal(
+      skills.some(
+        (skill) =>
+          skill.scope === 'plugin'
+          && skill.sourcePath.startsWith(`${userInstallPath}${path.sep}`),
+      ),
+      false,
+    );
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * `enabledPlugins` is a per-scope switch with Claude's precedence: the user settings can enable
+ * a plugin while this workspace's `.claude/settings.json` disables its project scope, and a
+ * plugin no settings file mentions is enabled by default.
+ */
+test('providerSkillsService applies enabledPlugins precedence per plugin scope', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-enabled-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const pluginCacheRoot = path.join(
+    tempRoot,
+    '.claude',
+    'plugins',
+    'cache',
+    'precedence-marketplace',
+  );
+  const projectInstallPath = path.join(pluginCacheRoot, 'precedence-plugin', '0.1.0');
+  const unconfiguredInstallPath = path.join(pluginCacheRoot, 'unconfigured-plugin', '0.2.0');
+  await fs.mkdir(workspacePath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await writeClaudePluginManifest(projectInstallPath, 'precedence-plugin');
+    await writeClaudePluginCommand(
+      path.join(projectInstallPath, 'commands'),
+      'disabled-by-workspace',
+      'Command whose project scope the workspace disabled',
+    );
+    await writeClaudePluginManifest(unconfiguredInstallPath, 'unconfigured-plugin');
+    await writeClaudePluginCommand(
+      path.join(unconfiguredInstallPath, 'commands'),
+      'enabled-by-default',
+      'Command from a plugin no settings file mentions',
+    );
+
+    await writeClaudeEnabledPlugins(
+      path.join(tempRoot, '.claude', 'settings.json'),
+      { 'precedence-plugin@precedence-marketplace': true },
+    );
+    await writeClaudeEnabledPlugins(
+      path.join(workspacePath, '.claude', 'settings.json'),
+      { 'precedence-plugin@precedence-marketplace': false },
+    );
+    await writeClaudePluginRegistry(path.join(tempRoot, '.claude'), {
+      'precedence-plugin@precedence-marketplace': [
+        {
+          scope: 'project',
+          projectPath: workspacePath,
+          installPath: projectInstallPath,
+          version: '0.1.0',
+          lastUpdated: '2026-10-20T02:17:59.353Z',
+        },
+      ],
+      'unconfigured-plugin@precedence-marketplace': [
+        {
+          scope: 'user',
+          installPath: unconfiguredInstallPath,
+          version: '0.2.0',
+          lastUpdated: '2026-10-20T02:17:59.353Z',
+        },
+      ],
+    });
+
+    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+    const byName = new Map(skills.map((skill) => [skill.name, skill]));
+
+    assert.equal(byName.has('disabled-by-workspace'), false);
+    assert.equal(byName.get('enabled-by-default')?.scope, 'plugin');
+    assert.equal(
+      byName.get('enabled-by-default')?.sourcePath.startsWith(`${unconfiguredInstallPath}${path.sep}`),
+      true,
+    );
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});

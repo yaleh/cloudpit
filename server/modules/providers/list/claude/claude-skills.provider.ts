@@ -4,6 +4,13 @@ import path from 'node:path';
 
 import { SkillsProvider } from '@/modules/providers/shared/skills/skills.provider.js';
 import { parseFrontMatter } from '@/shared/frontmatter.js';
+import {
+  parsePluginInstallRecords,
+  readPluginEnabledFlag,
+  resolveEnabledPluginScopes,
+  selectPluginScopeCandidates,
+} from '@/shared/plugin-scope.js';
+import type { PluginScopeCandidate } from '@/shared/plugin-scope.js';
 import type {
   ProviderSkill,
   ProviderSkillListOptions,
@@ -117,9 +124,10 @@ export class ClaudeSkillsProvider extends SkillsProvider {
   }
 
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
+    const workspacePath = path.resolve(options?.workspacePath ?? process.cwd());
     return [
       ...(await super.listSkills(options)),
-      ...(await this.listPluginSkills(getClaudeHomePath())),
+      ...(await this.listPluginSkills(getClaudeHomePath(), workspacePath)),
     ];
   }
 
@@ -148,13 +156,20 @@ export class ClaudeSkillsProvider extends SkillsProvider {
     };
   }
 
-  private async listPluginSkills(claudeHomePath: string): Promise<ProviderSkill[]> {
-    const settings = await readJsonConfig(path.join(claudeHomePath, 'settings.json'));
-    const enabledPlugins = readObjectRecord(settings.enabledPlugins);
-    if (!enabledPlugins) {
-      return [];
-    }
-
+  /**
+   * Lists the commands and skills of every installed plugin that applies to `workspacePath`.
+   *
+   * Claude's registry can hold several records for one plugin — one per install scope — and its
+   * cache holds every release. Only the highest-priority applicable, enabled record is the
+   * installed payload. Walking every record instead is what surfaced a `scope: local` install
+   * belonging to a different project and what listed one plugin's commands twice; the
+   * applicability and precedence rules live in `server/shared/plugin-scope.ts` so this provider
+   * and the quay entrypoint resolver cannot drift apart.
+   */
+  private async listPluginSkills(
+    claudeHomePath: string,
+    workspacePath: string,
+  ): Promise<ProviderSkill[]> {
     const installedConfig = await readJsonConfig(
       path.join(claudeHomePath, 'plugins', 'installed_plugins.json'),
     );
@@ -163,65 +178,94 @@ export class ClaudeSkillsProvider extends SkillsProvider {
       return [];
     }
 
+    // The three files that may carry each plugin's enabled state, read once for the listing.
+    // A plugin absent from all three follows the shared rule's default (enabled).
+    const [userSettings, projectSettings, projectLocalSettings] = await Promise.all([
+      readJsonConfig(path.join(claudeHomePath, 'settings.json')),
+      readJsonConfig(path.join(workspacePath, '.claude', 'settings.json')),
+      readJsonConfig(path.join(workspacePath, '.claude', 'settings.local.json')),
+    ]);
+
     const skills: ProviderSkill[] = [];
-    const visitedPluginFolders = new Set<string>();
-    const pluginEntries = Object.entries(enabledPlugins)
-      .sort(([left], [right]) => left.localeCompare(right));
-    for (const [pluginId, enabled] of pluginEntries) {
-      if (enabled !== true) {
+    const pluginIds = Object.keys(installedPlugins).sort((left, right) =>
+      left.localeCompare(right),
+    );
+    for (const pluginId of pluginIds) {
+      const enabledByScope = resolveEnabledPluginScopes({
+        user: readPluginEnabledFlag(userSettings, pluginId),
+        project: readPluginEnabledFlag(projectSettings, pluginId),
+        local: readPluginEnabledFlag(projectLocalSettings, pluginId),
+      });
+      const candidate = await this.selectInstalledPluginRecord(
+        selectPluginScopeCandidates({
+          projectRoot: workspacePath,
+          records: parsePluginInstallRecords(installedPlugins[pluginId]),
+          enabledByScope,
+        }),
+      );
+      if (candidate === null) {
         continue;
       }
 
-      const installs = installedPlugins[pluginId];
-      if (!Array.isArray(installs)) {
-        continue;
-      }
+      const { installPath, version: installVersion } = candidate.record;
+      const pluginFolders = await resolvePluginPayloadFolders(installPath, installVersion);
+      const visitedPluginFolders = new Set<string>();
+      for (const pluginFolder of pluginFolders) {
+        const pluginFolderKey = `${pluginId}:${path.resolve(pluginFolder)}`;
+        if (visitedPluginFolders.has(pluginFolderKey)) {
+          continue;
+        }
+        visitedPluginFolders.add(pluginFolderKey);
 
-      for (const install of installs) {
-        const installRecord = readObjectRecord(install);
-        const installPath = readOptionalString(installRecord?.installPath);
-        if (!installPath) {
+        const pluginName = await readClaudePluginName(pluginFolder, pluginId);
+        if (!pluginName) {
           continue;
         }
 
-        const installVersion = readOptionalString(installRecord?.version);
-        const pluginFolders = await resolvePluginPayloadFolders(installPath, installVersion);
-        for (const pluginFolder of pluginFolders) {
-          const pluginFolderKey = `${pluginId}:${path.resolve(pluginFolder)}`;
-          if (visitedPluginFolders.has(pluginFolderKey)) {
-            continue;
-          }
-          visitedPluginFolders.add(pluginFolderKey);
-
-          const pluginName = await readClaudePluginName(pluginFolder, pluginId);
-          if (!pluginName) {
-            continue;
-          }
-
-          // A plugin may ship commands, skills, or both, and the CLI offers
-          // both halves. Reading only the first folder found hid every skill
-          // that sits beside a commands folder -- and hid the whole plugin when
-          // its commands are in a format this reader does not take.
-          const commandsPath = path.join(pluginFolder, 'commands');
-          if (await pathExistsAsDirectory(commandsPath)) {
-            skills.push(
-              ...(await this.listPluginCommandSkills(commandsPath, pluginId, pluginName)),
-            );
-          }
-
-          const skillsPath = path.join(pluginFolder, 'skills');
-          if (!(await pathExistsAsDirectory(skillsPath))) {
-            continue;
-          }
-
+        // A plugin may ship commands, skills, or both, and the CLI offers
+        // both halves. Reading only the first folder found hid every skill
+        // that sits beside a commands folder -- and hid the whole plugin when
+        // its commands are in a format this reader does not take.
+        const commandsPath = path.join(pluginFolder, 'commands');
+        if (await pathExistsAsDirectory(commandsPath)) {
           skills.push(
-            ...(await this.listPluginSkillMarkdowns(pluginFolder, pluginId, pluginName)),
+            ...(await this.listPluginCommandSkills(commandsPath, pluginId, pluginName)),
           );
         }
+
+        const skillsPath = path.join(pluginFolder, 'skills');
+        if (!(await pathExistsAsDirectory(skillsPath))) {
+          continue;
+        }
+
+        skills.push(
+          ...(await this.listPluginSkillMarkdowns(pluginFolder, pluginId, pluginName)),
+        );
       }
     }
 
     return skills;
+  }
+
+  /**
+   * The first enabled candidate whose `installPath` is still a directory, or `null`.
+   *
+   * A record whose release directory was cleaned up must degrade to the next scope — the same
+   * fallback the quay entrypoint resolver performs — instead of hiding a lower-scope install
+   * that still exists.
+   */
+  private async selectInstalledPluginRecord(
+    candidates: readonly PluginScopeCandidate[],
+  ): Promise<PluginScopeCandidate | null> {
+    for (const candidate of candidates) {
+      if (!candidate.enabled) {
+        continue;
+      }
+      if (await pathExistsAsDirectory(candidate.record.installPath)) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   private async listPluginCommandSkills(

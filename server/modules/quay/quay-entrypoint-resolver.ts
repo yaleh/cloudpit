@@ -1,5 +1,13 @@
 import path from 'node:path';
 
+import {
+  parsePluginInstallRecords,
+  readPluginEnabledFlag,
+  resolveEnabledPluginScopes,
+  selectPluginScopeCandidates,
+  type PluginEnabledScopes,
+  type PluginInstallRecord,
+} from '@/shared/plugin-scope.js';
 import type { QuayEntrypointDiagnostic } from '@/shared/types.js';
 
 /**
@@ -88,33 +96,8 @@ export type QuayEntrypointResolver = {
   resolve(projectRoot: string): QuayEntrypointResolution;
 };
 
-/** The three Claude Code plugin install scopes that carry a `quay@quay` record. */
-type PluginScope = 'local' | 'project' | 'user';
-
-/** One `quay@quay` install record from `installed_plugins.json`. */
-type PluginRecord = {
-  scope: PluginScope;
-  installPath: string;
-  version: string;
-  projectPath: string | null;
-  lastUpdated: string | null;
-};
-
-/** A record that applies to the project, with its scope's enabled state already resolved. */
-type PluginCandidate = {
-  record: PluginRecord;
-  enabled: boolean;
-};
-
 /** The path, relative to a project root, of the legacy `/quay:init` pin. */
 const LEGACY_PLUGIN_RELATIVE_PATH = path.join('.quay', 'plugin');
-
-/** Local records outrank project records, which outrank user records. */
-const SCOPE_RANK: Record<PluginScope, number> = {
-  local: 3,
-  project: 2,
-  user: 1,
-};
 
 /** The bare command the final fallback uses; `resolveEntrypointSource` reports it as `path`. */
 const BARE_QUAY_COMMAND = 'quay';
@@ -278,8 +261,7 @@ export function createQuayEntrypointResolver(
       warnings.push(`${filePath}: \`enabledPlugins\` must be a JSON object; ignored.`);
       return undefined;
     }
-    const value = (enabledPlugins as Record<string, unknown>)[QUAY_PLUGIN_KEY];
-    return typeof value === 'boolean' ? value : undefined;
+    return readPluginEnabledFlag(parsed, QUAY_PLUGIN_KEY);
   };
 
   /**
@@ -291,19 +273,15 @@ export function createQuayEntrypointResolver(
   const readEnabledByScope = (
     projectRoot: string,
     warnings: string[],
-  ): Record<'local' | 'project' | 'user', boolean> => {
+  ): PluginEnabledScopes => {
     const user = readEnabledFlag(userSettingsPath, warnings);
     const project = readEnabledFlag(projectSettingsPath(projectRoot), warnings);
     const local = readEnabledFlag(projectLocalSettingsPath(projectRoot), warnings);
-    return {
-      user: user ?? true,
-      project: project ?? user ?? true,
-      local: local ?? project ?? user ?? true,
-    };
+    return resolveEnabledPluginScopes({ user, project, local });
   };
 
   /** Reads the `quay@quay` records out of `installed_plugins.json`. */
-  const readPluginRecords = (warnings: string[]): PluginRecord[] => {
+  const readPluginRecords = (warnings: string[]): PluginInstallRecord[] => {
     const text = fileSystem.readText(installedPluginsPath);
     if (text === null) {
       return [];
@@ -317,34 +295,7 @@ export function createQuayEntrypointResolver(
     if (typeof plugins !== 'object' || plugins === null || Array.isArray(plugins)) {
       return [];
     }
-    const rawRecords = (plugins as Record<string, unknown>)[QUAY_PLUGIN_KEY];
-    if (!Array.isArray(rawRecords)) {
-      return [];
-    }
-
-    const records: PluginRecord[] = [];
-    for (const raw of rawRecords) {
-      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-        continue;
-      }
-      const record = raw as Record<string, unknown>;
-      const scope = record.scope;
-      if (scope !== 'local' && scope !== 'project' && scope !== 'user') {
-        continue;
-      }
-      const installPath = readNonEmptyString(record.installPath);
-      if (installPath === null) {
-        continue;
-      }
-      records.push({
-        scope,
-        installPath,
-        version: readNonEmptyString(record.version) ?? '',
-        projectPath: readNonEmptyString(record.projectPath),
-        lastUpdated: readNonEmptyString(record.lastUpdated),
-      });
-    }
-    return records;
+    return parsePluginInstallRecords((plugins as Record<string, unknown>)[QUAY_PLUGIN_KEY]);
   };
 
   /**
@@ -355,26 +306,9 @@ export function createQuayEntrypointResolver(
    */
   const readCandidates = (
     projectRoot: string,
-    records: readonly PluginRecord[],
-    enabledByScope: Record<'local' | 'project' | 'user', boolean>,
-  ): PluginCandidate[] => {
-    const resolvedProjectRoot = path.resolve(projectRoot);
-    return records
-      .filter((record) => {
-        if (record.scope === 'user') {
-          return true;
-        }
-        return record.projectPath !== null && path.resolve(record.projectPath) === resolvedProjectRoot;
-      })
-      .sort((left, right) => {
-        const rank = SCOPE_RANK[right.scope] - SCOPE_RANK[left.scope];
-        if (rank !== 0) {
-          return rank;
-        }
-        return (right.lastUpdated ?? '').localeCompare(left.lastUpdated ?? '');
-      })
-      .map((record) => ({ record, enabled: enabledByScope[record.scope] }));
-  };
+    records: readonly PluginInstallRecord[],
+    enabledByScope: PluginEnabledScopes,
+  ) => selectPluginScopeCandidates({ projectRoot, records, enabledByScope });
 
   /** Reads an install root's version carrier (`VERSION`, else the plugin manifest). */
   const readVersion = (installRoot: string): string => {
