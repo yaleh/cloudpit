@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-dup-nested-error-readers
 title: "architecture-analysis: archguard_detect_duplicates group a9f71260a1:
   6-statement / 64-token same-file clone pair whose bodies differ only in the
   member key read; re-measured 2026-1"
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
