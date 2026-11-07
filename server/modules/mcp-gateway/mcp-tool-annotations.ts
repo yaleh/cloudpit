@@ -66,6 +66,7 @@
  * | `draft_set`           | none   | false    | true        | true       | false     | replaces the unsent composer text, discarding what was there; same text twice is one state |
  * | `draft_submit`        | none   | false    | false       | false      | true      | sends the draft as a real turn through the composer's own path; the text is delivered, not discarded |
  * | `session_steer`       | none   | false    | true        | false      | true      | rewrites the turn in flight; its original input is superseded |
+ * | `project_create`      | none   | false    | false       | true       | false     | additive: registers a directory as a project; a repeat answers the same id |
  *
  * AC6 (metadata only, enforcement untouched) is discharged by the shape of the
  * change: the only edits are this table, the optional `annotations` field the
@@ -132,6 +133,10 @@ export type McpGatewayToolName =
   // AC-249 write tools (it is not one of them) under the write table's
   // `cloudcli:session:control` scope, so it is named here.
   | 'session_steer'
+  // gap-mcp-project-create-tool: `project_create`, registered alongside the five
+  // AC-249 write tools (it is not one of them) under `cloudcli:session:create`,
+  // so it is named here.
+  | 'project_create'
   // gap-mcp-cockpit-card-tools: the cockpit's four tools, registered through
   // their own deps bag (`McpGatewayDeps.cockpitTools`) rather than by growing a
   // tool table — the three reads share `cloudcli:read` while the confirm carries
@@ -264,6 +269,15 @@ export const MCP_TOOL_ANNOTATIONS: Record<McpGatewayToolName, ToolAnnotations> =
   // process. Not idempotent: a second steer is a second rewrite of whatever is
   // in flight at that moment, not a no-op.
   session_steer: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+
+  // -- project registration tool (gap-mcp-project-create-tool) ---------------
+  // Registers a directory as a project: a new row (or a reactivated archived
+  // one) is ADDITIVE — nothing existing is discarded, and it drives no provider
+  // agent, so the world stays closed (the effect is this server's own store plus
+  // `mkdir -p` of the directory the caller named). Idempotent: the same path
+  // answers the same projectId with `created: false` / `outcome: 'existing'`
+  // rather than a second row, which is the handler's documented reading.
+  project_create: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 
   // -- cockpit card tools (gap-mcp-cockpit-card-tools) ------------------------
   // The three reads answer from the card registry (and, for the brief, the card

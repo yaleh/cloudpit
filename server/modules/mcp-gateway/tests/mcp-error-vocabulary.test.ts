@@ -413,6 +413,13 @@ const writeTools = {
     resolveHostDriver: () => null,
     liveHostForSession: () => null,
   },
+  // gap-mcp-project-create-tool: registering `project_create` (its deps are never
+  // entered by `tools/list`, and no probe in this criterion calls it) keeps the
+  // registry name set equal to the declaration keys (b) compares.
+  projectCreate: {
+    createProject: async () => ({ outcome: 'created' as const, project: { projectId: 'p', path: '/p', fullPath: '/p', displayName: 'p' } }),
+    findProjectByPath: () => null,
+  },
 } as unknown as McpWriteToolDeps;
 
 /**

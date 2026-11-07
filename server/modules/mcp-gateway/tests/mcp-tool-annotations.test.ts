@@ -143,7 +143,9 @@ const readTools = {
 // gap-mcp-session-steer-tool: `session_steer` registers alongside the five write
 // tools when this member is present (its handlers are never entered by a
 // `tools/list` reading), so the listed name set stays the annotation table's keys.
-const writeTools = { draft: {}, sessionSteer: {} } as unknown as McpWriteToolDeps;
+// gap-mcp-project-create-tool: `project_create` rides the same rule — its
+// presence alone installs the name, and no handler runs during `tools/list`.
+const writeTools = { draft: {}, sessionSteer: {}, projectCreate: {} } as unknown as McpWriteToolDeps;
 const residentTools = { reconfigure: {}, background: {}, approvals: {} } as unknown as McpResidentToolDeps;
 // gap-mcp-cockpit-card-tools: the cockpit's four names register through their own
 // bag. `tools/list` never enters a handler, so the three members are the empty

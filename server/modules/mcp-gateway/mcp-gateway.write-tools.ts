@@ -59,10 +59,10 @@ import {
   registerMcpDraftSubmitTool,
 } from './tools/sessions/mcp-draft.js';
 import type { McpDraftDeps } from './tools/sessions/mcp-draft.js';
-import {
-  registerMcpSessionSteerTool,
-} from './tools/sessions/mcp-session-steer.js';
+import { registerMcpSessionSteerTool } from './tools/sessions/mcp-session-steer.js';
 import type { McpSessionSteerDeps } from './tools/sessions/mcp-session-steer.js';
+import { registerMcpProjectCreateTool } from './mcp-project-create.js';
+import type { McpProjectCreateDeps } from './mcp-project-create.js';
 import { MCP_TOOL_NOT_IMPLEMENTED_CODE } from '@/shared/mcp-contract/index.js';
 import type {
   McpWriteToolRegistration,
@@ -265,6 +265,20 @@ export type McpWriteToolDeps = McpSessionSendDeps & {
    * singletons, so production always carries it.
    */
   sessionSteer?: McpSessionSteerDeps;
+  /**
+   * The project-registration services (gap-mcp-project-create-tool): the SAME
+   * `createProject` service the UI's create-project route calls, plus the
+   * active-row reader that makes a repeated path answer an existing project
+   * instead of an error. Optional so every mount that predates this task — and
+   * every criterion that exercises the other write tools — keeps its exact old
+   * registration: absent, `project_create` is NOT registered (the `draft_*` /
+   * `session_steer` precedent — it is not one of AC-249's five, so a mount that
+   * cannot serve it must not enlarge `tools/list`); present, it registers
+   * through {@link registerMcpProjectCreateTool} under `SESSION_CREATE_SCOPE`,
+   * the authority a caller already needs to open a session in a project.
+   * `server/index.ts` binds the production pair.
+   */
+  projectCreate?: McpProjectCreateDeps;
 };
 
 // --------------------------- registration ---------------------------
@@ -512,5 +526,15 @@ export function registerMcpWriteTools(seam: McpWriteToolSeam, deps: McpWriteTool
   // the run the tool call itself arrived on) does not apply.
   if (deps.sessionSteer !== undefined) {
     registerMcpSessionSteerTool(seam, deps.sessionSteer, SESSION_CONTROL_SCOPE);
+  }
+
+  // gap-mcp-project-create-tool: `project_create`, registered alongside the five
+  // above for the same reason (`MCP_STAGE4_WRITE_TOOLS`' length is AC-249's own
+  // pinned contract) and only when its services are wired. It carries
+  // `SESSION_CREATE_SCOPE` — registering a project and opening its first session
+  // are the same write authority — and is NOT `protect`-wrapped: it names no
+  // session, so the self-target rule has nothing to compare.
+  if (deps.projectCreate !== undefined) {
+    registerMcpProjectCreateTool(seam, deps.projectCreate, SESSION_CREATE_SCOPE);
   }
 }

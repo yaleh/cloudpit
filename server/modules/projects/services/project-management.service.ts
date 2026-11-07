@@ -136,6 +136,27 @@ export async function createProject(
 }
 
 /**
+ * Reads the ACTIVE project row stored for `projectPath`, through the same
+ * `mapProjectRowToApiView` projection `createProject` answers with.
+ *
+ * Used by the MCP gateway's `project_create` tool
+ * (gap-mcp-project-create-tool) to turn the service's
+ * `PROJECT_ALREADY_EXISTS` refusal into an idempotent reading: a repeat of the
+ * same path must answer the SAME `projectId`, not an error. An archived row is
+ * answered as `null` — `createProject` reactivates such a row rather than
+ * colliding with it, so an archived path never reaches this reader through the
+ * conflict branch, and a caller asking "is this path an active project" must not
+ * be told yes for a hidden one.
+ */
+export function findProjectByPath(projectPath: string): ProjectApiView | null {
+  const projectRow = projectsDb.getProjectPath(projectPath);
+  if (!projectRow || projectRow.isArchived) {
+    return null;
+  }
+  return mapProjectRowToApiView(projectRow);
+}
+
+/**
  * Sets `projects.custom_project_name` for the given `projectId` (or clears it when empty).
  */
 export function updateProjectDisplayName(projectId: string, newDisplayName: unknown): void {

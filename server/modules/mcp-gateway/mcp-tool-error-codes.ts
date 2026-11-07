@@ -245,6 +245,16 @@ export const MCP_TOOL_ERROR_CODES: Record<McpGatewayToolName, readonly McpErrorC
   // `tools/list` until wired, so it keeps no placeholder refusal.
   session_steer: [...WRAPPER_CODES, 'SESSION_NOT_FOUND', 'RUN_NOT_FOUND', 'MCP_TOOL_NOT_IMPLEMENTED'],
 
+  // -- project registration tool (gap-mcp-project-create-tool) ---------------
+  // `project_create` takes no AC-246 target reference (its `path` is a filesystem
+  // location, not a `project` / `session` name) and mints no code of its own:
+  // the service's invalid-path / not-a-directory refusals are translated to the
+  // wrapper's `INVALID_ARGUMENT` with the service's code in `details.code`, and
+  // an already-active path is a SUCCESS (`outcome: 'existing'`) rather than an
+  // error. Like `draft_*`, it is simply absent from `tools/list` until its deps
+  // are wired, so it keeps no placeholder refusal.
+  project_create: [...WRAPPER_CODES],
+
   // -- cockpit card tools (gap-mcp-cockpit-card-tools) -----------------------
   // None of the four takes a `project` / `session` reference, so AC-246's target
   // gate adds nothing. Each row is the wrapper's own three codes: the card

@@ -171,7 +171,7 @@ import { createKnowledgeFactSource } from './knowledge-facts-wiring.js';
 // same barrel when it is handed a partial bag; index.ts states them because the
 // voice executor (AC-312) needs the full `McpReadToolDeps` — see `mcpReadToolDeps`.
 import {
-    getArchivedProjectsWithSessions,
+    createProject, findProjectByPath, getArchivedProjectsWithSessions,
     getProjectSessionsPage,
     getProjectsWithSessions,
 } from './modules/projects/index.js';
@@ -2450,6 +2450,7 @@ const mcpGateway = mountMcpGateway(
                 resolveHostDriver: (provider) => providerRegistry.resolveProvider(provider).hostDriver ?? null,
                 liveHostForSession: (sessionId) => sessionHostManager.liveHostForSession(sessionId),
             },
+            projectCreate: { createProject, findProjectByPath }, // gap-mcp-project-create-tool
         },
         // AC-271's `session_cancel_queued` over the same one control service, plus
         // AC-272's `session_reconfigure`: the provider runtime's `reconfigure`
