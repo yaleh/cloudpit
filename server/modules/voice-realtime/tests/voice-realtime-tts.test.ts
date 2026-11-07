@@ -426,6 +426,63 @@ test('AC-405 an error event inside a 200 stream is reported, not parsed as audio
   assert.equal(frames[0]!.type, 'tts_error');
 });
 
+// ── the nested `error` envelope: one reader, both members ──────────────────────────────────────
+
+test('a refusal body using the nested error envelope reports both its code and its message', async () => {
+  const requests: CapturedRequest[] = [];
+  const frames: VoiceRealtimeTtsFrame[] = [];
+
+  const result = await speakVoiceRealtimeText(
+    { utteranceId: 'utterance-nested-body', text: TEXT },
+    optionsWith({
+      fetch: errorFetch(
+        400,
+        {
+          request_id: 'req-nested',
+          error: { code: 'InvalidParameter.Nested', message: 'the nested envelope was refused' },
+        },
+        requests,
+      ),
+    }),
+    (frame) => frames.push(frame),
+  );
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.code, 'TTS_UPSTREAM_ERROR');
+  assert.equal(result.upstreamCode, 'InvalidParameter.Nested', 'the nested code member is read');
+  assert.equal(result.message, 'the nested envelope was refused', 'the nested message member is read');
+  assert.equal(frames.length, 1);
+  const frame = frames[0]!;
+  assert.equal(frame.type, 'tts_error');
+  if (frame.type !== 'tts_error') return;
+  assert.equal(frame.upstreamCode, 'InvalidParameter.Nested');
+  assert.equal(frame.message, 'the nested envelope was refused');
+});
+
+test('a nested error event inside a 200 stream reports both its code and its message', async () => {
+  const requests: CapturedRequest[] = [];
+  const frames: VoiceRealtimeTtsFrame[] = [];
+  const events = [
+    JSON.stringify({ output: { type: 'sentence-begin', audio: { data: '' } } }),
+    JSON.stringify({ error: { code: 'Throttling.Nested', message: 'the nested stream refusal' } }),
+  ];
+
+  const result = await speakVoiceRealtimeText(
+    { utteranceId: 'utterance-nested-stream', text: TEXT },
+    optionsWith({ fetch: sseFetch(events, requests) }),
+    (frame) => frames.push(frame),
+  );
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.code, 'TTS_UPSTREAM_ERROR');
+  assert.equal(result.upstreamCode, 'Throttling.Nested', 'the nested code member is read from the event');
+  assert.equal(result.message, 'the nested stream refusal', 'the nested message member is read from the event');
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0]!.type, 'tts_error');
+});
+
 // ── pre-request refusals and a malformed payload ───────────────────────────────────────────────
 
 test('a missing voice is refused before any request is made', async () => {
