@@ -30,13 +30,20 @@ extra:
 
 ## AC
 
-- [ ] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：同一插件的 `0.30.0` 与 `0.31.1` 两个缓存目录并存、install record 指向 `0.31.1` 时，旧目录里的技能名（`quay-init`）不出现在结果里，`/plugin:init` 只出现一次。
-- [ ] 同一文件含兜底用例：install record 的 installPath 自身既无 `skills/` 也无 `commands/` 时，仍能从未带版本号的兄弟目录（`legacy777`）读到技能；同一父目录下另一个 semver 且不等于 record `version` 的兄弟目录仍被跳过。
-- [ ] `npm run typecheck` exit 0。
+- [x] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：同一插件的 `0.30.0` 与 `0.31.1` 两个缓存目录并存、install record 指向 `0.31.1` 时，旧目录里的技能名（`quay-init`）不出现在结果里，`/plugin:init` 只出现一次。
+- [x] 同一文件含兜底用例：install record 的 installPath 自身既无 `skills/` 也无 `commands/` 时，仍能从未带版本号的兄弟目录（`legacy777`）读到技能；同一父目录下另一个 semver 且不等于 record `version` 的兄弟目录仍被跳过。
+- [x] `npm run typecheck` exit 0。
 
 ## DoD
 
 在真实机器上用真实 `~/.claude` 跑一次 `providerSkillsService.listProviderSkills('claude', { workspacePath: '/data/home/yale/work/claudecodeui' })`，贴出 plugin skill 的命令清单与 sourcePath：`/quay:quay-init`、`/quay:quay-cold-start`、`/quay:quay-drivers`、`/quay:quay-loop-driver`、`/quay:quay-manager` 全部消失；每个 `/quay:*` 命令只出现一次且 sourcePath 落在 `0.31.1/`；plugin skill 总数从 204 降到已安装版本的实测值。只贴测试结论不算完成。
+
+实测（2026-11-07，修复后的 worktree 用真实 HOME 运行 `providerSkillsService.listProviderSkills('claude', { workspacePath: '/data/home/yale/work/claudecodeui' })`）：
+
+- plugin skill 总数 204 → **18**（唯一命令 15）；其中 `/quay:*` 12 条。
+- 幽灵命令全部消失：`/quay:quay-init` 0 次、`/quay:quay-cold-start` 0 次、`/quay:quay-drivers` 0 次、`/quay:quay-loop-driver` 0 次、`/quay:quay-manager` 0 次。
+- 每个 `/quay:*` 命令只出现一次，sourcePath 全部落在 `~/.claude/plugins/cache/quay/quay/0.31.1/skills/<name>/SKILL.md`。
+- 命令清单：`/quay:cold-start`、`/quay:drivers`、`/quay:execute`、`/quay:extension-point-refactor`、`/quay:init`、`/quay:loop-driver`、`/quay:manager`、`/quay:quay-directive`、`/quay:quay-file-task`、`/quay:quay-native-methodology`、`/quay:quay-task-operator`、`/quay:quay-task-to-plan`。
 
 ## Touches
 
