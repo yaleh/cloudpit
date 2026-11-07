@@ -26,6 +26,8 @@ extra:
 <!-- dedup-ref -->
 与 `gap-claude-plugin-skills-ignore-foreign-install-scope` 保持分离：那条是 install record 的 workspace 适用性（另一个机制、独立验收），两条只共用同一个 provider 文件，调度器会串行，不损失并行度；`task-granularity-advice` 的 peers 为空。
 
+- 该轴仍暗,理由:本任务只改插件的技能发现路径与夹具，AC 内没有 L_D/L_G 探针或读数可记，两轴读数不因本任务变化。
+
 ## AC
 
 - [ ] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：同一插件的 `0.30.0` 与 `0.31.1` 两个缓存目录并存、install record 指向 `0.31.1` 时，旧目录里的技能名（`quay-init`）不出现在结果里，`/plugin:init` 只出现一次。
