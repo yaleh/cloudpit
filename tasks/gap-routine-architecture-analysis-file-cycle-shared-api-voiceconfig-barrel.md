@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-file-cycle-shared-api-voiceconfig-barrel
 title: "architecture-analysis: File-level value SCC of 2 (voiceConfig.ts imports
   the `api` object from its own package barrel at line 33 while index.ts
   value-imports readVoiceConfig/voiceC"
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
