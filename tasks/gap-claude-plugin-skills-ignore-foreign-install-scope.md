@@ -2,7 +2,7 @@
 id: gap-claude-plugin-skills-ignore-foreign-install-scope
 title: 插件技能扫描不按 scope/projectPath 过滤 install record：为 plantuml-js local 安装的
   archguard 0.1.42 被列进当前工作区，且同一组件无 local>project>user 优先级
-status: todo
+status: ready
 labels:
   - gap
   - defect
