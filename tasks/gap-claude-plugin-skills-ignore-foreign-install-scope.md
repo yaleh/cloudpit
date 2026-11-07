@@ -26,15 +26,71 @@ extra:
 
 ## AC
 
-- [ ] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：`scope: local` 且 `projectPath` 指向别处的记录完全不贡献技能；`projectPath` 等于本工作区的记录贡献技能。
-- [ ] 同文件含优先级用例：同一个 plugin 同时存在 user 与 project（`projectPath` 等于本工作区）两条启用记录时，只采用 project 记录，命令不出现重复条目。
-- [ ] 同文件含 `enabledPlugins` 优先级用例：user 设置启用、`<workspace>/.claude/settings.json` 写 false 时该 scope 被跳过；三处都未配置时视为启用。
-- [ ] `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-entrypoint-resolver.test.ts` exit 0（抽取共享规则后 quay 侧行为不变）。
-- [ ] `npm run typecheck` exit 0。
+- [x] 单文件判据 exit 0：`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/providers/tests/skills.test.ts`。该文件含新增用例：`scope: local` 且 `projectPath` 指向别处的记录完全不贡献技能；`projectPath` 等于本工作区的记录贡献技能。
+- [x] 同文件含优先级用例：同一个 plugin 同时存在 user 与 project（`projectPath` 等于本工作区）两条启用记录时，只采用 project 记录，命令不出现重复条目。
+- [x] 同文件含 `enabledPlugins` 优先级用例：user 设置启用、`<workspace>/.claude/settings.json` 写 false 时该 scope 被跳过；三处都未配置时视为启用。
+- [x] `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/modules/quay/tests/quay-entrypoint-resolver.test.ts` exit 0（抽取共享规则后 quay 侧行为不变）。
+- [x] `npm run typecheck` exit 0。
 
 ## DoD
 
 在真实机器上跑一次本工作区的技能列表，贴出 `/archguard:*` 的 `sourcePath`：只能落在 `0.1.45/`（user 记录），不得出现 `0.1.42/`（plantuml-js 的 local 记录）；同时贴出 `/quay:*` 仍全部来自 `0.31.1/`。再贴一次 `quay-entrypoint-resolver` 的真实解析结果（claudecodeui → user 记录），证明抽取共享规则没有改变入口解析。只贴测试结论不算完成。
+
+实测（2026-11-07，在 worktree `tmp/dod-plugin-scope.ts` 里用 `npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs` 调用真实 `providerSkillsService.listProviderSkills('claude', { workspacePath: '/data/home/yale/work/claudecodeui' })` 与真实 `createSystemQuayEntrypointResolver()`）：
+
+```json
+{
+  "workspacePath": "/data/home/yale/work/claudecodeui",
+  "pluginSkills": [
+    {
+      "plugin": "archguard",
+      "count": 3,
+      "sourcePaths": [
+        "/data/home/yale/.claude/plugins/cache/archguard/archguard/0.1.45/skills/arch-layer-review/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/archguard/archguard/0.1.45/skills/feature-developer/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/archguard/archguard/0.1.45/skills/project-semantics-discovery/SKILL.md"
+      ]
+    },
+    {
+      "plugin": "quay",
+      "count": 12,
+      "sourcePaths": [
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/cold-start/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/drivers/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/execute/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/extension-point-refactor/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/init/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/loop-driver/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/manager/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/quay-directive/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/quay-file-task/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/quay-native-methodology/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/quay-task-operator/SKILL.md",
+        "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/skills/quay-task-to-plan/SKILL.md"
+      ]
+    }
+  ]
+}
+```
+
+`/archguard:*` 三条全部落在 `0.1.45/`（user 记录），`0.1.42/`（plantuml-js 的 local 记录）零命中；`/quay:*` 十二条全部来自 `0.31.1/`。同一台机器上另有 `frontend-design`（quay-fleet local）、`playwright` / `chrome-devtools-mcp`（quay local）三条属于别的工作区的 local 记录，修复后同样不再出现在 claudecodeui 的列表里。
+
+真实入口解析（同一脚本、真实文件系统与真实 home）：
+
+```json
+{
+  "entrypoint": {
+    "path": "/data/home/yale/.claude/plugins/cache/quay/quay/0.31.1/bin/quay",
+    "version": "0.31.1",
+    "source": "user",
+    "warning": null
+  }
+}
+```
+
+与抽取共享规则前一致：claudecodeui 解析到 `quay@quay` 的 user 记录 `0.31.1`，没有回落到 PATH，也没有 warning。
+
+单文件判据读数：`skills.test.ts` 11/11 通过（含新增 3 条），`quay-entrypoint-resolver.test.ts` 10/10 通过；`npm run typecheck` 三个 tsconfig 全部 exit 0；`server/shared/tests/architecture-ratchet.test.ts` 与 `server/shared/tests/server-import-cycle-budget.test.ts` 全绿（新文件不新增目录、不新增 SCC）。
 
 ## Touches
 
