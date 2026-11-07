@@ -120,7 +120,6 @@ test('providerSkillsService lists claude user, project, and enabled plugin skill
     'at',
     '000',
   );
-  const siblingSkillPluginPath = path.join(path.dirname(skillPluginInstallPath), 'legacy777');
   await fs.mkdir(workspacePath, { recursive: true });
 
   const restoreHomeDir = patchHomeDir(tempRoot);
@@ -175,12 +174,6 @@ test('providerSkillsService lists claude user, project, and enabled plugin skill
       'claude-plugin-nested-dir',
       'claude-plugin-nested',
       'Nested Claude plugin skill',
-    );
-    await writeSkill(
-      path.join(siblingSkillPluginPath, 'skills'),
-      'claude-plugin-sibling-dir',
-      'claude-plugin-sibling',
-      'Sibling Claude plugin skill',
     );
     await writeClaudePluginManifest(disabledPluginInstallPath, 'DisabledSkills');
     await writeClaudePluginCommand(
@@ -318,16 +311,187 @@ test('providerSkillsService lists claude user, project, and enabled plugin skill
     assert.equal(nestedPluginSkill?.command, '/ExampleSkills:claude-plugin-nested');
     assert.equal(nestedPluginSkill?.description, 'Nested Claude plugin skill');
 
-    const siblingPluginSkill = byName.get('claude-plugin-sibling');
-    assert.equal(siblingPluginSkill?.scope, 'plugin');
-    assert.equal(siblingPluginSkill?.pluginName, 'example-skills');
-    assert.equal(siblingPluginSkill?.command, '/example-skills:claude-plugin-sibling');
-    assert.equal(siblingPluginSkill?.description, 'Sibling Claude plugin skill');
     assert.equal(byName.has('disabled-command'), false);
     assert.equal(byName.has('disabled-plugin'), false);
     assert.equal(byName.has('invalid-empty-command'), false);
     assert.equal(byName.has('invalid-at-command'), false);
     assert.equal(skills.some((skill) => skill.command.startsWith('/:')), false);
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Claude's plugin cache keeps every release directory side by side. Only the
+ * version named by the install record is the installed plugin; an older cached
+ * release must not contribute commands or skills (its old front matter once
+ * produced ghost slash commands such as `/quay:quay-init`).
+ */
+test('providerSkillsService ignores cached plugin versions other than the installed one', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-versions-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const pluginCacheRoot = path.join(
+    tempRoot,
+    '.claude',
+    'plugins',
+    'cache',
+    'quay-marketplace',
+    'quay',
+  );
+  const installedPluginPath = path.join(pluginCacheRoot, '0.31.1');
+  const previousPluginPath = path.join(pluginCacheRoot, '0.30.0');
+  await fs.mkdir(workspacePath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await writeClaudePluginManifest(installedPluginPath, 'quay');
+    await writeSkill(
+      path.join(installedPluginPath, 'skills'),
+      'init-dir',
+      'init',
+      'Initialize a workspace',
+    );
+    await writeClaudePluginManifest(previousPluginPath, 'quay');
+    await writeSkill(
+      path.join(previousPluginPath, 'skills'),
+      'quay-init-dir',
+      'quay-init',
+      'Old workspace initializer name',
+    );
+    await writeClaudePluginCommand(
+      path.join(previousPluginPath, 'commands'),
+      'init',
+      'Old workspace initializer command',
+    );
+
+    await fs.writeFile(
+      path.join(tempRoot, '.claude', 'settings.json'),
+      JSON.stringify({ enabledPlugins: { 'quay@quay-marketplace': true } }, null, 2),
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(tempRoot, '.claude', 'plugins', 'installed_plugins.json'),
+      JSON.stringify(
+        {
+          version: 2,
+          plugins: {
+            'quay@quay-marketplace': [
+              {
+                scope: 'user',
+                installPath: installedPluginPath,
+                version: '0.31.1',
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+
+    assert.equal(skills.some((skill) => skill.name === 'quay-init'), false);
+    const initCommands = skills.filter((skill) => skill.command === '/quay:init');
+    assert.equal(initCommands.length, 1);
+    assert.equal(
+      initCommands[0]?.sourcePath.startsWith(`${installedPluginPath}${path.sep}`),
+      true,
+    );
+    assert.equal(
+      skills.some(
+        (skill) =>
+          skill.scope === 'plugin' &&
+          skill.sourcePath.startsWith(`${previousPluginPath}${path.sep}`),
+      ),
+      false,
+    );
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Historical layouts point `installPath` at a folder that carries no plugin
+ * payload, leaving the real payload in a sibling directory. That fallback must
+ * still read unversioned siblings, while skipping cached release directories
+ * that do not match the install record's version.
+ */
+test('providerSkillsService falls back to sibling payload folders without resurrecting cached versions', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-siblings-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const pluginCacheRoot = path.join(
+    tempRoot,
+    '.claude',
+    'plugins',
+    'cache',
+    'legacy-marketplace',
+    'legacy-plugin',
+  );
+  const installPath = path.join(pluginCacheRoot, 'holder');
+  const unversionedSiblingPath = path.join(pluginCacheRoot, 'legacy777');
+  const staleVersionSiblingPath = path.join(pluginCacheRoot, '0.9.0');
+  const matchingVersionSiblingPath = path.join(pluginCacheRoot, '0.31.1');
+  await fs.mkdir(workspacePath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await fs.mkdir(installPath, { recursive: true });
+    await writeSkill(
+      path.join(unversionedSiblingPath, 'skills'),
+      'legacy-sibling-dir',
+      'legacy-sibling-skill',
+      'Skill in an unversioned sibling folder',
+    );
+    await writeSkill(
+      path.join(staleVersionSiblingPath, 'skills'),
+      'stale-version-dir',
+      'stale-version-skill',
+      'Skill in a different cached version',
+    );
+    await writeSkill(
+      path.join(matchingVersionSiblingPath, 'skills'),
+      'matching-version-dir',
+      'matching-version-skill',
+      'Skill in the installed version folder',
+    );
+
+    await fs.writeFile(
+      path.join(tempRoot, '.claude', 'settings.json'),
+      JSON.stringify({ enabledPlugins: { 'legacy-plugin@legacy-marketplace': true } }, null, 2),
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(tempRoot, '.claude', 'plugins', 'installed_plugins.json'),
+      JSON.stringify(
+        {
+          version: 2,
+          plugins: {
+            'legacy-plugin@legacy-marketplace': [
+              {
+                scope: 'user',
+                installPath,
+                version: '0.31.1',
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+    const byName = new Map(skills.map((skill) => [skill.name, skill]));
+
+    assert.equal(byName.get('legacy-sibling-skill')?.scope, 'plugin');
+    assert.equal(byName.get('legacy-sibling-skill')?.pluginName, 'legacy-plugin');
+    assert.equal(byName.get('matching-version-skill')?.scope, 'plugin');
+    assert.equal(byName.has('stale-version-skill'), false);
   } finally {
     restoreHomeDir();
     await fs.rm(tempRoot, { recursive: true, force: true });

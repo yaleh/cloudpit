@@ -53,6 +53,47 @@ const listChildDirectories = async (directoryPath: string): Promise<string[]> =>
   }
 };
 
+/** A directory name that looks like a cached plugin release (e.g. `0.31.1`, `0.26.0-dev`). */
+const SEMVER_DIRECTORY_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)*$/;
+
+const hasPluginPayload = async (pluginFolder: string): Promise<boolean> => {
+  const commandsPath = path.join(pluginFolder, 'commands');
+  if (await pathExistsAsDirectory(commandsPath)) {
+    return true;
+  }
+  return pathExistsAsDirectory(path.join(pluginFolder, 'skills'));
+};
+
+/**
+ * Resolves the folders that carry one install record's plugin payload.
+ *
+ * Claude's cache keeps every release of a plugin beside the others
+ * (`cache/<marketplace>/<plugin>/0.30.0`, `0.31.1`, …), and `installPath`
+ * points at the one the user installed. That folder is the payload: scanning
+ * its siblings resurrects old releases whose front matter still names former
+ * commands. Only when `installPath` carries neither `commands/` nor `skills/`
+ * do we fall back to the sibling layout, and then a semver sibling must match
+ * the install record's own `version` — non-semver siblings (`builtin`,
+ * `legacy777`) are kept for historical layouts.
+ */
+const resolvePluginPayloadFolders = async (
+  installPath: string,
+  installVersion: string | undefined,
+): Promise<string[]> => {
+  if (await hasPluginPayload(installPath)) {
+    return [installPath];
+  }
+
+  const siblingFolders = await listChildDirectories(path.dirname(installPath));
+  return siblingFolders.filter((pluginFolder) => {
+    const folderName = path.basename(pluginFolder);
+    if (!SEMVER_DIRECTORY_PATTERN.test(folderName)) {
+      return true;
+    }
+    return installVersion !== undefined && folderName === installVersion;
+  });
+};
+
 const readClaudePluginName = async (
   installPath: string,
   pluginId: string,
@@ -143,9 +184,8 @@ export class ClaudeSkillsProvider extends SkillsProvider {
           continue;
         }
 
-        // Claude's installed path points at one version folder; the usable
-        // plugin payloads live in the direct child folders beside it.
-        const pluginFolders = await listChildDirectories(path.dirname(installPath));
+        const installVersion = readOptionalString(installRecord?.version);
+        const pluginFolders = await resolvePluginPayloadFolders(installPath, installVersion);
         for (const pluginFolder of pluginFolders) {
           const pluginFolderKey = `${pluginId}:${path.resolve(pluginFolder)}`;
           if (visitedPluginFolders.has(pluginFolderKey)) {
