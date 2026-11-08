@@ -166,28 +166,93 @@ function productionSources(root) {
 }
 
 /**
- * The frontend source-root alias (`@/X` -> `<root>/src/X.ts`), resolved for this plain `node`
- * process.
+ * The source file a module path names inside a fixture: `<base>.ts`, `<base>.tsx`, then the
+ * directory package's `<base>/index.ts` / `<base>/index.tsx`.
  *
- * The shipped declaring module reaches a sibling shared module through `@/`, the alias the browser
- * build, the type-checker, the lint pass and the unit transform all resolve. A bare `node` process
- * resolves none of those, so this is the same mapping for the one runtime that does not carry it —
- * the reading `experiments/voice-vad/run.mjs` and `scripts/voice-vad-harness.test.mjs` already make
- * for their own plain-node loads. A relative import in the shipping module would be the inverse of
- * the repository's convention and is deliberately not the fix: the check adapts to how the tree
- * ships, not the other way round.
+ * FILE BEFORE DIRECTORY, and both spellings tried, because that is the order the type-checker and
+ * the bundler resolve in. A resolved list of one extension (`<base>.ts`) is only correct while
+ * every aliased target is a single file — `f6426ea48` split `src/shared/api.ts` into the directory
+ * package `src/shared/api/index.ts`, and the single-extension form then pointed at a file that no
+ * longer exists. The directory form is not a fallback bolted on for one module: it is half of the
+ * resolution rule the shipping tree has always used.
  *
- * The root is the one `run()` resolved from `--root`, NOT this script's repository: the probe is
- * designed to read a fixture tree that is not this one (see the file header), so the alias has to
- * point at whichever tree is under test.
+ * @param {string} base absolute path with no extension
+ * @returns {string | null}
+ */
+function resolveSourceFile(base) {
+  for (const candidate of [`${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts'), path.join(base, 'index.tsx')]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * @param {string} root
+ * @param {string} file absolute path
+ * @returns {boolean} whether `file` is inside `root`
+ */
+function isInsideRoot(root, file) {
+  const relative = path.relative(root, file);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+/**
+ * The tree's module-resolution convention, taught to this plain `node` process.
+ *
+ * The shipped declaring module reaches the rest of the tree through three shapes the browser
+ * build, the type-checker, the lint pass and the unit transform all resolve, and a bare `node`
+ * process resolves none of them:
+ *
+ *   · `@/X`    -> `<root>/src/X`       — the frontend source root;
+ *   · `@shared/X` -> `<root>/shared/X` — the repo-root shared tree, reachable from `src/`;
+ *   · a relative import ending `.js`/`.jsx` whose file is not on disk -> the same stem as
+ *     `.ts`/`.tsx` — the ESM style this TypeScript tree is written in (the compiled extension is
+ *     spelled, the source extension is what exists).
+ *
+ * All three are rooted at the `--root` under test, never at this script's repository: the probe is
+ * designed to read a fixture tree that is not this one (see the file header), so the mapping has
+ * to point at whichever tree was handed to it. A relative import in the shipping module would be
+ * the inverse of the repository's convention and is deliberately not the fix: the check adapts to
+ * how the tree ships, not the other way round.
+ *
+ * An alias that resolves to nothing is handed to `nextResolve` rather than answered here, so the
+ * failure names the specifier and its importer (`Cannot find package '@/shared' imported from …`)
+ * instead of a path this hook invented.
  * @param {string} root the tree under test
  */
 function registerSourceRootAlias(root) {
-  const srcRoot = path.join(root, 'src');
+  const resolvedRoot = path.resolve(root);
+  /** @type {[string, string][]} specifier prefix -> absolute base directory */
+  const aliasRoots = [
+    ['@/', path.join(resolvedRoot, 'src')],
+    ['@shared/', path.join(resolvedRoot, 'shared')],
+  ];
   registerHooks({
     resolve(specifier, context, nextResolve) {
-      if (specifier.startsWith('@/')) {
-        return { url: pathToFileURL(path.join(srcRoot, specifier.slice(2)) + '.ts').href, shortCircuit: true };
+      for (const [prefix, base] of aliasRoots) {
+        if (!specifier.startsWith(prefix)) continue;
+        const target = resolveSourceFile(path.join(base, specifier.slice(prefix.length)));
+        if (target !== null) return { url: pathToFileURL(target).href, shortCircuit: true };
+        break;
+      }
+      // Only inside the tree under test: rewriting a `.js` specifier of a package in `node_modules`
+      // would be this hook editing somebody else's resolution.
+      if (
+        specifier.startsWith('.')
+        && /\.jsx?$/.test(specifier)
+        && typeof context.parentURL === 'string'
+        && context.parentURL.startsWith('file:')
+        && isInsideRoot(resolvedRoot, fileURLToPath(context.parentURL))
+      ) {
+        const literal = fileURLToPath(new URL(specifier, context.parentURL));
+        if (!existsSync(literal)) {
+          const stem = literal.replace(/\.jsx?$/, '');
+          for (const extension of ['.ts', '.tsx']) {
+            if (existsSync(stem + extension)) {
+              return { url: pathToFileURL(stem + extension).href, shortCircuit: true };
+            }
+          }
+        }
       }
       return nextResolve(specifier, context);
     },

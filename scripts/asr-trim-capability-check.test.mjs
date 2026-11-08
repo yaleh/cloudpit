@@ -32,7 +32,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -48,9 +48,10 @@ const DECLARING_MODULE = 'src/shared/voice/voiceTrim.ts';
 /**
  * The declaring module's own dependency, reached through the frontend `@/` alias. `voiceTrim.ts`
  * imports its frame decision from here, so a fixture that carries the declaring module but not this
- * one cannot be loaded at all — the probe's alias hook resolves `@/shared/voiceEndpoint` to a file
- * that is not there and the run dies in `check probe` with ENOENT. It is therefore part of the
- * fixture's shipping set, and the last case below is what proves that membership is load-bearing.
+ * one cannot be loaded at all — the probe's alias hook resolves nothing for `@/shared/voiceEndpoint`,
+ * declines it, and the loader reports `Cannot find package '@/shared' imported from
+ * …/voiceTrim.ts`. It is therefore part of the fixture's shipping set, and the last case below is
+ * what proves that membership is load-bearing.
  */
 const ALIASED_DEPENDENCY = 'src/shared/voice/voiceEndpoint.ts';
 const CONSUMER = 'src/modules/chat-voice/hooks/useVoiceInput.ts';
@@ -183,21 +184,145 @@ const REGISTRATION_ROWS = [
 ].join('\n');
 
 /**
+ * The specifier shapes the fixture's copy list has to follow, mirroring the probe's resolver.
+ *
+ * A fixture is only as loadable as the files it copied, and the switch module's graph reaches
+ * through three shapes the browser build resolves and plain `node` does not:
+ *
+ *   · `@/X`      -> `src/X`    (the frontend source root);
+ *   · `@shared/X`-> `shared/X` (the repo-root shared tree);
+ *   · a relative import spelling the compiled `.js`/`.jsx` extension, whose source file is on disk
+ *     as `.ts`/`.tsx` — the ESM style this TypeScript tree is written in.
+ *
+ * Derived rather than listed: a copy list is a second copy of the import graph, and `f6426ea48`
+ * (which split `src/shared/api.ts` into the directory package `src/shared/api/index.ts`) plus
+ * `voiceDebug.ts`'s own new edge into it is exactly how the previous list went stale — 12 files
+ * that no longer loaded. Following the specifiers means a provider registered tomorrow, or a
+ * module split tomorrow, arrives in the fixture without this file being edited.
+ */
+const ALIAS_ROOTS = [
+  ['@/', 'src'],
+  ['@shared/', 'shared'],
+];
+
+/**
+ * The source file a module path names in `repoRoot`: `<path>.ts`, `<path>.tsx`, then the
+ * directory package's `index.ts` / `index.tsx`. File before directory, as the resolver orders it.
+ * @param {string} repoRoot
+ * @param {string} relativePath repository-relative, POSIX-separated, no extension
+ * @returns {string | null}
+ */
+function sourceFileFor(repoRoot, relativePath) {
+  for (const candidate of [`${relativePath}.ts`, `${relativePath}.tsx`, `${relativePath}/index.ts`, `${relativePath}/index.tsx`]) {
+    if (existsSync(path.join(repoRoot, candidate))) return candidate;
+  }
+  return null;
+}
+
+/**
+ * The repository-relative source file `specifier` names from `fromRel`, or null when it is a bare
+ * specifier (a package, provisioned by the fixture's `node_modules` symlink) or resolves to
+ * nothing (reported by the closure rather than guessed at).
+ * @param {string} repoRoot
+ * @param {string} fromRel
+ * @param {string} specifier
+ * @returns {string | null}
+ */
+function resolveSpecifier(repoRoot, fromRel, specifier) {
+  for (const [prefix, base] of ALIAS_ROOTS) {
+    if (specifier.startsWith(prefix)) return sourceFileFor(repoRoot, path.posix.join(base, specifier.slice(prefix.length)));
+  }
+  if (!specifier.startsWith('.')) return null;
+  const joined = path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), specifier));
+  if (existsSync(path.join(repoRoot, joined))) return joined;
+  if (/\.jsx?$/.test(joined)) {
+    const stem = joined.replace(/\.jsx?$/, '');
+    for (const extension of ['.ts', '.tsx']) {
+      if (existsSync(path.join(repoRoot, stem + extension))) return stem + extension;
+    }
+  }
+  if (/\.tsx?$/.test(joined) || joined.endsWith('.json')) return null;
+  return sourceFileFor(repoRoot, joined);
+}
+
+/**
+ * Every source file an entry reaches, transitively, by the three specifier shapes above.
+ * @param {string} repoRoot
+ * @param {string} entry repository-relative
+ * @returns {{ files: string[], unresolved: string[] }}
+ */
+function importClosure(repoRoot, entry) {
+  /** @type {Set<string>} */
+  const files = new Set();
+  /** @type {string[]} */
+  const unresolved = [];
+  /** @type {string[]} */
+  const queue = [entry];
+  while (queue.length > 0) {
+    const rel = /** @type {string} */ (queue.pop());
+    if (files.has(rel)) continue;
+    const absolute = path.join(repoRoot, rel);
+    if (!existsSync(absolute)) {
+      unresolved.push(`${rel} (not present in the tree)`);
+      continue;
+    }
+    files.add(rel);
+    const source = readFileSync(absolute, 'utf8');
+    for (const match of source.matchAll(/(?:from|import)\s+['"]([^'"]+)['"]/g)) {
+      const specifier = match[1];
+      const target = resolveSpecifier(repoRoot, rel, specifier);
+      if (target !== null) {
+        if (!files.has(target)) queue.push(target);
+      } else if (specifier.startsWith('.') || specifier.startsWith('@/') || specifier.startsWith('@shared/')) {
+        unresolved.push(`${rel} -> ${specifier}`);
+      }
+    }
+  }
+  return { files: [...files].sort(), unresolved };
+}
+
+/**
+ * @param {string} root
+ * @param {string} relativePath
+ * @returns {void}
+ */
+function copyInto(root, relativePath) {
+  const destination = path.join(root, relativePath);
+  mkdirSync(path.dirname(destination), { recursive: true });
+  cpSync(path.join(REPO_ROOT, relativePath), destination);
+}
+
+/**
  * @returns {string} a fixture tree copied from the shipping files
  */
 function buildFixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'asr-trim-capability-'));
-  for (const relativePath of SHIPPING_FILES) {
-    const destination = path.join(root, relativePath);
-    mkdirSync(path.dirname(destination), { recursive: true });
-    cpSync(path.join(REPO_ROOT, relativePath), destination);
-  }
+  for (const relativePath of SHIPPING_FILES) copyInto(root, relativePath);
   // The registry's own subtree, derived rather than listed: `SHIPPING_FILES` names the adapter whose
   // declaration a case mutates, but the registry imports every adapter, and a fixture missing one
   // cannot be loaded at all. `provisionSharedClosure` copies whatever the registry reaches — the
   // shape that broke when `sensevoice-local` and `sensevoice-wasm` were registered — so this file
   // never has to name them.
   provisionSharedClosure({ repoRoot: REPO_ROOT, fixtureRoot: root, entries: SHIPPING_FILES });
+
+  // The switch module's whole graph, for the same reason one level out. Reading the shipped
+  // default means IMPORTING the switch, and `voiceDebug.ts` now reaches `@/shared/api` — the
+  // directory package `f6426ea48` created — and, through it, the repo-root `shared/` tree. A
+  // fixture holding the switch but not its graph cannot be loaded; the probe then dies in
+  // `check probe` for every case, green and mutated alike. Derived, so this cannot go stale the
+  // way a hand-written list did.
+  const closure = importClosure(REPO_ROOT, SWITCH);
+  assert.equal(
+    closure.unresolved.length,
+    0,
+    `the switch module's fixture closure has unresolvable imports:\n${closure.unresolved.join('\n')}`,
+  );
+  for (const relativePath of closure.files) copyInto(root, relativePath);
+
+  // The graph reaches packages (`clsx`, `lucide-react`, …), which are provisioned rather than
+  // copied: a fixture without this link cannot import the constants/util modules the settings
+  // modules pull in. The repository's other ASR fixtures provision it the same way.
+  symlinkSync(path.join(REPO_ROOT, 'node_modules'), path.join(root, 'node_modules'), 'dir');
   return root;
 }
 
@@ -428,18 +553,23 @@ test('deleting the third provider\'s record reds discipline (AC7: the evidence i
  * and the probe dies in the top-level `check probe` catch. This case proves the `SHIPPING_FILES`
  * addition is load-bearing rather than decorative, in the two halves every case here uses: the
  * unmutated fixture — the one with `voiceEndpoint.ts` — is green (`greenFixture` asserts exactly
- * that), and with that one file removed the probe reds at `check probe` with ENOENT naming the
- * absent file. Without the file the alias hook has nothing to resolve to; if the fixture passed
- * with it gone, the hook was never in play and the shipping run would not be proving anything.
+ * that), and with that one file removed the probe reds at `check probe`, naming the specifier's
+ * package and the importer. Without the file the alias hook resolves nothing, so it declines the
+ * specifier and `node` reports it as a package that does not exist; if the fixture passed with it
+ * gone, the hook was never in play and the shipping run would not be proving anything.
  *
  * The red is asserted to be `check probe` and not one of the six named checks, because that is the
  * shape a module-resolution failure takes and a named-check red here would misattribute the cause.
+ * The message moved with the resolver: it used to be `ENOENT` against the path the hook had
+ * invented (`src/shared/voiceEndpoint.ts`), and an unresolved alias now falls through to the
+ * loader, which names the package and the importer instead. The property asserted is unchanged —
+ * the fixture's completeness is load-bearing, and the failure names what is missing.
  */
-test('removing the declaring module\'s aliased dependency reds check probe with ENOENT (AC3: the fixture addition is load-bearing)', (t) => {
+test('removing the declaring module\'s aliased dependency reds check probe naming the importer (AC3: the fixture addition is load-bearing)', (t) => {
   const root = greenFixture(t);
   rmSync(path.join(root, ALIASED_DEPENDENCY));
   const result = runProbe(root);
   assert.equal(result.status, 1, `the probe must red a fixture missing the aliased dependency:\n${result.stdout}`);
-  assert.match(result.stdout, /^check probe: FAIL .*ENOENT/m, result.stdout);
-  assert.match(result.stdout, /voiceEndpoint\.ts/, result.stdout);
+  assert.match(result.stdout, /^check probe: FAIL Cannot find package '@\/shared' imported from /m, result.stdout);
+  assert.match(result.stdout, /voiceTrim\.ts/, result.stdout);
 });
