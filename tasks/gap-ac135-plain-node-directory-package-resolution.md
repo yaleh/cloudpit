@@ -85,6 +85,8 @@ $ echo $?
 
 - (e) 共享前置（stale-census 重同步，2026-11-08）：**不是本任务 delta 的一部分**，是 suite 的共享前置。develop `8d9ded2df` 把 `codex-host-driver.provider.ts` 855→857 后未记 census，`architecture-ratchet.baseline.json` 的 855 让任何树的全量 suite 都红；本任务只把该条目记到实测 857、追加 RECORDED CHANGE 段落，出货模块与判据命令一字未动。
 
+- (f) 复验与 ff 解阻（新 worker 会话，2026-11-08）：把 develop 合入任务 worktree 后逐条复测：AC1 退出 0、六条 `ok`、`check probe: FAIL` 0 行；AC2 `pass 12 / fail 0`；AC6 `verdict=ok` 且 7/7 pass；`tsx --test server/shared/tests/architecture-ratchet.test.ts` 6/6 pass；`git diff --name-only develop...HEAD` 仍只含两条工装文件 + 本任务文件 + ratchet 基线；anti-drift-touches-check 报 `4 actual file(s), all within declared Touches`。上一轮 ff 的阻塞是主检出里**被跟踪文件** `scripts/sensevoice/__pycache__/worker.cpython-312.pyc` 的未提交修改（`worker.py` 与 HEAD 逐字节相同；两份 pyc 的差异仅为内嵌 `co_filename` 的 `/data/…`（62 字符）与 `/home/…`（57 字符）拼法，即同一源码的重新编译产物）。按共享教训 `fan-in-ff-clean-check-tracked-modifications-need-owner` 的做法，先把精确字节备份到 `~/.cache/quay-residue/2026-11-08-gap-ac135-plain-node-directory-package-resolution/`（含 sha256sums 与 README），再在主检出 `git checkout --` 该路径；主检出 `git status --porcelain` 现为空，ff 的 cleanTreeCheck 不再被挡。
+
 ## Touches
 
 - scripts/asr-trim-capability-check.mjs
@@ -100,3 +102,5 @@ $ echo $?
 fan-in-ff-merge:    M scripts/sensevoice/__pycache__/worker.cpython-312.pyc
 - run_id：wk-prod-anchor
 - session_id：2aa86502-3777-4043-a12d-a4a05e8bd216
+
+**已解阻（2026-11-08，新 worker 会话）**：该 `.pyc` 是同一 `worker.py` 的重新编译产物（差异仅内嵌路径拼法），已备份到 `~/.cache/quay-residue/2026-11-08-gap-ac135-plain-node-directory-package-resolution/` 后在主检出恢复为 HEAD 版本；主检出工作树现干净，可重跑 fan-in ff。
