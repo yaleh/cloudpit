@@ -53,7 +53,7 @@ $ echo $?
 - [x] AC2 取假控制全绿：`node --test scripts/asr-trim-capability-check.test.mjs` 退出 **0**，`pass 12 / fail 0`；`the shipped tree decides 裁不裁 ...` 与 `green fixture` 均通过。
 - [x] AC3 夹具闭包承重（负控制仍在）：从夹具删掉 `src/shared/voice/voiceEndpoint.ts`（或整树闭包中的任一必需文件）后，探针在 `check probe` 处退出 1 并指名导入方，而非红在六条命名检查；带完整闭包的夹具为绿。证明闭包增补承重、非装饰。
 - [x] AC4 两条 AC-135 取假形态未被改窄：(a) 把出货默认改成「不裁」⇒ `check default: FAIL`；(b) 消费方自行判断而不读能力 ⇒ `check single-source: FAIL`。以既有用例 `changing the declared default to "do not trim" reds default`、`reordering the registry ... reds default`、`a consumer that keeps deciding ...`、`... answers 裁不裁 by hand ...` 仍通过为证，并以 `git diff` 证明其断言面一字未动。
-- [x] AC5 出货模块与判据命令不变：`git diff --name-only <merge-base>...HEAD` 只含 `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`（及本任务文件）；读 AC-135 记录的 `criterion:` 行仍是 `node scripts/asr-trim-capability-check.mjs`。
+- [x] AC5 出货模块与判据命令不变：`git diff --name-only <merge-base>...HEAD` 只含 `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`（及本任务文件），外加 `server/shared/tests/architecture-ratchet.baseline.json` 的 stale-census 重同步（见终态记录 (e)：develop 的 `8d9ded2df` 把 `codex-host-driver.provider.ts` 推到 857 而无人记基线，855 读数让任何树的全量 suite 都红；本任务只把该读数记到实测 857 并附 RECORDED CHANGE，不改任何出货模块与判据命令）；读 AC-135 记录的 `criterion:` 行仍是 `node scripts/asr-trim-capability-check.mjs`。
 - [x] AC6 相邻判据未牵连：`node scripts/asr-pause-cues-source-check.mjs` 退出 0，`node --test scripts/asr-pause-cues-source-check.test.mjs` 退出 0，证明解析器扩展未改变其读数。
 
 ## DoD
@@ -78,14 +78,18 @@ $ echo $?
 - (b) 夹具：`node --test scripts/asr-trim-capability-check.test.mjs` → 退出 0，`pass 12 / fail 0`。负控制两臂：删 `src/shared/voice/voiceEndpoint.ts` 后红在 `check probe: FAIL Cannot find package '@/shared' imported from …/voiceTrim.ts`；另测删整树闭包中的 `src/shared/settings/uiPreferences.ts` 后红在 `check probe: FAIL Cannot find package '@/shared' imported from …/voiceDebug.ts`，六条命名检查均未 FAIL；完整闭包夹具为绿。
 - (c) 取假形态：`changing the declared default …`、`reordering the registry …`、`a consumer that keeps deciding …`、`… answers 裁不裁 by hand …` 四条既有用例仍通过；`git diff -U0 develop...HEAD` 对这些用例的断言面无 hunk。
 - (d) 边界：`git diff --name-only develop...HEAD` = `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`；`goals/AC-135-裁剪决策以能力声明为唯一来源-且默认行为不变.md:7` 仍为 `criterion: node scripts/asr-trim-capability-check.mjs`；`node scripts/asr-pause-cues-source-check.mjs` 退出 0（`verdict=ok`），`node --test scripts/asr-pause-cues-source-check.test.mjs` 7/7 pass。
+- (e) 共享前置修复：develop 的 `8d9ded2df`（fix(codex): retain attachments in resident input）把 `server/modules/providers/list/codex/host/codex-host-driver.provider.ts` 从 855 增到 857 行，却没有提交同步 census；`architecture-ratchet.baseline.json` 的 855 因此在**任何树**上都红（先在 develop 主检出单跑 `server/shared/tests/architecture-ratchet.test.ts` 复现同一条 `855→857` 断言）。本任务不改该出货文件（与本树中的 develop tip 逐字节相同，也不在本任务 delta 内），只把基线条目记到实测 857 并按基线 note 的 RECORDED CHANGE 格式追加日期段落；工作树内 `tsx --test server/shared/tests/architecture-ratchet.test.ts` 得 6/6 pass。
 
 - L_D 该轴仍暗,理由:只恢复既有判据的解析路径，无新增领域数据能力或读数。
 - L_G 该轴仍暗,理由:目标层判据（换识别服务不改路由与 UI）由 GOAL-008 其余判据承担。
+
+- (e) 共享前置（stale-census 重同步，2026-11-08）：**不是本任务 delta 的一部分**，是 suite 的共享前置。develop `8d9ded2df` 把 `codex-host-driver.provider.ts` 855→857 后未记 census，`architecture-ratchet.baseline.json` 的 855 让任何树的全量 suite 都红；本任务只把该条目记到实测 857、追加 RECORDED CHANGE 段落，出货模块与判据命令一字未动。
 
 ## Touches
 
 - scripts/asr-trim-capability-check.mjs
 - scripts/asr-trim-capability-check.test.mjs
+- server/shared/tests/architecture-ratchet.baseline.json
 - tasks/gap-ac135-plain-node-directory-package-resolution.md
 
 ## Blocker
