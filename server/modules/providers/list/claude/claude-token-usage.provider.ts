@@ -9,8 +9,8 @@ import type {
 } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
-import { resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
-import { resolveModelContextWindowRow } from '@/modules/providers/services/model-launch-spec.service.js';
+import { resolveContextWindow } from '@/modules/providers/services/runtime/launch-spec.service.js';
+import { resolveModelContextWindowRow } from '@/modules/providers/services/runtime/model-launch-spec.service.js';
 
 /**
  * The newest-turn (context-occupancy) read only needs the row at or near the

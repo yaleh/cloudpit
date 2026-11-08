@@ -1,5 +1,5 @@
 import { providerModelsDb, sessionsDb } from '@/modules/database/index.js';
-import { isAllowedLaunchEnvKey } from '@/modules/providers/services/launch-spec.service.js';
+import { isAllowedLaunchEnvKey } from '@/modules/providers/services/runtime/launch-spec.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { IProvider } from '@/shared/interfaces.js';
@@ -23,14 +23,14 @@ import { AppError } from '@/shared/utils.js';
 import {
   createSessionModelResolver,
   type RecordedSessionSelection,
-} from './session-model-resolver.js';
+} from './runtime/session-model-resolver.js';
 import {
   assertProviderAvailable,
   assertProviderSwitchAllowed,
   readRecordedProviderBinding,
   resolveModelProviderId,
   resolveRequestedProviderId,
-} from './session-provider-binding.js';
+} from './runtime/session-provider-binding.js';
 
 /** Session-row access the service needs, narrowed so tests can stub it. */
 type ProviderModelsSessionStore = {

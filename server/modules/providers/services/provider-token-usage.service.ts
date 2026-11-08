@@ -8,7 +8,7 @@ import {
   summarizeClaudeTokenUsage,
 } from '@/modules/providers/list/claude/claude-token-usage.provider.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
-import { resolveModelContextWindowRow } from '@/modules/providers/services/model-launch-spec.service.js';
+import { resolveModelContextWindowRow } from '@/modules/providers/services/runtime/model-launch-spec.service.js';
 import { readTextFileTail } from '@/shared/fs-bytes.js';
 import type {
   IProviderTokenUsage,
