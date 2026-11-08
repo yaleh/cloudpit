@@ -1,5 +1,5 @@
 import { providerModelsDb } from '@/modules/database/index.js';
-import { isAllowedLaunchEnvKey, resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
+import { isAllowedLaunchEnvKey, resolveContextWindow } from '@/modules/providers/services/runtime/launch-spec.service.js';
 import type { LLMProvider, ResolvedLaunchSpec } from '@/shared/types.js';
 
 /**

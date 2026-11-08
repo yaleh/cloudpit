@@ -148,6 +148,14 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',
   'modules/providers/services',
+  // SEVENTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-providers-services-god-package):
+  // the providers/services god-package split created these three subpackages.
+  // Added here and to cloudpit-goal-exit-gate.baseline.json together, exactly as
+  // the recorded-change contract requires; the AC-394 G1 cycle is unchanged.
+  'modules/providers/services/claude-activity',
+  'modules/providers/services/runtime',
+  'modules/providers/services/sessions',
   'modules/providers/shared/base',
   'modules/providers/shared/mcp',
   'modules/providers/shared/skills',

@@ -9,7 +9,7 @@ import {
   ClaudeSessionsProvider,
   getClaudeTranscriptParseBytes,
 } from '@/modules/providers/list/claude/claude-sessions.provider.js';
-import { createSessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { createSessionHistoryCache } from '@/modules/providers/services/sessions/session-history-cache.service.js';
 
 /**
  * Criterion for AC-211: the server transcript cache must resume an append from

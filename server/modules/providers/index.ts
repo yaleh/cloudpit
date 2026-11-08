@@ -36,7 +36,7 @@ export { sessionsService } from './services/sessions.service.js';
 // uiLastOpenedSessionService: the browser's last-opened-session pointer. The
 // routes in this module write it; `server/index.ts` binds its reader into the
 // MCP gateway so `ui_last_opened_session` answers from the same one store.
-export { uiLastOpenedSessionService } from './services/ui-last-opened-session.service.js';
+export { uiLastOpenedSessionService } from './services/sessions/index.js';
 // LifecycleModeSwitchResult: the answer `sessionsService.switchSessionLifecycleMode`
 // gives — the stored mode plus what happened to the host that was serving the
 // session — exported so a criterion can type what the lifecycle-mode route
@@ -59,13 +59,13 @@ export { readSessionAiTitle } from './services/session-ai-title.service.js';
 // commands module's `/cost` handler as `data.cost`. It decides the dual-meaning
 // `used` once, derives the cache ratio and fresh remainder, and resolves the
 // provider's accounting statement, so the browser panel only renders values.
-export { buildCostView } from './services/cost-view.js';
+export { buildCostView } from './services/sessions/index.js';
 export type {
   CostView,
   CostViewContext,
   CostViewReading,
   CostViewSession,
-} from './services/cost-view.js';
+} from './services/sessions/index.js';
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
@@ -93,8 +93,8 @@ export type { WatcherMode } from './services/sessions-watcher.service.js';
 // TurnPhase / TurnState are the criterion's own vocabulary — it types its
 // intermediate readings with them so an assertion cannot pass against a phase
 // this module never produces.
-export { createClaudeTurnTracker } from './services/claude-turn-phase.service.js';
-export type { TurnPhase, TurnState } from './services/claude-turn-phase.service.js';
+export { createClaudeTurnTracker } from './services/claude-activity/index.js';
+export type { TurnPhase, TurnState } from './services/claude-activity/index.js';
 // createClaudeTaskReducer: the Task Reducer facade. Consumed by the task-reducer
 // criterion (`claude-activity-task-reducer.test.ts`), which feeds captured SDK
 // frame sequences and a Stop hook snapshot and asserts the task table each real
@@ -116,7 +116,7 @@ export {
   createClaudeTaskReducer,
   earnsTaskTerminalRow,
   mapUpdatedStatus,
-} from './services/claude-activity-task-reducer.service.js';
+} from './services/claude-activity/index.js';
 export type {
   ActivityTask,
   BackgroundTaskSummary,
@@ -125,7 +125,7 @@ export type {
   TaskKind,
   TaskOrigin,
   TaskState,
-} from './services/claude-activity-task-reducer.service.js';
+} from './services/claude-activity/index.js';
 // createClaudeScheduleTracker: the Schedule Tracker facade. Consumed by the
 // schedule criterion (`claude-activity-schedules.test.ts`), which drives it with
 // captured `CronCreate`/`ScheduleWakeup` tool results and Stop hook
@@ -136,7 +136,7 @@ export type {
 // ClaudeScheduleTrackerOptions are the criterion's own vocabulary — it types
 // its readings with them so an assertion cannot pass against a shape this
 // module never produces.
-export { createClaudeScheduleTracker } from './services/claude-activity-schedules.service.js';
+export { createClaudeScheduleTracker } from './services/claude-activity/index.js';
 export type {
   ActivitySchedule,
   ClaudeScheduleTracker,
@@ -144,7 +144,7 @@ export type {
   ScheduleKind,
   ScheduleSource,
   SessionCronEntry,
-} from './services/claude-activity-schedules.service.js';
+} from './services/claude-activity/index.js';
 // deriveHeldWorkLeases: the Lease Deriver facade — projects the Task table
 // (AC-191) and Schedule table (AC-192) into the resident path's held-work
 // leases, beside the driver's own path rather than replacing it. Consumed by
@@ -201,9 +201,9 @@ export { default as providerRoutes } from './provider.routes.js';
 export { providerCapabilitiesService } from './services/provider-capabilities.service.js';
 // resolveModelLaunchSpec: consumed by the websocket module's shell pty to compile the
 // spawn env for the selected custom model.
-export { resolveModelLaunchSpec, resolveModelContextWindowRow } from './services/model-launch-spec.service.js';
+export { resolveModelLaunchSpec, resolveModelContextWindowRow } from './services/runtime/index.js';
 // LaunchSpecGuards: the compile-path key-filter seam, consumed by the model compile tests.
-export type { LaunchSpecGuards } from './services/model-launch-spec.service.js';
+export type { LaunchSpecGuards } from './services/runtime/index.js';
 // mapCliOptionsToSDK: driven by the passthrough-parity test to prove the SDK env
 // stays byte-identical when no configured model is selected.
 export { mapCliOptionsToSDK } from './list/claude/claude-runtime.provider.js';
@@ -344,12 +344,12 @@ export {
   DEFAULT_RESIDENT_MEMORY_MAX,
   DEFAULT_RESIDENT_SLICE_NAME,
   DEFAULT_RESIDENT_SLICE_MEMORY_MAX,
-} from './services/claude-session-scope.service.js';
+} from './services/claude-activity/index.js';
 export type {
   ResidentScopeSpawnDeps,
   ResidentScopeProcess,
   ResidentScopeSpawnImpl,
-} from './services/claude-session-scope.service.js';
+} from './services/claude-activity/index.js';
 // The pre-promotion `claude*` names: still exported because the runtime's
 // wiring, `server/index.ts` and the previous criterion import them, and because
 // that criterion asserts the contract they name — the generated argv and the
@@ -365,9 +365,9 @@ export {
   stopClaudeSessionScopes,
   sweepOrphanClaudeSessionScopes,
   DEFAULT_CLAUDE_SESSION_MEMORY_MAX,
-} from './services/claude-session-scope.service.js';
+} from './services/claude-activity/index.js';
 export type {
   ClaudeSessionScopeSpawnDeps,
   SessionScopeProcess,
   SessionScopeSpawnImpl,
-} from './services/claude-session-scope.service.js';
+} from './services/claude-activity/index.js';

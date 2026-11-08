@@ -17,7 +17,7 @@ import {
   recoverCodexSessionBinding,
 } from '@/modules/providers/list/codex/sessions/codex-session-binding.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/sessions/codex-session-synchronizer.provider.js';
-import { createSessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { createSessionHistoryCache } from '@/modules/providers/services/sessions/session-history-cache.service.js';
 import { createNormalizedMessage } from '@/shared/utils.js';
 import type { FetchHistoryResult } from '@/shared/types.js';
 

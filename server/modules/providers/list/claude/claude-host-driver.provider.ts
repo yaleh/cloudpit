@@ -117,7 +117,7 @@ import {
   requestClientToolDecision,
   resolveClaudeSessionTitle,
 } from '@/modules/providers/list/claude/claude-runtime.provider.js';
-import { resolveModelContextWindowRow } from '@/modules/providers/services/model-launch-spec.service.js';
+import { resolveModelContextWindowRow } from '@/modules/providers/services/runtime/model-launch-spec.service.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { IProviderHostDriver, IProviderHostDriverSink } from '@/shared/interfaces.js';
 import type {

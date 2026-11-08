@@ -8,7 +8,7 @@ import { providerTokenUsageService } from '@/modules/providers/services/provider
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
-import { uiLastOpenedSessionService } from '@/modules/providers/services/ui-last-opened-session.service.js';
+import { uiLastOpenedSessionService } from '@/modules/providers/services/sessions/ui-last-opened-session.service.js';
 import type {
   CustomProviderModelInput,
   HostMode,

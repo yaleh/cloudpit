@@ -1,4 +1,4 @@
-import type { ProviderTokenUsageCounts } from '../../../shared/interfaces.js';
+import type { ProviderTokenUsageCounts } from '@/shared/interfaces.js';
 
 //----------------- COST VIEW ------------
 
