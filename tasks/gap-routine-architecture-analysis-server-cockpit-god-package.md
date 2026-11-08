@@ -53,16 +53,27 @@ Split into cockpit/{brief,cards,fleet} subpackages behind barrels (brief already
 - 修复后同口径：根包 **4 files / 7 entities**（`cockpit-hub.service.ts` 1、`cockpit.module.ts` 2、`cockpit.reducer.ts` 4、`index.ts` 0）—— fileCount<20 与 entityCount<50 两条阈值均满足。
 - 子包读数：`brief/` 9 files / 21 entities（8 个搬入文件 + barrel）、`cards/` 9 / 18、`fleet/` 5 / 7。
 - 无新 SCC：`server/shared/import-graph.ts` 扫描全仓，目录 SCC 仍只有 `[modules/providers, modules/providers/list/claude, modules/providers/services]`（G1；G2/G3 空），cockpit 目录内文件级 SCC 为空。目录边方向 root → {brief,cards,fleet}、cards → brief、fleet → cards，`brief` 是 sink。
-- 三个新子目录按 AC-394 (c) 的逃生舱登记：`server/shared/tests/server-import-cycle-budget.test.ts` 的 `MANIFEST_PIN` 与 `server-import-cycle-budget.baseline.json` 的 `directoryManifest`/`nodeCount` 同步 74→77，并在 baseline note 追加第十七条 RECORDED CHANGE。
+- 三个新子目录按 AC-394 (c) 的逃生舱登记：`server/shared/tests/server-import-cycle-budget.test.ts` 的 `MANIFEST_PIN` 与 `server-import-cycle-budget.baseline.json` 的 `directoryManifest`/`nodeCount` 同步 74→77（合并前读数；合并 develop 后为 74→80，见下），并在 baseline note 追加第十七条 RECORDED CHANGE。
 - 实跑门：`npx tsc --noEmit -p server/tsconfig.json` → exit 0；`server/modules/cockpit/tests/*.test.ts`（ cockpit HTTP/card/fleet/session/brief 面）→ **154 pass / 0 fail**；`server-import-cycle-budget.test.ts` → **12 pass / 0 fail**；`cloudpit-runtime-flip.test.ts` + `architecture-ratchet.test.ts` + `mcp-gateway/tests/mcp-cockpit-tools.test.ts` + `settings/tests/cockpit-session-start-settings.routes.test.ts` → **27 pass / 0 fail**。
 
 ADR-007 轴读数：
 - L_D archguard: fileCount=4 entityCount=7 (拆分前 fileCount=24 entityCount=53) — 目标包体积阈值 fileCount<20 / entityCount<50 均满足。
-- L_G archguard: directoryCycleGroups=3 newCycleGroups=0 dirNodes=77 — 目录图无新 SCC，G1 仍为 providers 三成员，G2/G3 保持空。
+- L_G archguard: directoryCycleGroups=3 newCycleGroups=0 dirNodes=80 — 目录图无新 SCC，G1 仍为 providers 三成员，G2/G3 保持空（dirNodes 为合并 develop 后的读数，见下）。
 
 续轮复核（2026-11-08，针对上轮唯一红灯）：
 - AC-455 目录臂 recorded change：`modules/cockpit/{brief,cards,fleet}` 同批加入 `GATE_DIRECTORY_PIN`（第六次 RECORDED CHANGE）与 `cloudpit-goal-exit-gate.baseline.json.moduleDirectories`，baseline note 追加同批登记、measuredAt 更新为 2026-11-08。
 - 隔离实跑 `cloudpit-goal-exit-gate.test.ts`：3 pass / 0 fail，读数 `measured=77 frozen=77 pin=77 extra=[] baselineOutsidePin=[]`（三条负控仍各自判红）。
+
+合并 develop 后复核（2026-11-08，解上轮 exited-not-landed 的 merge 冲突）：
+- 上一轮 fan-in 停在 `step=merge-develop`：`cloudpit-goal-exit-gate.baseline.json` 与 `server-import-cycle-budget.baseline.json` 各有一处 `note`（及 exit-gate 的 `measuredAt`）冲突；两个 test.ts 已自动合并、两条目表也已自动并集。
+- 解算方式：note 取 develop 版本并追加本任务登记段落（develop 的 providers/services 段保留；本任务段改序号 —— exit-gate `Eighth`、import-cycle `AN EIGHTEENTH`，避免与 develop 已落地的 `Seventh` / `SEVENTEENTH` 撞号）；`moduleDirectories` / `directoryManifest` 取合并后实测并集（cockpit 三条 + providers/services 三条同时存在于合并树）；`nodeCount` 77→80，因为测试断言 `nodeCount === directoryManifest.length`；exit-gate `measuredAt` 更新为 2026-11-08。
+- 合并后重测（合并前 77 的读数已作废，以合并后为准）：
+  - `cloudpit-goal-exit-gate.test.ts` → 3 pass / 0 fail，读数 `measured=80 frozen=80 pin=80 extra=[] missing=[] baselineOutsidePin=[] duplicatePinEntries=0`（三条负控仍各自判红）。
+  - `server-import-cycle-budget.test.ts` → 12 pass / 0 fail，`directoryManifest=80 nodeCount=80`。
+  - `server/modules/cockpit/tests/*.test.ts` → 154 pass / 0 fail。
+  - `architecture-ratchet.test.ts` → 6 pass / 0 fail；`cloudpit-runtime-flip.test.ts` → 11 pass / 0 fail。
+  - `npx tsc --noEmit -p server/tsconfig.json` → exit 0。
+  - anti-drift Touches：38 个改动文件全部落在声明的 Touch 内（`ANTI-DRIFT OK`）。
 
 ## Touches
 - `server/modules/cockpit/**` (根包四个文件、brief/cards/fleet 三个新子包与搬入的测试)
@@ -86,3 +97,4 @@ Auto-merging server/shared/tests/server-import-cycle-budget.test.ts
 Automatic merge failed; fix conflicts and then commit the result.
 - run_id：wk-prod-anchor
 - session_id：4383d3c0-7311-46e6-b120-fb38bbfe80bb
+- 处置：该冲突已在 2026-11-08 续轮于 worktree 内解算并提交（见 Evidence「合并 develop 后复核」），worktree 无 unmerged path。
