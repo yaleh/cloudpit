@@ -66,3 +66,11 @@ ADR-007 轴读数：
 - `server/shared/tests/server-import-cycle-budget.baseline.json`
 - `server/shared/tests/cloudpit-runtime-flip.test.ts`
 - `tasks/gap-routine-architecture-analysis-server-cockpit-god-package.md`
+
+## Blocker
+
+**2026-11-08T13:03:22.472Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/cloudpit-goal-exit-gate.test.ts:   AssertionError [ERR_ASSERTION]: a directory outside the frozen baseline is a NEW module directory: modules/cockpit/brief, modules/cockpit/cards, modules/cockpit/fleet. This is a recorded-change ratchet: add it to cloudpit-goal-exit-gate.baseline.json.moduleDirectories AND to GATE_DIRECTORY_PIN in [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/shared/tests/cloudpit-goal-exit-gate.test.ts,server/shared/tests/cloudpit-goal-exit-gate.test.ts changed=-]
+- run_id：wk-prod-anchor
+- session_id：b47dd36d-ff99-483a-bbfb-767192bd36d9
