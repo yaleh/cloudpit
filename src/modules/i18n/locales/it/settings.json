@@ -63,7 +63,9 @@
     "showRawParameters": "Mostra parametri grezzi",
     "showThinking": "Mostra ragionamento",
     "sendByCtrlEnter": "Invia con Ctrl+Invio",
-    "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali. Si applica solo ai dispositivi con tastiera: su un dispositivo solo touch, Invio aggiunge sempre una riga e l’invio avviene dal pulsante."
+    "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali. Si applica solo ai dispositivi con tastiera: su un dispositivo solo touch, Invio aggiunge sempre una riga e l’invio avviene dal pulsante.",
+    "voiceVadEnabled": "Rilevamento dell'attività vocale (VAD)",
+    "voiceVadEnabledDescription": "Se attivo, la dettatura viene suddivisa sulle pause del parlato. Disattivalo se il rumore di fondo viene scambiato per voce: la registrazione viene divisa solo al limite di 60 secondi."
   },
   "terminalShortcuts": {
     "title": "Scorciatoie terminale",

@@ -16,6 +16,8 @@
  * asked for.
  */
 
+import { readStoredUiPreferences } from '@/shared/settings/uiPreferences';
+
 /** Where the remembered switches live. One JSON object, so a switch is never half-written. */
 const STORAGE_KEY = 'voiceDebugFlags';
 
@@ -188,16 +190,31 @@ export function voiceDebugOriginalCapSec(): number | undefined {
 }
 
 /**
- * Whether the continuous path segments its input at all.
+ * How a listen decides its segment boundaries.
  *
- * ON unless something turned it off, like the trim's default and for the same reason: segmentation
- * IS the shipped behaviour, and this switch has to be set for the A/B arm, not the normal path.
- *
- * `off` sends the whole input as a single request — no cut, no gap filter — which is exactly the
- * "before" the reading's `baseline` describes. Turning it on and off over one sample is what makes
- * "what the VAD did" a measured difference rather than an assertion.
+ *  · `vad` — the shipped continuous path: `LiveSegmenter`'s five rules.
+ *  · `no-vad-capped` — the USER's switch off: no VAD, no edge trim, equal pieces under the
+ *    request-size ceiling. `segmentCapped` is the splitter.
+ *  · `no-vad-whole` — the DEBUG A/B's off arm: the whole input as one request, cap and all,
+ *    which is the "before" the reading compares against.
  */
-export function isVoiceVadEnabled(): boolean {
-  const value = readFlag('voiceVad');
-  return value === undefined || !OFF_VALUES.includes(value.trim().toLowerCase());
+export type VoiceVadMode = 'vad' | 'no-vad-capped' | 'no-vad-whole';
+
+/**
+ * The mode a listen runs under, resolved at the moment it starts.
+ *
+ * THE PRECEDENCE IS THE WHOLE RULE. A debug override wins only when BOTH halves are explicit —
+ * `voiceDebug` is on AND `voiceVad` was set — so a remembered `voiceVad=off` from an earlier
+ * session cannot silently turn the feature off for a normal user (that stale value is exactly
+ * what `voiceDebug` being off disarms). Everything else follows the user's own setting, whose
+ * default is on. Both fallbacks are "on": a switch nobody set is not a reason to change the
+ * shipped behaviour.
+ */
+export function resolveVoiceVadMode(): VoiceVadMode {
+  const debugArm = readFlag('voiceVad');
+  if (isVoiceDebugEnabled() && debugArm !== undefined) {
+    return OFF_VALUES.includes(debugArm.trim().toLowerCase()) ? 'no-vad-whole' : 'vad';
+  }
+  return readStoredUiPreferences().voiceVadEnabled ? 'vad' : 'no-vad-capped';
 }
+

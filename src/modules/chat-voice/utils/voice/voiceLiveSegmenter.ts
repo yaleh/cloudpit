@@ -658,3 +658,41 @@ export function segmentLive(
   const segments = segmenter.push(samples, 0, events);
   return [...segments, ...segmenter.flush()];
 }
+
+/**
+ * The no-VAD splitter: partitions a whole buffer into equal-length uploads, without detecting
+ * anything.
+ *
+ * THIS IS THE USER'S "VAD OFF" ARM (see `voiceVadEnabled` in `@/shared/settings/uiPreferences`),
+ * and it is deliberately the opposite rule to `LiveSegmenter`'s five: no VAD frames, no pause cut,
+ * no gap filter, no edge trim, no overlap. The only boundary is the recogniser's request-size
+ * ceiling (`DEFAULT_MAX_SEGMENT_SEC`, 60 s), because a request past that budget is refused rather
+ * than recognised — so long audio is still split, at equal lengths, and the last piece carries the
+ * remainder. `maxSegmentSec = Infinity` is the debug A/B's whole-input shape: one request, capped
+ * by nothing.
+ *
+ * The pieces partition the input's samples exactly: every sample appears in exactly one upload, in
+ * order, so concatenating their PCM is byte-for-byte the input and the sum of their durations is
+ * the recording's duration. That equality is what makes "the silence the user turned VAD off to
+ * keep" a measurement rather than a promise — an edge trim or a single VAD cut would shorten it.
+ */
+export function segmentCapped(
+  samples: Float32Array,
+  sampleRate: number,
+  maxSegmentSec: number = DEFAULT_MAX_SEGMENT_SEC,
+): LiveSegment[] {
+  if (samples.length === 0) return [];
+  const maxSamples = Math.max(1, Math.round(maxSegmentSec * sampleRate));
+  const segments: LiveSegment[] = [];
+  for (let start = 0; start < samples.length; start += maxSamples) {
+    const end = Math.min(samples.length, start + maxSamples);
+    const uploaded = downsampleVoice(samples.subarray(start, end), sampleRate, UPLOAD_SAMPLE_RATE);
+    segments.push({
+      wav: encodeWavPcm16(uploaded.samples, uploaded.sampleRate),
+      startSec: start / sampleRate,
+      endSec: end / sampleRate,
+      forced: false,
+    });
+  }
+  return segments;
+}

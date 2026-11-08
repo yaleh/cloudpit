@@ -74,6 +74,7 @@ export { releaseWarmMicrophoneSource } from '@/modules/chat-voice/voice-realtime
 export { resolveVoiceContextPackRuntime } from '@/modules/chat-voice/utils/voice/voiceContextPack';
 export { resolveVoiceReference } from '@/modules/chat-voice/utils/voice/voiceContextPack';
 export { runSegmentPipeline } from '@/modules/chat-voice/utils/voice/voiceSegments';
+export { segmentCapped } from '@/modules/chat-voice/utils/voice/voiceLiveSegmenter';
 export { segmentLive } from '@/modules/chat-voice/utils/voice/voiceLiveSegmenter';
 export { segmentPlaceholder } from '@/modules/chat-voice/utils/voice/voiceSegments';
 export { undeliveredUtteranceRows } from '@/modules/chat-voice/voice-realtime/placeCaptions';

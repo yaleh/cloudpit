@@ -270,6 +270,24 @@ export default function VoiceSettingsTab() {
         </div>
       )}
 
+      {/* THE SAME PREFERENCE THE WORKSPACE MENU WRITES. One key (`voiceVadEnabled` in the shared UI
+          preferences), one behaviour: off means dictation keeps the whole recording — capped only by
+          the recogniser's request limit — instead of cutting it at speech pauses. It has no separate
+          storage on this page for that reason. */}
+      {voiceEnabled && voiceTab === 'input' && (
+        <div className="flex items-center justify-between rounded-lg border border-border p-3" data-testid="voice-vad-setting">
+          <div className="pr-3">
+            <div className="text-sm font-medium text-foreground">{t('quickSettings.voiceVadEnabled')}</div>
+            <div className="text-xs text-muted-foreground">{t('quickSettings.voiceVadEnabledDescription')}</div>
+          </div>
+          <SettingsToggle
+            checked={preferences.voiceVadEnabled}
+            onChange={(v) => setPreference('voiceVadEnabled', v)}
+            ariaLabel={t('quickSettings.voiceVadEnabled')}
+          />
+        </div>
+      )}
+
       {voiceEnabled && voiceTab === 'input' && (
         <SettingsSection title={t('voiceSettings.backendTitle')} description={t('voiceSettings.backendDescription')}>
           <div className="space-y-4">

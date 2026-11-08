@@ -98,7 +98,9 @@
     "showThinking": "Tampilkan proses berpikir",
     "sendByCtrlEnter": "Kirim dengan Ctrl+Enter",
     "voiceEnabled": "Suara (mikrofon + bacakan)",
-    "sendByCtrlEnterDescription": "Jika diaktifkan, Ctrl+Enter akan mengirim pesan, bukan Enter saja. Berguna bagi pengguna IME untuk mencegah pengiriman tidak disengaja. Hanya berlaku pada perangkat dengan keyboard — pada perangkat sentuh saja, Return selalu menambah baris dan pengiriman lewat tombol."
+    "sendByCtrlEnterDescription": "Jika diaktifkan, Ctrl+Enter akan mengirim pesan, bukan Enter saja. Berguna bagi pengguna IME untuk mencegah pengiriman tidak disengaja. Hanya berlaku pada perangkat dengan keyboard — pada perangkat sentuh saja, Return selalu menambah baris dan pengiriman lewat tombol.",
+    "voiceVadEnabled": "Deteksi aktivitas suara (VAD)",
+    "voiceVadEnabledDescription": "Jika aktif, dikte dipotong pada jeda bicara. Matikan jika kebisingan latar dianggap suara — rekaman hanya dipotong pada batas permintaan 60 detik."
   },
   "terminalShortcuts": {
     "title": "Pintasan Terminal",

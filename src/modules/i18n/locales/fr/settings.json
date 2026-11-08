@@ -63,7 +63,9 @@
     "showRawParameters": "Afficher les paramètres bruts",
     "showThinking": "Afficher la réflexion",
     "sendByCtrlEnter": "Envoyer avec Ctrl+Entrée",
-    "sendByCtrlEnterDescription": "Lorsqu'activé, appuyer sur Ctrl+Entrée envoie le message au lieu de simplement Entrée. Utile pour les utilisateurs IME pour éviter les envois accidentels. Ne s’applique qu’aux appareils dotés d’un clavier — sur un appareil tactile, Retour ajoute toujours une ligne et l’envoi se fait par le bouton."
+    "sendByCtrlEnterDescription": "Lorsqu'activé, appuyer sur Ctrl+Entrée envoie le message au lieu de simplement Entrée. Utile pour les utilisateurs IME pour éviter les envois accidentels. Ne s’applique qu’aux appareils dotés d’un clavier — sur un appareil tactile, Retour ajoute toujours une ligne et l’envoi se fait par le bouton.",
+    "voiceVadEnabled": "Détection d'activité vocale (VAD)",
+    "voiceVadEnabledDescription": "Activée, la dictée est découpée aux pauses de parole. Désactivez-la si le bruit ambiant est pris pour de la parole : l'enregistrement n'est alors découpé qu'à la limite de 60 secondes."
   },
   "terminalShortcuts": {
     "title": "Raccourcis terminal",

@@ -37,7 +37,31 @@ test('a fresh install gets the documented defaults', () => {
     sendByCtrlEnter: false,
     sidebarVisible: true,
     voiceEnabled: false,
+    voiceVadEnabled: true,
   });
+});
+
+/**
+ * AC-1: the user's VAD switch is on by default, a written `false` reads back, and a blob recorded
+ * before the key existed keeps the default rather than reading as off.
+ *
+ * The third arm is the upgrade path, and it is the one a naive `stored[key] ?? false` would get
+ * wrong: the absence of a key means "never toggled", not "turned off", so the fallback has to be
+ * the documented default.
+ */
+test('the VAD switch defaults on, reads back off, and a legacy blob keeps the default', () => {
+  assert.equal(readStoredUiPreferences().voiceVadEnabled, true, 'a fresh install must ship VAD on');
+
+  storeUiPreferences({ voiceVadEnabled: false });
+  assert.equal(readStoredUiPreferences().voiceVadEnabled, false, 'a written false must read back');
+
+  // A blob from before this key existed: everything else is stored, the key is not.
+  storeUiPreferences({ showThinking: false, voiceEnabled: true });
+  assert.equal(
+    readStoredUiPreferences().voiceVadEnabled,
+    true,
+    'a missing key must fall back to the default (on), not to off',
+  );
 });
 
 test('the stored blob is read back', () => {

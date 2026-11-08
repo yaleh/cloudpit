@@ -6,6 +6,7 @@ import {
   DEFAULT_KEEP_GAP_SEC,
   DEFAULT_MIN_SEGMENT_SEC,
   LiveSegmenter,
+  segmentCapped,
   segmentLive,
   type LiveSegment,
 } from '@/modules/chat-voice/utils/voice/voiceLiveSegmenter';
@@ -58,12 +59,13 @@ import type {
 import {
   isVoiceDebugEnabled,
   isVoiceTrimEnabled,
-  isVoiceVadEnabled,
+  resolveVoiceVadMode,
   voiceDebugFlushSilenceSec,
   voiceDebugIdleSec,
   voiceDebugMinSegmentSec,
   voiceDebugOriginalCapSec,
 } from '@/shared/voice/voiceDebug';
+import type { VoiceVadMode } from '@/shared/voice/voiceDebug';
 // The read point that turns a recogniser's declared `pauseCues` into the one answer to 裁不裁.
 // The capability itself arrives through the health reading's accessor (see `gapFilterSecForCapture`),
 // so this hook holds no table of its own — it asks the recogniser that will transcribe the audio.
@@ -435,23 +437,6 @@ function encodePcm16Wav(samples: Float32Array, sampleRate: number): Uint8Array {
   return bytes;
 }
 
-/**
- * The one segment a no-VAD path sends: the whole input, resampled to the upload rate and encoded.
- *
- * This is the `voiceVad=off` shape — no cut, no gap filter, nothing dropped — so the reading's
- * `sentSec` comes out equal to its `recordedSec` and the A/B really is "before" against "after"
- * rather than two different cuts.
- */
-function wholeBufferSegment(samples: Float32Array, sampleRate: number): LiveSegment {
-  const down = downsampleVoice(samples, sampleRate, UPLOAD_SAMPLE_RATE);
-  return {
-    wav: encodePcm16Wav(down.samples, UPLOAD_SAMPLE_RATE),
-    startSec: 0,
-    endSec: samples.length / sampleRate,
-    forced: false,
-  };
-}
-
 /** The duration of a segment's own uploaded audio, in seconds, read off the WAV it built. */
 function segmentWavSec(wav: Uint8Array): number {
   return (wav.length - WAV_HEADER_BYTES) / 2 / UPLOAD_SAMPLE_RATE;
@@ -588,9 +573,9 @@ type CaptureSession = {
   /** Filtered 16 kHz PCM (the segments' own audio) for the trimmed replay track. */
   filteredChunks: Uint8Array[];
   filteredSamples: number;
-  /** True when this session sends the whole input as one segment (`voiceVad=off`). */
-  wholeBuffer: boolean;
-  /** The raw PCM this session accumulated for the whole-buffer case, copied as it arrived. */
+  /** How this listen decides its boundaries, read once at the start (see `resolveVoiceVadMode`). */
+  vadMode: VoiceVadMode;
+  /** The raw PCM this session accumulated when no segmenter runs, copied as it arrived. */
   wholeChunks: Float32Array[];
   /** Total input samples: pushed (mic) or decoded (file), before any cut. */
   inputSamples: number;
@@ -1130,10 +1115,9 @@ export function useVoiceInput(
   const enqueueSegment = (session: CaptureSession, segment: LiveSegment) => {
     const index = session.nextIndex;
     session.nextIndex += 1;
-    // The edge-trimmed bytes are what is uploaded AND what the replay track holds: the silence this
-    // removes was never going to reach the recogniser, so keeping it in the replay would show audio
-    // this listen did not actually send.
-    const wav = trimSegmentEdges(segment.wav);
+    // Trimmed only on a VAD cut: the user's no-VAD mode exists to keep the recording whole, and the
+    // debug whole-input arm keeps the A/B shape it has always had (segment, then edge trim).
+    const wav = session.vadMode === 'no-vad-capped' ? segment.wav : trimSegmentEdges(segment.wav);
     // The filtered replay track is every segment's own audio, in order.
     const pcm = wavPcm16(wav);
     session.filteredChunks.push(pcm);
@@ -1215,10 +1199,14 @@ export function useVoiceInput(
     session.sendRequested = send;
     const trailing = session.segmenter?.flush() ?? [];
     for (const segment of trailing) enqueueSegment(session, segment);
-    // The no-VAD case: no segmenter ran, so the whole buffered input is the one segment. It is sent
-    // on the stop rather than as it arrives because "the whole recording" only exists once it ends.
-    if (session.wholeBuffer && session.wholeChunks.length > 0) {
-      enqueueSegment(session, wholeBufferSegment(concatFloat(session.wholeChunks), session.inputRate));
+    // No VAD ran, so the buffered input is split on the ceiling alone — or not at all, for the
+    // debug A/B's whole-input arm. It is sent on the stop rather than as it arrives because "the
+    // whole recording" only exists once it ends.
+    if (session.vadMode !== 'vad' && session.wholeChunks.length > 0) {
+      const maxSec = session.vadMode === 'no-vad-whole' ? Number.POSITIVE_INFINITY : undefined;
+      for (const segment of segmentCapped(concatFloat(session.wholeChunks), session.inputRate, maxSec)) {
+        enqueueSegment(session, segment);
+      }
     }
     teardownCapture(session);
     if (session.pending === 0) {
@@ -1251,8 +1239,8 @@ export function useVoiceInput(
       }
       const engine = captureEngineRef.current ?? workletCaptureEngine();
       let sampleRate = STORE_SAMPLE_RATE;
-      // Read once, when the listen starts: the A/B arm a page began is the arm this capture keeps.
-      const vadEnabled = isVoiceVadEnabled();
+      // Read once, when the listen starts: the mode a page began is the mode this capture keeps.
+      const vadMode = resolveVoiceVadMode();
       const session: CaptureSession = {
         source: 'mic',
         listenId: mintListenId(),
@@ -1276,7 +1264,7 @@ export function useVoiceInput(
         originalCapped: false,
         filteredChunks: [],
         filteredSamples: 0,
-        wholeBuffer: !vadEnabled,
+        vadMode,
         wholeChunks: [],
         inputSamples: 0,
         inputRate: STORE_SAMPLE_RATE,
@@ -1296,7 +1284,7 @@ export function useVoiceInput(
           appendOriginal(session, samples, sampleRate);
           session.inputSamples += samples.length;
           session.inputRate = sampleRate;
-          if (session.wholeBuffer) {
+          if (session.vadMode !== 'vad') {
             // No VAD: nothing is cut as it arrives, so the audio is buffered whole and sent as one
             // segment at the stop. The copy is deliberate — the engine reuses its frame buffer.
             session.wholeChunks.push(samples.slice());
@@ -1316,7 +1304,7 @@ export function useVoiceInput(
         return;
       }
       session.inputRate = sampleRate;
-      session.segmenter = vadEnabled
+      session.segmenter = vadMode === 'vad'
         ? new LiveSegmenter({
             sampleRate,
             minSegmentSec: voiceDebugMinSegmentSec() ?? DEFAULT_MIN_SEGMENT_SEC,
@@ -1370,8 +1358,9 @@ export function useVoiceInput(
    * to produce its boundaries, and segmented with the same segmenter a live stream uses. There is no
    * second batch path — this is the same cutter, given the whole buffer at once.
    *
-   * With `voiceVad=off` the VAD is skipped entirely and the whole buffer is the one segment: the
-   * "before" arm of the A/B, over the very same bytes the "after" arm ran on.
+   * It resolves the SAME mode a press of the mic does, at the moment the file is accepted: the
+   * user's switch being off gives the capped split (no VAD, no trim), and the debug override gives
+   * the A/B's whole-input arm over the very same bytes.
    */
   const transcribeFile = useCallback((file: File) => {
     void (async () => {
@@ -1383,8 +1372,8 @@ export function useVoiceInput(
         onErrorRef.current?.('Audio file too small');
         return;
       }
-      const vadEnabled = isVoiceVadEnabled();
-      const segments = vadEnabled
+      const vadMode = resolveVoiceVadMode();
+      const segments = vadMode === 'vad'
         ? segmentLive(
             decoded.samples,
             decoded.sampleRate,
@@ -1399,7 +1388,11 @@ export function useVoiceInput(
               keepGapSec: gapFilterSecForCapture(),
             },
           )
-        : [wholeBufferSegment(decoded.samples, decoded.sampleRate)];
+        : segmentCapped(
+            decoded.samples,
+            decoded.sampleRate,
+            vadMode === 'no-vad-whole' ? Number.POSITIVE_INFINITY : undefined,
+          );
       if (segments.length === 0) {
         onErrorRef.current?.('Audio file too small');
         return;
@@ -1429,7 +1422,7 @@ export function useVoiceInput(
         originalCapped: false,
         filteredChunks: [],
         filteredSamples: 0,
-        wholeBuffer: !vadEnabled,
+        vadMode,
         wholeChunks: [],
         inputSamples: decoded.samples.length,
         inputRate: decoded.sampleRate,

@@ -63,7 +63,9 @@
     "showRawParameters": "Rohe Parameter anzeigen",
     "showThinking": "Denken anzeigen",
     "sendByCtrlEnter": "Mit Strg+Enter senden",
-    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden. Gilt nur auf Geräten mit Tastatur — auf reinen Touch-Geräten fügt Return immer eine neue Zeile ein, und gesendet wird über die Schaltfläche."
+    "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden. Gilt nur auf Geräten mit Tastatur — auf reinen Touch-Geräten fügt Return immer eine neue Zeile ein, und gesendet wird über die Schaltfläche.",
+    "voiceVadEnabled": "Sprachaktivitätserkennung (VAD)",
+    "voiceVadEnabledDescription": "Wenn aktiviert, wird die Aufnahme an Sprachpausen in Abschnitte geteilt. Deaktivieren Sie dies, wenn Hintergrundgeräusche fälschlich als Sprache erkannt werden — die Aufnahme wird dann nur am 60-Sekunden-Limit geteilt."
   },
   "terminalShortcuts": {
     "title": "Terminal-Tastenkürzel",

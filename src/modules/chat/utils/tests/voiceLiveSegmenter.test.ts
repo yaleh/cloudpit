@@ -30,7 +30,7 @@ import { join } from 'node:path';
 
 import { test } from 'vitest';
 
-import { DEFAULT_FLUSH_SILENCE_SEC, DEFAULT_KEEP_GAP_SEC, DEFAULT_MAX_SEGMENT_SEC, DEFAULT_MIN_SEGMENT_SEC, OVERLAP_SEC, RELAY_COMMIT_GAP_SEC, RELAY_MERGE_GAP_SEC, RELAY_MAX_SEGMENT_SEC, RELAY_MIN_SEGMENT_SEC, RELAY_PRE_ROLL_SEC, LiveSegmenter, createLiveSegmenter, segmentLive } from '@/modules/chat-voice';
+import { DEFAULT_FLUSH_SILENCE_SEC, DEFAULT_KEEP_GAP_SEC, DEFAULT_MAX_SEGMENT_SEC, DEFAULT_MIN_SEGMENT_SEC, OVERLAP_SEC, RELAY_COMMIT_GAP_SEC, RELAY_MERGE_GAP_SEC, RELAY_MAX_SEGMENT_SEC, RELAY_MIN_SEGMENT_SEC, RELAY_PRE_ROLL_SEC, LiveSegmenter, createLiveSegmenter, segmentCapped, segmentLive } from '@/modules/chat-voice';
 import type { LiveSegment } from '@/modules/chat-voice';
 import { StreamingVad, frameRms, type VadEvent } from '@/shared/voice/voiceEndpoint';
 import type { AsrRequest } from '@shared/asr/asrRegistry';
@@ -1238,3 +1238,52 @@ test('relay DoD — the readings on the LibriSpeech construction match the froze
     assert.deepEqual(readings, LIBRI_EXPECTED[family], `${family}: the relay readings drifted from the expected table`);
   }
 }, 180_000);
+
+/**
+ * AC-4: the no-VAD splitter — the user's VAD-off arm — partitions the input and nothing else.
+ *
+ * The reading is an EQUALITY, not a shape. Each piece is decoded from its own WAV and the decoded
+ * sample counts are summed; the sum must equal the input's sample count exactly, and every piece
+ * must be at or under the request ceiling with the final one carrying the remainder. That equality
+ * is what makes "no VAD cut, no edge trim" measurable: the input below has two seconds of tone and
+ * then digital silence to the end, so a trim would shorten the first piece and a VAD cut would
+ * either add a boundary or drop the silence entirely. A splitter that did either reds here.
+ */
+test('the no-VAD splitter partitions the input at the ceiling alone', () => {
+  const cases: Array<[seconds: number, pieces: number, durations: number[]]> = [
+    [25, 1, [25]],
+    [61, 2, [60, 1]],
+    [125, 3, [60, 60, 5]],
+  ];
+
+  for (const [seconds, pieces, durations] of cases) {
+    const samples = new Float32Array(seconds * RATE);
+    // Two seconds of tone, then silence for the rest — speech followed by a very long pause.
+    for (let i = 0; i < RATE * 2; i += 1) samples[i] = 0.4;
+
+    const segments = segmentCapped(samples, RATE);
+    assert.equal(segments.length, pieces, `${seconds}s must split into ${pieces} pieces`);
+
+    const read = segments.map((segment) => {
+      const { sampleRate, samples: pcm } = decodeWav(segment.wav);
+      assert.equal(sampleRate, WAV_RATE, 'every piece must be an upload-rate WAV');
+      return pcm.length / sampleRate;
+    });
+    assert.deepEqual(read, durations, `${seconds}s produced the wrong piece durations`);
+    assert.deepEqual(
+      segments.map((segment) => segment.forced),
+      segments.map(() => false),
+      'a capped split is never a forced cut',
+    );
+
+    const decoded = segments.reduce((total, segment) => total + decodeWav(segment.wav).samples.length, 0);
+    assert.equal(decoded, samples.length, 'the pieces must concatenate to the input sample count');
+    assert.equal(segments[0].startSec, 0);
+    assert.equal(segments[segments.length - 1].endSec, seconds, 'the last piece must end at the input end');
+  }
+
+  // The debug A/B's whole-input arm is the same function with no ceiling: one request, no split.
+  const whole = segmentCapped(new Float32Array(125 * RATE), RATE, Number.POSITIVE_INFINITY);
+  assert.equal(whole.length, 1, 'an infinite ceiling must leave the input whole');
+  assert.equal(decodeWav(whole[0].wav).samples.length, 125 * RATE);
+});

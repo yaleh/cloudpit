@@ -63,7 +63,9 @@
     "showRawParameters": "Ham parametreleri göster",
     "showThinking": "Düşünmeyi göster",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
-    "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler. Yalnızca klavyeli cihazlarda geçerlidir — yalnızca dokunmatik bir cihazda Return her zaman yeni satır ekler ve gönderim düğmeyle yapılır."
+    "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler. Yalnızca klavyeli cihazlarda geçerlidir — yalnızca dokunmatik bir cihazda Return her zaman yeni satır ekler ve gönderim düğmeyle yapılır.",
+    "voiceVadEnabled": "Ses etkinliği algılama (VAD)",
+    "voiceVadEnabledDescription": "Açıkken dikte, konuşma duraklamalarında bölünür. Arka plan gürültüsü konuşma sanılıyorsa kapatın; kayıt yalnızca 60 saniyelik istek sınırında bölünür."
   },
   "terminalShortcuts": {
     "title": "Terminal Kısayolları",

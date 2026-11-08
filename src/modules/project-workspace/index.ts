@@ -3,6 +3,9 @@ export { default as ProjectWorkspaceRoute } from '@/modules/project-workspace/Pr
 // criterion: that reading has to verify the gate → tab-list wiring through the
 // real header rather than restating WorkspaceTabs' source.
 export { default as WorkspaceHeader } from '@/modules/project-workspace/WorkspaceHeader';
+// The overflow menu, exported for the settings module's cross-surface criterion: the VAD switch on
+// the Settings page and the row this menu draws must be read against one preference store.
+export { default as WorkspaceMenu } from '@/modules/project-workspace/WorkspaceMenu';
 export {
   useProjectSessionFilter,
   // The rule predicate, exported so the sidebar's live Conversations feed can be

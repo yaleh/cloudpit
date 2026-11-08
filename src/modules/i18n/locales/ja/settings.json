@@ -63,7 +63,9 @@
     "showRawParameters": "生パラメータを表示",
     "showThinking": "思考を表示",
     "sendByCtrlEnter": "Ctrl+Enterで送信",
-    "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。キーボードのある端末でのみ有効です。タッチのみの端末では Return は常に改行で、送信はボタンから行います。"
+    "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。キーボードのある端末でのみ有効です。タッチのみの端末では Return は常に改行で、送信はボタンから行います。",
+    "voiceVadEnabled": "音声アクティビティ検出（VAD）",
+    "voiceVadEnabledDescription": "オンの場合、音声の無音区間で文字起こしを分割します。周囲の雑音が音声と誤検出される場合はオフにしてください。録音は60秒のリクエスト上限でのみ分割されます。"
   },
   "terminalShortcuts": {
     "title": "ターミナルショートカット",

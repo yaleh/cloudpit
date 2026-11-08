@@ -61,6 +61,8 @@ vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,
+  // The listen's own mode resolver, resolved from the preference store this mock does not own.
+  resolveVoiceVadMode: () => 'vad',
   voiceDebugFlushSilenceSec: () => undefined,
   voiceDebugMinSegmentSec: () => undefined,
   voiceDebugIdleSec: () => undefined,

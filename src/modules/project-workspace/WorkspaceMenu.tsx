@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  AudioLines,
   Braces,
   Brain,
   Check,
@@ -39,15 +40,31 @@ const TOOL_DISPLAY_TOGGLES: Array<{ key: UiPreferenceKey; labelKey: string; icon
   { key: 'showRawParameters', labelKey: 'quickSettings.showRawParameters', icon: Eye },
   { key: 'showThinking', labelKey: 'quickSettings.showThinking', icon: Brain },
 ];
-const INPUT_TOGGLES: Array<{ key: UiPreferenceKey; labelKey: string; icon: LucideIcon }> = [
+/** One preference row; `titleKey` carries the full explanation a compact menu label cannot. */
+type InputToggle = { key: UiPreferenceKey; labelKey: string; icon: LucideIcon; titleKey?: string };
+
+const INPUT_TOGGLES: InputToggle[] = [
   { key: 'sendByCtrlEnter', labelKey: 'quickSettings.sendByCtrlEnter', icon: CornerDownLeft },
   { key: 'voiceEnabled', labelKey: 'quickSettings.voiceEnabled', icon: Mic },
+  // The user's own VAD switch. It sits below the voice-enable row and is drawn only when voice is
+  // on, because it is meaningless with dictation unavailable; the Settings page carries the same
+  // key inside Voice → Input, so both entries read and write one preference.
+  {
+    key: 'voiceVadEnabled',
+    labelKey: 'quickSettings.voiceVadEnabled',
+    icon: AudioLines,
+    titleKey: 'quickSettings.voiceVadEnabledDescription',
+  },
 ];
+
+/** Rows whose meaning depends on voice being enabled are omitted while it is off. */
+const visibleInputToggles = (voiceEnabled: boolean): InputToggle[] =>
+  INPUT_TOGGLES.filter((item) => item.key !== 'voiceVadEnabled' || voiceEnabled);
 
 /** The widest the dropdown draws; narrower viewports cap it to their own width less a margin. */
 const MENU_WIDTH_PX = 288;
 /** A rough menu height, used to decide whether it opens below the trigger or above it. */
-const MENU_ESTIMATED_HEIGHT_PX = 470;
+const MENU_ESTIMATED_HEIGHT_PX = 516;
 
 const ITEM_CLASS =
   'flex w-full min-h-[44px] items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:bg-accent';
@@ -101,13 +118,14 @@ function WorkspaceMenuPanel({ position, menuRef, onClose }: WorkspaceMenuPanelPr
     setPreference(key, !preferences[key]);
   }, [preferences, setPreference]);
 
-  const renderToggleRow = ({ key, labelKey, icon: Icon }: { key: UiPreferenceKey; labelKey: string; icon: LucideIcon }) => (
+  const renderToggleRow = ({ key, labelKey, icon: Icon, titleKey }: InputToggle) => (
     <button
       key={key}
       type="button"
       role="menuitemcheckbox"
       aria-checked={preferences[key]}
       data-workspace-menu-item={key}
+      title={titleKey === undefined ? undefined : t(titleKey, { ns: 'settings' })}
       onClick={() => togglePreference(key)}
       className={cn(ITEM_CLASS, 'items-center justify-between')}
     >
@@ -173,7 +191,7 @@ function WorkspaceMenuPanel({ position, menuRef, onClose }: WorkspaceMenuPanelPr
       {TOOL_DISPLAY_TOGGLES.map(renderToggleRow)}
 
       <p role="presentation" className={SECTION_TITLE_CLASS}>{t('quickSettings.sections.inputSettings', { ns: 'settings' })}</p>
-      {INPUT_TOGGLES.filter((item) => item.key !== 'voiceEnabled' || preferences.voiceEnabled).map(renderToggleRow)}
+      {visibleInputToggles(preferences.voiceEnabled).map(renderToggleRow)}
 
       <p role="presentation" className={SECTION_TITLE_CLASS}>{t('quickSettings.sections.appearance', { ns: 'settings' })}</p>
       <div role="none" data-workspace-menu-item="darkMode" className={cn(SETTING_ROW_CLASS, 'min-h-[44px]')}>

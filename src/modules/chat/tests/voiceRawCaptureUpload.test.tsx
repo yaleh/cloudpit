@@ -72,6 +72,8 @@ vi.mock('@/shared/voice/voiceDebug', () => ({
   isVoiceDebugEnabled: () => false,
   isVoiceTrimEnabled: () => false,
   isVoiceVadEnabled: () => true,
+  // The listen's own mode resolver, resolved from the preference store this mock does not own.
+  resolveVoiceVadMode: () => 'vad',
   // The silence flush's window switch: absent means the shipped 5 s default, which these cases run under.
   voiceDebugFlushSilenceSec: () => undefined,
   voiceDebugIdleSec: () => undefined,

@@ -98,7 +98,9 @@
     "showThinking": "Mostrar razonamiento",
     "sendByCtrlEnter": "Enviar con Ctrl+Enter",
     "voiceEnabled": "Voz (micro + lectura en voz alta)",
-    "sendByCtrlEnterDescription": "Si está activado, Ctrl+Enter envía el mensaje en lugar de solo Enter. Útil para usuarios de IME y evitar envíos accidentales. Solo se aplica en dispositivos con teclado: en un dispositivo táctil, Return siempre añade una línea y el envío se hace con el botón."
+    "sendByCtrlEnterDescription": "Si está activado, Ctrl+Enter envía el mensaje en lugar de solo Enter. Útil para usuarios de IME y evitar envíos accidentales. Solo se aplica en dispositivos con teclado: en un dispositivo táctil, Return siempre añade una línea y el envío se hace con el botón.",
+    "voiceVadEnabled": "Detección de actividad de voz (VAD)",
+    "voiceVadEnabledDescription": "Si está activado, el dictado se divide en las pausas del habla. Desactívelo si el ruido de fondo se confunde con voz: la grabación solo se divide por el límite de 60 segundos."
   },
   "terminalShortcuts": {
     "title": "Atajos de terminal",

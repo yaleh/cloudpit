@@ -15,6 +15,16 @@ export type UiPreferences = {
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
   voiceEnabled: boolean;
+  /**
+   * Whether dictation may use voice-activity detection to cut the stream into segments.
+   *
+   * A USER setting rather than the A/B switch in `@/shared/voice/voiceDebug`: it says the user
+   * judges this environment unsuitable for VAD (background noise that reads as speech, a
+   * microphone that never goes quiet). Off still caps each request at the recogniser's upper
+   * bound, so a long recording is split — just not on speech boundaries. Default on, because
+   * VAD is the shipped behaviour.
+   */
+  voiceVadEnabled: boolean;
 };
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -29,6 +39,7 @@ const DEFAULTS: UiPreferences = {
   sendByCtrlEnter: false,
   sidebarVisible: true,
   voiceEnabled: false,
+  voiceVadEnabled: true,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];

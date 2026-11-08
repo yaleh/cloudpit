@@ -98,7 +98,9 @@
     "showThinking": "생각 과정 표시",
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
     "voiceEnabled": "음성 (마이크 + 소리 내어 읽기)",
-    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 전송합니다. IME 사용자가 실수로 전송하는 것을 방지하는 데 유용합니다. 키보드가 있는 기기에서만 적용됩니다. 터치 전용 기기에서는 Return이 항상 줄 바꿈이며 전송은 버튼으로 합니다."
+    "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 전송합니다. IME 사용자가 실수로 전송하는 것을 방지하는 데 유용합니다. 키보드가 있는 기기에서만 적용됩니다. 터치 전용 기기에서는 Return이 항상 줄 바꿈이며 전송은 버튼으로 합니다.",
+    "voiceVadEnabled": "음성 활동 감지(VAD)",
+    "voiceVadEnabledDescription": "켜면 말소리 사이의 무음 구간에서 받아쓰기가 분할됩니다. 주변 소음이 음성으로 잘못 감지되면 끄십시오. 녹음은 60초 요청 한도에서만 분할됩니다."
   },
   "terminalShortcuts": {
     "title": "터미널 단축키",
