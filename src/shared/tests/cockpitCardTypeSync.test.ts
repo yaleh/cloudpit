@@ -26,7 +26,18 @@ import { describe, it } from 'vitest';
 
 const repoRoot = process.cwd();
 const srcRoot = path.join(repoRoot, 'src');
-const SERVER_TYPES = path.join(repoRoot, 'server', 'shared', 'types.ts');
+// The card/brief shapes moved out of the root barrel by
+// gap-routine-architecture-analysis-server-shared-god-package: `server/shared/types.ts`
+// is now a re-export barrel and the declarations are authored under
+// `server/shared/types/`. Read the whole directory so a later split of the card
+// vocabulary between files cannot turn the server side of this comparison vacuous.
+const SERVER_TYPES_DIR = path.join(repoRoot, 'server', 'shared', 'types');
+const readServerSource = (): string =>
+  readdirSync(SERVER_TYPES_DIR)
+    .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
+    .sort()
+    .map((entry) => readFileSync(path.join(SERVER_TYPES_DIR, entry), 'utf8'))
+    .join('\n');
 
 /** Reads one exported literal union's members out of a source string. */
 const readLiteralUnionFromSource = (source: string, typeName: string): string[] => {
@@ -217,7 +228,7 @@ const readClient = (row: SyncRow): string[] =>
   readFromSource(row.reader, readFile(findClientDeclaration(row.typeName)), row.typeName);
 
 const readServer = (row: SyncRow): string[] =>
-  readFromSource(row.reader, readFile(SERVER_TYPES), row.typeName);
+  readFromSource(row.reader, readServerSource(), row.typeName);
 
 /**
  * The difference between the two ends, spelled so a failure names the src side,
@@ -227,7 +238,7 @@ function describeDrift(row: SyncRow, client: string[], server: string[]): string
   const srcOnly = client.filter((member) => !server.includes(member));
   const serverOnly = server.filter((member) => !client.includes(member));
   return (
-    `${row.typeName}: src/shared/types.ts and server/shared/types.ts must name the same ` +
+    `${row.typeName}: src/shared/types.ts and server/shared/types/ must name the same ` +
     `${row.reader === 'object' ? 'fields' : 'members'}; ` +
     `src-only: [${srcOnly.join(', ')}]; server-only: [${serverOnly.join(', ')}]`
   );
@@ -242,7 +253,7 @@ describe('cockpit card type sync', () => {
       );
       assert.ok(
         readServer(row).length > 0,
-        `${row.typeName} must read a non-empty declaration in server/shared/types.ts`,
+        `${row.typeName} must read a non-empty declaration under server/shared/types/`,
       );
     }
   });
@@ -277,7 +288,7 @@ describe('cockpit card type sync', () => {
       );
       assert.ok(
         readServer(row).includes('contentRevision?'),
-        `${typeName} must declare \`contentRevision?\` in server/shared/types.ts`,
+        `${typeName} must declare \`contentRevision?\` under server/shared/types/`,
       );
     }
   });
@@ -300,7 +311,7 @@ describe('cockpit card type sync', () => {
       'truncatedTailBytes?',
     ];
     assert.deepEqual(readClient(row), expected, 'src/shared/types.ts must declare the nine fields');
-    assert.deepEqual(readServer(row), expected, 'server/shared/types.ts must declare the nine fields');
+    assert.deepEqual(readServer(row), expected, 'server/shared/types/ must declare the nine fields');
   });
 
   it('false-form: deleting `expired` on the src side names the src file and the literal', () => {
@@ -342,7 +353,7 @@ describe('cockpit card type sync', () => {
   });
 
   it('false-form: adding a server-side field names the field', () => {
-    const serverTypes = readFile(SERVER_TYPES);
+    const serverTypes = readServerSource();
     const mutated = serverTypes.replace(
       'export type CockpitCard = {\n',
       'export type CockpitCard = {\n  urgent: boolean;\n',

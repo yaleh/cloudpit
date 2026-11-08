@@ -162,8 +162,26 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/worktrees',
   'modules/worktrees/services',
   'shared',
+  // SIXTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-shared-god-package): the server/shared
+  // god-package split moved the root implementation files into nine subpackages
+  // (shared/types, shared/utils, shared/attachments, shared/settings, shared/data,
+  // shared/imports, shared/knowledge, shared/messages, shared/transcript). Added to
+  // this source pin and to cloudpit-goal-exit-gate.baseline.json in the same
+  // reviewed change. The split's directory graph is acyclic (no subpackage imports
+  // the shared root back) and the utils.ts line ceiling was lowered 1930 -> 116.
+  'shared/attachments',
+  'shared/data',
+  'shared/imports',
+  'shared/knowledge',
   'shared/mcp-contract',
+  'shared/messages',
   'shared/ports',
+  'shared/settings',
+  'shared/transcript',
+  'shared/types',
+  'shared/utils',
+  'shared/utils/sessions',
 ];
 
 // ---------------------------------------------------------------------------

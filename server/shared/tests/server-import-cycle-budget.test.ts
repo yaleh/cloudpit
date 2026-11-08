@@ -351,8 +351,27 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/worktrees',
   'modules/worktrees/services',
   'shared',
+  // SEVENTEENTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-shared-god-package): the server/shared
+  // god-package split created these ten subpackages (nine at the shared root plus the second-level shared/utils/sessions, which brings shared/utils below the 50-entity floor). They are registered rather than
+  // left to the new-directory leaf rule because the split's own root re-export shims
+  // (and `shared/index.ts`) legitimately import them, and they only point at
+  // `server/shared/**` or one another's lower layers (utils -> types/transcript,
+  // messages -> utils/types, settings -> utils, data -> types). No subpackage imports
+  // the `shared` root back, so the directory graph stays a DAG and no SCC is added;
+  // `directoryManifest` and `nodeCount` rise 74 -> 83.
+  'shared/attachments',
+  'shared/data',
+  'shared/imports',
+  'shared/knowledge',
   'shared/mcp-contract',
+  'shared/messages',
   'shared/ports',
+  'shared/settings',
+  'shared/transcript',
+  'shared/types',
+  'shared/utils',
+  'shared/utils/sessions',
 ];
 
 /**
