@@ -1,7 +1,7 @@
 ---
 id: gap-voice-vad-user-toggle-and-cap-split
 title: 语音输入 VAD 用户开关：会话页右上角菜单 + 设置页 Voice 输入 tab；默认开，关闭时不做 VAD 切段/首尾静音裁剪，仅按 60s 上限分片
-status: ready
+status: done
 labels:
   - gap
   - feature
