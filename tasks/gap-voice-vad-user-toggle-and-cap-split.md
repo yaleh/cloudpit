@@ -47,20 +47,20 @@ extra:
 
 ## AC
 
-- [ ] `npx vitest run src/shared/tests/uiPreferences.test.ts` exit 0：`voiceVadEnabled` 默认 `true`；写入 `false` 后 `readStoredUiPreferences()` 读回 `false`；旧数据缺该键时回落 `true`。
-- [ ] `npx vitest run src/modules/project-workspace/tests/workspaceMenuVoiceVad.test.tsx` exit 0：`voiceEnabled=false` 时行不渲染；`voiceEnabled=true` 时行渲染、`aria-checked` 等于偏好、点击后偏好翻转且 `data-workspace-menu-item="voiceVadEnabled"` 存在。
-- [ ] `npx vitest run src/modules/settings/tests/voiceVadSettingSurface.test.tsx` exit 0：设置页 Voice → 输入 tab 渲染同一开关，点击写同一个 `voiceVadEnabled` 键；菜单与设置页在同一个 mock store 下读写一致。
-- [ ] `npx vitest run src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts` exit 0：新增分片器用例——输入 25 s / 61 s / 125 s 时返回 1 / 2 / 3 片，每片 ≤ 60 s，最后一片为余数，片段拼接的样本数/时长严格等于输入；分片过程不调用 VAD、不裁首尾静音。
-- [ ] `npx vitest run src/modules/chat/tests/voiceVadPreference.test.tsx` exit 0，覆盖：
+- [x] `npx vitest run src/shared/tests/uiPreferences.test.ts` exit 0：`voiceVadEnabled` 默认 `true`；写入 `false` 后 `readStoredUiPreferences()` 读回 `false`；旧数据缺该键时回落 `true`。
+- [x] `npx vitest run src/modules/project-workspace/tests/workspaceMenuVoiceVad.test.tsx` exit 0：`voiceEnabled=false` 时行不渲染；`voiceEnabled=true` 时行渲染、`aria-checked` 等于偏好、点击后偏好翻转且 `data-workspace-menu-item="voiceVadEnabled"` 存在。
+- [x] `npx vitest run src/modules/settings/tests/voiceVadSettingSurface.test.tsx` exit 0：设置页 Voice → 输入 tab 渲染同一开关，点击写同一个 `voiceVadEnabled` 键；菜单与设置页在同一个 mock store 下读写一致。
+- [x] `npx vitest run src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts` exit 0：新增分片器用例——输入 25 s / 61 s / 125 s 时返回 1 / 2 / 3 片，每片 ≤ 60 s，最后一片为余数，片段拼接的样本数/时长严格等于输入；分片过程不调用 VAD、不裁首尾静音。
+- [x] `npx vitest run src/modules/chat/tests/voiceVadPreference.test.tsx` exit 0，覆盖：
   - 设置为开：仍走 `LiveSegmenter`，既有段数/请求数读数不变（正控制）。
   - 设置为关：一段含“语音 + 长内部静音 + 尾部静音”的输入上传后，拼接时长 == 输入时长（不裁边、不丢内部静音），请求数 == `ceil(duration / 60)`（短样本为 1）。
   - 设置为关 + 125 s 输入：2 片、每片 ≤ 60 s、拼接 == 输入。
   - 优先级：`voiceDebug=0` 且 localStorage 里有陈旧的 `voiceVad=off` → 仍按 `voiceVadEnabled`（陈旧调试值不生效）；`voiceDebug=1&voiceVad=off` → 整段一个请求（A/B 语义）；`voiceDebug=1&voiceVad=1` + 设置为关 → VAD 开（调试值覆盖）。
   - 文件上传入口 `transcribeFile` 与麦克风入口使用同一模式。
-- [ ] i18n 机械检查 exit 0：`node -e "const fs=require('fs');const ls=['de','en','es','fr','id','it','ja','ko','ru','tr','zh-CN','zh-TW'];const bad=ls.filter(l=>{const v=JSON.parse(fs.readFileSync('src/modules/i18n/locales/'+l+'/settings.json','utf8')).quickSettings||{};return !v.voiceVadEnabled||!v.voiceVadEnabledDescription});if(bad.length){console.error('missing:',bad);process.exit(1)}console.log('ok')"` 输出 `ok`、exit 0。
-- [ ] `wc -l src/modules/chat-voice/hooks/useVoiceInput.ts` 输出 ≤ 1609；`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/architecture-ratchet.test.ts` exit 0（oversize / moduleMutableState 不越线；若做了 RECORDED CHANGE，须在基线 note 中写明 dated 旧→新与理由）。
-- [ ] `npm run typecheck` exit 0；`npm run lint` exit 0。
-- [ ] `npx playwright test e2e/voice-vad-user-setting.spec.ts` exit 0：真实 Chromium + fake mic，菜单关闭 → 录音 → 请求数/字节读数符合“不切段、不裁边、按 60 s 分片”；刷新后开关仍为关；设置页与菜单显示同一状态；打开后恢复既有 VAD 段数行为。
+- [x] i18n 机械检查 exit 0：`node -e "const fs=require('fs');const ls=['de','en','es','fr','id','it','ja','ko','ru','tr','zh-CN','zh-TW'];const bad=ls.filter(l=>{const v=JSON.parse(fs.readFileSync('src/modules/i18n/locales/'+l+'/settings.json','utf8')).quickSettings||{};return !v.voiceVadEnabled||!v.voiceVadEnabledDescription});if(bad.length){console.error('missing:',bad);process.exit(1)}console.log('ok')"` 输出 `ok`、exit 0。
+- [x] `wc -l src/modules/chat-voice/hooks/useVoiceInput.ts` 输出 ≤ 1609；`npx tsx --tsconfig server/tsconfig.json --import ./scripts/undici-blocked-ports-preload.mjs --test server/shared/tests/architecture-ratchet.test.ts` exit 0（oversize / moduleMutableState 不越线；若做了 RECORDED CHANGE，须在基线 note 中写明 dated 旧→新与理由）。
+- [x] `npm run typecheck` exit 0；`npm run lint` exit 0。
+- [x] `npx playwright test e2e/voice-vad-user-setting.spec.ts` exit 0：真实 Chromium + fake mic，菜单关闭 → 录音 → 请求数/字节读数符合“不切段、不裁边、按 60 s 分片”；刷新后开关仍为关；设置页与菜单显示同一状态；打开后恢复既有 VAD 段数行为。
 
 ## DoD
 
@@ -73,18 +73,54 @@ extra:
 5. 取假形态（至少两条，必须真实变红后才通过）：(a) 菜单开关只写内存/localStorage → 刷新后状态丢失（红在持久化判据）；(b) 关闭态仍调用 `trimSilenceEdges` 或 VAD 切段 → 拼接时长 < 输入或请求数不等（红在分片/不裁边判据）；(c) 关闭态仍把 >60 s 作为单请求 → 红在上限判据。
 6. 报告落地 commit sha，以及运行实例是否已重新构建/重启加载这份代码（没加载就如实写“代码已合入 develop，运行进程仍是旧代码”）。UI 验证按 AGENTS.md：MCP 浏览器实际操作 + 截图；若存在可用场景则同时跑 `node scripts/ui-scenario.mjs <scenario.json>` 并贴 JSON 报告，没有就如实写明。
 
+## Evidence
+
+- 落地 commit：`ca8d28d32`（task 分支 `task/gap-voice-vad-user-toggle-and-cap-split`）；e2e 的 WebServer 由 `playwright.config.ts` 从**本 worktree 树**启动（日志 `config-root=…/gap-voice-vad-user-toggle-and-cap-split`，`server=14453 client=29433`，独立 `QUAY_E2E_DATA_DIR`），即真实运行的是这份代码。
+- AC 逐条读数：uiPreferences 10 passed；workspaceMenuVoiceVad 2 passed；voiceVadSettingSurface 2 passed；voiceLiveSegmenter 29 passed（含新增 segmentCapped 用例）；voiceVadPreference 6 passed（正控制 + 关闭态 19 s 整段 + 125 s 60/60/5 + 三条优先级 + 文件入口）；i18n `ok`；`wc -l` = 1602（≤1609）；architecture-ratchet 6 passed；typecheck/lint exit 0；e2e 2 passed。
+- DoD-2（真实页面 + 截图）：`tmp/voice-vad-menu-off.png`（会话页 `...` → 输入设置，VAD 行未勾选）与 `tmp/voice-vad-settings-off.png`（Settings → Voice → Voice Input，同一开关关闭）由 e2e 在**真实 Chromium**上截取；spec 内先关闭 → 整页 reload → 再开菜单与设置页，两处仍为 off（`auth.db` 持久化读数）。⛔ 本 worker 会话没有 MCP 浏览器工具（ToolSearch 无 browser/playwright MCP），故用 Playwright 真实浏览器完成同一操作与截图，未使用 MCP 浏览器；这是工具可得性差异，不是跳过验证。
+- DoD-3（fake mic 原始读数，来自 e2e 日志与请求体 WAV 声明长度）：
+  - 关闭态：`requests=1 uploadSec=19.00`（同一段 2+12+2+3 s 一次请求上传，无 VAD 边界、无首尾裁剪）。
+  - 打开态：`requests=2 segmentSec=2.00,2.00`（既有 VAD flush + stop flush 行为）。
+- DoD-4（长录音上限）：单元判据读数 125 s → `[60, 60, 5]` 片、每片 ≤60 s、拼接样本数 == 输入；真实页面 >60 s 未录（如实记录：判据为单元读数）。
+- DoD-5（假形态，均真实变红后恢复）：
+  - (a) 把 `UiPreferencesContext` 的持久化写入改成 no-op（只在内存）→ workspaceMenuVoiceVad + voiceVadSettingSurface 共 3 条断言红（“the click must reach the stored preference” / “the change must reach the stored blob”）。
+  - (b) 关闭态仍调用 `trimSegmentEdges` → voiceVadPreference 3 条红（19 s 整段、125 s 分片、文件入口）。
+  - (c) `segmentCapped` 忽略 60 s 上限 → 单元判据红（`61s must split into 2 pieces`）。
+- DoD-6：`node scripts/ui-scenario.mjs` 可用，但 `ui-scenarios/` 下无语音相关场景（仅 cockpit-cards-*、cockpit-mode-switch、quay-wall-focus-pin-utter），故如实记录“无可用语音场景”。
+
 ## Touches
 
 - src/shared/settings/uiPreferences.ts
 - src/shared/tests/uiPreferences.test.ts
 - src/modules/project-workspace/WorkspaceMenu.tsx
+- src/modules/project-workspace/index.ts
 - src/modules/project-workspace/tests/workspaceMenuVoiceVad.test.tsx (new)
 - src/modules/settings/tabs/VoiceSettingsTab.tsx
 - src/modules/settings/tests/voiceVadSettingSurface.test.tsx (new)
 - src/modules/chat-voice/hooks/useVoiceInput.ts
+- src/modules/chat-voice/index.ts
 - src/modules/chat-voice/utils/voice/voiceLiveSegmenter.ts
 - src/modules/chat/utils/tests/voiceLiveSegmenter.test.ts
 - src/modules/chat/tests/voiceVadPreference.test.tsx (new)
+- src/modules/chat/tests/activityIndicatorResponsive.test.tsx
+- src/modules/chat/tests/chatInterfaceEscapeAbort.test.tsx
+- src/modules/chat/tests/composerModelProviderOption.test.tsx
+- src/modules/chat/tests/escapeAbortGuard.test.tsx
+- src/modules/chat/tests/forkFromAssistantReply.test.tsx
+- src/modules/chat/tests/liveVoiceMicPrewarmEntry.test.tsx
+- src/modules/chat/tests/liveVoiceNewSessionEntry.test.tsx
+- src/modules/chat/tests/replyItemReferences.test.tsx
+- src/modules/chat/tests/voiceClipPlayback.test.tsx
+- src/modules/chat/tests/voiceEntryNewSessionSelection.test.tsx
+- src/modules/chat/tests/voiceErrorMessages.test.tsx
+- src/modules/chat/tests/voiceErrorNoticePersistence.test.tsx
+- src/modules/chat/tests/voiceModePermissionBanner.test.tsx
+- src/modules/chat/tests/voiceRawCaptureUpload.test.tsx
+- src/modules/chat/tests/voiceTransientRefusalRetry.test.tsx
+- src/modules/chat/voice-realtime/tests/voiceStopVsExit.test.tsx
+- src/modules/cockpit/tests/CockpitPushToTalk.test.tsx
+- src/modules/cockpit/tests/CockpitRemote.test.tsx
+- src/shared/tests/voiceUpload16k.test.ts
 - src/modules/chat-composer/composer/ChatComposer.tsx
 - src/modules/cockpit/CockpitRemote.tsx
 - src/shared/voice/voiceDebug.ts
