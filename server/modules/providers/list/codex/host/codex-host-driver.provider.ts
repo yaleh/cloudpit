@@ -34,6 +34,7 @@ import {
 import { createCodexResidentFrameRelay, type CodexResidentFrameRelay } from '@/modules/providers/list/codex/host/codex-resident-normalize.js';
 import { CodexResidentBlockedTurns, readTurnErrorMessage } from '@/modules/providers/list/codex/host/codex-resident-blocked-events.js';
 import { CodexResidentQueue } from '@/modules/providers/list/codex/host/codex-resident-queue.js';
+import { codexResidentInput, codexResidentPrompt } from '@/modules/providers/list/codex/host/codex-resident-input.js';
 import {
   steerCurrentTurn,
   type CodexSteerResult,
@@ -496,7 +497,8 @@ export class CodexHostDriver implements IProviderHostDriver {
     const session = this.requireSession(appSessionId);
     const connection = this.connectionFor(host.hostId);
     this.approvals.recordWriter(appSessionId, writer);
-    const frames = createCodexResidentFrameRelay(writer, { transcript: { appSessionId, prompt: turn.command } });
+    const prompt = codexResidentPrompt(turn);
+    const frames = createCodexResidentFrameRelay(writer, { transcript: { appSessionId, prompt } });
     const unsubscribe = connection.onNotification((method, params) => {
       if (isRecord(params) && params.threadId === session.threadId) {
         frames.forward(method, params);
@@ -507,7 +509,7 @@ export class CodexHostDriver implements IProviderHostDriver {
       // submission it wrote reaches a terminal turn (or is withdrawn).
       if (session.pending !== null || session.turnStatus === 'inProgress') {
         frames.queue();
-        await session.queue.enqueueAndWait(connection, turn.command, writer, (turnId) => frames.bindTurn(turnId));
+        await session.queue.enqueueAndWait(connection, prompt, writer, (turnId) => frames.bindTurn(turnId), codexResidentInput(turn));
         return this.readSession(appSessionId);
       }
       await this.submit(host, appSessionId, turn, writer, frames);

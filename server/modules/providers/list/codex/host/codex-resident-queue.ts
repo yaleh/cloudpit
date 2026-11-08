@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { CodexAppServerConnection } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
+import type { codexResidentInput } from '@/modules/providers/list/codex/host/codex-resident-input.js';
 import type { HostPendingQueuedInputs, HostQueuedInputCancelResult, ProviderRuntimeWriter } from '@/shared/types.js';
 import { AppError, isRecord } from '@/shared/utils.js';
 
@@ -152,6 +153,7 @@ export class CodexResidentQueue {
     text: string,
     writer: ProviderRuntimeWriter | null = null,
     onBound?: (turnId: string | null) => void,
+    input?: ReturnType<typeof codexResidentInput>,
   ): Promise<QueuedEntry> {
     const threadId = this.deps.threadId();
     if (!threadId) {
@@ -163,7 +165,8 @@ export class CodexResidentQueue {
     const clientUserMessageId = randomUUID();
     const added = await connection.request('thread/queue/add', {
       threadId,
-      input: [{ type: 'text', text, text_elements: [] }],
+      input: input?.map((item) => item.type === 'text' ? { ...item, text_elements: [] } : item)
+        ?? [{ type: 'text', text, text_elements: [] }],
       clientUserMessageId,
     });
     const submission = readQueuedSubmission(added);
@@ -341,12 +344,13 @@ export class CodexResidentQueue {
     text: string,
     writer: ProviderRuntimeWriter | null = null,
     onBound?: (turnId: string | null) => void,
+    input?: ReturnType<typeof codexResidentInput>,
   ): Promise<void> {
     // The hook is attached at entry creation, not after this call returns: a
     // `turn/started` can bind the entry while `add` is still awaiting its
     // queue/list refresh, and a hook attached later would miss that turn and
     // leave the run's relay queued forever.
-    const entry = await this.add(connection, text, writer, onBound);
+    const entry = await this.add(connection, text, writer, onBound, input);
     await entry.promise;
   }
 

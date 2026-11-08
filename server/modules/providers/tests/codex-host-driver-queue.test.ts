@@ -1022,3 +1022,34 @@ test('driver conforms to IProviderHostDriver with multiplexedHost=false (AC9)', 
   assert.equal(typeof driver.pendingQueuedInputs, 'function', 'pendingQueuedInputs must be present');
   assert.equal(typeof driver.cancelQueuedInput, 'function', 'cancelQueuedInput must be present');
 });
+
+test('busy resident sends retain AAC references and native images in thread/queue/add', async () => {
+  const { driver, transport } = createDriver(new FakeAppServerTransport());
+  const host = createHost();
+  transport.autoComplete = false;
+  try {
+    await driver.startHost(host, createSink());
+    await driver.bind(host, createBinding('session-attachments'));
+    const first = driver.run('session-attachments', turn('first'), createWriter().writer, {} as never);
+    await waitFor(() => driver.readSession('session-attachments').turnStatus === 'inProgress', 'active turn');
+    const imagePath = `${process.cwd()}/public/favicon.png`;
+    const queued = driver.run('session-attachments', {
+      command: 'Use these files',
+      options: {
+        cwd: process.cwd(),
+        files: [{ path: '/home/test/.cloudpit/assets/sample.aac', name: 'sample.aac' }],
+        images: [{ path: imagePath }],
+      },
+    }, createWriter().writer, {} as never);
+    await waitFor(() => (driver.pendingQueuedInputs('session-attachments')?.items ?? 0) === 1, 'queued attachment');
+    const input = transport.calls.find((call) => call.method === 'thread/queue/add')?.params.input as Array<Record<string, unknown>>;
+    assert.ok(String(input[0].text).includes('/home/test/.cloudpit/assets/sample.aac'));
+    assert.deepEqual(input[0].text_elements, []);
+    assert.deepEqual(input[1], { type: 'localImage', path: imagePath });
+    transport.autoComplete = true;
+    transport.finishActiveTurn('completed');
+    await Promise.all([first, queued]);
+  } finally {
+    await driver.closeHost(host, 'user');
+  }
+});

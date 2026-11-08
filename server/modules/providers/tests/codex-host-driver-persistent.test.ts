@@ -759,3 +759,41 @@ test('the resident launch injects the /mcp gateway only when a target is install
       `tokenEnv=${CODEX_MCP_GATEWAY_TOKEN_ENV} tokenInArgv=${injected.args?.some((arg) => arg.includes(target.token))}`,
   );
 });
+
+for (const command of ['Analyze this recording', '']) {
+  test(`resident turn/start retains an AAC file (${JSON.stringify(command)})`, async () => {
+    const { driver, transport } = createDriver();
+    const host = createHost();
+    const file = { path: '/home/test/.cloudpit/assets/sample.aac', name: '低音量.aac', mimeType: 'audio/aac' };
+    try {
+      await driver.startHost(host, createSink());
+      await driver.bind(host, createBinding('session-audio', null));
+      await driver.submit(host, 'session-audio', { command, options: { files: [file] } });
+      const input = transport.calls.find((call) => call.method === 'turn/start')?.params.input as Array<{ text: string }>;
+      assert.ok(input[0].text.startsWith(command));
+      assert.ok(input[0].text.includes('<files_input>'));
+      assert.ok(input[0].text.includes(file.path));
+      assert.ok(input[0].text.includes(file.name));
+    } finally {
+      await driver.closeHost(host, 'user');
+    }
+  });
+}
+
+test('resident image input uses the app-server localImage type alongside file references', () => {
+  const imagePath = `${process.cwd()}/public/favicon.png`;
+  const params = turnParams('thread-images', {
+    command: '',
+    options: { cwd: process.cwd(), images: [{ path: imagePath }] },
+  });
+  assert.deepEqual(params.input, [
+    { type: 'text', text: 'Please analyze the attached image(s).' },
+    { type: 'localImage', path: imagePath },
+  ]);
+  const mixed = turnParams('thread-images', {
+    command: 'Compare',
+    options: { cwd: process.cwd(), images: [{ path: imagePath }], files: [{ path: '/store/sample.aac' }] },
+  }).input as Array<Record<string, unknown>>;
+  assert.ok(String(mixed[0].text).includes('/store/sample.aac'));
+  assert.deepEqual(mixed[1], { type: 'localImage', path: imagePath });
+});

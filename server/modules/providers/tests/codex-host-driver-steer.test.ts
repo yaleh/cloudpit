@@ -698,3 +698,24 @@ test('reverse controls reject a queue fallback, a new turn, a drifted product an
   assert.equal(newTurnRejected, true, 'the steer assertion accepted a new turn');
   assert.equal(queueFallbackRejected, true, 'the queue assertion accepted a queue fallback');
 });
+
+test('resident turn/steer retains an AAC attachment', async () => {
+  const { driver, transport } = createDriver();
+  const host = createHost();
+  try {
+    await driver.startHost(host, createSink());
+    await driver.bind(host, createBinding('session-audio-steer'));
+    const running = driver.submit(host, 'session-audio-steer', turn('first'));
+    await waitFor(() => driver.readSession('session-audio-steer').turnStatus === 'inProgress', 'active turn');
+    await driver.steer(host, 'session-audio-steer', {
+      command: 'Use this recording',
+      options: { files: [{ path: '/home/test/.cloudpit/assets/sample.aac' }] },
+    });
+    const input = transport.calls.find((call) => call.method === 'turn/steer')?.params.input as Array<{ text: string }>;
+    assert.ok(input[0].text.includes('/home/test/.cloudpit/assets/sample.aac'));
+    await driver.interrupt(host, 'session-audio-steer');
+    await running;
+  } finally {
+    await driver.closeHost(host, 'user');
+  }
+});

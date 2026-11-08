@@ -17,6 +17,7 @@ import type {
 } from '@/modules/providers/list/codex/app-server/codex-app-server.connection.js';
 import type { McpGatewayClientTarget } from '@/shared/ports/mcp-gateway-client.port.js';
 import type { CodexResidentQueue } from '@/modules/providers/list/codex/host/codex-resident-queue.js';
+import { codexResidentInput } from '@/modules/providers/list/codex/host/codex-resident-input.js';
 import type { SessionHostManager } from '@/modules/session-hosts/index.js';
 import type { AnyRecord, HostTurnInput } from '@/shared/types.js';
 import { AppError, errorMessage, isRecord } from '@/shared/utils.js';
@@ -380,14 +381,14 @@ function codexTurnEffort(effort: unknown): string | undefined {
 }
 
 /**
- * `turn/start` params: the thread, one text input, and `effort` when the value
+ * `turn/start` params: the thread, text and attachment inputs, and `effort` when the value
  * is one the app-server accepts (see {@link CODEX_EFFORT_VALUES}).
  */
 export function turnParams(threadId: string, turn: HostTurnInput): Record<string, unknown> {
   const effort = codexTurnEffort(turn.options.effort);
   return {
     threadId,
-    input: [{ type: 'text', text: turn.command }],
+    input: codexResidentInput(turn),
     ...(effort ? { effort } : {}),
   };
 }
