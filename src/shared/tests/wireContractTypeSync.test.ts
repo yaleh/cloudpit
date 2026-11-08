@@ -81,7 +81,18 @@ const readObjectKeysFromSource = (source: string, typeName: string): string[] =>
   return [...new Set(keys)].sort();
 };
 
-const readFile = (file: string): string => readFileSync(file, 'utf8');
+// A directory path means "the whole split types vocabulary": `server/shared/types.ts` is a
+// re-export barrel since gap-routine-architecture-analysis-server-shared-god-package, and the
+// hand-copied wire shapes are authored under `server/shared/types/`. Concatenating every
+// non-test file there keeps the server end of each row readable wherever it was placed.
+const readFile = (file: string): string => {
+  if (!statSync(file).isDirectory()) return readFileSync(file, 'utf8');
+  return readdirSync(file)
+    .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
+    .sort()
+    .map((entry) => readFileSync(path.join(file, entry), 'utf8'))
+    .join('\n');
+};
 
 /**
  * Runs `read` and reports `null` when the path vanished between the directory listing and the
@@ -142,7 +153,8 @@ type SyncRow = {
   readonly reader: 'union' | 'object';
 };
 
-const SERVER_TYPES = path.join(repoRoot, 'server', 'shared', 'types.ts');
+// The split moved the declarations out of the root barrel; read the directory (see readFile).
+const SERVER_TYPES = path.join(repoRoot, 'server', 'shared', 'types');
 
 const ROWS: readonly SyncRow[] = [
   {
@@ -260,7 +272,7 @@ const ROWS: readonly SyncRow[] = [
     // cache-write count both ends now carry.
     client: 'TokenUsageCounts',
     server: 'ProviderTokenUsageCounts',
-    serverFile: path.join(repoRoot, 'server', 'shared', 'interfaces.ts'),
+    serverFile: path.join(repoRoot, 'server', 'shared', 'types', 'interfaces.ts'),
     reader: 'object',
   },
 ];
