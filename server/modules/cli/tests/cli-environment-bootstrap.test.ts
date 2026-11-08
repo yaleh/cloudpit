@@ -30,6 +30,7 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
   const fixtureCliDirectory = path.join(fixtureServerDirectory, 'modules', 'cli');
   const fixtureLoggingDirectory = path.join(fixtureServerDirectory, 'modules', 'logging');
   const fixtureSharedDirectory = path.join(fixtureServerDirectory, 'shared');
+  const fixtureSharedDataDirectory = path.join(fixtureSharedDirectory, 'data');
   const fixtureDatabasePath = path.join(fixtureRoot, 'auth.db');
 
   try {
@@ -38,11 +39,14 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
     // stays outside the sandbox), so every relative import `load-env.ts` gains has to be added
     // here too: it installs the timestamped console from `./modules/logging/index.js`, which
     // re-exports `./timestamped-console.js` (a `node:util` wrapper and nothing more), and it
-    // resolves the Cloudpit data root from `./shared/data-root.js`, which imports
-    // `./data-root-migration.js` (node builtins only; `better-sqlite3` is required lazily). A
-    // missing entry surfaces as `Cannot find module './shared/data-root.js'` from the child.
+    // resolves the Cloudpit data root from `./shared/data-root.js`. After the `server/shared`
+    // split `shared/data-root.ts` is a barrel for `shared/data/data-root.js`, whose own
+    // `./data-root-migration.js` resolves inside `shared/data/`, so both implementation modules
+    // are copied under that directory. A missing entry surfaces as `Cannot find module
+    // './data/data-root.js'` from the child.
     await mkdir(fixtureLoggingDirectory, { recursive: true });
     await mkdir(fixtureSharedDirectory, { recursive: true });
+    await mkdir(fixtureSharedDataDirectory, { recursive: true });
     await Promise.all([
       copyFile(
         path.join(applicationRoot, 'server', 'load-env.ts'),
@@ -67,6 +71,14 @@ async function runCliBootstrapFixture(isPlatform: boolean): Promise<BootstrapRes
       copyFile(
         path.join(applicationRoot, 'server', 'shared', 'data-root-migration.ts'),
         path.join(fixtureSharedDirectory, 'data-root-migration.ts'),
+      ),
+      copyFile(
+        path.join(applicationRoot, 'server', 'shared', 'data', 'data-root.ts'),
+        path.join(fixtureSharedDataDirectory, 'data-root.ts'),
+      ),
+      copyFile(
+        path.join(applicationRoot, 'server', 'shared', 'data', 'data-root-migration.ts'),
+        path.join(fixtureSharedDataDirectory, 'data-root-migration.ts'),
       ),
     ]);
     await writeFile(

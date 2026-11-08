@@ -75,7 +75,10 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '../../../..');
 const TSX_CLI = path.join(REPO_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const SELF = fileURLToPath(import.meta.url);
-const TYPES_MODULE = path.join(REPO_ROOT, 'server', 'shared', 'types.ts');
+// The provider union lives in its domain module after the `server/shared` split;
+// `server/shared/types.ts` is now a re-export barrel, so pin the declaration
+// where it is written rather than the barrel that no longer spells it.
+const TYPES_MODULE = path.join(REPO_ROOT, 'server', 'shared', 'types', 'provider-message.ts');
 
 /**
  * The union line this criterion pins: the runtime provider id must not become a
