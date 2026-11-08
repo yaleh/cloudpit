@@ -30,9 +30,9 @@ import test from 'node:test';
 import {
   NO_FEEDBACK_EXECUTOR_REASON,
   createCockpitCardActions,
-} from '@/modules/cockpit/cockpit-card-actions.js';
-import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
-import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
+} from '@/modules/cockpit/cards/cockpit-card-actions.js';
+import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cards/cockpit-card-feedback-store.js';
+import { createCockpitCardRegistry } from '@/modules/cockpit/cards/cockpit-card-registry.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type { CockpitCard, CockpitCardReceipt } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';

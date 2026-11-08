@@ -20,13 +20,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
+import { createCockpitBriefService } from '@/modules/cockpit/brief/cockpit-brief.service.js';
 import type {
   CockpitBriefAsk,
   CockpitBriefComplete,
   CockpitBriefCompletionRequest,
-} from '@/modules/cockpit/cockpit-brief.service.js';
-import type { CockpitBriefSettings } from '@/modules/cockpit/cockpit-brief-settings.js';
+} from '@/modules/cockpit/brief/cockpit-brief.service.js';
+import type { CockpitBriefSettings } from '@/modules/cockpit/brief/cockpit-brief-settings.js';
 
 /** One fixed instant, so "UTC day" is deterministic. */
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);

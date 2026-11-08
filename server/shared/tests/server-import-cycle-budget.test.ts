@@ -265,6 +265,16 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/browser-use',
   'modules/cli',
   'modules/cockpit',
+  // SEVENTEENTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-cockpit-god-package): the god-package
+  // finding's fix split `modules/cockpit` by concern into these three subpackages.
+  // They are registered rather than left to the new-directory leaf rule because the
+  // package root legitimately imports each of them and `fleet` imports `cards`
+  // (and `cards` imports `brief`); the direction is one-way, so no SCC is added.
+  // `directoryManifest` and `nodeCount` rise by three.
+  'modules/cockpit/brief',
+  'modules/cockpit/cards',
+  'modules/cockpit/fleet',
   'modules/commands',
   'modules/context-events',
   'modules/database',

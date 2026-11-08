@@ -35,11 +35,11 @@
 import type { ICockpitCardProvider } from '@/shared/interfaces.js';
 import type { CockpitCard, SessionAskDecisionReading } from '@/shared/types.js';
 
-import type { CockpitExecutorResolver } from './cockpit-card-actions.js';
+import type { CockpitExecutorResolver } from '../cards/cockpit-card-actions.js';
 import type {
   CockpitCardProviderDiagnostic,
   ICockpitCardProviderWithDiagnostics,
-} from './cockpit-card-registry.js';
+} from '../cards/cockpit-card-registry.js';
 import {
   createCockpitFleetProjection,
   type CockpitFleetContentReader,

@@ -29,7 +29,7 @@ import type {
   CockpitFixtureSubject,
 } from '@/shared/types.js';
 
-import { BRIEF_VERSION } from './cockpit-brief-core.js';
+import { BRIEF_VERSION } from '../brief/cockpit-brief-core.js';
 
 /** The action executor this provider declares. */
 const FIXTURE_EXECUTOR_ID = 'fixture.record';
