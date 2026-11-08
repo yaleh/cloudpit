@@ -87,3 +87,11 @@ $ echo $?
 - scripts/asr-trim-capability-check.mjs
 - scripts/asr-trim-capability-check.test.mjs
 - tasks/gap-ac135-plain-node-directory-package-resolution.md
+
+## Blocker
+
+**2026-11-08T12:03:13.864Z — worker 未落地（exited-not-landed）**
+
+- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/host/codex-host-driver.provider.ts 855→857 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- run_id：wk-prod-anchor
+- session_id：bf0f95e0-9403-4635-afb8-d5c8797a87dd
