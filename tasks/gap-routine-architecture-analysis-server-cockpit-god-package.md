@@ -60,11 +60,17 @@ ADR-007 轴读数：
 - L_D archguard: fileCount=4 entityCount=7 (拆分前 fileCount=24 entityCount=53) — 目标包体积阈值 fileCount<20 / entityCount<50 均满足。
 - L_G archguard: directoryCycleGroups=3 newCycleGroups=0 dirNodes=77 — 目录图无新 SCC，G1 仍为 providers 三成员，G2/G3 保持空。
 
+续轮复核（2026-11-08，针对上轮唯一红灯）：
+- AC-455 目录臂 recorded change：`modules/cockpit/{brief,cards,fleet}` 同批加入 `GATE_DIRECTORY_PIN`（第六次 RECORDED CHANGE）与 `cloudpit-goal-exit-gate.baseline.json.moduleDirectories`，baseline note 追加同批登记、measuredAt 更新为 2026-11-08。
+- 隔离实跑 `cloudpit-goal-exit-gate.test.ts`：3 pass / 0 fail，读数 `measured=77 frozen=77 pin=77 extra=[] baselineOutsidePin=[]`（三条负控仍各自判红）。
+
 ## Touches
 - `server/modules/cockpit/**` (根包四个文件、brief/cards/fleet 三个新子包与搬入的测试)
 - `server/shared/tests/server-import-cycle-budget.test.ts`
 - `server/shared/tests/server-import-cycle-budget.baseline.json`
 - `server/shared/tests/cloudpit-runtime-flip.test.ts`
+- `server/shared/tests/cloudpit-goal-exit-gate.test.ts`
+- `server/shared/tests/cloudpit-goal-exit-gate.baseline.json`
 - `tasks/gap-routine-architecture-analysis-server-cockpit-god-package.md`
 
 ## Blocker
