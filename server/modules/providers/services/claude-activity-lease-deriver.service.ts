@@ -55,8 +55,8 @@ import type { HostLease } from '@/shared/types.js';
 
 import { CRON_MAX_AGE_MS } from '../list/claude/claude-host-driver.provider.js';
 
-import type { ActivityTask, TaskState } from './claude-activity-task-reducer.service.js';
-import type { ActivitySchedule } from './claude-activity-schedules.service.js';
+import type { ActivityTask, TaskState } from './claude-activity/claude-activity-task-reducer.service.js';
+import type { ActivitySchedule } from './claude-activity/claude-activity-schedules.service.js';
 
 // ---------------------------------------------------------------- vocabulary --
 

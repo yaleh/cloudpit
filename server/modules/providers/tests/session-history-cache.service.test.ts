@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { createSessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { createSessionHistoryCache } from '@/modules/providers/services/sessions/session-history-cache.service.js';
 import type { FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 
 function historyResult(marker: string): FetchHistoryResult {

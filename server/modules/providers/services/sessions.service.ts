@@ -7,7 +7,7 @@ import { compileStoredSessionFilter } from '@/modules/projects/index.js';
 import { quayService } from '@/modules/quay/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
-import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { sessionHistoryCache } from '@/modules/providers/services/sessions/session-history-cache.service.js';
 import { sessionHostManager } from '@/modules/session-hosts/index.js';
 import type { SessionLifecycleReading } from '@/modules/session-hosts/index.js';
 import { readChatRunRegistryPort, type ChatRunRegistryPort } from '@/shared/ports/chat-run-registry.port.js';

@@ -36,10 +36,10 @@ import {
   notifyRunStopped,
   notifyUserIfEnabled
 } from '@/modules/notifications/index.js';
-import { resolveModelContextWindowRow, resolveModelLaunchSpec } from '@/modules/providers/services/model-launch-spec.service.js';
-import { resolveContextWindow } from '@/modules/providers/services/launch-spec.service.js';
-import { createClaudeSessionScopeSpawn } from '@/modules/providers/services/claude-session-scope.service.js';
-import { createClaudeTurnTracker } from '@/modules/providers/services/claude-turn-phase.service.js';
+import { resolveModelContextWindowRow, resolveModelLaunchSpec } from '@/modules/providers/services/runtime/model-launch-spec.service.js';
+import { resolveContextWindow } from '@/modules/providers/services/runtime/launch-spec.service.js';
+import { createClaudeSessionScopeSpawn } from '@/modules/providers/services/claude-activity/claude-session-scope.service.js';
+import { createClaudeTurnTracker } from '@/modules/providers/services/claude-activity/claude-turn-phase.service.js';
 import {
   approvalRequests,
   TOOL_APPROVAL_TIMEOUT_MS,
@@ -55,12 +55,12 @@ import {
   type ActivityTask,
   type BackgroundTaskSummary,
   type ClaudeTaskTransition,
-} from '@/modules/providers/services/claude-activity-task-reducer.service.js';
+} from '@/modules/providers/services/claude-activity/claude-activity-task-reducer.service.js';
 import {
   createClaudeScheduleTracker,
   type ActivitySchedule,
   type SessionCronEntry,
-} from '@/modules/providers/services/claude-activity-schedules.service.js';
+} from '@/modules/providers/services/claude-activity/claude-activity-schedules.service.js';
 import {
   ClaudeSessionOccupiedError,
   applyLaunchSpecEnv,
@@ -76,7 +76,7 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimeWriter,
 } from '@/shared/types.js';
-import type { TurnState } from '@/modules/providers/services/claude-turn-phase.service.js';
+import type { TurnState } from '@/modules/providers/services/claude-activity/claude-turn-phase.service.js';
 
 /** The SDK query instance behind one run: the only handle that can interrupt it. */
 type ClaudeQuery = Query;

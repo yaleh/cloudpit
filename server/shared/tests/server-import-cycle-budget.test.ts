@@ -328,6 +328,19 @@ const MANIFEST_PIN: readonly string[] = [
   'modules/providers/list/cursor',
   'modules/providers/list/opencode',
   'modules/providers/services',
+  // SEVENTEENTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-providers-services-god-package):
+  // the god-package finding's fix split `modules/providers/services` into three
+  // subpackages. They are registered rather than left to the new-directory leaf
+  // rule because the package root legitimately imports each of them while none
+  // of them imports the root back (`runtime/` and `sessions/` point only at
+  // shared/database, `claude-activity/` at shared and node builtins), so the
+  // direction is one-way and no SCC member is added. G1 stays the pinned
+  // three-member provider cycle exactly; `directoryManifest` and `nodeCount`
+  // rise by three.
+  'modules/providers/services/claude-activity',
+  'modules/providers/services/runtime',
+  'modules/providers/services/sessions',
   'modules/providers/shared/base',
   'modules/providers/shared/mcp',
   'modules/providers/shared/skills',
