@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-server-cockpit-god-package
 title: "architecture-analysis: archguard 2026-11-08 (scope server):
   modules/cockpit = 24 files / 53 entities, fanIn 12 / fanOut 242 — all four
   thresholds; re-confirmed from the 2026-11-06 "
-status: todo
+status: ready
 labels:
   - gap
   - routine-filed
