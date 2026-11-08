@@ -130,12 +130,3 @@ Split server/shared/types.ts and utils.ts by domain into server/shared/types/* a
 ADR-007 轴读数：
 - L_D: codeLines=24597, docLines=0, ratio=0.000（`phase-declare.js --ld-reading --numstat-file <git diff --numstat develop HEAD>`，verdict=PASS）
 - L_G: 不可评 —— shipped `archguard-runner.js` 只评估 quay 自身六个 scope，在本消费者仓读出 NOT EVALUATED（不声称 0 cycles）；目录 SCC 读数改由上表同口径 scanner 提供（G1 不变、无新增）。
-
-## Blocker
-
-**2026-11-08T13:31:56.290Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=suite: not ok - server/modules/debug-agent/tests/debug-agent-host-driver.test.ts:   AssertionError [ERR_ASSERTION]: the union line must be exactly the pinned line [baseline A/B: HARD RED (task-introduced-red) — the task's red set is NOT a subset of the develop baseline red set: added=server/modules/debug-agent/tests/debug-agent-frames.test.ts,server/modules/debug-agent/tests/debug-agent-host-driver.test.ts,server/modules/cli/tests/cli-environment-bootstrap.test.ts,server/modules/debug-agent/tests/debug-agent-frames.test.ts,server/modules/debug-agent/tests/debug-agent-host-driver.test.ts,server/modules/cli/tests/cli-environment-bootstrap.test.ts changed=-]
-- run_id：wk-prod-anchor
-- session_id：d063be03-8ce9-4a75-8c37-548192989fcf
-- 已处置（2026-11-08 第三轮）：以上三条红均为拆分的路径/夹具耦合，检查点确认后按 Disposition 的「测试夹具耦合修复」条目改读新包边界/补拷模块图并单独复跑全绿，本任务分支上不再复现。
