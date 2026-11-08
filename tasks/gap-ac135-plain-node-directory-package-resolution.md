@@ -94,8 +94,9 @@ $ echo $?
 
 ## Blocker
 
-**2026-11-08T12:03:13.864Z — worker 未落地（exited-not-landed）**
+**2026-11-08T12:15:59.308Z — worker 未落地（exited-not-landed）**
 
-- 未落地原因：step=suite: not ok - server/shared/tests/architecture-ratchet.test.ts:   AssertionError [ERR_ASSERTION]: ratchet: oversizeFiles server/modules/providers/list/codex/host/codex-host-driver.provider.ts 855→857 — 基线内读数不得上调（此基线只允许下降） [baseline A/B: HARD RED (changed-assertion) — the task's red set is NOT a subset of the develop baseline red set: added=- changed=server/shared/tests/architecture-ratchet.test.ts]
+- 未落地原因：step=ff: fan-in-ff-merge: working tree not clean in /data/home/yale/work/claudecodeui — the merge-mode ff must run on a clean checkout (found uncommitted changes):
+fan-in-ff-merge:    M scripts/sensevoice/__pycache__/worker.cpython-312.pyc
 - run_id：wk-prod-anchor
-- session_id：bf0f95e0-9403-4635-afb8-d5c8797a87dd
+- session_id：2aa86502-3777-4043-a12d-a4a05e8bd216
