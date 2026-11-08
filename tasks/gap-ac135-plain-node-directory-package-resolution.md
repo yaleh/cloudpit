@@ -49,12 +49,12 @@ $ echo $?
 
 ## AC
 
-- [ ] AC1 判据转绿（纯 node，无 tsx、无 NODE_OPTIONS 加载器）：`node scripts/asr-trim-capability-check.mjs` 退出 **0**，stdout 含六行 `check declaration: ok` / `check read-point: ok` / `check single-source: ok` / `check decision: ok` / `check default: ok` / `check discipline: ok`，且不含 `check probe: FAIL`。
-- [ ] AC2 取假控制全绿：`node --test scripts/asr-trim-capability-check.test.mjs` 退出 **0**，`pass 12 / fail 0`；`the shipped tree decides 裁不裁 ...` 与 `green fixture` 均通过。
-- [ ] AC3 夹具闭包承重（负控制仍在）：从夹具删掉 `src/shared/voice/voiceEndpoint.ts`（或整树闭包中的任一必需文件）后，探针在 `check probe` 处退出 1 并指名导入方，而非红在六条命名检查；带完整闭包的夹具为绿。证明闭包增补承重、非装饰。
-- [ ] AC4 两条 AC-135 取假形态未被改窄：(a) 把出货默认改成「不裁」⇒ `check default: FAIL`；(b) 消费方自行判断而不读能力 ⇒ `check single-source: FAIL`。以既有用例 `changing the declared default to "do not trim" reds default`、`reordering the registry ... reds default`、`a consumer that keeps deciding ...`、`... answers 裁不裁 by hand ...` 仍通过为证，并以 `git diff` 证明其断言面一字未动。
-- [ ] AC5 出货模块与判据命令不变：`git diff --name-only <merge-base>...HEAD` 只含 `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`（及本任务文件）；读 AC-135 记录的 `criterion:` 行仍是 `node scripts/asr-trim-capability-check.mjs`。
-- [ ] AC6 相邻判据未牵连：`node scripts/asr-pause-cues-source-check.mjs` 退出 0，`node --test scripts/asr-pause-cues-source-check.test.mjs` 退出 0，证明解析器扩展未改变其读数。
+- [x] AC1 判据转绿（纯 node，无 tsx、无 NODE_OPTIONS 加载器）：`node scripts/asr-trim-capability-check.mjs` 退出 **0**，stdout 含六行 `check declaration: ok` / `check read-point: ok` / `check single-source: ok` / `check decision: ok` / `check default: ok` / `check discipline: ok`，且不含 `check probe: FAIL`。
+- [x] AC2 取假控制全绿：`node --test scripts/asr-trim-capability-check.test.mjs` 退出 **0**，`pass 12 / fail 0`；`the shipped tree decides 裁不裁 ...` 与 `green fixture` 均通过。
+- [x] AC3 夹具闭包承重（负控制仍在）：从夹具删掉 `src/shared/voice/voiceEndpoint.ts`（或整树闭包中的任一必需文件）后，探针在 `check probe` 处退出 1 并指名导入方，而非红在六条命名检查；带完整闭包的夹具为绿。证明闭包增补承重、非装饰。
+- [x] AC4 两条 AC-135 取假形态未被改窄：(a) 把出货默认改成「不裁」⇒ `check default: FAIL`；(b) 消费方自行判断而不读能力 ⇒ `check single-source: FAIL`。以既有用例 `changing the declared default to "do not trim" reds default`、`reordering the registry ... reds default`、`a consumer that keeps deciding ...`、`... answers 裁不裁 by hand ...` 仍通过为证，并以 `git diff` 证明其断言面一字未动。
+- [x] AC5 出货模块与判据命令不变：`git diff --name-only <merge-base>...HEAD` 只含 `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`（及本任务文件）；读 AC-135 记录的 `criterion:` 行仍是 `node scripts/asr-trim-capability-check.mjs`。
+- [x] AC6 相邻判据未牵连：`node scripts/asr-pause-cues-source-check.mjs` 退出 0，`node --test scripts/asr-pause-cues-source-check.test.mjs` 退出 0，证明解析器扩展未改变其读数。
 
 ## DoD
 
@@ -68,8 +68,19 @@ $ echo $?
 
 **本任务不证明** `pauseCues` 能力语义本身正确——那由 AC-119 的浏览器配对判据与各 provider 的配对实验承担；本任务只恢复「以能力声明为唯一来源且默认不变」这条机检在纯 node 下的可测性。
 
-L_D 该轴仍暗：只恢复既有判据的解析路径，无新增领域数据能力或读数。
-L_G 该轴仍暗：目标层判据（换识别服务不改路由与 UI）由 GOAL-008 其余判据承担。
+### 终态记录（本轮实测，2026-11-08）
+
+本次红是**第二次**失效。第一次由 `gap-asr-trim-capability-node-alias-unresolved` 修掉「`@/X` 只拼 `.ts`」；其后 `f6426ea48` 把 `src/shared/api.ts` 拆成目录包 `src/shared/api/index.ts`，且 `voiceDebug.ts`（开关的家）的读取经该 barrel 延伸到仓库根 `shared/` 树。上一修复的两条假设——「别名目标永远是单个 `.ts` 文件」「判据只 import `voiceTrim.ts` 的轻依赖」——因此同时不成立：目录包要求 `index.ts`，而开关的图带进了 `@shared/` 与 `.js`→`.ts` 两种它没教的 specifier；夹具仍只列 12 个文件，判据退回 `check probe: FAIL ENOENT …/src/shared/api.ts`。
+
+本轮读数：
+
+- (a) 真树：`node scripts/asr-trim-capability-check.mjs` → 退出 0；`grep -c` 六条 `check …: ok` = 6，`check probe: FAIL` = 0。
+- (b) 夹具：`node --test scripts/asr-trim-capability-check.test.mjs` → 退出 0，`pass 12 / fail 0`。负控制两臂：删 `src/shared/voice/voiceEndpoint.ts` 后红在 `check probe: FAIL Cannot find package '@/shared' imported from …/voiceTrim.ts`；另测删整树闭包中的 `src/shared/settings/uiPreferences.ts` 后红在 `check probe: FAIL Cannot find package '@/shared' imported from …/voiceDebug.ts`，六条命名检查均未 FAIL；完整闭包夹具为绿。
+- (c) 取假形态：`changing the declared default …`、`reordering the registry …`、`a consumer that keeps deciding …`、`… answers 裁不裁 by hand …` 四条既有用例仍通过；`git diff -U0 develop...HEAD` 对这些用例的断言面无 hunk。
+- (d) 边界：`git diff --name-only develop...HEAD` = `scripts/asr-trim-capability-check.mjs`、`scripts/asr-trim-capability-check.test.mjs`；`goals/AC-135-裁剪决策以能力声明为唯一来源-且默认行为不变.md:7` 仍为 `criterion: node scripts/asr-trim-capability-check.mjs`；`node scripts/asr-pause-cues-source-check.mjs` 退出 0（`verdict=ok`），`node --test scripts/asr-pause-cues-source-check.test.mjs` 7/7 pass。
+
+- L_D 该轴仍暗,理由:只恢复既有判据的解析路径，无新增领域数据能力或读数。
+- L_G 该轴仍暗,理由:目标层判据（换识别服务不改路由与 UI）由 GOAL-008 其余判据承担。
 
 ## Touches
 
