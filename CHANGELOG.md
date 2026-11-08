@@ -3,6 +3,98 @@
 All notable changes to Cloudpit will be documented in this file.
 
 
+## [3.0.1](https://github.com/yaleh/cloudpit/compare/v3.0.0...v3.0.1) (2026-11-08)
+
+### New Features
+
+* **cockpit:** align molten decision card with GOAL-012 wire ([01aa1fd](https://github.com/yaleh/cloudpit/commit/01aa1fd67f2507d0dec360c3d354d429872c779c))
+* **cockpit:** render molten short-loop decisions with a dedicated kind and executor ([146af91](https://github.com/yaleh/cloudpit/commit/146af910565c60c6ef576fe9e2730a9bff18883d))
+* **mcp:** add project_create MCP tool over the UI's createProject service ([649832b](https://github.com/yaleh/cloudpit/commit/649832b30777a82e6be7d3c104d5d305495f98b6))
+* **settings:** explain Codex provider variants on the Codex settings page ([f5c8e2c](https://github.com/yaleh/cloudpit/commit/f5c8e2c491a6696f26ad1bf434bdc24312a5484d))
+* **settings:** one Bind also selects the imported provider in the model editor ([f6bccc7](https://github.com/yaleh/cloudpit/commit/f6bccc7164f384cd044800c6a73f6594dd3d22ca))
+
+### Bug Fixes
+
+* **ac135:** re-sync the oversize census for the codex host driver ([fc286b0](https://github.com/yaleh/cloudpit/commit/fc286b0a099a603d58b771d41894d18284c0e721))
+* **ac135:** teach the plain-node trim probe the tree's real resolution rules ([e23ead4](https://github.com/yaleh/cloudpit/commit/e23ead48c4bb0b0554ba0d45f258039d953ca208))
+* **ac459:** pin v3.0 R7 canonical-only observation URIs in AC4 criterion ([77ffb90](https://github.com/yaleh/cloudpit/commit/77ffb90d08316cac3f919a62a27d473a21b2ac4c))
+* **architecture:** keep semantic arrowheads rigid and pinned to their own end ([9c07548](https://github.com/yaleh/cloudpit/commit/9c07548c2c12d0010ecdda38cdd027a28a039867))
+* **architecture:** keep the arrowhead rewrite within the oversize ratchet ([cf0e389](https://github.com/yaleh/cloudpit/commit/cf0e3892d4c759297d1c137c84883ff8fb1355f9))
+* **chat-composer:** show the latest request in the token chip for every provider ([5344cb2](https://github.com/yaleh/cloudpit/commit/5344cb23f9c8a7cf181be970e41453b88d60f2f6))
+* **chat:** keep markdown blocks mounted across replyItems identity changes ([c2f211a](https://github.com/yaleh/cloudpit/commit/c2f211a8e614779cb823a5136ec572e5d0122a6b))
+* **cockpit:** keep card actions under the 800-line ratchet ([1fabdfa](https://github.com/yaleh/cloudpit/commit/1fabdfa18696bec0956f57e813ca24eadba2289a))
+* **cockpit:** keep card actions under the 800-line ratchet ([f6ab378](https://github.com/yaleh/cloudpit/commit/f6ab378da067cea00fb60e10d86c532ba006c96f))
+* **cockpit:** salvage fleet card reads cut at the stdout bound ([3385b8e](https://github.com/yaleh/cloudpit/commit/3385b8ece535ee7028fecd289cc52d6a465a0bf0))
+* **cockpit:** send provider as own-reply feedback source ([39966e6](https://github.com/yaleh/cloudpit/commit/39966e6c79fc6b1a8326ff5a9f65e2fb11e50d56))
+* **codex:** expand provider variants from each provider's own model list ([344fbc8](https://github.com/yaleh/cloudpit/commit/344fbc807ad3b4f20fdf9b5f6204cb7cf93c5f6d))
+* **codex:** fork the edit-rewind and session-fork under the session's provider ([3b7986b](https://github.com/yaleh/cloudpit/commit/3b7986bd1f7aba2f3d48eefc574b3668901ecef6))
+* **codex:** inject model_provider on a resident cold start ([ed7a3a6](https://github.com/yaleh/cloudpit/commit/ed7a3a6015ecf1d1fd918f4f81fa794a952629f2))
+* **codex:** retain attachments in resident input ([8d9ded2](https://github.com/yaleh/cloudpit/commit/8d9ded2df8199c03af1bb86a9511ac8cd750aa04))
+* **codex:** thread modelProviderId through new-session create and first send ([9dadc3b](https://github.com/yaleh/cloudpit/commit/9dadc3b1784eeaa175a9f074ee7dd7d2512867e9))
+* **codex:** update settings hint to the per-provider own-model semantics ([c9dc46f](https://github.com/yaleh/cloudpit/commit/c9dc46fa689f2172e5d68e966cef1d9cbbaf524f))
+* **e2e:** calibrate the shared reload guard to a loaded cold boot ([e411517](https://github.com/yaleh/cloudpit/commit/e4115176c6753f0b4b9cd32a42b1a8badd0cc0e1))
+* **e2e:** raise AC-153's step-level health waits and make their timeout self-explanatory ([d22e468](https://github.com/yaleh/cloudpit/commit/d22e4685e59c6df6e703bc54cf930c96e649213b))
+* **e2e:** raise AC-153's three walls above the loaded host envelope ([f1775df](https://github.com/yaleh/cloudpit/commit/f1775df72cbb2e267d24840b86727b25d1baad34))
+* **providers:** scan only the installed Claude plugin version payload ([4f9cba3](https://github.com/yaleh/cloudpit/commit/4f9cba34749974bf89167e3093b94ff9ee7285c3))
+* **quay-contracts:** exempt resident service log and atomic-write temps from AC3 home guard ([84c088c](https://github.com/yaleh/cloudpit/commit/84c088c7270a27ff496a6ffaebd22df4e47e0390))
+* **quay:** compact snapshot task read, wider driver-status ceiling, no cache on partial reads ([30433ec](https://github.com/yaleh/cloudpit/commit/30433ec0cb3325196b0be165748f3662cc7a28df))
+* **quay:** keep quay.service.ts within the oversize ratchet baseline ([d1b1241](https://github.com/yaleh/cloudpit/commit/d1b1241c63aa13c09319ae51bff795c6061f4e43))
+* **ratchet:** re-sync stale provider-runtime oversize baseline ([be163f9](https://github.com/yaleh/cloudpit/commit/be163f9e7e77fe017523edd5a83339e5cdc386a0))
+* **resident-ledger:** keep AC-396 readings true after the claude split ([116b7cb](https://github.com/yaleh/cloudpit/commit/116b7cb303a97030fbed4e5adb9619a1930995a3))
+* **sidebar:** collapse a project row on the first click ([2c287c7](https://github.com/yaleh/cloudpit/commit/2c287c7b42a1cd4c8b4ba1aa43aaadacc8b921b3))
+* **sidebar:** make a project row collapse in one click ([47ae7b8](https://github.com/yaleh/cloudpit/commit/47ae7b8a320e5004d22f39fbf87e127e9e7a050f))
+* **skills:** scope plugin install records to the workspace ([0fab594](https://github.com/yaleh/cloudpit/commit/0fab594a2225f87327578ac731c62a1883534624))
+* **tests:** move two api-surface source readings to the new package boundary ([b0157a1](https://github.com/yaleh/cloudpit/commit/b0157a177581e14f9dac7bd67629cbb5bd8e3cff))
+* **voice-realtime:** collapse nested error readers into one keyed helper ([af5af80](https://github.com/yaleh/cloudpit/commit/af5af809a1182a34918c3b836ff51fc51c3307b7))
+
+### Refactoring
+
+* **architecture:** split god package into render/layout/dom leaves ([9c32497](https://github.com/yaleh/cloudpit/commit/9c32497d1241814ceae09ad6dd5abd8a97080eb0))
+* **chat:** keep a transcript selection alive without re-rendering the transcript ([cbd31e2](https://github.com/yaleh/cloudpit/commit/cbd31e21ed7f70783de7ba32796c616fc79f48ee))
+* **claude:** extract resident host lifecycle types/runtime into lifecycle/ subpackage ([3b9a9f5](https://github.com/yaleh/cloudpit/commit/3b9a9f5bff22d264401a6dc51ea9a7a2a4702949))
+* **claude:** split the resident host driver into a lifecycle/ base-class chain ([bee17aa](https://github.com/yaleh/cloudpit/commit/bee17aad9537494266ad6bd8d9bbd2d53587ced0))
+* **cockpit:** split god package into brief/cards/fleet subpackages ([9a593d1](https://github.com/yaleh/cloudpit/commit/9a593d1a5804a12ff9e65225ba280a20ba8e441d))
+* **codex:** split the provider god package into app-server/host/sessions ([61839ca](https://github.com/yaleh/cloudpit/commit/61839ca162d07bb1a4b0dfa7d3bd2e3b41316910))
+* **mcp-gateway:** split tool implementations into tools/<family> ([e8881dd](https://github.com/yaleh/cloudpit/commit/e8881dd2204811a648b5821c48fd0c182b7f0bda))
+* **observation:** split god package into core/session-digest/session-ask/producers ([9dd352a](https://github.com/yaleh/cloudpit/commit/9dd352a6daffe9a73452e323a3119d41685f63cb))
+* **providers:** split the services god package into runtime/sessions/claude-activity ([abbe3af](https://github.com/yaleh/cloudpit/commit/abbe3af135da51d66110086d1be1ea8143676ad5))
+* **server/shared:** split types.ts and utils.ts into domain subpackages ([db2d697](https://github.com/yaleh/cloudpit/commit/db2d697047e82adbd7fae137d2c2dfbd819013d4))
+* **settings:** extract firstMatchingLabel for User-Agent label tables ([1ae98f0](https://github.com/yaleh/cloudpit/commit/1ae98f0d5fb6b79bc5851dbf67219732aabf6779))
+* **shared-api:** move the endpoint map out of the barrel to break the voiceConfig file cycle ([785282f](https://github.com/yaleh/cloudpit/commit/785282fa0e62f77cb79c1db3f3003b38046e85be))
+* **shared:** one readField ladder for typed settings and route fields ([14b1385](https://github.com/yaleh/cloudpit/commit/14b1385d4cd421cdfdae47537fd81ebeabcc2c8f))
+* **shared:** split src/shared god package into api/settings/voice/voice-asr ([f6426ea](https://github.com/yaleh/cloudpit/commit/f6426ea488a07cfbcc34b6b4ae1120aa5e526727))
+* **sidebar:** decompose useSidebarController into concern hooks ([c738224](https://github.com/yaleh/cloudpit/commit/c73822462db9d25d4fccf6a33db7c8e07735abd6))
+* **sidebar:** extract finishSearch shared by SSE done and error ([7caf597](https://github.com/yaleh/cloudpit/commit/7caf597150198553ce90efd524c6f15743ba5035))
+* **ui-scenario:** one barFor(attribute, cardId) lookup for both card bars ([d1dc7c3](https://github.com/yaleh/cloudpit/commit/d1dc7c3a724ec6fa78a379181287ea0f64b9e21c))
+
+### Documentation
+
+* **release:** add Cloudpit v3.0.1 release notes ([e54202e](https://github.com/yaleh/cloudpit/commit/e54202ecf2ce3312fead06d35fcc51374a406766))
+
+### Styling
+
+* **claude:** group lifecycle imports to satisfy oxlint importx ([78302bb](https://github.com/yaleh/cloudpit/commit/78302bb6af54fe157b2a1f8a359881a4da3d5055))
+
+### Maintenance
+
+* **architecture:** re-measure cycle readings after merging develop ([812dceb](https://github.com/yaleh/cloudpit/commit/812dcebf95fe6040a79d1a32e03a8b5430cfca2e))
+* **goals:** raise AC-331 timeoutMs to 300000 ([dd28d6d](https://github.com/yaleh/cloudpit/commit/dd28d6d939c8a5143a2fea23e176d6d6886960cd))
+* **ratchet:** re-sync the oversize census to develop's sessions.service.ts growth ([2251861](https://github.com/yaleh/cloudpit/commit/2251861ebe75568350e2f21c6fb4b1542ab010d0))
+* **release:** default the distribution verifier and release workflow to 3.0.1 ([3229b07](https://github.com/yaleh/cloudpit/commit/3229b07cc5ccebd492cf306d189e1ee758e35ea8))
+* **suite:** cap test concurrency to a host share ([d6163ba](https://github.com/yaleh/cloudpit/commit/d6163ba99ddb72d2e1b4a2864fe7e8c9c389295d))
+* **tasks:** remove accidental stub task x created by a CLI probe ([9dee0b1](https://github.com/yaleh/cloudpit/commit/9dee0b1e06b5347a5d99c01204ac9471d2e297fa))
+
+### Tests
+
+* **ac455:** register cockpit subpackages in the exit-gate directory ratchet ([0cf1ce9](https://github.com/yaleh/cloudpit/commit/0cf1ce9091e5aeda4fbf99c1bfa16546b519abf6))
+* **client:** read the split server type vocabulary in wireContractTypeSync ([6ca9d25](https://github.com/yaleh/cloudpit/commit/6ca9d2596285862f819ab76dee3655084acdbe0b))
+* **e2e:** bound the post-send URL wait and observe the creation intent (AC-180) ([495146c](https://github.com/yaleh/cloudpit/commit/495146c7d8b0fac14d112d64076ffc9050f31ba6))
+* **e2e:** declare AC-175 resident-busy-send whole-run budget ([12351dc](https://github.com/yaleh/cloudpit/commit/12351dc21f0cb7a1cac69d817e7e220448983b89))
+* **e2e:** declare the AC-180 whole-run budget and raise its gate deadline ([8600573](https://github.com/yaleh/cloudpit/commit/8600573be024d1a68d977325accb7df0fdb59f30))
+* **shared-split:** read the union and copy the data-root graph at its new boundary ([93bec4b](https://github.com/yaleh/cloudpit/commit/93bec4bdf3dc2fccce413e933c011fe5ad297aa9))
+* **shared:** follow the src/shared split in path-pinned criteria ([f088f74](https://github.com/yaleh/cloudpit/commit/f088f74f9ace5baa8a04c29e13bda224e8a9c9d2))
+* survive resident-service writes and host load in two flaky suites ([625f088](https://github.com/yaleh/cloudpit/commit/625f088994746f14eab11262b1fca295be2608cc))
+
 ## [3.0.0](https://github.com/yaleh/cloudpit/compare/v2.0.0...v3.0.0) (2026-11-03)
 
 ### ⚠ BREAKING CHANGES
