@@ -1,7 +1,7 @@
 ---
 id: gap-ac135-plain-node-directory-package-resolution
 title: 恢复 AC-135 判据：纯 node 解析不到目录包 @/shared/api 与开关的 @shared/ 闭包
-status: ready
+status: done
 labels:
   - gap
   - defect
