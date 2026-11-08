@@ -110,7 +110,7 @@ Split server/shared/types.ts and utils.ts by domain into server/shared/types/* a
 - `tasks/gap-routine-architecture-analysis-server-shared-god-package.md`
 
 ## Disposition
-**处置结论：修掉（split 落地，2026-11-08，commit db2d69704 + merge develop）。**
+**处置结论：修掉（split 落地，2026-11-08，commit db2d69704 + 后续 merge develop；客户端判据修复 commit 6ca9d2596）。**
 
 复核（与本 finding 同一探针、同一口径）：
 - 拆分前（本任务基线树，archguard server scope）：`shared` = 18 files / 149 entities / fanIn 1846 / fanOut 99，reasons 含 `tooManyEntities` —— 与 finding 逐字一致。
@@ -120,9 +120,9 @@ Split server/shared/types.ts and utils.ts by domain into server/shared/types/* a
 - 兼容性：`types.ts`/`utils.ts`/`interfaces.ts` 及其余根文件保留为 `export *` 反向 barrel，`@/shared/types.js` 与 `@/shared/utils.js` 的既有 600+ 说明符零改动。
 - oversize 棘轮同批下调：`architecture-ratchet.baseline.json` 删除 `server/shared/types.ts`(5693) 与 `server/shared/utils.ts`(1930)；搬动文件的按路径读数逐条重键（claude-cli-path 1、image-attachments 2、message-unification 2、interfaces providerNameBranches 2，读数不变）。所有新文件 <800 行、模块级可变状态为 0（根 `utils.ts` 保留原 2 个 mutable 读数与 116 行 ceiling）。
 - 路径敏感判据同步：`resident-run-is-turn-single-reader.test.ts` 与 `cloudpit-goal-exit-gate.test.ts` 对 `server/shared/utils.ts` 的钉读保持成立（两个读点留在根 leaf）；`cockpitCardTypeSync.test.ts` 与 `wireContractTypeSync.test.ts`（含 `interfaces.ts` 行）改为读 `server/shared/types/` 目录（声明已搬出根 barrel）。
-- 实跑门：`tsc --noEmit` ×3 项目（root/server/scripts）→ 0；`oxlint server/` → 0 error（仅既有 warning）；`server/shared/tests/*.test.ts` → 174 pass / 0 fail；`vitest run src/shared/tests/{cockpitCardTypeSync,wireContractTypeSync}.test.ts` → 8 + 5 pass / 0 fail；`scripts/asr-health-provider-check.test.mjs` → 8 pass / 0 fail；`server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts` → 7 pass / 0 fail。
+- 实跑门：`tsc --noEmit` ×3 项目（root/server/scripts）→ 0；`oxlint server/` → 0 error（仅既有 warning）；`server/shared/tests/*.test.ts` → 174 pass / 0 fail（合并 providers 与 cockpit 两条已落地任务后复跑仍全绿）；`vitest run src/shared/tests/{cockpitCardTypeSync,wireContractTypeSync}.test.ts` → 8 + 5 pass / 0 fail；`scripts/asr-health-provider-check.test.mjs` → 8 pass / 0 fail；`server/modules/resident-ledger/tests/resident-ledger-leaf-module.test.ts` → 7 pass / 0 fail。
 - 残余（如实记录，不声称转绿）：关系维度不能靠拆包降低 —— `shared` 根 fanIn 仍 1511、`shared/utils` fanIn 227，`detect_god_packages` 仍以 `highFanIn/highFanOut` 列出它们。本任务修的是 finding 点名的 `tooManyEntities`（顺带消除 `tooManyFiles`）；关系耦合需端口/注入式解耦，应另行立案。
 
 ADR-007 轴读数：
-- L_D: codeLines=24581, docLines=16, ratio=0.001（`phase-declare.js --ld-reading --numstat-file <git diff --numstat develop HEAD>`，verdict=PASS）
+- L_D: codeLines=24597, docLines=0, ratio=0.000（`phase-declare.js --ld-reading --numstat-file <git diff --numstat develop HEAD>`，verdict=PASS）
 - L_G: 不可评 —— shipped `archguard-runner.js` 只评估 quay 自身六个 scope，在本消费者仓读出 NOT EVALUATED（不声称 0 cycles）；目录 SCC 读数改由上表同口径 scanner 提供（G1 不变、无新增）。
