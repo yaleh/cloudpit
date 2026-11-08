@@ -28,12 +28,12 @@ import test from 'node:test';
 import type { CockpitCard } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
-import { createCockpitCardActions } from '../cockpit-card-actions.js';
-import { createCockpitCardRegistry } from '../cockpit-card-registry.js';
+import { createCockpitCardActions } from '../cards/cockpit-card-actions.js';
+import { createCockpitCardRegistry } from '../cards/cockpit-card-registry.js';
 import {
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
-} from '../cockpit-fleet-card-provider.js';
+} from '../fleet/cockpit-fleet-card-provider.js';
 import {
   COCKPIT_FLEET_EXECUTORS_ARGS,
   COCKPIT_FLEET_LOG_EXECUTOR_ID,
@@ -42,7 +42,7 @@ import {
   readCockpitFleetExecutors,
   type CockpitFleetCommandResult,
   type CockpitFleetExecutorDeclaration,
-} from '../cockpit-fleet-executor.js';
+} from '../fleet/cockpit-fleet-executor.js';
 
 const WAITING = '2026-10-27T00:01:00.000Z';
 const SURFACED = '2026-10-27T00:01:05.000Z';

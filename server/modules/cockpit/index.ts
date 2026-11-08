@@ -2,135 +2,26 @@
 // and hands it to the websocket gateway; the gateway drives `hello` / `handleEvent` /
 // `disconnect` through the structurally-typed seam it declares itself, so this barrel never
 // becomes a dependency of `modules/websocket` (the directory stays a leaf for AC-394).
-export { createCockpitModule, createCockpitCardsModule } from '@/modules/cockpit/cockpit.module.js';
+//
+// The package is split by concern into three subpackages, each with its own barrel:
+// `brief/` (the LLM-backed brief service and its spec/prompt/settings family), `cards/`
+// (registry, action channel, feedback store, fixture provider, knowledge readers and the
+// two built-in content executors) and `fleet/` (the quay-fleet provider, its projection and
+// the disposal executors). The directory graph is a DAG — root -> {brief, cards, fleet},
+// cards -> brief, fleet -> cards — so the split adds no directory SCC.
+export { createCockpitModule, createCockpitCardsModule } from './cockpit.module.js';
 export type {
   CockpitCardsModule,
   CockpitCardsModuleDeps,
   CockpitModuleDeps,
-} from '@/modules/cockpit/cockpit.module.js';
-export type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.service.js';
-// The card contract's backend implementation: the registry (projection), the action
-// channel and the fixture provider. Consumers are the composition root and the card
-// criterion; a future fleet adapter implements `ICockpitCardProvider` from
-// `server/shared/interfaces.ts` and is registered here.
-export { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-export type {
-  CockpitCardActions,
-  CockpitCardConfirmRequest,
-  CockpitCardConfirmResult,
-  CockpitCardResendResult,
-  CockpitExecutorResolver,
-} from '@/modules/cockpit/cockpit-card-actions.js';
-export { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
-export type {
-  CockpitCardFeedbackStore,
-  StoredCockpitCardFeedback,
-} from '@/modules/cockpit/cockpit-card-feedback-store.js';
-export { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-export type {
-  CockpitCardProviderDiagnostic,
-  CockpitCardRegistry,
-  ICockpitCardProviderWithDiagnostics,
-  ICockpitCardProviderWithFeedback,
-} from '@/modules/cockpit/cockpit-card-registry.js';
-// The quay-fleet card provider: the fleet read port projected into the card contract, plus the
-// session-ask content completion. Its CLI and digest readings are injected by the composition
-// root (`server/cockpit-fleet-wiring.ts`), which is what keeps this module a leaf.
-export {
-  COCKPIT_FLEET_PROVIDER_ID,
-  createCockpitFleetCardProvider,
-  DEFAULT_COCKPIT_FLEET_CARDS_TTL_MS,
-  DEFAULT_COCKPIT_FLEET_EXECUTORS_TTL_MS,
-} from '@/modules/cockpit/cockpit-fleet-card-provider.js';
-export type {
-  CockpitFleetCardProvider,
-  CockpitFleetCardProviderDeps,
-  CockpitFleetReadOptions,
-} from '@/modules/cockpit/cockpit-fleet-card-provider.js';
-export type { CockpitFleetContentReader } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
-// The fleet disposal executors: the declaration port (`rescue executors --json`) and one
-// executor per declaration. The composition root binds the real child runner; the provider reads
-// the declarations and resolves an implementation only after the registry reports it declared.
-export {
-  COCKPIT_FLEET_EXECUTORS_ARGS,
-  COCKPIT_FLEET_LOG_EXECUTOR_ID,
-  CockpitFleetExecutor,
-  createCockpitFleetExecutors,
-  readCockpitFleetExecutors,
-} from '@/modules/cockpit/cockpit-fleet-executor.js';
-export type {
-  CockpitFleetCommandResult,
-  CockpitFleetExecutorDeclaration,
-  CockpitFleetExecutorDeps,
-  CockpitFleetExecutorParam,
-  CockpitFleetExecutorReading,
-} from '@/modules/cockpit/cockpit-fleet-executor.js';
-export {
-  createCockpitFixtureCardProvider,
-  DEFAULT_COCKPIT_FIXTURE_FEEDBACK,
-  FIXTURE_FEEDBACK_EXECUTOR_ID,
-} from '@/modules/cockpit/cockpit-fixture-card-provider.js';
-export type {
-  CockpitFixtureCardProvider,
-  CockpitFixtureConfirmation,
-  CockpitFixtureFeedbackCall,
-  CockpitFixtureFeedbackMode,
-  CockpitFixtureFeedbackSettings,
-} from '@/modules/cockpit/cockpit-fixture-card-provider.js';
-// The two built-in content executors: `session.send` writes into the subject's
-// conversation, `session.start` opens a new one and navigates to it. They take their
-// outside world as injected functions, so the leaf module never imports a sibling.
-export {
-  COCKPIT_SESSION_SEND_EXECUTOR_ID,
-  CockpitSessionSendExecutor,
-} from '@/modules/cockpit/cockpit-session-send.executor.js';
-export type {
-  CockpitSessionSendDeps,
-  CockpitSessionSendRequest,
-  CockpitSessionSendResult,
-} from '@/modules/cockpit/cockpit-session-send.executor.js';
-export {
-  COCKPIT_SESSION_START_EXECUTOR_ID,
-  COCKPIT_SESSION_PROVIDERS,
-  CockpitSessionStartExecutor,
-  createCockpitSessionStarter,
-  DEFAULT_COCKPIT_SESSION_PROVIDER,
-  resolveSessionProject,
-} from '@/modules/cockpit/cockpit-session-start.executor.js';
-export type {
-  CockpitProjectLookup,
-  CockpitSessionStartCapabilities,
-  CockpitSessionStartControl,
-  CockpitSessionStartDeps,
-  CockpitSessionStartModels,
-  CockpitSessionStartPreferences,
-  CockpitSessionStartRequest,
-  CockpitSessionStartResult,
-  CockpitSessionStartSessions,
-  CockpitSessionStarterDeps,
-} from '@/modules/cockpit/cockpit-session-start.executor.js';
-// The brief service: card content in, BriefSpec (or the deterministic default) out. The
-// composition root injects its gateway/session/transcript seams; the card router calls it.
-export { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
-export type {
-  CockpitBrief,
-  CockpitBriefAuthScheme,
-  CockpitBriefComplete,
-  CockpitBriefCompletion,
-  CockpitBriefCompletionRequest,
-  CockpitBriefDeps,
-  CockpitBriefGateway,
-  CockpitBriefProtocol,
-  CockpitBriefResult,
-} from '@/modules/cockpit/cockpit-brief.service.js';
-export { createCockpitBriefSettingsSource } from '@/modules/cockpit/cockpit-brief-settings.js';
-export type {
-  CockpitBriefSettings,
-  CockpitBriefSettingsSource,
-} from '@/modules/cockpit/cockpit-brief-settings.js';
+} from './cockpit.module.js';
+export type { CockpitHub, CockpitHubDeps } from './cockpit-hub.service.js';
+export * from './brief/index.js';
+export * from './cards/index.js';
+export * from './fleet/index.js';
 // The state vocabulary is published for the hub's consumers (the composition root types its
 // target resolver against `CockpitState`) and for the criteria that drive the pure reducer.
-export { COCKPIT_HISTORY_LIMIT, buildCockpitMessageBody, classifyCockpitUtterance, createCockpitState, reduceCockpit } from '@/modules/cockpit/cockpit.reducer.js';
+export { COCKPIT_HISTORY_LIMIT, buildCockpitMessageBody, classifyCockpitUtterance, createCockpitState, reduceCockpit } from './cockpit.reducer.js';
 export type {
   CockpitDirection,
   CockpitEvent,
@@ -144,4 +35,4 @@ export type {
   CockpitView,
   CockpitVisibleProject,
   CockpitVisibleSet,
-} from '@/modules/cockpit/cockpit.reducer.js';
+} from './cockpit.reducer.js';

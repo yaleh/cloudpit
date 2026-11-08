@@ -88,6 +88,15 @@ const GATE_DIRECTORY_PIN: readonly string[] = [
   'modules/browser-use',
   'modules/cli',
   'modules/cockpit',
+  // SIXTH RECORDED CHANGE (2026-11-08,
+  // gap-routine-architecture-analysis-server-cockpit-god-package): the cockpit
+  // god-package was split into three subpackages (brief / cards / fleet), each
+  // behind an index.ts barrel; the package root keeps the hub service, the
+  // module wiring, the reducer and the barrel. Added here and to the JSON
+  // together, exactly as the recorded-change contract requires.
+  'modules/cockpit/brief',
+  'modules/cockpit/cards',
+  'modules/cockpit/fleet',
   'modules/commands',
   'modules/context-events',
   'modules/database',

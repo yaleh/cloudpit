@@ -3,7 +3,7 @@ id: gap-routine-architecture-analysis-server-cockpit-god-package
 title: "architecture-analysis: archguard 2026-11-08 (scope server):
   modules/cockpit = 24 files / 53 entities, fanIn 12 / fanOut 242 — all four
   thresholds; re-confirmed from the 2026-11-06 "
-status: ready
+status: done
 labels:
   - gap
   - routine-filed
@@ -83,18 +83,3 @@ ADR-007 轴读数：
 - `server/shared/tests/cloudpit-goal-exit-gate.test.ts`
 - `server/shared/tests/cloudpit-goal-exit-gate.baseline.json`
 - `tasks/gap-routine-architecture-analysis-server-cockpit-god-package.md`
-
-## Blocker
-
-**2026-11-08T13:11:07.830Z — worker 未落地（exited-not-landed）**
-
-- 未落地原因：step=merge-develop: Auto-merging server/shared/tests/cloudpit-goal-exit-gate.baseline.json
-CONFLICT (content): Merge conflict in server/shared/tests/cloudpit-goal-exit-gate.baseline.json
-Auto-merging server/shared/tests/cloudpit-goal-exit-gate.test.ts
-Auto-merging server/shared/tests/server-import-cycle-budget.baseline.json
-CONFLICT (content): Merge conflict in server/shared/tests/server-import-cycle-budget.baseline.json
-Auto-merging server/shared/tests/server-import-cycle-budget.test.ts
-Automatic merge failed; fix conflicts and then commit the result.
-- run_id：wk-prod-anchor
-- session_id：4383d3c0-7311-46e6-b120-fb38bbfe80bb
-- 处置：该冲突已在 2026-11-08 续轮于 worktree 内解算并提交（见 Evidence「合并 develop 后复核」），worktree 无 unmerged path。

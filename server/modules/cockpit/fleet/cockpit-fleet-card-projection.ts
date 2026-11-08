@@ -55,8 +55,8 @@ import {
   readKnowledgeCase,
   readKnowledgeDecision,
   readKnowledgePlan,
-} from './cockpit-knowledge-reading.js';
-import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from './cockpit-session-send.executor.js';
+} from '../cards/cockpit-knowledge-reading.js';
+import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from '../cards/cockpit-session-send.executor.js';
 
 /** The content resolver a fleet session-ask card names; the only resolver handled here. */
 const SESSION_ASK_RESOLVER = 'cloudcli.session-ask';

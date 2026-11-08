@@ -25,12 +25,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
-import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-import { createCockpitFleetProjection } from '@/modules/cockpit/cockpit-fleet-card-projection.js';
-import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cockpit-knowledge-decision.js';
-import { knowledgeEvidenceProblem, readKnowledgeCase } from '@/modules/cockpit/cockpit-knowledge-reading.js';
+import { createCockpitCardActions } from '@/modules/cockpit/cards/cockpit-card-actions.js';
+import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cards/cockpit-card-feedback-store.js';
+import { createCockpitCardRegistry } from '@/modules/cockpit/cards/cockpit-card-registry.js';
+import { createCockpitFleetProjection } from '@/modules/cockpit/fleet/cockpit-fleet-card-projection.js';
+import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cards/cockpit-knowledge-decision.js';
+import { knowledgeEvidenceProblem, readKnowledgeCase } from '@/modules/cockpit/cards/cockpit-knowledge-reading.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type {
   CockpitCard,

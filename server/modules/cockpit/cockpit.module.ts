@@ -12,24 +12,27 @@ import { randomBytes } from 'node:crypto';
 
 import express, { type Router } from 'express';
 
-import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-import type {
-  CockpitCardActions,
-  CockpitExecutorResolver,
-} from '@/modules/cockpit/cockpit-card-actions.js';
-import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-import type { CockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
-import type { CockpitFixtureFeedbackSettings } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
-import { createCockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
-import type { CockpitCardFeedbackStore } from '@/modules/cockpit/cockpit-card-feedback-store.js';
-import { createCockpitKnowledgeAuthority } from '@/modules/cockpit/cockpit-knowledge-decision.js';
+import {
+  createCockpitCardActions,
+  createCockpitCardFeedbackStore,
+  createCockpitCardRegistry,
+  createCockpitFixtureCardProvider,
+  createCockpitKnowledgeAuthority,
+  type CockpitCardActions,
+  type CockpitCardFeedbackStore,
+  type CockpitCardRegistry,
+  type CockpitExecutorResolver,
+  type CockpitFixtureFeedbackSettings,
+} from '@/modules/cockpit/cards/index.js';
 import { createCockpitHub } from '@/modules/cockpit/cockpit-hub.service.js';
 import type { CockpitHub, CockpitHubDeps } from '@/modules/cockpit/cockpit-hub.service.js';
-import { createCockpitBriefService } from '@/modules/cockpit/cockpit-brief.service.js';
-import type { CockpitBriefDeps } from '@/modules/cockpit/cockpit-brief.service.js';
-import { fallbackResult, noTokens } from '@/modules/cockpit/cockpit-brief-result.js';
-import type { CockpitBriefResult } from '@/modules/cockpit/cockpit-brief-result.js';
+import {
+  createCockpitBriefService,
+  fallbackResult,
+  noTokens,
+  type CockpitBriefDeps,
+  type CockpitBriefResult,
+} from '@/modules/cockpit/brief/index.js';
 import type {
   CockpitBriefBlock,
   CockpitBriefEvidence,

@@ -365,7 +365,7 @@ test('AC6 (v3.0): cloudpit is the only deep link and the only observation URI sp
 test('AC6b (v3.0): the R14 itemRef formatters keep the legacy spelling, outside the observation grammar', () => {
   // R14 is an item-addressing contract persisted on messages/cards, NOT the observation URI
   // grammar retired above. A blanket `cloudcli://` deletion must not reach these two files.
-  const briefFormatter = readApplicationFile('server/modules/cockpit/cockpit-brief-result.ts');
+  const briefFormatter = readApplicationFile('server/modules/cockpit/brief/cockpit-brief-result.ts');
   assert.ok(
     briefFormatter.includes('`cloudcli://session/${input.sessionId}`'),
     'the brief itemRef formatter must keep writing cloudcli://session/<id>',

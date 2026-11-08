@@ -33,15 +33,15 @@ import {
   type ObservationStore,
 } from '@/modules/observation/index.js';
 
-import { createCockpitCardRegistry } from '../cockpit-card-registry.js';
+import { createCockpitCardRegistry } from '../cards/cockpit-card-registry.js';
 import {
   COCKPIT_FLEET_PROVIDER_ID,
   createCockpitFleetCardProvider,
   type CockpitFleetCardProvider,
   type CockpitFleetCommandResult,
-} from '../cockpit-fleet-card-provider.js';
-import { COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID } from '../cockpit-fleet-executor.js';
-import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from '../cockpit-session-send.executor.js';
+} from '../fleet/cockpit-fleet-card-provider.js';
+import { COCKPIT_MOLTEN_DECIDE_EXECUTOR_ID } from '../fleet/cockpit-fleet-executor.js';
+import { COCKPIT_SESSION_SEND_EXECUTOR_ID } from '../cards/cockpit-session-send.executor.js';
 
 const WAITING = '2026-10-27T00:01:00.000Z';
 const SURFACED = '2026-10-27T00:01:05.000Z';

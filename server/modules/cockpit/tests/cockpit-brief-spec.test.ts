@@ -24,8 +24,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PRESETS } from '@/modules/cockpit/cockpit-brief-presets.js';
-import { checkBrief, expandBrief } from '@/modules/cockpit/cockpit-brief-spec.js';
+import { PRESETS } from '@/modules/cockpit/brief/cockpit-brief-presets.js';
+import { checkBrief, expandBrief } from '@/modules/cockpit/brief/cockpit-brief-spec.js';
 
 /* The experiment's fixtures are mutated in place (a field is deleted or a value changed), so the
  * document is deliberately loose. The checker under test is the thing being typed. */

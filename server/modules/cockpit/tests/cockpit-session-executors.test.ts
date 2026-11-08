@@ -29,16 +29,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
-import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cockpit-fixture-card-provider.js';
-import { createCockpitFleetCardProvider } from '@/modules/cockpit/cockpit-fleet-card-provider.js';
+import { createCockpitCardActions } from '@/modules/cockpit/cards/cockpit-card-actions.js';
+import { createCockpitCardRegistry } from '@/modules/cockpit/cards/cockpit-card-registry.js';
+import { createCockpitFixtureCardProvider } from '@/modules/cockpit/cards/cockpit-fixture-card-provider.js';
+import { createCockpitFleetCardProvider } from '@/modules/cockpit/fleet/cockpit-fleet-card-provider.js';
 import {
   COCKPIT_SESSION_SEND_EXECUTOR_ID,
   CockpitSessionSendExecutor,
   type CockpitSessionSendRequest,
   type CockpitSessionSendResult,
-} from '@/modules/cockpit/cockpit-session-send.executor.js';
+} from '@/modules/cockpit/cards/cockpit-session-send.executor.js';
 import {
   COCKPIT_SESSION_START_EXECUTOR_ID,
   CockpitSessionStartExecutor,
@@ -51,7 +51,7 @@ import {
   type CockpitSessionStartPreferences,
   type CockpitSessionStartRequest,
   type CockpitSessionStartSessions,
-} from '@/modules/cockpit/cockpit-session-start.executor.js';
+} from '@/modules/cockpit/cards/cockpit-session-start.executor.js';
 import { providerCapabilitiesService } from '@/modules/providers/index.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type {

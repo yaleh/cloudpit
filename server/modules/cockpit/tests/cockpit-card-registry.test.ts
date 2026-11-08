@@ -35,8 +35,8 @@ import express, {
   type Router,
 } from 'express';
 
-import { createCockpitCardActions } from '@/modules/cockpit/cockpit-card-actions.js';
-import { createCockpitCardRegistry } from '@/modules/cockpit/cockpit-card-registry.js';
+import { createCockpitCardActions } from '@/modules/cockpit/cards/cockpit-card-actions.js';
+import { createCockpitCardRegistry } from '@/modules/cockpit/cards/cockpit-card-registry.js';
 import { createCockpitCardsModule } from '@/modules/cockpit/cockpit.module.js';
 import type { ICockpitActionExecutor, ICockpitCardProvider } from '@/shared/interfaces.js';
 import type { CockpitCard, CockpitCardOption } from '@/shared/types.js';
